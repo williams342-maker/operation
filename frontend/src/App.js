@@ -5,8 +5,10 @@ import { CartProvider } from "./lib/cart";
 
 import Nav from "./components/sections/Nav";
 import Hero from "./components/sections/Hero";
-import MakerShowcase from "./components/sections/MakerShowcase";
-import Categories from "./components/sections/Categories";
+import CategoryStrip from "./components/sections/CategoryStrip";
+import ProductRail from "./components/sections/ProductRail";
+import PromoStrip from "./components/sections/PromoStrip";
+import FeaturedShops from "./components/sections/FeaturedShops";
 import Process from "./components/sections/Process";
 import ForMakers from "./components/sections/ForMakers";
 import Reviews from "./components/sections/Reviews";
@@ -26,8 +28,13 @@ import CheckoutSuccess from "./pages/CheckoutSuccess";
 const Home = () => (
   <>
     <Hero />
-    <MakerShowcase />
-    <Categories />
+    <CategoryStrip />
+    <ProductRail title="Editor's Picks" eyebrow="◆ Featured" testId="rail-featured" />
+    <PromoStrip />
+    <ProductRail title="Wall Art We Love" eyebrow="◆ Wall Art" category="Wall Art" viewAllHref="/shop?category=Wall%20Art" testId="rail-wall-art" />
+    <ProductRail title="Made-to-Order Signs" eyebrow="◆ Custom Signs" category="Custom Signs" viewAllHref="/shop?category=Custom%20Signs" testId="rail-signs" />
+    <FeaturedShops />
+    <ProductRail title="Plasma-Cut Originals" eyebrow="◆ Technique · Plasma" technique="PLASMA" viewAllHref="/shop" testId="rail-plasma" />
     <Process />
     <ForMakers />
     <Reviews />

@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { fetchProducts } from "../lib/api";
 import ProductCard from "../components/ProductCard";
 import { Search } from "lucide-react";
@@ -7,12 +8,18 @@ const CATS = ["All", "Wall Art", "Custom Signs", "Outdoor Art"];
 const TECHS = ["All", "PLASMA", "LASER", "ROUTER", "CUSTOM"];
 
 export default function ShopPage() {
+  const [params] = useSearchParams();
   const [products, setProducts] = useState([]);
-  const [cat, setCat] = useState("All");
+  const [cat, setCat] = useState(params.get("category") || "All");
   const [tech, setTech] = useState("All");
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState(params.get("q") || "");
 
   useEffect(() => { fetchProducts().then(setProducts); }, []);
+  useEffect(() => {
+    const urlQ = params.get("q"); const urlC = params.get("category");
+    if (urlQ !== null) setQ(urlQ);
+    if (urlC) setCat(urlC);
+  }, [params]);
 
   const filtered = useMemo(() => products.filter((p) => {
     if (cat !== "All" && p.category !== cat) return false;
