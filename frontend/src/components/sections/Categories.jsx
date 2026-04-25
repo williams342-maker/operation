@@ -1,5 +1,6 @@
 import React from "react";
 import { motion } from "framer-motion";
+import { Link } from "react-router-dom";
 
 const categories = [
   {
@@ -57,7 +58,7 @@ export default function Categories() {
               className="group relative border-b border-[#262626] hover:bg-[#0f0f0f] transition-colors duration-500"
               data-testid={`category-${c.no}`}
             >
-              <a href="#shop" className="grid grid-cols-12 gap-4 md:gap-8 py-10 md:py-14 items-center px-2 md:px-6">
+              <Link to={`/shop?category=${encodeURIComponent(c.title)}`} className="grid grid-cols-12 gap-4 md:gap-8 py-10 md:py-14 items-center px-2 md:px-6">
                 <div className="col-span-2 md:col-span-1 font-mono text-sm md:text-lg text-[#a3a3a3] group-hover:text-[#ff4500] transition">
                   {c.no}
                 </div>
@@ -90,7 +91,7 @@ export default function Categories() {
                   transition={{ duration: 0.4 }}
                   style={{ display: "none" }}
                 />
-              </a>
+              </Link>
 
               {/* Always-visible thumbnail (desktop) */}
               <div className="pointer-events-none absolute right-4 md:right-12 top-1/2 -translate-y-1/2 hidden lg:block w-44 h-56 overflow-hidden opacity-0 group-hover:opacity-100 transition-opacity duration-500">

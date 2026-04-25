@@ -1,18 +1,22 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X } from "lucide-react";
+import { Menu, X, ShoppingBag } from "lucide-react";
+import { Link } from "react-router-dom";
+import { useCart } from "../../lib/cart";
+import ActivityTicker from "./ActivityTicker";
 
 const links = [
-  { label: "Showcase", href: "#showcase" },
-  { label: "Categories", href: "#categories" },
-  { label: "Process", href: "#process" },
-  { label: "For Makers", href: "#makers" },
-  { label: "Custom", href: "#custom" },
+  { label: "Shop", href: "/shop", route: true },
+  { label: "Makers", href: "/makers", route: true },
+  { label: "Custom", href: "/custom-order", route: true },
+  { label: "Apply", href: "/apply", route: true },
+  { label: "Journal", href: "/journal", route: true },
 ];
 
 export default function Nav() {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const { count } = useCart() || { count: 0 };
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
@@ -26,12 +30,13 @@ export default function Nav() {
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.7, ease: [0.22, 0.61, 0.36, 1] }}
       className={`fixed top-0 left-0 right-0 z-50 transition-colors duration-500 ${
-        scrolled ? "bg-black/85 backdrop-blur-xl border-b border-[#262626]" : "bg-transparent"
+        scrolled ? "bg-black/85 backdrop-blur-xl border-b border-[#262626]" : "bg-black/40 backdrop-blur-sm"
       }`}
       data-testid="site-nav"
     >
-      <div className="w-full max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12 flex items-center justify-between py-5">
-        <a href="#top" className="flex items-center gap-3 group" data-testid="nav-logo">
+      <ActivityTicker />
+      <div className="w-full max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12 flex items-center justify-between py-4">
+        <Link to="/" className="flex items-center gap-3 group" data-testid="nav-logo">
           <div className="w-9 h-9 border border-[#ff4500] flex items-center justify-center">
             <span className="font-display text-[#ff4500] text-xl">CM</span>
           </div>
@@ -41,29 +46,34 @@ export default function Nav() {
               EST · Precision Craft
             </span>
           </div>
-        </a>
+        </Link>
 
         <nav className="hidden lg:flex items-center gap-10" data-testid="nav-links">
           {links.map((l) => (
-            <a
+            <Link
               key={l.href}
-              href={l.href}
+              to={l.href}
               className="industrial-link font-mono text-xs uppercase tracking-[0.22em] text-[#e5e5e5] hover:text-[#ff4500]"
               data-testid={`nav-link-${l.label.toLowerCase().replace(/\s/g, "-")}`}
             >
               {l.label}
-            </a>
+            </Link>
           ))}
         </nav>
 
         <div className="flex items-center gap-3">
-          <a
-            href="#shop"
-            className="hidden md:inline-flex btn-industrial btn-primary"
-            data-testid="nav-shop-btn"
+          <Link
+            to="/cart"
+            className="relative inline-flex items-center gap-2 px-4 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em] transition"
+            data-testid="nav-cart-btn"
           >
-            Shop All <span aria-hidden>→</span>
-          </a>
+            <ShoppingBag size={14} /> Cart
+            {count > 0 && (
+              <span className="ml-1 bg-[#ff4500] text-white text-[10px] font-mono px-1.5 py-0.5">
+                {count}
+              </span>
+            )}
+          </Link>
           <button
             onClick={() => setOpen(true)}
             className="lg:hidden p-2 border border-[#262626] hover:border-[#ff4500] transition"
@@ -98,13 +108,13 @@ export default function Nav() {
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: i * 0.07 }}
                 >
-                  <a
-                    href={l.href}
+                  <Link
+                    to={l.href}
                     onClick={() => setOpen(false)}
                     className="font-display text-5xl block hover:text-[#ff4500] transition"
                   >
                     {l.label}
-                  </a>
+                  </Link>
                 </motion.li>
               ))}
             </ul>

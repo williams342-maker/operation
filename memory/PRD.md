@@ -1,79 +1,72 @@
-# Crafters Market — Modernized Homepage (Handoff Build)
+# Crafters Market — Modernized Homepage + Full Marketplace (Handoff Build)
 
 ## Original Problem Statement
 > "look at my current website craftersmarket.org make it more modern and dynamic"
 
-User selected: **Bold editorial / industrial** aesthetic, with **animation**, modernized for **handoff** to the existing site/team.
-
-## Reference Site
-https://craftersmarket.org — A marketplace for handcrafted CNC art, custom signs, and metal/wood creations made by approved artisan makers (plasma cutting, laser engraving, wood routing).
+User selected: **Bold editorial / industrial** aesthetic, animation, modernized for handoff. Then expanded scope to **a + b + c**: full marketplace build, Live Makers ticker enhancement, and P2 backlog.
 
 ## Architecture
-- **Pure frontend handoff** — React 19 + Tailwind + Framer Motion + react-fast-marquee
-- No backend logic touched (default FastAPI starter remains)
-- Single-page composition: drop-in `Home` page assembled from 9 modular section components in `/app/frontend/src/components/sections/`
+- **Backend:** FastAPI + MongoDB (Motor), Stripe Checkout (test mode via `emergentintegrations`)
+- **Frontend:** React 19 + React Router + Tailwind + Framer Motion + react-fast-marquee
+- **Theme:** Anton/JetBrains Mono dark industrial (`#0a0a0a` / `#ff4500`)
 
-## Design System (see /app/design_guidelines.json)
-- **Archetype:** Swiss Brutalist / Industrial Dark
-- **Palette:** `#0a0a0a` background, `#e5e5e5` foreground, `#ff4500` safety-orange / plasma-spark accent
-- **Type:** `Anton` for massive cinematic display, `JetBrains Mono` for body/labels (no Inter, no purple gradients)
-- **Layout:** Asymmetric bento grids, generous spacing, left/right alignment (never centered)
-- **Surfaces:** Flat `#121212` cards with sharp 1px `#262626` borders, no rounded corners, no drop shadows
-- **Motion:** Framer Motion (parallax hero, staggered word reveal, scroll-triggered fades, hover translate-up), `react-fast-marquee` kinetic tickers
+## Backend (/app/backend/server.py)
+**Collections:** products, makers, reviews, blog_posts, custom_orders, maker_applications, activity_events, payment_transactions
 
-## Sections Implemented
-1. **Nav** — Sticky glassmorphism on scroll, logo wordmark, animated underline links, mobile fullscreen menu
-2. **Hero** — Cinematic welding-spark backdrop with parallax scroll, 4-line word-reveal headline ("FORGED BY HAND. CUT BY MACHINE."), live-makers strip, dual CTAs, bottom info ticker
-3. **Maker Showcase** — Asymmetric bento (col-span-7 hero card with row-span-2, plus three supporting cards), maker badges with initials, technique tags (PLASMA / LASER / ROUTER / CUSTOM), hover image zoom
-4. **Categories** — Editorial numbered row list (01/02/03 — Wall Art, Custom Signs, Outdoor Art), oversized type that translates on hover, contextual thumbnails
-5. **Process** — Background marquee tickers ("DESIGN · TOOLPATH · CARVE · DETAIL ·"), large "live feed" workshop image with overlay tags, 4-step ordered list (CAD → CNC → Detail → Finish)
-6. **For Makers** — Full-bleed safety-orange editorial poster with diagonal stripe noise, oversized "BUILT FOR CNC GARAGE MAKERS" headline, 4-perk grid, dual CTAs
-7. **Reviews** — 3-column verified reviews with massive display type, 4.97/5 hero rating, hairline column dividers
-8. **Custom CTA** — "BRING YOUR VISION TO LIFE" with tri-state typography (solid / orange / outline), bullet checklist, dual CTAs, "CUSTOM · ONE-OF-ONE · BUILT TO ORDER" marquee strip
-9. **Footer** — Brand block with contact, 3-column link grid, full-width oversized "CRAFTERS MARKET" outline wordmark, admin access link
+**Endpoints (all `/api`):**
+- `GET /products` (filter: category/technique/q/featured/maker), `GET /products/:slug`
+- `GET /makers`, `GET /makers/:slug`
+- `GET /reviews`, `GET /blog`, `GET /blog/:slug`
+- `GET /activity` — live makers ticker feed
+- `POST /custom-orders` — custom order brief (creates activity event)
+- `POST /maker-applications` — maker apply form (creates activity event)
+- `POST /checkout/session` — Stripe checkout (server-side priced from MongoDB; never trusts FE prices)
+- `GET /checkout/status/:session_id` — polling endpoint; on `paid`, emits a "sold" activity event
+- `POST /webhook/stripe` — Stripe webhook handler
 
-## File Map
-```
-/app/frontend/src/
-├── App.js                              # Composes Home page
-├── App.css                             # Minimal app shell
-├── index.css                           # Theme tokens, fonts, utilities (.font-display, .text-outline, .btn-industrial, .grain, etc.)
-└── components/sections/
-    ├── Nav.jsx
-    ├── Hero.jsx
-    ├── MakerShowcase.jsx
-    ├── Categories.jsx
-    ├── Process.jsx
-    ├── ForMakers.jsx
-    ├── Reviews.jsx
-    ├── CustomCTA.jsx
-    └── Footer.jsx
-/app/frontend/public/index.html         # Loads Anton + JetBrains Mono via Google Fonts
-```
+Auto-seeds 6 products, 2 makers, 4 reviews, 3 blog posts, 6 activity events on startup if collections are empty.
+
+## Frontend Pages
+- `/` — Animated home (Hero → Showcase → Categories → Process → ForMakers → Reviews → CustomCTA)
+- `/shop` — Search + category + technique filters; product grid
+- `/shop/:slug` — Product detail with image gallery, qty, add-to-cart, maker callout
+- `/makers` — Maker roster grid
+- `/makers/:slug` — Maker detail + their listings (cinematic cover hero)
+- `/custom-order` — Brief form (name, email, project type, material, size, budget, description)
+- `/apply` — Maker application form (multi-select techniques)
+- `/journal` + `/journal/:slug` — Blog index + detail
+- `/cart` — Cart with qty controls, persistence via localStorage, Stripe checkout button
+- `/checkout/success` — Stripe redirect handler with polling (max 8 tries) and cart auto-clear on `paid`
+
+## Highlights
+- **Live Activity Ticker** at the top of every page (cycles every 3.5s, refreshes from API every 30s, color-coded by event kind: sold/shipped/listed/applied)
+- **Stripe checkout** computes totals server-side, creates `payment_transactions` record before redirect, polls status post-redirect
+- **Cart context** via React Context + localStorage
+- **All sections** previously hardcoded on home (showcase, reviews) now hydrate from the API with seed fallback
 
 ## What's Implemented (2026-01-25)
-- Full responsive homepage with all 9 sections styled in industrial dark theme
-- Framer Motion animations: parallax hero, staggered word reveal, scroll-triggered fade-up, hover micro-interactions, mobile menu transitions
-- Two kinetic marquees (Process backdrop + Custom CTA strip)
-- Grain noise overlay on body via SVG fractal
-- Custom industrial CTA buttons with hover invert
-- All interactive elements have unique `data-testid` attributes
-- Verified visually via screenshots (hero, showcase, categories, process, makers, custom CTA all rendering correctly)
+- Initial bold industrial homepage design (Hero, Showcase, Categories, Process, ForMakers, Reviews, CustomCTA, Footer)
+- Full marketplace build with backend, 11 routed pages, Stripe checkout, live activity ticker, cart, custom-order & apply forms, journal
 
-## Backlog / P1
-- Wire individual product/category routes (currently `#shop` placeholders)
-- "Custom Order" form modal with validation + email notification
-- Maker application form
-- Real product/maker data from CMS or backend
-- Cart + Stripe checkout integration
+## File Map (key new files)
+```
+backend/server.py                        # FastAPI app with all routes + seed
+frontend/src/lib/api.js                  # axios client
+frontend/src/lib/cart.js                 # cart context + localStorage
+frontend/src/components/ProductCard.jsx
+frontend/src/components/sections/        # 9 home sections + ActivityTicker
+frontend/src/pages/                      # 9 routed pages
+```
 
-## Backlog / P2
-- Rich product detail pages with 3D viewer for CNC pieces
-- Maker profile pages and storefronts
-- Search + filter for the full marketplace
-- Press / About / Sustainability content pages
-- Blog/Journal for the "Crafted with Precision" stories
+## Backlog
+- 3D viewer for CNC pieces (currently using interactive 4-image gallery as proxy)
+- Admin dashboard (review custom orders + maker applications)
+- Real shipping calculator + tax engine in checkout
+- Maker auth + self-serve listing creation
+- Email transactional layer (Resend/SendGrid) for order confirmations & application replies
+- SEO sitemap + structured data
 
 ## Next Action Items
-- User reviews handoff and provides feedback on copy / sections
-- Decide whether to extend into full marketplace build or hand React components to existing Crafters Market team to integrate
+- Test end-to-end purchase flow with a Stripe test card
+- Hook real images for new seed products
+- Decide on email notification provider for orders/applications

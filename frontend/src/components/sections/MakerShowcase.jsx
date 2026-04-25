@@ -1,8 +1,10 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { ArrowUpRight } from "lucide-react";
+import { Link } from "react-router-dom";
+import { fetchProducts } from "../../lib/api";
 
-const products = [
+const fallback = [
   {
     title: "Mountain Range Silhouette",
     cat: "Wall Art",
@@ -58,9 +60,9 @@ function ProductCard({ p, i }) {
       viewport={{ once: true, amount: 0.2 }}
       transition={{ delay: (i % 3) * 0.1, duration: 0.8, ease: [0.22, 0.61, 0.36, 1] }}
       className={`group relative bg-[#121212] border border-[#262626] hover:border-[#ff4500] transition-colors duration-500 overflow-hidden ${p.span}`}
-      data-testid={`product-${p.title.toLowerCase().replace(/\s/g, "-")}`}
+      data-testid={`product-${(p.slug || p.title).toLowerCase().replace(/\s/g, "-")}`}
     >
-      <div className={`relative overflow-hidden ${p.tall ? "aspect-[4/5]" : "aspect-[4/3]"}`}>
+      <Link to={p.slug ? `/shop/${p.slug}` : "/shop"} className={`block relative overflow-hidden ${p.tall ? "aspect-[4/5]" : "aspect-[4/3]"}`}>
         <motion.img
           src={p.img}
           alt={p.title}
@@ -79,7 +81,7 @@ function ProductCard({ p, i }) {
             <ArrowUpRight size={18} className="text-white" />
           </div>
         </div>
-      </div>
+      </Link>
       <div className="p-6 md:p-8 border-t border-[#262626]">
         <h3 className="font-display text-2xl md:text-3xl mb-3">{p.title}</h3>
         <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed mb-5">{p.desc}</p>
@@ -103,7 +105,28 @@ function ProductCard({ p, i }) {
   );
 }
 
+const SPANS = ["lg:col-span-7 lg:row-span-2", "lg:col-span-5", "lg:col-span-5", "lg:col-span-7"];
+
 export default function MakerShowcase() {
+  const [products, setProducts] = useState([]);
+  useEffect(() => {
+    fetchProducts({ featured: true }).then((data) => {
+      const items = (data && data.length ? data : fallback).slice(0, 4).map((p, i) => ({
+        ...p,
+        title: p.title,
+        cat: p.category, price: `$${p.price}`,
+        technique: p.technique,
+        maker: p.maker || p.maker_slug || "",
+        location: p.location || "",
+        desc: p.description || p.desc || "",
+        img: p.images?.[0] || p.img,
+        span: p.span || SPANS[i] || "lg:col-span-6",
+        tall: i === 0,
+      }));
+      setProducts(items);
+    }).catch(() => setProducts(fallback));
+  }, []);
+
   return (
     <section id="showcase" className="relative w-full py-24 md:py-32 bg-[#0a0a0a] border-y border-[#262626]">
       <div className="w-full max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12">
@@ -147,12 +170,12 @@ export default function MakerShowcase() {
             54+ pieces · Updated weekly
           </div>
           <div className="flex flex-wrap gap-4">
-            <a href="#shop" className="btn-industrial border-[#e5e5e5] text-[#e5e5e5]" data-testid="showcase-browse-all">
+            <Link to="/shop" className="btn-industrial border-[#e5e5e5] text-[#e5e5e5]" data-testid="showcase-browse-all">
               Browse all listings →
-            </a>
-            <a href="#custom" className="btn-industrial btn-primary" data-testid="showcase-custom-order">
+            </Link>
+            <Link to="/custom-order" className="btn-industrial btn-primary" data-testid="showcase-custom-order">
               Custom order
-            </a>
+            </Link>
           </div>
         </div>
       </div>

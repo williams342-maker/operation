@@ -52,10 +52,10 @@ export default function CustomCTA() {
             </li>
           </ul>
           <div className="mt-12 flex flex-wrap gap-4">
-            <a href="#start" className="btn-industrial btn-primary" data-testid="custom-start-btn">
+            <a href="/custom-order" className="btn-industrial btn-primary" data-testid="custom-start-btn">
               Start Your Order →
             </a>
-            <a href="#brief" className="btn-industrial border-[#e5e5e5] text-[#e5e5e5]" data-testid="custom-brief-btn">
+            <a href="/custom-order" className="btn-industrial border-[#e5e5e5] text-[#e5e5e5]" data-testid="custom-brief-btn">
               Send a Brief
             </a>
           </div>

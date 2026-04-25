@@ -1,8 +1,9 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Quote } from "lucide-react";
+import { fetchReviews } from "../../lib/api";
 
-const reviews = [
+const seed = [
   {
     text: "The custom sign I ordered for our business exceeded every expectation. The metal work is absolutely stunning.",
     name: "Sarah M.",
@@ -24,6 +25,10 @@ const reviews = [
 ];
 
 export default function Reviews() {
+  const [reviews, setReviews] = useState(seed);
+  useEffect(() => {
+    fetchReviews().then((d) => d?.length && setReviews(d.slice(0, 3))).catch(() => {});
+  }, []);
   return (
     <section className="relative w-full py-24 md:py-32 bg-[#0a0a0a]">
       <div className="w-full max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12">

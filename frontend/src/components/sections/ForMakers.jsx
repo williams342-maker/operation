@@ -82,7 +82,7 @@ export default function ForMakers() {
 
           <div className="mt-10 flex flex-wrap gap-4">
             <a
-              href="#apply"
+              href="/apply"
               className="btn-industrial bg-black text-white border-black hover:bg-white hover:text-black hover:border-black"
               data-testid="makers-apply-btn"
             >

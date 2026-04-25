@@ -1,89 +1,472 @@
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI, APIRouter, HTTPException, Request
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
-import os
-import logging
+import os, uuid, logging, random
 from pathlib import Path
-from pydantic import BaseModel, Field, ConfigDict
-from typing import List
-import uuid
+from pydantic import BaseModel, Field, EmailStr, ConfigDict
+from typing import List, Optional, Dict
 from datetime import datetime, timezone
-
+from emergentintegrations.payments.stripe.checkout import (
+    StripeCheckout, CheckoutSessionRequest
+)
 
 ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / '.env')
+load_dotenv(ROOT_DIR / ".env")
 
-# MongoDB connection
-mongo_url = os.environ['MONGO_URL']
+mongo_url = os.environ["MONGO_URL"]
 client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+db = client[os.environ["DB_NAME"]]
 
-# Create the main app without a prefix
-app = FastAPI()
+STRIPE_API_KEY = os.environ.get("STRIPE_API_KEY", "")
 
-# Create a router with the /api prefix
-api_router = APIRouter(prefix="/api")
+app = FastAPI(title="Crafters Market API")
+api = APIRouter(prefix="/api")
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logger = logging.getLogger("crafters")
 
 
-# Define Models
-class StatusCheck(BaseModel):
-    model_config = ConfigDict(extra="ignore")  # Ignore MongoDB's _id field
-    
+def now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+# ---------- Models ----------
+class Product(BaseModel):
+    model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    client_name: str
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    slug: str
+    title: str
+    category: str          # "Wall Art", "Custom Signs", "Outdoor Art"
+    technique: str         # PLASMA, LASER, ROUTER, CUSTOM
+    price: float
+    description: str
+    materials: List[str] = []
+    dimensions: Optional[str] = None
+    images: List[str] = []
+    maker_slug: str
+    in_stock: int = 4
+    featured: bool = False
+    created_at: str = Field(default_factory=now_iso)
 
-class StatusCheckCreate(BaseModel):
-    client_name: str
 
-# Add your routes to the router instead of directly to app
-@api_router.get("/")
+class Maker(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    slug: str
+    name: str
+    initials: str
+    location: str
+    bio: str
+    techniques: List[str] = []
+    portrait: str
+    cover: str
+    listings_count: int = 0
+    rating: float = 4.95
+    created_at: str = Field(default_factory=now_iso)
+
+
+class Review(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    location: str
+    rating: int = 5
+    text: str
+    product_slug: Optional[str] = None
+    created_at: str = Field(default_factory=now_iso)
+
+
+class BlogPost(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    slug: str
+    title: str
+    excerpt: str
+    body: str
+    cover: str
+    author: str
+    read_min: int = 4
+    created_at: str = Field(default_factory=now_iso)
+
+
+class CustomOrder(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    email: EmailStr
+    phone: Optional[str] = None
+    project_type: str
+    material: str
+    size: Optional[str] = None
+    budget: Optional[str] = None
+    description: str
+    created_at: str = Field(default_factory=now_iso)
+
+
+class CustomOrderCreate(BaseModel):
+    name: str
+    email: EmailStr
+    phone: Optional[str] = None
+    project_type: str
+    material: str
+    size: Optional[str] = None
+    budget: Optional[str] = None
+    description: str
+
+
+class MakerApplication(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    email: EmailStr
+    studio_name: str
+    location: str
+    techniques: List[str] = []
+    portfolio_url: Optional[str] = None
+    about: str
+    created_at: str = Field(default_factory=now_iso)
+
+
+class MakerApplicationCreate(BaseModel):
+    name: str
+    email: EmailStr
+    studio_name: str
+    location: str
+    techniques: List[str] = []
+    portfolio_url: Optional[str] = None
+    about: str
+
+
+class CartItem(BaseModel):
+    product_id: str
+    quantity: int = 1
+
+
+class CheckoutRequest(BaseModel):
+    items: List[CartItem]
+    origin_url: str
+    customer_email: Optional[EmailStr] = None
+
+
+class ActivityEvent(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    kind: str  # sold | shipped | listed | applied
+    text: str
+    location: str
+    created_at: str = Field(default_factory=now_iso)
+
+
+# ---------- Seed Data ----------
+SEED_MAKERS = [
+    {"slug": "iron-and-oak", "name": "Iron & Oak Studio", "initials": "IR", "location": "Nashville, TN",
+     "bio": "Father-and-son shop forging wall art and custom signs from raw oak and 14ga steel.",
+     "techniques": ["PLASMA", "ROUTER"],
+     "portrait": "https://images.unsplash.com/photo-1764115424737-25aca6f47835?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDF8MHwxfHNlYXJjaHwxfHxjbmMlMjBwbGFzbWElMjBjdXR0aW5nJTIwbWV0YWwlMjB3b3JrZXJ8ZW58MHx8fHwxNzc3MTU0OTc2fDA&ixlib=rb-4.1.0&q=85",
+     "cover": "https://images.pexels.com/photos/17180807/pexels-photo-17180807.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+     "listings_count": 14, "rating": 4.97},
+    {"slug": "metalart-pro", "name": "MetalArt Pro Shop", "initials": "ME", "location": "Austin, TX",
+     "bio": "Industrial design studio specializing in laser-cut steel signage and bespoke business pieces.",
+     "techniques": ["LASER", "CUSTOM"],
+     "portrait": "https://images.unsplash.com/photo-1689960253768-72a12bc8320f?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDF8MHwxfHNlYXJjaHw0fHxjbmMlMjBwbGFzbWElMjBjdXR0aW5nJTIwbWV0YWwlMjB3b3JrZXJ8ZW58MHx8fHwxNzc3MTU0OTc2fDA&ixlib=rb-4.1.0&q=85",
+     "cover": "https://images.unsplash.com/photo-1745448797900-35d08e85e9db?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1NzZ8MHwxfHNlYXJjaHwxfHx3ZWxkaW5nJTIwc3BhcmtzJTIwZGFyayUyMGluZHVzdHJpYWx8ZW58MHx8fHwxNzc3MTU0OTg0fDA&ixlib=rb-4.1.0&q=85",
+     "listings_count": 22, "rating": 4.96},
+]
+
+P_MOUNTAIN = "https://images.unsplash.com/photo-1705661902771-28a65b16ea98?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2MzR8MHwxfHNlYXJjaHwzfHxtb2Rlcm4lMjBtZXRhbCUyMHdhbGwlMjBhcnQlMjBzaWdufGVufDB8fHx8MTc3NzE1NDk4NHww&ixlib=rb-4.1.0&q=85"
+P_WOOD = "https://images.unsplash.com/photo-1776142519609-a4858781a01a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MDV8MHwxfHNlYXJjaHw0fHxjdXN0b20lMjB3b29kJTIwY2FydmVkJTIwd2FsbCUyMHNpZ258ZW58MHx8fHwxNzc3MTU0OTc2fDA&ixlib=rb-4.1.0&q=85"
+P_CNC = "https://images.pexels.com/photos/17180807/pexels-photo-17180807.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"
+P_LASER = "https://images.unsplash.com/photo-1689960253768-72a12bc8320f?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDF8MHwxfHNlYXJjaHw0fHxjbmMlMjBwbGFzbWElMjBjdXR0aW5nJTIwbWV0YWwlMjB3b3JrZXJ8ZW58MHx8fHwxNzc3MTU0OTc2fDA&ixlib=rb-4.1.0&q=85"
+
+SEED_PRODUCTS = [
+    {"slug": "mountain-range-silhouette", "title": "Mountain Range Silhouette", "category": "Wall Art",
+     "technique": "PLASMA", "price": 149.0, "maker_slug": "iron-and-oak", "featured": True,
+     "description": '36" wide mountain scene cut from 14ga mild steel. Raw steel finish with clear coat.',
+     "materials": ["14ga mild steel", "Clear coat"], "dimensions": '36" × 14"',
+     "images": [P_MOUNTAIN, P_LASER, P_CNC]},
+    {"slug": "rustic-family-name-sign", "title": "Rustic Family Name Sign", "category": "Custom Signs",
+     "technique": "ROUTER", "price": 79.0, "maker_slug": "iron-and-oak", "featured": True,
+     "description": 'Custom family name sign in 3/4" oak. Up to 12 characters. Stained walnut finish.',
+     "materials": ["3/4\" oak hardwood", "Walnut stain"], "dimensions": '24" × 8"',
+     "images": [P_WOOD, P_MOUNTAIN]},
+    {"slug": "custom-business-sign", "title": "Custom Business Sign", "category": "Custom Signs",
+     "technique": "CUSTOM", "price": 325.0, "maker_slug": "metalart-pro", "featured": True,
+     "description": 'Your business name and logo cut from 1/4" steel. Up to 36" wide. Multiple finishes.',
+     "materials": ["1/4\" steel", "Powder coat"], "dimensions": 'Up to 36" wide',
+     "images": [P_CNC, P_LASER]},
+    {"slug": "industrial-address-numbers", "title": "Industrial Address Numbers", "category": "Wall Art",
+     "technique": "LASER", "price": 59.0, "maker_slug": "metalart-pro", "featured": True,
+     "description": "Laser-cut steel address numbers, 6\" tall. Powder coated matte black. Set of 4.",
+     "materials": ["Steel", "Matte black powder coat"], "dimensions": '6" tall · set of 4',
+     "images": [P_LASER, P_MOUNTAIN]},
+    {"slug": "outdoor-compass-medallion", "title": "Outdoor Compass Medallion", "category": "Outdoor Art",
+     "technique": "PLASMA", "price": 219.0, "maker_slug": "metalart-pro",
+     "description": '24" diameter compass rose, weather-resistant powder coat. Rust-proof for life outdoors.',
+     "materials": ["Cor-Ten steel", "Outdoor powder coat"], "dimensions": '24" diameter',
+     "images": [P_CNC, P_MOUNTAIN]},
+    {"slug": "carved-oak-wedding-monogram", "title": "Carved Oak Wedding Monogram", "category": "Custom Signs",
+     "technique": "ROUTER", "price": 189.0, "maker_slug": "iron-and-oak",
+     "description": "Hand-finished oak monogram with gold leaf inlay. Build to your initials.",
+     "materials": ["Oak hardwood", "Gold leaf"], "dimensions": '20" × 20"',
+     "images": [P_WOOD, P_LASER]},
+]
+
+SEED_REVIEWS = [
+    {"name": "Sarah M.", "location": "Austin, TX", "rating": 5,
+     "text": "The custom sign I ordered for our business exceeded every expectation. The metal work is absolutely stunning."},
+    {"name": "James & Lia R.", "location": "Denver, CO", "rating": 5,
+     "text": "Ordered a wedding monogram and it's the most beautiful piece in our home. Incredible craftsmanship."},
+    {"name": "David K.", "location": "Nashville, TN", "rating": 5,
+     "text": "Fast shipping, perfect quality. The CNC precision really shows — every cut is clean and intentional."},
+    {"name": "Maria O.", "location": "Phoenix, AZ", "rating": 5,
+     "text": "The compass medallion has held up two desert summers without a scratch. Quality is unreal."},
+]
+
+SEED_POSTS = [
+    {"slug": "anatomy-of-a-cut", "title": "Anatomy Of A Cut", "author": "Iron & Oak Studio",
+     "excerpt": "How a CAD vector becomes a kerf-corrected toolpath, step-by-step inside the workshop.",
+     "body": "Every piece in the marketplace begins as a vector. We walk through how our makers translate a design into a kerf-corrected toolpath, then into a finished product — all without sacrificing the hand of the artisan.",
+     "cover": P_CNC, "read_min": 6},
+    {"slug": "plasma-vs-laser", "title": "Plasma vs. Laser: Picking The Right Tool", "author": "MetalArt Pro Shop",
+     "excerpt": "The honest case for each technique — when to choose plasma, when to switch to laser.",
+     "body": "Plasma cuts thicker steel faster but with a wider kerf. Laser is precise on thin sheet but slow on heavy stock. Here's how our makers choose between them — and what it means for the look of the finished piece.",
+     "cover": P_LASER, "read_min": 5},
+    {"slug": "the-finish-line", "title": "The Finish Line: Powder, Patina, Stain", "author": "Crafters Market",
+     "excerpt": "A finish isn't just protection — it's identity. Three approaches, one philosophy.",
+     "body": "Powder coats are tough and uniform. Patinas are alive and evolving. Stains pull grain forward. Knowing which to apply is half the artistry.",
+     "cover": P_WOOD, "read_min": 4},
+]
+
+SEED_ACTIVITY = [
+    {"kind": "sold", "text": "Mountain Range Silhouette sold to a buyer", "location": "Denver, CO"},
+    {"kind": "shipped", "text": "Iron & Oak shipped a Family Name Sign", "location": "Austin, TX"},
+    {"kind": "listed", "text": "MetalArt Pro Shop listed a new Compass Medallion", "location": "Austin, TX"},
+    {"kind": "applied", "text": "A new maker applied to the program", "location": "Portland, OR"},
+    {"kind": "sold", "text": "Industrial Address Numbers sold to a buyer", "location": "Nashville, TN"},
+    {"kind": "shipped", "text": "MetalArt Pro shipped a Custom Business Sign", "location": "Houston, TX"},
+]
+
+
+async def seed_if_empty():
+    if await db.makers.count_documents({}) == 0:
+        for m in SEED_MAKERS:
+            await db.makers.insert_one({**Maker(**m).model_dump()})
+    if await db.products.count_documents({}) == 0:
+        for p in SEED_PRODUCTS:
+            await db.products.insert_one({**Product(**p).model_dump()})
+    if await db.reviews.count_documents({}) == 0:
+        for r in SEED_REVIEWS:
+            await db.reviews.insert_one({**Review(**r).model_dump()})
+    if await db.blog_posts.count_documents({}) == 0:
+        for b in SEED_POSTS:
+            await db.blog_posts.insert_one({**BlogPost(**b).model_dump()})
+    if await db.activity_events.count_documents({}) == 0:
+        for a in SEED_ACTIVITY:
+            await db.activity_events.insert_one({**ActivityEvent(**a).model_dump()})
+
+
+@app.on_event("startup")
+async def on_startup():
+    await seed_if_empty()
+    logger.info("Crafters Market API ready (seed checked).")
+
+
+# ---------- Routes ----------
+@api.get("/")
 async def root():
-    return {"message": "Hello World"}
+    return {"service": "crafters-market", "status": "ok"}
 
-@api_router.post("/status", response_model=StatusCheck)
-async def create_status_check(input: StatusCheckCreate):
-    status_dict = input.model_dump()
-    status_obj = StatusCheck(**status_dict)
-    
-    # Convert to dict and serialize datetime to ISO string for MongoDB
-    doc = status_obj.model_dump()
-    doc['timestamp'] = doc['timestamp'].isoformat()
-    
-    _ = await db.status_checks.insert_one(doc)
-    return status_obj
 
-@api_router.get("/status", response_model=List[StatusCheck])
-async def get_status_checks():
-    # Exclude MongoDB's _id field from the query results
-    status_checks = await db.status_checks.find({}, {"_id": 0}).to_list(1000)
-    
-    # Convert ISO string timestamps back to datetime objects
-    for check in status_checks:
-        if isinstance(check['timestamp'], str):
-            check['timestamp'] = datetime.fromisoformat(check['timestamp'])
-    
-    return status_checks
+@api.get("/products", response_model=List[Product])
+async def list_products(category: Optional[str] = None, technique: Optional[str] = None,
+                        q: Optional[str] = None, featured: Optional[bool] = None,
+                        maker: Optional[str] = None):
+    query: Dict = {}
+    if category: query["category"] = category
+    if technique: query["technique"] = technique.upper()
+    if featured is not None: query["featured"] = featured
+    if maker: query["maker_slug"] = maker
+    if q:
+        query["$or"] = [{"title": {"$regex": q, "$options": "i"}},
+                        {"description": {"$regex": q, "$options": "i"}}]
+    docs = await db.products.find(query, {"_id": 0}).sort("created_at", -1).to_list(200)
+    return docs
 
-# Include the router in the main app
-app.include_router(api_router)
 
+@api.get("/products/{slug}", response_model=Product)
+async def get_product(slug: str):
+    doc = await db.products.find_one({"slug": slug}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Product not found")
+    return doc
+
+
+@api.get("/makers", response_model=List[Maker])
+async def list_makers():
+    return await db.makers.find({}, {"_id": 0}).to_list(200)
+
+
+@api.get("/makers/{slug}", response_model=Maker)
+async def get_maker(slug: str):
+    doc = await db.makers.find_one({"slug": slug}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Maker not found")
+    return doc
+
+
+@api.get("/reviews", response_model=List[Review])
+async def list_reviews(limit: int = 20):
+    return await db.reviews.find({}, {"_id": 0}).sort("created_at", -1).to_list(limit)
+
+
+@api.get("/blog", response_model=List[BlogPost])
+async def list_posts():
+    return await db.blog_posts.find({}, {"_id": 0}).sort("created_at", -1).to_list(50)
+
+
+@api.get("/blog/{slug}", response_model=BlogPost)
+async def get_post(slug: str):
+    doc = await db.blog_posts.find_one({"slug": slug}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Post not found")
+    return doc
+
+
+@api.post("/custom-orders", response_model=CustomOrder)
+async def create_custom_order(payload: CustomOrderCreate):
+    order = CustomOrder(**payload.model_dump())
+    await db.custom_orders.insert_one(order.model_dump())
+    await db.activity_events.insert_one(
+        ActivityEvent(kind="applied",
+                      text=f"New custom order — {payload.project_type}",
+                      location="Custom queue").model_dump()
+    )
+    return order
+
+
+@api.post("/maker-applications", response_model=MakerApplication)
+async def create_maker_application(payload: MakerApplicationCreate):
+    app_obj = MakerApplication(**payload.model_dump())
+    await db.maker_applications.insert_one(app_obj.model_dump())
+    await db.activity_events.insert_one(
+        ActivityEvent(kind="applied",
+                      text=f"{payload.studio_name} applied to the program",
+                      location=payload.location).model_dump()
+    )
+    return app_obj
+
+
+@api.get("/activity", response_model=List[ActivityEvent])
+async def list_activity(limit: int = 20):
+    return await db.activity_events.find({}, {"_id": 0}).sort("created_at", -1).to_list(limit)
+
+
+# ---------- Stripe Checkout ----------
+@api.post("/checkout/session")
+async def create_checkout(req: CheckoutRequest, http_request: Request):
+    if not req.items:
+        raise HTTPException(400, "Cart is empty")
+    # Compute total server-side from product prices
+    total = 0.0
+    line_summary = []
+    for ci in req.items:
+        prod = await db.products.find_one({"id": ci.product_id}, {"_id": 0})
+        if not prod:
+            prod = await db.products.find_one({"slug": ci.product_id}, {"_id": 0})
+        if not prod:
+            raise HTTPException(400, f"Invalid product: {ci.product_id}")
+        qty = max(1, int(ci.quantity))
+        total += float(prod["price"]) * qty
+        line_summary.append(f"{prod['title']} × {qty}")
+    total = round(total, 2)
+    if total <= 0:
+        raise HTTPException(400, "Invalid total")
+
+    host_url = str(http_request.base_url).rstrip("/")
+    webhook_url = f"{host_url}/api/webhook/stripe"
+    success_url = f"{req.origin_url}/checkout/success?session_id={{CHECKOUT_SESSION_ID}}"
+    cancel_url = f"{req.origin_url}/cart"
+
+    stripe = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
+    cs_req = CheckoutSessionRequest(
+        amount=total, currency="usd",
+        success_url=success_url, cancel_url=cancel_url,
+        metadata={"summary": " | ".join(line_summary)[:480],
+                  "customer_email": req.customer_email or ""},
+    )
+    session = await stripe.create_checkout_session(cs_req)
+
+    await db.payment_transactions.insert_one({
+        "id": str(uuid.uuid4()),
+        "session_id": session.session_id,
+        "amount": total, "currency": "usd",
+        "items": [ci.model_dump() for ci in req.items],
+        "summary": " | ".join(line_summary),
+        "customer_email": req.customer_email,
+        "payment_status": "initiated",
+        "status": "open",
+        "created_at": now_iso(),
+    })
+    return {"url": session.url, "session_id": session.session_id, "amount": total}
+
+
+@api.get("/checkout/status/{session_id}")
+async def checkout_status(session_id: str, http_request: Request):
+    host_url = str(http_request.base_url).rstrip("/")
+    webhook_url = f"{host_url}/api/webhook/stripe"
+    stripe = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
+    status = await stripe.get_checkout_status(session_id)
+
+    tx = await db.payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
+    if tx and tx.get("payment_status") != status.payment_status:
+        await db.payment_transactions.update_one(
+            {"session_id": session_id},
+            {"$set": {"payment_status": status.payment_status,
+                      "status": status.status,
+                      "updated_at": now_iso()}}
+        )
+        if status.payment_status == "paid" and tx.get("payment_status") != "paid":
+            summary = tx.get("summary", "Order")
+            await db.activity_events.insert_one(
+                ActivityEvent(kind="sold",
+                              text=f"{summary} sold to a buyer",
+                              location="Crafters Market").model_dump()
+            )
+    return {
+        "status": status.status,
+        "payment_status": status.payment_status,
+        "amount_total": status.amount_total,
+        "currency": status.currency,
+    }
+
+
+@api.post("/webhook/stripe")
+async def stripe_webhook(request: Request):
+    body = await request.body()
+    sig = request.headers.get("Stripe-Signature", "")
+    host_url = str(request.base_url).rstrip("/")
+    webhook_url = f"{host_url}/api/webhook/stripe"
+    stripe = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
+    try:
+        evt = await stripe.handle_webhook(body, sig)
+    except Exception as e:
+        logger.exception("webhook fail: %s", e)
+        return {"received": False}
+    await db.payment_transactions.update_one(
+        {"session_id": evt.session_id},
+        {"$set": {"payment_status": evt.payment_status, "updated_at": now_iso()}}
+    )
+    return {"received": True}
+
+
+# ---------- Wire up ----------
+app.include_router(api)
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=os.environ.get("CORS_ORIGINS", "*").split(","),
+    allow_methods=["*"], allow_headers=["*"],
 )
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
 
 @app.on_event("shutdown")
-async def shutdown_db_client():
+async def shutdown_db():
     client.close()

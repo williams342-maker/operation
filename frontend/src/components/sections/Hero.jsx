@@ -90,10 +90,10 @@ export default function Hero() {
             transition={{ delay: 1, duration: 0.7 }}
             className="md:col-span-4 md:col-start-9 flex flex-col sm:flex-row gap-4"
           >
-            <a href="#showcase" className="btn-industrial btn-primary" data-testid="hero-cta-shop">
+            <a href="/shop" className="btn-industrial btn-primary" data-testid="hero-cta-shop">
               Shop The Showcase →
             </a>
-            <a href="#custom" className="btn-industrial border-[#e5e5e5] text-[#e5e5e5]" data-testid="hero-cta-custom">
+            <a href="/custom-order" className="btn-industrial border-[#e5e5e5] text-[#e5e5e5]" data-testid="hero-cta-custom">
               Custom Order
             </a>
           </motion.div>
