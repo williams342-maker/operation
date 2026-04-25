@@ -62,11 +62,19 @@ frontend/src/pages/                      # 9 routed pages
 - 3D viewer for CNC pieces (currently using interactive 4-image gallery as proxy)
 - Admin dashboard (review custom orders + maker applications)
 - Real shipping calculator + tax engine in checkout
-- Maker auth + self-serve listing creation
-- Email transactional layer (Resend/SendGrid) for order confirmations & application replies
 - SEO sitemap + structured data
+- Stripe Connect for direct maker payouts (P2)
+- Stripe webhook URL: derive from REACT_APP_BACKEND_URL instead of internal request.base_url (minor; carry-over from iteration_1)
+
+## What's Implemented (2026-04-25 — fork session)
+- ✅ **Stripe checkout polling fix:** `/api/checkout/status/:session_id` now uses the native `stripe` SDK (`stripe.checkout.Session.retrieve`) bypassing the buggy `emergentintegrations` Pydantic wrapper. PAID session anchor verified end-to-end.
+- ✅ **Resend transactional email layer:** verified domain `craftersmarket.org`, helpers for buyer receipt, ops alert, custom-order ack, maker application alert, and per-maker order alerts (`/app/backend/email_service.py`).
+- ✅ **Maker Self-Serve Portal (magic-link auth):**
+  - Backend: `maker_auth.py` (itsdangerous magic token, 15 min · PyJWT HS256 session, 7 d). Routes: `POST /api/maker/auth/request`, `POST /api/maker/auth/verify`, `GET /api/maker/me`, `GET /api/maker/products`, `GET /api/maker/orders`, `PATCH /api/maker/profile`. Cross-maker isolation enforced.
+  - Frontend: `/maker/login`, `/maker/verify`, `/maker/dashboard` (Profile / Listings / Orders tabs). JWT stored in `localStorage.cm_maker_jwt`. Footer "Maker Login" link wired up.
+  - 18/18 backend pytest cases pass · 11/11 Playwright UI flows pass (iteration_2).
 
 ## Next Action Items
-- Test end-to-end purchase flow with a Stripe test card
-- Hook real images for new seed products
-- Decide on email notification provider for orders/applications
+- (Future) Stripe Connect for direct maker payouts
+- (Optional) Use `REACT_APP_BACKEND_URL` for the Stripe webhook URL builder
+- (Future) Admin dashboard for reviewing custom-orders + maker applications
