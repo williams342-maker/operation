@@ -125,3 +125,22 @@ async def send_maker_new_order(maker_email: str, maker_name: str,
     body += "<p style='font-size:13px;color:#a3a3a3;line-height:1.6;margin-top:18px'>Reach out to the buyer with an ETA and tracking info as you build. Crafters Market handles the payout — you handle the craft.</p>"
     html = _shell(f"Order for {maker_name}.", "A new piece is on your bench.", body, "Maker order alert")
     return await _send(maker_email, f"New order · ${subtotal:.2f} · {maker_name}", html)
+
+
+async def send_maker_magic_link(maker_email: str, maker_name: str, link: str):
+    if not maker_email:
+        return None
+    body = (
+        f"<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 24px'>Hi {maker_name}, "
+        "click below to sign in to your maker portal. The link is good for 15 minutes and works once.</p>"
+        f"<a href='{link}' style='display:inline-block;background:#ff4500;color:#0a0a0a;"
+        "padding:16px 28px;font-family:Impact,Arial Black,sans-serif;font-size:14px;letter-spacing:0.18em;"
+        f"text-transform:uppercase;text-decoration:none;border:1px solid #ff4500'>Open Maker Portal →</a>"
+        "<p style='font-size:11px;color:#525252;letter-spacing:0.18em;text-transform:uppercase;"
+        f"margin:28px 0 0'>Or paste this URL</p><p style='font-size:12px;color:#a3a3a3;word-break:break-all'>"
+        f"<a href='{link}' style='color:#ff4500'>{link}</a></p>"
+        "<p style='font-size:12px;color:#525252;margin-top:24px;line-height:1.6'>"
+        "If you didn't request this, ignore the email — no action is needed.</p>"
+    )
+    html = _shell("Sign In Link.", "Your maker portal is one click away.", body, "Maker portal · sign in")
+    return await _send(maker_email, "Your Crafters Market sign-in link", html)

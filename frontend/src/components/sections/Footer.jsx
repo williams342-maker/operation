@@ -1,18 +1,34 @@
 import React from "react";
+import { Link } from "react-router-dom";
 import { Instagram, Mail, MapPin } from "lucide-react";
 
 const cols = [
   {
     title: "Shop",
-    links: ["Wall Art", "Custom Signs", "Outdoor Art", "All Listings"],
+    links: [
+      { label: "Wall Art", href: "/shop?category=Wall%20Art" },
+      { label: "Custom Signs", href: "/shop?category=Custom%20Signs" },
+      { label: "Outdoor Art", href: "/shop?category=Outdoor%20Art" },
+      { label: "All Listings", href: "/shop" },
+    ],
   },
   {
     title: "Makers",
-    links: ["Apply", "How it Works", "Maker Login", "Pricing"],
+    links: [
+      { label: "Apply", href: "/apply" },
+      { label: "How it Works", href: "/apply" },
+      { label: "Maker Login", href: "/maker/login" },
+      { label: "Custom Orders", href: "/custom-order" },
+    ],
   },
   {
     title: "Company",
-    links: ["About", "Press", "Sustainability", "Contact"],
+    links: [
+      { label: "Journal", href: "/journal" },
+      { label: "Makers", href: "/makers" },
+      { label: "Custom Orders", href: "/custom-order" },
+      { label: "Contact", href: "mailto:hello@craftersmarket.org" },
+    ],
   },
 ];
 
@@ -58,13 +74,24 @@ export default function Footer() {
                 </h4>
                 <ul className="space-y-3">
                   {c.links.map((l) => (
-                    <li key={l}>
-                      <a
-                        href="#"
-                        className="industrial-link font-mono text-xs uppercase tracking-[0.2em] text-[#e5e5e5] hover:text-[#ff4500]"
-                      >
-                        {l}
-                      </a>
+                    <li key={l.label}>
+                      {l.href.startsWith("mailto:") ? (
+                        <a
+                          href={l.href}
+                          className="industrial-link font-mono text-xs uppercase tracking-[0.2em] text-[#e5e5e5] hover:text-[#ff4500]"
+                          data-testid={`footer-link-${l.label.toLowerCase().replace(/\s/g, "-")}`}
+                        >
+                          {l.label}
+                        </a>
+                      ) : (
+                        <Link
+                          to={l.href}
+                          className="industrial-link font-mono text-xs uppercase tracking-[0.2em] text-[#e5e5e5] hover:text-[#ff4500]"
+                          data-testid={`footer-link-${l.label.toLowerCase().replace(/\s/g, "-")}`}
+                        >
+                          {l.label}
+                        </Link>
+                      )}
                     </li>
                   ))}
                 </ul>

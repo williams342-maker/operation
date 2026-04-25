@@ -24,6 +24,9 @@ import ApplyPage from "./pages/ApplyPage";
 import { JournalPage, JournalDetail } from "./pages/JournalPage";
 import CartPage from "./pages/CartPage";
 import CheckoutSuccess from "./pages/CheckoutSuccess";
+import MakerLogin from "./pages/MakerLogin";
+import MakerVerify from "./pages/MakerVerify";
+import MakerDashboard from "./pages/MakerDashboard";
 
 const Home = () => (
   <>
@@ -68,6 +71,9 @@ function App() {
               <Route path="/journal/:slug" element={<JournalDetail />} />
               <Route path="/cart" element={<CartPage />} />
               <Route path="/checkout/success" element={<CheckoutSuccess />} />
+              <Route path="/maker/login" element={<MakerLogin />} />
+              <Route path="/maker/verify" element={<MakerVerify />} />
+              <Route path="/maker/dashboard" element={<MakerDashboard />} />
             </Routes>
           </main>
           <Footer />

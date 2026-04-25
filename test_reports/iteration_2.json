@@ -1,0 +1,39 @@
+{
+  "summary": "Re-tested checkout success polling on the known PAID Stripe session and exercised the brand-new Maker Self-Serve Portal end-to-end. 18/18 backend pytest cases pass and 11/11 Playwright UI flows pass. The previously-CRITICAL bug from iteration_1 (GET /api/checkout/status returning 500) is fixed — for cs_test_a1iMM98ftY3GF2JouCJbRQkPvPkMcJE9lwLYh51c946CyXqtkL5oaa0O5o it now returns {status:'complete', payment_status:'paid', amount_total>0}. Magic-link auth (issue/verify), session JWT, /maker/me, /maker/products, /maker/orders, PATCH /maker/profile, isolation between makers, all UI testids (maker-login, maker-login-sent, maker-verify-back, maker-dashboard, stat-listings/orders/revenue, tab-profile/products/orders, products-list, orders-list, profile-bio/save/saved-msg, maker-logout-btn, footer-link-maker-login) all verified working. Bio dirty-data was reset back to original after the PATCH test.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/checkout/session", "issue": "Webhook URL still built from internal request.base_url; webhooks from real Stripe will not reach the backend. Carry-over from iteration_1; not tested here. Recommend using REACT_APP_BACKEND_URL or X-Forwarded-Host."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_maker_portal.py",
+    "/app/backend/tests/test_marketplace.py",
+    "/app/test_reports/pytest/maker_portal.xml",
+    "/app/test_reports/pytest/marketplace.xml"
+  ],
+  "action_items": [
+    "Optional / non-blocking: derive Stripe webhook URL from REACT_APP_BACKEND_URL (carry-over minor from iteration_1).",
+    "No blocking action items — both features in this review request are working as specified."
+  ],
+  "critical_code_review_comments": [
+    "maker_auth.py reads MAKER_AUTH_SECRET at import time via os.environ[...]; if .env not loaded before import this raises KeyError. Acceptable here because server.py loads dotenv first, but risky if maker_auth is imported outside the FastAPI process — consider deferring lookup or providing a clearer error.",
+    "POST /api/maker/auth/request returns 200 even for invalid email shapes only because Pydantic EmailStr validates first (returns 422). This is correct, but worth a code comment so the no-enumeration guarantee isn't accidentally weakened later.",
+    "GET /api/maker/orders does an O(N) scan over all paid payment_transactions and a per-line dict lookup; fine for current scale but should be indexed (or filtered server-side) once volume grows."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_maker_portal.py (new — 18 pytest cases for the Maker Portal + paid-session regression)"
+  ],
+  "success_rate": {"backend": "100% (18/18 pytest)", "frontend": "100% (11/11 Playwright flows)"},
+  "test_credentials": "Seeded makers used: iron-and-oak@craftersmarket.org (slug=iron-and-oak) and metalart-pro@craftersmarket.org (slug=metalart-pro). Magic-link tokens generated server-side via maker_auth.issue_magic_token after load_dotenv('/app/backend/.env'). /app/memory/test_credentials.md does not exist — recommend the main agent create it.",
+  "seed_data_creation": "No new seed data created in this iteration. Bio for iron-and-oak was momentarily set to 'Testing bio update' and then reset to the original 'Father-and-son shop forging wall art and custom signs from raw oak and 14ga steel.' so DB is clean.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend regression suites: /app/backend/tests/test_marketplace.py (general marketplace) and /app/backend/tests/test_maker_portal.py (maker portal + paid-session). Both load REACT_APP_BACKEND_URL from /app/frontend/.env automatically. To produce a valid magic link in tests/UI, import maker_auth.issue_magic_token after load_dotenv('/app/backend/.env'). All maker portal data-testids are present and stable. The known PAID Stripe session id (cs_test_a1iMM98ftY3GF2JouCJbRQkPvPkMcJE9lwLYh51c946CyXqtkL5oaa0O5o) is the regression anchor — it must always return status:complete + payment_status:paid for the success-page flow to work.",
+  "rca of the issue": "N/A — no new bugs found in this iteration. The iteration_1 critical (checkout/status 500) has been resolved by the main agent (now uses stripe SDK directly with a try/except + Mongo fallback in /app/backend/server.py lines 433-461) and is verified passing."
+}

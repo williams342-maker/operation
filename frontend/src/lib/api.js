@@ -15,3 +15,22 @@ export const submitCustomOrder = (payload) => http.post("/custom-orders", payloa
 export const submitMakerApplication = (payload) => http.post("/maker-applications", payload).then((r) => r.data);
 export const createCheckout = (payload) => http.post("/checkout/session", payload).then((r) => r.data);
 export const getCheckoutStatus = (sid) => http.get(`/checkout/status/${sid}`).then((r) => r.data);
+
+// ---------- Maker portal (magic-link auth) ----------
+export const requestMakerLink = (email, origin_url) =>
+  http.post("/maker/auth/request", { email, origin_url }).then((r) => r.data);
+export const verifyMakerToken = (token) =>
+  http.post("/maker/auth/verify", { token }).then((r) => r.data);
+
+const authHeaders = () => {
+  const t = localStorage.getItem("cm_maker_jwt");
+  return t ? { Authorization: `Bearer ${t}` } : {};
+};
+export const fetchMakerMe = () =>
+  http.get("/maker/me", { headers: authHeaders() }).then((r) => r.data);
+export const fetchMakerOrders = () =>
+  http.get("/maker/orders", { headers: authHeaders() }).then((r) => r.data);
+export const fetchMakerProducts = () =>
+  http.get("/maker/products", { headers: authHeaders() }).then((r) => r.data);
+export const updateMakerProfile = (payload) =>
+  http.patch("/maker/profile", payload, { headers: authHeaders() }).then((r) => r.data);
