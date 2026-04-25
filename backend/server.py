@@ -14,7 +14,7 @@ import asyncio
 from email_service import (
     send_buyer_receipt, send_ops_new_order,
     send_ops_new_application, send_ops_new_custom_order,
-    send_buyer_custom_ack,
+    send_buyer_custom_ack, send_maker_new_order,
 )
 
 ROOT_DIR = Path(__file__).parent
@@ -67,6 +67,7 @@ class Maker(BaseModel):
     techniques: List[str] = []
     portrait: str
     cover: str
+    email: Optional[EmailStr] = None
     listings_count: int = 0
     rating: float = 4.95
     created_at: str = Field(default_factory=now_iso)
@@ -164,12 +165,14 @@ class ActivityEvent(BaseModel):
 # ---------- Seed Data ----------
 SEED_MAKERS = [
     {"slug": "iron-and-oak", "name": "Iron & Oak Studio", "initials": "IR", "location": "Nashville, TN",
+     "email": "iron-and-oak@craftersmarket.org",
      "bio": "Father-and-son shop forging wall art and custom signs from raw oak and 14ga steel.",
      "techniques": ["PLASMA", "ROUTER"],
      "portrait": "https://images.unsplash.com/photo-1764115424737-25aca6f47835?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDF8MHwxfHNlYXJjaHwxfHxjbmMlMjBwbGFzbWElMjBjdXR0aW5nJTIwbWV0YWwlMjB3b3JrZXJ8ZW58MHx8fHwxNzc3MTU0OTc2fDA&ixlib=rb-4.1.0&q=85",
      "cover": "https://images.pexels.com/photos/17180807/pexels-photo-17180807.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
      "listings_count": 14, "rating": 4.97},
     {"slug": "metalart-pro", "name": "MetalArt Pro Shop", "initials": "ME", "location": "Austin, TX",
+     "email": "metalart-pro@craftersmarket.org",
      "bio": "Industrial design studio specializing in laser-cut steel signage and bespoke business pieces.",
      "techniques": ["LASER", "CUSTOM"],
      "portrait": "https://images.unsplash.com/photo-1689960253768-72a12bc8320f?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDF8MHwxfHNlYXJjaHw0fHxjbmMlMjBwbGFzbWElMjBjdXR0aW5nJTIwbWV0YWwlMjB3b3JrZXJ8ZW58MHx8fHwxNzc3MTU0OTc2fDA&ixlib=rb-4.1.0&q=85",
@@ -466,18 +469,30 @@ async def checkout_status(session_id: str, http_request: Request, bg: Background
                               text=f"{summary} sold to a buyer",
                               location="Crafters Market").model_dump()
             )
-            # enrich items with title for the email
+            # enrich items with title for the email; group by maker
             email_items = []
+            by_maker: dict[str, list] = {}
             for ci in tx.get("items", []):
                 p = await db.products.find_one({"id": ci["product_id"]}, {"_id": 0}) \
                     or await db.products.find_one({"slug": ci["product_id"]}, {"_id": 0})
-                if p:
-                    email_items.append({"title": p["title"], "price": p["price"], "quantity": ci.get("quantity", 1)})
+                if not p:
+                    continue
+                line = {"title": p["title"], "price": p["price"], "quantity": ci.get("quantity", 1)}
+                email_items.append(line)
+                by_maker.setdefault(p["maker_slug"], []).append(line)
             buyer = tx.get("customer_email")
             total_amount = float(tx.get("amount", 0))
             bg.add_task(send_ops_new_order, summary, total_amount, email_items, buyer)
             if buyer:
                 bg.add_task(send_buyer_receipt, buyer, summary, total_amount, email_items)
+            # per-maker alerts
+            for maker_slug, lines in by_maker.items():
+                m = await db.makers.find_one({"slug": maker_slug}, {"_id": 0})
+                if not m or not m.get("email"):
+                    continue
+                subtotal = sum(float(l["price"]) * int(l["quantity"]) for l in lines)
+                bg.add_task(send_maker_new_order,
+                            m["email"], m["name"], lines, subtotal, buyer)
     return result
 
 

@@ -111,3 +111,17 @@ async def send_buyer_custom_ack(buyer_email: str, name: str, project_type: str):
     body = f"<p style='font-size:13px;color:#a3a3a3;line-height:1.6'>Hi {name}, we received your <b style='color:#e5e5e5'>{project_type}</b> brief and a maker will review it within 24 hours. We'll send a free quote — no commitment.</p>"
     html = _shell("Brief Received.", "Thanks for the custom request.", body, "Custom queue")
     return await _send(buyer_email, "We got your custom brief", html)
+
+
+async def send_maker_new_order(maker_email: str, maker_name: str,
+                               items: list, subtotal: float,
+                               buyer_email: str | None):
+    if not maker_email:
+        return None
+    body = _items_table(items) if items else ""
+    body += f"<div style='border-top:1px solid #262626;padding-top:14px;font-size:13px;color:#e5e5e5'>Subtotal for your shop: <b style='color:#ff4500'>${subtotal:.2f}</b></div>"
+    if buyer_email:
+        body += f"<p style='font-size:13px;color:#a3a3a3;margin-top:16px'>Buyer: <a href='mailto:{buyer_email}' style='color:#ff4500'>{buyer_email}</a></p>"
+    body += "<p style='font-size:13px;color:#a3a3a3;line-height:1.6;margin-top:18px'>Reach out to the buyer with an ETA and tracking info as you build. Crafters Market handles the payout — you handle the craft.</p>"
+    html = _shell(f"Order for {maker_name}.", "A new piece is on your bench.", body, "Maker order alert")
+    return await _send(maker_email, f"New order · ${subtotal:.2f} · {maker_name}", html)
