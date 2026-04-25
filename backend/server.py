@@ -442,15 +442,12 @@ async def checkout_status(session_id: str, http_request: Request, bg: Background
             "currency": status.currency,
         }
     except Exception as e:
-        # emergentintegrations test-key cannot always retrieve sessions it created.
-        # Stripe only redirects to success_url after successful payment, so treat
-        # arrival here as "paid" for the test flow when we have a local tx row.
         logger.warning("status retrieve failed (%s) — using local fallback", e)
         if not tx:
             return {"status": "open", "payment_status": "unpaid", "amount_total": 0, "currency": "usd"}
         result = {
-            "status": "complete",
-            "payment_status": "paid",
+            "status": tx.get("status", "open"),
+            "payment_status": tx.get("payment_status", "unpaid"),
             "amount_total": fallback_amount,
             "currency": tx.get("currency", "usd"),
         }
