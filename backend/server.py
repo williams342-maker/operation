@@ -31,6 +31,19 @@ client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ["DB_NAME"]]
 
 STRIPE_API_KEY = os.environ.get("STRIPE_API_KEY", "")
+PUBLIC_BACKEND_URL = (os.environ.get("PUBLIC_BACKEND_URL") or "").rstrip("/")
+
+
+def _public_host(http_request: Request) -> str:
+    """Public base URL for webhooks. Prefer PUBLIC_BACKEND_URL; fall back to the
+    forwarded host so we never use the internal pod URL by accident."""
+    if PUBLIC_BACKEND_URL:
+        return PUBLIC_BACKEND_URL
+    fwd_host = http_request.headers.get("x-forwarded-host")
+    fwd_proto = http_request.headers.get("x-forwarded-proto", "https")
+    if fwd_host:
+        return f"{fwd_proto}://{fwd_host}"
+    return str(http_request.base_url).rstrip("/")
 
 app = FastAPI(title="Crafters Market API")
 api = APIRouter(prefix="/api")
@@ -402,7 +415,7 @@ async def create_checkout(req: CheckoutRequest, http_request: Request):
     if total <= 0:
         raise HTTPException(400, "Invalid total")
 
-    host_url = str(http_request.base_url).rstrip("/")
+    host_url = _public_host(http_request)
     webhook_url = f"{host_url}/api/webhook/stripe"
     success_url = f"{req.origin_url}/checkout/success?session_id={{CHECKOUT_SESSION_ID}}"
     cancel_url = f"{req.origin_url}/cart"
@@ -432,7 +445,7 @@ async def create_checkout(req: CheckoutRequest, http_request: Request):
 
 @api.get("/checkout/status/{session_id}")
 async def checkout_status(session_id: str, http_request: Request, bg: BackgroundTasks):
-    host_url = str(http_request.base_url).rstrip("/")
+    host_url = _public_host(http_request)
     webhook_url = f"{host_url}/api/webhook/stripe"
     stripe = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
 
@@ -505,7 +518,7 @@ async def checkout_status(session_id: str, http_request: Request, bg: Background
 async def stripe_webhook(request: Request):
     body = await request.body()
     sig = request.headers.get("Stripe-Signature", "")
-    host_url = str(request.base_url).rstrip("/")
+    host_url = _public_host(request)
     webhook_url = f"{host_url}/api/webhook/stripe"
     stripe = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
     try:
