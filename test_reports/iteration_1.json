@@ -1,0 +1,47 @@
+{
+  "summary": "Tested Crafters Market backend (10/11 pytest passed) and Stripe checkout flow end-to-end. 9/10 backend endpoints work; full cart→Stripe redirect works in browser. CRITICAL: GET /api/checkout/status/{session_id} returns 500 (Stripe says 'No such checkout.session'), which breaks the success-page polling, the cart-clear-on-paid logic, and the 'sold' activity event emission. Did not complete Stripe-hosted card form fill (cross-origin checkout.stripe.com) but verified all preceding/subsequent pieces.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "GET /api/checkout/status/{session_id}",
+        "issue": "Returns 500 InternalServerError. Backend log: emergentintegrations.payments.stripe.checkout.CheckoutError: 'Failed to retrieve session status: No such checkout.session: cs_test_...'. The same session_id was just created moments earlier by POST /api/checkout/session using the same STRIPE_API_KEY. This means CheckoutSuccess.jsx polling will NEVER see payment_status='paid', so (a) 'Thank You.' UI never renders, (b) cart never clears via clear(), (c) no 'sold' activity event is emitted. Likely an emergentintegrations key/mode mismatch between create and retrieve, or the lib needs a different key. Endpoint should also catch the error and return graceful 4xx/JSON instead of 500.",
+        "priority": "CRITICAL"
+      }
+    ],
+    "minor": [
+      {"endpoint": "POST /api/checkout/session", "issue": "Uses webhook URL built from internal request.base_url (http://0.0.0.0:8001/api/webhook/stripe) which is unreachable from Stripe. Webhooks won't fire. Recommend deriving from REACT_APP_BACKEND_URL or X-Forwarded-Host."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Checkout success page",
+        "issue": "Will hang on 'Hold Tight…' forever and then show 'Something Went Sideways.' after 8 retries because /api/checkout/status returns 500. As a side effect cart is not cleared and no 'sold' activity event is generated. Root cause is the backend bug above; no frontend code change needed once backend is fixed.",
+        "affected_selectors": ["[data-testid='checkout-success']"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_marketplace.py",
+    "/app/test_reports/pytest/marketplace.xml"
+  ],
+  "action_items": [
+    "Investigate why emergentintegrations get_checkout_status() cannot find the session_id that create_checkout_session() just returned with the same STRIPE_API_KEY=sk_test_emergent. Possible fixes: (a) use a real Stripe test key, (b) check emergentintegrations docs/version for required init params, (c) wrap get_checkout_status in try/except and return a graceful response so the UI does not 500.",
+    "Fix webhook URL — currently built from internal base_url and will not reach Stripe; use external REACT_APP_BACKEND_URL or honor X-Forwarded-Host."
+  ],
+  "critical_code_review_comments": [
+    "server.py /api/checkout/status has no try/except around stripe.get_checkout_status — any Stripe error becomes a 500 to the UI poller.",
+    "server.py uses request.base_url for webhook URL which behind ingress resolves to internal host; webhooks from real Stripe will never be received.",
+    "Cart count badge clearing relies entirely on a successful 'paid' poll; given the status endpoint is broken, cart will persist after user pays. Consider clearing cart optimistically on Stripe redirect or via the webhook path as a fallback."
+  ],
+  "updated_files": ["/app/backend/tests/test_marketplace.py"],
+  "success_rate": {"backend": "91% (10/11 pytest)", "frontend": "100% on cart→redirect; success-confirm flow blocked by backend 500"},
+  "test_credentials": "/app/memory/test_credentials.md not present; Stripe test card 4242 4242 4242 4242 not actually entered because cross-origin checkout.stripe.com form fill was deferred — backend status bug would have blocked verification anyway.",
+  "seed_data_creation": "Backend auto-seeds 6 products, 2 makers, 4 reviews, 3 blog posts, 6 activity events on startup. Tests added one TEST_-prefixed custom order and maker application.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend pytest at /app/backend/tests/test_marketplace.py is the regression suite. Critical bug to retest: POST /api/checkout/session returns valid url+session_id, but immediately calling GET /api/checkout/status/<that session_id> returns 500. Reproduce by running the pytest module — test_checkout_status will fail. Frontend cart→Stripe redirect verified working with localStorage key 'cm_cart_v1'. No data-testid issues; cart-checkout-btn, cart-page, checkout-success all present.",
+  "rca of the issue": "POST /api/checkout/session calls StripeCheckout(api_key=STRIPE_API_KEY).create_checkout_session() and Stripe returns a real cs_test_... session id and a working https://checkout.stripe.com/... url (clicking it loads the Stripe payment page). However on the very next call GET /api/checkout/status/<same_session_id> the same StripeCheckout client raises 'No such checkout.session'. Because both calls use the same STRIPE_API_KEY=sk_test_emergent and the session was just created seconds earlier, the most likely cause is inside emergentintegrations.payments.stripe.checkout — possibly the create path proxies through Emergent test infra (which generates a session id under one Stripe account) while the retrieve path queries a different / live Stripe account. Mitigation options: (1) configure a real sk_test_xxx key from a single Stripe test account; (2) wrap status retrieval in try/except and return {status:'open',payment_status:'unpaid'} on lookup failure so the polling UI doesn't hard-fail; (3) rely on the webhook to persist payment_status into payment_transactions and have /checkout/status read from Mongo as a fallback when Stripe lookup fails."
+}
