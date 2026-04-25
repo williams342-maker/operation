@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Request
+from fastapi import FastAPI, APIRouter, HTTPException, Request, BackgroundTasks
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -9,6 +9,12 @@ from typing import List, Optional, Dict
 from datetime import datetime, timezone
 from emergentintegrations.payments.stripe.checkout import (
     StripeCheckout, CheckoutSessionRequest
+)
+import asyncio
+from email_service import (
+    send_buyer_receipt, send_ops_new_order,
+    send_ops_new_application, send_ops_new_custom_order,
+    send_buyer_custom_ack,
 )
 
 ROOT_DIR = Path(__file__).parent
@@ -331,7 +337,7 @@ async def get_post(slug: str):
 
 
 @api.post("/custom-orders", response_model=CustomOrder)
-async def create_custom_order(payload: CustomOrderCreate):
+async def create_custom_order(payload: CustomOrderCreate, bg: BackgroundTasks):
     order = CustomOrder(**payload.model_dump())
     await db.custom_orders.insert_one(order.model_dump())
     await db.activity_events.insert_one(
@@ -339,11 +345,15 @@ async def create_custom_order(payload: CustomOrderCreate):
                       text=f"New custom order — {payload.project_type}",
                       location="Custom queue").model_dump()
     )
+    bg.add_task(send_ops_new_custom_order,
+                payload.name, payload.email, payload.project_type,
+                payload.material, payload.description, payload.budget)
+    bg.add_task(send_buyer_custom_ack, payload.email, payload.name, payload.project_type)
     return order
 
 
 @api.post("/maker-applications", response_model=MakerApplication)
-async def create_maker_application(payload: MakerApplicationCreate):
+async def create_maker_application(payload: MakerApplicationCreate, bg: BackgroundTasks):
     app_obj = MakerApplication(**payload.model_dump())
     await db.maker_applications.insert_one(app_obj.model_dump())
     await db.activity_events.insert_one(
@@ -351,6 +361,9 @@ async def create_maker_application(payload: MakerApplicationCreate):
                       text=f"{payload.studio_name} applied to the program",
                       location=payload.location).model_dump()
     )
+    bg.add_task(send_ops_new_application,
+                payload.name, payload.studio_name, payload.location,
+                payload.email, payload.about)
     return app_obj
 
 
@@ -409,7 +422,7 @@ async def create_checkout(req: CheckoutRequest, http_request: Request):
 
 
 @api.get("/checkout/status/{session_id}")
-async def checkout_status(session_id: str, http_request: Request):
+async def checkout_status(session_id: str, http_request: Request, bg: BackgroundTasks):
     host_url = str(http_request.base_url).rstrip("/")
     webhook_url = f"{host_url}/api/webhook/stripe"
     stripe = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
@@ -453,6 +466,18 @@ async def checkout_status(session_id: str, http_request: Request):
                               text=f"{summary} sold to a buyer",
                               location="Crafters Market").model_dump()
             )
+            # enrich items with title for the email
+            email_items = []
+            for ci in tx.get("items", []):
+                p = await db.products.find_one({"id": ci["product_id"]}, {"_id": 0}) \
+                    or await db.products.find_one({"slug": ci["product_id"]}, {"_id": 0})
+                if p:
+                    email_items.append({"title": p["title"], "price": p["price"], "quantity": ci.get("quantity", 1)})
+            buyer = tx.get("customer_email")
+            total_amount = float(tx.get("amount", 0))
+            bg.add_task(send_ops_new_order, summary, total_amount, email_items, buyer)
+            if buyer:
+                bg.add_task(send_buyer_receipt, buyer, summary, total_amount, email_items)
     return result
 
 

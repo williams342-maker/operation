@@ -8,13 +8,18 @@ export default function CartPage() {
   const { items, remove, setQty, subtotal, clear } = useCart();
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
+  const [email, setEmail] = useState("");
 
   const checkout = async () => {
+    if (!email || !/.+@.+\..+/.test(email)) {
+      setErr("Enter a valid email so we can send your receipt."); return;
+    }
     setErr(""); setLoading(true);
     try {
       const res = await createCheckout({
         items: items.map((i) => ({ product_id: i.id, quantity: i.quantity })),
         origin_url: window.location.origin,
+        customer_email: email,
       });
       window.location.href = res.url;
     } catch (e) {
@@ -70,6 +75,14 @@ export default function CartPage() {
                 <span className="font-mono text-xs uppercase tracking-[0.22em] text-[#a3a3a3]">Total</span>
                 <span className="font-display text-4xl text-[#ff4500]">${subtotal.toFixed(2)}</span>
               </div>
+              <label className="block mb-4">
+                <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#a3a3a3]">Email for receipt</span>
+                <input
+                  type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@example.com" data-testid="cart-email"
+                  className="w-full mt-2 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-3 font-mono text-sm"
+                />
+              </label>
               <button onClick={checkout} disabled={loading} data-testid="cart-checkout-btn" className="btn-industrial btn-primary w-full justify-center">
                 {loading ? "Redirecting…" : "Checkout →"}
               </button>
