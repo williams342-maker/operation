@@ -63,6 +63,12 @@ export const fetchMakerBilling = () =>
   http.get("/maker/billing", { headers: authHeaders() }).then((r) => r.data);
 export const fetchMakerPlusRoi = () =>
   http.get("/maker/plus/roi", { headers: authHeaders() }).then((r) => r.data);
+export const fetchMakerCreditPacks = () =>
+  http.get("/maker/credits/packs", { headers: authHeaders() }).then((r) => r.data);
+export const startMakerCreditCheckout = (pack) =>
+  http.post(`/maker/credits/checkout?pack=${encodeURIComponent(pack)}`, null, { headers: authHeaders() }).then((r) => r.data);
+export const finalizeMakerCreditPurchase = (sessionId) =>
+  http.post(`/maker/credits/finalize?session_id=${encodeURIComponent(sessionId)}`, null, { headers: authHeaders() }).then((r) => r.data);
 export const fetchMakerSubscription = () =>
   http.get("/maker/subscription", { headers: authHeaders() }).then((r) => r.data);
 export const startMakerSubscription = () =>

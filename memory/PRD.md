@@ -57,6 +57,32 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - iter16: **.glb upload (P2) + Variants (P3) + Draft mode (P4)** — backend 28/28 incl. 10 new iter16 cases + frontend E2E 12/12 (modal variants editor, draft↔publish flips, .glb file upload, buyer variant selector + cart variant pricing). R2 live; transfer_to_makers + maker-orders correctly apply variant deltas.
 
 ## Recently Shipped (2026-04-26)
+- ✅ **iter27 — Listing-credit packs (P4) + Receipt review CTA (P3) + Cron scheduler (P2)**:
+
+  **P2 · In-process cron scheduler** (`/app/backend/scheduler.py`):
+  - APScheduler `AsyncIOScheduler` boots with FastAPI startup, shuts down cleanly. 3 jobs registered:
+    - `expire_listings` daily 03:10 UTC
+    - `r2_orphan_sweep` weekly Sunday 04:00 UTC (always dry-run)
+    - `plus_roi_digest` monthly 1st at 14:00 UTC
+  - Disable via `SCHEDULER_ENABLED=false` env. 3 unit tests cover boot/disable/idempotency.
+
+  **P3 · Email-receipt review CTA**:
+  - Buyer receipts now include a per-maker "★ Review {maker_name}" CTA section (deduped by maker, UTM-tracked `utm_source=email&utm_campaign=order-receipt-review`, deep-links to `/makers/{slug}#leave-review`).
+  - New `POST /api/reviews` endpoint with validation (rating 1-5, name+text required, auto-derives `maker_slug` from `product_slug`).
+  - Added `maker_slug` field to `Review` model + filter on the existing GET `/api/reviews` (by `maker_slug` or `product_slug`).
+  - Enriched `email_items` in checkout flow to carry `maker_slug` + `maker_name` so the receipt template can render the buttons.
+  - 7 unit tests cover validation, target derivation, persistence, list filter, receipt CTA rendering, maker dedup, backward-compat (skip CTA if no maker_slug).
+
+  **P4 · Listing-credit packs**:
+  - New `routers/credits.py` with 3 endpoints: `GET /maker/credits/packs`, `POST /maker/credits/checkout?pack=…`, `POST /maker/credits/finalize?session_id=…` (idempotent).
+  - 3 pack tiers (env-overridable): 10 credits/$1.50 (25% off cash), 50/$7.00 (30% off), 200/$24.00 (40% off).
+  - Stripe Checkout in `payment` mode with metadata + a parallel `db.credit_pack_purchases` ledger for audit + idempotency.
+  - **Burn order in `revenue.accrue_listing_charge`**: free quota → pre-paid credits → cash fees. Beautifully simple.
+  - **BillingTab UI**: new "Pre-paid listing credits" panel showing current balance + 3 pack buttons with per-credit ¢ display + savings %. Auto-finalizes on Stripe redirect via `useEffect` on `?credits=success&session_id=…`.
+  - 5 unit tests cover the credit-burn precedence, balance rendering, missing-field backward-compat, pack listing.
+
+  **Tests**: 261/261 backend tests passing (full regression sweep). Fixed 2 pre-existing pollution issues along the way: `test_iter16_drafts_variants_glb` was hardcoded to assert `r2.dev` (now allows CDN host) and `test_iter18` cleanup now hard-deletes test products to avoid contaminating maker_portal.
+
 - ✅ **iter26 — R2 CDN custom domain `cdn.craftersmarket.org` activated**:
   - User connected `cdn.craftersmarket.org` in Cloudflare R2 dashboard (Custom Domains → Connect).
   - Flipped `R2_PUBLIC_URL` from `https://pub-96d13eb6b15840a98236f6c1053262c3.r2.dev` to `https://cdn.craftersmarket.org` and restarted backend.
@@ -195,6 +221,6 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - (Optional analytics) Cohort retention, bounce-rate-by-page, Discord/Slack live-visitor ping
 
 ## Next Action Items
-- 🟢 **P2 — Schedule the ROI digest as a real cron** (currently triggered manually via admin endpoint; adding a daily/weekly scheduler closes the loop)
-- 🟢 **P3 — Email-receipt review CTA** (footer pixel on order receipts → Google Reviews / shop Q&A page)
-- 🟢 **P4 — Listing-credit packs** (alternative to per-payout settlement)
+- 🟢 **P5 — `/api/reviews` UI on MakerDetail page** — backend endpoint + Review model are in place; the frontend `MakerDetail.jsx` still needs a Reviews section + `#leave-review` form to complete the email-CTA loop.
+- 🟢 **P6 — Admin "Marketing Digests" panel** (1-click trigger UI for the cron-able digest job)
+- 🟢 **P7 — Real off-site ad spend** (Google Ads / Meta Marketing API integration)

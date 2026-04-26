@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
   fetchMakerBilling, fetchMakerSubscription, fetchMakerPlusRoi,
+  fetchMakerCreditPacks, startMakerCreditCheckout, finalizeMakerCreditPurchase,
   startMakerSubscription, cancelMakerSubscription, openMakerSubscriptionPortal,
 } from "../../lib/api";
 import { useConfirm } from "./useConfirm";
@@ -10,8 +11,10 @@ export default function BillingTab() {
   const [b, setB] = useState(null);
   const [s, setS] = useState(null);
   const [roi, setRoi] = useState(null);
+  const [credits, setCredits] = useState(null);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const [creditMsg, setCreditMsg] = useState("");
 
   const reload = useCallback(() => {
     fetchMakerBilling().then(setB).catch((e) =>
@@ -19,8 +22,33 @@ export default function BillingTab() {
     );
     fetchMakerSubscription().then(setS).catch(() => {});
     fetchMakerPlusRoi().then(setRoi).catch(() => {});
+    fetchMakerCreditPacks().then(setCredits).catch(() => {});
   }, []);
   useEffect(() => { reload(); }, [reload]);
+
+  // After Stripe checkout success, finalize the purchase + refresh balance.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("credits") === "success" && params.get("session_id")) {
+      finalizeMakerCreditPurchase(params.get("session_id"))
+        .then((r) => {
+          if (r.already_fulfilled) {
+            setCreditMsg(`✓ Already credited · balance ${r.credits}`);
+          } else {
+            setCreditMsg(`✓ +${r.credited} credits added · new balance ${r.credits}`);
+          }
+          reload();
+          // Clean URL so a refresh doesn't re-trigger
+          window.history.replaceState({}, "", window.location.pathname + "?tab=billing");
+          setTimeout(() => setCreditMsg(""), 6000);
+        })
+        .catch((e) => setErr(e?.response?.data?.detail || "Could not confirm credit purchase."));
+    } else if (params.get("credits") === "canceled") {
+      setCreditMsg("Credit purchase canceled — no charge made.");
+      window.history.replaceState({}, "", window.location.pathname + "?tab=billing");
+      setTimeout(() => setCreditMsg(""), 4000);
+    }
+  }, [reload]);
 
   if (err) return <p className="font-mono text-sm text-red-400" data-testid="billing-error">{err}</p>;
   if (!b) return <p className="font-mono text-sm text-[#a3a3a3]" data-testid="billing-loading">Loading billing…</p>;
@@ -68,6 +96,26 @@ export default function BillingTab() {
       window.location.href = url;
     } catch (e) {
       setErr(e?.response?.data?.detail || "Could not open billing portal.");
+      setBusy(false);
+    }
+  };
+
+  const onBuyCredits = async (pack, label) => {
+    const ok = await confirm({
+      title: `Buy ${label}?`,
+      body: "You'll be redirected to Stripe to complete the purchase. Credits land instantly on your account when payment confirms — they never expire.",
+      confirmLabel: "Continue to Stripe →",
+      cancelLabel: "Not now",
+      tone: "primary",
+      testId: `confirm-credits-${pack}`,
+    });
+    if (!ok) return;
+    setBusy(true);
+    try {
+      const { checkout_url } = await startMakerCreditCheckout(pack);
+      window.location.href = checkout_url;
+    } catch (e) {
+      setErr(e?.response?.data?.detail || "Could not start checkout.");
       setBusy(false);
     }
   };
@@ -240,6 +288,70 @@ export default function BillingTab() {
           </div>
         )}
       </div>
+
+      {/* Listing-credit packs — pre-paid bulk discount alternative to per-payout
+          $0.20 cash settlements. Only meaningful for makers past the free quota. */}
+      {credits && (
+        <div className="border border-[#262626] p-6" data-testid="billing-credits-card">
+          <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
+            <div>
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-1">
+                Pre-paid listing credits
+              </div>
+              <div className="font-display text-3xl">
+                {credits.current_credits}
+                <span className="text-[#525252] text-xl"> credit{credits.current_credits === 1 ? "" : "s"}</span>
+              </div>
+              <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#525252] mt-1">
+                Burned before cash fees · never expire
+              </p>
+            </div>
+            {creditMsg && (
+              <div
+                className="font-mono text-xs text-emerald-400 px-3 py-2 border border-emerald-400/40"
+                data-testid="billing-credits-msg"
+              >
+                {creditMsg}
+              </div>
+            )}
+          </div>
+          <div className="grid md:grid-cols-3 gap-3">
+            {credits.packs.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => onBuyCredits(p.id, p.label)}
+                disabled={busy}
+                className="text-left border border-[#262626] hover:border-[#ff4500] p-4 transition disabled:opacity-50 disabled:cursor-not-allowed group"
+                data-testid={`billing-credits-pack-${p.id}`}
+              >
+                <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+                  {p.id} pack
+                </div>
+                <div className="font-display text-3xl mt-2 group-hover:text-[#ff4500] transition">
+                  {p.credits}
+                </div>
+                <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#525252] mb-3">
+                  listings
+                </div>
+                <div className="flex items-baseline justify-between border-t border-[#262626] pt-3">
+                  <div className="font-display text-2xl text-[#ff4500]">
+                    ${p.price_usd.toFixed(2)}
+                  </div>
+                  <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-emerald-400">
+                    ¢{p.per_credit_cents.toFixed(0)}/credit · save{" "}
+                    {Math.round(((20 - p.per_credit_cents) / 20) * 100)}%
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+          <p className="font-mono text-[10px] text-[#525252] mt-4 leading-relaxed">
+            Credits stack on top of your free quota. They're consumed before any
+            cash fee accrues to your next payout — so a bulk pack at 30–40% off
+            cash rates is the cheapest way to grow your shop past the free 10.
+          </p>
+        </div>
+      )}
 
       {/* Policy details */}
       <div className="border border-[#262626] p-5" data-testid="billing-policy-details">

@@ -88,13 +88,18 @@ def _reset_iron_and_oak() -> None:
         # Wipe maker pending state.
         await db.makers.update_one(
             {"slug": MAKER_SLUG},
-            {"$set": {"pending_charges_cents": 0, "charge_history": []}},
+            {"$set": {"pending_charges_cents": 0, "charge_history": [],
+                      "listings_used_lifetime": 3,  # reset to seed count (3 real iron-and-oak listings)
+                      "listings_by_month": {}}},
         )
         # Wipe promoted_until on every iron-and-oak product (test paranoia).
         await db.products.update_many(
             {"maker_slug": MAKER_SLUG},
             {"$set": {"promoted_until": None}},
         )
+        # Hard-delete every leftover test-iter18 product so it doesn't pollute
+        # other test files (e.g. maker_portal expects exactly 3 iron listings).
+        await db.products.delete_many({"slug": {"$regex": "^test-iter18-"}})
         client.close()
 
     asyncio.get_event_loop().run_until_complete(_do()) if False else asyncio.run(_do())

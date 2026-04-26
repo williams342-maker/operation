@@ -102,7 +102,32 @@ async def accrue_listing_charge(maker_slug: str, product_slug: str,
             "lifetime": new_lifetime, "plus": plus,
             "monthly_used": new_monthly,
         }
-    # Past quota — accrue the fee.
+    # Past quota — try burning a pre-paid listing credit before accruing the fee.
+    credits = int(m.get("listing_credits", 0) or 0)
+    if credits > 0:
+        entry = {
+            "kind": kind, "slug": product_slug,
+            "amount_cents": 0, "ts": now_iso(),
+            "note": f"{kind} (used 1 pre-paid credit, {credits - 1} remaining)",
+        }
+        await db.makers.update_one(
+            {"slug": maker_slug},
+            {
+                "$inc": {
+                    "listings_used_lifetime": 1,
+                    "listing_credits": -1,
+                },
+                "$set": {"listings_by_month": by_month},
+                "$push": {"charge_history": entry},
+            },
+        )
+        return {
+            "charged": False, "amount_cents": 0,
+            "free_remaining": 0, "lifetime": new_lifetime,
+            "plus": plus, "monthly_used": new_monthly,
+            "credits_burned": True, "credits_remaining": credits - 1,
+        }
+    # No credits — accrue cash fee.
     entry = {
         "kind": kind, "slug": product_slug,
         "amount_cents": LISTING_FEE_CENTS,

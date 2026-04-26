@@ -355,7 +355,16 @@ async def checkout_status(session_id: str, http_request: Request, bg: Background
                     or await db.products.find_one({"slug": ci["product_id"]}, {"_id": 0})
                 if not p:
                     continue
-                line = {"title": p["title"], "price": p["price"], "quantity": ci.get("quantity", 1)}
+                m_doc = await db.makers.find_one(
+                    {"slug": p["maker_slug"]}, {"_id": 0, "name": 1, "slug": 1},
+                ) or {}
+                line = {
+                    "title": p["title"],
+                    "price": p["price"],
+                    "quantity": ci.get("quantity", 1),
+                    "maker_slug": p["maker_slug"],
+                    "maker_name": m_doc.get("name") or p["maker_slug"],
+                }
                 email_items.append(line)
                 by_maker.setdefault(p["maker_slug"], []).append(line)
             buyer = tx.get("customer_email")

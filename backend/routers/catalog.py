@@ -11,7 +11,7 @@ from email_service import (
 from models import (
     ActivityEvent, BlogPost, CustomOrder, CustomOrderCreate,
     Maker, MakerApplication, MakerApplicationCreate,
-    Product, Review,
+    Product, Review, ReviewCreate,
 )
 
 router = APIRouter()
@@ -93,8 +93,48 @@ async def get_maker(slug: str):
 
 
 @router.get("/reviews", response_model=List[Review])
-async def list_reviews(limit: int = 20):
-    return await db.reviews.find({}, {"_id": 0}).sort("created_at", -1).to_list(limit)
+async def list_reviews(
+    limit: int = 20,
+    maker_slug: Optional[str] = None,
+    product_slug: Optional[str] = None,
+):
+    """Returns recent reviews. Optional filters by maker or product slug."""
+    q: Dict = {}
+    if maker_slug:
+        q["maker_slug"] = maker_slug
+    if product_slug:
+        q["product_slug"] = product_slug
+    return await db.reviews.find(q, {"_id": 0}).sort("created_at", -1).to_list(limit)
+
+
+@router.post("/reviews", response_model=Review)
+async def create_review(payload: ReviewCreate):
+    """Public review submission. Lightly validated — no auth required to keep
+    the post-purchase email CTA frictionless."""
+    if not payload.name.strip() or not payload.text.strip():
+        raise HTTPException(400, "Name and text are required.")
+    if not (1 <= payload.rating <= 5):
+        raise HTTPException(400, "Rating must be between 1 and 5.")
+    if not (payload.maker_slug or payload.product_slug):
+        raise HTTPException(400, "Either maker_slug or product_slug is required.")
+    # If only product is given, derive the maker so listings can roll up cleanly.
+    maker_slug = payload.maker_slug
+    if payload.product_slug and not maker_slug:
+        prod = await db.products.find_one(
+            {"slug": payload.product_slug}, {"_id": 0, "maker_slug": 1},
+        )
+        if prod:
+            maker_slug = prod.get("maker_slug")
+    review = Review(
+        name=payload.name.strip()[:80],
+        location=(payload.location or "").strip()[:60],
+        rating=payload.rating,
+        text=payload.text.strip()[:1500],
+        product_slug=payload.product_slug,
+        maker_slug=maker_slug,
+    )
+    await db.reviews.insert_one(review.model_dump())
+    return review
 
 
 @router.get("/blog", response_model=List[BlogPost])

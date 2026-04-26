@@ -158,6 +158,41 @@ async def send_buyer_receipt(buyer_email: str, summary: str, total: float, items
     body = _items_table(items) if items else f"<p style='color:#e5e5e5'>{summary}</p>"
     body += f"<div style='border-top:1px solid #262626;padding-top:14px;display:flex;justify-content:space-between;font-size:14px'><span style='color:#a3a3a3;letter-spacing:0.22em;text-transform:uppercase;font-size:11px'>Total</span> <span style='color:#ff4500;font-family:Impact,sans-serif;font-size:28px;float:right'>${total:.2f}</span></div>"
     body += "<p style='font-size:13px;line-height:1.6;color:#a3a3a3;margin-top:24px'>Your makers have been notified. Each piece is built to order — expect a tracking email within 5–7 business days. Questions? Reply to this email anytime.</p>"
+
+    # Per-maker review CTA — drives the order-confirmation high-engagement
+    # moment into UGC. One CTA per unique maker (deduped).
+    seen_makers = set()
+    review_buttons = ""
+    site = (os.environ.get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
+    for it in items or []:
+        slug = it.get("maker_slug")
+        name = it.get("maker_name") or slug
+        if not slug or slug in seen_makers:
+            continue
+        seen_makers.add(slug)
+        link = (
+            f"{site}/makers/{slug}#leave-review"
+            f"?utm_source=email&utm_medium=transactional&utm_campaign=order-receipt-review"
+        )
+        review_buttons += (
+            f"<a href='{link}' style='display:inline-block;margin:6px 8px 0 0;"
+            "background:transparent;color:#ff4500;border:1px solid #ff4500;"
+            "padding:10px 18px;font-family:JetBrains Mono,monospace;font-size:11px;"
+            f"letter-spacing:0.22em;text-transform:uppercase;text-decoration:none'>★ Review {name}</a>"
+        )
+    if review_buttons:
+        body += (
+            "<div style='border-top:1px solid #262626;padding-top:18px;margin-top:24px'>"
+            "<p style='font-size:11px;letter-spacing:0.22em;text-transform:uppercase;"
+            "color:#a3a3a3;margin:0 0 6px'>◆ 30 seconds · big impact</p>"
+            "<p style='font-size:13px;color:#e5e5e5;line-height:1.6;margin:0 0 12px'>"
+            "When the piece arrives, drop your maker a quick review — it's the single biggest "
+            "thing you can do to support an independent shop. Two taps."
+            "</p>"
+            f"<div style='line-height:1.8'>{review_buttons}</div>"
+            "</div>"
+        )
+
     html = _shell("Order Confirmed.", "Thanks for the order — here's your receipt.", body, "Order receipt")
     return await _send(buyer_email, "Your Crafters Market order is confirmed", html)
 

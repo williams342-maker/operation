@@ -112,6 +112,9 @@ class Maker(BaseModel):
     # to `pending_charges_cents`, debited from the next payout.
     listings_used_lifetime: int = 0
     pending_charges_cents: int = 0
+    # Pre-paid listing credits — bought in packs via Stripe one-time checkout.
+    # Burned BEFORE pending_charges accrue, in `accrue_listing_charge`.
+    listing_credits: int = 0
     # Audit trail of charge events: [{kind, slug, amount_cents, ts, note}]
     charge_history: List[dict] = []
     created_at: str = Field(default_factory=now_iso)
@@ -125,7 +128,17 @@ class Review(BaseModel):
     rating: int = 5
     text: str
     product_slug: Optional[str] = None
+    maker_slug: Optional[str] = None
     created_at: str = Field(default_factory=now_iso)
+
+
+class ReviewCreate(BaseModel):
+    name: str
+    location: str = ""
+    rating: int = 5
+    text: str
+    product_slug: Optional[str] = None
+    maker_slug: Optional[str] = None
 
 
 class BlogPost(BaseModel):

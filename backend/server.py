@@ -11,6 +11,7 @@ from routers.ai import router as ai_router
 from routers.catalog import router as catalog_router
 from routers.checkout import router as checkout_router
 from routers.community import router as community_router
+from routers.credits import router as credits_router
 from routers.maker import router as maker_router
 from routers.seo import router as seo_router
 from routers.stripe_connect import router as stripe_connect_router
@@ -28,6 +29,7 @@ api.include_router(checkout_router)
 api.include_router(maker_router)
 api.include_router(stripe_connect_router)
 api.include_router(subscriptions_router)
+api.include_router(credits_router)
 api.include_router(analytics_router)
 api.include_router(admin_router)
 api.include_router(ai_router)
@@ -46,9 +48,13 @@ app.add_middleware(
 @app.on_event("startup")
 async def on_startup():
     await seed_if_empty()
+    from scheduler import start_scheduler
+    start_scheduler()
     logger.info("Crafters Market API ready (seed checked).")
 
 
 @app.on_event("shutdown")
 async def shutdown_db():
+    from scheduler import shutdown_scheduler
+    shutdown_scheduler()
     client.close()

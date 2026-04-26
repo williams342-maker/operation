@@ -211,7 +211,9 @@ class TestGlbUpload:
         assert "url" in out, out
         url = out["url"]
         # The bucket public CDN host
-        assert ".r2.dev/" in url, f"URL should be on R2 CDN, got {url}"
+        # Either the legacy r2.dev pub URL or the production CDN host is fine.
+        assert ("r2.dev/" in url) or ("cdn.craftersmarket.org/" in url), \
+            f"URL should be on R2 CDN (r2.dev or cdn.craftersmarket.org), got {url}"
         assert "/models/iron-and-oak/" in url, f"Wrong key prefix: {url}"
         assert url.endswith(".glb"), f"URL must end .glb, got {url}"
         assert int(out.get("size") or 0) == len(body)
