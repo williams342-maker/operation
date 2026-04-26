@@ -128,6 +128,11 @@ async def create_checkout(req: CheckoutRequest, http_request: Request):
 
     line_summary = " | ".join(f"{r['product']['title']} × {r['quantity']}" for r in resolved)
 
+    # transfer_group ties the charge to later Transfer.create() calls per-maker.
+    # We use a deterministic pre-id (we don't know the session id yet) — Stripe
+    # accepts any string. Replace with the real session.id after we have it.
+    pre_transfer_group = f"order_{uuid.uuid4().hex}"
+
     session_kwargs = {
         "mode": "payment",
         "payment_method_types": ["card"],
@@ -136,10 +141,15 @@ async def create_checkout(req: CheckoutRequest, http_request: Request):
         "shipping_address_collection": {"allowed_countries": ["US", "CA"]},
         "success_url": success_url,
         "cancel_url": cancel_url,
+        "payment_intent_data": {
+            "transfer_group": pre_transfer_group,
+            "metadata": {"transfer_group": pre_transfer_group},
+        },
         "metadata": {
             "summary": line_summary[:480],
             "customer_email": req.customer_email or "",
             "gift_note": (req.gift_note or "")[:480],
+            "transfer_group": pre_transfer_group,
         },
     }
     try_with_tax = os.environ.get("STRIPE_AUTOMATIC_TAX", "true").lower() == "true"
@@ -169,6 +179,7 @@ async def create_checkout(req: CheckoutRequest, http_request: Request):
         "summary": line_summary,
         "customer_email": req.customer_email,
         "gift_note": req.gift_note,
+        "transfer_group": pre_transfer_group,
         "payment_status": "initiated",
         "status": "open",
         "created_at": now_iso(),
@@ -259,6 +270,9 @@ async def checkout_status(session_id: str, http_request: Request, bg: Background
                 subtotal = sum(float(line["price"]) * int(line["quantity"]) for line in lines)
                 bg.add_task(send_maker_new_order,
                             m["email"], m["name"], lines, subtotal, buyer)
+            # Stripe Connect: transfer each maker's share to their connected acct
+            from routers.stripe_connect import transfer_to_makers_for_session
+            bg.add_task(transfer_to_makers_for_session, session_id)
     return result
 
 
@@ -285,4 +299,10 @@ async def stripe_webhook(request: Request):
             {"session_id": evt.session_id, "status": "pending"},
             {"$set": {"status": "active", "activated_at": now_iso()}},
         )
+        # Stripe Connect: transfer each maker's share for this session.
+        try:
+            from routers.stripe_connect import transfer_to_makers_for_session
+            await transfer_to_makers_for_session(evt.session_id)
+        except Exception as e:
+            logger.exception("connect transfer failed: %s", e)
     return {"received": True}

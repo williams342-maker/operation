@@ -39,6 +39,11 @@ class Maker(BaseModel):
     email: Optional[EmailStr] = None
     listings_count: int = 0
     rating: float = 4.95
+    # ---- Stripe Connect (Express) ----
+    stripe_account_id: Optional[str] = None
+    stripe_charges_enabled: bool = False
+    stripe_payouts_enabled: bool = False
+    stripe_details_submitted: bool = False
     created_at: str = Field(default_factory=now_iso)
 
 

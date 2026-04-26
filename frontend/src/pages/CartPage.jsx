@@ -9,8 +9,14 @@ export default function CartPage() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
   const [email, setEmail] = useState("");
-  const [giftNote, setGiftNote] = useState("");
+  const [giftNote, setGiftNote] = useState(() => {
+    try { return localStorage.getItem("cm_gift_note") || ""; } catch { return ""; }
+  });
   const [quote, setQuote] = useState(null);
+
+  useEffect(() => {
+    try { localStorage.setItem("cm_gift_note", giftNote); } catch {}
+  }, [giftNote]);
 
   // Live shipping/total quote (refreshes whenever cart changes)
   useEffect(() => {

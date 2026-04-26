@@ -22,7 +22,11 @@ export default function CheckoutSuccess() {
         if (!alive) return;
         setState({ ...s, status: s.payment_status === "paid" ? "paid" : s.status });
         if (s.payment_status === "paid") {
-          if (!cleared.current) { cleared.current = true; clear(); }
+          if (!cleared.current) {
+            cleared.current = true;
+            clear();
+            try { localStorage.removeItem("cm_gift_note"); } catch {}
+          }
           return;
         }
         if (s.status === "expired" || tries.current >= 8) return;

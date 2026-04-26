@@ -81,7 +81,27 @@ async def ai_chat(req: ChatRequest):
     session_id = req.session_id or f"anon-{uuid.uuid4().hex[:12]}"
     product_ctx = await _build_product_context()
     page_ctx = f"\nPAGE CONTEXT: {req.page_context}" if req.page_context else ""
-    system_message = SYSTEM_PROMPT + "\n\n" + product_ctx + page_ctx
+
+    # Replay prior turns from this session so the model has conversational memory.
+    # emergentintegrations LlmChat treats session_id as a transcript key only —
+    # history must be supplied each call. We bake the last 20 turns into the
+    # system message as a transcript preamble.
+    prior = await db.ai_chats.find(
+        {"session_id": session_id}, {"_id": 0, "user": 1, "assistant": 1, "created_at": 1}
+    ).sort("created_at", 1).to_list(20)
+    history_block = ""
+    if prior:
+        lines = ["CONVERSATION SO FAR (most recent at the bottom — remember these facts):"]
+        for t in prior:
+            u = (t.get("user") or "").strip()
+            a = (t.get("assistant") or "").strip()
+            if u:
+                lines.append(f"User: {u}")
+            if a:
+                lines.append(f"Assistant: {a}")
+        history_block = "\n\n" + "\n".join(lines)
+
+    system_message = SYSTEM_PROMPT + "\n\n" + product_ctx + page_ctx + history_block
 
     chat = LlmChat(
         api_key=EMERGENT_LLM_KEY,

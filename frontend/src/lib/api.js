@@ -39,6 +39,19 @@ export const updateMakerProduct = (slug, payload) =>
 export const updateMakerProfile = (payload) =>
   http.patch("/maker/profile", payload, { headers: authHeaders() }).then((r) => r.data);
 
+// ---------- Stripe Connect (Express) ----------
+export const stripeConnectOnboard = (origin_url) =>
+  http.post("/maker/stripe/connect/onboard", { origin_url },
+    { headers: authHeaders() }).then((r) => r.data);
+export const stripeConnectStatus = () =>
+  http.get("/maker/stripe/connect/status",
+    { headers: authHeaders() }).then((r) => r.data);
+export const stripeConnectDashboardLink = () =>
+  http.post("/maker/stripe/connect/dashboard-link", {},
+    { headers: authHeaders() }).then((r) => r.data);
+export const fetchMakerPayouts = () =>
+  http.get("/maker/payouts", { headers: authHeaders() }).then((r) => r.data);
+
 // ---------- Admin Console ----------
 const adminAuthHeaders = () => {
   const t = localStorage.getItem("cm_admin_jwt");
