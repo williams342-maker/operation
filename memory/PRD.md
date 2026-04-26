@@ -240,8 +240,12 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - (Optional analytics) Cohort retention, bounce-rate-by-page, Discord/Slack live-visitor ping
 
 ## Next Action Items
-- 🟢 **P7 — Real off-site ad spend** (Google Ads / Meta Marketing API integration) — needs user-supplied API credentials.
-- 🟡 **P10 — Continue AdminDashboard refactor**: split Analytics / Web / Maker / Listings / Reviews / Applications / Custom / Orders tabs into `/components/admin/*` (file is at 1092 lines after iter30, target <700).
-- 🟡 **P11 — Apply Esc + focus-trap to remaining admin modals** + extract reusable `useModalA11y(onCancel)` hook.
-- 🟡 **P12 — Audit-log tab** for `community_users.moderation_history`.
-- 🟡 **P13 — Migrate ISO-string chat-cleanup comparison to parsed datetimes** (currently relies on consistent ISO-8601 format; see iter18 reviewer note).
+- 🟢 **P7 — Real off-site ad spend** (Google Ads / Meta Marketing API) — needs user-supplied API credentials.
+- 🟡 **P14 — UX polish backlog** still on the table from the offered list:
+    - (e) Loading skeletons replacing "Loading…" text on all dashboards
+    - (f) Empty-state illustrations with CTAs (e.g. "No orders yet — share your shop link")
+    - (g) Mobile responsive pass on `/admin/dashboard` (12-tab bar overflows on phones; needs sticky/scrollable)
+    - (j) Scheduled-toggle for site switches ("turn maintenance ON at 02:00 UTC tonight, OFF at 04:00 UTC")
+    - (k) Per-channel chat moderation (delete a single message; mute a user from one room only)
+    - (l) Order-level admin tools (refund partials, reissue maker email, refire transactional emails)
+    - (d) Backend `routers/community.py` domain split (~750 lines → community_auth/forum/chat/showcase)
