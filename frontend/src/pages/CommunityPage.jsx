@@ -504,6 +504,7 @@ function ChatTab({ me }) {
   );
   const sendWsRef = useRef(null);             // active socket (for sending)
   const shadowSocketsRef = useRef({});        // { channel: ws }
+  const activeChannelRef = useRef("general"); // FIX: avoid stale-closure in shadow ws handlers
   const scrollRef = useRef(null);
   const audioRef = useRef(null);
   const mentionAudioRef = useRef(null);
@@ -522,8 +523,9 @@ function ChatTab({ me }) {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages]);
 
-  // Reset unread/mentions when entering a channel
+  // Reset unread/mentions when entering a channel + keep ref fresh for shadow sockets
   useEffect(() => {
+    activeChannelRef.current = channel;
     setUnread((u) => ({ ...u, [channel]: 0 }));
     setMentions((m) => ({ ...m, [channel]: 0 }));
     setTyping([]);
@@ -585,7 +587,7 @@ function ChatTab({ me }) {
     }
     if (msg.kind === "typing") {
       // Only render typing if it's the active channel.
-      if (ch !== channel) return;
+      if (ch !== activeChannelRef.current) return;
       setTyping((prev) => {
         const others = prev.filter((p) => p.user_email !== msg.user_email);
         return msg.is_typing ? [...others, msg] : others;
@@ -616,7 +618,7 @@ function ChatTab({ me }) {
         } catch { /* ignore */ }
       }
 
-      if (ch !== channel) {
+      if (ch !== activeChannelRef.current) {
         setUnread((u) => ({ ...u, [ch]: (u[ch] || 0) + 1 }));
         if (mentioned) {
           setMentions((mm) => ({ ...mm, [ch]: (mm[ch] || 0) + 1 }));

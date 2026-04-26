@@ -62,27 +62,21 @@ frontend/src/pages/                      # 9 routed pages
 - 3D viewer for CNC pieces (currently using interactive 4-image gallery as proxy)
 - Stripe Connect for direct maker payouts (P2 — deferred until user enables Connect on Stripe dashboard)
 
-## What's Implemented (2026-04-26 — fork session, iteration 5)
-- ✅ All previous iterations (Phase 1+2+3 from iteration 4: AI assistant, community auth, community page).
-- ✅ **3D viewer** — `<model-viewer>` web component (Google's library, lightweight) wired into ProductDetail via a new optional `model_url` field on `Product`. Compass Medallion seeded with a public test GLB. New "3D AVAILABLE" badge + a 5th thumbnail slot to toggle between images and 3D view. Graceful fallback: products without `model_url` show the regular gallery as before.
-- ✅ **Avatar upload UI** — buyer header has a clickable avatar that opens a file picker; uploads PNG/JPG/WebP up to 1.5MB to `POST /api/community/me/avatar` (already implemented backend-side). Picture is stored as a base64 data URL on the user record and shown next to the user's name in the buddy list and chat.
-- ✅ **AOL AIM-style chat** —
-  - Real-time **buddy list** per channel (right-side panel on desktop, top on mobile) — green dot for buyers, orange dot + "M" for makers.
-  - **"Signed on / signed off"** system messages and live presence snapshot on connect.
-  - **Typing indicator** with bouncing dots ("Sarah is typing…"), debounced WS event.
-  - **Sound on new message** (small embedded WAV beep, mute toggle).
-  - **Unread badges** wired (counter shows on inactive channel tabs — currently increments only on the active socket; plumbing in place for shadow-sockets).
-  - Avatar shown beside maker badge in buddy list when present.
-- ✅ **Webhook hardening** — `/webhook/stripe` now flips `download_unlocks.status: pending → active` when Stripe confirms `payment_status=paid` for a session whose unlock row is pending. Download paywall query updated to require `status: 'active'` (not just non-expired).
+## What's Implemented (2026-04-26 — fork session, iteration 6)
+- ✅ All previous iterations.
+- ✅ **Maker-owned product PATCH** — `PATCH /api/maker/products/{slug}` (new `MakerProductUpdate` model: title, description, price, in_stock, model_url, images). Cross-maker isolation enforced (403). Inline 3D-model URL editor on each card in the maker dashboard's Listings tab — paste a `.glb` URL, click Save, "✓ Saved" appears. Buyers immediately see the "3D AVAILABLE" badge + 3D thumbnail toggle on the product page.
+- ✅ **Cross-channel unread badges** — Community chat now opens 4 SHADOW WebSockets in parallel (one per accessible channel). Inactive channels accumulate unread + mention counts; active channel auto-resets on entry.
+- ✅ **@mentions** — case-insensitive detection on `@<myname>`. Mentioned messages render with an orange left-border (`data-testid='chat-line-mentioned'`) + higher-pitch ding. Inactive channel tabs show `@` in the badge instead of a number when mentions > 0.
+- ✅ **Browser desktop notifications** — `Notification` API. "Enable desktop notifications" CTA appears when permission is `default`; once granted, every mention or any message received while tab is unfocused fires a desktop notif (clicking it focuses the tab and switches to the relevant channel).
+- ✅ **Bug found and fixed during testing** — stale-closure bug in shadow WS handlers (captured `channel` instead of current). Fixed with `activeChannelRef = useRef(channel)` updated in the channel-effect.
+- ✅ **Iteration test results**: 11/11 backend tests + frontend fixes verified.
 
 ## Backlog
-- 3D viewer for ALL products (currently only Compass Medallion has a model_url — makers can paste GLB URLs once we add that field to the maker dashboard form)
-- Stripe Connect for direct maker payouts (still pending — user to enable Connect on Stripe dashboard)
-- Shadow WS sockets so unread badges fire for inactive channels (current impl shows the badge wiring; doesn't track unread cross-channel yet)
-- Push browser notification when a chat mention `@you` lands while tab is unfocused
+- Stripe Connect (still pending — user to enable on Stripe dashboard)
+- 3D viewer for ALL products (now self-serve via maker dashboard — backlog complete in spirit; just needs makers to fill in URLs)
 
 ## Next Action Items
 - (Future) Stripe Connect (still blocked on user)
-- (Future) Maker dashboard form to add `model_url` to their own listings
-- (Future) Cross-channel unread badge tracking (shadow sockets)
-- (Future) `@mentions` + browser notifications in chat
+- (Future) Showcase: option to tag the original product/maker on a buyer post (auto-link to /shop/{slug})
+- (Future) AI assistant: persistence of session_id across page navs (currently per-session only) so the conversation stays warm
+- (Future) Per-thread mentions in forum (mirror chat behavior)
