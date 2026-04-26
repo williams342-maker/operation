@@ -51,16 +51,16 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - iter10: 3 backlog items — **147/147**
 - iter11: Web analytics — **161/161**
 - iter12: GMV mini-charts + 7d deltas + dwell tracking — **170/170**
-- iter13 (this run): Live-now indicator + bounce-rate panel + manual-task docs — **6/6 new · 176/176 full suite**
-  - **Live-now** badge in admin nav: emerald pulsing dot when ≥1 visitor in last 1 min, distinct visitor count for last 5 min, polls every 30s, pauses on tab hidden
-  - **Bounce-rate panel** in Web Analytics tab: bounce_rate_pct, pages_per_session, bounces total. Single-pageview sessions count as bounces. Live: 92.9% (104 / 112)
-  - **Stripe Connect webhook setup guide** at `/app/memory/STRIPE_CONNECT_SETUP.md` — copy-paste-ready steps for adding `account.updated` to Stripe Dashboard
-  - **Google OAuth verification guide** at `/app/memory/GOOGLE_OAUTH_VERIFICATION.md` — 2-min human verification steps
+- iter13: Live-now indicator + bounce-rate panel — **176/176**
+- iter14 (manual setup): **Stripe Connect `account.updated` webhook LIVE** + **Google OAuth happy-path VERIFIED**
+  - Webhook secret `STRIPE_CONNECT_WEBHOOK_SECRET` wired in `.env`, signed test events return 200, `iron-and-oak` maker sync confirmed end-to-end
+  - Bug fix: stripe>=15 returns `StripeObject` (not dict) — handler now uses `getattr` shim. Pinned with regression test `test_signed_round_trip_real_stripe_object`
+  - Google sign-in: M Williams · big.easy246@gmail.com landed in `community_users` via Emergent OAuth → Google → callback flow
 
 ## Backlog
-- (Optional) Cohort retention chart (visitors who returned week-over-week)
-- (Optional) Bounce-rate-by-page breakdown (which landing pages are sticky vs leaky)
+- (Optional) Cohort retention chart (week-over-week return rate)
+- (Optional) Bounce-rate-by-page (which landing pages are sticky vs leaky)
+- (Optional) Discord/Slack ping when live-visitor count crosses threshold
 
 ## Next Action Items
-- (Manual, ~3 min) Follow `/app/memory/STRIPE_CONNECT_SETUP.md` to add the `account.updated` webhook on stripe.com
-- (Manual, ~2 min) Follow `/app/memory/GOOGLE_OAUTH_VERIFICATION.md` to verify Google sign-in happy-path
+- (none — all backlog tasks user requested are complete)
