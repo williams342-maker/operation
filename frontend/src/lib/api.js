@@ -61,6 +61,8 @@ export const renewMakerProduct = (slug) =>
   http.post(`/maker/products/${slug}/renew`, {}, { headers: authHeaders() }).then((r) => r.data);
 export const fetchMakerBilling = () =>
   http.get("/maker/billing", { headers: authHeaders() }).then((r) => r.data);
+export const fetchMakerPlusRoi = () =>
+  http.get("/maker/plus/roi", { headers: authHeaders() }).then((r) => r.data);
 export const fetchMakerSubscription = () =>
   http.get("/maker/subscription", { headers: authHeaders() }).then((r) => r.data);
 export const startMakerSubscription = () =>

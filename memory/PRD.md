@@ -57,6 +57,17 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - iter16: **.glb upload (P2) + Variants (P3) + Draft mode (P4)** — backend 28/28 incl. 10 new iter16 cases + frontend E2E 12/12 (modal variants editor, draft↔publish flips, .glb file upload, buyer variant selector + cart variant pricing). R2 live; transfer_to_makers + maker-orders correctly apply variant deltas.
 
 ## Recently Shipped (2026-04-26)
+- ✅ **iter24 — Crafters Plus ROI calculator + polished confirm modals**:
+  - **Live ROI calculator** in BillingTab: pulls last-30d gross from `maker_payouts`, computes commission savings (1% delta = 5%→4%), nets out the $12/mo cost, and renders a 3-up KPI panel inside the Plus upsell card with a contextual pitch line. Different copy for free vs Plus subscribers, plus a "Plus pays for itself once monthly sales pass $1,200" line for shops below break-even.
+    - New endpoint: `GET /api/maker/plus/roi` (auth-gated)
+    - Frontend: `BillingTab.jsx` ROI panel (`data-testid="billing-plus-roi"`)
+    - Verified live: $1,500/30d → $15 saved · +$3 net · "Plus pays for itself" pitch shown
+  - **Custom confirm modal** replaces 3 `window.confirm()` call sites:
+    - `useConfirm()` hook in `pages/MakerDashboard/useConfirm.jsx` — returns `[confirm(opts), modal]`. Industrial-themed modal with tone variants (`primary | danger | warn`), Esc-to-dismiss, focus-managed confirm button, outside-click-to-cancel.
+    - Replaces: delete-listing (danger), promote-listing (primary), cancel-Plus-subscription (warn).
+    - Verified visually with the Carved Oak Wedding Monogram delete flow.
+  - **Tests**: 4 new ROI unit tests (zero sales, break-even at $2k, near-miss at $1k, 404 unknown maker) + 56/57 adjacent suites green (1 pre-existing iter18 test pollution unrelated to this iter).
+
 - ✅ **iter23 — MailerSend wired as primary transactional provider**:
   - Added `_send_mailersend()` to `email_service.py` alongside existing Brevo + Resend providers. New `EMAIL_PROVIDER=mailersend` env value (now the default).
   - MailerSend (sister product of MailerLite, dedicated to transactional emails) provides better deliverability than the marketing-focused MailerLite API for receipts, magic-links, low-stock alerts.
@@ -170,5 +181,4 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - (Optional analytics) Cohort retention, bounce-rate-by-page, Discord/Slack live-visitor ping
 
 ## Next Action Items
-- 🟡 **P1 — R2 CDN custom domain** (waiting on user click-through in Cloudflare R2 dashboard): connect `cdn.craftersmarket.org` → I flip `R2_PUBLIC_URL` and run `swap_r2_host.py` (covers products + maker banners)
-- 🟢 **P2 — Live ROI calculator on the Crafters Plus billing card** (fastest conversion lever for the $12/mo upsell — auto-calculates "you'd have kept $X more this month at the 4% Plus rate")
+- 🟡 **P1 — R2 CDN custom domain** (still waiting on user click-through in Cloudflare R2 dashboard): connect `cdn.craftersmarket.org` → I flip `R2_PUBLIC_URL` and run `swap_r2_host.py` (covers products + maker banners)

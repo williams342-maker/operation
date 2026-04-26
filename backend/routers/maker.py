@@ -481,6 +481,76 @@ async def maker_billing(slug: str = Depends(current_maker_slug)):
     }
 
 
+@router.get("/maker/plus/roi")
+async def maker_plus_roi(slug: str = Depends(current_maker_slug)):
+    """Live ROI calculator — what would this maker save (or have saved)
+    in the last 30 days if they were on Crafters Plus instead of free?
+
+    Mechanic: every paid sale gets a 1% commission discount on Plus (5% → 4%).
+    We sum up the maker's gross subtotals over the last 30d and multiply by
+    that 1% to compute the "would-have-saved" dollar amount. Plus 1 free month
+    of listing fees (worth quota_savings = listings_used_this_month * $0.20
+    over the free quota).
+    """
+    from datetime import timedelta
+    from revenue import (
+        LISTING_FEE_CENTS, PLUS_MONTHLY_LISTING_QUOTA, PLUS_PLATFORM_FEE_BPS,
+        PLUS_PRICE_USD,
+    )
+    from routers.stripe_connect import PLATFORM_FEE_BPS
+
+    m = await db.makers.find_one({"slug": slug}, {"_id": 0})
+    if not m:
+        raise HTTPException(404, "Maker not found")
+
+    cutoff_dt = datetime.now(timezone.utc) - timedelta(days=30)
+    cutoff = cutoff_dt.isoformat()
+    payouts = await db.maker_payouts.find(
+        {"maker_slug": slug, "updated_at": {"$gte": cutoff}},
+        {"_id": 0, "amount": 1},
+    ).to_list(1000)
+    gross_30d = sum(float(p.get("amount") or 0) for p in payouts)
+
+    # Commission savings: difference between free tier (5%) and Plus (4%) on
+    # this maker's last-30d gross.
+    bps_delta = max(0, PLATFORM_FEE_BPS - PLUS_PLATFORM_FEE_BPS)
+    commission_savings = round(gross_30d * (bps_delta / 10000.0), 2)
+
+    # Listing-fee savings: every listing past the free quota (10 lifetime on
+    # free vs 15/mo on Plus) costs $0.20. We compute "would have been free
+    # had they been on Plus" using listings published this calendar month.
+    yyyymm = cutoff_dt.strftime("%Y-%m")
+    listings_this_month = int((m.get("listings_by_month") or {}).get(yyyymm, 0))
+    free_listings_savings_cents = (
+        max(0, min(listings_this_month, PLUS_MONTHLY_LISTING_QUOTA))
+        * LISTING_FEE_CENTS
+    )
+    # Only count this savings when the maker has actually paid for listings
+    # past the free quota (i.e. has pending charges or a charge history).
+    has_paid_listing_fees = bool(int(m.get("pending_charges_cents", 0)) > 0
+                                 or m.get("charge_history"))
+    listing_savings = round(
+        (free_listings_savings_cents / 100.0) if has_paid_listing_fees else 0.0,
+        2,
+    )
+
+    monthly_cost = float(PLUS_PRICE_USD)
+    total_savings = commission_savings + listing_savings
+    net_benefit = round(total_savings - monthly_cost, 2)
+
+    return {
+        "gross_30d": round(gross_30d, 2),
+        "commission_savings": commission_savings,
+        "listing_savings": listing_savings,
+        "total_savings": round(total_savings, 2),
+        "monthly_cost": monthly_cost,
+        "net_benefit": net_benefit,
+        "is_break_even": net_benefit >= 0,
+        "free_commission_bps": PLATFORM_FEE_BPS,
+        "plus_commission_bps": PLUS_PLATFORM_FEE_BPS,
+    }
+
+
 @router.get("/maker/orders")
 async def maker_orders(slug: str = Depends(current_maker_slug)):
     """Returns paid orders that include at least one product from this maker."""

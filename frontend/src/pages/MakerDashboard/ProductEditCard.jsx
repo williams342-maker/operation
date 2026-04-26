@@ -4,8 +4,10 @@ import {
   publishMakerProduct, unpublishMakerProduct, uploadMakerModel,
   promoteMakerProduct, renewMakerProduct,
 } from "../../lib/api";
+import { useConfirm } from "./useConfirm";
 
 export default function ProductEditCard({ product, archived = false, draft = false, onChanged }) {
+  const [confirm, confirmModal] = useConfirm();
   const [p, setP] = useState(product);
   const [open, setOpen] = useState(false);
   const [modelUrl, setModelUrl] = useState(product.model_url || "");
@@ -58,7 +60,15 @@ export default function ProductEditCard({ product, archived = false, draft = fal
   };
 
   const onDelete = async () => {
-    if (!window.confirm(`Delete "${p.title}"? It hides from the shop instantly. Order history stays intact and you can restore it anytime.`)) return;
+    const ok = await confirm({
+      title: `Delete "${p.title}"?`,
+      body: "It hides from the shop instantly. Order history stays intact and you can restore the listing anytime from the Archived section.",
+      confirmLabel: "Delete listing",
+      cancelLabel: "Keep it",
+      tone: "danger",
+      testId: `confirm-delete-${p.slug}`,
+    });
+    if (!ok) return;
     setRemoving(true);
     try {
       await deleteMakerProduct(p.slug);
@@ -94,8 +104,15 @@ export default function ProductEditCard({ product, archived = false, draft = fal
   };
 
   const onPromote = async (weeks = 1) => {
-    if (!window.confirm(`Promote "${p.title}" for ${weeks} week${weeks > 1 ? "s" : ""}? $${(weeks * 5).toFixed(2)} will be added to your next payout deduction.`))
-      return;
+    const ok = await confirm({
+      title: `Promote "${p.title}"?`,
+      body: `${weeks} week${weeks > 1 ? "s" : ""} of front-of-search placement. $${(weeks * 5).toFixed(2)} will be added to your next payout deduction (no card charge — settled from earnings).`,
+      confirmLabel: `Promote · $${(weeks * 5).toFixed(2)}`,
+      cancelLabel: "Not yet",
+      tone: "primary",
+      testId: `confirm-promote-${p.slug}`,
+    });
+    if (!ok) return;
     setStatusErr("");
     setPromoting(true);
     try {
@@ -123,6 +140,7 @@ export default function ProductEditCard({ product, archived = false, draft = fal
   };
 
   return (
+    <>
     <div
       className={`border transition group ${
         archived ? "border-[#262626] opacity-60" :
@@ -310,5 +328,7 @@ export default function ProductEditCard({ product, archived = false, draft = fal
         )}
       </div>
     </div>
+    {confirmModal}
+    </>
   );
 }

@@ -1,12 +1,15 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  fetchMakerBilling, fetchMakerSubscription,
+  fetchMakerBilling, fetchMakerSubscription, fetchMakerPlusRoi,
   startMakerSubscription, cancelMakerSubscription, openMakerSubscriptionPortal,
 } from "../../lib/api";
+import { useConfirm } from "./useConfirm";
 
 export default function BillingTab() {
+  const [confirm, confirmModal] = useConfirm();
   const [b, setB] = useState(null);
   const [s, setS] = useState(null);
+  const [roi, setRoi] = useState(null);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -15,6 +18,7 @@ export default function BillingTab() {
       setErr(e?.response?.data?.detail || "Could not load billing."),
     );
     fetchMakerSubscription().then(setS).catch(() => {});
+    fetchMakerPlusRoi().then(setRoi).catch(() => {});
   }, []);
   useEffect(() => { reload(); }, [reload]);
 
@@ -37,7 +41,15 @@ export default function BillingTab() {
   };
 
   const onCancel = async () => {
-    if (!window.confirm("Cancel Crafters Plus at the end of this billing period?")) return;
+    const ok = await confirm({
+      title: "Cancel Crafters Plus?",
+      body: "Your Plus benefits stay active until the end of the current billing period. After that, your shop falls back to free tier (10 lifetime free listings, 5% commission, no banner).",
+      confirmLabel: "Cancel subscription",
+      cancelLabel: "Keep Plus",
+      tone: "warn",
+      testId: "confirm-cancel-plus",
+    });
+    if (!ok) return;
     setBusy(true);
     try {
       await cancelMakerSubscription();
@@ -61,6 +73,7 @@ export default function BillingTab() {
   };
 
   return (
+    <>
     <div className="space-y-10" data-testid="billing-tab">
       {/* Top KPIs */}
       <div className="grid md:grid-cols-3 gap-3 md:gap-6">
@@ -167,6 +180,65 @@ export default function BillingTab() {
             ✓ Active · renews {new Date(s.renews_at).toLocaleDateString()}
           </div>
         )}
+
+        {/* Live ROI calculator — pulls last-30d gross from the maker's
+            payouts and projects what they'd save (or already saved) under
+            the Plus tier. Hidden until /maker/plus/roi resolves. */}
+        {roi && roi.gross_30d > 0 && (
+          <div
+            className="mt-5 pt-5 border-t border-[#262626]/60"
+            data-testid="billing-plus-roi"
+          >
+            <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#a3a3a3] mb-2">
+              {isPlus ? "Your savings · last 30 days" : "Your potential savings · last 30 days"}
+            </div>
+            <div className="grid md:grid-cols-3 gap-4">
+              <div>
+                <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252]">Sold (30d)</div>
+                <div className="font-display text-2xl mt-1">${roi.gross_30d.toFixed(0)}</div>
+              </div>
+              <div>
+                <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252]">
+                  {isPlus ? "Saved on commission" : "You'd save (commission)"}
+                </div>
+                <div className="font-display text-2xl mt-1 text-emerald-400" data-testid="billing-plus-roi-savings">
+                  ${roi.commission_savings.toFixed(2)}
+                </div>
+              </div>
+              <div>
+                <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252]">
+                  Net of $12/mo
+                </div>
+                <div
+                  className={`font-display text-2xl mt-1 ${roi.is_break_even ? "text-emerald-400" : "text-[#ff4500]"}`}
+                  data-testid="billing-plus-roi-net"
+                >
+                  {roi.net_benefit >= 0 ? "+" : "−"}${Math.abs(roi.net_benefit).toFixed(2)}
+                </div>
+              </div>
+            </div>
+            {!isPlus && roi.is_break_even && (
+              <p className="mt-3 font-mono text-xs text-emerald-400" data-testid="billing-plus-roi-pitch">
+                ◆ At your current sales rate, Plus pays for itself <b>and</b> nets you an extra
+                ${roi.net_benefit.toFixed(2)}/month. The upgrade is free money.
+              </p>
+            )}
+            {!isPlus && !roi.is_break_even && roi.commission_savings > 0 && (
+              <p className="mt-3 font-mono text-xs text-[#a3a3a3]" data-testid="billing-plus-roi-pitch">
+                You'd save ${roi.commission_savings.toFixed(2)} on commission — Plus would cost
+                ${Math.abs(roi.net_benefit).toFixed(2)} net at your current pace. Plus pays for itself
+                once monthly sales pass <b>${(12 / 0.01).toFixed(0)}</b>.
+              </p>
+            )}
+            {isPlus && roi.commission_savings > 0 && (
+              <p className="mt-3 font-mono text-xs text-emerald-400" data-testid="billing-plus-roi-pitch">
+                ◆ Plus has saved you ${roi.commission_savings.toFixed(2)} on commission this month — net
+                of the $12/mo subscription, that's a {roi.net_benefit >= 0 ? "+" : ""}
+                ${roi.net_benefit.toFixed(2)} bottom-line lift.
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Policy details */}
@@ -212,5 +284,7 @@ export default function BillingTab() {
         )}
       </div>
     </div>
+    {confirmModal}
+    </>
   );
 }
