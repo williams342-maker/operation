@@ -1,7 +1,8 @@
 """Transactional email helpers for Crafters Market.
 
-Supports two providers via EMAIL_PROVIDER env flag:
-  - "brevo" (default): Brevo / Sendinblue REST API
+Supports three providers via EMAIL_PROVIDER env flag:
+  - "mailersend" (default): MailerSend / MailerLite transactional REST API
+  - "brevo": Brevo / Sendinblue REST API
   - "resend": Resend SDK (legacy fallback)
 """
 import os
@@ -23,9 +24,10 @@ if not logger.handlers:
     logger.addHandler(h)
 logger.propagate = True
 
-EMAIL_PROVIDER = os.environ.get("EMAIL_PROVIDER", "brevo").lower()
+EMAIL_PROVIDER = os.environ.get("EMAIL_PROVIDER", "mailersend").lower()
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
 BREVO_API_KEY = os.environ.get("BREVO_API_KEY", "")
+MAILERSEND_API_KEY = os.environ.get("MAILERSEND_API_KEY", "")
 SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "team@craftersmarket.org")
 SENDER_NAME = os.environ.get("SENDER_NAME", "Crafters Market")
 OPS_EMAIL = os.environ.get("OPS_EMAIL", "")
@@ -35,9 +37,39 @@ if RESEND_API_KEY:
 
 
 def _has_provider() -> bool:
+    if EMAIL_PROVIDER == "mailersend":
+        return bool(MAILERSEND_API_KEY)
     if EMAIL_PROVIDER == "brevo":
         return bool(BREVO_API_KEY)
     return bool(RESEND_API_KEY)
+
+
+async def _send_mailersend(to: str, subject: str, html: str):
+    """Send via MailerSend's transactional REST API.
+    https://developers.mailersend.com/api/v1/email"""
+    payload = {
+        "from": {"email": SENDER_EMAIL, "name": SENDER_NAME},
+        "to": [{"email": to}],
+        "subject": subject,
+        "html": html,
+    }
+    headers = {
+        "Authorization": f"Bearer {MAILERSEND_API_KEY}",
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+    async with httpx.AsyncClient(timeout=15) as client:
+        r = await client.post(
+            "https://api.mailersend.com/v1/email", json=payload, headers=headers,
+        )
+    if r.status_code >= 400:
+        # Surface the MailerSend error body so domain / token issues are easy to spot.
+        logger.warning("mailersend error %d → %s: %s", r.status_code, to, r.text[:300])
+        return None
+    # MailerSend returns 202 Accepted with a `X-Message-Id` header (no body).
+    msg_id = r.headers.get("X-Message-Id") or r.headers.get("x-message-id")
+    logger.info("mailersend sent → %s · id=%s", to, msg_id)
+    return {"message_id": msg_id}
 
 
 async def _send_brevo(to: str, subject: str, html: str):
@@ -87,6 +119,8 @@ async def _send(to: str, subject: str, html: str):
     if not _has_provider() or not to:
         logger.warning("email skipped (no key or recipient): %s", subject)
         return None
+    if EMAIL_PROVIDER == "mailersend":
+        return await _send_mailersend(to, subject, html)
     if EMAIL_PROVIDER == "brevo":
         return await _send_brevo(to, subject, html)
     return await _send_resend(to, subject, html)
