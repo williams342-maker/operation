@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { toast } from "sonner";
 import {
   fetchAdminSettings,
   patchAdminSettings,
@@ -136,9 +137,12 @@ function HardClearCard({ onCleared }) {
       const r = await adminClearAllChat();
       setResult(r);
       setStep(0);
+      toast.success(`Cleared ${r.deleted} chat message${r.deleted === 1 ? "" : "s"}.`);
       onCleared?.();
     } catch (e) {
-      setErr(e?.response?.data?.detail || "Failed to clear chat.");
+      const msg = e?.response?.data?.detail || "Failed to clear chat.";
+      setErr(msg);
+      toast.error(msg);
     } finally {
       setBusy(false);
     }
@@ -384,8 +388,18 @@ export default function SettingsTab() {
       const next = await patchAdminSettings(delta);
       setSettings(next);
       refreshSiteSettings();
+      const k = Object.keys(delta)[0];
+      const v = delta[k];
+      const label = k.replace(/_/g, " ");
+      if (typeof v === "boolean") {
+        toast.success(`${label} ${v ? "enabled" : "disabled"}`);
+      } else {
+        toast.success(`${label} updated`);
+      }
     } catch (e) {
-      setErr(e?.response?.data?.detail || "Failed to save.");
+      const msg = e?.response?.data?.detail || "Failed to save.";
+      setErr(msg);
+      toast.error(msg);
       // Revert on failure.
       await refresh();
     } finally {

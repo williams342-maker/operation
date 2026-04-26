@@ -555,8 +555,8 @@ async def upload_forum_attachment(
 # ===================== LIVE CHAT (WebSocket + REST history + presence + typing) =====================
 CHANNELS = {
     "general", "machine-help", "finishing-tips", "design-share",
-    "buy-and-sell", "show-off", "beginners", "advanced-cnc",
-    "off-topic", "news-and-events", "makers-only",
+    "buy-and-sell", "beginners", "advanced-cnc", "off-topic",
+    "makers-only",
 }
 
 

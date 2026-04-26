@@ -6,3 +6,18 @@ export const Stat = ({ label, value, testId }) => (
     <div className="font-display text-3xl md:text-5xl mt-2 text-[#e5e5e5]">{value}</div>
   </div>
 );
+
+export const formatDate = (iso) => {
+  if (!iso) return "—";
+  try {
+    return new Date(iso).toLocaleString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return iso;
+  }
+};

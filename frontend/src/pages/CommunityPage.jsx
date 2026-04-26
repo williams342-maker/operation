@@ -27,11 +27,9 @@ const CHANNELS = [
   "finishing-tips",
   "design-share",
   "buy-and-sell",
-  "show-off",
   "beginners",
   "advanced-cnc",
   "off-topic",
-  "news-and-events",
   "makers-only",
 ];
 
@@ -41,11 +39,9 @@ const CHANNEL_LABEL = {
   "finishing-tips": "Finishing Tips",
   "design-share": "Design Share",
   "buy-and-sell": "Buy & Sell",
-  "show-off": "Show Off",
   "beginners": "Beginners",
   "advanced-cnc": "Advanced CNC",
   "off-topic": "Off Topic",
-  "news-and-events": "News & Events",
   "makers-only": "Makers Only",
 };
 

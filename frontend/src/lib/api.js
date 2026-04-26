@@ -163,6 +163,8 @@ export const fetchAdminFeedback = (resolved) =>
     .then((r) => r.data);
 export const adminResolveFeedback = (id) =>
   http.post(`/admin/feedback/${id}/resolve`, {}, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const fetchAdminAuditLog = (limit = 200) =>
+  http.get("/admin/audit-log", { params: { limit }, headers: adminAuthHeaders() }).then((r) => r.data);
 export const requestAdminLink = (email, origin_url) =>
   http.post("/admin/auth/request", { email, origin_url }).then((r) => r.data);
 export const verifyAdminToken = (token) =>

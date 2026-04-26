@@ -39,6 +39,7 @@ import { CommunityLogin, CommunityVerify, CommunityAuthCallback } from "./pages/
 import AIAssistant from "./components/AIAssistant";
 import MaintenancePage from "./components/MaintenancePage";
 import BetaBanner from "./components/BetaBanner";
+import { Toaster } from "sonner";
 import { trackPageview, captureAttribution } from "./lib/analytics";
 import { useSiteSettings } from "./hooks/useSiteSettings";
 
@@ -129,6 +130,22 @@ function App() {
             <AIAssistant />
           </MaintenanceGate>
         </div>
+        <Toaster
+          theme="dark"
+          position="top-right"
+          richColors
+          closeButton
+          toastOptions={{
+            style: {
+              background: "#0a0a0a",
+              border: "1px solid #262626",
+              color: "#e5e5e5",
+              fontFamily: "JetBrains Mono, ui-monospace, monospace",
+              fontSize: "12px",
+              borderRadius: 0,
+            },
+          }}
+        />
       </BrowserRouter>
     </CartProvider>
   );

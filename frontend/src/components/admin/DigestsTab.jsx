@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { adminRunPlusRoiDigest } from "../../lib/api";
 import { Stat } from "./_shared";
+import useModalA11y from "../../hooks/useModalA11y";
 
 export default function DigestsTab() {
   const [data, setData] = useState(null);
@@ -8,6 +10,7 @@ export default function DigestsTab() {
   const [sending, setSending] = useState(false);
   const [err, setErr] = useState("");
   const [confirmSend, setConfirmSend] = useState(false);
+  const dialogRef = useModalA11y(() => setConfirmSend(false));
 
   const dryRun = async () => {
     setLoading(true);
@@ -16,7 +19,9 @@ export default function DigestsTab() {
       const res = await adminRunPlusRoiDigest(false);
       setData(res);
     } catch (e) {
-      setErr(e?.response?.data?.detail || "Failed to compute digest preview.");
+      const msg = e?.response?.data?.detail || "Failed to compute digest preview.";
+      setErr(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -29,8 +34,11 @@ export default function DigestsTab() {
     try {
       const res = await adminRunPlusRoiDigest(true);
       setData(res);
+      toast.success(`Digest sent to ${res.sent} maker${res.sent === 1 ? "" : "s"}.`);
     } catch (e) {
-      setErr(e?.response?.data?.detail || "Failed to send digests.");
+      const msg = e?.response?.data?.detail || "Failed to send digests.";
+      setErr(msg);
+      toast.error(msg);
     } finally {
       setSending(false);
     }
@@ -141,6 +149,9 @@ export default function DigestsTab() {
           data-testid="digest-confirm-modal"
         >
           <div
+            ref={dialogRef}
+            role="dialog"
+            aria-modal="true"
             className="bg-[#0a0a0a] border border-[#262626] max-w-md w-full p-6 space-y-4"
             onClick={(e) => e.stopPropagation()}
           >

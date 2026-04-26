@@ -662,6 +662,31 @@ async def admin_delete_reply(reply_id: str, claims: dict = Depends(current_admin
     return {"deleted": True}
 
 
+@router.get("/admin/audit-log")
+async def admin_audit_log(limit: int = 200, _: dict = Depends(current_admin)):
+    """Flatten every entry in `community_users.moderation_history` across all
+    users into a single reverse-chronological feed for the audit tab."""
+    cursor = db.community_users.find(
+        {"moderation_history": {"$exists": True, "$ne": []}},
+        {"_id": 0, "user_id": 1, "email": 1, "name": 1, "moderation_history": 1},
+    )
+    rows: list[dict] = []
+    async for u in cursor:
+        for h in (u.get("moderation_history") or []):
+            rows.append({
+                "user_id": u["user_id"],
+                "user_email": u.get("email"),
+                "user_name": u.get("name"),
+                "by": h.get("by"),
+                "at": h.get("at"),
+                "from": h.get("from"),
+                "to": h.get("to"),
+                "reason": h.get("reason") or "",
+            })
+    rows.sort(key=lambda r: r.get("at") or "", reverse=True)
+    return {"items": rows[:limit], "count": len(rows)}
+
+
 # ===================== REVIEWS =====================
 class ReviewCreate(BaseModel):
     name: str

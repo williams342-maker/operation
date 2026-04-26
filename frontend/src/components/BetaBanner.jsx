@@ -1,18 +1,14 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
+import { toast } from "sonner";
 import { submitBetaFeedback } from "../lib/api";
+import useModalA11y from "../hooks/useModalA11y";
 
 export default function BetaBanner({ message }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", message: "" });
   const [status, setStatus] = useState("idle");
   const [err, setErr] = useState("");
-
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [open]);
+  const dialogRef = useModalA11y(() => setOpen(false));
 
   const submit = async (e) => {
     e.preventDefault();
@@ -24,9 +20,12 @@ export default function BetaBanner({ message }) {
         page: typeof window !== "undefined" ? window.location.pathname : "",
       });
       setStatus("done");
+      toast.success("Feedback received — thanks for helping us improve.");
     } catch (e2) {
       const d = e2?.response?.data?.detail;
-      setErr(typeof d === "string" ? d : "Failed to send. Please try again.");
+      const msg = typeof d === "string" ? d : "Failed to send. Please try again.";
+      setErr(msg);
+      toast.error(msg);
       setStatus("idle");
     }
   };
@@ -59,15 +58,17 @@ export default function BetaBanner({ message }) {
           data-testid="beta-feedback-modal"
         >
           <div
+            ref={dialogRef}
             role="dialog"
             aria-modal="true"
+            aria-labelledby="beta-feedback-headline"
             className="bg-[#0a0a0a] border border-[#262626] max-w-md w-full p-6 space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500]">
               ◆ Beta Feedback
             </div>
-            <h3 className="font-display text-2xl uppercase">Tell us what you think.</h3>
+            <h3 id="beta-feedback-headline" className="font-display text-2xl uppercase">Tell us what you think.</h3>
 
             {status === "done" ? (
               <div className="border border-emerald-700/60 bg-emerald-900/20 p-4 font-mono text-sm text-emerald-300" data-testid="beta-feedback-success">

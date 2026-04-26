@@ -1,9 +1,11 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
+import { toast } from "sonner";
 import {
   fetchAdminModerationUsers,
   adminModerateUser,
   adminDeleteUser,
 } from "../../lib/api";
+import useModalA11y from "../../hooks/useModalA11y";
 
 export default function UsersTab() {
   const [users, setUsers] = useState([]);
@@ -40,14 +42,18 @@ export default function UsersTab() {
     try {
       if (action === "delete") {
         await adminDeleteUser(user.user_id);
+        toast.success(`Deleted ${user.email}`);
       } else {
         const next = action === "restore" ? "active" : action === "freeze" ? "frozen" : "banned";
         await adminModerateUser(user.user_id, next, reason || "");
+        toast.success(`${user.name || user.email} → ${next}`);
       }
       setConfirmAction(null);
       await refresh();
     } catch (e) {
-      setErr(e?.response?.data?.detail || `Failed to ${action} user.`);
+      const msg = e?.response?.data?.detail || `Failed to ${action} user.`;
+      setErr(msg);
+      toast.error(msg);
     } finally {
       setBusyId("");
     }
@@ -227,43 +233,7 @@ function ModerationConfirmModal({ user, action, onCancel, onConfirm }) {
   const [reason, setReason] = useState("");
   const isDelete = action === "delete";
   const requiresReason = action === "freeze" || action === "ban";
-  const dialogRef = useRef(null);
-
-  // A11y — Esc dismisses, focus is trapped inside the dialog while open.
-  useEffect(() => {
-    const onKey = (e) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        onCancel();
-        return;
-      }
-      if (e.key !== "Tab" || !dialogRef.current) return;
-      const focusables = dialogRef.current.querySelectorAll(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-      );
-      if (!focusables.length) return;
-      const first = focusables[0];
-      const last = focusables[focusables.length - 1];
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
-      }
-    };
-    document.addEventListener("keydown", onKey);
-    const t = setTimeout(() => {
-      const node = dialogRef.current?.querySelector(
-        '[autofocus], textarea, input, button[data-testid="user-mod-confirm"]'
-      );
-      node?.focus?.();
-    }, 0);
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      clearTimeout(t);
-    };
-  }, [onCancel]);
+  const dialogRef = useModalA11y(onCancel);
 
   const headlines = {
     freeze: "Freeze user?",
