@@ -74,6 +74,14 @@ async def admin_refund_order(session_id: str, _: dict = Depends(current_admin)):
     return await refund_session(session_id)
 
 
+@router.post("/admin/listings/expire-due")
+async def admin_expire_due_listings(_: dict = Depends(current_admin)):
+    """Run the listing-expiry sweep: any published listing past its
+    expires_at flips to draft. Run on a daily cron (or manually here)."""
+    from revenue import expire_due_listings
+    return await expire_due_listings()
+
+
 @router.post("/admin/r2/sweep")
 async def admin_r2_sweep(apply: bool = False, _: dict = Depends(current_admin)):
     """Find (and optionally delete) orphaned R2 objects under products/ and

@@ -6,6 +6,7 @@ import {
   fetchMakerOrders,
   fetchMakerProducts,
   fetchMakerPayouts,
+  fetchMakerBilling,
   stripeConnectOnboard,
   stripeConnectStatus,
   stripeConnectDashboardLink,
@@ -17,6 +18,8 @@ import {
   publishMakerProduct,
   unpublishMakerProduct,
   uploadMakerModel,
+  promoteMakerProduct,
+  renewMakerProduct,
 } from "../lib/api";
 
 const TABS = [
@@ -24,6 +27,7 @@ const TABS = [
   { id: "products", label: "Listings" },
   { id: "orders", label: "Orders" },
   { id: "payouts", label: "Payouts" },
+  { id: "billing", label: "Billing" },
 ];
 
 const formatDate = (iso) => {
@@ -176,6 +180,7 @@ export default function MakerDashboard() {
         )}
         {tab === "orders" && <OrdersList orders={orders} />}
         {tab === "payouts" && <PayoutsTab />}
+        {tab === "billing" && <BillingTab />}
       </div>
     </div>
   );
@@ -411,6 +416,8 @@ function ProductEditCard({ product, archived = false, draft = false, onChanged }
   const [modelErr, setModelErr] = useState("");
   const [togglingStatus, setTogglingStatus] = useState(false);
   const [statusErr, setStatusErr] = useState("");
+  const [promoting, setPromoting] = useState(false);
+  const [renewing, setRenewing] = useState(false);
   const modelInputRef = useRef(null);
 
   const save = async (e) => {
@@ -476,12 +483,42 @@ function ProductEditCard({ product, archived = false, draft = false, onChanged }
     setTogglingStatus(true);
     try {
       const fn = draft ? publishMakerProduct : unpublishMakerProduct;
-      await fn(p.slug);
+      const updated = await fn(p.slug);
+      setP(updated);
       onChanged && onChanged();
     } catch (e) {
       setStatusErr(e?.response?.data?.detail || "Could not change status.");
     } finally {
       setTogglingStatus(false);
+    }
+  };
+
+  const onPromote = async (weeks = 1) => {
+    if (!window.confirm(`Promote "${p.title}" for ${weeks} week${weeks > 1 ? "s" : ""}? $${(weeks * 5).toFixed(2)} will be added to your next payout deduction.`))
+      return;
+    setStatusErr("");
+    setPromoting(true);
+    try {
+      const updated = await promoteMakerProduct(p.slug, weeks);
+      setP(updated);
+    } catch (e) {
+      setStatusErr(e?.response?.data?.detail || "Promote failed.");
+    } finally {
+      setPromoting(false);
+    }
+  };
+
+  const onRenew = async () => {
+    setStatusErr("");
+    setRenewing(true);
+    try {
+      const updated = await renewMakerProduct(p.slug);
+      setP(updated);
+      onChanged && onChanged();
+    } catch (e) {
+      setStatusErr(e?.response?.data?.detail || "Renew failed.");
+    } finally {
+      setRenewing(false);
     }
   };
 
@@ -518,6 +555,9 @@ function ProductEditCard({ product, archived = false, draft = false, onChanged }
           {p.category} · {p.technique}
           {p.model_url && <span className="text-[#ff4500] ml-2">· 3D</span>}
           {p.variants?.length > 0 && <span className="text-[#ff4500] ml-2">· {p.variants.length} variants</span>}
+          {p.promoted_until && new Date(p.promoted_until) > new Date() && (
+            <span className="text-emerald-400 ml-2" data-testid={`product-promoted-${p.slug}`}>· Promoted</span>
+          )}
         </div>
         <div className="font-display text-xl mt-2 leading-tight">{p.title}</div>
         <div className="flex items-center justify-between mt-3">
@@ -526,6 +566,11 @@ function ProductEditCard({ product, archived = false, draft = false, onChanged }
             {p.in_stock} in stock
           </span>
         </div>
+        {p.expires_at && !archived && (
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] mt-2" data-testid={`product-expires-${p.slug}`}>
+            Expires {new Date(p.expires_at).toLocaleDateString()}
+          </div>
+        )}
 
         {archived ? (
           <button
@@ -559,6 +604,30 @@ function ProductEditCard({ product, archived = false, draft = false, onChanged }
               >
                 {statusErr}
               </p>
+            )}
+            {!draft && (
+              <button
+                onClick={() => onPromote(1)}
+                disabled={promoting || (p.promoted_until && new Date(p.promoted_until) > new Date())}
+                className="mt-2 w-full font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-400 hover:text-emerald-300 text-left disabled:opacity-50"
+                data-testid={`product-promote-${p.slug}`}
+              >
+                {promoting
+                  ? "…"
+                  : p.promoted_until && new Date(p.promoted_until) > new Date()
+                  ? `✓ Promoted until ${new Date(p.promoted_until).toLocaleDateString()}`
+                  : "★ Promote · $5/week"}
+              </button>
+            )}
+            {draft && (
+              <button
+                onClick={onRenew}
+                disabled={renewing}
+                className="mt-2 w-full font-mono text-[10px] uppercase tracking-[0.22em] text-amber-400 hover:text-amber-300 text-left disabled:opacity-50"
+                data-testid={`product-renew-${p.slug}`}
+              >
+                {renewing ? "…" : "↻ Renew listing · $0.20"}
+              </button>
             )}
             <button
               onClick={() => setOpen((o) => !o)}
@@ -870,6 +939,104 @@ function PayoutsTab() {
               </li>
             ))}
           </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+// ===================== BILLING TAB =====================
+
+function BillingTab() {
+  const [b, setB] = useState(null);
+  const [err, setErr] = useState("");
+
+  useEffect(() => {
+    fetchMakerBilling().then(setB).catch((e) =>
+      setErr(e?.response?.data?.detail || "Could not load billing."),
+    );
+  }, []);
+
+  if (err) return <p className="font-mono text-sm text-red-400" data-testid="billing-error">{err}</p>;
+  if (!b) return <p className="font-mono text-sm text-[#a3a3a3]" data-testid="billing-loading">Loading billing…</p>;
+
+  const dollars = (c) => `$${(c / 100).toFixed(2)}`;
+  const pct = (bps) => `${(bps / 100).toFixed(1)}%`;
+
+  return (
+    <div className="space-y-10" data-testid="billing-tab">
+      {/* Top KPIs */}
+      <div className="grid md:grid-cols-3 gap-3 md:gap-6">
+        <div className="border border-[#262626] p-5" data-testid="billing-listing-usage">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Listings used (lifetime)</div>
+          <div className="font-display text-4xl mt-2">
+            {b.listings_used_lifetime}<span className="text-[#525252] text-2xl"> / {b.listings_free_quota}</span>
+          </div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] mt-2">
+            {b.listings_free_remaining > 0
+              ? `${b.listings_free_remaining} free remaining`
+              : `${dollars(b.policy.listing_fee_cents)} per new listing or renewal`}
+          </div>
+        </div>
+
+        <div className="border border-[#262626] p-5" data-testid="billing-pending">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Pending charges</div>
+          <div className="font-display text-4xl mt-2 text-[#ff4500]">{dollars(b.pending_charges_cents)}</div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] mt-2">
+            Auto-deducted from your next payout
+          </div>
+        </div>
+
+        <div className="border border-[#262626] p-5" data-testid="billing-fee-policy">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Per-sale fee</div>
+          <div className="font-display text-4xl mt-2">{pct(b.policy.platform_fee_bps + b.policy.processing_fee_bps)}</div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] mt-2">
+            {pct(b.policy.platform_fee_bps)} commission · {pct(b.policy.processing_fee_bps)} processing
+          </div>
+        </div>
+      </div>
+
+      {/* Policy details */}
+      <div className="border border-[#262626] p-5" data-testid="billing-policy-details">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-3">Pricing breakdown</div>
+        <ul className="space-y-2 font-mono text-xs text-[#e5e5e5]">
+          <li>• <b>{pct(b.policy.platform_fee_bps)} commission</b> on every paid order — Crafters Market keeps this.</li>
+          <li>• <b>{pct(b.policy.processing_fee_bps)} payment processing</b> covers card / Stripe fees.</li>
+          <li>• <b>{b.policy.listings_free_quota || b.listings_free_quota} free listings</b> — beyond that, {dollars(b.policy.listing_fee_cents)} per publish or renewal.</li>
+          <li>• <b>{b.policy.listing_expiry_days}-day expiry</b> on each listing — auto-flips to draft, renew with one click.</li>
+          <li>• <b>{dollars(b.policy.promotion_weekly_fee_cents)}/week</b> to promote a listing to the top of search.</li>
+        </ul>
+      </div>
+
+      {/* Recent ledger */}
+      <div data-testid="billing-history">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-3">Recent activity</div>
+        {b.history.length === 0 ? (
+          <p className="font-mono text-sm text-[#525252]" data-testid="billing-history-empty">No charges yet — keep building.</p>
+        ) : (
+          <table className="w-full font-mono text-xs">
+            <thead>
+              <tr className="text-[#a3a3a3] uppercase tracking-[0.22em] text-[10px]">
+                <th className="text-left py-2 border-b border-[#262626]">When</th>
+                <th className="text-left py-2 border-b border-[#262626]">Kind</th>
+                <th className="text-left py-2 border-b border-[#262626]">Listing</th>
+                <th className="text-right py-2 border-b border-[#262626]">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {b.history.map((h, i) => (
+                <tr key={i} className="border-b border-[#1a1a1a]">
+                  <td className="py-2 text-[#525252]">{h.ts ? new Date(h.ts).toLocaleString() : "—"}</td>
+                  <td className="py-2 text-[#e5e5e5]">{h.kind}</td>
+                  <td className="py-2 text-[#a3a3a3]">{h.slug || "—"}</td>
+                  <td className={`py-2 text-right ${h.amount_cents < 0 ? "text-emerald-400" : "text-[#ff4500]"}`}>
+                    {h.amount_cents < 0 ? "−" : ""}{dollars(Math.abs(h.amount_cents))}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
       </div>
     </div>

@@ -43,6 +43,11 @@ class Product(BaseModel):
     variant_axis1_name: Optional[str] = None   # e.g. "Size"
     variant_axis2_name: Optional[str] = None   # e.g. "Finish"
     status: str = "published"          # "published" | "draft" — drafts hidden from public catalog
+    # ---- Etsy-style economics ----
+    # Listings expire 4 months after publish; on expiry, status auto-flips to
+    # "draft" and the maker can renew for `listing_fee_cents`.
+    expires_at: Optional[str] = None
+    promoted_until: Optional[str] = None  # ISO ts; if in the future, listing pinned
     deleted_at: Optional[str] = None  # soft-delete marker; hides from public views
     created_at: str = Field(default_factory=now_iso)
 
@@ -85,6 +90,14 @@ class Maker(BaseModel):
     stripe_charges_enabled: bool = False
     stripe_payouts_enabled: bool = False
     stripe_details_submitted: bool = False
+    # ---- Revenue model ledger (Etsy-style) ----
+    # Lifetime number of listings created (counts published; not soft-deleted).
+    # Free quota is 10 — beyond that, each listing/renewal accrues `listing_fee_cents`
+    # to `pending_charges_cents`, debited from the next payout.
+    listings_used_lifetime: int = 0
+    pending_charges_cents: int = 0
+    # Audit trail of charge events: [{kind, slug, amount_cents, ts, note}]
+    charge_history: List[dict] = []
     created_at: str = Field(default_factory=now_iso)
 
 

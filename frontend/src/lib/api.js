@@ -54,6 +54,12 @@ export const uploadMakerModel = (file, onProgress) => {
     onUploadProgress: onProgress,
   }).then((r) => r.data);
 };
+export const promoteMakerProduct = (slug, weeks = 1) =>
+  http.post(`/maker/products/${slug}/promote?weeks=${weeks}`, {}, { headers: authHeaders() }).then((r) => r.data);
+export const renewMakerProduct = (slug) =>
+  http.post(`/maker/products/${slug}/renew`, {}, { headers: authHeaders() }).then((r) => r.data);
+export const fetchMakerBilling = () =>
+  http.get("/maker/billing", { headers: authHeaders() }).then((r) => r.data);
 export const updateMakerProfile = (payload) =>
   http.patch("/maker/profile", payload, { headers: authHeaders() }).then((r) => r.data);
 

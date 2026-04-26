@@ -165,14 +165,32 @@ async def connect_dashboard_link(slug: str = Depends(current_maker_slug)):
 
 # ---------------- Payout helpers (called from checkout webhook) ---------------
 
-PLATFORM_FEE_BPS = int(os.environ.get("PLATFORM_FEE_BPS", "1000"))   # 10% default
+# Two-tier fee model (Etsy-style):
+#   - PLATFORM_FEE_BPS:   commission, retained on platform (default 5% = 500)
+#   - PROCESSING_FEE_BPS: payment-processing fee, retained on platform (default 3% = 300)
+# Total fee deducted from each maker's gross = PLATFORM_FEE_BPS + PROCESSING_FEE_BPS.
+PLATFORM_FEE_BPS = int(os.environ.get("PLATFORM_FEE_BPS", "500"))     # 5%
+PROCESSING_FEE_BPS = int(os.environ.get("PROCESSING_FEE_BPS", "300"))  # 3%
+TOTAL_FEE_BPS = PLATFORM_FEE_BPS + PROCESSING_FEE_BPS
+
+
+def fee_breakdown_cents(maker_subtotal_dollars: float) -> dict:
+    """Return cents breakdown so the maker payout UI can show transparent math."""
+    gross_cents = int(round(maker_subtotal_dollars * 100))
+    commission = int(round(gross_cents * PLATFORM_FEE_BPS / 10000))
+    processing = int(round(gross_cents * PROCESSING_FEE_BPS / 10000))
+    net = max(0, gross_cents - commission - processing)
+    return {
+        "gross_cents": gross_cents,
+        "commission_cents": commission,
+        "processing_cents": processing,
+        "net_cents": net,
+    }
 
 
 def maker_share_cents(maker_subtotal_dollars: float) -> int:
-    """Return the cents the maker keeps after platform fee on their subtotal."""
-    gross_cents = int(round(maker_subtotal_dollars * 100))
-    fee_cents = int(round(gross_cents * PLATFORM_FEE_BPS / 10000))
-    return max(0, gross_cents - fee_cents)
+    """Return the cents the maker keeps after commission + processing fees."""
+    return fee_breakdown_cents(maker_subtotal_dollars)["net_cents"]
 
 
 async def transfer_to_makers_for_session(session_id: str) -> dict:
@@ -266,7 +284,34 @@ async def transfer_to_makers_for_session(session_id: str) -> dict:
             results.append({"maker": maker_slug, "skipped": "payouts-not-enabled"})
             continue
 
-        amount_cents = maker_share_cents(subtotal)
+        # 1. Compute gross-after-commission/processing.
+        gross_amount_cents = maker_share_cents(subtotal)
+        # 2. Drain any accrued listing/promotion fees from the payout.
+        from revenue import settle_pending_charges
+        settled = await settle_pending_charges(maker_slug, gross_amount_cents)
+        amount_cents = max(0, gross_amount_cents - settled["deducted_cents"])
+
+        if amount_cents <= 0:
+            # Entire payout is consumed by pending charges. Record as
+            # zero-amount succeeded so we don't re-attempt this session.
+            await db.maker_payouts.update_one(
+                {"session_id": session_id, "maker_slug": maker_slug},
+                {"$set": {
+                    "session_id": session_id, "maker_slug": maker_slug,
+                    "amount": round(subtotal, 2),
+                    "amount_cents": 0,
+                    "gross_cents": gross_amount_cents,
+                    "fees_deducted_cents": settled["deducted_cents"],
+                    "platform_fee_bps": PLATFORM_FEE_BPS,
+                    "processing_fee_bps": PROCESSING_FEE_BPS,
+                    "status": "succeeded-zero",
+                    "reason": "fees-consumed-payout",
+                    "updated_at": now_iso(),
+                }}, upsert=True,
+            )
+            results.append({"maker": maker_slug, "skipped": "fees-consumed-payout"})
+            continue
+
         try:
             transfer = s.Transfer.create(
                 amount=amount_cents,
@@ -278,6 +323,8 @@ async def transfer_to_makers_for_session(session_id: str) -> dict:
                     "session_id": session_id,
                     "maker_slug": maker_slug,
                     "platform_fee_bps": str(PLATFORM_FEE_BPS),
+                    "processing_fee_bps": str(PROCESSING_FEE_BPS),
+                    "ledger_deducted_cents": str(settled["deducted_cents"]),
                 },
                 idempotency_key=f"{session_id}:{maker_slug}",
             )
@@ -287,14 +334,21 @@ async def transfer_to_makers_for_session(session_id: str) -> dict:
                     "session_id": session_id, "maker_slug": maker_slug,
                     "amount": round(subtotal, 2),
                     "amount_cents": amount_cents,
+                    "gross_cents": gross_amount_cents,
+                    "fees_deducted_cents": settled["deducted_cents"],
                     "platform_fee_bps": PLATFORM_FEE_BPS,
+                    "processing_fee_bps": PROCESSING_FEE_BPS,
                     "transfer_id": transfer.id,
                     "destination": m["stripe_account_id"],
                     "status": "succeeded",
                     "updated_at": now_iso(),
                 }}, upsert=True,
             )
-            results.append({"maker": maker_slug, "transfer_id": transfer.id, "amount_cents": amount_cents})
+            results.append({
+                "maker": maker_slug, "transfer_id": transfer.id,
+                "amount_cents": amount_cents,
+                "fees_deducted_cents": settled["deducted_cents"],
+            })
         except Exception as e:
             logger.exception("Transfer failed maker=%s session=%s: %s",
                              maker_slug, session_id, e)

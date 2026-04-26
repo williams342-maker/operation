@@ -1,0 +1,40 @@
+{
+  "summary": "Iter18 Etsy-style revenue layer (5%+3% fees, $0.20 listing fee after 10 free, 120-day expiry, $5/wk promote) verified end-to-end. Backend pytest 6/6 PASS. Frontend BillingTab + Promote click + public Featured card + post-promote billing reflection all PASS. Iron-and-oak left clean (pending=0, history=[], no promoted_until).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter18_revenue_billing_e2e.py",
+    "/app/test_reports/pytest/iter18.xml",
+    "/app/backend/tests/test_revenue.py"
+  ],
+  "action_items": [
+    "Minor naming nit (NOT a bug): the Listings tab data-testid is 'tab-products' (because the tabs array uses id='products'), while the review request referred to 'tab-listings'. The label rendered is 'LISTINGS'. Either rename the id to 'listings' for consistency, or update docs/handoff to reflect 'tab-products'.",
+    "Optional polish: BillingTab pending KPI shows '$0.20' / '$5.00' (correct dollar formatting). Consider adding a short explainer when listings_used_lifetime > free_quota (e.g., 'You've used 60 listings — every new listing or renewal is $0.20'). The 'LISTINGS USED (LIFETIME)' card currently shows '60 / 10' which can read confusingly when lifetime is past quota.",
+    "Optional: soft-deleting a listing does NOT refund the listing fee (matches Etsy behaviour, but not documented in BillingTab). Worth surfacing in the pricing-breakdown copy."
+  ],
+  "critical_code_review_comments": [
+    "revenue.accrue_listing_charge correctly handles the boundary: charging only after lifetime > LISTING_FREE_QUOTA. Atomic via $inc + $push.",
+    "settle_pending_charges drains min(pending, gross) safely and is no-op when pending=0 — verified by unit test.",
+    "Promotion accrual is immediate (charge on click), confirm dialog handled in UI — good UX for irreversible spend.",
+    "expire_due_listings is idempotent (relies on $lt on expires_at + status='published'), verified twice.",
+    "POST /api/maker/products on a draft skips both expires_at and the listing-fee accrual (matches comment: 'drafts don't burn against the 10-free quota until they go live'). Good design choice.",
+    "MakerDashboard.jsx is approaching 900+ lines; per the iter17 deferral the user explicitly chose not to refactor — leave as-is."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter18_revenue_billing_e2e.py (new — 6 tests covering billing/promote/renew/create/expire/cleanup)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "Maker JWT issued via maker_auth.issue_magic_token('iron-and-oak@craftersmarket.org') → POST /api/maker/auth/verify. Admin JWT issued via maker_auth.issue_admin_magic_token('team@craftersmarket.org') → POST /api/admin/auth/verify.",
+  "seed_data_creation": "Test creates one TEST_iter18_listing_<ts> published listing then soft-deletes it; final cleanup script deletes any leftover TEST_iter18_* and resets iron-and-oak pending_charges_cents=0, charge_history=[], promoted_until=None on all iron-and-oak products. Verified clean post-run.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend regression suite for iter18 lives in /app/backend/tests/test_iter18_revenue_billing_e2e.py. Iron-and-oak's listings_used_lifetime is currently 60 (way past the free quota of 10), so every published listing or renewal accrues $0.20 — useful for testing the past-quota path without seed bumps. The 'Listings' tab in MakerDashboard uses data-testid='tab-products' (NOT 'tab-listings'). Promote/Renew testids are slug-based: product-promote-<slug>, product-renew-<slug>, product-promoted-<slug>, product-expires-<slug>, product-card-promoted-<slug> — they are NOT hardcoded to 'active-project-4' (that string in the review request was a placeholder for whichever slug exists). Stripe Connect transfer + payout pending-charge settle path was not exercised end-to-end here (would need a full paid order — covered by test_iter8 + test_revenue unit test for settle_pending_charges).",
+  "rca of the issue": "N/A — no bugs."
+}

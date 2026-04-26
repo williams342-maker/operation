@@ -43,7 +43,28 @@ async def list_products(category: Optional[str] = None, technique: Optional[str]
             {"title": {"$regex": q, "$options": "i"}},
             {"description": {"$regex": q, "$options": "i"}},
         ]
-    return await db.products.find(query, {"_id": 0}).sort("created_at", -1).to_list(200)
+    # Promoted listings (those with promoted_until in the future) bubble to
+    # the top. Sort key: is_promoted desc, then created_at desc.
+    from core import now_iso
+    products = await db.products.find(query, {"_id": 0}).to_list(400)
+    nowiso = now_iso()
+
+    def _sort_key(p):
+        promo = p.get("promoted_until")
+        is_promoted = bool(promo and promo > nowiso)
+        return (0 if is_promoted else 1, -(p.get("created_at") or "").__hash__())
+    # Stable sort: promoted first, then most-recent.
+    products.sort(key=lambda p: (
+        0 if (p.get("promoted_until") and p["promoted_until"] > nowiso) else 1,
+        p.get("created_at") or "",
+    ), reverse=False)
+    # The reverse-sort trick: tuple (group, created) — group ascending puts
+    # promoted first; we then re-sort within each group by created_at desc.
+    promoted = [p for p in products if p.get("promoted_until") and p["promoted_until"] > nowiso]
+    rest = [p for p in products if not (p.get("promoted_until") and p["promoted_until"] > nowiso)]
+    promoted.sort(key=lambda p: p.get("created_at") or "", reverse=True)
+    rest.sort(key=lambda p: p.get("created_at") or "", reverse=True)
+    return (promoted + rest)[:200]
 
 
 @router.get("/products/{slug}", response_model=Product)

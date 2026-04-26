@@ -137,14 +137,56 @@ async def maker_update_product(
 
 @router.post("/maker/products/{product_slug}/publish", response_model=Product)
 async def maker_publish_product(product_slug: str, slug: str = Depends(current_maker_slug)):
+    """Publish a draft listing. Accrues a $0.20 fee if past the free quota and
+    sets a fresh expiry timestamp (renews the listing)."""
+    from revenue import accrue_listing_charge, expiry_iso_from_now
     prod = await db.products.find_one({"slug": product_slug}, {"_id": 0})
     if not prod or prod.get("maker_slug") != slug:
         raise HTTPException(404, "Product not found")
+    accrual = await accrue_listing_charge(slug, product_slug, kind="listing_publish")
     await db.products.update_one(
-        {"slug": product_slug}, {"$set": {"status": "published"}}
+        {"slug": product_slug},
+        {"$set": {"status": "published", "expires_at": expiry_iso_from_now()}},
     )
     updated = await db.products.find_one({"slug": product_slug}, {"_id": 0})
     return updated
+
+
+@router.post("/maker/products/{product_slug}/renew", response_model=Product)
+async def maker_renew_product(product_slug: str, slug: str = Depends(current_maker_slug)):
+    """Renew an expired listing (or extend a live one). Same $0.20 listing fee."""
+    from revenue import accrue_listing_charge, expiry_iso_from_now
+    prod = await db.products.find_one({"slug": product_slug}, {"_id": 0})
+    if not prod or prod.get("maker_slug") != slug:
+        raise HTTPException(404, "Product not found")
+    await accrue_listing_charge(slug, product_slug, kind="listing_renew")
+    await db.products.update_one(
+        {"slug": product_slug},
+        {"$set": {"status": "published", "expires_at": expiry_iso_from_now()}},
+    )
+    return await db.products.find_one({"slug": product_slug}, {"_id": 0})
+
+
+@router.post("/maker/products/{product_slug}/promote", response_model=Product)
+async def maker_promote_product(
+    product_slug: str, weeks: int = 1, slug: str = Depends(current_maker_slug),
+):
+    """Pin this listing to the top of search & category for `weeks` weeks at
+    flat $5/week. Charge accrues to maker's pending balance immediately."""
+    from revenue import accrue_promotion_charge, promotion_until_iso
+    if weeks < 1 or weeks > 52:
+        raise HTTPException(400, "weeks must be between 1 and 52.")
+    prod = await db.products.find_one({"slug": product_slug}, {"_id": 0})
+    if not prod or prod.get("maker_slug") != slug:
+        raise HTTPException(404, "Product not found")
+    if prod.get("status") != "published" or prod.get("deleted_at"):
+        raise HTTPException(400, "Only published listings can be promoted.")
+    await accrue_promotion_charge(slug, product_slug, weeks=weeks)
+    await db.products.update_one(
+        {"slug": product_slug},
+        {"$set": {"promoted_until": promotion_until_iso(weeks)}},
+    )
+    return await db.products.find_one({"slug": product_slug}, {"_id": 0})
 
 
 @router.post("/maker/products/{product_slug}/unpublish", response_model=Product)
@@ -256,10 +298,18 @@ async def maker_create_product(
         variant_axis1_name=payload.variant_axis1_name,
         variant_axis2_name=payload.variant_axis2_name,
         status=payload.status,
+        # Auto-set expiry only on publish; drafts have no expiry until published.
+        expires_at=(
+            __import__("revenue").expiry_iso_from_now()
+            if payload.status == "published" else None
+        ),
     )
     await db.products.insert_one(product.model_dump())
-    # Bump maker's listings_count only for published listings
+    # Accrue the listing fee + bump usage counter (only for published listings —
+    # drafts don't burn against the 10-free quota until they go live).
     if product.status == "published":
+        from revenue import accrue_listing_charge
+        await accrue_listing_charge(slug, product.slug, kind="listing_create")
         await db.makers.update_one(
             {"slug": slug}, {"$inc": {"listings_count": 1}}
         )
@@ -349,6 +399,40 @@ async def maker_upload_model(
         logger.exception("model upload failed for maker=%s: %s", slug, e)
         raise HTTPException(502, "Could not upload model.")
     return {"url": url, "size": len(body)}
+
+
+# ---------------- Billing ledger ---------------------------------------------
+
+@router.get("/maker/billing")
+async def maker_billing(slug: str = Depends(current_maker_slug)):
+    """Return the maker's listing usage, pending charges, fee policy, and
+    recent charge history (last 25 entries). Used by the dashboard's billing
+    panel so makers see a transparent breakdown of what they owe."""
+    from revenue import (
+        LISTING_FEE_CENTS, LISTING_FREE_QUOTA, LISTING_EXPIRY_DAYS,
+        PROMOTION_WEEKLY_FEE_CENTS,
+    )
+    from routers.stripe_connect import PLATFORM_FEE_BPS, PROCESSING_FEE_BPS
+    m = await db.makers.find_one({"slug": slug}, {"_id": 0})
+    if not m:
+        raise HTTPException(404, "Maker not found")
+    used = int(m.get("listings_used_lifetime", 0))
+    free_remaining = max(0, LISTING_FREE_QUOTA - used)
+    history = list(reversed(m.get("charge_history", [])))[:25]
+    return {
+        "listings_used_lifetime": used,
+        "listings_free_remaining": free_remaining,
+        "listings_free_quota": LISTING_FREE_QUOTA,
+        "pending_charges_cents": int(m.get("pending_charges_cents", 0)),
+        "policy": {
+            "platform_fee_bps": PLATFORM_FEE_BPS,
+            "processing_fee_bps": PROCESSING_FEE_BPS,
+            "listing_fee_cents": LISTING_FEE_CENTS,
+            "listing_expiry_days": LISTING_EXPIRY_DAYS,
+            "promotion_weekly_fee_cents": PROMOTION_WEEKLY_FEE_CENTS,
+        },
+        "history": history,
+    }
 
 
 @router.get("/maker/orders")

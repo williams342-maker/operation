@@ -24,8 +24,16 @@ export default function ProductCard({ p, i = 0 }) {
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
           <span className="tag absolute top-4 left-4 text-[#ff4500] border-[#ff4500]">{p.technique}</span>
           <span className="tag absolute top-4 right-4">{p.category}</span>
-          <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between">
-            <div className="font-display text-3xl text-white">${p.price}</div>
+          {p.promoted_until && new Date(p.promoted_until) > new Date() && (
+            <span
+              className="tag absolute bottom-4 left-4 text-emerald-300 border-emerald-400 bg-black/70"
+              data-testid={`product-card-promoted-${p.slug}`}
+            >
+              ★ Featured
+            </span>
+          )}
+          <div className="absolute bottom-4 right-4 flex items-end justify-end gap-3">
+            <div className="font-display text-3xl text-white drop-shadow-md">${p.price}</div>
             <div className="w-10 h-10 border border-white/40 group-hover:bg-[#ff4500] group-hover:border-[#ff4500] transition flex items-center justify-center">
               <ArrowUpRight size={18} className="text-white" />
             </div>
