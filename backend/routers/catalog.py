@@ -1,4 +1,6 @@
 """Public catalog: products, makers, reviews, blog, activity, custom-orders, maker-applications."""
+from collections import defaultdict
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 
@@ -142,3 +144,125 @@ async def create_maker_application(payload: MakerApplicationCreate, bg: Backgrou
 @router.get("/activity", response_model=List[ActivityEvent])
 async def list_activity(limit: int = 20):
     return await db.activity_events.find({}, {"_id": 0}).sort("created_at", -1).to_list(limit)
+
+
+# ---------------------------------------------------------------------------
+# Shop of the Week — Crafters Plus spotlight
+# ---------------------------------------------------------------------------
+# Surfaces the highest-GMV active Plus subscriber on the homepage with their
+# custom shop banner + 3 best-selling products. Designed to give Plus
+# subscribers a tangible, visible payoff and incentivise upgrades.
+# ---------------------------------------------------------------------------
+@router.get("/shop-of-the-week")
+async def shop_of_the_week():
+    # 1) Find all Plus subscribers (active OR trialing — both have full perks).
+    plus_makers = await db.makers.find(
+        {"subscription_status": {"$in": ["active", "trialing"]}}, {"_id": 0}
+    ).to_list(200)
+    if not plus_makers:
+        return {"maker": None, "products": [], "weekly_gmv": 0.0}
+
+    # 2) Aggregate paid GMV per maker over last 30 days. We pull from
+    #    `maker_payouts` (already keyed by maker_slug + session) and resolve
+    #    per-item units via `payment_transactions.items` joined to products.
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+    payout_rows = await db.maker_payouts.find(
+        {"updated_at": {"$gte": cutoff}},
+        {"_id": 0, "maker_slug": 1, "amount": 1, "session_id": 1},
+    ).to_list(2000)
+
+    gmv_by_maker: Dict[str, float] = defaultdict(float)
+    sessions_by_maker: Dict[str, set] = defaultdict(set)
+    for row in payout_rows:
+        slug = row.get("maker_slug")
+        if not slug:
+            continue
+        try:
+            gmv_by_maker[slug] += float(row.get("amount") or 0)
+        except (TypeError, ValueError):
+            continue
+        if row.get("session_id"):
+            sessions_by_maker[slug].add(row["session_id"])
+
+    # 3) Pick winner: highest GMV among Plus subscribers; tie-break on most
+    #    recent subscription start (newest energetic shops bubble up).
+    plus_slugs = {m["slug"] for m in plus_makers}
+    ranked = sorted(
+        plus_makers,
+        key=lambda m: (
+            -gmv_by_maker.get(m["slug"], 0.0),
+            -((m.get("subscription_started_at") or "").__hash__()),
+        ),
+    )
+    winner = ranked[0]
+
+    # 4) Top 3 best-selling products in last 30d, fallback to newest published.
+    #    Resolve via the winner's paid sessions → items → products.
+    top_slugs: List[str] = []
+    winner_sessions = list(sessions_by_maker.get(winner["slug"], set()))
+    if winner_sessions:
+        units: Dict[str, int] = defaultdict(int)
+        txs = await db.payment_transactions.find(
+            {"session_id": {"$in": winner_sessions[:500]}},
+            {"_id": 0, "items": 1},
+        ).to_list(500)
+        # Build a set of product ids referenced, then resolve to slugs in one shot.
+        wanted_ids: set[str] = set()
+        line_qty: Dict[str, int] = defaultdict(int)
+        for tx in txs:
+            for it in tx.get("items") or []:
+                pid = it.get("product_id")
+                if not pid:
+                    continue
+                try:
+                    qty = max(1, int(it.get("quantity") or 1))
+                except (TypeError, ValueError):
+                    qty = 1
+                line_qty[pid] += qty
+                wanted_ids.add(pid)
+        if wanted_ids:
+            id_docs = await db.products.find(
+                {"$or": [{"id": {"$in": list(wanted_ids)}},
+                         {"slug": {"$in": list(wanted_ids)}}],
+                 "maker_slug": winner["slug"]},
+                {"_id": 0, "id": 1, "slug": 1},
+            ).to_list(200)
+            for doc in id_docs:
+                key = doc["id"] if doc["id"] in line_qty else doc.get("slug")
+                if key in line_qty:
+                    units[doc["slug"]] += line_qty[key]
+        top_slugs = [s for s, _ in sorted(units.items(), key=lambda kv: kv[1], reverse=True)][:3]
+    products: List[dict] = []
+    if top_slugs:
+        seen = set()
+        docs = await db.products.find(
+            {"slug": {"$in": top_slugs}, "deleted_at": None,
+             "status": {"$ne": "draft"}, "maker_slug": winner["slug"]},
+            {"_id": 0},
+        ).to_list(10)
+        # Preserve top-sellers order.
+        by_slug = {d["slug"]: d for d in docs}
+        for s in top_slugs:
+            if s in by_slug and s not in seen:
+                products.append(by_slug[s])
+                seen.add(s)
+    if len(products) < 3:
+        # Fill with newest published from the same maker.
+        existing = {p["slug"] for p in products}
+        fillers = await db.products.find(
+            {"maker_slug": winner["slug"], "deleted_at": None,
+             "status": {"$ne": "draft"}},
+            {"_id": 0},
+        ).sort("created_at", -1).to_list(10)
+        for f in fillers:
+            if f["slug"] not in existing:
+                products.append(f)
+            if len(products) >= 3:
+                break
+
+    return {
+        "maker": winner,
+        "products": products[:3],
+        "weekly_gmv": round(gmv_by_maker.get(winner["slug"], 0.0), 2),
+        "plus_subscribers_count": len(plus_slugs),
+    }

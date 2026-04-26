@@ -11,6 +11,7 @@ export const fetchReviews = () => http.get("/reviews").then((r) => r.data);
 export const fetchPosts = () => http.get("/blog").then((r) => r.data);
 export const fetchPost = (slug) => http.get(`/blog/${slug}`).then((r) => r.data);
 export const fetchActivity = (limit = 10) => http.get("/activity", { params: { limit } }).then((r) => r.data);
+export const fetchShopOfTheWeek = () => http.get("/shop-of-the-week").then((r) => r.data);
 export const submitCustomOrder = (payload) => http.post("/custom-orders", payload).then((r) => r.data);
 export const submitMakerApplication = (payload) => http.post("/maker-applications", payload).then((r) => r.data);
 export const createCheckout = (payload) => http.post("/checkout/session", payload).then((r) => r.data);

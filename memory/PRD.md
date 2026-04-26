@@ -57,6 +57,12 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - iter16: **.glb upload (P2) + Variants (P3) + Draft mode (P4)** — backend 28/28 incl. 10 new iter16 cases + frontend E2E 12/12 (modal variants editor, draft↔publish flips, .glb file upload, buyer variant selector + cart variant pricing). R2 live; transfer_to_makers + maker-orders correctly apply variant deltas.
 
 ## Recently Shipped (2026-04-26)
+- ✅ **iter21 — Shop of the Week (Crafters Plus homepage spotlight)**:
+  - **Backend** — `GET /api/shop-of-the-week` returns the highest-GMV active/trialing Plus subscriber over the last 30 days (using `db.maker_payouts` as source of truth) plus their top-3 best-selling products. Falls back to newest published listings when the maker has no sales yet. Returns `{maker: null}` gracefully when no Plus subscribers exist (frontend hides the section).
+  - **Frontend** — `components/sections/ShopOfTheWeek.jsx`: editorial hero card with banner backdrop, ★ Plus badge, maker meta, monthly GMV pill, 3 ranked best-seller cards (#01/#02/#03) on the right rail. Mounted directly under `<Hero />` on the homepage. Auto-hides if API returns no maker.
+  - **Why**: Tangible, visible payoff for makers on the $12/mo Plus tier — front-page rotation drives conversion to the upsell.
+  - **Tests**: 4 new unit tests (empty case, GMV ranking, fallback to newest, free-tier exclusion) — **27/27 green** in new + adjacent iter17/18/19/20/21 suites.
+
 - ✅ **iter20 — Plus banner upload + Stripe Customer Portal**:
   - **Banner upload** — `POST /api/maker/uploads/banner` (multipart, PNG/JPG/WebP, R2 path `banners/{slug}/{uuid}.{ext}`). Gated to `subscription_status='active'` (403 with "Crafters Plus" copy on free tier). UI: dedicated section in ProfileForm with disabled-state CTA "Upgrade to Crafters Plus to unlock" for free makers, file picker + preview thumbnail for Plus. Public maker page (`/makers/{slug}`) hero now prefers `banner_image_url` over `cover` and renders a `★ Plus` badge for active subscribers.
   - **Stripe Customer Portal** — `POST /api/maker/subscription/portal` returns a Stripe-hosted billing portal URL (`https://billing.stripe.com/p/session/...`) for self-service card / invoice / cancellation management. Wrapped in `try/except StripeError`: returns 502 with friendly copy "Configure it in your Stripe dashboard at Settings → Billing → Customer Portal" instead of bare 500. UI: "Manage billing ↗" button in BillingTab next to Cancel.
@@ -143,5 +149,6 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - (Optional analytics) Cohort retention, bounce-rate-by-page, Discord/Slack live-visitor ping
 
 ## Next Action Items
-- Whenever convenient: DNS step for `cdn.craftersmarket.org` then `swap_r2_host.py`
-- (Optional) Plus banner upload + Stripe Customer Portal (small wins)
+- 🔴 **P0 — Brevo DNS** (paused, awaiting user authentication): copy TXT/DKIM records from Brevo dashboard into Cloudflare → click Authenticate → send test email
+- 🟡 **P1 — R2 CDN custom domain**: in Cloudflare R2 → bucket `craftersmarket-assets` → Custom Domains → connect `cdn.craftersmarket.org` → flip `R2_PUBLIC_URL` and run `swap_r2_host.py`
+- 🟢 **P2 — Refactor `MakerDashboard.jsx`** (~1500 lines → modular components inside `MakerDashboard/` directory)

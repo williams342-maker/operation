@@ -9,6 +9,7 @@ import CategoryStrip from "./components/sections/CategoryStrip";
 import ProductRail from "./components/sections/ProductRail";
 import PromoStrip from "./components/sections/PromoStrip";
 import FeaturedShops from "./components/sections/FeaturedShops";
+import ShopOfTheWeek from "./components/sections/ShopOfTheWeek";
 import Process from "./components/sections/Process";
 import ForMakers from "./components/sections/ForMakers";
 import Reviews from "./components/sections/Reviews";
@@ -41,6 +42,7 @@ import { trackPageview, captureAttribution } from "./lib/analytics";
 const Home = () => (
   <>
     <Hero />
+    <ShopOfTheWeek />
     <CategoryStrip />
     <ProductRail title="Editor's Picks" eyebrow="◆ Featured" testId="rail-featured" />
     <PromoStrip />
