@@ -110,8 +110,9 @@ export default function Footer() {
         <div className="border-t border-[#262626] pt-8 flex flex-col md:flex-row md:items-center justify-between gap-4 font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3]">
           <div>© {new Date().getFullYear()} Crafters Market · All rights reserved</div>
           <div className="flex gap-6">
-            <a href="#" className="hover:text-[#ff4500]">Privacy</a>
-            <a href="#" className="hover:text-[#ff4500]">Terms</a>
+            <Link to="/policy" className="hover:text-[#ff4500]" data-testid="footer-privacy">Privacy</Link>
+            <Link to="/policy" className="hover:text-[#ff4500]" data-testid="footer-terms">Terms</Link>
+            <Link to="/contact" className="hover:text-[#ff4500]" data-testid="footer-contact">Contact</Link>
             <Link to="/admin/login" className="hover:text-[#ff4500]" data-testid="footer-admin-link">Admin Access</Link>
           </div>
           <div>Beta · Things may change. Your feedback helps.</div>

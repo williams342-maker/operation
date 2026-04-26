@@ -86,3 +86,31 @@ async def current_admin(authorization: str | None = Header(default=None)) -> dic
     if claims.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Admin access required.")
     return claims
+
+
+async def current_buyer(authorization: str | None = Header(default=None)) -> dict:
+    """FastAPI dependency: returns the JWT claims for a community buyer Bearer token."""
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Missing bearer token.")
+    token = authorization.split(" ", 1)[1].strip()
+    claims = decode_session_jwt(token)
+    if claims.get("role") != "buyer":
+        raise HTTPException(status_code=403, detail="Buyer access required.")
+    return claims
+
+
+_buyer_serializer = URLSafeTimedSerializer(SECRET, salt="buyer-magic-link")
+
+
+def issue_buyer_magic_token(email: str) -> str:
+    return _buyer_serializer.dumps({"email": email.lower().strip()})
+
+
+def verify_buyer_magic_token(token: str) -> str:
+    try:
+        data = _buyer_serializer.loads(token, max_age=MAGIC_TTL_SECONDS)
+    except SignatureExpired:
+        raise HTTPException(status_code=401, detail="Magic link expired — request a new one.")
+    except BadSignature:
+        raise HTTPException(status_code=401, detail="Invalid magic link.")
+    return data["email"]

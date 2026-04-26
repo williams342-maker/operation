@@ -9,8 +9,9 @@ const links = [
   { label: "Shop", href: "/shop", route: true },
   { label: "Makers", href: "/makers", route: true },
   { label: "Custom", href: "/custom-order", route: true },
-  { label: "Apply", href: "/apply", route: true },
+  { label: "Community", href: "/community", route: true },
   { label: "Journal", href: "/journal", route: true },
+  { label: "Contact", href: "/contact", route: true },
 ];
 
 export default function Nav() {

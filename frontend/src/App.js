@@ -30,6 +30,11 @@ import MakerDashboard from "./pages/MakerDashboard";
 import AdminLogin from "./pages/AdminLogin";
 import AdminVerify from "./pages/AdminVerify";
 import AdminDashboard from "./pages/AdminDashboard";
+import ContactPage from "./pages/ContactPage";
+import PolicyPage from "./pages/PolicyPage";
+import CommunityPage from "./pages/CommunityPage";
+import { CommunityLogin, CommunityVerify, CommunityAuthCallback } from "./pages/CommunityAuth";
+import AIAssistant from "./components/AIAssistant";
 
 const Home = () => (
   <>
@@ -80,9 +85,16 @@ function App() {
               <Route path="/admin/login" element={<AdminLogin />} />
               <Route path="/admin/verify" element={<AdminVerify />} />
               <Route path="/admin/dashboard" element={<AdminDashboard />} />
+              <Route path="/contact" element={<ContactPage />} />
+              <Route path="/policy" element={<PolicyPage />} />
+              <Route path="/community" element={<CommunityPage />} />
+              <Route path="/community/login" element={<CommunityLogin />} />
+              <Route path="/community/verify" element={<CommunityVerify />} />
+              <Route path="/community/auth/callback" element={<CommunityAuthCallback />} />
             </Routes>
           </main>
           <Footer />
+          <AIAssistant />
         </div>
       </BrowserRouter>
     </CartProvider>

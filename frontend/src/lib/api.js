@@ -58,3 +58,52 @@ export const decideMakerApplication = (id, payload) =>
   http.patch(`/admin/maker-applications/${id}`, payload, { headers: adminAuthHeaders() }).then((r) => r.data);
 export const quoteCustomOrder = (id, payload) =>
   http.patch(`/admin/custom-orders/${id}`, payload, { headers: adminAuthHeaders() }).then((r) => r.data);
+
+
+// ---------- AI Assistant ----------
+export const aiChat = (payload) => http.post("/ai/chat", payload).then((r) => r.data);
+export const aiSubmitBrief = (brief) => http.post("/ai/submit-brief", brief).then((r) => r.data);
+
+// ---------- Community ----------
+const buyerAuthHeaders = () => {
+  const t = localStorage.getItem("cm_buyer_jwt");
+  return t ? { Authorization: `Bearer ${t}` } : {};
+};
+export const communityGoogleExchange = (session_id) =>
+  http.post("/community/auth/google", { session_id }).then((r) => r.data);
+export const communityRequestMagic = (email, origin_url) =>
+  http.post("/community/auth/magic/request", { email, origin_url }).then((r) => r.data);
+export const communityVerifyMagic = (token) =>
+  http.post("/community/auth/magic/verify", { token }).then((r) => r.data);
+export const communityMe = () =>
+  http.get("/community/me", { headers: buyerAuthHeaders() }).then((r) => r.data);
+
+export const fetchShowcase = () => http.get("/community/showcase").then((r) => r.data);
+export const createShowcase = (payload) =>
+  http.post("/community/showcase", payload, { headers: buyerAuthHeaders() }).then((r) => r.data);
+export const likeShowcase = (id) =>
+  http.post(`/community/showcase/${id}/like`, {}, { headers: buyerAuthHeaders() }).then((r) => r.data);
+
+export const fetchDesignFiles = () => http.get("/community/files").then((r) => r.data);
+export const downloadDesignFile = (id) =>
+  http.get(`/community/files/${id}/download`, { headers: buyerAuthHeaders() }).then((r) => r.data);
+export const unlockDownloadsCheckout = () =>
+  http.post(`/community/files/unlock-checkout`, {}, { headers: buyerAuthHeaders() }).then((r) => r.data);
+export const uploadDesignFile = (payload) =>
+  http.post("/community/files", payload, { headers: authHeaders() }).then((r) => r.data); // maker auth
+
+export const fetchForumThreads = (tag) =>
+  http.get("/community/forum", { params: tag ? { tag } : {} }).then((r) => r.data);
+export const fetchForumThread = (id) => http.get(`/community/forum/${id}`).then((r) => r.data);
+export const createForumThread = (payload) =>
+  http.post("/community/forum", payload, { headers: buyerAuthHeaders() }).then((r) => r.data);
+export const replyForumThread = (id, payload) =>
+  http.post(`/community/forum/${id}/reply`, payload, { headers: buyerAuthHeaders() }).then((r) => r.data);
+
+export const fetchChatHistory = (channel) =>
+  http.get(`/community/chat/${channel}/history`).then((r) => r.data);
+
+export const wsChatUrl = (channel, token) => {
+  const wsBase = BASE.replace(/^http/, "ws");
+  return `${wsBase}/api/ws/chat/${channel}?token=${encodeURIComponent(token || "")}`;
+};
