@@ -163,6 +163,19 @@ export const fetchAdminFeedback = (resolved) =>
     .then((r) => r.data);
 export const adminResolveFeedback = (id) =>
   http.post(`/admin/feedback/${id}/resolve`, {}, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const fetchFollowStatus = (maker_slug, jwt) => {
+  const headers = jwt ? { Authorization: `Bearer ${jwt}` } : {};
+  return http.get(`/makers/${maker_slug}/follow-status`, { headers }).then((r) => r.data);
+};
+export const followMaker = (maker_slug, jwt) =>
+  http
+    .post(`/makers/${maker_slug}/follow`, {}, { headers: { Authorization: `Bearer ${jwt}` } })
+    .then((r) => r.data);
+export const unfollowMaker = (maker_slug, jwt) =>
+  http
+    .delete(`/makers/${maker_slug}/follow`, { headers: { Authorization: `Bearer ${jwt}` } })
+    .then((r) => r.data);
+
 export const fetchAdminAuditLog = (limit = 200) =>
   http.get("/admin/audit-log", { params: { limit }, headers: adminAuthHeaders() }).then((r) => r.data);
 export const requestAdminLink = (email, origin_url) =>

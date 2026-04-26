@@ -539,3 +539,129 @@ async def send_beta_feedback(name: str, email: str, message: str, page: str = ""
         "Crafters Market · Beta channel",
     )
     return await _send(OPS_EMAIL, f"Beta feedback · {name}", html)
+
+
+
+# ============================================================
+#  Listing-publish notifications (maker confirm + ops + followers)
+# ============================================================
+SITE_URL = os.environ.get("SITE_URL", "https://craftersmarket.org").rstrip("/")
+
+
+def _listing_card(title: str, image: str | None, price: float, listing_url: str) -> str:
+    """Reusable listing-thumbnail card for emails."""
+    img_html = (
+        f"<img src='{image}' alt='' width='100%' style='display:block;width:100%;max-width:540px;height:auto;border:1px solid #262626' />"
+        if image else
+        "<div style='height:200px;background:#0a0a0a;border:1px solid #262626'></div>"
+    )
+    return f"""
+      <a href="{listing_url}" style="text-decoration:none;color:inherit;display:block">
+        {img_html}
+        <table width='100%' cellpadding='0' cellspacing='0' style='border:1px solid #262626;border-top:0'>
+          <tr>
+            <td style='padding:18px 18px 8px'>
+              <div style='font-size:18px;color:#e5e5e5;font-family:Impact,sans-serif;text-transform:uppercase;letter-spacing:-0.01em'>{title}</div>
+            </td>
+            <td style='padding:18px 18px 8px;text-align:right'>
+              <div style='font-size:22px;color:#ff4500;font-family:Impact,sans-serif'>${price:.2f}</div>
+            </td>
+          </tr>
+          <tr><td colspan='2' style='padding:0 18px 16px'>
+            <span style='display:inline-block;padding:8px 18px;background:#ff4500;color:#0a0a0a;font-size:11px;letter-spacing:0.22em;text-transform:uppercase'>View listing →</span>
+          </td></tr>
+        </table>
+      </a>
+    """
+
+
+async def send_maker_listing_published(
+    maker_email: str, maker_name: str, listing_title: str, listing_slug: str,
+    listing_image: str | None, listing_price: float,
+):
+    """Confirmation email to the maker right after they hit Publish."""
+    listing_url = f"{SITE_URL}/shop/{listing_slug}"
+    share_url = f"https://twitter.com/intent/tweet?text=Just listed: {listing_title}&url={listing_url}"
+    body = _listing_card(listing_title, listing_image, listing_price, listing_url)
+    body += f"""
+      <p style='font-size:13px;line-height:1.6;color:#a3a3a3;margin-top:24px'>
+        It's live, {maker_name}. Buyers can see it the moment they search the matching category or technique.
+      </p>
+      <table width='100%' cellpadding='0' cellspacing='0' style='margin-top:18px'>
+        <tr>
+          <td style='padding:0 6px 0 0'>
+            <a href='{listing_url}' style='display:block;text-align:center;padding:12px;border:1px solid #262626;color:#e5e5e5;font-size:11px;letter-spacing:0.22em;text-transform:uppercase;text-decoration:none'>View live</a>
+          </td>
+          <td style='padding:0 0 0 6px'>
+            <a href='{share_url}' style='display:block;text-align:center;padding:12px;background:#ff4500;color:#0a0a0a;font-size:11px;letter-spacing:0.22em;text-transform:uppercase;text-decoration:none'>Share to X</a>
+          </td>
+        </tr>
+      </table>
+      <p style='font-size:11px;line-height:1.6;color:#525252;margin-top:24px;letter-spacing:0.22em;text-transform:uppercase'>
+        ◆ Tip — every shared listing gets ~3.4× the views in its first 24 hours.
+      </p>
+    """
+    html = _shell(
+        "You're live.",
+        "Your new listing is published — here's what buyers will see.",
+        body,
+        f"Maker · {maker_name}",
+    )
+    return await _send(maker_email, f"Listing live · {listing_title}", html)
+
+
+async def send_ops_new_listing(
+    maker_name: str, maker_slug: str, listing_title: str, listing_slug: str,
+    listing_image: str | None, listing_price: float, category: str | None = None,
+    technique: str | None = None,
+):
+    """Heads-up to the ops team for moderation + featuring decisions."""
+    if not OPS_EMAIL:
+        return
+    listing_url = f"{SITE_URL}/shop/{listing_slug}"
+    maker_url = f"{SITE_URL}/makers/{maker_slug}"
+    body = _listing_card(listing_title, listing_image, listing_price, listing_url)
+    meta_rows = [("Maker", f"<a href='{maker_url}' style='color:#ff4500'>{maker_name}</a>")]
+    if category: meta_rows.append(("Category", category))
+    if technique: meta_rows.append(("Technique", technique))
+    body += (
+        "<table width='100%' cellpadding='0' cellspacing='0' style='font-size:12px;margin-top:18px;border-top:1px solid #262626'>"
+        + "".join(
+            f"<tr><td style='padding:8px 0;color:#a3a3a3;font-size:11px;letter-spacing:0.22em;text-transform:uppercase'>{k}</td>"
+            f"<td style='padding:8px 0;color:#e5e5e5;text-align:right'>{v}</td></tr>"
+            for k, v in meta_rows
+        ) + "</table>"
+    )
+    html = _shell(
+        "New listing.",
+        f"{maker_name} just published a new listing. Review for content moderation or homepage feature.",
+        body,
+        "Crafters Market · Ops",
+    )
+    return await _send(OPS_EMAIL, f"New listing · {maker_name} · {listing_title}", html)
+
+
+async def send_follower_new_listing(
+    follower_email: str, follower_name: str, maker_name: str, maker_slug: str,
+    listing_title: str, listing_slug: str, listing_image: str | None, listing_price: float,
+):
+    """Drop a fresh-listing notification into a follower's inbox."""
+    listing_url = f"{SITE_URL}/shop/{listing_slug}"
+    maker_url = f"{SITE_URL}/makers/{maker_slug}"
+    unsubscribe_url = f"{SITE_URL}/makers/{maker_slug}#unfollow"
+    body = _listing_card(listing_title, listing_image, listing_price, listing_url)
+    body += f"""
+      <p style='font-size:13px;line-height:1.6;color:#a3a3a3;margin-top:24px'>
+        You're following <a href='{maker_url}' style='color:#ff4500'>{maker_name}</a> — they just dropped something new.
+      </p>
+      <p style='font-size:10px;line-height:1.6;color:#525252;margin-top:18px;letter-spacing:0.22em;text-transform:uppercase'>
+        ◆ <a href='{unsubscribe_url}' style='color:#525252'>Unfollow</a> to stop these emails
+      </p>
+    """
+    html = _shell(
+        f"New from {maker_name}.",
+        f"Hey {follower_name}, here's the latest piece from a maker you follow.",
+        body,
+        f"Crafters Market · Following {maker_name}",
+    )
+    return await _send(follower_email, f"New from {maker_name} · {listing_title}", html)

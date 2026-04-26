@@ -149,6 +149,13 @@ async def maker_publish_product(product_slug: str, slug: str = Depends(current_m
         {"$set": {"status": "published", "expires_at": expiry_iso_from_now()}},
     )
     updated = await db.products.find_one({"slug": product_slug}, {"_id": 0})
+    # Fire notifications only on first-ever publish (notify_listing_published
+    # is idempotent — it stamps `published_at` and skips repeat sends).
+    try:
+        from listing_notify import notify_listing_published
+        await notify_listing_published(product_slug)
+    except Exception as e:
+        logger.exception("[maker_publish_product] notify failed: %s", e)
     return updated
 
 
@@ -313,6 +320,13 @@ async def maker_create_product(
         await db.makers.update_one(
             {"slug": slug}, {"$inc": {"listings_count": 1}}
         )
+        # Fan out the publish notifications: maker confirm + ops + followers.
+        # Wrapped so a transient email outage doesn't fail the create call.
+        try:
+            from listing_notify import notify_listing_published
+            await notify_listing_published(product.slug)
+        except Exception as e:
+            logger.exception("[maker_create_product] notify failed: %s", e)
     return product
 
 

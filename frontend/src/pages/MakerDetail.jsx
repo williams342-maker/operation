@@ -4,6 +4,7 @@ import { fetchMaker, fetchProducts } from "../lib/api";
 import { useStructuredData } from "../lib/seo";
 import ProductCard from "../components/ProductCard";
 import MakerReviews from "../components/MakerReviews";
+import FollowButton from "../components/FollowButton";
 
 export default function MakerDetail() {
   const { slug } = useParams();
@@ -62,6 +63,9 @@ export default function MakerDetail() {
           </div>
           <h1 className="font-display text-[64px] md:text-[120px] leading-[0.88]">{m.name}</h1>
           <div className="font-mono text-xs uppercase tracking-[0.22em] text-[#a3a3a3] mt-2">{m.location} · {m.listings_count} listings · ★ {m.rating}</div>
+          <div className="mt-5">
+            <FollowButton makerSlug={m.slug} makerName={m.name} />
+          </div>
         </div>
       </div>
       <div className="w-full max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12">

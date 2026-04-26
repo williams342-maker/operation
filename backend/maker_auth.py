@@ -99,6 +99,20 @@ async def current_buyer(authorization: str | None = Header(default=None)) -> dic
     return claims
 
 
+async def optional_buyer(authorization: str | None = Header(default=None)) -> dict | None:
+    """Like `current_buyer` but returns None for unauthenticated requests
+    instead of 401-ing. Use for endpoints whose response shape differs based
+    on whether the caller is signed in (e.g. follow-status)."""
+    if not authorization or not authorization.lower().startswith("bearer "):
+        return None
+    try:
+        token = authorization.split(" ", 1)[1].strip()
+        claims = decode_session_jwt(token)
+    except HTTPException:
+        return None
+    return claims if claims.get("role") == "buyer" else None
+
+
 _buyer_serializer = URLSafeTimedSerializer(SECRET, salt="buyer-magic-link")
 
 
