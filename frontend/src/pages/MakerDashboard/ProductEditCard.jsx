@@ -2,9 +2,10 @@ import React, { useRef, useState } from "react";
 import {
   updateMakerProduct, deleteMakerProduct, restoreMakerProduct,
   publishMakerProduct, unpublishMakerProduct, uploadMakerModel,
-  promoteMakerProduct, renewMakerProduct,
+  promoteMakerProduct, renewMakerProduct, makerShareListingToBuffer,
 } from "../../lib/api";
 import { useConfirm } from "./useConfirm";
+import { toast } from "sonner";
 
 export default function ProductEditCard({ product, archived = false, draft = false, onChanged }) {
   const [confirm, confirmModal] = useConfirm();
@@ -20,6 +21,7 @@ export default function ProductEditCard({ product, archived = false, draft = fal
   const [statusErr, setStatusErr] = useState("");
   const [promoting, setPromoting] = useState(false);
   const [renewing, setRenewing] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const modelInputRef = useRef(null);
 
   const save = async (e) => {
@@ -139,6 +141,27 @@ export default function ProductEditCard({ product, archived = false, draft = fal
     }
   };
 
+  const onShare = async () => {
+    setSharing(true);
+    try {
+      const row = await makerShareListingToBuffer(p.slug);
+      const ok = row.success_count || 0;
+      const bad = row.failed_count || 0;
+      if (ok > 0 && bad === 0) {
+        toast.success(`Queued on ${ok} channel${ok === 1 ? "" : "s"} via Buffer.`);
+      } else if (ok > 0) {
+        toast.warning(`Queued on ${ok}/${ok + bad} channels — ${bad} failed.`);
+      } else {
+        const firstErr = row.results?.[0]?.error || "All channels failed.";
+        toast.error(`Buffer rejected: ${firstErr}`);
+      }
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Share to Buffer failed.");
+    } finally {
+      setSharing(false);
+    }
+  };
+
   return (
     <>
     <div
@@ -235,6 +258,16 @@ export default function ProductEditCard({ product, archived = false, draft = fal
                   : p.promoted_until && new Date(p.promoted_until) > new Date()
                   ? `✓ Promoted until ${new Date(p.promoted_until).toLocaleDateString()}`
                   : "★ Promote · $5/week"}
+              </button>
+            )}
+            {!draft && (
+              <button
+                onClick={onShare}
+                disabled={sharing}
+                className="mt-2 w-full font-mono text-[10px] uppercase tracking-[0.22em] text-sky-400 hover:text-sky-300 text-left disabled:opacity-50"
+                data-testid={`product-share-buffer-${p.slug}`}
+              >
+                {sharing ? "Queueing…" : "↗ Share to Buffer (social)"}
               </button>
             )}
             {draft && (

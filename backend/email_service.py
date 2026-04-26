@@ -1,7 +1,8 @@
 """Transactional email helpers for Crafters Market.
 
-Supports three providers via EMAIL_PROVIDER env flag:
-  - "mailersend" (default): MailerSend / MailerLite transactional REST API
+Supports four providers via EMAIL_PROVIDER env flag:
+  - "sender" (default 2026-04): Sender.net transactional REST API
+  - "mailersend": MailerSend / MailerLite transactional REST API
   - "brevo": Brevo / Sendinblue REST API
   - "resend": Resend SDK (legacy fallback)
 """
@@ -24,10 +25,11 @@ if not logger.handlers:
     logger.addHandler(h)
 logger.propagate = True
 
-EMAIL_PROVIDER = os.environ.get("EMAIL_PROVIDER", "mailersend").lower()
+EMAIL_PROVIDER = os.environ.get("EMAIL_PROVIDER", "sender").lower()
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
 BREVO_API_KEY = os.environ.get("BREVO_API_KEY", "")
 MAILERSEND_API_KEY = os.environ.get("MAILERSEND_API_KEY", "")
+SENDER_API_KEY = os.environ.get("SENDER_API_KEY", "")
 SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "team@craftersmarket.org")
 SENDER_NAME = os.environ.get("SENDER_NAME", "Crafters Market")
 OPS_EMAIL = os.environ.get("OPS_EMAIL", "")
@@ -37,11 +39,48 @@ if RESEND_API_KEY:
 
 
 def _has_provider() -> bool:
+    if EMAIL_PROVIDER == "sender":
+        return bool(SENDER_API_KEY)
     if EMAIL_PROVIDER == "mailersend":
         return bool(MAILERSEND_API_KEY)
     if EMAIL_PROVIDER == "brevo":
         return bool(BREVO_API_KEY)
     return bool(RESEND_API_KEY)
+
+
+async def _send_sender(to: str, subject: str, html: str):
+    """Send via Sender.net transactional REST API.
+    https://api.sender.net/transactional-campaigns/send-transactional/
+
+    Endpoint: POST https://api.sender.net/v2/message/send
+    Auth: Bearer <SENDER_API_KEY>
+    Free tier: 15,000 emails/month, no daily cap (60 req/min rate limit).
+    Domain craftersmarket.org must have SPF + DKIM records added in the
+    Sender.net dashboard (Account settings → Domains) before sends succeed.
+    """
+    payload = {
+        "from": {"email": SENDER_EMAIL, "name": SENDER_NAME},
+        "to": {"email": to},
+        "subject": subject,
+        "html": html,
+    }
+    headers = {
+        "Authorization": f"Bearer {SENDER_API_KEY}",
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+    async with httpx.AsyncClient(timeout=15) as client:
+        r = await client.post(
+            "https://api.sender.net/v2/message/send",
+            json=payload, headers=headers,
+        )
+    if r.status_code >= 400:
+        logger.warning("sender.net error %d → %s: %s", r.status_code, to, r.text[:300])
+        return {"_error": True, "status": r.status_code, "body": r.text[:500]}
+    body = r.json() if r.content else {}
+    msg_id = body.get("message_id") or body.get("id")
+    logger.info("sender.net sent → %s · id=%s", to, msg_id)
+    return {"message_id": msg_id, "status": r.status_code}
 
 
 async def _send_mailersend(to: str, subject: str, html: str):
@@ -121,7 +160,9 @@ async def _send(to: str, subject: str, html: str):
             "status": "skipped", "error_code": None, "error_body": "no_key_or_recipient",
         })
         return None
-    if EMAIL_PROVIDER == "mailersend":
+    if EMAIL_PROVIDER == "sender":
+        result = await _send_sender(to, subject, html)
+    elif EMAIL_PROVIDER == "mailersend":
         result = await _send_mailersend(to, subject, html)
     elif EMAIL_PROVIDER == "brevo":
         result = await _send_brevo(to, subject, html)

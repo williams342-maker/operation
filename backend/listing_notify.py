@@ -105,6 +105,13 @@ async def notify_listing_published(
         {"$set": {"published_at": now_iso()}},
     )
 
+    # 4. Buffer auto-post (best-effort — never breaks the publish flow)
+    try:
+        from buffer_service import auto_post_listing
+        await auto_post_listing(product, maker)
+    except Exception as e:
+        logger.exception("[listing_publish] buffer auto-post failed: %s", e)
+
     logger.info(
         "[listing_publish] %s · maker=%s followers=%d sent=%d",
         listing_slug, maker.get("slug"), follower_count, follower_sent,

@@ -196,6 +196,18 @@ export const adminSeedAdsDemo = (days = 14) =>
   http.post("/admin/ads/seed-demo", {}, { params: { days }, headers: adminAuthHeaders() }).then((r) => r.data);
 export const adminClearAdsDemo = () =>
   http.delete("/admin/ads/clear-demo", { headers: adminAuthHeaders() }).then((r) => r.data);
+
+// ---------- Buffer (social media) ----------
+export const fetchBufferStatus = () =>
+  http.get("/admin/buffer/status", { headers: adminAuthHeaders() }).then((r) => r.data);
+export const fetchBufferPosts = (limit = 50) =>
+  http.get("/admin/buffer/posts", { params: { limit }, headers: adminAuthHeaders() }).then((r) => r.data);
+export const adminBufferPost = (payload) =>
+  http.post("/admin/buffer/post", payload, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const makerShareListingToBuffer = (slug) =>
+  http
+    .post(`/maker/buffer/share-listing/${slug}`, {}, { headers: authHeaders() })
+    .then((r) => r.data);
 export const requestAdminLink = (email, origin_url) =>
   http.post("/admin/auth/request", { email, origin_url }).then((r) => r.data);
 export const verifyAdminToken = (token) =>

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="3" time="3.968" timestamp="2026-04-26T23:08:07.412515+00:00" hostname="agent-env-da415db6-4cc4-4a72-a064-87776e08c06a"><testcase classname="backend.tests.test_buffer_deep" name="test_text_only_post_pinterest_errors_others_pass" time="2.090" /><testcase classname="backend.tests.test_buffer_deep" name="test_buffer_idempotency_via_listing_publish" time="0.061"><failure message="pymongo.errors.InvalidURI: Invalid URI scheme: URI must begin with 'mongodb://' or 'mongodb+srv://'">backend/tests/test_buffer_deep.py:66: in test_buffer_idempotency_via_listing_publish
+    from core import db
+backend/core.py:16: in &lt;module&gt;
+    client = AsyncIOMotorClient(MONGO_URL)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/motor/core.py:148: in __init__
+    delegate = self.__delegate_class__(*args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/pymongo/mongo_client.py:766: in __init__
+    res = uri_parser.parse_uri(
+/root/.venv/lib/python3.11/site-packages/pymongo/uri_parser.py:496: in parse_uri
+    raise InvalidURI(f"Invalid URI scheme: URI must begin with '{SCHEME}' or '{SRV_SCHEME}'")
+E   pymongo.errors.InvalidURI: Invalid URI scheme: URI must begin with 'mongodb://' or 'mongodb+srv://'</failure></testcase><testcase classname="backend.tests.test_buffer_deep" name="test_maker_share_published_listing" time="1.515" /></testsuite></testsuites>

@@ -6,6 +6,7 @@ frontend needs. Admin endpoints read/write the full document.
 """
 from __future__ import annotations
 
+import os
 from datetime import datetime, timezone
 from typing import Optional, List
 import uuid
