@@ -62,9 +62,30 @@ async def main(old: str, new: str, dry: bool) -> int:
                 errors += 1
                 print(f"  ✗ {p['slug']}: {e}")
 
+    # ---- Maker banners (Plus subscribers only have these, but rewrite all) ----
+    makers_total = makers_touched = 0
+    async for mk in db.makers.find({}, {"_id": 0, "slug": 1, "banner_image_url": 1}):
+        makers_total += 1
+        b = mk.get("banner_image_url")
+        if not (isinstance(b, str) and b.startswith(old)):
+            continue
+        new_b = b.replace(old, new)
+        makers_touched += 1
+        if dry:
+            print(f"  would update maker {mk['slug']}: banner")
+        else:
+            try:
+                await db.makers.update_one({"slug": mk["slug"]}, {"$set": {"banner_image_url": new_b}})
+                print(f"  ✓ updated maker {mk['slug']} (banner)")
+            except Exception as e:
+                errors += 1
+                print(f"  ✗ maker {mk['slug']}: {e}")
+
     print("\n=== swap summary ===")
     print(f"products scanned : {total}")
     print(f"  affected       : {touched}")
+    print(f"makers scanned   : {makers_total}")
+    print(f"  affected       : {makers_touched}")
     print(f"  errors         : {errors}")
     print(f"  mode           : {'dry-run' if dry else 'applied'}")
     return 0 if errors == 0 else 2
