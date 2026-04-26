@@ -45,25 +45,20 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
   - `/maker/stripe/return` landing page after Stripe-hosted onboarding
 
 ## Test Status (2026-04-26)
-- iter6: AI memory bug + cart gift-note persistence — **fixed and verified**
+- iter6: AI memory + cart gift-note — **fixed and verified**
 - iter7: Stripe Connect Express + regression sweep — **20/20**
-- iter9: 5 backlog follow-ups — **140/140**
-- iter10: 3 backlog follow-ups (forum poll pause, per-maker analytics, Google OAuth wiring) — **147/147**
-- iter11 (this run): Web analytics — **14/14 new · 161/161 full suite**
-  - Privacy posture locked: IPv4 last octet truncated, IPv6 → /48
-  - Geo enrichment via ipapi.co with permanent in-Mongo cache
-  - 30-min inactivity session window (frontend mints session_id)
-  - Bot UA filter (googlebot, bingbot, facebookexternalhit, etc.)
-  - 9 admin panels: Total/Unique/7-day/Sessions, Top Pages, Devices, Countries, Cities, Traffic Sources + bonus Top Referrers
-  - Auto-track on every route change in `App.js` via `<ScrollTop>`, skipping `/admin/*` and `/maker/*`
-  - Files: `/app/backend/routers/analytics.py`, `/app/frontend/src/lib/analytics.js`
+- iter9: 5 backlog items — **140/140**
+- iter10: 3 backlog items (forum poll pause, per-maker analytics, Google OAuth wiring) — **147/147**
+- iter11: Web analytics — **161/161**
+- iter12 (this run): GMV mini-charts + 7d-vs-prior-7d deltas + dwell tracking — **9/9 new · 170/170 full suite**
+  1. **Weekly GMV mini-chart**: backend adds `weekly_gmv: [{week_start, total}]` (12 buckets, Mon-anchored, oldest first) to BOTH `/admin/analytics` and `/admin/maker-analytics/{slug}`. Frontend `<Sparkline>` component (CSS-only, zero deps) shows 12 bars with current-week highlighted in orange + auto direction badge (▲ ▼ — / NEW)
+  2. **7d-vs-prior-7d deltas**: `/admin/analytics/web` now returns `deltas: {views, visitors, sessions}` each `{current, prior, delta_pct, direction}`. Frontend `<DeltaBadge>` renders ▲ +X% in emerald, ▼ -X% in red, — flat in grey, ✦ NEW in orange. Wired into 3 of 4 headline `<Stat>` cards
+  3. **Time-on-page tracking**: `/api/analytics/track` returns `event_id` (UUID); `/api/analytics/dwell` accepts `{event_id, dwell_ms}` and updates the row using `$max` (longest reading wins, never shrinks). Capped at 30 min. Frontend tracker uses `visibilitychange` + `pagehide` + `beforeunload` + `navigator.sendBeacon` for reliable flush. Top Pages now shows `count · 4.2s` average dwell
 
 ## Backlog
-- (Reminder later) GMV by week mini-chart in Analytics + Maker Analytics tabs
-- (Optional) 7-day-vs-prior-7-day delta arrows on Web Analytics headline numbers
-- (Optional) Page time-on-page tracking (visibilitychange + beforeunload)
+- (Optional) Live-now indicator (distinct visitor_ids in last 5 min) on admin nav
+- (Optional) Bounce-rate panel (sessions with exactly 1 pageview)
 
 ## Next Action Items
 - (Future) Verify Google OAuth happy-path with a real Google session (one-time human click)
 - (Future) Add `account.updated` Connect webhook to your Stripe Dashboard (one-time setup on stripe.com)
-- (Future) GMV mini-chart (you said "remind me later")

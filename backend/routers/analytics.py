@@ -9,6 +9,7 @@ Privacy posture (locked at iter11):
 """
 import ipaddress
 import re
+import uuid
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
 
@@ -172,6 +173,7 @@ async def track(req: TrackRequest, request: Request):
     geo = await _geo_lookup(ip)
 
     event = {
+        "id": str(uuid.uuid4()),
         "ts": now_iso(),
         "path": (req.path or "/")[:300],
         "title": (req.title or "")[:300],
@@ -183,9 +185,32 @@ async def track(req: TrackRequest, request: Request):
         "referer": (req.referer or "")[:500],
         "country": geo.get("country", ""),
         "city": geo.get("city", ""),
+        "dwell_ms": 0,
     }
     event.update(_classify_referer(req.referer, host))
     await db.pageview_events.insert_one(event)
+    return {"ok": True, "event_id": event["id"]}
+
+
+# --------------- Time-on-page (dwell) update --------------------------
+
+class DwellRequest(BaseModel):
+    event_id: str
+    dwell_ms: int
+
+
+@router.post("/analytics/dwell")
+async def dwell(req: DwellRequest):
+    """Record how long the visitor stayed on a page. Called from
+    visibilitychange (hidden) + beforeunload via navigator.sendBeacon."""
+    if not req.event_id or req.dwell_ms <= 0:
+        return {"ok": False}
+    # Cap at 30 min to absorb forgotten tabs.
+    capped = min(int(req.dwell_ms), 30 * 60 * 1000)
+    await db.pageview_events.update_one(
+        {"id": req.event_id},
+        {"$max": {"dwell_ms": capped}},
+    )
     return {"ok": True}
 
 
@@ -212,11 +237,38 @@ async def _top(field: str, since_iso: str, limit: int = 10,
     return out
 
 
+async def _top_pages_with_dwell(since_iso: str, limit: int = 10) -> list[dict]:
+    """Top pages + avg time-on-page (seconds)."""
+    pipe = [
+        {"$match": {"ts": {"$gte": since_iso}}},
+        {"$group": {
+            "_id": "$path",
+            "count": {"$sum": 1},
+            "avg_dwell_ms": {"$avg": "$dwell_ms"},
+        }},
+        {"$sort": {"count": -1}},
+        {"$limit": limit},
+    ]
+    rows = await db.pageview_events.aggregate(pipe).to_list(limit)
+    out = []
+    for r in rows:
+        if not r.get("_id"):
+            continue
+        avg_ms = r.get("avg_dwell_ms") or 0
+        out.append({
+            "key": str(r["_id"]),
+            "count": int(r.get("count", 0)),
+            "avg_dwell_s": round(float(avg_ms) / 1000.0, 1),
+        })
+    return out
+
+
 @router.get("/admin/analytics/web")
 async def admin_web_analytics(_: dict = Depends(current_admin)):
     now = datetime.now(timezone.utc)
     cutoff_30 = (now - timedelta(days=30)).isoformat()
     cutoff_7 = (now - timedelta(days=7)).isoformat()
+    cutoff_14 = (now - timedelta(days=14)).isoformat()
 
     # Totals (last 30 days)
     pipe = [
@@ -243,15 +295,56 @@ async def admin_web_analytics(_: dict = Depends(current_admin)):
     else:
         total_views = unique_visitors = sessions = 0
 
-    views_7d = await db.pageview_events.count_documents({"ts": {"$gte": cutoff_7}})
+    # 7-day vs prior-7-day deltas
+    async def _window_metrics(start_iso: str, end_iso: str | None) -> dict:
+        match = {"ts": {"$gte": start_iso}}
+        if end_iso:
+            match["ts"]["$lt"] = end_iso
+        p = [
+            {"$match": match},
+            {"$group": {
+                "_id": None,
+                "views": {"$sum": 1},
+                "visitors": {"$addToSet": "$visitor_id"},
+                "sessions": {"$addToSet": "$session_id"},
+            }},
+            {"$project": {"_id": 0, "views": 1,
+                          "visitors_n": {"$size": "$visitors"},
+                          "sessions_n": {"$size": "$sessions"}}},
+        ]
+        r = await db.pageview_events.aggregate(p).to_list(1)
+        if r:
+            return {"views": int(r[0]["views"]),
+                    "visitors": int(r[0]["visitors_n"]),
+                    "sessions": int(r[0]["sessions_n"])}
+        return {"views": 0, "visitors": 0, "sessions": 0}
+
+    cur = await _window_metrics(cutoff_7, None)
+    prev = await _window_metrics(cutoff_14, cutoff_7)
+
+    def _delta(now_v: int, prev_v: int) -> dict:
+        if prev_v == 0:
+            return {"current": now_v, "prior": 0,
+                    "delta_pct": None,         # "new" — no comparison possible
+                    "direction": "new" if now_v > 0 else "flat"}
+        pct = round((now_v - prev_v) * 100.0 / prev_v, 1)
+        return {"current": now_v, "prior": prev_v, "delta_pct": pct,
+                "direction": "up" if pct > 0 else ("down" if pct < 0 else "flat")}
+
+    deltas = {
+        "views": _delta(cur["views"], prev["views"]),
+        "visitors": _delta(cur["visitors"], prev["visitors"]),
+        "sessions": _delta(cur["sessions"], prev["sessions"]),
+    }
 
     return {
         "window_days": 30,
         "total_views": total_views,
         "unique_visitors": unique_visitors,
         "sessions": sessions,
-        "views_7d": views_7d,
-        "top_pages": await _top("path", cutoff_30, 10),
+        "views_7d": cur["views"],
+        "deltas": deltas,
+        "top_pages": await _top_pages_with_dwell(cutoff_30, 10),
         "devices": await _top("device", cutoff_30, 5),
         "top_countries": await _top("country", cutoff_30, 10),
         "top_cities": await _top("city", cutoff_30, 10),

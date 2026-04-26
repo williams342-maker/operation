@@ -130,6 +130,46 @@ async def admin_quote_custom_order(
 
 
 # ===================== ANALYTICS =====================
+def _weekly_gmv(paid_txs: list[dict], maker_filter: dict | None = None,
+                weeks: int = 12) -> list[dict]:
+    """Return last N weeks of GMV (Mon-anchored buckets, oldest first).
+
+    If maker_filter is provided ({slug -> [valid_product_keys]}), only count
+    line-items that belong to that maker.
+    """
+    now = datetime.now(timezone.utc)
+    # Anchor to most recent Monday 00:00 UTC.
+    today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    anchor = today - timedelta(days=today.weekday())          # Monday this week
+    buckets = []
+    for i in range(weeks - 1, -1, -1):
+        start = anchor - timedelta(days=7 * i)
+        buckets.append({"week_start": start.isoformat(), "total": 0.0})
+    cutoff_iso = (anchor - timedelta(days=7 * (weeks - 1))).isoformat()
+    for tx in paid_txs:
+        ts = tx.get("created_at", "")
+        if ts < cutoff_iso:
+            continue
+        try:
+            tx_dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+        except (ValueError, TypeError):
+            continue
+        # Map to bucket
+        delta_days = (tx_dt - anchor).days
+        bucket_idx = (weeks - 1) + (delta_days // 7)
+        if bucket_idx < 0 or bucket_idx >= weeks:
+            continue
+        if maker_filter is None:
+            buckets[bucket_idx]["total"] += float(tx.get("amount", 0))
+        else:
+            # Sum only this maker's lines (by product price * qty)
+            for line in maker_filter.get(tx["session_id"], []):
+                buckets[bucket_idx]["total"] += line
+    for b in buckets:
+        b["total"] = round(b["total"], 2)
+    return buckets
+
+
 @router.get("/admin/analytics")
 async def admin_analytics(_: dict = Depends(current_admin)):
     """Aggregated marketplace stats — used by the dashboard's Analytics tab."""
@@ -198,6 +238,7 @@ async def admin_analytics(_: dict = Depends(current_admin)):
         "chat_messages_30d": await db.chat_messages.count_documents({"created_at": {"$gte": cutoff_30}}),
         "top_products": top,
         "top_makers": top_makers,
+        "weekly_gmv": _weekly_gmv(paid),
     }
 
 
@@ -238,6 +279,8 @@ async def admin_maker_analytics(slug: str, _: dict = Depends(current_admin)):
     paid_order_ids: set[str] = set()
     refunded_order_ids: set[str] = set()
     refunded_amount = 0.0
+    # Per-session subtotal map for the weekly GMV bucketer below.
+    session_subtotals: dict[str, list[float]] = {}
 
     for tx in paid:
         my_lines = []
@@ -265,6 +308,7 @@ async def admin_maker_analytics(slug: str, _: dict = Depends(current_admin)):
         for pslug, qty, line_rev in my_lines:
             units_per_product[pslug] = units_per_product.get(pslug, 0) + qty
             revenue_per_product[pslug] = revenue_per_product.get(pslug, 0.0) + line_rev
+        session_subtotals.setdefault(sid, []).append(line_subtotal)
 
     top_products = []
     for pslug, n in sorted(units_per_product.items(), key=lambda x: -x[1])[:5]:
@@ -302,6 +346,44 @@ async def admin_maker_analytics(slug: str, _: dict = Depends(current_admin)):
         max(0.0, gross - refunded_amount) * (10000 - platform_fee_bps) / 10000, 2
     )
 
+    # Weekly GMV (per maker — sum of their lines per session, bucketed)
+    paid_by_sid = {tx["session_id"]: tx for tx in paid}
+    maker_weekly = []
+    for week in _weekly_gmv([tx for tx in paid if tx["session_id"] in session_subtotals]):
+        # _weekly_gmv used the FULL tx amount; we need to override with our
+        # session_subtotals for accurate maker-only revenue. Re-compute here.
+        maker_weekly.append({"week_start": week["week_start"], "total": 0.0})
+    # Reverse: bucket using only this maker's subtotals
+    from datetime import datetime as _dt
+    now = datetime.now(timezone.utc)
+    today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    anchor = today - timedelta(days=today.weekday())
+    weeks = 12
+    maker_weekly = []
+    for i in range(weeks - 1, -1, -1):
+        maker_weekly.append({
+            "week_start": (anchor - timedelta(days=7 * i)).isoformat(),
+            "total": 0.0,
+        })
+    cutoff_iso = (anchor - timedelta(days=7 * (weeks - 1))).isoformat()
+    for sid, subtotals in session_subtotals.items():
+        tx = paid_by_sid.get(sid)
+        if not tx:
+            continue
+        ts = tx.get("created_at", "")
+        if ts < cutoff_iso:
+            continue
+        try:
+            tx_dt = _dt.fromisoformat(ts.replace("Z", "+00:00"))
+        except (ValueError, TypeError):
+            continue
+        delta_days = (tx_dt - anchor).days
+        bucket_idx = (weeks - 1) + (delta_days // 7)
+        if 0 <= bucket_idx < weeks:
+            maker_weekly[bucket_idx]["total"] += sum(subtotals)
+    for b in maker_weekly:
+        b["total"] = round(b["total"], 2)
+
     return {
         "maker": {
             "slug": maker["slug"],
@@ -326,6 +408,7 @@ async def admin_maker_analytics(slug: str, _: dict = Depends(current_admin)):
         "top_products": top_products,
         "payout_totals": {k: round(v, 2) for k, v in payout_totals.items()},
         "recent_payouts": payouts[:10],
+        "weekly_gmv": maker_weekly,
     }
 
 

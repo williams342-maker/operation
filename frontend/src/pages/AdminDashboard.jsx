@@ -21,6 +21,7 @@ import {
   fetchMakers,
   fetchReviews,
 } from "../lib/api";
+import { Sparkline, DeltaBadge } from "../components/Charts";
 
 const TABS = [
   { id: "analytics", label: "Analytics" },
@@ -258,6 +259,10 @@ function AnalyticsTab() {
         <Stat label="Listings" value={data.products_count} testId="an-listings" />
         <Stat label="Files" value={data.design_files} testId="an-files" />
       </div>
+
+      {data.weekly_gmv && (
+        <Sparkline data={data.weekly_gmv} label="Marketplace" testId="an-weekly-gmv" />
+      )}
     </div>
   );
 }
@@ -288,12 +293,24 @@ function WebAnalyticsTab() {
         ◆ Pageviews & Visitors — Last {data.window_days} days
       </div>
 
-      {/* Headline numbers */}
+      {/* Headline numbers (with 7d-vs-prior-7d deltas) */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Stat label="Total Page Views" value={data.total_views.toLocaleString()} testId="wa-total-views" />
-        <Stat label="Unique Visitors" value={data.unique_visitors.toLocaleString()} testId="wa-unique-visitors" />
-        <Stat label="7-Day Views" value={data.views_7d.toLocaleString()} testId="wa-views-7d" />
-        <Stat label="Sessions" value={data.sessions.toLocaleString()} testId="wa-sessions" />
+        <Stat
+          label={<>Unique Visitors <DeltaBadge delta={data.deltas?.visitors} testId="wa-delta-visitors" /></>}
+          value={data.unique_visitors.toLocaleString()}
+          testId="wa-unique-visitors"
+        />
+        <Stat
+          label={<>7-Day Views <DeltaBadge delta={data.deltas?.views} testId="wa-delta-views" /></>}
+          value={data.views_7d.toLocaleString()}
+          testId="wa-views-7d"
+        />
+        <Stat
+          label={<>Sessions <DeltaBadge delta={data.deltas?.sessions} testId="wa-delta-sessions" /></>}
+          value={data.sessions.toLocaleString()}
+          testId="wa-sessions"
+        />
       </div>
 
       {data.total_views === 0 && (
@@ -308,7 +325,11 @@ function WebAnalyticsTab() {
       {/* Top pages + Devices */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <ListPanel title="Top Pages" rows={data.top_pages} testId="wa-top-pages"
-                   format={(r) => r.key} emptyHint="No pageviews yet." />
+                   format={(r) => r.key}
+                   secondary={(r) => r.avg_dwell_s !== undefined && r.avg_dwell_s > 0
+                     ? `${r.count.toLocaleString()} · ${formatDwell(r.avg_dwell_s)}`
+                     : r.count.toLocaleString()}
+                   emptyHint="No pageviews yet." />
         <ListPanel title="Device Types" rows={data.devices} testId="wa-devices"
                    format={(r) => r.key.charAt(0).toUpperCase() + r.key.slice(1)}
                    showBar emptyHint="No device data yet." />
@@ -339,7 +360,15 @@ function WebAnalyticsTab() {
   );
 }
 
-function ListPanel({ title, rows, format, testId, showBar, emptyHint }) {
+function formatDwell(s) {
+  if (!s || s <= 0) return "";
+  if (s < 60) return `${s.toFixed(0)}s`;
+  const m = Math.floor(s / 60);
+  const r = Math.round(s - m * 60);
+  return r === 0 ? `${m}m` : `${m}m${r}s`;
+}
+
+function ListPanel({ title, rows, format, secondary, testId, showBar, emptyHint }) {
   const max = rows.reduce((m, r) => Math.max(m, r.count || 0), 0) || 1;
   return (
     <div className="border border-[#262626] p-6" data-testid={testId}>
@@ -360,7 +389,7 @@ function ListPanel({ title, rows, format, testId, showBar, emptyHint }) {
                   {format ? format(r) : r.key}
                 </span>
                 <span className="font-mono text-[10px] text-[#a3a3a3]">
-                  {r.count.toLocaleString()}
+                  {secondary ? secondary(r) : r.count.toLocaleString()}
                 </span>
               </div>
               {showBar && (
@@ -474,6 +503,11 @@ function MakerAnalyticsTab() {
             <Stat label="Refunded" value={`$${data.refunded_amount.toFixed(0)}`} testId="man-refunded" />
             <Stat label="Listings" value={data.products_count} testId="man-listings" />
           </div>
+
+          {/* Weekly GMV mini-chart */}
+          {data.weekly_gmv && (
+            <Sparkline data={data.weekly_gmv} label={data.maker.name} testId="man-weekly-gmv" />
+          )}
 
           {/* Top products */}
           <div className="border border-[#262626] p-6">
