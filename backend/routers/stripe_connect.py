@@ -433,11 +433,18 @@ async def stripe_connect_webhook(request: Request):
         logger.warning("connect webhook signature failed: %s", e)
         return {"received": False, "reason": "bad-signature"}
 
-    etype = event.get("type") if isinstance(event, dict) else event["type"]
-    data = (event.get("data") if isinstance(event, dict) else event["data"])["object"]
+    etype = event["type"]
+    obj = event["data"]["object"]
+    # `obj` is either a plain dict (iter9 unit tests) or a StripeObject
+    # (real webhooks). StripeObject doesn't implement .get() / .items() in
+    # stripe>=15, but attribute access works on both. Use a small shim.
+    def field(k, default=None):
+        if isinstance(obj, dict):
+            return obj.get(k, default)
+        return getattr(obj, k, default)
 
     if etype == "account.updated":
-        account_id = data.get("id")
+        account_id = field("id")
         if not account_id:
             return {"received": True, "skipped": "no-account-id"}
         maker = await db.makers.find_one({"stripe_account_id": account_id}, {"_id": 0})
@@ -446,15 +453,15 @@ async def stripe_connect_webhook(request: Request):
         await db.makers.update_one(
             {"slug": maker["slug"]},
             {"$set": {
-                "stripe_charges_enabled": bool(data.get("charges_enabled", False)),
-                "stripe_payouts_enabled": bool(data.get("payouts_enabled", False)),
-                "stripe_details_submitted": bool(data.get("details_submitted", False)),
+                "stripe_charges_enabled": bool(field("charges_enabled", False)),
+                "stripe_payouts_enabled": bool(field("payouts_enabled", False)),
+                "stripe_details_submitted": bool(field("details_submitted", False)),
                 "stripe_updated_at": now_iso(),
             }},
         )
         logger.info("connect: synced maker=%s charges=%s payouts=%s",
                     maker["slug"],
-                    data.get("charges_enabled"), data.get("payouts_enabled"))
+                    field("charges_enabled"), field("payouts_enabled"))
         return {"received": True, "type": etype, "maker": maker["slug"]}
 
     return {"received": True, "type": etype, "handled": False}

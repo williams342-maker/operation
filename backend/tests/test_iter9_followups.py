@@ -92,6 +92,44 @@ class TestAccountUpdatedWebhook:
         r = requests.get(f"{API}/webhook/stripe/connect", timeout=10)
         assert r.status_code in (404, 405)
 
+    def test_signed_round_trip_real_stripe_object(self):
+        """Pin the bugfix: stripe>=15 returns StripeObject (not dict) from
+        construct_event. The handler must accept BOTH shapes via attribute
+        access fallback. Without the shim, this raises AttributeError → 500.
+        """
+        import time, hmac, hashlib, json
+        secret = os.environ.get("STRIPE_CONNECT_WEBHOOK_SECRET") \
+            or os.environ.get("STRIPE_WEBHOOK_SECRET")
+        if not secret:
+            pytest.skip("No webhook secret configured")
+        payload = json.dumps({
+            "id": "evt_iter9_signed",
+            "object": "event",
+            "type": "account.updated",
+            "data": {"object": {
+                "id": f"acct_iter9_signed_{uuid.uuid4().hex[:8]}",
+                "charges_enabled": True,
+                "payouts_enabled": True,
+                "details_submitted": True,
+            }},
+        }, separators=(",", ":"))
+        ts = str(int(time.time()))
+        sig = hmac.new(secret.encode(),
+                       f"{ts}.{payload}".encode(),
+                       hashlib.sha256).hexdigest()
+        r = requests.post(
+            f"{API}/webhook/stripe/connect",
+            data=payload, timeout=10,
+            headers={"Stripe-Signature": f"t={ts},v1={sig}",
+                     "Content-Type": "application/json"},
+        )
+        # Must not 500 — the StripeObject shape difference must be handled.
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["received"] is True
+        # No maker matches the random account_id, so we expect skipped.
+        assert body.get("skipped") == "unknown-maker"
+
 
 # ============================================================================
 # 2. Refund admin auth gating
