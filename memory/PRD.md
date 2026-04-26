@@ -57,7 +57,16 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - iter16: **.glb upload (P2) + Variants (P3) + Draft mode (P4)** — backend 28/28 incl. 10 new iter16 cases + frontend E2E 12/12 (modal variants editor, draft↔publish flips, .glb file upload, buyer variant selector + cart variant pricing). R2 live; transfer_to_makers + maker-orders correctly apply variant deltas.
 
 ## Recently Shipped (2026-04-26)
-- ✅ **iter18 — Etsy-style revenue model (P0)**:
+- ✅ **iter19 — Crafters Plus subscription + Off-site ad attribution**:
+  - **Crafters Plus** ($12/mo Stripe Subscription): auto-creates Product+Price on first call (cached in `db.platform_meta`), Stripe Checkout in subscription mode. Active subscribers get **15 free listings per calendar month** (vs 10 lifetime free) and **4% commission** (vs 5%). Cancel sets `cancel_at_period_end`. Webhook `customer.subscription.*` keeps `maker.subscription_status` in sync.
+    - Endpoints: `POST /api/maker/subscription/start`, `POST /api/maker/subscription/cancel`, `GET /api/maker/subscription`
+  - **Per-maker commission rate** — `revenue.commission_bps_for(maker)` returns 400 (Plus) or 500 (free); `fee_breakdown_cents` honors it. Stripe Connect transfer code passes `maker` doc through.
+  - **Off-site ad attribution** — `analytics.captureAttribution()` captures `?utm_source=` (or `?via=`) from any landing URL (30d TTL, persisted in localStorage). `getAttributionSource()` is forwarded by CartPage to `/api/checkout/session`. `payment_transactions` records `external_attribution: bool`. Stripe Connect transfer applies extra **12% off-site fee** when `external_attribution=true` AND the maker has NOT set `external_ads_opt_out=true`.
+  - **Maker-facing UI** — Billing tab now has a Crafters Plus upsell card (or "✓ Active · renews …" when subscribed). Per-sale fee KPI re-renders to show 7% (4%+3%) for Plus subscribers vs 8% for free tier.
+  - **Tests**: 7 new iter19 tests (Plus monthly quota, free fallback, fee splits, off-site surcharge with opt-out) + 6 updated iter18 revenue tests + 39/39 in revenue + iter15-19 test files. Full suite: 214/216 (1 known flaky asyncio test passes in isolation, 1 leftover-data test fixed by re-anchoring).
+  - **CDN domain** — guide ready at `/app/memory/R2_CUSTOM_DOMAIN_SETUP.md`, awaiting your DNS click. No code changes needed.
+
+- ✅ **iter18 — Etsy-style revenue model**:
   - **Two-tier transaction fee** — `PLATFORM_FEE_BPS=500` (5% commission) + `PROCESSING_FEE_BPS=300` (3% processing). `fee_breakdown_cents()` returns transparent split. Maker keeps 92% of each sale.
   - **Listing fees** — first 10 listings/renewals free per maker; beyond that, $0.20 (`LISTING_FEE_CENTS`) accrues to `maker.pending_charges_cents`. Drafts don't burn the quota until published.
   - **120-day expiry** — every published listing has `expires_at`; admin endpoint `POST /api/admin/listings/expire-due` flips expired listings to draft. `POST /api/maker/products/{slug}/renew` re-publishes for another 120d (charges $0.20 if past quota).
@@ -116,10 +125,11 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
   - Bug-fix during iter15: duplicate `Field` component declaration crashed the dashboard — renamed second to `LabeledField`
 
 ## Backlog (revenue-stream items)
-- **Subscription tier** (Etsy Plus equivalent) — deferred per user. Suggested when picked back up: Crafters Plus @ $12/mo unlocks 15 free listings/mo + 4% commission (vs 5%) + advanced analytics + custom shop banner.
-- **Off-site ads** — deferred per user. Two implementation paths: (a) attribution-only (12% surcharge on `?utm_source=external` orders), (b) actual Google/Meta ad spend (real budget needed).
 - **Listing-credit packs** — alternative to per-payout settlement: prepaid $5/$25/$100 credit packs.
-- (UX) Surface "soft-delete does NOT refund listing fee" disclosure in the BillingTab pricing-breakdown.
+- **Plus banner upload UI** — `Maker.banner_image_url` exists in the model but no upload endpoint yet; surface in profile editor.
+- **Real off-site ad spend** — currently attribution-only. To actually drive traffic from Google/Meta, wire Google Ads / Meta Marketing APIs (requires user credentials + ad budget).
+- **Subscription billing portal** — Stripe Customer Portal link so makers can update their card / view invoices.
+- (UX) Surface "soft-delete does NOT refund listing fee" disclosure in BillingTab.
 
 ## Backlog (other)
 - (Deferred) Refactor `MakerDashboard.jsx` (~1500 lines) into per-component files
@@ -128,6 +138,5 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - (Optional analytics) Cohort retention, bounce-rate-by-page, Discord/Slack live-visitor ping
 
 ## Next Action Items
-- Subscription tier (Crafters Plus) when ready
-- Off-site ads strategy when ready
 - Whenever convenient: DNS step for `cdn.craftersmarket.org` then `swap_r2_host.py`
+- (Optional) Plus banner upload + Stripe Customer Portal (small wins)

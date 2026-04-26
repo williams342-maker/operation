@@ -1025,9 +1025,13 @@ function BillingTab() {
 
         <div className="border border-[#262626] p-5" data-testid="billing-fee-policy">
           <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Per-sale fee</div>
-          <div className="font-display text-4xl mt-2">{pct(b.policy.platform_fee_bps + b.policy.processing_fee_bps)}</div>
+          <div className="font-display text-4xl mt-2">
+            {pct((isPlus ? (s?.plan?.commission_bps ?? 400) : b.policy.platform_fee_bps) + b.policy.processing_fee_bps)}
+          </div>
           <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] mt-2">
-            {pct(b.policy.platform_fee_bps)} commission · {pct(b.policy.processing_fee_bps)} processing
+            {pct(isPlus ? (s?.plan?.commission_bps ?? 400) : b.policy.platform_fee_bps)} commission
+            {isPlus && <span className="text-emerald-400 ml-1">(Plus rate)</span>}
+            {" · "}{pct(b.policy.processing_fee_bps)} processing
           </div>
         </div>
       </div>
