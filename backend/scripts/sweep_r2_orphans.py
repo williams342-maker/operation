@@ -34,7 +34,9 @@ async def collect_referenced_keys(db) -> set[str]:
     soft-deleted ones may still need their images for refunds, audit, etc.
     """
     refs: set[str] = set()
-    cursor = db.products.find({}, {"_id": 0, "images": 1, "model_url": 1})
+    cursor = db.products.find(
+        {}, {"_id": 0, "images": 1, "model_url": 1, "variants": 1}
+    )
     async for p in cursor:
         for img in (p.get("images") or []):
             k = r2_storage.key_from_public_url(img) if isinstance(img, str) else None
@@ -45,6 +47,12 @@ async def collect_referenced_keys(db) -> set[str]:
             k = r2_storage.key_from_public_url(m)
             if k:
                 refs.add(k)
+        for v in (p.get("variants") or []):
+            vi = v.get("image") if isinstance(v, dict) else None
+            if isinstance(vi, str):
+                k = r2_storage.key_from_public_url(vi)
+                if k:
+                    refs.add(k)
     return refs
 
 

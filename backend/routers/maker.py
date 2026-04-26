@@ -13,7 +13,7 @@ from maker_auth import (
 )
 from models import (
     Maker, MakerLoginRequest, MakerProductCreate, MakerProfileUpdate,
-    MakerVerifyRequest, Product,
+    MakerVerifyRequest, Product, ProductVariant,
 )
 
 router = APIRouter()
@@ -205,12 +205,12 @@ async def maker_create_product(
     # Upload any inline base64 data URLs to R2 (if configured) so we never
     # bloat MongoDB with image bytes. Pass-through any http(s) URLs as-is.
     final_images: List[str] = []
+    try:
+        from r2_storage import is_configured as _r2_ok, upload_data_url
+    except Exception:
+        _r2_ok = lambda: False  # noqa: E731
+        upload_data_url = None  # type: ignore
     if payload.images:
-        try:
-            from r2_storage import is_configured as _r2_ok, upload_data_url
-        except Exception:
-            _r2_ok = lambda: False  # noqa: E731
-            upload_data_url = None
         for img in payload.images:
             if img.startswith("data:") and _r2_ok():
                 try:
@@ -221,6 +221,23 @@ async def maker_create_product(
                     raise HTTPException(502, "Could not upload image to storage.")
             else:
                 final_images.append(img)
+
+    # Per-variant images: same R2 path, different prefix so the sweeper can
+    # tell them apart (and we don't bloat Mongo with base64 data URLs).
+    final_variants: List[ProductVariant] = []
+    for v in (payload.variants or []):
+        img = v.image
+        if img and isinstance(img, str) and img.startswith("data:") and _r2_ok():
+            try:
+                url = upload_data_url(img, key_prefix=f"products/{slug}/variants")
+                v_dump = v.model_dump()
+                v_dump["image"] = url or img
+                final_variants.append(ProductVariant(**v_dump))
+                continue
+            except Exception as e:
+                logger.exception("R2 variant-image upload failed maker=%s: %s", slug, e)
+                raise HTTPException(502, "Could not upload variant image.")
+        final_variants.append(v)
 
     product = Product(
         slug=candidate,
@@ -235,7 +252,7 @@ async def maker_create_product(
         model_url=payload.model_url,
         maker_slug=slug,
         in_stock=int(payload.in_stock),
-        variants=payload.variants,
+        variants=final_variants,
         variant_axis1_name=payload.variant_axis1_name,
         variant_axis2_name=payload.variant_axis2_name,
         status=payload.status,

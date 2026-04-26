@@ -57,7 +57,17 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - iter16: **.glb upload (P2) + Variants (P3) + Draft mode (P4)** — backend 28/28 incl. 10 new iter16 cases + frontend E2E 12/12 (modal variants editor, draft↔publish flips, .glb file upload, buyer variant selector + cart variant pricing). R2 live; transfer_to_makers + maker-orders correctly apply variant deltas.
 
 ## Recently Shipped (2026-04-26)
-- ✅ **Maker `.glb` 3D model upload via R2** (P2):
+- ✅ **iter17 — P5 batch (low-stock alerts, R2 sweeper, two-axis variants, custom CDN setup)**:
+  - **Low-stock alerts** — `_decrement_stock_and_collect_low` runs in the paid-transition block: decrements product or variant stock and emails the maker (`send_maker_low_stock`) when post-decrement stock < `LOW_STOCK_THRESHOLD` (default 3). Idempotent (gated by `payment_status` transition).
+  - **R2 orphan sweeper** — `scripts/sweep_r2_orphans.py` walks `products/` and `models/` prefixes, diffs against every `Product.images` / `Product.model_url` / `Product.variants[].image` reference, deletes orphans (dry-run by default). Admin endpoint `POST /api/admin/r2/sweep[?apply=true]` exposes it.
+  - **Two-axis variants** — `ProductVariant` gains `axis1`, `axis2`, `image` fields; `Product` gains `variant_axis1_name`, `variant_axis2_name`. Buyer's `ProductDetail` renders a 2D grid when both axis names are set + every variant has both axis values; falls back to flat one-axis grid otherwise. NewListingModal now has axis-name inputs + per-row axis1/axis2 fields + per-variant image upload (auto-uploaded to R2 under `products/{slug}/variants/`).
+  - **Custom CDN domain (cdn.craftersmarket.org)** — manual setup guide at `/app/memory/R2_CUSTOM_DOMAIN_SETUP.md` + idempotent rewrite script `scripts/swap_r2_host.py`. Awaiting user's DNS step.
+  - **Backend tests**: 35/35 (iter15: 12, iter16: 10, iter17: 5, r2_storage: 6, sweep_r2: 2). **Frontend E2E**: 4/4 critical paths (axis-name inputs, 2D grid, per-variant image upload, hero swap).
+  - **MakerDashboard.jsx refactor (~1458 lines → split per-component)**: deferred — too risky for the marginal benefit; no behavior to gain.
+
+- ✅ **iter16 — `.glb` upload (P2) + Variants (P3) + Draft mode (P4)** — backend 28/28 incl. 10 new iter16 cases + frontend E2E 12/12
+
+- ✅ **Cloudflare R2 Object Storage** for product images:
   - `POST /api/maker/uploads/model` — multipart route accepting `.glb` / `.gltf`, validates extension + 50MB cap, uploads to R2 under `models/{maker_slug}/{uuid}.glb`, returns public CDN URL
   - `r2_storage.upload_model_bytes` — model-specific allowlist (model/gltf-binary, model/gltf+json, application/octet-stream) and 50MB cap
   - Frontend (`MakerDashboard.jsx`): NewListingModal + per-product 3D editor swap text URL field for a styled file-picker (drag-and-drop replace, fallback to manual URL paste)
@@ -95,16 +105,13 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
   - `ProductsList` (`MakerDashboard.jsx:316`) splits live vs ARCHIVED with restore controls
   - Bug-fix during iter15: duplicate `Field` component declaration crashed the dashboard — renamed second to `LabeledField`
 
-## Backlog
-- **P5** — Custom CDN domain `cdn.craftersmarket.org` (R2 currently lives at `pub-…r2.dev`; just a DNS+R2 dashboard step)
-- **P5** — Low-stock email alert (when in_stock < 3)
-- **P5** — Refactor `MakerDashboard.jsx` (now ~1349 lines) into `pages/maker/components/{NewListingModal,ProductEditCard,ProductsList,PayoutsTab}.jsx`
-- **P5** — Two-axis variants (size × finish grid), per-variant images
-- **P5** — Periodic R2 sweeper for orphaned objects (e.g., images attached to hard-deleted products)
-- (UX) — Replace native `window.confirm()` on listing delete with styled inline overlay
-- (UX) — Lock the variant-required error copy ("Please choose an option") in a unit test on the checkout router
+## Backlog (no urgent items)
+- (Deferred) Refactor `MakerDashboard.jsx` (~1458 lines) into `pages/maker/components/{NewListingModal,ProductEditCard,VariantsEditor,PayoutsTab,OrdersList,ProfileForm}.jsx` — pure structural change, deferred per user choice.
+- (UX) Visual hint on MakerDashboard when only some variants have axis2 filled (so makers don't silently fall back to flat list).
+- (UX) Replace native `window.confirm()` on listing delete with styled inline overlay.
+- (Perf) `_decrement_stock_and_collect_low` does an extra full-doc fetch per line item — fold into a single projected `find_one`.
 - (Optional) Cohort retention, bounce-rate-by-page, Discord/Slack live-visitor ping
+- (Awaiting DNS) Custom CDN domain `cdn.craftersmarket.org` — guide ready at `/app/memory/R2_CUSTOM_DOMAIN_SETUP.md`.
 
 ## Next Action Items
-- Custom CDN domain (`cdn.craftersmarket.org`) — needs your DNS click; otherwise nothing pressing
-- Decide whether to break MakerDashboard.jsx into modules
+- Whenever you're ready: do the DNS step for `cdn.craftersmarket.org` and run `swap_r2_host.py`.
