@@ -209,7 +209,7 @@ async def admin_seed_demo(
     today = date.today()
     cutoff_iso = (today - timedelta(days=days)).isoformat()
     await db.ad_spend.delete_many({
-        "$or": [{"campaign_id": {"$regex": "^demo-"}}],
+        "campaign_id": {"$regex": "^demo-"},
         "date": {"$gte": cutoff_iso},
     })
     campaigns = [

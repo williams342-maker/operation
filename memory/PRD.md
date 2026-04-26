@@ -56,6 +56,36 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - iter15: **Maker Self-Serve Listings (Option B)** — backend 189/189 + frontend E2E 8/8 (create / drag-drop base64 image / soft-delete / restore)
 - iter16: **.glb upload (P2) + Variants (P3) + Draft mode (P4)** — backend 28/28 incl. 10 new iter16 cases + frontend E2E 12/12 (modal variants editor, draft↔publish flips, .glb file upload, buyer variant selector + cart variant pricing). R2 live; transfer_to_makers + maker-orders correctly apply variant deltas.
 
+## Recently Shipped (2026-04-26 — iter36 · AI Moderator + Ads Foundation + Refire Emails)
+- ✅ **iter36 — Three-batch ship**: AI live-chat moderator, Google Ads/Meta platform-agnostic foundation, and order-level refire-emails admin tool.
+
+  **🛡️ AI Moderator (live chat)** — `ai_moderator.py`:
+    - 3-tier action: ALLOW / WARN / BLOCK
+    - Heuristic pre-pass catches obvious slurs + 3+ links spam without burning LLM tokens
+    - Falls through to **Claude Haiku 4.5** via Emergent universal LLM key for nuanced calls
+    - **Fail-OPEN** throughout — any LLM error returns ALLOW so the room never goes silent
+    - WS hook in `routers/community.py`: BLOCK drops the message and sends a private notice to the sender; WARN still posts but nudges the sender; ALLOW passes through
+    - All non-allow decisions persist to `db.ai_mod_log` with channel/user/text/reason/source(heuristic|llm)
+    - Toggle: new `ai_moderator_enabled` switch in Settings (default OFF)
+    - Audit Log tab now has two sub-views (`User Moderation` / `AI Moderator`) with filter chips for block/warn/all and per-row source badges
+
+  **📈 Google Ads + Meta foundation (no live SDK yet)** — `routers/ad_spend.py`:
+    - `db.ad_spend` schema (compound idempotency key: platform + campaign_id + date)
+    - Endpoints: `GET /admin/ads/metrics`, `GET /admin/ads/performance`, `POST /admin/ads/seed-demo`, `DELETE /admin/ads/clear-demo`
+    - **ROAS join**: cross-references `db.transactions` rows where `external_attribution=true` (set by checkout when `?utm_source=external`) for true attributed-revenue ROAS
+    - New 13th admin tab `AdsTab.jsx`: range chips (7d/30d/90d), 4 stat cards (Spend / Att Revenue / ROAS / Clicks), daily-spend Sparkline, Top Campaigns table sorted desc, By-Technique breakdown, demo seed/clear controls
+    - Live Google Ads + Meta SDK wiring **parked until credentials arrive** (Customer ID `736-155-8999` saved in PRD; still need developer token + service account JSON + Meta system token + Ad/Catalog IDs)
+
+  **✉️ P14l · Refire transactional emails** — admin tool:
+    - `POST /api/admin/orders/{session_id}/refire-emails` — re-sends buyer receipt + maker order notification + ops alert for an existing paid order
+    - Returns `{session_id, sent[], failed[]}` so partial failures (e.g. MailerSend 429) are visible to the operator
+    - PaidOrdersList: new "✉ Refire" button per order with sonner toast feedback ("Re-fired N emails (buyer + maker + ops)")
+
+  **Tests**: testing_agent_v3_fork iter22 — **100% pass** (24/24 backend pytest, full Playwright sweep on AdsTab, all 13 admin tabs verified). One known-skip on the live cs_test session (covered via self-seeded transaction). Reviewer notes: cosmetic days+1 series length and a redundant `$or` wrapper — the latter cleaned up in the same iteration. All test side-effects rolled back.
+
+  **Caveats**: MailerSend daily quota exhausted today, so refire-emails will return `failed[]` with all 3 mailer 429s in the response — by design, the endpoint is structurally sound and visible to the operator. emergentintegrations triggers a noisy Pydantic serializer warning in stdout — non-blocking, worth watching for upstream lib bumps.
+
+
 ## Recently Shipped (2026-04-26 — iter35 · Cleanup batch P15+P16+P17+P14g)
 - ✅ **iter35 — Backend bug-fix + frontend polish quad**:
 
