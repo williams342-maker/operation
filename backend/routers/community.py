@@ -4,7 +4,7 @@ import base64
 import os
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Dict, List, Optional
 
 import httpx
 from fastapi import (
@@ -28,7 +28,7 @@ EMERGENT_AUTH_URL = os.environ.get(
     "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
 )
 
-DOWNLOAD_FREE_LIMIT = 5
+DOWNLOAD_FREE_LIMIT = 6
 DOWNLOAD_WINDOW_DAYS = 180  # 6 months
 PAID_UNLOCK_AMOUNT = 5.00
 
@@ -301,12 +301,14 @@ async def download_design_file(file_id: str, claims: dict = Depends(current_buye
     }, {"_id": 0})
 
     if recent_count >= DOWNLOAD_FREE_LIMIT and not paid:
+        # Silent metering — frontend never advertises the quota up-front, so we
+        # surface the paywall only at the moment the wall is hit.
         return {
             "locked": True,
             "downloads_used": recent_count,
             "free_limit": DOWNLOAD_FREE_LIMIT,
             "unlock_amount": PAID_UNLOCK_AMOUNT,
-            "message": "Free download limit reached for this 6-month window. Unlock unlimited downloads for $5.",
+            "message": "Unlock unlimited downloads for $5 (180 days).",
         }
 
     await db.download_logs.insert_one({
@@ -365,19 +367,56 @@ async def unlock_checkout(claims: dict = Depends(current_buyer)):
 
 
 # ===================== FORUM =====================
+# Six canonical categories for organising threads. Adding a new one? Append it
+# to FORUM_CATEGORIES — the frontend tabs read from /community/forum/categories.
+FORUM_CATEGORIES = [
+    {"id": "general",     "label": "General"},
+    {"id": "machine-help", "label": "Machine Help"},
+    {"id": "techniques",  "label": "Techniques"},
+    {"id": "finishing",   "label": "Finishing"},
+    {"id": "resources",   "label": "Resources"},
+    {"id": "show-tell",   "label": "Show & Tell"},
+]
+FORUM_CATEGORY_IDS = {c["id"] for c in FORUM_CATEGORIES}
+
+
+class ForumAttachment(BaseModel):
+    """File attached to a forum thread or reply (lives in R2)."""
+    url: str
+    filename: str
+    mime: str
+    size: int
+
+
 class ForumThreadCreate(BaseModel):
     title: str
     body: str
-    tag: Optional[str] = None    # general / makers / help / showcase
+    category: str = "general"   # one of FORUM_CATEGORY_IDS
+    attachments: List[ForumAttachment] = []
+    # Legacy alias kept for backward compat with old clients.
+    tag: Optional[str] = None
 
 
 class ForumReplyCreate(BaseModel):
     body: str
+    attachments: List[ForumAttachment] = []
+
+
+@router.get("/community/forum/categories")
+async def list_forum_categories():
+    """Public category list — frontend renders these as tabs."""
+    return {"categories": FORUM_CATEGORIES}
 
 
 @router.get("/community/forum")
-async def list_threads(tag: Optional[str] = None, limit: int = 50):
-    q = {"tag": tag} if tag else {}
+async def list_threads(
+    category: Optional[str] = None, tag: Optional[str] = None, limit: int = 50,
+):
+    q: Dict = {}
+    cat = category or tag
+    if cat:
+        q["category"] = cat
+    # Hide threads from banned users (their veiled stub is below).
     return await db.forum_threads.find(q, {"_id": 0}).sort("created_at", -1).to_list(limit)
 
 
@@ -392,15 +431,46 @@ async def get_thread(thread_id: str):
     return {"thread": thread, "replies": replies}
 
 
+def _veil_if_removed(doc: dict) -> dict:
+    """If a moderator removed this thread/reply, replace user-facing content
+    with a clear stub. Preserves the timestamp + UUID for audit."""
+    if doc.get("removed_by_mod"):
+        doc["body"] = "[removed by moderators]"
+        doc["title"] = doc.get("title") or "[removed]"
+        doc["attachments"] = []
+        doc["user_name"] = "[removed]"
+    return doc
+
+
+async def _ensure_user_can_post(user_id: str) -> dict:
+    """Block banned/frozen users from posting. Returns the user doc on pass."""
+    user = await db.community_users.find_one({"user_id": user_id}, {"_id": 0})
+    if not user:
+        raise HTTPException(404, "User not found")
+    status = user.get("moderation_status")
+    if status == "banned":
+        raise HTTPException(403, "Your account has been permanently suspended for policy violations.")
+    if status == "frozen":
+        raise HTTPException(403, "Your account is temporarily frozen — contact support to restore access.")
+    return user
+
+
 @router.post("/community/forum")
 async def create_thread(payload: ForumThreadCreate, claims: dict = Depends(current_buyer)):
-    user = await db.community_users.find_one({"user_id": claims["sub"]}, {"_id": 0})
+    user = await _ensure_user_can_post(claims["sub"])
+    cat = (payload.category or payload.tag or "general").lower()
+    if cat not in FORUM_CATEGORY_IDS:
+        raise HTTPException(400, f"Unknown category '{cat}'.")
     doc = {
         "id": str(uuid.uuid4()),
         "user_id": claims["sub"],
         "user_email": user["email"],
         "user_name": user.get("name", ""),
-        **payload.model_dump(),
+        "title": payload.title.strip()[:200],
+        "body": payload.body.strip()[:8000],
+        "category": cat,
+        "attachments": [a.model_dump() for a in (payload.attachments or [])][:6],
+        "tag": cat,           # alias for backward compat
         "reply_count": 0,
         "created_at": now_iso(),
     }
@@ -414,20 +484,72 @@ async def reply_thread(thread_id: str, payload: ForumReplyCreate, claims: dict =
     thread = await db.forum_threads.find_one({"id": thread_id}, {"_id": 0})
     if not thread:
         raise HTTPException(404, "Thread not found")
-    user = await db.community_users.find_one({"user_id": claims["sub"]}, {"_id": 0})
+    user = await _ensure_user_can_post(claims["sub"])
     doc = {
         "id": str(uuid.uuid4()),
         "thread_id": thread_id,
         "user_id": claims["sub"],
         "user_email": user["email"],
         "user_name": user.get("name", ""),
-        "body": payload.body,
+        "body": payload.body.strip()[:8000],
+        "attachments": [a.model_dump() for a in (payload.attachments or [])][:6],
         "created_at": now_iso(),
     }
     await db.forum_replies.insert_one(doc)
     await db.forum_threads.update_one({"id": thread_id}, {"$inc": {"reply_count": 1}})
     doc.pop("_id", None)
     return doc
+
+
+# ─────────────────── Forum file uploads ───────────────────
+FORUM_ALLOWED_IMAGE = {"image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif"}
+FORUM_ALLOWED_DOC = {
+    "application/pdf",
+    "application/octet-stream",   # generic — needed for .glb/.dxf/.svg without proper mime
+    "image/svg+xml",
+    "model/gltf-binary",
+    "model/gltf+json",
+    "application/dxf", "application/x-dxf", "image/vnd.dxf",
+}
+FORUM_MAX_IMAGE_BYTES = 5 * 1024 * 1024
+FORUM_MAX_DOC_BYTES = 15 * 1024 * 1024
+FORUM_ALLOWED_EXT = {".png", ".jpg", ".jpeg", ".webp", ".gif",
+                     ".pdf", ".svg", ".glb", ".gltf", ".dxf"}
+
+
+@router.post("/community/forum/upload")
+async def upload_forum_attachment(
+    file: UploadFile = File(...), claims: dict = Depends(current_buyer),
+):
+    """Single-file uploader for thread/reply attachments. Stores in R2 under
+    `forum/<user_id>/<uuid>.<ext>`. Returns the URL + metadata to splice into
+    the thread/reply payload."""
+    await _ensure_user_can_post(claims["sub"])
+    from r2_storage import is_configured as r2_ok, upload_bytes
+    if not r2_ok():
+        raise HTTPException(503, "File uploads are not configured.")
+    raw = await file.read()
+    size = len(raw)
+    mime = (file.content_type or "").lower()
+    name = file.filename or "upload"
+    ext = ("." + name.rsplit(".", 1)[-1].lower()) if "." in name else ""
+
+    if ext not in FORUM_ALLOWED_EXT:
+        raise HTTPException(400, f"Unsupported file type: {ext or mime}")
+    is_image = mime.startswith("image/") and ext in {".png", ".jpg", ".jpeg", ".webp", ".gif"}
+    is_doc = ext in {".pdf", ".svg", ".glb", ".gltf", ".dxf"}
+    if not (is_image or is_doc):
+        raise HTTPException(400, f"Unsupported file: {name}")
+    if is_image and size > FORUM_MAX_IMAGE_BYTES:
+        raise HTTPException(400, f"Image must be ≤ {FORUM_MAX_IMAGE_BYTES // (1024 * 1024)}MB.")
+    if is_doc and size > FORUM_MAX_DOC_BYTES:
+        raise HTTPException(400, f"File must be ≤ {FORUM_MAX_DOC_BYTES // (1024 * 1024)}MB.")
+
+    key = f"forum/{claims['sub']}/{uuid.uuid4().hex}{ext}"
+    fallback_mime = "application/pdf" if ext == ".pdf" else (
+        "model/gltf-binary" if ext == ".glb" else "application/octet-stream")
+    url = upload_bytes(data=raw, key=key, content_type=mime or fallback_mime)
+    return {"url": url, "filename": name[:120], "mime": mime or fallback_mime, "size": size}
 
 
 # ===================== LIVE CHAT (WebSocket + REST history + presence + typing) =====================
@@ -517,6 +639,11 @@ async def ws_chat(websocket: WebSocket, channel: str, token: str = Query("")):
     if role == "buyer":
         u = await db.community_users.find_one({"user_id": claims["sub"]}, {"_id": 0})
         if u:
+            # Banned/frozen users can't connect to chat at all.
+            mod_status = u.get("moderation_status")
+            if mod_status in ("banned", "frozen"):
+                await websocket.close(code=4403)
+                return
             display_name = u.get("name") or display_name
             picture = u.get("picture", "")
     elif role == "maker":

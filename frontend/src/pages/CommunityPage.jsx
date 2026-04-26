@@ -5,7 +5,8 @@ import { Heart, Download, Send, Plus, Lock } from "lucide-react";
 import {
   fetchShowcase, createShowcase, likeShowcase,
   fetchDesignFiles, downloadDesignFile, unlockDownloadsCheckout, uploadDesignFile,
-  fetchForumThreads, fetchForumThread, createForumThread, replyForumThread,
+  fetchForumThreads, fetchForumThread, fetchForumCategories,
+  createForumThread, replyForumThread, uploadForumAttachment,
   deleteChatMessage, deleteForumThread, deleteForumReply,
   fetchChatHistory, wsChatUrl,
   communityMe, uploadAvatar,
@@ -309,7 +310,7 @@ function FilesTab({ me }) {
     <div data-testid="files-tab">
       <div className="mb-6 flex flex-col sm:flex-row justify-between gap-3">
         <p className="font-mono text-xs text-[#a3a3a3]">
-          {files.length} community files · 5 free downloads / 6 months · $5 unlocks unlimited
+          {files.length} community files
         </p>
         {isMaker && (
           <button onClick={() => setShowUpload((s) => !s)} className="btn-industrial btn-primary inline-flex items-center gap-2 self-start" data-testid="files-upload-btn">
@@ -404,50 +405,199 @@ function FileCard({ file, canDownload }) {
           <Download size={14} /> {canDownload ? "Download" : "Sign in to download"}
         </button>
       )}
-      {status?.kind === "ready" && (
-        <span className="font-mono text-[10px] text-[#a3a3a3]">{status.used}/5 free this window</span>
-      )}
+      {/* Silent metering: removed the "X/5 free" counter on purpose so users
+          aren't reminded of a quota until they actually hit it. */}
     </div>
   );
 }
 
 // ===================== FORUM =====================
+const FORUM_CATEGORY_FALLBACK = [
+  { id: "general", label: "General" },
+  { id: "machine-help", label: "Machine Help" },
+  { id: "techniques", label: "Techniques" },
+  { id: "finishing", label: "Finishing" },
+  { id: "resources", label: "Resources" },
+  { id: "show-tell", label: "Show & Tell" },
+];
+
 function ForumTab({ me }) {
   const [threads, setThreads] = useState([]);
   const [active, setActive] = useState(null);
   const [showNew, setShowNew] = useState(false);
-  const refresh = () => fetchForumThreads().then(setThreads);
-  useEffect(() => { refresh(); }, []);
+  const [categories, setCategories] = useState(FORUM_CATEGORY_FALLBACK);
+  const [activeCat, setActiveCat] = useState("");  // "" = all
+  const refresh = () => fetchForumThreads(activeCat).then(setThreads);
+  useEffect(() => {
+    fetchForumCategories()
+      .then((r) => setCategories(r.categories || FORUM_CATEGORY_FALLBACK))
+      .catch(() => {});
+  }, []);
+  useEffect(() => { refresh(); /* eslint-disable-next-line */ }, [activeCat]);
   if (active) return <ThreadDetail id={active} me={me} onBack={() => { setActive(null); refresh(); }} />;
+
+  // Pre-select the currently-active category for new threads
+  const newDefaultCat = activeCat || "general";
+
   return (
     <div data-testid="forum-tab">
+      {/* Category tab strip */}
+      <div className="border-b border-[#262626] mb-5 flex gap-1 overflow-x-auto" data-testid="forum-categories">
+        <button
+          onClick={() => setActiveCat("")}
+          className={`px-4 py-2 font-mono text-[11px] uppercase tracking-[0.22em] border-b-2 transition whitespace-nowrap ${
+            activeCat === "" ? "border-[#ff4500] text-[#ff4500]" : "border-transparent text-[#a3a3a3] hover:text-[#e5e5e5]"
+          }`}
+          data-testid="forum-cat-all"
+        >
+          All
+        </button>
+        {categories.map((c) => (
+          <button
+            key={c.id}
+            onClick={() => setActiveCat(c.id)}
+            className={`px-4 py-2 font-mono text-[11px] uppercase tracking-[0.22em] border-b-2 transition whitespace-nowrap ${
+              activeCat === c.id ? "border-[#ff4500] text-[#ff4500]" : "border-transparent text-[#a3a3a3] hover:text-[#e5e5e5]"
+            }`}
+            data-testid={`forum-cat-${c.id}`}
+          >
+            {c.label}
+          </button>
+        ))}
+      </div>
+
       <div className="mb-6 flex justify-between items-center">
-        <p className="font-mono text-xs text-[#a3a3a3]">{threads.length} active threads.</p>
+        <p className="font-mono text-xs text-[#a3a3a3]">
+          {threads.length} thread{threads.length === 1 ? "" : "s"}
+          {activeCat && ` in ${(categories.find((c) => c.id === activeCat) || {}).label}`}
+        </p>
         {me && (
           <button onClick={() => setShowNew((s) => !s)} className="btn-industrial btn-primary inline-flex items-center gap-2" data-testid="forum-new-btn">
-            <Plus size={14} /> {showNew ? "Cancel" : "Start a thread"}
+            <Plus size={14} /> {showNew ? "Cancel" : "New thread"}
           </button>
         )}
       </div>
-      {showNew && <NewThreadForm onSaved={() => { setShowNew(false); refresh(); }} />}
+      {showNew && (
+        <NewThreadForm
+          categories={categories}
+          defaultCategory={newDefaultCat}
+          onSaved={() => { setShowNew(false); refresh(); }}
+        />
+      )}
       {!threads.length ? (
-        <p className="font-mono text-sm text-[#a3a3a3]" data-testid="forum-empty">No threads yet — start the first conversation.</p>
+        <p className="font-mono text-sm text-[#a3a3a3]" data-testid="forum-empty">
+          {activeCat
+            ? "Nothing here yet — be the first to start a thread."
+            : "No threads yet — start the first conversation."}
+        </p>
       ) : (
         <ul className="space-y-3" data-testid="forum-list">
-          {threads.map((t) => (
-            <li key={t.id} onClick={() => setActive(t.id)}
-                className="border border-[#262626] hover:border-[#ff4500] p-4 cursor-pointer transition"
-                data-testid={`forum-thread-${t.id}`}>
-              <div className="flex flex-wrap justify-between gap-2">
-                <span className="font-display text-xl">{t.title}</span>
-                <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
-                  {t.reply_count} replies · {t.tag || "general"}
-                </span>
+          {threads.map((t) => {
+            const cat = categories.find((c) => c.id === (t.category || t.tag));
+            return (
+              <li key={t.id} onClick={() => setActive(t.id)}
+                  className="border border-[#262626] hover:border-[#ff4500] p-4 cursor-pointer transition"
+                  data-testid={`forum-thread-${t.id}`}>
+                <div className="flex flex-wrap justify-between gap-2">
+                  <span className="font-display text-xl">{t.title}</span>
+                  <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+                    {t.reply_count} replies · {(cat?.label) || (t.category || t.tag || "general")}
+                  </span>
+                </div>
+                <p className="font-mono text-[11px] text-[#a3a3a3] mt-2 line-clamp-2">{t.body}</p>
+                <div className="flex justify-between items-center mt-2">
+                  <div className="font-mono text-[10px] text-[#525252] uppercase tracking-[0.22em]">
+                    started by {t.user_name || t.user_email}
+                  </div>
+                  {(t.attachments?.length || 0) > 0 && (
+                    <span className="font-mono text-[10px] text-[#ff4500]">📎 {t.attachments.length}</span>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function ForumAttachmentPicker({ value, onChange, busy, onBusy }) {
+  const inputRef = useRef(null);
+  const [err, setErr] = useState("");
+  const onPick = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    if ((value.length + files.length) > 6) {
+      setErr("Maximum 6 attachments per post.");
+      return;
+    }
+    setErr("");
+    onBusy(true);
+    try {
+      const out = [];
+      for (const f of files) {
+        // eslint-disable-next-line no-await-in-loop
+        const r = await uploadForumAttachment(f);
+        out.push(r);
+      }
+      onChange([...value, ...out]);
+    } catch (e2) {
+      setErr(e2?.response?.data?.detail || "Upload failed.");
+    } finally {
+      onBusy(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  };
+  return (
+    <div data-testid="forum-attachment-picker">
+      <input
+        ref={inputRef}
+        type="file"
+        multiple
+        accept=".png,.jpg,.jpeg,.webp,.gif,.pdf,.svg,.glb,.gltf,.dxf,image/*,application/pdf"
+        onChange={onPick}
+        disabled={busy}
+        className="hidden"
+        data-testid="forum-attachment-input"
+      />
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        disabled={busy}
+        className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] border border-dashed border-[#262626] hover:border-[#ff4500] px-4 py-2 transition disabled:opacity-50"
+        data-testid="forum-attach-btn"
+      >
+        {busy ? "Uploading…" : "+ Attach file"}
+      </button>
+      {err && <p className="font-mono text-[10px] text-red-400 mt-2">{err}</p>}
+      {value.length > 0 && (
+        <ul className="mt-3 space-y-2" data-testid="forum-attachment-list">
+          {value.map((a, i) => (
+            <li
+              key={a.url}
+              className="flex items-center gap-3 border border-[#262626] p-2"
+              data-testid={`forum-attachment-${i}`}
+            >
+              {a.mime?.startsWith("image/") ? (
+                <img src={a.url} alt={a.filename} className="w-12 h-12 object-cover" />
+              ) : (
+                <div className="w-12 h-12 bg-[#1a1a1a] flex items-center justify-center font-mono text-[10px] text-[#ff4500]">
+                  {(a.filename || "").split(".").pop()?.toUpperCase() || "FILE"}
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="font-mono text-xs text-[#e5e5e5] truncate">{a.filename}</div>
+                <div className="font-mono text-[10px] text-[#525252]">{Math.round((a.size || 0) / 1024)} KB</div>
               </div>
-              <p className="font-mono text-[11px] text-[#a3a3a3] mt-2 line-clamp-2">{t.body}</p>
-              <div className="font-mono text-[10px] text-[#525252] uppercase tracking-[0.22em] mt-2">
-                started by {t.user_name || t.user_email}
-              </div>
+              <button
+                type="button"
+                onClick={() => onChange(value.filter((_, j) => j !== i))}
+                className="font-mono text-[10px] text-[#525252] hover:text-red-400"
+                aria-label="Remove attachment"
+              >
+                ✕
+              </button>
             </li>
           ))}
         </ul>
@@ -456,13 +606,19 @@ function ForumTab({ me }) {
   );
 }
 
-function NewThreadForm({ onSaved }) {
-  const [t, setT] = useState({ title: "", body: "", tag: "general" });
+function NewThreadForm({ onSaved, categories = FORUM_CATEGORY_FALLBACK, defaultCategory = "general" }) {
+  const [t, setT] = useState({ title: "", body: "", category: defaultCategory });
+  const [attachments, setAttachments] = useState([]);
   const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [err, setErr] = useState("");
   const submit = async (e) => {
     e.preventDefault();
     setBusy(true);
-    try { await createForumThread(t); onSaved(); } finally { setBusy(false); }
+    setErr("");
+    try { await createForumThread({ ...t, attachments }); onSaved(); }
+    catch (e2) { setErr(e2?.response?.data?.detail || "Could not post thread."); }
+    finally { setBusy(false); }
   };
   return (
     <form onSubmit={submit} className="border border-[#262626] p-5 mb-6 space-y-3" data-testid="thread-new-form">
@@ -470,26 +626,57 @@ function NewThreadForm({ onSaved }) {
         <input required placeholder="Title" value={t.title} onChange={(e) => setT({ ...t, title: e.target.value })}
                className="md:col-span-2 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
                data-testid="thread-title" />
-        <select value={t.tag} onChange={(e) => setT({ ...t, tag: e.target.value })}
+        <select value={t.category} onChange={(e) => setT({ ...t, category: e.target.value })}
                 className="bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
-                data-testid="thread-tag">
-          {["general", "makers", "help", "showcase"].map((g) => <option key={g} value={g}>{g}</option>)}
+                data-testid="thread-category">
+          {categories.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
         </select>
       </div>
       <textarea required rows={4} placeholder="What do you want to talk about?" value={t.body}
                 onChange={(e) => setT({ ...t, body: e.target.value })}
                 className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs resize-y"
                 data-testid="thread-body" />
-      <button type="submit" disabled={busy} className="btn-industrial btn-primary disabled:opacity-50" data-testid="thread-submit">
+      <ForumAttachmentPicker value={attachments} onChange={setAttachments} busy={uploading} onBusy={setUploading} />
+      {err && <p className="font-mono text-xs text-red-400" data-testid="thread-error">{err}</p>}
+      <button type="submit" disabled={busy || uploading} className="btn-industrial btn-primary disabled:opacity-50" data-testid="thread-submit">
         {busy ? "Posting…" : "Post thread →"}
       </button>
     </form>
   );
 }
 
+function AttachmentsList({ items, testIdPrefix = "attachment" }) {
+  if (!items?.length) return null;
+  return (
+    <ul className="mt-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2" data-testid={`${testIdPrefix}-list`}>
+      {items.map((a, i) => (
+        <li key={a.url} className="border border-[#262626] hover:border-[#ff4500] transition" data-testid={`${testIdPrefix}-${i}`}>
+          {a.mime?.startsWith("image/") || /\.(png|jpe?g|webp|gif)$/i.test(a.filename || "") ? (
+            <a href={a.url} target="_blank" rel="noreferrer" className="block">
+              <img src={a.url} alt={a.filename} className="w-full aspect-square object-cover" />
+            </a>
+          ) : (
+            <a href={a.url} target="_blank" rel="noreferrer"
+               className="block aspect-square flex flex-col items-center justify-center bg-[#1a1a1a] hover:bg-[#222] transition">
+              <span className="font-display text-2xl text-[#ff4500]">
+                {(a.filename || "FILE").split(".").pop()?.toUpperCase().slice(0, 4) || "FILE"}
+              </span>
+              <span className="font-mono text-[9px] text-[#a3a3a3] mt-1 px-2 truncate w-full text-center">
+                {a.filename}
+              </span>
+            </a>
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function ThreadDetail({ id, me, onBack }) {
   const [data, setData] = useState(null);
   const [body, setBody] = useState("");
+  const [replyAttachments, setReplyAttachments] = useState([]);
+  const [replyUploading, setReplyUploading] = useState(false);
   const [busy, setBusy] = useState(false);
   const isMod = !!localStorage.getItem("cm_admin_jwt") || !!localStorage.getItem("cm_maker_jwt");
   const seenReplyIdsRef = useRef(new Set());
@@ -565,10 +752,14 @@ function ThreadDetail({ id, me, onBack }) {
   const { thread, replies } = data;
   const reply = async (e) => {
     e.preventDefault();
-    if (!body.trim()) return;
+    if (!body.trim() && replyAttachments.length === 0) return;
     setBusy(true);
-    try { await replyForumThread(id, { body }); setBody(""); refresh(); }
-    finally { setBusy(false); }
+    try {
+      await replyForumThread(id, { body: body || "(see attachment)", attachments: replyAttachments });
+      setBody("");
+      setReplyAttachments([]);
+      refresh();
+    } finally { setBusy(false); }
   };
   const delThread = async () => {
     if (!window.confirm("Delete this entire thread?")) return;
@@ -602,6 +793,7 @@ function ThreadDetail({ id, me, onBack }) {
         <p className={`font-mono text-sm leading-relaxed mt-4 whitespace-pre-wrap ${
           isMention(thread.body) ? "border-l-2 border-[#ff4500] pl-3 bg-[#ff4500]/5 text-[#e5e5e5]" : "text-[#e5e5e5]"
         }`}>{thread.body}</p>
+        <AttachmentsList items={thread.attachments} testIdPrefix={`thread-${thread.id}-attachment`} />
       </div>
       {replies.map((r) => {
         const mentioned = isMention(r.body);
@@ -620,16 +812,18 @@ function ThreadDetail({ id, me, onBack }) {
               )}
             </div>
             <p className="font-mono text-xs text-[#e5e5e5] leading-relaxed mt-2 whitespace-pre-wrap">{r.body}</p>
+            <AttachmentsList items={r.attachments} testIdPrefix={`reply-${r.id}-attachment`} />
           </div>
         );
       })}
       {me && (
         <form onSubmit={reply} className="ml-6 space-y-2" data-testid="reply-form">
-          <textarea required rows={3} placeholder="Reply… (use @name to mention someone)" value={body}
+          <textarea rows={3} placeholder="Reply… (use @name to mention someone)" value={body}
                     onChange={(e) => setBody(e.target.value)}
                     className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs resize-y"
                     data-testid="reply-body" />
-          <button type="submit" disabled={busy} className="btn-industrial btn-primary disabled:opacity-50" data-testid="reply-submit">
+          <ForumAttachmentPicker value={replyAttachments} onChange={setReplyAttachments} busy={replyUploading} onBusy={setReplyUploading} />
+          <button type="submit" disabled={busy || replyUploading} className="btn-industrial btn-primary disabled:opacity-50" data-testid="reply-submit">
             {busy ? "Sending…" : "Reply →"}
           </button>
         </form>

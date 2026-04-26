@@ -192,13 +192,24 @@ export const unlockDownloadsCheckout = () =>
 export const uploadDesignFile = (payload) =>
   http.post("/community/files", payload, { headers: authHeaders() }).then((r) => r.data); // maker auth
 
-export const fetchForumThreads = (tag) =>
-  http.get("/community/forum", { params: tag ? { tag } : {} }).then((r) => r.data);
+export const fetchForumThreads = (category = "") =>
+  http.get("/community/forum", { params: category ? { category } : {} }).then((r) => r.data);
+export const fetchForumCategories = () =>
+  http.get("/community/forum/categories").then((r) => r.data);
 export const fetchForumThread = (id) => http.get(`/community/forum/${id}`).then((r) => r.data);
 export const createForumThread = (payload) =>
   http.post("/community/forum", payload, { headers: buyerAuthHeaders() }).then((r) => r.data);
 export const replyForumThread = (id, payload) =>
   http.post(`/community/forum/${id}/reply`, payload, { headers: buyerAuthHeaders() }).then((r) => r.data);
+export const uploadForumAttachment = (file) => {
+  const fd = new FormData();
+  fd.append("file", file);
+  return http
+    .post("/community/forum/upload", fd, {
+      headers: { ...buyerAuthHeaders(), "Content-Type": "multipart/form-data" },
+    })
+    .then((r) => r.data);
+};
 
 // Moderator deletes — accepts admin OR maker JWT (backend checks role).
 const modAuthHeaders = () => {

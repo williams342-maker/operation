@@ -508,6 +508,160 @@ async def admin_delete_product(slug: str, _: dict = Depends(current_admin)):
     return {"deleted": True}
 
 
+# ===================== USER MODERATION =====================
+class UserModerationAction(BaseModel):
+    """Apply a moderation status to a community user.
+
+    statuses:
+      - "active": revert prior action, restore access
+      - "frozen": temporarily suspended (can be re-activated)
+      - "banned": permanently disallowed from sign-in/post/reply/chat
+    """
+    status: str
+    reason: str = ""
+
+
+@router.get("/admin/users")
+async def admin_list_users(
+    q: Optional[str] = None, status: Optional[str] = None, limit: int = 100,
+    _: dict = Depends(current_admin),
+):
+    """Paginated user list with post-count rollups for the moderation panel."""
+    flt: dict = {}
+    if q:
+        rx = {"$regex": q, "$options": "i"}
+        flt["$or"] = [{"email": rx}, {"name": rx}, {"user_id": rx}]
+    if status in ("active", "frozen", "banned"):
+        if status == "active":
+            flt["moderation_status"] = {"$in": [None, "active"]}
+        else:
+            flt["moderation_status"] = status
+    users = await db.community_users.find(
+        flt, {"_id": 0},
+    ).sort("created_at", -1).to_list(limit)
+
+    # Aggregate post counts in 2 batched queries (cheaper than per-user lookups).
+    user_ids = [u["user_id"] for u in users]
+    if user_ids:
+        thread_counts: dict = {}
+        reply_counts: dict = {}
+        async for r in db.forum_threads.aggregate([
+            {"$match": {"user_id": {"$in": user_ids}}},
+            {"$group": {"_id": "$user_id", "n": {"$sum": 1}}},
+        ]):
+            thread_counts[r["_id"]] = r["n"]
+        async for r in db.forum_replies.aggregate([
+            {"$match": {"user_id": {"$in": user_ids}}},
+            {"$group": {"_id": "$user_id", "n": {"$sum": 1}}},
+        ]):
+            reply_counts[r["_id"]] = r["n"]
+        for u in users:
+            u["thread_count"] = thread_counts.get(u["user_id"], 0)
+            u["reply_count"] = reply_counts.get(u["user_id"], 0)
+    return {"users": users, "count": len(users)}
+
+
+@router.post("/admin/users/{user_id}/moderate")
+async def admin_moderate_user(
+    user_id: str, body: UserModerationAction,
+    claims: dict = Depends(current_admin),
+):
+    """Set a user's moderation status. Banning hides all their existing
+    forum posts (replaced with `[removed by moderators]`)."""
+    if body.status not in ("active", "frozen", "banned"):
+        raise HTTPException(400, "status must be 'active', 'frozen', or 'banned'.")
+    user = await db.community_users.find_one({"user_id": user_id}, {"_id": 0})
+    if not user:
+        raise HTTPException(404, "User not found")
+
+    audit = {
+        "by": claims["email"], "at": now_iso(),
+        "from": user.get("moderation_status") or "active",
+        "to": body.status, "reason": body.reason or "",
+    }
+    set_fields: dict = {
+        "moderation_status": body.status if body.status != "active" else None,
+        "moderation_updated_at": now_iso(),
+    }
+    if body.status != "active":
+        set_fields["moderation_reason"] = body.reason or ""
+
+    await db.community_users.update_one(
+        {"user_id": user_id},
+        {
+            "$set": set_fields,
+            "$push": {"moderation_history": audit},
+        },
+    )
+    # Banned: veil their forum content. Frozen: leave it visible (it's just a timeout).
+    if body.status == "banned":
+        await db.forum_threads.update_many(
+            {"user_id": user_id},
+            {"$set": {"removed_by_mod": True, "removed_reason": body.reason or "User banned"}},
+        )
+        await db.forum_replies.update_many(
+            {"user_id": user_id},
+            {"$set": {"removed_by_mod": True, "removed_reason": body.reason or "User banned"}},
+        )
+    elif body.status == "active":
+        # Restore previously-veiled content if we're un-banning.
+        await db.forum_threads.update_many(
+            {"user_id": user_id, "removed_by_mod": True},
+            {"$set": {"removed_by_mod": False}, "$unset": {"removed_reason": ""}},
+        )
+        await db.forum_replies.update_many(
+            {"user_id": user_id, "removed_by_mod": True},
+            {"$set": {"removed_by_mod": False}, "$unset": {"removed_reason": ""}},
+        )
+
+    logger.info("[mod] user=%s %s→%s by=%s reason=%s",
+                user_id, audit["from"], audit["to"], claims["email"], audit["reason"])
+    return {"user_id": user_id, "status": body.status, "audit": audit}
+
+
+@router.delete("/admin/users/{user_id}")
+async def admin_delete_user(user_id: str, claims: dict = Depends(current_admin)):
+    """Hard-delete a community user record + scrub their forum/chat content.
+    Use when a user requests account deletion or for severe abuse cases.
+    Audit-logged."""
+    user = await db.community_users.find_one({"user_id": user_id}, {"_id": 0})
+    if not user:
+        raise HTTPException(404, "User not found")
+    await db.community_users.delete_one({"user_id": user_id})
+    # Scrub posts + replies
+    await db.forum_threads.delete_many({"user_id": user_id})
+    await db.forum_replies.delete_many({"user_id": user_id})
+    await db.chat_messages.delete_many({"user_id": user_id})
+    logger.warning("[mod] HARD-DELETED user=%s email=%s by=%s",
+                   user_id, user.get("email"), claims["email"])
+    return {"deleted": True, "user_id": user_id}
+
+
+@router.delete("/admin/forum/threads/{thread_id}")
+async def admin_delete_thread(thread_id: str, claims: dict = Depends(current_admin)):
+    """Hard-delete a forum thread + its replies."""
+    r = await db.forum_threads.delete_one({"id": thread_id})
+    if r.deleted_count == 0:
+        raise HTTPException(404, "Thread not found")
+    await db.forum_replies.delete_many({"thread_id": thread_id})
+    logger.info("[mod] thread deleted: %s by=%s", thread_id, claims["email"])
+    return {"deleted": True}
+
+
+@router.delete("/admin/forum/replies/{reply_id}")
+async def admin_delete_reply(reply_id: str, claims: dict = Depends(current_admin)):
+    reply = await db.forum_replies.find_one({"id": reply_id}, {"_id": 0, "thread_id": 1})
+    if not reply:
+        raise HTTPException(404, "Reply not found")
+    await db.forum_replies.delete_one({"id": reply_id})
+    await db.forum_threads.update_one(
+        {"id": reply["thread_id"]},
+        {"$inc": {"reply_count": -1}},
+    )
+    logger.info("[mod] reply deleted: %s by=%s", reply_id, claims["email"])
+    return {"deleted": True}
+
+
 # ===================== REVIEWS =====================
 class ReviewCreate(BaseModel):
     name: str
