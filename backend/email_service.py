@@ -1,10 +1,17 @@
-"""Resend transactional email helpers for Crafters Market."""
+"""Transactional email helpers for Crafters Market.
+
+Supports two providers via EMAIL_PROVIDER env flag:
+  - "brevo" (default): Brevo / Sendinblue REST API
+  - "resend": Resend SDK (legacy fallback)
+"""
 import os
 import asyncio
 import logging
+from pathlib import Path
+
+import httpx
 import resend
 from dotenv import load_dotenv
-from pathlib import Path
 
 load_dotenv(Path(__file__).parent / ".env")
 
@@ -16,27 +23,73 @@ if not logger.handlers:
     logger.addHandler(h)
 logger.propagate = True
 
+EMAIL_PROVIDER = os.environ.get("EMAIL_PROVIDER", "brevo").lower()
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
-SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev")
+BREVO_API_KEY = os.environ.get("BREVO_API_KEY", "")
+SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "team@craftersmarket.org")
+SENDER_NAME = os.environ.get("SENDER_NAME", "Crafters Market")
 OPS_EMAIL = os.environ.get("OPS_EMAIL", "")
 
 if RESEND_API_KEY:
     resend.api_key = RESEND_API_KEY
 
 
-async def _send(to: str, subject: str, html: str):
-    if not RESEND_API_KEY or not to:
-        logger.warning("email skipped (no key or recipient): %s", subject)
+def _has_provider() -> bool:
+    if EMAIL_PROVIDER == "brevo":
+        return bool(BREVO_API_KEY)
+    return bool(RESEND_API_KEY)
+
+
+async def _send_brevo(to: str, subject: str, html: str):
+    """Send via Brevo's transactional REST API.
+    https://developers.brevo.com/reference/sendtransacemail"""
+    payload = {
+        "sender": {"name": SENDER_NAME, "email": SENDER_EMAIL},
+        "to": [{"email": to}],
+        "subject": subject,
+        "htmlContent": html,
+    }
+    headers = {
+        "api-key": BREVO_API_KEY,
+        "accept": "application/json",
+        "content-type": "application/json",
+    }
+    async with httpx.AsyncClient(timeout=15) as client:
+        r = await client.post(
+            "https://api.brevo.com/v3/smtp/email", json=payload, headers=headers,
+        )
+    if r.status_code >= 400:
+        # Surface the Brevo error body in logs so config issues are easy to spot.
+        logger.warning("brevo error %d → %s: %s", r.status_code, to, r.text[:300])
         return None
+    body = r.json() if r.content else {}
+    logger.info("brevo sent → %s · id=%s", to, body.get("messageId"))
+    return body
+
+
+async def _send_resend(to: str, subject: str, html: str):
+    """Legacy Resend send."""
     try:
-        params = {"from": f"Crafters Market <{SENDER_EMAIL}>",
-                  "to": [to], "subject": subject, "html": html}
+        params = {
+            "from": f"{SENDER_NAME} <{SENDER_EMAIL}>",
+            "to": [to], "subject": subject, "html": html,
+        }
         result = await asyncio.to_thread(resend.Emails.send, params)
-        logger.info("email sent → %s · id=%s", to, getattr(result, "get", lambda *_: None)("id"))
+        logger.info("resend sent → %s · id=%s", to,
+                    getattr(result, "get", lambda *_: None)("id"))
         return result
     except Exception as e:
-        logger.exception("email failed → %s: %s", to, e)
+        logger.exception("resend failed → %s: %s", to, e)
         return None
+
+
+async def _send(to: str, subject: str, html: str):
+    if not _has_provider() or not to:
+        logger.warning("email skipped (no key or recipient): %s", subject)
+        return None
+    if EMAIL_PROVIDER == "brevo":
+        return await _send_brevo(to, subject, html)
+    return await _send_resend(to, subject, html)
 
 
 def _shell(title: str, intro: str, body_html: str, footer: str = "") -> str:
