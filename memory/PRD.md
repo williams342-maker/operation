@@ -47,17 +47,17 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 ## Test Status (2026-04-26)
 - iter6: AI memory bug + cart gift-note persistence — **fixed and verified**
 - iter7: Stripe Connect Express + regression sweep — **20/20 backend tests pass**
-- iter9 (this run): 5 backlog follow-ups — **10/10 isolated · 140/140 full suite**
-  1. `account.updated` Connect webhook (`POST /api/webhook/stripe/connect`) syncs maker.stripe_* fields
-  2. Forum @mentions parity with chat (12s poll, ding sound, desktop notif, `data-testid='forum-reply-mentioned'`)
-  3. Admin refund flow (`POST /api/admin/orders/{sid}/refund`) — full reversal: refund Stripe charge + reverse all maker transfers + cancel deferred payouts. Idempotent via `idempotency_key`. Admin UI button on Paid Orders tab
-  4. E2E unlock flow validated: 5 free downloads → paywall → checkout pre-records pending unlock → webhook activation → unlimited downloads (paid_unlock_active=true)
-  5. Buyer Google OAuth backend wiring sanity (invalid session_id → 401, empty body → 422)
+- iter9: 5 backlog follow-ups — **10/10 isolated · 140/140 full suite**
+- iter10 (this run): 3 backlog follow-ups — **6/6 new + 1 transfer_group regression guard · 147/147 full suite**
+  1. Forum thread polling now pauses on `document.hidden` and resumes (with immediate catch-up) on `visibilitychange`. Verified end-to-end via Playwright (visible 13s = 1 poll, hidden 15s = 0 polls, resume = 1 immediate poll)
+  2. Per-maker analytics: new `GET /api/admin/maker-analytics/{slug}` endpoint + Admin Dashboard "Maker Analytics" tab with maker selector, Stripe Connect status badge, revenue stats (gross/30d/7d/share/after-refunds), top products, payout buckets, recent payouts
+  3. Google OAuth wiring confirmed: `community-google-btn` on `/community/login`, `/community/auth/callback` route renders `community-auth-callback`. Backend `/api/community/auth/google` rejects invalid sessions with 401, empty body with 422. Happy-path verification requires a real Google click (not in scope)
+  + Pinned the `Transfer.create.transfer_group == tx.transfer_group` (NOT session_id) contract via a pure-mock unit test in `test_iter8_stripe_connect.py::TestTransferGroupPairing` so future agents can't silently regress it
 
 ## Backlog
-- (Optional) Pause forum poll when `document.hidden=true`, resume on `visibilitychange` (perf)
-- (Optional) Per-maker analytics tab in admin
+- (Optional) Skip refresh on `document.hasFocus()=false` in forum poll resume
+- (Optional) Live Stripe Connect happy-path requires user to complete Express onboarding for a maker
 
 ## Next Action Items
-- (Future) Optional UI polish: pause forum thread polling when tab hidden
-- (Future) Verify Emergent Google OAuth happy-path with real Google session (current gating-only verified)
+- (Future) Verify Google OAuth happy-path with a real Google session (one-time human click)
+- (Future) Add `account.updated` Stripe Connect dashboard webhook to user's account (one-time setup)

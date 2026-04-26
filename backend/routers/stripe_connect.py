@@ -194,8 +194,11 @@ async def transfer_to_makers_for_session(session_id: str) -> dict:
         return {"skipped": True, "reason": "tx-not-paid"}
 
     s = _stripe()
-    # Match the transfer_group we set on the PaymentIntent at session creation.
-    # If a tx is missing it (older row), fall back to session_id.
+    # IMPORTANT: Transfer.create's transfer_group must match the value we set
+    # on the PaymentIntent at Session creation in checkout.py (which writes
+    # `pre_transfer_group` to both the PaymentIntent's transfer_group AND
+    # the payment_transactions.transfer_group field). Reading from the tx
+    # row guarantees the pairing — DO NOT change this to session_id.
     transfer_group = tx.get("transfer_group") or session_id
     by_maker: dict[str, float] = {}
     for ci in tx.get("items", []):

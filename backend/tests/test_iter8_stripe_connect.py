@@ -297,6 +297,90 @@ class TestTransferDeferredPath:
 
 
 # ------------------------------------------------------------------
+# 4b. Transfer.create receives the tx's transfer_group (NOT session_id).
+#     Pure unit test (no mongo, no stripe network) — pins the pairing
+#     contract so a future refactor can't silently regress.
+# ------------------------------------------------------------------
+class TestTransferGroupPairing:
+    def test_transfer_uses_tx_transfer_group_not_session_id(self):
+        from unittest.mock import patch, AsyncMock, MagicMock
+        sys.path.insert(0, "/app/backend")
+        import asyncio as _asyncio
+
+        sid = "cs_test_tgpair_xyz"
+        pre_group = "order_pretransfergroup_abc"
+        acct_id = "acct_tgpair_test"
+        maker_slug = "tg-pair-maker"
+
+        # Build a fake `db` that the helper can call.
+        fake_tx = {
+            "session_id": sid,
+            "payment_status": "paid",
+            "transfer_group": pre_group,
+            "items": [{"product_id": "tg-pair-prod", "quantity": 1}],
+        }
+        fake_product = {"id": "tg-pair-prod", "slug": "tg-pair-prod",
+                        "price": 50.0, "maker_slug": maker_slug}
+        fake_maker = {
+            "slug": maker_slug,
+            "stripe_account_id": acct_id,
+            "stripe_payouts_enabled": True,
+        }
+
+        class FakeColl:
+            def __init__(self, *_a, **_k): pass
+            def find_one(self, *args, **kwargs):
+                # Return the right fake row based on first positional filter
+                f = args[0] if args else kwargs.get("filter", {})
+                async def _run():
+                    if "session_id" in f and f.get("session_id") == sid \
+                            and "maker_slug" in f:
+                        return None         # no existing payout
+                    if "id" in f and f["id"] == "tg-pair-prod":
+                        return fake_product
+                    if "slug" in f and f["slug"] == "tg-pair-prod":
+                        return fake_product
+                    if "slug" in f and f["slug"] == maker_slug:
+                        return fake_maker
+                    if "session_id" in f and f.get("session_id") == sid:
+                        return fake_tx
+                    return None
+                return _run()
+            def update_one(self, *_a, **_k):
+                async def _run(): return None
+                return _run()
+
+        class FakeDB:
+            payment_transactions = FakeColl()
+            products = FakeColl()
+            makers = FakeColl()
+            maker_payouts = FakeColl()
+
+        fake_transfer = MagicMock()
+        fake_transfer.id = "tr_pair_test"
+
+        with patch.dict("os.environ", {"STRIPE_API_KEY": "sk_test_dummy"}), \
+             patch("routers.stripe_connect.db", FakeDB()), \
+             patch("stripe.Transfer.create", return_value=fake_transfer) as p_create:
+            from routers.stripe_connect import transfer_to_makers_for_session
+            _asyncio.run(transfer_to_makers_for_session(sid))
+
+        assert p_create.called, "Transfer.create was never called"
+        kwargs = p_create.call_args.kwargs
+        assert kwargs["transfer_group"] == pre_group, (
+            f"Transfer.create transfer_group should be tx.transfer_group "
+            f"({pre_group!r}), got {kwargs['transfer_group']!r}"
+        )
+        assert kwargs["transfer_group"] != sid, (
+            "Transfer.create transfer_group MUST NOT be session_id — "
+            "it must match the PaymentIntent's transfer_group"
+        )
+        assert kwargs["destination"] == acct_id
+        assert kwargs["amount"] == 4500    # 50 * 0.9 * 100
+        assert kwargs["idempotency_key"] == f"{sid}:{maker_slug}"
+
+
+# ------------------------------------------------------------------
 # 5. GET /api/maker/payouts (maker-scoped)
 # ------------------------------------------------------------------
 class TestMakerPayoutsList:

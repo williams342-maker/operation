@@ -381,14 +381,16 @@ function MakerAnalyticsTab() {
               ◆ Payouts
             </div>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6" data-testid="man-payout-totals">
-              <Stat label="Succeeded" value={`$${data.payout_totals.succeeded.toFixed(0)}`} testId="man-po-succeeded" />
-              <Stat label="Deferred" value={`$${data.payout_totals.deferred.toFixed(0)}`} testId="man-po-deferred" />
-              <Stat label="Reversed" value={`$${data.payout_totals.reversed.toFixed(0)}`} testId="man-po-reversed" />
-              <Stat label="Errored" value={`$${data.payout_totals.error.toFixed(0)}`} testId="man-po-error" />
-              <Stat label="Cancelled" value={`$${data.payout_totals.cancelled.toFixed(0)}`} testId="man-po-cancelled" />
+              <Stat label="Succeeded" value={`$${data.payout_totals.succeeded.toFixed(0)}`} testId="man-payout-succeeded" />
+              <Stat label="Deferred" value={`$${data.payout_totals.deferred.toFixed(0)}`} testId="man-payout-deferred" />
+              <Stat label="Reversed" value={`$${data.payout_totals.reversed.toFixed(0)}`} testId="man-payout-reversed" />
+              <Stat label="Errored" value={`$${data.payout_totals.error.toFixed(0)}`} testId="man-payout-error" />
+              <Stat label="Cancelled" value={`$${data.payout_totals.cancelled.toFixed(0)}`} testId="man-payout-cancelled" />
             </div>
             {data.recent_payouts.length === 0 ? (
-              <p className="font-mono text-xs text-[#525252]">No payouts yet.</p>
+              <p className="font-mono text-xs text-[#525252]" data-testid="man-recent-payouts-empty">
+                No payouts yet.
+              </p>
             ) : (
               <ul className="divide-y divide-[#262626]" data-testid="man-recent-payouts">
                 {data.recent_payouts.map((p) => (
