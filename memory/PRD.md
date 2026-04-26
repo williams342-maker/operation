@@ -240,8 +240,7 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - (Optional analytics) Cohort retention, bounce-rate-by-page, Discord/Slack live-visitor ping
 
 ## Next Action Items
-- 🟢 **P5 — `/api/reviews` UI on MakerDetail page** — backend endpoint + Review model are in place; the frontend `MakerDetail.jsx` still needs a Reviews section + `#leave-review` form to complete the email-CTA loop.
-- 🟢 **P6 — Admin "Marketing Digests" panel** (1-click trigger UI for the cron-able digest job)
-- 🟢 **P7 — Real off-site ad spend** (Google Ads / Meta Marketing API integration)
-- 🟡 **P8 — AdminDashboard.jsx refactor** — file is ~1400 lines; split per-tab components into `/components/admin/*` for maintainability.
-- 🟡 **P9 — Esc-key dismiss + focus-trap on `ModerationConfirmModal`** — accessibility polish (non-blocking).
+- 🟢 **P7 — Real off-site ad spend** (Google Ads / Meta Marketing API integration) — needs user-supplied API credentials.
+- 🟡 **P10 — Continue AdminDashboard refactor**: split Analytics / Web Analytics / Maker Analytics / Listings / Reviews / Applications / Custom Orders / Paid Orders tabs into `/components/admin/*` (file is at 1088 lines after iter30, target <700).
+- 🟡 **P11 — Apply Esc + focus-trap to remaining admin modals**: `digest-confirm-modal` and any future modals — extract a reusable `useModalA11y(onCancel)` hook so the pattern is one line per modal.
+- 🟡 **P12 — Audit-log tab** that surfaces `community_users.moderation_history` so any operator can see who Froze/Banned/Restored which user, with reason + timestamp (great for compliance + EUA enforcement).

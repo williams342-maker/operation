@@ -106,7 +106,7 @@ export default function MakerReviews({ makerSlug, makerName }) {
     try {
       await submitReview({
         name: form.name.trim(),
-        location: form.location.trim() || null,
+        location: form.location.trim(),
         rating: form.rating,
         text: form.text.trim(),
         maker_slug: makerSlug,
@@ -115,7 +115,11 @@ export default function MakerReviews({ makerSlug, makerName }) {
       setForm({ name: "", location: "", rating: 0, text: "" });
       await refresh();
     } catch (e2) {
-      setErr(e2?.response?.data?.detail || "Failed to submit review. Please try again.");
+      const d = e2?.response?.data?.detail;
+      const msg = typeof d === "string"
+        ? d
+        : (Array.isArray(d) && d[0]?.msg) || "Failed to submit review. Please try again.";
+      setErr(msg);
     } finally {
       setSubmitting(false);
     }
