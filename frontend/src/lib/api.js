@@ -117,6 +117,16 @@ export const fetchAdminMakerAnalytics = (slug) =>
   http.get(`/admin/maker-analytics/${slug}`, { headers: adminAuthHeaders() }).then((r) => r.data);
 export const fetchAdminCommunityUsers = () =>
   http.get("/admin/community-users", { headers: adminAuthHeaders() }).then((r) => r.data);
+export const fetchAdminModerationUsers = ({ q, status, limit = 100 } = {}) =>
+  http
+    .get("/admin/users", { params: { q, status, limit }, headers: adminAuthHeaders() })
+    .then((r) => r.data);
+export const adminModerateUser = (user_id, status, reason = "") =>
+  http
+    .post(`/admin/users/${user_id}/moderate`, { status, reason }, { headers: adminAuthHeaders() })
+    .then((r) => r.data);
+export const adminDeleteUser = (user_id) =>
+  http.delete(`/admin/users/${user_id}`, { headers: adminAuthHeaders() }).then((r) => r.data);
 export const adminPatchProduct = (slug, payload) =>
   http.patch(`/admin/products/${slug}`, payload, { headers: adminAuthHeaders() }).then((r) => r.data);
 export const adminDeleteProduct = (slug) =>

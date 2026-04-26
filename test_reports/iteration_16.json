@@ -1,0 +1,36 @@
+{
+  "summary": "Frontend-only validation of (1) Admin Moderation UI on /admin/dashboard Users tab (Freeze/Ban/Restore/Delete + modal/reason gating), (2) Forum category dropdown + ForumAttachmentPicker/AttachmentsList wiring on /community Forum tab, and (3) removal of legacy '5 free downloads' copy. All flows verified via Playwright on the public REACT_APP_BACKEND_URL. 10/10 admin moderation steps PASS, forum categories render correctly, no forbidden paywall copy anywhere on /community or Design Files tab, 0 console errors.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "AdminDashboard.jsx is now ~1400 lines — recommend splitting per-tab components into /components/admin/* (UsersTab, ListingsTab, ReviewsTab, etc.) for maintainability. Not blocking, but flagged per >700 LOC rule.",
+    "UserRow renders both 'Restore' and 'Ban' buttons for frozen users with the same data-testid pattern (user-ban-{id}) appearing twice in active+frozen branches; the duplicate is harmless because only one branch renders per status, but worth documenting.",
+    "Modal outside-click handler relies on click bubbling on the overlay div — works correctly; consider Esc-key support for accessibility (not blocking)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped per request)", "frontend": "100%"},
+  "test_credentials": "Admin JWT minted via maker_auth.issue_session_jwt('admin', OPS_EMAIL, role='admin') and stored in localStorage.cm_admin_jwt. Buyer JWT minted via issue_buyer_magic_token + /api/community/auth/magic/verify with eua_version='2026-04', stored in localStorage.cm_buyer_jwt. See /app/memory/test_credentials.md.",
+  "seed_data_creation": "Seeded 3 buyer users (t1-active@example.com, t2-active@example.com, t3-tofreeze@example.com) and 1 buyer (test-buyer-mod@example.com) by hitting /api/community/auth/magic/verify. t3-tofreeze was frozen→restored, t1-active was banned, t2-active was hard-deleted as part of testing. Existing seeded user 'modtest@example.com' remained banned from a prior run.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All admin user-moderation testids confirmed working: users-tab, users-search-input, users-filter-{all|active|frozen|banned}, users-refresh-btn, users-count, user-{id}, user-status-{id}, user-freeze-{id}, user-ban-{id}, user-restore-{id}, user-delete-{id}, user-mod-modal, user-mod-reason, user-mod-cancel, user-mod-confirm. Forum categories endpoint returns: General, Machine Help, Techniques, Finishing, Resources, Show & Tell. Forum testids: thread-new-form, thread-title, thread-category, thread-body, thread-submit, forum-thread-{uuid}. AttachmentsList renders only when a thread/reply has attachments — the forum currently has no threads with attachments, but the file <input> from ForumAttachmentPicker is present and reachable. To test attachment upload end-to-end, a test would need to submit a new thread with a small image and then assert the [data-testid=thread-{id}-attachment-list] element appears.",
+  "verified_flows": [
+    "Admin login bypass via cm_admin_jwt → /admin/dashboard loads",
+    "Users tab: 200 members rendered, search 'tofreeze' narrows to 1, status filter 'banned' narrows to 1 with badge='banned'",
+    "Freeze flow: confirm disabled until reason entered, '(required)' label shows, badge becomes 'frozen' after confirm, modal closes",
+    "Restore flow: no '(required)' label, confirm enabled immediately, badge becomes 'active'",
+    "Ban flow: reason gating works, badge becomes 'banned'",
+    "Modal Cancel button + outside-click both close modal without applying action",
+    "Delete flow: confirm enabled (no reason needed), DELETE call removes user from list",
+    "Forum thread-category dropdown shows 6 categories (General/Machine Help/Techniques/Finishing/Resources/Show & Tell)",
+    "ForumAttachmentPicker file <input> present on thread form",
+    "Zero occurrences of '5 free', 'free downloads', 'X/5', 'of 5 free', '5 free downloads' on /community or Design Files tab",
+    "Zero console errors during full flow"
+  ]
+}
