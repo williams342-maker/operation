@@ -225,7 +225,7 @@ class TestCheckoutTransferGroup:
             )
             return doc
 
-        doc = asyncio.get_event_loop().run_until_complete(_check())
+        doc = asyncio.run(_check())
         assert doc is not None, "tx doc not written"
         assert doc.get("transfer_group", "").startswith("order_"), doc
         client.close()
@@ -284,7 +284,7 @@ class TestTransferDeferredPath:
                 await db.payment_transactions.delete_many({"session_id": sid})
                 await db.maker_payouts.delete_many({"session_id": sid})
 
-        res, row = asyncio.get_event_loop().run_until_complete(_run())
+        res, row = asyncio.run(_run())
         client.close()
 
         assert res is not None and "skipped" not in res, res

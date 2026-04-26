@@ -180,7 +180,8 @@ async def transfer_to_makers_for_session(session_id: str) -> dict:
 
     Looks at db.payment_transactions[session_id], groups items by maker_slug,
     and for each maker with a ready Stripe account creates a Transfer with
-    `transfer_group=session_id`. Skips makers without a connected account
+    `transfer_group=tx['transfer_group']` (matches the PaymentIntent).
+    Skips makers without a connected account
     (their share remains on the platform balance for manual payout).
 
     Idempotency: stores `payouts.<session_id>.<maker_slug>` records and skips

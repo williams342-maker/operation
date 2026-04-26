@@ -46,17 +46,18 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 
 ## Test Status (2026-04-26)
 - iter6: AI memory bug + cart gift-note persistence — **fixed and verified**
-- iter7 (this run): Stripe Connect Express + regression sweep — **20/20 backend tests pass · frontend Payouts tab + state machine verified · transfer_group correctness fix applied per code review**
+- iter7: Stripe Connect Express + regression sweep — **20/20 backend tests pass**
+- iter9 (this run): 5 backlog follow-ups — **10/10 isolated · 140/140 full suite**
+  1. `account.updated` Connect webhook (`POST /api/webhook/stripe/connect`) syncs maker.stripe_* fields
+  2. Forum @mentions parity with chat (12s poll, ding sound, desktop notif, `data-testid='forum-reply-mentioned'`)
+  3. Admin refund flow (`POST /api/admin/orders/{sid}/refund`) — full reversal: refund Stripe charge + reverse all maker transfers + cancel deferred payouts. Idempotent via `idempotency_key`. Admin UI button on Paid Orders tab
+  4. E2E unlock flow validated: 5 free downloads → paywall → checkout pre-records pending unlock → webhook activation → unlimited downloads (paid_unlock_active=true)
+  5. Buyer Google OAuth backend wiring sanity (invalid session_id → 401, empty body → 422)
 
 ## Backlog
-- E2E validate the "$5 unlock after 5 downloads / 6 months" flow against a real Stripe paid session (logic exists; full happy-path replay pending).
-- Verify Emergent Google Auth flow for buyers (playbook generated; magic-link is currently primary).
-- Per-thread @mentions in forum (mirror chat behaviour) — tests-in-place for chat; forum has data-testid wiring but rendering not deeply verified.
-- Optional: `account.updated` Stripe webhook to auto-sync maker Connect status (today we sync on demand via `/maker/stripe/connect/status`).
-- Optional: refunds with `Transfer.create_reversal` when a buyer is refunded.
+- (Optional) Pause forum poll when `document.hidden=true`, resume on `visibilitychange` (perf)
+- (Optional) Per-maker analytics tab in admin
 
 ## Next Action Items
-- (Future) Stripe `account.updated` webhook handler for live status sync.
-- (Future) Refund path that reverses transfers proportionally.
-- (Future) Per-thread forum @mentions parity with chat.
-- (Future) Buyer Google OAuth verification.
+- (Future) Optional UI polish: pause forum thread polling when tab hidden
+- (Future) Verify Emergent Google OAuth happy-path with real Google session (current gating-only verified)
