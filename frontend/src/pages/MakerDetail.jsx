@@ -40,10 +40,25 @@ export default function MakerDetail() {
   return (
     <div className="pt-32 pb-24 grain min-h-screen" data-testid="maker-detail">
       <div className="relative h-[60vh] overflow-hidden border-b border-[#262626] mb-16 -mx-4 md:-mx-8 xl:-mx-12">
-        <img src={m.cover} alt={m.name} className="absolute inset-0 w-full h-full object-cover" />
+        <img
+          src={m.banner_image_url || m.cover}
+          alt={m.name}
+          className="absolute inset-0 w-full h-full object-cover"
+          data-testid="maker-detail-hero-image"
+        />
         <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-black/60 to-transparent" />
         <div className="absolute bottom-10 left-4 md:left-8 xl:left-12 right-4">
-          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-3">◆ Approved Maker</div>
+          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-3 flex items-center gap-3">
+            <span>◆ Approved Maker</span>
+            {m.subscription_status === "active" && (
+              <span
+                className="text-emerald-400 border border-emerald-400/40 px-2 py-0.5 text-[10px] uppercase tracking-[0.22em]"
+                data-testid="maker-plus-badge"
+              >
+                ★ Plus
+              </span>
+            )}
+          </div>
           <h1 className="font-display text-[64px] md:text-[120px] leading-[0.88]">{m.name}</h1>
           <div className="font-mono text-xs uppercase tracking-[0.22em] text-[#a3a3a3] mt-2">{m.location} · {m.listings_count} listings · ★ {m.rating}</div>
         </div>

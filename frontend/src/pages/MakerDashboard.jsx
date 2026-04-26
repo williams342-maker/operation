@@ -10,6 +10,8 @@ import {
   fetchMakerSubscription,
   startMakerSubscription,
   cancelMakerSubscription,
+  openMakerSubscriptionPortal,
+  uploadMakerBanner,
   stripeConnectOnboard,
   stripeConnectStatus,
   stripeConnectDashboardLink,
@@ -207,8 +209,33 @@ function ProfileForm({ maker, onSaved }) {
     email: maker.email || "",
   });
   const [status, setStatus] = useState({ kind: "idle", message: "" });
+  const [bannerUrl, setBannerUrl] = useState(maker.banner_image_url || "");
+  const [bannerBusy, setBannerBusy] = useState(false);
+  const [bannerErr, setBannerErr] = useState("");
+  const bannerRef = useRef(null);
+  const isPlus = maker.subscription_status === "active";
 
   const change = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const onBannerFile = async (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    if (!f.type.startsWith("image/")) {
+      setBannerErr("Banner must be an image."); return;
+    }
+    setBannerErr("");
+    setBannerBusy(true);
+    try {
+      const { url } = await uploadMakerBanner(f);
+      setBannerUrl(url);
+      onSaved({ ...maker, banner_image_url: url });
+    } catch (e2) {
+      setBannerErr(e2?.response?.data?.detail || "Upload failed.");
+    } finally {
+      setBannerBusy(false);
+      if (bannerRef.current) bannerRef.current.value = "";
+    }
+  };
 
   const submit = async (e) => {
     e.preventDefault();
@@ -269,6 +296,58 @@ function ProfileForm({ maker, onSaved }) {
         testId="profile-cover"
         wide
       />
+
+      {/* Plus-only: custom shop banner upload */}
+      <div className="md:col-span-2" data-testid="profile-banner-section">
+        <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2 flex items-center gap-2">
+          Custom shop banner
+          {!isPlus && (
+            <span className="text-[#ff4500] text-[10px]">★ Plus-only</span>
+          )}
+        </div>
+        {bannerUrl && (
+          <div className="aspect-[4/1] overflow-hidden border border-[#262626] mb-2 bg-[#121212]">
+            <img
+              src={bannerUrl}
+              alt="Shop banner"
+              className="w-full h-full object-cover"
+              data-testid="profile-banner-preview"
+            />
+          </div>
+        )}
+        <input
+          ref={bannerRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          onChange={onBannerFile}
+          disabled={!isPlus || bannerBusy}
+          className="hidden"
+          data-testid="profile-banner-file"
+        />
+        <button
+          type="button"
+          onClick={() => bannerRef.current?.click()}
+          disabled={!isPlus || bannerBusy}
+          className={`w-full border border-dashed px-4 py-3 text-left font-mono text-[11px] transition ${
+            isPlus
+              ? "border-[#262626] hover:border-[#ff4500] text-[#a3a3a3] hover:text-[#ff4500]"
+              : "border-[#1a1a1a] text-[#525252] cursor-not-allowed"
+          }`}
+          data-testid="profile-banner-upload"
+        >
+          {bannerBusy
+            ? "Uploading…"
+            : !isPlus
+            ? "Upgrade to Crafters Plus to unlock"
+            : bannerUrl
+            ? "↻ Replace banner"
+            : "+ Upload banner image (recommended 1600×400)"}
+        </button>
+        {bannerErr && (
+          <p className="font-mono text-[10px] text-red-400 mt-1" data-testid="profile-banner-err">{bannerErr}</p>
+        )}
+      </div>
+
       <label className="block md:col-span-2">
         <span className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3]">
           Bio
@@ -996,6 +1075,17 @@ function BillingTab() {
     }
   };
 
+  const onOpenPortal = async () => {
+    setBusy(true);
+    try {
+      const { url } = await openMakerSubscriptionPortal();
+      window.location.href = url;
+    } catch (e) {
+      setErr(e?.response?.data?.detail || "Could not open billing portal.");
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="space-y-10" data-testid="billing-tab">
       {/* Top KPIs */}
@@ -1056,14 +1146,24 @@ function BillingTab() {
             </div>
           </div>
           {isPlus ? (
-            <button
-              onClick={onCancel}
-              disabled={busy}
-              className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-red-400 border border-[#262626] px-4 py-2 disabled:opacity-50"
-              data-testid="billing-plus-cancel"
-            >
-              Cancel
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={onOpenPortal}
+                disabled={busy}
+                className="font-mono text-[11px] uppercase tracking-[0.22em] text-emerald-400 hover:text-emerald-300 border border-emerald-400/40 px-4 py-2 disabled:opacity-50"
+                data-testid="billing-plus-portal"
+              >
+                Manage billing ↗
+              </button>
+              <button
+                onClick={onCancel}
+                disabled={busy}
+                className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-red-400 border border-[#262626] px-4 py-2 disabled:opacity-50"
+                data-testid="billing-plus-cancel"
+              >
+                Cancel
+              </button>
+            </div>
           ) : (
             <button
               onClick={onUpgrade}

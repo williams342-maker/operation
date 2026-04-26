@@ -66,6 +66,15 @@ export const startMakerSubscription = () =>
   http.post("/maker/subscription/start", {}, { headers: authHeaders() }).then((r) => r.data);
 export const cancelMakerSubscription = () =>
   http.post("/maker/subscription/cancel", {}, { headers: authHeaders() }).then((r) => r.data);
+export const openMakerSubscriptionPortal = () =>
+  http.post("/maker/subscription/portal", {}, { headers: authHeaders() }).then((r) => r.data);
+export const uploadMakerBanner = (file) => {
+  const fd = new FormData();
+  fd.append("file", file);
+  return http.post("/maker/uploads/banner", fd, {
+    headers: { ...authHeaders(), "Content-Type": "multipart/form-data" },
+  }).then((r) => r.data);
+};
 export const updateMakerExternalAdsOptOut = (opt_out) =>
   http.patch("/maker/profile", { external_ads_opt_out: opt_out }, { headers: authHeaders() }).then((r) => r.data);
 export const updateMakerProfile = (payload) =>

@@ -401,6 +401,52 @@ async def maker_upload_model(
     return {"url": url, "size": len(body)}
 
 
+@router.post("/maker/uploads/banner")
+async def maker_upload_banner(
+    file: UploadFile = File(...),
+    slug: str = Depends(current_maker_slug),
+):
+    """Upload a custom shop banner (Plus subscribers only) to R2 and persist
+    the URL on the maker. Returns the new banner URL."""
+    try:
+        from r2_storage import is_configured as _r2_ok, upload_bytes, ALLOWED_CONTENT_TYPES
+    except Exception:
+        raise HTTPException(503, "R2 storage is not available.")
+    if not _r2_ok():
+        raise HTTPException(503, "R2 storage is not configured.")
+
+    m = await db.makers.find_one({"slug": slug}, {"_id": 0})
+    if not m:
+        raise HTTPException(404, "Maker not found.")
+    if m.get("subscription_status") != "active":
+        raise HTTPException(
+            403, "Custom shop banners are a Crafters Plus benefit. Upgrade to unlock.",
+        )
+
+    ct = (file.content_type or "").lower()
+    if ct not in ALLOWED_CONTENT_TYPES:
+        raise HTTPException(400, "Banner must be a PNG / JPG / WebP image.")
+    body = await file.read()
+    if len(body) == 0:
+        raise HTTPException(400, "Empty file.")
+
+    import uuid
+    ext = ALLOWED_CONTENT_TYPES[ct]
+    key = f"banners/{slug}/{uuid.uuid4().hex}.{ext}"
+    try:
+        url = upload_bytes(body, key, ct)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        logger.exception("banner upload failed for maker=%s: %s", slug, e)
+        raise HTTPException(502, "Could not upload banner.")
+
+    await db.makers.update_one(
+        {"slug": slug}, {"$set": {"banner_image_url": url}}
+    )
+    return {"url": url, "size": len(body)}
+
+
 # ---------------- Billing ledger ---------------------------------------------
 
 @router.get("/maker/billing")

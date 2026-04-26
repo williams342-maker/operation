@@ -164,6 +164,29 @@ async def cancel_subscription(slug: str = Depends(current_maker_slug)):
     }
 
 
+class PortalResp(BaseModel):
+    url: str
+
+
+@router.post("/maker/subscription/portal", response_model=PortalResp)
+async def customer_portal(request: Request, slug: str = Depends(current_maker_slug)):
+    """Stripe Customer Portal — lets the maker self-serve card updates,
+    invoices, payment-method changes, and cancellation. Returns a single-use
+    URL valid for ~30 minutes."""
+    if not STRIPE_API_KEY:
+        raise HTTPException(503, "Stripe is not configured.")
+    m = await db.makers.find_one({"slug": slug}, {"_id": 0})
+    if not m or not m.get("stripe_customer_id"):
+        raise HTTPException(400, "Subscribe first to manage billing.")
+    s = _stripe()
+    return_url = f"{public_host(request)}/maker/dashboard?tab=billing"
+    session = s.billing_portal.Session.create(
+        customer=m["stripe_customer_id"],
+        return_url=return_url,
+    )
+    return {"url": session.url}
+
+
 @router.get("/maker/subscription")
 async def get_subscription(slug: str = Depends(current_maker_slug)):
     m = await db.makers.find_one({"slug": slug}, {"_id": 0})
