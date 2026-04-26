@@ -62,17 +62,37 @@ frontend/src/pages/                      # 9 routed pages
 - 3D viewer for CNC pieces (currently using interactive 4-image gallery as proxy)
 - Stripe Connect for direct maker payouts (P2 — deferred until user enables Connect on Stripe dashboard)
 
-## What's Implemented (2026-04-25 — fork session, iteration 3)
-- ✅ **Stripe checkout polling fix** (iteration_1 P0).
-- ✅ **Resend transactional email layer** with verified domain `craftersmarket.org`.
-- ✅ **Maker Self-Serve Portal (magic-link)** — `/maker/login`, `/maker/verify`, `/maker/dashboard` with Profile/Listings/Orders tabs.
-- ✅ **Stripe webhook URL hardening** — `_public_host()` helper using `PUBLIC_BACKEND_URL`.
-- ✅ **SEO**: `GET /api/sitemap.xml` (auto-generated from products/makers/journal slugs), `GET /api/robots.txt`, JSON-LD `Product` schema on `/shop/:slug`, JSON-LD `Organization` schema on `/makers/:slug`, OG/Twitter meta tags via `useStructuredData` hook (`/app/frontend/src/lib/seo.js`).
-- ✅ **Shipping/tax engine**: `POST /api/cart/quote` (live preview), per-category flat rates (Wall Art $25 / Custom Signs $35 / Outdoor Art $55, highest-tier-wins), free shipping ≥ $250. Checkout creation rewritten to native `stripe` SDK with `line_items` + `shipping_options` + opt-in `automatic_tax` (graceful fallback if Stripe Tax not enabled). Cart page shows live shipping + free-shipping banner.
-- ✅ **Admin Console (magic-link, role-based JWT)**: `/admin/login`, `/admin/verify`, `/admin/dashboard`. Routes: `POST /api/admin/auth/request|verify`, `GET /api/admin/me|maker-applications|custom-orders|orders`, `PATCH /api/admin/maker-applications/{id}` (approve/reject with auto-email), `PATCH /api/admin/custom-orders/{id}` (quote with auto-email). Single admin = `OPS_EMAIL`. Bidirectional role enforcement (maker JWT → 403 on /admin/*, admin JWT → 403 on /maker/me). 23/23 backend + 16/16 frontend tests green.
+## What's Implemented (2026-04-25 — fork session, iteration 4)
+- ✅ All previous iterations (checkout fix, Resend emails, maker portal, SEO, shipping/tax, admin console).
+- ✅ **Backend refactor — `server.py` 954 → 44 lines.** Split into a clean module layout:
+  ```
+  /app/backend/
+    server.py        (44 lines · wire-up only)
+    core.py          (env, db, logger, public_host/site_root)
+    models.py        (all Pydantic models)
+    seed_data.py     (idempotent seed)
+    maker_auth.py    (magic-link + JWT helpers)
+    email_service.py (Resend templates)
+    routers/
+      __init__.py
+      catalog.py     (products, makers, reviews, blog, activity, custom-orders, maker-applications)
+      seo.py         (sitemap.xml, robots.txt)
+      checkout.py    (cart/quote, checkout/session, checkout/status, webhook, shipping helpers)
+      maker.py       (maker portal endpoints)
+      admin.py       (admin console endpoints)
+  ```
+- ✅ **Polish: audit trail + multi-admin.**
+  - `decided_by` (admin email) + `decided_at` recorded on every application approve/reject.
+  - `quoted_by` + `quoted_at` recorded on every custom-order quote.
+  - New env var `ADMIN_EMAILS` (comma-separated allow-list); falls back to legacy `OPS_EMAIL` if unset. No code change needed to add a second operator.
+- ✅ **Bonus fix found during refactor:** `checkout/status` now properly reads `getattr(sess, "status")` from the Stripe `Session` object (the previous `.get()` call silently raised `AttributeError`). Also added a guard so a stale Stripe session can never *downgrade* a record the webhook already marked paid.
+- ✅ Test suites updated; **52/52 pytest cases passing**.
+
+## Backlog
+- 3D viewer for CNC pieces (needs GLB assets)
+- Stripe Connect for direct maker payouts (P2 — deferred until Connect is enabled on Stripe dashboard)
 
 ## Next Action Items
-- (Future) Stripe Connect for direct maker payouts — requires Connect enabled on Stripe dashboard
-- (Future) split `server.py` (now 953 lines) into routers: `routers/seo.py`, `routers/checkout.py`, `routers/admin.py`
-- (Future) audit trail field `decided_by` on application decisions; comma-separated `ADMIN_EMAILS` list
+- Re-run full Playwright UI suite after the refactor (next iteration).
+- (Future) Stripe Connect for direct maker payouts
 - (Future) 3D viewer for CNC pieces (needs GLB assets)

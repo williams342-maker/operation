@@ -1,0 +1,279 @@
+"""Stripe checkout: cart quote, session creation, status polling, webhook handler."""
+import os
+import uuid
+from emergentintegrations.payments.stripe.checkout import StripeCheckout
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
+
+from core import STRIPE_API_KEY, db, logger, now_iso, public_host
+from email_service import (
+    send_buyer_receipt, send_maker_new_order, send_ops_new_order,
+)
+from models import ActivityEvent, CheckoutRequest
+
+router = APIRouter()
+
+# ---- Shipping config ----
+SHIPPING_BY_CATEGORY = {
+    "Wall Art": 25.0,
+    "Custom Signs": 35.0,
+    "Outdoor Art": 55.0,
+}
+DEFAULT_SHIPPING = 30.0
+FREE_SHIPPING_THRESHOLD = 250.0
+
+
+async def _resolve_cart(items: list) -> list[dict]:
+    """Resolve cart items to product docs + qty. Raises 400 on invalid items."""
+    out = []
+    for ci in items:
+        pid = ci.product_id if hasattr(ci, "product_id") else ci.get("product_id")
+        qty = ci.quantity if hasattr(ci, "quantity") else ci.get("quantity", 1)
+        prod = await db.products.find_one({"id": pid}, {"_id": 0})
+        if not prod:
+            prod = await db.products.find_one({"slug": pid}, {"_id": 0})
+        if not prod:
+            raise HTTPException(400, f"Invalid product: {pid}")
+        out.append({"product": prod, "quantity": max(1, int(qty))})
+    return out
+
+
+def _quote_for(resolved: list[dict]) -> dict:
+    subtotal = round(sum(r["product"]["price"] * r["quantity"] for r in resolved), 2)
+    if subtotal >= FREE_SHIPPING_THRESHOLD:
+        shipping = 0.0
+    else:
+        shipping = max(
+            (SHIPPING_BY_CATEGORY.get(r["product"]["category"], DEFAULT_SHIPPING)
+             for r in resolved),
+            default=DEFAULT_SHIPPING,
+        )
+    shipping = round(shipping, 2)
+    return {
+        "subtotal": subtotal,
+        "shipping": shipping,
+        "free_shipping_threshold": FREE_SHIPPING_THRESHOLD,
+        "free_shipping_eligible": subtotal >= FREE_SHIPPING_THRESHOLD,
+        "total_before_tax": round(subtotal + shipping, 2),
+    }
+
+
+@router.post("/cart/quote")
+async def cart_quote(req: CheckoutRequest):
+    if not req.items:
+        return {"subtotal": 0.0, "shipping": 0.0,
+                "free_shipping_threshold": FREE_SHIPPING_THRESHOLD,
+                "free_shipping_eligible": False, "total_before_tax": 0.0}
+    resolved = await _resolve_cart(req.items)
+    return _quote_for(resolved)
+
+
+@router.post("/checkout/session")
+async def create_checkout(req: CheckoutRequest, http_request: Request):
+    if not req.items:
+        raise HTTPException(400, "Cart is empty")
+    resolved = await _resolve_cart(req.items)
+    quote = _quote_for(resolved)
+    if quote["total_before_tax"] <= 0:
+        raise HTTPException(400, "Invalid total")
+
+    success_url = f"{req.origin_url}/checkout/success?session_id={{CHECKOUT_SESSION_ID}}"
+    cancel_url = f"{req.origin_url}/cart"
+
+    import stripe as stripe_sdk
+    stripe_sdk.api_key = STRIPE_API_KEY
+
+    line_items = []
+    for r in resolved:
+        p = r["product"]
+        line_items.append({
+            "price_data": {
+                "currency": "usd",
+                "product_data": {
+                    "name": p["title"],
+                    "description": (p.get("description") or "")[:300],
+                    "images": p.get("images", [])[:1],
+                },
+                "unit_amount": int(round(float(p["price"]) * 100)),
+            },
+            "quantity": r["quantity"],
+        })
+
+    if quote["shipping"] > 0:
+        shipping_options = [{
+            "shipping_rate_data": {
+                "display_name": "Standard shipping",
+                "type": "fixed_amount",
+                "fixed_amount": {
+                    "amount": int(round(quote["shipping"] * 100)),
+                    "currency": "usd",
+                },
+                "delivery_estimate": {
+                    "minimum": {"unit": "business_day", "value": 5},
+                    "maximum": {"unit": "business_day", "value": 10},
+                },
+            }
+        }]
+    else:
+        shipping_options = [{
+            "shipping_rate_data": {
+                "display_name": "Free shipping",
+                "type": "fixed_amount",
+                "fixed_amount": {"amount": 0, "currency": "usd"},
+                "delivery_estimate": {
+                    "minimum": {"unit": "business_day", "value": 5},
+                    "maximum": {"unit": "business_day", "value": 10},
+                },
+            }
+        }]
+
+    line_summary = " | ".join(f"{r['product']['title']} × {r['quantity']}" for r in resolved)
+
+    session_kwargs = {
+        "mode": "payment",
+        "payment_method_types": ["card"],
+        "line_items": line_items,
+        "shipping_options": shipping_options,
+        "shipping_address_collection": {"allowed_countries": ["US", "CA"]},
+        "success_url": success_url,
+        "cancel_url": cancel_url,
+        "metadata": {
+            "summary": line_summary[:480],
+            "customer_email": req.customer_email or "",
+        },
+    }
+    try_with_tax = os.environ.get("STRIPE_AUTOMATIC_TAX", "true").lower() == "true"
+    try:
+        if try_with_tax:
+            kwargs_tax = {**session_kwargs, "automatic_tax": {"enabled": True}}
+            if req.customer_email:
+                kwargs_tax["customer_email"] = req.customer_email
+            session = stripe_sdk.checkout.Session.create(**kwargs_tax)
+        else:
+            raise RuntimeError("automatic_tax disabled by env")
+    except Exception as e:  # pragma: no cover
+        logger.warning("automatic_tax not available, retrying without it: %s", e)
+        if req.customer_email:
+            session_kwargs["customer_email"] = req.customer_email
+        session = stripe_sdk.checkout.Session.create(**session_kwargs)
+
+    total = quote["total_before_tax"]
+    await db.payment_transactions.insert_one({
+        "id": str(uuid.uuid4()),
+        "session_id": session.id,
+        "amount": total,
+        "subtotal": quote["subtotal"],
+        "shipping": quote["shipping"],
+        "currency": "usd",
+        "items": [ci.model_dump() for ci in req.items],
+        "summary": line_summary,
+        "customer_email": req.customer_email,
+        "payment_status": "initiated",
+        "status": "open",
+        "created_at": now_iso(),
+    })
+    return {"url": session.url, "session_id": session.id, "amount": total,
+            "subtotal": quote["subtotal"], "shipping": quote["shipping"]}
+
+
+@router.get("/checkout/status/{session_id}")
+async def checkout_status(session_id: str, http_request: Request, bg: BackgroundTasks):
+    tx = await db.payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
+    fallback_amount = int(round(float(tx["amount"]) * 100)) if tx and tx.get("amount") else 0
+
+    # If our webhook already recorded this as paid, trust the DB — it's the
+    # authoritative record of payment. Stripe sessions can expire/return stale
+    # status long after the webhook fires.
+    if tx and tx.get("payment_status") == "paid":
+        return {
+            "status": tx.get("status", "complete"),
+            "payment_status": "paid",
+            "amount_total": fallback_amount,
+            "currency": tx.get("currency", "usd"),
+        }
+
+    try:
+        import stripe as stripe_sdk
+        stripe_sdk.api_key = STRIPE_API_KEY
+        sess = stripe_sdk.checkout.Session.retrieve(session_id)
+        result = {
+            "status": getattr(sess, "status", None) or "open",
+            "payment_status": getattr(sess, "payment_status", None) or "unpaid",
+            "amount_total": getattr(sess, "amount_total", None) or 0,
+            "currency": getattr(sess, "currency", None) or "usd",
+        }
+    except Exception as e:
+        logger.warning("status retrieve failed (%s) — using local fallback", e)
+        if not tx:
+            return {"status": "open", "payment_status": "unpaid", "amount_total": 0, "currency": "usd"}
+        result = {
+            "status": tx.get("status", "open"),
+            "payment_status": tx.get("payment_status", "unpaid"),
+            "amount_total": fallback_amount,
+            "currency": tx.get("currency", "usd"),
+        }
+
+    if tx and tx.get("payment_status") != result["payment_status"]:
+        # Never downgrade an already-paid record (webhook is authoritative);
+        # only persist transitions that move *toward* paid.
+        if tx.get("payment_status") == "paid" and result["payment_status"] != "paid":
+            return {
+                "status": tx.get("status", "complete"),
+                "payment_status": "paid",
+                "amount_total": fallback_amount,
+                "currency": tx.get("currency", "usd"),
+            }
+        await db.payment_transactions.update_one(
+            {"session_id": session_id},
+            {"$set": {"payment_status": result["payment_status"],
+                      "status": result["status"],
+                      "updated_at": now_iso()}}
+        )
+        if result["payment_status"] == "paid" and tx.get("payment_status") != "paid":
+            summary = tx.get("summary", "Order")
+            await db.activity_events.insert_one(
+                ActivityEvent(kind="sold",
+                              text=f"{summary} sold to a buyer",
+                              location="Crafters Market").model_dump()
+            )
+            email_items = []
+            by_maker: dict[str, list] = {}
+            for ci in tx.get("items", []):
+                p = await db.products.find_one({"id": ci["product_id"]}, {"_id": 0}) \
+                    or await db.products.find_one({"slug": ci["product_id"]}, {"_id": 0})
+                if not p:
+                    continue
+                line = {"title": p["title"], "price": p["price"], "quantity": ci.get("quantity", 1)}
+                email_items.append(line)
+                by_maker.setdefault(p["maker_slug"], []).append(line)
+            buyer = tx.get("customer_email")
+            total_amount = float(tx.get("amount", 0))
+            bg.add_task(send_ops_new_order, summary, total_amount, email_items, buyer)
+            if buyer:
+                bg.add_task(send_buyer_receipt, buyer, summary, total_amount, email_items)
+            for maker_slug, lines in by_maker.items():
+                m = await db.makers.find_one({"slug": maker_slug}, {"_id": 0})
+                if not m or not m.get("email"):
+                    continue
+                subtotal = sum(float(line["price"]) * int(line["quantity"]) for line in lines)
+                bg.add_task(send_maker_new_order,
+                            m["email"], m["name"], lines, subtotal, buyer)
+    return result
+
+
+@router.post("/webhook/stripe")
+async def stripe_webhook(request: Request):
+    body = await request.body()
+    sig = request.headers.get("Stripe-Signature", "")
+    host_url = public_host(request)
+    webhook_url = f"{host_url}/api/webhook/stripe"
+    stripe = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
+    try:
+        evt = await stripe.handle_webhook(body, sig)
+    except Exception as e:
+        logger.exception("webhook fail: %s", e)
+        return {"received": False}
+    await db.payment_transactions.update_one(
+        {"session_id": evt.session_id},
+        {"$set": {"payment_status": evt.payment_status, "updated_at": now_iso()}}
+    )
+    return {"received": True}

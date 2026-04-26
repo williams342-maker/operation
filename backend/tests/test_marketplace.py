@@ -68,7 +68,9 @@ def session_id(s):
     assert r.status_code == 200, r.text
     body = r.json()
     assert "url" in body and "session_id" in body
-    assert body["amount"] == 149.0
+    assert body["amount"] == 174.0  # 149 product + 25 Wall Art shipping
+    assert body["subtotal"] == 149.0
+    assert body["shipping"] == 25.0
     assert body["url"].startswith("https://")
     return body["session_id"]
 
