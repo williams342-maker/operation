@@ -7,7 +7,8 @@ export const fetchProducts = (params) => http.get("/products", { params }).then(
 export const fetchProduct = (slug) => http.get(`/products/${slug}`).then((r) => r.data);
 export const fetchMakers = () => http.get("/makers").then((r) => r.data);
 export const fetchMaker = (slug) => http.get(`/makers/${slug}`).then((r) => r.data);
-export const fetchReviews = () => http.get("/reviews").then((r) => r.data);
+export const fetchReviews = (params) => http.get("/reviews", { params }).then((r) => r.data);
+export const submitReview = (payload) => http.post("/reviews", payload).then((r) => r.data);
 export const fetchPosts = () => http.get("/blog").then((r) => r.data);
 export const fetchPost = (slug) => http.get(`/blog/${slug}`).then((r) => r.data);
 export const fetchActivity = (limit = 10) => http.get("/activity", { params: { limit } }).then((r) => r.data);
@@ -137,6 +138,10 @@ export const adminDeleteReview = (id) =>
   http.delete(`/admin/reviews/${id}`, { headers: adminAuthHeaders() }).then((r) => r.data);
 export const adminRefundOrder = (session_id) =>
   http.post(`/admin/orders/${session_id}/refund`, {}, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const adminRunPlusRoiDigest = (apply = false) =>
+  http
+    .post(`/admin/digests/plus-roi`, {}, { params: { apply }, headers: adminAuthHeaders() })
+    .then((r) => r.data);
 export const requestAdminLink = (email, origin_url) =>
   http.post("/admin/auth/request", { email, origin_url }).then((r) => r.data);
 export const verifyAdminToken = (token) =>
