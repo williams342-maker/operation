@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { fetchProduct, fetchMaker } from "../lib/api";
 import { useCart } from "../lib/cart";
+import { useStructuredData } from "../lib/seo";
 import { ArrowLeft } from "lucide-react";
 
 export default function ProductDetail() {
@@ -20,6 +21,32 @@ export default function ProductDetail() {
       if (prod?.maker_slug) setMaker(await fetchMaker(prod.maker_slug).catch(() => null));
     });
   }, [slug]);
+
+  useStructuredData(p ? {
+    title: `${p.title} · Crafters Market`,
+    description: p.description,
+    image: p.images?.[0],
+    url: `${window.location.origin}/shop/${p.slug}`,
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@type": "Product",
+      "name": p.title,
+      "description": p.description,
+      "image": p.images || [],
+      "category": p.category,
+      "sku": p.id,
+      "brand": maker ? { "@type": "Organization", "name": maker.name } : undefined,
+      "offers": {
+        "@type": "Offer",
+        "url": `${window.location.origin}/shop/${p.slug}`,
+        "priceCurrency": "USD",
+        "price": p.price,
+        "availability": p.in_stock > 0
+          ? "https://schema.org/InStock"
+          : "https://schema.org/OutOfStock",
+      },
+    },
+  } : { jsonLd: null });
 
   if (!p) return <div className="pt-40 text-center font-mono text-sm text-[#a3a3a3]">Loading…</div>;
 

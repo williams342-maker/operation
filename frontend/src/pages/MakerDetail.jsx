@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { fetchMaker, fetchProducts } from "../lib/api";
+import { useStructuredData } from "../lib/seo";
 import ProductCard from "../components/ProductCard";
 
 export default function MakerDetail() {
@@ -12,6 +13,27 @@ export default function MakerDetail() {
     fetchMaker(slug).then(setM);
     fetchProducts({ maker: slug }).then(setProducts);
   }, [slug]);
+
+  useStructuredData(m ? {
+    title: `${m.name} · Crafters Market`,
+    description: m.bio,
+    image: m.cover || m.portrait,
+    url: `${window.location.origin}/makers/${m.slug}`,
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": m.name,
+      "description": m.bio,
+      "image": m.portrait,
+      "url": `${window.location.origin}/makers/${m.slug}`,
+      "address": { "@type": "PostalAddress", "addressLocality": m.location },
+      "aggregateRating": {
+        "@type": "AggregateRating",
+        "ratingValue": m.rating,
+        "reviewCount": Math.max(m.listings_count, 1),
+      },
+    },
+  } : { jsonLd: null });
 
   if (!m) return <div className="pt-40 text-center font-mono text-sm text-[#a3a3a3]">Loading…</div>;
 

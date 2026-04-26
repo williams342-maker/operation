@@ -1,7 +1,7 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useCart } from "../lib/cart";
-import { createCheckout } from "../lib/api";
+import { createCheckout, fetchCartQuote } from "../lib/api";
 import { Trash2 } from "lucide-react";
 
 export default function CartPage() {
@@ -9,6 +9,17 @@ export default function CartPage() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
   const [email, setEmail] = useState("");
+  const [quote, setQuote] = useState(null);
+
+  // Live shipping/total quote (refreshes whenever cart changes)
+  useEffect(() => {
+    if (!items.length) { setQuote(null); return; }
+    let alive = true;
+    fetchCartQuote(items.map((i) => ({ product_id: i.id, quantity: i.quantity })))
+      .then((q) => { if (alive) setQuote(q); })
+      .catch(() => { if (alive) setQuote(null); });
+    return () => { alive = false; };
+  }, [items]);
 
   const checkout = async () => {
     if (!email || !/.+@.+\..+/.test(email)) {
@@ -26,6 +37,10 @@ export default function CartPage() {
       setErr("Checkout failed. Try again."); setLoading(false);
     }
   };
+
+  const shipping = quote?.shipping ?? null;
+  const total = quote?.total_before_tax ?? subtotal;
+  const remaining = quote ? Math.max(0, quote.free_shipping_threshold - quote.subtotal) : 0;
 
   return (
     <div className="pt-32 pb-24 grain min-h-screen" data-testid="cart-page">
@@ -66,14 +81,39 @@ export default function CartPage() {
             </ul>
             <aside className="lg:col-span-4 bg-[#121212] border border-[#262626] p-8 h-fit">
               <h2 className="font-display text-3xl mb-6">Summary</h2>
-              <div className="space-y-3 font-mono text-sm border-y border-[#262626] py-4 mb-6">
-                <Row k="Subtotal" v={`$${subtotal.toFixed(2)}`} />
-                <Row k="Shipping" v="Calculated by maker" />
-                <Row k="Tax" v="At checkout" />
+              <div className="space-y-3 font-mono text-sm border-y border-[#262626] py-4 mb-6" data-testid="cart-summary">
+                <Row k="Subtotal" v={`$${subtotal.toFixed(2)}`} testId="row-subtotal" />
+                <Row
+                  k="Shipping"
+                  v={
+                    shipping == null
+                      ? "—"
+                      : shipping === 0
+                      ? "Free"
+                      : `$${shipping.toFixed(2)}`
+                  }
+                  testId="row-shipping"
+                />
+                <Row k="Tax" v="At checkout" testId="row-tax" />
               </div>
+              {quote && remaining > 0 && (
+                <p
+                  className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mb-4"
+                  data-testid="free-shipping-banner"
+                >
+                  ◆ Add ${remaining.toFixed(2)} for free shipping
+                </p>
+              )}
+              {quote && quote.free_shipping_eligible && (
+                <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mb-4">
+                  ◆ Free shipping unlocked
+                </p>
+              )}
               <div className="flex justify-between items-baseline mb-6">
                 <span className="font-mono text-xs uppercase tracking-[0.22em] text-[#a3a3a3]">Total</span>
-                <span className="font-display text-4xl text-[#ff4500]">${subtotal.toFixed(2)}</span>
+                <span className="font-display text-4xl text-[#ff4500]" data-testid="cart-total">
+                  ${total.toFixed(2)}
+                </span>
               </div>
               <label className="block mb-4">
                 <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#a3a3a3]">Email for receipt</span>
@@ -96,8 +136,8 @@ export default function CartPage() {
   );
 }
 
-const Row = ({ k, v }) => (
-  <div className="flex justify-between text-[#a3a3a3]">
+const Row = ({ k, v, testId }) => (
+  <div className="flex justify-between text-[#a3a3a3]" data-testid={testId}>
     <span className="font-mono text-xs uppercase tracking-[0.22em]">{k}</span>
     <span className="text-[#e5e5e5]">{v}</span>
   </div>

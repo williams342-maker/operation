@@ -16,10 +16,12 @@ from email_service import (
     send_ops_new_application, send_ops_new_custom_order,
     send_buyer_custom_ack, send_maker_new_order,
     send_maker_magic_link,
+    send_admin_magic_link, send_application_decision, send_custom_order_quote,
 )
 from maker_auth import (
     issue_magic_token, verify_magic_token,
     issue_session_jwt, current_maker_slug,
+    issue_admin_magic_token, verify_admin_magic_token, current_admin,
 )
 from fastapi import Depends
 
@@ -394,25 +396,123 @@ async def list_activity(limit: int = 20):
     return await db.activity_events.find({}, {"_id": 0}).sort("created_at", -1).to_list(limit)
 
 
+# ---------- SEO: sitemap & robots ----------
+def _site_root(http_request: Request) -> str:
+    """Public site origin for canonical URLs in the sitemap."""
+    site = (os.environ.get("PUBLIC_SITE_URL") or PUBLIC_BACKEND_URL or "").rstrip("/")
+    if site:
+        return site
+    fwd_host = http_request.headers.get("x-forwarded-host")
+    fwd_proto = http_request.headers.get("x-forwarded-proto", "https")
+    if fwd_host:
+        return f"{fwd_proto}://{fwd_host}"
+    return str(http_request.base_url).rstrip("/")
+
+
+@api.get("/sitemap.xml")
+async def sitemap_xml(http_request: Request):
+    from fastapi.responses import Response
+    root = _site_root(http_request)
+    static_paths = ["/", "/shop", "/makers", "/custom-order", "/apply", "/journal"]
+    products = await db.products.find({}, {"_id": 0, "slug": 1, "created_at": 1}).to_list(2000)
+    makers = await db.makers.find({}, {"_id": 0, "slug": 1, "created_at": 1}).to_list(2000)
+    posts = await db.blog_posts.find({}, {"_id": 0, "slug": 1, "created_at": 1}).to_list(2000)
+
+    def _u(path: str, lastmod: str | None = None) -> str:
+        lm = f"<lastmod>{lastmod[:10]}</lastmod>" if lastmod else ""
+        return f"<url><loc>{root}{path}</loc>{lm}</url>"
+
+    urls = [_u(p) for p in static_paths]
+    urls += [_u(f"/shop/{p['slug']}", p.get("created_at")) for p in products]
+    urls += [_u(f"/makers/{m['slug']}", m.get("created_at")) for m in makers]
+    urls += [_u(f"/journal/{b['slug']}", b.get("created_at")) for b in posts]
+    xml = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+        + "".join(urls) + "</urlset>"
+    )
+    return Response(content=xml, media_type="application/xml")
+
+
+@api.get("/robots.txt")
+async def robots_txt(http_request: Request):
+    from fastapi.responses import PlainTextResponse
+    root = _site_root(http_request)
+    body = (
+        "User-agent: *\n"
+        "Allow: /\n"
+        "Disallow: /maker/\n"
+        "Disallow: /admin/\n"
+        "Disallow: /checkout/\n"
+        f"Sitemap: {root}/api/sitemap.xml\n"
+    )
+    return PlainTextResponse(body)
+
+
+# ---------- Shipping helper ----------
+SHIPPING_BY_CATEGORY = {
+    "Wall Art": 25.0,
+    "Custom Signs": 35.0,
+    "Outdoor Art": 55.0,
+}
+DEFAULT_SHIPPING = 30.0
+FREE_SHIPPING_THRESHOLD = 250.0
+
+
+async def _resolve_cart(items: list) -> list[dict]:
+    """Resolve cart items to product docs + qty. Raises 400 on invalid items."""
+    out = []
+    for ci in items:
+        pid = ci.product_id if hasattr(ci, "product_id") else ci.get("product_id")
+        qty = ci.quantity if hasattr(ci, "quantity") else ci.get("quantity", 1)
+        prod = await db.products.find_one({"id": pid}, {"_id": 0})
+        if not prod:
+            prod = await db.products.find_one({"slug": pid}, {"_id": 0})
+        if not prod:
+            raise HTTPException(400, f"Invalid product: {pid}")
+        out.append({"product": prod, "quantity": max(1, int(qty))})
+    return out
+
+
+def _quote_for(resolved: list[dict]) -> dict:
+    subtotal = round(sum(r["product"]["price"] * r["quantity"] for r in resolved), 2)
+    if subtotal >= FREE_SHIPPING_THRESHOLD:
+        shipping = 0.0
+    else:
+        # use the highest shipping tier present in the cart (don't multiply by qty)
+        shipping = max(
+            (SHIPPING_BY_CATEGORY.get(r["product"]["category"], DEFAULT_SHIPPING)
+             for r in resolved),
+            default=DEFAULT_SHIPPING,
+        )
+    shipping = round(shipping, 2)
+    return {
+        "subtotal": subtotal,
+        "shipping": shipping,
+        "free_shipping_threshold": FREE_SHIPPING_THRESHOLD,
+        "free_shipping_eligible": subtotal >= FREE_SHIPPING_THRESHOLD,
+        "total_before_tax": round(subtotal + shipping, 2),
+    }
+
+
+@api.post("/cart/quote")
+async def cart_quote(req: CheckoutRequest):
+    if not req.items:
+        return {"subtotal": 0.0, "shipping": 0.0,
+                "free_shipping_threshold": FREE_SHIPPING_THRESHOLD,
+                "free_shipping_eligible": False, "total_before_tax": 0.0}
+    resolved = await _resolve_cart(req.items)
+    return _quote_for(resolved)
+
+
 # ---------- Stripe Checkout ----------
 @api.post("/checkout/session")
 async def create_checkout(req: CheckoutRequest, http_request: Request):
     if not req.items:
         raise HTTPException(400, "Cart is empty")
-    # Compute total server-side from product prices
-    total = 0.0
-    line_summary = []
-    for ci in req.items:
-        prod = await db.products.find_one({"id": ci.product_id}, {"_id": 0})
-        if not prod:
-            prod = await db.products.find_one({"slug": ci.product_id}, {"_id": 0})
-        if not prod:
-            raise HTTPException(400, f"Invalid product: {ci.product_id}")
-        qty = max(1, int(ci.quantity))
-        total += float(prod["price"]) * qty
-        line_summary.append(f"{prod['title']} × {qty}")
-    total = round(total, 2)
-    if total <= 0:
+    resolved = await _resolve_cart(req.items)
+    quote = _quote_for(resolved)
+    if quote["total_before_tax"] <= 0:
         raise HTTPException(400, "Invalid total")
 
     host_url = _public_host(http_request)
@@ -420,27 +520,103 @@ async def create_checkout(req: CheckoutRequest, http_request: Request):
     success_url = f"{req.origin_url}/checkout/success?session_id={{CHECKOUT_SESSION_ID}}"
     cancel_url = f"{req.origin_url}/cart"
 
-    stripe = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
-    cs_req = CheckoutSessionRequest(
-        amount=total, currency="usd",
-        success_url=success_url, cancel_url=cancel_url,
-        metadata={"summary": " | ".join(line_summary)[:480],
-                  "customer_email": req.customer_email or ""},
-    )
-    session = await stripe.create_checkout_session(cs_req)
+    # Build proper Stripe line items + shipping option using the native SDK
+    import stripe as stripe_sdk
+    stripe_sdk.api_key = STRIPE_API_KEY
 
+    line_items = []
+    for r in resolved:
+        p = r["product"]
+        line_items.append({
+            "price_data": {
+                "currency": "usd",
+                "product_data": {
+                    "name": p["title"],
+                    "description": (p.get("description") or "")[:300],
+                    "images": p.get("images", [])[:1],
+                },
+                "unit_amount": int(round(float(p["price"]) * 100)),
+            },
+            "quantity": r["quantity"],
+        })
+
+    shipping_options = []
+    if quote["shipping"] > 0:
+        shipping_options.append({
+            "shipping_rate_data": {
+                "display_name": "Standard shipping",
+                "type": "fixed_amount",
+                "fixed_amount": {
+                    "amount": int(round(quote["shipping"] * 100)),
+                    "currency": "usd",
+                },
+                "delivery_estimate": {
+                    "minimum": {"unit": "business_day", "value": 5},
+                    "maximum": {"unit": "business_day", "value": 10},
+                },
+            }
+        })
+    else:
+        shipping_options.append({
+            "shipping_rate_data": {
+                "display_name": "Free shipping",
+                "type": "fixed_amount",
+                "fixed_amount": {"amount": 0, "currency": "usd"},
+                "delivery_estimate": {
+                    "minimum": {"unit": "business_day", "value": 5},
+                    "maximum": {"unit": "business_day", "value": 10},
+                },
+            }
+        })
+
+    line_summary = " | ".join(f"{r['product']['title']} × {r['quantity']}" for r in resolved)
+
+    session_kwargs = {
+        "mode": "payment",
+        "payment_method_types": ["card"],
+        "line_items": line_items,
+        "shipping_options": shipping_options,
+        "shipping_address_collection": {"allowed_countries": ["US", "CA"]},
+        "success_url": success_url,
+        "cancel_url": cancel_url,
+        "metadata": {
+            "summary": line_summary[:480],
+            "customer_email": req.customer_email or "",
+        },
+    }
+    # Stripe Tax: enable if account is configured for it; gracefully fall back if not.
+    try_with_tax = os.environ.get("STRIPE_AUTOMATIC_TAX", "true").lower() == "true"
+    try:
+        if try_with_tax:
+            session_kwargs_tax = {**session_kwargs, "automatic_tax": {"enabled": True}}
+            if req.customer_email:
+                session_kwargs_tax["customer_email"] = req.customer_email
+            session = stripe_sdk.checkout.Session.create(**session_kwargs_tax)
+        else:
+            raise RuntimeError("automatic_tax disabled by env")
+    except Exception as e:  # pragma: no cover
+        logger.warning("automatic_tax not available, retrying without it: %s", e)
+        if req.customer_email:
+            session_kwargs["customer_email"] = req.customer_email
+        session = stripe_sdk.checkout.Session.create(**session_kwargs)
+
+    total = quote["total_before_tax"]
     await db.payment_transactions.insert_one({
         "id": str(uuid.uuid4()),
-        "session_id": session.session_id,
-        "amount": total, "currency": "usd",
+        "session_id": session.id,
+        "amount": total,
+        "subtotal": quote["subtotal"],
+        "shipping": quote["shipping"],
+        "currency": "usd",
         "items": [ci.model_dump() for ci in req.items],
-        "summary": " | ".join(line_summary),
+        "summary": line_summary,
         "customer_email": req.customer_email,
         "payment_status": "initiated",
         "status": "open",
         "created_at": now_iso(),
     })
-    return {"url": session.url, "session_id": session.session_id, "amount": total}
+    return {"url": session.url, "session_id": session.id, "amount": total,
+            "subtotal": quote["subtotal"], "shipping": quote["shipping"]}
 
 
 @api.get("/checkout/status/{session_id}")
@@ -645,6 +821,121 @@ async def maker_orders(slug: str = Depends(current_maker_slug)):
             "maker_subtotal": round(sum(l["subtotal"] for l in my_lines), 2),
         })
     return out
+
+
+# ---------- Admin Console (magic-link, single admin via OPS_EMAIL) ----------
+ADMIN_EMAIL = (os.environ.get("OPS_EMAIL") or "").lower().strip()
+
+
+class AdminLoginRequest(BaseModel):
+    email: EmailStr
+    origin_url: str
+
+
+class AdminVerifyRequest(BaseModel):
+    token: str
+
+
+class ApplicationDecision(BaseModel):
+    approved: bool
+    note: Optional[str] = ""
+
+
+class CustomOrderQuote(BaseModel):
+    quote: float
+    message: Optional[str] = ""
+
+
+@api.post("/admin/auth/request")
+async def admin_auth_request(payload: AdminLoginRequest, bg: BackgroundTasks):
+    """Issue an admin magic link only if the requested email matches OPS_EMAIL."""
+    email = payload.email.lower().strip()
+    if ADMIN_EMAIL and email == ADMIN_EMAIL:
+        token = issue_admin_magic_token(email)
+        link = f"{payload.origin_url.rstrip('/')}/admin/verify?token={token}"
+        bg.add_task(send_admin_magic_link, email, link)
+        logger.info("admin magic link issued")
+    else:
+        logger.info("admin link requested for non-admin email=%s (silent)", email)
+    return {"sent": True, "message": "If that email is the operator on file, a sign-in link is on its way."}
+
+
+@api.post("/admin/auth/verify")
+async def admin_auth_verify(payload: AdminVerifyRequest):
+    email = verify_admin_magic_token(payload.token)
+    if not ADMIN_EMAIL or email != ADMIN_EMAIL:
+        raise HTTPException(403, "Not an admin email.")
+    jwt_token = issue_session_jwt("admin", email, role="admin")
+    return {"token": jwt_token, "email": email}
+
+
+@api.get("/admin/me")
+async def admin_me(claims: dict = Depends(current_admin)):
+    return {"email": claims["email"], "role": claims["role"]}
+
+
+@api.get("/admin/maker-applications")
+async def admin_maker_applications(_: dict = Depends(current_admin)):
+    return await db.maker_applications.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
+
+
+@api.get("/admin/custom-orders")
+async def admin_custom_orders(_: dict = Depends(current_admin)):
+    return await db.custom_orders.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
+
+
+@api.get("/admin/orders")
+async def admin_orders(_: dict = Depends(current_admin)):
+    """All paid orders, newest first."""
+    return await db.payment_transactions.find(
+        {"payment_status": "paid"}, {"_id": 0}
+    ).sort("created_at", -1).to_list(500)
+
+
+@api.patch("/admin/maker-applications/{app_id}")
+async def admin_decide_application(
+    app_id: str, body: ApplicationDecision, bg: BackgroundTasks,
+    _: dict = Depends(current_admin),
+):
+    appn = await db.maker_applications.find_one({"id": app_id}, {"_id": 0})
+    if not appn:
+        raise HTTPException(404, "Application not found")
+    new_status = "approved" if body.approved else "rejected"
+    await db.maker_applications.update_one(
+        {"id": app_id},
+        {"$set": {"status": new_status, "note": body.note, "decided_at": now_iso()}},
+    )
+    bg.add_task(
+        send_application_decision,
+        appn["email"], appn["name"], appn["studio_name"], body.approved, body.note or "",
+    )
+    appn["status"] = new_status
+    appn["note"] = body.note
+    appn["decided_at"] = now_iso()
+    return appn
+
+
+@api.patch("/admin/custom-orders/{order_id}")
+async def admin_quote_custom_order(
+    order_id: str, body: CustomOrderQuote, bg: BackgroundTasks,
+    _: dict = Depends(current_admin),
+):
+    order = await db.custom_orders.find_one({"id": order_id}, {"_id": 0})
+    if not order:
+        raise HTTPException(404, "Custom order not found")
+    await db.custom_orders.update_one(
+        {"id": order_id},
+        {"$set": {"status": "quoted", "quote": body.quote, "quote_note": body.message,
+                  "quoted_at": now_iso()}},
+    )
+    bg.add_task(
+        send_custom_order_quote,
+        order["email"], order["name"], order["project_type"], body.quote, body.message or "",
+    )
+    order["status"] = "quoted"
+    order["quote"] = body.quote
+    order["quote_note"] = body.message
+    return order
 
 
 # ---------- Wire up ----------

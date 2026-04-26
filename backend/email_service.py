@@ -144,3 +144,77 @@ async def send_maker_magic_link(maker_email: str, maker_name: str, link: str):
     )
     html = _shell("Sign In Link.", "Your maker portal is one click away.", body, "Maker portal · sign in")
     return await _send(maker_email, "Your Crafters Market sign-in link", html)
+
+
+async def send_admin_magic_link(admin_email: str, link: str):
+    if not admin_email:
+        return None
+    body = (
+        "<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 24px'>"
+        "Click below to open the admin console. Good for 15 minutes, works once.</p>"
+        f"<a href='{link}' style='display:inline-block;background:#ff4500;color:#0a0a0a;"
+        "padding:16px 28px;font-family:Impact,Arial Black,sans-serif;font-size:14px;letter-spacing:0.18em;"
+        f"text-transform:uppercase;text-decoration:none;border:1px solid #ff4500'>Open Admin Console →</a>"
+        "<p style='font-size:11px;color:#525252;letter-spacing:0.18em;text-transform:uppercase;"
+        f"margin:28px 0 0'>Or paste this URL</p><p style='font-size:12px;color:#a3a3a3;word-break:break-all'>"
+        f"<a href='{link}' style='color:#ff4500'>{link}</a></p>"
+        "<p style='font-size:12px;color:#525252;margin-top:24px;line-height:1.6'>"
+        "If you didn't request this, ignore the email — no action is needed.</p>"
+    )
+    html = _shell("Admin Sign In.", "One-tap access to the operations console.", body, "Admin console")
+    return await _send(admin_email, "Crafters Market admin sign-in link", html)
+
+
+async def send_application_decision(applicant_email: str, name: str, studio: str,
+                                    approved: bool, note: str = ""):
+    title = "You're In." if approved else "Application Update."
+    intro = (
+        f"Hi {name}, your studio {studio} has been approved for Crafters Market."
+        if approved
+        else f"Hi {name}, thanks for applying with {studio}. We're not moving forward right now."
+    )
+    blurb_yes = (
+        "Welcome to the workshop. We'll follow up with onboarding details "
+        "(sign-in email, listings template, payouts) within 24 hours."
+    )
+    blurb_no = (
+        "We saw something interesting but the fit isn't quite there today. "
+        "We keep notes — feel free to reapply once your portfolio grows."
+    )
+    blurb = blurb_yes if approved else blurb_no
+    body = f"<p style='font-size:14px;color:#e5e5e5;line-height:1.6'>{blurb}</p>"
+    if note:
+        body += (
+            f"<p style='font-size:13px;color:#a3a3a3;line-height:1.6;margin-top:18px;"
+            f"border-left:2px solid #ff4500;padding-left:14px'>{note}</p>"
+        )
+    html = _shell(title, intro, body, "Maker program")
+    subject = (
+        f"Welcome to Crafters Market, {studio}"
+        if approved
+        else f"Crafters Market application update — {studio}"
+    )
+    return await _send(applicant_email, subject, html)
+
+
+async def send_custom_order_quote(buyer_email: str, name: str, project_type: str,
+                                  quote: float, message: str = ""):
+    body = (
+        "<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 16px'>"
+        f"Hi {name}, here's the quote for your <b style='color:#ff4500'>{project_type}</b> brief.</p>"
+        "<div style='border-top:1px solid #262626;border-bottom:1px solid #262626;padding:18px 0;margin:18px 0'>"
+        "<div style='font-family:JetBrains Mono,monospace;font-size:11px;letter-spacing:0.22em;"
+        "text-transform:uppercase;color:#a3a3a3'>Estimated total</div>"
+        f"<div style='font-family:Impact,sans-serif;font-size:44px;color:#ff4500;line-height:1;margin-top:8px'>${quote:.2f}</div>"
+        "</div>"
+    )
+    if message:
+        body += (
+            f"<p style='font-size:13px;color:#a3a3a3;line-height:1.6;margin-top:8px'>{message}</p>"
+        )
+    body += (
+        "<p style='font-size:12px;color:#525252;line-height:1.6;margin-top:18px'>"
+        "Reply to this email to confirm or adjust the brief. We'll send a Stripe invoice once you're happy.</p>"
+    )
+    html = _shell("Your Quote.", "A maker just priced your brief.", body, "Custom queue")
+    return await _send(buyer_email, f"Your Crafters Market quote · {project_type}", html)
