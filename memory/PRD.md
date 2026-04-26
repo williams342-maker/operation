@@ -60,22 +60,19 @@ frontend/src/pages/                      # 9 routed pages
 
 ## Backlog
 - 3D viewer for CNC pieces (currently using interactive 4-image gallery as proxy)
-- Admin dashboard (review custom orders + maker applications)
-- Real shipping calculator + tax engine in checkout
-- SEO sitemap + structured data
-- Stripe Connect for direct maker payouts (P2)
+- Stripe Connect for direct maker payouts (P2 — deferred until user enables Connect on Stripe dashboard)
 
-## What's Implemented (2026-04-25 — fork session)
-- ✅ **Stripe checkout polling fix:** `/api/checkout/status/:session_id` now uses the native `stripe` SDK (`stripe.checkout.Session.retrieve`) bypassing the buggy `emergentintegrations` Pydantic wrapper. PAID session anchor verified end-to-end.
-- ✅ **Resend transactional email layer:** verified domain `craftersmarket.org`, helpers for buyer receipt, ops alert, custom-order ack, maker application alert, and per-maker order alerts (`/app/backend/email_service.py`).
-- ✅ **Maker Self-Serve Portal (magic-link auth):**
-  - Backend: `maker_auth.py` (itsdangerous magic token, 15 min · PyJWT HS256 session, 7 d). Routes: `POST /api/maker/auth/request`, `POST /api/maker/auth/verify`, `GET /api/maker/me`, `GET /api/maker/products`, `GET /api/maker/orders`, `PATCH /api/maker/profile`. Cross-maker isolation enforced.
-  - Frontend: `/maker/login`, `/maker/verify`, `/maker/dashboard` (Profile / Listings / Orders tabs). JWT stored in `localStorage.cm_maker_jwt`. Footer "Maker Login" link wired up.
-  - 18/18 backend pytest cases pass · 11/11 Playwright UI flows pass (iteration_2).
-- ✅ **Stripe webhook URL hardening:** new env var `PUBLIC_BACKEND_URL` (set to `REACT_APP_BACKEND_URL` value); helper `_public_host()` prefers it, falls back to `X-Forwarded-Host`/`X-Forwarded-Proto`, then internal `request.base_url`. All three webhook-URL build sites in `server.py` now use it.
+## What's Implemented (2026-04-25 — fork session, iteration 3)
+- ✅ **Stripe checkout polling fix** (iteration_1 P0).
+- ✅ **Resend transactional email layer** with verified domain `craftersmarket.org`.
+- ✅ **Maker Self-Serve Portal (magic-link)** — `/maker/login`, `/maker/verify`, `/maker/dashboard` with Profile/Listings/Orders tabs.
+- ✅ **Stripe webhook URL hardening** — `_public_host()` helper using `PUBLIC_BACKEND_URL`.
+- ✅ **SEO**: `GET /api/sitemap.xml` (auto-generated from products/makers/journal slugs), `GET /api/robots.txt`, JSON-LD `Product` schema on `/shop/:slug`, JSON-LD `Organization` schema on `/makers/:slug`, OG/Twitter meta tags via `useStructuredData` hook (`/app/frontend/src/lib/seo.js`).
+- ✅ **Shipping/tax engine**: `POST /api/cart/quote` (live preview), per-category flat rates (Wall Art $25 / Custom Signs $35 / Outdoor Art $55, highest-tier-wins), free shipping ≥ $250. Checkout creation rewritten to native `stripe` SDK with `line_items` + `shipping_options` + opt-in `automatic_tax` (graceful fallback if Stripe Tax not enabled). Cart page shows live shipping + free-shipping banner.
+- ✅ **Admin Console (magic-link, role-based JWT)**: `/admin/login`, `/admin/verify`, `/admin/dashboard`. Routes: `POST /api/admin/auth/request|verify`, `GET /api/admin/me|maker-applications|custom-orders|orders`, `PATCH /api/admin/maker-applications/{id}` (approve/reject with auto-email), `PATCH /api/admin/custom-orders/{id}` (quote with auto-email). Single admin = `OPS_EMAIL`. Bidirectional role enforcement (maker JWT → 403 on /admin/*, admin JWT → 403 on /maker/me). 23/23 backend + 16/16 frontend tests green.
 
 ## Next Action Items
-- (Future) Stripe Connect for direct maker payouts
-- (Future) Admin dashboard for reviewing custom-orders + maker applications
-- (Future) SEO sitemap + JSON-LD structured data
-- (Future) Shipping/tax engine
+- (Future) Stripe Connect for direct maker payouts — requires Connect enabled on Stripe dashboard
+- (Future) split `server.py` (now 953 lines) into routers: `routers/seo.py`, `routers/checkout.py`, `routers/admin.py`
+- (Future) audit trail field `decided_by` on application decisions; comma-separated `ADMIN_EMAILS` list
+- (Future) 3D viewer for CNC pieces (needs GLB assets)
