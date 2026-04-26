@@ -241,6 +241,7 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 
 ## Next Action Items
 - 🟢 **P7 — Real off-site ad spend** (Google Ads / Meta Marketing API integration) — needs user-supplied API credentials.
-- 🟡 **P10 — Continue AdminDashboard refactor**: split Analytics / Web Analytics / Maker Analytics / Listings / Reviews / Applications / Custom Orders / Paid Orders tabs into `/components/admin/*` (file is at 1088 lines after iter30, target <700).
-- 🟡 **P11 — Apply Esc + focus-trap to remaining admin modals**: `digest-confirm-modal` and any future modals — extract a reusable `useModalA11y(onCancel)` hook so the pattern is one line per modal.
-- 🟡 **P12 — Audit-log tab** that surfaces `community_users.moderation_history` so any operator can see who Froze/Banned/Restored which user, with reason + timestamp (great for compliance + EUA enforcement).
+- 🟡 **P10 — Continue AdminDashboard refactor**: split Analytics / Web / Maker / Listings / Reviews / Applications / Custom / Orders tabs into `/components/admin/*` (file is at 1092 lines after iter30, target <700).
+- 🟡 **P11 — Apply Esc + focus-trap to remaining admin modals** + extract reusable `useModalA11y(onCancel)` hook.
+- 🟡 **P12 — Audit-log tab** for `community_users.moderation_history`.
+- 🟡 **P13 — Migrate ISO-string chat-cleanup comparison to parsed datetimes** (currently relies on consistent ISO-8601 format; see iter18 reviewer note).
