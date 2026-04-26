@@ -18,6 +18,7 @@ class Product(BaseModel):
     materials: List[str] = []
     dimensions: Optional[str] = None
     images: List[str] = []
+    model_url: Optional[str] = None   # 3D viewer (.glb / .gltf URL); optional
     maker_slug: str
     in_stock: int = 4
     featured: bool = False

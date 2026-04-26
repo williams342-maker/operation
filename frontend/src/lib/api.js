@@ -78,6 +78,16 @@ export const communityVerifyMagic = (token) =>
 export const communityMe = () =>
   http.get("/community/me", { headers: buyerAuthHeaders() }).then((r) => r.data);
 
+export const uploadAvatar = (file) => {
+  const fd = new FormData();
+  fd.append("file", file);
+  return http
+    .post("/community/me/avatar", fd, {
+      headers: { ...buyerAuthHeaders(), "Content-Type": "multipart/form-data" },
+    })
+    .then((r) => r.data);
+};
+
 export const fetchShowcase = () => http.get("/community/showcase").then((r) => r.data);
 export const createShowcase = (payload) =>
   http.post("/community/showcase", payload, { headers: buyerAuthHeaders() }).then((r) => r.data);

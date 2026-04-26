@@ -7,7 +7,7 @@ import {
   fetchDesignFiles, downloadDesignFile, unlockDownloadsCheckout, uploadDesignFile,
   fetchForumThreads, fetchForumThread, createForumThread, replyForumThread,
   fetchChatHistory, wsChatUrl,
-  communityMe,
+  communityMe, uploadAvatar,
 } from "../lib/api";
 
 const TABS = [
@@ -59,9 +59,7 @@ export default function CommunityPage() {
           </div>
           {me ? (
             <div className="flex items-center gap-3">
-              {me.picture ? (
-                <img src={me.picture} alt="" className="w-9 h-9 rounded-full border border-[#262626]" />
-              ) : null}
+              <AvatarPicker me={me} setMe={setMe} />
               <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
                 Signed in as<br /><span className="text-[#e5e5e5]">{me.email}</span>
               </div>
@@ -104,6 +102,64 @@ export default function CommunityPage() {
         {tab === "forum" && <ForumTab me={me} />}
         {tab === "chat" && <ChatTab me={me} />}
       </div>
+    </div>
+  );
+}
+
+// ===================== AVATAR PICKER =====================
+function AvatarPicker({ me, setMe }) {
+  const ref = useRef(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const onPick = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 1_500_000) {
+      setErr("Max 1.5MB");
+      setTimeout(() => setErr(""), 2400);
+      return;
+    }
+    setBusy(true); setErr("");
+    try {
+      const r = await uploadAvatar(file);
+      setMe({ ...me, picture: r.picture });
+    } catch (e2) {
+      setErr(e2?.response?.data?.detail || "Upload failed");
+      setTimeout(() => setErr(""), 2400);
+    } finally {
+      setBusy(false);
+      if (ref.current) ref.current.value = "";
+    }
+  };
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => ref.current?.click()}
+        disabled={busy}
+        className="w-10 h-10 rounded-full border border-[#262626] hover:border-[#ff4500] overflow-hidden flex items-center justify-center bg-[#121212]"
+        data-testid="avatar-upload-btn"
+        title="Click to upload an avatar"
+      >
+        {me.picture ? (
+          <img src={me.picture} alt="" className="w-full h-full object-cover" />
+        ) : (
+          <span className="font-mono text-[10px] uppercase text-[#a3a3a3]">
+            {(me.name || me.email)[0]?.toUpperCase() || "?"}
+          </span>
+        )}
+      </button>
+      <input
+        ref={ref}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        onChange={onPick}
+        className="hidden"
+        data-testid="avatar-upload-input"
+      />
+      {err && (
+        <span className="absolute -bottom-5 right-0 font-mono text-[10px] text-red-400 whitespace-nowrap">{err}</span>
+      )}
     </div>
   );
 }
@@ -433,36 +489,101 @@ function ThreadDetail({ id, me, onBack }) {
   );
 }
 
-// ===================== LIVE CHAT =====================
+// ===================== LIVE CHAT (AIM-style) =====================
 function ChatTab({ me }) {
   const [channel, setChannel] = useState("general");
-  const [messages, setMessages] = useState([]);
+  const [messagesByCh, setMessagesByCh] = useState({}); // { channel: [msgs] }
+  const [buddiesByCh, setBuddiesByCh] = useState({});   // { channel: [users] }
+  const [unread, setUnread] = useState({});             // { channel: count }
+  const [typing, setTyping] = useState([]);             // [{user_email,user_name}]
   const [draft, setDraft] = useState("");
+  const [muted, setMuted] = useState(false);
   const wsRef = useRef(null);
   const scrollRef = useRef(null);
+  const audioRef = useRef(null);
+  const typingTimeoutRef = useRef({});
+  const lastTypingSentRef = useRef(0);
   const isMaker = !!localStorage.getItem("cm_maker_jwt");
   const buyerJwt = localStorage.getItem("cm_buyer_jwt");
   const makerJwt = localStorage.getItem("cm_maker_jwt");
   const adminJwt = localStorage.getItem("cm_admin_jwt");
   const token = channel === "makers-only" ? makerJwt : (buyerJwt || makerJwt || adminJwt);
+  const messages = messagesByCh[channel] || [];
+  const buddies = buddiesByCh[channel] || [];
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages]);
 
+  // Reset unread count when entering a channel
   useEffect(() => {
-    setMessages([]);
+    setUnread((u) => ({ ...u, [channel]: 0 }));
+    setTyping([]);
+  }, [channel]);
+
+  useEffect(() => {
     if (!token) return;
     let alive = true;
-    fetchChatHistory(channel).then((hist) => { if (alive) setMessages(hist); });
+    fetchChatHistory(channel).then((hist) => {
+      if (alive) setMessagesByCh((m) => ({ ...m, [channel]: hist }));
+    });
     const ws = new WebSocket(wsChatUrl(channel, token));
     ws.onmessage = (e) => {
-      try { setMessages((m) => [...m, JSON.parse(e.data)]); } catch { /* ignore */ }
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.kind === "presence") {
+          setBuddiesByCh((b) => ({ ...b, [channel]: msg.buddies || [] }));
+          return;
+        }
+        if (msg.kind === "typing") {
+          setTyping((prev) => {
+            const others = prev.filter((p) => p.user_email !== msg.user_email);
+            return msg.is_typing ? [...others, msg] : others;
+          });
+          // auto-clear typing after 4s in case "stop" event is missed
+          clearTimeout(typingTimeoutRef.current[msg.user_email]);
+          if (msg.is_typing) {
+            typingTimeoutRef.current[msg.user_email] = setTimeout(() => {
+              setTyping((prev) => prev.filter((p) => p.user_email !== msg.user_email));
+            }, 4000);
+          }
+          return;
+        }
+        if (msg.kind === "system" && msg.buddies) {
+          setBuddiesByCh((b) => ({ ...b, [channel]: msg.buddies }));
+        }
+        setMessagesByCh((m) => ({ ...m, [channel]: [...(m[channel] || []), msg] }));
+        if (msg.kind === "message") {
+          // Sound + unread when not on this channel (or browser tab unfocused)
+          if (!muted) {
+            try { audioRef.current?.play?.(); } catch { /* ignore */ }
+          }
+        }
+      } catch { /* ignore */ }
     };
     ws.onerror = () => {};
     wsRef.current = ws;
     return () => { alive = false; try { ws.close(); } catch {} };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channel, token]);
+
+  // Listen on ALL channels in the background for unread counts (separate "shadow" sockets).
+  // For simplicity v1: only the active channel is connected; unread updates only when user
+  // is on a different tab inside the chat area (we hook into messagesByCh writes).
+  // Switch-channel-while-receiving: if a message arrives via the current ws but we've since
+  // moved, increment unread on the OLD channel. Simpler fallback: read any message kind=message
+  // that arrives when channel doesn't match.
+  // (Implemented above by closing the ws on channel change; users won't see unread for inactive
+  // channels in v1 — kept the unread badge wired so it can be turned on later with shadow sockets.)
+
+  const sendTyping = (isTyping) => {
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== 1) return;
+    const now = Date.now();
+    if (isTyping && now - lastTypingSentRef.current < 1500) return; // throttle
+    lastTypingSentRef.current = now;
+    ws.send(JSON.stringify({ kind: "typing", is_typing: !!isTyping }));
+  };
 
   const send = (e) => {
     e?.preventDefault?.();
@@ -470,6 +591,7 @@ function ChatTab({ me }) {
     if (!text || !wsRef.current || wsRef.current.readyState !== 1) return;
     wsRef.current.send(JSON.stringify({ text }));
     setDraft("");
+    sendTyping(false);
   };
 
   if (!token) {
@@ -482,7 +604,7 @@ function ChatTab({ me }) {
   if (channel === "makers-only" && !isMaker) {
     return (
       <div className="space-y-4" data-testid="chat-tab">
-        <ChannelSelector channel={channel} setChannel={setChannel} />
+        <ChannelSelector channel={channel} setChannel={setChannel} unread={unread} />
         <div
           className="border border-[#ff4500]/40 bg-[#ff4500]/5 p-5"
           data-testid="chat-makers-only-blocked"
@@ -505,43 +627,136 @@ function ChatTab({ me }) {
     );
   }
 
+  const otherTypers = typing.filter((t) => t.user_email !== me?.email);
+
   return (
     <div className="space-y-4" data-testid="chat-tab">
-      <ChannelSelector channel={channel} setChannel={setChannel} />
-      <div ref={scrollRef} className="border border-[#262626] h-[420px] overflow-y-auto p-4 space-y-2 bg-[#0a0a0a]" data-testid="chat-stream">
-        {messages.map((m, i) => (
-          <div key={m.id || i} className={`font-mono text-[12px] ${m.kind === "system" ? "text-[#525252] italic" : "text-[#e5e5e5]"}`}>
-            {m.kind === "system" ? (
-              <span>— {m.text} —</span>
-            ) : (
-              <span><span className="text-[#ff4500]">{m.user_name || m.user_email}:</span> {m.text}</span>
+      {/* AIM-style ding (data: URI, no asset needed) */}
+      <audio
+        ref={audioRef}
+        src="data:audio/wav;base64,UklGRrICAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YY4CAACAgIB/g4WIiYqLjI6PkJGRkpKSkZGQjouHg395d3VxbWloZWNiYWBeXVtaWVlYV1ZWVldXWFlZW1xeYGFiZGZnaWttbm9wcXJzdHV2d3d4eHl6e3x9foCBg4WGiImLjI6PkJGSkpOTkpGQjouHhH96d3VybmpoZWNiYWBeXVtaWVlYV1ZWVldXWFlaW1xeYGJjZWdoamtsbW9wcXJzdHV2d3d4eHl6e3x9foCBg4WGh4mLjI6PkJGSkpOTkpGQjouHhH96d3VybmpoZWNiYWBeXVtaWVlYV1ZWVldXWFlaW1xeYGJjZWdoamtsbW9wcXJzdHV2d3d4eHl6e3x9foCBg4WGh4mLjI6PkJGSkpOTkpGQjouHhH96d3VybmpoZWNiYWBeXVtaWVlYV1ZWVldXWFlaW1xeYGJjZWdoamtsbW9wcXJzdHV2d3d4eHl6e3x9foCBg4WGh4mLjI6PkJGSkpOTkpGQ"
+        preload="auto"
+      />
+
+      <ChannelSelector channel={channel} setChannel={setChannel} unread={unread} />
+
+      <div className="grid lg:grid-cols-12 gap-4">
+        {/* Buddy list (right side on desktop, top on mobile) */}
+        <aside className="lg:col-span-3 lg:order-2 border border-[#262626] p-3 bg-[#0a0a0a] lg:max-h-[480px] overflow-y-auto" data-testid="chat-buddies">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mb-3">
+            ◆ Buddy list · {buddies.length}
+          </div>
+          <ul className="space-y-2">
+            {!buddies.length && (
+              <li className="font-mono text-[10px] text-[#525252]" data-testid="chat-buddies-empty">
+                No one's online — start the conversation.
+              </li>
+            )}
+            {buddies.map((b) => (
+              <li key={b.user_email} className="flex items-center gap-2" data-testid={`chat-buddy-${b.user_email}`}>
+                <span className={`w-2 h-2 rounded-full ${b.role === "maker" ? "bg-[#ff4500]" : "bg-emerald-400"}`} />
+                {b.picture && (
+                  <img src={b.picture} alt="" className="w-5 h-5 rounded-full object-cover border border-[#262626]" />
+                )}
+                <span className="font-mono text-[11px] text-[#e5e5e5] truncate">{b.user_name}</span>
+                {b.role === "maker" && (
+                  <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-[#ff4500] ml-auto">M</span>
+                )}
+              </li>
+            ))}
+          </ul>
+          <div className="mt-4 pt-3 border-t border-[#262626] flex items-center gap-2">
+            <button
+              onClick={() => setMuted((m) => !m)}
+              className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500]"
+              data-testid="chat-mute-toggle"
+            >
+              {muted ? "🔇 Sound off" : "🔔 Sound on"}
+            </button>
+          </div>
+        </aside>
+
+        <div className="lg:col-span-9 lg:order-1 space-y-3">
+          <div ref={scrollRef} className="border border-[#262626] h-[420px] overflow-y-auto p-4 space-y-2 bg-[#0a0a0a]" data-testid="chat-stream">
+            {messages.map((m, i) => (
+              <div key={m.id || i} className={`font-mono text-[12px] ${m.kind === "system" ? "text-[#525252] italic" : "text-[#e5e5e5]"}`}>
+                {m.kind === "system" ? (
+                  <span>— {m.text} —</span>
+                ) : (
+                  <span>
+                    <span className={`font-bold ${m.role === "maker" ? "text-[#ff4500]" : "text-emerald-400"}`}>
+                      {m.user_name || m.user_email}
+                    </span>
+                    <span className="text-[#525252] mx-1">›</span>
+                    {m.text}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] h-4" data-testid="chat-typing">
+            {otherTypers.length > 0 && (
+              <span>
+                <span className="text-[#ff4500]">●</span>{" "}
+                {otherTypers.map((t) => t.user_name).join(", ")} {otherTypers.length === 1 ? "is" : "are"} typing
+                <TypingDots />
+              </span>
             )}
           </div>
-        ))}
+
+          <form onSubmit={send} className="flex gap-2" data-testid="chat-form">
+            <input
+              value={draft}
+              onChange={(e) => {
+                setDraft(e.target.value);
+                if (e.target.value) sendTyping(true);
+              }}
+              onBlur={() => sendTyping(false)}
+              placeholder={`Message #${channel}…`}
+              className="flex-1 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+              data-testid="chat-input"
+            />
+            <button type="submit" className="bg-[#ff4500] text-black px-4" data-testid="chat-send">
+              <Send size={16} />
+            </button>
+          </form>
+        </div>
       </div>
-      <form onSubmit={send} className="flex gap-2" data-testid="chat-form">
-        <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={`Message #${channel}…`}
-               className="flex-1 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
-               data-testid="chat-input" />
-        <button type="submit" className="bg-[#ff4500] text-black px-4" data-testid="chat-send"><Send size={16} /></button>
-      </form>
     </div>
   );
 }
 
-function ChannelSelector({ channel, setChannel }) {
+function TypingDots() {
+  const [n, setN] = useState(1);
+  useEffect(() => {
+    const t = setInterval(() => setN((x) => (x % 3) + 1), 400);
+    return () => clearInterval(t);
+  }, []);
+  return <span>{".".repeat(n)}</span>;
+}
+
+function ChannelSelector({ channel, setChannel, unread }) {
   return (
     <div className="flex gap-2 flex-wrap" data-testid="chat-channels">
       {CHANNELS.map((c) => (
         <button
           key={c}
           onClick={() => setChannel(c)}
-          className={`px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.22em] border transition ${
+          className={`px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.22em] border transition relative ${
             channel === c ? "border-[#ff4500] text-[#ff4500]" : "border-[#262626] text-[#a3a3a3] hover:border-[#ff4500]/40"
           }`}
           data-testid={`chat-channel-${c}`}
         >
           #{c}
+          {(unread?.[c] || 0) > 0 && channel !== c && (
+            <span
+              className="absolute -top-2 -right-2 bg-[#ff4500] text-black w-5 h-5 rounded-full flex items-center justify-center font-mono text-[9px]"
+              data-testid={`chat-unread-${c}`}
+            >
+              {unread[c]}
+            </span>
+          )}
         </button>
       ))}
     </div>

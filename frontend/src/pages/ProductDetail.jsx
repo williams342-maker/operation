@@ -61,16 +61,53 @@ export default function ProductDetail() {
         <div className="grid md:grid-cols-12 gap-8">
           <div className="md:col-span-7">
             <div className="aspect-[4/5] bg-[#121212] border border-[#262626] overflow-hidden mb-3 relative">
-              <img src={p.images[active]} alt={p.title} className="w-full h-full object-cover media-img" />
+              {active === -1 && p.model_url ? (
+                <model-viewer
+                  src={p.model_url}
+                  camera-controls
+                  auto-rotate
+                  shadow-intensity="1"
+                  exposure="0.9"
+                  style={{ width: "100%", height: "100%", background: "#0a0a0a" }}
+                  data-testid="product-model-viewer"
+                />
+              ) : (
+                <img
+                  src={p.images[Math.max(0, active)]}
+                  alt={p.title}
+                  className="w-full h-full object-cover media-img"
+                />
+              )}
               <span className="tag absolute top-4 left-4 text-[#ff4500] border-[#ff4500]">{p.technique}</span>
+              {p.model_url && (
+                <span className="tag absolute top-4 right-4 text-[#ff4500] border-[#ff4500] font-mono text-[10px]">
+                  3D AVAILABLE
+                </span>
+              )}
             </div>
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-5 gap-3">
               {p.images.map((img, i) => (
-                <button key={i} onClick={() => setActive(i)}
-                  className={`aspect-square overflow-hidden border ${active === i ? "border-[#ff4500]" : "border-[#262626]"}`}>
+                <button
+                  key={i}
+                  onClick={() => setActive(i)}
+                  className={`aspect-square overflow-hidden border ${active === i ? "border-[#ff4500]" : "border-[#262626]"}`}
+                  data-testid={`product-thumb-${i}`}
+                >
                   <img src={img} alt="" className="w-full h-full object-cover" />
                 </button>
               ))}
+              {p.model_url && (
+                <button
+                  onClick={() => setActive(-1)}
+                  className={`aspect-square overflow-hidden border flex items-center justify-center font-mono text-[11px] uppercase tracking-[0.22em] ${
+                    active === -1 ? "border-[#ff4500] text-[#ff4500]" : "border-[#262626] text-[#a3a3a3] hover:border-[#ff4500]/40"
+                  }`}
+                  data-testid="product-3d-toggle"
+                  aria-label="View in 3D"
+                >
+                  3D
+                </button>
+              )}
             </div>
           </div>
           <div className="md:col-span-5">

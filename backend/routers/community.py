@@ -222,6 +222,7 @@ async def download_design_file(file_id: str, claims: dict = Depends(current_buye
     })
     paid = await db.download_unlocks.find_one({
         "user_id": user_id,
+        "status": "active",
         "expires_at": {"$gte": now_iso()},
     }, {"_id": 0})
 
@@ -355,35 +356,44 @@ async def reply_thread(thread_id: str, payload: ForumReplyCreate, claims: dict =
     return doc
 
 
-# ===================== LIVE CHAT (WebSocket + REST history) =====================
+# ===================== LIVE CHAT (WebSocket + REST history + presence + typing) =====================
 CHANNELS = {"general", "help", "showcase", "makers-only"}
 
 
 class ChatRoom:
-    """In-memory broadcast room per channel."""
+    """In-memory broadcast room per channel — tracks {ws -> user_dict} for presence."""
     def __init__(self, name: str):
         self.name = name
-        self.connections: set[WebSocket] = set()
+        self.members: dict[WebSocket, dict] = {}
         self.lock = asyncio.Lock()
 
-    async def connect(self, ws: WebSocket):
+    async def connect(self, ws: WebSocket, user: dict):
         async with self.lock:
-            self.connections.add(ws)
+            self.members[ws] = user
 
     async def disconnect(self, ws: WebSocket):
         async with self.lock:
-            self.connections.discard(ws)
+            self.members.pop(ws, None)
 
-    async def broadcast(self, payload: dict):
+    async def broadcast(self, payload: dict, exclude: WebSocket | None = None):
         async with self.lock:
             stale = []
-            for ws in list(self.connections):
+            for ws in list(self.members.keys()):
+                if ws is exclude:
+                    continue
                 try:
                     await ws.send_json(payload)
                 except Exception:
                     stale.append(ws)
             for ws in stale:
-                self.connections.discard(ws)
+                self.members.pop(ws, None)
+
+    def buddy_list(self) -> list[dict]:
+        """Stable, deduped by user_email."""
+        out: dict[str, dict] = {}
+        for u in self.members.values():
+            out[u["user_email"]] = u
+        return sorted(out.values(), key=lambda x: x["user_name"].lower())
 
 
 _rooms: dict[str, ChatRoom] = {name: ChatRoom(name) for name in CHANNELS}
@@ -396,8 +406,16 @@ async def chat_history(channel: str, limit: int = 50):
     msgs = await db.chat_messages.find(
         {"channel": channel}, {"_id": 0}
     ).sort("created_at", -1).to_list(limit)
-    msgs.reverse()  # chronological
+    msgs.reverse()
     return msgs
+
+
+@router.get("/community/chat/{channel}/buddies")
+async def chat_buddies(channel: str):
+    """Public: returns the live buddy list for a channel (online now)."""
+    if channel not in CHANNELS:
+        raise HTTPException(404, "Unknown channel")
+    return {"channel": channel, "buddies": _rooms[channel].buddy_list()}
 
 
 @router.websocket("/ws/chat/{channel}")
@@ -405,7 +423,6 @@ async def ws_chat(websocket: WebSocket, channel: str, token: str = Query("")):
     if channel not in CHANNELS:
         await websocket.close(code=4404)
         return
-    # Auth: any role for general/help/showcase. makers-only requires role==maker.
     try:
         claims = decode_session_jwt(token) if token else None
     except HTTPException:
@@ -420,31 +437,68 @@ async def ws_chat(websocket: WebSocket, channel: str, token: str = Query("")):
         return
 
     role = claims.get("role")
-    display_name = claims.get("email", "anon").split("@")[0]
+    user_email = claims.get("email", "anon")
+    display_name = user_email.split("@")[0]
+    picture = ""
     if role == "buyer":
         u = await db.community_users.find_one({"user_id": claims["sub"]}, {"_id": 0})
         if u:
             display_name = u.get("name") or display_name
+            picture = u.get("picture", "")
+    elif role == "maker":
+        m = await db.makers.find_one({"slug": claims["sub"]}, {"_id": 0})
+        if m:
+            display_name = m.get("name") or display_name
+            picture = m.get("portrait", "")
+
+    user = {
+        "user_email": user_email,
+        "user_name": display_name,
+        "role": role,
+        "picture": picture,
+    }
 
     await websocket.accept()
     room = _rooms[channel]
-    await room.connect(websocket)
+    await room.connect(websocket, user)
+
+    # Send the new connection a snapshot of who's already online
+    try:
+        await websocket.send_json({"kind": "presence", "buddies": room.buddy_list()})
+    except Exception:
+        pass
+
+    # Tell everyone else this person joined
     await room.broadcast({
         "kind": "system",
-        "text": f"{display_name} joined #{channel}",
+        "text": f"{display_name} signed on",
+        "buddies": room.buddy_list(),
         "created_at": now_iso(),
-    })
+    }, exclude=websocket)
+
     try:
         while True:
             data = await websocket.receive_json()
+            kind = data.get("kind", "message")
+            if kind == "typing":
+                # Lightweight, NOT persisted. Broadcasts to others only.
+                await room.broadcast({
+                    "kind": "typing",
+                    "user_email": user_email,
+                    "user_name": display_name,
+                    "is_typing": bool(data.get("is_typing", True)),
+                    "created_at": now_iso(),
+                }, exclude=websocket)
+                continue
             text = (data.get("text") or "").strip()
             if not text:
                 continue
             msg = {
                 "id": str(uuid.uuid4()),
                 "channel": channel,
-                "user_email": claims.get("email", ""),
+                "user_email": user_email,
                 "user_name": display_name,
+                "picture": picture,
                 "role": role,
                 "text": text[:1000],
                 "kind": "message",
@@ -458,7 +512,8 @@ async def ws_chat(websocket: WebSocket, channel: str, token: str = Query("")):
         await room.disconnect(websocket)
         await room.broadcast({
             "kind": "system",
-            "text": f"{display_name} left #{channel}",
+            "text": f"{display_name} signed off",
+            "buddies": room.buddy_list(),
             "created_at": now_iso(),
         })
 

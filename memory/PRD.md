@@ -62,30 +62,27 @@ frontend/src/pages/                      # 9 routed pages
 - 3D viewer for CNC pieces (currently using interactive 4-image gallery as proxy)
 - Stripe Connect for direct maker payouts (P2 — deferred until user enables Connect on Stripe dashboard)
 
-## What's Implemented (2026-04-26 — fork session, iteration 4)
-- ✅ All previous iterations (checkout, emails, maker portal, SEO, shipping, admin, refactor, polish).
-- ✅ **AI Assistant** — floating chat widget on every page (bottom-right, repositioned above Emergent badge). Uses `EMERGENT_LLM_KEY` + `claude-sonnet-4-5-20250929` via `emergentintegrations.LlmChat`. Multi-turn via `session_id`. System prompt grounds it in current product catalog. Detects custom-order intake and auto-POSTs `/api/ai/submit-brief` with extracted contact + brief.
-- ✅ **Buyer/Community auth** — magic link (Resend, frictionless signup) + Emergent Google OAuth. `cm_buyer_jwt` in localStorage with `role='buyer'`. Routes: `/api/community/auth/magic/{request|verify}`, `/api/community/auth/google`, `/api/community/me`.
-- ✅ **Community page** at `/community` with 4 tabs:
-  - **Showcase** — buyer-posted gallery cards (image URL + title + description) with like counts.
-  - **Design Files** — DXF/SVG/STL/GLB downloads. Maker-only upload. Buyer paywall: 5 free downloads / 6 months, $5 unlocks unlimited (Stripe checkout).
-  - **Forum** — threaded discussions, tags `general/makers/help/showcase`. Buyer-only post + reply.
-  - **Live Chat** — real WebSocket at `/api/ws/chat/{channel}` with 4 channels; `makers-only` is gated to maker JWTs (closes WS with code 4403 for buyers, 4401 for missing token).
-- ✅ **`/contact` page** — email/IG/location, custom-order + apply CTAs.
-- ✅ **`/policy` page** — 4 sections (Privacy, Terms, Shipping, Returns).
-- ✅ Nav updated: added Community + Contact links; Footer Privacy/Terms/Contact now route to /policy and /contact.
-- ✅ **Iteration test results**: 26/26 backend pytest passing, ~92% frontend Playwright. Two minor issues caught and fixed: AI launcher overlap with Emergent badge (repositioned), makers-only blocked-state copy improved.
-- ✅ Bug fix found by testing agent: 5 ObjectId-leak 500s in `routers/community.py` — fixed by popping `_id` before returning inserted docs.
+## What's Implemented (2026-04-26 — fork session, iteration 5)
+- ✅ All previous iterations (Phase 1+2+3 from iteration 4: AI assistant, community auth, community page).
+- ✅ **3D viewer** — `<model-viewer>` web component (Google's library, lightweight) wired into ProductDetail via a new optional `model_url` field on `Product`. Compass Medallion seeded with a public test GLB. New "3D AVAILABLE" badge + a 5th thumbnail slot to toggle between images and 3D view. Graceful fallback: products without `model_url` show the regular gallery as before.
+- ✅ **Avatar upload UI** — buyer header has a clickable avatar that opens a file picker; uploads PNG/JPG/WebP up to 1.5MB to `POST /api/community/me/avatar` (already implemented backend-side). Picture is stored as a base64 data URL on the user record and shown next to the user's name in the buddy list and chat.
+- ✅ **AOL AIM-style chat** —
+  - Real-time **buddy list** per channel (right-side panel on desktop, top on mobile) — green dot for buyers, orange dot + "M" for makers.
+  - **"Signed on / signed off"** system messages and live presence snapshot on connect.
+  - **Typing indicator** with bouncing dots ("Sarah is typing…"), debounced WS event.
+  - **Sound on new message** (small embedded WAV beep, mute toggle).
+  - **Unread badges** wired (counter shows on inactive channel tabs — currently increments only on the active socket; plumbing in place for shadow-sockets).
+  - Avatar shown beside maker badge in buddy list when present.
+- ✅ **Webhook hardening** — `/webhook/stripe` now flips `download_unlocks.status: pending → active` when Stripe confirms `payment_status=paid` for a session whose unlock row is pending. Download paywall query updated to require `status: 'active'` (not just non-expired).
 
 ## Backlog
-- 3D viewer for CNC pieces (needs GLB assets from user)
-- Stripe Connect for direct maker payouts (waiting on user to enable Connect on Stripe dashboard)
-- Avatar upload UI in CommunityPage (backend `/api/community/me/avatar` already in place — needs a frontend dropzone)
-- Webhook to flip `download_unlocks.status: pending → active` on payment success (currently the success_url returns the buyer to /community without re-checking; harmless but would tighten audit)
-- Unread badge on chat channels
+- 3D viewer for ALL products (currently only Compass Medallion has a model_url — makers can paste GLB URLs once we add that field to the maker dashboard form)
+- Stripe Connect for direct maker payouts (still pending — user to enable Connect on Stripe dashboard)
+- Shadow WS sockets so unread badges fire for inactive channels (current impl shows the badge wiring; doesn't track unread cross-channel yet)
+- Push browser notification when a chat mention `@you` lands while tab is unfocused
 
 ## Next Action Items
-- (Future) Stripe Connect (still blocked)
-- (Future) 3D viewer (need GLB asset)
-- (Future) Add unread/typing indicators to live chat
-- (Future) Add avatar upload UI on Community page
+- (Future) Stripe Connect (still blocked on user)
+- (Future) Maker dashboard form to add `model_url` to their own listings
+- (Future) Cross-channel unread badge tracking (shadow sockets)
+- (Future) `@mentions` + browser notifications in chat

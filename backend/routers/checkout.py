@@ -272,8 +272,15 @@ async def stripe_webhook(request: Request):
     except Exception as e:
         logger.exception("webhook fail: %s", e)
         return {"received": False}
+    # Update local payment_transactions row (regular product purchases)
     await db.payment_transactions.update_one(
         {"session_id": evt.session_id},
         {"$set": {"payment_status": evt.payment_status, "updated_at": now_iso()}}
     )
+    # Also activate any download unlocks tied to this session.
+    if evt.payment_status == "paid":
+        await db.download_unlocks.update_one(
+            {"session_id": evt.session_id, "status": "pending"},
+            {"$set": {"status": "active", "activated_at": now_iso()}},
+        )
     return {"received": True}
