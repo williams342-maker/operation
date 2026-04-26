@@ -63,13 +63,11 @@ async def _send_mailersend(to: str, subject: str, html: str):
             "https://api.mailersend.com/v1/email", json=payload, headers=headers,
         )
     if r.status_code >= 400:
-        # Surface the MailerSend error body so domain / token issues are easy to spot.
         logger.warning("mailersend error %d → %s: %s", r.status_code, to, r.text[:300])
-        return None
-    # MailerSend returns 202 Accepted with a `X-Message-Id` header (no body).
+        return {"_error": True, "status": r.status_code, "body": r.text[:500]}
     msg_id = r.headers.get("X-Message-Id") or r.headers.get("x-message-id")
     logger.info("mailersend sent → %s · id=%s", to, msg_id)
-    return {"message_id": msg_id}
+    return {"message_id": msg_id, "status": r.status_code}
 
 
 async def _send_brevo(to: str, subject: str, html: str):
@@ -118,12 +116,58 @@ async def _send_resend(to: str, subject: str, html: str):
 async def _send(to: str, subject: str, html: str):
     if not _has_provider() or not to:
         logger.warning("email skipped (no key or recipient): %s", subject)
+        await _record_event({
+            "to": to or "", "subject": subject, "provider": EMAIL_PROVIDER,
+            "status": "skipped", "error_code": None, "error_body": "no_key_or_recipient",
+        })
         return None
     if EMAIL_PROVIDER == "mailersend":
-        return await _send_mailersend(to, subject, html)
-    if EMAIL_PROVIDER == "brevo":
-        return await _send_brevo(to, subject, html)
-    return await _send_resend(to, subject, html)
+        result = await _send_mailersend(to, subject, html)
+    elif EMAIL_PROVIDER == "brevo":
+        result = await _send_brevo(to, subject, html)
+    else:
+        result = await _send_resend(to, subject, html)
+
+    # Persist a structured event row for the admin Email Status tab.
+    if result and isinstance(result, dict) and result.get("_error"):
+        await _record_event({
+            "to": to, "subject": subject, "provider": EMAIL_PROVIDER,
+            "status": "failed", "error_code": result.get("status"),
+            "error_body": (result.get("body") or "")[:500],
+        })
+        return None
+    if result is None:
+        await _record_event({
+            "to": to, "subject": subject, "provider": EMAIL_PROVIDER,
+            "status": "failed", "error_code": None, "error_body": "transport_error",
+        })
+        return None
+    await _record_event({
+        "to": to, "subject": subject, "provider": EMAIL_PROVIDER, "status": "sent",
+        "message_id": (result or {}).get("message_id"),
+    })
+    return result
+
+
+async def _record_event(row: dict) -> None:
+    """Best-effort persistence — never break the email send if Mongo is down."""
+    try:
+        from core import db, now_iso
+        import uuid as _uuid
+        await db.email_events.insert_one({
+            "id": str(_uuid.uuid4()),
+            "to": row.get("to") or "",
+            "subject": (row.get("subject") or "")[:240],
+            "provider": row.get("provider") or "",
+            "status": row.get("status") or "unknown",
+            "message_id": row.get("message_id"),
+            "error_code": row.get("error_code"),
+            "error_body": row.get("error_body"),
+            "created_at": now_iso(),
+        })
+    except Exception:
+        # Persistence is observability — never break the user-visible flow.
+        pass
 
 
 def _shell(title: str, intro: str, body_html: str, footer: str = "") -> str:

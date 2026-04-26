@@ -205,3 +205,64 @@ async def admin_ai_mod_log(limit: int = 100, _: dict = Depends(current_admin)):
     """Recent AI moderation events for the admin Audit tab."""
     from ai_moderator import list_recent
     return {"items": await list_recent(limit), "limit": limit}
+
+
+# ============================================================
+#  Email Status (admin diagnostic surface)
+# ============================================================
+@router.get("/admin/email-status")
+async def admin_email_status(_: dict = Depends(current_admin)):
+    """Summary stats + last-N events for the admin Email tab."""
+    from datetime import datetime, timezone
+    today_iso = datetime.now(timezone.utc).date().isoformat()
+    today_filter = {"created_at": {"$gte": today_iso}}
+    sent_today = await db.email_events.count_documents({**today_filter, "status": "sent"})
+    failed_today = await db.email_events.count_documents({**today_filter, "status": "failed"})
+    skipped_today = await db.email_events.count_documents({**today_filter, "status": "skipped"})
+    last_sent = await db.email_events.find_one(
+        {"status": "sent"}, sort=[("created_at", -1)], projection={"_id": 0},
+    )
+    last_failed = await db.email_events.find_one(
+        {"status": "failed"}, sort=[("created_at", -1)], projection={"_id": 0},
+    )
+    recent = await db.email_events.find(
+        {}, {"_id": 0},
+    ).sort("created_at", -1).to_list(50)
+    return {
+        "provider": os.environ.get("EMAIL_PROVIDER", "mailersend"),
+        "sender": os.environ.get("SENDER_EMAIL", ""),
+        "ops_email": os.environ.get("OPS_EMAIL", ""),
+        "today": {"sent": sent_today, "failed": failed_today, "skipped": skipped_today},
+        "last_sent": last_sent,
+        "last_failed": last_failed,
+        "recent": recent,
+    }
+
+
+class TestEmailIn(BaseModel):
+    to: Optional[str] = None  # default OPS_EMAIL
+
+
+@router.post("/admin/email-test")
+async def admin_email_test(payload: TestEmailIn, claims: dict = Depends(current_admin)):
+    """Fire a real diagnostic email through the configured provider. Used to
+    verify domain/token/quota status from the admin UI without leaving the dashboard."""
+    from email_service import _send
+    to = (payload.to or os.environ.get("OPS_EMAIL") or claims.get("email") or "").strip()
+    if not to:
+        raise HTTPException(400, "No recipient configured (OPS_EMAIL missing).")
+    html = (
+        "<div style='font-family:JetBrains Mono,monospace;color:#e5e5e5;padding:24px;background:#0a0a0a'>"
+        f"<p style='color:#ff4500;font-size:11px;letter-spacing:0.3em;text-transform:uppercase'>◆ Diagnostic ping</p>"
+        f"<p>This email was triggered by <b>{claims.get('email')}</b> from the admin Email Status tab.</p>"
+        f"<p>If you see this, your provider is delivering — and the daily quota has room.</p>"
+        "</div>"
+    )
+    result = await _send(to, "Crafters Market · Email diagnostic", html)
+    if result is None:
+        # _send already persisted a 'failed' event; surface the latest one to the caller.
+        last = await db.email_events.find_one(
+            {"to": to, "status": "failed"}, sort=[("created_at", -1)], projection={"_id": 0},
+        )
+        return {"sent": False, "to": to, "last_error": last}
+    return {"sent": True, "to": to, "result": result}
