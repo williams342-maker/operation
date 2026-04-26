@@ -483,10 +483,24 @@ function ChatTab({ me }) {
     return (
       <div className="space-y-4" data-testid="chat-tab">
         <ChannelSelector channel={channel} setChannel={setChannel} />
-        <p className="font-mono text-sm text-[#a3a3a3]">
-          ◆ Makers-only — sign into your maker portal to access this channel.
-          <Link to="/maker/login" className="text-[#ff4500] ml-2">Maker sign-in →</Link>
-        </p>
+        <div
+          className="border border-[#ff4500]/40 bg-[#ff4500]/5 p-5"
+          data-testid="chat-makers-only-blocked"
+        >
+          <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#ff4500] mb-2">
+            ◆ Makers only
+          </div>
+          <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed">
+            This channel is restricted to verified makers. Sign in to your maker portal to join the conversation.
+          </p>
+          <Link
+            to="/maker/login"
+            className="btn-industrial btn-primary inline-flex mt-4"
+            data-testid="chat-makers-signin-cta"
+          >
+            Maker sign-in →
+          </Link>
+        </div>
       </div>
     );
   }

@@ -93,10 +93,10 @@ export default function AIAssistant() {
 
   return (
     <>
-      {/* Floating launcher */}
+      {/* Floating launcher — positioned above the Emergent badge so it doesn't get covered */}
       <button
         onClick={() => setOpen((o) => !o)}
-        className="fixed bottom-6 right-6 z-[60] bg-[#ff4500] text-black w-14 h-14 flex items-center justify-center border-2 border-[#ff4500] hover:rotate-3 transition-transform"
+        className="fixed bottom-24 right-6 z-[60] bg-[#ff4500] text-black w-14 h-14 flex items-center justify-center border-2 border-[#ff4500] hover:rotate-3 transition-transform shadow-[0_0_24px_rgba(255,69,0,0.45)]"
         aria-label={open ? "Close assistant" : "Open assistant"}
         data-testid="ai-launcher"
       >
@@ -110,7 +110,7 @@ export default function AIAssistant() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 24, scale: 0.96 }}
             transition={{ duration: 0.18 }}
-            className="fixed bottom-24 right-4 sm:right-6 z-[60] w-[min(92vw,420px)] h-[min(78vh,640px)] bg-[#0a0a0a] border border-[#262626] flex flex-col"
+            className="fixed bottom-44 right-4 sm:right-6 z-[60] w-[min(92vw,420px)] h-[min(70vh,580px)] bg-[#0a0a0a] border border-[#262626] flex flex-col"
             data-testid="ai-panel"
           >
             <div className="px-5 py-4 border-b border-[#262626] flex items-center justify-between">

@@ -62,37 +62,30 @@ frontend/src/pages/                      # 9 routed pages
 - 3D viewer for CNC pieces (currently using interactive 4-image gallery as proxy)
 - Stripe Connect for direct maker payouts (P2 — deferred until user enables Connect on Stripe dashboard)
 
-## What's Implemented (2026-04-25 — fork session, iteration 4)
-- ✅ All previous iterations (checkout fix, Resend emails, maker portal, SEO, shipping/tax, admin console).
-- ✅ **Backend refactor — `server.py` 954 → 44 lines.** Split into a clean module layout:
-  ```
-  /app/backend/
-    server.py        (44 lines · wire-up only)
-    core.py          (env, db, logger, public_host/site_root)
-    models.py        (all Pydantic models)
-    seed_data.py     (idempotent seed)
-    maker_auth.py    (magic-link + JWT helpers)
-    email_service.py (Resend templates)
-    routers/
-      __init__.py
-      catalog.py     (products, makers, reviews, blog, activity, custom-orders, maker-applications)
-      seo.py         (sitemap.xml, robots.txt)
-      checkout.py    (cart/quote, checkout/session, checkout/status, webhook, shipping helpers)
-      maker.py       (maker portal endpoints)
-      admin.py       (admin console endpoints)
-  ```
-- ✅ **Polish: audit trail + multi-admin.**
-  - `decided_by` (admin email) + `decided_at` recorded on every application approve/reject.
-  - `quoted_by` + `quoted_at` recorded on every custom-order quote.
-  - New env var `ADMIN_EMAILS` (comma-separated allow-list); falls back to legacy `OPS_EMAIL` if unset. No code change needed to add a second operator.
-- ✅ **Bonus fix found during refactor:** `checkout/status` now properly reads `getattr(sess, "status")` from the Stripe `Session` object (the previous `.get()` call silently raised `AttributeError`). Also added a guard so a stale Stripe session can never *downgrade* a record the webhook already marked paid.
-- ✅ Test suites updated; **52/52 pytest cases passing**.
+## What's Implemented (2026-04-26 — fork session, iteration 4)
+- ✅ All previous iterations (checkout, emails, maker portal, SEO, shipping, admin, refactor, polish).
+- ✅ **AI Assistant** — floating chat widget on every page (bottom-right, repositioned above Emergent badge). Uses `EMERGENT_LLM_KEY` + `claude-sonnet-4-5-20250929` via `emergentintegrations.LlmChat`. Multi-turn via `session_id`. System prompt grounds it in current product catalog. Detects custom-order intake and auto-POSTs `/api/ai/submit-brief` with extracted contact + brief.
+- ✅ **Buyer/Community auth** — magic link (Resend, frictionless signup) + Emergent Google OAuth. `cm_buyer_jwt` in localStorage with `role='buyer'`. Routes: `/api/community/auth/magic/{request|verify}`, `/api/community/auth/google`, `/api/community/me`.
+- ✅ **Community page** at `/community` with 4 tabs:
+  - **Showcase** — buyer-posted gallery cards (image URL + title + description) with like counts.
+  - **Design Files** — DXF/SVG/STL/GLB downloads. Maker-only upload. Buyer paywall: 5 free downloads / 6 months, $5 unlocks unlimited (Stripe checkout).
+  - **Forum** — threaded discussions, tags `general/makers/help/showcase`. Buyer-only post + reply.
+  - **Live Chat** — real WebSocket at `/api/ws/chat/{channel}` with 4 channels; `makers-only` is gated to maker JWTs (closes WS with code 4403 for buyers, 4401 for missing token).
+- ✅ **`/contact` page** — email/IG/location, custom-order + apply CTAs.
+- ✅ **`/policy` page** — 4 sections (Privacy, Terms, Shipping, Returns).
+- ✅ Nav updated: added Community + Contact links; Footer Privacy/Terms/Contact now route to /policy and /contact.
+- ✅ **Iteration test results**: 26/26 backend pytest passing, ~92% frontend Playwright. Two minor issues caught and fixed: AI launcher overlap with Emergent badge (repositioned), makers-only blocked-state copy improved.
+- ✅ Bug fix found by testing agent: 5 ObjectId-leak 500s in `routers/community.py` — fixed by popping `_id` before returning inserted docs.
 
 ## Backlog
-- 3D viewer for CNC pieces (needs GLB assets)
-- Stripe Connect for direct maker payouts (P2 — deferred until Connect is enabled on Stripe dashboard)
+- 3D viewer for CNC pieces (needs GLB assets from user)
+- Stripe Connect for direct maker payouts (waiting on user to enable Connect on Stripe dashboard)
+- Avatar upload UI in CommunityPage (backend `/api/community/me/avatar` already in place — needs a frontend dropzone)
+- Webhook to flip `download_unlocks.status: pending → active` on payment success (currently the success_url returns the buyer to /community without re-checking; harmless but would tighten audit)
+- Unread badge on chat channels
 
 ## Next Action Items
-- Re-run full Playwright UI suite after the refactor (next iteration).
-- (Future) Stripe Connect for direct maker payouts
-- (Future) 3D viewer for CNC pieces (needs GLB assets)
+- (Future) Stripe Connect (still blocked)
+- (Future) 3D viewer (need GLB asset)
+- (Future) Add unread/typing indicators to live chat
+- (Future) Add avatar upload UI on Community page
