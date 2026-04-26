@@ -5,6 +5,7 @@ import { useStructuredData } from "../lib/seo";
 import ProductCard from "../components/ProductCard";
 import MakerReviews from "../components/MakerReviews";
 import FollowButton from "../components/FollowButton";
+import FollowersList from "../components/FollowersList";
 
 export default function MakerDetail() {
   const { slug } = useParams();
@@ -79,6 +80,7 @@ export default function MakerDetail() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {products.map((p, i) => <ProductCard key={p.id} p={p} i={i} />)}
         </div>
+        <FollowersList makerSlug={m.slug} />
         <MakerReviews makerSlug={m.slug} makerName={m.name} />
         <Link to="/makers" className="inline-block mt-12 industrial-link font-mono text-xs uppercase tracking-[0.22em]">← All makers</Link>
       </div>

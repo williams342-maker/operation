@@ -136,27 +136,43 @@ async def maker_update_product(
 
 
 @router.post("/maker/products/{product_slug}/publish", response_model=Product)
-async def maker_publish_product(product_slug: str, slug: str = Depends(current_maker_slug)):
+async def maker_publish_product(
+    product_slug: str, bg: BackgroundTasks,
+    slug: str = Depends(current_maker_slug),
+):
     """Publish a draft listing. Accrues a $0.20 fee if past the free quota and
-    sets a fresh expiry timestamp (renews the listing)."""
+    sets a fresh expiry timestamp (renews the listing).
+
+    Idempotent: republishing an already-live listing does NOT re-charge the
+    listing fee (use /renew for that path)."""
     from revenue import accrue_listing_charge, expiry_iso_from_now
     prod = await db.products.find_one({"slug": product_slug}, {"_id": 0})
     if not prod or prod.get("maker_slug") != slug:
         raise HTTPException(404, "Product not found")
-    accrual = await accrue_listing_charge(slug, product_slug, kind="listing_publish")
+    was_already_published = prod.get("status") == "published" and not prod.get("deleted_at")
+    if not was_already_published:
+        await accrue_listing_charge(slug, product_slug, kind="listing_publish")
     await db.products.update_one(
         {"slug": product_slug},
         {"$set": {"status": "published", "expires_at": expiry_iso_from_now()}},
     )
     updated = await db.products.find_one({"slug": product_slug}, {"_id": 0})
-    # Fire notifications only on first-ever publish (notify_listing_published
-    # is idempotent — it stamps `published_at` and skips repeat sends).
+    # Fire notifications in the background — keeps the API response snappy
+    # even when the listing has hundreds of followers. notify_listing_published
+    # is idempotent so re-publishes won't re-broadcast.
+    from listing_notify import notify_listing_published
+    bg.add_task(_safe_notify_listing_published, product_slug)
+    return updated
+
+
+async def _safe_notify_listing_published(product_slug: str) -> None:
+    """Wrapper so a transient email outage doesn't bubble up as an unhandled
+    BackgroundTasks exception (which logs noisy stack traces)."""
     try:
         from listing_notify import notify_listing_published
         await notify_listing_published(product_slug)
     except Exception as e:
-        logger.exception("[maker_publish_product] notify failed: %s", e)
-    return updated
+        logger.exception("[bg/notify] listing-publish notify failed: %s", e)
 
 
 @router.post("/maker/products/{product_slug}/renew", response_model=Product)
@@ -211,6 +227,7 @@ async def maker_unpublish_product(product_slug: str, slug: str = Depends(current
 @router.post("/maker/products", response_model=Product)
 async def maker_create_product(
     payload: MakerProductCreate,
+    bg: BackgroundTasks,
     slug: str = Depends(current_maker_slug),
 ):
     """Self-serve listing creation. Auto-slugifies the title, ensures uniqueness
@@ -320,13 +337,9 @@ async def maker_create_product(
         await db.makers.update_one(
             {"slug": slug}, {"$inc": {"listings_count": 1}}
         )
-        # Fan out the publish notifications: maker confirm + ops + followers.
-        # Wrapped so a transient email outage doesn't fail the create call.
-        try:
-            from listing_notify import notify_listing_published
-            await notify_listing_published(product.slug)
-        except Exception as e:
-            logger.exception("[maker_create_product] notify failed: %s", e)
+        # Fan out the publish notifications in the background so a maker with
+        # many followers doesn't experience perceptible latency on create.
+        bg.add_task(_safe_notify_listing_published, product.slug)
     return product
 
 

@@ -81,3 +81,25 @@ async def unfollow_maker(
     })
     follower_count = await db.follows.count_documents({"maker_slug": maker_slug})
     return FollowStatus(is_following=False, follower_count=follower_count)
+
+
+@router.get("/makers/{maker_slug}/followers")
+async def list_followers(maker_slug: str, limit: int = 24):
+    """Public follower roster for a maker. Returns anonymized rows
+    (display name + first-letter avatar) — no email leakage."""
+    cursor = db.follows.find(
+        {"maker_slug": maker_slug},
+        {"_id": 0, "follower_name": 1, "created_at": 1},
+    ).sort("created_at", -1).limit(max(1, min(limit, 100)))
+    items = []
+    async for f in cursor:
+        name = (f.get("follower_name") or "").strip()
+        if not name:
+            continue
+        items.append({
+            "name": name,
+            "initial": name[:1].upper(),
+            "since": (f.get("created_at") or "")[:10],
+        })
+    total = await db.follows.count_documents({"maker_slug": maker_slug})
+    return {"items": items, "total": total}

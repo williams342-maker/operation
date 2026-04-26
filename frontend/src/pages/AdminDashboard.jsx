@@ -118,21 +118,21 @@ export default function AdminDashboard() {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-10 pb-6 border-b border-[#262626]"
+          className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8 md:mb-10 pb-6 border-b border-[#262626]"
         >
-          <div>
-            <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-3">
+          <div className="min-w-0">
+            <div className="font-mono text-[10px] md:text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-3 truncate">
               ◆ Admin Console · {me?.email}
             </div>
-            <h1 className="font-display text-[44px] md:text-[72px] leading-[0.9] uppercase">
+            <h1 className="font-display text-[36px] md:text-[72px] leading-[0.9] uppercase">
               Operations.
             </h1>
           </div>
-          <div className="flex items-center gap-3 self-start md:self-auto">
+          <div className="flex items-center gap-3 self-start md:self-auto shrink-0">
             <LiveNowBadge />
             <button
               onClick={logout}
-              className="px-4 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em] transition"
+              className="px-3 md:px-4 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[10px] md:text-[11px] uppercase tracking-[0.22em] transition"
               data-testid="admin-logout-btn"
             >
               Sign Out
@@ -140,19 +140,22 @@ export default function AdminDashboard() {
           </div>
         </motion.div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6 mb-10">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-6 mb-8 md:mb-10">
           <Stat label="Pending Apps" value={pendingApps} testId="stat-pending-apps" />
           <Stat label="Open Briefs" value={pendingCustom} testId="stat-pending-custom" />
           <Stat label="Paid Orders" value={orders.length} testId="stat-paid-orders" />
           <Stat label="Revenue" value={`$${totalRevenue.toFixed(0)}`} testId="stat-revenue" />
         </div>
 
-        <div className="flex border-b border-[#262626] mb-8 overflow-x-auto" data-testid="admin-tabs">
+        <div
+          className="-mx-4 md:mx-0 px-4 md:px-0 flex border-b border-[#262626] mb-8 overflow-x-auto sticky top-[64px] md:top-0 bg-[#0a0a0a] z-20 scrollbar-thin"
+          data-testid="admin-tabs"
+        >
           {TABS.map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`px-5 py-3 font-mono text-[11px] uppercase tracking-[0.22em] border-b-2 transition whitespace-nowrap ${
+              className={`px-3 md:px-5 py-3 font-mono text-[10px] md:text-[11px] uppercase tracking-[0.18em] md:tracking-[0.22em] border-b-2 transition whitespace-nowrap shrink-0 ${
                 tab === t.id
                   ? "border-[#ff4500] text-[#ff4500]"
                   : "border-transparent text-[#a3a3a3] hover:text-[#e5e5e5]"

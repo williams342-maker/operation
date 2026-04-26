@@ -167,6 +167,8 @@ export const fetchFollowStatus = (maker_slug, jwt) => {
   const headers = jwt ? { Authorization: `Bearer ${jwt}` } : {};
   return http.get(`/makers/${maker_slug}/follow-status`, { headers }).then((r) => r.data);
 };
+export const fetchFollowersList = (maker_slug, limit = 24) =>
+  http.get(`/makers/${maker_slug}/followers`, { params: { limit } }).then((r) => r.data);
 export const followMaker = (maker_slug, jwt) =>
   http
     .post(`/makers/${maker_slug}/follow`, {}, { headers: { Authorization: `Bearer ${jwt}` } })

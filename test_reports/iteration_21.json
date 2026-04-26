@@ -1,0 +1,38 @@
+{
+  "summary": "iter21 — All four backlog items (P16, P15, P17, P14g) verified end-to-end. Backend: 6/6 pytest passing. P16 idempotent billing — publishing a draft increments listings_used_lifetime by 1; republishing an already-published product does NOT (lifetime unchanged) yet still refreshes expires_at. P15 BackgroundTasks — POST /api/maker/products with status='published' returns in ~382ms (well under 1s) and published_at stamp is written by the BG task within ~500ms. P17 followers list — GET /api/makers/{slug}/followers returns {items,total} anonymized (only name+initial+since, no email leakage), unknown maker returns {items:[],total:0}, ?limit=2 caps items while total reflects full count. Frontend: /makers/iron-and-oak#followers renders FollowersList section with id='followers' + scroll-mt-32; empty state shows 'Be the first to follow.'; after seeding 4 follows section heading switches to '4 buyers are watching.' and 4 follower-{i} pucks render with first-letter initials (D,C,B,A); FollowButton chip 'a[href=/makers/iron-and-oak#followers]' clicks scroll the section into view. /admin/dashboard at 390x844: H1 'Operations.' fontSize=36px (vs 72px desktop), admin-tabs has overflow-x:auto + position:sticky + top:64px on mobile, 12 tab buttons present, Sign Out + LiveNowBadge cluster fits without wrap. 2x2 stats grid visible (PENDING APPS/OPEN BRIEFS row1, PAID ORDERS/REVENUE row2).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/admin/dashboard mobile (390px)", "issues": ["Pending-app card 'Optional note' textarea / long-string content overflows to the right (the placeholder application id 'xxxxxxxxxxx…' bleeds past viewport). Not a P14g responsive-grid bug — the OPERATIONS heading + tabs + 2x2 stats grid all render cleanly — but this card content needs word-break/overflow-wrap. Low priority."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter21_billing_idempotency_followers.py",
+    "/app/test_reports/pytest/iter21.xml"
+  ],
+  "action_items": [
+    "(low) Add word-break/overflow-wrap-anywhere to admin Pending-app card content so very long applicant ids don't bleed past the 390px viewport on mobile.",
+    "(carry-over from iter20) Frontend localStorage key inconsistency: FollowButton reads cm_community_jwt but buyerAuthHeaders reads cm_buyer_jwt — magic-link flow may mint into one and the FollowButton miss it. Worth consolidating to a single key.",
+    "(test infra, not feature) iter20 test file (test_iter20_follow_notify.py) hits a dotenv quote-stripping bug when run today — MONGO_URL is read with embedded quotes. iter21 file works around it with .strip('\"'). Recommend either updating the .env to drop the quotes or adding the strip() in conftest so prior test files keep running. Pre-existing, not a regression."
+  ],
+  "critical_code_review_comments": [
+    "routers/maker.py maker_publish_product — clean idempotent fix: was_already_published check guards accrue_listing_charge but the expires_at refresh + status set still run. Good.",
+    "routers/maker.py both create + publish now use bg.add_task(_safe_notify_listing_published, slug) — wrapper swallows errors so a transient mailer outage doesn't bubble up as an unhandled bg-task exception. Good.",
+    "routers/follows.py list_followers — returns only name/initial/since, no email leakage. Limit clamped 1..100. Good.",
+    "FollowersList.jsx — uses scroll-mt-32 + id='followers' so the chip deep-link lands cleanly under the sticky header. PALETTE color rotation by index is deterministic, fine.",
+    "AdminDashboard.jsx — sticky tabs at top:64px on mobile + overflow-x-auto handles 12 tabs cleanly on a 390px viewport. H1 uses text-[36px] mobile / text-[72px] desktop responsive scale. 2x2 stat grid on mobile renders correctly.",
+    "Existing iter20 review comment about double-charge on republish (P16) is now FIXED by the was_already_published guard — verified by test_republish_published_does_not_double_charge."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter21_billing_idempotency_followers.py (NEW)"
+  ],
+  "success_rate": {"backend": "100% (6/6)", "frontend": "100% (all spec scenarios verified)"},
+  "test_credentials": "Maker JWT minted via maker_auth.issue_session_jwt('iron-and-oak', 'iron-and-oak@craftersmarket.org', role='maker'). Admin JWT via issue_session_jwt('admin','team@craftersmarket.org', role='admin').",
+  "seed_data_creation": "Seeded 4 community follows for iron-and-oak via direct mongo upsert (Alice/Bob/Carol/Dan, user_ids prefixed user_TEST_iter21_…). Cleaned up at end (db.follows.delete_many user_id ^user_TEST_iter21 → 4 deleted). Test products inserted by pytest are auto-cleaned in finally blocks; charge_history $pull also runs in teardown.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "iter21 covers P16 idempotent listing-fee billing on republish (uses listings_used_lifetime as the universal accrual signal since charge_history only gets a $push when past free quota), P15 BackgroundTasks for publish notify (response time <3s assertion + poll for published_at stamp), P17 public followers list endpoint (anonymized), P14g admin-dashboard mobile responsive pass. Backend tests at /app/backend/tests/test_iter21_billing_idempotency_followers.py — all 6 green. The localStorage key inconsistency for buyer JWT (cm_buyer_jwt vs cm_community_jwt) carries over from iter20 — main agent should still consolidate. Iter20 tests have a dotenv quote-strip bug that makes them error today; iter21 file works around it.",
+  "rca_of_the_issue": "n/a — no functional bugs found. The P16 idempotency bug flagged in iter20's review (republish double-charging the listing fee) is now fixed by the was_already_published guard in maker_publish_product."
+}
