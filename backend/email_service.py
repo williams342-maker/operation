@@ -328,3 +328,65 @@ async def send_custom_order_quote(buyer_email: str, name: str, project_type: str
     )
     html = _shell("Your Quote.", "A maker just priced your brief.", body, "Custom queue")
     return await _send(buyer_email, f"Your Crafters Market quote · {project_type}", html)
+
+
+async def send_maker_plus_roi_digest(
+    maker_email: str, maker_name: str, gross_30d: float,
+    commission_savings: float, net_benefit: float, upgrade_link: str,
+):
+    """Monthly upsell digest: shows what Plus would have saved this maker
+    over the last 30 days. Only sent to free-tier makers above the threshold."""
+    if not maker_email:
+        return None
+    pitch = (
+        f"At ${gross_30d:.0f} sold this month, Crafters Plus would have netted you "
+        f"<b style='color:#10b981'>+${net_benefit:.2f}</b> after the $12 subscription."
+        if net_benefit >= 0
+        else f"You're <b style='color:#ff4500'>${abs(net_benefit):.2f}</b> from break-even — "
+             "one more big sale and Plus pays for itself."
+    )
+    body = (
+        f"<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 18px'>"
+        f"Hey {maker_name}, here's a free-tier reality check from the last 30 days on Crafters Market:"
+        "</p>"
+        "<table style='width:100%;border-collapse:collapse;margin:18px 0'>"
+        "<tr>"
+        "<td style='width:50%;padding:18px;border:1px solid #262626;text-align:center'>"
+        "<div style='font-family:JetBrains Mono,monospace;font-size:10px;letter-spacing:0.22em;"
+        "text-transform:uppercase;color:#a3a3a3'>You sold (30d)</div>"
+        f"<div style='font-family:Impact,sans-serif;font-size:38px;color:#e5e5e5;line-height:1;margin-top:8px'>${gross_30d:.0f}</div>"
+        "</td>"
+        "<td style='width:50%;padding:18px;border:1px solid #262626;border-left:none;text-align:center'>"
+        "<div style='font-family:JetBrains Mono,monospace;font-size:10px;letter-spacing:0.22em;"
+        "text-transform:uppercase;color:#a3a3a3'>Left on the table</div>"
+        f"<div style='font-family:Impact,sans-serif;font-size:38px;color:#ff4500;line-height:1;margin-top:8px'>${commission_savings:.2f}</div>"
+        "</td>"
+        "</tr>"
+        "</table>"
+        f"<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:18px 0'>{pitch}</p>"
+        "<p style='font-size:13px;color:#a3a3a3;line-height:1.6;margin:0 0 24px'>"
+        "Plus drops your commission from <b>5% → 4%</b>, gives you <b>15 free listings/month</b>, "
+        "unlocks a <b>custom shop banner</b>, and adds advanced shop analytics. "
+        "Cancel anytime, no contract."
+        "</p>"
+        f"<a href='{upgrade_link}' style='display:inline-block;background:#ff4500;color:#0a0a0a;"
+        "padding:16px 28px;font-family:Impact,Arial Black,sans-serif;font-size:14px;letter-spacing:0.18em;"
+        f"text-transform:uppercase;text-decoration:none;border:1px solid #ff4500'>Upgrade to Plus →</a>"
+        "<p style='font-size:11px;color:#525252;line-height:1.6;margin-top:28px'>"
+        "Numbers above are computed from your actual paid orders in the last 30 days. "
+        "We send this digest once a month to free-tier makers who crossed our visibility threshold. "
+        "Don't want them? <a href='" + upgrade_link.split('/maker')[0] +
+        "/maker/dashboard?tab=billing' style='color:#a3a3a3'>Manage preferences</a>."
+        "</p>"
+    )
+    html = _shell(
+        "Plus would've paid off." if net_benefit >= 0 else "Plus is one sale away.",
+        "Your monthly free-tier reality check.",
+        body, "Crafters Plus · ROI digest",
+    )
+    subj = (
+        f"You left ${commission_savings:.2f} on the table this month · {maker_name}"
+        if net_benefit >= 0
+        else f"You're ${abs(net_benefit):.2f} from Plus paying for itself · {maker_name}"
+    )
+    return await _send(maker_email, subj, html)

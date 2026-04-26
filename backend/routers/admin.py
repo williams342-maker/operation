@@ -92,6 +92,17 @@ async def admin_r2_sweep(apply: bool = False, _: dict = Depends(current_admin)):
     return await sweep(apply=apply)
 
 
+@router.post("/admin/digests/plus-roi")
+async def admin_run_plus_roi_digest(apply: bool = False, _: dict = Depends(current_admin)):
+    """Run the monthly Crafters Plus ROI digest job. Default `apply=false`
+    is a dry-run that returns the list of candidates + projected savings;
+    `?apply=true` actually sends the emails via MailerSend and stamps each
+    maker so they're not re-emailed within the cooldown window.
+    """
+    from digests import run_plus_roi_digest
+    return await run_plus_roi_digest(apply=apply)
+
+
 @router.patch("/admin/maker-applications/{app_id}")
 async def admin_decide_application(
     app_id: str, body: ApplicationDecision, bg: BackgroundTasks,

@@ -57,6 +57,20 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - iter16: **.glb upload (P2) + Variants (P3) + Draft mode (P4)** — backend 28/28 incl. 10 new iter16 cases + frontend E2E 12/12 (modal variants editor, draft↔publish flips, .glb file upload, buyer variant selector + cart variant pricing). R2 live; transfer_to_makers + maker-orders correctly apply variant deltas.
 
 ## Recently Shipped (2026-04-26)
+- ✅ **iter26 — R2 CDN custom domain `cdn.craftersmarket.org` activated**:
+  - User connected `cdn.craftersmarket.org` in Cloudflare R2 dashboard (Custom Domains → Connect).
+  - Flipped `R2_PUBLIC_URL` from `https://pub-96d13eb6b15840a98236f6c1053262c3.r2.dev` to `https://cdn.craftersmarket.org` and restarted backend.
+  - Ran `swap_r2_host.py` migration script — 0 affected (no existing R2-hosted assets to migrate; all current product images are external Pexels/Unsplash hot-links).
+  - Verified live: fresh upload to R2 served via CDN domain returns `HTTP 200 · cache-control: public, max-age=31536000, immutable · server: cloudflare`. All future maker uploads (product images, .glb models, banners) now ship from the branded CDN.
+
+- ✅ **iter25 — Monthly Crafters Plus ROI digest email**:
+  - **Module**: new `/app/backend/digests.py` with `run_plus_roi_digest(apply=bool)` — finds free-tier makers above the $500/30d threshold, computes their would-have-saved amount, sends MailerSend digest, stamps `makers.last_plus_roi_digest_sent_at` for cooldown.
+  - **Email template**: `send_maker_plus_roi_digest()` in `email_service.py` — industrial dark theme matching transactional emails, dynamic copy ("Plus would've paid off" vs "Plus is one sale away" headlines), prominent dollar callouts, single-CTA upgrade button with UTM tracking (`utm_source=email&utm_campaign=plus-roi-digest`).
+  - **Endpoint**: `POST /api/admin/digests/plus-roi` (admin-only) · `?apply=true` actually sends.
+  - **Cooldown**: 25-day per-maker dedupe window so a cron firing weekly never spams.
+  - **Verified live**: real email sent to `team@craftersmarket.org` for `iron-and-oak` (gross $1,500 · saved $15 · net +$3) → MailerSend `202 Accepted` → cooldown re-run correctly skipped.
+  - **Tests**: 6 new unit tests (threshold gate, Plus-tier exclusion, cooldown window, send+stamp happy path, send-failure no-stamp retry, dry-run mode) — **27/27 across all related suites green.**
+
 - ✅ **iter24 — Crafters Plus ROI calculator + polished confirm modals**:
   - **Live ROI calculator** in BillingTab: pulls last-30d gross from `maker_payouts`, computes commission savings (1% delta = 5%→4%), nets out the $12/mo cost, and renders a 3-up KPI panel inside the Plus upsell card with a contextual pitch line. Different copy for free vs Plus subscribers, plus a "Plus pays for itself once monthly sales pass $1,200" line for shops below break-even.
     - New endpoint: `GET /api/maker/plus/roi` (auth-gated)
@@ -181,4 +195,6 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - (Optional analytics) Cohort retention, bounce-rate-by-page, Discord/Slack live-visitor ping
 
 ## Next Action Items
-- 🟡 **P1 — R2 CDN custom domain** (still waiting on user click-through in Cloudflare R2 dashboard): connect `cdn.craftersmarket.org` → I flip `R2_PUBLIC_URL` and run `swap_r2_host.py` (covers products + maker banners)
+- 🟢 **P2 — Schedule the ROI digest as a real cron** (currently triggered manually via admin endpoint; adding a daily/weekly scheduler closes the loop)
+- 🟢 **P3 — Email-receipt review CTA** (footer pixel on order receipts → Google Reviews / shop Q&A page)
+- 🟢 **P4 — Listing-credit packs** (alternative to per-payout settlement)
