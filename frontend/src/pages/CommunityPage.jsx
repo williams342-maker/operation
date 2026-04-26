@@ -6,8 +6,10 @@ import {
   fetchShowcase, createShowcase, likeShowcase,
   fetchDesignFiles, downloadDesignFile, unlockDownloadsCheckout, uploadDesignFile,
   fetchForumThreads, fetchForumThread, createForumThread, replyForumThread,
+  deleteChatMessage, deleteForumThread, deleteForumReply,
   fetchChatHistory, wsChatUrl,
   communityMe, uploadAvatar,
+  fetchProducts, fetchMakers,
 } from "../lib/api";
 
 const TABS = [
@@ -197,12 +199,32 @@ function ShowcaseTab({ me }) {
 }
 
 function ShowcaseForm({ onSaved }) {
-  const [form, setForm] = useState({ title: "", description: "", image_url: "" });
+  const [form, setForm] = useState({ title: "", description: "", image_url: "", product_slug: "", maker_slug: "" });
+  const [products, setProducts] = useState([]);
+  const [makers, setMakers] = useState([]);
   const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    Promise.all([fetchProducts(), fetchMakers()]).then(([p, m]) => {
+      setProducts(p || []);
+      setMakers(m || []);
+    });
+  }, []);
   const submit = async (e) => {
     e.preventDefault();
     setBusy(true);
-    try { await createShowcase(form); onSaved(); }
+    try {
+      // If user picked a product, default the maker_slug to that product's maker.
+      const picked = products.find((p) => p.slug === form.product_slug);
+      const payload = {
+        title: form.title,
+        description: form.description,
+        image_url: form.image_url,
+        product_slug: form.product_slug || null,
+        maker_slug: form.maker_slug || (picked ? picked.maker_slug : null),
+      };
+      await createShowcase(payload);
+      onSaved();
+    }
     finally { setBusy(false); }
   };
   return (
@@ -213,6 +235,18 @@ function ShowcaseForm({ onSaved }) {
       <input required placeholder="Image URL" value={form.image_url} onChange={(e) => setForm({ ...form, image_url: e.target.value })}
              className="bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
              data-testid="showcase-image" />
+      <select value={form.product_slug} onChange={(e) => setForm({ ...form, product_slug: e.target.value })}
+              className="bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+              data-testid="showcase-product">
+        <option value="">— Tag a product (optional) —</option>
+        {products.map((p) => <option key={p.slug} value={p.slug}>{p.title}</option>)}
+      </select>
+      <select value={form.maker_slug} onChange={(e) => setForm({ ...form, maker_slug: e.target.value })}
+              className="bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+              data-testid="showcase-maker">
+        <option value="">— Tag a maker (optional) —</option>
+        {makers.map((m) => <option key={m.slug} value={m.slug}>{m.name}</option>)}
+      </select>
       <textarea required placeholder="Tell us about it…" rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
                 className="md:col-span-2 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs resize-y"
                 data-testid="showcase-description" />
@@ -233,6 +267,20 @@ function ShowcaseCard({ post, onLike, canLike }) {
       <div className="p-4">
         <div className="font-display text-xl mb-1">{post.title}</div>
         <p className="font-mono text-[11px] text-[#a3a3a3] leading-relaxed mb-3">{post.description}</p>
+        {(post.product_slug || post.maker_slug) && (
+          <div className="flex flex-wrap gap-2 mb-3" data-testid={`showcase-tags-${post.id}`}>
+            {post.product_slug && (
+              <Link to={`/shop/${post.product_slug}`} className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] border border-[#ff4500]/40 px-2 py-1 hover:bg-[#ff4500]/10">
+                ◆ {post.product_slug}
+              </Link>
+            )}
+            {post.maker_slug && (
+              <Link to={`/makers/${post.maker_slug}`} className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] border border-[#262626] px-2 py-1 hover:border-[#ff4500] hover:text-[#ff4500]">
+                @ {post.maker_slug}
+              </Link>
+            )}
+          </div>
+        )}
         <div className="flex justify-between items-center text-[10px] font-mono uppercase tracking-[0.22em] text-[#525252]">
           <span>{post.user_name || post.user_email}</span>
           <button
@@ -443,10 +491,14 @@ function ThreadDetail({ id, me, onBack }) {
   const [data, setData] = useState(null);
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
+  const isMod = !!localStorage.getItem("cm_admin_jwt") || !!localStorage.getItem("cm_maker_jwt");
   const refresh = () => fetchForumThread(id).then(setData);
   useEffect(() => { refresh(); }, [id]);
   if (!data) return <p className="font-mono text-sm text-[#a3a3a3]">Loading…</p>;
   const { thread, replies } = data;
+  const myName = (me?.name || (me?.email || "").split("@")[0] || "").toLowerCase();
+  const isMention = (text) =>
+    !!myName && new RegExp(`@${myName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(text || "");
   const reply = async (e) => {
     e.preventDefault();
     if (!body.trim()) return;
@@ -454,29 +506,62 @@ function ThreadDetail({ id, me, onBack }) {
     try { await replyForumThread(id, { body }); setBody(""); refresh(); }
     finally { setBusy(false); }
   };
+  const delThread = async () => {
+    if (!window.confirm("Delete this entire thread?")) return;
+    await deleteForumThread(thread.id);
+    onBack();
+  };
+  const delReply = async (rid) => {
+    if (!window.confirm("Delete this reply?")) return;
+    await deleteForumReply(rid);
+    refresh();
+  };
   return (
     <div className="space-y-6" data-testid="thread-detail">
       <button onClick={onBack} className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]" data-testid="thread-back">
         ← back to threads
       </button>
       <div className="border border-[#262626] p-5">
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
-          ◆ {thread.tag || "general"} · started by {thread.user_name || thread.user_email}
-        </div>
-        <h2 className="font-display text-3xl mt-2">{thread.title}</h2>
-        <p className="font-mono text-sm text-[#e5e5e5] leading-relaxed mt-4 whitespace-pre-wrap">{thread.body}</p>
-      </div>
-      {replies.map((r) => (
-        <div key={r.id} className="border border-[#262626] p-4 ml-6" data-testid={`reply-${r.id}`}>
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
-            {r.user_name || r.user_email}
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+              ◆ {thread.tag || "general"} · started by {thread.user_name || thread.user_email}
+            </div>
+            <h2 className="font-display text-3xl mt-2">{thread.title}</h2>
           </div>
-          <p className="font-mono text-xs text-[#e5e5e5] leading-relaxed mt-2 whitespace-pre-wrap">{r.body}</p>
+          {isMod && (
+            <button onClick={delThread} className="font-mono text-[10px] uppercase tracking-[0.22em] text-red-400 hover:text-red-200" data-testid={`thread-mod-delete-${thread.id}`}>
+              ⊗ delete
+            </button>
+          )}
         </div>
-      ))}
+        <p className={`font-mono text-sm leading-relaxed mt-4 whitespace-pre-wrap ${
+          isMention(thread.body) ? "border-l-2 border-[#ff4500] pl-3 bg-[#ff4500]/5 text-[#e5e5e5]" : "text-[#e5e5e5]"
+        }`}>{thread.body}</p>
+      </div>
+      {replies.map((r) => {
+        const mentioned = isMention(r.body);
+        return (
+          <div key={r.id}
+               className={`border border-[#262626] p-4 ml-6 ${mentioned ? "border-l-2 border-l-[#ff4500] bg-[#ff4500]/5" : ""}`}
+               data-testid={`reply-${r.id}`}>
+            <div className="flex items-center justify-between gap-2">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+                {r.user_name || r.user_email}
+              </div>
+              {isMod && (
+                <button onClick={() => delReply(r.id)} className="font-mono text-[10px] uppercase tracking-[0.22em] text-red-400 hover:text-red-200" data-testid={`reply-mod-delete-${r.id}`}>
+                  ⊗
+                </button>
+              )}
+            </div>
+            <p className="font-mono text-xs text-[#e5e5e5] leading-relaxed mt-2 whitespace-pre-wrap">{r.body}</p>
+          </div>
+        );
+      })}
       {me && (
         <form onSubmit={reply} className="ml-6 space-y-2" data-testid="reply-form">
-          <textarea required rows={3} placeholder="Reply…" value={body}
+          <textarea required rows={3} placeholder="Reply… (use @name to mention someone)" value={body}
                     onChange={(e) => setBody(e.target.value)}
                     className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs resize-y"
                     data-testid="reply-body" />
@@ -759,7 +844,26 @@ function ChatTab({ me }) {
         <div className="lg:col-span-9 lg:order-1 space-y-3">
           <div ref={scrollRef} className="border border-[#262626] h-[420px] overflow-y-auto p-4 space-y-2 bg-[#0a0a0a]" data-testid="chat-stream">
             {messages.map((m, i) => (
-              <ChatLine key={m.id || i} m={m} mentioned={m.kind === "message" && isMention(m.text || "")} />
+              <ChatLine
+                key={m.id || i}
+                m={m}
+                mentioned={m.kind === "message" && isMention(m.text || "")}
+                onDelete={
+                  (localStorage.getItem("cm_admin_jwt") || localStorage.getItem("cm_maker_jwt"))
+                    ? async (id) => {
+                        if (!id) return;
+                        if (!window.confirm("Delete this message?")) return;
+                        try {
+                          await deleteChatMessage(id);
+                          setMessagesByCh((mm) => ({
+                            ...mm,
+                            [channel]: (mm[channel] || []).filter((x) => x.id !== id),
+                          }));
+                        } catch { /* ignore */ }
+                      }
+                    : null
+                }
+              />
             ))}
           </div>
 
@@ -795,20 +899,33 @@ function ChatTab({ me }) {
   );
 }
 
-function ChatLine({ m, mentioned }) {
+function ChatLine({ m, mentioned, onDelete }) {
   if (m.kind === "system") {
     return <div className="font-mono text-[12px] text-[#525252] italic">— {m.text} —</div>;
   }
   return (
     <div
-      className={`font-mono text-[12px] ${mentioned ? "border-l-2 border-[#ff4500] pl-2 bg-[#ff4500]/5" : "text-[#e5e5e5]"}`}
+      className={`font-mono text-[12px] flex items-start gap-1 group ${mentioned ? "border-l-2 border-[#ff4500] pl-2 bg-[#ff4500]/5" : "text-[#e5e5e5]"}`}
       data-testid={mentioned ? "chat-line-mentioned" : "chat-line"}
     >
-      <span className={`font-bold ${m.role === "maker" ? "text-[#ff4500]" : "text-emerald-400"}`}>
-        {m.user_name || m.user_email}
+      <span className="flex-1 min-w-0">
+        <span className={`font-bold ${m.role === "maker" ? "text-[#ff4500]" : "text-emerald-400"}`}>
+          {m.user_name || m.user_email}
+        </span>
+        <span className="text-[#525252] mx-1">›</span>
+        <span className="text-[#e5e5e5]">{m.text}</span>
       </span>
-      <span className="text-[#525252] mx-1">›</span>
-      <span className="text-[#e5e5e5]">{m.text}</span>
+      {onDelete && (
+        <button
+          onClick={() => onDelete(m.id)}
+          className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-200 px-1 transition-opacity"
+          aria-label="Delete (mod)"
+          title="Delete (mod)"
+          data-testid={`chat-mod-delete-${m.id || ""}`}
+        >
+          ⊗
+        </button>
+      )}
     </div>
   );
 }

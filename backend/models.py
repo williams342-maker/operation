@@ -121,6 +121,7 @@ class CheckoutRequest(BaseModel):
     items: List[CartItem]
     origin_url: str
     customer_email: Optional[EmailStr] = None
+    gift_note: Optional[str] = None
 
 
 class ActivityEvent(BaseModel):

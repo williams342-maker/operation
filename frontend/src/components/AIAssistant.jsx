@@ -13,12 +13,29 @@ const STARTER = {
 
 export default function AIAssistant() {
   const [open, setOpen] = useState(false);
-  const [messages, setMessages] = useState([STARTER]);
+  const [messages, setMessages] = useState(() => {
+    try {
+      const saved = localStorage.getItem("cm_ai_messages");
+      return saved ? JSON.parse(saved) : [STARTER];
+    } catch {
+      return [STARTER];
+    }
+  });
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
-  const [sessionId, setSessionId] = useState(null);
+  const [sessionId, setSessionId] = useState(() => localStorage.getItem("cm_ai_session"));
   const scrollRef = useRef(null);
   const location = useLocation();
+
+  // Persist conversation across navigations / reloads
+  useEffect(() => {
+    try { localStorage.setItem("cm_ai_messages", JSON.stringify(messages.slice(-50))); }
+    catch { /* ignore quota */ }
+  }, [messages]);
+
+  useEffect(() => {
+    if (sessionId) localStorage.setItem("cm_ai_session", sessionId);
+  }, [sessionId]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -120,6 +137,22 @@ export default function AIAssistant() {
                 </div>
                 <div className="font-display text-xl mt-1">Workshop Helper</div>
               </div>
+              <div className="flex items-center">
+              <button
+                onClick={() => {
+                  if (window.confirm("Start a fresh conversation?")) {
+                    localStorage.removeItem("cm_ai_session");
+                    localStorage.removeItem("cm_ai_messages");
+                    setSessionId(null);
+                    setMessages([STARTER]);
+                  }
+                }}
+                aria-label="Reset"
+                className="text-[#525252] hover:text-[#ff4500] mr-3 font-mono text-[10px] uppercase tracking-[0.22em]"
+                data-testid="ai-reset"
+              >
+                reset
+              </button>
               <button
                 onClick={() => setOpen(false)}
                 aria-label="Close"
@@ -127,6 +160,7 @@ export default function AIAssistant() {
               >
                 <X size={18} />
               </button>
+              </div>
             </div>
 
             <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-4 space-y-3" data-testid="ai-messages">

@@ -44,6 +44,18 @@ const adminAuthHeaders = () => {
   const t = localStorage.getItem("cm_admin_jwt");
   return t ? { Authorization: `Bearer ${t}` } : {};
 };
+export const fetchAdminAnalytics = () =>
+  http.get("/admin/analytics", { headers: adminAuthHeaders() }).then((r) => r.data);
+export const fetchAdminCommunityUsers = () =>
+  http.get("/admin/community-users", { headers: adminAuthHeaders() }).then((r) => r.data);
+export const adminPatchProduct = (slug, payload) =>
+  http.patch(`/admin/products/${slug}`, payload, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const adminDeleteProduct = (slug) =>
+  http.delete(`/admin/products/${slug}`, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const adminCreateReview = (payload) =>
+  http.post("/admin/reviews", payload, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const adminDeleteReview = (id) =>
+  http.delete(`/admin/reviews/${id}`, { headers: adminAuthHeaders() }).then((r) => r.data);
 export const requestAdminLink = (email, origin_url) =>
   http.post("/admin/auth/request", { email, origin_url }).then((r) => r.data);
 export const verifyAdminToken = (token) =>
@@ -111,6 +123,18 @@ export const createForumThread = (payload) =>
   http.post("/community/forum", payload, { headers: buyerAuthHeaders() }).then((r) => r.data);
 export const replyForumThread = (id, payload) =>
   http.post(`/community/forum/${id}/reply`, payload, { headers: buyerAuthHeaders() }).then((r) => r.data);
+
+// Moderator deletes — accepts admin OR maker JWT (backend checks role).
+const modAuthHeaders = () => {
+  const t = localStorage.getItem("cm_admin_jwt") || localStorage.getItem("cm_maker_jwt");
+  return t ? { Authorization: `Bearer ${t}` } : {};
+};
+export const deleteChatMessage = (id) =>
+  http.delete(`/admin/chat-messages/${id}`, { headers: modAuthHeaders() }).then((r) => r.data);
+export const deleteForumThread = (id) =>
+  http.delete(`/admin/forum-threads/${id}`, { headers: modAuthHeaders() }).then((r) => r.data);
+export const deleteForumReply = (id) =>
+  http.delete(`/admin/forum-replies/${id}`, { headers: modAuthHeaders() }).then((r) => r.data);
 
 export const fetchChatHistory = (channel) =>
   http.get(`/community/chat/${channel}/history`).then((r) => r.data);

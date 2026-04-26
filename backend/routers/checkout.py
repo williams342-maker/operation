@@ -139,6 +139,7 @@ async def create_checkout(req: CheckoutRequest, http_request: Request):
         "metadata": {
             "summary": line_summary[:480],
             "customer_email": req.customer_email or "",
+            "gift_note": (req.gift_note or "")[:480],
         },
     }
     try_with_tax = os.environ.get("STRIPE_AUTOMATIC_TAX", "true").lower() == "true"
@@ -167,6 +168,7 @@ async def create_checkout(req: CheckoutRequest, http_request: Request):
         "items": [ci.model_dump() for ci in req.items],
         "summary": line_summary,
         "customer_email": req.customer_email,
+        "gift_note": req.gift_note,
         "payment_status": "initiated",
         "status": "open",
         "created_at": now_iso(),

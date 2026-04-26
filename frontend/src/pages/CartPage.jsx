@@ -9,6 +9,7 @@ export default function CartPage() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
   const [email, setEmail] = useState("");
+  const [giftNote, setGiftNote] = useState("");
   const [quote, setQuote] = useState(null);
 
   // Live shipping/total quote (refreshes whenever cart changes)
@@ -31,6 +32,7 @@ export default function CartPage() {
         items: items.map((i) => ({ product_id: i.id, quantity: i.quantity })),
         origin_url: window.location.origin,
         customer_email: email,
+        gift_note: giftNote || undefined,
       });
       window.location.href = res.url;
     } catch (e) {
@@ -121,6 +123,20 @@ export default function CartPage() {
                   type="email" value={email} onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com" data-testid="cart-email"
                   className="w-full mt-2 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-3 font-mono text-sm"
+                />
+              </label>
+              <label className="block mb-4">
+                <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#a3a3a3]">
+                  🎁 Gift note (optional)
+                </span>
+                <textarea
+                  value={giftNote}
+                  onChange={(e) => setGiftNote(e.target.value)}
+                  rows={2}
+                  maxLength={400}
+                  placeholder="Sent to the maker · printed on the packing slip"
+                  data-testid="cart-gift-note"
+                  className="w-full mt-2 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-3 font-mono text-sm resize-y"
                 />
               </label>
               <button onClick={checkout} disabled={loading} data-testid="cart-checkout-btn" className="btn-industrial btn-primary w-full justify-center">

@@ -6,14 +6,27 @@ import {
   fetchAdminApplications,
   fetchAdminCustomOrders,
   fetchAdminOrders,
+  fetchAdminAnalytics,
+  fetchAdminCommunityUsers,
+  adminPatchProduct,
+  adminDeleteProduct,
+  adminCreateReview,
+  adminDeleteReview,
   decideMakerApplication,
   quoteCustomOrder,
+  fetchProducts,
+  fetchMakers,
+  fetchReviews,
 } from "../lib/api";
 
 const TABS = [
+  { id: "analytics", label: "Analytics" },
   { id: "applications", label: "Applications" },
   { id: "custom", label: "Custom Orders" },
   { id: "orders", label: "Paid Orders" },
+  { id: "listings", label: "Listings" },
+  { id: "users", label: "Users" },
+  { id: "reviews", label: "Reviews" },
 ];
 
 const formatDate = (iso) => {
@@ -155,13 +168,291 @@ export default function AdminDashboard() {
           ))}
         </div>
 
+        {tab === "analytics" && <AnalyticsTab />}
         {tab === "applications" && (
           <ApplicationsList items={apps} onChange={refresh} />
         )}
         {tab === "custom" && <CustomOrdersList items={custom} onChange={refresh} />}
         {tab === "orders" && <PaidOrdersList items={orders} />}
+        {tab === "listings" && <ListingsTab />}
+        {tab === "users" && <UsersTab />}
+        {tab === "reviews" && <ReviewsTab />}
       </div>
     </div>
+  );
+}
+
+// ===================== ANALYTICS =====================
+function AnalyticsTab() {
+  const [data, setData] = useState(null);
+  useEffect(() => {
+    fetchAdminAnalytics().then(setData).catch(() => setData(null));
+  }, []);
+  if (!data) {
+    return <p className="font-mono text-sm text-[#a3a3a3]" data-testid="analytics-loading">Loading…</p>;
+  }
+  return (
+    <div className="space-y-8" data-testid="analytics-tab">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Stat label="GMV (all-time)" value={`$${data.gmv.toFixed(0)}`} testId="an-gmv" />
+        <Stat label="GMV · 30d" value={`$${data.gmv_30d.toFixed(0)}`} testId="an-gmv-30" />
+        <Stat label="GMV · 7d" value={`$${data.gmv_7d.toFixed(0)}`} testId="an-gmv-7" />
+        <Stat label="Avg Order" value={`$${data.avg_order.toFixed(0)}`} testId="an-avg-order" />
+        <Stat label="Paid Orders" value={data.paid_orders} testId="an-orders" />
+        <Stat label="Community" value={data.community_users} testId="an-users" />
+        <Stat label="Showcase" value={data.showcase_posts} testId="an-showcase" />
+        <Stat label="Forum" value={data.forum_threads} testId="an-forum" />
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-6">
+        <div>
+          <h3 className="font-display text-2xl mb-4">Top Products</h3>
+          {!data.top_products.length ? (
+            <p className="font-mono text-xs text-[#a3a3a3]">No paid orders yet.</p>
+          ) : (
+            <ul className="space-y-2" data-testid="an-top-products">
+              {data.top_products.map((p) => (
+                <li key={p.slug} className="border border-[#262626] p-3 flex justify-between items-center">
+                  <div>
+                    <div className="font-display text-base">{p.title}</div>
+                    <div className="font-mono text-[10px] text-[#a3a3a3] uppercase tracking-[0.22em]">
+                      by {p.maker_slug}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-display text-xl text-[#ff4500]">${p.revenue.toFixed(0)}</div>
+                    <div className="font-mono text-[10px] text-[#525252]">{p.units} sold</div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div>
+          <h3 className="font-display text-2xl mb-4">Top Makers</h3>
+          {!data.top_makers.length ? (
+            <p className="font-mono text-xs text-[#a3a3a3]">No paid orders yet.</p>
+          ) : (
+            <ul className="space-y-2" data-testid="an-top-makers">
+              {data.top_makers.map((m) => (
+                <li key={m.slug} className="border border-[#262626] p-3 flex justify-between items-center">
+                  <div className="font-display text-base">{m.name}</div>
+                  <div className="font-display text-xl text-[#ff4500]">${m.revenue.toFixed(0)}</div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-6 border-t border-[#262626]">
+        <Stat label="Pending Apps" value={data.applications_pending} testId="an-pending-apps" />
+        <Stat label="Open Briefs" value={data.custom_orders_open} testId="an-pending-custom" />
+        <Stat label="Listings" value={data.products_count} testId="an-listings" />
+        <Stat label="Files" value={data.design_files} testId="an-files" />
+      </div>
+    </div>
+  );
+}
+
+// ===================== LISTINGS =====================
+function ListingsTab() {
+  const [products, setProducts] = useState([]);
+  const refresh = () => fetchProducts().then(setProducts);
+  useEffect(() => { refresh(); }, []);
+  return (
+    <div data-testid="listings-tab" className="space-y-3">
+      {products.map((p) => (
+        <ListingRow key={p.slug} p={p} onChange={refresh} />
+      ))}
+    </div>
+  );
+}
+
+function ListingRow({ p, onChange }) {
+  const [busy, setBusy] = useState(false);
+  const [stock, setStock] = useState(p.in_stock);
+  const toggleFeatured = async () => {
+    setBusy(true);
+    try { await adminPatchProduct(p.slug, { featured: !p.featured }); onChange(); }
+    finally { setBusy(false); }
+  };
+  const saveStock = async () => {
+    setBusy(true);
+    try { await adminPatchProduct(p.slug, { in_stock: parseInt(stock || 0, 10) }); onChange(); }
+    finally { setBusy(false); }
+  };
+  const del = async () => {
+    if (!window.confirm(`Delete listing "${p.title}"? This can't be undone.`)) return;
+    setBusy(true);
+    try { await adminDeleteProduct(p.slug); onChange(); }
+    finally { setBusy(false); }
+  };
+  return (
+    <div
+      className={`border ${p.featured ? "border-[#ff4500]/40" : "border-[#262626]"} hover:border-[#ff4500] transition p-4 flex flex-col md:flex-row md:items-center gap-4`}
+      data-testid={`listing-${p.slug}`}
+    >
+      <img src={p.images?.[0]} alt="" className="w-full md:w-24 h-24 object-cover" />
+      <div className="flex-1 min-w-0">
+        <div className="font-display text-xl truncate">{p.title}</div>
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mt-1">
+          {p.category} · {p.technique} · by {p.maker_slug}
+          {p.model_url && <span className="text-[#ff4500] ml-2">· 3D</span>}
+        </div>
+        <div className="font-display text-2xl text-[#ff4500] mt-2">${p.price.toFixed(0)}</div>
+      </div>
+      <div className="flex flex-col gap-2 md:items-end">
+        <button
+          onClick={toggleFeatured}
+          disabled={busy}
+          className={`px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.22em] border transition disabled:opacity-50 ${
+            p.featured ? "border-[#ff4500] text-[#ff4500]" : "border-[#262626] text-[#a3a3a3] hover:border-[#ff4500]"
+          }`}
+          data-testid={`listing-featured-${p.slug}`}
+        >
+          {p.featured ? "★ Featured" : "☆ Feature"}
+        </button>
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            value={stock}
+            onChange={(e) => setStock(e.target.value)}
+            min="0"
+            className="w-16 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-2 py-1 font-mono text-[11px]"
+            data-testid={`listing-stock-${p.slug}`}
+          />
+          <button
+            onClick={saveStock}
+            disabled={busy || stock === p.in_stock}
+            className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] disabled:opacity-50"
+            data-testid={`listing-stock-save-${p.slug}`}
+          >
+            save
+          </button>
+        </div>
+        <button
+          onClick={del}
+          disabled={busy}
+          className="font-mono text-[10px] uppercase tracking-[0.22em] text-red-400 hover:text-red-200 disabled:opacity-50"
+          data-testid={`listing-delete-${p.slug}`}
+        >
+          ⊗ delete
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ===================== USERS =====================
+function UsersTab() {
+  const [users, setUsers] = useState([]);
+  useEffect(() => { fetchAdminCommunityUsers().then(setUsers); }, []);
+  if (!users.length) {
+    return <p className="font-mono text-sm text-[#a3a3a3]" data-testid="users-empty">No community signups yet.</p>;
+  }
+  return (
+    <div data-testid="users-tab" className="space-y-2">
+      <p className="font-mono text-xs text-[#a3a3a3] mb-3">{users.length} community members</p>
+      {users.map((u) => (
+        <div
+          key={u.user_id}
+          className="border border-[#262626] hover:border-[#ff4500] transition p-3 flex items-center gap-3"
+          data-testid={`user-${u.user_id}`}
+        >
+          {u.picture ? (
+            <img src={u.picture} alt="" className="w-10 h-10 rounded-full object-cover border border-[#262626]" />
+          ) : (
+            <div className="w-10 h-10 rounded-full bg-[#121212] border border-[#262626] flex items-center justify-center font-mono text-xs text-[#a3a3a3]">
+              {(u.name || u.email)[0]?.toUpperCase()}
+            </div>
+          )}
+          <div className="flex-1 min-w-0">
+            <div className="font-display text-base truncate">{u.name || u.email.split("@")[0]}</div>
+            <a href={`mailto:${u.email}`} className="font-mono text-[10px] text-[#a3a3a3] uppercase tracking-[0.22em] hover:text-[#ff4500]">
+              {u.email}
+            </a>
+          </div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] text-right">
+            <div>joined {(u.created_at || "").slice(0, 10)}</div>
+            <div>last seen {(u.last_seen || u.created_at || "").slice(0, 10)}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ===================== REVIEWS =====================
+function ReviewsTab() {
+  const [reviews, setReviews] = useState([]);
+  const [showNew, setShowNew] = useState(false);
+  const refresh = () => fetchReviews().then(setReviews);
+  useEffect(() => { refresh(); }, []);
+  return (
+    <div data-testid="reviews-tab" className="space-y-3">
+      <div className="flex justify-between items-center">
+        <p className="font-mono text-xs text-[#a3a3a3]">{reviews.length} reviews</p>
+        <button onClick={() => setShowNew((s) => !s)} className="btn-industrial btn-primary inline-flex" data-testid="reviews-new-btn">
+          {showNew ? "Cancel" : "+ Add review"}
+        </button>
+      </div>
+      {showNew && <NewReviewForm onSaved={() => { setShowNew(false); refresh(); }} />}
+      {reviews.map((r) => (
+        <div key={r.id} className="border border-[#262626] p-4" data-testid={`review-${r.id}`}>
+          <div className="flex justify-between items-baseline">
+            <div>
+              <div className="font-display text-lg">{r.name}</div>
+              <div className="font-mono text-[10px] text-[#a3a3a3] uppercase tracking-[0.22em]">
+                {r.location} · {"★".repeat(r.rating)}
+              </div>
+            </div>
+            <button
+              onClick={async () => {
+                if (window.confirm("Delete this review?")) {
+                  await adminDeleteReview(r.id);
+                  refresh();
+                }
+              }}
+              className="font-mono text-[10px] uppercase tracking-[0.22em] text-red-400 hover:text-red-200"
+              data-testid={`review-delete-${r.id}`}
+            >
+              ⊗ delete
+            </button>
+          </div>
+          <p className="font-mono text-xs text-[#e5e5e5] leading-relaxed mt-2">{r.text}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function NewReviewForm({ onSaved }) {
+  const [r, setR] = useState({ name: "", location: "", rating: 5, text: "", product_slug: "" });
+  const [busy, setBusy] = useState(false);
+  const submit = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    try { await adminCreateReview({ ...r, rating: parseInt(r.rating, 10) || 5 }); onSaved(); }
+    finally { setBusy(false); }
+  };
+  return (
+    <form onSubmit={submit} className="border border-[#262626] p-4 grid md:grid-cols-2 gap-3" data-testid="review-new-form">
+      <input required placeholder="Reviewer name" value={r.name} onChange={(e) => setR({ ...r, name: e.target.value })}
+             className="bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs" data-testid="review-name" />
+      <input required placeholder="Location (City, ST)" value={r.location} onChange={(e) => setR({ ...r, location: e.target.value })}
+             className="bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs" data-testid="review-location" />
+      <input type="number" min="1" max="5" value={r.rating} onChange={(e) => setR({ ...r, rating: e.target.value })}
+             className="bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs" data-testid="review-rating" />
+      <input placeholder="Product slug (optional)" value={r.product_slug} onChange={(e) => setR({ ...r, product_slug: e.target.value })}
+             className="bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs" data-testid="review-product" />
+      <textarea required rows={3} placeholder="Review text…" value={r.text} onChange={(e) => setR({ ...r, text: e.target.value })}
+                className="md:col-span-2 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs resize-y"
+                data-testid="review-text" />
+      <button type="submit" disabled={busy} className="btn-industrial btn-primary md:col-span-2 disabled:opacity-50" data-testid="review-submit">
+        {busy ? "Saving…" : "Add review →"}
+      </button>
+    </form>
   );
 }
 
