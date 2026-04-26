@@ -14,6 +14,7 @@ from routers.community import router as community_router
 from routers.maker import router as maker_router
 from routers.seo import router as seo_router
 from routers.stripe_connect import router as stripe_connect_router
+from routers.subscriptions import router as subscriptions_router
 from routers.analytics import router as analytics_router
 from seed_data import seed_if_empty
 
@@ -26,6 +27,7 @@ api.include_router(seo_router)
 api.include_router(checkout_router)
 api.include_router(maker_router)
 api.include_router(stripe_connect_router)
+api.include_router(subscriptions_router)
 api.include_router(analytics_router)
 api.include_router(admin_router)
 api.include_router(ai_router)

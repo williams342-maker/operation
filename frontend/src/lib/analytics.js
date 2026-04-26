@@ -3,6 +3,9 @@ import { http, API } from "./api";
 const VIS_KEY = "cm_visitor_id";
 const SES_KEY = "cm_session_id";
 const SES_LAST = "cm_session_last";
+const ATTR_KEY = "cm_attribution_source";   // off-site ad attribution
+const ATTR_TS_KEY = "cm_attribution_ts";
+const ATTR_TTL_MS = 30 * 24 * 60 * 60 * 1000;  // 30 days
 const SESSION_GAP_MS = 30 * 60 * 1000;            // 30 min inactivity gap
 
 function uuid() {
@@ -115,6 +118,39 @@ function _attachListenersOnce() {
   // Catch-all for tab/window close
   window.addEventListener("pagehide", flushDwell);
   window.addEventListener("beforeunload", flushDwell);
+}
+
+/**
+ * Capture and persist UTM source (or `via=external`) for off-site ad
+ * attribution. Stored in localStorage with a 30-day TTL — surfaced at
+ * checkout so Stripe Connect can apply the off-site fee surcharge.
+ */
+export function captureAttribution() {
+  try {
+    const url = new URL(window.location.href);
+    const utm = url.searchParams.get("utm_source") || url.searchParams.get("via");
+    if (utm) {
+      localStorage.setItem(ATTR_KEY, utm.slice(0, 50));
+      localStorage.setItem(ATTR_TS_KEY, String(Date.now()));
+    }
+  } catch { /* swallow */ }
+}
+
+/**
+ * Returns the active attribution source if within TTL, else null.
+ * Anything not "internal" or "" is treated as external (off-site) traffic
+ * for Stripe Connect fee purposes. The backend trusts `external_attribution`
+ * — the frontend just forwards the source string.
+ */
+export function getAttributionSource() {
+  try {
+    const ts = parseInt(localStorage.getItem(ATTR_TS_KEY) || "0", 10);
+    if (!ts || Date.now() - ts > ATTR_TTL_MS) return null;
+    const src = localStorage.getItem(ATTR_KEY);
+    return src && src !== "internal" ? src : null;
+  } catch {
+    return null;
+  }
 }
 
 /**

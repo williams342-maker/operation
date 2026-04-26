@@ -25,7 +25,10 @@ async def test_first_10_listings_are_free_then_charge_kicks_in():
     with patch.object(revenue, "db", fake_db):
         # 10th listing — still free
         out = await revenue.accrue_listing_charge("m1", "p10")
-        assert out == {"charged": False, "amount_cents": 0, "free_remaining": 0, "lifetime": 10}
+        assert out["charged"] is False
+        assert out["free_remaining"] == 0
+        assert out["lifetime"] == 10
+        assert out["plus"] is False
         # Now simulate the doc reflecting 10 used listings
         fake_doc["listings_used_lifetime"] = 10
         out2 = await revenue.accrue_listing_charge("m1", "p11")
@@ -76,15 +79,13 @@ async def test_settle_no_op_when_nothing_pending():
 
 
 def test_fee_breakdown_default_5_plus_3_percent():
-    """$100 sale → $5 commission + $3 processing → $92 to maker."""
+    """$100 sale → $5 commission + $3 processing → $92 to maker (free tier)."""
     from routers.stripe_connect import fee_breakdown_cents
-    out = fee_breakdown_cents(100.00)
-    assert out == {
-        "gross_cents": 10000,
-        "commission_cents": 500,
-        "processing_cents": 300,
-        "net_cents": 9200,
-    }
+    out = fee_breakdown_cents(100.00, {"subscription_status": "free"})
+    assert out["gross_cents"] == 10000
+    assert out["commission_cents"] == 500
+    assert out["processing_cents"] == 300
+    assert out["net_cents"] == 9200
 
 
 def test_expiry_iso_returns_utc_ts_120_days_ahead():

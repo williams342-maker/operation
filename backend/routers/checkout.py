@@ -262,6 +262,10 @@ async def create_checkout(req: CheckoutRequest, http_request: Request):
         session = stripe_sdk.checkout.Session.create(**session_kwargs)
 
     total = quote["total_before_tax"]
+    # Attribution: anything other than "internal"/empty is treated as off-site
+    # for the 12% surcharge in stripe_connect transfers.
+    attr_source = (req.attribution_source or "").strip()[:50] or None
+    is_external = bool(attr_source) and attr_source.lower() not in ("internal", "direct", "self")
     await db.payment_transactions.insert_one({
         "id": str(uuid.uuid4()),
         "session_id": session.id,
@@ -274,6 +278,8 @@ async def create_checkout(req: CheckoutRequest, http_request: Request):
         "customer_email": req.customer_email,
         "gift_note": req.gift_note,
         "transfer_group": pre_transfer_group,
+        "attribution_source": attr_source,
+        "external_attribution": is_external,
         "payment_status": "initiated",
         "status": "open",
         "created_at": now_iso(),

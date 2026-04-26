@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useCart } from "../lib/cart";
 import { createCheckout, fetchCartQuote } from "../lib/api";
+import { getAttributionSource } from "../lib/analytics";
 import { Trash2 } from "lucide-react";
 
 export default function CartPage() {
@@ -39,6 +40,7 @@ export default function CartPage() {
         origin_url: window.location.origin,
         customer_email: email,
         gift_note: giftNote || undefined,
+        attribution_source: getAttributionSource() || undefined,
       });
       window.location.href = res.url;
     } catch (e) {

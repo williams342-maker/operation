@@ -174,23 +174,41 @@ PROCESSING_FEE_BPS = int(os.environ.get("PROCESSING_FEE_BPS", "300"))  # 3%
 TOTAL_FEE_BPS = PLATFORM_FEE_BPS + PROCESSING_FEE_BPS
 
 
-def fee_breakdown_cents(maker_subtotal_dollars: float) -> dict:
-    """Return cents breakdown so the maker payout UI can show transparent math."""
+def fee_breakdown_cents(maker_subtotal_dollars: float, maker: dict | None = None,
+                        external_attribution: bool = False) -> dict:
+    """Return cents breakdown so the maker payout UI can show transparent math.
+
+    Honors:
+      - per-maker commission rate (Plus = 4%, free = 5% by default)
+      - off-site ad surcharge (12% extra) when `external_attribution` and the
+        maker has NOT opted out
+    """
+    from revenue import commission_bps_for, OFFSITE_AD_FEE_BPS
     gross_cents = int(round(maker_subtotal_dollars * 100))
-    commission = int(round(gross_cents * PLATFORM_FEE_BPS / 10000))
+    commission_bps = commission_bps_for(maker or {})
+    commission = int(round(gross_cents * commission_bps / 10000))
     processing = int(round(gross_cents * PROCESSING_FEE_BPS / 10000))
-    net = max(0, gross_cents - commission - processing)
+    offsite = 0
+    if external_attribution and not (maker or {}).get("external_ads_opt_out", False):
+        offsite = int(round(gross_cents * OFFSITE_AD_FEE_BPS / 10000))
+    net = max(0, gross_cents - commission - processing - offsite)
     return {
         "gross_cents": gross_cents,
         "commission_cents": commission,
+        "commission_bps": commission_bps,
         "processing_cents": processing,
+        "offsite_cents": offsite,
         "net_cents": net,
     }
 
 
-def maker_share_cents(maker_subtotal_dollars: float) -> int:
-    """Return the cents the maker keeps after commission + processing fees."""
-    return fee_breakdown_cents(maker_subtotal_dollars)["net_cents"]
+def maker_share_cents(maker_subtotal_dollars: float,
+                      maker: dict | None = None,
+                      external_attribution: bool = False) -> int:
+    """Return the cents the maker keeps after all fees."""
+    return fee_breakdown_cents(
+        maker_subtotal_dollars, maker, external_attribution
+    )["net_cents"]
 
 
 async def transfer_to_makers_for_session(session_id: str) -> dict:
@@ -210,6 +228,10 @@ async def transfer_to_makers_for_session(session_id: str) -> dict:
     tx = await db.payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
     if not tx or tx.get("payment_status") != "paid":
         return {"skipped": True, "reason": "tx-not-paid"}
+
+    # If the buyer arrived via off-site attribution, every maker on this order
+    # gets a 12% surcharge (unless individually opted out — checked per-maker).
+    external_attribution = bool(tx.get("external_attribution"))
 
     s = _stripe()
     # IMPORTANT: Transfer.create's transfer_group must match the value we set
@@ -252,7 +274,7 @@ async def transfer_to_makers_for_session(session_id: str) -> dict:
                 {"$set": {
                     "session_id": session_id, "maker_slug": maker_slug,
                     "amount": round(subtotal, 2),
-                    "amount_cents": maker_share_cents(subtotal),
+                    "amount_cents": maker_share_cents(subtotal, m, external_attribution),
                     "platform_fee_bps": PLATFORM_FEE_BPS,
                     "status": "deferred",
                     "reason": "no-stripe-account",
@@ -274,7 +296,7 @@ async def transfer_to_makers_for_session(session_id: str) -> dict:
                 {"$set": {
                     "session_id": session_id, "maker_slug": maker_slug,
                     "amount": round(subtotal, 2),
-                    "amount_cents": maker_share_cents(subtotal),
+                    "amount_cents": maker_share_cents(subtotal, m, external_attribution),
                     "platform_fee_bps": PLATFORM_FEE_BPS,
                     "status": "deferred",
                     "reason": "payouts-not-enabled",
@@ -284,8 +306,8 @@ async def transfer_to_makers_for_session(session_id: str) -> dict:
             results.append({"maker": maker_slug, "skipped": "payouts-not-enabled"})
             continue
 
-        # 1. Compute gross-after-commission/processing.
-        gross_amount_cents = maker_share_cents(subtotal)
+        # 1. Compute gross-after-commission/processing (per-maker rate honors Plus tier).
+        gross_amount_cents = maker_share_cents(subtotal, m, external_attribution)
         # 2. Drain any accrued listing/promotion fees from the payout.
         from revenue import settle_pending_charges
         settled = await settle_pending_charges(maker_slug, gross_amount_cents)
@@ -525,6 +547,17 @@ async def stripe_connect_webhook(request: Request):
                     maker["slug"],
                     field("charges_enabled"), field("payouts_enabled"))
         return {"received": True, "type": etype, "maker": maker["slug"]}
+
+    # Crafters Plus subscription lifecycle
+    if etype.startswith("customer.subscription.") or etype == "invoice.payment_succeeded":
+        from routers.subscriptions import handle_subscription_event
+        # Convert Stripe SDK object to plain dict so the handler is testable.
+        try:
+            obj_dict = obj.to_dict() if hasattr(obj, "to_dict") else dict(obj)
+        except Exception:
+            obj_dict = obj
+        handled = await handle_subscription_event(etype, obj_dict)
+        return {"received": True, "type": etype, "handled": handled}
 
     return {"received": True, "type": etype, "handled": False}
 

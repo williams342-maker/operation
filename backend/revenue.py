@@ -23,6 +23,25 @@ LISTING_FEE_CENTS = int(os.environ.get("LISTING_FEE_CENTS", "20"))
 LISTING_FREE_QUOTA = int(os.environ.get("LISTING_FREE_QUOTA", "10"))
 LISTING_EXPIRY_DAYS = int(os.environ.get("LISTING_EXPIRY_DAYS", "120"))
 PROMOTION_WEEKLY_FEE_CENTS = int(os.environ.get("PROMOTION_WEEKLY_FEE_CENTS", "500"))
+PLUS_MONTHLY_LISTING_QUOTA = int(os.environ.get("PLUS_MONTHLY_LISTING_QUOTA", "15"))
+PLUS_PLATFORM_FEE_BPS = int(os.environ.get("PLUS_PLATFORM_FEE_BPS", "400"))
+PLUS_PRICE_USD = int(os.environ.get("PLUS_PRICE_USD", "12"))
+OFFSITE_AD_FEE_BPS = int(os.environ.get("OFFSITE_AD_FEE_BPS", "1200"))
+
+
+def is_plus(maker: dict) -> bool:
+    return (maker or {}).get("subscription_status") == "active"
+
+
+def commission_bps_for(maker: dict) -> int:
+    """Plus subscribers pay 4% commission; free tier pays 5% (default env value)."""
+    base = int(os.environ.get("PLATFORM_FEE_BPS", "500"))
+    return PLUS_PLATFORM_FEE_BPS if is_plus(maker) else base
+
+
+def current_month_key() -> str:
+    n = datetime.now(timezone.utc)
+    return f"{n.year:04d}-{n.month:02d}"
 
 
 def expiry_iso_from_now(days: int = LISTING_EXPIRY_DAYS) -> str:
@@ -35,31 +54,60 @@ def promotion_until_iso(weeks: int = 1) -> str:
 
 async def accrue_listing_charge(maker_slug: str, product_slug: str,
                                 kind: str = "listing_publish") -> dict:
-    """Accrue a listing fee to the maker's pending charges IFF lifetime usage
-    is past the free quota. Returns a dict describing the accrual:
-        {charged: bool, amount_cents: int, free_remaining: int, lifetime: int}
+    """Accrue a listing fee to the maker's pending charges.
+
+    Free tier:  first `LISTING_FREE_QUOTA` listings are free *lifetime*; all
+                subsequent publishes/renews accrue `LISTING_FEE_CENTS`.
+    Plus tier:  first `PLUS_MONTHLY_LISTING_QUOTA` listings each calendar month
+                are free; beyond that, same per-listing fee.
+
+    Returns:
+        {charged: bool, amount_cents: int, free_remaining: int,
+         lifetime: int, plus: bool, monthly_used: int}
     """
     m = await db.makers.find_one({"slug": maker_slug}, {"_id": 0})
     if not m:
-        return {"charged": False, "amount_cents": 0, "free_remaining": 0, "lifetime": 0}
+        return {"charged": False, "amount_cents": 0,
+                "free_remaining": 0, "lifetime": 0, "plus": False, "monthly_used": 0}
+
+    plus = is_plus(m)
     lifetime = int(m.get("listings_used_lifetime", 0))
     new_lifetime = lifetime + 1
-    if new_lifetime <= LISTING_FREE_QUOTA:
+    month_key = current_month_key()
+    by_month = dict(m.get("listings_by_month") or {})
+    monthly_used = int(by_month.get(month_key, 0))
+    new_monthly = monthly_used + 1
+
+    if plus:
+        free_quota = PLUS_MONTHLY_LISTING_QUOTA
+        within_free = new_monthly <= free_quota
+        free_remaining_after = max(0, free_quota - new_monthly)
+    else:
+        free_quota = LISTING_FREE_QUOTA
+        within_free = new_lifetime <= free_quota
+        free_remaining_after = max(0, free_quota - new_lifetime)
+
+    by_month[month_key] = new_monthly
+    if within_free:
         await db.makers.update_one(
             {"slug": maker_slug},
-            {"$inc": {"listings_used_lifetime": 1}},
+            {
+                "$inc": {"listings_used_lifetime": 1},
+                "$set": {"listings_by_month": by_month},
+            },
         )
         return {
             "charged": False, "amount_cents": 0,
-            "free_remaining": LISTING_FREE_QUOTA - new_lifetime,
-            "lifetime": new_lifetime,
+            "free_remaining": free_remaining_after,
+            "lifetime": new_lifetime, "plus": plus,
+            "monthly_used": new_monthly,
         }
-    # Past the free quota — accrue the fee.
+    # Past quota — accrue the fee.
     entry = {
         "kind": kind, "slug": product_slug,
         "amount_cents": LISTING_FEE_CENTS,
         "ts": now_iso(),
-        "note": f"{kind} fee",
+        "note": f"{kind} fee" + (" (Plus quota exceeded)" if plus else ""),
     }
     await db.makers.update_one(
         {"slug": maker_slug},
@@ -68,12 +116,14 @@ async def accrue_listing_charge(maker_slug: str, product_slug: str,
                 "listings_used_lifetime": 1,
                 "pending_charges_cents": LISTING_FEE_CENTS,
             },
+            "$set": {"listings_by_month": by_month},
             "$push": {"charge_history": entry},
         },
     )
     return {
         "charged": True, "amount_cents": LISTING_FEE_CENTS,
         "free_remaining": 0, "lifetime": new_lifetime,
+        "plus": plus, "monthly_used": new_monthly,
     }
 
 

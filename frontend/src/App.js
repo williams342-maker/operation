@@ -36,7 +36,7 @@ import PolicyPage from "./pages/PolicyPage";
 import CommunityPage from "./pages/CommunityPage";
 import { CommunityLogin, CommunityVerify, CommunityAuthCallback } from "./pages/CommunityAuth";
 import AIAssistant from "./components/AIAssistant";
-import { trackPageview } from "./lib/analytics";
+import { trackPageview, captureAttribution } from "./lib/analytics";
 
 const Home = () => (
   <>
@@ -58,6 +58,7 @@ const Home = () => (
 function ScrollTop() {
   const { pathname, search } = useLocation();
   useEffect(() => {
+    captureAttribution();
     window.scrollTo(0, 0);
     trackPageview();
   }, [pathname, search]);

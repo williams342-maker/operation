@@ -90,6 +90,22 @@ class Maker(BaseModel):
     stripe_charges_enabled: bool = False
     stripe_payouts_enabled: bool = False
     stripe_details_submitted: bool = False
+    # ---- Etsy-style subscription tier (Crafters Plus) ----
+    # "free" or "active". "past_due" / "canceled" handled via webhook.
+    subscription_status: str = "free"
+    stripe_customer_id: Optional[str] = None
+    stripe_subscription_id: Optional[str] = None
+    subscription_started_at: Optional[str] = None
+    subscription_renews_at: Optional[str] = None
+    # YYYY-MM → listings published that month (used to enforce Plus monthly quota)
+    listings_by_month: dict = Field(default_factory=dict)
+    # Plus-only: custom shop banner image (R2 URL)
+    banner_image_url: Optional[str] = None
+    # ---- Off-site ads attribution ----
+    # When false (default), buyer orders that arrived via `?utm_source=external` get
+    # an extra 12% off-site fee deducted from this maker's payout. Opt-out turns
+    # the surcharge off (maker forgoes off-site promotion).
+    external_ads_opt_out: bool = False
     # ---- Revenue model ledger (Etsy-style) ----
     # Lifetime number of listings created (counts published; not soft-deleted).
     # Free quota is 10 — beyond that, each listing/renewal accrues `listing_fee_cents`
@@ -182,6 +198,7 @@ class CheckoutRequest(BaseModel):
     origin_url: str
     customer_email: Optional[EmailStr] = None
     gift_note: Optional[str] = None
+    attribution_source: Optional[str] = None   # off-site ad surcharge tag
 
 
 class ActivityEvent(BaseModel):
@@ -211,6 +228,8 @@ class MakerProfileUpdate(BaseModel):
     portrait: Optional[str] = None
     cover: Optional[str] = None
     email: Optional[EmailStr] = None
+    banner_image_url: Optional[str] = None       # Plus-only: custom shop banner
+    external_ads_opt_out: Optional[bool] = None
 
 
 # ---- Admin ----

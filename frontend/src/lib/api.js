@@ -60,6 +60,14 @@ export const renewMakerProduct = (slug) =>
   http.post(`/maker/products/${slug}/renew`, {}, { headers: authHeaders() }).then((r) => r.data);
 export const fetchMakerBilling = () =>
   http.get("/maker/billing", { headers: authHeaders() }).then((r) => r.data);
+export const fetchMakerSubscription = () =>
+  http.get("/maker/subscription", { headers: authHeaders() }).then((r) => r.data);
+export const startMakerSubscription = () =>
+  http.post("/maker/subscription/start", {}, { headers: authHeaders() }).then((r) => r.data);
+export const cancelMakerSubscription = () =>
+  http.post("/maker/subscription/cancel", {}, { headers: authHeaders() }).then((r) => r.data);
+export const updateMakerExternalAdsOptOut = (opt_out) =>
+  http.patch("/maker/profile", { external_ads_opt_out: opt_out }, { headers: authHeaders() }).then((r) => r.data);
 export const updateMakerProfile = (payload) =>
   http.patch("/maker/profile", payload, { headers: authHeaders() }).then((r) => r.data);
 
