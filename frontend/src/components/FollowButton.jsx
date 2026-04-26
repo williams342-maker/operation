@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { fetchFollowStatus, followMaker, unfollowMaker } from "../lib/api";
 
-const COMMUNITY_JWT_KEY = "cm_community_jwt";
+const COMMUNITY_JWT_KEY = "cm_buyer_jwt";
 
 /**
  * FollowButton — sits on /makers/:slug. Shows live follower count and

@@ -56,6 +56,29 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - iter15: **Maker Self-Serve Listings (Option B)** — backend 189/189 + frontend E2E 8/8 (create / drag-drop base64 image / soft-delete / restore)
 - iter16: **.glb upload (P2) + Variants (P3) + Draft mode (P4)** — backend 28/28 incl. 10 new iter16 cases + frontend E2E 12/12 (modal variants editor, draft↔publish flips, .glb file upload, buyer variant selector + cart variant pricing). R2 live; transfer_to_makers + maker-orders correctly apply variant deltas.
 
+## Recently Shipped (2026-04-26 — iter34 · Listing-publish notifications + Follow system)
+- ✅ **iter34 — Maker confirmation + Ops notification + Buyer follower broadcast on listing publish** (closing the email-CTA loop end-to-end):
+
+  **Backend**
+    - `email_service.send_maker_listing_published`, `send_ops_new_listing`, `send_follower_new_listing` — three new transactional templates, all rendered through the shared `_shell` industrial dark theme + a reusable `_listing_card(title, image, price, url)` partial. Maker confirm includes a "Share to X" CTA + tip about first-24h share boost.
+    - `listing_notify.py` — `notify_listing_published(slug, force=False)` orchestrator. Idempotent via `published_at` stamp on the product doc; subsequent re-publishes don't re-broadcast. Each `send_*` wrapped in try/except so a transient mailer 429 doesn't fail the broadcast or the maker's create call.
+    - `routers/follows.py` (NEW) — `GET/POST/DELETE /api/makers/{slug}/follow` + `GET /api/makers/{slug}/follow-status`. Idempotent upsert with `$setOnInsert`. Frozen/banned users blocked with 403.
+    - `maker_auth.py` — added `optional_buyer` dep so follow-status works for both signed-in and signed-out callers.
+    - `routers/maker.py` — `maker_create_product` (when `status='published'`) and `maker_publish_product` now both call `notify_listing_published` synchronously after the DB write.
+    - `db.follows` collection: `{id, user_id, maker_slug, follower_email, follower_name, created_at}`.
+
+  **Frontend**
+    - `components/FollowButton.jsx` (NEW) — button cluster on `/makers/:slug` hero. Three states: loading / "+ Sign in to follow" (unauthed → redirects to /community/login?next=…) / "+ Follow" / "✓ Following". Displays live follower count chip. Sonner toast on every state change ("Following X. You'll get an email when they post." / "Unfollowed X.").
+    - `lib/api.js` — `fetchFollowStatus`, `followMaker`, `unfollowMaker` helpers.
+    - `pages/MakerDetail.jsx` — FollowButton mounted in the hero immediately below the studio name + listings count line.
+
+  **Bug caught + fixed by testing agent (iter20)**: FollowButton was reading `cm_community_jwt` but the rest of the buyer code uses `cm_buyer_jwt` — would have broken authed UX for real users coming in through magic-link verify. Fixed in same iteration; re-verified end-to-end (unauth → '+ Sign in to follow', authed → '+ Follow' → click → '✓ Following' + count 0→1 + toast, click again → revert).
+
+  **Tests**: testing_agent_v3_fork iter20 — **100% pass** (14/14 backend pytest in `tests/test_iter20_follow_notify.py`, all 4 frontend spec scenarios green, sonner toasts captured live). Reviewer flagged 3 follow-up improvements: 1) move publish-notify to BackgroundTasks for high-fan makers, 2) #followers anchor goes nowhere — either remove or build a follower-list section, 3) maker_publish_product should idempotency-check before re-charging the listing fee on already-published listings. Tracked for next pass.
+
+  **Caveat**: MailerSend daily quota was exhausted by heavy testing today. The notify pipeline gracefully handles 429s (logs warning, returns None, continues fan-out) — confirmed via direct test. Once quota resets (~24h), real emails will flow.
+
+
 ## Recently Shipped (2026-04-26 — iter33 · Channel trim + CNC emblem)
 - ✅ **iter33 — More channel cleanup + downloadable CNC Garage Builders emblem on homepage**:
 
