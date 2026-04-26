@@ -12,12 +12,16 @@ export default function ProductDetail() {
   const [active, setActive] = useState(0);
   const [qty, setQty] = useState(1);
   const [added, setAdded] = useState(false);
+  const [selectedVariantId, setSelectedVariantId] = useState(null);
   const { add } = useCart();
 
   useEffect(() => {
     setActive(0);
+    setSelectedVariantId(null);
     fetchProduct(slug).then(async (prod) => {
       setP(prod);
+      // Auto-select first variant if any
+      if (prod?.variants?.length) setSelectedVariantId(prod.variants[0].id);
       if (prod?.maker_slug) setMaker(await fetchMaker(prod.maker_slug).catch(() => null));
     });
   }, [slug]);
@@ -50,7 +54,21 @@ export default function ProductDetail() {
 
   if (!p) return <div className="pt-40 text-center font-mono text-sm text-[#a3a3a3]">Loading…</div>;
 
-  const onAdd = () => { add(p, qty); setAdded(true); setTimeout(() => setAdded(false), 2000); };
+  const hasVariants = (p.variants || []).length > 0;
+  const selectedVariant = hasVariants
+    ? p.variants.find((v) => v.id === selectedVariantId) || p.variants[0]
+    : null;
+  const effectivePrice = selectedVariant
+    ? Number(p.price) + Number(selectedVariant.price_delta || 0)
+    : p.price;
+  const effectiveStock = selectedVariant ? selectedVariant.in_stock : p.in_stock;
+
+  const onAdd = () => {
+    if (hasVariants && !selectedVariant) return;
+    add(p, qty, selectedVariant);
+    setAdded(true);
+    setTimeout(() => setAdded(false), 2000);
+  };
 
   return (
     <div className="pt-32 pb-24 grain min-h-screen" data-testid="product-detail">
@@ -113,13 +131,50 @@ export default function ProductDetail() {
           <div className="md:col-span-5">
             <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-3">{p.category}</div>
             <h1 className="font-display text-5xl md:text-6xl mb-4">{p.title}</h1>
-            <div className="font-display text-4xl text-[#ff4500] mb-6">${p.price.toFixed(2)}</div>
+            <div className="font-display text-4xl text-[#ff4500] mb-6" data-testid="product-price">
+              ${effectivePrice.toFixed(2)}
+            </div>
             <p className="font-mono text-sm text-[#a3a3a3] leading-relaxed mb-8">{p.description}</p>
+
+            {hasVariants && (
+              <div className="mb-6" data-testid="product-variants">
+                <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#a3a3a3] mb-3">Choose option</div>
+                <div className="grid grid-cols-2 gap-2">
+                  {p.variants.map((v) => {
+                    const sel = selectedVariantId === v.id;
+                    const oos = v.in_stock <= 0;
+                    return (
+                      <button
+                        key={v.id}
+                        onClick={() => !oos && setSelectedVariantId(v.id)}
+                        disabled={oos}
+                        data-testid={`product-variant-${v.id}`}
+                        className={`text-left border px-4 py-3 transition ${
+                          sel
+                            ? "border-[#ff4500] bg-[#ff4500]/10"
+                            : "border-[#262626] hover:border-[#ff4500]/50"
+                        } ${oos ? "opacity-40 cursor-not-allowed" : ""}`}
+                      >
+                        <div className="font-mono text-xs text-[#e5e5e5]">{v.label}</div>
+                        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mt-1">
+                          {v.price_delta === 0
+                            ? "Included"
+                            : v.price_delta > 0
+                            ? `+ $${Number(v.price_delta).toFixed(0)}`
+                            : `− $${Math.abs(Number(v.price_delta)).toFixed(0)}`}
+                          {oos && <span className="ml-2 text-red-400">· Sold out</span>}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             <ul className="border-y border-[#262626] divide-y divide-[#262626] mb-8">
               {p.dimensions && <li className="flex justify-between py-3 font-mono text-xs uppercase tracking-[0.2em]"><span className="text-[#a3a3a3]">Size</span><span>{p.dimensions}</span></li>}
               <li className="flex justify-between py-3 font-mono text-xs uppercase tracking-[0.2em]"><span className="text-[#a3a3a3]">Materials</span><span className="text-right">{p.materials.join(", ")}</span></li>
-              <li className="flex justify-between py-3 font-mono text-xs uppercase tracking-[0.2em]"><span className="text-[#a3a3a3]">In stock</span><span>{p.in_stock}</span></li>
+              <li className="flex justify-between py-3 font-mono text-xs uppercase tracking-[0.2em]"><span className="text-[#a3a3a3]">In stock</span><span>{effectiveStock}</span></li>
             </ul>
 
             <div className="flex items-center gap-4 mb-6">

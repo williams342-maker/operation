@@ -28,6 +28,10 @@ async def _resolve_cart(items: list) -> list[dict]:
     for ci in items:
         pid = ci.product_id if hasattr(ci, "product_id") else ci.get("product_id")
         qty = ci.quantity if hasattr(ci, "quantity") else ci.get("quantity", 1)
+        variant_id = (
+            ci.variant_id if hasattr(ci, "variant_id")
+            else ci.get("variant_id") if isinstance(ci, dict) else None
+        )
         prod = await db.products.find_one({"id": pid}, {"_id": 0})
         if not prod:
             prod = await db.products.find_one({"slug": pid}, {"_id": 0})
@@ -38,6 +42,37 @@ async def _resolve_cart(items: list) -> list[dict]:
                 410,            # Gone — listing was withdrawn after add-to-cart
                 f"This listing is no longer available: {prod.get('title', pid)}",
             )
+        if prod.get("status") == "draft":
+            raise HTTPException(
+                410, f"This listing is not available: {prod.get('title', pid)}"
+            )
+
+        # Variant resolution: if the product has variants OR a variant_id was
+        # passed, the buyer must select one and the variant determines effective
+        # price + stock.
+        variant = None
+        variants = prod.get("variants") or []
+        if variants:
+            if not variant_id:
+                raise HTTPException(
+                    400,
+                    f"Please choose an option for {prod.get('title', pid)}.",
+                )
+            for v in variants:
+                if v.get("id") == variant_id:
+                    variant = v
+                    break
+            if not variant:
+                raise HTTPException(400, "Selected variant no longer exists.")
+            effective_price = float(prod["price"]) + float(variant.get("price_delta", 0))
+            prod = {
+                **prod,
+                "price": round(effective_price, 2),
+                "_variant_id": variant["id"],
+                "_variant_label": variant.get("label", ""),
+                "_base_title": prod.get("title", ""),
+                "title": f"{prod.get('title', '')} — {variant.get('label', '')}",
+            }
         out.append({"product": prod, "quantity": max(1, int(qty))})
     return out
 

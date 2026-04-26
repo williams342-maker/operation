@@ -3,6 +3,10 @@ import React, { createContext, useContext, useEffect, useState, useCallback } fr
 const CartCtx = createContext(null);
 const STORAGE = "cm_cart_v1";
 
+// Cart-row identity is product id + variant_id (so two variants of one product
+// occupy two distinct rows).
+const rowKey = (i) => `${i.id}::${i.variant_id || ""}`;
+
 export function CartProvider({ children }) {
   const [items, setItems] = useState(() => {
     try { return JSON.parse(localStorage.getItem(STORAGE)) || []; }
@@ -10,16 +14,39 @@ export function CartProvider({ children }) {
   });
   useEffect(() => { localStorage.setItem(STORAGE, JSON.stringify(items)); }, [items]);
 
-  const add = useCallback((p, qty = 1) => {
+  const add = useCallback((p, qty = 1, variant = null) => {
     setItems((cur) => {
-      const ex = cur.find((i) => i.id === p.id);
-      if (ex) return cur.map((i) => i.id === p.id ? { ...i, quantity: i.quantity + qty } : i);
-      return [...cur, { id: p.id, slug: p.slug, title: p.title, price: p.price, image: p.images?.[0], quantity: qty }];
+      const newRow = {
+        id: p.id,
+        slug: p.slug,
+        title: p.title,
+        // Effective price: base + variant.price_delta (if any)
+        price: variant ? Number(p.price) + Number(variant.price_delta || 0) : p.price,
+        image: p.images?.[0],
+        quantity: qty,
+        variant_id: variant?.id || null,
+        variant_label: variant?.label || null,
+      };
+      const ex = cur.find((i) => rowKey(i) === rowKey(newRow));
+      if (ex) {
+        return cur.map((i) =>
+          rowKey(i) === rowKey(newRow) ? { ...i, quantity: i.quantity + qty } : i
+        );
+      }
+      return [...cur, newRow];
     });
   }, []);
-  const remove = useCallback((id) => setItems((c) => c.filter((i) => i.id !== id)), []);
-  const setQty = useCallback((id, q) =>
-    setItems((c) => c.map((i) => i.id === id ? { ...i, quantity: Math.max(1, q) } : i)), []);
+
+  const remove = useCallback((id, variantId = null) =>
+    setItems((c) => c.filter((i) => !(i.id === id && (i.variant_id || null) === (variantId || null)))), []);
+
+  const setQty = useCallback((id, q, variantId = null) =>
+    setItems((c) => c.map((i) =>
+      i.id === id && (i.variant_id || null) === (variantId || null)
+        ? { ...i, quantity: Math.max(1, q) }
+        : i
+    )), []);
+
   const clear = useCallback(() => setItems([]), []);
 
   const subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0);

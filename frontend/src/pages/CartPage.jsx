@@ -22,7 +22,7 @@ export default function CartPage() {
   useEffect(() => {
     if (!items.length) { setQuote(null); return; }
     let alive = true;
-    fetchCartQuote(items.map((i) => ({ product_id: i.id, quantity: i.quantity })))
+    fetchCartQuote(items.map((i) => ({ product_id: i.id, quantity: i.quantity, variant_id: i.variant_id || undefined })))
       .then((q) => { if (alive) setQuote(q); })
       .catch(() => { if (alive) setQuote(null); });
     return () => { alive = false; };
@@ -35,7 +35,7 @@ export default function CartPage() {
     setErr(""); setLoading(true);
     try {
       const res = await createCheckout({
-        items: items.map((i) => ({ product_id: i.id, quantity: i.quantity })),
+        items: items.map((i) => ({ product_id: i.id, quantity: i.quantity, variant_id: i.variant_id || undefined })),
         origin_url: window.location.origin,
         customer_email: email,
         gift_note: giftNote || undefined,
@@ -65,23 +65,31 @@ export default function CartPage() {
           <div className="grid lg:grid-cols-12 gap-10">
             <ul className="lg:col-span-8 border-y border-[#262626] divide-y divide-[#262626]">
               {items.map((i) => (
-                <li key={i.id} className="grid grid-cols-12 gap-4 py-6 items-center" data-testid={`cart-item-${i.slug}`}>
+                <li key={`${i.id}::${i.variant_id || ""}`} className="grid grid-cols-12 gap-4 py-6 items-center" data-testid={`cart-item-${i.slug}`}>
                   <Link to={`/shop/${i.slug}`} className="col-span-3 sm:col-span-2 aspect-square overflow-hidden border border-[#262626]">
                     <img src={i.image} alt={i.title} className="w-full h-full object-cover" />
                   </Link>
                   <div className="col-span-9 sm:col-span-5">
                     <Link to={`/shop/${i.slug}`} className="font-display text-2xl hover:text-[#ff4500] transition">{i.title}</Link>
+                    {i.variant_label && (
+                      <div
+                        className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mt-1"
+                        data-testid={`cart-variant-${i.slug}`}
+                      >
+                        ◆ {i.variant_label}
+                      </div>
+                    )}
                     <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#a3a3a3] mt-1">${i.price.toFixed(2)} ea</div>
                   </div>
                   <div className="col-span-6 sm:col-span-3 flex items-center gap-3">
                     <div className="flex items-center border border-[#262626]">
-                      <button onClick={() => setQty(i.id, i.quantity - 1)} className="px-3 py-2 hover:bg-[#1a1a1a]">−</button>
+                      <button onClick={() => setQty(i.id, i.quantity - 1, i.variant_id)} className="px-3 py-2 hover:bg-[#1a1a1a]">−</button>
                       <span className="px-3 font-mono text-sm">{i.quantity}</span>
-                      <button onClick={() => setQty(i.id, i.quantity + 1)} className="px-3 py-2 hover:bg-[#1a1a1a]">+</button>
+                      <button onClick={() => setQty(i.id, i.quantity + 1, i.variant_id)} className="px-3 py-2 hover:bg-[#1a1a1a]">+</button>
                     </div>
                   </div>
                   <div className="col-span-4 sm:col-span-1 font-display text-xl text-right">${(i.price * i.quantity).toFixed(2)}</div>
-                  <button onClick={() => remove(i.id)} className="col-span-2 sm:col-span-1 justify-self-end p-2 text-[#a3a3a3] hover:text-[#ff4500]" data-testid={`cart-remove-${i.slug}`}>
+                  <button onClick={() => remove(i.id, i.variant_id)} className="col-span-2 sm:col-span-1 justify-self-end p-2 text-[#a3a3a3] hover:text-[#ff4500]" data-testid={`cart-remove-${i.slug}`}>
                     <Trash2 size={16} />
                   </button>
                 </li>

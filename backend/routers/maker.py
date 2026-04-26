@@ -3,7 +3,7 @@ import re
 import uuid
 from datetime import datetime, timezone
 from typing import List, Optional
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel, ConfigDict
 
 from core import db, logger, now_iso
@@ -89,6 +89,8 @@ class MakerProductUpdate(BaseModel):
     in_stock: Optional[int] = None
     model_url: Optional[str] = None
     images: Optional[List[str]] = None
+    variants: Optional[List[dict]] = None
+    status: Optional[str] = None     # "draft" | "published"
 
 
 @router.patch("/maker/products/{product_slug}", response_model=Product)
@@ -102,8 +104,34 @@ async def maker_update_product(
     if prod.get("maker_slug") != slug:
         raise HTTPException(403, "You can only edit your own listings.")
     updates = {k: v for k, v in payload.model_dump(exclude_none=True).items()}
+    if updates.get("status") and updates["status"] not in ("draft", "published"):
+        raise HTTPException(400, "status must be 'draft' or 'published'.")
     if updates:
         await db.products.update_one({"slug": product_slug}, {"$set": updates})
+    updated = await db.products.find_one({"slug": product_slug}, {"_id": 0})
+    return updated
+
+
+@router.post("/maker/products/{product_slug}/publish", response_model=Product)
+async def maker_publish_product(product_slug: str, slug: str = Depends(current_maker_slug)):
+    prod = await db.products.find_one({"slug": product_slug}, {"_id": 0})
+    if not prod or prod.get("maker_slug") != slug:
+        raise HTTPException(404, "Product not found")
+    await db.products.update_one(
+        {"slug": product_slug}, {"$set": {"status": "published"}}
+    )
+    updated = await db.products.find_one({"slug": product_slug}, {"_id": 0})
+    return updated
+
+
+@router.post("/maker/products/{product_slug}/unpublish", response_model=Product)
+async def maker_unpublish_product(product_slug: str, slug: str = Depends(current_maker_slug)):
+    prod = await db.products.find_one({"slug": product_slug}, {"_id": 0})
+    if not prod or prod.get("maker_slug") != slug:
+        raise HTTPException(404, "Product not found")
+    await db.products.update_one(
+        {"slug": product_slug}, {"$set": {"status": "draft"}}
+    )
     updated = await db.products.find_one({"slug": product_slug}, {"_id": 0})
     return updated
 
@@ -163,6 +191,15 @@ async def maker_create_product(
             else:
                 final_images.append(img)
 
+    if payload.status not in ("draft", "published"):
+        raise HTTPException(400, "status must be 'draft' or 'published'.")
+    # Validate variants — labels are required and stock must be non-negative
+    for v in payload.variants or []:
+        if not v.label.strip():
+            raise HTTPException(400, "Each variant needs a label.")
+        if v.in_stock < 0:
+            raise HTTPException(400, "Variant stock must be non-negative.")
+
     product = Product(
         slug=candidate,
         title=payload.title.strip(),
@@ -176,12 +213,15 @@ async def maker_create_product(
         model_url=payload.model_url,
         maker_slug=slug,
         in_stock=int(payload.in_stock),
+        variants=payload.variants,
+        status=payload.status,
     )
     await db.products.insert_one(product.model_dump())
-    # Bump maker's listings_count (denormalized counter shown on profile cards)
-    await db.makers.update_one(
-        {"slug": slug}, {"$inc": {"listings_count": 1}}
-    )
+    # Bump maker's listings_count only for published listings
+    if product.status == "published":
+        await db.makers.update_one(
+            {"slug": slug}, {"$inc": {"listings_count": 1}}
+        )
     return product
 
 
@@ -233,6 +273,43 @@ async def maker_restore_product(
     return await db.products.find_one({"slug": product_slug}, {"_id": 0})
 
 
+# ---------------- File uploads (R2) ------------------------------------------
+
+@router.post("/maker/uploads/model")
+async def maker_upload_model(
+    file: UploadFile = File(...),
+    slug: str = Depends(current_maker_slug),
+):
+    """Upload a `.glb` / `.gltf` 3D model to R2; returns the public URL.
+    Used by the listing modal so makers can attach a 3D viewer to their product.
+    """
+    try:
+        from r2_storage import is_configured as _r2_ok, upload_model_bytes
+    except Exception:
+        raise HTTPException(503, "R2 storage is not available.")
+    if not _r2_ok():
+        raise HTTPException(503, "R2 storage is not configured.")
+
+    fname = (file.filename or "").lower()
+    if not (fname.endswith(".glb") or fname.endswith(".gltf")):
+        raise HTTPException(400, "Only .glb or .gltf files are supported.")
+
+    body = await file.read()
+    try:
+        url = upload_model_bytes(
+            body,
+            key_prefix=f"models/{slug}",
+            filename=fname,
+            content_type=file.content_type or "application/octet-stream",
+        )
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        logger.exception("model upload failed for maker=%s: %s", slug, e)
+        raise HTTPException(502, "Could not upload model.")
+    return {"url": url, "size": len(body)}
+
+
 @router.get("/maker/orders")
 async def maker_orders(slug: str = Depends(current_maker_slug)):
     """Returns paid orders that include at least one product from this maker."""
@@ -253,12 +330,21 @@ async def maker_orders(slug: str = Depends(current_maker_slug)):
             if not p:
                 continue
             qty = int(ci.get("quantity", 1))
+            unit_price = float(p["price"])
+            variant_label = None
+            variant_id = ci.get("variant_id")
+            if variant_id:
+                for v in (p.get("variants") or []):
+                    if v.get("id") == variant_id:
+                        unit_price = float(p["price"]) + float(v.get("price_delta", 0))
+                        variant_label = v.get("label")
+                        break
             my_lines.append({
                 "product_slug": p["slug"],
-                "title": p["title"],
-                "price": p["price"],
+                "title": p["title"] + (f" — {variant_label}" if variant_label else ""),
+                "price": unit_price,
                 "quantity": qty,
-                "subtotal": round(float(p["price"]) * qty, 2),
+                "subtotal": round(unit_price * qty, 2),
             })
         if not my_lines:
             continue

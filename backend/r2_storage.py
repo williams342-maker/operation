@@ -41,7 +41,15 @@ ALLOWED_CONTENT_TYPES = {
     "image/gif": "gif",
 }
 
-MAX_BYTES = 8 * 1024 * 1024   # 8 MB hard cap per image (already pre-compressed client-side)
+# 3D model files for the @google/model-viewer
+ALLOWED_MODEL_TYPES = {
+    "model/gltf-binary": "glb",
+    "model/gltf+json": "gltf",
+    "application/octet-stream": "glb",   # browsers often send this for .glb
+}
+
+MAX_BYTES = 8 * 1024 * 1024          # 8 MB image cap
+MAX_MODEL_BYTES = 50 * 1024 * 1024   # 50 MB .glb cap (high-poly support)
 
 
 def is_configured() -> bool:
@@ -77,10 +85,11 @@ def public_url(key: str) -> str:
 
 
 def upload_bytes(data: bytes, key: str, content_type: str,
-                 cache_control: str = "public, max-age=31536000, immutable") -> str:
+                 cache_control: str = "public, max-age=31536000, immutable",
+                 max_bytes: int = MAX_BYTES) -> str:
     """Upload raw bytes and return the public URL."""
-    if len(data) > MAX_BYTES:
-        raise ValueError(f"File too large ({len(data)} bytes, max {MAX_BYTES}).")
+    if len(data) > max_bytes:
+        raise ValueError(f"File too large ({len(data)} bytes, max {max_bytes}).")
     client().put_object(
         Bucket=R2_BUCKET,
         Key=key,
@@ -90,6 +99,25 @@ def upload_bytes(data: bytes, key: str, content_type: str,
     )
     logger.info("r2: uploaded key=%s ct=%s size=%d", key, content_type, len(data))
     return public_url(key)
+
+
+def upload_model_bytes(data: bytes, key_prefix: str,
+                       filename: Optional[str] = None,
+                       content_type: str = "model/gltf-binary") -> str:
+    """Upload a .glb / .gltf model and return the public URL."""
+    ct = (content_type or "").lower() or "model/gltf-binary"
+    if ct not in ALLOWED_MODEL_TYPES:
+        raise ValueError(f"Unsupported model type: {ct}")
+    ext = ALLOWED_MODEL_TYPES[ct]
+    # Force .glb extension if filename hints at it (octet-stream uploads)
+    if filename and filename.lower().endswith(".glb"):
+        ext = "glb"
+        ct = "model/gltf-binary"
+    elif filename and filename.lower().endswith(".gltf"):
+        ext = "gltf"
+        ct = "model/gltf+json"
+    key = f"{key_prefix.rstrip('/')}/{uuid.uuid4().hex}.{ext}"
+    return upload_bytes(data, key, ct, max_bytes=MAX_MODEL_BYTES)
 
 
 _DATA_URL_RE = re.compile(r"^data:(?P<ct>[\w/+.\-]+);base64,(?P<b64>.+)$", re.DOTALL)

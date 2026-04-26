@@ -1,0 +1,39 @@
+{
+  "summary": "Iter16 — Variants + Draft mode (publish/unpublish) + .glb upload via R2 — FULLY PASSED. Backend: 10/10 pytest cases (test_iter16_drafts_variants_glb.py) green, covering (a) draft creation with auto-id'd variants, (b) public catalog excludes drafts, (c) maker portal includes drafts, (d) publish/unpublish status flips and visibility flips, (e) /cart/quote 400 with 'choose option' detail when variants exist & none selected, (f) /cart/quote applies +$50 price_delta producing subtotal=$150, (g) zero-delta variant returns base $100, (h) /maker/uploads/model returns valid R2 CDN URL https://pub-96d13eb6b15840a98236f6c1053262c3.r2.dev/models/iron-and-oak/{uuid}.glb with correct size, (i) non-.glb files rejected with 400. Frontend E2E: 12/12 steps green against https://active-project-4.preview.emergentagent.com/maker/dashboard with JWT injected via add_init_script (steps 9–20). Created listing 'TEST_iter16_e2e' as draft via NewListingModal with 1 PNG image + 2 variants (Small +$0/5, Large +$50/3); landed in [data-testid='drafts-section'] with ✎ Draft badge. product-toggle-publish flipped it into live grid, then back into drafts. Opened 3D editor, uploaded a 20-byte glTF binary header, verified GET /api/maker/products returned model_url=https://pub-96d13eb6b15840a98236f6c1053262c3.r2.dev/models/iron-and-oak/909a2b7db7a245aab9a7517b7ab29eec.glb. Buyer flow on /shop/test-iter16-e2e: variants section visible with both variant buttons; clicking Large updated [data-testid='product-price'] from $100 → $150; add-to-cart + /cart showed [data-testid='cart-variant-test-iter16-e2e']='◆ Large' and [data-testid='cart-summary'] subtotal $150 (total $175 with $25 shipping). Cleanup: test product hard-deleted from MongoDB.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter16_drafts_variants_glb.py",
+    "/app/test_reports/pytest/iter16.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "MakerDashboard.jsx is now 1349 lines — exceeds the 700-line guideline. ProductsList, ProductEditCard, NewListingModal, PayoutsTab should each be moved to their own file (e.g., /pages/maker/components/{NewListingModal,ProductEditCard,ProductsList,PayoutsTab}.jsx). High maintenance friction every iteration.",
+    "MakerProductCreate.status default='published' but the maker route validates status only for 'draft'/'published' AFTER reading payload.images and after R2 upload (maker.py L194). If a malformed status is supplied the R2 upload is performed first then 400 is returned — wastes a round-trip and orphans the R2 object. Move status validation above the image-upload loop.",
+    "/api/cart/quote variant-required error message text wasn't asserted exactly ('Please choose an option'). Backend currently returns something containing 'option' / 'variant' / 'choose' which is acceptable, but PRD wording should be locked in a unit test on the checkout router so future copy edits don't break the FE error display.",
+    "ProductEditCard onTogglePublish (MakerDashboard.jsx L473) silently swallows errors via try/finally without surfacing failures — if /publish 500s the user sees no feedback. Add a toast or inline error similar to model-upload's modelErr pattern.",
+    "MakerProductUpdate (maker.py L83) accepts variants as List[dict] without per-item validation — owner can PATCH variants with negative price_delta or empty label (the create path does validate). Replace with List[ProductVariant] and run the same checks as POST /maker/products.",
+    "Iter8 transfer_group mismatch in /app/backend/routers/stripe_connect.py — STILL re-flagged from iter7/8/10/11. Separate-charge-and-transfer in production will fail. Out of scope for iter16 but persists."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter16_drafts_variants_glb.py (new)",
+    "/app/test_reports/pytest/iter16.xml (new)"
+  ],
+  "success_rate": {
+    "backend": "100% (10/10)",
+    "frontend": "100% (12/12 E2E steps)"
+  },
+  "test_credentials": "Maker iron-and-oak@craftersmarket.org via maker_auth.issue_magic_token + POST /api/maker/auth/verify; JWT injected to localStorage cm_maker_jwt + cm_maker_slug='iron-and-oak' via add_init_script before page.goto.",
+  "seed_data_creation": "Created 1 test listing slug='test-iter16-e2e' title='TEST_iter16_e2e' with 2 variants and 1 R2 .glb model. Hard-deleted from MongoDB at end of run via motor (delete_many on slug ^test-iter16). Backend pytest fixture also creates+cleans transient TEST_iter16_* listings per scope. R2 .glb objects from /maker/uploads/model are best-effort cleaned via _key_from_public_url + delete_object; the .glb attached to the test listing was orphaned in R2 (test listing record deleted but R2 object remains — negligible at 20 bytes, recommend a periodic R2 sweeper for orphans).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Reproduce JWT: from maker_auth import issue_magic_token; magic=issue_magic_token('iron-and-oak@craftersmarket.org'); POST /api/maker/auth/verify {token:magic} → JWT. Inject before goto via page.add_init_script. All testids verified present and stable: maker-dashboard, tab-products, products-list, drafts-section, archived-section, new-listing-{btn,modal,close,title,price,description,file-input,image-grid,model-upload,model-file,variants,variant-add,variant-row-{i},variant-{label,delta,stock}-{i},variant-remove-{i},save-draft}, product-edit-{slug}, product-toggle-publish-{slug}, product-toggle-edit-{slug}, product-model-upload-{slug}, product-model-file-{slug}, product-variants, product-variant-{id}, product-price, product-add-cart, cart-variant-{slug}, cart-summary, cart-total. Backend ports 8001 internal, frontend 3000, all going through ingress on /api. R2 live at pub-96d13eb6b15840a98236f6c1053262c3.r2.dev (bucket craftersmarket-assets).",
+  "rca of the issue": "n/a — all P2/P3/P4 features for iter16 verified end-to-end."
+}

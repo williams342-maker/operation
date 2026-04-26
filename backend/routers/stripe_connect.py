@@ -208,8 +208,16 @@ async def transfer_to_makers_for_session(session_id: str) -> dict:
         if not p:
             continue
         qty = max(1, int(ci.get("quantity", 1)))
+        # If a variant was selected, apply its price_delta — otherwise use base.
+        variant_id = ci.get("variant_id")
+        unit_price = float(p["price"])
+        if variant_id:
+            for v in (p.get("variants") or []):
+                if v.get("id") == variant_id:
+                    unit_price = float(p["price"]) + float(v.get("price_delta", 0))
+                    break
         by_maker.setdefault(p["maker_slug"], 0.0)
-        by_maker[p["maker_slug"]] += float(p["price"]) * qty
+        by_maker[p["maker_slug"]] += unit_price * qty
 
     results = []
     for maker_slug, subtotal in by_maker.items():

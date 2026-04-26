@@ -42,6 +42,18 @@ export const deleteMakerProduct = (slug) =>
   http.delete(`/maker/products/${slug}`, { headers: authHeaders() }).then((r) => r.data);
 export const restoreMakerProduct = (slug) =>
   http.post(`/maker/products/${slug}/restore`, {}, { headers: authHeaders() }).then((r) => r.data);
+export const publishMakerProduct = (slug) =>
+  http.post(`/maker/products/${slug}/publish`, {}, { headers: authHeaders() }).then((r) => r.data);
+export const unpublishMakerProduct = (slug) =>
+  http.post(`/maker/products/${slug}/unpublish`, {}, { headers: authHeaders() }).then((r) => r.data);
+export const uploadMakerModel = (file, onProgress) => {
+  const fd = new FormData();
+  fd.append("file", file);
+  return http.post("/maker/uploads/model", fd, {
+    headers: { ...authHeaders(), "Content-Type": "multipart/form-data" },
+    onUploadProgress: onProgress,
+  }).then((r) => r.data);
+};
 export const updateMakerProfile = (payload) =>
   http.patch("/maker/profile", payload, { headers: authHeaders() }).then((r) => r.data);
 

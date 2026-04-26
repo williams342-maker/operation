@@ -14,6 +14,9 @@ import {
   restoreMakerProduct,
   updateMakerProduct,
   updateMakerProfile,
+  publishMakerProduct,
+  unpublishMakerProduct,
+  uploadMakerModel,
 } from "../lib/api";
 
 const TABS = [
@@ -315,15 +318,18 @@ const Field = ({ label, value, onChange, type = "text", testId, wide = false }) 
 
 function ProductsList({ products, onChanged }) {
   const [creating, setCreating] = useState(false);
-  // Show deleted listings together but visually muted, with restore option.
-  const live = products.filter((p) => !p.deleted_at);
+  // 3 buckets: live (published, not deleted) · drafts · archived (soft-deleted)
+  const live = products.filter((p) => !p.deleted_at && p.status !== "draft");
+  const drafts = products.filter((p) => !p.deleted_at && p.status === "draft");
   const removed = products.filter((p) => p.deleted_at);
 
   return (
-    <div className="space-y-8" data-testid="products-list">
+    <div className="space-y-12" data-testid="products-list">
       <div className="flex items-center justify-between gap-3">
         <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3]">
-          ◆ {live.length} active{removed.length > 0 ? ` · ${removed.length} archived` : ""}
+          ◆ {live.length} live
+          {drafts.length > 0 && ` · ${drafts.length} draft${drafts.length > 1 ? "s" : ""}`}
+          {removed.length > 0 && ` · ${removed.length} archived`}
         </div>
         <button
           onClick={() => setCreating(true)}
@@ -334,7 +340,7 @@ function ProductsList({ products, onChanged }) {
         </button>
       </div>
 
-      {live.length === 0 && removed.length === 0 ? (
+      {live.length === 0 && drafts.length === 0 && removed.length === 0 ? (
         <p
           className="font-mono text-sm text-[#a3a3a3]"
           data-testid="products-empty"
@@ -342,14 +348,43 @@ function ProductsList({ products, onChanged }) {
           No listings yet — click <span className="text-[#ff4500]">+ New Listing</span> to add your first piece.
         </p>
       ) : (
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {live.map((p) => (
-            <ProductEditCard key={p.id} product={p} onChanged={onChanged} />
-          ))}
-          {removed.map((p) => (
-            <ProductEditCard key={p.id} product={p} onChanged={onChanged} archived />
-          ))}
-        </div>
+        <>
+          {drafts.length > 0 && (
+            <section data-testid="drafts-section">
+              <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-amber-400 mb-3">
+                ✎ Drafts · not visible to buyers
+              </div>
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {drafts.map((p) => (
+                  <ProductEditCard key={p.id} product={p} onChanged={onChanged} draft />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {live.length > 0 && (
+            <section>
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {live.map((p) => (
+                  <ProductEditCard key={p.id} product={p} onChanged={onChanged} />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {removed.length > 0 && (
+            <section data-testid="archived-section">
+              <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-red-400 mb-3">
+                ◇ Archived
+              </div>
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {removed.map((p) => (
+                  <ProductEditCard key={p.id} product={p} onChanged={onChanged} archived />
+                ))}
+              </div>
+            </section>
+          )}
+        </>
       )}
 
       {creating && (
@@ -365,24 +400,52 @@ function ProductsList({ products, onChanged }) {
   );
 }
 
-function ProductEditCard({ product, archived = false, onChanged }) {
+function ProductEditCard({ product, archived = false, draft = false, onChanged }) {
   const [p, setP] = useState(product);
   const [open, setOpen] = useState(false);
   const [modelUrl, setModelUrl] = useState(product.model_url || "");
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [removing, setRemoving] = useState(false);
+  const [uploadingModel, setUploadingModel] = useState(false);
+  const [modelErr, setModelErr] = useState("");
+  const [togglingStatus, setTogglingStatus] = useState(false);
+  const modelInputRef = useRef(null);
 
   const save = async (e) => {
     e.preventDefault();
     setBusy(true);
     try {
-      const updated = await updateMakerProduct(p.slug, { model_url: modelUrl.trim() });
+      const updated = await updateMakerProduct(p.slug, { model_url: modelUrl.trim() || null });
       setP(updated);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } finally {
       setBusy(false);
+    }
+  };
+
+  const onModelFile = async (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    if (!/\.(glb|gltf)$/i.test(f.name)) {
+      setModelErr("Only .glb / .gltf files are supported.");
+      return;
+    }
+    setModelErr("");
+    setUploadingModel(true);
+    try {
+      const { url } = await uploadMakerModel(f);
+      setModelUrl(url);
+      const updated = await updateMakerProduct(p.slug, { model_url: url });
+      setP(updated);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (e2) {
+      setModelErr(e2?.response?.data?.detail || "Upload failed.");
+    } finally {
+      setUploadingModel(false);
+      if (modelInputRef.current) modelInputRef.current.value = "";
     }
   };
 
@@ -407,9 +470,24 @@ function ProductEditCard({ product, archived = false, onChanged }) {
     }
   };
 
+  const onTogglePublish = async () => {
+    setTogglingStatus(true);
+    try {
+      const fn = draft ? publishMakerProduct : unpublishMakerProduct;
+      await fn(p.slug);
+      onChanged && onChanged();
+    } finally {
+      setTogglingStatus(false);
+    }
+  };
+
   return (
     <div
-      className={`border border-[#262626] transition group ${archived ? "opacity-60" : "hover:border-[#ff4500]"}`}
+      className={`border transition group ${
+        archived ? "border-[#262626] opacity-60" :
+        draft ? "border-amber-400/40 hover:border-amber-400" :
+        "border-[#262626] hover:border-[#ff4500]"
+      }`}
       data-testid={`product-edit-${p.slug}`}
     >
       <div className="aspect-square overflow-hidden bg-[#121212] relative">
@@ -425,11 +503,17 @@ function ProductEditCard({ product, archived = false, onChanged }) {
             ◇ Archived
           </div>
         )}
+        {draft && (
+          <div className="absolute top-3 left-3 bg-black/80 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.22em] text-amber-400 border border-amber-400/40">
+            ✎ Draft
+          </div>
+        )}
       </div>
       <div className="p-4">
         <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
           {p.category} · {p.technique}
           {p.model_url && <span className="text-[#ff4500] ml-2">· 3D</span>}
+          {p.variants?.length > 0 && <span className="text-[#ff4500] ml-2">· {p.variants.length} variants</span>}
         </div>
         <div className="font-display text-xl mt-2 leading-tight">{p.title}</div>
         <div className="flex items-center justify-between mt-3">
@@ -451,22 +535,61 @@ function ProductEditCard({ product, archived = false, onChanged }) {
         ) : (
           <>
             <button
+              onClick={onTogglePublish}
+              disabled={togglingStatus}
+              className={`mt-3 w-full font-mono text-[10px] uppercase tracking-[0.22em] border-t border-[#262626] pt-3 text-left disabled:opacity-50 ${
+                draft ? "text-emerald-400 hover:text-emerald-300" : "text-[#a3a3a3] hover:text-amber-400"
+              }`}
+              data-testid={`product-toggle-publish-${p.slug}`}
+            >
+              {togglingStatus
+                ? "…"
+                : draft
+                ? "↑ Publish listing"
+                : "↓ Move to draft"}
+            </button>
+            <button
               onClick={() => setOpen((o) => !o)}
-              className="mt-3 w-full font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] border-t border-[#262626] pt-3 text-left"
+              className="mt-2 w-full font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] text-left"
               data-testid={`product-toggle-edit-${p.slug}`}
             >
-              {open ? "− Close 3D editor" : "+ Add / edit 3D model URL"}
+              {open ? "− Close 3D editor" : "+ Add / edit 3D model"}
             </button>
             {open && (
               <form onSubmit={save} className="mt-3 space-y-2" data-testid={`product-edit-form-${p.slug}`}>
                 <input
+                  ref={modelInputRef}
+                  type="file"
+                  accept=".glb,.gltf,model/gltf-binary,model/gltf+json"
+                  onChange={onModelFile}
+                  disabled={uploadingModel}
+                  className="hidden"
+                  data-testid={`product-model-file-${p.slug}`}
+                />
+                <button
+                  type="button"
+                  onClick={() => modelInputRef.current?.click()}
+                  disabled={uploadingModel}
+                  className="w-full border border-dashed border-[#262626] hover:border-[#ff4500]/60 px-3 py-3 text-left font-mono text-[11px] text-[#a3a3a3] hover:text-[#ff4500] transition disabled:opacity-50"
+                  data-testid={`product-model-upload-${p.slug}`}
+                >
+                  {uploadingModel
+                    ? "Uploading model…"
+                    : p.model_url
+                    ? "↻ Replace .glb / .gltf"
+                    : "+ Upload .glb / .gltf"}
+                </button>
+                <input
                   type="url"
                   value={modelUrl}
                   onChange={(e) => setModelUrl(e.target.value)}
-                  placeholder="https://…/model.glb"
+                  placeholder="…or paste a public model URL"
                   className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-[11px] text-[#e5e5e5]"
                   data-testid={`product-model-url-${p.slug}`}
                 />
+                {modelErr && (
+                  <p className="font-mono text-[10px] text-red-400" data-testid={`product-model-err-${p.slug}`}>{modelErr}</p>
+                )}
                 <div className="flex items-center gap-2">
                   <button
                     type="submit"
@@ -474,7 +597,7 @@ function ProductEditCard({ product, archived = false, onChanged }) {
                     className="btn-industrial btn-primary disabled:opacity-50 text-xs"
                     data-testid={`product-save-${p.slug}`}
                   >
-                    {busy ? "Saving…" : "Save"}
+                    {busy ? "Saving…" : "Save URL"}
                   </button>
                   {saved && (
                     <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]" data-testid={`product-saved-${p.slug}`}>
@@ -492,9 +615,6 @@ function ProductEditCard({ product, archived = false, onChanged }) {
                     </a>
                   )}
                 </div>
-                <p className="font-mono text-[10px] text-[#525252] leading-relaxed">
-                  Paste a public .glb / .gltf URL. Buyers see a 3D viewer button on this product.
-                </p>
               </form>
             )}
             <button
@@ -807,10 +927,13 @@ function NewListingModal({ onClose, onCreated }) {
   const [dimensions, setDimensions] = useState("");
   const [images, setImages] = useState([]);     // array of data URLs
   const [modelUrl, setModelUrl] = useState("");
+  const [uploadingModel, setUploadingModel] = useState(false);
+  const [variants, setVariants] = useState([]); // [{label, price_delta, in_stock}]
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef(null);
+  const modelFileRef = useRef(null);
 
   const handleFiles = async (files) => {
     setErr("");
@@ -840,8 +963,55 @@ function NewListingModal({ onClose, onCreated }) {
   const removeImage = (i) =>
     setImages((prev) => prev.filter((_, idx) => idx !== i));
 
-  const submit = async (e) => {
-    e.preventDefault();
+  const onModelFile = async (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    if (!/\.(glb|gltf)$/i.test(f.name)) {
+      setErr("3D model must be .glb or .gltf");
+      return;
+    }
+    setErr("");
+    setUploadingModel(true);
+    try {
+      const { url } = await uploadMakerModel(f);
+      setModelUrl(url);
+    } catch (e2) {
+      setErr(e2?.response?.data?.detail || "Model upload failed.");
+    } finally {
+      setUploadingModel(false);
+      if (modelFileRef.current) modelFileRef.current.value = "";
+    }
+  };
+
+  const addVariantRow = () =>
+    setVariants((prev) => [...prev, { label: "", price_delta: 0, in_stock: 0 }]);
+  const updateVariant = (i, key, val) =>
+    setVariants((prev) => prev.map((v, idx) => idx === i ? { ...v, [key]: val } : v));
+  const removeVariant = (i) =>
+    setVariants((prev) => prev.filter((_, idx) => idx !== i));
+
+  const buildPayload = (status) => ({
+    title: title.trim(),
+    category, technique,
+    price: parseFloat(price) || 0,
+    in_stock: parseInt(stock, 10) || 0,
+    description: description.trim(),
+    materials: materials.split(",").map((s) => s.trim()).filter(Boolean),
+    dimensions: dimensions.trim() || null,
+    images,
+    model_url: modelUrl.trim() || null,
+    status,
+    variants: variants
+      .filter((v) => v.label.trim())
+      .map((v) => ({
+        label: v.label.trim(),
+        price_delta: parseFloat(v.price_delta) || 0,
+        in_stock: parseInt(v.in_stock, 10) || 0,
+      })),
+  });
+
+  const submit = async (e, status = "published") => {
+    if (e?.preventDefault) e.preventDefault();
     setErr("");
     if (!title.trim()) { setErr("Title is required."); return; }
     const priceNum = parseFloat(price);
@@ -849,20 +1019,13 @@ function NewListingModal({ onClose, onCreated }) {
       setErr("Price must be a non-negative number.");
       return;
     }
-    if (!description.trim()) { setErr("Tell buyers a little about this piece."); return; }
+    if (status === "published" && !description.trim()) {
+      setErr("Tell buyers a little about this piece.");
+      return;
+    }
     setBusy(true);
     try {
-      await createMakerProduct({
-        title: title.trim(),
-        category, technique,
-        price: priceNum,
-        in_stock: parseInt(stock, 10) || 0,
-        description: description.trim(),
-        materials: materials.split(",").map((s) => s.trim()).filter(Boolean),
-        dimensions: dimensions.trim() || null,
-        images,
-        model_url: modelUrl.trim() || null,
-      });
+      await createMakerProduct(buildPayload(status));
       onCreated && onCreated();
     } catch (e2) {
       setErr(e2?.response?.data?.detail || "Could not create listing.");
@@ -1036,16 +1199,105 @@ function NewListingModal({ onClose, onCreated }) {
             />
           </LabeledField>
 
-          <LabeledField label="3D model URL (optional)">
-            <input
-              type="url"
-              value={modelUrl}
-              onChange={(e) => setModelUrl(e.target.value)}
-              placeholder="https://…/model.glb"
-              className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
-              data-testid="new-listing-model-url"
-            />
+          <LabeledField label="3D model (optional, .glb / .gltf)">
+            <div className="space-y-2">
+              <input
+                ref={modelFileRef}
+                type="file"
+                accept=".glb,.gltf,model/gltf-binary,model/gltf+json"
+                onChange={onModelFile}
+                className="hidden"
+                data-testid="new-listing-model-file"
+              />
+              <button
+                type="button"
+                onClick={() => modelFileRef.current?.click()}
+                disabled={uploadingModel}
+                className="w-full border border-dashed border-[#262626] hover:border-[#ff4500]/60 px-3 py-3 text-left font-mono text-[11px] text-[#a3a3a3] hover:text-[#ff4500] transition disabled:opacity-50"
+                data-testid="new-listing-model-upload"
+              >
+                {uploadingModel
+                  ? "Uploading model…"
+                  : modelUrl
+                  ? "✓ Model uploaded · click to replace"
+                  : "+ Upload .glb / .gltf"}
+              </button>
+              <input
+                type="url"
+                value={modelUrl}
+                onChange={(e) => setModelUrl(e.target.value)}
+                placeholder="…or paste a public model URL"
+                className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
+                data-testid="new-listing-model-url"
+              />
+            </div>
           </LabeledField>
+
+          {/* Variants section */}
+          <div data-testid="new-listing-variants">
+            <div className="flex items-center justify-between mb-2">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+                Options / variants (optional)
+              </div>
+              <button
+                type="button"
+                onClick={addVariantRow}
+                className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] hover:text-[#ff6a2c]"
+                data-testid="new-listing-variant-add"
+              >
+                + Add option
+              </button>
+            </div>
+            {variants.length === 0 ? (
+              <p className="font-mono text-[10px] text-[#525252]">
+                Skip if this piece has no choices. Add rows for sizes, finishes, or colors — each with its own price delta and stock.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {variants.map((v, i) => (
+                  <div
+                    key={i}
+                    className="grid grid-cols-12 gap-2 items-center"
+                    data-testid={`new-listing-variant-row-${i}`}
+                  >
+                    <input
+                      value={v.label}
+                      onChange={(e) => updateVariant(i, "label", e.target.value)}
+                      placeholder='e.g. 24" Walnut'
+                      className="col-span-6 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+                      data-testid={`new-listing-variant-label-${i}`}
+                    />
+                    <input
+                      type="number"
+                      value={v.price_delta}
+                      onChange={(e) => updateVariant(i, "price_delta", e.target.value)}
+                      placeholder="+$"
+                      className="col-span-3 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+                      data-testid={`new-listing-variant-delta-${i}`}
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      value={v.in_stock}
+                      onChange={(e) => updateVariant(i, "in_stock", e.target.value)}
+                      placeholder="Qty"
+                      className="col-span-2 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+                      data-testid={`new-listing-variant-stock-${i}`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeVariant(i)}
+                      className="col-span-1 font-mono text-[11px] text-[#525252] hover:text-red-400"
+                      data-testid={`new-listing-variant-remove-${i}`}
+                      aria-label="Remove variant"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
           {err && (
             <p className="font-mono text-xs text-red-400" data-testid="new-listing-error">{err}</p>
@@ -1060,6 +1312,15 @@ function NewListingModal({ onClose, onCreated }) {
             data-testid="new-listing-cancel"
           >
             Cancel
+          </button>
+          <button
+            type="button"
+            onClick={(e) => submit(e, "draft")}
+            disabled={busy}
+            className="font-mono text-[11px] uppercase tracking-[0.22em] text-amber-400 hover:text-amber-300 disabled:opacity-50 px-3 py-2 border border-amber-400/40"
+            data-testid="new-listing-save-draft"
+          >
+            Save as draft
           </button>
           <button
             type="submit"

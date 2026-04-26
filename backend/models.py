@@ -6,6 +6,16 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from core import now_iso
 
 
+class ProductVariant(BaseModel):
+    """A SKU variant of a product (e.g. size/finish/color).
+    Empty `variants` list ⇒ product has no variants (unchanged behavior).
+    """
+    id: str = Field(default_factory=lambda: uuid.uuid4().hex[:12])
+    label: str                         # buyer-facing label, e.g. '24" Walnut'
+    price_delta: float = 0.0           # added to base price (can be negative)
+    in_stock: int = 0
+
+
 class Product(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -22,6 +32,8 @@ class Product(BaseModel):
     maker_slug: str
     in_stock: int = 4
     featured: bool = False
+    variants: List[ProductVariant] = []
+    status: str = "published"          # "published" | "draft" — drafts hidden from public catalog
     deleted_at: Optional[str] = None  # soft-delete marker; hides from public views
     created_at: str = Field(default_factory=now_iso)
 
@@ -39,6 +51,8 @@ class MakerProductCreate(BaseModel):
     images: List[str] = []
     model_url: Optional[str] = None
     in_stock: int = 4
+    variants: List[ProductVariant] = []
+    status: str = "published"          # accept "draft" to save without publishing
 
 
 class Maker(BaseModel):
@@ -136,6 +150,7 @@ class MakerApplicationCreate(BaseModel):
 class CartItem(BaseModel):
     product_id: str
     quantity: int = 1
+    variant_id: Optional[str] = None    # selected variant (optional)
 
 
 class CheckoutRequest(BaseModel):
