@@ -207,6 +207,128 @@ async def admin_community_users(_: dict = Depends(current_admin)):
     return await db.community_users.find({}, {"_id": 0}).sort("created_at", -1).to_list(1000)
 
 
+# ===================== PER-MAKER ANALYTICS =====================
+@router.get("/admin/maker-analytics/{slug}")
+async def admin_maker_analytics(slug: str, _: dict = Depends(current_admin)):
+    """Drill-in analytics for a single maker:
+       revenue (gross + payout share), order count, top products,
+       Stripe Connect status, payout history summary."""
+    maker = await db.makers.find_one({"slug": slug}, {"_id": 0})
+    if not maker:
+        raise HTTPException(404, "Maker not found")
+
+    # Catalog summary
+    products = await db.products.find({"maker_slug": slug}, {"_id": 0}).to_list(500)
+    by_id = {p["id"]: p for p in products}
+    by_slug = {p["slug"]: p for p in products}
+
+    # Walk paid txs and tally lines belonging to this maker
+    paid = await db.payment_transactions.find(
+        {"payment_status": "paid"}, {"_id": 0}
+    ).to_list(2000)
+
+    cutoff_30 = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+    cutoff_7 = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+
+    gross = 0.0
+    gross_30 = 0.0
+    gross_7 = 0.0
+    units_per_product: dict[str, int] = {}
+    revenue_per_product: dict[str, float] = {}
+    paid_order_ids: set[str] = set()
+    refunded_order_ids: set[str] = set()
+    refunded_amount = 0.0
+
+    for tx in paid:
+        my_lines = []
+        for ci in tx.get("items", []):
+            pid = ci.get("product_id", "")
+            p = by_id.get(pid) or by_slug.get(pid)
+            if not p:
+                continue
+            qty = int(ci.get("quantity", 1))
+            line_rev = float(p["price"]) * qty
+            my_lines.append((p["slug"], qty, line_rev))
+        if not my_lines:
+            continue
+        sid = tx.get("session_id")
+        paid_order_ids.add(sid)
+        line_subtotal = sum(r for _, _, r in my_lines)
+        gross += line_subtotal
+        if tx.get("created_at", "") >= cutoff_30:
+            gross_30 += line_subtotal
+        if tx.get("created_at", "") >= cutoff_7:
+            gross_7 += line_subtotal
+        if tx.get("refund_status") == "refunded":
+            refunded_order_ids.add(sid)
+            refunded_amount += line_subtotal
+        for pslug, qty, line_rev in my_lines:
+            units_per_product[pslug] = units_per_product.get(pslug, 0) + qty
+            revenue_per_product[pslug] = revenue_per_product.get(pslug, 0.0) + line_rev
+
+    top_products = []
+    for pslug, n in sorted(units_per_product.items(), key=lambda x: -x[1])[:5]:
+        p = by_slug.get(pslug)
+        if not p:
+            continue
+        top_products.append({
+            "slug": pslug,
+            "title": p["title"],
+            "units": n,
+            "revenue": round(revenue_per_product.get(pslug, 0.0), 2),
+        })
+
+    # Payouts summary
+    payouts = await db.maker_payouts.find(
+        {"maker_slug": slug}, {"_id": 0}
+    ).sort("updated_at", -1).to_list(500)
+    payout_totals = {
+        "succeeded": 0.0,
+        "deferred": 0.0,
+        "reversed": 0.0,
+        "error": 0.0,
+        "cancelled": 0.0,
+    }
+    for p in payouts:
+        amt = float(p.get("amount_cents", 0)) / 100.0
+        st = p.get("status", "")
+        if st in payout_totals:
+            payout_totals[st] += amt
+
+    # Net to maker after refunds (gross share retained on succeeded transfers)
+    platform_fee_bps = 1000      # mirrors stripe_connect.PLATFORM_FEE_BPS default
+    maker_share_gross = round(gross * (10000 - platform_fee_bps) / 10000, 2)
+    maker_share_after_refunds = round(
+        max(0.0, gross - refunded_amount) * (10000 - platform_fee_bps) / 10000, 2
+    )
+
+    return {
+        "maker": {
+            "slug": maker["slug"],
+            "name": maker["name"],
+            "email": maker.get("email"),
+            "location": maker.get("location"),
+            "stripe_account_id": maker.get("stripe_account_id"),
+            "stripe_charges_enabled": bool(maker.get("stripe_charges_enabled")),
+            "stripe_payouts_enabled": bool(maker.get("stripe_payouts_enabled")),
+            "stripe_details_submitted": bool(maker.get("stripe_details_submitted")),
+        },
+        "products_count": len(products),
+        "paid_orders_count": len(paid_order_ids),
+        "refunded_orders_count": len(refunded_order_ids),
+        "refunded_amount": round(refunded_amount, 2),
+        "gross_revenue": round(gross, 2),
+        "gross_revenue_30d": round(gross_30, 2),
+        "gross_revenue_7d": round(gross_7, 2),
+        "platform_fee_bps": platform_fee_bps,
+        "maker_share_gross": maker_share_gross,
+        "maker_share_after_refunds": maker_share_after_refunds,
+        "top_products": top_products,
+        "payout_totals": {k: round(v, 2) for k, v in payout_totals.items()},
+        "recent_payouts": payouts[:10],
+    }
+
+
 # ===================== LISTINGS =====================
 class AdminProductPatch(BaseModel):
     featured: Optional[bool] = None

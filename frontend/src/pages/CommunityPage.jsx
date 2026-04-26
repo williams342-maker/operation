@@ -497,10 +497,34 @@ function ThreadDetail({ id, me, onBack }) {
   const refresh = () => fetchForumThread(id).then(setData);
   useEffect(() => { refresh(); }, [id]);
 
-  // Poll for new replies every 12s so @mentions notify promptly.
+  // Poll for new replies every 12s — but only while the tab is visible.
+  // Saves battery + Mongo round-trips when the user has the tab in the
+  // background. Refreshes immediately on visibility return.
   useEffect(() => {
-    const t = setInterval(() => { refresh().catch(() => {}); }, 12000);
-    return () => clearInterval(t);
+    let timer = null;
+    const start = () => {
+      if (timer) return;
+      timer = setInterval(() => { refresh().catch(() => {}); }, 12000);
+    };
+    const stop = () => {
+      if (!timer) return;
+      clearInterval(timer);
+      timer = null;
+    };
+    const onVisibility = () => {
+      if (document.hidden) {
+        stop();
+      } else {
+        refresh().catch(() => {});       // catch-up on return
+        start();
+      }
+    };
+    if (!document.hidden) start();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 

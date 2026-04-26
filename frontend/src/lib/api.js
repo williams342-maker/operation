@@ -59,6 +59,8 @@ const adminAuthHeaders = () => {
 };
 export const fetchAdminAnalytics = () =>
   http.get("/admin/analytics", { headers: adminAuthHeaders() }).then((r) => r.data);
+export const fetchAdminMakerAnalytics = (slug) =>
+  http.get(`/admin/maker-analytics/${slug}`, { headers: adminAuthHeaders() }).then((r) => r.data);
 export const fetchAdminCommunityUsers = () =>
   http.get("/admin/community-users", { headers: adminAuthHeaders() }).then((r) => r.data);
 export const adminPatchProduct = (slug, payload) =>
