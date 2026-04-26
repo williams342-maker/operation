@@ -1,0 +1,216 @@
+import React, { useCallback, useEffect, useState } from "react";
+import {
+  fetchMakerBilling, fetchMakerSubscription,
+  startMakerSubscription, cancelMakerSubscription, openMakerSubscriptionPortal,
+} from "../../lib/api";
+
+export default function BillingTab() {
+  const [b, setB] = useState(null);
+  const [s, setS] = useState(null);
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const reload = useCallback(() => {
+    fetchMakerBilling().then(setB).catch((e) =>
+      setErr(e?.response?.data?.detail || "Could not load billing."),
+    );
+    fetchMakerSubscription().then(setS).catch(() => {});
+  }, []);
+  useEffect(() => { reload(); }, [reload]);
+
+  if (err) return <p className="font-mono text-sm text-red-400" data-testid="billing-error">{err}</p>;
+  if (!b) return <p className="font-mono text-sm text-[#a3a3a3]" data-testid="billing-loading">Loading billing…</p>;
+
+  const dollars = (c) => `$${(c / 100).toFixed(2)}`;
+  const pct = (bps) => `${(bps / 100).toFixed(1)}%`;
+  const isPlus = s?.status === "active";
+
+  const onUpgrade = async () => {
+    setBusy(true);
+    try {
+      const { checkout_url } = await startMakerSubscription();
+      window.location.href = checkout_url;
+    } catch (e) {
+      setErr(e?.response?.data?.detail || "Could not start subscription.");
+      setBusy(false);
+    }
+  };
+
+  const onCancel = async () => {
+    if (!window.confirm("Cancel Crafters Plus at the end of this billing period?")) return;
+    setBusy(true);
+    try {
+      await cancelMakerSubscription();
+      reload();
+    } catch (e) {
+      setErr(e?.response?.data?.detail || "Could not cancel.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onOpenPortal = async () => {
+    setBusy(true);
+    try {
+      const { url } = await openMakerSubscriptionPortal();
+      window.location.href = url;
+    } catch (e) {
+      setErr(e?.response?.data?.detail || "Could not open billing portal.");
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-10" data-testid="billing-tab">
+      {/* Top KPIs */}
+      <div className="grid md:grid-cols-3 gap-3 md:gap-6">
+        <div className="border border-[#262626] p-5" data-testid="billing-listing-usage">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Listings used (lifetime)</div>
+          <div className="font-display text-4xl mt-2">
+            {b.listings_used_lifetime}
+            {b.listings_free_remaining > 0 && (
+              <span className="text-[#525252] text-2xl"> / {b.listings_free_quota} free</span>
+            )}
+          </div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] mt-2">
+            {b.listings_free_remaining > 0
+              ? `${b.listings_free_remaining} free remaining`
+              : `Past free quota — every new listing or renewal is ${dollars(b.policy.listing_fee_cents)}`}
+          </div>
+        </div>
+
+        <div className="border border-[#262626] p-5" data-testid="billing-pending">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Pending charges</div>
+          <div className="font-display text-4xl mt-2 text-[#ff4500]">{dollars(b.pending_charges_cents)}</div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] mt-2">
+            Auto-deducted from your next payout
+          </div>
+        </div>
+
+        <div className="border border-[#262626] p-5" data-testid="billing-fee-policy">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Per-sale fee</div>
+          <div className="font-display text-4xl mt-2">
+            {pct((isPlus ? (s?.plan?.commission_bps ?? 400) : b.policy.platform_fee_bps) + b.policy.processing_fee_bps)}
+          </div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] mt-2">
+            {pct(isPlus ? (s?.plan?.commission_bps ?? 400) : b.policy.platform_fee_bps)} commission
+            {isPlus && <span className="text-emerald-400 ml-1">(Plus rate)</span>}
+            {" · "}{pct(b.policy.processing_fee_bps)} processing
+          </div>
+        </div>
+      </div>
+
+      {/* Plus subscription upsell / management card */}
+      <div
+        className={`border p-6 ${
+          isPlus
+            ? "border-emerald-400/40 bg-emerald-400/5"
+            : "border-[#ff4500]/40 bg-[#ff4500]/5"
+        }`}
+        data-testid="billing-plus-card"
+      >
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-1">
+              {isPlus ? "Your subscription" : "Upgrade to"}
+            </div>
+            <div className="font-display text-3xl">Crafters Plus</div>
+            <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3] mt-1">
+              ${s?.plan?.price_usd ?? 12}/month · {s?.plan?.monthly_listing_quota ?? 15} free listings/mo · {(s?.plan?.commission_bps ?? 400) / 100}% commission
+            </div>
+          </div>
+          {isPlus ? (
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={onOpenPortal}
+                disabled={busy}
+                className="font-mono text-[11px] uppercase tracking-[0.22em] text-emerald-400 hover:text-emerald-300 border border-emerald-400/40 px-4 py-2 disabled:opacity-50"
+                data-testid="billing-plus-portal"
+              >
+                Manage billing ↗
+              </button>
+              <button
+                onClick={onCancel}
+                disabled={busy}
+                className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-red-400 border border-[#262626] px-4 py-2 disabled:opacity-50"
+                data-testid="billing-plus-cancel"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={onUpgrade}
+              disabled={busy}
+              className="btn-industrial btn-primary disabled:opacity-50"
+              data-testid="billing-plus-upgrade"
+            >
+              {busy ? "Loading…" : "Upgrade →"}
+            </button>
+          )}
+        </div>
+        <ul className="grid md:grid-cols-2 gap-2 mt-5 font-mono text-xs text-[#e5e5e5]">
+          {(s?.plan?.perks || [
+            "15 free listings/month",
+            "4% commission (vs 5%)",
+            "Advanced shop analytics",
+            "Custom shop banner image",
+          ]).map((p, i) => (
+            <li key={i} className="flex items-start gap-2">
+              <span className="text-[#ff4500] mt-0.5">◆</span>
+              <span>{p}</span>
+            </li>
+          ))}
+        </ul>
+        {isPlus && s?.renews_at && (
+          <div className="mt-4 font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-400" data-testid="billing-plus-renews">
+            ✓ Active · renews {new Date(s.renews_at).toLocaleDateString()}
+          </div>
+        )}
+      </div>
+
+      {/* Policy details */}
+      <div className="border border-[#262626] p-5" data-testid="billing-policy-details">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-3">Pricing breakdown</div>
+        <ul className="space-y-2 font-mono text-xs text-[#e5e5e5]">
+          <li>• <b>{pct(b.policy.platform_fee_bps)} commission</b> on every paid order — Crafters Market keeps this.</li>
+          <li>• <b>{pct(b.policy.processing_fee_bps)} payment processing</b> covers card / Stripe fees.</li>
+          <li>• <b>{b.policy.listings_free_quota || b.listings_free_quota} free listings</b> — beyond that, {dollars(b.policy.listing_fee_cents)} per publish or renewal.</li>
+          <li>• <b>{b.policy.listing_expiry_days}-day expiry</b> on each listing — auto-flips to draft, renew with one click.</li>
+          <li>• <b>{dollars(b.policy.promotion_weekly_fee_cents)}/week</b> to promote a listing to the top of search.</li>
+        </ul>
+      </div>
+
+      {/* Recent ledger */}
+      <div data-testid="billing-history">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-3">Recent activity</div>
+        {b.history.length === 0 ? (
+          <p className="font-mono text-sm text-[#525252]" data-testid="billing-history-empty">No charges yet — keep building.</p>
+        ) : (
+          <table className="w-full font-mono text-xs">
+            <thead>
+              <tr className="text-[#a3a3a3] uppercase tracking-[0.22em] text-[10px]">
+                <th className="text-left py-2 border-b border-[#262626]">When</th>
+                <th className="text-left py-2 border-b border-[#262626]">Kind</th>
+                <th className="text-left py-2 border-b border-[#262626]">Listing</th>
+                <th className="text-right py-2 border-b border-[#262626]">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {b.history.map((h, i) => (
+                <tr key={i} className="border-b border-[#1a1a1a]">
+                  <td className="py-2 text-[#525252]">{h.ts ? new Date(h.ts).toLocaleString() : "—"}</td>
+                  <td className="py-2 text-[#e5e5e5]">{h.kind}</td>
+                  <td className="py-2 text-[#a3a3a3]">{h.slug || "—"}</td>
+                  <td className={`py-2 text-right ${h.amount_cents < 0 ? "text-emerald-400" : "text-[#ff4500]"}`}>
+                    {h.amount_cents < 0 ? "−" : ""}{dollars(Math.abs(h.amount_cents))}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}

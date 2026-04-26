@@ -57,6 +57,20 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - iter16: **.glb upload (P2) + Variants (P3) + Draft mode (P4)** — backend 28/28 incl. 10 new iter16 cases + frontend E2E 12/12 (modal variants editor, draft↔publish flips, .glb file upload, buyer variant selector + cart variant pricing). R2 live; transfer_to_makers + maker-orders correctly apply variant deltas.
 
 ## Recently Shipped (2026-04-26)
+- ✅ **iter22 — `MakerDashboard.jsx` refactor (1822 → 8 modular files)**:
+  - Split the monolithic 1822-line dashboard into a 164-line orchestrator + 8 component files under `pages/MakerDashboard/`:
+    - `_shared.jsx` (47 lines · `Stat`, `Field`, `LabeledField`, `formatDate`)
+    - `ProfileForm.jsx` (193 lines · profile + Plus banner upload)
+    - `ProductsList.jsx` (87 lines · live/draft/archived buckets)
+    - `ProductEditCard.jsx` (314 lines · model upload, promote, renew, publish toggle)
+    - `OrdersList.jsx` (62 lines · paid orders table)
+    - `PayoutsTab.jsx` (176 lines · Stripe Connect onboarding state machine)
+    - `BillingTab.jsx` (216 lines · KPIs, Plus upsell, ledger)
+    - `NewListingModal.jsx` (570 lines · modal w/ image compression, variants, .glb upload)
+  - Zero behaviour change. All `data-testid` attributes preserved exactly. ESLint clean.
+  - **Tests**: 57/57 across `iter15/16/17/19/20/21` + `maker_portal` suites green. Live dashboard verified end-to-end via screenshot — all 5 tabs (Profile / Listings / Orders / Payouts / Billing) render correctly with real maker JWT.
+  - **Bonus**: extended `swap_r2_host.py` to also rewrite `db.makers.banner_image_url` (so when CDN domain ships, Plus subscribers' banners migrate too).
+
 - ✅ **iter21 — Shop of the Week (Crafters Plus homepage spotlight)**:
   - **Backend** — `GET /api/shop-of-the-week` returns the highest-GMV active/trialing Plus subscriber over the last 30 days (using `db.maker_payouts` as source of truth) plus their top-3 best-selling products. Falls back to newest published listings when the maker has no sales yet. Returns `{maker: null}` gracefully when no Plus subscribers exist (frontend hides the section).
   - **Frontend** — `components/sections/ShopOfTheWeek.jsx`: editorial hero card with banner backdrop, ★ Plus badge, maker meta, monthly GMV pill, 3 ranked best-seller cards (#01/#02/#03) on the right rail. Mounted directly under `<Hero />` on the homepage. Auto-hides if API returns no maker.
@@ -150,5 +164,4 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 
 ## Next Action Items
 - 🔴 **P0 — Brevo DNS** (paused, awaiting user authentication): copy TXT/DKIM records from Brevo dashboard into Cloudflare → click Authenticate → send test email
-- 🟡 **P1 — R2 CDN custom domain**: in Cloudflare R2 → bucket `craftersmarket-assets` → Custom Domains → connect `cdn.craftersmarket.org` → flip `R2_PUBLIC_URL` and run `swap_r2_host.py`
-- 🟢 **P2 — Refactor `MakerDashboard.jsx`** (~1500 lines → modular components inside `MakerDashboard/` directory)
+- 🟡 **P1 — R2 CDN custom domain**: in Cloudflare R2 → bucket `craftersmarket-assets` → Custom Domains → connect `cdn.craftersmarket.org` → flip `R2_PUBLIC_URL` and run `swap_r2_host.py` (now also covers maker banners)
