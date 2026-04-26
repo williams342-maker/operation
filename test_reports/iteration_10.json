@@ -1,0 +1,28 @@
+{
+  "summary": "Iter11 — Frontend E2E for Maker Self-Serve Listings (Option B) PASSED 8/8 steps end-to-end against https://active-project-4.preview.emergentagent.com/maker/dashboard. JWT injected via add_init_script for maker iron-and-oak. Verified: (1) /maker/dashboard renders [data-testid='maker-dashboard'] without compile error after Field→LabeledField rename; (2) tab-products opens products-list with new-listing-btn visible; (3) clicking new-listing-btn opens new-listing-modal with all 13 expected fields present (title/price/category/technique/stock/dimensions/description/materials/model-url/dropzone/file-input/cancel/submit); (4) HTML5 canvas base64 compression — 1px PNG via set_input_files produced exactly 1 thumbnail in new-listing-image-grid within 2s; (5) POST /api/maker/products → 200 returning {id, slug:'test-listing-iter11', title:'TEST_listing_iter11', price:199, category:'Wall Art', technique:'PLASMA',...}, modal closed, listing appears in live products-list immediately; (6) DELETE /api/maker/products/test-listing-iter11 → 200, listing moved to ARCHIVED section (visible on screenshot with red badge), product-restore-{slug} button rendered, product-toggle-edit-{slug} gone; (7) POST /api/maker/products/test-listing-iter11/restore → 200, listing returns to live section, restore-btn removed, edit/delete buttons restored; (8) cleanup re-delete → 200 leaves test listing archived. window.confirm() dialog auto-handled via page.on('dialog', accept).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/.screenshots/iter11_final.png",
+    "/app/.screenshots/iter11_delete_restore.png"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "MakerDashboard.jsx ProductEditCard onDelete uses native window.confirm() (line 390). This blocks Playwright test runs unless dialogs are auto-accepted (page.on('dialog', d.accept())) and is jarring UX vs the rest of the polished marketplace. Recommend replacing with a styled inline confirm overlay (or a small confirmation toast with Undo) consistent with the brand. Not a defect — works correctly — but a UX/accessibility upgrade.",
+    "ProductEditCard archived/restore card has no data-testid='product-archived-{slug}' wrapper — testers currently disambiguate archived state by absence of edit-button or presence of restore-button. Adding data-testid='product-archived-{p.slug}' on the parent <div> when p.deleted_at would simplify selectors.",
+    "NewListingModal image-grid (data-testid='new-listing-image-grid') children <img> tags lack per-thumb data-testid (e.g., new-listing-thumb-0). Currently testers count <img> elements inside the grid; per-index testids would let assertions verify specific upload positions.",
+    "Iter8 transfer_group mismatch in /app/backend/routers/stripe_connect.py (Transfer.create uses session_id, PaymentIntent uses pre_transfer_group uuid) — STILL re-flagged from iter7/8/10. Separate-charge-and-transfer in production will fail. Not in scope of iter11 but persists across iterations."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped per request — 189/189 already green)", "frontend": "100% (8/8 E2E steps for create/upload/list/soft-delete/restore)"},
+  "test_credentials": "Maker iron-and-oak@craftersmarket.org via maker_auth.issue_magic_token + POST /api/maker/auth/verify; JWT injected to localStorage cm_maker_jwt + cm_maker_slug='iron-and-oak' before page.goto via add_init_script.",
+  "seed_data_creation": "Created and then soft-deleted 1 test listing with slug='test-listing-iter11' / title='TEST_listing_iter11' / price=$199 / category=Wall Art / technique=PLASMA / stock=5 / 1 base64 image. Left in ARCHIVED state at end of test (deleted_at set) so it does not pollute the public shop. Can be permanently removed by direct DB op or restored+hard-delete if a new endpoint is added.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Reproduce JWT: from maker_auth import issue_magic_token; magic=issue_magic_token('iron-and-oak@craftersmarket.org'); POST /api/maker/auth/verify {token:magic} → returns {token: <JWT>}. Inject before goto: page.add_init_script(`localStorage.setItem('cm_maker_jwt', '<JWT>'); localStorage.setItem('cm_maker_slug','iron-and-oak');`). For delete confirmations: page.on('dialog', lambda d: asyncio.create_task(d.accept())). Test listing 'test-listing-iter11' is currently archived under iron-and-oak — restore via POST /api/maker/products/test-listing-iter11/restore if needed. All Option B testids present and stable. Iron-and-oak now has 4 listings total (3 active + 1 archived).",
+  "rca of the issue": "n/a — no defects found in Option B Maker Self-Serve Listings flow."
+}

@@ -948,7 +948,7 @@ function NewListingModal({ onClose, onCreated }) {
 
           {/* Title + slug auto */}
           <div className="grid md:grid-cols-2 gap-4">
-            <Field label="Title">
+            <LabeledField label="Title">
               <input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
@@ -957,8 +957,8 @@ function NewListingModal({ onClose, onCreated }) {
                 className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
                 data-testid="new-listing-title"
               />
-            </Field>
-            <Field label="Price (USD)">
+            </LabeledField>
+            <LabeledField label="Price (USD)">
               <input
                 type="number"
                 step="1"
@@ -969,8 +969,8 @@ function NewListingModal({ onClose, onCreated }) {
                 className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
                 data-testid="new-listing-price"
               />
-            </Field>
-            <Field label="Category">
+            </LabeledField>
+            <LabeledField label="Category">
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
@@ -981,8 +981,8 @@ function NewListingModal({ onClose, onCreated }) {
                   <option key={c} className="bg-[#0a0a0a]">{c}</option>
                 ))}
               </select>
-            </Field>
-            <Field label="Technique">
+            </LabeledField>
+            <LabeledField label="Technique">
               <select
                 value={technique}
                 onChange={(e) => setTechnique(e.target.value)}
@@ -993,8 +993,8 @@ function NewListingModal({ onClose, onCreated }) {
                   <option key={t} className="bg-[#0a0a0a]">{t}</option>
                 ))}
               </select>
-            </Field>
-            <Field label="Stock">
+            </LabeledField>
+            <LabeledField label="Stock">
               <input
                 type="number"
                 min="0"
@@ -1003,8 +1003,8 @@ function NewListingModal({ onClose, onCreated }) {
                 className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
                 data-testid="new-listing-stock"
               />
-            </Field>
-            <Field label="Dimensions (optional)">
+            </LabeledField>
+            <LabeledField label="Dimensions (optional)">
               <input
                 value={dimensions}
                 onChange={(e) => setDimensions(e.target.value)}
@@ -1012,10 +1012,10 @@ function NewListingModal({ onClose, onCreated }) {
                 className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
                 data-testid="new-listing-dimensions"
               />
-            </Field>
+            </LabeledField>
           </div>
 
-          <Field label="Description">
+          <LabeledField label="Description">
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -1024,9 +1024,9 @@ function NewListingModal({ onClose, onCreated }) {
               className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5] resize-y"
               data-testid="new-listing-description"
             />
-          </Field>
+          </LabeledField>
 
-          <Field label="Materials (comma separated)">
+          <LabeledField label="Materials (comma separated)">
             <input
               value={materials}
               onChange={(e) => setMaterials(e.target.value)}
@@ -1034,9 +1034,9 @@ function NewListingModal({ onClose, onCreated }) {
               className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
               data-testid="new-listing-materials"
             />
-          </Field>
+          </LabeledField>
 
-          <Field label="3D model URL (optional)">
+          <LabeledField label="3D model URL (optional)">
             <input
               type="url"
               value={modelUrl}
@@ -1045,7 +1045,7 @@ function NewListingModal({ onClose, onCreated }) {
               className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
               data-testid="new-listing-model-url"
             />
-          </Field>
+          </LabeledField>
 
           {err && (
             <p className="font-mono text-xs text-red-400" data-testid="new-listing-error">{err}</p>
@@ -1075,7 +1075,7 @@ function NewListingModal({ onClose, onCreated }) {
   );
 }
 
-function Field({ label, children }) {
+function LabeledField({ label, children }) {
   return (
     <label className="block">
       <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-1">
