@@ -34,6 +34,8 @@ export const fetchMakerOrders = () =>
   http.get("/maker/orders", { headers: authHeaders() }).then((r) => r.data);
 export const fetchMakerProducts = () =>
   http.get("/maker/products", { headers: authHeaders() }).then((r) => r.data);
+export const updateMakerProduct = (slug, payload) =>
+  http.patch(`/maker/products/${slug}`, payload, { headers: authHeaders() }).then((r) => r.data);
 export const updateMakerProfile = (payload) =>
   http.patch("/maker/profile", payload, { headers: authHeaders() }).then((r) => r.data);
 

@@ -5,6 +5,7 @@ import {
   fetchMakerMe,
   fetchMakerOrders,
   fetchMakerProducts,
+  updateMakerProduct,
   updateMakerProfile,
 } from "../lib/api";
 
@@ -309,30 +310,103 @@ function ProductsList({ products }) {
   return (
     <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6" data-testid="products-list">
       {products.map((p) => (
-        <div key={p.id} className="border border-[#262626] hover:border-[#ff4500] transition group">
-          <div className="aspect-square overflow-hidden bg-[#121212]">
-            {p.images?.[0] && (
-              <img
-                src={p.images[0]}
-                alt={p.title}
-                className="w-full h-full object-cover group-hover:scale-[1.03] transition duration-700"
-              />
-            )}
-          </div>
-          <div className="p-4">
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
-              {p.category} · {p.technique}
-            </div>
-            <div className="font-display text-xl mt-2 leading-tight">{p.title}</div>
-            <div className="flex items-center justify-between mt-3">
-              <span className="font-display text-2xl text-[#ff4500]">${p.price.toFixed(0)}</span>
-              <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
-                {p.in_stock} in stock
-              </span>
-            </div>
-          </div>
-        </div>
+        <ProductEditCard key={p.id} product={p} />
       ))}
+    </div>
+  );
+}
+
+function ProductEditCard({ product }) {
+  const [p, setP] = useState(product);
+  const [open, setOpen] = useState(false);
+  const [modelUrl, setModelUrl] = useState(product.model_url || "");
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const save = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      const updated = await updateMakerProduct(p.slug, { model_url: modelUrl.trim() });
+      setP(updated);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="border border-[#262626] hover:border-[#ff4500] transition group" data-testid={`product-edit-${p.slug}`}>
+      <div className="aspect-square overflow-hidden bg-[#121212]">
+        {p.images?.[0] && (
+          <img
+            src={p.images[0]}
+            alt={p.title}
+            className="w-full h-full object-cover group-hover:scale-[1.03] transition duration-700"
+          />
+        )}
+      </div>
+      <div className="p-4">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+          {p.category} · {p.technique}
+          {p.model_url && <span className="text-[#ff4500] ml-2">· 3D</span>}
+        </div>
+        <div className="font-display text-xl mt-2 leading-tight">{p.title}</div>
+        <div className="flex items-center justify-between mt-3">
+          <span className="font-display text-2xl text-[#ff4500]">${p.price.toFixed(0)}</span>
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+            {p.in_stock} in stock
+          </span>
+        </div>
+        <button
+          onClick={() => setOpen((o) => !o)}
+          className="mt-3 w-full font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] border-t border-[#262626] pt-3 text-left"
+          data-testid={`product-toggle-edit-${p.slug}`}
+        >
+          {open ? "− Close 3D editor" : "+ Add / edit 3D model URL"}
+        </button>
+        {open && (
+          <form onSubmit={save} className="mt-3 space-y-2" data-testid={`product-edit-form-${p.slug}`}>
+            <input
+              type="url"
+              value={modelUrl}
+              onChange={(e) => setModelUrl(e.target.value)}
+              placeholder="https://…/model.glb"
+              className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-[11px] text-[#e5e5e5]"
+              data-testid={`product-model-url-${p.slug}`}
+            />
+            <div className="flex items-center gap-2">
+              <button
+                type="submit"
+                disabled={busy}
+                className="btn-industrial btn-primary disabled:opacity-50 text-xs"
+                data-testid={`product-save-${p.slug}`}
+              >
+                {busy ? "Saving…" : "Save"}
+              </button>
+              {saved && (
+                <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]" data-testid={`product-saved-${p.slug}`}>
+                  ✓ Saved
+                </span>
+              )}
+              {p.model_url && (
+                <a
+                  href={`/shop/${p.slug}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] ml-auto"
+                >
+                  Preview ↗
+                </a>
+              )}
+            </div>
+            <p className="font-mono text-[10px] text-[#525252] leading-relaxed">
+              Paste a public .glb / .gltf URL. Buyers see a 3D viewer button on this product.
+            </p>
+          </form>
+        )}
+      </div>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 """Maker self-serve portal: magic-link auth + profile / products / orders endpoints."""
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from pydantic import BaseModel, ConfigDict
 
 from core import db, logger
 from email_service import send_maker_magic_link
@@ -64,6 +65,34 @@ async def maker_update_profile(
 @router.get("/maker/products", response_model=List[Product])
 async def maker_products(slug: str = Depends(current_maker_slug)):
     return await db.products.find({"maker_slug": slug}, {"_id": 0}).sort("created_at", -1).to_list(200)
+
+
+class MakerProductUpdate(BaseModel):
+    """Fields a maker is allowed to edit on their own products."""
+    model_config = ConfigDict(extra="ignore")
+    title: Optional[str] = None
+    description: Optional[str] = None
+    price: Optional[float] = None
+    in_stock: Optional[int] = None
+    model_url: Optional[str] = None
+    images: Optional[List[str]] = None
+
+
+@router.patch("/maker/products/{product_slug}", response_model=Product)
+async def maker_update_product(
+    product_slug: str, payload: MakerProductUpdate,
+    slug: str = Depends(current_maker_slug),
+):
+    prod = await db.products.find_one({"slug": product_slug}, {"_id": 0})
+    if not prod:
+        raise HTTPException(404, "Product not found")
+    if prod.get("maker_slug") != slug:
+        raise HTTPException(403, "You can only edit your own listings.")
+    updates = {k: v for k, v in payload.model_dump(exclude_none=True).items()}
+    if updates:
+        await db.products.update_one({"slug": product_slug}, {"$set": updates})
+    updated = await db.products.find_one({"slug": product_slug}, {"_id": 0})
+    return updated
 
 
 @router.get("/maker/orders")

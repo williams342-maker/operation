@@ -489,98 +489,168 @@ function ThreadDetail({ id, me, onBack }) {
   );
 }
 
-// ===================== LIVE CHAT (AIM-style) =====================
+// ===================== LIVE CHAT (AIM-style + cross-channel unread + @mentions) =====================
 function ChatTab({ me }) {
   const [channel, setChannel] = useState("general");
-  const [messagesByCh, setMessagesByCh] = useState({}); // { channel: [msgs] }
-  const [buddiesByCh, setBuddiesByCh] = useState({});   // { channel: [users] }
-  const [unread, setUnread] = useState({});             // { channel: count }
-  const [typing, setTyping] = useState([]);             // [{user_email,user_name}]
+  const [messagesByCh, setMessagesByCh] = useState({});
+  const [buddiesByCh, setBuddiesByCh] = useState({});
+  const [unread, setUnread] = useState({});
+  const [mentions, setMentions] = useState({}); // per-channel mention count
+  const [typing, setTyping] = useState([]);
   const [draft, setDraft] = useState("");
   const [muted, setMuted] = useState(false);
-  const wsRef = useRef(null);
+  const [notifPermission, setNotifPermission] = useState(
+    typeof Notification !== "undefined" ? Notification.permission : "denied"
+  );
+  const sendWsRef = useRef(null);             // active socket (for sending)
+  const shadowSocketsRef = useRef({});        // { channel: ws }
   const scrollRef = useRef(null);
   const audioRef = useRef(null);
+  const mentionAudioRef = useRef(null);
   const typingTimeoutRef = useRef({});
   const lastTypingSentRef = useRef(0);
   const isMaker = !!localStorage.getItem("cm_maker_jwt");
   const buyerJwt = localStorage.getItem("cm_buyer_jwt");
   const makerJwt = localStorage.getItem("cm_maker_jwt");
   const adminJwt = localStorage.getItem("cm_admin_jwt");
-  const token = channel === "makers-only" ? makerJwt : (buyerJwt || makerJwt || adminJwt);
+  const tokenForChannel = (ch) => (ch === "makers-only" ? makerJwt : (buyerJwt || makerJwt || adminJwt));
   const messages = messagesByCh[channel] || [];
   const buddies = buddiesByCh[channel] || [];
+  const myName = (me?.name || (me?.email || "").split("@")[0] || "").toLowerCase();
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages]);
 
-  // Reset unread count when entering a channel
+  // Reset unread/mentions when entering a channel
   useEffect(() => {
     setUnread((u) => ({ ...u, [channel]: 0 }));
+    setMentions((m) => ({ ...m, [channel]: 0 }));
     setTyping([]);
   }, [channel]);
 
+  // Maintain shadow WS sockets to all accessible channels for unread tracking.
   useEffect(() => {
-    if (!token) return;
-    let alive = true;
-    fetchChatHistory(channel).then((hist) => {
-      if (alive) setMessagesByCh((m) => ({ ...m, [channel]: hist }));
+    const eligible = CHANNELS.filter((c) => !!tokenForChannel(c));
+    eligible.forEach((c) => {
+      if (shadowSocketsRef.current[c]) return; // already connected
+      const tok = tokenForChannel(c);
+      if (!tok) return;
+      const ws = new WebSocket(wsChatUrl(c, tok));
+      ws.onmessage = (e) => onWsMessage(c, e);
+      ws.onerror = () => {};
+      ws.onclose = () => {
+        // Drop reference so a future channel switch can recreate it on retry.
+        if (shadowSocketsRef.current[c] === ws) {
+          delete shadowSocketsRef.current[c];
+        }
+      };
+      shadowSocketsRef.current[c] = ws;
     });
-    const ws = new WebSocket(wsChatUrl(channel, token));
-    ws.onmessage = (e) => {
-      try {
-        const msg = JSON.parse(e.data);
-        if (msg.kind === "presence") {
-          setBuddiesByCh((b) => ({ ...b, [channel]: msg.buddies || [] }));
-          return;
-        }
-        if (msg.kind === "typing") {
-          setTyping((prev) => {
-            const others = prev.filter((p) => p.user_email !== msg.user_email);
-            return msg.is_typing ? [...others, msg] : others;
-          });
-          // auto-clear typing after 4s in case "stop" event is missed
-          clearTimeout(typingTimeoutRef.current[msg.user_email]);
-          if (msg.is_typing) {
-            typingTimeoutRef.current[msg.user_email] = setTimeout(() => {
-              setTyping((prev) => prev.filter((p) => p.user_email !== msg.user_email));
-            }, 4000);
-          }
-          return;
-        }
-        if (msg.kind === "system" && msg.buddies) {
-          setBuddiesByCh((b) => ({ ...b, [channel]: msg.buddies }));
-        }
-        setMessagesByCh((m) => ({ ...m, [channel]: [...(m[channel] || []), msg] }));
-        if (msg.kind === "message") {
-          // Sound + unread when not on this channel (or browser tab unfocused)
-          if (!muted) {
-            try { audioRef.current?.play?.(); } catch { /* ignore */ }
-          }
-        }
-      } catch { /* ignore */ }
+    // Load history for the active channel from REST so we don't depend on shadow socket timing.
+    if (tokenForChannel(channel)) {
+      fetchChatHistory(channel).then((hist) =>
+        setMessagesByCh((m) => ({ ...m, [channel]: hist }))
+      );
+    }
+    return () => {
+      // Tear down all shadow sockets on unmount
+      Object.values(shadowSocketsRef.current).forEach((ws) => {
+        try { ws.close(); } catch { /* ignore */ }
+      });
+      shadowSocketsRef.current = {};
     };
-    ws.onerror = () => {};
-    wsRef.current = ws;
-    return () => { alive = false; try { ws.close(); } catch {} };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [channel, token]);
+  }, [buyerJwt, makerJwt, adminJwt]);
 
-  // Listen on ALL channels in the background for unread counts (separate "shadow" sockets).
-  // For simplicity v1: only the active channel is connected; unread updates only when user
-  // is on a different tab inside the chat area (we hook into messagesByCh writes).
-  // Switch-channel-while-receiving: if a message arrives via the current ws but we've since
-  // moved, increment unread on the OLD channel. Simpler fallback: read any message kind=message
-  // that arrives when channel doesn't match.
-  // (Implemented above by closing the ws on channel change; users won't see unread for inactive
-  // channels in v1 — kept the unread badge wired so it can be turned on later with shadow sockets.)
+  // Reload history when switching channel (cheap, ensures we have full backlog).
+  useEffect(() => {
+    if (!tokenForChannel(channel)) return;
+    fetchChatHistory(channel).then((hist) =>
+      setMessagesByCh((m) => ({ ...m, [channel]: hist }))
+    );
+    sendWsRef.current = shadowSocketsRef.current[channel] || null;
+  }, [channel]);
+
+  const isMention = (text) =>
+    !!myName && new RegExp(`@${myName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(text);
+
+  const onWsMessage = (ch, e) => {
+    let msg;
+    try { msg = JSON.parse(e.data); } catch { return; }
+
+    if (msg.kind === "presence") {
+      setBuddiesByCh((b) => ({ ...b, [ch]: msg.buddies || [] }));
+      return;
+    }
+    if (msg.kind === "typing") {
+      // Only render typing if it's the active channel.
+      if (ch !== channel) return;
+      setTyping((prev) => {
+        const others = prev.filter((p) => p.user_email !== msg.user_email);
+        return msg.is_typing ? [...others, msg] : others;
+      });
+      clearTimeout(typingTimeoutRef.current[msg.user_email]);
+      if (msg.is_typing) {
+        typingTimeoutRef.current[msg.user_email] = setTimeout(() => {
+          setTyping((prev) => prev.filter((p) => p.user_email !== msg.user_email));
+        }, 4000);
+      }
+      return;
+    }
+    if (msg.kind === "system" && msg.buddies) {
+      setBuddiesByCh((b) => ({ ...b, [ch]: msg.buddies }));
+    }
+    setMessagesByCh((m) => ({ ...m, [ch]: [...(m[ch] || []), msg] }));
+
+    if (msg.kind === "message") {
+      const mine = msg.user_email && me?.email && msg.user_email === me.email;
+      if (mine) return;
+
+      const mentioned = isMention(msg.text || "");
+
+      // Sound: mention beep if mentioned, regular beep otherwise
+      if (!muted) {
+        try {
+          (mentioned ? mentionAudioRef.current : audioRef.current)?.play?.();
+        } catch { /* ignore */ }
+      }
+
+      if (ch !== channel) {
+        setUnread((u) => ({ ...u, [ch]: (u[ch] || 0) + 1 }));
+        if (mentioned) {
+          setMentions((mm) => ({ ...mm, [ch]: (mm[ch] || 0) + 1 }));
+        }
+      }
+
+      // Browser notification when tab is unfocused or message is a mention
+      if (mentioned || (typeof document !== "undefined" && document.hidden)) {
+        if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+          try {
+            const n = new Notification(
+              `${mentioned ? "💬 You were mentioned in" : "💬 New message in"} #${ch}`,
+              { body: `${msg.user_name}: ${msg.text}`.slice(0, 140), tag: `cm-chat-${ch}`, icon: "/favicon.ico" }
+            );
+            n.onclick = () => { window.focus(); setChannel(ch); n.close(); };
+          } catch { /* ignore */ }
+        }
+      }
+    }
+  };
+
+  const requestNotifPermission = async () => {
+    if (typeof Notification === "undefined") return;
+    if (Notification.permission === "default") {
+      const p = await Notification.requestPermission();
+      setNotifPermission(p);
+    }
+  };
 
   const sendTyping = (isTyping) => {
-    const ws = wsRef.current;
+    const ws = sendWsRef.current;
     if (!ws || ws.readyState !== 1) return;
     const now = Date.now();
-    if (isTyping && now - lastTypingSentRef.current < 1500) return; // throttle
+    if (isTyping && now - lastTypingSentRef.current < 1500) return;
     lastTypingSentRef.current = now;
     ws.send(JSON.stringify({ kind: "typing", is_typing: !!isTyping }));
   };
@@ -588,13 +658,14 @@ function ChatTab({ me }) {
   const send = (e) => {
     e?.preventDefault?.();
     const text = draft.trim();
-    if (!text || !wsRef.current || wsRef.current.readyState !== 1) return;
-    wsRef.current.send(JSON.stringify({ text }));
+    const ws = sendWsRef.current;
+    if (!text || !ws || ws.readyState !== 1) return;
+    ws.send(JSON.stringify({ text }));
     setDraft("");
     sendTyping(false);
   };
 
-  if (!token) {
+  if (!tokenForChannel(channel)) {
     return (
       <p className="font-mono text-sm text-[#a3a3a3]" data-testid="chat-locked">
         Sign in to join the live chat. <Link to="/community/login" className="text-[#ff4500]">Sign in →</Link>
@@ -604,22 +675,16 @@ function ChatTab({ me }) {
   if (channel === "makers-only" && !isMaker) {
     return (
       <div className="space-y-4" data-testid="chat-tab">
-        <ChannelSelector channel={channel} setChannel={setChannel} unread={unread} />
+        <ChannelSelector channel={channel} setChannel={setChannel} unread={unread} mentions={mentions} />
         <div
           className="border border-[#ff4500]/40 bg-[#ff4500]/5 p-5"
           data-testid="chat-makers-only-blocked"
         >
-          <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#ff4500] mb-2">
-            ◆ Makers only
-          </div>
+          <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#ff4500] mb-2">◆ Makers only</div>
           <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed">
             This channel is restricted to verified makers. Sign in to your maker portal to join the conversation.
           </p>
-          <Link
-            to="/maker/login"
-            className="btn-industrial btn-primary inline-flex mt-4"
-            data-testid="chat-makers-signin-cta"
-          >
+          <Link to="/maker/login" className="btn-industrial btn-primary inline-flex mt-4" data-testid="chat-makers-signin-cta">
             Maker sign-in →
           </Link>
         </div>
@@ -631,17 +696,32 @@ function ChatTab({ me }) {
 
   return (
     <div className="space-y-4" data-testid="chat-tab">
-      {/* AIM-style ding (data: URI, no asset needed) */}
       <audio
         ref={audioRef}
         src="data:audio/wav;base64,UklGRrICAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YY4CAACAgIB/g4WIiYqLjI6PkJGRkpKSkZGQjouHg395d3VxbWloZWNiYWBeXVtaWVlYV1ZWVldXWFlZW1xeYGFiZGZnaWttbm9wcXJzdHV2d3d4eHl6e3x9foCBg4WGiImLjI6PkJGSkpOTkpGQjouHhH96d3VybmpoZWNiYWBeXVtaWVlYV1ZWVldXWFlaW1xeYGJjZWdoamtsbW9wcXJzdHV2d3d4eHl6e3x9foCBg4WGh4mLjI6PkJGSkpOTkpGQjouHhH96d3VybmpoZWNiYWBeXVtaWVlYV1ZWVldXWFlaW1xeYGJjZWdoamtsbW9wcXJzdHV2d3d4eHl6e3x9foCBg4WGh4mLjI6PkJGSkpOTkpGQjouHhH96d3VybmpoZWNiYWBeXVtaWVlYV1ZWVldXWFlaW1xeYGJjZWdoamtsbW9wcXJzdHV2d3d4eHl6e3x9foCBg4WGh4mLjI6PkJGSkpOTkpGQ"
         preload="auto"
       />
+      {/* mention beep — slightly higher pitch */}
+      <audio
+        ref={mentionAudioRef}
+        src="data:audio/wav;base64,UklGRn4DAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YVoDAACBgoKDg4SEhYWGhoeHiIiJiYqKi4uMjI2Njo6Pj5CQkZGSkpOTlJSVlZaWl5eYmJmZmpqbm5ycnZ2enp+foKChoaKio6Oko6OioqGhoKCfn56enZ2cnJubmpqZmZiYl5eWlpWVlJSTk5KSkZGQkI+Pjo6NjYyMi4uKiomJiIiHh4aGhYWEhIODgoKBgX+Af359fXx8e3t6enl5eHh3d3Z2dXV0dHNzcnJxcXBwb29ubm1tbGxra2pqaWloZ2dlZWNjYWFf"
+        preload="auto"
+      />
 
-      <ChannelSelector channel={channel} setChannel={setChannel} unread={unread} />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <ChannelSelector channel={channel} setChannel={setChannel} unread={unread} mentions={mentions} />
+        {notifPermission === "default" && (
+          <button
+            onClick={requestNotifPermission}
+            className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] border border-[#ff4500]/40 px-3 py-1.5 hover:bg-[#ff4500]/10"
+            data-testid="chat-enable-notifs"
+          >
+            Enable desktop notifications →
+          </button>
+        )}
+      </div>
 
       <div className="grid lg:grid-cols-12 gap-4">
-        {/* Buddy list (right side on desktop, top on mobile) */}
         <aside className="lg:col-span-3 lg:order-2 border border-[#262626] p-3 bg-[#0a0a0a] lg:max-h-[480px] overflow-y-auto" data-testid="chat-buddies">
           <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mb-3">
             ◆ Buddy list · {buddies.length}
@@ -655,9 +735,7 @@ function ChatTab({ me }) {
             {buddies.map((b) => (
               <li key={b.user_email} className="flex items-center gap-2" data-testid={`chat-buddy-${b.user_email}`}>
                 <span className={`w-2 h-2 rounded-full ${b.role === "maker" ? "bg-[#ff4500]" : "bg-emerald-400"}`} />
-                {b.picture && (
-                  <img src={b.picture} alt="" className="w-5 h-5 rounded-full object-cover border border-[#262626]" />
-                )}
+                {b.picture && <img src={b.picture} alt="" className="w-5 h-5 rounded-full object-cover border border-[#262626]" />}
                 <span className="font-mono text-[11px] text-[#e5e5e5] truncate">{b.user_name}</span>
                 {b.role === "maker" && (
                   <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-[#ff4500] ml-auto">M</span>
@@ -665,7 +743,7 @@ function ChatTab({ me }) {
               </li>
             ))}
           </ul>
-          <div className="mt-4 pt-3 border-t border-[#262626] flex items-center gap-2">
+          <div className="mt-4 pt-3 border-t border-[#262626]">
             <button
               onClick={() => setMuted((m) => !m)}
               className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500]"
@@ -679,19 +757,7 @@ function ChatTab({ me }) {
         <div className="lg:col-span-9 lg:order-1 space-y-3">
           <div ref={scrollRef} className="border border-[#262626] h-[420px] overflow-y-auto p-4 space-y-2 bg-[#0a0a0a]" data-testid="chat-stream">
             {messages.map((m, i) => (
-              <div key={m.id || i} className={`font-mono text-[12px] ${m.kind === "system" ? "text-[#525252] italic" : "text-[#e5e5e5]"}`}>
-                {m.kind === "system" ? (
-                  <span>— {m.text} —</span>
-                ) : (
-                  <span>
-                    <span className={`font-bold ${m.role === "maker" ? "text-[#ff4500]" : "text-emerald-400"}`}>
-                      {m.user_name || m.user_email}
-                    </span>
-                    <span className="text-[#525252] mx-1">›</span>
-                    {m.text}
-                  </span>
-                )}
-              </div>
+              <ChatLine key={m.id || i} m={m} mentioned={m.kind === "message" && isMention(m.text || "")} />
             ))}
           </div>
 
@@ -713,7 +779,7 @@ function ChatTab({ me }) {
                 if (e.target.value) sendTyping(true);
               }}
               onBlur={() => sendTyping(false)}
-              placeholder={`Message #${channel}…`}
+              placeholder={`Message #${channel}… (use @name to mention someone)`}
               className="flex-1 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
               data-testid="chat-input"
             />
@@ -727,6 +793,24 @@ function ChatTab({ me }) {
   );
 }
 
+function ChatLine({ m, mentioned }) {
+  if (m.kind === "system") {
+    return <div className="font-mono text-[12px] text-[#525252] italic">— {m.text} —</div>;
+  }
+  return (
+    <div
+      className={`font-mono text-[12px] ${mentioned ? "border-l-2 border-[#ff4500] pl-2 bg-[#ff4500]/5" : "text-[#e5e5e5]"}`}
+      data-testid={mentioned ? "chat-line-mentioned" : "chat-line"}
+    >
+      <span className={`font-bold ${m.role === "maker" ? "text-[#ff4500]" : "text-emerald-400"}`}>
+        {m.user_name || m.user_email}
+      </span>
+      <span className="text-[#525252] mx-1">›</span>
+      <span className="text-[#e5e5e5]">{m.text}</span>
+    </div>
+  );
+}
+
 function TypingDots() {
   const [n, setN] = useState(1);
   useEffect(() => {
@@ -736,29 +820,37 @@ function TypingDots() {
   return <span>{".".repeat(n)}</span>;
 }
 
-function ChannelSelector({ channel, setChannel, unread }) {
+function ChannelSelector({ channel, setChannel, unread, mentions }) {
   return (
     <div className="flex gap-2 flex-wrap" data-testid="chat-channels">
-      {CHANNELS.map((c) => (
-        <button
-          key={c}
-          onClick={() => setChannel(c)}
-          className={`px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.22em] border transition relative ${
-            channel === c ? "border-[#ff4500] text-[#ff4500]" : "border-[#262626] text-[#a3a3a3] hover:border-[#ff4500]/40"
-          }`}
-          data-testid={`chat-channel-${c}`}
-        >
-          #{c}
-          {(unread?.[c] || 0) > 0 && channel !== c && (
-            <span
-              className="absolute -top-2 -right-2 bg-[#ff4500] text-black w-5 h-5 rounded-full flex items-center justify-center font-mono text-[9px]"
-              data-testid={`chat-unread-${c}`}
-            >
-              {unread[c]}
-            </span>
-          )}
-        </button>
-      ))}
+      {CHANNELS.map((c) => {
+        const cnt = unread?.[c] || 0;
+        const ment = mentions?.[c] || 0;
+        const showBadge = cnt > 0 && channel !== c;
+        return (
+          <button
+            key={c}
+            onClick={() => setChannel(c)}
+            className={`px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.22em] border transition relative ${
+              channel === c ? "border-[#ff4500] text-[#ff4500]" : "border-[#262626] text-[#a3a3a3] hover:border-[#ff4500]/40"
+            }`}
+            data-testid={`chat-channel-${c}`}
+          >
+            #{c}
+            {showBadge && (
+              <span
+                className={`absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center font-mono text-[9px] ${
+                  ment > 0 ? "bg-[#ff4500] text-black ring-2 ring-[#ff4500]/40" : "bg-[#ff4500] text-black"
+                }`}
+                data-testid={`chat-unread-${c}`}
+                title={ment > 0 ? `${ment} mention${ment > 1 ? "s" : ""}` : `${cnt} new`}
+              >
+                {ment > 0 ? "@" : cnt}
+              </span>
+            )}
+          </button>
+        );
+      })}
     </div>
   );
 }
