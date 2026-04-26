@@ -53,14 +53,29 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - iter12: GMV mini-charts + 7d deltas + dwell tracking — **170/170**
 - iter13: Live-now indicator + bounce-rate panel — **176/176**
 - iter14 (manual setup): **Stripe Connect `account.updated` webhook LIVE** + **Google OAuth happy-path VERIFIED**
-  - Webhook secret `STRIPE_CONNECT_WEBHOOK_SECRET` wired in `.env`, signed test events return 200, `iron-and-oak` maker sync confirmed end-to-end
-  - Bug fix: stripe>=15 returns `StripeObject` (not dict) — handler now uses `getattr` shim. Pinned with regression test `test_signed_round_trip_real_stripe_object`
-  - Google sign-in: M Williams · big.easy246@gmail.com landed in `community_users` via Emergent OAuth → Google → callback flow
+- iter15: **Maker Self-Serve Listings (Option B)** — backend 189/189 + frontend E2E 8/8 (create / drag-drop base64 image / soft-delete / restore)
+
+## Recently Shipped (2026-04-26)
+- ✅ **Maker Self-Serve Listings (Option B)**:
+  - `POST /api/maker/products` — create listing with title/price/category/technique/stock/dimensions/description/materials/images/model_url
+  - `DELETE /api/maker/products/{slug}` — soft-delete (sets `deleted_at`)
+  - `POST /api/maker/products/{slug}/restore` — clears `deleted_at`
+  - `GET /api/maker/products` — returns both live + archived for maker; public catalog filters `deleted_at`
+  - Frontend: `NewListingModal` (`MakerDashboard.jsx:799`) with HTML5 canvas client-side image compression → base64 data URLs (max 5 images)
+  - `ProductsList` (`MakerDashboard.jsx:316`) splits live vs ARCHIVED with restore controls
+  - Bug-fix during iter15: duplicate `Field` component declaration crashed the dashboard — renamed second to `LabeledField`
 
 ## Backlog
-- (Optional) Cohort retention chart (week-over-week return rate)
-- (Optional) Bounce-rate-by-page (which landing pages are sticky vs leaky)
-- (Optional) Discord/Slack ping when live-visitor count crosses threshold
+- **P1 — Object Storage migration**: Cloudflare R2 or AWS S3 for product images instead of base64 in MongoDB (avoid bloat). Requires user-supplied keys.
+- **P2** — Maker `.glb` 3D model file upload (currently URL-only)
+- **P3** — Listing variants (size / finish / color with separate stock)
+- **P4** — Listing draft mode (save without publishing)
+- **P5** — Low-stock email alert (when in_stock < 3)
+- (UX) — Replace native `window.confirm()` on listing delete with styled inline overlay
+- (UX) — Add `data-testid="product-archived-{slug}"` and per-thumb testids in NewListingModal
+- (Persistent) — Stripe Connect transfer_group mismatch (`stripe_connect.py`): Transfer.create uses session_id but PaymentIntent uses uuid. Re-flagged across iter7/8/10/11 — separate-charge-and-transfer will fail in prod. Not yet fixed.
+- (Optional) Cohort retention, bounce-rate-by-page, Discord/Slack live-visitor ping
 
 ## Next Action Items
-- (none — all backlog tasks user requested are complete)
+- Migrate product images from base64 → Cloudflare R2 (or S3) — needs API keys from user
+- Address Stripe Connect transfer_group mismatch before going live with separate charges & transfers
