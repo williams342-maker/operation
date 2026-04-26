@@ -54,9 +54,31 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - iter13: Live-now indicator + bounce-rate panel — **176/176**
 - iter14 (manual setup): **Stripe Connect `account.updated` webhook LIVE** + **Google OAuth happy-path VERIFIED**
 - iter15: **Maker Self-Serve Listings (Option B)** — backend 189/189 + frontend E2E 8/8 (create / drag-drop base64 image / soft-delete / restore)
+- iter16: **.glb upload (P2) + Variants (P3) + Draft mode (P4)** — backend 28/28 incl. 10 new iter16 cases + frontend E2E 12/12 (modal variants editor, draft↔publish flips, .glb file upload, buyer variant selector + cart variant pricing). R2 live; transfer_to_makers + maker-orders correctly apply variant deltas.
 
 ## Recently Shipped (2026-04-26)
-- ✅ **Cloudflare R2 Object Storage** for product images:
+- ✅ **Maker `.glb` 3D model upload via R2** (P2):
+  - `POST /api/maker/uploads/model` — multipart route accepting `.glb` / `.gltf`, validates extension + 50MB cap, uploads to R2 under `models/{maker_slug}/{uuid}.glb`, returns public CDN URL
+  - `r2_storage.upload_model_bytes` — model-specific allowlist (model/gltf-binary, model/gltf+json, application/octet-stream) and 50MB cap
+  - Frontend (`MakerDashboard.jsx`): NewListingModal + per-product 3D editor swap text URL field for a styled file-picker (drag-and-drop replace, fallback to manual URL paste)
+
+- ✅ **Listing variants** (P3) — one-axis simple model `{label, price_delta, in_stock}`:
+  - `ProductVariant` Pydantic model auto-IDs each variant (12-char hex)
+  - `Product.variants: List[ProductVariant]` and `MakerProductCreate.variants` (with label-required + non-negative-stock validation, stronger validation on PATCH via new `ProductVariantInput`)
+  - `CartItem.variant_id` flows through `/cart/quote` and `/checkout/session`; `_resolve_cart` blocks 400 when product has variants and none selected, applies `price_delta` to unit price, surfaces variant label in summary
+  - Stripe Connect payout & maker-orders subtotals correctly use base + variant delta
+  - Frontend cart (`/lib/cart.js`): row-keyed by `id+variant_id` so two variants of one product = two cart rows
+  - Public `ProductDetail` page renders variant selector buttons; price + stock react to selection; Sold-out variants are disabled
+  - `NewListingModal` has a Variants section with `+ Add option`, label/price-delta/stock rows, and per-row remove
+
+- ✅ **Draft mode** (P4):
+  - `Product.status: "draft" | "published"` (default published)
+  - Public catalog (`/api/products`, `/api/products/{slug}`) filters `{status: {$ne: "draft"}}` — drafts hidden, backwards-compat for legacy products
+  - `/api/maker/products` returns drafts to the owner
+  - `POST /api/maker/products/{slug}/publish` and `/unpublish` toggles
+  - `MakerDashboard.ProductsList` splits Drafts / Live / Archived into three sections with badges; per-card publish toggle (with inline error display); `Save as draft` button in NewListingModal
+
+- ✅ **Cloudflare R2 Object Storage** (P1, prior):
   - `/app/backend/r2_storage.py` — boto3-based S3-compatible client (R2 endpoint), `upload_data_url`, `upload_bytes`, `delete_key`, content-type allowlist (PNG/JPEG/WEBP/GIF), 8 MB cap
   - `POST /api/maker/products` now auto-uploads any base64 `data:image/...;base64,...` payload to R2 under `products/{maker_slug}/{uuid}.{ext}` and stores only the public CDN URL in MongoDB (no more base64 bloat)
   - Migration script `/app/backend/scripts/migrate_images_to_r2.py` — idempotent walker, converts any legacy base64 images to R2 URLs in place. Ran clean (0 base64 found in seeded catalog)
@@ -74,15 +96,15 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
   - Bug-fix during iter15: duplicate `Field` component declaration crashed the dashboard — renamed second to `LabeledField`
 
 ## Backlog
-- **P2** — Maker `.glb` 3D model file upload to R2 (currently URL-only; `r2_storage` already supports binary uploads — just needs a multipart route)
-- **P3** — Listing variants (size / finish / color with separate stock)
-- **P4** — Listing draft mode (save without publishing)
+- **P5** — Custom CDN domain `cdn.craftersmarket.org` (R2 currently lives at `pub-…r2.dev`; just a DNS+R2 dashboard step)
 - **P5** — Low-stock email alert (when in_stock < 3)
-- **P5** — Custom CDN domain `cdn.craftersmarket.org` for R2 (instead of `pub-xxx.r2.dev`)
+- **P5** — Refactor `MakerDashboard.jsx` (now ~1349 lines) into `pages/maker/components/{NewListingModal,ProductEditCard,ProductsList,PayoutsTab}.jsx`
+- **P5** — Two-axis variants (size × finish grid), per-variant images
+- **P5** — Periodic R2 sweeper for orphaned objects (e.g., images attached to hard-deleted products)
 - (UX) — Replace native `window.confirm()` on listing delete with styled inline overlay
-- (UX) — Add `data-testid="product-archived-{slug}"` and per-thumb testids in NewListingModal
+- (UX) — Lock the variant-required error copy ("Please choose an option") in a unit test on the checkout router
 - (Optional) Cohort retention, bounce-rate-by-page, Discord/Slack live-visitor ping
 
 ## Next Action Items
-- Maker `.glb` 3D model upload via the same R2 pathway
-- Listing variants + draft mode
+- Custom CDN domain (`cdn.craftersmarket.org`) — needs your DNS click; otherwise nothing pressing
+- Decide whether to break MakerDashboard.jsx into modules

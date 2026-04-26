@@ -89,8 +89,20 @@ class MakerProductUpdate(BaseModel):
     in_stock: Optional[int] = None
     model_url: Optional[str] = None
     images: Optional[List[str]] = None
-    variants: Optional[List[dict]] = None
+    variants: Optional[List["ProductVariantInput"]] = None
     status: Optional[str] = None     # "draft" | "published"
+
+
+class ProductVariantInput(BaseModel):
+    """Variant payload for PATCH — same validation as create."""
+    model_config = ConfigDict(extra="ignore")
+    id: Optional[str] = None
+    label: str
+    price_delta: float = 0.0
+    in_stock: int = 0
+
+
+MakerProductUpdate.model_rebuild()
 
 
 @router.patch("/maker/products/{product_slug}", response_model=Product)
@@ -103,9 +115,15 @@ async def maker_update_product(
         raise HTTPException(404, "Product not found")
     if prod.get("maker_slug") != slug:
         raise HTTPException(403, "You can only edit your own listings.")
-    updates = {k: v for k, v in payload.model_dump(exclude_none=True).items()}
-    if updates.get("status") and updates["status"] not in ("draft", "published"):
+    if payload.status and payload.status not in ("draft", "published"):
         raise HTTPException(400, "status must be 'draft' or 'published'.")
+    if payload.variants is not None:
+        for v in payload.variants:
+            if not v.label.strip():
+                raise HTTPException(400, "Each variant needs a label.")
+            if v.in_stock < 0:
+                raise HTTPException(400, "Variant stock must be non-negative.")
+    updates = {k: v for k, v in payload.model_dump(exclude_none=True).items()}
     if updates:
         await db.products.update_one({"slug": product_slug}, {"$set": updates})
     updated = await db.products.find_one({"slug": product_slug}, {"_id": 0})
@@ -157,6 +175,14 @@ async def maker_create_product(
                 400,
                 "An image is too large (>8MB).",
             )
+    if payload.status not in ("draft", "published"):
+        raise HTTPException(400, "status must be 'draft' or 'published'.")
+    # Validate variants — labels are required and stock must be non-negative
+    for v in payload.variants or []:
+        if not v.label.strip():
+            raise HTTPException(400, "Each variant needs a label.")
+        if v.in_stock < 0:
+            raise HTTPException(400, "Variant stock must be non-negative.")
 
     base = _slugify(payload.slug or payload.title)
     candidate = base
@@ -190,15 +216,6 @@ async def maker_create_product(
                     raise HTTPException(502, "Could not upload image to storage.")
             else:
                 final_images.append(img)
-
-    if payload.status not in ("draft", "published"):
-        raise HTTPException(400, "status must be 'draft' or 'published'.")
-    # Validate variants — labels are required and stock must be non-negative
-    for v in payload.variants or []:
-        if not v.label.strip():
-            raise HTTPException(400, "Each variant needs a label.")
-        if v.in_stock < 0:
-            raise HTTPException(400, "Variant stock must be non-negative.")
 
     product = Product(
         slug=candidate,

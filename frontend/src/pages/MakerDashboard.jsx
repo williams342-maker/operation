@@ -410,6 +410,7 @@ function ProductEditCard({ product, archived = false, draft = false, onChanged }
   const [uploadingModel, setUploadingModel] = useState(false);
   const [modelErr, setModelErr] = useState("");
   const [togglingStatus, setTogglingStatus] = useState(false);
+  const [statusErr, setStatusErr] = useState("");
   const modelInputRef = useRef(null);
 
   const save = async (e) => {
@@ -471,11 +472,14 @@ function ProductEditCard({ product, archived = false, draft = false, onChanged }
   };
 
   const onTogglePublish = async () => {
+    setStatusErr("");
     setTogglingStatus(true);
     try {
       const fn = draft ? publishMakerProduct : unpublishMakerProduct;
       await fn(p.slug);
       onChanged && onChanged();
+    } catch (e) {
+      setStatusErr(e?.response?.data?.detail || "Could not change status.");
     } finally {
       setTogglingStatus(false);
     }
@@ -548,6 +552,14 @@ function ProductEditCard({ product, archived = false, draft = false, onChanged }
                 ? "↑ Publish listing"
                 : "↓ Move to draft"}
             </button>
+            {statusErr && (
+              <p
+                className="font-mono text-[10px] text-red-400 mt-1"
+                data-testid={`product-status-err-${p.slug}`}
+              >
+                {statusErr}
+              </p>
+            )}
             <button
               onClick={() => setOpen((o) => !o)}
               className="mt-2 w-full font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] text-left"
