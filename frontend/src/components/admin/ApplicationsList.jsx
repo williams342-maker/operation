@@ -38,14 +38,14 @@ function ApplicationRow({ app, onChange }) {
       data-testid={`app-${app.id}`}
     >
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 pb-3 border-b border-[#262626]">
-        <div>
+        <div className="min-w-0">
           <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">
             ◆ {app.status ? `Decided · ${app.status}` : "Pending"} · {formatDate(app.created_at)}
           </div>
-          <div className="font-display text-2xl mt-1">{app.studio_name}</div>
-          <div className="font-mono text-xs text-[#a3a3a3] mt-1">
+          <div className="font-display text-2xl mt-1 break-words">{app.studio_name}</div>
+          <div className="font-mono text-xs text-[#a3a3a3] mt-1 break-words">
             {app.name} · {app.location} ·{" "}
-            <a href={`mailto:${app.email}`} className="underline hover:text-[#ff4500]">
+            <a href={`mailto:${app.email}`} className="underline hover:text-[#ff4500] break-all">
               {app.email}
             </a>
           </div>

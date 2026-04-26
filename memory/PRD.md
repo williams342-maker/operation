@@ -56,6 +56,30 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - iter15: **Maker Self-Serve Listings (Option B)** — backend 189/189 + frontend E2E 8/8 (create / drag-drop base64 image / soft-delete / restore)
 - iter16: **.glb upload (P2) + Variants (P3) + Draft mode (P4)** — backend 28/28 incl. 10 new iter16 cases + frontend E2E 12/12 (modal variants editor, draft↔publish flips, .glb file upload, buyer variant selector + cart variant pricing). R2 live; transfer_to_makers + maker-orders correctly apply variant deltas.
 
+## Recently Shipped (2026-04-26 — iter35 · Cleanup batch P15+P16+P17+P14g)
+- ✅ **iter35 — Backend bug-fix + frontend polish quad**:
+
+  **P16 · Idempotent listing-fee billing on republish** (real bug fix):
+  `maker_publish_product` now checks `was_already_published` BEFORE accruing the listing-publish charge. Republishing a live listing still refreshes `expires_at` (renewal works) but no double-charge. Verified via new `tests/test_iter21_billing_idempotency_followers.py`.
+
+  **P15 · BackgroundTasks for listing-publish notifications**:
+  Both `maker_create_product` (when `status='published'`) and `maker_publish_product` now use `bg.add_task(_safe_notify_listing_published, slug)` — keeps the API response under 500ms even when fanning out to thousands of followers. Wrapper swallows mailer-outage exceptions so a transient 429 doesn't bubble up.
+
+  **P17 · Public followers list section** (`/makers/:slug#followers`):
+  - Backend: new `GET /api/makers/{slug}/followers?limit=N` returns `{items, total}` with anonymized rows (display name + first-letter initial + since-date — no email leakage). Limit clamped 1..100.
+  - Frontend: `components/FollowersList.jsx` renders an avatar grid of color-rotating pucks, scroll-mt-32 + id="followers" so the FollowButton's "N followers" chip now deep-links cleanly under the sticky header. Empty state copy: "Be the first to follow." + CTA pointing back to the orange Follow button.
+
+  **P14g · Mobile responsive pass on `/admin/dashboard`**:
+  - Tab bar now sticky at top:64px on mobile + overflow-x-auto so all 12 tabs scroll horizontally
+  - H1 'Operations.' scales 36px mobile → 72px desktop
+  - Stats grid uses 2x2 layout below `md:` breakpoint
+  - `Stat` component compacted (smaller padding + label/value font sizes on mobile)
+  - Sign Out button + LiveNowBadge cluster fits without wrap at 375px wide
+  - ApplicationsList row content: `break-words` + `[overflow-wrap:anywhere]` so long applicant ids/emails/about-text don't bleed past the viewport
+
+  **Tests**: testing_agent_v3_fork iter21 — **100% pass** (6/6 backend pytest, all P14g/P15/P16/P17 spec scenarios green, response time under 500ms confirmed for backgrounded publish). Verified end-to-end on the live preview at 390×844 viewport.
+
+
 ## Recently Shipped (2026-04-26 — iter34 · Listing-publish notifications + Follow system)
 - ✅ **iter34 — Maker confirmation + Ops notification + Buyer follower broadcast on listing publish** (closing the email-CTA loop end-to-end):
 
