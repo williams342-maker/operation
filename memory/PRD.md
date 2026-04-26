@@ -57,6 +57,13 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - iter16: **.glb upload (P2) + Variants (P3) + Draft mode (P4)** — backend 28/28 incl. 10 new iter16 cases + frontend E2E 12/12 (modal variants editor, draft↔publish flips, .glb file upload, buyer variant selector + cart variant pricing). R2 live; transfer_to_makers + maker-orders correctly apply variant deltas.
 
 ## Recently Shipped (2026-04-26)
+- ✅ **iter23 — MailerSend wired as primary transactional provider**:
+  - Added `_send_mailersend()` to `email_service.py` alongside existing Brevo + Resend providers. New `EMAIL_PROVIDER=mailersend` env value (now the default).
+  - MailerSend (sister product of MailerLite, dedicated to transactional emails) provides better deliverability than the marketing-focused MailerLite API for receipts, magic-links, low-stock alerts.
+  - Domain `craftersmarket.org` authenticated in MailerSend with DKIM + SPF (`is_verified=true · dkim=true · spf=true`).
+  - **Verified end-to-end**: live test send → MailerSend `202 Accepted` with `message_id=69ee427a61bed73c2528e603` (basic) and `69ee427a7faef61211485b9f` (real magic-link template).
+  - Roll-back path preserved: set `EMAIL_PROVIDER=brevo` or `=resend` (both keys still present in `.env`).
+
 - ✅ **iter22 — `MakerDashboard.jsx` refactor (1822 → 8 modular files)**:
   - Split the monolithic 1822-line dashboard into a 164-line orchestrator + 8 component files under `pages/MakerDashboard/`:
     - `_shared.jsx` (47 lines · `Stat`, `Field`, `LabeledField`, `formatDate`)
@@ -163,5 +170,5 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - (Optional analytics) Cohort retention, bounce-rate-by-page, Discord/Slack live-visitor ping
 
 ## Next Action Items
-- 🔴 **P0 — Brevo DNS** (paused, awaiting user authentication): copy TXT/DKIM records from Brevo dashboard into Cloudflare → click Authenticate → send test email
-- 🟡 **P1 — R2 CDN custom domain**: in Cloudflare R2 → bucket `craftersmarket-assets` → Custom Domains → connect `cdn.craftersmarket.org` → flip `R2_PUBLIC_URL` and run `swap_r2_host.py` (now also covers maker banners)
+- 🟡 **P1 — R2 CDN custom domain** (waiting on user click-through in Cloudflare R2 dashboard): connect `cdn.craftersmarket.org` → I flip `R2_PUBLIC_URL` and run `swap_r2_host.py` (covers products + maker banners)
+- 🟢 **P2 — Live ROI calculator on the Crafters Plus billing card** (fastest conversion lever for the $12/mo upsell — auto-calculates "you'd have kept $X more this month at the 4% Plus rate")
