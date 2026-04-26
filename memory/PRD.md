@@ -57,6 +57,16 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - iter16: **.glb upload (P2) + Variants (P3) + Draft mode (P4)** — backend 28/28 incl. 10 new iter16 cases + frontend E2E 12/12 (modal variants editor, draft↔publish flips, .glb file upload, buyer variant selector + cart variant pricing). R2 live; transfer_to_makers + maker-orders correctly apply variant deltas.
 
 ## Recently Shipped (2026-04-26)
+- ✅ **iter28 — Maker application lifecycle emails + Community EUA gate**:
+  - **Application received email**: New `send_applicant_received()` template — fires immediately when someone applies. Personalised with applicant name + studio, sets the 3-business-day review timeline, hints at the welcome packet to come. Wired as background task in `POST /api/maker-applications`.
+  - **Welcome packet on approval**: `send_application_decision()` rewritten — when approved, includes a magic-link "Open Maker Portal" button, full launch checklist (Connect Stripe → Polish profile → Create first 3 listings → Set up shop), fee breakdown (5% commission · 10 free listings · 120-day expiry · $5/wk promo · Stripe payouts), resources + support links. Decline path stays short and kind. The admin approve flow now also **auto-creates a maker doc** (slug derived from studio name with collision handling) and **mints a magic-link** so the welcome email is 1-click into the portal.
+  - **Community EUA (End User Agreement) gate**: First-time community sign-ups now must check an "I agree to the Crafters Market Community Terms (v2026-04)" box before either Google or magic-link sign-in. Returning users on the current version are grandfathered. Backend stamps `community_users.eua_version` + `eua_accepted_at` on acceptance. Bump `CURRENT_EUA_VERSION` constant in `community.py` to force re-acceptance after material policy changes.
+    - New endpoint: `GET /api/community/eua` (public) — returns version, title, summary, /policy link.
+    - All 3 auth endpoints (`google`, `magic/request`, `magic/verify`) now accept `accept_eua` + `eua_version`.
+    - Frontend: `CommunityAuth.jsx` shows the checkbox above sign-in buttons; both Google + magic-link CTAs are disabled until checked. Acceptance is persisted to sessionStorage so the version flows through Google's redirect callback.
+  - **Live verification**: 3 real MailerSend deliveries confirmed via `team@craftersmarket.org` inbox during integration test (ops alert, applicant ack, welcome packet). EUA gate enforced via curl: 400 without acceptance, 200 with, grandfathered for returning users.
+  - **Tests**: 10 new unit tests + 272/272 full backend regression green. Bonus: fixed a pre-existing iter15 → maker_portal cross-test pollution issue with a module-level cleanup fixture.
+
 - ✅ **iter27 — Listing-credit packs (P4) + Receipt review CTA (P3) + Cron scheduler (P2)**:
 
   **P2 · In-process cron scheduler** (`/app/backend/scheduler.py`):

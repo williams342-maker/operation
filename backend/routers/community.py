@@ -34,21 +34,48 @@ PAID_UNLOCK_AMOUNT = 5.00
 
 
 # ===================== AUTH =====================
+# Bump this when Terms / Code-of-Conduct text changes substantively. Any user
+# whose stored eua_version doesn't match this is gated until they re-accept.
+CURRENT_EUA_VERSION = "2026-04"
+
+
 class GoogleSessionRequest(BaseModel):
     session_id: str
+    accept_eua: bool = False
+    eua_version: str = ""
 
 
 class MagicRequest(BaseModel):
     email: EmailStr
     origin_url: str
+    accept_eua: bool = False
+    eua_version: str = ""
 
 
 class MagicVerifyRequest(BaseModel):
     token: str
+    accept_eua: bool = False
+    eua_version: str = ""
 
 
-async def _upsert_buyer(email: str, name: str = "", picture: str = "") -> dict:
-    """Idempotent buyer upsert by email."""
+def _require_eua(accept: bool, version: str) -> str:
+    """Reject the call when EUA isn't accepted or version mismatches.
+    Returns the validated version on success."""
+    if not accept or version != CURRENT_EUA_VERSION:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "You must accept the Crafters Market Community Terms "
+                f"(version {CURRENT_EUA_VERSION}) to sign in."
+            ),
+        )
+    return version
+
+
+async def _upsert_buyer(email: str, name: str = "", picture: str = "",
+                        eua_version: str = "") -> dict:
+    """Idempotent buyer upsert by email. If `eua_version` is provided, stamp
+    the user's terms/community-guidelines acceptance with that version + ts."""
     email = email.lower().strip()
     existing = await db.community_users.find_one({"email": email}, {"_id": 0})
     if existing:
@@ -57,6 +84,9 @@ async def _upsert_buyer(email: str, name: str = "", picture: str = "") -> dict:
             updates["name"] = name
         if picture and not existing.get("picture"):
             updates["picture"] = picture
+        if eua_version and existing.get("eua_version") != eua_version:
+            updates["eua_version"] = eua_version
+            updates["eua_accepted_at"] = now_iso()
         await db.community_users.update_one({"email": email}, {"$set": updates})
         return {**existing, **updates}
     user = {
@@ -66,6 +96,8 @@ async def _upsert_buyer(email: str, name: str = "", picture: str = "") -> dict:
         "picture": picture or "",
         "created_at": now_iso(),
         "last_seen": now_iso(),
+        "eua_version": eua_version or None,
+        "eua_accepted_at": now_iso() if eua_version else None,
     }
     await db.community_users.insert_one(user)
     user.pop("_id", None)
@@ -74,7 +106,9 @@ async def _upsert_buyer(email: str, name: str = "", picture: str = "") -> dict:
 
 @router.post("/community/auth/google")
 async def community_auth_google(payload: GoogleSessionRequest):
-    """Exchange an Emergent Google session_id for a buyer JWT."""
+    """Exchange an Emergent Google session_id for a buyer JWT.
+    First-time users must include accept_eua + eua_version. Returning users
+    who already stamped the current version skip the gate."""
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             r = await client.get(
@@ -91,10 +125,19 @@ async def community_auth_google(payload: GoogleSessionRequest):
         logger.exception("emergent auth error: %s", e)
         raise HTTPException(502, "Google sign-in is temporarily unavailable.")
 
+    email = (data.get("email") or "").lower().strip()
+    # EUA gate: pass if user already accepted current version, otherwise require
+    # the client to send accept_eua=true with the right version.
+    existing = await db.community_users.find_one({"email": email}, {"_id": 0, "eua_version": 1})
+    if not existing or existing.get("eua_version") != CURRENT_EUA_VERSION:
+        _require_eua(payload.accept_eua, payload.eua_version)
+    eua_version = CURRENT_EUA_VERSION if (payload.accept_eua and payload.eua_version == CURRENT_EUA_VERSION) else ""
+
     user = await _upsert_buyer(
-        email=data.get("email", ""),
+        email=email,
         name=data.get("name", ""),
         picture=data.get("picture", ""),
+        eua_version=eua_version,
     )
     jwt_token = issue_session_jwt(user["user_id"], user["email"], role="buyer")
     return {"token": jwt_token, "user": user}
@@ -103,7 +146,13 @@ async def community_auth_google(payload: GoogleSessionRequest):
 @router.post("/community/auth/magic/request")
 async def community_auth_magic_request(payload: MagicRequest, bg: BackgroundTasks):
     email = payload.email.lower().strip()
-    # Frictionless signup: any email gets a link (community is open).
+    # Same gate as the verify endpoint — first-time signers must accept.
+    existing = await db.community_users.find_one({"email": email}, {"_id": 0, "eua_version": 1})
+    if not existing or existing.get("eua_version") != CURRENT_EUA_VERSION:
+        _require_eua(payload.accept_eua, payload.eua_version)
+        # Stamp acceptance now so the verify call doesn't need to ask again.
+        await _upsert_buyer(email=email, eua_version=CURRENT_EUA_VERSION)
+
     token = issue_buyer_magic_token(email)
     link = f"{payload.origin_url.rstrip('/')}/community/verify?token={token}"
     body = (
@@ -123,9 +172,34 @@ async def community_auth_magic_request(payload: MagicRequest, bg: BackgroundTask
 @router.post("/community/auth/magic/verify")
 async def community_auth_magic_verify(payload: MagicVerifyRequest):
     email = verify_buyer_magic_token(payload.token)
-    user = await _upsert_buyer(email=email)
+    # EUA gate: pass for returning users on the current version,
+    # require explicit acceptance otherwise.
+    existing = await db.community_users.find_one({"email": email}, {"_id": 0, "eua_version": 1})
+    if not existing or existing.get("eua_version") != CURRENT_EUA_VERSION:
+        _require_eua(payload.accept_eua, payload.eua_version)
+    eua_version = CURRENT_EUA_VERSION if (payload.accept_eua and payload.eua_version == CURRENT_EUA_VERSION) else ""
+
+    user = await _upsert_buyer(email=email, eua_version=eua_version)
     jwt_token = issue_session_jwt(user["user_id"], user["email"], role="buyer")
     return {"token": jwt_token, "user": user}
+
+
+@router.get("/community/eua")
+async def community_eua():
+    """Public endpoint — current EUA version + summary, used by the sign-in
+    UI to render the checkbox label and link."""
+    return {
+        "version": CURRENT_EUA_VERSION,
+        "title": "Crafters Market Community Terms",
+        "summary": (
+            "Be respectful, no spam, no harassment, no harvesting other "
+            "members' personal info. Your posts may be moderated. By signing "
+            "in you agree to these Community Terms and our Privacy Policy."
+        ),
+        "links": {
+            "policy": "/policy",
+        },
+    }
 
 
 @router.get("/community/me")

@@ -41,7 +41,7 @@ class TestMakerAnalytics:
         email = f"TEST_iter10_{uuid.uuid4().hex[:6]}@example.com"
         tok = issue_buyer_magic_token(email)
         bjwt = requests.post(f"{API}/community/auth/magic/verify",
-                             json={"token": tok}, timeout=15).json()["token"]
+                             json={"token": tok, "accept_eua": True, "eua_version": "2026-04"}, timeout=15).json()["token"]
         r = requests.get(f"{API}/admin/maker-analytics/iron-and-oak",
                          headers=H(bjwt), timeout=15)
         assert r.status_code == 403

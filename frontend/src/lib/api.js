@@ -154,12 +154,17 @@ const buyerAuthHeaders = () => {
   const t = localStorage.getItem("cm_buyer_jwt");
   return t ? { Authorization: `Bearer ${t}` } : {};
 };
-export const communityGoogleExchange = (session_id) =>
-  http.post("/community/auth/google", { session_id }).then((r) => r.data);
-export const communityRequestMagic = (email, origin_url) =>
-  http.post("/community/auth/magic/request", { email, origin_url }).then((r) => r.data);
-export const communityVerifyMagic = (token) =>
-  http.post("/community/auth/magic/verify", { token }).then((r) => r.data);
+export const communityGoogleExchange = (session_id, eua_version = "") =>
+  http.post("/community/auth/google",
+            { session_id, accept_eua: !!eua_version, eua_version }).then((r) => r.data);
+export const communityRequestMagic = (email, origin_url, eua_version = "") =>
+  http.post("/community/auth/magic/request",
+            { email, origin_url, accept_eua: !!eua_version, eua_version }).then((r) => r.data);
+export const communityVerifyMagic = (token, eua_version = "") =>
+  http.post("/community/auth/magic/verify",
+            { token, accept_eua: !!eua_version, eua_version }).then((r) => r.data);
+export const fetchCommunityEua = () =>
+  http.get("/community/eua").then((r) => r.data);
 export const communityMe = () =>
   http.get("/community/me", { headers: buyerAuthHeaders() }).then((r) => r.data);
 

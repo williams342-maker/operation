@@ -59,7 +59,7 @@ def fresh_buyer():
     email = f"TEST_iter9_{uuid.uuid4().hex[:8]}@example.com"
     tok = issue_buyer_magic_token(email)
     r = requests.post(f"{API}/community/auth/magic/verify",
-                      json={"token": tok}, timeout=15)
+                      json={"token": tok, "accept_eua": True, "eua_version": "2026-04"}, timeout=15)
     assert r.status_code == 200, r.text
     body = r.json()
     return body["token"], body["user"], email

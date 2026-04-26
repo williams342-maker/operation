@@ -1,5 +1,6 @@
 """Admin console: magic-link auth, applications/custom-orders/paid-orders dashboards."""
 from typing import Optional
+import os
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
@@ -119,9 +120,49 @@ async def admin_decide_application(
         {"$set": {"status": new_status, "note": body.note,
                   "decided_at": decided_at, "decided_by": decided_by}},
     )
+
+    sign_in_link = ""
+    if body.approved:
+        # Auto-create the maker doc + mint a magic-link so the welcome packet
+        # has a frictionless 1-click portal entry.
+        from models import Maker
+        import re
+
+        existing = await db.makers.find_one({"email": appn["email"]}, {"_id": 0})
+        if not existing:
+            base_slug = re.sub(r"[^a-z0-9]+", "-",
+                               (appn.get("studio_name") or appn.get("name") or "maker").lower()).strip("-")
+            slug = base_slug or f"maker-{app_id[:6]}"
+            i = 2
+            while await db.makers.find_one({"slug": slug}, {"_id": 0, "slug": 1}):
+                slug = f"{base_slug}-{i}"
+                i += 1
+            initials = "".join(w[0] for w in (appn.get("studio_name") or appn.get("name", "M")).split()[:2]).upper()[:3] or "M"
+            new_maker = Maker(
+                slug=slug,
+                name=appn.get("studio_name") or appn["name"],
+                initials=initials,
+                location=appn.get("location") or "",
+                bio=appn.get("about") or "",
+                techniques=[],
+                portrait="",
+                cover="",
+                email=appn["email"],
+            )
+            await db.makers.insert_one(new_maker.model_dump())
+            logger.info("auto-created maker on approval: slug=%s email=%s",
+                        slug, appn["email"])
+
+        # Mint a magic-link for the maker portal
+        from maker_auth import issue_magic_token
+        site = os.environ.get("FRONTEND_URL") or "https://craftersmarket.org"
+        token = issue_magic_token(appn["email"])
+        sign_in_link = f"{site.rstrip('/')}/maker/verify?token={token}"
+
     bg.add_task(
         send_application_decision,
         appn["email"], appn["name"], appn["studio_name"], body.approved, body.note or "",
+        sign_in_link,
     )
     appn["status"] = new_status
     appn["note"] = body.note

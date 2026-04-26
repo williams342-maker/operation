@@ -218,6 +218,44 @@ async def send_ops_new_application(name: str, studio: str, location: str, email:
     return await _send(OPS_EMAIL, f"New maker application · {studio}", html)
 
 
+async def send_applicant_received(applicant_email: str, name: str, studio: str):
+    """Sent to the applicant immediately after they submit a maker application —
+    confirms receipt and sets expectations on the review timeline."""
+    if not applicant_email:
+        return None
+    body = (
+        "<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 18px'>"
+        f"Hi {name}, we got your application for <b style='color:#ff4500'>{studio}</b>. "
+        "It's already in our review queue.</p>"
+        "<div style='border-top:1px solid #262626;padding-top:18px;margin:18px 0'>"
+        "<div style='font-family:JetBrains Mono,monospace;font-size:10px;letter-spacing:0.22em;"
+        "text-transform:uppercase;color:#a3a3a3;margin:0 0 12px'>What happens next</div>"
+        "<ol style='font-size:13px;color:#e5e5e5;line-height:1.7;padding-left:20px;margin:0'>"
+        "<li>A founding-team member personally reviews every application — usually within 3 business days.</li>"
+        "<li>If you're a fit, we'll send a welcome packet with your sign-in link, listing template, and Stripe payouts setup.</li>"
+        "<li>If we need more info first, we'll just reply to this email.</li>"
+        "</ol>"
+        "</div>"
+        "<p style='font-size:13px;color:#a3a3a3;line-height:1.6;margin:18px 0 0'>"
+        "While you wait — keep your portfolio sharp, and start thinking about your first 3 listings. "
+        "The fastest path to launch day is having photos + descriptions ready when you get the green light."
+        "</p>"
+        "<p style='font-size:12px;color:#525252;line-height:1.6;margin-top:24px'>"
+        "Questions? Just reply — this email goes straight to the team."
+        "</p>"
+    )
+    html = _shell(
+        "Application Received.",
+        "We're reviewing it now — here's what to expect.",
+        body, "Maker program · application",
+    )
+    return await _send(
+        applicant_email,
+        f"We got your Crafters Market application · {studio}",
+        html,
+    )
+
+
 async def send_ops_new_custom_order(name: str, email: str, project_type: str, material: str, description: str, budget: str | None):
     if not OPS_EMAIL: return
     body = f"""
@@ -311,31 +349,85 @@ async def send_admin_magic_link(admin_email: str, link: str):
 
 
 async def send_application_decision(applicant_email: str, name: str, studio: str,
-                                    approved: bool, note: str = ""):
-    title = "You're In." if approved else "Application Update."
+                                    approved: bool, note: str = "",
+                                    sign_in_link: str = ""):
+    """Approval path emits a comprehensive welcome packet: sign-in link, first
+    steps checklist, fee breakdown, support resources. Decline path stays
+    short + kind."""
+    title = "Welcome to the Workshop." if approved else "Application Update."
     intro = (
-        f"Hi {name}, your studio {studio} has been approved for Crafters Market."
+        f"Hi {name}, your studio {studio} is in. Here's everything you need to launch."
         if approved
         else f"Hi {name}, thanks for applying with {studio}. We're not moving forward right now."
     )
-    blurb_yes = (
-        "Welcome to the workshop. We'll follow up with onboarding details "
-        "(sign-in email, listings template, payouts) within 24 hours."
-    )
-    blurb_no = (
-        "We saw something interesting but the fit isn't quite there today. "
-        "We keep notes — feel free to reapply once your portfolio grows."
-    )
-    blurb = blurb_yes if approved else blurb_no
-    body = f"<p style='font-size:14px;color:#e5e5e5;line-height:1.6'>{blurb}</p>"
-    if note:
-        body += (
-            f"<p style='font-size:13px;color:#a3a3a3;line-height:1.6;margin-top:18px;"
-            f"border-left:2px solid #ff4500;padding-left:14px'>{note}</p>"
+    if approved:
+        site = (os.environ.get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
+        link = sign_in_link or f"{site}/maker/login"
+        body = (
+            "<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 24px'>"
+            "Your application's been approved. You now have access to the maker portal — your "
+            "shop, listings, payouts, and analytics all live there."
+            "</p>"
+            f"<a href='{link}' style='display:inline-block;background:#ff4500;color:#0a0a0a;"
+            "padding:16px 28px;font-family:Impact,Arial Black,sans-serif;font-size:14px;letter-spacing:0.18em;"
+            f"text-transform:uppercase;text-decoration:none;border:1px solid #ff4500;margin-bottom:8px'>"
+            "Open Maker Portal →</a>"
+            "<p style='font-size:11px;color:#525252;letter-spacing:0.18em;text-transform:uppercase;margin:8px 0 32px'>"
+            "Sign in with your application email · magic-link delivered each time"
+            "</p>"
+
+            "<div style='border-top:1px solid #262626;padding-top:20px;margin:24px 0'>"
+            "<div style='font-family:JetBrains Mono,monospace;font-size:10px;letter-spacing:0.25em;"
+            "text-transform:uppercase;color:#ff4500;margin:0 0 12px'>◆ Your launch checklist</div>"
+            "<ol style='font-size:13px;color:#e5e5e5;line-height:1.8;padding-left:20px;margin:0'>"
+            "<li><b>Connect Stripe</b> — Payouts tab → 5-min onboarding. Required before you can publish your first piece.</li>"
+            "<li><b>Polish your profile</b> — Profile tab → portrait, location, bio, techniques. This is what buyers see first.</li>"
+            "<li><b>Create your first 3 listings</b> — Listings tab → New Listing. Solid photos beat polished copy every time.</li>"
+            "<li><b>Set up your shop</b> — pricing, dimensions, materials, optional 3D model. We auto-generate SEO meta tags.</li>"
+            "</ol>"
+            "</div>"
+
+            "<div style='border-top:1px solid #262626;padding-top:20px;margin:24px 0'>"
+            "<div style='font-family:JetBrains Mono,monospace;font-size:10px;letter-spacing:0.25em;"
+            "text-transform:uppercase;color:#a3a3a3;margin:0 0 12px'>How payments + fees work</div>"
+            "<ul style='font-size:13px;color:#e5e5e5;line-height:1.8;padding-left:20px;margin:0'>"
+            "<li><b>5% commission</b> + 3% payment processing per sale. (Crafters Plus drops commission to 4% — $12/mo.)</li>"
+            "<li><b>10 free listings</b> for life · then $0.20 per publish or renewal · or buy a credit pack at 25–40% off cash rates.</li>"
+            "<li><b>Listings auto-expire after 120 days</b> — one click to renew, your URL stays the same.</li>"
+            "<li><b>Promote a listing for $5/week</b> to pin it to the top of search results.</li>"
+            "<li><b>Payouts</b> route directly to your bank via Stripe Connect — no waiting on us to cut checks.</li>"
+            "</ul>"
+            "</div>"
+
+            "<div style='border-top:1px solid #262626;padding-top:20px;margin:24px 0'>"
+            "<div style='font-family:JetBrains Mono,monospace;font-size:10px;letter-spacing:0.25em;"
+            "text-transform:uppercase;color:#a3a3a3;margin:0 0 12px'>Resources + support</div>"
+            "<ul style='font-size:13px;color:#e5e5e5;line-height:1.8;padding-left:20px;margin:0'>"
+            f"<li><a href='{site}/policy' style='color:#ff4500'>Maker Terms + Seller Agreement</a> (you accepted these on application)</li>"
+            f"<li><a href='{site}/community/forum' style='color:#ff4500'>Maker forum</a> — share what's working, ask questions</li>"
+            "<li>Reply to this email anytime — it goes straight to the founding team</li>"
+            "</ul>"
+            "</div>"
         )
+        if note:
+            body += (
+                f"<p style='font-size:13px;color:#a3a3a3;line-height:1.6;margin-top:24px;"
+                f"border-left:2px solid #ff4500;padding-left:14px'>{note}</p>"
+            )
+    else:
+        blurb = (
+            "We saw something interesting but the fit isn't quite there today. "
+            "We keep notes — feel free to reapply once your portfolio grows."
+        )
+        body = f"<p style='font-size:14px;color:#e5e5e5;line-height:1.6'>{blurb}</p>"
+        if note:
+            body += (
+                f"<p style='font-size:13px;color:#a3a3a3;line-height:1.6;margin-top:18px;"
+                f"border-left:2px solid #ff4500;padding-left:14px'>{note}</p>"
+            )
     html = _shell(title, intro, body, "Maker program")
     subject = (
-        f"Welcome to Crafters Market, {studio}"
+        f"Welcome to Crafters Market, {studio} — your launch packet"
         if approved
         else f"Crafters Market application update — {studio}"
     )

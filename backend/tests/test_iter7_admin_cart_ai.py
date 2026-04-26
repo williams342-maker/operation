@@ -43,7 +43,7 @@ def maker_jwt():
 def buyer_jwt():
     email = f"TEST_iter7_{uuid.uuid4().hex[:8]}@example.com"
     tok = issue_buyer_magic_token(email)
-    r = requests.post(f"{BASE}/community/auth/magic/verify", json={"token": tok}, timeout=15)
+    r = requests.post(f"{BASE}/community/auth/magic/verify", json={"token": tok, "accept_eua": True, "eua_version": "2026-04"}, timeout=15)
     assert r.status_code == 200, r.text
     return r.json()["token"], email
 
@@ -290,7 +290,7 @@ def test_forum_reply_with_mention(buyer_jwt):
     other = f"TEST_iter7_other_{uuid.uuid4().hex[:6]}@example.com"
     tok2 = issue_buyer_magic_token(other)
     v2 = requests.post(f"{BASE}/community/auth/magic/verify",
-                       json={"token": tok2}, timeout=10).json()
+                       json={"token": tok2, "accept_eua": True, "eua_version": "2026-04"}, timeout=10).json()
     rep = requests.post(f"{BASE}/community/forum/{tid}/reply",
                         json={"body": f"hey @{email.split('@')[0]} look at this"},
                         headers=H(v2["token"]), timeout=10)

@@ -40,7 +40,7 @@ def _maker_jwt(email: str) -> str:
 
 def _buyer_jwt(email: str) -> str:
     tok = issue_buyer_magic_token(email)
-    r = requests.post(f"{BASE_URL}/api/community/auth/magic/verify", json={"token": tok}, timeout=15)
+    r = requests.post(f"{BASE_URL}/api/community/auth/magic/verify", json={"token": tok, "accept_eua": True, "eua_version": "2026-04"}, timeout=15)
     assert r.status_code == 200, f"buyer verify failed: {r.status_code} {r.text}"
     return r.json()["token"]
 

@@ -44,7 +44,7 @@ class TestLiveNow:
         email = f"TEST_iter13_{uuid.uuid4().hex[:6]}@example.com"
         bjwt = requests.post(
             f"{API}/community/auth/magic/verify",
-            json={"token": issue_buyer_magic_token(email)},
+            json={"token": issue_buyer_magic_token(email), "accept_eua": True, "eua_version": "2026-04"},
             timeout=10,
         ).json()["token"]
         r = requests.get(f"{API}/admin/analytics/live",

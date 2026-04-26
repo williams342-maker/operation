@@ -1,7 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import { communityRequestMagic, communityVerifyMagic, communityGoogleExchange } from "../lib/api";
+import {
+  communityRequestMagic, communityVerifyMagic, communityGoogleExchange,
+  fetchCommunityEua,
+} from "../lib/api";
 
 // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
 const googleSignIn = () => {
@@ -9,20 +12,51 @@ const googleSignIn = () => {
   window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
 };
 
+const EUA_KEY = "cm_eua_accepted_version";
+
 export function CommunityLogin() {
   const [email, setEmail] = useState("");
   const [state, setState] = useState({ status: "idle", message: "" });
+  const [eua, setEua] = useState(null);
+  const [accepted, setAccepted] = useState(false);
+
+  useEffect(() => {
+    fetchCommunityEua().then(setEua).catch(() => {});
+  }, []);
+
+  const stampAndPersist = () => {
+    if (!eua?.version) return "";
+    sessionStorage.setItem(EUA_KEY, eua.version);
+    return eua.version;
+  };
 
   const onSubmit = async (e) => {
     e.preventDefault();
     if (!email) return;
+    if (!accepted) {
+      setState({ status: "error", message: "Please accept the Community Terms to continue." });
+      return;
+    }
     setState({ status: "loading", message: "" });
     try {
-      const r = await communityRequestMagic(email.trim(), window.location.origin);
+      const v = stampAndPersist();
+      const r = await communityRequestMagic(email.trim(), window.location.origin, v);
       setState({ status: "sent", message: r.message });
-    } catch {
-      setState({ status: "error", message: "Could not send the link." });
+    } catch (e2) {
+      setState({
+        status: "error",
+        message: e2?.response?.data?.detail || "Could not send the link.",
+      });
     }
+  };
+
+  const onGoogle = () => {
+    if (!accepted) {
+      setState({ status: "error", message: "Please accept the Community Terms to continue." });
+      return;
+    }
+    stampAndPersist();
+    googleSignIn();
   };
 
   return (
@@ -39,9 +73,36 @@ export function CommunityLogin() {
           chat live with makers.
         </p>
 
+        {/* EUA acceptance — required gate before either auth path. */}
+        {eua && (
+          <label
+            className={`flex items-start gap-3 mb-6 p-4 border cursor-pointer transition ${
+              accepted ? "border-[#ff4500]" : "border-[#262626] hover:border-[#525252]"
+            }`}
+            data-testid="community-eua-row"
+          >
+            <input
+              type="checkbox"
+              checked={accepted}
+              onChange={(e) => setAccepted(e.target.checked)}
+              className="mt-1 accent-[#ff4500]"
+              data-testid="community-eua-checkbox"
+            />
+            <div className="font-mono text-xs text-[#e5e5e5] leading-relaxed">
+              I agree to the{" "}
+              <Link to={eua.links?.policy || "/policy"} target="_blank" className="text-[#ff4500] underline">
+                {eua.title}
+              </Link>{" "}
+              <span className="text-[#525252]">(v{eua.version})</span>.
+              <div className="mt-1 text-[10px] text-[#a3a3a3] leading-snug">{eua.summary}</div>
+            </div>
+          </label>
+        )}
+
         <button
-          onClick={googleSignIn}
-          className="w-full bg-[#fff] text-black border border-[#fff] hover:bg-[#e5e5e5] py-3 px-5 font-mono text-[11px] uppercase tracking-[0.22em] flex items-center justify-center gap-3"
+          onClick={onGoogle}
+          disabled={!accepted}
+          className="w-full bg-[#fff] text-black border border-[#fff] hover:bg-[#e5e5e5] py-3 px-5 font-mono text-[11px] uppercase tracking-[0.22em] flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
           data-testid="community-google-btn"
         >
           <svg width="18" height="18" viewBox="0 0 18 18">
@@ -72,8 +133,8 @@ export function CommunityLogin() {
           />
           <button
             type="submit"
-            disabled={state.status === "loading" || state.status === "sent"}
-            className="btn-industrial btn-primary w-full disabled:opacity-60"
+            disabled={state.status === "loading" || state.status === "sent" || !accepted}
+            className="btn-industrial btn-primary w-full disabled:opacity-60 disabled:cursor-not-allowed"
             data-testid="community-magic-submit"
           >
             {state.status === "loading" ? "Sending…" : state.status === "sent" ? "Link Sent ✓" : "Email me a link →"}
@@ -85,7 +146,9 @@ export function CommunityLogin() {
           </p>
         )}
         {state.status === "error" && (
-          <p className="mt-4 font-mono text-xs text-red-400">Couldn't send. Try again.</p>
+          <p className="mt-4 font-mono text-xs text-red-400" data-testid="community-magic-error">
+            {state.message || "Couldn't send. Try again."}
+          </p>
         )}
         <p className="mt-10 font-mono text-[11px] text-[#525252] uppercase tracking-[0.22em]">
           Maker? <Link to="/maker/login" className="text-[#ff4500]">Sign in to your shop →</Link>
@@ -107,7 +170,9 @@ export function CommunityVerify() {
     if (!token) { setError("Missing token"); return; }
     (async () => {
       try {
-        const r = await communityVerifyMagic(token);
+        const v = sessionStorage.getItem("cm_eua_accepted_version") || "";
+        const r = await communityVerifyMagic(token, v);
+        sessionStorage.removeItem("cm_eua_accepted_version");
         localStorage.setItem("cm_buyer_jwt", r.token);
         localStorage.setItem("cm_buyer_email", r.user.email);
         navigate("/community", { replace: true });
@@ -146,14 +211,16 @@ export function CommunityAuthCallback() {
     const sid = decodeURIComponent(m[1]);
     (async () => {
       try {
-        const r = await communityGoogleExchange(sid);
+        const v = sessionStorage.getItem("cm_eua_accepted_version") || "";
+        const r = await communityGoogleExchange(sid, v);
+        sessionStorage.removeItem("cm_eua_accepted_version");
         localStorage.setItem("cm_buyer_jwt", r.token);
         localStorage.setItem("cm_buyer_email", r.user.email);
         // strip hash and navigate
         window.history.replaceState({}, "", window.location.pathname);
         navigate("/community", { replace: true });
-      } catch {
-        setError("Sign-in failed. Please try again.");
+      } catch (e) {
+        setError(e?.response?.data?.detail || "Sign-in failed. Please try again.");
       }
     })();
   }, [navigate]);

@@ -6,7 +6,8 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException
 
 from core import db
 from email_service import (
-    send_buyer_custom_ack, send_ops_new_application, send_ops_new_custom_order,
+    send_applicant_received, send_buyer_custom_ack,
+    send_ops_new_application, send_ops_new_custom_order,
 )
 from models import (
     ActivityEvent, BlogPost, CustomOrder, CustomOrderCreate,
@@ -178,6 +179,9 @@ async def create_maker_application(payload: MakerApplicationCreate, bg: Backgrou
     bg.add_task(send_ops_new_application,
                 payload.name, payload.studio_name, payload.location,
                 payload.email, payload.about)
+    # Confirm receipt to the applicant immediately so they know we got it.
+    bg.add_task(send_applicant_received,
+                payload.email, payload.name, payload.studio_name)
     return app_obj
 
 

@@ -45,9 +45,12 @@ def _issue_admin_jwt() -> str:
 
 def _issue_buyer_jwt(email: str) -> str:
     from maker_auth import issue_buyer_magic_token
+    from routers.community import CURRENT_EUA_VERSION
     tok = issue_buyer_magic_token(email)
     r = requests.post(f"{API}/community/auth/magic/verify",
-                      json={"token": tok}, timeout=20)
+                      json={"token": tok, "accept_eua": True,
+                            "eua_version": CURRENT_EUA_VERSION},
+                      timeout=20)
     r.raise_for_status()
     return r.json()["token"]
 

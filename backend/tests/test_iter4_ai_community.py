@@ -27,7 +27,7 @@ WS_BASE = BASE_URL.replace("https://", "wss://").replace("http://", "ws://")
 def buyer_jwt():
     email = f"TEST_buyer_{uuid.uuid4().hex[:8]}@example.com"
     magic = issue_buyer_magic_token(email)
-    r = requests.post(f"{BASE_URL}/api/community/auth/magic/verify", json={"token": magic}, timeout=15)
+    r = requests.post(f"{BASE_URL}/api/community/auth/magic/verify", json={"token": magic, "accept_eua": True, "eua_version": "2026-04"}, timeout=15)
     assert r.status_code == 200, r.text
     return r.json()["token"], r.json()["user"]
 
@@ -36,7 +36,7 @@ def buyer_jwt():
 def fresh_buyer_jwt():
     email = f"TEST_freshbuyer_{uuid.uuid4().hex[:8]}@example.com"
     magic = issue_buyer_magic_token(email)
-    r = requests.post(f"{BASE_URL}/api/community/auth/magic/verify", json={"token": magic}, timeout=15)
+    r = requests.post(f"{BASE_URL}/api/community/auth/magic/verify", json={"token": magic, "accept_eua": True, "eua_version": "2026-04"}, timeout=15)
     assert r.status_code == 200
     return r.json()["token"], r.json()["user"]
 
@@ -110,19 +110,29 @@ class TestCommunityAuth:
     def test_magic_request_always_ok(self):
         r = requests.post(f"{BASE_URL}/api/community/auth/magic/request",
                           json={"email": f"TEST_new_{uuid.uuid4().hex[:6]}@example.com",
-                                "origin_url": BASE_URL},
+                                "origin_url": BASE_URL,
+                                "accept_eua": True, "eua_version": "2026-04"},
                           timeout=15)
         assert r.status_code == 200
         assert r.json().get("sent") is True
 
+    def test_magic_request_rejected_without_eua(self):
+        """First-time user must accept EUA — endpoint should 400 without it."""
+        r = requests.post(f"{BASE_URL}/api/community/auth/magic/request",
+                          json={"email": f"TEST_eua_{uuid.uuid4().hex[:6]}@example.com",
+                                "origin_url": BASE_URL},
+                          timeout=15)
+        assert r.status_code == 400
+        assert "Community Terms" in r.json()["detail"]
+
     def test_magic_verify_garbage(self):
-        r = requests.post(f"{BASE_URL}/api/community/auth/magic/verify", json={"token": "bogus.garbage.token"}, timeout=15)
+        r = requests.post(f"{BASE_URL}/api/community/auth/magic/verify", json={"token": "bogus.garbage.token", "accept_eua": True, "eua_version": "2026-04"}, timeout=15)
         assert r.status_code == 401
 
     def test_magic_verify_valid(self):
         email = f"TEST_buyer_{uuid.uuid4().hex[:8]}@example.com"
         token = issue_buyer_magic_token(email)
-        r = requests.post(f"{BASE_URL}/api/community/auth/magic/verify", json={"token": token}, timeout=15)
+        r = requests.post(f"{BASE_URL}/api/community/auth/magic/verify", json={"token": token, "accept_eua": True, "eua_version": "2026-04"}, timeout=15)
         assert r.status_code == 200
         body = r.json()
         assert "token" in body and "user" in body

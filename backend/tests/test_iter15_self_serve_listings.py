@@ -83,7 +83,7 @@ class TestAuth:
         email = f"TEST_iter15_{uuid.uuid4().hex[:6]}@example.com"
         bjwt = requests.post(
             f"{API}/community/auth/magic/verify",
-            json={"token": issue_buyer_magic_token(email)},
+            json={"token": issue_buyer_magic_token(email), "accept_eua": True, "eua_version": "2026-04"},
             timeout=10,
         ).json()["token"]
         r = requests.post(f"{API}/maker/products",
@@ -264,3 +264,25 @@ class TestDeleteRestore:
         assert r.status_code == 410, r.text
         assert "no longer available" in r.json().get("detail", "").lower()
         _cleanup(slug, maker_jwt)
+
+
+# ============================================================================
+# Session teardown: nuke any leftover iter15 test products that escaped
+# (e.g. from test failures or soft-delete edge cases). Prevents pollution of
+# adjacent test files like test_maker_portal.
+# ============================================================================
+@pytest.fixture(scope="module", autouse=True)
+def _module_cleanup():
+    yield
+    import asyncio
+    from motor.motor_asyncio import AsyncIOMotorClient
+
+    async def _go():
+        c = AsyncIOMotorClient(os.environ["MONGO_URL"])
+        try:
+            await c[os.environ["DB_NAME"]].products.delete_many(
+                {"slug": {"$regex": "^iter15-test-"}},
+            )
+        finally:
+            c.close()
+    asyncio.run(_go())
