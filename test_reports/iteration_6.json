@@ -1,0 +1,52 @@
+{
+  "summary": "Iteration 7 testing — admin dashboard (4 new tabs) + cart gift_note + AI session_id + showcase tagging + forum @mentions + magic-link auth regression. Backend pytest: 20/21 PASS (1 real bug: AI session context not retained). Frontend Playwright: admin dashboard renders, all 4 new tabs (Analytics/Listings/Users/Reviews) load with admin JWT injected, Analytics shows GMV $567 + community/showcase/forum counts, Reviews tab create+delete works end-to-end, Listings PATCH (featured toggle) verified via API. Cart gift-note textarea is present and accepts input but DOES NOT persist on page reload — explicit user requirement violated. CheckoutSuccess gating logic (paid && !cm_buyer_jwt) is correctly implemented in JSX (verified by code inspection — data-testid='success-create-account-btn' guarded by `canCreateAccount`). Showcase auto-link tagging works (POST /community/showcase persists product_slug + maker_slug, ShowcaseCard renders <Link to=/shop/{slug}> + <Link to=/makers/{slug}>). Forum @mentions: backend stores body verbatim with '@username' — rendering/highlighting on frontend not deeply verified but data-testid wiring is in place.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "/api/ai/chat",
+        "issue": "Conversation context is NOT retained across requests despite session_id being echoed back. /app/backend/routers/ai.py creates a fresh LlmChat instance per request and does not replay prior turns from db.ai_chats. Repro: turn 1 'my favorite color is fuchsia' → turn 2 'what color did I just tell you?' (same session_id) → reply: 'You haven't told me a color yet — this is the start of our conversation.' Frontend localStorage session_id persistence works fine; the bug is server-side.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "CartPage.jsx gift-note",
+        "issue": "Gift-note textarea state is plain useState(\"\") — does NOT persist across page reload. Explicit requirement was 'persists across page reload (localStorage)'. Repro: /cart → fill cart-gift-note → reload → field is empty. Recommended fix: useState(() => localStorage.getItem('cm_gift_note') || '') + useEffect to write on change, and clear on successful checkout (alongside cart.clear()).",
+        "selector": "[data-testid='cart-gift-note']",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter7_admin_cart_ai.py",
+    "/app/test_reports/pytest/iter7.xml"
+  ],
+  "action_items": [
+    "BACKEND FIX (/app/backend/routers/ai.py): replay db.ai_chats turns into LlmChat before send_message, OR pass message history via UserMessage list. Currently each /ai/chat call constructs a fresh LlmChat and sends only the current user message, so prior context is lost despite session_id continuity. The frontend already correctly passes session_id round-trip.",
+    "FRONTEND FIX (/app/frontend/src/pages/CartPage.jsx): persist giftNote to localStorage. Init: useState(() => localStorage.getItem('cm_gift_note') || ''). Add useEffect on giftNote → setItem. Clear in checkout() success path (or on /checkout/success once paid). Required by problem statement.",
+    "Carry-forward (iter5): stale-closure in CommunityPage.jsx ChatTab onWsMessage — unread/mention counter misses on previously-active channel after switch. Not retested this iteration."
+  ],
+  "critical_code_review_comments": [
+    "AdminDashboard.jsx — `tab` initial state is 'applications' but TABS list starts with 'analytics' on the request. Cosmetic only. The Analytics tab is fully wired and testid='analytics-tab' renders correctly when clicked.",
+    "AI ChatRequest doesn't include conversation_history or load it from db.ai_chats. The session_id is functionally a transcript-key only, not a memory key. emergentintegrations LlmChat does not auto-load history from session_id alone — history must be replayed each call.",
+    "CartPage gift-note: useState only, no localStorage. Even though `email` field also doesn't persist (that's acceptable — receipt-only), gift-note was an explicit persistence requirement.",
+    "Admin /admin/community-users response correctly excludes _id. Listing/PATCH product also clean.",
+    "Cross-role rejection works: maker JWT → /admin/me → 403, buyer JWT → /maker/me → 403, buyer JWT → /admin/analytics → 403. Verified.",
+    "Forum endpoints are POST /community/forum and POST /community/forum/{tid}/reply (singular). README/main-agent expectations of /threads + /replies are wrong — use the actual paths."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter7_admin_cart_ai.py (new — 21 tests, 20 pass, 1 confirms AI bug)"
+  ],
+  "success_rate": {"backend": "95% (20/21)", "frontend": "~88% (admin dashboard fully OK; cart gift-note persistence missing)"},
+  "test_credentials": "Admin JWT minted via maker_auth.issue_admin_magic_token('team@craftersmarket.org') → POST /api/admin/auth/verify. Maker via issue_magic_token('iron-and-oak@craftersmarket.org'). Buyer auto-created per test run with TEST_iter7_<uuid>@example.com. All in /app/memory/test_credentials.md.",
+  "seed_data_creation": "Per-run buyers TEST_iter7_*@example.com via magic-link verify. One TEST_iter7 review created+deleted in same test. One TEST_iter7 thread + reply created and deleted via admin moderator endpoint. No persistent test data left.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run: cd /app && python -m pytest backend/tests/test_iter7_admin_cart_ai.py -v --asyncio-mode=auto. To skip the known-failing AI memory test until E1 fixes ai.py, add `-k 'not session_id_persists'`. Admin dashboard UI works end-to-end with JWT injected to localStorage('cm_admin_jwt'). Cart gift-note element selector: [data-testid='cart-gift-note']. CheckoutSuccess paid + guest banner: [data-testid='success-create-account'], button: [data-testid='success-create-account-btn']. Stripe paid anchor: cs_test_a1iMM98ftY3GF2JouCJbRQkPvPkMcJE9lwLYh51c946CyXqtkL5oaa0O5o (verified paid in iter5).",
+  "rca of the issue": "AI memory bug: /app/backend/routers/ai.py line 86-93 — `LlmChat(api_key=..., session_id=session_id, system_message=...).with_model(...).send_message(UserMessage(text=req.message))` — fresh instance per request, only the current message is sent. emergentintegrations LlmChat treats session_id as a transcript identifier; conversation history is NOT auto-fetched from any backing store. Fix: load `prior = await db.ai_chats.find({'session_id': session_id}).sort('created_at',1).to_list(40)`, then for each turn call chat.send_message(UserMessage(text=t['user'])) and chat.add_assistant_message(t['assistant']) (or whatever emergentintegrations exposes), THEN send the new message. Alternatively, build a single UserMessage that includes the transcript as preamble. Cart gift-note bug: trivial — just wrap useState init with localStorage read and add a useEffect setItem."
+}
