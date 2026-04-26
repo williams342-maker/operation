@@ -120,11 +120,11 @@ class TestAuth:
         assert r.status_code == 400
         assert "5 images" in r.json()["detail"]
 
-        # Single image too large
-        big = "x" * 500_000
+        # Single image too large (>8MB after R2 migration)
+        big = "x" * 9_000_000
         r = requests.post(f"{API}/maker/products",
                           headers=H(maker_jwt),
-                          json=_payload(images=[big]), timeout=15)
+                          json=_payload(images=[big]), timeout=30)
         assert r.status_code == 400
         assert "too large" in r.json()["detail"]
 

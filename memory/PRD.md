@@ -56,6 +56,14 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - iter15: **Maker Self-Serve Listings (Option B)** — backend 189/189 + frontend E2E 8/8 (create / drag-drop base64 image / soft-delete / restore)
 
 ## Recently Shipped (2026-04-26)
+- ✅ **Cloudflare R2 Object Storage** for product images:
+  - `/app/backend/r2_storage.py` — boto3-based S3-compatible client (R2 endpoint), `upload_data_url`, `upload_bytes`, `delete_key`, content-type allowlist (PNG/JPEG/WEBP/GIF), 8 MB cap
+  - `POST /api/maker/products` now auto-uploads any base64 `data:image/...;base64,...` payload to R2 under `products/{maker_slug}/{uuid}.{ext}` and stores only the public CDN URL in MongoDB (no more base64 bloat)
+  - Migration script `/app/backend/scripts/migrate_images_to_r2.py` — idempotent walker, converts any legacy base64 images to R2 URLs in place. Ran clean (0 base64 found in seeded catalog)
+  - 6 unit tests (`tests/test_r2_storage.py`) + iter15 backend tests still green
+  - Bucket: `craftersmarket-assets` — public read via `pub-96d13eb6b15840a98236f6c1053262c3.r2.dev`. Custom domain (`cdn.craftersmarket.org`) optional later.
+  - Env keys added: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_URL`
+
 - ✅ **Maker Self-Serve Listings (Option B)**:
   - `POST /api/maker/products` — create listing with title/price/category/technique/stock/dimensions/description/materials/images/model_url
   - `DELETE /api/maker/products/{slug}` — soft-delete (sets `deleted_at`)
@@ -66,16 +74,15 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
   - Bug-fix during iter15: duplicate `Field` component declaration crashed the dashboard — renamed second to `LabeledField`
 
 ## Backlog
-- **P1 — Object Storage migration**: Cloudflare R2 or AWS S3 for product images instead of base64 in MongoDB (avoid bloat). Requires user-supplied keys.
-- **P2** — Maker `.glb` 3D model file upload (currently URL-only)
+- **P2** — Maker `.glb` 3D model file upload to R2 (currently URL-only; `r2_storage` already supports binary uploads — just needs a multipart route)
 - **P3** — Listing variants (size / finish / color with separate stock)
 - **P4** — Listing draft mode (save without publishing)
 - **P5** — Low-stock email alert (when in_stock < 3)
+- **P5** — Custom CDN domain `cdn.craftersmarket.org` for R2 (instead of `pub-xxx.r2.dev`)
 - (UX) — Replace native `window.confirm()` on listing delete with styled inline overlay
 - (UX) — Add `data-testid="product-archived-{slug}"` and per-thumb testids in NewListingModal
-- (Persistent) — Stripe Connect transfer_group mismatch (`stripe_connect.py`): Transfer.create uses session_id but PaymentIntent uses uuid. Re-flagged across iter7/8/10/11 — separate-charge-and-transfer will fail in prod. Not yet fixed.
 - (Optional) Cohort retention, bounce-rate-by-page, Discord/Slack live-visitor ping
 
 ## Next Action Items
-- Migrate product images from base64 → Cloudflare R2 (or S3) — needs API keys from user
-- Address Stripe Connect transfer_group mismatch before going live with separate charges & transfers
+- Maker `.glb` 3D model upload via the same R2 pathway
+- Listing variants + draft mode

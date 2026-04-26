@@ -124,10 +124,10 @@ async def maker_create_product(
     if len(payload.images) > 5:
         raise HTTPException(400, "Maximum 5 images per listing.")
     for img in payload.images:
-        if len(img) > 400_000:
+        if len(img) > 8_000_000:
             raise HTTPException(
                 400,
-                "An image is too large (>400KB). Use the dropzone — it auto-compresses.",
+                "An image is too large (>8MB).",
             )
 
     base = _slugify(payload.slug or payload.title)
@@ -143,6 +143,26 @@ async def maker_create_product(
         if n > 200:
             raise HTTPException(409, "Could not generate a unique slug.")
 
+    # Upload any inline base64 data URLs to R2 (if configured) so we never
+    # bloat MongoDB with image bytes. Pass-through any http(s) URLs as-is.
+    final_images: List[str] = []
+    if payload.images:
+        try:
+            from r2_storage import is_configured as _r2_ok, upload_data_url
+        except Exception:
+            _r2_ok = lambda: False  # noqa: E731
+            upload_data_url = None
+        for img in payload.images:
+            if img.startswith("data:") and _r2_ok():
+                try:
+                    url = upload_data_url(img, key_prefix=f"products/{slug}")
+                    final_images.append(url or img)
+                except Exception as e:
+                    logger.exception("R2 upload failed for maker=%s: %s", slug, e)
+                    raise HTTPException(502, "Could not upload image to storage.")
+            else:
+                final_images.append(img)
+
     product = Product(
         slug=candidate,
         title=payload.title.strip(),
@@ -152,7 +172,7 @@ async def maker_create_product(
         description=payload.description.strip(),
         materials=payload.materials,
         dimensions=payload.dimensions,
-        images=payload.images,
+        images=final_images,
         model_url=payload.model_url,
         maker_slug=slug,
         in_stock=int(payload.in_stock),
