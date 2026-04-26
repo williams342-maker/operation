@@ -48,17 +48,19 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - iter6: AI memory + cart gift-note — **fixed and verified**
 - iter7: Stripe Connect Express + regression sweep — **20/20**
 - iter9: 5 backlog items — **140/140**
-- iter10: 3 backlog items (forum poll pause, per-maker analytics, Google OAuth wiring) — **147/147**
+- iter10: 3 backlog items — **147/147**
 - iter11: Web analytics — **161/161**
-- iter12 (this run): GMV mini-charts + 7d-vs-prior-7d deltas + dwell tracking — **9/9 new · 170/170 full suite**
-  1. **Weekly GMV mini-chart**: backend adds `weekly_gmv: [{week_start, total}]` (12 buckets, Mon-anchored, oldest first) to BOTH `/admin/analytics` and `/admin/maker-analytics/{slug}`. Frontend `<Sparkline>` component (CSS-only, zero deps) shows 12 bars with current-week highlighted in orange + auto direction badge (▲ ▼ — / NEW)
-  2. **7d-vs-prior-7d deltas**: `/admin/analytics/web` now returns `deltas: {views, visitors, sessions}` each `{current, prior, delta_pct, direction}`. Frontend `<DeltaBadge>` renders ▲ +X% in emerald, ▼ -X% in red, — flat in grey, ✦ NEW in orange. Wired into 3 of 4 headline `<Stat>` cards
-  3. **Time-on-page tracking**: `/api/analytics/track` returns `event_id` (UUID); `/api/analytics/dwell` accepts `{event_id, dwell_ms}` and updates the row using `$max` (longest reading wins, never shrinks). Capped at 30 min. Frontend tracker uses `visibilitychange` + `pagehide` + `beforeunload` + `navigator.sendBeacon` for reliable flush. Top Pages now shows `count · 4.2s` average dwell
+- iter12: GMV mini-charts + 7d deltas + dwell tracking — **170/170**
+- iter13 (this run): Live-now indicator + bounce-rate panel + manual-task docs — **6/6 new · 176/176 full suite**
+  - **Live-now** badge in admin nav: emerald pulsing dot when ≥1 visitor in last 1 min, distinct visitor count for last 5 min, polls every 30s, pauses on tab hidden
+  - **Bounce-rate panel** in Web Analytics tab: bounce_rate_pct, pages_per_session, bounces total. Single-pageview sessions count as bounces. Live: 92.9% (104 / 112)
+  - **Stripe Connect webhook setup guide** at `/app/memory/STRIPE_CONNECT_SETUP.md` — copy-paste-ready steps for adding `account.updated` to Stripe Dashboard
+  - **Google OAuth verification guide** at `/app/memory/GOOGLE_OAUTH_VERIFICATION.md` — 2-min human verification steps
 
 ## Backlog
-- (Optional) Live-now indicator (distinct visitor_ids in last 5 min) on admin nav
-- (Optional) Bounce-rate panel (sessions with exactly 1 pageview)
+- (Optional) Cohort retention chart (visitors who returned week-over-week)
+- (Optional) Bounce-rate-by-page breakdown (which landing pages are sticky vs leaky)
 
 ## Next Action Items
-- (Future) Verify Google OAuth happy-path with a real Google session (one-time human click)
-- (Future) Add `account.updated` Connect webhook to your Stripe Dashboard (one-time setup on stripe.com)
+- (Manual, ~3 min) Follow `/app/memory/STRIPE_CONNECT_SETUP.md` to add the `account.updated` webhook on stripe.com
+- (Manual, ~2 min) Follow `/app/memory/GOOGLE_OAUTH_VERIFICATION.md` to verify Google sign-in happy-path

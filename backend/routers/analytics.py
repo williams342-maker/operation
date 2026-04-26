@@ -270,6 +270,31 @@ async def admin_web_analytics(_: dict = Depends(current_admin)):
     cutoff_7 = (now - timedelta(days=7)).isoformat()
     cutoff_14 = (now - timedelta(days=14)).isoformat()
 
+    # ---------- Bounce rate (sessions with exactly 1 pageview, last 30d) -----
+    # Aggregate per-session view counts so we can derive both bounce_rate and
+    # avg pages-per-session in a single round-trip.
+    bounce_pipe = [
+        {"$match": {"ts": {"$gte": cutoff_30}}},
+        {"$group": {"_id": "$session_id", "views": {"$sum": 1}}},
+        {"$group": {
+            "_id": None,
+            "sessions": {"$sum": 1},
+            "bounces": {"$sum": {"$cond": [{"$eq": ["$views", 1]}, 1, 0]}},
+            "total_views": {"$sum": "$views"},
+        }},
+        {"$project": {"_id": 0, "sessions": 1, "bounces": 1, "total_views": 1}},
+    ]
+    br = await db.pageview_events.aggregate(bounce_pipe).to_list(1)
+    if br:
+        sess = int(br[0]["sessions"])
+        bounces = int(br[0]["bounces"])
+        bounce_rate_pct = round(bounces * 100.0 / sess, 1) if sess else 0.0
+        pages_per_session = round(br[0]["total_views"] / sess, 2) if sess else 0.0
+    else:
+        bounces = 0
+        bounce_rate_pct = 0.0
+        pages_per_session = 0.0
+
     # Totals (last 30 days)
     pipe = [
         {"$match": {"ts": {"$gte": cutoff_30}}},
@@ -344,6 +369,9 @@ async def admin_web_analytics(_: dict = Depends(current_admin)):
         "sessions": sessions,
         "views_7d": cur["views"],
         "deltas": deltas,
+        "bounce_rate_pct": bounce_rate_pct,
+        "bounces": bounces,
+        "pages_per_session": pages_per_session,
         "top_pages": await _top_pages_with_dwell(cutoff_30, 10),
         "devices": await _top("device", cutoff_30, 5),
         "top_countries": await _top("country", cutoff_30, 10),
@@ -351,4 +379,31 @@ async def admin_web_analytics(_: dict = Depends(current_admin)):
         "traffic_sources": await _top("medium", cutoff_30, 5),
         "top_referrers": await _top("source", cutoff_30, 10,
                                     extra_match={"medium": {"$nin": ["direct", "internal"]}}),
+    }
+
+
+# ----------------- Live now (distinct visitors last 5 min) ------------------
+
+@router.get("/admin/analytics/live")
+async def admin_live_now(_: dict = Depends(current_admin)):
+    """Real-time pulse — distinct visitor IDs seen in the last 5 minutes
+    (and a tighter 1-minute count for the heartbeat dot)."""
+    now = datetime.now(timezone.utc)
+    cutoff_5m = (now - timedelta(minutes=5)).isoformat()
+    cutoff_1m = (now - timedelta(minutes=1)).isoformat()
+    pipe5 = [
+        {"$match": {"ts": {"$gte": cutoff_5m}}},
+        {"$group": {"_id": None, "v": {"$addToSet": "$visitor_id"}}},
+        {"$project": {"_id": 0, "n": {"$size": "$v"}}},
+    ]
+    pipe1 = [
+        {"$match": {"ts": {"$gte": cutoff_1m}}},
+        {"$group": {"_id": None, "v": {"$addToSet": "$visitor_id"}}},
+        {"$project": {"_id": 0, "n": {"$size": "$v"}}},
+    ]
+    r5 = await db.pageview_events.aggregate(pipe5).to_list(1)
+    r1 = await db.pageview_events.aggregate(pipe1).to_list(1)
+    return {
+        "live_5m": int(r5[0]["n"]) if r5 else 0,
+        "live_1m": int(r1[0]["n"]) if r1 else 0,
     }

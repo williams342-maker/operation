@@ -61,6 +61,8 @@ export const fetchAdminAnalytics = () =>
   http.get("/admin/analytics", { headers: adminAuthHeaders() }).then((r) => r.data);
 export const fetchAdminWebAnalytics = () =>
   http.get("/admin/analytics/web", { headers: adminAuthHeaders() }).then((r) => r.data);
+export const fetchAdminLiveNow = () =>
+  http.get("/admin/analytics/live", { headers: adminAuthHeaders() }).then((r) => r.data);
 export const fetchAdminMakerAnalytics = (slug) =>
   http.get(`/admin/maker-analytics/${slug}`, { headers: adminAuthHeaders() }).then((r) => r.data);
 export const fetchAdminCommunityUsers = () =>

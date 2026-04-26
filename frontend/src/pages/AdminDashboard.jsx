@@ -9,6 +9,7 @@ import {
   fetchAdminAnalytics,
   fetchAdminMakerAnalytics,
   fetchAdminWebAnalytics,
+  fetchAdminLiveNow,
   fetchAdminCommunityUsers,
   adminPatchProduct,
   adminDeleteProduct,
@@ -141,13 +142,16 @@ export default function AdminDashboard() {
               Operations.
             </h1>
           </div>
-          <button
-            onClick={logout}
-            className="self-start md:self-auto px-4 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em] transition"
-            data-testid="admin-logout-btn"
-          >
-            Sign Out
-          </button>
+          <div className="flex items-center gap-3 self-start md:self-auto">
+            <LiveNowBadge />
+            <button
+              onClick={logout}
+              className="px-4 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em] transition"
+              data-testid="admin-logout-btn"
+            >
+              Sign Out
+            </button>
+          </div>
         </motion.div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6 mb-10">
@@ -310,6 +314,25 @@ function WebAnalyticsTab() {
           label={<>Sessions <DeltaBadge delta={data.deltas?.sessions} testId="wa-delta-sessions" /></>}
           value={data.sessions.toLocaleString()}
           testId="wa-sessions"
+        />
+      </div>
+
+      {/* Engagement subrow: bounce-rate, pages-per-session, bounces */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 pt-6 border-t border-[#262626]">
+        <Stat
+          label="Bounce Rate"
+          value={`${(data.bounce_rate_pct ?? 0).toFixed(1)}%`}
+          testId="wa-bounce-rate"
+        />
+        <Stat
+          label="Pages / Session"
+          value={(data.pages_per_session ?? 0).toFixed(2)}
+          testId="wa-pages-per-session"
+        />
+        <Stat
+          label="Bounces"
+          value={(data.bounces ?? 0).toLocaleString()}
+          testId="wa-bounces"
         />
       </div>
 
@@ -776,6 +799,50 @@ function NewReviewForm({ onSaved }) {
     </form>
   );
 }
+
+// ===================== LIVE-NOW BADGE (admin nav real-time pulse) =====
+function LiveNowBadge() {
+  const [data, setData] = useState({ live_5m: 0, live_1m: 0 });
+  const [err, setErr] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetch = () => {
+      fetchAdminLiveNow()
+        .then((d) => { if (!cancelled) { setData(d); setErr(false); } })
+        .catch(() => { if (!cancelled) setErr(true); });
+    };
+    fetch();
+    const id = setInterval(() => {
+      if (document.hidden) return;     // pause when tab hidden
+      fetch();
+    }, 30000);
+    const onVis = () => { if (!document.hidden) fetch(); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, []);
+
+  if (err) return null;
+  const pulse = data.live_1m > 0;
+  const dotCls = pulse ? "bg-emerald-400 animate-pulse" : "bg-[#525252]";
+  return (
+    <div
+      className="hidden md:flex items-center gap-2 px-3 py-2 border border-[#262626]"
+      title={`${data.live_5m} visitors in last 5 min, ${data.live_1m} active in last 1 min`}
+      data-testid="admin-live-now"
+    >
+      <span className={`inline-block w-2 h-2 rounded-full ${dotCls}`} />
+      <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+        Live · <span className="text-[#e5e5e5]" data-testid="admin-live-now-count">{data.live_5m}</span>
+      </span>
+    </div>
+  );
+}
+
 
 const Stat = ({ label, value, testId }) => (
   <div className="border border-[#262626] p-4 md:p-6" data-testid={testId}>
