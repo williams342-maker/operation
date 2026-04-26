@@ -39,6 +39,7 @@ import { CommunityLogin, CommunityVerify, CommunityAuthCallback } from "./pages/
 import AIAssistant from "./components/AIAssistant";
 import MaintenancePage from "./components/MaintenancePage";
 import BetaBanner from "./components/BetaBanner";
+import CNCEmblem from "./components/CNCEmblem";
 import { Toaster } from "sonner";
 import { trackPageview, captureAttribution } from "./lib/analytics";
 import { useSiteSettings } from "./hooks/useSiteSettings";
@@ -56,6 +57,7 @@ const Home = () => (
     <ProductRail title="Plasma-Cut Originals" eyebrow="◆ Technique · Plasma" technique="PLASMA" viewAllHref="/shop" testId="rail-plasma" />
     <Process />
     <ForMakers />
+    <CNCEmblem />
     <Reviews />
     <CustomCTA />
   </>

@@ -56,6 +56,16 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - iter15: **Maker Self-Serve Listings (Option B)** — backend 189/189 + frontend E2E 8/8 (create / drag-drop base64 image / soft-delete / restore)
 - iter16: **.glb upload (P2) + Variants (P3) + Draft mode (P4)** — backend 28/28 incl. 10 new iter16 cases + frontend E2E 12/12 (modal variants editor, draft↔publish flips, .glb file upload, buyer variant selector + cart variant pricing). R2 live; transfer_to_makers + maker-orders correctly apply variant deltas.
 
+## Recently Shipped (2026-04-26 — iter33 · Channel trim + CNC emblem)
+- ✅ **iter33 — More channel cleanup + downloadable CNC Garage Builders emblem on homepage**:
+
+  **Channel trim**: removed `design-share` and `buy-and-sell` from both backend `routers/community.py` CHANNELS set and frontend `CommunityPage.jsx` CHANNELS list + CHANNEL_LABEL. **Final 7 rooms**: general, machine-help, finishing-tips, beginners, advanced-cnc, off-topic, makers-only. WebSocket connect to removed channels rejected by backend.
+
+  **CNC Garage Builders emblem on homepage**: new `CNCEmblem.jsx` component placed between `<ForMakers />` and `<Reviews />`. Two-column section with the 1254×1254 PNG on the left (orange glow + "DOWNLOAD" chip overlay on hover) and copy + "Download Emblem" CTA on the right. Both anchors use HTML5 `download` attribute for instant download instead of in-tab navigation. PNG saved at `/app/frontend/public/downloads/cnc-garage-builders.png` (2.3MB, served at 200 OK with `image/png` MIME).
+
+  **Smoke-tested**: image loads natural 1254×1254, both anchors carry `download="cnc-garage-builders.png"` attr, hover state captured (glow + chip render). Removed channels confirmed rejected at WS handshake.
+
+
 ## Recently Shipped (2026-04-26)
 - ✅ **iter29 — Admin user-moderation UI (Freeze / Ban / Restore / Delete)**:
   - Rewrote `UsersTab` in `AdminDashboard.jsx` to consume the previously-built moderation endpoints (`GET /api/admin/users`, `POST /api/admin/users/{id}/moderate`, `DELETE /api/admin/users/{id}`).
