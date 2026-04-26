@@ -57,6 +57,15 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - iter16: **.glb upload (P2) + Variants (P3) + Draft mode (P4)** — backend 28/28 incl. 10 new iter16 cases + frontend E2E 12/12 (modal variants editor, draft↔publish flips, .glb file upload, buyer variant selector + cart variant pricing). R2 live; transfer_to_makers + maker-orders correctly apply variant deltas.
 
 ## Recently Shipped (2026-04-26)
+- ✅ **iter29 — Admin user-moderation UI (Freeze / Ban / Restore / Delete)**:
+  - Rewrote `UsersTab` in `AdminDashboard.jsx` to consume the previously-built moderation endpoints (`GET /api/admin/users`, `POST /api/admin/users/{id}/moderate`, `DELETE /api/admin/users/{id}`).
+  - Adds search box (email / name / user_id), status filter chips (All / Active / Frozen / Banned), per-row badge (color-coded: emerald=active, yellow=frozen, red=banned), thread + reply rollup counts, and per-row action buttons.
+  - New `ModerationConfirmModal` component: tone-variant CTA (primary/warn/danger), reason field with `(required)` gating for Freeze + Ban, confirm-disabled-until-reason-entered, outside-click + Cancel both dismiss without action, body-locked focus on the textarea.
+  - New API helpers in `frontend/src/lib/api.js`: `fetchAdminModerationUsers`, `adminModerateUser`, `adminDeleteUser`.
+  - **Verified via testing_agent_v3_fork** (frontend, iteration_16): 100% pass — 10/10 moderation flows green, 0 console errors. Freeze→active badge transitions, ban→content veiled, delete→hard-removed all confirmed end-to-end on the live preview.
+  - **Reviewer notes (non-blocking)**: AdminDashboard.jsx is ~1400 lines — eligible for per-tab split into `/components/admin/*` later. Esc-key dismissal for the modal would be a nice-to-have for accessibility.
+
+## Recently Shipped (2026-04-26)
 - ✅ **iter28 — Maker application lifecycle emails + Community EUA gate**:
   - **Application received email**: New `send_applicant_received()` template — fires immediately when someone applies. Personalised with applicant name + studio, sets the 3-business-day review timeline, hints at the welcome packet to come. Wired as background task in `POST /api/maker-applications`.
   - **Welcome packet on approval**: `send_application_decision()` rewritten — when approved, includes a magic-link "Open Maker Portal" button, full launch checklist (Connect Stripe → Polish profile → Create first 3 listings → Set up shop), fee breakdown (5% commission · 10 free listings · 120-day expiry · $5/wk promo · Stripe payouts), resources + support links. Decline path stays short and kind. The admin approve flow now also **auto-creates a maker doc** (slug derived from studio name with collision handling) and **mints a magic-link** so the welcome email is 1-click into the portal.
@@ -234,3 +243,5 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - 🟢 **P5 — `/api/reviews` UI on MakerDetail page** — backend endpoint + Review model are in place; the frontend `MakerDetail.jsx` still needs a Reviews section + `#leave-review` form to complete the email-CTA loop.
 - 🟢 **P6 — Admin "Marketing Digests" panel** (1-click trigger UI for the cron-able digest job)
 - 🟢 **P7 — Real off-site ad spend** (Google Ads / Meta Marketing API integration)
+- 🟡 **P8 — AdminDashboard.jsx refactor** — file is ~1400 lines; split per-tab components into `/components/admin/*` for maintainability.
+- 🟡 **P9 — Esc-key dismiss + focus-trap on `ModerationConfirmModal`** — accessibility polish (non-blocking).
