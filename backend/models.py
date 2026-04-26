@@ -22,7 +22,23 @@ class Product(BaseModel):
     maker_slug: str
     in_stock: int = 4
     featured: bool = False
+    deleted_at: Optional[str] = None  # soft-delete marker; hides from public views
     created_at: str = Field(default_factory=now_iso)
+
+
+class MakerProductCreate(BaseModel):
+    """Self-serve listing creation by a logged-in maker."""
+    title: str
+    slug: Optional[str] = None        # auto-derived from title if missing
+    category: str
+    technique: str
+    price: float
+    description: str
+    materials: List[str] = []
+    dimensions: Optional[str] = None
+    images: List[str] = []
+    model_url: Optional[str] = None
+    in_stock: int = 4
 
 
 class Maker(BaseModel):

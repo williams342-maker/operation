@@ -24,7 +24,10 @@ async def root():
 async def list_products(category: Optional[str] = None, technique: Optional[str] = None,
                         q: Optional[str] = None, featured: Optional[bool] = None,
                         maker: Optional[str] = None):
-    query: Dict = {}
+    # Exclude soft-deleted listings. In Mongo, `field: None` matches both
+    # missing-field AND explicit-null docs — covers Pydantic's habit of
+    # serializing Optional fields as null.
+    query: Dict = {"deleted_at": None}
     if category:
         query["category"] = category
     if technique:
@@ -43,7 +46,9 @@ async def list_products(category: Optional[str] = None, technique: Optional[str]
 
 @router.get("/products/{slug}", response_model=Product)
 async def get_product(slug: str):
-    doc = await db.products.find_one({"slug": slug}, {"_id": 0})
+    doc = await db.products.find_one(
+        {"slug": slug, "deleted_at": None}, {"_id": 0}
+    )
     if not doc:
         raise HTTPException(404, "Product not found")
     return doc

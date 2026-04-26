@@ -11,7 +11,10 @@ router = APIRouter()
 async def sitemap_xml(http_request: Request):
     root = site_root(http_request)
     static_paths = ["/", "/shop", "/makers", "/custom-order", "/apply", "/journal"]
-    products = await db.products.find({}, {"_id": 0, "slug": 1, "created_at": 1}).to_list(2000)
+    products = await db.products.find(
+        {"deleted_at": None},
+        {"_id": 0, "slug": 1, "created_at": 1},
+    ).to_list(2000)
     makers = await db.makers.find({}, {"_id": 0, "slug": 1, "created_at": 1}).to_list(2000)
     posts = await db.blog_posts.find({}, {"_id": 0, "slug": 1, "created_at": 1}).to_list(2000)
 

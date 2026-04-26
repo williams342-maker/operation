@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -9,6 +9,9 @@ import {
   stripeConnectOnboard,
   stripeConnectStatus,
   stripeConnectDashboardLink,
+  createMakerProduct,
+  deleteMakerProduct,
+  restoreMakerProduct,
   updateMakerProduct,
   updateMakerProfile,
 } from "../lib/api";
@@ -159,7 +162,15 @@ export default function MakerDashboard() {
         {tab === "profile" && (
           <ProfileForm maker={maker} onSaved={setMaker} />
         )}
-        {tab === "products" && <ProductsList products={products} />}
+        {tab === "products" && (
+          <ProductsList
+            products={products}
+            onChanged={async () => {
+              const ps = await fetchMakerProducts();
+              setProducts(ps);
+            }}
+          />
+        )}
         {tab === "orders" && <OrdersList orders={orders} />}
         {tab === "payouts" && <PayoutsTab />}
       </div>
@@ -302,32 +313,65 @@ const Field = ({ label, value, onChange, type = "text", testId, wide = false }) 
   </label>
 );
 
-function ProductsList({ products }) {
-  if (!products.length) {
-    return (
-      <p
-        className="font-mono text-sm text-[#a3a3a3]"
-        data-testid="products-empty"
-      >
-        No listings yet — your shop is ready for its first piece.
-      </p>
-    );
-  }
+function ProductsList({ products, onChanged }) {
+  const [creating, setCreating] = useState(false);
+  // Show deleted listings together but visually muted, with restore option.
+  const live = products.filter((p) => !p.deleted_at);
+  const removed = products.filter((p) => p.deleted_at);
+
   return (
-    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6" data-testid="products-list">
-      {products.map((p) => (
-        <ProductEditCard key={p.id} product={p} />
-      ))}
+    <div className="space-y-8" data-testid="products-list">
+      <div className="flex items-center justify-between gap-3">
+        <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+          ◆ {live.length} active{removed.length > 0 ? ` · ${removed.length} archived` : ""}
+        </div>
+        <button
+          onClick={() => setCreating(true)}
+          className="btn-industrial btn-primary"
+          data-testid="new-listing-btn"
+        >
+          + New Listing
+        </button>
+      </div>
+
+      {live.length === 0 && removed.length === 0 ? (
+        <p
+          className="font-mono text-sm text-[#a3a3a3]"
+          data-testid="products-empty"
+        >
+          No listings yet — click <span className="text-[#ff4500]">+ New Listing</span> to add your first piece.
+        </p>
+      ) : (
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {live.map((p) => (
+            <ProductEditCard key={p.id} product={p} onChanged={onChanged} />
+          ))}
+          {removed.map((p) => (
+            <ProductEditCard key={p.id} product={p} onChanged={onChanged} archived />
+          ))}
+        </div>
+      )}
+
+      {creating && (
+        <NewListingModal
+          onClose={() => setCreating(false)}
+          onCreated={() => {
+            setCreating(false);
+            onChanged && onChanged();
+          }}
+        />
+      )}
     </div>
   );
 }
 
-function ProductEditCard({ product }) {
+function ProductEditCard({ product, archived = false, onChanged }) {
   const [p, setP] = useState(product);
   const [open, setOpen] = useState(false);
   const [modelUrl, setModelUrl] = useState(product.model_url || "");
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [removing, setRemoving] = useState(false);
 
   const save = async (e) => {
     e.preventDefault();
@@ -342,15 +386,44 @@ function ProductEditCard({ product }) {
     }
   };
 
+  const onDelete = async () => {
+    if (!window.confirm(`Delete "${p.title}"? It hides from the shop instantly. Order history stays intact and you can restore it anytime.`)) return;
+    setRemoving(true);
+    try {
+      await deleteMakerProduct(p.slug);
+      onChanged && onChanged();
+    } finally {
+      setRemoving(false);
+    }
+  };
+
+  const onRestore = async () => {
+    setRemoving(true);
+    try {
+      await restoreMakerProduct(p.slug);
+      onChanged && onChanged();
+    } finally {
+      setRemoving(false);
+    }
+  };
+
   return (
-    <div className="border border-[#262626] hover:border-[#ff4500] transition group" data-testid={`product-edit-${p.slug}`}>
-      <div className="aspect-square overflow-hidden bg-[#121212]">
+    <div
+      className={`border border-[#262626] transition group ${archived ? "opacity-60" : "hover:border-[#ff4500]"}`}
+      data-testid={`product-edit-${p.slug}`}
+    >
+      <div className="aspect-square overflow-hidden bg-[#121212] relative">
         {p.images?.[0] && (
           <img
             src={p.images[0]}
             alt={p.title}
-            className="w-full h-full object-cover group-hover:scale-[1.03] transition duration-700"
+            className={`w-full h-full object-cover ${archived ? "" : "group-hover:scale-[1.03]"} transition duration-700`}
           />
+        )}
+        {archived && (
+          <div className="absolute top-3 left-3 bg-black/80 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.22em] text-red-400 border border-red-400/40">
+            ◇ Archived
+          </div>
         )}
       </div>
       <div className="p-4">
@@ -365,52 +438,74 @@ function ProductEditCard({ product }) {
             {p.in_stock} in stock
           </span>
         </div>
-        <button
-          onClick={() => setOpen((o) => !o)}
-          className="mt-3 w-full font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] border-t border-[#262626] pt-3 text-left"
-          data-testid={`product-toggle-edit-${p.slug}`}
-        >
-          {open ? "− Close 3D editor" : "+ Add / edit 3D model URL"}
-        </button>
-        {open && (
-          <form onSubmit={save} className="mt-3 space-y-2" data-testid={`product-edit-form-${p.slug}`}>
-            <input
-              type="url"
-              value={modelUrl}
-              onChange={(e) => setModelUrl(e.target.value)}
-              placeholder="https://…/model.glb"
-              className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-[11px] text-[#e5e5e5]"
-              data-testid={`product-model-url-${p.slug}`}
-            />
-            <div className="flex items-center gap-2">
-              <button
-                type="submit"
-                disabled={busy}
-                className="btn-industrial btn-primary disabled:opacity-50 text-xs"
-                data-testid={`product-save-${p.slug}`}
-              >
-                {busy ? "Saving…" : "Save"}
-              </button>
-              {saved && (
-                <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]" data-testid={`product-saved-${p.slug}`}>
-                  ✓ Saved
-                </span>
-              )}
-              {p.model_url && (
-                <a
-                  href={`/shop/${p.slug}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] ml-auto"
-                >
-                  Preview ↗
-                </a>
-              )}
-            </div>
-            <p className="font-mono text-[10px] text-[#525252] leading-relaxed">
-              Paste a public .glb / .gltf URL. Buyers see a 3D viewer button on this product.
-            </p>
-          </form>
+
+        {archived ? (
+          <button
+            onClick={onRestore}
+            disabled={removing}
+            className="mt-3 w-full font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-400 hover:text-emerald-300 border-t border-[#262626] pt-3 text-left disabled:opacity-50"
+            data-testid={`product-restore-${p.slug}`}
+          >
+            {removing ? "Restoring…" : "↩ Restore listing"}
+          </button>
+        ) : (
+          <>
+            <button
+              onClick={() => setOpen((o) => !o)}
+              className="mt-3 w-full font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] border-t border-[#262626] pt-3 text-left"
+              data-testid={`product-toggle-edit-${p.slug}`}
+            >
+              {open ? "− Close 3D editor" : "+ Add / edit 3D model URL"}
+            </button>
+            {open && (
+              <form onSubmit={save} className="mt-3 space-y-2" data-testid={`product-edit-form-${p.slug}`}>
+                <input
+                  type="url"
+                  value={modelUrl}
+                  onChange={(e) => setModelUrl(e.target.value)}
+                  placeholder="https://…/model.glb"
+                  className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-[11px] text-[#e5e5e5]"
+                  data-testid={`product-model-url-${p.slug}`}
+                />
+                <div className="flex items-center gap-2">
+                  <button
+                    type="submit"
+                    disabled={busy}
+                    className="btn-industrial btn-primary disabled:opacity-50 text-xs"
+                    data-testid={`product-save-${p.slug}`}
+                  >
+                    {busy ? "Saving…" : "Save"}
+                  </button>
+                  {saved && (
+                    <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]" data-testid={`product-saved-${p.slug}`}>
+                      ✓ Saved
+                    </span>
+                  )}
+                  {p.model_url && (
+                    <a
+                      href={`/shop/${p.slug}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] ml-auto"
+                    >
+                      Preview ↗
+                    </a>
+                  )}
+                </div>
+                <p className="font-mono text-[10px] text-[#525252] leading-relaxed">
+                  Paste a public .glb / .gltf URL. Buyers see a 3D viewer button on this product.
+                </p>
+              </form>
+            )}
+            <button
+              onClick={onDelete}
+              disabled={removing}
+              className="mt-2 font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] hover:text-red-400 transition disabled:opacity-50"
+              data-testid={`product-delete-${p.slug}`}
+            >
+              {removing ? "Deleting…" : "⊗ Delete listing"}
+            </button>
+          </>
         )}
       </div>
     </div>
@@ -646,5 +741,347 @@ function PayoutsTab() {
         )}
       </div>
     </div>
+  );
+}
+
+
+// ===================== NEW LISTING MODAL =====================
+const CATEGORIES = ["Wall Art", "Custom Signs", "Outdoor Art", "Home Decor", "Other"];
+const TECHNIQUES = ["PLASMA", "LASER", "ROUTER", "CUSTOM"];
+const MAX_IMG_W = 1600;
+const MAX_IMG_KB = 130;       // target after compression
+const MAX_IMAGES = 5;
+
+/**
+ * Compress an image File → data URL. Tries WebP first (much smaller for
+ * photos), falls back to JPEG when the browser can't encode WebP.
+ * Iteratively lowers quality until the result is below MAX_IMG_KB.
+ */
+function compressImageToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Could not read file"));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("Could not decode image"));
+      img.onload = () => {
+        const scale = Math.min(1, MAX_IMG_W / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, w, h);
+
+        const tryEncode = (mime, q) => canvas.toDataURL(mime, q);
+        let mime = "image/webp";
+        let dataUrl = tryEncode(mime, 0.86);
+        // toDataURL falls back to PNG silently when the mime is unsupported.
+        if (!dataUrl.startsWith(`data:${mime}`)) {
+          mime = "image/jpeg";
+          dataUrl = tryEncode(mime, 0.86);
+        }
+        // Step quality down if still too large
+        let q = 0.86;
+        while (dataUrl.length / 1024 > MAX_IMG_KB && q > 0.4) {
+          q -= 0.12;
+          dataUrl = tryEncode(mime, q);
+        }
+        resolve(dataUrl);
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function NewListingModal({ onClose, onCreated }) {
+  const [title, setTitle] = useState("");
+  const [category, setCategory] = useState(CATEGORIES[0]);
+  const [technique, setTechnique] = useState(TECHNIQUES[0]);
+  const [price, setPrice] = useState("");
+  const [stock, setStock] = useState(4);
+  const [description, setDescription] = useState("");
+  const [materials, setMaterials] = useState("");
+  const [dimensions, setDimensions] = useState("");
+  const [images, setImages] = useState([]);     // array of data URLs
+  const [modelUrl, setModelUrl] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const handleFiles = async (files) => {
+    setErr("");
+    const incoming = Array.from(files).filter((f) => f.type.startsWith("image/"));
+    if (!incoming.length) {
+      setErr("Only image files are accepted (PNG / JPG / WebP).");
+      return;
+    }
+    if (images.length + incoming.length > MAX_IMAGES) {
+      setErr(`Maximum ${MAX_IMAGES} images per listing.`);
+      return;
+    }
+    try {
+      const compressed = await Promise.all(incoming.map(compressImageToDataUrl));
+      setImages((prev) => [...prev, ...compressed].slice(0, MAX_IMAGES));
+    } catch (e) {
+      setErr(e.message || "Could not process one of the images.");
+    }
+  };
+
+  const onDrop = (e) => {
+    e.preventDefault();
+    setDragOver(false);
+    handleFiles(e.dataTransfer.files);
+  };
+
+  const removeImage = (i) =>
+    setImages((prev) => prev.filter((_, idx) => idx !== i));
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setErr("");
+    if (!title.trim()) { setErr("Title is required."); return; }
+    const priceNum = parseFloat(price);
+    if (!Number.isFinite(priceNum) || priceNum < 0) {
+      setErr("Price must be a non-negative number.");
+      return;
+    }
+    if (!description.trim()) { setErr("Tell buyers a little about this piece."); return; }
+    setBusy(true);
+    try {
+      await createMakerProduct({
+        title: title.trim(),
+        category, technique,
+        price: priceNum,
+        in_stock: parseInt(stock, 10) || 0,
+        description: description.trim(),
+        materials: materials.split(",").map((s) => s.trim()).filter(Boolean),
+        dimensions: dimensions.trim() || null,
+        images,
+        model_url: modelUrl.trim() || null,
+      });
+      onCreated && onCreated();
+    } catch (e2) {
+      setErr(e2?.response?.data?.detail || "Could not create listing.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/85 backdrop-blur-sm z-[100] flex items-start justify-center overflow-y-auto p-4 md:p-12"
+      data-testid="new-listing-modal"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <form
+        onSubmit={submit}
+        className="bg-[#0a0a0a] border border-[#262626] w-full max-w-3xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-[#262626] px-6 py-4">
+          <h3 className="font-display text-2xl uppercase">New Listing.</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="font-mono text-xs text-[#a3a3a3] hover:text-[#ff4500]"
+            data-testid="new-listing-close"
+          >
+            ✕ Close
+          </button>
+        </div>
+
+        <div className="p-6 space-y-6">
+          {/* Drag-drop image dropzone */}
+          <div
+            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={onDrop}
+            onClick={() => fileInputRef.current?.click()}
+            className={`border-2 border-dashed p-8 text-center cursor-pointer transition ${
+              dragOver ? "border-[#ff4500] bg-[#ff4500]/5" : "border-[#262626] hover:border-[#ff4500]"
+            }`}
+            data-testid="new-listing-dropzone"
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={(e) => handleFiles(e.target.files)}
+              data-testid="new-listing-file-input"
+            />
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+              ◆ Drop up to {MAX_IMAGES} images, or click to browse
+            </div>
+            <div className="font-mono text-[10px] text-[#525252] mt-2">
+              Auto-compressed to ~120KB each · WebP when supported
+            </div>
+          </div>
+
+          {images.length > 0 && (
+            <div className="grid grid-cols-3 md:grid-cols-5 gap-2" data-testid="new-listing-image-grid">
+              {images.map((src, i) => (
+                <div key={i} className="relative aspect-square border border-[#262626]">
+                  <img src={src} alt={`upload-${i}`} className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => removeImage(i)}
+                    className="absolute top-1 right-1 bg-black/80 px-1.5 py-0.5 font-mono text-[9px] uppercase text-red-400 hover:text-red-300 border border-red-400/40"
+                    data-testid={`new-listing-remove-${i}`}
+                  >
+                    ✕
+                  </button>
+                  {i === 0 && (
+                    <div className="absolute bottom-1 left-1 bg-[#ff4500] px-1.5 py-0.5 font-mono text-[9px] uppercase text-black">
+                      Primary
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Title + slug auto */}
+          <div className="grid md:grid-cols-2 gap-4">
+            <Field label="Title">
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                required
+                maxLength={100}
+                className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
+                data-testid="new-listing-title"
+              />
+            </Field>
+            <Field label="Price (USD)">
+              <input
+                type="number"
+                step="1"
+                min="0"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                required
+                className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
+                data-testid="new-listing-price"
+              />
+            </Field>
+            <Field label="Category">
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
+                data-testid="new-listing-category"
+              >
+                {CATEGORIES.map((c) => (
+                  <option key={c} className="bg-[#0a0a0a]">{c}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Technique">
+              <select
+                value={technique}
+                onChange={(e) => setTechnique(e.target.value)}
+                className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
+                data-testid="new-listing-technique"
+              >
+                {TECHNIQUES.map((t) => (
+                  <option key={t} className="bg-[#0a0a0a]">{t}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Stock">
+              <input
+                type="number"
+                min="0"
+                value={stock}
+                onChange={(e) => setStock(e.target.value)}
+                className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
+                data-testid="new-listing-stock"
+              />
+            </Field>
+            <Field label="Dimensions (optional)">
+              <input
+                value={dimensions}
+                onChange={(e) => setDimensions(e.target.value)}
+                placeholder='24" × 36" × 0.25"'
+                className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
+                data-testid="new-listing-dimensions"
+              />
+            </Field>
+          </div>
+
+          <Field label="Description">
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              required
+              rows={4}
+              className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5] resize-y"
+              data-testid="new-listing-description"
+            />
+          </Field>
+
+          <Field label="Materials (comma separated)">
+            <input
+              value={materials}
+              onChange={(e) => setMaterials(e.target.value)}
+              placeholder="Mild steel, Powder coat, Walnut"
+              className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
+              data-testid="new-listing-materials"
+            />
+          </Field>
+
+          <Field label="3D model URL (optional)">
+            <input
+              type="url"
+              value={modelUrl}
+              onChange={(e) => setModelUrl(e.target.value)}
+              placeholder="https://…/model.glb"
+              className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
+              data-testid="new-listing-model-url"
+            />
+          </Field>
+
+          {err && (
+            <p className="font-mono text-xs text-red-400" data-testid="new-listing-error">{err}</p>
+          )}
+        </div>
+
+        <div className="flex items-center justify-end gap-3 border-t border-[#262626] px-6 py-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500]"
+            data-testid="new-listing-cancel"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={busy}
+            className="btn-industrial btn-primary disabled:opacity-50"
+            data-testid="new-listing-submit"
+          >
+            {busy ? "Creating…" : "Publish Listing →"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function Field({ label, children }) {
+  return (
+    <label className="block">
+      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-1">
+        {label}
+      </div>
+      {children}
+    </label>
   );
 }

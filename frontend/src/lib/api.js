@@ -36,6 +36,12 @@ export const fetchMakerProducts = () =>
   http.get("/maker/products", { headers: authHeaders() }).then((r) => r.data);
 export const updateMakerProduct = (slug, payload) =>
   http.patch(`/maker/products/${slug}`, payload, { headers: authHeaders() }).then((r) => r.data);
+export const createMakerProduct = (payload) =>
+  http.post("/maker/products", payload, { headers: authHeaders() }).then((r) => r.data);
+export const deleteMakerProduct = (slug) =>
+  http.delete(`/maker/products/${slug}`, { headers: authHeaders() }).then((r) => r.data);
+export const restoreMakerProduct = (slug) =>
+  http.post(`/maker/products/${slug}/restore`, {}, { headers: authHeaders() }).then((r) => r.data);
 export const updateMakerProfile = (payload) =>
   http.patch("/maker/profile", payload, { headers: authHeaders() }).then((r) => r.data);
 

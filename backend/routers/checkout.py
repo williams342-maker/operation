@@ -33,6 +33,11 @@ async def _resolve_cart(items: list) -> list[dict]:
             prod = await db.products.find_one({"slug": pid}, {"_id": 0})
         if not prod:
             raise HTTPException(400, f"Invalid product: {pid}")
+        if prod.get("deleted_at"):
+            raise HTTPException(
+                410,            # Gone — listing was withdrawn after add-to-cart
+                f"This listing is no longer available: {prod.get('title', pid)}",
+            )
         out.append({"product": prod, "quantity": max(1, int(qty))})
     return out
 

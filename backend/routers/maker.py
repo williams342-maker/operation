@@ -1,18 +1,31 @@
 """Maker self-serve portal: magic-link auth + profile / products / orders endpoints."""
+import re
+import uuid
+from datetime import datetime, timezone
 from typing import List, Optional
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict
 
-from core import db, logger
+from core import db, logger, now_iso
 from email_service import send_maker_magic_link
 from maker_auth import (
     current_maker_slug, issue_magic_token, issue_session_jwt, verify_magic_token,
 )
 from models import (
-    Maker, MakerLoginRequest, MakerProfileUpdate, MakerVerifyRequest, Product,
+    Maker, MakerLoginRequest, MakerProductCreate, MakerProfileUpdate,
+    MakerVerifyRequest, Product,
 )
 
 router = APIRouter()
+
+
+_SLUG_RE = re.compile(r"[^a-z0-9]+")
+
+
+def _slugify(s: str) -> str:
+    s = (s or "").lower().strip()
+    s = _SLUG_RE.sub("-", s).strip("-")
+    return s[:80] or "listing"
 
 
 @router.post("/maker/auth/request")
@@ -93,6 +106,111 @@ async def maker_update_product(
         await db.products.update_one({"slug": product_slug}, {"$set": updates})
     updated = await db.products.find_one({"slug": product_slug}, {"_id": 0})
     return updated
+
+
+@router.post("/maker/products", response_model=Product)
+async def maker_create_product(
+    payload: MakerProductCreate,
+    slug: str = Depends(current_maker_slug),
+):
+    """Self-serve listing creation. Auto-slugifies the title, ensures uniqueness
+    by appending -2, -3, … on collision. Enforces at most 5 images per listing
+    (caller should already compress to ~120KB max — we cap each image string at
+    400KB raw to absorb edge cases without blowing the 16MB Mongo doc limit)."""
+    if payload.price < 0:
+        raise HTTPException(400, "Price must be non-negative.")
+    if payload.in_stock < 0:
+        raise HTTPException(400, "Stock must be non-negative.")
+    if len(payload.images) > 5:
+        raise HTTPException(400, "Maximum 5 images per listing.")
+    for img in payload.images:
+        if len(img) > 400_000:
+            raise HTTPException(
+                400,
+                "An image is too large (>400KB). Use the dropzone — it auto-compresses.",
+            )
+
+    base = _slugify(payload.slug or payload.title)
+    candidate = base
+    n = 2
+    # Treat soft-deleted listings as freeing up their slug — searching for
+    # `deleted_at: {$exists: false}` skips them.
+    while await db.products.find_one(
+        {"slug": candidate, "deleted_at": None}, {"_id": 0}
+    ):
+        candidate = f"{base}-{n}"
+        n += 1
+        if n > 200:
+            raise HTTPException(409, "Could not generate a unique slug.")
+
+    product = Product(
+        slug=candidate,
+        title=payload.title.strip(),
+        category=payload.category,
+        technique=payload.technique,
+        price=float(payload.price),
+        description=payload.description.strip(),
+        materials=payload.materials,
+        dimensions=payload.dimensions,
+        images=payload.images,
+        model_url=payload.model_url,
+        maker_slug=slug,
+        in_stock=int(payload.in_stock),
+    )
+    await db.products.insert_one(product.model_dump())
+    # Bump maker's listings_count (denormalized counter shown on profile cards)
+    await db.makers.update_one(
+        {"slug": slug}, {"$inc": {"listings_count": 1}}
+    )
+    return product
+
+
+@router.delete("/maker/products/{product_slug}")
+async def maker_delete_product(
+    product_slug: str, slug: str = Depends(current_maker_slug),
+):
+    """Soft-delete a listing — sets deleted_at so order history stays intact
+    and refunds still work. Listing disappears from /api/products and from
+    every public-facing query that uses _public_filter()."""
+    prod = await db.products.find_one({"slug": product_slug}, {"_id": 0})
+    if not prod:
+        raise HTTPException(404, "Product not found")
+    if prod.get("maker_slug") != slug:
+        raise HTTPException(403, "You can only delete your own listings.")
+    if prod.get("deleted_at"):
+        return {"already_deleted": True, "deleted_at": prod["deleted_at"]}
+    deleted_at = now_iso()
+    await db.products.update_one(
+        {"slug": product_slug},
+        {"$set": {"deleted_at": deleted_at}},
+    )
+    await db.makers.update_one(
+        {"slug": slug}, {"$inc": {"listings_count": -1}}
+    )
+    return {"deleted": True, "deleted_at": deleted_at}
+
+
+@router.post("/maker/products/{product_slug}/restore", response_model=Product)
+async def maker_restore_product(
+    product_slug: str, slug: str = Depends(current_maker_slug),
+):
+    """Undo a soft-delete. Available to the listing owner indefinitely so
+    accidental deletes are reversible."""
+    prod = await db.products.find_one({"slug": product_slug}, {"_id": 0})
+    if not prod:
+        raise HTTPException(404, "Product not found")
+    if prod.get("maker_slug") != slug:
+        raise HTTPException(403, "You can only restore your own listings.")
+    if not prod.get("deleted_at"):
+        return prod
+    await db.products.update_one(
+        {"slug": product_slug},
+        {"$unset": {"deleted_at": ""}},
+    )
+    await db.makers.update_one(
+        {"slug": slug}, {"$inc": {"listings_count": 1}}
+    )
+    return await db.products.find_one({"slug": product_slug}, {"_id": 0})
 
 
 @router.get("/maker/orders")
