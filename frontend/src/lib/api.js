@@ -69,6 +69,8 @@ export const adminCreateReview = (payload) =>
   http.post("/admin/reviews", payload, { headers: adminAuthHeaders() }).then((r) => r.data);
 export const adminDeleteReview = (id) =>
   http.delete(`/admin/reviews/${id}`, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const adminRefundOrder = (session_id) =>
+  http.post(`/admin/orders/${session_id}/refund`, {}, { headers: adminAuthHeaders() }).then((r) => r.data);
 export const requestAdminLink = (email, origin_url) =>
   http.post("/admin/auth/request", { email, origin_url }).then((r) => r.data);
 export const verifyAdminToken = (token) =>

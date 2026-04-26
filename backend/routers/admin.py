@@ -65,6 +65,15 @@ async def admin_orders(_: dict = Depends(current_admin)):
     ).sort("created_at", -1).to_list(500)
 
 
+@router.post("/admin/orders/{session_id}/refund")
+async def admin_refund_order(session_id: str, _: dict = Depends(current_admin)):
+    """Full refund: reverses the buyer's charge AND every maker transfer for
+    this session. Platform fee is also refunded (full reversal). Idempotent.
+    """
+    from routers.stripe_connect import refund_session
+    return await refund_session(session_id)
+
+
 @router.patch("/admin/maker-applications/{app_id}")
 async def admin_decide_application(
     app_id: str, body: ApplicationDecision, bg: BackgroundTasks,

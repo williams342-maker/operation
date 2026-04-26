@@ -492,13 +492,53 @@ function ThreadDetail({ id, me, onBack }) {
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
   const isMod = !!localStorage.getItem("cm_admin_jwt") || !!localStorage.getItem("cm_maker_jwt");
+  const seenReplyIdsRef = useRef(new Set());
+  const mentionDingRef = useRef(null);
   const refresh = () => fetchForumThread(id).then(setData);
   useEffect(() => { refresh(); }, [id]);
-  if (!data) return <p className="font-mono text-sm text-[#a3a3a3]">Loading…</p>;
-  const { thread, replies } = data;
+
+  // Poll for new replies every 12s so @mentions notify promptly.
+  useEffect(() => {
+    const t = setInterval(() => { refresh().catch(() => {}); }, 12000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
   const myName = (me?.name || (me?.email || "").split("@")[0] || "").toLowerCase();
   const isMention = (text) =>
     !!myName && new RegExp(`@${myName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(text || "");
+
+  // Detect newly-arrived mentions and fire ding + desktop notification.
+  useEffect(() => {
+    if (!data) return;
+    const replies = data.replies || [];
+    const known = seenReplyIdsRef.current;
+    if (known.size === 0) {
+      // First load — seed the set without notifying.
+      replies.forEach((r) => known.add(r.id));
+      return;
+    }
+    for (const r of replies) {
+      if (known.has(r.id)) continue;
+      known.add(r.id);
+      if (r.user_id === me?.user_id) continue;     // ignore my own posts
+      if (!isMention(r.body)) continue;
+      try { mentionDingRef.current?.play?.(); } catch {}
+      if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+        try {
+          const n = new Notification(`@${r.user_name || r.user_email} mentioned you`, {
+            body: (r.body || "").slice(0, 140),
+            tag: `forum-${id}-${r.id}`,
+          });
+          n.onclick = () => { window.focus(); };
+        } catch {}
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
+
+  if (!data) return <p className="font-mono text-sm text-[#a3a3a3]">Loading…</p>;
+  const { thread, replies } = data;
   const reply = async (e) => {
     e.preventDefault();
     if (!body.trim()) return;
@@ -544,7 +584,7 @@ function ThreadDetail({ id, me, onBack }) {
         return (
           <div key={r.id}
                className={`border border-[#262626] p-4 ml-6 ${mentioned ? "border-l-2 border-l-[#ff4500] bg-[#ff4500]/5" : ""}`}
-               data-testid={`reply-${r.id}`}>
+               data-testid={mentioned ? "forum-reply-mentioned" : `reply-${r.id}`}>
             <div className="flex items-center justify-between gap-2">
               <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
                 {r.user_name || r.user_email}
@@ -570,6 +610,12 @@ function ThreadDetail({ id, me, onBack }) {
           </button>
         </form>
       )}
+      {/* High-pitch ding for @mentions in forum replies */}
+      <audio
+        ref={mentionDingRef}
+        src="data:audio/wav;base64,UklGRl4DAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YToDAACBgIB/gH+Af4B/gH+Af4B/gH+Af4B/gH+Af4B/gH+Af4B/gH+Af4B/"
+        preload="auto"
+      />
     </div>
   );
 }
