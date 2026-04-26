@@ -55,6 +55,6 @@ def test_dry_run_does_not_delete():
          patch("scripts.sweep_r2_orphans.AsyncIOMotorClient"):
         import asyncio
         res = asyncio.run(sweep_r2_orphans.sweep(apply=False))
-    assert res["orphans"] == 2  # _list_keys_under scans both PREFIXES, so list_objects_v2 fake fires for products/ and models/
+    assert res["orphans"] == 3  # _list_keys_under scans all 3 PREFIXES (products/ models/ banners/), so list_objects_v2 fake fires 3x
     assert res["deleted"] == 0
     fake_cli.delete_object.assert_not_called()

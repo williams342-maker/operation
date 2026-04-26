@@ -180,10 +180,24 @@ async def customer_portal(request: Request, slug: str = Depends(current_maker_sl
         raise HTTPException(400, "Subscribe first to manage billing.")
     s = _stripe()
     return_url = f"{public_host(request)}/maker/dashboard?tab=billing"
-    session = s.billing_portal.Session.create(
-        customer=m["stripe_customer_id"],
-        return_url=return_url,
-    )
+    try:
+        session = s.billing_portal.Session.create(
+            customer=m["stripe_customer_id"],
+            return_url=return_url,
+        )
+    except stripe.error.InvalidRequestError as e:
+        # "No configuration provided" is the most common — Stripe portal
+        # requires a one-time dashboard configuration.
+        msg = str(getattr(e, "user_message", None) or e)
+        logger.warning("billing portal config missing for maker=%s: %s", slug, msg)
+        raise HTTPException(
+            502,
+            "Billing portal is not configured yet. Configure it in your "
+            "Stripe dashboard at Settings → Billing → Customer Portal.",
+        )
+    except stripe.error.StripeError as e:
+        logger.exception("billing portal Stripe error for maker=%s: %s", slug, e)
+        raise HTTPException(502, "Billing portal is temporarily unavailable.")
     return {"url": session.url}
 
 

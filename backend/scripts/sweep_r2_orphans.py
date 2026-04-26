@@ -25,7 +25,7 @@ load_dotenv("/app/backend/.env")
 from motor.motor_asyncio import AsyncIOMotorClient   # noqa: E402
 import r2_storage   # noqa: E402
 
-PREFIXES = ("products/", "models/")
+PREFIXES = ("products/", "models/", "banners/")
 
 
 async def collect_referenced_keys(db) -> set[str]:
@@ -34,6 +34,7 @@ async def collect_referenced_keys(db) -> set[str]:
     soft-deleted ones may still need their images for refunds, audit, etc.
     """
     refs: set[str] = set()
+    # Product references (images, model_url, variant images)
     cursor = db.products.find(
         {}, {"_id": 0, "images": 1, "model_url": 1, "variants": 1}
     )
@@ -53,6 +54,14 @@ async def collect_referenced_keys(db) -> set[str]:
                 k = r2_storage.key_from_public_url(vi)
                 if k:
                     refs.add(k)
+    # Maker references (custom shop banners)
+    mcursor = db.makers.find({}, {"_id": 0, "banner_image_url": 1})
+    async for mk in mcursor:
+        b = mk.get("banner_image_url")
+        if isinstance(b, str):
+            k = r2_storage.key_from_public_url(b)
+            if k:
+                refs.add(k)
     return refs
 
 

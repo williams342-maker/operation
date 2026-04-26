@@ -57,6 +57,12 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - iter16: **.glb upload (P2) + Variants (P3) + Draft mode (P4)** — backend 28/28 incl. 10 new iter16 cases + frontend E2E 12/12 (modal variants editor, draft↔publish flips, .glb file upload, buyer variant selector + cart variant pricing). R2 live; transfer_to_makers + maker-orders correctly apply variant deltas.
 
 ## Recently Shipped (2026-04-26)
+- ✅ **iter20 — Plus banner upload + Stripe Customer Portal**:
+  - **Banner upload** — `POST /api/maker/uploads/banner` (multipart, PNG/JPG/WebP, R2 path `banners/{slug}/{uuid}.{ext}`). Gated to `subscription_status='active'` (403 with "Crafters Plus" copy on free tier). UI: dedicated section in ProfileForm with disabled-state CTA "Upgrade to Crafters Plus to unlock" for free makers, file picker + preview thumbnail for Plus. Public maker page (`/makers/{slug}`) hero now prefers `banner_image_url` over `cover` and renders a `★ Plus` badge for active subscribers.
+  - **Stripe Customer Portal** — `POST /api/maker/subscription/portal` returns a Stripe-hosted billing portal URL (`https://billing.stripe.com/p/session/...`) for self-service card / invoice / cancellation management. Wrapped in `try/except StripeError`: returns 502 with friendly copy "Configure it in your Stripe dashboard at Settings → Billing → Customer Portal" instead of bare 500. UI: "Manage billing ↗" button in BillingTab next to Cancel.
+  - **R2 orphan sweeper** now scans `banners/` prefix in addition to `products/` and `models/`; replaced banners get garbage-collected.
+  - **Tests**: 2 new iter20 unit tests (free-tier 403 + portal-without-customer 400) + sweeper test updated for 3 prefixes = **22/22 green** in iter15/17/19/20 + revenue + r2 + sweep suites.
+
 - ✅ **iter19 — Crafters Plus subscription + Off-site ad attribution**:
   - **Crafters Plus** ($12/mo Stripe Subscription): auto-creates Product+Price on first call (cached in `db.platform_meta`), Stripe Checkout in subscription mode. Active subscribers get **15 free listings per calendar month** (vs 10 lifetime free) and **4% commission** (vs 5%). Cancel sets `cancel_at_period_end`. Webhook `customer.subscription.*` keeps `maker.subscription_status` in sync.
     - Endpoints: `POST /api/maker/subscription/start`, `POST /api/maker/subscription/cancel`, `GET /api/maker/subscription`
@@ -126,9 +132,8 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 
 ## Backlog (revenue-stream items)
 - **Listing-credit packs** — alternative to per-payout settlement: prepaid $5/$25/$100 credit packs.
-- **Plus banner upload UI** — `Maker.banner_image_url` exists in the model but no upload endpoint yet; surface in profile editor.
 - **Real off-site ad spend** — currently attribution-only. To actually drive traffic from Google/Meta, wire Google Ads / Meta Marketing APIs (requires user credentials + ad budget).
-- **Subscription billing portal** — Stripe Customer Portal link so makers can update their card / view invoices.
+- **Stripe Customer Portal config** — one-time dashboard step (Settings → Billing → Customer Portal). Endpoint already returns friendly 502 if missing.
 - (UX) Surface "soft-delete does NOT refund listing fee" disclosure in BillingTab.
 
 ## Backlog (other)
