@@ -56,7 +56,32 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - iter15: **Maker Self-Serve Listings (Option B)** — backend 189/189 + frontend E2E 8/8 (create / drag-drop base64 image / soft-delete / restore)
 - iter16: **.glb upload (P2) + Variants (P3) + Draft mode (P4)** — backend 28/28 incl. 10 new iter16 cases + frontend E2E 12/12 (modal variants editor, draft↔publish flips, .glb file upload, buyer variant selector + cart variant pricing). R2 live; transfer_to_makers + maker-orders correctly apply variant deltas.
 
-## Recently Shipped (2026-04-26 — iter36 · AI Moderator + Ads Foundation + Refire Emails)
+## Recently Shipped (2026-04-26 — iter37 · Buffer social + Sender.net email switch)
+- ✅ **iter37 — Two-batch ship**: Buffer (social media) integration with all-three triggers, plus a clean swap of the primary transactional email provider from MailerSend to Sender.net.
+
+  **🌐 Buffer (social media)** — `buffer_service.py` + `routers/buffer.py`:
+    - GraphQL API at `https://api.buffer.com` (v1 REST sunset 2026-07-08), Bearer-token auth
+    - 3 channels currently connected to the shared Crafters Market Buffer account: Instagram (`crafters_market1`), Pinterest (`team2598`), Facebook (`Crafters Market`). Org id `69ee74bab3eb4d0e37bacd4e`
+    - Per-service metadata wired (IG/FB require `metadata.<service>.type='post'`); Pinterest auto-picks default board; Twitter/LinkedIn/Mastodon/Bluesky/StartPage need no metadata
+    - **Three triggers, all live**:
+      1. **Auto-post on listing publish** — `listing_notify.notify_listing_published` calls `auto_post_listing(product, maker)` AFTER stamping `published_at` (idempotent — re-publishes don't re-post). Default template: `"New from {maker}: {title} — ${price} → {url}"` + listing image. Toggleable via `BUFFER_AUTO_PUBLISH=true|false`.
+      2. **Maker manual share** — `POST /api/maker/buffer/share-listing/{slug}` with the same template; mounted as "↗ Share to Buffer (social)" button on every published `ProductEditCard`
+      3. **Admin compose** — new 14th Admin tab "Social" (`BufferTab.jsx`) with channel multi-select chips, text + image-url inputs, recent-posts log table, fan-out sonner toasts, auto-publish indicator
+    - Every send (admin, maker, auto) persists a row to `db.buffer_posts` with per-channel results, source, posted_by, success/failed counts. Mirrors the email_events pattern.
+    - Endpoints: `GET /api/admin/buffer/status`, `GET /api/admin/buffer/posts`, `POST /api/admin/buffer/post`, `POST /api/maker/buffer/share-listing/{slug}`
+    - Verified end-to-end: real successful posts on Instagram + Facebook + Pinterest with image, structured error capture for Pinterest dedupe / Instagram missing-image rejections.
+
+  **✉ Sender.net swap** (replaces MailerSend as primary):
+    - Endpoint `POST https://api.sender.net/v2/message/send` · Bearer JWT auth · free tier 15,000 emails/month with **no daily cap** (60 req/min rate limit), trades MailerSend's 100/day quota for headroom
+    - Added `_send_sender()` to `email_service.py` alongside MailerSend / Brevo / Resend; `EMAIL_PROVIDER=sender` now the default
+    - All errors flow through the existing `_record_event` → `db.email_events` pipeline so the admin Email Status tab shows exactly what's failing
+    - Roll-back: set `EMAIL_PROVIDER=mailersend` (or `=brevo` / `=resend`) and restart backend
+    - **⚠ DNS step pending**: until `craftersmarket.org` SPF + DKIM records are added in the Sender.net dashboard, every send returns HTTP 400 with the message `"The domain craftersmarket.org has a DMARC policy, but SPF/DKIM records are not configured."` This is correctly captured in the email log so the admin can see it. Setup steps documented in `/app/memory/test_credentials.md`.
+
+  **Tests**: testing_agent_v3_fork iter23 — **100% pass** (15/15 backend tests covering Buffer status/list/post contracts, real post, idempotency on republish, maker ownership, Sender.net error capture). Admin Social tab visually verified. New tests: `tests/test_buffer_sender.py`, `tests/test_buffer_deep.py`. Reviewer notes: sequential fan-out is fine at 3 channels (consider asyncio.gather later), Pinterest default-board reliance is implicit.
+
+
+
 - ✅ **iter36 — Three-batch ship**: AI live-chat moderator, Google Ads/Meta platform-agnostic foundation, and order-level refire-emails admin tool.
 
   **🛡️ AI Moderator (live chat)** — `ai_moderator.py`:
