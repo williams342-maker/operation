@@ -57,6 +57,16 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - iter16: **.glb upload (P2) + Variants (P3) + Draft mode (P4)** — backend 28/28 incl. 10 new iter16 cases + frontend E2E 12/12 (modal variants editor, draft↔publish flips, .glb file upload, buyer variant selector + cart variant pricing). R2 live; transfer_to_makers + maker-orders correctly apply variant deltas.
 
 ## Recently Shipped (2026-04-26)
+- ✅ **iter18 — Etsy-style revenue model (P0)**:
+  - **Two-tier transaction fee** — `PLATFORM_FEE_BPS=500` (5% commission) + `PROCESSING_FEE_BPS=300` (3% processing). `fee_breakdown_cents()` returns transparent split. Maker keeps 92% of each sale.
+  - **Listing fees** — first 10 listings/renewals free per maker; beyond that, $0.20 (`LISTING_FEE_CENTS`) accrues to `maker.pending_charges_cents`. Drafts don't burn the quota until published.
+  - **120-day expiry** — every published listing has `expires_at`; admin endpoint `POST /api/admin/listings/expire-due` flips expired listings to draft. `POST /api/maker/products/{slug}/renew` re-publishes for another 120d (charges $0.20 if past quota).
+  - **Promoted listings** — `POST /api/maker/products/{slug}/promote?weeks=N` charges $5/week, sets `promoted_until`. Public catalog sorts promoted listings to position 0; ProductCard shows "★ Featured" badge.
+  - **Payout settlement** — Stripe Connect transfer flow: gross = subtotal × 92%; pending charges drained from gross before transfer; if entire payout consumed, status='succeeded-zero' so the order isn't retried. Settled events appended to `charge_history` with negative amount (audit trail).
+  - **Maker billing tab** — new `/maker/dashboard` tab with KPIs (lifetime listings vs free quota, pending charges, fee policy), pricing breakdown, and recent ledger table. Promote/Renew buttons on individual listing cards with confirm dialogs.
+  - **Tests**: 6 new revenue unit tests + 6 iter18 E2E tests + iter8 fee-math tests updated for 92% net = **all green** (203 / 204 in full suite, 1 pre-existing flaky asyncio test passes in isolation). Frontend E2E 100% via testing_agent_v3_fork.
+  - **Default for now**: subscription tier (Etsy Plus equivalent) and off-site ads explicitly **deferred** per user choice.
+
 - ✅ **iter17 — P5 batch (low-stock alerts, R2 sweeper, two-axis variants, custom CDN setup)**:
   - **Low-stock alerts** — `_decrement_stock_and_collect_low` runs in the paid-transition block: decrements product or variant stock and emails the maker (`send_maker_low_stock`) when post-decrement stock < `LOW_STOCK_THRESHOLD` (default 3). Idempotent (gated by `payment_status` transition).
   - **R2 orphan sweeper** — `scripts/sweep_r2_orphans.py` walks `products/` and `models/` prefixes, diffs against every `Product.images` / `Product.model_url` / `Product.variants[].image` reference, deletes orphans (dry-run by default). Admin endpoint `POST /api/admin/r2/sweep[?apply=true]` exposes it.
@@ -105,13 +115,19 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
   - `ProductsList` (`MakerDashboard.jsx:316`) splits live vs ARCHIVED with restore controls
   - Bug-fix during iter15: duplicate `Field` component declaration crashed the dashboard — renamed second to `LabeledField`
 
-## Backlog (no urgent items)
-- (Deferred) Refactor `MakerDashboard.jsx` (~1458 lines) into `pages/maker/components/{NewListingModal,ProductEditCard,VariantsEditor,PayoutsTab,OrdersList,ProfileForm}.jsx` — pure structural change, deferred per user choice.
-- (UX) Visual hint on MakerDashboard when only some variants have axis2 filled (so makers don't silently fall back to flat list).
-- (UX) Replace native `window.confirm()` on listing delete with styled inline overlay.
-- (Perf) `_decrement_stock_and_collect_low` does an extra full-doc fetch per line item — fold into a single projected `find_one`.
-- (Optional) Cohort retention, bounce-rate-by-page, Discord/Slack live-visitor ping
-- (Awaiting DNS) Custom CDN domain `cdn.craftersmarket.org` — guide ready at `/app/memory/R2_CUSTOM_DOMAIN_SETUP.md`.
+## Backlog (revenue-stream items)
+- **Subscription tier** (Etsy Plus equivalent) — deferred per user. Suggested when picked back up: Crafters Plus @ $12/mo unlocks 15 free listings/mo + 4% commission (vs 5%) + advanced analytics + custom shop banner.
+- **Off-site ads** — deferred per user. Two implementation paths: (a) attribution-only (12% surcharge on `?utm_source=external` orders), (b) actual Google/Meta ad spend (real budget needed).
+- **Listing-credit packs** — alternative to per-payout settlement: prepaid $5/$25/$100 credit packs.
+- (UX) Surface "soft-delete does NOT refund listing fee" disclosure in the BillingTab pricing-breakdown.
+
+## Backlog (other)
+- (Deferred) Refactor `MakerDashboard.jsx` (~1500 lines) into per-component files
+- (UX) Replace native `window.confirm()` on listing delete + promote
+- (Awaiting DNS) Custom CDN domain `cdn.craftersmarket.org` — guide ready at `/app/memory/R2_CUSTOM_DOMAIN_SETUP.md`
+- (Optional analytics) Cohort retention, bounce-rate-by-page, Discord/Slack live-visitor ping
 
 ## Next Action Items
-- Whenever you're ready: do the DNS step for `cdn.craftersmarket.org` and run `swap_r2_host.py`.
+- Subscription tier (Crafters Plus) when ready
+- Off-site ads strategy when ready
+- Whenever convenient: DNS step for `cdn.craftersmarket.org` then `swap_r2_host.py`

@@ -971,12 +971,15 @@ function BillingTab() {
         <div className="border border-[#262626] p-5" data-testid="billing-listing-usage">
           <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Listings used (lifetime)</div>
           <div className="font-display text-4xl mt-2">
-            {b.listings_used_lifetime}<span className="text-[#525252] text-2xl"> / {b.listings_free_quota}</span>
+            {b.listings_used_lifetime}
+            {b.listings_free_remaining > 0 && (
+              <span className="text-[#525252] text-2xl"> / {b.listings_free_quota} free</span>
+            )}
           </div>
           <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] mt-2">
             {b.listings_free_remaining > 0
               ? `${b.listings_free_remaining} free remaining`
-              : `${dollars(b.policy.listing_fee_cents)} per new listing or renewal`}
+              : `Past free quota — every new listing or renewal is ${dollars(b.policy.listing_fee_cents)}`}
           </div>
         </div>
 
