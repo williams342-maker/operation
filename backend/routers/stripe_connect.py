@@ -193,6 +193,9 @@ async def transfer_to_makers_for_session(session_id: str) -> dict:
         return {"skipped": True, "reason": "tx-not-paid"}
 
     s = _stripe()
+    # Match the transfer_group we set on the PaymentIntent at session creation.
+    # If a tx is missing it (older row), fall back to session_id.
+    transfer_group = tx.get("transfer_group") or session_id
     by_maker: dict[str, float] = {}
     for ci in tx.get("items", []):
         pid = ci.get("product_id")
@@ -257,7 +260,7 @@ async def transfer_to_makers_for_session(session_id: str) -> dict:
                 amount=amount_cents,
                 currency="usd",
                 destination=m["stripe_account_id"],
-                transfer_group=session_id,
+                transfer_group=transfer_group,
                 description=f"Crafters Market order {session_id} — {maker_slug}",
                 metadata={
                     "session_id": session_id,
