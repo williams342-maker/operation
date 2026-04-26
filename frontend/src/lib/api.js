@@ -138,6 +138,10 @@ export const adminDeleteReview = (id) =>
   http.delete(`/admin/reviews/${id}`, { headers: adminAuthHeaders() }).then((r) => r.data);
 export const adminRefundOrder = (session_id) =>
   http.post(`/admin/orders/${session_id}/refund`, {}, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const adminRefireOrderEmails = (session_id) =>
+  http
+    .post(`/admin/orders/${session_id}/refire-emails`, {}, { headers: adminAuthHeaders() })
+    .then((r) => r.data);
 export const adminRunPlusRoiDigest = (apply = false) =>
   http
     .post(`/admin/digests/plus-roi`, {}, { params: { apply }, headers: adminAuthHeaders() })
@@ -180,6 +184,18 @@ export const unfollowMaker = (maker_slug, jwt) =>
 
 export const fetchAdminAuditLog = (limit = 200) =>
   http.get("/admin/audit-log", { params: { limit }, headers: adminAuthHeaders() }).then((r) => r.data);
+export const fetchAdminAIModLog = (limit = 100) =>
+  http.get("/admin/ai-mod-log", { params: { limit }, headers: adminAuthHeaders() }).then((r) => r.data);
+
+// ---------- Ad spend (Google + Meta) ----------
+export const fetchAdsMetrics = (params = {}) =>
+  http.get("/admin/ads/metrics", { params, headers: adminAuthHeaders() }).then((r) => r.data);
+export const fetchAdsPerformance = (days = 30) =>
+  http.get("/admin/ads/performance", { params: { days }, headers: adminAuthHeaders() }).then((r) => r.data);
+export const adminSeedAdsDemo = (days = 14) =>
+  http.post("/admin/ads/seed-demo", {}, { params: { days }, headers: adminAuthHeaders() }).then((r) => r.data);
+export const adminClearAdsDemo = () =>
+  http.delete("/admin/ads/clear-demo", { headers: adminAuthHeaders() }).then((r) => r.data);
 export const requestAdminLink = (email, origin_url) =>
   http.post("/admin/auth/request", { email, origin_url }).then((r) => r.data);
 export const verifyAdminToken = (token) =>

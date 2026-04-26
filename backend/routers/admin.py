@@ -75,6 +75,81 @@ async def admin_refund_order(session_id: str, _: dict = Depends(current_admin)):
     return await refund_session(session_id)
 
 
+@router.post("/admin/orders/{session_id}/refire-emails")
+async def admin_refire_order_emails(
+    session_id: str, claims: dict = Depends(current_admin),
+):
+    """Re-send the buyer receipt + maker order notification + ops alert for an
+    existing paid order. Useful when a customer says "I never got the email"
+    or a maker missed the new-order ping. Idempotent — does not double-charge
+    or double-fulfill anything; only fires emails."""
+    from email_service import (
+        send_buyer_receipt, send_maker_new_order, send_ops_new_order,
+    )
+    tx = await db.transactions.find_one({"session_id": session_id}, {"_id": 0})
+    if not tx:
+        raise HTTPException(404, "Order not found.")
+    sent: list[str] = []
+    failed: list[dict] = []
+
+    # Reconstruct order summary for the buyer receipt
+    items = tx.get("items") or []
+    summary_lines = [
+        f"{(it.get('title') or 'Item')} × {it.get('quantity', 1)} — ${float(it.get('price', 0)):.2f}"
+        for it in items
+    ]
+    summary = "\n".join(summary_lines) or "Your order"
+    total = float(tx.get("amount", 0))
+
+    # 1) Buyer receipt
+    try:
+        await send_buyer_receipt(
+            buyer_email=tx.get("buyer_email") or "",
+            summary=summary, total=total, items=items,
+        )
+        sent.append("buyer_receipt")
+    except Exception as e:
+        failed.append({"kind": "buyer_receipt", "error": str(e)})
+
+    # 2) Maker per-line notifications
+    by_maker: dict[str, list[dict]] = {}
+    for it in items:
+        ms = it.get("maker_slug")
+        if ms:
+            by_maker.setdefault(ms, []).append(it)
+    for ms, lines in by_maker.items():
+        maker = await db.makers.find_one({"slug": ms}, {"_id": 0})
+        if not maker or not maker.get("email"):
+            continue
+        try:
+            subtotal = sum(float(it.get("price", 0)) * int(it.get("quantity", 1)) for it in lines)
+            await send_maker_new_order(
+                maker_email=maker["email"],
+                maker_name=maker.get("name") or ms,
+                items=lines, subtotal=subtotal,
+                buyer_email=tx.get("buyer_email"),
+            )
+            sent.append(f"maker:{ms}")
+        except Exception as e:
+            failed.append({"kind": f"maker:{ms}", "error": str(e)})
+
+    # 3) Ops alert
+    try:
+        await send_ops_new_order(
+            summary=summary, total=total, items=items,
+            buyer_email=tx.get("buyer_email"),
+        )
+        sent.append("ops")
+    except Exception as e:
+        failed.append({"kind": "ops", "error": str(e)})
+
+    logger.info(
+        "[admin_refire_order_emails] %s by=%s sent=%s failed=%s",
+        session_id, claims["email"], sent, failed,
+    )
+    return {"session_id": session_id, "sent": sent, "failed": failed}
+
+
 @router.post("/admin/listings/expire-due")
 async def admin_expire_due_listings(_: dict = Depends(current_admin)):
     """Run the listing-expiry sweep: any published listing past its

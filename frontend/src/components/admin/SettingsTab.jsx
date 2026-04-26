@@ -51,6 +51,12 @@ const SWITCHES = [
     numericMin: 5,
     numericMax: 1440,
   },
+  {
+    key: "ai_moderator_enabled",
+    label: "AI Moderator (live chat)",
+    blurb: "When ON, every chat message is classified by Claude before broadcast. Slurs/threats are blocked and the offender gets a private notice; spammy messages get a warn nudge but still post. Decisions are logged to the audit log.",
+    tone: "primary",
+  },
 ];
 
 const toneClass = (tone, on) => {

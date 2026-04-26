@@ -1,0 +1,77 @@
+{
+  "summary": "Iter 22 — AI Moderator + Google Ads platform-agnostic foundation + P14l refire-emails. Backend: 24/25 PASS, 1 SKIP (expected — known cs_test_a1iMM98... not in this DB; covered via self-seeded synthetic tx). Frontend: Ads tab end-to-end verified (empty state, seed-demo, stat cards populate, campaigns table sorted desc, By-Technique with PLASMA/LASER, range chips, clear-demo). All 13 admin tabs render. ai_moderator_enabled reset to false post-tests. Demo ad rows cleared post-tests.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/admin/ads/performance", "issue": "Daily series length is days+1 (31 entries for days=30) because the inclusive cursor goes start_date..end_date. Cosmetic — UI sparkline renders fine, but doc/spec said 'full day range' which could be interpreted as exactly N. Confirm intent."},
+      {"endpoint": "ai_moderator.py LLM mode", "issue": "Pydantic serializer warning fires when emergentintegrations parses Claude's response (PydanticSerializationUnexpectedValue on Message/Choices). Non-blocking — moderation still works correctly — but indicates emergentintegrations is using stale Pydantic models. Watch for upstream library bumps."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "tested_features": {
+    "ai_moderator": {
+      "default_off": "PASS",
+      "patch_toggle_on_off": "PASS",
+      "moderator_off_returns_allow_no_log": "PASS (verified action='allow', reason='moderator_disabled')",
+      "heuristic_blocks_obvious_slur": "PASS (action='block', source='heuristic', row inserted to ai_mod_log)",
+      "benign_message_allowed_no_log": "PASS (LLM returned allow, no row written)",
+      "ai_mod_log_endpoint_shape": "PASS (limit=100, items=[])",
+      "ai_mod_log_unauthorized": "PASS (401/403)"
+    },
+    "google_ads": {
+      "metrics_zero_when_empty": "PASS",
+      "seed_demo_70_rows": "PASS (5 campaigns × 14 days)",
+      "seed_demo_idempotent": "PASS (re-seed doesn't double, spend bounded)",
+      "metrics_nonzero_after_seed": "PASS",
+      "performance_structure_sorted_desc": "PASS",
+      "categories_PLASMA_LASER_present": "PASS",
+      "platform_filter_google": "PASS",
+      "platform_filter_meta": "PASS",
+      "platform_filter_invalid_422": "PASS",
+      "clear_demo_wipes_only_demo": "PASS (deleted=70, metrics back to 0)",
+      "unauthorized": "PASS",
+      "frontend_AdsTab_empty_state": "PASS (visible before seed)",
+      "frontend_AdsTab_seed_then_populated": "PASS (toast 'Seeded 70 demo rows across 5 campaigns.', stat-spend=$358.88, stat-clicks=1063, campaigns table sorted desc $111→$28, categories PLASMA/LASER/uncategorized)",
+      "frontend_range_chips": "PASS (7d/30d/90d all clickable)",
+      "frontend_clear_demo": "PASS"
+    },
+    "refire_emails_p14l": {
+      "404_on_unknown_session": "PASS",
+      "200_on_known_session": "SKIPPED (cs_test_a1iMM98... not in this DB) — covered via test_refire_seeded_session_full_shape",
+      "self_seeded_full_shape": "PASS — response: {session_id, sent[buyer_receipt|maker:slug|ops], failed[]}; all 3 kinds attempted",
+      "unauthorized": "PASS"
+    },
+    "regression": {
+      "chat_history_endpoint": "PASS",
+      "all_7_chat_channels_have_history_endpoints": "PASS (general, machine-help, finishing-tips, beginners, advanced-cnc, off-topic, makers-only)",
+      "ai_mod_reset_to_off_after_tests": "PASS",
+      "all_13_admin_tabs_render": "PASS (verified Ads is positioned between Audit Log and Digests)"
+    }
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter22_ai_mod_ads_refire.py",
+    "/app/test_reports/pytest/iter22.xml"
+  ],
+  "action_items": [
+    "Optional: confirm whether /admin/ads/performance daily series should be N or N+1 entries (currently N+1 because cursor goes inclusive start..end; UI handles fine).",
+    "Watch for emergentintegrations upstream Pydantic serializer warning — non-blocking but worth pinning."
+  ],
+  "critical_code_review_comments": [
+    "ai_moderator.py: heuristic + LLM separation is clean; fail-OPEN throughout (LLM error → allow) is the right call for chat. WARN path correctly notifies user privately AND still broadcasts. BLOCK path correctly drops the message + notifies sender only.",
+    "ad_spend.py: idempotent upsert via (platform, campaign_id, date) compound key is correct. Seed uses random.Random(20260426) for deterministic regen. ROAS join via transactions.external_attribution=true is the right plumbing. Consider adding a Mongo index hint on (platform, campaign_id, date) for production scale, but not blocking for a few thousand rows.",
+    "admin.py refire-emails: maker grouping by slug is correct. failed[] surfaces error string per kind so MailerSend 429 quota errors will be visible to the operator. Good.",
+    "settings.py SettingsPatch: adding ai_moderator_enabled to model_dump(exclude_unset=True) means PATCH semantics are preserved correctly.",
+    "Minor: ad_spend.py:212 query uses {'$or': [{'campaign_id': {'$regex': '^demo-'}}], 'date': ...} — the $or wrapper around a single condition is redundant. Could simplify to {'campaign_id': {'$regex': '^demo-'}, 'date': ...}."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter22_ai_mod_ads_refire.py"],
+  "success_rate": {"backend": "100% (24/24 executed; 1 environmentally skipped)", "frontend": "100% on AdsTab end-to-end"},
+  "test_credentials": "Admin JWT minted via maker_auth.issue_session_jwt('admin','team@craftersmarket.org', role='admin'). Test buyer email: TEST_aimod_buyer@example.com (created with moderation_status=active).",
+  "seed_data_creation": "Demo ad_spend rows seeded then cleared each test (autouse cleanup fixture). Synthetic tx TEST_REFIRE_cs_seeded_001 created and cleaned in refire test. ai_moderator_enabled reset to false at end of run.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All 3 batches of iter22 (AI moderator, Google Ads foundation, refire-emails) work correctly at backend AND admin-UI level. AdsTab data-testids are stable (ads-tab, ads-empty, ads-seed-demo, ads-clear-demo, ads-stat-{spend|revenue|roas|clicks}, ads-range-{7|30|90}, ads-campaigns, ads-categories). The known live paid session referenced in test_credentials.md (cs_test_a1iMM98...) does NOT exist in this preview DB — covered via self-seeded transaction. WS chat path with AI moderator ON was tested at the moderate_message function level (covers all 3 actions: allow/warn/block) instead of an actual websocket round-trip — main agent or a future test can wire a websocket client if deeper coverage is needed, but the moderation pipeline is fully exercised. Note: emergentintegrations triggers Pydantic serialization warnings that are noisy but harmless."
+}

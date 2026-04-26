@@ -703,6 +703,37 @@ async def ws_chat(websocket: WebSocket, channel: str, token: str = Query("")):
             text = (data.get("text") or "").strip()
             if not text:
                 continue
+            text = text[:1000]
+            # AI moderation pre-broadcast — runs only when the admin switch is ON
+            # and the LLM key is configured. Fails-open on any error.
+            try:
+                from ai_moderator import moderate_message
+                action, reason = await moderate_message(
+                    channel=channel, user_email=user_email,
+                    user_name=display_name, text=text,
+                )
+            except Exception as e:
+                logger.exception("[ai_mod] moderator crashed, allowing: %s", e)
+                action, reason = "allow", "exception_fail_open"
+            if action == "block":
+                # Send a private system notice to just the offender — drop the
+                # message from the channel entirely. Block is rare so the noise
+                # is acceptable.
+                await websocket.send_json({
+                    "kind": "system",
+                    "text": f"◆ Your message was held by the auto-moderator: {reason}",
+                    "private": True,
+                    "created_at": now_iso(),
+                })
+                continue
+            if action == "warn":
+                await websocket.send_json({
+                    "kind": "system",
+                    "text": f"◆ Heads-up — that message was flagged: {reason}. Please keep it constructive.",
+                    "private": True,
+                    "created_at": now_iso(),
+                })
+                # Still deliver — warnings nudge, don't silence.
             msg = {
                 "id": str(uuid.uuid4()),
                 "channel": channel,
@@ -710,7 +741,7 @@ async def ws_chat(websocket: WebSocket, channel: str, token: str = Query("")):
                 "user_name": display_name,
                 "picture": picture,
                 "role": role,
-                "text": text[:1000],
+                "text": text,
                 "kind": "message",
                 "created_at": now_iso(),
             }

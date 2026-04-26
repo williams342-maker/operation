@@ -1,9 +1,11 @@
 import React, { useState } from "react";
-import { adminRefundOrder } from "../../lib/api";
+import { toast } from "sonner";
+import { adminRefundOrder, adminRefireOrderEmails } from "../../lib/api";
 import { formatDate } from "./_shared";
 
 export default function PaidOrdersList({ items }) {
   const [refunding, setRefunding] = useState("");
+  const [refiring, setRefiring] = useState("");
   const [refunded, setRefunded] = useState(() =>
     new Set(items.filter((o) => o.refund_status === "refunded").map((o) => o.session_id))
   );
@@ -17,10 +19,33 @@ export default function PaidOrdersList({ items }) {
     try {
       await adminRefundOrder(sid);
       setRefunded((r) => new Set(r).add(sid));
+      toast.success("Order refunded — buyer + maker reversals fired.");
     } catch (e) {
-      setErr((p) => ({ ...p, [sid]: e?.response?.data?.detail || "Refund failed." }));
+      const msg = e?.response?.data?.detail || "Refund failed.";
+      setErr((p) => ({ ...p, [sid]: msg }));
+      toast.error(msg);
     } finally {
       setRefunding("");
+    }
+  };
+
+  const refire = async (sid) => {
+    setRefiring(sid); setErr((e) => ({ ...e, [sid]: "" }));
+    try {
+      const r = await adminRefireOrderEmails(sid);
+      const failed = (r.failed || []).length;
+      const sentN = (r.sent || []).length;
+      if (failed) {
+        toast.warning(`Sent ${sentN}, failed ${failed}. Check logs.`);
+      } else {
+        toast.success(`Re-fired ${sentN} email${sentN === 1 ? "" : "s"} (buyer + maker + ops).`);
+      }
+    } catch (e) {
+      const msg = e?.response?.data?.detail || "Refire failed.";
+      setErr((p) => ({ ...p, [sid]: msg }));
+      toast.error(msg);
+    } finally {
+      setRefiring("");
     }
   };
 
@@ -77,6 +102,15 @@ export default function PaidOrdersList({ items }) {
                   ✓ Refunded
                 </span>
               )}
+              <button
+                onClick={() => refire(o.session_id)}
+                disabled={refiring === o.session_id}
+                title="Re-send the buyer receipt + maker order email + ops alert"
+                className="font-mono text-[10px] uppercase tracking-[0.22em] px-3 py-2 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] transition disabled:opacity-50"
+                data-testid={`order-refire-btn-${o.session_id}`}
+              >
+                {refiring === o.session_id ? "Sending…" : "✉ Refire"}
+              </button>
             </div>
           </div>
         );

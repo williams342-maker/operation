@@ -20,6 +20,7 @@ import ReviewsTab from "../components/admin/ReviewsTab";
 import DigestsTab from "../components/admin/DigestsTab";
 import SettingsTab from "../components/admin/SettingsTab";
 import AuditTab from "../components/admin/AuditTab";
+import AdsTab from "../components/admin/AdsTab";
 import LiveNowBadge from "../components/admin/LiveNowBadge";
 
 const TABS = [
@@ -33,6 +34,7 @@ const TABS = [
   { id: "users", label: "Users" },
   { id: "reviews", label: "Reviews" },
   { id: "audit", label: "Audit Log" },
+  { id: "ads", label: "Ads" },
   { id: "digests", label: "Digests" },
   { id: "settings", label: "Settings" },
 ];
@@ -177,6 +179,7 @@ export default function AdminDashboard() {
         {tab === "users" && <UsersTab />}
         {tab === "reviews" && <ReviewsTab />}
         {tab === "audit" && <AuditTab />}
+        {tab === "ads" && <AdsTab />}
         {tab === "digests" && <DigestsTab />}
         {tab === "settings" && <SettingsTab />}
       </div>

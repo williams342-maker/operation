@@ -31,6 +31,7 @@ DEFAULT_SETTINGS: dict = {
     "live_chat_enabled": True,
     "auto_clear_idle_rooms": False,
     "idle_clear_minutes": 60,
+    "ai_moderator_enabled": False,
 }
 
 
@@ -126,6 +127,7 @@ class SettingsPatch(BaseModel):
     live_chat_enabled: Optional[bool] = None
     auto_clear_idle_rooms: Optional[bool] = None
     idle_clear_minutes: Optional[int] = Field(default=None, ge=5, le=1440)
+    ai_moderator_enabled: Optional[bool] = None
 
 
 @router.patch("/admin/settings")
@@ -196,3 +198,10 @@ async def admin_resolve_feedback(
     if r.matched_count == 0:
         raise HTTPException(404, "Feedback not found.")
     return {"resolved": True}
+
+
+@router.get("/admin/ai-mod-log")
+async def admin_ai_mod_log(limit: int = 100, _: dict = Depends(current_admin)):
+    """Recent AI moderation events for the admin Audit tab."""
+    from ai_moderator import list_recent
+    return {"items": await list_recent(limit), "limit": limit}
