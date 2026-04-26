@@ -90,6 +90,8 @@ class MakerProductUpdate(BaseModel):
     model_url: Optional[str] = None
     images: Optional[List[str]] = None
     variants: Optional[List["ProductVariantInput"]] = None
+    variant_axis1_name: Optional[str] = None
+    variant_axis2_name: Optional[str] = None
     status: Optional[str] = None     # "draft" | "published"
 
 
@@ -100,6 +102,9 @@ class ProductVariantInput(BaseModel):
     label: str
     price_delta: float = 0.0
     in_stock: int = 0
+    axis1: Optional[str] = None
+    axis2: Optional[str] = None
+    image: Optional[str] = None
 
 
 MakerProductUpdate.model_rebuild()
@@ -231,6 +236,8 @@ async def maker_create_product(
         maker_slug=slug,
         in_stock=int(payload.in_stock),
         variants=payload.variants,
+        variant_axis1_name=payload.variant_axis1_name,
+        variant_axis2_name=payload.variant_axis2_name,
         status=payload.status,
     )
     await db.products.insert_one(product.model_dump())

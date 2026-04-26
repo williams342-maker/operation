@@ -6,11 +6,65 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 
 from core import STRIPE_API_KEY, db, logger, now_iso, public_host
 from email_service import (
-    send_buyer_receipt, send_maker_new_order, send_ops_new_order,
+    send_buyer_receipt, send_maker_low_stock,
+    send_maker_new_order, send_ops_new_order,
 )
 from models import ActivityEvent, CheckoutRequest
 
 router = APIRouter()
+
+LOW_STOCK_THRESHOLD = int(os.environ.get("LOW_STOCK_THRESHOLD", "3"))
+
+
+async def _decrement_stock_and_collect_low(
+    items: list, by_maker_slug: dict
+) -> dict[str, list[dict]]:
+    """Decrement product / variant stock for a paid order. For any listing
+    whose remaining stock falls below `LOW_STOCK_THRESHOLD`, append a row to
+    the returned dict keyed by maker_slug. Idempotency: callers should run this
+    only once per session (gated upstream by `payment_status` transition).
+    """
+    low_by_maker: dict[str, list[dict]] = {s: [] for s in by_maker_slug.keys()}
+    for ci in items:
+        pid = ci.get("product_id")
+        qty = max(1, int(ci.get("quantity", 1)))
+        variant_id = ci.get("variant_id")
+        prod = await db.products.find_one({"id": pid}, {"_id": 0}) \
+            or await db.products.find_one({"slug": pid}, {"_id": 0})
+        if not prod:
+            continue
+        slug = prod["slug"]
+        maker_slug = prod.get("maker_slug")
+        if variant_id and prod.get("variants"):
+            # Decrement the matching variant's in_stock atomically.
+            res = await db.products.update_one(
+                {"slug": slug, "variants.id": variant_id},
+                {"$inc": {"variants.$.in_stock": -qty}},
+            )
+            if res.modified_count:
+                fresh = await db.products.find_one({"slug": slug}, {"_id": 0})
+                v = next((x for x in (fresh.get("variants") or []) if x.get("id") == variant_id), None)
+                if v and v.get("in_stock", 0) < LOW_STOCK_THRESHOLD:
+                    low_by_maker.setdefault(maker_slug, []).append({
+                        "title": f"{prod['title']} — {v.get('label', '')}",
+                        "in_stock": max(0, v.get("in_stock", 0)),
+                        "slug": slug,
+                    })
+        else:
+            # No variant on the line: decrement product-level stock.
+            res = await db.products.update_one(
+                {"slug": slug},
+                {"$inc": {"in_stock": -qty}},
+            )
+            if res.modified_count:
+                fresh = await db.products.find_one({"slug": slug}, {"_id": 0})
+                if fresh and fresh.get("in_stock", 0) < LOW_STOCK_THRESHOLD:
+                    low_by_maker.setdefault(maker_slug, []).append({
+                        "title": prod["title"],
+                        "in_stock": max(0, fresh.get("in_stock", 0)),
+                        "slug": slug,
+                    })
+    return low_by_maker
 
 # ---- Shipping config ----
 SHIPPING_BY_CATEGORY = {
@@ -310,6 +364,18 @@ async def checkout_status(session_id: str, http_request: Request, bg: Background
                 subtotal = sum(float(line["price"]) * int(line["quantity"]) for line in lines)
                 bg.add_task(send_maker_new_order,
                             m["email"], m["name"], lines, subtotal, buyer)
+            # Decrement stock & queue a low-stock email for any listing that
+            # just crossed below LOW_STOCK_THRESHOLD (default 3).
+            low_by_maker = await _decrement_stock_and_collect_low(
+                tx.get("items", []), by_maker
+            )
+            for maker_slug, low_lines in low_by_maker.items():
+                if not low_lines:
+                    continue
+                m = await db.makers.find_one({"slug": maker_slug}, {"_id": 0})
+                if not m or not m.get("email"):
+                    continue
+                bg.add_task(send_maker_low_stock, m["email"], m["name"], low_lines)
             # Stripe Connect: transfer each maker's share to their connected acct
             from routers.stripe_connect import transfer_to_makers_for_session
             bg.add_task(transfer_to_makers_for_session, session_id)

@@ -9,11 +9,18 @@ from core import now_iso
 class ProductVariant(BaseModel):
     """A SKU variant of a product (e.g. size/finish/color).
     Empty `variants` list ⇒ product has no variants (unchanged behavior).
+
+    Optional two-axis support: `axis1` / `axis2` are short tags that, when
+    present on every variant, let the buyer page render a 2D grid (e.g. size ×
+    finish). When axes are blank, the UI falls back to a flat one-axis list.
     """
     id: str = Field(default_factory=lambda: uuid.uuid4().hex[:12])
     label: str                         # buyer-facing label, e.g. '24" Walnut'
     price_delta: float = 0.0           # added to base price (can be negative)
     in_stock: int = 0
+    axis1: Optional[str] = None        # e.g. '24"' (size axis)
+    axis2: Optional[str] = None        # e.g. 'Walnut' (finish axis)
+    image: Optional[str] = None        # optional per-variant image URL
 
 
 class Product(BaseModel):
@@ -33,6 +40,8 @@ class Product(BaseModel):
     in_stock: int = 4
     featured: bool = False
     variants: List[ProductVariant] = []
+    variant_axis1_name: Optional[str] = None   # e.g. "Size"
+    variant_axis2_name: Optional[str] = None   # e.g. "Finish"
     status: str = "published"          # "published" | "draft" — drafts hidden from public catalog
     deleted_at: Optional[str] = None  # soft-delete marker; hides from public views
     created_at: str = Field(default_factory=now_iso)
@@ -52,6 +61,8 @@ class MakerProductCreate(BaseModel):
     model_url: Optional[str] = None
     in_stock: int = 4
     variants: List[ProductVariant] = []
+    variant_axis1_name: Optional[str] = None
+    variant_axis2_name: Optional[str] = None
     status: str = "published"          # accept "draft" to save without publishing
 
 

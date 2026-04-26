@@ -74,6 +74,16 @@ async def admin_refund_order(session_id: str, _: dict = Depends(current_admin)):
     return await refund_session(session_id)
 
 
+@router.post("/admin/r2/sweep")
+async def admin_r2_sweep(apply: bool = False, _: dict = Depends(current_admin)):
+    """Find (and optionally delete) orphaned R2 objects under products/ and
+    models/ that are no longer referenced by any product row. Pass `?apply=true`
+    to actually delete; default is dry-run for safety.
+    """
+    from scripts.sweep_r2_orphans import sweep
+    return await sweep(apply=apply)
+
+
 @router.patch("/admin/maker-applications/{app_id}")
 async def admin_decide_application(
     app_id: str, body: ApplicationDecision, bg: BackgroundTasks,

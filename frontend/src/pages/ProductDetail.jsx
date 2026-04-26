@@ -91,9 +91,10 @@ export default function ProductDetail() {
                 />
               ) : (
                 <img
-                  src={p.images[Math.max(0, active)]}
+                  src={(selectedVariant && selectedVariant.image) || p.images[Math.max(0, active)]}
                   alt={p.title}
                   className="w-full h-full object-cover media-img"
+                  data-testid="product-hero-image"
                 />
               )}
               <span className="tag absolute top-4 left-4 text-[#ff4500] border-[#ff4500]">{p.technique}</span>
@@ -138,36 +139,112 @@ export default function ProductDetail() {
 
             {hasVariants && (
               <div className="mb-6" data-testid="product-variants">
-                <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#a3a3a3] mb-3">Choose option</div>
-                <div className="grid grid-cols-2 gap-2">
-                  {p.variants.map((v) => {
-                    const sel = selectedVariantId === v.id;
-                    const oos = v.in_stock <= 0;
-                    return (
-                      <button
-                        key={v.id}
-                        onClick={() => !oos && setSelectedVariantId(v.id)}
-                        disabled={oos}
-                        data-testid={`product-variant-${v.id}`}
-                        className={`text-left border px-4 py-3 transition ${
-                          sel
-                            ? "border-[#ff4500] bg-[#ff4500]/10"
-                            : "border-[#262626] hover:border-[#ff4500]/50"
-                        } ${oos ? "opacity-40 cursor-not-allowed" : ""}`}
-                      >
-                        <div className="font-mono text-xs text-[#e5e5e5]">{v.label}</div>
-                        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mt-1">
-                          {v.price_delta === 0
-                            ? "Included"
-                            : v.price_delta > 0
-                            ? `+ $${Number(v.price_delta).toFixed(0)}`
-                            : `− $${Math.abs(Number(v.price_delta)).toFixed(0)}`}
-                          {oos && <span className="ml-2 text-red-400">· Sold out</span>}
-                        </div>
-                      </button>
-                    );
-                  })}
+                <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#a3a3a3] mb-3">
+                  {p.variant_axis1_name && p.variant_axis2_name
+                    ? `Choose ${p.variant_axis1_name} × ${p.variant_axis2_name}`
+                    : p.variant_axis1_name
+                    ? `Choose ${p.variant_axis1_name}`
+                    : "Choose option"}
                 </div>
+                {(() => {
+                  // 2D grid layout when both axes have values across every variant
+                  const has2D = p.variant_axis1_name
+                    && p.variant_axis2_name
+                    && p.variants.every((v) => v.axis1 && v.axis2);
+                  if (has2D) {
+                    const ax1 = [...new Set(p.variants.map((v) => v.axis1))];
+                    const ax2 = [...new Set(p.variants.map((v) => v.axis2))];
+                    return (
+                      <div
+                        className="grid"
+                        style={{ gridTemplateColumns: `auto repeat(${ax2.length}, 1fr)` }}
+                      >
+                        <div></div>
+                        {ax2.map((b) => (
+                          <div
+                            key={`h-${b}`}
+                            className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] text-center pb-2"
+                          >
+                            {b}
+                          </div>
+                        ))}
+                        {ax1.map((a) => (
+                          <React.Fragment key={`r-${a}`}>
+                            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] pr-3 self-center">
+                              {a}
+                            </div>
+                            {ax2.map((b) => {
+                              const v = p.variants.find((x) => x.axis1 === a && x.axis2 === b);
+                              if (!v) {
+                                return <div key={`c-${a}-${b}`} className="border border-[#1a1a1a] m-1" />;
+                              }
+                              const sel = selectedVariantId === v.id;
+                              const oos = v.in_stock <= 0;
+                              return (
+                                <button
+                                  key={v.id}
+                                  onClick={() => !oos && setSelectedVariantId(v.id)}
+                                  disabled={oos}
+                                  data-testid={`product-variant-${v.id}`}
+                                  className={`m-1 border px-3 py-3 transition ${
+                                    sel
+                                      ? "border-[#ff4500] bg-[#ff4500]/10"
+                                      : "border-[#262626] hover:border-[#ff4500]/50"
+                                  } ${oos ? "opacity-40 cursor-not-allowed" : ""}`}
+                                >
+                                  <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+                                    {v.price_delta === 0
+                                      ? "—"
+                                      : v.price_delta > 0
+                                      ? `+$${Number(v.price_delta).toFixed(0)}`
+                                      : `−$${Math.abs(Number(v.price_delta)).toFixed(0)}`}
+                                  </div>
+                                  {oos && (
+                                    <div className="font-mono text-[9px] uppercase text-red-400 mt-1">
+                                      Sold out
+                                    </div>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </React.Fragment>
+                        ))}
+                      </div>
+                    );
+                  }
+                  // Flat one-axis layout
+                  return (
+                    <div className="grid grid-cols-2 gap-2">
+                      {p.variants.map((v) => {
+                        const sel = selectedVariantId === v.id;
+                        const oos = v.in_stock <= 0;
+                        return (
+                          <button
+                            key={v.id}
+                            onClick={() => !oos && setSelectedVariantId(v.id)}
+                            disabled={oos}
+                            data-testid={`product-variant-${v.id}`}
+                            className={`text-left border px-4 py-3 transition ${
+                              sel
+                                ? "border-[#ff4500] bg-[#ff4500]/10"
+                                : "border-[#262626] hover:border-[#ff4500]/50"
+                            } ${oos ? "opacity-40 cursor-not-allowed" : ""}`}
+                          >
+                            <div className="font-mono text-xs text-[#e5e5e5]">{v.label}</div>
+                            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mt-1">
+                              {v.price_delta === 0
+                                ? "Included"
+                                : v.price_delta > 0
+                                ? `+ $${Number(v.price_delta).toFixed(0)}`
+                                : `− $${Math.abs(Number(v.price_delta)).toFixed(0)}`}
+                              {oos && <span className="ml-2 text-red-400">· Sold out</span>}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </div>
             )}
 

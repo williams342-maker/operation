@@ -940,7 +940,10 @@ function NewListingModal({ onClose, onCreated }) {
   const [images, setImages] = useState([]);     // array of data URLs
   const [modelUrl, setModelUrl] = useState("");
   const [uploadingModel, setUploadingModel] = useState(false);
-  const [variants, setVariants] = useState([]); // [{label, price_delta, in_stock}]
+  const [variants, setVariants] = useState([]); // [{label, price_delta, in_stock, axis1?, axis2?, image?}]
+  const [axis1Name, setAxis1Name] = useState("");
+  const [axis2Name, setAxis2Name] = useState("");
+  const [variantImageBusy, setVariantImageBusy] = useState({}); // idx → bool
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [dragOver, setDragOver] = useState(false);
@@ -996,11 +999,27 @@ function NewListingModal({ onClose, onCreated }) {
   };
 
   const addVariantRow = () =>
-    setVariants((prev) => [...prev, { label: "", price_delta: 0, in_stock: 0 }]);
+    setVariants((prev) => [...prev, { label: "", price_delta: 0, in_stock: 0, axis1: "", axis2: "", image: "" }]);
   const updateVariant = (i, key, val) =>
     setVariants((prev) => prev.map((v, idx) => idx === i ? { ...v, [key]: val } : v));
   const removeVariant = (i) =>
     setVariants((prev) => prev.filter((_, idx) => idx !== i));
+
+  const onVariantImageFile = async (i, file) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setErr("Variant image must be an image file."); return;
+    }
+    setVariantImageBusy((b) => ({ ...b, [i]: true }));
+    try {
+      const dataUrl = await compressImageToDataUrl(file);
+      updateVariant(i, "image", dataUrl);
+    } catch (e) {
+      setErr(e.message || "Could not process variant image.");
+    } finally {
+      setVariantImageBusy((b) => ({ ...b, [i]: false }));
+    }
+  };
 
   const buildPayload = (status) => ({
     title: title.trim(),
@@ -1013,12 +1032,17 @@ function NewListingModal({ onClose, onCreated }) {
     images,
     model_url: modelUrl.trim() || null,
     status,
+    variant_axis1_name: axis1Name.trim() || null,
+    variant_axis2_name: axis2Name.trim() || null,
     variants: variants
       .filter((v) => v.label.trim())
       .map((v) => ({
         label: v.label.trim(),
         price_delta: parseFloat(v.price_delta) || 0,
         in_stock: parseInt(v.in_stock, 10) || 0,
+        axis1: (v.axis1 || "").trim() || null,
+        axis2: (v.axis2 || "").trim() || null,
+        image: v.image || null,
       })),
   });
 
@@ -1260,51 +1284,124 @@ function NewListingModal({ onClose, onCreated }) {
                 + Add option
               </button>
             </div>
+
+            {variants.length > 0 && (
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                <input
+                  value={axis1Name}
+                  onChange={(e) => setAxis1Name(e.target.value)}
+                  placeholder="Axis 1 name (e.g. Size)"
+                  className="bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+                  data-testid="new-listing-axis1-name"
+                />
+                <input
+                  value={axis2Name}
+                  onChange={(e) => setAxis2Name(e.target.value)}
+                  placeholder="Axis 2 name (e.g. Finish · optional)"
+                  className="bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+                  data-testid="new-listing-axis2-name"
+                />
+              </div>
+            )}
+
             {variants.length === 0 ? (
               <p className="font-mono text-[10px] text-[#525252]">
-                Skip if this piece has no choices. Add rows for sizes, finishes, or colors — each with its own price delta and stock.
+                Skip if this piece has no choices. Add rows for sizes, finishes, or colors — each with its own price delta and stock. Need a 2D grid (size × finish)? Fill both axis names + per-variant axis cells.
               </p>
             ) : (
               <div className="space-y-2">
                 {variants.map((v, i) => (
                   <div
                     key={i}
-                    className="grid grid-cols-12 gap-2 items-center"
+                    className="border border-[#262626] p-3 space-y-2"
                     data-testid={`new-listing-variant-row-${i}`}
                   >
-                    <input
-                      value={v.label}
-                      onChange={(e) => updateVariant(i, "label", e.target.value)}
-                      placeholder='e.g. 24" Walnut'
-                      className="col-span-6 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
-                      data-testid={`new-listing-variant-label-${i}`}
-                    />
-                    <input
-                      type="number"
-                      value={v.price_delta}
-                      onChange={(e) => updateVariant(i, "price_delta", e.target.value)}
-                      placeholder="+$"
-                      className="col-span-3 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
-                      data-testid={`new-listing-variant-delta-${i}`}
-                    />
-                    <input
-                      type="number"
-                      min="0"
-                      value={v.in_stock}
-                      onChange={(e) => updateVariant(i, "in_stock", e.target.value)}
-                      placeholder="Qty"
-                      className="col-span-2 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
-                      data-testid={`new-listing-variant-stock-${i}`}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeVariant(i)}
-                      className="col-span-1 font-mono text-[11px] text-[#525252] hover:text-red-400"
-                      data-testid={`new-listing-variant-remove-${i}`}
-                      aria-label="Remove variant"
-                    >
-                      ✕
-                    </button>
+                    <div className="grid grid-cols-12 gap-2">
+                      <input
+                        value={v.label}
+                        onChange={(e) => updateVariant(i, "label", e.target.value)}
+                        placeholder='Display label e.g. 24" Walnut'
+                        className="col-span-6 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+                        data-testid={`new-listing-variant-label-${i}`}
+                      />
+                      <input
+                        type="number"
+                        value={v.price_delta}
+                        onChange={(e) => updateVariant(i, "price_delta", e.target.value)}
+                        placeholder="+$"
+                        className="col-span-3 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+                        data-testid={`new-listing-variant-delta-${i}`}
+                      />
+                      <input
+                        type="number"
+                        min="0"
+                        value={v.in_stock}
+                        onChange={(e) => updateVariant(i, "in_stock", e.target.value)}
+                        placeholder="Qty"
+                        className="col-span-2 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+                        data-testid={`new-listing-variant-stock-${i}`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeVariant(i)}
+                        className="col-span-1 font-mono text-[11px] text-[#525252] hover:text-red-400"
+                        data-testid={`new-listing-variant-remove-${i}`}
+                        aria-label="Remove variant"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    {(axis1Name || axis2Name) && (
+                      <div className="grid grid-cols-2 gap-2">
+                        <input
+                          value={v.axis1 || ""}
+                          onChange={(e) => updateVariant(i, "axis1", e.target.value)}
+                          placeholder={axis1Name ? `${axis1Name} value` : "Axis 1 value"}
+                          className="bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+                          data-testid={`new-listing-variant-axis1-${i}`}
+                        />
+                        <input
+                          value={v.axis2 || ""}
+                          onChange={(e) => updateVariant(i, "axis2", e.target.value)}
+                          placeholder={axis2Name ? `${axis2Name} value` : "Axis 2 value (optional)"}
+                          className="bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+                          data-testid={`new-listing-variant-axis2-${i}`}
+                        />
+                      </div>
+                    )}
+                    <div className="flex items-center gap-3">
+                      {v.image && (
+                        <img
+                          src={v.image}
+                          alt={`variant-${i}`}
+                          className="w-12 h-12 object-cover border border-[#262626]"
+                          data-testid={`new-listing-variant-image-${i}`}
+                        />
+                      )}
+                      <label className="cursor-pointer font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] transition">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => onVariantImageFile(i, e.target.files?.[0])}
+                          className="hidden"
+                          data-testid={`new-listing-variant-image-input-${i}`}
+                        />
+                        {variantImageBusy[i]
+                          ? "Uploading…"
+                          : v.image
+                          ? "↻ Replace image"
+                          : "+ Variant image (optional)"}
+                      </label>
+                      {v.image && (
+                        <button
+                          type="button"
+                          onClick={() => updateVariant(i, "image", "")}
+                          className="font-mono text-[10px] text-[#525252] hover:text-red-400"
+                        >
+                          remove img
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>

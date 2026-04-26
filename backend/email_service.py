@@ -127,6 +127,29 @@ async def send_maker_new_order(maker_email: str, maker_name: str,
     return await _send(maker_email, f"New order · ${subtotal:.2f} · {maker_name}", html)
 
 
+async def send_maker_low_stock(maker_email: str, maker_name: str,
+                               items: list[dict]):
+    """`items` is [{title, in_stock, slug}, ...] — already filtered to <3 stock."""
+    if not maker_email or not items:
+        return None
+    rows = "".join(
+        f"<tr><td style='padding:10px 0;border-bottom:1px solid #262626;color:#e5e5e5'>{i['title']}</td>"
+        f"<td style='padding:10px 0;border-bottom:1px solid #262626;color:#ff4500;font-weight:bold;text-align:right'>{i['in_stock']} left</td></tr>"
+        for i in items
+    )
+    body = (
+        "<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 18px'>"
+        f"Heads up {maker_name} — these listings just dropped below 3 in stock after a sale. "
+        "Restock or update quantities so buyers don't miss out.</p>"
+        f"<table style='width:100%;border-collapse:collapse;font-size:13px'>"
+        "<thead><tr><th style='text-align:left;color:#a3a3a3;font-weight:normal;font-size:11px;text-transform:uppercase;letter-spacing:0.2em;padding:0 0 10px;border-bottom:1px solid #262626'>Listing</th>"
+        "<th style='text-align:right;color:#a3a3a3;font-weight:normal;font-size:11px;text-transform:uppercase;letter-spacing:0.2em;padding:0 0 10px;border-bottom:1px solid #262626'>Stock</th></tr></thead>"
+        f"<tbody>{rows}</tbody></table>"
+    )
+    html = _shell("Stock alert.", "Inventory's running thin.", body, "Maker · low stock")
+    return await _send(maker_email, f"Low stock · {len(items)} listing{'s' if len(items) > 1 else ''} · {maker_name}", html)
+
+
 async def send_maker_magic_link(maker_email: str, maker_name: str, link: str):
     if not maker_email:
         return None
