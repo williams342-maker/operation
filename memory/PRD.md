@@ -46,18 +46,24 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 
 ## Test Status (2026-04-26)
 - iter6: AI memory bug + cart gift-note persistence — **fixed and verified**
-- iter7: Stripe Connect Express + regression sweep — **20/20 backend tests pass**
-- iter9: 5 backlog follow-ups — **10/10 isolated · 140/140 full suite**
-- iter10 (this run): 3 backlog follow-ups — **6/6 new + 1 transfer_group regression guard · 147/147 full suite**
-  1. Forum thread polling now pauses on `document.hidden` and resumes (with immediate catch-up) on `visibilitychange`. Verified end-to-end via Playwright (visible 13s = 1 poll, hidden 15s = 0 polls, resume = 1 immediate poll)
-  2. Per-maker analytics: new `GET /api/admin/maker-analytics/{slug}` endpoint + Admin Dashboard "Maker Analytics" tab with maker selector, Stripe Connect status badge, revenue stats (gross/30d/7d/share/after-refunds), top products, payout buckets, recent payouts
-  3. Google OAuth wiring confirmed: `community-google-btn` on `/community/login`, `/community/auth/callback` route renders `community-auth-callback`. Backend `/api/community/auth/google` rejects invalid sessions with 401, empty body with 422. Happy-path verification requires a real Google click (not in scope)
-  + Pinned the `Transfer.create.transfer_group == tx.transfer_group` (NOT session_id) contract via a pure-mock unit test in `test_iter8_stripe_connect.py::TestTransferGroupPairing` so future agents can't silently regress it
+- iter7: Stripe Connect Express + regression sweep — **20/20**
+- iter9: 5 backlog follow-ups — **140/140**
+- iter10: 3 backlog follow-ups (forum poll pause, per-maker analytics, Google OAuth wiring) — **147/147**
+- iter11 (this run): Web analytics — **14/14 new · 161/161 full suite**
+  - Privacy posture locked: IPv4 last octet truncated, IPv6 → /48
+  - Geo enrichment via ipapi.co with permanent in-Mongo cache
+  - 30-min inactivity session window (frontend mints session_id)
+  - Bot UA filter (googlebot, bingbot, facebookexternalhit, etc.)
+  - 9 admin panels: Total/Unique/7-day/Sessions, Top Pages, Devices, Countries, Cities, Traffic Sources + bonus Top Referrers
+  - Auto-track on every route change in `App.js` via `<ScrollTop>`, skipping `/admin/*` and `/maker/*`
+  - Files: `/app/backend/routers/analytics.py`, `/app/frontend/src/lib/analytics.js`
 
 ## Backlog
-- (Optional) Skip refresh on `document.hasFocus()=false` in forum poll resume
-- (Optional) Live Stripe Connect happy-path requires user to complete Express onboarding for a maker
+- (Reminder later) GMV by week mini-chart in Analytics + Maker Analytics tabs
+- (Optional) 7-day-vs-prior-7-day delta arrows on Web Analytics headline numbers
+- (Optional) Page time-on-page tracking (visibilitychange + beforeunload)
 
 ## Next Action Items
 - (Future) Verify Google OAuth happy-path with a real Google session (one-time human click)
-- (Future) Add `account.updated` Stripe Connect dashboard webhook to user's account (one-time setup)
+- (Future) Add `account.updated` Connect webhook to your Stripe Dashboard (one-time setup on stripe.com)
+- (Future) GMV mini-chart (you said "remind me later")
