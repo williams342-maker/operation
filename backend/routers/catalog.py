@@ -169,6 +169,14 @@ async def create_custom_order(payload: CustomOrderCreate, bg: BackgroundTasks):
 
 @router.post("/maker-applications", response_model=MakerApplication)
 async def create_maker_application(payload: MakerApplicationCreate, bg: BackgroundTasks):
+    # Honour the "Allow new maker applications" admin switch.
+    from routers.settings import get_setting
+    if not await get_setting("allow_maker_applications", True):
+        msg = await get_setting(
+            "applications_closed_message",
+            "We're at capacity for new makers right now. Applications will reopen soon.",
+        )
+        raise HTTPException(403, msg)
     app_obj = MakerApplication(**payload.model_dump())
     await db.maker_applications.insert_one(app_obj.model_dump())
     await db.activity_events.insert_one(

@@ -142,6 +142,27 @@ export const adminRunPlusRoiDigest = (apply = false) =>
   http
     .post(`/admin/digests/plus-roi`, {}, { params: { apply }, headers: adminAuthHeaders() })
     .then((r) => r.data);
+
+// ---------- Site settings (public + admin) ----------
+export const fetchSiteSettings = () => http.get("/settings").then((r) => r.data);
+export const submitBetaFeedback = (payload) =>
+  http.post("/feedback", payload).then((r) => r.data);
+export const fetchAdminSettings = () =>
+  http.get("/admin/settings", { headers: adminAuthHeaders() }).then((r) => r.data);
+export const patchAdminSettings = (payload) =>
+  http.patch("/admin/settings", payload, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const adminClearAllChat = () =>
+  http.post("/admin/chat/clear-all", {}, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const adminClearIdleChat = (minutes) =>
+  http
+    .post("/admin/chat/clear-idle", {}, { params: minutes ? { minutes } : {}, headers: adminAuthHeaders() })
+    .then((r) => r.data);
+export const fetchAdminFeedback = (resolved) =>
+  http
+    .get("/admin/feedback", { params: resolved !== undefined ? { resolved } : {}, headers: adminAuthHeaders() })
+    .then((r) => r.data);
+export const adminResolveFeedback = (id) =>
+  http.post(`/admin/feedback/${id}/resolve`, {}, { headers: adminAuthHeaders() }).then((r) => r.data);
 export const requestAdminLink = (email, origin_url) =>
   http.post("/admin/auth/request", { email, origin_url }).then((r) => r.data);
 export const verifyAdminToken = (token) =>

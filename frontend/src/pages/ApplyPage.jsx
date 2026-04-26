@@ -1,20 +1,41 @@
 import React, { useState } from "react";
 import { submitMakerApplication } from "../lib/api";
+import { useSiteSettings } from "../hooks/useSiteSettings";
 
 const TECH = ["PLASMA", "LASER", "ROUTER", "CUSTOM"];
 
 export default function ApplyPage() {
+  const settings = useSiteSettings();
   const [f, setF] = useState({ name: "", email: "", studio_name: "", location: "", techniques: [], portfolio_url: "", about: "" });
   const [state, setState] = useState("idle");
+  const [errMsg, setErrMsg] = useState("");
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   const toggle = (t) => setF((c) => ({ ...c, techniques: c.techniques.includes(t) ? c.techniques.filter((x) => x !== t) : [...c.techniques, t] }));
 
   const submit = async (e) => {
     e.preventDefault();
     setState("sending");
+    setErrMsg("");
     try { await submitMakerApplication(f); setState("done"); }
-    catch { setState("error"); }
+    catch (e2) {
+      const d = e2?.response?.data?.detail;
+      setErrMsg(typeof d === "string" ? d : "Something went wrong. Try again.");
+      setState("error");
+    }
   };
+
+  // Hard-gate when admin closes applications.
+  if (settings && settings.allow_maker_applications === false) {
+    return (
+      <div className="pt-40 pb-24 min-h-screen text-center grain px-4" data-testid="apply-closed">
+        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-4">◆ Applications · Paused</div>
+        <h1 className="font-display text-6xl md:text-8xl mb-6 leading-[0.9]">We're at <span className="text-outline-orange">capacity.</span></h1>
+        <p className="font-mono text-sm text-[#a3a3a3] max-w-md mx-auto leading-relaxed">
+          {settings.applications_closed_message || "We're at capacity for new makers right now. Applications will reopen soon."}
+        </p>
+      </div>
+    );
+  }
 
   if (state === "done") return (
     <div className="pt-40 pb-24 min-h-screen text-center grain px-4">
@@ -61,7 +82,7 @@ export default function ApplyPage() {
               {state === "sending" ? "Submitting…" : "Submit Application →"}
             </button>
           </div>
-          {state === "error" && <div className="md:col-span-2 text-[#ff4500] font-mono text-xs">Something went wrong. Try again.</div>}
+          {state === "error" && <div className="md:col-span-2 text-[#ff4500] font-mono text-xs">{errMsg || "Something went wrong. Try again."}</div>}
         </form>
       </div>
     </div>

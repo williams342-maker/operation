@@ -553,7 +553,11 @@ async def upload_forum_attachment(
 
 
 # ===================== LIVE CHAT (WebSocket + REST history + presence + typing) =====================
-CHANNELS = {"general", "help", "showcase", "makers-only"}
+CHANNELS = {
+    "general", "machine-help", "finishing-tips", "design-share",
+    "buy-and-sell", "show-off", "beginners", "advanced-cnc",
+    "off-topic", "news-and-events", "makers-only",
+}
 
 
 class ChatRoom:
@@ -618,6 +622,11 @@ async def chat_buddies(channel: str):
 async def ws_chat(websocket: WebSocket, channel: str, token: str = Query("")):
     if channel not in CHANNELS:
         await websocket.close(code=4404)
+        return
+    # Honour the global "Live Chat" admin switch.
+    from routers.settings import get_setting
+    if not await get_setting("live_chat_enabled", True):
+        await websocket.close(code=4503)  # service unavailable
         return
     try:
         claims = decode_session_jwt(token) if token else None

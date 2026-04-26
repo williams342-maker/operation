@@ -14,6 +14,7 @@ from routers.community import router as community_router
 from routers.credits import router as credits_router
 from routers.maker import router as maker_router
 from routers.seo import router as seo_router
+from routers.settings import router as settings_router
 from routers.stripe_connect import router as stripe_connect_router
 from routers.subscriptions import router as subscriptions_router
 from routers.analytics import router as analytics_router
@@ -34,6 +35,7 @@ api.include_router(analytics_router)
 api.include_router(admin_router)
 api.include_router(ai_router)
 api.include_router(community_router)
+api.include_router(settings_router)
 app.include_router(api)
 
 app.add_middleware(

@@ -37,7 +37,10 @@ import PolicyPage from "./pages/PolicyPage";
 import CommunityPage from "./pages/CommunityPage";
 import { CommunityLogin, CommunityVerify, CommunityAuthCallback } from "./pages/CommunityAuth";
 import AIAssistant from "./components/AIAssistant";
+import MaintenancePage from "./components/MaintenancePage";
+import BetaBanner from "./components/BetaBanner";
 import { trackPageview, captureAttribution } from "./lib/analytics";
+import { useSiteSettings } from "./hooks/useSiteSettings";
 
 const Home = () => (
   <>
@@ -67,43 +70,64 @@ function ScrollTop() {
   return null;
 }
 
+// Routes that bypass maintenance mode so operators can flip the switch back.
+const MAINT_BYPASS_PREFIXES = ["/admin", "/maker"];
+
+function MaintenanceGate({ children }) {
+  const settings = useSiteSettings();
+  const { pathname } = useLocation();
+  if (!settings) return children;
+  const bypass = MAINT_BYPASS_PREFIXES.some((p) => pathname.startsWith(p));
+  if (settings.maintenance_mode && !bypass) {
+    return <MaintenancePage message={settings.maintenance_message} />;
+  }
+  return (
+    <>
+      {settings.beta_mode && <BetaBanner message={settings.beta_message} />}
+      {children}
+    </>
+  );
+}
+
 function App() {
   return (
     <CartProvider>
       <BrowserRouter>
         <ScrollTop />
         <div className="App grain" data-testid="app-root">
-          <Nav />
-          <main>
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/shop" element={<ShopPage />} />
-              <Route path="/shop/:slug" element={<ProductDetail />} />
-              <Route path="/makers" element={<MakersPage />} />
-              <Route path="/makers/:slug" element={<MakerDetail />} />
-              <Route path="/custom-order" element={<CustomOrderPage />} />
-              <Route path="/apply" element={<ApplyPage />} />
-              <Route path="/journal" element={<JournalPage />} />
-              <Route path="/journal/:slug" element={<JournalDetail />} />
-              <Route path="/cart" element={<CartPage />} />
-              <Route path="/checkout/success" element={<CheckoutSuccess />} />
-              <Route path="/maker/login" element={<MakerLogin />} />
-              <Route path="/maker/verify" element={<MakerVerify />} />
-              <Route path="/maker/dashboard" element={<MakerDashboard />} />
-              <Route path="/maker/stripe/return" element={<MakerStripeReturn />} />
-              <Route path="/admin/login" element={<AdminLogin />} />
-              <Route path="/admin/verify" element={<AdminVerify />} />
-              <Route path="/admin/dashboard" element={<AdminDashboard />} />
-              <Route path="/contact" element={<ContactPage />} />
-              <Route path="/policy" element={<PolicyPage />} />
-              <Route path="/community" element={<CommunityPage />} />
-              <Route path="/community/login" element={<CommunityLogin />} />
-              <Route path="/community/verify" element={<CommunityVerify />} />
-              <Route path="/community/auth/callback" element={<CommunityAuthCallback />} />
-            </Routes>
-          </main>
-          <Footer />
-          <AIAssistant />
+          <MaintenanceGate>
+            <Nav />
+            <main>
+              <Routes>
+                <Route path="/" element={<Home />} />
+                <Route path="/shop" element={<ShopPage />} />
+                <Route path="/shop/:slug" element={<ProductDetail />} />
+                <Route path="/makers" element={<MakersPage />} />
+                <Route path="/makers/:slug" element={<MakerDetail />} />
+                <Route path="/custom-order" element={<CustomOrderPage />} />
+                <Route path="/apply" element={<ApplyPage />} />
+                <Route path="/journal" element={<JournalPage />} />
+                <Route path="/journal/:slug" element={<JournalDetail />} />
+                <Route path="/cart" element={<CartPage />} />
+                <Route path="/checkout/success" element={<CheckoutSuccess />} />
+                <Route path="/maker/login" element={<MakerLogin />} />
+                <Route path="/maker/verify" element={<MakerVerify />} />
+                <Route path="/maker/dashboard" element={<MakerDashboard />} />
+                <Route path="/maker/stripe/return" element={<MakerStripeReturn />} />
+                <Route path="/admin/login" element={<AdminLogin />} />
+                <Route path="/admin/verify" element={<AdminVerify />} />
+                <Route path="/admin/dashboard" element={<AdminDashboard />} />
+                <Route path="/contact" element={<ContactPage />} />
+                <Route path="/policy" element={<PolicyPage />} />
+                <Route path="/community" element={<CommunityPage />} />
+                <Route path="/community/login" element={<CommunityLogin />} />
+                <Route path="/community/verify" element={<CommunityVerify />} />
+                <Route path="/community/auth/callback" element={<CommunityAuthCallback />} />
+              </Routes>
+            </main>
+            <Footer />
+            <AIAssistant />
+          </MaintenanceGate>
         </div>
       </BrowserRouter>
     </CartProvider>

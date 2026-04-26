@@ -53,6 +53,21 @@ async def _job_plus_roi_digest() -> None:
         logger.exception("[scheduler] plus-roi digest failed: %s", e)
 
 
+async def _job_clear_idle_chat() -> None:
+    """Auto-purge messages from chat rooms that have been idle past the
+    configured window. Skipped at runtime when the admin toggle is OFF."""
+    from chat_cleanup import clear_idle_rooms
+    from routers.settings import get_setting
+    try:
+        if not await get_setting("auto_clear_idle_rooms", False):
+            return
+        r = await clear_idle_rooms()
+        if r["total_deleted"]:
+            logger.info("[scheduler] idle-chat cleanup: %s", r)
+    except Exception as e:
+        logger.exception("[scheduler] idle-chat cleanup failed: %s", e)
+
+
 def start_scheduler() -> AsyncIOScheduler | None:
     """Boot the scheduler if SCHEDULER_ENABLED isn't 'false'."""
     global _scheduler
@@ -69,6 +84,10 @@ def start_scheduler() -> AsyncIOScheduler | None:
                   id="r2_orphan_sweep", replace_existing=True)
     sched.add_job(_job_plus_roi_digest, CronTrigger(day=1, hour=14, minute=0),
                   id="plus_roi_digest", replace_existing=True)
+    # Idle-chat cleanup runs every 10 min; the job itself early-returns when
+    # the auto_clear_idle_rooms toggle is OFF, so no need to redeploy to switch.
+    sched.add_job(_job_clear_idle_chat, CronTrigger(minute="*/10"),
+                  id="clear_idle_chat", replace_existing=True)
     sched.start()
     _scheduler = sched
     logger.info(

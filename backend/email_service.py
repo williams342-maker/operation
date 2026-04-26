@@ -517,3 +517,25 @@ async def send_maker_plus_roi_digest(
         else f"You're ${abs(net_benefit):.2f} from Plus paying for itself · {maker_name}"
     )
     return await _send(maker_email, subj, html)
+
+
+
+async def send_beta_feedback(name: str, email: str, message: str, page: str = ""):
+    """Forward beta-mode feedback to the ops inbox so the team sees it instantly."""
+    if not OPS_EMAIL:
+        return
+    safe_msg = (message or "").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br/>")
+    body = f"""
+      <table width='100%' cellpadding='0' cellspacing='0' style='font-size:13px;border-top:1px solid #262626'>
+        {''.join(f"<tr><td style='padding:8px 0;color:#a3a3a3;font-size:11px;letter-spacing:0.22em;text-transform:uppercase'>{k}</td><td style='padding:8px 0;color:#e5e5e5;text-align:right'>{v}</td></tr>" for k, v in [('Name', name), ('Email', email), ('Page', page or '—')])}
+      </table>
+      <div style='font-size:13px;color:#e5e5e5;margin-top:18px;line-height:1.6;border-left:2px solid #ff4500;padding:6px 14px;background:#0d0d0d'>{safe_msg}</div>
+      <p style='font-size:11px;color:#a3a3a3;margin-top:18px'>Reply directly to <a href='mailto:{email}' style='color:#ff4500'>{email}</a> — they'll get it.</p>
+    """
+    html = _shell(
+        "Beta Feedback.",
+        "Someone just dropped feedback while testing the beta build.",
+        body,
+        "Crafters Market · Beta channel",
+    )
+    return await _send(OPS_EMAIL, f"Beta feedback · {name}", html)

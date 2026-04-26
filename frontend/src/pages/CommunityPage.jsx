@@ -12,6 +12,7 @@ import {
   communityMe, uploadAvatar,
   fetchProducts, fetchMakers,
 } from "../lib/api";
+import { useSiteSettings } from "../hooks/useSiteSettings";
 
 const TABS = [
   { id: "showcase", label: "Showcase" },
@@ -20,12 +21,40 @@ const TABS = [
   { id: "chat", label: "Live Chat" },
 ];
 
-const CHANNELS = ["general", "help", "showcase", "makers-only"];
+const CHANNELS = [
+  "general",
+  "machine-help",
+  "finishing-tips",
+  "design-share",
+  "buy-and-sell",
+  "show-off",
+  "beginners",
+  "advanced-cnc",
+  "off-topic",
+  "news-and-events",
+  "makers-only",
+];
+
+const CHANNEL_LABEL = {
+  "general": "General",
+  "machine-help": "Machine Help",
+  "finishing-tips": "Finishing Tips",
+  "design-share": "Design Share",
+  "buy-and-sell": "Buy & Sell",
+  "show-off": "Show Off",
+  "beginners": "Beginners",
+  "advanced-cnc": "Advanced CNC",
+  "off-topic": "Off Topic",
+  "news-and-events": "News & Events",
+  "makers-only": "Makers Only",
+};
 
 export default function CommunityPage() {
   const [tab, setTab] = useState("showcase");
   const [me, setMe] = useState(null);
   const navigate = useNavigate();
+  const settings = useSiteSettings();
+  const liveChatEnabled = !settings || settings.live_chat_enabled !== false;
 
   useEffect(() => {
     const jwt = localStorage.getItem("cm_buyer_jwt");
@@ -86,7 +115,7 @@ export default function CommunityPage() {
         </div>
 
         <div className="flex border-b border-[#262626] mb-8 overflow-x-auto" data-testid="community-tabs">
-          {TABS.map((t) => (
+          {TABS.filter((t) => t.id !== "chat" || liveChatEnabled).map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
@@ -103,7 +132,15 @@ export default function CommunityPage() {
         {tab === "showcase" && <ShowcaseTab me={me} />}
         {tab === "files" && <FilesTab me={me} />}
         {tab === "forum" && <ForumTab me={me} />}
-        {tab === "chat" && <ChatTab me={me} />}
+        {tab === "chat" && liveChatEnabled && <ChatTab me={me} />}
+        {tab === "chat" && !liveChatEnabled && (
+          <div className="border border-[#262626] p-8 text-center" data-testid="chat-disabled">
+            <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-3">◆ Chat Offline</div>
+            <p className="font-mono text-sm text-[#a3a3a3]">
+              Live chat is temporarily disabled by the workshop crew. Forum threads still work and are a great place to ask questions.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1219,7 +1256,7 @@ function ChannelSelector({ channel, setChannel, unread, mentions }) {
             }`}
             data-testid={`chat-channel-${c}`}
           >
-            #{c}
+            #{CHANNEL_LABEL[c] || c}
             {showBadge && (
               <span
                 className={`absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center font-mono text-[9px] ${

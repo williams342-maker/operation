@@ -25,6 +25,7 @@ import { Sparkline, DeltaBadge } from "../components/Charts";
 import { Stat } from "../components/admin/_shared";
 import UsersTab from "../components/admin/UsersTab";
 import DigestsTab from "../components/admin/DigestsTab";
+import SettingsTab from "../components/admin/SettingsTab";
 
 const TABS = [
   { id: "analytics", label: "Analytics" },
@@ -37,6 +38,7 @@ const TABS = [
   { id: "users", label: "Users" },
   { id: "reviews", label: "Reviews" },
   { id: "digests", label: "Digests" },
+  { id: "settings", label: "Settings" },
 ];
 
 const formatDate = (iso) => {
@@ -193,6 +195,7 @@ export default function AdminDashboard() {
         {tab === "users" && <UsersTab />}
         {tab === "reviews" && <ReviewsTab />}
         {tab === "digests" && <DigestsTab />}
+        {tab === "settings" && <SettingsTab />}
       </div>
     </div>
   );
