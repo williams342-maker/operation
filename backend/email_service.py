@@ -1,9 +1,10 @@
 """Transactional email helpers for Crafters Market.
 
-Supports five providers via EMAIL_PROVIDER env flag:
-  - "postmark" (default 2026-05): Postmark transactional REST API — primary
+Supports six providers via EMAIL_PROVIDER env flag:
+  - "mailtrap" (default 2026-05): Mailtrap Sending API — primary
+  - "postmark": Postmark transactional REST API (current fallback)
   - "sender": Sender.net transactional REST API
-  - "mailersend": MailerSend / MailerLite transactional REST API (current fallback)
+  - "mailersend": MailerSend / MailerLite transactional REST API
   - "brevo": Brevo / Sendinblue REST API
   - "resend": Resend SDK (legacy fallback)
 """
@@ -26,14 +27,15 @@ if not logger.handlers:
     logger.addHandler(h)
 logger.propagate = True
 
-EMAIL_PROVIDER = os.environ.get("EMAIL_PROVIDER", "postmark").lower()
-EMAIL_FALLBACK_PROVIDER = os.environ.get("EMAIL_FALLBACK_PROVIDER", "mailersend").lower()
+EMAIL_PROVIDER = os.environ.get("EMAIL_PROVIDER", "mailtrap").lower()
+EMAIL_FALLBACK_PROVIDER = os.environ.get("EMAIL_FALLBACK_PROVIDER", "postmark").lower()
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
 BREVO_API_KEY = os.environ.get("BREVO_API_KEY", "")
 MAILERSEND_API_KEY = os.environ.get("MAILERSEND_API_KEY", "")
 SENDER_API_KEY = os.environ.get("SENDER_API_KEY", "")
 POSTMARK_API_KEY = os.environ.get("POSTMARK_API_KEY", "")
 POSTMARK_MESSAGE_STREAM = os.environ.get("POSTMARK_MESSAGE_STREAM", "outbound")
+MAILTRAP_API_KEY = os.environ.get("MAILTRAP_API_KEY", "")
 SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "team@craftersmarket.org")
 SENDER_NAME = os.environ.get("SENDER_NAME", "Crafters Market")
 OPS_EMAIL = os.environ.get("OPS_EMAIL", "")
@@ -43,6 +45,8 @@ if RESEND_API_KEY:
 
 
 def _has_provider() -> bool:
+    if EMAIL_PROVIDER == "mailtrap":
+        return bool(MAILTRAP_API_KEY)
     if EMAIL_PROVIDER == "postmark":
         return bool(POSTMARK_API_KEY)
     if EMAIL_PROVIDER == "sender":
@@ -52,6 +56,44 @@ def _has_provider() -> bool:
     if EMAIL_PROVIDER == "brevo":
         return bool(BREVO_API_KEY)
     return bool(RESEND_API_KEY)
+
+
+async def _send_mailtrap(to: str, subject: str, html: str):
+    """Send via Mailtrap Sending API.
+    https://docs.mailtrap.io/developers/email-sending/transactional
+
+    Endpoint: POST https://send.api.mailtrap.io/api/send
+    Auth: Authorization: Bearer <MAILTRAP_API_KEY>
+    Note: SENDER_EMAIL's domain must be added + verified in Mailtrap
+    Sending Domains (Settings → Sending Domains) before sends succeed.
+    Otherwise Mailtrap returns 401/403 with an "errors" array.
+    """
+    payload = {
+        "from": {"email": SENDER_EMAIL, "name": SENDER_NAME},
+        "to": [{"email": to}],
+        "subject": subject,
+        "html": html,
+        "category": "transactional",
+    }
+    headers = {
+        "Authorization": f"Bearer {MAILTRAP_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    async with httpx.AsyncClient(timeout=15) as client:
+        r = await client.post(
+            "https://send.api.mailtrap.io/api/send",
+            json=payload, headers=headers,
+        )
+    if r.status_code >= 400:
+        logger.warning("mailtrap error %d → %s: %s", r.status_code, to, r.text[:300])
+        return {"_error": True, "status": r.status_code, "body": r.text[:500]}
+    body = r.json() if r.content else {}
+    if not body.get("success"):
+        logger.warning("mailtrap logical error → %s: %s", to, body.get("errors"))
+        return {"_error": True, "status": 422, "body": str(body)[:500]}
+    msg_id = (body.get("message_ids") or [None])[0]
+    logger.info("mailtrap sent → %s · id=%s", to, msg_id)
+    return {"message_id": msg_id, "status": r.status_code}
 
 
 async def _send_postmark(to: str, subject: str, html: str):
@@ -204,6 +246,8 @@ async def _send_resend(to: str, subject: str, html: str):
 
 async def _send_via(provider: str, to: str, subject: str, html: str):
     """Single dispatch — returns provider result dict or None."""
+    if provider == "mailtrap":
+        return await _send_mailtrap(to, subject, html)
     if provider == "postmark":
         return await _send_postmark(to, subject, html)
     if provider == "sender":
@@ -217,6 +261,7 @@ async def _send_via(provider: str, to: str, subject: str, html: str):
 
 def _provider_has_key(provider: str) -> bool:
     return bool({
+        "mailtrap": MAILTRAP_API_KEY,
         "postmark": POSTMARK_API_KEY,
         "sender": SENDER_API_KEY, "mailersend": MAILERSEND_API_KEY,
         "brevo": BREVO_API_KEY, "resend": RESEND_API_KEY,
