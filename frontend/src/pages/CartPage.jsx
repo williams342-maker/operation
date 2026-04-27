@@ -16,20 +16,42 @@ export default function CartPage() {
     try { return localStorage.getItem("cm_gift_note") || ""; } catch { return ""; }
   });
   const [quote, setQuote] = useState(null);
+  // Per-shop discount code state. Lives in localStorage so it persists
+  // across the cart-page reload that comes back from a Stripe cancel.
+  const [discountInput, setDiscountInput] = useState(() => {
+    try { return localStorage.getItem("cm_cart_discount") || ""; } catch { return ""; }
+  });
+  const [appliedCode, setAppliedCode] = useState(() => {
+    try { return localStorage.getItem("cm_cart_discount") || ""; } catch { return ""; }
+  });
 
   useEffect(() => {
     try { localStorage.setItem("cm_gift_note", giftNote); } catch {}
   }, [giftNote]);
 
-  // Live shipping/total quote (refreshes whenever cart changes)
+  // Live shipping/total quote (refreshes whenever cart OR applied code changes)
   useEffect(() => {
     if (!items.length) { setQuote(null); return; }
     let alive = true;
-    fetchCartQuote(items.map((i) => ({ product_id: i.id, quantity: i.quantity, variant_id: i.variant_id || undefined })))
+    fetchCartQuote(
+      items.map((i) => ({ product_id: i.id, quantity: i.quantity, variant_id: i.variant_id || undefined })),
+      appliedCode || null,
+    )
       .then((q) => { if (alive) setQuote(q); })
       .catch(() => { if (alive) setQuote(null); });
     return () => { alive = false; };
-  }, [items]);
+  }, [items, appliedCode]);
+
+  const applyCode = () => {
+    const c = (discountInput || "").trim().toUpperCase();
+    if (!c) return;
+    setAppliedCode(c);
+    try { localStorage.setItem("cm_cart_discount", c); } catch {}
+  };
+  const removeCode = () => {
+    setAppliedCode(""); setDiscountInput("");
+    try { localStorage.removeItem("cm_cart_discount"); } catch {}
+  };
 
   const checkout = async () => {
     if (!email || !/.+@.+\..+/.test(email)) {
@@ -46,6 +68,7 @@ export default function CartPage() {
         customer_email: email,
         gift_note: giftNote || undefined,
         attribution_source: getAttributionSource() || undefined,
+        discount_code: appliedCode || undefined,
         policy_accepted: true,
         policy_version: consent.version,
         policy_accepted_at: new Date().toISOString(),
@@ -121,6 +144,13 @@ export default function CartPage() {
                   testId="row-shipping"
                 />
                 <Row k="Tax" v="At checkout" testId="row-tax" />
+                {quote?.discount_code && (quote?.discount || 0) > 0 && (
+                  <Row
+                    k={`Discount · ${quote.discount_code}`}
+                    v={<span className="text-emerald-400">−${quote.discount.toFixed(2)}</span>}
+                    testId="row-discount"
+                  />
+                )}
               </div>
               {quote && remaining > 0 && (
                 <p
@@ -141,6 +171,57 @@ export default function CartPage() {
                   ${total.toFixed(2)}
                 </span>
               </div>
+
+              {/* Discount code — per-shop maker promo. Only applies to that
+                  shop's items in the cart; if the cart has multiple shops it
+                  discounts only the matching shop's subtotal. */}
+              <div className="mb-4 pb-4 border-b border-[#262626]" data-testid="cart-discount-block">
+                {appliedCode && quote?.discount_code ? (
+                  <div className="flex items-center justify-between gap-3" data-testid="cart-discount-applied">
+                    <div className="min-w-0">
+                      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-400">
+                        ✓ Code applied · {quote.discount_code}
+                      </div>
+                      <div className="font-mono text-[11px] text-[#a3a3a3] mt-0.5">
+                        −${(quote.discount || 0).toFixed(2)} off
+                      </div>
+                    </div>
+                    <button onClick={removeCode}
+                      className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500]"
+                      data-testid="cart-discount-remove">
+                      Remove
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] block mb-2">
+                      Discount Code
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={discountInput}
+                        onChange={(e) => setDiscountInput(e.target.value.toUpperCase())}
+                        placeholder="SUMMER15"
+                        className="flex-1 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm uppercase"
+                        data-testid="cart-discount-input"
+                        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); applyCode(); } }}
+                      />
+                      <button onClick={applyCode} disabled={!discountInput.trim()}
+                        className="px-4 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
+                        data-testid="cart-discount-apply">
+                        Apply
+                      </button>
+                    </div>
+                    {appliedCode && quote?.discount_error && (
+                      <p className="font-mono text-[11px] text-red-400 mt-2" data-testid="cart-discount-error">
+                        {quote.discount_error}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+
               <label className="block mb-4">
                 <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#a3a3a3]">Email for receipt</span>
                 <input

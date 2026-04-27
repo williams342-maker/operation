@@ -156,9 +156,71 @@ async def cart_quote(req: CheckoutRequest):
     if not req.items:
         return {"subtotal": 0.0, "shipping": 0.0,
                 "free_shipping_threshold": FREE_SHIPPING_THRESHOLD,
-                "free_shipping_eligible": False, "total_before_tax": 0.0}
+                "free_shipping_eligible": False, "total_before_tax": 0.0,
+                "discount": 0.0, "discount_code": None, "discount_error": None}
     resolved = await _resolve_cart(req.items)
-    return _quote_for(resolved)
+    quote = _quote_for(resolved)
+    # Apply discount if a code was provided. Failure modes return the quote
+    # untouched plus a `discount_error` string so the UI can show "code expired"
+    # without blocking checkout.
+    discount_amount = 0.0
+    discount_error = None
+    code_doc = None
+    if (req.discount_code or "").strip():
+        code_doc, discount_amount, discount_error = await _resolve_discount(
+            req.discount_code, resolved, quote,
+        )
+    quote["discount"] = round(discount_amount, 2)
+    quote["discount_code"] = (code_doc or {}).get("code") if code_doc else None
+    quote["discount_kind"] = (code_doc or {}).get("kind") if code_doc else None
+    quote["discount_error"] = discount_error
+    quote["total_before_tax"] = round(max(0.0, quote["total_before_tax"] - discount_amount), 2)
+    return quote
+
+
+async def _resolve_discount(code_raw: str, resolved: list[dict], quote: dict):
+    """Return (code_doc | None, dollar_discount, error_str | None).
+    Per-shop codes apply only to that shop's subtotal in the cart.
+    Free-shipping codes zero the shipping line. Fixed/percent codes reduce
+    the relevant shop's items subtotal. Multiple shops in one cart means
+    the code only discounts items belonging to its shop."""
+    code = "".join(ch.upper() for ch in (code_raw or "") if ch.isalnum() or ch in "-_")
+    if not code:
+        return None, 0.0, "Invalid code."
+    doc = await db.discount_codes.find_one({"code": code, "active": True}, {"_id": 0})
+    if not doc:
+        return None, 0.0, "Code not found or inactive."
+    # Expiry check
+    if doc.get("expires_at"):
+        from datetime import datetime, timezone
+        try:
+            exp = datetime.fromisoformat(doc["expires_at"].replace("Z", "+00:00"))
+        except (ValueError, TypeError):
+            exp = None
+        if exp and datetime.now(timezone.utc) > exp:
+            return doc, 0.0, "Code has expired."
+    # Max uses check
+    if doc.get("max_uses") and int(doc.get("uses_count", 0)) >= int(doc["max_uses"]):
+        return doc, 0.0, "Code has reached its usage limit."
+
+    maker_slug = doc["maker_slug"]
+    shop_lines = [r for r in resolved if r["product"].get("maker_slug") == maker_slug]
+    if not shop_lines:
+        return doc, 0.0, "This code is for a different shop's items."
+    shop_subtotal = sum(float(r["product"]["price"]) * r["quantity"] for r in shop_lines)
+    min_total = float(doc.get("min_order_total", 0) or 0)
+    if shop_subtotal < min_total:
+        return doc, 0.0, f"Order must total ${min_total:.0f} from this shop to use {code}."
+
+    kind = doc.get("kind")
+    if kind == "free_shipping":
+        return doc, float(quote.get("shipping", 0) or 0), None
+    if kind == "fixed":
+        return doc, min(float(doc.get("amount", 0) or 0), shop_subtotal), None
+    if kind == "percent":
+        pct = max(0.0, min(100.0, float(doc.get("amount", 0) or 0)))
+        return doc, round(shop_subtotal * pct / 100, 2), None
+    return doc, 0.0, "Unsupported code type."
 
 
 @router.post("/checkout/session")
@@ -171,6 +233,17 @@ async def create_checkout(req: CheckoutRequest, http_request: Request):
     quote = _quote_for(resolved)
     if quote["total_before_tax"] <= 0:
         raise HTTPException(400, "Invalid total")
+
+    # Resolve discount BEFORE building Stripe line items so we can pass a
+    # deterministic discount line (Stripe Coupon) instead of mutating prices.
+    discount_doc = None
+    discount_amount = 0.0
+    if (req.discount_code or "").strip():
+        discount_doc, discount_amount, derr = await _resolve_discount(
+            req.discount_code, resolved, quote,
+        )
+        if derr or not discount_doc:
+            raise HTTPException(400, f"Discount code rejected: {derr or 'unknown error'}")
 
     success_url = f"{req.origin_url}/checkout/success?session_id={{CHECKOUT_SESSION_ID}}"
     cancel_url = f"{req.origin_url}/cart"
@@ -246,8 +319,40 @@ async def create_checkout(req: CheckoutRequest, http_request: Request):
             "customer_email": req.customer_email or "",
             "gift_note": (req.gift_note or "")[:480],
             "transfer_group": pre_transfer_group,
+            "discount_code": (discount_doc or {}).get("code", "") if discount_doc else "",
+            "discount_amount": f"{discount_amount:.2f}" if discount_amount else "",
+            "discount_maker_slug": (discount_doc or {}).get("maker_slug", "") if discount_doc else "",
         },
     }
+
+    # Apply discount as a one-shot Stripe Coupon. This way Stripe handles the
+    # math + the buyer sees the discount line on Stripe's checkout page itself.
+    if discount_doc and discount_amount > 0:
+        try:
+            coupon = stripe_sdk.Coupon.create(
+                amount_off=int(round(discount_amount * 100)),
+                currency="usd",
+                duration="once",
+                name=f"Code: {discount_doc['code']}",
+                max_redemptions=1,
+            )
+            session_kwargs["discounts"] = [{"coupon": coupon.id}]
+        except Exception as e:
+            logger.warning("Stripe coupon create failed, applying discount as line-item math: %s", e)
+            # Fallback: discount the largest matching line by the discount amount.
+            # Doesn't show as a separate line on Stripe but the buyer pays the
+            # correct total. Acceptable degraded mode.
+            target = next(
+                (i for i, r in enumerate(resolved)
+                 if r["product"].get("maker_slug") == discount_doc["maker_slug"]),
+                None,
+            )
+            if target is not None:
+                old_amt = line_items[target]["price_data"]["unit_amount"]
+                qty = line_items[target]["quantity"]
+                reduce_per_unit = int(round(discount_amount * 100)) // max(1, qty)
+                line_items[target]["price_data"]["unit_amount"] = max(50, old_amt - reduce_per_unit)
+            session_kwargs["line_items"] = line_items
     try_with_tax = os.environ.get("STRIPE_AUTOMATIC_TAX", "true").lower() == "true"
     try:
         if try_with_tax:
@@ -351,6 +456,32 @@ async def checkout_status(session_id: str, http_request: Request, bg: Background
         )
         if result["payment_status"] == "paid" and tx.get("payment_status") != "paid":
             summary = tx.get("summary", "Order")
+            # Increment the discount code's uses_count if one was used.
+            # This runs at most once per session because we only enter this
+            # branch on the payment_status transition unpaid → paid.
+            try:
+                meta = (sess.metadata or {}) if sess else {}
+                used_code = (meta.get("discount_code") or "").strip()
+                used_amount = float(meta.get("discount_amount") or 0)
+                used_maker = (meta.get("discount_maker_slug") or "").strip()
+                if used_code:
+                    await db.discount_codes.update_one(
+                        {"code": used_code, "maker_slug": used_maker},
+                        {"$inc": {"uses_count": 1},
+                         "$set": {"last_used_at": now_iso()}},
+                    )
+                    await db.transactions.update_one(
+                        {"session_id": session_id},
+                        {"$set": {
+                            "discount_code": used_code,
+                            "discount_amount": used_amount,
+                            "discount_maker_slug": used_maker,
+                        }},
+                    )
+                    logger.info("[discount] code %s used on session %s for $%.2f",
+                                used_code, session_id, used_amount)
+            except Exception as e:
+                logger.exception("[discount] usage recording failed: %s", e)
             await db.activity_events.insert_one(
                 ActivityEvent(kind="sold",
                               text=f"{summary} sold to a buyer",

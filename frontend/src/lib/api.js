@@ -45,8 +45,12 @@ export const adminForceSignout = (token, payload) =>
     { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.data);
 export const createCheckout = (payload) => http.post("/checkout/session", payload).then((r) => r.data);
 export const getCheckoutStatus = (sid) => http.get(`/checkout/status/${sid}`).then((r) => r.data);
-export const fetchCartQuote = (items) =>
-  http.post("/cart/quote", { items, origin_url: window.location.origin }).then((r) => r.data);
+export const fetchCartQuote = (items, discount_code = null) =>
+  http.post("/cart/quote", {
+    items,
+    origin_url: window.location.origin,
+    discount_code: discount_code || null,
+  }).then((r) => r.data);
 
 // ---------- Maker portal (magic-link auth) ----------
 export const requestMakerLink = (email, origin_url) =>

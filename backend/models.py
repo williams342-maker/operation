@@ -226,6 +226,7 @@ class CheckoutRequest(BaseModel):
     customer_email: Optional[EmailStr] = None
     gift_note: Optional[str] = None
     attribution_source: Optional[str] = None   # off-site ad surcharge tag
+    discount_code: Optional[str] = None        # per-shop maker promo code
     # Audit-trail consent. Frontend must stamp this client-side at submit;
     # backend re-stamps a server-time value into the order doc.
     policy_accepted: bool = False
