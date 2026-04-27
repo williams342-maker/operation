@@ -224,6 +224,64 @@ async def ai_seo_audit(slug: str = Depends(current_maker_slug)):
     return payload
 
 
+# ───────────────────── Single-listing SEO Tag generator ─────────────────────
+SEO_TAGS_SYSTEM = """You generate SEO tags for a single handmade-marketplace listing.
+Given the listing's title, category, and description, produce up to 13 short,
+high-intent search tags a buyer would type into the marketplace search bar.
+
+Return EXACTLY a JSON object:
+{
+  "tags": ["array", "of", "lowercase", "tags"]
+}
+
+Rules:
+- All lowercase, no punctuation, no hashtags.
+- 1-3 words per tag (most should be 2 words).
+- Mix material, technique, style, recipient, occasion, room/use case.
+- Avoid duplicates and avoid the literal title.
+- 8-13 tags total.
+"""
+
+
+class SeoTagsIn(BaseModel):
+    title: str = Field(min_length=3, max_length=140)
+    description: str = Field(default="", max_length=4000)
+    category: str | None = None
+    existing_tags: list[str] = Field(default_factory=list)
+
+
+@router.post("/maker/ai/seo-tags")
+async def ai_seo_tags(payload: SeoTagsIn, slug: str = Depends(current_maker_slug)):
+    """Generate up to 13 SEO tags for ONE listing in-place. Used from the
+    Listing Editor's SEO section. Cheap & fast — no DB writes besides log."""
+    user_msg = (
+        f"Title: {payload.title.strip()}\n"
+        f"Category: {payload.category or 'unspecified'}\n"
+        f"Description: {payload.description.strip()[:1200]}\n"
+        f"Existing tags (don't repeat): {', '.join(payload.existing_tags or [])}\n"
+    )
+    out = await _claude_async(SEO_TAGS_SYSTEM, user_msg, max_chars=900)
+    if not out:
+        raise HTTPException(503, "AI is busy — please retry in a few seconds.")
+    raw = out.get("tags") or []
+    seen, tags = set(), []
+    existing_lower = {t.lower() for t in (payload.existing_tags or [])}
+    for t in raw:
+        c = str(t).lower().strip().strip("#,").replace("  ", " ")
+        if not c or c in seen or c in existing_lower or len(c) > 40:
+            continue
+        seen.add(c); tags.append(c)
+        if len(tags) >= 13:
+            break
+    await db.ai_marketing_log.insert_one({
+        "kind": "seo_tags", "maker_slug": slug,
+        "title": payload.title[:80], "tags_count": len(tags),
+        "created_at": now_iso(),
+    })
+    return {"tags": tags}
+
+
+
 # ───────────────────── Pricing Assistant ─────────────────────
 @router.get("/maker/ai/pricing-suggest/{product_slug}")
 async def ai_pricing_suggest(product_slug: str, slug: str = Depends(current_maker_slug)):

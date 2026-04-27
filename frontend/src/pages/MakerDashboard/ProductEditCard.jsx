@@ -1,4 +1,5 @@
 import React, { useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   updateMakerProduct, deleteMakerProduct, restoreMakerProduct,
   publishMakerProduct, unpublishMakerProduct, uploadMakerModel,
@@ -224,6 +225,13 @@ export default function ProductEditCard({ product, archived = false, draft = fal
           </button>
         ) : (
           <>
+            <Link
+              to={`/maker/listings/${p.slug}/edit`}
+              className="mt-3 w-full block text-center bg-[#ff4500] hover:bg-[#ff5f1f] text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] py-2 transition"
+              data-testid={`product-edit-link-${p.slug}`}
+            >
+              ✎ Edit listing
+            </Link>
             <button
               onClick={onTogglePublish}
               disabled={togglingStatus}

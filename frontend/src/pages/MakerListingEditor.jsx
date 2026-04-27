@@ -7,8 +7,10 @@ import {
 } from "lucide-react";
 import {
   fetchMakerMe, fetchMakerProducts, createMakerProduct,
-  updateMakerProduct, aiListingCopy, duplicateMakerProduct, uploadMakerVideo,
+  updateMakerProduct, aiListingCopy, aiSeoTags,
+  duplicateMakerProduct, uploadMakerVideo,
 } from "../lib/api";
+import ImageCropModal from "../components/ImageCropModal";
 
 /** Crafters Market — full-page Listing Editor.
  *  Used for both creating a new listing (`/maker/listings/new`) and editing an
@@ -52,43 +54,6 @@ const CARRIERS = ["USPS", "UPS", "FedEx", "DHL", "Other"];
 
 const MAX_IMAGES = 10;
 const MAX_TAGS = 13;
-const MAX_IMG_W = 1600;
-const MAX_IMG_KB = 130;
-
-// ---------- Image compression ----------
-function compressImageToDataUrl(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error("Could not read file"));
-    reader.onload = () => {
-      const img = new Image();
-      img.onerror = () => reject(new Error("Could not decode image"));
-      img.onload = () => {
-        const scale = Math.min(1, MAX_IMG_W / Math.max(img.width, img.height));
-        const w = Math.round(img.width * scale);
-        const h = Math.round(img.height * scale);
-        const canvas = document.createElement("canvas");
-        canvas.width = w; canvas.height = h;
-        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-        const tryEncode = (mime, q) => canvas.toDataURL(mime, q);
-        let mime = "image/webp";
-        let dataUrl = tryEncode(mime, 0.86);
-        if (!dataUrl.startsWith(`data:${mime}`)) {
-          mime = "image/jpeg";
-          dataUrl = tryEncode(mime, 0.86);
-        }
-        let q = 0.86;
-        while (dataUrl.length / 1024 > MAX_IMG_KB && q > 0.4) {
-          q -= 0.12;
-          dataUrl = tryEncode(mime, q);
-        }
-        resolve(dataUrl);
-      };
-      img.src = reader.result;
-    };
-    reader.readAsDataURL(file);
-  });
-}
 
 // ---------- Default state ----------
 const emptyForm = () => ({
@@ -190,6 +155,44 @@ export default function MakerListingEditor() {
 
   // ---- Photos ----
   const fileRef = useRef(null);
+  // Crop queue: pending files waiting to go through the crop modal.
+  const [cropQueue, setCropQueue] = useState([]);     // [dataUrl, ...]
+  const [seoBusy, setSeoBusy] = useState(false);
+
+  const onPickPhotos = async (e) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = "";
+    if (!files.length) return;
+    const room = MAX_IMAGES - form.images.length;
+    if (room <= 0) {
+      toast.error(`Max ${MAX_IMAGES} photos.`);
+      return;
+    }
+    const taking = files.slice(0, room);
+    if (files.length > room) toast.warning(`Only the first ${room} photos were added.`);
+    // Read each file into a data URL to feed react-easy-crop, then queue.
+    try {
+      const rawDataUrls = await Promise.all(
+        taking.map((f) => new Promise((res, rej) => {
+          const r = new FileReader();
+          r.onerror = () => rej(new Error("Could not read file"));
+          r.onload = () => res(r.result);
+          r.readAsDataURL(f);
+        })),
+      );
+      setCropQueue((cur) => [...cur, ...rawDataUrls]);
+    } catch (err) {
+      toast.error("Could not read one of those images.");
+    }
+  };
+
+  const onCropConfirm = (croppedDataUrl) => {
+    setForm((f) => ({ ...f, images: [...f.images, croppedDataUrl] }));
+    setCropQueue((q) => q.slice(1));
+  };
+  const onCropCancel = () => {
+    setCropQueue((q) => q.slice(1));   // skip — file is dropped
+  };
   const videoFileRef = useRef(null);
   const [videoUploading, setVideoUploading] = useState(0);   // 0..100
   const [videoErr, setVideoErr] = useState("");
@@ -224,24 +227,6 @@ export default function MakerListingEditor() {
     }
   };
   const removeVideo = () => set({ video_url: "" });
-  const onPickPhotos = async (e) => {
-    const files = Array.from(e.target.files || []);
-    e.target.value = "";
-    if (!files.length) return;
-    const room = MAX_IMAGES - form.images.length;
-    if (room <= 0) {
-      toast.error(`Max ${MAX_IMAGES} photos.`);
-      return;
-    }
-    const taking = files.slice(0, room);
-    if (files.length > room) toast.warning(`Only the first ${room} photos were added.`);
-    try {
-      const dataUrls = await Promise.all(taking.map(compressImageToDataUrl));
-      set({ images: [...form.images, ...dataUrls] });
-    } catch (err) {
-      toast.error("Could not process one of those images.");
-    }
-  };
   const removeImage = (i) => set({ images: form.images.filter((_, idx) => idx !== i) });
   const promoteCover = (i) => {
     if (i === 0) return;
@@ -274,6 +259,29 @@ export default function MakerListingEditor() {
       toast.error(err?.response?.data?.detail || "AI generation failed.");
     } finally {
       setAiBusy(false);
+    }
+  };
+
+  const runSeoAI = async () => {
+    if (!form.title.trim()) {
+      toast.error("Add a title first.");
+      return;
+    }
+    setSeoBusy(true);
+    try {
+      const r = await aiSeoTags({
+        title: form.title.trim(),
+        description: form.description,
+        category: form.category,
+        existing_tags: form.seo_tags,
+      });
+      const merged = Array.from(new Set([...(form.seo_tags || []), ...(r.tags || [])])).slice(0, MAX_TAGS);
+      set({ seo_tags: merged });
+      toast.success(`Added ${merged.length - (form.seo_tags?.length || 0)} new SEO tag${merged.length === 1 ? "" : "s"}.`);
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "AI tag generation failed.");
+    } finally {
+      setSeoBusy(false);
     }
   };
 
@@ -976,8 +984,19 @@ export default function MakerListingEditor() {
         <Section
           eyebrow="◆ Discoverability"
           title="SEO Tags"
-          subtitle="Tags help buyers discover your listing in search. Add up to 13 — one at a time."
+          subtitle="Tags help buyers discover your listing in search. Add up to 13 — one at a time, or let AI generate them from your title and description."
         >
+          <button
+            type="button" onClick={runSeoAI}
+            disabled={seoBusy || !form.title.trim() || form.seo_tags.length >= MAX_TAGS}
+            className="mb-4 inline-flex items-center gap-2 px-4 py-2 border border-[#ff4500] text-[#ff4500] hover:bg-[#ff4500]/10 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
+            data-testid="editor-seo-ai-btn"
+          >
+            <Sparkles size={14} /> {seoBusy ? "Generating…" : "✦ AI suggest tags"}
+          </button>
+          <p className="font-mono text-[10px] text-[#525252] -mt-2 mb-4">
+            ◆ Uses your current title, category, and description. Won't duplicate tags you've already added.
+          </p>
           <Label>Add tag <span className="text-[#525252]">{form.seo_tags.length}/{MAX_TAGS}</span></Label>
           <div className="flex gap-2">
             <input
@@ -1056,6 +1075,15 @@ export default function MakerListingEditor() {
           />
         </div>
       </div>
+
+      {/* Crop modal — pops while there are pending files in the queue. */}
+      {cropQueue.length > 0 && (
+        <ImageCropModal
+          src={cropQueue[0]}
+          onCancel={onCropCancel}
+          onConfirm={onCropConfirm}
+        />
+      )}
     </div>
   );
 }

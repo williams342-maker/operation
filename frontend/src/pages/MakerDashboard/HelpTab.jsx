@@ -1,5 +1,6 @@
-import React from "react";
-import { Camera, Package, DollarSign, Truck, Award, Sparkles, Shield } from "lucide-react";
+import React, { useState } from "react";
+import { Camera, Package, DollarSign, Truck, Award, Sparkles, Shield, Upload } from "lucide-react";
+import CsvImportModal from "./CsvImportModal";
 
 const GUIDES = [
   {
@@ -81,8 +82,11 @@ const GUIDES = [
   },
 ];
 
-/** Help tab — curated guidance for new makers. Static, fast to read. */
+/** Help tab — curated guidance for new makers. Static, fast to read.
+ *  Also hosts the CSV-import workflow (Etsy / Shopify migration) since
+ *  it's a one-time onboarding step rather than a daily-listings action. */
 export default function HelpTab() {
+  const [importing, setImporting] = useState(false);
   return (
     <div className="space-y-8" data-testid="help-tab">
       <header className="pb-6 border-b border-[#262626]">
@@ -95,6 +99,26 @@ export default function HelpTab() {
           </a>.
         </p>
       </header>
+
+      {/* CSV import card — primary onboarding action for makers migrating in */}
+      <article className="border border-[#ff4500]/40 bg-[#ff4500]/5 p-5 md:p-6 flex flex-col md:flex-row md:items-center gap-4 md:gap-6" data-testid="help-csv-import">
+        <div className="md:flex-1">
+          <div className="flex items-center gap-3 mb-2">
+            <Upload size={18} className="text-[#ff4500] shrink-0" />
+            <h3 className="font-display text-xl md:text-2xl uppercase">Migrate from Etsy or Shopify</h3>
+          </div>
+          <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed">
+            Already selling somewhere else? Export your listings as a CSV and we'll bring them over as drafts you can review before publishing. Etsy and Shopify formats both supported.
+          </p>
+        </div>
+        <button
+          onClick={() => setImporting(true)}
+          className="btn-industrial btn-primary inline-flex items-center gap-2 shrink-0"
+          data-testid="csv-import-btn"
+        >
+          <Upload size={14} /> Import CSV
+        </button>
+      </article>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
         {GUIDES.map((g) => {
           const Icon = g.icon;
@@ -133,6 +157,13 @@ export default function HelpTab() {
           Email support →
         </a>
       </div>
+
+      {importing && (
+        <CsvImportModal
+          onClose={() => setImporting(false)}
+          onImported={() => setImporting(false)}
+        />
+      )}
     </div>
   );
 }

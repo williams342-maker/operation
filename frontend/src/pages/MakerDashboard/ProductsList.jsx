@@ -1,13 +1,11 @@
-import React, { useState } from "react";
+import React from "react";
 import { useNavigate } from "react-router-dom";
-import { Hammer, Upload } from "lucide-react";
+import { Hammer } from "lucide-react";
 import ProductEditCard from "./ProductEditCard";
-import CsvImportModal from "./CsvImportModal";
 import EmptyState from "../../components/EmptyState";
 
 export default function ProductsList({ products, onChanged, onRefresh }) {
   const navigate = useNavigate();
-  const [importing, setImporting] = useState(false);
   const refresh = onChanged || onRefresh || (() => {});
   const goNew = () => navigate("/maker/listings/new");
   // 3 buckets: live (published, not deleted) · drafts · archived (soft-deleted)
@@ -24,14 +22,6 @@ export default function ProductsList({ products, onChanged, onRefresh }) {
           {removed.length > 0 && ` · ${removed.length} archived`}
         </div>
         <div className="flex gap-2">
-          <button
-            onClick={() => setImporting(true)}
-            className="btn-industrial inline-flex items-center gap-2"
-            data-testid="csv-import-btn"
-            title="Migrate from Etsy by uploading your shop CSV"
-          >
-            <Upload size={14} /> Import CSV
-          </button>
           <button
             onClick={goNew}
             className="btn-industrial btn-primary"
@@ -89,16 +79,6 @@ export default function ProductsList({ products, onChanged, onRefresh }) {
             </section>
           )}
         </>
-      )}
-
-      {importing && (
-        <CsvImportModal
-          onClose={() => setImporting(false)}
-          onImported={() => {
-            setImporting(false);
-            refresh();
-          }}
-        />
       )}
     </div>
   );
