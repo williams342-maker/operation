@@ -18,7 +18,7 @@ const SECTIONS = [
     id: "shipping",
     icon: Truck,
     title: "Shipping Policy",
-    intro: "All orders are processed within 1–3 business days after payment confirmation. Orders placed on weekends or holidays will begin processing the next business day.",
+    intro: "Crafters Market currently ships to U.S. addresses only. International shipping is not available at this time — we may add it in the future. All orders are processed within 1–3 business days after payment confirmation. Orders placed on weekends or holidays begin processing the next business day.",
     blocks: [
       {
         heading: "Domestic (U.S.) Shipping Estimates",
@@ -29,17 +29,18 @@ const SECTIONS = [
         ],
       },
       {
-        heading: "International Shipping",
-        list: [
-          ["Canada & Mexico:", "7–14 business days"],
-          ["All other countries:", "10–21 business days"],
+        heading: "International Orders",
+        bullets: [
+          "We do not ship outside the United States at this time",
+          "Checkout will only accept U.S. shipping addresses",
+          "International shipping may be enabled in the future — follow our newsletter for updates",
         ],
       },
     ],
     callout: {
-      tone: "warn",
+      tone: "info",
       icon: AlertTriangle,
-      text: "International buyers are responsible for any customs duties, import taxes, or fees charged by their country. Crafters Market is not liable for delays due to customs.",
+      text: "Shipping is currently limited to the 50 U.S. states, D.C., and U.S. territories. APO/FPO/DPO military addresses are accepted at standard domestic rates.",
     },
     outro: (
       <>

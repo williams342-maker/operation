@@ -234,7 +234,7 @@ async def create_checkout(req: CheckoutRequest, http_request: Request):
         "payment_method_types": ["card"],
         "line_items": line_items,
         "shipping_options": shipping_options,
-        "shipping_address_collection": {"allowed_countries": ["US", "CA"]},
+        "shipping_address_collection": {"allowed_countries": ["US"]},
         "success_url": success_url,
         "cancel_url": cancel_url,
         "payment_intent_data": {
