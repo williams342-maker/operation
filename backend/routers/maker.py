@@ -87,12 +87,40 @@ class MakerProductUpdate(BaseModel):
     description: Optional[str] = None
     price: Optional[float] = None
     in_stock: Optional[int] = None
+    category: Optional[str] = None
+    technique: Optional[str] = None
+    materials: Optional[List[str]] = None
+    dimensions: Optional[str] = None
     model_url: Optional[str] = None
+    video_url: Optional[str] = None
     images: Optional[List[str]] = None
     variants: Optional[List["ProductVariantInput"]] = None
     variant_axis1_name: Optional[str] = None
     variant_axis2_name: Optional[str] = None
     status: Optional[str] = None     # "draft" | "published"
+    # Extended fields — all optional so PATCH only updates what's sent.
+    who_made_it: Optional[str] = None
+    condition: Optional[str] = None
+    length_in: Optional[float] = None
+    width_in: Optional[float] = None
+    height_in: Optional[float] = None
+    dim_unit: Optional[str] = None
+    weight_lbs: Optional[float] = None
+    weight_oz: Optional[float] = None
+    colors: Optional[List[str]] = None
+    occasions: Optional[List[str]] = None
+    personalization_enabled: Optional[bool] = None
+    personalization_instructions: Optional[str] = None
+    free_shipping: Optional[bool] = None
+    shipping_domestic_usd: Optional[float] = None
+    shipping_international_usd: Optional[float] = None
+    shipping_carrier: Optional[str] = None
+    shipping_est_delivery: Optional[str] = None
+    processing_time: Optional[str] = None
+    accept_returns: Optional[bool] = None
+    accept_exchanges: Optional[bool] = None
+    seo_tags: Optional[List[str]] = None
+    contact_email: Optional[str] = None
 
 
 class ProductVariantInput(BaseModel):
@@ -122,6 +150,8 @@ async def maker_update_product(
         raise HTTPException(403, "You can only edit your own listings.")
     if payload.status and payload.status not in ("draft", "published"):
         raise HTTPException(400, "status must be 'draft' or 'published'.")
+    if payload.seo_tags is not None and len(payload.seo_tags) > 13:
+        raise HTTPException(400, "Maximum 13 SEO tags per listing.")
     if payload.variants is not None:
         for v in payload.variants:
             if not v.label.strip():
@@ -248,6 +278,8 @@ async def maker_create_product(
             )
     if payload.status not in ("draft", "published"):
         raise HTTPException(400, "status must be 'draft' or 'published'.")
+    if len(payload.seo_tags or []) > 13:
+        raise HTTPException(400, "Maximum 13 SEO tags per listing.")
     # Validate variants — labels are required and stock must be non-negative
     for v in payload.variants or []:
         if not v.label.strip():
@@ -316,12 +348,36 @@ async def maker_create_product(
         dimensions=payload.dimensions,
         images=final_images,
         model_url=payload.model_url,
+        video_url=payload.video_url,
         maker_slug=slug,
         in_stock=int(payload.in_stock),
         variants=final_variants,
         variant_axis1_name=payload.variant_axis1_name,
         variant_axis2_name=payload.variant_axis2_name,
         status=payload.status,
+        # Extended fields
+        who_made_it=payload.who_made_it,
+        condition=payload.condition,
+        length_in=payload.length_in,
+        width_in=payload.width_in,
+        height_in=payload.height_in,
+        dim_unit=payload.dim_unit or "in",
+        weight_lbs=payload.weight_lbs,
+        weight_oz=payload.weight_oz,
+        colors=payload.colors or [],
+        occasions=payload.occasions or [],
+        personalization_enabled=bool(payload.personalization_enabled),
+        personalization_instructions=payload.personalization_instructions,
+        free_shipping=bool(payload.free_shipping),
+        shipping_domestic_usd=payload.shipping_domestic_usd,
+        shipping_international_usd=payload.shipping_international_usd,
+        shipping_carrier=payload.shipping_carrier,
+        shipping_est_delivery=payload.shipping_est_delivery,
+        processing_time=payload.processing_time,
+        accept_returns=bool(payload.accept_returns),
+        accept_exchanges=bool(payload.accept_exchanges),
+        seo_tags=(payload.seo_tags or [])[:13],
+        contact_email=payload.contact_email,
         # Auto-set expiry only on publish; drafts have no expiry until published.
         expires_at=(
             __import__("revenue").expiry_iso_from_now()

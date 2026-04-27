@@ -457,3 +457,13 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
   - Pages now pass `ogType` per surface: `product` (ProductDetail), `profile` (MakerDetail), `website` (ShopPage). Old behavior had every page emit `og:type=website` regardless.
   - Choice rationale: kept the existing custom hook instead of pulling in `react-helmet-async` — same final HTML output, zero dependency churn, fewer moving parts in the SPA.
 
+
+
+## 2026-04-27 — Etsy-style New Listing Editor (full page)
+- ✅ **Replaced the old NewListingModal stub with a full-page Listing Editor** at `/maker/listings/new` and `/maker/listings/:slug/edit`. Layout follows the user-approved Etsy-style mock with 12 sections: Photos & Video, AI Assistant, Listing Details, Item Details (who-made-it, condition, dimensions, weight, colors, occasions), Pricing, Variations, Personalization, Shipping, Processing Time, Return Policy (with live "Buyer will see" preview), SEO Tags (max 13), Contact. Industrial dark + orange palette preserved per user instruction.
+- **Schema extension** (`models.py` Product + `routers/maker.py` MakerProductCreate / MakerProductUpdate): 21 new optional fields — `video_url`, `who_made_it`, `condition`, `length_in`, `width_in`, `height_in`, `dim_unit`, `weight_lbs`, `weight_oz`, `colors[]`, `occasions[]`, `personalization_enabled`, `personalization_instructions`, `free_shipping`, `shipping_domestic_usd`, `shipping_international_usd`, `shipping_carrier`, `shipping_est_delivery`, `processing_time`, `accept_returns`, `accept_exchanges`, `seo_tags[]` (max 13, validated server-side), `contact_email`. All fields default-safe; existing data unaffected (Pydantic `extra="ignore"`).
+- **AI Assistant** wired to existing `POST /api/maker/ai/listing-copy` (Claude Haiku 4.5) — populates Title, Description, and SEO Tags from a single bullets prompt; uses currently-selected category and target_price as context.
+- **Image compression** identical to the legacy modal: 1600px max edge, WebP/JPEG, sub-130KB target with adaptive quality.
+- **Validation**: title 100-char hard cap, description required, price > 0, ≥1 photo for publish, max 10 photos, max 13 SEO tags. Save Draft skips most validations; Publish enforces them.
+- **Sticky top + bottom action bars** with Cancel · Clone (edit only) · Preview · Save Draft · Publish.
+- **Verified end-to-end**: created a draft via curl with 25+ fields including colors/occasions/personalization/shipping/processing/returns/tags — every field round-trips through the API and the Mongo doc. PATCH partial updates work. UI screenshots confirm Photos, AI Assistant, Item Details (chip grids), Pricing, Variations, and Contact (auto-filled email from `fetchMakerMe`).

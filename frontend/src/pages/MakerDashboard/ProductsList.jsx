@@ -1,14 +1,15 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Hammer, Upload } from "lucide-react";
 import ProductEditCard from "./ProductEditCard";
-import NewListingModal from "./NewListingModal";
 import CsvImportModal from "./CsvImportModal";
 import EmptyState from "../../components/EmptyState";
 
 export default function ProductsList({ products, onChanged, onRefresh }) {
-  const [creating, setCreating] = useState(false);
+  const navigate = useNavigate();
   const [importing, setImporting] = useState(false);
   const refresh = onChanged || onRefresh || (() => {});
+  const goNew = () => navigate("/maker/listings/new");
   // 3 buckets: live (published, not deleted) · drafts · archived (soft-deleted)
   const live = products.filter((p) => !p.deleted_at && p.status !== "draft");
   const drafts = products.filter((p) => !p.deleted_at && p.status === "draft");
@@ -32,7 +33,7 @@ export default function ProductsList({ products, onChanged, onRefresh }) {
             <Upload size={14} /> Import CSV
           </button>
           <button
-            onClick={() => setCreating(true)}
+            onClick={goNew}
             className="btn-industrial btn-primary"
             data-testid="new-listing-btn"
           >
@@ -47,7 +48,7 @@ export default function ProductsList({ products, onChanged, onRefresh }) {
           eyebrow="◆ Workshop"
           title="Time to build."
           body="Your shop is live but empty. Add your first piece — buyers and our auto-newsletter will see it the moment you publish."
-          cta={{ label: "+ New Listing", onClick: () => setCreating(true), testId: "products-empty-cta" }}
+          cta={{ label: "+ New Listing", onClick: goNew, testId: "products-empty-cta" }}
           testId="products-empty"
         />
       ) : (
@@ -90,15 +91,6 @@ export default function ProductsList({ products, onChanged, onRefresh }) {
         </>
       )}
 
-      {creating && (
-        <NewListingModal
-          onClose={() => setCreating(false)}
-          onCreated={() => {
-            setCreating(false);
-            refresh();
-          }}
-        />
-      )}
       {importing && (
         <CsvImportModal
           onClose={() => setImporting(false)}

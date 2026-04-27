@@ -37,6 +37,7 @@ import PolicyPage from "./pages/PolicyPage";
 import CommunityPage from "./pages/CommunityPage";
 import { CommunityLogin, CommunityVerify, CommunityAuthCallback } from "./pages/CommunityAuth";
 import BuyerMessagesPage from "./pages/BuyerMessagesPage";
+import MakerListingEditor from "./pages/MakerListingEditor";
 import SignInPage, { ForgotPasswordPage, ResetPasswordPage } from "./pages/SignInPage";
 import AIAssistant from "./components/AIAssistant";
 import MaintenancePage from "./components/MaintenancePage";
@@ -154,6 +155,8 @@ function App() {
                 <Route path="/community/verify" element={<CommunityVerify />} />
                 <Route path="/community/auth/callback" element={<CommunityAuthCallback />} />
                 <Route path="/messages" element={<BuyerMessagesPage />} />
+                <Route path="/maker/listings/new" element={<MakerListingEditor />} />
+                <Route path="/maker/listings/:slug/edit" element={<MakerListingEditor />} />
               </Routes>
             </main>
             <Footer />

@@ -36,6 +36,7 @@ class Product(BaseModel):
     dimensions: Optional[str] = None
     images: List[str] = []
     model_url: Optional[str] = None   # 3D viewer (.glb / .gltf URL); optional
+    video_url: Optional[str] = None   # short showcase video (mp4/webm/mov), max ~50MB
     maker_slug: str
     in_stock: int = 4
     featured: bool = False
@@ -49,6 +50,36 @@ class Product(BaseModel):
     expires_at: Optional[str] = None
     promoted_until: Optional[str] = None  # ISO ts; if in the future, listing pinned
     deleted_at: Optional[str] = None  # soft-delete marker; hides from public views
+    # ---- Item details (extended) ----
+    who_made_it: Optional[str] = None       # "i_made_it" | "another_company" | "supplied_design"
+    condition: Optional[str] = None         # "new" | "made_to_order" | "vintage" | "refurbished"
+    # Structured dimensions — split out from the legacy `dimensions` string so
+    # buyers can filter and the listing detail page can render a clean table.
+    length_in: Optional[float] = None
+    width_in: Optional[float] = None
+    height_in: Optional[float] = None
+    dim_unit: Optional[str] = "in"          # "in" | "cm"
+    weight_lbs: Optional[float] = None
+    weight_oz: Optional[float] = None
+    colors: List[str] = []                  # e.g. ["black","copper"]
+    occasions: List[str] = []               # e.g. ["wedding","housewarming"]
+    # ---- Personalization ----
+    personalization_enabled: bool = False
+    personalization_instructions: Optional[str] = None
+    # ---- Shipping ----
+    free_shipping: bool = False
+    shipping_domestic_usd: Optional[float] = None
+    shipping_international_usd: Optional[float] = None
+    shipping_carrier: Optional[str] = None
+    shipping_est_delivery: Optional[str] = None  # e.g. "5-7 business days"
+    processing_time: Optional[str] = None        # e.g. "1-3 business days"
+    # ---- Returns ----
+    accept_returns: bool = False
+    accept_exchanges: bool = False
+    # ---- SEO ----
+    seo_tags: List[str] = []                # max 13, validated in router
+    # ---- Contact override (optional — defaults to maker email) ----
+    contact_email: Optional[str] = None
     created_at: str = Field(default_factory=now_iso)
 
 
@@ -64,11 +95,35 @@ class MakerProductCreate(BaseModel):
     dimensions: Optional[str] = None
     images: List[str] = []
     model_url: Optional[str] = None
+    video_url: Optional[str] = None
     in_stock: int = 4
     variants: List[ProductVariant] = []
     variant_axis1_name: Optional[str] = None
     variant_axis2_name: Optional[str] = None
     status: str = "published"          # accept "draft" to save without publishing
+    # Extended item-detail fields (all optional, backwards compatible)
+    who_made_it: Optional[str] = None
+    condition: Optional[str] = None
+    length_in: Optional[float] = None
+    width_in: Optional[float] = None
+    height_in: Optional[float] = None
+    dim_unit: Optional[str] = "in"
+    weight_lbs: Optional[float] = None
+    weight_oz: Optional[float] = None
+    colors: List[str] = []
+    occasions: List[str] = []
+    personalization_enabled: bool = False
+    personalization_instructions: Optional[str] = None
+    free_shipping: bool = False
+    shipping_domestic_usd: Optional[float] = None
+    shipping_international_usd: Optional[float] = None
+    shipping_carrier: Optional[str] = None
+    shipping_est_delivery: Optional[str] = None
+    processing_time: Optional[str] = None
+    accept_returns: bool = False
+    accept_exchanges: bool = False
+    seo_tags: List[str] = []
+    contact_email: Optional[str] = None
 
 
 class Maker(BaseModel):
