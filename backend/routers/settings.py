@@ -243,7 +243,7 @@ async def admin_email_status(_: dict = Depends(current_admin)):
         {}, {"_id": 0},
     ).sort("created_at", -1).to_list(50)
     return {
-        "provider": os.environ.get("EMAIL_PROVIDER", "mailersend"),
+        "provider": os.environ.get("EMAIL_PROVIDER", "postmark"),
         "sender": os.environ.get("SENDER_EMAIL", ""),
         "ops_email": os.environ.get("OPS_EMAIL", ""),
         "today": {"sent": sent_today, "failed": failed_today, "skipped": skipped_today},

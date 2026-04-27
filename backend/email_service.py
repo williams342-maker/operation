@@ -1,8 +1,9 @@
 """Transactional email helpers for Crafters Market.
 
-Supports four providers via EMAIL_PROVIDER env flag:
-  - "sender" (default 2026-04): Sender.net transactional REST API
-  - "mailersend": MailerSend / MailerLite transactional REST API
+Supports five providers via EMAIL_PROVIDER env flag:
+  - "postmark" (default 2026-05): Postmark transactional REST API — primary
+  - "sender": Sender.net transactional REST API
+  - "mailersend": MailerSend / MailerLite transactional REST API (current fallback)
   - "brevo": Brevo / Sendinblue REST API
   - "resend": Resend SDK (legacy fallback)
 """
@@ -25,12 +26,14 @@ if not logger.handlers:
     logger.addHandler(h)
 logger.propagate = True
 
-EMAIL_PROVIDER = os.environ.get("EMAIL_PROVIDER", "sender").lower()
+EMAIL_PROVIDER = os.environ.get("EMAIL_PROVIDER", "postmark").lower()
 EMAIL_FALLBACK_PROVIDER = os.environ.get("EMAIL_FALLBACK_PROVIDER", "mailersend").lower()
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
 BREVO_API_KEY = os.environ.get("BREVO_API_KEY", "")
 MAILERSEND_API_KEY = os.environ.get("MAILERSEND_API_KEY", "")
 SENDER_API_KEY = os.environ.get("SENDER_API_KEY", "")
+POSTMARK_API_KEY = os.environ.get("POSTMARK_API_KEY", "")
+POSTMARK_MESSAGE_STREAM = os.environ.get("POSTMARK_MESSAGE_STREAM", "outbound")
 SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "team@craftersmarket.org")
 SENDER_NAME = os.environ.get("SENDER_NAME", "Crafters Market")
 OPS_EMAIL = os.environ.get("OPS_EMAIL", "")
@@ -40,6 +43,8 @@ if RESEND_API_KEY:
 
 
 def _has_provider() -> bool:
+    if EMAIL_PROVIDER == "postmark":
+        return bool(POSTMARK_API_KEY)
     if EMAIL_PROVIDER == "sender":
         return bool(SENDER_API_KEY)
     if EMAIL_PROVIDER == "mailersend":
@@ -47,6 +52,50 @@ def _has_provider() -> bool:
     if EMAIL_PROVIDER == "brevo":
         return bool(BREVO_API_KEY)
     return bool(RESEND_API_KEY)
+
+
+async def _send_postmark(to: str, subject: str, html: str):
+    """Send via Postmark transactional REST API.
+    https://postmarkapp.com/developer/user-guide/send-email-with-api
+
+    Endpoint: POST https://api.postmarkapp.com/email
+    Auth: X-Postmark-Server-Token: <POSTMARK_API_KEY>
+    Note: SENDER_EMAIL must be verified as a Sender Signature in the
+    Postmark dashboard (Sender Signatures tab) before sends succeed —
+    otherwise Postmark returns 422 with ErrorCode 300.
+    """
+    payload = {
+        "From": f"{SENDER_NAME} <{SENDER_EMAIL}>",
+        "To": to,
+        "Subject": subject,
+        "HtmlBody": html,
+        "MessageStream": POSTMARK_MESSAGE_STREAM,
+        "TrackOpens": False,
+    }
+    headers = {
+        "X-Postmark-Server-Token": POSTMARK_API_KEY,
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+    async with httpx.AsyncClient(timeout=15) as client:
+        r = await client.post(
+            "https://api.postmarkapp.com/email",
+            json=payload, headers=headers,
+        )
+    if r.status_code >= 400:
+        logger.warning("postmark error %d → %s: %s", r.status_code, to, r.text[:300])
+        return {"_error": True, "status": r.status_code, "body": r.text[:500]}
+    body = r.json() if r.content else {}
+    # Postmark returns ErrorCode=0 on success, MessageID is a UUID.
+    if body.get("ErrorCode") and int(body.get("ErrorCode") or 0) != 0:
+        logger.warning(
+            "postmark logical error %s → %s: %s",
+            body.get("ErrorCode"), to, body.get("Message"),
+        )
+        return {"_error": True, "status": 422, "body": str(body)[:500]}
+    msg_id = body.get("MessageID")
+    logger.info("postmark sent → %s · id=%s", to, msg_id)
+    return {"message_id": msg_id, "status": r.status_code}
 
 
 async def _send_sender(to: str, subject: str, html: str):
@@ -155,6 +204,8 @@ async def _send_resend(to: str, subject: str, html: str):
 
 async def _send_via(provider: str, to: str, subject: str, html: str):
     """Single dispatch — returns provider result dict or None."""
+    if provider == "postmark":
+        return await _send_postmark(to, subject, html)
     if provider == "sender":
         return await _send_sender(to, subject, html)
     if provider == "mailersend":
@@ -166,6 +217,7 @@ async def _send_via(provider: str, to: str, subject: str, html: str):
 
 def _provider_has_key(provider: str) -> bool:
     return bool({
+        "postmark": POSTMARK_API_KEY,
         "sender": SENDER_API_KEY, "mailersend": MAILERSEND_API_KEY,
         "brevo": BREVO_API_KEY, "resend": RESEND_API_KEY,
     }.get(provider))
