@@ -464,18 +464,37 @@ async def create_thread(payload: ForumThreadCreate, claims: dict = Depends(curre
     cat = (payload.category or payload.tag or "general").lower()
     if cat not in FORUM_CATEGORY_IDS:
         raise HTTPException(400, f"Unknown category '{cat}'.")
+    title = payload.title.strip()[:200]
+    body = payload.body.strip()[:8000]
+    # AI moderation pre-insert. Fails-open on any error so a transient LLM
+    # outage doesn't block legit posts. Same allow/warn/block model as chat.
+    try:
+        from ai_moderator import moderate_message
+        action, reason = await moderate_message(
+            channel=f"forum:{cat}",
+            user_email=user["email"],
+            user_name=user.get("name", "") or user["email"].split("@")[0],
+            text=f"{title}\n\n{body}",
+        )
+    except Exception as e:
+        logger.exception("[ai_mod] forum thread moderator crashed, allowing: %s", e)
+        action, reason = "allow", "exception_fail_open"
+    if action == "block":
+        raise HTTPException(403, f"Your post was held by the auto-moderator: {reason}")
     doc = {
         "id": str(uuid.uuid4()),
         "user_id": claims["sub"],
         "user_email": user["email"],
         "user_name": user.get("name", ""),
-        "title": payload.title.strip()[:200],
-        "body": payload.body.strip()[:8000],
+        "title": title,
+        "body": body,
         "category": cat,
         "attachments": [a.model_dump() for a in (payload.attachments or [])][:6],
         "tag": cat,           # alias for backward compat
         "reply_count": 0,
         "created_at": now_iso(),
+        "ai_mod_action": action,    # 'allow' | 'warn'
+        "ai_mod_reason": reason or None,
     }
     await db.forum_threads.insert_one(doc)
     doc.pop("_id", None)
@@ -488,15 +507,32 @@ async def reply_thread(thread_id: str, payload: ForumReplyCreate, claims: dict =
     if not thread:
         raise HTTPException(404, "Thread not found")
     user = await _ensure_user_can_post(claims["sub"])
+    body = payload.body.strip()[:8000]
+    # AI moderation pre-insert.
+    try:
+        from ai_moderator import moderate_message
+        action, reason = await moderate_message(
+            channel=f"forum:{thread.get('category', 'general')}",
+            user_email=user["email"],
+            user_name=user.get("name", "") or user["email"].split("@")[0],
+            text=body,
+        )
+    except Exception as e:
+        logger.exception("[ai_mod] forum reply moderator crashed, allowing: %s", e)
+        action, reason = "allow", "exception_fail_open"
+    if action == "block":
+        raise HTTPException(403, f"Your reply was held by the auto-moderator: {reason}")
     doc = {
         "id": str(uuid.uuid4()),
         "thread_id": thread_id,
         "user_id": claims["sub"],
         "user_email": user["email"],
         "user_name": user.get("name", ""),
-        "body": payload.body.strip()[:8000],
+        "body": body,
         "attachments": [a.model_dump() for a in (payload.attachments or [])][:6],
         "created_at": now_iso(),
+        "ai_mod_action": action,
+        "ai_mod_reason": reason or None,
     }
     await db.forum_replies.insert_one(doc)
     await db.forum_threads.update_one({"id": thread_id}, {"$inc": {"reply_count": 1}})

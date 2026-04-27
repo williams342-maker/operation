@@ -54,8 +54,8 @@ const SWITCHES = [
   },
   {
     key: "ai_moderator_enabled",
-    label: "AI Moderator (live chat)",
-    blurb: "When ON, every chat message is classified by Claude before broadcast. Slurs/threats are blocked and the offender gets a private notice; spammy messages get a warn nudge but still post. Decisions are logged to the audit log.",
+    label: "AI Moderator (chat & forum)",
+    blurb: "When ON, every chat message AND every forum thread/reply is classified by Claude before being saved. Slurs/threats are blocked and the offender gets a private notice; spammy messages get a warn nudge but still post. Decisions are logged to the audit log with a `chat:`/`forum:` channel prefix.",
     tone: "primary",
   },
 ];

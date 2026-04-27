@@ -202,7 +202,7 @@ async def ws_chat(websocket: WebSocket, channel: str, token: str = Query("")):
             try:
                 from ai_moderator import moderate_message
                 action, reason = await moderate_message(
-                    channel=channel, user_email=user_email,
+                    channel=f"chat:{channel}", user_email=user_email,
                     user_name=display_name, text=text,
                 )
             except Exception as e:
