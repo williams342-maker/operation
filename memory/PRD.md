@@ -422,3 +422,24 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - P1.5 (two-person rule + IP allowlist): ~6 hours
 - Total: ~10 hours when picked up
 
+
+
+## 2026-04-27 — Discount Codes E2E Verified
+- ✅ **Phase 2.5 Maker Discount Codes — checkout flow verified end-to-end.**
+  - Backend `/api/cart/quote` & `/api/checkout/session` accept `discount_code`, validate per-shop, apply percent/fixed/free-shipping, surface `discount_error` on invalid/expired/wrong-shop codes.
+  - Stripe coupon (one-shot, `max_redemptions=1`) attached to Checkout Session so Stripe shows the discount line natively. Fallback path discounts the matching line item if coupon create fails.
+  - `uses_count` increments once on `unpaid → paid` transition (idempotent via webhook gating).
+  - `CartPage.jsx` UI: per-shop discount input with `cm_cart_discount` localStorage persistence (survives Stripe cancel→cart bounce), green "✓ Code applied" applied banner with Remove, red `Code not found or inactive.` error state for invalid codes, `Discount · CODE` line item in summary, total recomputes live via `fetchCartQuote(items, code)`.
+  - Verified visually with Mountain Range Silhouette ($149 + $25 ship → $174 baseline; 15% code → $151.65; remove → $174 again; bad code → preserves $174 with red error).
+- 🟢 Closes the only P0 outstanding from the Maker Shop Manager rollout. All 9 tabs (Listings, Orders, Messages, Stats, Violations, Marketing, Financials, Help, Upgrade) + AI Marketing tools + CSV Import + Discount Codes are now functional end-to-end.
+
+## Outstanding Backlog
+- **P1** Messages DM system — currently a stub in the Maker Shop Manager. Needs full buyer↔maker threading + Postmark notification emails.
+- **P1** Dynamic SEO meta tags via `react-helmet` on ProductDetail / MakerDetail / ShopPage.
+- **P2** Multi-tier Admin Team & Role Management (spec above).
+- **P2** Shopify CSV Import (Etsy mapping done; Shopify needs different mapping).
+- **P3** Dormant buyer retention — Kit.com automated tagging + auto-trigger discount.
+
+## Blocked (waiting on user)
+- Mailtrap DNS verification in Cloudflare (Postmark covers 100% of mail in the meantime — no buyer impact).
+- Google Ads Developer Token (22-char) for off-site ad spend integration.
