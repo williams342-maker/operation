@@ -235,6 +235,38 @@ export default function MakerListingEditor() {
     set({ images: next });
   };
 
+  // ---- Drag-to-reorder ----
+  // Tracks the index currently being dragged and the index hovered over.
+  // We commit the reorder on `onDrop` of the target tile.
+  const [dragSrc, setDragSrc] = useState(null);
+  const [dragOver, setDragOver] = useState(null);
+  const onDragStart = (i) => (e) => {
+    setDragSrc(i);
+    e.dataTransfer.effectAllowed = "move";
+    // Required for Firefox to actually fire dragover.
+    try { e.dataTransfer.setData("text/plain", String(i)); } catch (_) { /* ignore */ }
+  };
+  const onDragOver = (i) => (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    if (dragOver !== i) setDragOver(i);
+  };
+  const onDragLeaveTile = (i) => () => {
+    if (dragOver === i) setDragOver(null);
+  };
+  const onDrop = (target) => (e) => {
+    e.preventDefault();
+    const src = dragSrc;
+    setDragSrc(null);
+    setDragOver(null);
+    if (src == null || src === target) return;
+    const next = [...form.images];
+    const [moved] = next.splice(src, 1);
+    next.splice(target, 0, moved);
+    set({ images: next });
+  };
+  const onDragEnd = () => { setDragSrc(null); setDragOver(null); };
+
   // ---- AI Assistant ----
   const runAI = async () => {
     if (!aiPrompt.trim()) {
@@ -483,17 +515,32 @@ export default function MakerListingEditor() {
         <Section
           eyebrow="◆ Media"
           title="Photos & Video"
-          subtitle="Add up to 10 photos. The first image is your cover photo. Click 'Set as cover' on any thumbnail to promote it."
+          subtitle="Add up to 10 photos. The first image is your cover photo. Drag any photo to reorder, or click 'Set as cover' to promote it."
           counter={`${form.images.length}/${MAX_IMAGES} photos · ${form.video_url ? "1/1" : "0/1"} video`}
         >
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {form.images.map((src, i) => (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3" data-testid="editor-photo-grid">
+            {form.images.map((src, i) => {
+              const isDragging = dragSrc === i;
+              const isOver = dragOver === i && dragSrc != null && dragSrc !== i;
+              return (
               <div
                 key={i}
-                className={`relative aspect-square border ${i === 0 ? "border-[#ff4500]" : "border-[#262626]"} group overflow-hidden`}
+                draggable={true}
+                onDragStart={onDragStart(i)}
+                onDragOver={onDragOver(i)}
+                onDragLeave={onDragLeaveTile(i)}
+                onDrop={onDrop(i)}
+                onDragEnd={onDragEnd}
+                className={`relative aspect-square border group overflow-hidden cursor-grab active:cursor-grabbing transition ${
+                  isOver
+                    ? "border-[#ff4500] border-2 ring-2 ring-[#ff4500]/40"
+                    : i === 0
+                      ? "border-[#ff4500]"
+                      : "border-[#262626]"
+                } ${isDragging ? "opacity-40" : ""}`}
                 data-testid={`editor-image-${i}`}
               >
-                <img src={src} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                <img src={src} alt="" className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
                 {i === 0 && (
                   <span className="absolute top-1 left-1 bg-[#ff4500] text-[#0a0a0a] text-[9px] font-mono px-1.5 py-0.5 uppercase tracking-[0.18em]">
                     ◆ Cover
@@ -519,7 +566,8 @@ export default function MakerListingEditor() {
                   </button>
                 </div>
               </div>
-            ))}
+              );
+            })}
             {form.images.length < MAX_IMAGES && (
               <button
                 type="button"

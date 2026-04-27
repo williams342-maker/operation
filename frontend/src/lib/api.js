@@ -78,6 +78,8 @@ export const aiListingCopy = (payload) =>
   http.post("/maker/ai/listing-copy", payload, { headers: authHeaders() }).then((r) => r.data);
 export const aiSeoTags = (payload) =>
   http.post("/maker/ai/seo-tags", payload, { headers: authHeaders() }).then((r) => r.data);
+export const aiSeoBulk = (payload) =>
+  http.post("/maker/ai/seo-bulk", payload, { headers: authHeaders() }).then((r) => r.data);
 export const aiSeoAudit = () =>
   http.get("/maker/ai/seo-audit", { headers: authHeaders() }).then((r) => r.data);
 export const aiPricingSuggest = (productSlug) =>

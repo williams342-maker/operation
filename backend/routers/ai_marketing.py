@@ -281,6 +281,86 @@ async def ai_seo_tags(payload: SeoTagsIn, slug: str = Depends(current_maker_slug
     return {"tags": tags}
 
 
+# ───────────────────── Bulk SEO tag generator ─────────────────────
+class BulkSeoIn(BaseModel):
+    # Limits per call so makers can iterate (and we don't burn the LLM budget).
+    max_listings: int = Field(default=50, ge=1, le=200)
+    # Only listings with FEWER than this many tags get topped up. 0 = generate
+    # tags only for listings that have none at all.
+    min_tags_threshold: int = Field(default=8, ge=0, le=13)
+
+
+@router.post("/maker/ai/seo-bulk")
+async def ai_seo_bulk(payload: BulkSeoIn, slug: str = Depends(current_maker_slug)):
+    """Run the SEO tag generator across every published, non-deleted listing
+    in the maker's shop that has fewer than `min_tags_threshold` tags.
+    Returns a per-listing summary; nothing is mutated until the maker
+    reviews the preview... actually scratch that — most makers want this
+    one-click, so we DO write the new tags inline. Each listing's existing
+    tags are preserved (only added to)."""
+    cur = db.products.find(
+        {"maker_slug": slug, "status": "published", "deleted_at": None},
+        {"_id": 0, "id": 1, "slug": 1, "title": 1, "description": 1,
+         "category": 1, "seo_tags": 1},
+    )
+    candidates = []
+    async for p in cur:
+        existing = p.get("seo_tags") or []
+        if len(existing) < payload.min_tags_threshold:
+            candidates.append(p)
+        if len(candidates) >= payload.max_listings:
+            break
+
+    results = []
+    total_added = 0
+    for p in candidates:
+        existing = p.get("seo_tags") or []
+        try:
+            user_msg = (
+                f"Title: {p.get('title','').strip()}\n"
+                f"Category: {p.get('category') or 'unspecified'}\n"
+                f"Description: {(p.get('description') or '').strip()[:1200]}\n"
+                f"Existing tags (don't repeat): {', '.join(existing)}\n"
+            )
+            out = await _claude_async(SEO_TAGS_SYSTEM, user_msg, max_chars=900)
+        except Exception as e:
+            logger.warning("[bulk-seo] claude failed for %s: %s", p.get("slug"), e)
+            out = None
+        new_tags: list[str] = []
+        if out and isinstance(out.get("tags"), list):
+            existing_lower = {t.lower() for t in existing}
+            seen = set()
+            for t in out["tags"]:
+                c = str(t).lower().strip().strip("#,").replace("  ", " ")
+                if not c or c in existing_lower or c in seen or len(c) > 40:
+                    continue
+                seen.add(c); new_tags.append(c)
+                if len(existing) + len(new_tags) >= 13:
+                    break
+        merged = (existing + new_tags)[:13]
+        if new_tags:
+            await db.products.update_one(
+                {"id": p["id"]}, {"$set": {"seo_tags": merged}},
+            )
+        results.append({
+            "slug": p["slug"], "title": p.get("title", "")[:60],
+            "added_count": len(new_tags), "added_tags": new_tags,
+            "total_tags_after": len(merged),
+        })
+        total_added += len(new_tags)
+    await db.ai_marketing_log.insert_one({
+        "kind": "seo_bulk", "maker_slug": slug,
+        "scanned": len(candidates), "added": total_added,
+        "created_at": now_iso(),
+    })
+    return {
+        "scanned": len(candidates),
+        "total_added": total_added,
+        "results": results,
+    }
+
+
+
 
 # ───────────────────── Pricing Assistant ─────────────────────
 @router.get("/maker/ai/pricing-suggest/{product_slug}")

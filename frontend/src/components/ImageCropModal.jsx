@@ -4,17 +4,24 @@ import { X, Check, RotateCcw } from "lucide-react";
 
 /** Crop modal for product photos.
  *  Wraps `react-easy-crop` so the caller just receives the final cropped
- *  data URL. We crop to **square** because our listing grid renders
- *  aspect-square thumbnails — non-square uploads otherwise produce odd
- *  letterboxes on the cards. Caller can override aspect via `aspect` prop.
+ *  data URL. Default aspect is **square** (1:1) since our listing grid uses
+ *  aspect-square thumbnails — but the maker can switch to 4:5 portrait or
+ *  16:9 wide for lifestyle/video-card shots before confirming.
  */
+const ASPECT_PRESETS = [
+  { id: "1:1",  ratio: 1,        label: "Square",   hint: "Catalog grid · default" },
+  { id: "4:5",  ratio: 4 / 5,    label: "Portrait", hint: "Lifestyle · IG-feed style" },
+  { id: "16:9", ratio: 16 / 9,   label: "Wide",     hint: "Video card · banner" },
+];
+
 export default function ImageCropModal({
   src, onCancel, onConfirm,
-  aspect = 1,
+  defaultAspect = 1,
   outputMaxEdge = 1600,        // matches MakerListingEditor compression target
   outputMime = "image/webp",
   outputQuality = 0.86,
 }) {
+  const [aspect, setAspect] = useState(defaultAspect);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [rotation, setRotation] = useState(0);
@@ -56,6 +63,29 @@ export default function ImageCropModal({
           <button onClick={onCancel} aria-label="Close" className="p-2 text-[#a3a3a3] hover:text-[#ff4500]" data-testid="crop-cancel">
             <X size={18} />
           </button>
+        </div>
+
+        <div className="px-5 py-3 border-b border-[#262626] flex items-center gap-2 flex-wrap" data-testid="crop-aspect-row">
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mr-1">Aspect</span>
+          {ASPECT_PRESETS.map((p) => {
+            const active = Math.abs(aspect - p.ratio) < 0.001;
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => setAspect(p.ratio)}
+                title={p.hint}
+                className={`px-3 py-1.5 border font-mono text-[10px] uppercase tracking-[0.18em] ${
+                  active
+                    ? "border-[#ff4500] bg-[#ff4500]/10 text-[#ff4500]"
+                    : "border-[#262626] text-[#a3a3a3] hover:border-[#525252]"
+                }`}
+                data-testid={`crop-aspect-${p.id}`}
+              >
+                {p.id} <span className="text-[#737373] ml-1 normal-case">{p.label}</span>
+              </button>
+            );
+          })}
         </div>
 
         <div className="relative w-full bg-[#000] aspect-square">
@@ -105,7 +135,7 @@ export default function ImageCropModal({
 
         <div className="flex items-center justify-between gap-2 px-5 py-4 border-t border-[#262626]">
           <p className="font-mono text-[10px] text-[#525252]">
-            ◆ Square crop · auto-compressed to ≤130KB before upload
+            ◆ Auto-compressed to ≤130KB · output preserves the chosen aspect
           </p>
           <div className="flex gap-2">
             <button
