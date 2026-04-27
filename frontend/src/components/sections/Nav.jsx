@@ -30,7 +30,8 @@ export default function Nav() {
       initial={{ y: -60, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.7, ease: [0.22, 0.61, 0.36, 1] }}
-      className={`fixed top-0 left-0 right-0 z-50 transition-colors duration-500 ${
+      style={{ top: "var(--beta-banner-h, 0px)" }}
+      className={`fixed left-0 right-0 z-50 transition-colors duration-500 ${
         scrolled ? "bg-black/85 backdrop-blur-xl border-b border-[#262626]" : "bg-black/40 backdrop-blur-sm"
       }`}
       data-testid="site-nav"

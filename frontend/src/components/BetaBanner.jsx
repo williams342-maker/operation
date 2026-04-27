@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { submitBetaFeedback } from "../lib/api";
 import useModalA11y from "../hooks/useModalA11y";
@@ -9,6 +9,16 @@ export default function BetaBanner({ message }) {
   const [status, setStatus] = useState("idle");
   const [err, setErr] = useState("");
   const dialogRef = useModalA11y(() => setOpen(false));
+
+  // Expose the banner's height as a CSS variable so the fixed <Nav>
+  // (which is `fixed top-0 z-50`) and other top-pinned elements can shift
+  // down by exactly this amount instead of being covered by the banner.
+  useEffect(() => {
+    document.documentElement.style.setProperty("--beta-banner-h", "40px");
+    return () => {
+      document.documentElement.style.removeProperty("--beta-banner-h");
+    };
+  }, []);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -33,10 +43,10 @@ export default function BetaBanner({ message }) {
   return (
     <>
       <div
-        className="sticky top-0 z-40 bg-[#ff4500] text-[#0a0a0a] border-b border-black/20"
+        className="fixed top-0 left-0 right-0 z-[60] bg-[#ff4500] text-[#0a0a0a] border-b border-black/20 h-10 flex items-center"
         data-testid="beta-banner"
       >
-        <div className="max-w-[1800px] mx-auto px-4 md:px-8 py-2 flex items-center justify-between gap-3 flex-wrap">
+        <div className="max-w-[1800px] mx-auto px-4 md:px-8 py-2 flex items-center justify-between gap-3 flex-wrap w-full">
           <div className="font-mono text-[10px] md:text-[11px] uppercase tracking-[0.22em] flex items-center gap-2 min-w-0">
             <span className="font-display text-base px-2 border border-black/30 leading-none py-1">BETA</span>
             <span className="truncate">{message || "You're using Crafters Market Beta. Found a bug or have an idea?"}</span>
