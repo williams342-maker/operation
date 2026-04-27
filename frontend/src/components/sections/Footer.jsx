@@ -27,7 +27,7 @@ const cols = [
       { label: "Journal", href: "/journal" },
       { label: "Makers", href: "/makers" },
       { label: "Custom Orders", href: "/custom-order" },
-      { label: "Contact", href: "mailto:hello@craftersmarket.org" },
+      { label: "Contact", href: "mailto:team@craftersmarket.org" },
     ],
   },
 ];
@@ -55,7 +55,7 @@ export default function Footer() {
             </p>
             <ul className="mt-8 space-y-2 font-mono text-xs uppercase tracking-[0.22em] text-[#a3a3a3]">
               <li className="flex items-center gap-3">
-                <Mail size={14} className="text-[#ff4500]" /> hello@craftersmarket.org
+                <Mail size={14} className="text-[#ff4500]" /> team@craftersmarket.org
               </li>
               <li className="flex items-center gap-3">
                 <MapPin size={14} className="text-[#ff4500]" /> Continental US · Ships nationwide

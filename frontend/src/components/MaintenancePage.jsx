@@ -21,11 +21,11 @@ export default function MaintenancePage({ message }) {
         </p>
         <div className="pt-6 flex flex-col sm:flex-row items-center justify-center gap-4">
           <a
-            href="mailto:hello@craftersmarket.org"
+            href="mailto:team@craftersmarket.org"
             className="btn-industrial border border-[#262626] hover:border-[#ff4500] inline-flex"
             data-testid="maintenance-contact-link"
           >
-            hello@craftersmarket.org
+            team@craftersmarket.org
           </a>
           <Link
             to="/admin/login"
