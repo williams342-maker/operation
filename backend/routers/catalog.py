@@ -261,6 +261,10 @@ async def create_maker_application(payload: MakerApplicationCreate, bg: Backgrou
         )
         raise HTTPException(403, msg)
     app_obj = MakerApplication(**payload.model_dump())
+    # Auto-detect Founding Seller Beta signups (BetaPage prefixes the about
+    # field with this marker before hitting /api/maker-applications).
+    if "[FOUNDING SELLER BETA]" in (payload.about or ""):
+        app_obj.is_beta = True
     await db.maker_applications.insert_one(app_obj.model_dump())
     await db.activity_events.insert_one(
         ActivityEvent(kind="applied",

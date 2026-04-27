@@ -223,7 +223,58 @@ async def admin_team_delete(
 
 @router.get("/admin/maker-applications")
 async def admin_maker_applications(_: dict = Depends(current_admin)):
-    return await db.maker_applications.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    apps = await db.maker_applications.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    # Enrich approved apps with the maker's current beta status so the
+    # ApplicationsList UI can render the 90-day countdown and toggle switch
+    # without a second roundtrip per row.
+    emails = [a.get("email") for a in apps if a.get("status") == "approved" and a.get("email")]
+    if emails:
+        makers = await db.makers.find(
+            {"email": {"$in": emails}},
+            {"_id": 0, "slug": 1, "email": 1, "is_beta": 1,
+             "beta_approved_at": 1, "beta_expires_at": 1},
+        ).to_list(len(emails))
+        by_email = {m["email"]: m for m in makers if m.get("email")}
+        for a in apps:
+            m = by_email.get(a.get("email"))
+            if m:
+                a["maker_slug"] = m.get("slug")
+                a["maker_is_beta"] = bool(m.get("is_beta"))
+                a["maker_beta_approved_at"] = m.get("beta_approved_at")
+                a["maker_beta_expires_at"] = m.get("beta_expires_at")
+    return apps
+
+
+class BetaToggleRequest(BaseModel):
+    enabled: bool
+
+
+@router.post("/admin/makers/{slug}/beta")
+async def admin_toggle_maker_beta(
+    slug: str, body: BetaToggleRequest, _: dict = Depends(current_admin),
+):
+    """Turn Founding Seller Beta on/off for a maker.
+
+    Enabling stamps `is_beta=True`, `beta_approved_at=now`, and
+    `beta_expires_at=now + 90 days` so the admin countdown starts on toggle.
+    Disabling clears all three fields. Idempotent — re-enabling an already
+    beta maker resets the 90-day window (documented, explicit admin action).
+    """
+    maker = await db.makers.find_one({"slug": slug}, {"_id": 0, "slug": 1})
+    if not maker:
+        raise HTTPException(404, "Maker not found")
+    if body.enabled:
+        now_dt = datetime.now(timezone.utc)
+        update = {
+            "is_beta": True,
+            "beta_approved_at": now_dt.isoformat(),
+            "beta_expires_at": (now_dt + timedelta(days=90)).isoformat(),
+        }
+    else:
+        update = {"is_beta": False, "beta_approved_at": None, "beta_expires_at": None}
+    await db.makers.update_one({"slug": slug}, {"$set": update})
+    logger.info("admin toggled beta: slug=%s enabled=%s", slug, body.enabled)
+    return {"ok": True, "slug": slug, **update}
 
 
 @router.get("/admin/custom-orders")
@@ -522,6 +573,16 @@ async def admin_decide_application(
                 slug = f"{base_slug}-{i}"
                 i += 1
             initials = "".join(w[0] for w in (appn.get("studio_name") or appn.get("name", "M")).split()[:2]).upper()[:3] or "M"
+            # Founding Seller Beta auto-provision — if the applicant came
+            # through /beta, stamp the maker as beta with a 90-day window
+            # so the admin countdown starts the moment we approve them.
+            is_beta = bool(appn.get("is_beta"))
+            beta_approved_at = None
+            beta_expires_at = None
+            if is_beta:
+                now_dt = datetime.now(timezone.utc)
+                beta_approved_at = now_dt.isoformat()
+                beta_expires_at = (now_dt + timedelta(days=90)).isoformat()
             new_maker = Maker(
                 slug=slug,
                 name=appn.get("studio_name") or appn["name"],
@@ -532,10 +593,27 @@ async def admin_decide_application(
                 portrait="",
                 cover="",
                 email=appn["email"],
+                is_beta=is_beta,
+                beta_approved_at=beta_approved_at,
+                beta_expires_at=beta_expires_at,
             )
             await db.makers.insert_one(new_maker.model_dump())
-            logger.info("auto-created maker on approval: slug=%s email=%s",
-                        slug, appn["email"])
+            logger.info("auto-created maker on approval: slug=%s email=%s beta=%s",
+                        slug, appn["email"], is_beta)
+        elif appn.get("is_beta") and not existing.get("is_beta"):
+            # Maker already exists (they previously applied as a non-beta
+            # maker and now re-applied through /beta) — stamp the beta
+            # flags onto their existing doc instead of creating a new one.
+            now_dt = datetime.now(timezone.utc)
+            await db.makers.update_one(
+                {"slug": existing["slug"]},
+                {"$set": {
+                    "is_beta": True,
+                    "beta_approved_at": now_dt.isoformat(),
+                    "beta_expires_at": (now_dt + timedelta(days=90)).isoformat(),
+                }},
+            )
+            logger.info("upgraded existing maker to beta: slug=%s", existing["slug"])
 
         # Mint a magic-link for the maker portal
         from maker_auth import issue_magic_token
