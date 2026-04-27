@@ -8,8 +8,11 @@ from starlette.middleware.cors import CORSMiddleware
 from core import client, logger
 from routers.admin import router as admin_router
 from routers.ai import router as ai_router
+from routers.ai_marketing import router as ai_marketing_router
 from routers.auth_password import router as auth_password_router
 from routers.catalog import router as catalog_router
+from routers.csv_import import router as csv_import_router
+from routers.discount_codes import router as discount_codes_router
 from routers.checkout import router as checkout_router
 from routers.community import router as community_router
 from routers.community_chat import router as community_chat_router
@@ -50,6 +53,9 @@ api.include_router(buffer_router)
 api.include_router(newsletter_router)
 api.include_router(chat_mod_router)
 api.include_router(auth_password_router)
+api.include_router(ai_marketing_router)
+api.include_router(discount_codes_router)
+api.include_router(csv_import_router)
 app.include_router(api)
 
 app.add_middleware(

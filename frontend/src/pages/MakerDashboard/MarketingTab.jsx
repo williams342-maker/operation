@@ -1,5 +1,10 @@
-import React from "react";
-import { Sparkles, Search, DollarSign, Tag, TrendingUp, Camera, FileText, Hash } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { Sparkles, Search, TrendingUp, Tag, Camera, FileText, Hash, DollarSign, Wand2, Copy, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import {
+  aiListingCopy, aiSeoAudit,
+  fetchDiscountCodes, createDiscountCode, toggleDiscountCode, deleteDiscountCode,
+} from "../../lib/api";
 
 const TIPS = [
   { icon: Camera, title: "First photo is everything", body: "60% of click-through is decided by the hero image alone. Sharp, lit, centered, no clutter." },
@@ -10,102 +15,379 @@ const TIPS = [
   { icon: DollarSign, title: "Round prices to .00 or .50", body: "Ending in .99 reads cheap on handmade. .00 and .50 read confident and intentional." },
 ];
 
-const COMING_SOON = [
-  {
-    icon: Sparkles,
-    title: "AI Listing Copy Generator",
-    body: "Paste a photo + a few bullet points. Get a title, description, and 13 tags written for the algorithm.",
-  },
-  {
-    icon: Search,
-    title: "SEO Recommender",
-    body: "We audit each of your listings and tell you the keywords you're missing. Apply with one click.",
-  },
-  {
-    icon: TrendingUp,
-    title: "Pricing Assistant",
-    body: "Compare your prices against similar listings on Crafters Market. See the comparables count so you know how strong the signal is.",
-  },
-];
-
-/** Marketing tab — Phase 1 ships static tips + AI Companion previews. */
+/** Marketing tab — real AI Copy Generator + SEO Recommender + Discount Codes + Tips. */
 export default function MarketingTab() {
   return (
-    <div className="space-y-10" data-testid="marketing-tab">
+    <div className="space-y-12" data-testid="marketing-tab">
       <header className="pb-6 border-b border-[#262626]">
         <h2 className="font-display text-3xl md:text-4xl uppercase">Marketing.</h2>
         <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-xl">
-          Tactics, AI tools, and discount codes — everything you need to drive demand for your shop.
+          AI tools, discount codes, and tactics to drive demand for your shop.
         </p>
       </header>
 
-      {/* AI Companions — coming-soon previews */}
-      <section data-testid="ai-companions">
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mb-3">
-          ◆ AI Marketing Companion · shipping next
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {COMING_SOON.map((c) => {
-            const Icon = c.icon;
-            return (
-              <div
-                key={c.title}
-                className="border border-[#1f1f1f] bg-[#0d0d0d] p-5 relative overflow-hidden"
-                data-testid={`ai-${c.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
-              >
-                <div className="absolute top-3 right-3 px-2 py-0.5 bg-[#ff4500]/10 border border-[#ff4500] font-mono text-[9px] uppercase tracking-[0.22em] text-[#ff4500]">
-                  Soon
-                </div>
-                <Icon size={22} className="text-[#ff4500] mb-3" />
-                <h4 className="font-display text-lg uppercase mb-2">{c.title}</h4>
-                <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed">{c.body}</p>
-              </div>
-            );
-          })}
-        </div>
-      </section>
+      <ListingCopyGenerator />
+      <SeoRecommender />
+      <DiscountCodes />
+      <MarketingTips />
+    </div>
+  );
+}
 
-      {/* Discount Codes — Phase 2 */}
-      <section data-testid="discount-codes">
-        <div className="flex items-center justify-between mb-3">
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
-            ◆ Discount Codes
-          </div>
-          <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252]">Phase 2</span>
-        </div>
-        <div className="border border-[#1f1f1f] bg-[#0d0d0d] p-6 text-center">
-          <Tag size={28} className="text-[#a3a3a3] mx-auto mb-3" />
-          <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed max-w-md mx-auto">
-            Per-shop promo codes (10% off first order, free shipping over $X, etc.) are
-            on the next milestone. Email <a href="mailto:team@craftersmarket.org" className="text-[#ff4500] hover:underline">team@craftersmarket.org</a> if you need a code right now.
+// ───────────────────── Listing Copy Generator ─────────────────────
+function ListingCopyGenerator() {
+  const [bullets, setBullets] = useState("");
+  const [category, setCategory] = useState("");
+  const [target, setTarget] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [out, setOut] = useState(null);
+  const [err, setErr] = useState("");
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (bullets.trim().length < 10) {
+      setErr("Add a few bullets describing the piece (materials, dimensions, what makes it special).");
+      return;
+    }
+    setErr(""); setBusy(true);
+    try {
+      const r = await aiListingCopy({
+        bullets: bullets.trim(),
+        category: category.trim() || null,
+        target_price: target ? parseFloat(target) : null,
+      });
+      setOut(r);
+    } catch (e) {
+      setErr(e?.response?.data?.detail || "AI is busy — please retry in a few seconds.");
+    } finally { setBusy(false); }
+  };
+
+  const copy = (text, label) => {
+    navigator.clipboard?.writeText(text);
+    toast.success(`${label} copied`);
+  };
+
+  return (
+    <section data-testid="ai-listing-copy" className="border border-[#1f1f1f] bg-[#0d0d0d] p-5 md:p-6">
+      <div className="flex items-start gap-3 mb-4">
+        <Sparkles size={20} className="text-[#ff4500] mt-1" />
+        <div>
+          <h3 className="font-display text-xl md:text-2xl uppercase">AI Listing Copy</h3>
+          <p className="font-mono text-xs text-[#a3a3a3] mt-1">
+            Drop in a few bullets. Get a polished title, description, and 13 tags in 5 seconds.
           </p>
         </div>
-      </section>
+      </div>
+      <form onSubmit={submit} className="space-y-3">
+        <textarea
+          value={bullets}
+          onChange={(e) => setBullets(e.target.value)}
+          placeholder="• Walnut, oil finish, live edge&#10;• 18×12in, 1.5in thick&#10;• Hand-routed juice groove on one side&#10;• Cured + sanded to 320 grit"
+          rows={5}
+          className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] px-4 py-3 font-mono text-xs outline-none resize-y"
+          data-testid="ai-copy-bullets"
+          maxLength={2000}
+        />
+        <div className="grid grid-cols-2 gap-3">
+          <input value={category} onChange={(e) => setCategory(e.target.value)}
+            placeholder="Category (e.g. cutting-boards)"
+            className="bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] px-3 py-2 font-mono text-xs outline-none"
+            data-testid="ai-copy-category" />
+          <input value={target} onChange={(e) => setTarget(e.target.value)}
+            placeholder="Target price ($)" type="number" min="1" step="1"
+            className="bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] px-3 py-2 font-mono text-xs outline-none"
+            data-testid="ai-copy-target" />
+        </div>
+        <button type="submit" disabled={busy}
+          className="btn-industrial btn-primary inline-flex items-center gap-2 disabled:opacity-50"
+          data-testid="ai-copy-submit">
+          <Wand2 size={14} /> {busy ? "Drafting…" : "Generate copy →"}
+        </button>
+        {err && <p className="font-mono text-xs text-red-400" data-testid="ai-copy-err">{err}</p>}
+      </form>
 
-      {/* Tips — always live */}
-      <section data-testid="marketing-tips">
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-3">
-          ◆ Tactics that compound
+      {out && (
+        <div className="mt-6 space-y-4 border-t border-[#262626] pt-5" data-testid="ai-copy-output">
+          <Field label="Title" value={out.title} onCopy={() => copy(out.title, "Title")} testid="ai-copy-out-title" />
+          <Field label="Description" value={out.description} onCopy={() => copy(out.description, "Description")} testid="ai-copy-out-desc" multiline />
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Tags ({out.tags.length})</div>
+              <button onClick={() => copy(out.tags.join(", "), "Tags")} className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] hover:underline" data-testid="ai-copy-out-tags-copy">
+                <Copy size={11} className="inline" /> Copy all
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {out.tags.map((t, i) => (
+                <span key={i} className="px-2 py-1 border border-[#262626] bg-[#0a0a0a] font-mono text-[11px] text-[#e5e5e5]" data-testid={`ai-copy-tag-${i}`}>{t}</span>
+              ))}
+            </div>
+          </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {TIPS.map((t) => {
-            const Icon = t.icon;
-            return (
-              <div
-                key={t.title}
-                className="border border-[#1f1f1f] bg-[#0d0d0d] p-5 flex gap-4"
-                data-testid={`tip-${t.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
-              >
-                <Icon size={20} className="text-[#ff4500] shrink-0 mt-0.5" />
-                <div>
-                  <h4 className="font-display text-base uppercase mb-1.5">{t.title}</h4>
-                  <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed">{t.body}</p>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </section>
+      )}
+    </section>
+  );
+}
+
+function Field({ label, value, onCopy, multiline, testid }) {
+  return (
+    <div data-testid={testid}>
+      <div className="flex items-center justify-between mb-1.5">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">{label}</div>
+        <button onClick={onCopy} className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] hover:underline">
+          <Copy size={11} className="inline" /> Copy
+        </button>
+      </div>
+      <div className={`bg-[#0a0a0a] border border-[#262626] p-3 font-mono text-xs text-[#e5e5e5] leading-relaxed ${multiline ? "whitespace-pre-wrap" : "truncate"}`}>
+        {value}
+      </div>
     </div>
+  );
+}
+
+// ───────────────────── SEO Recommender ─────────────────────
+function SeoRecommender() {
+  const [state, setState] = useState({ status: "idle", data: null, err: "" });
+
+  const run = async () => {
+    setState({ status: "loading", data: null, err: "" });
+    try { setState({ status: "done", data: await aiSeoAudit(), err: "" }); }
+    catch (e) { setState({ status: "error", data: null, err: e?.response?.data?.detail || "Audit failed." }); }
+  };
+
+  return (
+    <section data-testid="ai-seo-audit" className="border border-[#1f1f1f] bg-[#0d0d0d] p-5 md:p-6">
+      <div className="flex items-start gap-3 mb-4">
+        <Search size={20} className="text-[#ff4500] mt-1" />
+        <div className="flex-1">
+          <h3 className="font-display text-xl md:text-2xl uppercase">SEO Recommender</h3>
+          <p className="font-mono text-xs text-[#a3a3a3] mt-1">
+            Audits your active listings and surfaces missing keywords + 3 high-impact title rewrites. Cached for 15 minutes.
+          </p>
+        </div>
+        <button onClick={run} disabled={state.status === "loading"}
+          className="btn-industrial inline-flex items-center gap-2 disabled:opacity-50 shrink-0"
+          data-testid="ai-seo-run">
+          <Wand2 size={14} /> {state.status === "loading" ? "Auditing…" : "Run audit"}
+        </button>
+      </div>
+      {state.err && <p className="font-mono text-xs text-red-400" data-testid="ai-seo-err">{state.err}</p>}
+      {state.data && (
+        <div className="space-y-4 border-t border-[#262626] pt-5 mt-2" data-testid="ai-seo-output">
+          <p className="font-mono text-xs text-[#e5e5e5] leading-relaxed">{state.data.summary}</p>
+          {!!state.data.missing_keywords?.length && (
+            <div>
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">
+                Missing Keywords ({state.data.missing_keywords.length})
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {state.data.missing_keywords.map((k, i) => (
+                  <span key={i} className="px-2 py-1 border border-[#ff4500]/40 bg-[#ff4500]/5 font-mono text-[11px] text-[#ff4500]">{k}</span>
+                ))}
+              </div>
+            </div>
+          )}
+          {!!state.data.title_rewrites?.length && (
+            <div>
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">Title Rewrites</div>
+              <div className="space-y-2">
+                {state.data.title_rewrites.map((r, i) => (
+                  <div key={i} className="border border-[#262626] p-3" data-testid={`seo-rewrite-${i}`}>
+                    <div className="font-mono text-[10px] text-[#737373] line-through truncate">{r.current}</div>
+                    <div className="font-mono text-xs text-[#e5e5e5] mt-1">{r.suggested}</div>
+                    <div className="font-mono text-[10px] text-[#a3a3a3] mt-1.5 italic">→ {r.reason}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ───────────────────── Discount Codes ─────────────────────
+function DiscountCodes() {
+  const [codes, setCodes] = useState(null);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({
+    code: "", kind: "percent", amount: "10", min_order_total: "0",
+    max_uses: "", expires_at: "", notes: "",
+  });
+  const [busy, setBusy] = useState(false);
+
+  const refresh = () => fetchDiscountCodes()
+    .then((d) => setCodes(d.codes || []))
+    .catch(() => setCodes([]));
+  useEffect(() => { refresh(); }, []);
+
+  const create = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await createDiscountCode({
+        code: form.code,
+        kind: form.kind,
+        amount: parseFloat(form.amount) || 0,
+        min_order_total: parseFloat(form.min_order_total) || 0,
+        max_uses: form.max_uses ? parseInt(form.max_uses, 10) : null,
+        expires_at: form.expires_at || null,
+        notes: form.notes || null,
+      });
+      toast.success(`Code created: ${form.code.toUpperCase()}`);
+      setForm({ ...form, code: "", notes: "" });
+      setShowForm(false);
+      await refresh();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Could not create code.");
+    } finally { setBusy(false); }
+  };
+
+  const toggle = async (c) => {
+    try { await toggleDiscountCode(c.id, !c.active); await refresh(); }
+    catch { toast.error("Could not toggle code."); }
+  };
+  const remove = async (c) => {
+    if (!window.confirm(`Delete code "${c.code}"? This cannot be undone.`)) return;
+    try { await deleteDiscountCode(c.id); toast.success(`Deleted ${c.code}`); await refresh(); }
+    catch { toast.error("Could not delete code."); }
+  };
+
+  return (
+    <section data-testid="discount-codes" className="border border-[#1f1f1f] bg-[#0d0d0d] p-5 md:p-6">
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <div className="flex items-start gap-3">
+          <Tag size={20} className="text-[#ff4500] mt-1" />
+          <div>
+            <h3 className="font-display text-xl md:text-2xl uppercase">Discount Codes</h3>
+            <p className="font-mono text-xs text-[#a3a3a3] mt-1">
+              Create promo codes for your shop. Codes apply at checkout when buyers paste them in.
+            </p>
+            <p className="font-mono text-[10px] text-[#737373] mt-1.5 italic">
+              Note: Phase 2 ships maker-side CRUD. Buyer-side checkout application lands in the next iteration.
+            </p>
+          </div>
+        </div>
+        <button onClick={() => setShowForm((s) => !s)}
+          className="btn-industrial inline-flex shrink-0"
+          data-testid="discount-new-btn">
+          {showForm ? "Cancel" : "+ New Code"}
+        </button>
+      </div>
+
+      {showForm && (
+        <form onSubmit={create} className="border border-[#262626] p-4 mb-4 grid md:grid-cols-2 gap-3" data-testid="discount-form">
+          <input value={form.code} onChange={(e) => setForm({...form, code: e.target.value})}
+            placeholder="CODE (e.g. SUMMER15)" required minLength={3} maxLength={32}
+            className="bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] px-3 py-2 font-mono text-sm outline-none uppercase"
+            data-testid="discount-code" />
+          <select value={form.kind} onChange={(e) => setForm({...form, kind: e.target.value})}
+            className="bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] px-3 py-2 font-mono text-sm outline-none"
+            data-testid="discount-kind">
+            <option value="percent">Percent off</option>
+            <option value="fixed">Fixed dollar off</option>
+            <option value="free_shipping">Free shipping</option>
+          </select>
+          <input value={form.amount} onChange={(e) => setForm({...form, amount: e.target.value})}
+            placeholder={form.kind === "percent" ? "% off (1–100)" : "$ amount"}
+            type="number" min="0" step="0.01" required={form.kind !== "free_shipping"}
+            disabled={form.kind === "free_shipping"}
+            className="bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] px-3 py-2 font-mono text-sm outline-none disabled:opacity-50"
+            data-testid="discount-amount" />
+          <input value={form.min_order_total} onChange={(e) => setForm({...form, min_order_total: e.target.value})}
+            placeholder="Min order $ (0 = no min)" type="number" min="0" step="0.01"
+            className="bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] px-3 py-2 font-mono text-sm outline-none"
+            data-testid="discount-min" />
+          <input value={form.max_uses} onChange={(e) => setForm({...form, max_uses: e.target.value})}
+            placeholder="Max uses (blank = unlimited)" type="number" min="1"
+            className="bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] px-3 py-2 font-mono text-sm outline-none"
+            data-testid="discount-maxuses" />
+          <input value={form.expires_at} onChange={(e) => setForm({...form, expires_at: e.target.value})}
+            placeholder="Expires (YYYY-MM-DD, optional)" type="date"
+            className="bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] px-3 py-2 font-mono text-sm outline-none"
+            data-testid="discount-expires" />
+          <textarea value={form.notes} onChange={(e) => setForm({...form, notes: e.target.value})}
+            placeholder="Internal notes (optional, 200 char max)" maxLength={200} rows={2}
+            className="md:col-span-2 bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] px-3 py-2 font-mono text-xs outline-none resize-none"
+            data-testid="discount-notes" />
+          <button type="submit" disabled={busy}
+            className="md:col-span-2 btn-industrial btn-primary disabled:opacity-50"
+            data-testid="discount-submit">
+            {busy ? "Creating…" : "Create code"}
+          </button>
+        </form>
+      )}
+
+      {codes === null ? (
+        <p className="font-mono text-xs text-[#737373] py-4">Loading…</p>
+      ) : codes.length === 0 ? (
+        <p className="font-mono text-xs text-[#737373] py-4">No codes yet — create your first promo above.</p>
+      ) : (
+        <div className="space-y-2" data-testid="discount-list">
+          {codes.map((c) => (
+            <div key={c.id}
+              className={`border p-3 flex items-center justify-between gap-3 ${c.active ? "border-[#262626]" : "border-[#1f1f1f] opacity-50"}`}
+              data-testid={`discount-row-${c.code}`}>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-display text-base text-[#ff4500]">{c.code}</span>
+                  <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+                    {c.kind === "percent" ? `${c.amount}% off`
+                      : c.kind === "fixed" ? `$${c.amount} off`
+                      : "Free shipping"}
+                  </span>
+                  {c.min_order_total > 0 && (
+                    <span className="font-mono text-[10px] text-[#737373]">· min ${c.min_order_total}</span>
+                  )}
+                  {c.max_uses && (
+                    <span className="font-mono text-[10px] text-[#737373]">· {c.uses_count}/{c.max_uses} used</span>
+                  )}
+                </div>
+                {c.notes && <div className="font-mono text-[10px] text-[#737373] mt-0.5 truncate">{c.notes}</div>}
+              </div>
+              <div className="flex gap-1 shrink-0">
+                <button onClick={() => toggle(c)}
+                  className="px-2 py-1 border border-[#262626] hover:border-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em]"
+                  data-testid={`discount-toggle-${c.code}`}>
+                  {c.active ? "Disable" : "Enable"}
+                </button>
+                <button onClick={() => remove(c)}
+                  className="px-2 py-1 border border-red-800 hover:border-red-500 hover:text-red-300 font-mono text-[10px] uppercase tracking-[0.22em]"
+                  data-testid={`discount-delete-${c.code}`}>
+                  <Trash2 size={11} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ───────────────────── Tips ─────────────────────
+function MarketingTips() {
+  return (
+    <section data-testid="marketing-tips">
+      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-3">
+        ◆ Tactics that compound
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {TIPS.map((t) => {
+          const Icon = t.icon;
+          return (
+            <div key={t.title} className="border border-[#1f1f1f] bg-[#0d0d0d] p-5 flex gap-4"
+              data-testid={`tip-${t.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}>
+              <Icon size={20} className="text-[#ff4500] shrink-0 mt-0.5" />
+              <div>
+                <h4 className="font-display text-base uppercase mb-1.5">{t.title}</h4>
+                <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed">{t.body}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }

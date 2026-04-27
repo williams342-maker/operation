@@ -68,6 +68,36 @@ export const fetchMakerViolations = () =>
   http.get("/maker/violations", { headers: authHeaders() }).then((r) => r.data);
 export const fetchMakerTransactions = () =>
   http.get("/maker/transactions", { headers: authHeaders() }).then((r) => r.data);
+
+// AI Marketing Companion
+export const aiListingCopy = (payload) =>
+  http.post("/maker/ai/listing-copy", payload, { headers: authHeaders() }).then((r) => r.data);
+export const aiSeoAudit = () =>
+  http.get("/maker/ai/seo-audit", { headers: authHeaders() }).then((r) => r.data);
+export const aiPricingSuggest = (productSlug) =>
+  http.get(`/maker/ai/pricing-suggest/${productSlug}`, { headers: authHeaders() }).then((r) => r.data);
+
+// Discount Codes
+export const fetchDiscountCodes = () =>
+  http.get("/maker/discount-codes", { headers: authHeaders() }).then((r) => r.data);
+export const createDiscountCode = (payload) =>
+  http.post("/maker/discount-codes", payload, { headers: authHeaders() }).then((r) => r.data);
+export const toggleDiscountCode = (id, active) =>
+  http.patch(`/maker/discount-codes/${id}`, { active }, { headers: authHeaders() }).then((r) => r.data);
+export const deleteDiscountCode = (id) =>
+  http.delete(`/maker/discount-codes/${id}`, { headers: authHeaders() }).then((r) => r.data);
+
+// CSV Import
+export const csvImportPreview = (file, source = "etsy") => {
+  const fd = new FormData();
+  fd.append("file", file); fd.append("source", source);
+  return http.post("/maker/csv-import/preview", fd, {
+    headers: { ...authHeaders(), "Content-Type": "multipart/form-data" },
+  }).then((r) => r.data);
+};
+export const csvImportCommit = (rows, publish_status = "draft") =>
+  http.post("/maker/csv-import/commit", { rows, publish_status },
+    { headers: authHeaders() }).then((r) => r.data);
 export const fetchMakerProducts = () =>
   http.get("/maker/products", { headers: authHeaders() }).then((r) => r.data);
 export const updateMakerProduct = (slug, payload) =>

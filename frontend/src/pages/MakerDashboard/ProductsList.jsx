@@ -1,11 +1,14 @@
 import React, { useState } from "react";
-import { Hammer } from "lucide-react";
+import { Hammer, Upload } from "lucide-react";
 import ProductEditCard from "./ProductEditCard";
 import NewListingModal from "./NewListingModal";
+import CsvImportModal from "./CsvImportModal";
 import EmptyState from "../../components/EmptyState";
 
-export default function ProductsList({ products, onChanged }) {
+export default function ProductsList({ products, onChanged, onRefresh }) {
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const refresh = onChanged || onRefresh || (() => {});
   // 3 buckets: live (published, not deleted) · drafts · archived (soft-deleted)
   const live = products.filter((p) => !p.deleted_at && p.status !== "draft");
   const drafts = products.filter((p) => !p.deleted_at && p.status === "draft");
@@ -19,13 +22,23 @@ export default function ProductsList({ products, onChanged }) {
           {drafts.length > 0 && ` · ${drafts.length} draft${drafts.length > 1 ? "s" : ""}`}
           {removed.length > 0 && ` · ${removed.length} archived`}
         </div>
-        <button
-          onClick={() => setCreating(true)}
-          className="btn-industrial btn-primary"
-          data-testid="new-listing-btn"
-        >
-          + New Listing
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setImporting(true)}
+            className="btn-industrial inline-flex items-center gap-2"
+            data-testid="csv-import-btn"
+            title="Migrate from Etsy by uploading your shop CSV"
+          >
+            <Upload size={14} /> Import CSV
+          </button>
+          <button
+            onClick={() => setCreating(true)}
+            className="btn-industrial btn-primary"
+            data-testid="new-listing-btn"
+          >
+            + New Listing
+          </button>
+        </div>
       </div>
 
       {live.length === 0 && drafts.length === 0 && removed.length === 0 ? (
@@ -82,7 +95,16 @@ export default function ProductsList({ products, onChanged }) {
           onClose={() => setCreating(false)}
           onCreated={() => {
             setCreating(false);
-            onChanged && onChanged();
+            refresh();
+          }}
+        />
+      )}
+      {importing && (
+        <CsvImportModal
+          onClose={() => setImporting(false)}
+          onImported={() => {
+            setImporting(false);
+            refresh();
           }}
         />
       )}
