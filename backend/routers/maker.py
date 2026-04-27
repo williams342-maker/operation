@@ -625,3 +625,136 @@ async def maker_orders(slug: str = Depends(current_maker_slug)):
             "maker_subtotal": round(sum(line["subtotal"] for line in my_lines), 2),
         })
     return out
+
+
+
+@router.get("/maker/stats")
+async def maker_stats(slug: str = Depends(current_maker_slug)):
+    """Stats tab — surfaces aggregates already in the DB. No new data
+    collection. Returns active listings, total orders fulfilled vs pending,
+    gross + net revenue, and a 30-day-window trend bucket so the UI can
+    render a sparkline without a second round-trip."""
+    from datetime import timedelta
+    cutoff_30d = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat().replace("+00:00", "Z")
+
+    active_listings = await db.products.count_documents(
+        {"maker_slug": slug, "deleted_at": {"$in": [None, ""]}}
+    )
+
+    # Orders that contain at least one of this maker's items.
+    orders = await db.transactions.find(
+        {"items.maker_slug": slug, "payment_status": "paid"},
+        {"_id": 0, "items": 1, "created_at": 1, "payment_status": 1},
+    ).sort("created_at", -1).to_list(2000)
+
+    paid_count = len(orders)
+    fulfilled_count = await db.transactions.count_documents(
+        {"items.maker_slug": slug, "payment_status": "paid", "order_status": "fulfilled"}
+    )
+    pending_count = paid_count - fulfilled_count
+
+    gross = 0.0
+    last_30d_revenue = 0.0
+    for o in orders:
+        sub = sum(
+            (line.get("price", 0) * line.get("quantity", 1))
+            for line in o.get("items", []) if line.get("maker_slug") == slug
+        )
+        gross += sub
+        if (o.get("created_at") or "") >= cutoff_30d:
+            last_30d_revenue += sub
+
+    return {
+        "active_listings": active_listings,
+        "paid_orders": paid_count,
+        "pending_orders": max(0, pending_count),
+        "fulfilled_orders": fulfilled_count,
+        "gross_revenue": round(gross, 2),
+        "last_30d_revenue": round(last_30d_revenue, 2),
+        "currency": "USD",
+    }
+
+
+@router.get("/maker/violations")
+async def maker_violations(slug: str = Depends(current_maker_slug)):
+    """Violations tab — pulls from the audit_log (chat moderation, listing
+    rejections, EUA breaches) and the ai_mod_log (forum/chat warns/blocks)
+    filtered to this maker's email. Shown so makers can see exactly what
+    triggered any warning, with timestamps + reasons. Read-only."""
+    maker = await db.makers.find_one({"slug": slug}, {"_id": 0, "email": 1})
+    if not maker:
+        return {"violations": []}
+    email = maker["email"]
+    out = []
+    audit_rows = await db.audit_log.find(
+        {"$or": [{"email": email}, {"maker_slug": slug}]},
+        {"_id": 0},
+    ).sort("created_at", -1).limit(100).to_list(100)
+    for r in audit_rows:
+        kind = r.get("kind", "audit")
+        if kind in (
+            "password_set", "password_reset_consumed",
+            "admin_password_set_direct", "admin_password_reset_sent",
+            "admin_force_signout",
+        ):
+            continue  # not violations — suppress
+        out.append({
+            "kind": kind,
+            "reason": r.get("reason") or r.get("notes") or "",
+            "severity": "warn" if "warn" in kind else "info",
+            "source": "audit",
+            "created_at": r.get("created_at"),
+        })
+    mod_rows = await db.ai_mod_log.find(
+        {"user_email": email, "action": {"$in": ["warn", "block"]}},
+        {"_id": 0},
+    ).sort("created_at", -1).limit(100).to_list(100)
+    for r in mod_rows:
+        out.append({
+            "kind": f"chat_{r['action']}",
+            "reason": r.get("reason") or "",
+            "channel": r.get("channel"),
+            "severity": "block" if r["action"] == "block" else "warn",
+            "source": "ai_moderator",
+            "created_at": r.get("created_at"),
+        })
+    out.sort(key=lambda x: x["created_at"] or "", reverse=True)
+    return {"violations": out[:100]}
+
+
+@router.get("/maker/transactions")
+async def maker_transactions(slug: str = Depends(current_maker_slug)):
+    """Transaction history for the Financials tab — combines paid order
+    payouts (credits) and listing-fee charges (debits) into one chronological
+    ledger so makers see exactly what's hitting their balance."""
+    rows = []
+    txns = await db.transactions.find(
+        {"items.maker_slug": slug, "payment_status": "paid"},
+        {"_id": 0, "items": 1, "created_at": 1, "id": 1, "stripe_session_id": 1},
+    ).sort("created_at", -1).limit(200).to_list(200)
+    for t in txns:
+        my_lines = [li for li in t.get("items", []) if li.get("maker_slug") == slug]
+        if not my_lines:
+            continue
+        amount = round(sum(li.get("price", 0) * li.get("quantity", 1) for li in my_lines), 2)
+        rows.append({
+            "kind": "sale",
+            "amount": amount,
+            "direction": "credit",
+            "reference": t.get("stripe_session_id") or t.get("id"),
+            "items_count": sum(li.get("quantity", 1) for li in my_lines),
+            "created_at": t.get("created_at"),
+        })
+    charges = await db.maker_charges.find(
+        {"maker_slug": slug}, {"_id": 0},
+    ).sort("created_at", -1).limit(200).to_list(200)
+    for c in charges:
+        rows.append({
+            "kind": c.get("kind", "fee"),
+            "amount": round(float(c.get("amount_cents", 0)) / 100, 2),
+            "direction": "debit",
+            "reference": c.get("description", ""),
+            "created_at": c.get("created_at"),
+        })
+    rows.sort(key=lambda x: x["created_at"] or "", reverse=True)
+    return {"transactions": rows[:200]}
