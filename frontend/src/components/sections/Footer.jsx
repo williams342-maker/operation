@@ -128,7 +128,6 @@ export default function Footer() {
             <Link to="/policy" className="hover:text-[#ff4500]" data-testid="footer-terms">Terms</Link>
             <Link to="/contact" className="hover:text-[#ff4500]" data-testid="footer-contact">Contact</Link>
           </div>
-          <div>Beta · Things may change. Your feedback helps.</div>
         </div>
       </div>
     </footer>

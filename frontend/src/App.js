@@ -104,6 +104,16 @@ function MaintenanceGate({ children }) {
   );
 }
 
+// Renders a duplicate BetaBanner pinned to the bottom of the page (in
+// normal flow, after <Footer />) when admin has flipped the beta switch on.
+// Reads settings independently so it can sit as a sibling of Footer in the
+// layout tree without being captured inside MaintenanceGate's children.
+function BetaBannerBottom() {
+  const settings = useSiteSettings();
+  if (!settings?.beta_mode) return null;
+  return <BetaBanner message={settings.beta_message} position="bottom" />;
+}
+
 function App() {
   return (
     <CartProvider>
@@ -113,8 +123,7 @@ function App() {
           <MaintenanceGate>
             <Nav />
             <main>
-              <Routes>
-                <Route path="/" element={<Home />} />
+              <Routes>                <Route path="/" element={<Home />} />
                 <Route path="/shop" element={<ShopPage />} />
                 <Route path="/shop/:slug" element={<ProductDetail />} />
                 <Route path="/makers" element={<MakersPage />} />
@@ -146,6 +155,7 @@ function App() {
               </Routes>
             </main>
             <Footer />
+            <BetaBannerBottom />
             <AIAssistant />
           </MaintenanceGate>
         </div>

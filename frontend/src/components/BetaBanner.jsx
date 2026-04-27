@@ -3,22 +3,26 @@ import { toast } from "sonner";
 import { submitBetaFeedback } from "../lib/api";
 import useModalA11y from "../hooks/useModalA11y";
 
-export default function BetaBanner({ message }) {
+export default function BetaBanner({ message, position = "top" }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", message: "" });
   const [status, setStatus] = useState("idle");
   const [err, setErr] = useState("");
   const dialogRef = useModalA11y(() => setOpen(false));
+  const isTop = position === "top";
 
   // Expose the banner's height as a CSS variable so the fixed <Nav>
   // (which is `fixed top-0 z-50`) and other top-pinned elements can shift
   // down by exactly this amount instead of being covered by the banner.
+  // Only the top banner controls the offset — the bottom banner is in
+  // normal flow at the end of the page so it doesn't affect layout.
   useEffect(() => {
+    if (!isTop) return;
     document.documentElement.style.setProperty("--beta-banner-h", "40px");
     return () => {
       document.documentElement.style.removeProperty("--beta-banner-h");
     };
-  }, []);
+  }, [isTop]);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -43,8 +47,12 @@ export default function BetaBanner({ message }) {
   return (
     <>
       <div
-        className="fixed top-0 left-0 right-0 z-[60] bg-[#ff4500] text-[#0a0a0a] border-b border-black/20 h-10 flex items-center"
-        data-testid="beta-banner"
+        className={
+          isTop
+            ? "fixed top-0 left-0 right-0 z-[60] bg-[#ff4500] text-[#0a0a0a] border-b border-black/20 h-10 flex items-center"
+            : "relative w-full bg-[#ff4500] text-[#0a0a0a] border-t border-black/20 h-10 flex items-center"
+        }
+        data-testid={isTop ? "beta-banner" : "beta-banner-bottom"}
       >
         <div className="max-w-[1800px] mx-auto px-4 md:px-8 py-2 flex items-center justify-between gap-3 flex-wrap w-full">
           <div className="font-mono text-[10px] md:text-[11px] uppercase tracking-[0.22em] flex items-center gap-2 min-w-0">
@@ -54,7 +62,7 @@ export default function BetaBanner({ message }) {
           <button
             onClick={() => setOpen(true)}
             className="px-3 py-1.5 bg-[#0a0a0a] text-[#ff4500] border border-[#0a0a0a] hover:bg-black font-mono text-[10px] uppercase tracking-[0.22em] shrink-0"
-            data-testid="beta-feedback-btn"
+            data-testid={isTop ? "beta-feedback-btn" : "beta-feedback-btn-bottom"}
           >
             Send feedback →
           </button>
