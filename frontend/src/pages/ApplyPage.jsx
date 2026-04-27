@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { submitMakerApplication } from "../lib/api";
 import { useSiteSettings } from "../hooks/useSiteSettings";
 import { useStructuredData } from "../lib/seo";
+import MakerFeeTable from "../components/MakerFeeTable";
 
 const TECH = ["PLASMA", "LASER", "ROUTER", "CUSTOM"];
 
@@ -65,7 +66,14 @@ export default function ApplyPage() {
       <div className="w-full max-w-[1100px] mx-auto px-4 md:px-8">
         <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-4">◆ Maker Application</div>
         <h1 className="font-display text-[56px] md:text-[120px] leading-[0.88] mb-4">Apply To <span className="text-outline-orange">Sell</span></h1>
-        <p className="font-mono text-sm text-[#a3a3a3] max-w-xl mb-12">Approved makers only. Tell us about your shop and what you build — we'll handle storefront, payouts, and audience.</p>
+        <p className="font-mono text-sm text-[#a3a3a3] max-w-xl mb-8">Approved makers only. Tell us about your shop and what you build — we'll handle storefront, payouts, and audience.</p>
+
+        {/* Transparent fee disclosure — every applicant sees exactly what
+            they'll be charged BEFORE submitting. Cuts "I didn't know about
+            the fee" support tickets and improves activation post-approval. */}
+        <div className="mb-12">
+          <MakerFeeTable title="What you'll pay if approved" />
+        </div>
 
         <form onSubmit={submit} className="grid md:grid-cols-2 gap-6 border-y border-[#262626] py-8" data-testid="apply-form">
           {[["Your name", "name", true], ["Email", "email", true], ["Studio name", "studio_name", true], ["City, State", "location", true], ["Portfolio URL (optional)", "portfolio_url", false]].map(([label, k, req]) => (

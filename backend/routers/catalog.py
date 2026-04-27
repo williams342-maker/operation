@@ -26,6 +26,31 @@ async def policy_version():
     return {"version": POLICY_VERSION}
 
 
+@router.get("/policy/fee-policy")
+async def fee_policy():
+    """Public — surfaces the live fee structure (commission, processing,
+    listing fees, Plus tier, off-site ad fee) so the Apply page and the
+    Stripe Connect onboarding card render numbers from a single source of
+    truth instead of hard-coded copy that can drift from `backend/.env`."""
+    from revenue import (
+        LISTING_FEE_CENTS, LISTING_FREE_QUOTA,
+        PROMOTION_WEEKLY_FEE_CENTS, PLUS_PLATFORM_FEE_BPS,
+        PLUS_MONTHLY_LISTING_QUOTA, PLUS_PRICE_USD, OFFSITE_AD_FEE_BPS,
+    )
+    from routers.stripe_connect import PLATFORM_FEE_BPS, PROCESSING_FEE_BPS
+    return {
+        "platform_fee_bps": PLATFORM_FEE_BPS,
+        "processing_fee_bps": PROCESSING_FEE_BPS,
+        "plus_platform_fee_bps": PLUS_PLATFORM_FEE_BPS,
+        "offsite_ad_fee_bps": OFFSITE_AD_FEE_BPS,
+        "listing_fee_cents": LISTING_FEE_CENTS,
+        "listing_free_quota": LISTING_FREE_QUOTA,
+        "plus_monthly_listing_quota": PLUS_MONTHLY_LISTING_QUOTA,
+        "plus_price_usd": PLUS_PRICE_USD,
+        "promotion_weekly_fee_cents": PROMOTION_WEEKLY_FEE_CENTS,
+    }
+
+
 @router.get("/")
 async def root():
     return {"service": "crafters-market", "status": "ok"}

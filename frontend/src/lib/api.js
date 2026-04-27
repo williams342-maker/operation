@@ -24,6 +24,7 @@ export const uploadCustomOrderDesign = (file) => {
     .then((r) => r.data);
 };
 export const submitMakerApplication = (payload) => http.post("/maker-applications", payload).then((r) => r.data);
+export const fetchFeePolicy = () => http.get("/policy/fee-policy").then((r) => r.data);
 export const createCheckout = (payload) => http.post("/checkout/session", payload).then((r) => r.data);
 export const getCheckoutStatus = (sid) => http.get(`/checkout/status/${sid}`).then((r) => r.data);
 export const fetchCartQuote = (items) =>

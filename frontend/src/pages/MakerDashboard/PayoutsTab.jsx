@@ -4,6 +4,7 @@ import {
   stripeConnectOnboard, stripeConnectStatus, stripeConnectDashboardLink,
 } from "../../lib/api";
 import { StatsSkeleton, RowsSkeleton } from "../../components/Skeleton";
+import MakerFeeTable from "../../components/MakerFeeTable";
 
 export default function PayoutsTab() {
   const [status, setStatus] = useState(null);
@@ -71,9 +72,12 @@ export default function PayoutsTab() {
             <h3 className="font-display text-2xl mb-2 uppercase">Get paid directly.</h3>
             <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed mb-5 max-w-xl">
               Connect a Stripe account so each sale routes straight to your bank.
-              Crafters Market keeps a 10% platform fee; you keep the rest.
+              Fees below are deducted before payout — no upfront card billing.
               Onboarding takes about 5 minutes — Stripe handles ID verification and bank setup.
             </p>
+            <div className="mb-6">
+              <MakerFeeTable title="Fees deducted before payout" />
+            </div>
             <button
               onClick={onConnect}
               disabled={busy === "connect"}
