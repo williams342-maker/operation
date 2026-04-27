@@ -32,6 +32,8 @@ export default function ProductDetail() {
     description: p.description,
     image: p.images?.[0],
     url: `${window.location.origin}/shop/${p.slug}`,
+    imageAlt: p.title,
+    ogType: "product",
     jsonLd: {
       "@context": "https://schema.org",
       "@type": "Product",

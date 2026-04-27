@@ -6,11 +6,14 @@ import ProductCard from "../components/ProductCard";
 import MakerReviews from "../components/MakerReviews";
 import FollowButton from "../components/FollowButton";
 import FollowersList from "../components/FollowersList";
+import ContactMakerModal from "../components/ContactMakerModal";
+import { Mail } from "lucide-react";
 
 export default function MakerDetail() {
   const { slug } = useParams();
   const [m, setM] = useState(null);
   const [products, setProducts] = useState([]);
+  const [contactOpen, setContactOpen] = useState(false);
 
   useEffect(() => {
     fetchMaker(slug).then(setM);
@@ -22,6 +25,8 @@ export default function MakerDetail() {
     description: m.bio,
     image: m.cover || m.portrait,
     url: `${window.location.origin}/makers/${m.slug}`,
+    imageAlt: `${m.name} — ${m.location || ""}`.trim(),
+    ogType: "profile",
     jsonLd: {
       "@context": "https://schema.org",
       "@type": "Organization",
@@ -64,8 +69,15 @@ export default function MakerDetail() {
           </div>
           <h1 className="font-display text-[64px] md:text-[120px] leading-[0.88]">{m.name}</h1>
           <div className="font-mono text-xs uppercase tracking-[0.22em] text-[#a3a3a3] mt-2">{m.location} · {m.listings_count} listings · ★ {m.rating}</div>
-          <div className="mt-5">
+          <div className="mt-5 flex flex-wrap items-center gap-3">
             <FollowButton makerSlug={m.slug} makerName={m.name} />
+            <button
+              onClick={() => setContactOpen(true)}
+              className="px-4 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em] inline-flex items-center gap-2 bg-[#0a0a0a]/70 backdrop-blur"
+              data-testid="contact-maker-btn"
+            >
+              <Mail size={14} /> Message {m.name?.split(" ")[0] || "Maker"}
+            </button>
           </div>
         </div>
       </div>
@@ -84,6 +96,7 @@ export default function MakerDetail() {
         <MakerReviews makerSlug={m.slug} makerName={m.name} />
         <Link to="/makers" className="inline-block mt-12 industrial-link font-mono text-xs uppercase tracking-[0.22em]">← All makers</Link>
       </div>
+      {contactOpen && <ContactMakerModal maker={m} onClose={() => setContactOpen(false)} />}
     </div>
   );
 }

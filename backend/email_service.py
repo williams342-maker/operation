@@ -897,3 +897,91 @@ async def send_follower_new_listing(
         f"Crafters Market · Following {maker_name}",
     )
     return await _send(follower_email, f"New from {maker_name} · {listing_title}", html)
+
+
+
+# ─────────────────────── Direct Messages (buyer ↔ maker) ───────────────────────
+def _dm_body_block(sender_name: str, sender_email: str, body: str) -> str:
+    """Render a message body as a quoted card, preserving line breaks."""
+    safe = (
+        (body or "")
+        .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        .replace("\n", "<br>")
+    )
+    who = f"{sender_name} &lt;{sender_email}&gt;" if sender_name else sender_email
+    return (
+        "<div style='border-left:3px solid #ff4500;padding:14px 18px;"
+        "background:#0d0d0d;margin:18px 0;font-size:14px;line-height:1.6;color:#e5e5e5'>"
+        f"<div style='font-size:11px;color:#a3a3a3;text-transform:uppercase;letter-spacing:0.22em;margin-bottom:10px'>"
+        f"From · {who}</div>"
+        f"<div>{safe}</div></div>"
+    )
+
+
+def _dm_cta_button(label: str, href: str) -> str:
+    return (
+        f"<a href='{href}' style='display:inline-block;background:#ff4500;color:#0a0a0a;"
+        "padding:12px 22px;font-family:JetBrains Mono,monospace;font-size:11px;"
+        "letter-spacing:0.22em;text-transform:uppercase;text-decoration:none;"
+        f"border:1px solid #ff4500;font-weight:bold'>{label} →</a>"
+    )
+
+
+async def send_dm_to_maker(
+    maker_email: str, maker_name: str,
+    sender_display: str, sender_email: str,
+    subject: str, body: str, thread_id: str,
+):
+    """Notify a maker that a buyer (signed in or guest) sent them a DM.
+    Email contains the message preview + a CTA to open the Messages tab in the
+    Maker Shop Manager. Replying happens on-site — Reply-To is intentionally
+    NOT set on transactional sends so makers don't reply directly to the
+    buyer's inbox bypassing the audit trail."""
+    site = (os.environ.get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
+    open_url = f"{site}/maker/dashboard#messages?thread={thread_id}"
+    intro = (
+        f"You have a new message from <strong style='color:#e5e5e5'>{sender_display or sender_email}</strong>"
+        f" about your shop on Crafters Market."
+    )
+    inner = _dm_body_block(sender_display, sender_email, body)
+    cta = (
+        "<div style='margin-top:24px;padding-top:18px;border-top:1px solid #262626;text-align:left'>"
+        f"{_dm_cta_button('Open conversation', open_url)}"
+        "<p style='font-size:11px;color:#525252;margin-top:14px;letter-spacing:0.22em;text-transform:uppercase'>"
+        "◆ Reply directly in your Shop Manager to keep the conversation logged."
+        "</p></div>"
+    )
+    title = "New buyer message."
+    html = _shell(title, intro, inner + cta, f"Message · {subject[:80]}")
+    return await _send(
+        maker_email,
+        f"[Crafters Market] {sender_display or sender_email}: {subject[:80] or 'new message'}",
+        html,
+    )
+
+
+async def send_dm_to_buyer(
+    buyer_email: str, buyer_name: str,
+    maker_name: str, subject: str, body: str, thread_id: str,
+):
+    """Notify a buyer that a maker replied to their DM thread."""
+    site = (os.environ.get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
+    open_url = f"{site}/messages?thread={thread_id}"
+    intro = (
+        f"<strong style='color:#e5e5e5'>{maker_name}</strong> replied to your message on Crafters Market."
+    )
+    inner = _dm_body_block(maker_name, "", body)
+    cta = (
+        "<div style='margin-top:24px;padding-top:18px;border-top:1px solid #262626;text-align:left'>"
+        f"{_dm_cta_button('Open conversation', open_url)}"
+        "<p style='font-size:11px;color:#525252;margin-top:14px;letter-spacing:0.22em;text-transform:uppercase'>"
+        "◆ Sign in with the same email you used to message the shop."
+        "</p></div>"
+    )
+    title = f"{maker_name} replied."
+    html = _shell(title, intro, inner + cta, f"Message · {subject[:80]}")
+    return await _send(
+        buyer_email,
+        f"[Crafters Market] {maker_name} replied to your message",
+        html,
+    )

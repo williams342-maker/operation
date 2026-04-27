@@ -31,6 +31,8 @@ export default function ShopPage() {
     description: `Browse hand-built CNC metal & wood art, custom signs, and made-to-order pieces from approved independent makers.${cat !== "All" ? ` Filtered by ${cat}.` : ""}`,
     url: `https://craftersmarket.org/shop${cat !== "All" ? `?category=${encodeURIComponent(cat)}` : ""}`,
     image: "https://craftersmarket.org/downloads/cnc-garage-builders.png",
+    imageAlt: cat !== "All" ? `${cat} on Crafters Market` : "Crafters Market shop",
+    ogType: "website",
     jsonLd: {
       "@context": "https://schema.org",
       "@type": "CollectionPage",

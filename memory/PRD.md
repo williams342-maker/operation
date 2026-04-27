@@ -434,8 +434,6 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - 🟢 Closes the only P0 outstanding from the Maker Shop Manager rollout. All 9 tabs (Listings, Orders, Messages, Stats, Violations, Marketing, Financials, Help, Upgrade) + AI Marketing tools + CSV Import + Discount Codes are now functional end-to-end.
 
 ## Outstanding Backlog
-- **P1** Messages DM system — currently a stub in the Maker Shop Manager. Needs full buyer↔maker threading + Postmark notification emails.
-- **P1** Dynamic SEO meta tags via `react-helmet` on ProductDetail / MakerDetail / ShopPage.
 - **P2** Multi-tier Admin Team & Role Management (spec above).
 - **P2** Shopify CSV Import (Etsy mapping done; Shopify needs different mapping).
 - **P3** Dormant buyer retention — Kit.com automated tagging + auto-trigger discount.
@@ -443,3 +441,19 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 ## Blocked (waiting on user)
 - Mailtrap DNS verification in Cloudflare (Postmark covers 100% of mail in the meantime — no buyer impact).
 - Google Ads Developer Token (22-char) for off-site ad spend integration.
+
+## 2026-04-27 — Buyer↔Maker DM System + SEO Polish
+- ✅ **Buyer ↔ Maker direct messages — shipped end-to-end.**
+  - New backend router `/app/backend/routers/messages.py` with `dm_threads` and `dm_messages` Mongo collections.
+  - Endpoints: `POST /api/messages/start` (public — guests can DM without an account), `GET/POST /api/messages/maker/threads[…]/reply` (maker-JWT), `GET/POST /api/messages/buyer/threads[…]/reply` (buyer-JWT).
+  - Anti-spam: 20-thread/24h cap per (buyer→maker) pair; same-buyer threads within 7 days get re-used instead of creating duplicates.
+  - Postmark email notifications via new `send_dm_to_maker` / `send_dm_to_buyer` helpers — reuses the existing Mailtrap→Postmark→Resend fallback chain. Emails contain a CTA to `/maker/dashboard#messages?thread=<id>` (maker) and `/messages?thread=<id>` (buyer).
+  - Frontend: rebuilt `MessagesTab.jsx` as a two-pane (thread list + reader/composer) with unread badges, deep-link via `?thread=<id>`, ⌘+Enter send. New `ContactMakerModal.jsx` opens from a "Message {Maker}" button on `MakerDetail.jsx` — guest-friendly; pre-fills name/email if the visitor is a signed-in community user. New `BuyerMessagesPage` at `/messages` mirrors the maker layout for buyers' side of the inbox.
+  - Verified end-to-end: guest started thread → maker JWT lists/reads/replies → unread counters flip correctly → buyer-side endpoints gate on JWT (401 without). UI screenshots confirm Contact modal flow + maker inbox/reader/reply states.
+  - Side-fix: defensive guard in `routers/maker.py:maker_orders` for legacy product rows missing the `id` field (was 500-ing the whole maker dashboard for one shop).
+- ✅ **SEO meta tags rounded out** in `lib/seo.js`:
+  - Added `twitter:title`, `twitter:description`, `twitter:image`, `twitter:image:alt` (Twitter cards no longer rely solely on OG fallback).
+  - Added `og:image:alt`, `og:site_name`, and a `<link rel=canonical>` injector.
+  - Pages now pass `ogType` per surface: `product` (ProductDetail), `profile` (MakerDetail), `website` (ShopPage). Old behavior had every page emit `og:type=website` regardless.
+  - Choice rationale: kept the existing custom hook instead of pulling in `react-helmet-async` — same final HTML output, zero dependency churn, fewer moving parts in the SPA.
+

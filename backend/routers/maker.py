@@ -582,8 +582,9 @@ async def maker_plus_roi(slug: str = Depends(current_maker_slug)):
 async def maker_orders(slug: str = Depends(current_maker_slug)):
     """Returns paid orders that include at least one product from this maker."""
     products = await db.products.find({"maker_slug": slug}, {"_id": 0}).to_list(500)
-    by_id = {p["id"]: p for p in products}
-    by_slug = {p["slug"]: p for p in products}
+    # Defensive: legacy/seeded rows can lack `id` — skip them rather than 500.
+    by_id = {p["id"]: p for p in products if p.get("id")}
+    by_slug = {p["slug"]: p for p in products if p.get("slug")}
 
     txs = await db.payment_transactions.find(
         {"payment_status": "paid"}, {"_id": 0}

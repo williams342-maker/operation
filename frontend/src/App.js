@@ -36,6 +36,7 @@ import ContactPage from "./pages/ContactPage";
 import PolicyPage from "./pages/PolicyPage";
 import CommunityPage from "./pages/CommunityPage";
 import { CommunityLogin, CommunityVerify, CommunityAuthCallback } from "./pages/CommunityAuth";
+import BuyerMessagesPage from "./pages/BuyerMessagesPage";
 import SignInPage, { ForgotPasswordPage, ResetPasswordPage } from "./pages/SignInPage";
 import AIAssistant from "./components/AIAssistant";
 import MaintenancePage from "./components/MaintenancePage";
@@ -152,6 +153,7 @@ function App() {
                 <Route path="/community/login" element={<CommunityLogin />} />
                 <Route path="/community/verify" element={<CommunityVerify />} />
                 <Route path="/community/auth/callback" element={<CommunityAuthCallback />} />
+                <Route path="/messages" element={<BuyerMessagesPage />} />
               </Routes>
             </main>
             <Footer />

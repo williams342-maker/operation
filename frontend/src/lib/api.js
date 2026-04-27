@@ -91,6 +91,19 @@ export const toggleDiscountCode = (id, active) =>
 export const deleteDiscountCode = (id) =>
   http.delete(`/maker/discount-codes/${id}`, { headers: authHeaders() }).then((r) => r.data);
 
+// Messages — buyer ↔ maker DMs
+// Public — guests can start a thread without signing in.
+export const startMessageThread = (payload) =>
+  http.post("/messages/start", payload).then((r) => r.data);
+
+// Maker side
+export const fetchMakerThreads = () =>
+  http.get("/messages/maker/threads", { headers: authHeaders() }).then((r) => r.data);
+export const fetchMakerThread = (id) =>
+  http.get(`/messages/maker/threads/${id}`, { headers: authHeaders() }).then((r) => r.data);
+export const replyMakerThread = (id, body) =>
+  http.post(`/messages/maker/threads/${id}/reply`, { body }, { headers: authHeaders() }).then((r) => r.data);
+
 // CSV Import
 export const csvImportPreview = (file, source = "etsy") => {
   const fd = new FormData();
@@ -358,6 +371,14 @@ export const fetchCommunityEua = () =>
   http.get("/community/eua").then((r) => r.data);
 export const communityMe = () =>
   http.get("/community/me", { headers: buyerAuthHeaders() }).then((r) => r.data);
+
+// Buyer-side DM helpers (require community JWT)
+export const fetchBuyerThreads = () =>
+  http.get("/messages/buyer/threads", { headers: buyerAuthHeaders() }).then((r) => r.data);
+export const fetchBuyerThread = (id) =>
+  http.get(`/messages/buyer/threads/${id}`, { headers: buyerAuthHeaders() }).then((r) => r.data);
+export const replyBuyerThread = (id, body) =>
+  http.post(`/messages/buyer/threads/${id}/reply`, { body }, { headers: buyerAuthHeaders() }).then((r) => r.data);
 
 export const uploadAvatar = (file) => {
   const fd = new FormData();
