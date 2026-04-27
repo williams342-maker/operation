@@ -164,6 +164,11 @@ class CustomOrder(BaseModel):
     size: Optional[str] = None
     budget: Optional[str] = None
     description: str
+    quantity: Optional[str] = None
+    timeline: Optional[str] = None
+    preferred_maker_slug: Optional[str] = None
+    design_file_url: Optional[str] = None
+    design_file_name: Optional[str] = None
     created_at: str = Field(default_factory=now_iso)
 
 
@@ -176,6 +181,11 @@ class CustomOrderCreate(BaseModel):
     size: Optional[str] = None
     budget: Optional[str] = None
     description: str
+    quantity: Optional[str] = None
+    timeline: Optional[str] = None
+    preferred_maker_slug: Optional[str] = None
+    design_file_url: Optional[str] = None
+    design_file_name: Optional[str] = None
 
 
 class MakerApplication(BaseModel):

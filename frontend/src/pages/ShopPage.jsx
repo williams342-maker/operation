@@ -6,7 +6,7 @@ import { Search } from "lucide-react";
 import { useStructuredData } from "../lib/seo";
 
 const CATS = ["All", "Wall Art", "Custom Signs", "Outdoor Art"];
-const TECHS = ["All", "PLASMA", "LASER", "ROUTER", "CUSTOM"];
+const TECHS = ["All", "PLASMA", "LASER", "ROUTER", "3D", "CUSTOM"];
 
 export default function ShopPage() {
   const [params] = useSearchParams();

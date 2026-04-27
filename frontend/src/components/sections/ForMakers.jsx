@@ -63,7 +63,7 @@ export default function ForMakers() {
               Makers.
             </motion.h2>
             <p className="mt-8 font-mono text-sm md:text-base max-w-md leading-relaxed">
-              You build the work. We build the audience. List your plasma, laser and router pieces in a
+              You build the work. We build the audience. List your plasma, laser, router, and 3D-printed pieces in a
               storefront made for serious makers — no website needed.
             </p>
           </div>

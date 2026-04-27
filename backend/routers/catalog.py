@@ -2,7 +2,7 @@
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile
 
 from core import db
 from email_service import (
@@ -165,6 +165,48 @@ async def create_custom_order(payload: CustomOrderCreate, bg: BackgroundTasks):
                 payload.material, payload.description, payload.budget)
     bg.add_task(send_buyer_custom_ack, payload.email, payload.name, payload.project_type)
     return order
+
+
+@router.post("/custom-orders/upload-design")
+async def upload_custom_order_design(file: UploadFile = File(...)):
+    """Upload a buyer's design/sketch/reference for a custom-order brief.
+
+    Public endpoint (no auth) because the custom-order wizard is itself
+    public. Hard-capped at 10 MB and limited to common design formats so
+    we don't accept arbitrary uploads from anonymous traffic.
+    """
+    try:
+        from r2_storage import is_configured as _r2_ok, upload_bytes
+    except Exception:
+        raise HTTPException(503, "Upload service is not available.")
+    if not _r2_ok():
+        raise HTTPException(503, "Upload service is not configured.")
+
+    fname = (file.filename or "").lower()
+    allowed_ext = (".jpg", ".jpeg", ".png", ".svg", ".pdf", ".dxf", ".webp")
+    if not fname.endswith(allowed_ext):
+        raise HTTPException(400, f"Supported formats: {', '.join(allowed_ext)}")
+
+    body = await file.read()
+    if len(body) > 10 * 1024 * 1024:
+        raise HTTPException(413, "Max file size is 10 MB.")
+
+    ct_map = {
+        ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
+        ".webp": "image/webp", ".svg": "image/svg+xml",
+        ".pdf": "application/pdf", ".dxf": "application/dxf",
+    }
+    ext = next((e for e in ct_map if fname.endswith(e)), ".bin")
+    ct = ct_map[ext]
+    import uuid as _uuid
+    key = f"custom-orders/designs/{_uuid.uuid4().hex}{ext}"
+    try:
+        url = upload_bytes(body, key, ct, max_bytes=10 * 1024 * 1024)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception:
+        raise HTTPException(502, "Could not upload design.")
+    return {"url": url, "filename": file.filename, "size": len(body)}
 
 
 @router.post("/maker-applications", response_model=MakerApplication)

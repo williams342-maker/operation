@@ -10,6 +10,7 @@ const TILES = [
   { label: "Wedding Gifts", q: "Wedding Monogram", img: "https://images.unsplash.com/photo-1776142519609-a4858781a01a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MDV8MHwxfHNlYXJjaHw0fHxjdXN0b20lMjB3b29kJTIwY2FydmVkJTIwd2FsbCUyMHNpZ258ZW58MHx8fHwxNzc3MTU0OTc2fDA&ixlib=rb-4.1.0&q=85" },
   { label: "Business", q: "Business Sign", img: "https://images.pexels.com/photos/17180807/pexels-photo-17180807.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940" },
   { label: "Plasma", q: "Plasma", img: "https://images.unsplash.com/photo-1689960253768-72a12bc8320f?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDF8MHwxfHNlYXJjaHw0fHxjbmMlMjBwbGFzbWElMjBjdXR0aW5nJTIwbWV0YWwlMjB3b3JrZXJ8ZW58MHx8fHwxNzc3MTU0OTc2fDA&ixlib=rb-4.1.0&q=85" },
+  { label: "3D Printing", q: "3D Printed Piece", img: "https://images.unsplash.com/photo-1631704402923-2b5e1f8b94d7?crop=entropy&cs=srgb&fm=jpg&w=600&q=85" },
   { label: "Router", q: "Router", img: "https://images.unsplash.com/photo-1705661902771-28a65b16ea98?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2MzR8MHwxfHNlYXJjaHwzfHxtb2Rlcm4lMjBtZXRhbCUyMHdhbGwlMjBhcnQlMjBzaWdufGVufDB8fHx8MTc3NzE1NDk4NHww&ixlib=rb-4.1.0&q=85" },
 ];
 
@@ -24,7 +25,7 @@ export default function CategoryStrip() {
           </div>
           <Link to="/shop" className="industrial-link font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] hidden md:inline">View all →</Link>
         </div>
-        <div className="grid grid-cols-4 md:grid-cols-8 gap-4 md:gap-6">
+        <div className="grid grid-cols-3 md:grid-cols-9 gap-4 md:gap-5">
           {TILES.map((t, i) => (
             <motion.div key={t.label}
               initial={{ opacity: 0, y: 18 }}

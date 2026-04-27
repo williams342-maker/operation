@@ -24,7 +24,7 @@ export default function Process() {
         </Marquee>
         <Marquee gradient={false} speed={35} direction="right" className="opacity-15 mt-2">
           <span className="ticker-text text-[18vw] md:text-[14vw] text-outline-orange mr-12">
-            PRECISION · PLASMA · LASER · ROUTER · OAK · STEEL ·
+            PRECISION · PLASMA · LASER · ROUTER · 3D PRINT · OAK · STEEL ·
           </span>
         </Marquee>
       </div>
