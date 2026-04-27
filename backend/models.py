@@ -169,6 +169,8 @@ class CustomOrder(BaseModel):
     preferred_maker_slug: Optional[str] = None
     design_file_url: Optional[str] = None
     design_file_name: Optional[str] = None
+    policy_version: Optional[str] = None
+    policy_accepted_at: Optional[str] = None
     created_at: str = Field(default_factory=now_iso)
 
 
@@ -186,6 +188,8 @@ class CustomOrderCreate(BaseModel):
     preferred_maker_slug: Optional[str] = None
     design_file_url: Optional[str] = None
     design_file_name: Optional[str] = None
+    policy_accepted: bool = False
+    policy_version: Optional[str] = None
 
 
 class MakerApplication(BaseModel):
@@ -222,6 +226,11 @@ class CheckoutRequest(BaseModel):
     customer_email: Optional[EmailStr] = None
     gift_note: Optional[str] = None
     attribution_source: Optional[str] = None   # off-site ad surcharge tag
+    # Audit-trail consent. Frontend must stamp this client-side at submit;
+    # backend re-stamps a server-time value into the order doc.
+    policy_accepted: bool = False
+    policy_version: Optional[str] = None
+    policy_accepted_at: Optional[str] = None
 
 
 class ActivityEvent(BaseModel):

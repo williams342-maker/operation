@@ -181,8 +181,8 @@ async def create_post(
 
 async def auto_post_listing(product: dict, maker: dict) -> Optional[dict]:
     """Listing-publish auto-post. No-op when disabled or no channels connected.
-    Composes the default template the user picked: 'New from {maker}: {title}
-    — ${price} → {url}'."""
+    Composes the default template the user picked. High-value listings get
+    a louder "🔥 NEW DROP" header to match the activity-ticker drop badge."""
     if not _enabled() or not BUFFER_AUTO_PUBLISH:
         return None
     try:
@@ -199,7 +199,21 @@ async def auto_post_listing(product: dict, maker: dict) -> Optional[dict]:
     url = f"{SITE_URL}/shop/{slug}"
     maker_name = maker.get("name") or maker.get("slug") or "a maker"
     image = (product.get("images") or [None])[0]
-    text = f"New from {maker_name}: {title} — ${price:.0f} → {url}"
+
+    # Triple-fanout louder template for high-value pieces
+    high_value = (
+        price >= float(os.environ.get("HIGH_VALUE_PRICE", "250"))
+        or bool(product.get("featured"))
+        or bool(product.get("shop_of_the_week"))
+        or bool(product.get("is_drop"))
+    )
+    if high_value:
+        text = (
+            f"🔥 NEW DROP — {maker_name}: {title} — ${price:.0f}\n\n"
+            f"Limited piece, made-to-order. Shop direct → {url}"
+        )
+    else:
+        text = f"New from {maker_name}: {title} — ${price:.0f} → {url}"
 
     return await create_post(
         text=text,

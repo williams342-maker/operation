@@ -10,6 +10,11 @@ from motor.motor_asyncio import AsyncIOMotorClient
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
 
+# Policy version stamped on every order acceptance. Bump when policy text
+# changes substantially so the audit trail can prove which version a buyer
+# agreed to. Frontend reads this from /api/policy/version.
+POLICY_VERSION = "2026.04"
+
 # ---- Mongo ----
 MONGO_URL = os.environ["MONGO_URL"]
 DB_NAME = os.environ["DB_NAME"]

@@ -165,6 +165,8 @@ async def cart_quote(req: CheckoutRequest):
 async def create_checkout(req: CheckoutRequest, http_request: Request):
     if not req.items:
         raise HTTPException(400, "Cart is empty")
+    if not req.policy_accepted:
+        raise HTTPException(400, "You must accept the Site Policies to checkout.")
     resolved = await _resolve_cart(req.items)
     quote = _quote_for(resolved)
     if quote["total_before_tax"] <= 0:
@@ -266,6 +268,7 @@ async def create_checkout(req: CheckoutRequest, http_request: Request):
     # for the 12% surcharge in stripe_connect transfers.
     attr_source = (req.attribution_source or "").strip()[:50] or None
     is_external = bool(attr_source) and attr_source.lower() not in ("internal", "direct", "self")
+    from core import POLICY_VERSION
     await db.payment_transactions.insert_one({
         "id": str(uuid.uuid4()),
         "session_id": session.id,
@@ -282,6 +285,11 @@ async def create_checkout(req: CheckoutRequest, http_request: Request):
         "external_attribution": is_external,
         "payment_status": "initiated",
         "status": "open",
+        # Policy audit trail — proves which version the buyer agreed to and
+        # exactly when (server time). Survives chargebacks, refund disputes,
+        # and any "I didn't agree to that" claim.
+        "policy_version": POLICY_VERSION,
+        "policy_accepted_at": now_iso(),
         "created_at": now_iso(),
     })
     return {"url": session.url, "session_id": session.id, "amount": total,

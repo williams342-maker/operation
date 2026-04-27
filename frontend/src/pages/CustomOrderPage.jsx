@@ -8,6 +8,7 @@ import {
   fetchMakers, submitCustomOrder, uploadCustomOrderDesign,
 } from "../lib/api";
 import { useStructuredData } from "../lib/seo";
+import PolicyConsent, { usePolicyConsent } from "../components/PolicyConsent";
 
 // ============================================================
 //  Category catalog — 7 piece types incl. 3D Printing
@@ -439,7 +440,7 @@ function StepUpload({ value, onPick }) {
 // ============================================================
 //  Step 5 — Contact info + order summary
 // ============================================================
-function StepContact({ form, setForm, summary }) {
+function StepContact({ form, setForm, summary, consent }) {
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
   return (
     <div data-testid="step-contact">
@@ -488,6 +489,10 @@ function StepContact({ form, setForm, summary }) {
           <SummaryRow label="Maker" value={summary.maker} />
           <SummaryRow label="Design" value={summary.design} />
         </dl>
+      </div>
+
+      <div className="mt-6">
+        <PolicyConsent consent={consent} testId="custom-order-policy" />
       </div>
     </div>
   );
@@ -546,6 +551,7 @@ export default function CustomOrderPage() {
     },
   });
 
+  const consent = usePolicyConsent();
   const [step, setStep] = useState(1);
   const [form, setForm] = useState({
     project_type: "",
@@ -570,7 +576,7 @@ export default function CustomOrderPage() {
     if (s === 2) return !!form.description.trim();
     if (s === 3) return true;  // null is "any maker" — also valid
     if (s === 4) return true;  // upload optional
-    if (s === 5) return !!form.name.trim() && /\S+@\S+/.test(form.email);
+    if (s === 5) return !!form.name.trim() && /\S+@\S+/.test(form.email) && consent.accepted;
     return false;
   };
 
@@ -589,7 +595,9 @@ export default function CustomOrderPage() {
 
   const submit = async () => {
     if (!stepValid(5)) {
-      toast.error("Add your name and a valid email.");
+      toast.error(consent.accepted
+        ? "Add your name and a valid email."
+        : "Please review and accept the Site Policies to submit.");
       return;
     }
     setSubmitting(true);
@@ -608,6 +616,8 @@ export default function CustomOrderPage() {
         preferred_maker_slug: form.preferred_maker_slug || null,
         design_file_url: form.design_file_url || null,
         design_file_name: form.design_file_name || null,
+        policy_accepted: true,
+        policy_version: consent.version,
       });
       setDone(true);
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -668,6 +678,7 @@ export default function CustomOrderPage() {
           <StepContact
             form={form}
             setForm={setForm}
+            consent={consent}
             summary={{
               type: form.project_type,
               material: form.material || "Any / Maker's choice",

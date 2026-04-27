@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile
 
-from core import db
+from core import db, now_iso
 from email_service import (
     send_applicant_received, send_buyer_custom_ack,
     send_ops_new_application, send_ops_new_custom_order,
@@ -16,6 +16,14 @@ from models import (
 )
 
 router = APIRouter()
+
+
+@router.get("/policy/version")
+async def policy_version():
+    """Public — frontend stamps this onto consent payloads so audit trail
+    and live UI agree on the policy text the buyer agreed to."""
+    from core import POLICY_VERSION
+    return {"version": POLICY_VERSION}
 
 
 @router.get("/")
@@ -153,7 +161,15 @@ async def get_post(slug: str):
 
 @router.post("/custom-orders", response_model=CustomOrder)
 async def create_custom_order(payload: CustomOrderCreate, bg: BackgroundTasks):
-    order = CustomOrder(**payload.model_dump())
+    if not payload.policy_accepted:
+        raise HTTPException(400, "You must accept the Site Policies to submit a custom order.")
+    from core import POLICY_VERSION
+    data = payload.model_dump()
+    # Policy audit trail — stamp server time, server-known version.
+    data["policy_version"] = POLICY_VERSION
+    data["policy_accepted_at"] = now_iso()
+    data.pop("policy_accepted", None)
+    order = CustomOrder(**data)
     await db.custom_orders.insert_one(order.model_dump())
     await db.activity_events.insert_one(
         ActivityEvent(kind="applied",

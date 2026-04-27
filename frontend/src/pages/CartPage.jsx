@@ -4,12 +4,14 @@ import { useCart } from "../lib/cart";
 import { createCheckout, fetchCartQuote } from "../lib/api";
 import { getAttributionSource } from "../lib/analytics";
 import { Trash2 } from "lucide-react";
+import PolicyConsent, { usePolicyConsent } from "../components/PolicyConsent";
 
 export default function CartPage() {
   const { items, remove, setQty, subtotal, clear } = useCart();
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
   const [email, setEmail] = useState("");
+  const consent = usePolicyConsent();
   const [giftNote, setGiftNote] = useState(() => {
     try { return localStorage.getItem("cm_gift_note") || ""; } catch { return ""; }
   });
@@ -33,6 +35,9 @@ export default function CartPage() {
     if (!email || !/.+@.+\..+/.test(email)) {
       setErr("Enter a valid email so we can send your receipt."); return;
     }
+    if (!consent.accepted) {
+      setErr("Please review and accept the Site Policies to continue."); return;
+    }
     setErr(""); setLoading(true);
     try {
       const res = await createCheckout({
@@ -41,10 +46,13 @@ export default function CartPage() {
         customer_email: email,
         gift_note: giftNote || undefined,
         attribution_source: getAttributionSource() || undefined,
+        policy_accepted: true,
+        policy_version: consent.version,
+        policy_accepted_at: new Date().toISOString(),
       });
       window.location.href = res.url;
     } catch (e) {
-      setErr("Checkout failed. Try again."); setLoading(false);
+      setErr(e?.response?.data?.detail || "Checkout failed. Try again."); setLoading(false);
     }
   };
 
@@ -155,7 +163,8 @@ export default function CartPage() {
                   className="w-full mt-2 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-3 font-mono text-sm resize-y"
                 />
               </label>
-              <button onClick={checkout} disabled={loading} data-testid="cart-checkout-btn" className="btn-industrial btn-primary w-full justify-center">
+              <PolicyConsent consent={consent} testId="cart-policy" />
+              <button onClick={checkout} disabled={loading || !consent.accepted} data-testid="cart-checkout-btn" className="btn-industrial btn-primary w-full justify-center mt-4 disabled:opacity-50">
                 {loading ? "Redirecting…" : "Checkout →"}
               </button>
               {err && <p className="text-[#ff4500] font-mono text-xs mt-3">{err}</p>}

@@ -21,15 +21,43 @@ export default function ActivityTicker() {
 
   if (!events.length) return null;
   const e = events[idx];
-  const colors = { sold: "#ff4500", shipped: "#4ade80", listed: "#60a5fa", applied: "#facc15" };
+  const colors = {
+    sold: "#ff4500", shipped: "#4ade80", listed: "#60a5fa",
+    applied: "#facc15", drop: "#ff4500",
+  };
+  const isDrop = e.kind === "drop";
 
   return (
-    <div className="w-full bg-[#0a0a0a] border-b border-[#262626] text-[#a3a3a3] font-mono text-[10px] md:text-[11px] uppercase tracking-[0.22em] py-2.5 px-4 flex items-center gap-3 overflow-hidden" data-testid="activity-ticker">
-      <span className="w-1.5 h-1.5 rounded-full animate-pulse flex-shrink-0" style={{ background: colors[e.kind] || "#fff" }} />
-      <span className="text-[#e5e5e5] truncate">{e.text}</span>
+    <div
+      className={`w-full border-b font-mono uppercase tracking-[0.22em] py-2.5 px-4 flex items-center gap-3 overflow-hidden ${
+        isDrop
+          ? "bg-[#1a0a05] border-[#ff4500]/40 text-[#ff4500] text-[11px] md:text-[12px]"
+          : "bg-[#0a0a0a] border-[#262626] text-[#a3a3a3] text-[10px] md:text-[11px]"
+      }`}
+      data-testid="activity-ticker"
+    >
+      <span
+        className="w-1.5 h-1.5 rounded-full animate-pulse flex-shrink-0"
+        style={{ background: colors[e.kind] || "#fff" }}
+      />
+      {isDrop && (
+        <span
+          className="font-display text-[10px] md:text-[11px] tracking-[0.3em] text-[#ff4500] flex-shrink-0"
+          data-testid="activity-ticker-drop-badge"
+        >
+          ◆ DROP
+        </span>
+      )}
+      <span
+        className={`truncate ${isDrop ? "text-[#fff] font-bold" : "text-[#e5e5e5]"}`}
+      >
+        {e.text}
+      </span>
       <span className="hidden sm:inline">·</span>
       <span className="hidden sm:inline truncate">{e.location}</span>
-      <span className="ml-auto hidden md:inline" style={{ color: colors[e.kind] || "#fff" }}>{e.kind.toUpperCase()}</span>
+      <span className="ml-auto hidden md:inline" style={{ color: colors[e.kind] || "#fff" }}>
+        {e.kind.toUpperCase()}
+      </span>
     </div>
   );
 }
