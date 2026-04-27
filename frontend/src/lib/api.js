@@ -226,6 +226,18 @@ export const fetchNewsletterSubscribers = (limit = 200) =>
     .get("/admin/newsletter/subscribers", { params: { limit }, headers: adminAuthHeaders() })
     .then((r) => r.data);
 
+// ---------- Admin: cohort retention ----------
+export const fetchAdminCohorts = (weeks = 12) =>
+  http.get("/admin/analytics/cohorts", { params: { weeks }, headers: adminAuthHeaders() })
+    .then((r) => r.data);
+
+// ---------- Admin: drop saves ----------
+export const fetchAdminDropSaves = (maker_slug, limit = 200) =>
+  http.get("/admin/drop-saves", {
+    params: { maker_slug: maker_slug || undefined, limit },
+    headers: adminAuthHeaders(),
+  }).then((r) => r.data);
+
 // ---------- Admin: per-channel chat moderation ----------
 export const fetchAdminChatMessages = (channel, limit = 100) =>
   http

@@ -23,10 +23,12 @@ import AuditTab from "../components/admin/AuditTab";
 import AdsTab from "../components/admin/AdsTab";
 import BufferTab from "../components/admin/BufferTab";
 import ChatModTab from "../components/admin/ChatModTab";
+import RetentionTab from "../components/admin/RetentionTab";
 import LiveNowBadge from "../components/admin/LiveNowBadge";
 
 const TABS = [
   { id: "analytics", label: "Analytics" },
+  { id: "retention", label: "Retention" },
   { id: "web", label: "Web Analytics" },
   { id: "makers", label: "Maker Analytics" },
   { id: "applications", label: "Applications" },
@@ -174,6 +176,7 @@ export default function AdminDashboard() {
         </div>
 
         {tab === "analytics" && <AnalyticsTab />}
+        {tab === "retention" && <RetentionTab />}
         {tab === "web" && <WebAnalyticsTab />}
         {tab === "makers" && <MakerAnalyticsTab />}
         {tab === "applications" && <ApplicationsList items={apps} onChange={refresh} />}

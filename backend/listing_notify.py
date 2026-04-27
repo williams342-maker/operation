@@ -149,14 +149,18 @@ async def notify_listing_published(
         logger.exception("[listing_publish] buffer auto-post failed: %s", e)
 
     if high_value:
-        # 5. Kit drop broadcast — only for the loud ones
+        # 5. Kit drop broadcast — only for the loud ones, targeted to the
+        # maker's "interested-in-{slug}" tag (saved-drop audience). When
+        # nobody's saved any of this maker's drops yet, Kit silently
+        # no-ops the send.
         try:
-            from kit_service import create_drop_broadcast
-            broadcast_id = await create_drop_broadcast(
+            from kit_service import create_drop_broadcast_targeted
+            broadcast_id = await create_drop_broadcast_targeted(
                 listing_title=title,
                 listing_slug=listing_slug,
                 listing_url=listing_url,
                 maker_name=maker.get("name") or maker.get("slug") or "a maker",
+                maker_slug=maker.get("slug") or "",
                 listing_price=price,
                 listing_image=image,
             )

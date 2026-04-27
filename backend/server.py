@@ -11,6 +11,7 @@ from routers.ai import router as ai_router
 from routers.catalog import router as catalog_router
 from routers.checkout import router as checkout_router
 from routers.community import router as community_router
+from routers.community_chat import router as community_chat_router
 from routers.credits import router as credits_router
 from routers.maker import router as maker_router
 from routers.seo import router as seo_router
@@ -40,6 +41,7 @@ api.include_router(analytics_router)
 api.include_router(admin_router)
 api.include_router(ai_router)
 api.include_router(community_router)
+api.include_router(community_chat_router)
 api.include_router(settings_router)
 api.include_router(follows_router)
 api.include_router(ad_spend_router)

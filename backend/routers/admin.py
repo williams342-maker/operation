@@ -387,6 +387,98 @@ async def admin_analytics(_: dict = Depends(current_admin)):
     }
 
 
+# ===================== COHORT RETENTION =====================
+def _iso_to_week_key(iso: str) -> Optional[str]:
+    """Returns ISO-week string YYYY-Www so cohorts align across years."""
+    try:
+        dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        y, w, _ = dt.isocalendar()
+        return f"{y}-W{w:02d}"
+    except Exception:
+        return None
+
+
+def _week_diff(start_key: str, target_key: str) -> Optional[int]:
+    """Number of ISO weeks between two YYYY-Www keys (0+ if target is later,
+    negative skipped). Cheap approximation — good enough for a 12-week heatmap."""
+    try:
+        sy, sw = start_key.split("-W"); ty, tw = target_key.split("-W")
+        return (int(ty) - int(sy)) * 52 + (int(tw) - int(sw))
+    except Exception:
+        return None
+
+
+@router.get("/admin/analytics/cohorts")
+async def admin_cohorts(weeks: int = 12, _: dict = Depends(current_admin)):
+    """Buyer cohort retention. For every weekly cohort (anchored to the
+    buyer's first paid order), how many of those buyers came back in week
+    +1, +2, … +N? Returns a heatmap-friendly row-per-cohort structure."""
+    weeks = max(4, min(weeks, 26))
+    paid = await db.payment_transactions.find(
+        {"payment_status": "paid", "customer_email": {"$ne": None, "$ne": ""}},
+        {"_id": 0, "customer_email": 1, "created_at": 1, "amount": 1},
+    ).sort("created_at", 1).to_list(20000)
+
+    # Group orders by buyer
+    by_buyer: dict[str, list[dict]] = {}
+    for tx in paid:
+        e = (tx.get("customer_email") or "").lower().strip()
+        if not e or not tx.get("created_at"):
+            continue
+        by_buyer.setdefault(e, []).append(tx)
+
+    # First-purchase week → cohort membership
+    cohort_members: dict[str, set[str]] = {}     # week_key → emails
+    cohort_first_amount: dict[str, float] = {}   # week_key → first-order GMV
+    for email, txs in by_buyer.items():
+        first = txs[0]
+        wk = _iso_to_week_key(first["created_at"])
+        if not wk:
+            continue
+        cohort_members.setdefault(wk, set()).add(email)
+        cohort_first_amount[wk] = (
+            cohort_first_amount.get(wk, 0.0) + float(first.get("amount", 0))
+        )
+
+    # Retention matrix — rows = cohort weeks (most recent N), cols = +0..+weeks
+    cohort_keys = sorted(cohort_members.keys())[-weeks:]
+    rows = []
+    for ck in cohort_keys:
+        members = cohort_members[ck]
+        size = len(members)
+        # For each cohort member, count which weeks past `ck` had any paid order
+        retention_by_week: dict[int, set[str]] = {}
+        for email in members:
+            for tx in by_buyer[email]:
+                wk = _iso_to_week_key(tx["created_at"])
+                if not wk:
+                    continue
+                d = _week_diff(ck, wk)
+                if d is None or d < 0 or d > weeks:
+                    continue
+                retention_by_week.setdefault(d, set()).add(email)
+        cells = []
+        for w in range(weeks + 1):
+            count = len(retention_by_week.get(w, set()))
+            pct = round(100.0 * count / size, 1) if size else 0.0
+            cells.append({"week_offset": w, "count": count, "pct": pct})
+        rows.append({
+            "cohort": ck,
+            "size": size,
+            "first_order_gmv": round(cohort_first_amount.get(ck, 0.0), 2),
+            "cells": cells,
+        })
+
+    return {
+        "weeks": weeks,
+        "total_buyers": len(by_buyer),
+        "total_repeat_buyers": sum(1 for txs in by_buyer.values() if len(txs) >= 2),
+        "rows": rows,
+    }
+
+
 # ===================== USERS =====================
 @router.get("/admin/community-users")
 async def admin_community_users(_: dict = Depends(current_admin)):

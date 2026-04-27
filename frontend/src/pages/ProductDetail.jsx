@@ -4,6 +4,7 @@ import { fetchProduct, fetchMaker } from "../lib/api";
 import { useCart } from "../lib/cart";
 import { useStructuredData } from "../lib/seo";
 import { ArrowLeft } from "lucide-react";
+import SaveDropButton from "../components/SaveDropButton";
 
 export default function ProductDetail() {
   const { slug } = useParams();
@@ -263,6 +264,11 @@ export default function ProductDetail() {
               <button onClick={onAdd} data-testid="product-add-cart" className="btn-industrial btn-primary flex-1 justify-center">
                 {added ? "Added ✓" : "Add to cart →"}
               </button>
+              <SaveDropButton
+                makerSlug={p.maker_slug}
+                makerName={maker?.name || p.maker_slug}
+                productSlug={p.slug}
+              />
             </div>
 
             {maker && (
