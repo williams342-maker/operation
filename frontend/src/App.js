@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import "./App.css";
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { CartProvider } from "./lib/cart";
 
 import Nav from "./components/sections/Nav";
@@ -133,6 +133,8 @@ function App() {
                 <Route path="/admin/dashboard" element={<AdminDashboard />} />
                 <Route path="/contact" element={<ContactPage />} />
                 <Route path="/policy" element={<PolicyPage />} />
+                <Route path="/terms" element={<Navigate to="/policy#terms" replace />} />
+                <Route path="/tos" element={<Navigate to="/policy#terms" replace />} />
                 <Route path="/community" element={<CommunityPage />} />
                 <Route path="/community/login" element={<CommunityLogin />} />
                 <Route path="/community/verify" element={<CommunityVerify />} />

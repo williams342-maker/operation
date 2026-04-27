@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import {
-  ChevronDown, Truck, RotateCcw, Wand2, Boxes, CreditCard,
+  ChevronDown, FileText, Truck, RotateCcw, Wand2, Boxes, CreditCard,
   ShieldCheck, Lock, Ban, Copyright, AlertTriangle, UserX, Mail,
 } from "lucide-react";
 import { useStructuredData } from "../lib/seo";
@@ -14,6 +14,50 @@ const SUPPORT_EMAIL = "team@craftersmarket.org";
 //  reference mockup (11 sections), wired to current site config.
 // ============================================================
 const SECTIONS = [
+  {
+    id: "terms",
+    icon: FileText,
+    title: "Terms of Service",
+    intro: "Welcome to Crafters Market. By using our website and services, you agree to these Terms.",
+    blocks: [
+      {
+        heading: "For Buyers",
+        bullets: [
+          "All sales are between you and the individual seller, not Crafters Market",
+          "We only provide the platform — questions or issues about orders should be directed to the seller",
+          "Once you purchase, the seller is responsible for shipping and fulfilling your order",
+        ],
+      },
+      {
+        heading: "For Sellers",
+        bullets: [
+          "You must sell only items you make yourself — no reselling or drop-shipping",
+          "You are responsible for accurately describing your items, shipping on time, and handling customer service",
+          "We charge a percentage commission on every sale (the exact fee is shown in the Makers Market section below and again before you list)",
+          "You must follow our Prohibited Items policy — no counterfeit, illegal, or harmful products",
+        ],
+      },
+      {
+        heading: "General",
+        bullets: [
+          "We may remove listings or suspend accounts that violate these rules",
+          "All payments are processed securely via Stripe; we are not responsible for disputes between buyers and sellers beyond what Stripe's protections cover",
+          "These terms may be updated at any time — continued use of Crafters Market means you accept the changes",
+        ],
+      },
+    ],
+    callout: {
+      tone: "info",
+      text: "These Terms of Service operate alongside the topic-specific policies below (Shipping, Returns, Marketplace, Privacy, Prohibited Items, etc.). Where a specific policy provides more detail, that detail controls.",
+    },
+    outro: (
+      <>
+        <span className="text-[#a3a3a3]">Last updated:</span>{" "}
+        <b className="text-[#e5e5e5]">April 2026</b>
+      </>
+    ),
+  },
+
   {
     id: "shipping",
     icon: Truck,
@@ -479,12 +523,12 @@ function PolicySection({ section, isOpen, onToggle }) {
 export default function PolicyPage() {
   // Open the first 3 sections by default — the rest are collapsed
   // so the page reads as a structured index rather than a wall of text.
-  const [open, setOpen] = useState({ shipping: true, returns: true, custom: true });
+  const [open, setOpen] = useState({ terms: true, shipping: true, returns: true });
   const toggle = (id) => setOpen((s) => ({ ...s, [id]: !s[id] }));
 
   useStructuredData({
-    title: "Site Policies · Shipping, Returns, Marketplace · Crafters Market",
-    description: "Crafters Market policies — shipping, returns, custom orders, payments, Makers Market commission, privacy, prohibited items, IP, and seller/buyer conduct.",
+    title: "Terms of Service & Site Policies · Crafters Market",
+    description: "Crafters Market Terms of Service, shipping, returns, custom orders, payments, Makers Market commission, privacy, prohibited items, IP, and seller/buyer conduct.",
     url: "https://craftersmarket.org/policy",
     image: "https://craftersmarket.org/downloads/cnc-garage-builders.png",
     jsonLd: {
