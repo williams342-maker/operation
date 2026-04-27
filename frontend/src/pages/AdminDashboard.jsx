@@ -24,6 +24,7 @@ import AdsTab from "../components/admin/AdsTab";
 import BufferTab from "../components/admin/BufferTab";
 import ChatModTab from "../components/admin/ChatModTab";
 import RetentionTab from "../components/admin/RetentionTab";
+import TeamTab from "../components/admin/TeamTab";
 import LiveNowBadge from "../components/admin/LiveNowBadge";
 
 const TABS = [
@@ -42,6 +43,7 @@ const TABS = [
   { id: "buffer", label: "Social" },
   { id: "chat", label: "Chat Mod" },
   { id: "digests", label: "Digests" },
+  { id: "team", label: "Team", superOnly: true },
   { id: "settings", label: "Settings" },
 ];
 
@@ -159,7 +161,7 @@ export default function AdminDashboard() {
           className="-mx-4 md:mx-0 px-4 md:px-0 flex border-b border-[#262626] mb-8 overflow-x-auto sticky top-[64px] md:top-0 bg-[#0a0a0a] z-20 scrollbar-thin"
           data-testid="admin-tabs"
         >
-          {TABS.map((t) => (
+          {TABS.filter((t) => !t.superOnly || me?.is_super_admin).map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
@@ -190,6 +192,7 @@ export default function AdminDashboard() {
         {tab === "buffer" && <BufferTab />}
         {tab === "chat" && <ChatModTab />}
         {tab === "digests" && <DigestsTab />}
+        {tab === "team" && me?.is_super_admin && <TeamTab />}
         {tab === "settings" && <SettingsTab />}
       </div>
     </div>

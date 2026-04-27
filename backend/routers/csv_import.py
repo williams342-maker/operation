@@ -73,6 +73,100 @@ def _parse_etsy_row(row: dict) -> dict | None:
     }
 
 
+def _parse_shopify_row(row: dict, by_handle: dict[str, list[dict]] | None = None) -> dict | None:
+    """Map a Shopify product-export CSV row to a Crafters Market product dict.
+
+    Shopify exports one row per *variant*; products are grouped by the
+    `Handle` column. The first row of a handle carries the canonical
+    Title/Body/Tags/Vendor/Type fields; subsequent rows often have only
+    variant-level info. We treat the FIRST row per handle as the source of
+    truth and aggregate variant inventory + image URLs across all rows."""
+    handle = (row.get("Handle") or "").strip().lower()
+    title = (row.get("Title") or "").strip()
+    if not handle and not title:
+        return None
+    # Only emit a product on the first (or only) row of a handle.
+    if by_handle is not None and handle:
+        first = by_handle[handle][0]
+        if row is not first:
+            return None
+    if not title:
+        return None
+    body = (row.get("Body (HTML)") or row.get("Body") or "").strip()
+    # Strip HTML tags lightly — full sanitization happens server-side later.
+    description = re.sub(r"<[^>]+>", " ", body)
+    description = re.sub(r"\s+", " ", description).strip()[:4000]
+    try:
+        price = float(str(row.get("Variant Price") or row.get("Price") or "0").replace("$", "").replace(",", ""))
+    except (ValueError, TypeError):
+        return None
+    if price <= 0:
+        # Sum variant-level inventory across the handle group; pick first non-zero price.
+        if by_handle and handle:
+            for sib in by_handle[handle]:
+                try:
+                    p2 = float(str(sib.get("Variant Price") or 0).replace("$", "").replace(",", ""))
+                    if p2 > 0:
+                        price = p2
+                        break
+                except (ValueError, TypeError):
+                    continue
+        if price <= 0:
+            return None
+    tags_raw = (row.get("Tags") or "")
+    tags = [t.strip().lower() for t in re.split(r"[,;|]", tags_raw) if t.strip()][:13]
+    # Aggregate inventory across variants; default to 1 if missing.
+    quantity = 0
+    siblings = (by_handle or {}).get(handle, [row]) if handle else [row]
+    for sib in siblings:
+        try:
+            quantity += max(0, int(sib.get("Variant Inventory Qty") or 0))
+        except (ValueError, TypeError):
+            continue
+    if quantity == 0:
+        quantity = 1
+    # Image URLs — Shopify uses one per row; collapse across the handle.
+    images: List[str] = []
+    seen = set()
+    for sib in siblings:
+        v = (sib.get("Image Src") or "").strip()
+        if v.startswith(("http://", "https://")) and v not in seen:
+            seen.add(v); images.append(v)
+        if len(images) >= 10:
+            break
+    # Type/Vendor → category fallback ladder
+    category = (
+        (row.get("Type") or "").strip()
+        or (row.get("Product Category") or "").strip()
+        or "uncategorized"
+    ).lower()[:40]
+    return {
+        "_source_title": title,
+        "title": title[:80],
+        "description": description,
+        "price": round(price, 2),
+        "stock": quantity,
+        "tags": tags,
+        "materials": [],          # Shopify has no materials column out of the box
+        "image_urls": images,
+        "category": category,
+    }
+
+
+def _group_shopify_rows(reader: csv.DictReader) -> tuple[dict[str, list[dict]], list[dict]]:
+    """Read all rows once, group by Handle, return (handle→rows[], all_rows[]).
+    Reading once + indexing is required because Shopify's variant rows must
+    be aggregated to compute total inventory + collect every image URL."""
+    rows = list(reader)
+    grouped: dict[str, list[dict]] = {}
+    for r in rows:
+        h = (r.get("Handle") or "").strip().lower()
+        if not h:
+            continue
+        grouped.setdefault(h, []).append(r)
+    return grouped, rows
+
+
 @router.post("/maker/csv-import/preview")
 async def csv_import_preview(
     file: UploadFile = File(...),
@@ -82,8 +176,9 @@ async def csv_import_preview(
     """Dry-run: parse the CSV, return the first 50 rows + counts. Nothing
     is written to the database. Maker reviews + clicks Commit on the
     frontend to actually create the listings."""
-    if source.lower() != "etsy":
-        raise HTTPException(400, "Only Etsy CSV is supported in this release. Shopify is coming.")
+    src = source.lower().strip()
+    if src not in ("etsy", "shopify"):
+        raise HTTPException(400, "source must be 'etsy' or 'shopify'.")
     raw = await file.read()
     if len(raw) > 5 * 1024 * 1024:
         raise HTTPException(413, "CSV too large (max 5MB).")
@@ -94,19 +189,41 @@ async def csv_import_preview(
     reader = csv.DictReader(io.StringIO(text))
     parsed: List[dict] = []
     skipped = 0
-    for i, row in enumerate(reader):
-        if i >= 200:  # cap preview at 200 rows so a 5MB CSV doesn't lag the UI
-            break
-        m = _parse_etsy_row(row)
-        if m is None:
-            skipped += 1
-            continue
-        parsed.append(m)
+
+    if src == "shopify":
+        # Shopify rows are variant-grained — group, then emit once per handle.
+        by_handle, all_rows = _group_shopify_rows(reader)
+        # Emit unique products; a row that's not the first of its handle is silently merged.
+        seen_handles: set[str] = set()
+        for i, row in enumerate(all_rows):
+            if i >= 1500:  # 5MB CSVs can have a lot of variant rows
+                break
+            handle = (row.get("Handle") or "").strip().lower()
+            if handle and handle in seen_handles:
+                continue
+            m = _parse_shopify_row(row, by_handle if handle else None)
+            if m is None:
+                if not handle:  # only count truly unusable rows as skipped
+                    skipped += 1
+                continue
+            if handle:
+                seen_handles.add(handle)
+            parsed.append(m)
+    else:
+        for i, row in enumerate(reader):
+            if i >= 200:
+                break
+            m = _parse_etsy_row(row)
+            if m is None:
+                skipped += 1
+                continue
+            parsed.append(m)
+
     return {
         "preview_rows": parsed[:50],
         "total_parsed": len(parsed),
         "total_skipped": skipped,
-        "source": source.lower(),
+        "source": src,
         "ready_to_commit": len(parsed),
     }
 
@@ -114,6 +231,7 @@ async def csv_import_preview(
 class CsvCommitIn(BaseModel):
     rows: List[dict]
     publish_status: str = "draft"  # 'draft' | 'active'
+    source: str = "etsy"           # tracked in audit log
 
 
 @router.post("/maker/csv-import/commit")
@@ -121,10 +239,13 @@ async def csv_import_commit(payload: CsvCommitIn, slug: str = Depends(current_ma
     """Insert the preview rows as products. Default status is 'draft' so
     makers can review each listing before publishing en masse."""
     status = payload.publish_status if payload.publish_status in ("draft", "active") else "draft"
+    src = (payload.source or "etsy").lower()
+    if src not in ("etsy", "shopify"):
+        src = "etsy"
     inserted = 0
     failed = 0
     docs = []
-    for r in payload.rows[:500]:  # hard cap of 500 per import
+    for r in payload.rows[:500]:
         try:
             base_slug = _slugify(r.get("title", ""))
             unique = f"{base_slug}-{secrets.token_hex(3)}"
@@ -141,7 +262,7 @@ async def csv_import_commit(payload: CsvCommitIn, slug: str = Depends(current_ma
                 "image_urls": (r.get("image_urls") or [])[:10],
                 "category": (r.get("category") or "uncategorized").lower()[:40],
                 "status": status,
-                "imported_from": "etsy_csv",
+                "imported_from": f"{src}_csv",
                 "created_at": now_iso(),
                 "deleted_at": None,
             })
@@ -158,11 +279,11 @@ async def csv_import_commit(payload: CsvCommitIn, slug: str = Depends(current_ma
     await db.audit_log.insert_one({
         "kind": "csv_import",
         "maker_slug": slug,
-        "source": "etsy",
+        "source": src,
         "inserted": inserted,
         "failed": failed,
         "publish_status": status,
         "created_at": now_iso(),
     })
-    logger.info("[csv] imported %d, failed %d for maker=%s", inserted, failed, slug)
-    return {"inserted": inserted, "failed": failed, "status": status}
+    logger.info("[csv] imported %d, failed %d for maker=%s (src=%s)", inserted, failed, slug, src)
+    return {"inserted": inserted, "failed": failed, "status": status, "source": src}

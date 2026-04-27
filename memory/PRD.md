@@ -467,3 +467,31 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - **Validation**: title 100-char hard cap, description required, price > 0, ≥1 photo for publish, max 10 photos, max 13 SEO tags. Save Draft skips most validations; Publish enforces them.
 - **Sticky top + bottom action bars** with Cancel · Clone (edit only) · Preview · Save Draft · Publish.
 - **Verified end-to-end**: created a draft via curl with 25+ fields including colors/occasions/personalization/shipping/processing/returns/tags — every field round-trips through the API and the Mongo doc. PATCH partial updates work. UI screenshots confirm Photos, AI Assistant, Item Details (chip grids), Pricing, Variations, and Contact (auto-filled email from `fetchMakerMe`).
+
+
+## 2026-04-27 — P2/P3 backlog cleared (Admin RBAC, Shopify CSV, Dormant Retention)
+
+### ✅ Multi-tier Admin Team & Role Management (P2)
+- **Backend**: `core.py` defines 6 capabilities (`marketplace`, `content`, `support`, `finance`, `moderation`, `read_only`) + 5 presets (`full_operator`, `editorial`, `cfo`, `support_only`, `viewer`). `maker_auth.py` adds `admin_capabilities(claims)` resolver and a `require_capability(*caps)` dependency factory + `require_super_admin()` for team-management endpoints.
+- **Auth**: `admin_auth_request` and `admin_auth_verify` now allow login for env-defined super admins **OR** active rows in the new `admin_users` collection. `admin_me` returns `is_super_admin` + `capabilities[]` so the frontend can hide/show tabs.
+- **Endpoints** (super-admin-only):
+  - `GET /api/admin/team` — list all admins + presets + capability registry
+  - `POST /api/admin/team` — invite by email (sends branded magic-link email via Postmark via `send_admin_team_invite`)
+  - `PATCH /api/admin/team/{email}` — toggle capabilities OR `is_active`. Bumps session_version so revoked admins are kicked immediately.
+  - `DELETE /api/admin/team/{email}` — full revoke. Self-lockout protected. Audit-logged.
+- **Safety rails per spec**: Super admin emails are env-driven only and never editable here. Cannot edit/revoke own row. Read-only is mutually exclusive with other caps. Soft cap of 10 admins with warning log (no hard block).
+- **Frontend**: New `TeamTab.jsx` in admin dashboard (visible only when `me.is_super_admin === true`). Two-pane: list of admins with cap chips, last-seen, edit/deactivate/revoke per row. Invite modal with quick-preset buttons, capability checkboxes with hint copy, optional note. Soft-cap warning surfaces server-side, not client-side.
+- **Verified**: curl flow → create super admin token → list team (1 row, 6 caps) → invite editor-test@example.com (Editorial preset → ["content"]) → patch to ["content","support"] → revoke → audit_log entries cleaned.
+
+### ✅ Shopify CSV Import (P2)
+- Added `_parse_shopify_row` and `_group_shopify_rows` to `routers/csv_import.py`. Shopify exports are variant-grained (one row per variant), so we group by `Handle`, sum `Variant Inventory Qty` across variants, collect up to 10 unique `Image Src` URLs across the handle, and emit ONE product per handle. Skips zero-price/missing-handle rows. Uses `Body (HTML)` stripped to plain text for description, and `Type` → category fallback.
+- `csv_import_preview` now dispatches on `source` ∈ {etsy, shopify}; `csv_import_commit` now records `source` in audit log + `imported_from` field. `CsvImportModal.jsx` adds an Etsy / Shopify source selector with format-specific helper copy and "What we map" panel.
+- **Verified**: 4-row Shopify test CSV with 2 valid handles (one with 2 variant rows) + 1 zero-price row → preview returns 2 parsed products with merged inventory (5 = 3+2) and 2 collapsed images.
+
+### ✅ Dormant buyer retention (P3)
+- **Backend** `routers/retention.py`:
+  - `GET /api/admin/retention/dormant?days=60` — Mongo aggregation pipeline groups paid orders by `buyer_email`, returns those whose latest paid order falls outside the threshold (clamped 7-365 days). Includes `total_orders` + `lifetime_value` per buyer.
+  - `POST /api/admin/retention/reengage` — body `{emails[], discount_pct, expires_in_days}`. Per buyer creates a `marketing_codes` doc (`WELCOMExxxxxx`, single-use, marketplace-wide), tags them as `dormant-buyer-reengaged` in Kit.com (best effort, swallows failure), and queues a Postmark email via `send_dormant_buyer_reengage`. **24-hour idempotency window** so the same buyer can't be double-emailed.
+- **Checkout integration**: `_resolve_discount` in `routers/checkout.py` now ALSO checks `marketing_codes` (scope=marketplace_wide) before falling through to the per-shop `discount_codes`. Discount applies to the FULL items subtotal (not per-shop). Webhook code-usage tracking deactivates the marketing code after redemption.
+- **Frontend**: Extended `RetentionTab.jsx` with a `<DormantBuyersPanel>` below the cohort heatmap. Days threshold dropdown (30/60/90/120/180/365), Scan button, table with select-all + per-row checkboxes, last-order-date, total orders, LTV. Bottom send-bar: discount % (10-30) + expiry (7-60d) + Send button with confirmation dialog.
+- **Verified**: scan returned 0 (no orders >60d old in seed data — sane). Reengaged a synthetic email → `WELCOMExxxxxx` code created with `single_use=True, scope=marketplace_wide, expires_at` set. `/api/cart/quote` honors the code: $149 → -$22.35 (15%) → $151.65 with `discount_kind="dormant_reengage"`. Repeat call within 24h returned `sent:0, skipped:1` (idempotency works).

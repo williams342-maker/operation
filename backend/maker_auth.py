@@ -6,7 +6,7 @@
 import os
 import jwt
 from datetime import datetime, timedelta, timezone
-from fastapi import Header, HTTPException
+from fastapi import Depends, Header, HTTPException
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 
 SECRET = os.environ["MAKER_AUTH_SECRET"]
@@ -93,6 +93,67 @@ async def current_admin(authorization: str | None = Header(default=None)) -> dic
         raise HTTPException(status_code=403, detail="Admin access required.")
     await _check_session_version("admin", claims)
     return claims
+
+
+async def admin_capabilities(claims: dict) -> tuple[bool, list[str]]:
+    """Resolve an admin's capabilities from env (super-admin) + DB row.
+    Returns (is_super_admin, capabilities[]). Super admins implicitly hold
+    every capability; their DB row (if any) is ignored for cap resolution
+    — that way a UI bug can't ever lock the env-defined owner out."""
+    from core import ADMIN_EMAILS, SUPER_ADMIN_CAPABILITIES, db, ADMIN_CAPABILITIES  # local import avoids circular
+    email = (claims.get("email") or "").strip().lower()
+    if email in ADMIN_EMAILS:
+        return True, list(SUPER_ADMIN_CAPABILITIES)
+    row = await db.admin_users.find_one(
+        {"email": email, "is_active": True}, {"_id": 0, "capabilities": 1},
+    )
+    if not row:
+        # Token was issued but their row was revoked — treat as no caps.
+        return False, []
+    caps = [c for c in (row.get("capabilities") or []) if c in ADMIN_CAPABILITIES]
+    return False, caps
+
+
+def require_capability(*needed: str):
+    """FastAPI dependency factory — gates an endpoint on one or more
+    capabilities. Super admins always pass. Read-only admins pass for GET-
+    style endpoints if 'read_only' is one of the `needed` caps.
+
+    Usage:
+        @router.post(...)
+        async def x(_: dict = Depends(require_capability("finance"))):
+            ...
+    """
+    async def _dep(claims: dict = None, authorization: str | None = Header(default=None)):
+        # Re-derive claims so this is usable without an outer current_admin.
+        if claims is None:
+            if not authorization or not authorization.lower().startswith("bearer "):
+                raise HTTPException(401, "Missing bearer token.")
+            claims = decode_session_jwt(authorization.split(" ", 1)[1].strip())
+            if claims.get("role") != "admin":
+                raise HTTPException(403, "Admin access required.")
+            await _check_session_version("admin", claims)
+        is_super, caps = await admin_capabilities(claims)
+        if is_super:
+            return claims
+        if not caps:
+            raise HTTPException(403, "Your admin access has been revoked.")
+        if any(n in caps for n in needed):
+            return claims
+        raise HTTPException(403, f"Missing capability: {', '.join(needed)}.")
+    return _dep
+
+
+def require_super_admin():
+    """Stricter gate — only env-defined super admins. Used for team
+    management endpoints where DB-stored admins should never be able to
+    grant themselves more caps or remove the owner."""
+    async def _dep(claims: dict = Depends(current_admin)):
+        from core import ADMIN_EMAILS
+        if (claims.get("email") or "").lower() not in ADMIN_EMAILS:
+            raise HTTPException(403, "Super admin only.")
+        return claims
+    return _dep
 
 
 async def current_buyer(authorization: str | None = Header(default=None)) -> dict:

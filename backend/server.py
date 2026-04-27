@@ -19,6 +19,7 @@ from routers.community_chat import router as community_chat_router
 from routers.credits import router as credits_router
 from routers.maker import router as maker_router
 from routers.messages import router as messages_router
+from routers.retention import router as retention_router
 from routers.seo import router as seo_router
 from routers.settings import router as settings_router
 from routers.follows import router as follows_router
@@ -58,6 +59,7 @@ api.include_router(ai_marketing_router)
 api.include_router(discount_codes_router)
 api.include_router(csv_import_router)
 api.include_router(messages_router)
+api.include_router(retention_router)
 app.include_router(api)
 
 app.add_middleware(

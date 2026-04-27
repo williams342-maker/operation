@@ -33,6 +33,33 @@ def _admin_emails() -> set[str]:
 
 ADMIN_EMAILS: set[str] = _admin_emails()
 
+# ---- Admin capability matrix ----
+# Per /app/memory/PRD.md spec — multi-tier admin RBAC.
+# 5 togglable capabilities + 1 read-only mode. Super admins (email in
+# ADMIN_EMAILS env) implicitly hold ALL capabilities and can never be locked
+# out from the UI. Non-super admin rows live in `admin_users` collection.
+ADMIN_CAPABILITIES: tuple[str, ...] = (
+    "marketplace",  # approve makers, manage listings/categories, suspend makers
+    "content",      # homepage, banners, blog/journal, SEO, featured products
+    "support",      # tickets, refund initiation, custom-order intervention
+    "finance",      # payouts, refund execution, commissions, ad-spend ledger
+    "moderation",   # chat/forum/showcase moderation, ban/freeze users
+    "read_only",    # view dashboard; blocks every mutation
+)
+# Capability presets surfaced in the Team tab UI.
+ADMIN_CAP_PRESETS: dict[str, list[str]] = {
+    "full_operator": ["marketplace", "support", "moderation"],
+    "editorial":     ["content"],
+    "cfo":           ["finance"],
+    "support_only":  ["support"],
+    "viewer":        ["read_only"],
+}
+SUPER_ADMIN_CAPABILITIES: list[str] = list(ADMIN_CAPABILITIES)  # super admins hold every cap
+
+
+def is_super_admin_email(email: str) -> bool:
+    return (email or "").strip().lower() in ADMIN_EMAILS
+
 # ---- Logger ----
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("crafters")

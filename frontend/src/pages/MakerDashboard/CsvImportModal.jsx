@@ -11,6 +11,7 @@ export default function CsvImportModal({ onClose, onImported }) {
   const ref = useModalA11y(onClose);
   const fileRef = useRef(null);
   const [stage, setStage] = useState("pick");        // pick | preview | committing | done
+  const [source, setSource] = useState("etsy");      // etsy | shopify
   const [preview, setPreview] = useState(null);
   const [publishStatus, setPublishStatus] = useState("draft");
   const [busy, setBusy] = useState(false);
@@ -22,7 +23,7 @@ export default function CsvImportModal({ onClose, onImported }) {
     if (file.size > 5 * 1024 * 1024) { setErr("File too large (max 5MB)."); return; }
     setErr(""); setBusy(true);
     try {
-      const r = await csvImportPreview(file, "etsy");
+      const r = await csvImportPreview(file, source);
       setPreview(r);
       setStage("preview");
     } catch (e) {
@@ -34,10 +35,7 @@ export default function CsvImportModal({ onClose, onImported }) {
     if (!preview?.preview_rows?.length) return;
     setStage("committing"); setErr("");
     try {
-      // Re-fetch the FULL parsed set isn't possible from the preview (capped at 50)
-      // — for Phase 2, commit only the preview window. Makers with bigger imports
-      // re-upload after the first batch. Banner reflects this.
-      const r = await csvImportCommit(preview.preview_rows, publishStatus);
+      const r = await csvImportCommit(preview.preview_rows, publishStatus, source);
       toast.success(`Imported ${r.inserted} listings as ${r.status}.`);
       setStage("done");
       setTimeout(() => { onImported?.(); }, 800);
@@ -55,7 +53,7 @@ export default function CsvImportModal({ onClose, onImported }) {
         <div className="sticky top-0 bg-[#0a0a0a] border-b border-[#262626] px-6 py-4 flex items-center justify-between z-10">
           <div>
             <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mb-1">
-              ◆ Migrate from Etsy
+              ◆ Migrate from {source === "shopify" ? "Shopify" : "Etsy"}
             </div>
             <h2 className="font-display text-2xl uppercase">CSV Import</h2>
           </div>
@@ -68,17 +66,54 @@ export default function CsvImportModal({ onClose, onImported }) {
         <div className="p-6">
           {stage === "pick" && (
             <div className="space-y-5" data-testid="csv-stage-pick">
-              <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed">
-                Export your listings from Etsy: <b>Shop Manager → Settings → Options → Download Data → Currently for sale listings (CSV)</b>.
-                Upload that file here. We'll parse it, show you a preview, then let you commit as drafts (recommended) or publish all at once.
-              </p>
+              <div>
+                <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">
+                  Source platform
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button" onClick={() => setSource("etsy")}
+                    className={`px-4 py-2 border font-mono text-[11px] uppercase tracking-[0.22em] ${source === "etsy" ? "border-[#ff4500] bg-[#ff4500]/10 text-[#ff4500]" : "border-[#262626] text-[#a3a3a3]"}`}
+                    data-testid="csv-source-etsy"
+                  >
+                    Etsy
+                  </button>
+                  <button
+                    type="button" onClick={() => setSource("shopify")}
+                    className={`px-4 py-2 border font-mono text-[11px] uppercase tracking-[0.22em] ${source === "shopify" ? "border-[#ff4500] bg-[#ff4500]/10 text-[#ff4500]" : "border-[#262626] text-[#a3a3a3]"}`}
+                    data-testid="csv-source-shopify"
+                  >
+                    Shopify
+                  </button>
+                </div>
+              </div>
+              {source === "etsy" ? (
+                <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed">
+                  Export from Etsy: <b>Shop Manager → Settings → Options → Download Data → Currently for sale listings (CSV)</b>.
+                  Upload that file. We'll parse it, show you a preview, then commit as drafts (recommended) or publish all at once.
+                </p>
+              ) : (
+                <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed">
+                  Export from Shopify: <b>Admin → Products → Export → All products → CSV for Excel, Numbers, or other spreadsheet programs</b>.
+                  We aggregate variant rows by Handle (combining stock + images), and skip rows without a positive price.
+                </p>
+              )}
               <div className="border border-[#262626] bg-[#0d0d0d] p-4">
                 <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">What we map</div>
-                <ul className="font-mono text-[11px] text-[#e5e5e5] space-y-1">
-                  <li>• <span className="text-[#ff4500]">TITLE</span> · <span className="text-[#ff4500]">DESCRIPTION</span> · <span className="text-[#ff4500]">PRICE</span> · <span className="text-[#ff4500]">QUANTITY</span></li>
-                  <li>• <span className="text-[#ff4500]">TAGS</span> (up to 13) · <span className="text-[#ff4500]">MATERIALS</span> (up to 8)</li>
-                  <li>• <span className="text-[#ff4500]">IMAGE1–IMAGE10</span> URLs (kept as-is — host migration is Phase 2.5)</li>
-                </ul>
+                {source === "etsy" ? (
+                  <ul className="font-mono text-[11px] text-[#e5e5e5] space-y-1">
+                    <li>• <span className="text-[#ff4500]">TITLE</span> · <span className="text-[#ff4500]">DESCRIPTION</span> · <span className="text-[#ff4500]">PRICE</span> · <span className="text-[#ff4500]">QUANTITY</span></li>
+                    <li>• <span className="text-[#ff4500]">TAGS</span> (up to 13) · <span className="text-[#ff4500]">MATERIALS</span> (up to 8)</li>
+                    <li>• <span className="text-[#ff4500]">IMAGE1–IMAGE10</span> URLs (kept as-is — host migration is Phase 2.5)</li>
+                  </ul>
+                ) : (
+                  <ul className="font-mono text-[11px] text-[#e5e5e5] space-y-1">
+                    <li>• <span className="text-[#ff4500]">Title</span> · <span className="text-[#ff4500]">Body (HTML)</span> stripped to plain text · <span className="text-[#ff4500]">Variant Price</span></li>
+                    <li>• <span className="text-[#ff4500]">Variant Inventory Qty</span> summed across all variants of the Handle</li>
+                    <li>• <span className="text-[#ff4500]">Tags</span> (up to 13) · <span className="text-[#ff4500]">Type</span> → category fallback</li>
+                    <li>• <span className="text-[#ff4500]">Image Src</span> across the Handle's variant rows (up to 10 unique)</li>
+                  </ul>
+                )}
                 <div className="font-mono text-[10px] text-[#737373] mt-2 italic">
                   Variations, SKUs, custom processing fields are skipped — re-add them inside Crafters Market after import.
                 </div>

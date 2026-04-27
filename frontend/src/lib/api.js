@@ -112,8 +112,8 @@ export const csvImportPreview = (file, source = "etsy") => {
     headers: { ...authHeaders(), "Content-Type": "multipart/form-data" },
   }).then((r) => r.data);
 };
-export const csvImportCommit = (rows, publish_status = "draft") =>
-  http.post("/maker/csv-import/commit", { rows, publish_status },
+export const csvImportCommit = (rows, publish_status = "draft", source = "etsy") =>
+  http.post("/maker/csv-import/commit", { rows, publish_status, source },
     { headers: authHeaders() }).then((r) => r.data);
 export const fetchMakerProducts = () =>
   http.get("/maker/products", { headers: authHeaders() }).then((r) => r.data);
@@ -337,6 +337,22 @@ export const verifyAdminToken = (token) =>
   http.post("/admin/auth/verify", { token }).then((r) => r.data);
 export const fetchAdminMe = () =>
   http.get("/admin/me", { headers: adminAuthHeaders() }).then((r) => r.data);
+
+// Admin team / RBAC
+export const fetchAdminTeam = () =>
+  http.get("/admin/team", { headers: adminAuthHeaders() }).then((r) => r.data);
+export const inviteAdmin = (email, capabilities, note) =>
+  http.post("/admin/team", { email, capabilities, note }, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const updateAdminCaps = (email, patch) =>
+  http.patch(`/admin/team/${encodeURIComponent(email)}`, patch, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const revokeAdmin = (email) =>
+  http.delete(`/admin/team/${encodeURIComponent(email)}`, { headers: adminAuthHeaders() }).then((r) => r.data);
+
+// Dormant retention
+export const fetchDormantBuyers = (days = 60, limit = 200) =>
+  http.get(`/admin/retention/dormant?days=${days}&limit=${limit}`, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const reengageDormantBuyers = (payload) =>
+  http.post("/admin/retention/reengage", payload, { headers: adminAuthHeaders() }).then((r) => r.data);
 export const fetchAdminApplications = () =>
   http.get("/admin/maker-applications", { headers: adminAuthHeaders() }).then((r) => r.data);
 export const fetchAdminCustomOrders = () =>

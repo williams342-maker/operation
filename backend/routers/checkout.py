@@ -183,10 +183,34 @@ async def _resolve_discount(code_raw: str, resolved: list[dict], quote: dict):
     Per-shop codes apply only to that shop's subtotal in the cart.
     Free-shipping codes zero the shipping line. Fixed/percent codes reduce
     the relevant shop's items subtotal. Multiple shops in one cart means
-    the code only discounts items belonging to its shop."""
+    the code only discounts items belonging to its shop.
+
+    Also supports marketplace-wide retention codes from `marketing_codes`
+    (issued by the dormant-buyer reengage flow). Those codes are
+    single-use, percent-only, and apply to the FULL items subtotal."""
     code = "".join(ch.upper() for ch in (code_raw or "") if ch.isalnum() or ch in "-_")
     if not code:
         return None, 0.0, "Invalid code."
+
+    # Try marketplace-wide retention codes first (cheaper read path).
+    mkt = await db.marketing_codes.find_one(
+        {"code": code, "active": True, "scope": "marketplace_wide"}, {"_id": 0},
+    )
+    if mkt:
+        if mkt.get("expires_at"):
+            from datetime import datetime, timezone
+            try:
+                exp = datetime.fromisoformat(mkt["expires_at"].replace("Z", "+00:00"))
+                if datetime.now(timezone.utc) > exp:
+                    return mkt, 0.0, "Code has expired."
+            except (ValueError, TypeError):
+                pass
+        if mkt.get("max_uses") and int(mkt.get("uses_count", 0)) >= int(mkt["max_uses"]):
+            return mkt, 0.0, "Code has already been used."
+        items_subtotal = sum(float(r["product"]["price"]) * r["quantity"] for r in resolved)
+        pct = max(0.0, min(100.0, float(mkt.get("discount_pct", 0) or 0)))
+        return mkt, round(items_subtotal * pct / 100, 2), None
+
     doc = await db.discount_codes.find_one({"code": code, "active": True}, {"_id": 0})
     if not doc:
         return None, 0.0, "Code not found or inactive."
@@ -465,11 +489,20 @@ async def checkout_status(session_id: str, http_request: Request, bg: Background
                 used_amount = float(meta.get("discount_amount") or 0)
                 used_maker = (meta.get("discount_maker_slug") or "").strip()
                 if used_code:
-                    await db.discount_codes.update_one(
+                    # First try as per-shop discount code (most common).
+                    discount_update = await db.discount_codes.update_one(
                         {"code": used_code, "maker_slug": used_maker},
                         {"$inc": {"uses_count": 1},
                          "$set": {"last_used_at": now_iso()}},
                     )
+                    # If we didn't match a per-shop code, this is a marketplace-wide
+                    # retention code from `marketing_codes`. Increment there too.
+                    if discount_update.modified_count == 0:
+                        await db.marketing_codes.update_one(
+                            {"code": used_code},
+                            {"$inc": {"uses_count": 1},
+                             "$set": {"last_used_at": now_iso(), "active": False}},
+                        )
                     await db.transactions.update_one(
                         {"session_id": session_id},
                         {"$set": {

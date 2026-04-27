@@ -5,13 +5,15 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, EmailStr
 
-from core import ADMIN_EMAILS, db, logger, now_iso
+from core import ADMIN_CAPABILITIES, ADMIN_CAP_PRESETS, ADMIN_EMAILS, db, logger, now_iso
 from email_service import (
-    send_admin_magic_link, send_application_decision, send_custom_order_quote,
+    send_admin_magic_link, send_admin_team_invite,
+    send_application_decision, send_custom_order_quote,
 )
 from maker_auth import (
-    current_admin, current_buyer, current_maker_slug, decode_session_jwt,
-    issue_admin_magic_token, issue_session_jwt, verify_admin_magic_token,
+    admin_capabilities, current_admin, current_buyer, current_maker_slug,
+    decode_session_jwt, issue_admin_magic_token, issue_session_jwt,
+    require_super_admin, verify_admin_magic_token,
 )
 from models import (
     AdminLoginRequest, AdminVerifyRequest, ApplicationDecision, CustomOrderQuote,
@@ -22,9 +24,10 @@ router = APIRouter()
 
 @router.post("/admin/auth/request")
 async def admin_auth_request(payload: AdminLoginRequest, bg: BackgroundTasks):
-    """Issue an admin magic link only if the requested email is in the admin allow-list."""
+    """Issue an admin magic link if the email is a super admin OR an active row in `admin_users`."""
     email = payload.email.lower().strip()
-    if email in ADMIN_EMAILS:
+    is_team_admin = await db.admin_users.find_one({"email": email, "is_active": True}, {"_id": 0, "email": 1})
+    if email in ADMIN_EMAILS or is_team_admin:
         token = issue_admin_magic_token(email)
         link = f"{payload.origin_url.rstrip('/')}/admin/verify?token={token}"
         bg.add_task(send_admin_magic_link, email, link)
@@ -37,15 +40,184 @@ async def admin_auth_request(payload: AdminLoginRequest, bg: BackgroundTasks):
 @router.post("/admin/auth/verify")
 async def admin_auth_verify(payload: AdminVerifyRequest):
     email = verify_admin_magic_token(payload.token)
-    if email not in ADMIN_EMAILS:
-        raise HTTPException(403, "Not an admin email.")
+    is_super = email in ADMIN_EMAILS
+    if not is_super:
+        # Must be an active multi-tier admin
+        row = await db.admin_users.find_one({"email": email, "is_active": True}, {"_id": 0})
+        if not row:
+            raise HTTPException(403, "This email is no longer authorized for admin access.")
     jwt_token = issue_session_jwt("admin", email, role="admin")
+    # Stamp last_seen for audit trail
+    await db.admin_users.update_one(
+        {"email": email}, {"$set": {"last_seen": now_iso()}}, upsert=False,
+    )
     return {"token": jwt_token, "email": email}
 
 
 @router.get("/admin/me")
 async def admin_me(claims: dict = Depends(current_admin)):
-    return {"email": claims["email"], "role": claims["role"]}
+    is_super, caps = await admin_capabilities(claims)
+    return {
+        "email": claims["email"],
+        "role": claims["role"],
+        "is_super_admin": is_super,
+        "capabilities": caps,
+    }
+
+
+# ─────────────────────── Team management (super-admin only) ───────────────────────
+class AdminTeamInvite(BaseModel):
+    email: EmailStr
+    capabilities: list[str] = []
+    note: Optional[str] = None
+
+
+class AdminTeamUpdate(BaseModel):
+    capabilities: Optional[list[str]] = None
+    is_active: Optional[bool] = None
+
+
+def _validate_caps(caps: list[str]) -> list[str]:
+    cleaned = [c for c in (caps or []) if c in ADMIN_CAPABILITIES]
+    if "read_only" in cleaned and len(cleaned) > 1:
+        # Read-only is mutually exclusive — silently drop the others.
+        cleaned = ["read_only"]
+    # Dedupe while preserving order
+    seen, out = set(), []
+    for c in cleaned:
+        if c not in seen:
+            seen.add(c); out.append(c)
+    return out
+
+
+@router.get("/admin/team")
+async def admin_team_list(claims: dict = Depends(require_super_admin())):
+    rows = await db.admin_users.find({}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    super_rows = [
+        {
+            "email": e, "is_super_admin": True, "is_active": True,
+            "capabilities": list(ADMIN_CAPABILITIES),
+            "added_by": "env:ADMIN_EMAILS", "added_at": None, "last_seen": None,
+        }
+        for e in sorted(ADMIN_EMAILS)
+    ]
+    # Surface presets for the UI dropdown
+    return {
+        "team": super_rows + rows,
+        "presets": ADMIN_CAP_PRESETS,
+        "capabilities": list(ADMIN_CAPABILITIES),
+    }
+
+
+@router.post("/admin/team")
+async def admin_team_invite(
+    payload: AdminTeamInvite, bg: BackgroundTasks,
+    claims: dict = Depends(require_super_admin()),
+):
+    email = payload.email.lower().strip()
+    if email in ADMIN_EMAILS:
+        raise HTTPException(400, "This email is already a super admin via env.")
+    caps = _validate_caps(payload.capabilities)
+    if not caps:
+        raise HTTPException(400, "Pick at least one capability.")
+    soft_cap = await db.admin_users.count_documents({"is_active": True})
+    if soft_cap >= 10:
+        # Soft cap warning per PRD — log but allow.
+        logger.warning("[admin-team] soft cap exceeded — %d active admins", soft_cap)
+    existing = await db.admin_users.find_one({"email": email}, {"_id": 0})
+    now = now_iso()
+    if existing:
+        await db.admin_users.update_one(
+            {"email": email},
+            {"$set": {"capabilities": caps, "is_active": True, "added_by": claims["email"]}},
+        )
+    else:
+        await db.admin_users.insert_one({
+            "email": email,
+            "capabilities": caps,
+            "is_active": True,
+            "added_by": claims["email"],
+            "added_at": now,
+            "last_seen": None,
+            "created_at": now,
+        })
+    # Email the new admin a branded invitation magic link.
+    origin = (os.environ.get("PUBLIC_SITE_URL") or "").rstrip("/")
+    if origin:
+        token = issue_admin_magic_token(email)
+        link = f"{origin}/admin/verify?token={token}"
+        labels = ", ".join(c.replace("_", " ").title() for c in caps)
+        bg.add_task(send_admin_team_invite, email, labels, link, claims["email"])
+    # Audit trail + notify all super admins of the change
+    await db.audit_log.insert_one({
+        "kind": "admin_team_invite",
+        "actor": claims["email"], "target": email, "capabilities": caps,
+        "note": payload.note, "created_at": now,
+    })
+    return {"ok": True, "email": email, "capabilities": caps}
+
+
+@router.patch("/admin/team/{email}")
+async def admin_team_update(
+    email: str, payload: AdminTeamUpdate,
+    claims: dict = Depends(require_super_admin()),
+):
+    target = email.lower().strip()
+    if target in ADMIN_EMAILS:
+        raise HTTPException(400, "Super admins are managed via .env, not the UI.")
+    if target == claims["email"].lower():
+        raise HTTPException(400, "You can't modify your own row.")
+    row = await db.admin_users.find_one({"email": target}, {"_id": 0})
+    if not row:
+        raise HTTPException(404, "Admin not found.")
+    update: dict = {}
+    if payload.capabilities is not None:
+        caps = _validate_caps(payload.capabilities)
+        if not caps:
+            raise HTTPException(400, "Pick at least one capability.")
+        update["capabilities"] = caps
+    if payload.is_active is not None:
+        update["is_active"] = bool(payload.is_active)
+    if not update:
+        return {"ok": True, "noop": True}
+    update["updated_at"] = now_iso()
+    update["updated_by"] = claims["email"]
+    await db.admin_users.update_one({"email": target}, {"$set": update})
+    # Bump session_version so any active token they hold is invalidated.
+    if "is_active" in update or "capabilities" in update:
+        await db.session_versions.update_one(
+            {"role": "admin", "subject": target},
+            {"$inc": {"version": 1}}, upsert=True,
+        )
+    await db.audit_log.insert_one({
+        "kind": "admin_team_update",
+        "actor": claims["email"], "target": target, "patch": update,
+        "created_at": now_iso(),
+    })
+    return {"ok": True, "patch": update}
+
+
+@router.delete("/admin/team/{email}")
+async def admin_team_delete(
+    email: str, claims: dict = Depends(require_super_admin()),
+):
+    target = email.lower().strip()
+    if target in ADMIN_EMAILS:
+        raise HTTPException(400, "Super admins are managed via .env.")
+    if target == claims["email"].lower():
+        raise HTTPException(400, "You can't revoke your own access.")
+    r = await db.admin_users.delete_one({"email": target})
+    if r.deleted_count == 0:
+        raise HTTPException(404, "Admin not found.")
+    await db.session_versions.update_one(
+        {"role": "admin", "subject": target},
+        {"$inc": {"version": 1}}, upsert=True,
+    )
+    await db.audit_log.insert_one({
+        "kind": "admin_team_revoke",
+        "actor": claims["email"], "target": target, "created_at": now_iso(),
+    })
+    return {"ok": True, "revoked": target}
 
 
 @router.get("/admin/maker-applications")

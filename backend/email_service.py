@@ -580,6 +580,35 @@ async def send_admin_magic_link(admin_email: str, link: str):
     return await _send(admin_email, "Crafters Market admin sign-in link", html)
 
 
+async def send_admin_team_invite(admin_email: str, capability_labels: str, link: str, invited_by: str):
+    """Sent when a super admin grants admin access to a new email. Includes
+    the assigned capabilities so the new admin knows what they can do."""
+    if not admin_email:
+        return None
+    body = (
+        "<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 18px'>"
+        f"<strong style='color:#ff4500'>{invited_by}</strong> added you as an admin on Crafters Market."
+        "</p>"
+        "<div style='border-left:3px solid #ff4500;padding:12px 18px;background:#0d0d0d;margin:16px 0'>"
+        "<div style='font-size:11px;color:#a3a3a3;text-transform:uppercase;letter-spacing:0.22em;margin-bottom:8px'>"
+        "Your access</div>"
+        f"<div style='font-size:14px;color:#e5e5e5'>{capability_labels}</div>"
+        "</div>"
+        "<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:18px 0'>"
+        "Click below to sign in. Good for 15 minutes — request a fresh link any time at the admin sign-in page."
+        "</p>"
+        f"<a href='{link}' style='display:inline-block;background:#ff4500;color:#0a0a0a;"
+        "padding:16px 28px;font-family:Impact,Arial Black,sans-serif;font-size:14px;letter-spacing:0.18em;"
+        f"text-transform:uppercase;text-decoration:none;border:1px solid #ff4500'>Open Admin Console →</a>"
+        "<p style='font-size:11px;color:#525252;letter-spacing:0.18em;text-transform:uppercase;margin:28px 0 0'>"
+        "Or paste this URL</p>"
+        f"<p style='font-size:12px;color:#a3a3a3;word-break:break-all'><a href='{link}' style='color:#ff4500'>{link}</a></p>"
+    )
+    html = _shell("You've been added as an admin.", "Welcome to the operations team.", body, "Admin console")
+    return await _send(admin_email, "[Crafters Market] You've been added as an admin", html)
+
+
+
 async def send_application_decision(applicant_email: str, name: str, studio: str,
                                     approved: bool, note: str = "",
                                     sign_in_link: str = ""):
@@ -956,6 +985,40 @@ async def send_dm_to_maker(
     return await _send(
         maker_email,
         f"[Crafters Market] {sender_display or sender_email}: {subject[:80] or 'new message'}",
+        html,
+    )
+
+
+async def send_dormant_buyer_reengage(buyer_email: str, code: str, pct: int, expires_in_days: int):
+    """Dormant-buyer win-back email. One-time discount code, marketplace-wide."""
+    if not buyer_email:
+        return None
+    site = (os.environ.get("FRONTEND_URL") or os.environ.get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
+    intro = (
+        "Hand-built CNC art doesn't show up in everyone's feed. "
+        "We saved you a one-time code so you can come back and grab something new."
+    )
+    body = (
+        "<div style='border:1px solid #ff4500;background:#0d0d0d;padding:24px;text-align:center;margin:18px 0'>"
+        "<div style='font-size:11px;color:#a3a3a3;text-transform:uppercase;letter-spacing:0.22em;margin-bottom:6px'>"
+        "Your code</div>"
+        f"<div style='font-family:Impact,Arial Black,sans-serif;font-size:36px;letter-spacing:0.2em;color:#ff4500'>{code}</div>"
+        f"<div style='font-size:13px;color:#e5e5e5;margin-top:6px'>{pct}% off · single use · expires in {expires_in_days} days</div>"
+        "</div>"
+        "<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:18px 0'>"
+        f"Apply <strong style='color:#ff4500'>{code}</strong> in your cart at checkout. Works on any maker on the marketplace."
+        "</p>"
+        f"<a href='{site}/shop' style='display:inline-block;background:#ff4500;color:#0a0a0a;"
+        "padding:14px 26px;font-family:Impact,Arial Black,sans-serif;font-size:13px;letter-spacing:0.18em;"
+        f"text-transform:uppercase;text-decoration:none;border:1px solid #ff4500'>Browse the shop →</a>"
+        "<p style='font-size:11px;color:#525252;letter-spacing:0.18em;text-transform:uppercase;margin:32px 0 0'>"
+        "◆ One code per email. Not redeemable for cash."
+        "</p>"
+    )
+    html = _shell("We miss you.", intro, body, "Welcome back · Crafters Market")
+    return await _send(
+        buyer_email,
+        f"[Crafters Market] {pct}% off — your welcome-back code",
         html,
     )
 
