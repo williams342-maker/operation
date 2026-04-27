@@ -13,7 +13,7 @@ load_dotenv(ROOT_DIR / ".env")
 # Policy version stamped on every order acceptance. Bump when policy text
 # changes substantially so the audit trail can prove which version a buyer
 # agreed to. Frontend reads this from /api/policy/version.
-POLICY_VERSION = "2026.07"
+POLICY_VERSION = "2026.08"
 
 # ---- Mongo ----
 MONGO_URL = os.environ["MONGO_URL"]
