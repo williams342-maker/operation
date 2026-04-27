@@ -14,6 +14,17 @@ const googleSignIn = () => {
 
 const EUA_KEY = "cm_eua_accepted_version";
 
+// Persist last sign-in identity so /signin can show "Welcome back, Name"
+// on next visit. localStorage (not cookie) — same-device only, never sent
+// to the server, simple to clear on sign-out.
+function rememberSignedIn({ email, name }) {
+  try {
+    if (email) localStorage.setItem("cm_last_email", email);
+    if (name) localStorage.setItem("cm_last_name", name);
+    localStorage.setItem("cm_last_signin_at", new Date().toISOString());
+  } catch { /* localStorage disabled — ignore */ }
+}
+
 const ROLE_OPTS = [
   { id: "buyer", label: "Buyer", blurb: "Shop, save makers, post in community" },
   { id: "maker", label: "Maker", blurb: "Manage your shop & payouts" },
@@ -32,7 +43,17 @@ export default function SignInPage() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const [role, setRole] = useState(params.get("as") || "buyer");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(() => {
+    // Pre-fill the email on landing if a returning user — saves them the typing
+    // and signals "we remember you" before they even read the welcome line.
+    try { return localStorage.getItem("cm_last_email") || ""; } catch { return ""; }
+  });
+  const [returningName] = useState(() => {
+    try { return localStorage.getItem("cm_last_name") || ""; } catch { return ""; }
+  });
+  const [returningEmail] = useState(() => {
+    try { return localStorage.getItem("cm_last_email") || ""; } catch { return ""; }
+  });
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [eua, setEua] = useState(null);
@@ -82,6 +103,11 @@ export default function SignInPage() {
       // Store JWT under the conventional key for each role
       const storageKey = { buyer: "community_jwt", maker: "maker_jwt", admin: "admin_jwt" }[role];
       localStorage.setItem(storageKey, r.token);
+      // Remember the user for next visit's welcome banner
+      rememberSignedIn({
+        email: r.user?.email || email.trim(),
+        name: r.user?.name || r.user?.display_name || "",
+      });
       const dest = { buyer: "/community", maker: "/maker/dashboard", admin: "/admin/dashboard" }[role];
       navigate(dest);
     } catch (err) {
@@ -101,8 +127,46 @@ export default function SignInPage() {
           ◆ Sign In
         </div>
         <h1 className="font-display text-[56px] md:text-[88px] leading-[0.88] mb-6 uppercase">
-          Welcome back.
+          {returningName || returningEmail ? "Welcome back." : "Welcome back."}
         </h1>
+
+        {/* Personalised greeting on second+ visit. Only shown when we
+            actually remember a previous sign-in identity. Pure UX touch:
+            doesn't gate anything, just reduces cognitive load by signalling
+            "you have an account here, just sign in." */}
+        {(returningName || returningEmail) && (
+          <div
+            className="mb-8 px-4 py-3 border border-[#ff4500] bg-[#ff4500]/5 flex items-center gap-3"
+            data-testid="signin-welcome-banner"
+          >
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">◆</div>
+            <div className="font-mono text-xs text-[#e5e5e5] leading-relaxed flex-1">
+              {returningName ? (
+                <>Welcome back, <span className="text-[#ff4500]">{returningName}</span>.</>
+              ) : (
+                <>We remember <span className="text-[#ff4500]">{returningEmail}</span>.</>
+              )}
+              {" "}Sign in to pick up where you left off.
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                try {
+                  localStorage.removeItem("cm_last_email");
+                  localStorage.removeItem("cm_last_name");
+                  localStorage.removeItem("cm_last_signin_at");
+                } catch {}
+                window.location.reload();
+              }}
+              className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] transition shrink-0"
+              data-testid="signin-not-you-btn"
+              title="Forget this device — clears the remembered email/name"
+            >
+              Not you?
+            </button>
+          </div>
+        )}
+
         <p className="font-mono text-sm text-[#a3a3a3] mb-8">
           Sign in to shop, manage your shop, or moderate the marketplace.
         </p>

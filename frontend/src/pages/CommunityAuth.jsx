@@ -175,6 +175,10 @@ export function CommunityVerify() {
         sessionStorage.removeItem("cm_eua_accepted_version");
         localStorage.setItem("cm_buyer_jwt", r.token);
         localStorage.setItem("cm_buyer_email", r.user.email);
+        // Stamp returning-user identity for the /signin "Welcome back" banner
+        localStorage.setItem("cm_last_email", r.user.email);
+        if (r.user.name) localStorage.setItem("cm_last_name", r.user.name);
+        localStorage.setItem("cm_last_signin_at", new Date().toISOString());
         navigate("/community", { replace: true });
       } catch (e) { setError(e?.response?.data?.detail || "Could not verify the link."); }
     })();
@@ -216,6 +220,10 @@ export function CommunityAuthCallback() {
         sessionStorage.removeItem("cm_eua_accepted_version");
         localStorage.setItem("cm_buyer_jwt", r.token);
         localStorage.setItem("cm_buyer_email", r.user.email);
+        // Stamp returning-user identity for the /signin "Welcome back" banner
+        localStorage.setItem("cm_last_email", r.user.email);
+        if (r.user.name) localStorage.setItem("cm_last_name", r.user.name);
+        localStorage.setItem("cm_last_signin_at", new Date().toISOString());
         // strip hash and navigate
         window.history.replaceState({}, "", window.location.pathname);
         navigate("/community", { replace: true });
