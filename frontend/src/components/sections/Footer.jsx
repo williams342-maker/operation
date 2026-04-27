@@ -108,12 +108,25 @@ export default function Footer() {
         </div>
 
         <div className="border-t border-[#262626] pt-8 flex flex-col md:flex-row md:items-center justify-between gap-4 font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3]">
-          <div>© {new Date().getFullYear()} Crafters Market · All rights reserved</div>
+          <div className="flex items-center gap-3">
+            <span>© {new Date().getFullYear()} Crafters Market · All rights reserved</span>
+            {/* Hidden admin entry — unlabeled brand-mark icon. Internal staff
+                learn this once. Reduces bot noise + keeps /signin clean for
+                buyer/maker conversion. */}
+            <Link
+              to="/admin/login"
+              aria-label="Staff access"
+              title=""
+              className="inline-flex items-center justify-center w-3 h-3 text-[#262626] hover:text-[#ff4500] transition-colors"
+              data-testid="footer-admin-glyph"
+            >
+              <span className="text-[10px] leading-none select-none">◆</span>
+            </Link>
+          </div>
           <div className="flex gap-6">
             <Link to="/policy" className="hover:text-[#ff4500]" data-testid="footer-privacy">Privacy</Link>
             <Link to="/policy" className="hover:text-[#ff4500]" data-testid="footer-terms">Terms</Link>
             <Link to="/contact" className="hover:text-[#ff4500]" data-testid="footer-contact">Contact</Link>
-            <Link to="/admin/login" className="hover:text-[#ff4500]" data-testid="footer-admin-link">Admin Access</Link>
           </div>
           <div>Beta · Things may change. Your feedback helps.</div>
         </div>

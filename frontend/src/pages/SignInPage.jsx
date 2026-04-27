@@ -28,7 +28,6 @@ function rememberSignedIn({ email, name }) {
 const ROLE_OPTS = [
   { id: "buyer", label: "Buyer", blurb: "Shop, save makers, post in community" },
   { id: "maker", label: "Maker", blurb: "Manage your shop & payouts" },
-  { id: "admin", label: "Admin", blurb: "Marketplace administrators only" },
 ];
 
 /**
@@ -42,7 +41,15 @@ const ROLE_OPTS = [
 export default function SignInPage() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  const [role, setRole] = useState(params.get("as") || "buyer");
+  // If anyone hits /signin?as=admin (e.g. an old bookmark or a guess),
+  // silently route them to the dedicated, unlabeled admin entry.
+  useEffect(() => {
+    if (params.get("as") === "admin") {
+      navigate("/admin/login", { replace: true });
+    }
+  }, [params, navigate]);
+  const initialRole = params.get("as") === "maker" ? "maker" : "buyer";
+  const [role, setRole] = useState(initialRole);
   const [email, setEmail] = useState(() => {
     // Pre-fill the email on landing if a returning user — saves them the typing
     // and signals "we remember you" before they even read the welcome line.
