@@ -5,7 +5,6 @@ import {
 } from "lucide-react";
 import { useStructuredData } from "../lib/seo";
 
-const COMMISSION_RATE = "10%";
 const SUPPORT_EMAIL = "team@craftersmarket.org";
 
 // ============================================================
@@ -180,17 +179,26 @@ const SECTIONS = [
     intro: "Crafters Market's Makers Market allows approved Artists to list and sell their work directly to buyers on our platform.",
     blocks: [
       {
-        heading: "For Sellers",
+        heading: "For Sellers — Fees & Tiers",
         list: [
-          ["Listing fee:", `$0 — free to list`],
-          ["Monthly fee:", "$0 — no subscription required"],
-          ["Commission:", `${COMMISSION_RATE} of the final sale price, collected on completed transactions`],
+          ["Listing fee (Free tier):", "First 10 listings are free for the lifetime of the account; each additional listing or renewal is $0.20"],
+          ["Listing fee (Crafters Plus):", "First 15 listings each calendar month are free; each additional listing/renewal is $0.20"],
+          ["Monthly fee:", "$0 on the Free tier — no subscription required. Crafters Plus is optional at $12/month"],
+          ["Commission (Free tier):", "5% of the final item subtotal, retained on completed transactions"],
+          ["Commission (Crafters Plus):", "4% of the final item subtotal — a 1% discount vs. Free tier"],
+          ["Payment processing:", "3% of the final item subtotal, retained to cover Stripe processing costs (applies to all tiers)"],
+          ["Total deducted per sale:", "Free tier: 8% (5% commission + 3% processing) · Plus: 7% (4% + 3%)"],
+          ["Off-site ad fee:", "12% of the item subtotal on sales attributed to Crafters Market off-site ad campaigns (Google / Meta). Only charged when an off-site ad directly drives the sale"],
+          ["Promoted Listing fee:", "$5 / week per promoted listing (optional, opt-in only)"],
         ],
         bullets: [
           "All sellers must apply and be approved before listing",
           "Sellers set their own prices and ship directly to buyers",
           "Sellers are independent contractors, not employees of Crafters Market",
           "Payouts are issued via Stripe Connect to the seller's verified bank account",
+          "All fees are calculated on the item subtotal (excluding shipping and sales tax) and deducted automatically before payout",
+          "Listing-fee charges accrue to a balance and are settled against your next payout — no upfront card billing for listing fees",
+          "Crafters Plus subscription auto-renews monthly; you may cancel at any time from the maker dashboard. Cancellation takes effect at the end of the current billing period",
         ],
       },
       {
