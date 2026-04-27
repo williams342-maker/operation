@@ -495,3 +495,32 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - **Checkout integration**: `_resolve_discount` in `routers/checkout.py` now ALSO checks `marketing_codes` (scope=marketplace_wide) before falling through to the per-shop `discount_codes`. Discount applies to the FULL items subtotal (not per-shop). Webhook code-usage tracking deactivates the marketing code after redemption.
 - **Frontend**: Extended `RetentionTab.jsx` with a `<DormantBuyersPanel>` below the cohort heatmap. Days threshold dropdown (30/60/90/120/180/365), Scan button, table with select-all + per-row checkboxes, last-order-date, total orders, LTV. Bottom send-bar: discount % (10-30) + expiry (7-60d) + Send button with confirmation dialog.
 - **Verified**: scan returned 0 (no orders >60d old in seed data — sane). Reengaged a synthetic email → `WELCOMExxxxxx` code created with `single_use=True, scope=marketplace_wide, expires_at` set. `/api/cart/quote` honors the code: $149 → -$22.35 (15%) → $151.65 with `discount_kind="dormant_reengage"`. Repeat call within 24h returned `sent:0, skipped:1` (idempotency works).
+
+
+## 2026-04-27 — Final follow-ups (Video upload, Clone listing, P1.5 controls)
+
+### ✅ Direct video upload to R2
+- `r2_storage.py`: added `ALLOWED_VIDEO_TYPES` (mp4/webm/mov), `MAX_VIDEO_BYTES = 50 MB`, and an `upload_video_bytes(...)` helper. Cache-Control set to 1 day (shorter than images so makers can iterate without burning new keys). No transcoding — browsers handle codecs natively; future Cloudflare Stream wiring is a 1-call swap.
+- `routers/maker.py`: new `POST /api/maker/uploads/video` endpoint. Auth-gated by `current_maker_slug`, content-type validated against the allowlist with filename-extension fallback for browsers that send blank/wonky mime types.
+- `MakerListingEditor.jsx`: replaced the URL-only video field with a richer block — "Upload from computer" button + progress %, OR paste URL fallback, OR show inline `<video controls>` preview with Remove. 50MB and codec validation done client-side too so the user sees the error instantly.
+- Verified end-to-end: tiny test mp4 → POST returned `{ url, size }` with R2 public URL.
+
+### ✅ One-click "Clone listing"
+- `routers/maker.py`: new `POST /api/maker/products/{slug}/duplicate` (returns `Product`). Copies the source doc, appends `(copy)` to the title, regenerates `id` + `slug` (`{base}-copy-{6hex}`), refreshes variant ids so editing the clone doesn't mutate the source, sets `status="draft"`, clears `expires_at` / `promoted_until` / `featured` / `deleted_at`, and stamps `created_at = now()`.
+- `MakerListingEditor.jsx`: edit-mode "Clone" button now calls the API + navigates to `/maker/listings/<new-slug>/edit` and force-reloads so component state matches the new URL.
+- Verified end-to-end: cloned a published listing → got `{slug: 'mountain-range-silhouette-copy-xxxxxx', title: '... (copy)', status: 'draft', expires_at: null, promoted_until: null, variants: 0}`.
+
+### ✅ P1.5 — Two-person rule for refunds + IP allowlist
+
+**Two-person rule (refunds ≥ $500)**
+- New `refund_approvals` collection with status state-machine: `pending → approved → executed` (or `denied`).
+- `POST /api/admin/orders/{session_id}/refund` flow: if `total ≥ REFUND_DUAL_APPROVAL_USD` (env, default $500) and no `approval_id` query param, creates a pending approval row + audit entry, returns `202` with `{requires_approval: true, approval_id, threshold, amount}`. With a valid `approval_id` AND `status="approved"` AND approver ≠ executor, executes the refund and stamps `executed_at`.
+- New endpoints: `GET /api/admin/refund-approvals?status=...`, `POST /api/admin/refund-approvals/{id}/approve` (rejects requester self-approval with 403), `POST /api/admin/refund-approvals/{id}/deny`.
+- New `RefundApprovalsTab.jsx` in admin dashboard with status filter, approve/deny per-row, and "Execute Refund" CTA visible only on `approved` rows. Self-requested rows show a yellow "you requested this — a different admin must approve" hint.
+- `PaidOrdersList.jsx` refund button now reads the response — if `requires_approval`, surfaces a yellow toast pointing the admin to the new tab.
+- Verified end-to-end: $750 fake order → first refund request → 202 with `approval_id` → same admin tries to approve → 403 ("a different admin must approve") → second admin approves → 200 → list returns 1 approved row.
+
+**IP allowlist (optional)**
+- `maker_auth.py`: new `_admin_ip_allowlist()` parser supporting CIDR (`10.0.0.0/8`) AND single IPs. Reads `ADMIN_IP_ALLOWLIST` env (empty/missing = enforcement disabled).
+- `current_admin` dependency now also accepts `Request`, calls `_enforce_admin_ip(request)` before the JWT check. Honors `X-Forwarded-For` (Kubernetes ingress) and falls back to direct client IP. Bad / missing IPs return 403 when allowlist is on.
+- Belt + braces — every existing admin endpoint that depends on `current_admin` (or wraps it via `require_super_admin()`) is now IP-gated automatically once the env is set. No code rewrite needed at call sites.

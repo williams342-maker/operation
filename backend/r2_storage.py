@@ -48,8 +48,17 @@ ALLOWED_MODEL_TYPES = {
     "application/octet-stream": "glb",   # browsers often send this for .glb
 }
 
+# Showcase video uploads on listings.
+ALLOWED_VIDEO_TYPES = {
+    "video/mp4": "mp4",
+    "video/webm": "webm",
+    "video/quicktime": "mov",   # iOS .mov uploads come through as quicktime
+    "video/x-quicktime": "mov",
+}
+
 MAX_BYTES = 8 * 1024 * 1024          # 8 MB image cap
 MAX_MODEL_BYTES = 50 * 1024 * 1024   # 50 MB .glb cap (high-poly support)
+MAX_VIDEO_BYTES = 50 * 1024 * 1024   # 50 MB video cap (matches editor copy)
 
 
 def is_configured() -> bool:
@@ -118,6 +127,37 @@ def upload_model_bytes(data: bytes, key_prefix: str,
         ct = "model/gltf+json"
     key = f"{key_prefix.rstrip('/')}/{uuid.uuid4().hex}.{ext}"
     return upload_bytes(data, key, ct, max_bytes=MAX_MODEL_BYTES)
+
+
+def upload_video_bytes(data: bytes, key_prefix: str,
+                       filename: Optional[str] = None,
+                       content_type: str = "video/mp4") -> str:
+    """Upload a listing showcase video (.mp4 / .webm / .mov) and return the
+    public URL. We don't transcode — buyers' browsers will handle the codec.
+    A future enhancement could pipe through Cloudflare Stream for adaptive
+    bitrate, but R2 + native <video> is sufficient for short product videos.
+    """
+    ct = (content_type or "").lower() or "video/mp4"
+    if ct not in ALLOWED_VIDEO_TYPES:
+        # Browsers occasionally send blank or wonky mime types — fall back on extension.
+        if filename:
+            low = filename.lower()
+            if low.endswith(".mp4"):
+                ct = "video/mp4"
+            elif low.endswith(".webm"):
+                ct = "video/webm"
+            elif low.endswith(".mov"):
+                ct = "video/quicktime"
+    if ct not in ALLOWED_VIDEO_TYPES:
+        raise ValueError(f"Unsupported video type: {ct}")
+    ext = ALLOWED_VIDEO_TYPES[ct]
+    key = f"{key_prefix.rstrip('/')}/{uuid.uuid4().hex}.{ext}"
+    # Shorter cache for videos so makers can iterate without burning new keys.
+    return upload_bytes(
+        data, key, ct,
+        cache_control="public, max-age=86400",
+        max_bytes=MAX_VIDEO_BYTES,
+    )
 
 
 _DATA_URL_RE = re.compile(r"^data:(?P<ct>[\w/+.\-]+);base64,(?P<b64>.+)$", re.DOTALL)

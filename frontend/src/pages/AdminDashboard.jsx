@@ -25,6 +25,7 @@ import BufferTab from "../components/admin/BufferTab";
 import ChatModTab from "../components/admin/ChatModTab";
 import RetentionTab from "../components/admin/RetentionTab";
 import TeamTab from "../components/admin/TeamTab";
+import RefundApprovalsTab from "../components/admin/RefundApprovalsTab";
 import LiveNowBadge from "../components/admin/LiveNowBadge";
 
 const TABS = [
@@ -35,6 +36,7 @@ const TABS = [
   { id: "applications", label: "Applications" },
   { id: "custom", label: "Custom Orders" },
   { id: "orders", label: "Paid Orders" },
+  { id: "approvals", label: "Refund Approvals" },
   { id: "listings", label: "Listings" },
   { id: "users", label: "Users" },
   { id: "reviews", label: "Reviews" },
@@ -184,6 +186,7 @@ export default function AdminDashboard() {
         {tab === "applications" && <ApplicationsList items={apps} onChange={refresh} />}
         {tab === "custom" && <CustomOrdersList items={custom} onChange={refresh} />}
         {tab === "orders" && <PaidOrdersList items={orders} />}
+        {tab === "approvals" && <RefundApprovalsTab me={me} />}
         {tab === "listings" && <ListingsTab />}
         {tab === "users" && <UsersTab />}
         {tab === "reviews" && <ReviewsTab />}

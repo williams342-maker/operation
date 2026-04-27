@@ -220,6 +220,49 @@ async def maker_renew_product(product_slug: str, slug: str = Depends(current_mak
     return await db.products.find_one({"slug": product_slug}, {"_id": 0})
 
 
+@router.post("/maker/products/{product_slug}/duplicate", response_model=Product)
+async def maker_duplicate_product(
+    product_slug: str, slug: str = Depends(current_maker_slug),
+):
+    """One-click clone — copy the product as a new draft. Title gets `(copy)`
+    appended; slug + id are regenerated; lifecycle fields (`expires_at`,
+    `promoted_until`, `created_at`) are reset; `deleted_at` is cleared.
+    Variant rows keep their labels but get fresh ids so editing the clone
+    doesn't mutate the source."""
+    src = await db.products.find_one(
+        {"slug": product_slug, "maker_slug": slug, "deleted_at": None}, {"_id": 0},
+    )
+    if not src:
+        raise HTTPException(404, "Product not found.")
+    base_slug = re.sub(r"[^a-z0-9-]", "-", src["slug"].split("-copy")[0]).strip("-") or "listing"
+    candidate = f"{base_slug}-copy-{uuid.uuid4().hex[:6]}"
+    new_title = src["title"]
+    if not new_title.lower().endswith("(copy)"):
+        new_title = f"{new_title} (copy)"[:80]
+    new_id = str(uuid.uuid4())
+    fresh_variants = []
+    for v in (src.get("variants") or []):
+        fresh_variants.append({**v, "id": str(uuid.uuid4())})
+    clone = {
+        **src,
+        "id": new_id,
+        "slug": candidate,
+        "title": new_title,
+        "status": "draft",
+        "expires_at": None,
+        "promoted_until": None,
+        "deleted_at": None,
+        "featured": False,
+        "variants": fresh_variants,
+        "created_at": now_iso(),
+    }
+    await db.products.insert_one(clone)
+    clone.pop("_id", None)
+    logger.info("[maker] duplicated %s → %s for %s", product_slug, candidate, slug)
+    return clone
+
+
+
 @router.post("/maker/products/{product_slug}/promote", response_model=Product)
 async def maker_promote_product(
     product_slug: str, weeks: int = 1, slug: str = Depends(current_maker_slug),
@@ -481,6 +524,45 @@ async def maker_upload_model(
     except Exception as e:
         logger.exception("model upload failed for maker=%s: %s", slug, e)
         raise HTTPException(502, "Could not upload model.")
+    return {"url": url, "size": len(body)}
+
+
+
+@router.post("/maker/uploads/video")
+async def maker_upload_video(
+    file: UploadFile = File(...),
+    slug: str = Depends(current_maker_slug),
+):
+    """Upload a listing showcase video (.mp4 / .webm / .mov, 50 MB cap) to R2.
+    Returns the public URL for the maker to attach to a listing's `video_url`
+    field via the editor. Files are served from R2's CDN — no transcoding."""
+    try:
+        from r2_storage import (
+            ALLOWED_VIDEO_TYPES, is_configured as _r2_ok, upload_video_bytes,
+        )
+    except Exception:
+        raise HTTPException(503, "R2 storage is not available.")
+    if not _r2_ok():
+        raise HTTPException(503, "R2 storage is not configured.")
+
+    fname = (file.filename or "").lower()
+    ct = (file.content_type or "").lower()
+    if ct not in ALLOWED_VIDEO_TYPES and not fname.endswith((".mp4", ".webm", ".mov")):
+        raise HTTPException(400, "Only .mp4, .webm, or .mov videos are supported.")
+
+    body = await file.read()
+    try:
+        url = upload_video_bytes(
+            body,
+            key_prefix=f"videos/{slug}",
+            filename=fname,
+            content_type=ct or "video/mp4",
+        )
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        logger.exception("video upload failed for maker=%s: %s", slug, e)
+        raise HTTPException(502, "Could not upload video.")
     return {"url": url, "size": len(body)}
 
 

@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import {
   fetchMakerMe, fetchMakerProducts, createMakerProduct,
-  updateMakerProduct, aiListingCopy,
+  updateMakerProduct, aiListingCopy, duplicateMakerProduct, uploadMakerVideo,
 } from "../lib/api";
 
 /** Crafters Market — full-page Listing Editor.
@@ -190,6 +190,40 @@ export default function MakerListingEditor() {
 
   // ---- Photos ----
   const fileRef = useRef(null);
+  const videoFileRef = useRef(null);
+  const [videoUploading, setVideoUploading] = useState(0);   // 0..100
+  const [videoErr, setVideoErr] = useState("");
+
+  const onPickVideo = async (e) => {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    setVideoErr("");
+    if (f.size > 50 * 1024 * 1024) {
+      setVideoErr("Video must be 50MB or smaller.");
+      return;
+    }
+    if (!["video/mp4", "video/webm", "video/quicktime", "video/x-quicktime"].includes(f.type)
+        && !/\.(mp4|webm|mov)$/i.test(f.name)) {
+      setVideoErr("Only .mp4, .webm, or .mov files are supported.");
+      return;
+    }
+    try {
+      setVideoUploading(1);
+      const r = await uploadMakerVideo(f, (e) => {
+        if (e?.total) setVideoUploading(Math.round((e.loaded / e.total) * 100));
+      });
+      set({ video_url: r.url });
+      toast.success("Video uploaded.");
+    } catch (err) {
+      const msg = err?.response?.data?.detail || "Video upload failed.";
+      setVideoErr(msg);
+      toast.error(msg);
+    } finally {
+      setVideoUploading(0);
+    }
+  };
+  const removeVideo = () => set({ video_url: "" });
   const onPickPhotos = async (e) => {
     const files = Array.from(e.target.files || []);
     e.target.value = "";
@@ -369,10 +403,22 @@ export default function MakerListingEditor() {
     }
   };
 
-  const cloneListing = () => {
+  const cloneListing = async () => {
     if (!isEdit) return;
-    set({ title: `${form.title} (copy)` });
-    toast.info("Edit and Save Draft to clone — title prefilled with (copy).");
+    if (!window.confirm(`Duplicate "${form.title}" as a new draft?`)) return;
+    setSaving(true);
+    try {
+      const newDoc = await duplicateMakerProduct(slug);
+      toast.success("Listing cloned. Editing the new draft now.");
+      navigate(`/maker/listings/${newDoc.slug}/edit`, { replace: true });
+      // Reload editor with fresh data on the new slug — easiest is a full
+      // reload because component state is keyed off `slug` from the URL.
+      setTimeout(() => window.location.reload(), 60);
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Clone failed.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const previewListing = () => {
@@ -487,16 +533,60 @@ export default function MakerListingEditor() {
           {errors.images && <FieldError msg={errors.images} />}
 
           <div className="mt-6 pt-6 border-t border-[#262626]">
-            <Label>Video URL (optional) · MP4 / WebM / MOV up to 50MB</Label>
+            <Label>Video <span className="text-[#525252]">(optional · MP4 / WebM / MOV up to 50MB)</span></Label>
+
+            {form.video_url ? (
+              <div className="border border-[#262626] p-3" data-testid="editor-video-preview">
+                <video
+                  src={form.video_url} controls preload="metadata"
+                  className="w-full max-h-64 bg-black"
+                />
+                <div className="flex items-center justify-between mt-3 gap-3">
+                  <span className="font-mono text-[10px] text-[#737373] truncate">{form.video_url}</span>
+                  <button
+                    type="button" onClick={removeVideo}
+                    className="px-2 py-1 border border-[#262626] hover:border-red-400 hover:text-red-400 font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1"
+                    data-testid="editor-video-remove"
+                  >
+                    <Trash2 size={10} /> Remove
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <button
+                    type="button" onClick={() => videoFileRef.current?.click()}
+                    disabled={!!videoUploading}
+                    className="border border-dashed border-[#404040] hover:border-[#ff4500] hover:text-[#ff4500] text-[#a3a3a3] flex items-center justify-center gap-2 py-6 transition disabled:opacity-50"
+                    data-testid="editor-video-upload"
+                  >
+                    <Upload size={16} />
+                    <span className="font-mono text-[11px] uppercase tracking-[0.22em]">
+                      {videoUploading ? `Uploading… ${videoUploading}%` : "Upload from computer"}
+                    </span>
+                  </button>
+                  <div className="flex items-center justify-center font-mono text-[10px] text-[#525252] uppercase tracking-[0.22em]">
+                    — or paste URL —
+                  </div>
+                </div>
+                <input
+                  type="url" value={form.video_url}
+                  onChange={(e) => set({ video_url: e.target.value })}
+                  placeholder="https://… or hosted YouTube/Vimeo link"
+                  className="w-full mt-3 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm"
+                  data-testid="editor-video-url"
+                />
+              </>
+            )}
             <input
-              type="url" value={form.video_url}
-              onChange={(e) => set({ video_url: e.target.value })}
-              placeholder="https://… or upload to YouTube/Vimeo and paste link"
-              className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm"
-              data-testid="editor-video-url"
+              ref={videoFileRef} type="file" hidden
+              accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov"
+              onChange={onPickVideo} data-testid="editor-video-input"
             />
+            {videoErr && <FieldError msg={videoErr} />}
             <p className="font-mono text-[10px] text-[#525252] mt-2">
-              ◆ JPG · PNG · GIF · WEBP · max 5MB per photo. Direct video upload coming soon — paste a hosted URL for now.
+              ◆ JPG · PNG · GIF · WEBP · max 5MB per photo. Videos served from R2 CDN — no transcoding.
             </p>
           </div>
         </Section>

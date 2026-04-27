@@ -1,6 +1,7 @@
 """Admin console: magic-link auth, applications/custom-orders/paid-orders dashboards."""
 from typing import Optional
 import os
+import secrets
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, EmailStr
@@ -239,12 +240,148 @@ async def admin_orders(_: dict = Depends(current_admin)):
 
 
 @router.post("/admin/orders/{session_id}/refund")
-async def admin_refund_order(session_id: str, _: dict = Depends(current_admin)):
+async def admin_refund_order(
+    session_id: str, approval_id: str | None = None,
+    claims: dict = Depends(current_admin),
+):
     """Full refund: reverses the buyer's charge AND every maker transfer for
     this session. Platform fee is also refunded (full reversal). Idempotent.
+
+    **Two-person rule**: refunds at or above `REFUND_DUAL_APPROVAL_USD`
+    (default $500) require a second admin to approve via
+    `/api/admin/refund-approvals/{id}/approve` before the refund executes.
+    Without `approval_id`, the first call creates a pending approval and
+    returns 202. The frontend then re-calls this endpoint with the
+    `approval_id` once a different admin has approved.
     """
+    threshold = float(os.environ.get("REFUND_DUAL_APPROVAL_USD") or 500)
+    tx = await db.transactions.find_one({"session_id": session_id}, {"_id": 0})
+    if not tx:
+        raise HTTPException(404, "Order not found.")
+    refund_amount = float(tx.get("total") or 0)
+
+    # If above threshold and no approval, create / require one.
+    if refund_amount >= threshold and not approval_id:
+        existing = await db.refund_approvals.find_one(
+            {"session_id": session_id, "status": "pending"}, {"_id": 0},
+        )
+        if not existing:
+            ap_id = secrets.token_urlsafe(8)
+            doc = {
+                "id": ap_id,
+                "session_id": session_id,
+                "amount": round(refund_amount, 2),
+                "buyer_email": tx.get("buyer_email"),
+                "requested_by": claims["email"],
+                "requested_at": now_iso(),
+                "status": "pending",
+                "approved_by": None, "approved_at": None,
+                "denied_by": None, "denied_at": None,
+                "executed_at": None,
+            }
+            await db.refund_approvals.insert_one(doc)
+            await db.audit_log.insert_one({
+                "kind": "refund_approval_requested",
+                "actor": claims["email"], "session_id": session_id,
+                "amount": refund_amount, "approval_id": ap_id,
+                "created_at": now_iso(),
+            })
+            existing = doc
+        return {
+            "requires_approval": True, "approval_id": existing["id"],
+            "amount": existing["amount"], "threshold": threshold,
+            "requested_by": existing["requested_by"],
+            "message": f"Refund ≥ ${threshold:.0f} needs a second admin's approval.",
+        }
+
+    # If approval_id provided, verify it's approved AND the approver isn't the requester.
+    if approval_id:
+        ap = await db.refund_approvals.find_one({"id": approval_id}, {"_id": 0})
+        if not ap or ap.get("session_id") != session_id:
+            raise HTTPException(404, "Approval not found for this order.")
+        if ap.get("status") != "approved":
+            raise HTTPException(409, f"Approval is {ap.get('status')}, not approved.")
+        if ap.get("approved_by") and ap["approved_by"].lower() == claims["email"].lower():
+            # Belt + braces — the approve endpoint already enforces this.
+            raise HTTPException(403, "The approving admin must be different from the executor.")
+        # Mark executed below after the actual refund succeeds.
+
     from routers.stripe_connect import refund_session
-    return await refund_session(session_id)
+    result = await refund_session(session_id)
+    if approval_id:
+        await db.refund_approvals.update_one(
+            {"id": approval_id}, {"$set": {"status": "executed", "executed_at": now_iso()}},
+        )
+    await db.audit_log.insert_one({
+        "kind": "refund_executed",
+        "actor": claims["email"], "session_id": session_id,
+        "amount": refund_amount, "approval_id": approval_id,
+        "created_at": now_iso(),
+    })
+    return result
+
+
+# ─────────────────────── Refund approvals (two-person rule) ───────────────────────
+@router.get("/admin/refund-approvals")
+async def admin_list_refund_approvals(
+    status: str = "pending", _: dict = Depends(current_admin),
+):
+    if status not in ("pending", "approved", "denied", "executed", "all"):
+        raise HTTPException(400, "Invalid status.")
+    q: dict = {} if status == "all" else {"status": status}
+    rows = await db.refund_approvals.find(q, {"_id": 0}).sort("requested_at", -1).limit(200).to_list(200)
+    threshold = float(os.environ.get("REFUND_DUAL_APPROVAL_USD") or 500)
+    return {"approvals": rows, "threshold_usd": threshold}
+
+
+@router.post("/admin/refund-approvals/{approval_id}/approve")
+async def admin_approve_refund(
+    approval_id: str, claims: dict = Depends(current_admin),
+):
+    ap = await db.refund_approvals.find_one({"id": approval_id}, {"_id": 0})
+    if not ap:
+        raise HTTPException(404, "Approval not found.")
+    if ap.get("status") != "pending":
+        raise HTTPException(409, f"Approval is {ap['status']}, not pending.")
+    if ap.get("requested_by", "").lower() == claims["email"].lower():
+        raise HTTPException(
+            403, "Two-person rule: a different admin must approve this refund.",
+        )
+    await db.refund_approvals.update_one(
+        {"id": approval_id},
+        {"$set": {"status": "approved", "approved_by": claims["email"],
+                  "approved_at": now_iso()}},
+    )
+    await db.audit_log.insert_one({
+        "kind": "refund_approval_granted",
+        "actor": claims["email"], "approval_id": approval_id,
+        "session_id": ap.get("session_id"), "amount": ap.get("amount"),
+        "created_at": now_iso(),
+    })
+    return {"ok": True, "approval_id": approval_id, "status": "approved"}
+
+
+@router.post("/admin/refund-approvals/{approval_id}/deny")
+async def admin_deny_refund(
+    approval_id: str, claims: dict = Depends(current_admin),
+):
+    ap = await db.refund_approvals.find_one({"id": approval_id}, {"_id": 0})
+    if not ap:
+        raise HTTPException(404, "Approval not found.")
+    if ap.get("status") != "pending":
+        raise HTTPException(409, f"Approval is {ap['status']}, not pending.")
+    await db.refund_approvals.update_one(
+        {"id": approval_id},
+        {"$set": {"status": "denied", "denied_by": claims["email"],
+                  "denied_at": now_iso()}},
+    )
+    await db.audit_log.insert_one({
+        "kind": "refund_approval_denied",
+        "actor": claims["email"], "approval_id": approval_id,
+        "session_id": ap.get("session_id"),
+        "created_at": now_iso(),
+    })
+    return {"ok": True, "approval_id": approval_id, "status": "denied"}
 
 
 @router.post("/admin/orders/{session_id}/refire-emails")

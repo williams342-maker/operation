@@ -217,8 +217,6 @@ export const adminCreateReview = (payload) =>
   http.post("/admin/reviews", payload, { headers: adminAuthHeaders() }).then((r) => r.data);
 export const adminDeleteReview = (id) =>
   http.delete(`/admin/reviews/${id}`, { headers: adminAuthHeaders() }).then((r) => r.data);
-export const adminRefundOrder = (session_id) =>
-  http.post(`/admin/orders/${session_id}/refund`, {}, { headers: adminAuthHeaders() }).then((r) => r.data);
 export const adminRefireOrderEmails = (session_id) =>
   http
     .post(`/admin/orders/${session_id}/refire-emails`, {}, { headers: adminAuthHeaders() })
@@ -348,7 +346,34 @@ export const updateAdminCaps = (email, patch) =>
 export const revokeAdmin = (email) =>
   http.delete(`/admin/team/${encodeURIComponent(email)}`, { headers: adminAuthHeaders() }).then((r) => r.data);
 
-// Dormant retention
+// Video upload (R2)
+export const uploadMakerVideo = (file, onProgress) => {
+  const fd = new FormData();
+  fd.append("file", file);
+  return http.post("/maker/uploads/video", fd, {
+    headers: { ...authHeaders(), "Content-Type": "multipart/form-data" },
+    onUploadProgress: onProgress,
+  }).then((r) => r.data);
+};
+
+// Clone listing
+export const duplicateMakerProduct = (slug) =>
+  http.post(`/maker/products/${slug}/duplicate`, null, { headers: authHeaders() }).then((r) => r.data);
+
+// Refund approvals (two-person rule)
+export const fetchRefundApprovals = (status = "pending") =>
+  http.get(`/admin/refund-approvals?status=${status}`, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const approveRefund = (id) =>
+  http.post(`/admin/refund-approvals/${id}/approve`, null, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const denyRefund = (id) =>
+  http.post(`/admin/refund-approvals/${id}/deny`, null, { headers: adminAuthHeaders() }).then((r) => r.data);
+// Refund: now returns either {requires_approval, approval_id} or final result
+export const adminRefundOrder = (sessionId, approvalId = null) => {
+  const url = approvalId
+    ? `/admin/orders/${sessionId}/refund?approval_id=${encodeURIComponent(approvalId)}`
+    : `/admin/orders/${sessionId}/refund`;
+  return http.post(url, null, { headers: adminAuthHeaders() }).then((r) => r.data);
+};
 export const fetchDormantBuyers = (days = 60, limit = 200) =>
   http.get(`/admin/retention/dormant?days=${days}&limit=${limit}`, { headers: adminAuthHeaders() }).then((r) => r.data);
 export const reengageDormantBuyers = (payload) =>

@@ -6,7 +6,9 @@
 import os
 import jwt
 from datetime import datetime, timedelta, timezone
-from fastapi import Depends, Header, HTTPException
+import ipaddress
+
+from fastapi import Depends, Header, HTTPException, Request
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 
 SECRET = os.environ["MAKER_AUTH_SECRET"]
@@ -83,8 +85,65 @@ async def current_maker_slug(authorization: str | None = Header(default=None)) -
     return claims["sub"]
 
 
-async def current_admin(authorization: str | None = Header(default=None)) -> dict:
-    """FastAPI dependency: returns the JWT claims for an admin Bearer token."""
+def _admin_ip_allowlist() -> list:
+    """Parse ADMIN_IP_ALLOWLIST env into IPv4Network/IPv6Network objects.
+    Empty/missing env disables enforcement entirely. Supports IPs and CIDR.
+
+    Examples:
+      ADMIN_IP_ALLOWLIST=""                       → disabled (default)
+      ADMIN_IP_ALLOWLIST="203.0.113.42"           → single IP
+      ADMIN_IP_ALLOWLIST="10.0.0.0/8,1.2.3.4"     → CIDR + single
+    """
+    raw = (os.environ.get("ADMIN_IP_ALLOWLIST") or "").strip()
+    if not raw:
+        return []
+    nets = []
+    for chunk in raw.split(","):
+        c = chunk.strip()
+        if not c:
+            continue
+        try:
+            nets.append(ipaddress.ip_network(c, strict=False))
+        except ValueError:
+            # Skip malformed entries — better than denying everyone.
+            continue
+    return nets
+
+
+def _request_ip(request: Request | None) -> str:
+    if not request:
+        return ""
+    # Honor X-Forwarded-For first (Kubernetes ingress sets it correctly).
+    xff = request.headers.get("x-forwarded-for", "")
+    if xff:
+        return xff.split(",")[0].strip()
+    return (request.client.host if request.client else "") or ""
+
+
+def _enforce_admin_ip(request: Request | None):
+    nets = _admin_ip_allowlist()
+    if not nets:
+        return
+    ip = _request_ip(request)
+    if not ip:
+        raise HTTPException(403, "Admin IP allowlist enabled, but request IP is unknown.")
+    try:
+        addr = ipaddress.ip_address(ip)
+    except ValueError:
+        raise HTTPException(403, f"Admin IP allowlist enabled — bad request IP: {ip}")
+    for net in nets:
+        if addr in net:
+            return
+    raise HTTPException(403, f"This IP ({ip}) is not on the admin allowlist.")
+
+
+async def current_admin(
+    request: Request,
+    authorization: str | None = Header(default=None),
+) -> dict:
+    """FastAPI dependency: returns the JWT claims for an admin Bearer token.
+    Also enforces the optional `ADMIN_IP_ALLOWLIST` env (disabled if empty)."""
+    _enforce_admin_ip(request)
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(status_code=401, detail="Missing bearer token.")
     token = authorization.split(" ", 1)[1].strip()

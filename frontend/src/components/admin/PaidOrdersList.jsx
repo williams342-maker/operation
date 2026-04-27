@@ -17,9 +17,15 @@ export default function PaidOrdersList({ items }) {
     )) return;
     setRefunding(sid); setErr((e) => ({ ...e, [sid]: "" }));
     try {
-      await adminRefundOrder(sid);
-      setRefunded((r) => new Set(r).add(sid));
-      toast.success("Order refunded — buyer + maker reversals fired.");
+      const r = await adminRefundOrder(sid);
+      if (r.requires_approval) {
+        const msg = `Refund of $${r.amount.toFixed(2)} needs a second admin's approval (≥$${r.threshold} threshold). Pending request created — find it under "Refund Approvals".`;
+        setErr((p) => ({ ...p, [sid]: msg }));
+        toast.warning(msg);
+      } else {
+        setRefunded((rs) => new Set(rs).add(sid));
+        toast.success("Order refunded — buyer + maker reversals fired.");
+      }
     } catch (e) {
       const msg = e?.response?.data?.detail || "Refund failed.";
       setErr((p) => ({ ...p, [sid]: msg }));
