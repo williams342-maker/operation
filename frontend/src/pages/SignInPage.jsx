@@ -107,14 +107,26 @@ export default function SignInPage() {
     setState({ status: "loading", message: "" });
     try {
       const r = await passwordLogin(email.trim(), password, role);
-      // Store JWT under the conventional key for each role
-      const storageKey = { buyer: "community_jwt", maker: "maker_jwt", admin: "admin_jwt" }[role];
-      localStorage.setItem(storageKey, r.token);
-      // Remember the user for next visit's welcome banner
-      rememberSignedIn({
-        email: r.user?.email || email.trim(),
-        name: r.user?.name || r.user?.display_name || "",
-      });
+      // Store JWT under the keys the rest of the app already uses — must
+      // match MakerVerify, AdminVerify, CommunityVerify exactly so the
+      // dashboards recognise the session.
+      if (role === "buyer") {
+        localStorage.setItem("cm_buyer_jwt", r.token);
+        if (r.user?.email) localStorage.setItem("cm_buyer_email", r.user.email);
+      } else if (role === "maker") {
+        localStorage.setItem("cm_maker_jwt", r.token);
+        if (r.user?.slug) localStorage.setItem("cm_maker_slug", r.user.slug);
+      } else {
+        localStorage.setItem("cm_admin_jwt", r.token);
+      }
+      // Remember the user for next visit's welcome banner (buyer + maker only —
+      // admin sign-ins intentionally don't stamp this, see /admin/login)
+      if (role !== "admin") {
+        rememberSignedIn({
+          email: r.user?.email || email.trim(),
+          name: r.user?.name || r.user?.display_name || "",
+        });
+      }
       const dest = { buyer: "/community", maker: "/maker/dashboard", admin: "/admin/dashboard" }[role];
       navigate(dest);
     } catch (err) {

@@ -51,7 +51,7 @@ export default function AdminLogin() {
     setState({ status: "loading", message: "" });
     try {
       const r = await passwordLogin(email.trim(), password, "admin");
-      localStorage.setItem("admin_jwt", r.token);
+      localStorage.setItem("cm_admin_jwt", r.token);
       // Intentionally do NOT stamp cm_last_email / cm_last_name for admin
       // sign-ins — keeps the "Welcome back" banner free of admin identity.
       navigate("/admin/dashboard");

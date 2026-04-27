@@ -18,9 +18,9 @@ const links = [
 // when the user is signed in. Reads on every render — cheap, runs in browser.
 function readSignedInRole() {
   if (typeof window === "undefined") return null;
-  if (localStorage.getItem("admin_jwt")) return "admin";
-  if (localStorage.getItem("maker_jwt")) return "maker";
-  if (localStorage.getItem("community_jwt")) return "buyer";
+  if (localStorage.getItem("cm_admin_jwt")) return "admin";
+  if (localStorage.getItem("cm_maker_jwt")) return "maker";
+  if (localStorage.getItem("cm_buyer_jwt")) return "buyer";
   return null;
 }
 
