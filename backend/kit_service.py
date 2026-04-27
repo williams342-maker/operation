@@ -280,10 +280,14 @@ async def create_drop_broadcast_targeted(
         "send_at": None,
     }
     # Target only saved-drop subscribers when the tag exists.
+    # Kit V4 schema (verified 2026-04 via 422 errors): subscriber_filter is
+    # an array of OR-rules, each rule being `{any: [...]}` of clauses.
+    # Tag clause shape is `{type: 'tag', ids: [<tag_id>, ...]}`. Other
+    # docs/SDKs show `tag_id` (singular) — that one returns 422 with
+    # `"ids required for tag filter"`.
     if tag_id:
         payload["subscriber_filter"] = [{
-            "type": "tag",
-            "any": [int(tag_id)],
+            "any": [{"type": "tag", "ids": [int(tag_id)]}],
         }]
 
     try:

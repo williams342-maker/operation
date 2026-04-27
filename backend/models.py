@@ -31,7 +31,7 @@ class Product(BaseModel):
     category: str          # "Wall Art", "Custom Signs", "Outdoor Art"
     technique: str         # PLASMA, LASER, ROUTER, CUSTOM
     price: float
-    description: str
+    description: str = ""           # safe default — older seed docs may be missing this
     materials: List[str] = []
     dimensions: Optional[str] = None
     images: List[str] = []
