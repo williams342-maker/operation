@@ -90,6 +90,24 @@ export default function Nav() {
         </nav>
 
         <div className="flex items-center gap-3">
+          {/* Founding Seller Beta CTA — bold, always visible at top of screen.
+              Sits ahead of Sign in / Cart so it reads as the primary action
+              while we're actively recruiting the first 100 sellers. */}
+          <Link
+            to="/beta"
+            className="hidden sm:inline-flex items-center gap-2 px-4 py-2 bg-[#ff4500] hover:bg-[#ff5722] text-black border border-[#ff4500] font-mono text-[11px] font-bold uppercase tracking-[0.22em] transition shadow-[0_0_0_2px_rgba(255,69,0,0.15)]"
+            data-testid="nav-beta-signup-btn"
+          >
+            ◆ Beta Signup
+          </Link>
+          {/* Mobile variant — compact, same destination */}
+          <Link
+            to="/beta"
+            className="sm:hidden inline-flex items-center px-3 py-2 bg-[#ff4500] hover:bg-[#ff5722] text-black border border-[#ff4500] font-mono text-[10px] font-bold uppercase tracking-[0.2em] transition"
+            data-testid="nav-beta-signup-btn-mobile"
+          >
+            Beta
+          </Link>
           {/* Sign-in button — placed next to Cart so a returning user can
               authenticate from anywhere on the site. Switches to "Account"
               when signed in (any role). */}
@@ -139,12 +157,26 @@ export default function Nav() {
               </button>
             </div>
             <ul className="flex flex-col p-8 gap-6">
+              <motion.li
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0 }}
+              >
+                <Link
+                  to="/beta"
+                  onClick={() => setOpen(false)}
+                  className="font-display text-5xl block text-[#ff4500] hover:brightness-110 transition"
+                  data-testid="mobile-nav-beta-signup"
+                >
+                  ◆ Beta Signup
+                </Link>
+              </motion.li>
               {links.map((l, i) => (
                 <motion.li
                   key={l.href}
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.07 }}
+                  transition={{ delay: (i + 1) * 0.07 }}
                 >
                   <Link
                     to={l.href}

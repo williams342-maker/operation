@@ -38,6 +38,7 @@ import CommunityPage from "./pages/CommunityPage";
 import { CommunityLogin, CommunityVerify, CommunityAuthCallback } from "./pages/CommunityAuth";
 import BuyerMessagesPage from "./pages/BuyerMessagesPage";
 import MakerListingEditor from "./pages/MakerListingEditor";
+import BetaPage from "./pages/BetaPage";
 import SignInPage, { ForgotPasswordPage, ResetPasswordPage } from "./pages/SignInPage";
 import AIAssistant from "./components/AIAssistant";
 import MaintenancePage from "./components/MaintenancePage";
@@ -132,6 +133,7 @@ function App() {
                 <Route path="/makers/:slug" element={<MakerDetail />} />
                 <Route path="/custom-order" element={<CustomOrderPage />} />
                 <Route path="/apply" element={<ApplyPage />} />
+                <Route path="/beta" element={<BetaPage />} />
                 <Route path="/journal" element={<JournalPage />} />
                 <Route path="/journal/:slug" element={<JournalDetail />} />
                 <Route path="/cart" element={<CartPage />} />
