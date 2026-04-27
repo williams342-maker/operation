@@ -361,3 +361,64 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
     - (k) Per-channel chat moderation (delete a single message; mute a user from one room only)
     - (l) Order-level admin tools (refund partials, reissue maker email, refire transactional emails)
     - (d) Backend `routers/community.py` domain split (~750 lines → community_auth/forum/chat/showcase)
+
+---
+
+## P1 BACKLOG — Multi-tier Admin Team & Role Management (saved 2026-04-27)
+
+**User intent (verbatim):** "i think this looks good, helpful advice would help" → "save this idea for later"
+
+### Architecture
+- 1 fixed top-tier role: **Super Admin** (env-driven via `ADMIN_EMAILS`, never assignable from UI — security)
+- 5 togglable capabilities (a single user can hold any combo):
+  - **Marketplace Admin** — approve maker applications, manage listings/categories, suspend makers
+  - **Content Manager** — homepage, banners, blog/journal, SEO meta, featured products, categories/tags
+  - **Customer Support Admin** — tickets, refunds (initiate, requires Finance approval if 2-person rule on), custom-order intervention, buyer/seller escalations
+  - **Finance / Payments Admin** — payouts, refund execution, commission overrides, ad-spend ledger
+  - **Moderation Admin** — chat moderation, forum/showcase moderation, ban/freeze users, reported items
+- Optional 6th capability: **Read-only** (view dashboard, blocks every mutation — for new hires, investors, accountant)
+
+### Database
+- New `admin_users` collection: `{email, is_super_admin, capabilities: [str], added_by, added_at, last_seen}`
+- `is_super_admin` is read-only in UI, derived from `ADMIN_EMAILS` env on every login
+
+### Backend
+- Replace `current_admin` dependency with `require_capability("finance" | "content" | ...)` factory
+- New endpoints:
+  - `GET /api/admin/team` — list admins + capabilities (super-admin-only)
+  - `POST /api/admin/team` — invite by email (sends magic-link with branded "You've been added as Content Manager" copy)
+  - `PATCH /api/admin/team/{email}` — toggle capabilities (super-admin-only)
+  - `DELETE /api/admin/team/{email}` — revoke admin entirely (super-admin-only, with self-lockout block)
+- Admin JWT TTL: 24h (vs current 7d) for stolen-device safety
+- Audit log entry on every grant/revoke
+- Email to all super admins on every change (compromise detection)
+- "Last edited by" tags on banners, blogs, refunds, settings (auditability without dedicated audit pages)
+
+### Frontend
+- New `TeamTab.jsx` in admin dashboard (super-admin-only)
+- Capability presets dropdown: **Full Operator** (Marketplace+Support+Moderation), **Editorial** (Content), **CFO** (Finance), **Custom** (manual checkboxes)
+- Tab visibility based on logged-in user's capabilities (hide entirely, not grey out — cleaner UX)
+- Soft cap of 10 admins with warning toast (not hard block)
+
+### Safety rails (non-negotiable)
+- Super Admin only via `.env` — UI bug can never demote/lock out the owner
+- Cannot revoke your own access (self-lockout protection)
+- All capability checks server-side (frontend hide is UX, not security)
+- All role changes audit-logged AND emailed to super admins
+
+### P1.5 (recommended companion features)
+- **Two-person rule for high-stakes actions** (~half day of work):
+  - Refunds > $500 → require Finance + (Super OR Marketplace) approval
+  - Manual payouts → two Finance approvals
+  - Account/role changes → already super-admin-only
+- **IP allowlist toggle** (~2 hours, off by default — strong B2B trust signal if pursuing larger merchants)
+
+### Decisions deferred ("save for later")
+- Slack/Discord webhook notifications — skip until there's a team
+- Custom permission editor — never (5 caps + presets covers 99% of cases)
+
+### Estimated effort
+- P1 core: ~4 hours
+- P1.5 (two-person rule + IP allowlist): ~6 hours
+- Total: ~10 hours when picked up
+
