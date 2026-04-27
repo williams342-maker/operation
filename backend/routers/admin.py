@@ -3,7 +3,7 @@ from typing import Optional
 import os
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 
 from core import ADMIN_EMAILS, db, logger, now_iso
 from email_service import (
@@ -802,6 +802,124 @@ async def admin_delete_user(user_id: str, claims: dict = Depends(current_admin))
     logger.warning("[mod] HARD-DELETED user=%s email=%s by=%s",
                    user_id, user.get("email"), claims["email"])
     return {"deleted": True, "user_id": user_id}
+
+
+# ───────────────────── admin password tools (per-user) ─────────────────────
+class _AdminResetIn(BaseModel):
+    role: str  # 'buyer' | 'maker' | 'admin'
+    user_id: str | None = None
+    email: EmailStr | None = None
+    origin_url: str
+    return_link: bool = False
+
+
+@router.post("/admin/users/send-password-reset")
+async def admin_send_password_reset(
+    payload: _AdminResetIn, bg: BackgroundTasks, claims: dict = Depends(current_admin)
+):
+    """Trigger a password reset email for any user. Admin never sees or sets
+    the password — they only kick off the same flow as the public 'forgot
+    password' endpoint. If `return_link=true` the reset URL is returned to
+    the admin so they can deliver it through another channel (text, call)
+    when the user's email pipeline is broken — covers the real-world
+    'support call from locked-out user with broken email' case."""
+    from maker_auth import issue_password_reset_token
+    from passwords import new_reset_nonce
+    from email_service import _send, _shell
+    from routers.auth_password import _find_user_by_email, _build_reset_email, _flag_for, _update_user
+
+    role = payload.role.lower().strip()
+    if role not in ("buyer", "maker", "admin"):
+        raise HTTPException(400, "role must be one of: buyer, maker, admin")
+    if not _flag_for(role):
+        raise HTTPException(403, f"Password sign-in is disabled for role={role}.")
+
+    # Look up user — accept either user_id or email
+    user = None
+    if payload.email:
+        user = await _find_user_by_email(role, payload.email)
+    elif payload.user_id and role == "buyer":
+        user = await db.community_users.find_one({"user_id": payload.user_id}, {"_id": 0})
+    if not user:
+        raise HTTPException(404, "User not found.")
+
+    email = user["email"]
+    nonce = new_reset_nonce()
+    await _update_user(role, email, {"password_reset_nonce": nonce})
+    token = issue_password_reset_token(email, role, used_at="")
+    link = f"{payload.origin_url.rstrip('/')}/reset-password?token={token}&n={nonce}"
+    html = _build_reset_email(role, link)
+    bg.add_task(_send, email, "Reset your Crafters Market password", html)
+
+    await db.audit_log.insert_one({
+        "kind": "admin_password_reset_sent",
+        "by": claims["email"],
+        "role": role,
+        "email": email,
+        "created_at": now_iso(),
+    })
+    logger.info("[admin] password reset triggered for %s=%s by=%s", role, email, claims["email"])
+    out: dict = {"sent": True, "email": email}
+    if payload.return_link:
+        out["link"] = link
+        out["expires_in_minutes"] = 30
+    return out
+
+
+class _ForceSignoutIn(BaseModel):
+    role: str
+    user_id: str | None = None
+    email: EmailStr | None = None
+
+
+@router.post("/admin/users/force-signout")
+async def admin_force_signout(payload: _ForceSignoutIn, claims: dict = Depends(current_admin)):
+    """Bumps the user's session_version, instantly invalidating every active
+    JWT they have outstanding. Used after suspected account compromise or
+    when a device is lost. Self-lockout protection: admins can't force-
+    signout their own account through this endpoint."""
+    role = payload.role.lower().strip()
+    if role not in ("buyer", "maker", "admin"):
+        raise HTTPException(400, "role must be one of: buyer, maker, admin")
+
+    coll = {"buyer": db.community_users, "maker": db.makers, "admin": db.admin_users}[role]
+    query = {}
+    if payload.email:
+        query["email"] = payload.email.lower().strip()
+    elif payload.user_id and role == "buyer":
+        query["user_id"] = payload.user_id
+    else:
+        raise HTTPException(400, "Provide email (any role) or user_id (buyer only).")
+
+    # Self-lockout protection FIRST — check email match against calling admin
+    # before doing the user lookup (admin records are lazy-upserted so the
+    # admin themselves often won't have a row yet, but still must not be
+    # locked out of their own account).
+    target_email = query.get("email", "").lower().strip()
+    if target_email and target_email == claims["email"].lower().strip():
+        raise HTTPException(403, "You cannot force-signout your own account.")
+
+    user = await coll.find_one(query, {"_id": 0})
+    if not user:
+        raise HTTPException(404, "User not found.")
+
+    if role == "admin":
+        await coll.update_one(query, {"$inc": {"session_version": 1},
+                                       "$set": {"force_signout_at": now_iso()}}, upsert=True)
+    else:
+        await coll.update_one(query, {"$inc": {"session_version": 1},
+                                       "$set": {"force_signout_at": now_iso()}})
+
+    await db.audit_log.insert_one({
+        "kind": "admin_force_signout",
+        "by": claims["email"],
+        "role": role,
+        "email": user["email"],
+        "created_at": now_iso(),
+    })
+    logger.warning("[admin] force-signout · role=%s · email=%s · by=%s",
+                   role, user["email"], claims["email"])
+    return {"signed_out": True, "email": user["email"]}
 
 
 @router.delete("/admin/forum/threads/{thread_id}")

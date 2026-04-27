@@ -8,6 +8,7 @@ from starlette.middleware.cors import CORSMiddleware
 from core import client, logger
 from routers.admin import router as admin_router
 from routers.ai import router as ai_router
+from routers.auth_password import router as auth_password_router
 from routers.catalog import router as catalog_router
 from routers.checkout import router as checkout_router
 from routers.community import router as community_router
@@ -48,6 +49,7 @@ api.include_router(ad_spend_router)
 api.include_router(buffer_router)
 api.include_router(newsletter_router)
 api.include_router(chat_mod_router)
+api.include_router(auth_password_router)
 app.include_router(api)
 
 app.add_middleware(

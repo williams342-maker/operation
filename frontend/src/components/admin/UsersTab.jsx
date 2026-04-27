@@ -4,6 +4,8 @@ import {
   fetchAdminModerationUsers,
   adminModerateUser,
   adminDeleteUser,
+  adminSendPasswordReset,
+  adminForceSignout,
 } from "../../lib/api";
 import useModalA11y from "../../hooks/useModalA11y";
 
@@ -43,6 +45,28 @@ export default function UsersTab() {
       if (action === "delete") {
         await adminDeleteUser(user.user_id);
         toast.success(`Deleted ${user.email}`);
+      } else if (action === "send-reset") {
+        const tok = localStorage.getItem("admin_jwt");
+        const r = await adminSendPasswordReset(tok, {
+          role: "buyer", email: user.email,
+          origin_url: window.location.origin, return_link: true,
+        });
+        // Show admin the reset link in case email is broken
+        if (r.link) {
+          await navigator.clipboard.writeText(r.link).catch(() => {});
+          toast.success(`Reset link emailed to ${user.email} & copied to clipboard.`);
+          window.alert(
+            `Reset link sent to ${user.email}.\n\n` +
+            `Also copied to your clipboard (in case email is broken):\n\n${r.link}\n\n` +
+            `Link expires in 30 minutes and is single-use.`
+          );
+        } else {
+          toast.success(`Reset link emailed to ${user.email}.`);
+        }
+      } else if (action === "force-signout") {
+        const tok = localStorage.getItem("admin_jwt");
+        await adminForceSignout(tok, { role: "buyer", email: user.email });
+        toast.success(`Force-signed-out ${user.email} on all devices.`);
       } else {
         const next = action === "restore" ? "active" : action === "freeze" ? "frozen" : "banned";
         await adminModerateUser(user.user_id, next, reason || "");
@@ -113,7 +137,14 @@ export default function UsersTab() {
               key={u.user_id}
               user={u}
               busy={busyId === u.user_id}
-              onAction={(action) => setConfirmAction({ user: u, action })}
+              onAction={(action) => {
+                // No-confirm-modal actions: dispatch immediately
+                if (action === "send-reset" || action === "force-signout") {
+                  onApply({ user: u, action });
+                } else {
+                  setConfirmAction({ user: u, action });
+                }
+              }}
             />
           ))}
         </div>
@@ -176,6 +207,25 @@ function UserRow({ user: u, busy, onAction }) {
         <div>last seen {(u.last_seen || u.created_at || "").slice(0, 10)}</div>
       </div>
       <div className="flex flex-wrap gap-1 shrink-0">
+        {/* Password tools — available regardless of moderation status */}
+        <button
+          disabled={busy}
+          onClick={() => onAction("send-reset")}
+          title="Email this user a 30-min single-use password reset link. Link is also copied to your clipboard so you can deliver it via another channel if their email is broken."
+          className="px-2 py-1 border border-blue-800 hover:border-blue-500 hover:text-blue-300 font-mono text-[10px] uppercase tracking-[0.18em] disabled:opacity-50"
+          data-testid={`user-reset-${u.user_id}`}
+        >
+          Send Reset
+        </button>
+        <button
+          disabled={busy}
+          onClick={() => onAction("force-signout")}
+          title="Invalidate all of this user's active sessions on every device. They'll have to sign in again."
+          className="px-2 py-1 border border-purple-800 hover:border-purple-500 hover:text-purple-300 font-mono text-[10px] uppercase tracking-[0.18em] disabled:opacity-50"
+          data-testid={`user-signout-${u.user_id}`}
+        >
+          Force Signout
+        </button>
         {modStatus === "active" && (
           <>
             <button

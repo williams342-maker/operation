@@ -36,6 +36,7 @@ import ContactPage from "./pages/ContactPage";
 import PolicyPage from "./pages/PolicyPage";
 import CommunityPage from "./pages/CommunityPage";
 import { CommunityLogin, CommunityVerify, CommunityAuthCallback } from "./pages/CommunityAuth";
+import SignInPage, { ForgotPasswordPage, ResetPasswordPage } from "./pages/SignInPage";
 import AIAssistant from "./components/AIAssistant";
 import MaintenancePage from "./components/MaintenancePage";
 import BetaBanner from "./components/BetaBanner";
@@ -135,6 +136,9 @@ function App() {
                 <Route path="/policy" element={<PolicyPage />} />
                 <Route path="/terms" element={<Navigate to="/policy#terms" replace />} />
                 <Route path="/tos" element={<Navigate to="/policy#terms" replace />} />
+                <Route path="/signin" element={<SignInPage />} />
+                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                <Route path="/reset-password" element={<ResetPasswordPage />} />
                 <Route path="/community" element={<CommunityPage />} />
                 <Route path="/community/login" element={<CommunityLogin />} />
                 <Route path="/community/verify" element={<CommunityVerify />} />

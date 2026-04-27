@@ -25,6 +25,24 @@ export const uploadCustomOrderDesign = (file) => {
 };
 export const submitMakerApplication = (payload) => http.post("/maker-applications", payload).then((r) => r.data);
 export const fetchFeePolicy = () => http.get("/policy/fee-policy").then((r) => r.data);
+
+// ───────────────────── unified password auth ─────────────────────
+export const fetchAuthFlags = () => http.get("/auth/password/flags").then((r) => r.data);
+export const passwordLogin = (email, password, role) =>
+  http.post("/auth/password/login", { email, password, role }).then((r) => r.data);
+export const passwordSet = (role, new_password, current_password, token) =>
+  http.post(`/auth/password/set/${role}`, { new_password, current_password },
+    token ? { headers: { Authorization: `Bearer ${token}` } } : {}).then((r) => r.data);
+export const passwordForgot = (email, role, origin_url) =>
+  http.post("/auth/password/forgot", { email, role, origin_url }).then((r) => r.data);
+export const passwordReset = (token, nonce, new_password) =>
+  http.post("/auth/password/reset", { token, nonce, new_password }).then((r) => r.data);
+export const adminSendPasswordReset = (token, payload) =>
+  http.post("/admin/users/send-password-reset", payload,
+    { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.data);
+export const adminForceSignout = (token, payload) =>
+  http.post("/admin/users/force-signout", payload,
+    { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.data);
 export const createCheckout = (payload) => http.post("/checkout/session", payload).then((r) => r.data);
 export const getCheckoutStatus = (sid) => http.get(`/checkout/status/${sid}`).then((r) => r.data);
 export const fetchCartQuote = (items) =>

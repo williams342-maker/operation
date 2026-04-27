@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, ShoppingBag } from "lucide-react";
+import { Menu, X, ShoppingBag, User } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useCart } from "../../lib/cart";
 import ActivityTicker from "./ActivityTicker";
@@ -14,16 +14,42 @@ const links = [
   { label: "Contact", href: "/contact", route: true },
 ];
 
+// Pull whichever JWT is present so we can switch the nav to "My account"
+// when the user is signed in. Reads on every render — cheap, runs in browser.
+function readSignedInRole() {
+  if (typeof window === "undefined") return null;
+  if (localStorage.getItem("admin_jwt")) return "admin";
+  if (localStorage.getItem("maker_jwt")) return "maker";
+  if (localStorage.getItem("community_jwt")) return "buyer";
+  return null;
+}
+
 export default function Nav() {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [signedInRole, setSignedInRole] = useState(readSignedInRole);
   const { count } = useCart() || { count: 0 };
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
     window.addEventListener("scroll", onScroll);
-    return () => window.removeEventListener("scroll", onScroll);
+    // Listen for storage changes (sign-in / sign-out from another tab)
+    const onStorage = () => setSignedInRole(readSignedInRole());
+    window.addEventListener("storage", onStorage);
+    // Also re-check on focus — covers same-tab login flow
+    const onFocus = () => setSignedInRole(readSignedInRole());
+    window.addEventListener("focus", onFocus);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("focus", onFocus);
+    };
   }, []);
+
+  const accountHref = signedInRole === "admin" ? "/admin/dashboard"
+    : signedInRole === "maker" ? "/maker/dashboard"
+    : signedInRole === "buyer" ? "/community/me"
+    : "/signin";
 
   return (
     <motion.header
@@ -64,6 +90,16 @@ export default function Nav() {
         </nav>
 
         <div className="flex items-center gap-3">
+          {/* Sign-in button — placed next to Cart so a returning user can
+              authenticate from anywhere on the site. Switches to "Account"
+              when signed in (any role). */}
+          <Link
+            to={accountHref}
+            className="relative inline-flex items-center gap-2 px-4 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em] transition"
+            data-testid="nav-signin-btn"
+          >
+            <User size={14} /> {signedInRole ? "Account" : "Sign in"}
+          </Link>
           <Link
             to="/cart"
             className="relative inline-flex items-center gap-2 px-4 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em] transition"
