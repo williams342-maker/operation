@@ -1,10 +1,26 @@
 import React, { useState } from "react";
 import { submitCustomOrder } from "../lib/api";
+import { useStructuredData } from "../lib/seo";
 
 const PROJECTS = ["Wall Art", "Custom Sign", "Outdoor Piece", "Wedding / Gift", "Business Signage", "Other"];
 const MATERIALS = ["Steel", "Oak", "Aluminum", "Mixed Media", "Other"];
 
 export default function CustomOrderPage() {
+  useStructuredData({
+    title: "Custom CNC Orders · Bespoke Metal & Wood Signs · Crafters Market",
+    description: "Get a free custom quote for one-of-a-kind CNC art, monograms, business signage, or wedding gifts. We route the brief to a vetted maker — quote in 24h, no commitment.",
+    url: "https://craftersmarket.org/custom-order",
+    image: "https://craftersmarket.org/downloads/cnc-garage-builders.png",
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@type": "Service",
+      name: "Custom CNC Order — Crafters Market",
+      provider: { "@id": "https://craftersmarket.org/#org" },
+      areaServed: { "@type": "Country", name: "United States" },
+      serviceType: "Custom CNC fabrication and signage",
+    },
+  });
+
   const [f, setF] = useState({ name: "", email: "", phone: "", project_type: "Wall Art", material: "Steel", size: "", budget: "", description: "" });
   const [state, setState] = useState("idle"); // idle | sending | done | error
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });

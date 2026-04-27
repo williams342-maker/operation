@@ -1,10 +1,25 @@
 import React, { useState } from "react";
 import { submitMakerApplication } from "../lib/api";
 import { useSiteSettings } from "../hooks/useSiteSettings";
+import { useStructuredData } from "../lib/seo";
 
 const TECH = ["PLASMA", "LASER", "ROUTER", "CUSTOM"];
 
 export default function ApplyPage() {
+  useStructuredData({
+    title: "Apply to Sell · Maker Program · Crafters Market",
+    description: "Independent CNC artist or signmaker? Apply to sell on Crafters Market. 5% commission, Stripe-direct payouts, 10 free listings, vetted buyer base.",
+    url: "https://craftersmarket.org/apply",
+    image: "https://craftersmarket.org/downloads/cnc-garage-builders.png",
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@type": "WebPage",
+      name: "Apply to Sell on Crafters Market",
+      url: "https://craftersmarket.org/apply",
+      isPartOf: { "@type": "WebSite", "@id": "https://craftersmarket.org/#website" },
+    },
+  });
+
   const settings = useSiteSettings();
   const [f, setF] = useState({ name: "", email: "", studio_name: "", location: "", techniques: [], portfolio_url: "", about: "" });
   const [state, setState] = useState("idle");

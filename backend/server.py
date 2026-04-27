@@ -18,6 +18,7 @@ from routers.settings import router as settings_router
 from routers.follows import router as follows_router
 from routers.ad_spend import router as ad_spend_router
 from routers.buffer import router as buffer_router
+from routers.newsletter import router as newsletter_router
 from routers.stripe_connect import router as stripe_connect_router
 from routers.subscriptions import router as subscriptions_router
 from routers.analytics import router as analytics_router
@@ -42,6 +43,7 @@ api.include_router(settings_router)
 api.include_router(follows_router)
 api.include_router(ad_spend_router)
 api.include_router(buffer_router)
+api.include_router(newsletter_router)
 app.include_router(api)
 
 app.add_middleware(

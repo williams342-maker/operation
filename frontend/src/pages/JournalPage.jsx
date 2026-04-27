@@ -1,10 +1,26 @@
 import React, { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { fetchPosts, fetchPost } from "../lib/api";
+import { useStructuredData } from "../lib/seo";
 
 export function JournalPage() {
   const [posts, setPosts] = useState([]);
   useEffect(() => { fetchPosts().then(setPosts); }, []);
+
+  useStructuredData({
+    title: "Journal · Workshop Notes & CNC Stories · Crafters Market",
+    description: "Behind-the-scenes notes from independent makers — process, technique, and the craft of building one-off CNC art and custom signs.",
+    url: "https://craftersmarket.org/journal",
+    image: "https://craftersmarket.org/downloads/cnc-garage-builders.png",
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@type": "Blog",
+      name: "Crafters Market Journal",
+      url: "https://craftersmarket.org/journal",
+      publisher: { "@id": "https://craftersmarket.org/#org" },
+    },
+  });
+
   return (
     <div className="pt-32 pb-24 grain min-h-screen" data-testid="journal-page">
       <div className="w-full max-w-[1400px] mx-auto px-4 md:px-8">
@@ -34,6 +50,25 @@ export function JournalDetail() {
   const { slug } = useParams();
   const [p, setP] = useState(null);
   useEffect(() => { fetchPost(slug).then(setP); }, [slug]);
+
+  useStructuredData({
+    title: p ? `${p.title} · Crafters Market Journal` : undefined,
+    description: p?.excerpt || p?.body?.slice(0, 160),
+    image: p?.cover,
+    url: p ? `https://craftersmarket.org/journal/${p.slug}` : undefined,
+    jsonLd: p ? {
+      "@context": "https://schema.org",
+      "@type": "BlogPosting",
+      headline: p.title,
+      image: p.cover,
+      datePublished: p.created_at,
+      author: { "@type": "Person", name: p.author || "Crafters Market" },
+      publisher: { "@id": "https://craftersmarket.org/#org" },
+      mainEntityOfPage: `https://craftersmarket.org/journal/${p.slug}`,
+      articleBody: p.body,
+    } : undefined,
+  });
+
   if (!p) return <div className="pt-40 text-center font-mono text-sm text-[#a3a3a3]">Loading…</div>;
   return (
     <article className="pt-32 pb-24 grain min-h-screen" data-testid="journal-detail">

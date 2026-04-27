@@ -1,10 +1,35 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { fetchMakers } from "../lib/api";
+import { useStructuredData } from "../lib/seo";
 
 export default function MakersPage() {
   const [makers, setMakers] = useState([]);
   useEffect(() => { fetchMakers().then(setMakers); }, []);
+
+  useStructuredData({
+    title: "Approved Makers · Independent CNC Artists & Signmakers · Crafters Market",
+    description: "Meet the workshop roster — independent metal, wood, and CNC artists hand-vetted to sell on Crafters Market. Each shop ships direct to buyers via Stripe-secured checkout.",
+    url: "https://craftersmarket.org/makers",
+    image: "https://craftersmarket.org/downloads/cnc-garage-builders.png",
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@type": "CollectionPage",
+      name: "Crafters Market — Approved Makers",
+      url: "https://craftersmarket.org/makers",
+      isPartOf: { "@type": "WebSite", "@id": "https://craftersmarket.org/#website" },
+      mainEntity: {
+        "@type": "ItemList",
+        numberOfItems: makers.length,
+        itemListElement: makers.slice(0, 20).map((m, i) => ({
+          "@type": "ListItem",
+          position: i + 1,
+          url: `https://craftersmarket.org/makers/${m.slug}`,
+          name: m.name,
+        })),
+      },
+    },
+  });
 
   return (
     <div className="pt-32 pb-24 grain min-h-screen" data-testid="makers-page">

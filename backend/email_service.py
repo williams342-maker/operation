@@ -26,6 +26,7 @@ if not logger.handlers:
 logger.propagate = True
 
 EMAIL_PROVIDER = os.environ.get("EMAIL_PROVIDER", "sender").lower()
+EMAIL_FALLBACK_PROVIDER = os.environ.get("EMAIL_FALLBACK_PROVIDER", "mailersend").lower()
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
 BREVO_API_KEY = os.environ.get("BREVO_API_KEY", "")
 MAILERSEND_API_KEY = os.environ.get("MAILERSEND_API_KEY", "")
@@ -152,6 +153,24 @@ async def _send_resend(to: str, subject: str, html: str):
         return None
 
 
+async def _send_via(provider: str, to: str, subject: str, html: str):
+    """Single dispatch — returns provider result dict or None."""
+    if provider == "sender":
+        return await _send_sender(to, subject, html)
+    if provider == "mailersend":
+        return await _send_mailersend(to, subject, html)
+    if provider == "brevo":
+        return await _send_brevo(to, subject, html)
+    return await _send_resend(to, subject, html)
+
+
+def _provider_has_key(provider: str) -> bool:
+    return bool({
+        "sender": SENDER_API_KEY, "mailersend": MAILERSEND_API_KEY,
+        "brevo": BREVO_API_KEY, "resend": RESEND_API_KEY,
+    }.get(provider))
+
+
 async def _send(to: str, subject: str, html: str):
     if not _has_provider() or not to:
         logger.warning("email skipped (no key or recipient): %s", subject)
@@ -160,27 +179,58 @@ async def _send(to: str, subject: str, html: str):
             "status": "skipped", "error_code": None, "error_body": "no_key_or_recipient",
         })
         return None
-    if EMAIL_PROVIDER == "sender":
-        result = await _send_sender(to, subject, html)
-    elif EMAIL_PROVIDER == "mailersend":
-        result = await _send_mailersend(to, subject, html)
-    elif EMAIL_PROVIDER == "brevo":
-        result = await _send_brevo(to, subject, html)
-    else:
-        result = await _send_resend(to, subject, html)
 
-    # Persist a structured event row for the admin Email Status tab.
-    if result and isinstance(result, dict) and result.get("_error"):
+    # Primary attempt
+    result = await _send_via(EMAIL_PROVIDER, to, subject, html)
+    primary_failed = (
+        result is None
+        or (isinstance(result, dict) and result.get("_error"))
+    )
+
+    # Fallback attempt (only if primary failed AND a different fallback is configured)
+    if (
+        primary_failed
+        and EMAIL_FALLBACK_PROVIDER
+        and EMAIL_FALLBACK_PROVIDER != EMAIL_PROVIDER
+        and _provider_has_key(EMAIL_FALLBACK_PROVIDER)
+    ):
+        primary_err_code = result.get("status") if isinstance(result, dict) else None
+        primary_err_body = result.get("body") if isinstance(result, dict) else "transport_error"
+        logger.warning(
+            "[email] %s failed (%s) — falling back to %s",
+            EMAIL_PROVIDER, primary_err_code, EMAIL_FALLBACK_PROVIDER,
+        )
         await _record_event({
             "to": to, "subject": subject, "provider": EMAIL_PROVIDER,
-            "status": "failed", "error_code": result.get("status"),
-            "error_body": (result.get("body") or "")[:500],
+            "status": "failed", "error_code": primary_err_code,
+            "error_body": (primary_err_body or "")[:500],
+        })
+        fb_result = await _send_via(EMAIL_FALLBACK_PROVIDER, to, subject, html)
+        if fb_result and not (isinstance(fb_result, dict) and fb_result.get("_error")):
+            await _record_event({
+                "to": to, "subject": subject, "provider": EMAIL_FALLBACK_PROVIDER,
+                "status": "sent_via_fallback",
+                "message_id": (fb_result or {}).get("message_id"),
+            })
+            return fb_result
+        # Fallback also failed → record and bail
+        fb_err_code = fb_result.get("status") if isinstance(fb_result, dict) else None
+        fb_err_body = fb_result.get("body") if isinstance(fb_result, dict) else "transport_error"
+        await _record_event({
+            "to": to, "subject": subject, "provider": EMAIL_FALLBACK_PROVIDER,
+            "status": "failed", "error_code": fb_err_code,
+            "error_body": (fb_err_body or "")[:500],
         })
         return None
-    if result is None:
+
+    # No fallback path — record primary outcome and return
+    if primary_failed:
+        err_code = result.get("status") if isinstance(result, dict) else None
+        err_body = result.get("body") if isinstance(result, dict) else "transport_error"
         await _record_event({
             "to": to, "subject": subject, "provider": EMAIL_PROVIDER,
-            "status": "failed", "error_code": None, "error_body": "transport_error",
+            "status": "failed", "error_code": err_code,
+            "error_body": (err_body or "")[:500],
         })
         return None
     await _record_event({

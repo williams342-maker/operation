@@ -208,6 +208,14 @@ export const makerShareListingToBuffer = (slug) =>
   http
     .post(`/maker/buffer/share-listing/${slug}`, {}, { headers: authHeaders() })
     .then((r) => r.data);
+
+// ---------- Newsletter (Kit.com) ----------
+export const subscribeNewsletter = (email, source = "homepage") =>
+  http.post("/newsletter/subscribe", { email, source }).then((r) => r.data);
+export const fetchNewsletterSubscribers = (limit = 200) =>
+  http
+    .get("/admin/newsletter/subscribers", { params: { limit }, headers: adminAuthHeaders() })
+    .then((r) => r.data);
 export const requestAdminLink = (email, origin_url) =>
   http.post("/admin/auth/request", { email, origin_url }).then((r) => r.data);
 export const verifyAdminToken = (token) =>

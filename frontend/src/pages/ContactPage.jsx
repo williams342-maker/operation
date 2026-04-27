@@ -1,7 +1,32 @@
 import React from "react";
 import { Mail, MapPin, Instagram } from "lucide-react";
+import { useStructuredData } from "../lib/seo";
 
 export default function ContactPage() {
+  useStructuredData({
+    title: "Contact · Crafters Market — Email, Address & Custom Inquiries",
+    description: "Get in touch with the Crafters Market team. Email, social, and direct custom-order line — usually replies inside 24 hours.",
+    url: "https://craftersmarket.org/contact",
+    image: "https://craftersmarket.org/downloads/cnc-garage-builders.png",
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@type": "ContactPage",
+      url: "https://craftersmarket.org/contact",
+      isPartOf: { "@type": "WebSite", "@id": "https://craftersmarket.org/#website" },
+      mainEntity: {
+        "@type": "Organization",
+        "@id": "https://craftersmarket.org/#org",
+        contactPoint: {
+          "@type": "ContactPoint",
+          contactType: "customer service",
+          email: "team@craftersmarket.org",
+          areaServed: "US",
+          availableLanguage: ["English"],
+        },
+      },
+    },
+  });
+
   return (
     <div className="pt-32 pb-24 grain min-h-screen" data-testid="contact-page">
       <div className="max-w-[1100px] mx-auto px-4 md:px-8">

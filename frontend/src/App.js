@@ -40,28 +40,39 @@ import AIAssistant from "./components/AIAssistant";
 import MaintenancePage from "./components/MaintenancePage";
 import BetaBanner from "./components/BetaBanner";
 import CNCEmblem from "./components/CNCEmblem";
+import NewsletterSignup from "./components/NewsletterSignup";
 import { Toaster } from "sonner";
 import { trackPageview, captureAttribution } from "./lib/analytics";
 import { useSiteSettings } from "./hooks/useSiteSettings";
+import { useStructuredData } from "./lib/seo";
 
-const Home = () => (
-  <>
-    <Hero />
-    <ShopOfTheWeek />
-    <CategoryStrip />
-    <ProductRail title="Editor's Picks" eyebrow="◆ Featured" testId="rail-featured" />
-    <PromoStrip />
-    <ProductRail title="Wall Art We Love" eyebrow="◆ Wall Art" category="Wall Art" viewAllHref="/shop?category=Wall%20Art" testId="rail-wall-art" />
-    <ProductRail title="Made-to-Order Signs" eyebrow="◆ Custom Signs" category="Custom Signs" viewAllHref="/shop?category=Custom%20Signs" testId="rail-signs" />
-    <FeaturedShops />
-    <ProductRail title="Plasma-Cut Originals" eyebrow="◆ Technique · Plasma" technique="PLASMA" viewAllHref="/shop" testId="rail-plasma" />
-    <Process />
-    <ForMakers />
-    <CNCEmblem />
-    <Reviews />
-    <CustomCTA />
-  </>
-);
+const Home = () => {
+  useStructuredData({
+    title: "Crafters Market — Precision CNC Art & Handcrafted Goods",
+    description: "Shop hand-built metal & wood CNC art, custom signs, and made-to-order pieces from approved independent makers. Stripe-secured checkout, direct-to-maker payouts.",
+    url: "https://craftersmarket.org/",
+    image: "https://craftersmarket.org/downloads/cnc-garage-builders.png",
+  });
+  return (
+    <>
+      <Hero />
+      <ShopOfTheWeek />
+      <CategoryStrip />
+      <ProductRail title="Editor's Picks" eyebrow="◆ Featured" testId="rail-featured" />
+      <PromoStrip />
+      <ProductRail title="Wall Art We Love" eyebrow="◆ Wall Art" category="Wall Art" viewAllHref="/shop?category=Wall%20Art" testId="rail-wall-art" />
+      <ProductRail title="Made-to-Order Signs" eyebrow="◆ Custom Signs" category="Custom Signs" viewAllHref="/shop?category=Custom%20Signs" testId="rail-signs" />
+      <FeaturedShops />
+      <ProductRail title="Plasma-Cut Originals" eyebrow="◆ Technique · Plasma" technique="PLASMA" viewAllHref="/shop" testId="rail-plasma" />
+      <Process />
+      <ForMakers />
+      <CNCEmblem />
+      <Reviews />
+      <NewsletterSignup />
+      <CustomCTA />
+    </>
+  );
+};
 
 function ScrollTop() {
   const { pathname, search } = useLocation();

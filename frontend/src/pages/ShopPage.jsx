@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { fetchProducts } from "../lib/api";
 import ProductCard from "../components/ProductCard";
 import { Search } from "lucide-react";
+import { useStructuredData } from "../lib/seo";
 
 const CATS = ["All", "Wall Art", "Custom Signs", "Outdoor Art"];
 const TECHS = ["All", "PLASMA", "LASER", "ROUTER", "CUSTOM"];
@@ -20,6 +21,22 @@ export default function ShopPage() {
     if (urlQ !== null) setQ(urlQ);
     if (urlC) setCat(urlC);
   }, [params]);
+
+  useStructuredData({
+    title: cat !== "All"
+      ? `${cat} · Shop · Crafters Market`
+      : "Shop · Precision CNC Art & Handcrafted Goods · Crafters Market",
+    description: `Browse hand-built CNC metal & wood art, custom signs, and made-to-order pieces from approved independent makers.${cat !== "All" ? ` Filtered by ${cat}.` : ""}`,
+    url: `https://craftersmarket.org/shop${cat !== "All" ? `?category=${encodeURIComponent(cat)}` : ""}`,
+    image: "https://craftersmarket.org/downloads/cnc-garage-builders.png",
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@type": "CollectionPage",
+      name: cat !== "All" ? `${cat} · Crafters Market` : "Crafters Market Shop",
+      url: "https://craftersmarket.org/shop",
+      isPartOf: { "@type": "WebSite", "@id": "https://craftersmarket.org/#website" },
+    },
+  });
 
   const filtered = useMemo(() => products.filter((p) => {
     if (cat !== "All" && p.category !== cat) return false;
