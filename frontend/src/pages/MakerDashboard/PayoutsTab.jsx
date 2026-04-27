@@ -3,6 +3,7 @@ import {
   fetchMakerPayouts,
   stripeConnectOnboard, stripeConnectStatus, stripeConnectDashboardLink,
 } from "../../lib/api";
+import { StatsSkeleton, RowsSkeleton } from "../../components/Skeleton";
 
 export default function PayoutsTab() {
   const [status, setStatus] = useState(null);
@@ -48,8 +49,9 @@ export default function PayoutsTab() {
 
   if (loading) {
     return (
-      <div className="font-mono text-xs text-[#a3a3a3]" data-testid="payouts-loading">
-        Loading payouts…
+      <div className="space-y-6" data-testid="payouts-loading">
+        <StatsSkeleton count={3} />
+        <RowsSkeleton count={4} />
       </div>
     );
   }

@@ -9,6 +9,7 @@ import {
   adminResolveFeedback,
 } from "../../lib/api";
 import { refreshSiteSettings } from "../../hooks/useSiteSettings";
+import { RowsSkeleton } from "../Skeleton";
 
 const SWITCHES = [
   {
@@ -343,6 +344,81 @@ function FeedbackInbox() {
   );
 }
 
+function MaintenanceScheduleCard({ settings, onPatch, busy }) {
+  // Convert ISO → datetime-local format ("YYYY-MM-DDTHH:MM")
+  const toLocal = (iso) => {
+    if (!iso) return "";
+    try {
+      const d = new Date(iso);
+      const pad = (n) => String(n).padStart(2, "0");
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    } catch { return ""; }
+  };
+  // Convert datetime-local → ISO UTC
+  const toIso = (local) => {
+    if (!local) return "";
+    try { return new Date(local).toISOString(); } catch { return ""; }
+  };
+
+  return (
+    <div className="border border-[#262626] p-4 md:p-5" data-testid="maintenance-schedule-card">
+      <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-2">
+        ◆ Scheduled Maintenance
+      </div>
+      <div className="font-display text-lg uppercase">Plan a window</div>
+      <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed mt-1 mb-4">
+        Set a future time to flip Maintenance Mode on, off, or both. The cron
+        runs every minute and clears each schedule once it fires. Leave a field
+        blank to skip it.
+      </p>
+      <div className="grid md:grid-cols-2 gap-4">
+        <label className="block">
+          <span className="block font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-1">
+            Turn ON at (local time)
+          </span>
+          <input
+            type="datetime-local"
+            value={toLocal(settings.maintenance_scheduled_on)}
+            onChange={(e) =>
+              onPatch({ maintenance_scheduled_on: toIso(e.target.value) }, true)
+            }
+            disabled={busy}
+            className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm text-[#e5e5e5]"
+            data-testid="schedule-on"
+          />
+        </label>
+        <label className="block">
+          <span className="block font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-1">
+            Turn OFF at (local time)
+          </span>
+          <input
+            type="datetime-local"
+            value={toLocal(settings.maintenance_scheduled_off)}
+            onChange={(e) =>
+              onPatch({ maintenance_scheduled_off: toIso(e.target.value) }, true)
+            }
+            disabled={busy}
+            className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm text-[#e5e5e5]"
+            data-testid="schedule-off"
+          />
+        </label>
+      </div>
+      {(settings.maintenance_scheduled_on || settings.maintenance_scheduled_off) && (
+        <button
+          onClick={() =>
+            onPatch({ maintenance_scheduled_on: "", maintenance_scheduled_off: "" })
+          }
+          disabled={busy}
+          className="mt-4 px-4 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
+          data-testid="schedule-clear"
+        >
+          ✕ Clear schedule
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function SettingsTab() {
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -414,7 +490,11 @@ export default function SettingsTab() {
   };
 
   if (loading || !settings) {
-    return <p className="font-mono text-sm text-[#a3a3a3]" data-testid="settings-loading">Loading settings…</p>;
+    return (
+      <div className="space-y-3" data-testid="settings-loading">
+        <RowsSkeleton count={6} />
+      </div>
+    );
   }
 
   return (
@@ -443,6 +523,8 @@ export default function SettingsTab() {
           />
         ))}
       </div>
+
+      <MaintenanceScheduleCard settings={settings} onPatch={onPatch} busy={busy} />
 
       <div className="grid md:grid-cols-2 gap-3">
         <IdleClearNowCard />

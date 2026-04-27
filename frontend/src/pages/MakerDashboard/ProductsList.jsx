@@ -1,6 +1,8 @@
 import React, { useState } from "react";
+import { Hammer } from "lucide-react";
 import ProductEditCard from "./ProductEditCard";
 import NewListingModal from "./NewListingModal";
+import EmptyState from "../../components/EmptyState";
 
 export default function ProductsList({ products, onChanged }) {
   const [creating, setCreating] = useState(false);
@@ -27,12 +29,14 @@ export default function ProductsList({ products, onChanged }) {
       </div>
 
       {live.length === 0 && drafts.length === 0 && removed.length === 0 ? (
-        <p
-          className="font-mono text-sm text-[#a3a3a3]"
-          data-testid="products-empty"
-        >
-          No listings yet — click <span className="text-[#ff4500]">+ New Listing</span> to add your first piece.
-        </p>
+        <EmptyState
+          icon={Hammer}
+          eyebrow="◆ Workshop"
+          title="Time to build."
+          body="Your shop is live but empty. Add your first piece — buyers and our auto-newsletter will see it the moment you publish."
+          cta={{ label: "+ New Listing", onClick: () => setCreating(true), testId: "products-empty-cta" }}
+          testId="products-empty"
+        />
       ) : (
         <>
           {drafts.length > 0 && (

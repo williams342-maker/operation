@@ -2,7 +2,9 @@ import React, { useEffect, useState, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { fetchProducts } from "../lib/api";
 import ProductCard from "../components/ProductCard";
-import { Search } from "lucide-react";
+import EmptyState from "../components/EmptyState";
+import { CardSkeleton } from "../components/Skeleton";
+import { Search, Wrench } from "lucide-react";
 import { useStructuredData } from "../lib/seo";
 
 const CATS = ["All", "Wall Art", "Custom Signs", "Outdoor Art"];
@@ -10,12 +12,12 @@ const TECHS = ["All", "PLASMA", "LASER", "ROUTER", "3D", "CUSTOM"];
 
 export default function ShopPage() {
   const [params] = useSearchParams();
-  const [products, setProducts] = useState([]);
+  const [products, setProducts] = useState(null);
   const [cat, setCat] = useState(params.get("category") || "All");
   const [tech, setTech] = useState("All");
   const [q, setQ] = useState(params.get("q") || "");
 
-  useEffect(() => { fetchProducts().then(setProducts); }, []);
+  useEffect(() => { fetchProducts().then(setProducts).catch(() => setProducts([])); }, []);
   useEffect(() => {
     const urlQ = params.get("q"); const urlC = params.get("category");
     if (urlQ !== null) setQ(urlQ);
@@ -38,7 +40,7 @@ export default function ShopPage() {
     },
   });
 
-  const filtered = useMemo(() => products.filter((p) => {
+  const filtered = useMemo(() => (products || []).filter((p) => {
     if (cat !== "All" && p.category !== cat) return false;
     if (tech !== "All" && p.technique !== tech) return false;
     if (q && !(p.title.toLowerCase().includes(q.toLowerCase()) || p.description.toLowerCase().includes(q.toLowerCase()))) return false;
@@ -83,14 +85,29 @@ export default function ShopPage() {
         </div>
 
         <div className="font-mono text-xs uppercase tracking-[0.22em] text-[#a3a3a3] mb-6">
-          {filtered.length} piece{filtered.length === 1 ? "" : "s"}
+          {products === null ? "Loading…" : `${filtered.length} piece${filtered.length === 1 ? "" : "s"}`}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {filtered.map((p, i) => <ProductCard key={p.id} p={p} i={i} />)}
-        </div>
-        {!filtered.length && (
-          <div className="text-center py-24 font-mono text-sm text-[#a3a3a3]">No pieces match those filters.</div>
+        {products === null ? (
+          <CardSkeleton count={8} />
+        ) : (
+          <>
+            {filtered.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {filtered.map((p, i) => <ProductCard key={p.id} p={p} i={i} />)}
+              </div>
+            ) : (
+              <EmptyState
+                icon={Wrench}
+                eyebrow="◆ Empty Workshop"
+                title="No pieces match those filters."
+                body="Try a different category or technique — or commission something custom and we'll match you with a maker."
+                cta={{ label: "Commission a Custom Piece", href: "/custom-order", testId: "shop-empty-cta" }}
+                secondary={{ label: "↺ Reset filters", onClick: () => { setCat("All"); setTech("All"); setQ(""); } }}
+                testId="shop-empty"
+              />
+            )}
+          </>
         )}
       </div>
     </div>

@@ -22,6 +22,7 @@ import SettingsTab from "../components/admin/SettingsTab";
 import AuditTab from "../components/admin/AuditTab";
 import AdsTab from "../components/admin/AdsTab";
 import BufferTab from "../components/admin/BufferTab";
+import ChatModTab from "../components/admin/ChatModTab";
 import LiveNowBadge from "../components/admin/LiveNowBadge";
 
 const TABS = [
@@ -37,6 +38,7 @@ const TABS = [
   { id: "audit", label: "Audit Log" },
   { id: "ads", label: "Ads" },
   { id: "buffer", label: "Social" },
+  { id: "chat", label: "Chat Mod" },
   { id: "digests", label: "Digests" },
   { id: "settings", label: "Settings" },
 ];
@@ -183,6 +185,7 @@ export default function AdminDashboard() {
         {tab === "audit" && <AuditTab />}
         {tab === "ads" && <AdsTab />}
         {tab === "buffer" && <BufferTab />}
+        {tab === "chat" && <ChatModTab />}
         {tab === "digests" && <DigestsTab />}
         {tab === "settings" && <SettingsTab />}
       </div>

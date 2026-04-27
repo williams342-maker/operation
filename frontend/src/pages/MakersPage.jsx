@@ -1,11 +1,14 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { Users } from "lucide-react";
 import { fetchMakers } from "../lib/api";
 import { useStructuredData } from "../lib/seo";
+import { CardSkeleton } from "../components/Skeleton";
+import EmptyState from "../components/EmptyState";
 
 export default function MakersPage() {
-  const [makers, setMakers] = useState([]);
-  useEffect(() => { fetchMakers().then(setMakers); }, []);
+  const [makers, setMakers] = useState(null);
+  useEffect(() => { fetchMakers().then(setMakers).catch(() => setMakers([])); }, []);
 
   useStructuredData({
     title: "Approved Makers · Independent CNC Artists & Signmakers · Crafters Market",
@@ -20,8 +23,8 @@ export default function MakersPage() {
       isPartOf: { "@type": "WebSite", "@id": "https://craftersmarket.org/#website" },
       mainEntity: {
         "@type": "ItemList",
-        numberOfItems: makers.length,
-        itemListElement: makers.slice(0, 20).map((m, i) => ({
+        numberOfItems: (makers || []).length,
+        itemListElement: (makers || []).slice(0, 20).map((m, i) => ({
           "@type": "ListItem",
           position: i + 1,
           url: `https://craftersmarket.org/makers/${m.slug}`,
@@ -39,7 +42,21 @@ export default function MakersPage() {
           The <span className="text-outline-orange">Workshop</span><br />Roster
         </h1>
         <div className="grid md:grid-cols-2 gap-8">
-          {makers.map((m) => (
+          {makers === null ? (
+            <div className="md:col-span-2"><CardSkeleton count={4} /></div>
+          ) : makers.length === 0 ? (
+            <div className="md:col-span-2">
+              <EmptyState
+                icon={Users}
+                eyebrow="◆ Workshop Roster"
+                title="The roster is filling up."
+                body="No approved makers yet — check back soon, or apply if you're an independent CNC artist."
+                cta={{ label: "Apply to Sell", href: "/apply", testId: "makers-empty-cta" }}
+                testId="makers-empty"
+              />
+            </div>
+          ) : (
+            makers.map((m) => (
             <Link key={m.id} to={`/makers/${m.slug}`} data-testid={`maker-card-${m.slug}`}
               className="group bg-[#121212] border border-[#262626] hover:border-[#ff4500] transition overflow-hidden">
               <div className="aspect-[4/3] overflow-hidden relative">
@@ -58,7 +75,8 @@ export default function MakersPage() {
                 <div className="flex gap-2">{m.techniques.map((t) => <span key={t} className="tag">{t}</span>)}</div>
               </div>
             </Link>
-          ))}
+            ))
+          )}
         </div>
       </div>
     </div>

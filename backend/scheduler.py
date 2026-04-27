@@ -68,6 +68,53 @@ async def _job_clear_idle_chat() -> None:
         logger.exception("[scheduler] idle-chat cleanup failed: %s", e)
 
 
+async def _job_apply_scheduled_toggles() -> None:
+    """Honor admin-set scheduled flips for `maintenance_mode`. Runs every
+    minute; cheap (single Mongo doc read). Once a scheduled time passes,
+    we flip the flag and clear the schedule field so it doesn't re-fire."""
+    from datetime import datetime, timezone
+    from core import db, now_iso
+    try:
+        s = await db.site_settings.find_one({"_id": "global"})
+        if not s:
+            return
+        now = datetime.now(timezone.utc)
+        updates: dict = {}
+        on_at = s.get("maintenance_scheduled_on")
+        off_at = s.get("maintenance_scheduled_off")
+        for field, target_state in (
+            ("maintenance_scheduled_on", True),
+            ("maintenance_scheduled_off", False),
+        ):
+            iso = s.get(field)
+            if not iso:
+                continue
+            try:
+                # Accept both "Z" and offset-aware strings.
+                t = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+                if t.tzinfo is None:
+                    t = t.replace(tzinfo=timezone.utc)
+            except Exception:
+                logger.warning("[scheduler] bad scheduled timestamp on %s: %r", field, iso)
+                updates[field] = None
+                continue
+            if t <= now:
+                updates["maintenance_mode"] = target_state
+                updates[field] = None
+                updates["updated_at"] = now_iso()
+                updates["updated_by"] = "scheduler"
+                logger.info(
+                    "[scheduler] toggled maintenance_mode=%s "
+                    "(scheduled by admin for %s)", target_state, iso,
+                )
+        if updates:
+            await db.site_settings.update_one(
+                {"_id": "global"}, {"$set": updates}, upsert=True,
+            )
+    except Exception as e:
+        logger.exception("[scheduler] scheduled-toggles failed: %s", e)
+
+
 def start_scheduler() -> AsyncIOScheduler | None:
     """Boot the scheduler if SCHEDULER_ENABLED isn't 'false'."""
     global _scheduler
@@ -88,6 +135,10 @@ def start_scheduler() -> AsyncIOScheduler | None:
     # the auto_clear_idle_rooms toggle is OFF, so no need to redeploy to switch.
     sched.add_job(_job_clear_idle_chat, CronTrigger(minute="*/10"),
                   id="clear_idle_chat", replace_existing=True)
+    # Scheduled site-switches run every minute (1-min granularity is enough
+    # for maintenance windows); job is dirt-cheap when nothing is scheduled.
+    sched.add_job(_job_apply_scheduled_toggles, CronTrigger(minute="*"),
+                  id="apply_scheduled_toggles", replace_existing=True)
     sched.start()
     _scheduler = sched
     logger.info(

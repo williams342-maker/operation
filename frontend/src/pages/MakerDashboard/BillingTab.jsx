@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
+import { StatsSkeleton, RowsSkeleton } from "../../components/Skeleton";
 import {
   fetchMakerBilling, fetchMakerSubscription, fetchMakerPlusRoi,
   fetchMakerCreditPacks, startMakerCreditCheckout, finalizeMakerCreditPurchase,
@@ -51,7 +52,12 @@ export default function BillingTab() {
   }, [reload]);
 
   if (err) return <p className="font-mono text-sm text-red-400" data-testid="billing-error">{err}</p>;
-  if (!b) return <p className="font-mono text-sm text-[#a3a3a3]" data-testid="billing-loading">Loading billing…</p>;
+  if (!b) return (
+    <div data-testid="billing-loading" className="space-y-6">
+      <StatsSkeleton count={3} />
+      <RowsSkeleton count={3} />
+    </div>
+  );
 
   const dollars = (c) => `$${(c / 100).toFixed(2)}`;
   const pct = (bps) => `${(bps / 100).toFixed(1)}%`;

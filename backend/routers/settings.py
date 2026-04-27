@@ -25,6 +25,8 @@ DEFAULT_SETTINGS: dict = {
     "_id": "global",
     "maintenance_mode": False,
     "maintenance_message": "We're making the workshop better. We'll be back shortly.",
+    "maintenance_scheduled_on": None,   # ISO datetime · cron flips ON at this time
+    "maintenance_scheduled_off": None,  # ISO datetime · cron flips OFF at this time
     "beta_mode": False,
     "beta_message": "You're using Crafters Market Beta. Found a bug or have an idea?",
     "allow_maker_applications": True,
@@ -121,6 +123,8 @@ class SettingsPatch(BaseModel):
     """Every field optional — PATCH semantics."""
     maintenance_mode: Optional[bool] = None
     maintenance_message: Optional[str] = None
+    maintenance_scheduled_on: Optional[str] = None   # ISO datetime, "" to clear
+    maintenance_scheduled_off: Optional[str] = None  # ISO datetime, "" to clear
     beta_mode: Optional[bool] = None
     beta_message: Optional[str] = None
     allow_maker_applications: Optional[bool] = None
@@ -135,7 +139,16 @@ class SettingsPatch(BaseModel):
 async def admin_patch_settings(
     patch: SettingsPatch, claims: dict = Depends(current_admin),
 ):
-    updates = {k: v for k, v in patch.model_dump(exclude_unset=True).items() if v is not None}
+    raw = patch.model_dump(exclude_unset=True)
+    # Allow `null` / "" to *clear* the scheduled timestamps; otherwise keep
+    # the standard "skip None values" semantics.
+    schedulable = {"maintenance_scheduled_on", "maintenance_scheduled_off"}
+    updates = {}
+    for k, v in raw.items():
+        if k in schedulable:
+            updates[k] = v if v else None
+        elif v is not None:
+            updates[k] = v
     if not updates:
         raise HTTPException(400, "No fields to update.")
     updates["updated_at"] = now_iso()

@@ -1,15 +1,23 @@
 import React from "react";
+import { Receipt } from "lucide-react";
+import EmptyState from "../../components/EmptyState";
 import { formatDate } from "./_shared";
 
 export default function OrdersList({ orders }) {
   if (!orders.length) {
     return (
-      <p
-        className="font-mono text-sm text-[#a3a3a3]"
-        data-testid="orders-empty"
-      >
-        No paid orders yet. When a buyer checks out one of your pieces, it'll show up here.
-      </p>
+      <EmptyState
+        icon={Receipt}
+        eyebrow="◆ Paid Orders"
+        title="No orders yet."
+        body="Share your shop link to start moving pieces — every paid order lands here with the buyer's contact info."
+        cta={{ label: "Share My Shop", onClick: () => {
+          if (navigator.share) navigator.share({ url: window.location.origin + "/makers" });
+          else navigator.clipboard?.writeText(window.location.origin + "/makers");
+        }, testId: "orders-empty-cta" }}
+        secondary={{ label: "Add Promotion", href: "#" }}
+        testId="orders-empty"
+      />
     );
   }
   return (

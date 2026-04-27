@@ -704,6 +704,31 @@ async def ws_chat(websocket: WebSocket, channel: str, token: str = Query("")):
             if not text:
                 continue
             text = text[:1000]
+            # Per-channel mute gate — admins can mute a user from one
+            # channel without touching their account-wide chat permissions.
+            mute_doc = await db.chat_mutes.find_one(
+                {"user_email": user_email, "channel": channel},
+                {"_id": 0, "expires_at": 1, "reason": 1},
+            )
+            if mute_doc:
+                exp = mute_doc.get("expires_at")
+                if not exp:
+                    muted = True
+                else:
+                    try:
+                        from datetime import datetime as _dt
+                        exp_dt = _dt.fromisoformat(exp.replace("Z", "+00:00"))
+                        muted = exp_dt > _dt.now(exp_dt.tzinfo)
+                    except Exception:
+                        muted = False
+                if muted:
+                    await websocket.send_json({
+                        "kind": "system",
+                        "text": f"◆ You're muted in #{channel}{' — ' + mute_doc['reason'] if mute_doc.get('reason') else ''}.",
+                        "private": True,
+                        "created_at": now_iso(),
+                    })
+                    continue
             # AI moderation pre-broadcast — runs only when the admin switch is ON
             # and the LLM key is configured. Fails-open on any error.
             try:

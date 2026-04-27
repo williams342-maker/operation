@@ -225,6 +225,28 @@ export const fetchNewsletterSubscribers = (limit = 200) =>
   http
     .get("/admin/newsletter/subscribers", { params: { limit }, headers: adminAuthHeaders() })
     .then((r) => r.data);
+
+// ---------- Admin: per-channel chat moderation ----------
+export const fetchAdminChatMessages = (channel, limit = 100) =>
+  http
+    .get("/admin/chat/messages", {
+      params: { channel, limit }, headers: adminAuthHeaders(),
+    })
+    .then((r) => r.data);
+export const adminChatDeleteMessage = (id) =>
+  http
+    .delete(`/admin/chat/messages/${id}`, { headers: adminAuthHeaders() })
+    .then((r) => r.data);
+export const fetchAdminChatMutes = () =>
+  http.get("/admin/chat/mutes", { headers: adminAuthHeaders() }).then((r) => r.data);
+export const adminChatMute = (payload) =>
+  http.post("/admin/chat/mute", payload, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const adminChatUnmute = (email, channel) =>
+  http
+    .delete(`/admin/chat/mute/${encodeURIComponent(email)}/${encodeURIComponent(channel)}`, {
+      headers: adminAuthHeaders(),
+    })
+    .then((r) => r.data);
 export const requestAdminLink = (email, origin_url) =>
   http.post("/admin/auth/request", { email, origin_url }).then((r) => r.data);
 export const verifyAdminToken = (token) =>

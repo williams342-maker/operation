@@ -4,3 +4,8 @@
     background: #0a0a0a;
     color: #e5e5e5;
 }
+
+/* Skeleton shimmer */
+@keyframes shimmer {
+    100% { transform: translateX(100%); }
+}

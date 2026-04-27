@@ -1,0 +1,35 @@
+{
+  "summary": "Iter29 backlog (chat moderation + scheduled site-switch + skeletons/empty-states) tested. Backend pytest 9/9 PASSING covering PATCH /api/admin/settings (set/clear maintenance_scheduled_on|off), scheduler _job_apply_scheduled_toggles flips maintenance_mode + clears schedule field, admin chat messages GET (auth gate + 401), DELETE (200 + 404 paths), per-channel mute POST/GET/DELETE with idempotency, and WS mute lookup structure (per-channel scope intact). Frontend Playwright: AdminDashboard 'Chat Mod' tab loads, all 5 channel chips render (general/wins/help/marketplace/makers-only), channel switching works, recent-messages container + manual-mute form + active-mutes list all render with data-testids. End-to-end manual-mute → list update → unmute flow verified live against backend. Settings tab Scheduled Maintenance card renders with 2 datetime-local inputs and Turn ON/OFF labels. Shop and Makers pages show data-testid='skeleton' shimmer during load; shimmer @keyframes defined.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "ChatModTab MUTE_PRESETS <select>", "issue": "React hydration warning in console: 'In HTML, <span> cannot be a child of <option>' — caused by some duration option rendering. Cosmetic, no functional break.", "selector": "[data-testid=\"chatmod-mute-duration\"]", "priority": "LOW"},
+      {"component": "MaintenanceScheduleCard", "issue": "Datetime-local inputs and the 'Clear schedule' button lack individual data-testids (maintenance-scheduled-on / maintenance-scheduled-off / maintenance-clear-schedule). The wrapper has data-testid='maintenance-schedule-card' but child controls are unaddressable for automation.", "selector": "input[type=datetime-local] (no testid)", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter29_chatmod_schedule.py",
+    "/app/test_reports/pytest/iter29.xml"
+  ],
+  "action_items": [
+    "Add data-testid attributes to the two datetime-local inputs in MaintenanceScheduleCard and to the Clear-schedule button (e.g., maintenance-scheduled-on / maintenance-scheduled-off / maintenance-clear-schedule) so the schedule-flip UI flow can be automated.",
+    "Investigate the React hydration warning in ChatModTab duration <select>: the option's child must be a plain text node, not a <span>. Search MUTE_PRESETS rendering / option label and replace any inline <span> with raw text.",
+    "Optional: spot-check MakerDashboard Orders/Products/Billing/Payouts skeleton + empty-state data-testids in a future iteration — those flows weren't reached in this run because they require maker auth and the listed UI is gated behind tab navigation."
+  ],
+  "critical_code_review_comments": [
+    "scheduler.py _job_apply_scheduled_toggles: when both scheduled_on and scheduled_off times are in the past, the loop iterates in dict order so the second (off) wins — acceptable since admin should not schedule both fields in the past, but worth a comment in the code.",
+    "chat_mod.py POST /admin/chat/mute already lower-cases user_email via Pydantic EmailStr — frontend should mirror that lowercasing before display in active-mutes for visual consistency (already does via .toLowerCase() in submitManualMute, OK).",
+    "settings.py PATCH allows '' or null to clear scheduled timestamps; ISO format is not validated. A malformed ISO string would be caught only at the scheduler job (logged + cleared). Consider validating with datetime.fromisoformat at PATCH time so the admin gets immediate feedback."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter29_chatmod_schedule.py"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "85%"},
+  "test_credentials": "Admin: team@craftersmarket.org via issue_admin_magic_token() — verified works end-to-end. Maker test slug iron-and-oak available but maker dashboard flows not exercised this run.",
+  "seed_data_creation": "Test inserted/cleaned 1 chat_messages doc and 2 chat_mutes docs (test_mute@example.com, test_wslookup@example.com). All cleaned up. Maintenance scheduled fields toggled through the cron path then reset via admin settings PATCH.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend coverage for iter29 is comprehensive in /app/backend/tests/test_iter29_chatmod_schedule.py. ChatModTab UI verified including end-to-end mute creation + unmute. Skeleton + shimmer keyframe verified on Shop/Makers. Items not exercised: (a) MakerDashboard Orders/Products/Billing/Payouts skeleton + EmptyState (need maker auth), (b) actual EmptyState rendering when filters truly return zero rows (my filter strings were ignored on Shop/Makers and pages still showed full lists — to truly trigger empty-state, may need to use a numeric impossible price filter or temporarily empty the relevant Mongo collection), (c) datetime-local input typing → debounced PATCH (no individual testids; use page.evaluate to set value + dispatch input event)."
+}
