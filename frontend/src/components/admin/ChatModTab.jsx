@@ -209,7 +209,7 @@ export default function ChatModTab() {
             className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm text-[#e5e5e5]"
             data-testid="chatmod-mute-channel"
           >
-            {CHANNELS.map((c) => <option key={c} value={c}>#{c}</option>)}
+            {CHANNELS.map((c) => <option key={c} value={c}>{`#${c}`}</option>)}
           </select>
         </label>
         <label className="block">

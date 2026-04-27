@@ -384,7 +384,7 @@ function MaintenanceScheduleCard({ settings, onPatch, busy }) {
             }
             disabled={busy}
             className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm text-[#e5e5e5]"
-            data-testid="schedule-on"
+            data-testid="maintenance-scheduled-on"
           />
         </label>
         <label className="block">
@@ -399,7 +399,7 @@ function MaintenanceScheduleCard({ settings, onPatch, busy }) {
             }
             disabled={busy}
             className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm text-[#e5e5e5]"
-            data-testid="schedule-off"
+            data-testid="maintenance-scheduled-off"
           />
         </label>
       </div>
@@ -410,7 +410,7 @@ function MaintenanceScheduleCard({ settings, onPatch, busy }) {
           }
           disabled={busy}
           className="mt-4 px-4 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
-          data-testid="schedule-clear"
+          data-testid="maintenance-clear-schedule"
         >
           ✕ Clear schedule
         </button>
