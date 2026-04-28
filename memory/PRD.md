@@ -769,3 +769,18 @@ User reported: shipping was being charged at checkout even on listings with `fre
 
 
 
+
+
+
+## 2026-04-28 — Veteran-Owned support
+- **Backend:** Added `is_veteran_owned: bool` to `Maker` model + patchable on `MakerProfileUpdate`. Added denormalized `Product.maker_is_veteran` populated by `/api/products` (single bulk fetch of veteran maker slugs) and `/api/products/{slug}` (one-doc lookup) so frontend cards never need a second round-trip.
+- **Frontend:**
+  - New `VeteranBadge.jsx` — inline-SVG US flag pill (no external dep). `compact` variant for cards, full pill ("🇺🇸 VETERAN-OWNED") for hero areas.
+  - New `SupportVeteransStrip.jsx` — circular SVG seal ("SUPPORT OUR VETERANS · EST 2025 · MADE IN USA") with US flag + manifesto + "Shop Veteran-Owned →" CTA, mounted at top of Home page above `<Hero />`.
+  - Veteran toggle in **Shop Manager → Settings → About your shop** with inline US flag in the label.
+  - Badge surfaces on: ProductCard (corner), MakerDetail hero (next to Plus), ProductDetail maker block, MakersPage cards.
+  - MakersPage: `?veteran=1` filter + filter pills ("All" / "🇺🇸 Veteran-Owned").
+  - Side-fix: `useSettingsForm.submit()` now sends only changed fields — prevents empty-string-for-bool validation errors on legacy maker docs.
+- **Bug fixes shipped this session:**
+  - `GET /api/activity` 500 → `ActivityEvent.location` made optional + `kind=admin` filtered from public ticker (admin housekeeping events were leaking + crashing the home-page ticker).
+  - Frontend compile error → `MarketingTab.jsx` was importing `queueBufferShare` (doesn't exist) → fixed to `makerShareListingToBuffer`.

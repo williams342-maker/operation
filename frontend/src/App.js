@@ -15,6 +15,7 @@ import ForMakers from "./components/sections/ForMakers";
 import Reviews from "./components/sections/Reviews";
 import CustomCTA from "./components/sections/CustomCTA";
 import Footer from "./components/sections/Footer";
+import SupportVeteransStrip from "./components/SupportVeteransStrip";
 
 import ShopPage from "./pages/ShopPage";
 import ProductDetail from "./pages/ProductDetail";
@@ -59,6 +60,7 @@ const Home = () => {
   });
   return (
     <>
+      <SupportVeteransStrip />
       <Hero />
       <ShopOfTheWeek />
       <CategoryStrip />
