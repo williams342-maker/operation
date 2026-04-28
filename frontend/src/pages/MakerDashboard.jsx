@@ -66,6 +66,20 @@ export default function MakerDashboard() {
     return () => window.removeEventListener("cm:open-profile-drawer", handler);
   }, []);
 
+  // The Crafters Plus upgrade nudge dispatches this — switch to Settings AND
+  // pre-select the desired sub-section in a single user click. We forward
+  // the section detail along by stashing it on a ref the SettingsTab reads.
+  const initialSettingsSectionRef = useRef(null);
+  useEffect(() => {
+    const handler = (e) => {
+      initialSettingsSectionRef.current = e.detail?.section || null;
+      changeTab("settings");
+    };
+    window.addEventListener("cm:open-settings", handler);
+    return () => window.removeEventListener("cm:open-settings", handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const logout = () => {
     localStorage.removeItem("cm_maker_jwt");
     localStorage.removeItem("cm_maker_slug");
@@ -247,6 +261,7 @@ export default function MakerDashboard() {
             maker={maker}
             onMakerUpdated={(m) => setMaker(m)}
             onTabChange={changeTab}
+            initialSection={initialSettingsSectionRef.current}
           />
         )}
       </ShopManagerLayout>

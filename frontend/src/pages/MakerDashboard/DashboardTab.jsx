@@ -4,6 +4,7 @@ import {
   ShoppingBag, Box, MessageSquare, AlertTriangle, DollarSign,
   ArrowUpRight, Sparkles,
 } from "lucide-react";
+import PlusUpgradeNudge from "./PlusUpgradeNudge";
 
 /**
  * Maker Dashboard "home" view — at-a-glance overview of the shop.
@@ -152,6 +153,21 @@ export default function DashboardTab({
           testId="kpi-revenue"
         />
       </div>
+
+      {/* CRAFTERS PLUS UPGRADE NUDGE — always visible for Free makers, never
+          dismissible (per spec: surfacing is the point). Hidden for Plus
+          subscribers since they already have it. CTA dispatches a custom
+          event so the parent can switch to Settings AND pre-select the
+          subscription sub-section in one shot. */}
+      <PlusUpgradeNudge
+        maker={maker}
+        orders={orders}
+        onUpgrade={() => {
+          window.dispatchEvent(
+            new CustomEvent("cm:open-settings", { detail: { section: "subscription" } }),
+          );
+        }}
+      />
 
       {/* GET STARTED CHECKLIST — collapses to a "✓ Setup complete" badge once done */}
       {remaining.length > 0 ? (

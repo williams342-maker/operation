@@ -39,8 +39,22 @@ const SECTIONS = [
   { id: "facebook",   label: "Facebook Shops",    icon: Facebook,  kind: "soon" },
 ];
 
-export default function SettingsTab({ maker = {}, onMakerUpdated, onTabChange }) {
-  const [section, setSection] = useState(SECTIONS[0].id);
+export default function SettingsTab({ maker = {}, onMakerUpdated, onTabChange, initialSection = null }) {
+  const [section, setSection] = useState(() => {
+    // Honour caller-provided initial section (from the Plus nudge etc.) but
+    // only if it's a real section id — fall back to the first one otherwise.
+    if (initialSection && SECTIONS.some((s) => s.id === initialSection)) {
+      return initialSection;
+    }
+    return SECTIONS[0].id;
+  });
+  // If the caller passes a fresh initialSection (e.g. user clicks the nudge
+  // again with the tab already active), jump to it.
+  React.useEffect(() => {
+    if (initialSection && SECTIONS.some((s) => s.id === initialSection)) {
+      setSection(initialSection);
+    }
+  }, [initialSection]);
   const active = SECTIONS.find((s) => s.id === section) || SECTIONS[0];
 
   // When a deep-link section is selected, route to that tab and don't
