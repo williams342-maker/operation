@@ -192,24 +192,24 @@ export default function ProductEditCard({ product, archived = false, draft = fal
           </div>
         )}
       </div>
-      <div className="p-4">
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+      <div className="p-3">
+        <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-[#a3a3a3] truncate">
           {p.category} · {p.technique}
-          {p.model_url && <span className="text-[#ff4500] ml-2">· 3D</span>}
-          {p.variants?.length > 0 && <span className="text-[#ff4500] ml-2">· {p.variants.length} variants</span>}
+          {p.model_url && <span className="text-[#ff4500] ml-1.5">· 3D</span>}
+          {p.variants?.length > 0 && <span className="text-[#ff4500] ml-1.5">· {p.variants.length} var</span>}
           {p.promoted_until && new Date(p.promoted_until) > new Date() && (
-            <span className="text-emerald-400 ml-2" data-testid={`product-promoted-${p.slug}`}>· Promoted</span>
+            <span className="text-emerald-400 ml-1.5" data-testid={`product-promoted-${p.slug}`}>· Promoted</span>
           )}
         </div>
-        <div className="font-display text-xl mt-2 leading-tight">{p.title}</div>
-        <div className="flex items-center justify-between mt-3">
-          <span className="font-display text-2xl text-[#ff4500]">${p.price.toFixed(0)}</span>
-          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+        <div className="font-display text-base mt-1.5 leading-tight line-clamp-2 min-h-[2.4em]">{p.title}</div>
+        <div className="flex items-center justify-between mt-2">
+          <span className="font-display text-lg text-[#ff4500]">${p.price.toFixed(0)}</span>
+          <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-[#a3a3a3]">
             {p.in_stock} in stock
           </span>
         </div>
         {p.expires_at && !archived && (
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] mt-2" data-testid={`product-expires-${p.slug}`}>
+          <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-[#525252] mt-1" data-testid={`product-expires-${p.slug}`}>
             Expires {new Date(p.expires_at).toLocaleDateString()}
           </div>
         )}
@@ -218,7 +218,7 @@ export default function ProductEditCard({ product, archived = false, draft = fal
           <button
             onClick={onRestore}
             disabled={removing}
-            className="mt-3 w-full font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-400 hover:text-emerald-300 border-t border-[#262626] pt-3 text-left disabled:opacity-50"
+            className="mt-3 w-full font-mono text-[10px] uppercase tracking-[0.22em] border border-emerald-500/40 bg-emerald-500/5 hover:bg-emerald-500/15 hover:border-emerald-400 text-emerald-400 hover:text-emerald-300 py-2 transition disabled:opacity-50"
             data-testid={`product-restore-${p.slug}`}
           >
             {removing ? "Restoring…" : "↩ Restore listing"}
@@ -232,71 +232,78 @@ export default function ProductEditCard({ product, archived = false, draft = fal
             >
               ✎ Edit listing
             </Link>
-            <button
-              onClick={onTogglePublish}
-              disabled={togglingStatus}
-              className={`mt-3 w-full font-mono text-[10px] uppercase tracking-[0.22em] border-t border-[#262626] pt-3 text-left disabled:opacity-50 ${
-                draft ? "text-emerald-400 hover:text-emerald-300" : "text-[#a3a3a3] hover:text-amber-400"
-              }`}
-              data-testid={`product-toggle-publish-${p.slug}`}
-            >
-              {togglingStatus
-                ? "…"
-                : draft
-                ? "↑ Publish listing"
-                : "↓ Move to draft"}
-            </button>
+
+            {/* Secondary actions — small bordered pill buttons in a 2-col
+                grid so the card stays compact and every action gets a
+                visible hover state. Was previously bare text links which
+                looked unfinished and had a weak click target. */}
+            <div className="mt-2 grid grid-cols-2 gap-1.5" data-testid={`product-actions-${p.slug}`}>
+              <ActionPill
+                onClick={onTogglePublish}
+                disabled={togglingStatus}
+                tone={draft ? "emerald" : "amber"}
+                testid={`product-toggle-publish-${p.slug}`}
+                label={
+                  togglingStatus ? "…" : draft ? "↑ Publish" : "↓ To draft"
+                }
+              />
+              {!draft && (
+                <ActionPill
+                  onClick={() => onPromote(1)}
+                  disabled={promoting || (p.promoted_until && new Date(p.promoted_until) > new Date())}
+                  tone="emerald"
+                  testid={`product-promote-${p.slug}`}
+                  label={
+                    promoting
+                      ? "…"
+                      : p.promoted_until && new Date(p.promoted_until) > new Date()
+                        ? `✓ Promoted`
+                        : "★ Promote $5/wk"
+                  }
+                />
+              )}
+              {!draft && (
+                <ActionPill
+                  onClick={onShare}
+                  disabled={sharing}
+                  tone="sky"
+                  testid={`product-share-buffer-${p.slug}`}
+                  label={sharing ? "Queueing…" : "↗ Share social"}
+                />
+              )}
+              {draft && (
+                <ActionPill
+                  onClick={onRenew}
+                  disabled={renewing}
+                  tone="amber"
+                  testid={`product-renew-${p.slug}`}
+                  label={renewing ? "…" : "↻ Renew $0.20"}
+                />
+              )}
+              <ActionPill
+                onClick={() => setOpen((o) => !o)}
+                tone="neutral"
+                testid={`product-toggle-edit-${p.slug}`}
+                label={open ? "− Close 3D" : "+ 3D model"}
+              />
+              <ActionPill
+                onClick={onDelete}
+                disabled={removing}
+                tone="danger"
+                testid={`product-delete-${p.slug}`}
+                label={removing ? "Deleting…" : "⊗ Delete"}
+              />
+            </div>
             {statusErr && (
               <p
-                className="font-mono text-[10px] text-red-400 mt-1"
+                className="font-mono text-[10px] text-red-400 mt-2"
                 data-testid={`product-status-err-${p.slug}`}
               >
                 {statusErr}
               </p>
             )}
-            {!draft && (
-              <button
-                onClick={() => onPromote(1)}
-                disabled={promoting || (p.promoted_until && new Date(p.promoted_until) > new Date())}
-                className="mt-2 w-full font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-400 hover:text-emerald-300 text-left disabled:opacity-50"
-                data-testid={`product-promote-${p.slug}`}
-              >
-                {promoting
-                  ? "…"
-                  : p.promoted_until && new Date(p.promoted_until) > new Date()
-                  ? `✓ Promoted until ${new Date(p.promoted_until).toLocaleDateString()}`
-                  : "★ Promote · $5/week"}
-              </button>
-            )}
-            {!draft && (
-              <button
-                onClick={onShare}
-                disabled={sharing}
-                className="mt-2 w-full font-mono text-[10px] uppercase tracking-[0.22em] text-sky-400 hover:text-sky-300 text-left disabled:opacity-50"
-                data-testid={`product-share-buffer-${p.slug}`}
-              >
-                {sharing ? "Queueing…" : "↗ Share to Buffer (social)"}
-              </button>
-            )}
-            {draft && (
-              <button
-                onClick={onRenew}
-                disabled={renewing}
-                className="mt-2 w-full font-mono text-[10px] uppercase tracking-[0.22em] text-amber-400 hover:text-amber-300 text-left disabled:opacity-50"
-                data-testid={`product-renew-${p.slug}`}
-              >
-                {renewing ? "…" : "↻ Renew listing · $0.20"}
-              </button>
-            )}
-            <button
-              onClick={() => setOpen((o) => !o)}
-              className="mt-2 w-full font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] text-left"
-              data-testid={`product-toggle-edit-${p.slug}`}
-            >
-              {open ? "− Close 3D editor" : "+ Add / edit 3D model"}
-            </button>
             {open && (
-              <form onSubmit={save} className="mt-3 space-y-2" data-testid={`product-edit-form-${p.slug}`}>
+              <form onSubmit={save} className="mt-3 space-y-2 border-t border-[#262626] pt-3" data-testid={`product-edit-form-${p.slug}`}>
                 <input
                   ref={modelInputRef}
                   type="file"
@@ -310,21 +317,21 @@ export default function ProductEditCard({ product, archived = false, draft = fal
                   type="button"
                   onClick={() => modelInputRef.current?.click()}
                   disabled={uploadingModel}
-                  className="w-full border border-dashed border-[#262626] hover:border-[#ff4500]/60 px-3 py-3 text-left font-mono text-[11px] text-[#a3a3a3] hover:text-[#ff4500] transition disabled:opacity-50"
+                  className="w-full border border-dashed border-[#262626] hover:border-[#ff4500]/60 px-3 py-2 text-left font-mono text-[10px] text-[#a3a3a3] hover:text-[#ff4500] transition disabled:opacity-50"
                   data-testid={`product-model-upload-${p.slug}`}
                 >
                   {uploadingModel
                     ? "Uploading model…"
                     : p.model_url
-                    ? "↻ Replace .glb / .gltf"
-                    : "+ Upload .glb / .gltf"}
+                      ? "↻ Replace .glb / .gltf"
+                      : "+ Upload .glb / .gltf"}
                 </button>
                 <input
                   type="url"
                   value={modelUrl}
                   onChange={(e) => setModelUrl(e.target.value)}
                   placeholder="…or paste a public model URL"
-                  className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-[11px] text-[#e5e5e5]"
+                  className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-[10px] text-[#e5e5e5]"
                   data-testid={`product-model-url-${p.slug}`}
                 />
                 {modelErr && (
@@ -334,7 +341,7 @@ export default function ProductEditCard({ product, archived = false, draft = fal
                   <button
                     type="submit"
                     disabled={busy}
-                    className="btn-industrial btn-primary disabled:opacity-50 text-xs"
+                    className="btn-industrial btn-primary disabled:opacity-50 text-[10px]"
                     data-testid={`product-save-${p.slug}`}
                   >
                     {busy ? "Saving…" : "Save URL"}
@@ -357,19 +364,62 @@ export default function ProductEditCard({ product, archived = false, draft = fal
                 </div>
               </form>
             )}
-            <button
-              onClick={onDelete}
-              disabled={removing}
-              className="mt-2 font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] hover:text-red-400 transition disabled:opacity-50"
-              data-testid={`product-delete-${p.slug}`}
-            >
-              {removing ? "Deleting…" : "⊗ Delete listing"}
-            </button>
           </>
         )}
       </div>
     </div>
     {confirmModal}
     </>
+  );
+}
+
+// Compact, bordered pill button used for every secondary action on a
+// product card (publish/draft toggle, promote, share, renew, 3D edit,
+// delete). Keeps the card tight while giving each action a real hover
+// state — the previous bare-text-link styling looked unfinished.
+//
+// `tone` switches the accent color while keeping border/background /
+// hover behavior consistent.
+const TONES = {
+  emerald: {
+    border: "border-emerald-500/30 hover:border-emerald-400",
+    text: "text-emerald-400 hover:text-emerald-300",
+    hoverBg: "hover:bg-emerald-500/10",
+  },
+  amber: {
+    border: "border-amber-500/30 hover:border-amber-400",
+    text: "text-amber-400 hover:text-amber-300",
+    hoverBg: "hover:bg-amber-500/10",
+  },
+  sky: {
+    border: "border-sky-500/30 hover:border-sky-400",
+    text: "text-sky-400 hover:text-sky-300",
+    hoverBg: "hover:bg-sky-500/10",
+  },
+  neutral: {
+    border: "border-[#262626] hover:border-[#ff4500]",
+    text: "text-[#a3a3a3] hover:text-[#ff4500]",
+    hoverBg: "hover:bg-[#ff4500]/5",
+  },
+  danger: {
+    border: "border-[#262626] hover:border-red-400",
+    text: "text-[#525252] hover:text-red-400",
+    hoverBg: "hover:bg-red-500/5",
+  },
+};
+
+function ActionPill({ onClick, disabled, tone = "neutral", testid, label }) {
+  const t = TONES[tone] || TONES.neutral;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`px-2 py-1.5 border font-mono text-[9px] uppercase tracking-[0.18em] text-center transition disabled:opacity-50 disabled:cursor-not-allowed truncate ${t.border} ${t.text} ${t.hoverBg}`}
+      data-testid={testid}
+      title={label}
+    >
+      {label}
+    </button>
   );
 }

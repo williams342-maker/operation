@@ -169,7 +169,7 @@ function Bucket({ items, testId, empty, onChanged, cardProps = {}, banner = null
   return (
     <section data-testid={testId}>
       {banner}
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {items.map((p) => (
           <ProductEditCard key={p.id} product={p} onChanged={onChanged} {...cardProps} />
         ))}
@@ -277,7 +277,7 @@ function ArchivedView({ items, selected, setSelected, onChanged }) {
         busy={bulkBusy}
       />
 
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mt-5">
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mt-5">
         {items.map((p) => (
           <SelectableCard
             key={p.id}

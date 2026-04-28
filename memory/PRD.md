@@ -671,6 +671,14 @@ Triggered by user reference screenshot showing Etsy's calculated-shipping inputs
 - ✅ Create + PATCH handlers wired through `payload.packed_*` to the persisted document.
 - Verified end-to-end via Playwright + curl: filled lb=2, oz=4, L/W/H=18/14/3 → autosave fired → backend GET `/api/maker/products` returns `weight_lbs=2.0, weight_oz=4.0, packed_length_in=18.0, packed_width_in=14.0, packed_height_in=3.0`. Lint clean across all four touched files.
 
+## 2026-04-28 — Listings cards: -1/3 size + proper action buttons
+Triggered by user feedback: "reduce the size by 1/3, change the look of the links below them — make them buttons to hover, looks unfinished" with a screenshot showing one giant card per row and a column of bare-text-link actions.
+- ✅ **Card size reduced ~1/3** by bumping the `ProductsList` grid to `md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4` (from `lg:grid-cols-3`) — 4 cards per row on desktop instead of 3. Inner padding shrunk `p-4 → p-3`, title `text-xl → text-base`, price `text-2xl → text-lg`, and the eyebrow line tightened to `text-[9px]` so the tighter card stays scannable.
+- ✅ **`ActionPill` component** introduced inside `ProductEditCard.jsx` — every secondary action (publish/unpublish toggle, promote, share-to-Buffer, renew, 3D-model toggle, delete) now renders as a bordered pill button in a 2-col grid. Color-coded `tone` prop for visual hierarchy: emerald (publish/promote), amber (draft / renew), sky (share), neutral (3D), danger (delete). Each gets a real hover state — bordered fill + accent text — instead of the previous bare text link.
+- ✅ **Two-line title clamp** (`line-clamp-2 min-h-[2.4em]`) keeps cards aligned even when titles vary in length — no more ragged bottoms.
+- Verified end-to-end via Playwright at 1920×1080: 4 cards per row, 5 ActionPills per card, hover state visually distinct on the orange/emerald/sky/danger tones. Lint clean.
+
+
 
 
 
