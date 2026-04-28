@@ -80,8 +80,8 @@ export default function ProductDetail() {
           <ArrowLeft size={14} /> Back to shop
         </Link>
         <div className="grid md:grid-cols-12 gap-6">
-          <div className="md:col-span-6">
-            <div className="aspect-[4/5] bg-[#121212] border border-[#262626] overflow-hidden mb-3 relative max-w-[480px] mx-auto md:mx-0">
+          <div className="md:col-span-5">
+            <div className="aspect-[4/5] bg-[#121212] border border-[#262626] overflow-hidden mb-3 relative max-w-[340px] mx-auto md:mx-0">
               {active === -1 && p.model_url ? (
                 <model-viewer
                   src={p.model_url}
@@ -107,7 +107,7 @@ export default function ProductDetail() {
                 </span>
               )}
             </div>
-            <div className="grid grid-cols-5 gap-2 max-w-[480px] mx-auto md:mx-0">
+            <div className="grid grid-cols-5 gap-2 max-w-[340px] mx-auto md:mx-0">
               {p.images.map((img, i) => (
                 <button
                   key={i}
@@ -132,7 +132,7 @@ export default function ProductDetail() {
               )}
             </div>
           </div>
-          <div className="md:col-span-6">
+          <div className="md:col-span-7">
             <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#ff4500] mb-2">{p.category}</div>
             <h1 className="font-display text-2xl md:text-3xl mb-3 leading-tight">{p.title}</h1>
             <div className="font-display text-2xl text-[#ff4500] mb-4" data-testid="product-price">
