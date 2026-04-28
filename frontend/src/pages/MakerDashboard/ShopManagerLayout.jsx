@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import {
   Box, MessageSquare, ShoppingBag, BarChart3, AlertTriangle,
   Megaphone, DollarSign, HelpCircle, Sparkles, Settings, ArrowLeft,
-  LayoutDashboard,
+  LayoutDashboard, SlidersHorizontal,
 } from "lucide-react";
 
 const NAV = [
@@ -17,6 +17,7 @@ const NAV = [
   { id: "financials",  label: "Financials",  icon: DollarSign },
   { id: "help",        label: "Help",        icon: HelpCircle },
   { id: "upgrade",     label: "Upgrade",     icon: Sparkles },
+  { id: "settings",    label: "Settings",    icon: SlidersHorizontal },
 ];
 
 /**

@@ -183,6 +183,18 @@ class Maker(BaseModel):
     is_beta: bool = False
     beta_approved_at: Optional[str] = None
     beta_expires_at: Optional[str] = None
+    # ---- Settings tab fields (Etsy-parity) ----
+    # Vacation mode: when on, shop pages render a banner and disable Add-to-Cart
+    # across all listings until toggled off. Optional message shown to buyers.
+    vacation_mode: bool = False
+    vacation_message: Optional[str] = ""
+    # "About your shop" — narrative content, separate from the short bio.
+    story_headline: Optional[str] = ""    # e.g. "Forged in the heart of Montana."
+    story: Optional[str] = ""             # long-form shop story (markdown ok)
+    # Policy settings — surfaced on every product detail page below the price.
+    processing_time: Optional[str] = ""   # e.g. "1-3 business days"
+    returns_policy: Optional[str] = ""    # free-text policy text
+    accepts_custom_orders: bool = True    # gates the "Request Custom" CTA
     created_at: str = Field(default_factory=now_iso)
 
 
@@ -332,6 +344,14 @@ class MakerProfileUpdate(BaseModel):
     email: Optional[EmailStr] = None
     banner_image_url: Optional[str] = None       # Plus-only: custom shop banner
     external_ads_opt_out: Optional[bool] = None
+    # ---- Settings tab patchable fields ----
+    vacation_mode: Optional[bool] = None
+    vacation_message: Optional[str] = None
+    story_headline: Optional[str] = None
+    story: Optional[str] = None
+    processing_time: Optional[str] = None
+    returns_policy: Optional[str] = None
+    accepts_custom_orders: Optional[bool] = None
 
 
 # ---- Admin ----

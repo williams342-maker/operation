@@ -7,6 +7,7 @@ import {
 
 import ShopManagerLayout from "./MakerDashboard/ShopManagerLayout";
 import DashboardTab from "./MakerDashboard/DashboardTab";
+import SettingsTab from "./MakerDashboard/SettingsTab";
 import ProductsList from "./MakerDashboard/ProductsList";
 import OrdersList from "./MakerDashboard/OrdersList";
 import StatsTab from "./MakerDashboard/StatsTab";
@@ -236,6 +237,13 @@ export default function MakerDashboard() {
         {tab === "financials" && <FinancialsTab />}
         {tab === "help"       && <HelpTab />}
         {tab === "upgrade"    && <UpgradeTab maker={maker} />}
+        {tab === "settings"   && (
+          <SettingsTab
+            maker={maker}
+            onMakerUpdated={(m) => setMaker(m)}
+            onTabChange={changeTab}
+          />
+        )}
       </ShopManagerLayout>
 
       {profileOpen && (
