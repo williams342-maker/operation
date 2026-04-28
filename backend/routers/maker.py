@@ -513,10 +513,22 @@ async def maker_purge_product(
             "Listing must be archived before it can be permanently deleted.",
         )
     # Block purge if there's any payment_transactions row referencing this
-    # product slug — would orphan refund history. Maker can keep it
-    # archived forever; we just won't delete the row.
+    # listing — orphaning paid-order rows would corrupt refund history,
+    # the maker's own /maker/orders view, and the admin financials feed.
+    #
+    # Defensive query: legacy rows store `product_id` as the product UUID
+    # OR (in older data) as the slug, and a few callsites also write
+    # `slug` as a sibling field. We OR across all three so no historical
+    # write path can slip past the gate.
     has_orders = await db.payment_transactions.find_one(
-        {"items.slug": product_slug}, {"_id": 1}
+        {
+            "$or": [
+                {"items.product_id": prod.get("id")},
+                {"items.product_id": product_slug},
+                {"items.slug": product_slug},
+            ]
+        },
+        {"_id": 1},
     )
     if has_orders:
         raise HTTPException(

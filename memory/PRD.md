@@ -604,3 +604,27 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
   - Right-pane content highlights occurrences of the query inside transaction history rows, monthly-statement labels, payment-settings copy, export blurbs, and Legal & tax body text using the same `<mark className="bg-[#ff4500]/30">` style as Help.
   - Empty-state right-pane when zero sections match — suggests sample queries (`stripe`, `1099`, `quickbooks`, `payout`) and offers a Clear search action. Sub-nav also collapses to a compact "No matches." pill.
 - Verified end-to-end via Playwright: searching `1099` → 1 match, sub-nav narrows to Legal & tax, three "1099" highlights render in the right pane. `zzzzzzzz` → empty state. X-clear restores full nav.
+
+## 2026-04-28 — Maker Listings P2 backlog cleared (Bulk-action toolbar + Editor refactor)
+### Bulk-action toolbar in Archived listings
+- ✅ **New endpoint** `DELETE /api/maker/products/{slug}/purge` — permanent (hard) delete for archived listings only. Three gates:
+  - **Archived gate**: 400 if `deleted_at` is None — listing must be soft-deleted first (one-click + confirm in the UI).
+  - **Order-history gate**: 400 if `payment_transactions` references this product. Defensive `$or` query covers `items.product_id == product.id`, `items.product_id == slug`, AND `items.slug == slug` so legacy data layouts can never slip past — preserves refund history, dispute audit, and the maker's own /maker/orders feed.
+  - **Owner-only**: 403 if a different maker's slug.
+- ✅ **`/maker/dashboard` → Listings → Archived** rebuilt with multi-select:
+  - Per-card checkbox overlay (`data-testid="archived-select-{slug}"`) + orange ring on selection.
+  - Sticky `BulkToolbar` with Select all / Clear all toggle, live `N selected` counter, **Restore selected** (calls existing `/restore`), **Delete permanently** (calls `/purge` after a confirm modal), **Clear** button.
+  - Bulk operations dispatch `Promise.allSettled` over selected slugs — no all-or-nothing failure mode; per-slug failures surface in a toast with the first error message.
+  - View-switch and post-mutation refresh both reset the selection set so stale slugs never linger.
+- Backend regression: 9/9 pytest in `/app/backend/tests/test_iter44_bulk_purge.py` (happy path, all error gates, bulk sequence). Frontend smoke verified — Select all → 1 selected → Restore + Delete buttons render with sticky orange toolbar.
+
+### MakerListingEditor refactor (1284 → 860 lines, -33%)
+- ✅ Split the monolith into focused modules under `/app/frontend/src/pages/MakerListingEditor/`:
+  - `constants.js` (61 lines) — enums + `emptyForm()` factory.
+  - `FormControls.jsx` (155 lines) — shared `Section`, `Label`, `FieldError`, `NumInput`, `Select`, `ChipGrid`, `Toggle`, `ToggleRow`, `ActionButtons`.
+  - `MediaSection.jsx` (159 lines) — Photos & Video (drag-reorder, R2 upload, crop queue handoff).
+  - `AiAssistantSection.jsx` (61 lines) — Claude-backed listing copy generator.
+  - `PricingSection.jsx` (110 lines) — Price + variations.
+- The orchestrator file keeps state, effects, validation, submit/clone/preview flows, and the inline sections that aren't worth extracting yet (Listing Details, Item Details, Personalization, Shipping, Processing Time, Return Policy, SEO Tags, Contact — each <60 lines).
+- Frontend smoke verified end-to-end: `/maker/listings/new` renders all 12 sections; `/maker/listings/{slug}/edit` hydrates the form correctly through the new sub-component split (title pre-fills, photo grid renders, AI prompt accepts input).
+
