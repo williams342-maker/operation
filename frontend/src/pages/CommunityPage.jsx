@@ -888,10 +888,28 @@ function ChatTab({ me }) {
   const mentionAudioRef = useRef(null);
   const typingTimeoutRef = useRef({});
   const lastTypingSentRef = useRef(0);
-  const isMaker = !!localStorage.getItem("cm_maker_jwt");
-  const buyerJwt = localStorage.getItem("cm_buyer_jwt");
-  const makerJwt = localStorage.getItem("cm_maker_jwt");
-  const adminJwt = localStorage.getItem("cm_admin_jwt");
+  // BUG FIX: Lock the auth tokens to the values present at component mount.
+  // Reading `localStorage.getItem("cm_buyer_jwt")` on every render meant
+  // that ANY cross-tab localStorage change (e.g. another tab signing
+  // in/out, or a normal re-render after localStorage was touched) would
+  // flip the dep values for the shadow-socket effect, tearing down all
+  // 7 chat sockets and reconnecting them — which kicked the user out
+  // of the room and made other users see "X signed off / signed on"
+  // every few seconds. The chat session uses whichever account was
+  // signed in when the page was opened; a token change requires a
+  // page reload (which is what the user expects anyway).
+  const tokensRef = useRef(null);
+  if (tokensRef.current === null) {
+    tokensRef.current = {
+      buyer: localStorage.getItem("cm_buyer_jwt") || "",
+      maker: localStorage.getItem("cm_maker_jwt") || "",
+      admin: localStorage.getItem("cm_admin_jwt") || "",
+    };
+  }
+  const isMaker = !!tokensRef.current.maker;
+  const buyerJwt = tokensRef.current.buyer;
+  const makerJwt = tokensRef.current.maker;
+  const adminJwt = tokensRef.current.admin;
   const tokenForChannel = (ch) => (ch === "makers-only" ? makerJwt : (buyerJwt || makerJwt || adminJwt));
   const messages = messagesByCh[channel] || [];
   const buddies = buddiesByCh[channel] || [];
