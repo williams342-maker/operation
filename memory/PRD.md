@@ -693,6 +693,15 @@ Triggered by user feedback: "reduce the size by 1/3, change the look of the link
 - ✅ Reduces visible action grid from 5 pills to 4, makes the destructive Delete one click away from the happy path of edit/promote/share — Etsy "kebab" pattern.
 - Verified end-to-end via Playwright: 3.5 lb / 18×14×3 → $14.40 cheapest (USPS Ground), 3.5 lb / 30×24×12 → $96.50 with dim-weight warning visible. Overflow menu opens on click, shows 3D + Delete, dismisses on outside click. Lint clean.
 
+## 2026-04-28 — Maker Dashboard tab: compact header + KPI strip
+Triggered by user feedback: "the large welcome back and shop seems large and overkill when you click on it."
+- ✅ Collapsed the full-bleed `text-6xl` "WELCOME BACK, IRON & OAK STUDIO." headline + intro paragraph + 4-up oversized KPI grid (~30% of viewport) into a single horizontal bar.
+- ✅ New header: `text-2xl` welcome on the left + `KpiStrip` on the right (4 inline KPI cells in one bordered strip with `divide-x` separators, hover bg, click-through to the relevant tab).
+- ✅ New `KpiPill` component preserves every interaction the old `KPI` cards had — accent state for non-zero counts, `kpi-pulse` CSS animation for fresh activity (with `key={pulseKey}` remount trick), `NEW` flag pill for new orders/DMs from polling.
+- ✅ Push-down effect: Crafters Plus upgrade card now lands above the fold; "1 step to launch-ready shop" checklist + start of Recent Orders + Quick Links all visible without scrolling on a 1080p screen (was previously off-screen below the giant header).
+- Verified end-to-end via Playwright: 4 KPI pills render, clicking the Live KPI navigates to the Listings tab (`products-view-switcher` mounted). Lint clean.
+
+
 
 
 

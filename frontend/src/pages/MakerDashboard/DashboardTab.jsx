@@ -100,59 +100,36 @@ export default function DashboardTab({
   };
 
   return (
-    <div className="space-y-10" data-testid="dashboard-tab">
-      {/* HEADER */}
-      <div>
-        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-3">
-          ◆ Workshop · Overview
+    <div className="space-y-6" data-testid="dashboard-tab">
+      {/* COMPACT HEADER + KPI STRIP — was previously a full-bleed h1 +
+          intro paragraph + 4-up oversized KPI grid that ate ~30% of the
+          viewport before any actionable content. Now collapsed into a
+          single horizontal strip so the checklist / orders / quick links
+          land above the fold. */}
+      <header
+        className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 pb-5 border-b border-[#1f1f1f]"
+        data-testid="dashboard-header"
+      >
+        <div className="min-w-0">
+          <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#ff4500] mb-1">
+            ◆ Workshop · Overview
+          </div>
+          <h1 className="font-display text-xl md:text-2xl uppercase leading-tight truncate">
+            Welcome back, <span className="text-[#ff4500]">{maker?.name || "maker"}</span>
+          </h1>
         </div>
-        <h1 className="font-display text-4xl md:text-6xl uppercase leading-[0.95]">
-          Welcome back, <span className="text-outline-orange">{maker?.name || "maker"}</span>.
-        </h1>
-        <p className="font-mono text-sm text-[#a3a3a3] mt-3 max-w-2xl">
-          Everything that matters today, in one place. Dive into a section
-          using the sidebar — or use the shortcuts below.
-        </p>
-      </div>
-
-      {/* KPI GRID */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4" data-testid="dashboard-kpis">
-        <KPI
-          icon={Box}
-          label="Live listings"
-          value={live.length}
-          sub={drafts.length ? `${drafts.length} draft${drafts.length > 1 ? "s" : ""}` : null}
-          onClick={() => onTabChange?.("listings")}
-          testId="kpi-listings"
+        <KpiStrip
+          live={live.length}
+          drafts={drafts.length}
+          openOrders={openOrders.length}
+          totalOrders={orders.length}
+          unreadMessages={unreadMessages}
+          totalRevenue={totalRevenue}
+          fresh={fresh}
+          freshKey={freshKey}
+          onTabChange={onTabChange}
         />
-        <KPI
-          icon={ShoppingBag}
-          label="Open orders"
-          value={openOrders.length}
-          sub={orders.length ? `${orders.length} total` : null}
-          onClick={() => onTabChange?.("orders")}
-          testId="kpi-orders"
-          accent={openOrders.length > 0}
-          pulseKey={fresh.orders ? `o-${freshKey}` : null}
-        />
-        <KPI
-          icon={MessageSquare}
-          label="Unread DMs"
-          value={unreadMessages}
-          onClick={() => onTabChange?.("messages")}
-          testId="kpi-messages"
-          accent={unreadMessages > 0}
-          pulseKey={fresh.messages ? `m-${freshKey}` : null}
-        />
-        <KPI
-          icon={DollarSign}
-          label="Revenue"
-          value={`$${totalRevenue.toFixed(0)}`}
-          sub="all-time gross"
-          onClick={() => onTabChange?.("financials")}
-          testId="kpi-revenue"
-        />
-      </div>
+      </header>
 
       {/* CRAFTERS PLUS UPGRADE NUDGE — always visible for Free makers, never
           dismissible (per spec: surfacing is the point). Hidden for Plus
@@ -309,40 +286,89 @@ export default function DashboardTab({
   );
 }
 
-function KPI({ icon: Icon, label, value, sub, onClick, testId, accent = false, pulseKey = null }) {
+function KpiStrip({ live, drafts, openOrders, totalOrders, unreadMessages, totalRevenue, fresh, freshKey, onTabChange }) {
+  return (
+    <div
+      className="flex items-stretch divide-x divide-[#1f1f1f] border border-[#1f1f1f] overflow-x-auto"
+      data-testid="dashboard-kpis"
+    >
+      <KpiPill
+        icon={Box}
+        label="Live"
+        value={live}
+        sub={drafts ? `${drafts} draft${drafts > 1 ? "s" : ""}` : null}
+        onClick={() => onTabChange?.("listings")}
+        testId="kpi-listings"
+      />
+      <KpiPill
+        icon={ShoppingBag}
+        label="Orders"
+        value={openOrders}
+        sub={totalOrders ? `${totalOrders} total` : "open"}
+        onClick={() => onTabChange?.("orders")}
+        testId="kpi-orders"
+        accent={openOrders > 0}
+        pulseKey={fresh.orders ? `o-${freshKey}` : null}
+      />
+      <KpiPill
+        icon={MessageSquare}
+        label="DMs"
+        value={unreadMessages}
+        sub="unread"
+        onClick={() => onTabChange?.("messages")}
+        testId="kpi-messages"
+        accent={unreadMessages > 0}
+        pulseKey={fresh.messages ? `m-${freshKey}` : null}
+      />
+      <KpiPill
+        icon={DollarSign}
+        label="Revenue"
+        value={`$${totalRevenue.toFixed(0)}`}
+        sub="all-time"
+        onClick={() => onTabChange?.("financials")}
+        testId="kpi-revenue"
+      />
+    </div>
+  );
+}
+
+// Compact horizontal KPI cell. Was previously a 4-up `KPI` card grid with
+// `text-3xl/4xl` numbers that ate the top of the viewport. The strip
+// version keeps every number clickable and pulse-able while collapsing
+// to ~36% of the previous vertical footprint.
+function KpiPill({ icon: Icon, label, value, sub, onClick, testId, accent = false, pulseKey = null }) {
   return (
     <button
       onClick={onClick}
-      // `key={pulseKey}` forces a remount when a new event arrives, which
-      // restarts the CSS animation. Without it, the same animation class
-      // wouldn't re-fire if the maker stays on the dashboard across
-      // multiple polling cycles.
+      // `key={pulseKey}` forces a remount when a new event arrives so the
+      // CSS animation can re-fire even if the maker is sitting on the
+      // dashboard across multiple polling cycles.
       key={pulseKey || testId}
-      className={`text-left p-4 border transition relative ${
+      className={`min-w-[7rem] px-4 py-2.5 text-left transition relative ${
         accent
-          ? "border-[#ff4500] bg-[#ff4500]/5 hover:bg-[#ff4500]/10"
-          : "border-[#262626] hover:border-[#ff4500]"
+          ? "bg-[#ff4500]/10 hover:bg-[#ff4500]/20"
+          : "hover:bg-[#161616]"
       } ${pulseKey ? "kpi-pulse" : ""}`}
       data-testid={testId}
       data-fresh={pulseKey ? "true" : undefined}
     >
-      <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">
-        <Icon size={12} />
+      <div className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+        <Icon size={10} />
         <span>{label}</span>
         {pulseKey && (
           <span
-            className="ml-auto px-1.5 py-0.5 bg-[#ff4500] text-black font-bold text-[8px] tracking-[0.2em] animate-pulse"
+            className="ml-1 px-1 py-0.5 bg-[#ff4500] text-black font-bold text-[8px] tracking-[0.2em] animate-pulse"
             data-testid={`${testId}-new-flag`}
           >
             NEW
           </span>
         )}
       </div>
-      <div className={`font-display text-3xl md:text-4xl ${accent ? "text-[#ff4500]" : ""}`}>
+      <div className={`font-display text-xl leading-tight mt-0.5 ${accent ? "text-[#ff4500]" : ""}`}>
         {value}
       </div>
       {sub && (
-        <div className="font-mono text-[10px] text-[#525252] mt-1 truncate">{sub}</div>
+        <div className="font-mono text-[9px] text-[#525252] truncate">{sub}</div>
       )}
     </button>
   );
