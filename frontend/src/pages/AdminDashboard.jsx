@@ -27,6 +27,7 @@ import RetentionTab from "../components/admin/RetentionTab";
 import TeamTab from "../components/admin/TeamTab";
 import RefundApprovalsTab from "../components/admin/RefundApprovalsTab";
 import RotatePasswordModal from "../components/admin/RotatePasswordModal";
+import EmailHealthBadge from "../components/admin/EmailHealthBadge";
 import LiveNowBadge from "../components/admin/LiveNowBadge";
 
 const TABS = [
@@ -144,7 +145,8 @@ export default function AdminDashboard() {
               Operations.
             </h1>
           </div>
-          <div className="flex items-center gap-3 self-start md:self-auto shrink-0">
+          <div className="flex items-center gap-3 self-start md:self-auto shrink-0 flex-wrap">
+            <EmailHealthBadge />
             <LiveNowBadge />
             <button
               onClick={logout}

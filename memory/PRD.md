@@ -585,3 +585,14 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - ✅ On successful voluntary rotation, both `onDone()` AND `onClose()` fire — dashboard refreshes `/admin/me` and the modal unmounts.
 - Verified via Playwright: backdate password to 27 days old → dashboard renders banner with "3 days" text, blocking modal NOT present → click "Rotate now" → dismissible modal opens with "ROTATE YOUR PASSWORD" headline + ✕ close button → close without rotating → modal dismisses, banner still visible. Screenshot confirms the final visual.
 
+
+## 2026-04-28 — Email health badge in admin dashboard
+- ✅ **New endpoint** `GET /api/admin/email-health` — single-shot health classifier returning `{status: "ok"|"degraded"|"down"|"idle", provider, fallback, primary_configured, sent_24h, failed_24h, hint}`. Logic:
+  - **down** → primary provider not configured (API key missing) OR 0 sends with ≥1 failure in last 24h.
+  - **degraded** → ≥1 failure with partial successes (failure rate ≥ 10%).
+  - **ok** → recent sends succeeding cleanly.
+  - **idle** → zero email events in last 24h (cold start).
+  - `hint` is a one-sentence diagnostic with the action to take ("set POSTMARK_API_KEY and redeploy", "Check API keys + DNS for mailtrap", etc).
+- ✅ **`EmailHealthBadge.jsx`** — compact pill in the AdminDashboard header (next to LiveNowBadge), polls every 60s. Renders a colored dot (emerald/yellow/red/gray) + label + 24h success count. Failing dots animate-pulse. Tooltip surfaces the full hint on hover.
+- Verified end-to-end: badge renders "EMAIL · DOWN · 0/42 24H" with full diagnostic tooltip in the preview environment (Mailtrap currently 100% failing, Postmark catching as fallback). Endpoint correctly classifies the real state.
+
