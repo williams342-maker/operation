@@ -79,9 +79,9 @@ export default function ProductDetail() {
         <Link to="/shop" className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] mb-8">
           <ArrowLeft size={14} /> Back to shop
         </Link>
-        <div className="grid md:grid-cols-12 gap-8">
-          <div className="md:col-span-7">
-            <div className="aspect-[4/5] bg-[#121212] border border-[#262626] overflow-hidden mb-3 relative">
+        <div className="grid md:grid-cols-12 gap-6">
+          <div className="md:col-span-6">
+            <div className="aspect-[4/5] bg-[#121212] border border-[#262626] overflow-hidden mb-3 relative max-w-[480px] mx-auto md:mx-0">
               {active === -1 && p.model_url ? (
                 <model-viewer
                   src={p.model_url}
@@ -107,7 +107,7 @@ export default function ProductDetail() {
                 </span>
               )}
             </div>
-            <div className="grid grid-cols-5 gap-3">
+            <div className="grid grid-cols-5 gap-2 max-w-[480px] mx-auto md:mx-0">
               {p.images.map((img, i) => (
                 <button
                   key={i}
@@ -121,7 +121,7 @@ export default function ProductDetail() {
               {p.model_url && (
                 <button
                   onClick={() => setActive(-1)}
-                  className={`aspect-square overflow-hidden border flex items-center justify-center font-mono text-[11px] uppercase tracking-[0.22em] ${
+                  className={`aspect-square overflow-hidden border flex items-center justify-center font-mono text-[10px] uppercase tracking-[0.22em] ${
                     active === -1 ? "border-[#ff4500] text-[#ff4500]" : "border-[#262626] text-[#a3a3a3] hover:border-[#ff4500]/40"
                   }`}
                   data-testid="product-3d-toggle"
@@ -132,13 +132,20 @@ export default function ProductDetail() {
               )}
             </div>
           </div>
-          <div className="md:col-span-5">
-            <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-3">{p.category}</div>
-            <h1 className="font-display text-5xl md:text-6xl mb-4">{p.title}</h1>
-            <div className="font-display text-4xl text-[#ff4500] mb-6" data-testid="product-price">
+          <div className="md:col-span-6">
+            <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#ff4500] mb-2">{p.category}</div>
+            <h1 className="font-display text-2xl md:text-3xl mb-3 leading-tight">{p.title}</h1>
+            <div className="font-display text-2xl text-[#ff4500] mb-4" data-testid="product-price">
               ${effectivePrice.toFixed(2)}
             </div>
-            <p className="font-mono text-sm text-[#a3a3a3] leading-relaxed mb-8">{p.description}</p>
+
+            {/* Quick basics — pull only the structural facts (dimensions,
+                weight, materials) up here so a buyer scanning gets the
+                "is this the right size/heft" answer without reading the
+                full marketing copy. The rest goes behind a toggle below. */}
+            <ProductBasics product={p} effectiveStock={effectiveStock} />
+
+            <ProductDescription description={p.description} />
 
             {hasVariants && (
               <div className="mb-6" data-testid="product-variants">
@@ -251,12 +258,6 @@ export default function ProductDetail() {
               </div>
             )}
 
-            <ul className="border-y border-[#262626] divide-y divide-[#262626] mb-8">
-              {p.dimensions && <li className="flex justify-between py-3 font-mono text-xs uppercase tracking-[0.2em]"><span className="text-[#a3a3a3]">Size</span><span>{p.dimensions}</span></li>}
-              <li className="flex justify-between py-3 font-mono text-xs uppercase tracking-[0.2em]"><span className="text-[#a3a3a3]">Materials</span><span className="text-right">{p.materials.join(", ")}</span></li>
-              <li className="flex justify-between py-3 font-mono text-xs uppercase tracking-[0.2em]"><span className="text-[#a3a3a3]">In stock</span><span>{effectiveStock}</span></li>
-            </ul>
-
             <div className="flex items-center gap-4 mb-6">
               <div className="flex items-center border border-[#262626]">
                 <button onClick={() => setQty(Math.max(1, qty - 1))} className="px-4 py-3 hover:bg-[#1a1a1a]">−</button>
@@ -283,6 +284,81 @@ export default function ProductDetail() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+
+// Quick-scan basics shown above the description toggle. Only renders
+// fields the maker has actually filled in — never shows "—" placeholders
+// because empty rows just dilute the value of the strip.
+function ProductBasics({ product: p, effectiveStock }) {
+  const dims = [p.length_in, p.width_in, p.height_in].filter((v) => v != null && v !== "");
+  // Prefer the structured fields when filled in (newer listings), fall
+  // back to the legacy `dimensions` string for older listings that were
+  // saved before the L/W/H split.
+  const dimStr = dims.length
+    ? `${dims.join(" × ")} ${p.dim_unit || "in"}`
+    : (p.dimensions || null);
+  const weight = (() => {
+    const lb = Number(p.weight_lbs) || 0;
+    const oz = Number(p.weight_oz) || 0;
+    if (lb === 0 && oz === 0) return null;
+    if (lb && oz) return `${lb} lb ${oz} oz`;
+    if (lb) return `${lb} lb`;
+    return `${oz} oz`;
+  })();
+  const materials = (p.materials || []).slice(0, 3).join(", ") || null;
+  const stockNum = effectiveStock != null ? effectiveStock : p.in_stock;
+  const stock = stockNum != null ? `${stockNum} in stock` : null;
+
+  const rows = [
+    ["Size", dimStr],
+    ["Weight", weight],
+    ["Materials", materials],
+    ["Stock", stock],
+  ].filter(([, v]) => v);
+
+  if (rows.length === 0) return null;
+
+  return (
+    <dl
+      className="grid grid-cols-2 gap-x-4 gap-y-1.5 mb-5 border-y border-[#1f1f1f] py-3"
+      data-testid="product-basics"
+    >
+      {rows.map(([label, value]) => (
+        <React.Fragment key={label}>
+          <dt className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">{label}</dt>
+          <dd className="font-mono text-xs text-[#e5e5e5] text-right truncate" title={value}>{value}</dd>
+        </React.Fragment>
+      ))}
+    </dl>
+  );
+}
+
+// Collapsed-by-default description. Shows a 2-line preview with a
+// "View full description" button — keeps the product detail compact
+// on first paint, lets buyers expand if they want more context.
+function ProductDescription({ description }) {
+  const [open, setOpen] = useState(false);
+  if (!description) return null;
+  return (
+    <div className="mb-6" data-testid="product-description">
+      <p
+        className={`font-mono text-xs text-[#a3a3a3] leading-relaxed whitespace-pre-line ${
+          open ? "" : "line-clamp-2"
+        }`}
+      >
+        {description}
+      </p>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="mt-2 font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] hover:text-[#ff5f1f] transition"
+        data-testid="product-description-toggle"
+      >
+        {open ? "↑ Show less" : "↓ View full description"}
+      </button>
     </div>
   );
 }
