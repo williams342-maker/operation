@@ -148,15 +148,56 @@ async def _resolve_cart(items: list) -> list[dict]:
 
 
 def _quote_for(resolved: list[dict]) -> dict:
+    """Compute subtotal + shipping for a resolved cart.
+
+    Shipping precedence (per product):
+      1. `free_shipping=True` on the listing  → that item contributes 0
+      2. `shipping_domestic_usd` set by maker → that item contributes the
+         maker-set rate
+      3. Category fallback from SHIPPING_BY_CATEGORY → contributes the
+         table rate
+      4. DEFAULT_SHIPPING → final fallback
+
+    Order-level rules:
+      • Charge a single shipping fee per order = max() of the per-item
+        contributions (one box, ships at the rate of the most expensive
+        item to ship).
+      • If EVERY item in the cart has `free_shipping=True`, shipping = 0
+        regardless of subtotal — honors the maker's intent even on
+        small carts that wouldn't otherwise hit the free-shipping
+        threshold.
+      • If subtotal >= FREE_SHIPPING_THRESHOLD, shipping is also 0
+        (existing platform-wide promo).
+
+    Previously this function ignored both the per-product `free_shipping`
+    flag and the maker-set `shipping_domestic_usd` rate — it only checked
+    the cart-wide threshold and the category default. That caused
+    listings marked "free shipping" to still get charged shipping at
+    checkout, which is the bug the user reported.
+    """
     subtotal = round(sum(r["product"]["price"] * r["quantity"] for r in resolved), 2)
+
+    # Subtotal-threshold platform promo wins over everything else.
     if subtotal >= FREE_SHIPPING_THRESHOLD:
         shipping = 0.0
+    elif resolved and all(r["product"].get("free_shipping") for r in resolved):
+        # Every item ships free — honor the makers' intent.
+        shipping = 0.0
     else:
-        shipping = max(
-            (SHIPPING_BY_CATEGORY.get(r["product"]["category"], DEFAULT_SHIPPING)
-             for r in resolved),
-            default=DEFAULT_SHIPPING,
-        )
+        per_item_rates = []
+        for r in resolved:
+            p = r["product"]
+            if p.get("free_shipping"):
+                per_item_rates.append(0.0)
+                continue
+            override = p.get("shipping_domestic_usd")
+            if override is not None and override >= 0:
+                per_item_rates.append(float(override))
+                continue
+            per_item_rates.append(
+                SHIPPING_BY_CATEGORY.get(p.get("category"), DEFAULT_SHIPPING)
+            )
+        shipping = max(per_item_rates, default=DEFAULT_SHIPPING)
     shipping = round(shipping, 2)
     return {
         "subtotal": subtotal,

@@ -740,6 +740,21 @@ Triggered by user mark-up showing dead space between the live-now strip and "SHO
 - ✅ **Honors `prefers-reduced-motion`** via `useReducedMotion()` — both layers pin at `0%` when the OS / browser asks for less motion.
 - Verified end-to-end: initial transform `none`, after `window.scrollTo(0, 600)` the bg `<motion.div>` reports `matrix(1, 0, 0, 1, 0, 71.983)` → +72px Y drift confirmed. Lint clean.
 
+## 2026-04-28 — Bug fix: free_shipping flag ignored at checkout
+User reported: shipping was being charged at checkout even on listings with `free_shipping=True` enabled.
+- ✅ Root cause in `/app/backend/routers/checkout.py::_quote_for`: the function was only checking the cart-wide `FREE_SHIPPING_THRESHOLD` and falling back to `SHIPPING_BY_CATEGORY[category]` — it never read the per-product `free_shipping` flag or the maker-set `shipping_domestic_usd` rate.
+- ✅ Rewritten to honor full precedence chain per item:
+  1. `free_shipping=True` → 0
+  2. Maker-set `shipping_domestic_usd` → that rate
+  3. Category fallback (`SHIPPING_BY_CATEGORY`)
+  4. Global `DEFAULT_SHIPPING`
+- ✅ Order-level: total shipping = `max()` of per-item rates (one box, ships at the rate of the highest-cost item). If **every** item has `free_shipping=True`, shipping is 0 regardless of subtotal — so a maker who marks all their listings free shipping is honored on small carts that wouldn't otherwise hit the free-shipping threshold.
+- Verified via `POST /api/cart/quote`:
+  - Free-only cart: $0.10 subtotal → **$0 shipping** (was $8 before the fix)
+  - Paid-only cart: $149 subtotal → $25 shipping (Wall Art category rate)
+  - Mixed: $149.10 subtotal → $25 shipping (free item contributes 0, paid item drives rate)
+
+
 
 
 
