@@ -41,29 +41,28 @@ export default function SupportVeteransStrip() {
         }}
       />
 
-      <div className="relative max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12 py-4 md:py-5 flex items-center gap-4 md:gap-6">
-        <SupportSeal className="w-14 h-14 md:w-20 md:h-20 shrink-0" />
+      <Link
+        to="/makers?veteran=1"
+        className="relative max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12 py-2.5 md:py-3 flex items-center gap-3 md:gap-4 group"
+        data-testid="support-veterans-cta"
+      >
+        <SupportSeal className="w-9 h-9 md:w-12 md:h-12 shrink-0 transition-transform group-hover:rotate-[-6deg]" />
 
         <div className="min-w-0 flex-1">
-          <div className="font-mono text-[10px] md:text-[11px] uppercase tracking-[0.3em] text-[#b22234] mb-1">
+          <div className="font-mono text-[9px] md:text-[10px] uppercase tracking-[0.3em] text-[#b22234]">
             ◆ Crafters Market salutes
           </div>
-          <h2 className="font-display text-base md:text-2xl uppercase leading-tight text-white truncate">
-            Support our <span className="text-[#b22234]">Veteran-Owned</span> Makers.
+          <h2 className="font-display text-sm md:text-lg uppercase leading-tight text-white truncate inline-flex items-center gap-2">
+            <span className="border-b border-transparent group-hover:border-[#b22234] transition-colors">
+              Support our <span className="text-[#b22234]">Veteran-Owned</span> Makers.
+            </span>
+            <ArrowRight
+              size={14}
+              className="opacity-50 group-hover:opacity-100 transition-all group-hover:translate-x-1"
+            />
           </h2>
-          <p className="hidden md:block font-mono text-[11px] text-[#a3a3a3] mt-1.5 leading-relaxed">
-            Every purchase from a veteran-owned shop puts dollars directly into the workshop of someone who served.
-          </p>
         </div>
-
-        <Link
-          to="/makers?veteran=1"
-          className="shrink-0 inline-flex items-center gap-2 px-4 md:px-5 py-2 md:py-2.5 bg-white text-[#0a0e1c] hover:bg-[#b22234] hover:text-white border border-white/30 transition font-mono text-[10px] md:text-[11px] uppercase tracking-[0.22em]"
-          data-testid="support-veterans-cta"
-        >
-          Shop Veteran-Owned <ArrowRight size={14} />
-        </Link>
-      </div>
+      </Link>
     </section>
   );
 }
