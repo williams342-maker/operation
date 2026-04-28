@@ -709,6 +709,16 @@ Triggered by user feedback: "the large welcome back and shop seems large and ove
 - Auto-collapses when zero alerts (renders nothing on a healthy dashboard). Header summary shows count + tone breakdown ("2 items need you · 1 urgent · 1 warning"). Each alert has tone-coded dot + icon + a CTA that jumps to the relevant tab via `onTabChange`.
 - Verified end-to-end via Playwright on the iron-and-oak demo shop: panel renders 2 alerts (Stripe-missing as danger, low-stock as warning), header summary correct, ChevronDown toggle expand/collapses the list. Lint clean.
 
+## 2026-04-28 — Shop page filter strip cleanup
+Triggered by user screenshot showing the technique pills rendering as tall vertical bars + 16 categories crammed into 1/3 of a 12-col grid.
+- ✅ Replaced the 12-col grid (search 4 / cats 4 / techs 4) with a stacked layout: search bar → CATEGORY row → TECHNIQUE row → optional reset link.
+- ✅ New `FilterStrip` + `FilterRow` components in `ShopPage.jsx`. Every pill uses `h-8 inline-flex` so the active state can never render as a stretched vertical bar.
+- ✅ Each row prefixed with a small "Category" / "Technique" label (`text-[10px] tracking-[0.22em]`) so buyers know at a glance which axis they're scoping.
+- ✅ Active accent color stays differentiated: orange for category, cream/white for technique — same as the previous design but applied consistently.
+- ✅ Search input gets a clear-X button when a query is set. Reset link shows count of active filters ("↺ RESET 2 FILTERS") and clears all three at once.
+- Verified end-to-end via Playwright at 1920×1080: all 16 category pills render in 2 clean rows; technique row renders horizontally with proper button heights; clicking a category surfaces the reset link with correct count. Lint clean.
+
+
 
 
 
