@@ -129,6 +129,8 @@ export const deleteMakerProduct = (slug) =>
   http.delete(`/maker/products/${slug}`, { headers: authHeaders() }).then((r) => r.data);
 export const restoreMakerProduct = (slug) =>
   http.post(`/maker/products/${slug}/restore`, {}, { headers: authHeaders() }).then((r) => r.data);
+export const purgeMakerProduct = (slug) =>
+  http.delete(`/maker/products/${slug}/purge`, { headers: authHeaders() }).then((r) => r.data);
 export const publishMakerProduct = (slug) =>
   http.post(`/maker/products/${slug}/publish`, {}, { headers: authHeaders() }).then((r) => r.data);
 export const unpublishMakerProduct = (slug) =>

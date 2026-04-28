@@ -490,6 +490,46 @@ async def maker_restore_product(
     return await db.products.find_one({"slug": product_slug}, {"_id": 0})
 
 
+@router.delete("/maker/products/{product_slug}/purge")
+async def maker_purge_product(
+    product_slug: str, slug: str = Depends(current_maker_slug),
+):
+    """Permanently delete an already-archived listing.
+
+    Hard-delete is gated on `deleted_at != None` so a maker can never wipe
+    a live listing by accident — they have to archive it first (which is
+    one click + a confirm), then come back to the Archived view to purge.
+    Also gated on no associated paid orders so refund history stays
+    intact.
+    """
+    prod = await db.products.find_one({"slug": product_slug}, {"_id": 0})
+    if not prod:
+        raise HTTPException(404, "Product not found")
+    if prod.get("maker_slug") != slug:
+        raise HTTPException(403, "You can only delete your own listings.")
+    if not prod.get("deleted_at"):
+        raise HTTPException(
+            400,
+            "Listing must be archived before it can be permanently deleted.",
+        )
+    # Block purge if there's any payment_transactions row referencing this
+    # product slug — would orphan refund history. Maker can keep it
+    # archived forever; we just won't delete the row.
+    has_orders = await db.payment_transactions.find_one(
+        {"items.slug": product_slug}, {"_id": 1}
+    )
+    if has_orders:
+        raise HTTPException(
+            400,
+            "This listing has order history and can't be permanently deleted. "
+            "It will stay archived (and hidden from buyers) for your records.",
+        )
+    await db.products.delete_one({"slug": product_slug})
+    return {"purged": True, "slug": product_slug}
+
+
+
+
 # ---------------- File uploads (R2) ------------------------------------------
 
 @router.post("/maker/uploads/model")
