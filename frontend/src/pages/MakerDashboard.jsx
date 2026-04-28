@@ -15,10 +15,16 @@ import ViolationsTab from "./MakerDashboard/ViolationsTab";
 import MarketingTab from "./MakerDashboard/MarketingTab";
 import FinancialsTab from "./MakerDashboard/FinancialsTab";
 import HelpTab from "./MakerDashboard/HelpTab";
-import UpgradeTab from "./MakerDashboard/UpgradeTab";
 import MessagesTab from "./MakerDashboard/MessagesTab";
 import ProfileForm from "./MakerDashboard/ProfileForm";
 import useModalA11y from "../hooks/useModalA11y";
+
+// Legacy `#upgrade` URLs (the old top-level Upgrade tab) now route to the
+// Subscription section inside Settings — keeps any bookmarked links working.
+function normalizeTab(id) {
+  if (id === "upgrade") return "settings";
+  return id;
+}
 
 /**
  * MakerDashboard 2.0 — Etsy-inspired Shop Manager layout.
@@ -43,9 +49,9 @@ export default function MakerDashboard() {
   const [fresh, setFresh] = useState({ orders: false, messages: false, products: false });
   const [freshKey, setFreshKey] = useState(0);
 
-  const [tab, setTab] = useState(() => (window.location.hash || "#dashboard").replace("#", ""));
+  const [tab, setTab] = useState(() => normalizeTab((window.location.hash || "#dashboard").replace("#", "")));
   useEffect(() => {
-    const onHash = () => setTab((window.location.hash || "#dashboard").replace("#", ""));
+    const onHash = () => setTab(normalizeTab((window.location.hash || "#dashboard").replace("#", "")));
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
@@ -236,7 +242,6 @@ export default function MakerDashboard() {
         {tab === "marketing"  && <MarketingTab />}
         {tab === "financials" && <FinancialsTab />}
         {tab === "help"       && <HelpTab />}
-        {tab === "upgrade"    && <UpgradeTab maker={maker} />}
         {tab === "settings"   && (
           <SettingsTab
             maker={maker}

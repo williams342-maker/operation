@@ -5,6 +5,7 @@ import {
   Users, Megaphone, Languages, Sparkles, Facebook, ChevronRight,
 } from "lucide-react";
 import { updateMakerProfile } from "../../lib/api";
+import UpgradeTab from "./UpgradeTab";
 
 /**
  * Etsy-parity Settings tab for the Maker Shop Manager.
@@ -34,7 +35,7 @@ const SECTIONS = [
   { id: "partners",   label: "Partners you work with", icon: Users, kind: "soon" },
   { id: "offsite",    label: "Offsite Ads",       icon: Megaphone, kind: "deeplink", target: "marketing" },
   { id: "languages",  label: "Languages and translations", icon: Languages, kind: "soon" },
-  { id: "subscription", label: "Your subscription", icon: Sparkles, kind: "deeplink", target: "upgrade" },
+  { id: "subscription", label: "Your subscription", icon: Sparkles, kind: "embed" },
   { id: "facebook",   label: "Facebook Shops",    icon: Facebook,  kind: "soon" },
 ];
 
@@ -91,6 +92,9 @@ export default function SettingsTab({ maker = {}, onMakerUpdated, onTabChange })
           )}
           {active.kind === "form" && active.id === "policy" && (
             <Policy maker={maker} onSaved={onMakerUpdated} />
+          )}
+          {active.kind === "embed" && active.id === "subscription" && (
+            <UpgradeTab maker={maker} />
           )}
         </div>
       </div>
