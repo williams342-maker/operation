@@ -108,105 +108,95 @@ export default function ShopPage() {
 }
 
 
-// Stacked filter strip — search up top, category row, technique row.
-// Each row has a small label so the buyer always knows what they're
-// scoping. All pills share a single `Pill` component with consistent
-// height and same hover/active treatment so nothing renders as a
-// stretched vertical bar (which is what was happening before when an
-// "active" pill landed alone in a narrow flex column).
+// Compact single-row filter strip — search + Category + Technique
+// dropdowns + reset. Replaces the previous 4-row stack which felt
+// cluttered on the Shop page (16 category pills wrapped onto two rows).
+// Native <select> keeps it accessible + mobile-friendly without a
+// custom popover.
 function FilterStrip({ q, setQ, cat, setCat, tech, setTech, activeCount, onReset }) {
   return (
-    <div className="border-y border-[#262626] py-6 mb-10 space-y-5" data-testid="shop-filters">
-      {/* Search bar — full width so it never collides with the pill rows */}
-      <div className="relative max-w-2xl">
-        <Search size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#a3a3a3]" />
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Search pieces…"
-          data-testid="shop-search"
-          className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none pl-10 pr-12 py-2.5 font-mono text-xs uppercase tracking-[0.2em] placeholder:text-[#525252]"
+    <div className="border-y border-[#262626] py-3 md:py-3.5 mb-8" data-testid="shop-filters">
+      <div className="flex flex-wrap items-center gap-2 md:gap-3">
+        {/* Search — flex-grows to fill the row */}
+        <div className="relative flex-1 min-w-[220px]">
+          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#a3a3a3]" />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search pieces…"
+            data-testid="shop-search"
+            className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none pl-9 pr-9 h-9 font-mono text-[11px] uppercase tracking-[0.2em] placeholder:text-[#525252]"
+          />
+          {q && (
+            <button
+              type="button"
+              onClick={() => setQ("")}
+              aria-label="Clear search"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#a3a3a3] hover:text-[#ff4500] font-mono text-xs"
+              data-testid="shop-search-clear"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+
+        <FilterSelect
+          testid="shop-cat-filter"
+          label="Category"
+          value={cat}
+          options={CATS}
+          onChange={setCat}
+          accent={cat !== "All"}
         />
-        {q && (
-          <button
-            type="button"
-            onClick={() => setQ("")}
-            aria-label="Clear search"
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-[#a3a3a3] hover:text-[#ff4500] font-mono text-sm"
-            data-testid="shop-search-clear"
-          >
-            ✕
-          </button>
-        )}
-      </div>
+        <FilterSelect
+          testid="shop-tech-filter"
+          label="Technique"
+          value={tech}
+          options={TECHS}
+          onChange={setTech}
+          accent={tech !== "All"}
+        />
 
-      {/* Category row */}
-      <FilterRow
-        testid="shop-cat-filter"
-        label="Category"
-        items={CATS}
-        active={cat}
-        onPick={setCat}
-        accent="orange"
-      />
-
-      {/* Technique row */}
-      <FilterRow
-        testid="shop-tech-filter"
-        label="Technique"
-        items={TECHS}
-        active={tech}
-        onPick={setTech}
-        accent="white"
-      />
-
-      {/* Reset link — only renders when at least one filter is active */}
-      {activeCount > 0 && (
-        <div className="flex justify-end">
+        {activeCount > 0 && (
           <button
             type="button"
             onClick={onReset}
-            className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] transition"
+            className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] transition shrink-0"
             data-testid="shop-filters-reset"
           >
-            ↺ Reset {activeCount} filter{activeCount > 1 ? "s" : ""}
+            ↺ Reset {activeCount}
           </button>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
 
-function FilterRow({ testid, label, items, active, onPick, accent }) {
-  // Map accent to active-state classes. Orange for category,
-  // white/cream for technique — keeps the two rows visually distinct so
-  // buyers can tell at a glance which axis they're scoping.
-  const activeCls = accent === "orange"
-    ? "bg-[#ff4500] border-[#ff4500] text-black"
-    : "bg-[#e5e5e5] border-[#e5e5e5] text-black";
-  const idleCls = "border-[#262626] text-[#a3a3a3] hover:border-[#525252] hover:text-[#e5e5e5]";
-
+function FilterSelect({ testid, label, value, options, onChange, accent }) {
+  // The `<select>` has no border-color binding to the active state in
+  // CSS, so we wrap it with the active styling and let the native
+  // chevron sit above (appearance-none).
+  const activeCls = accent
+    ? "border-[#ff4500] text-[#ff4500]"
+    : "border-[#262626] text-[#a3a3a3] hover:border-[#525252] hover:text-[#e5e5e5]";
   return (
-    <div className="flex flex-wrap items-center gap-2" data-testid={testid}>
-      <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] mr-2 shrink-0">
+    <label className={`relative inline-flex items-center h-9 border ${activeCls} transition shrink-0`}
+      data-testid={testid}>
+      <span className="px-3 font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252] border-r border-inherit">
         {label}
       </span>
-      {items.map((it) => {
-        const isActive = active === it;
-        return (
-          <button
-            key={it}
-            type="button"
-            onClick={() => onPick(it)}
-            className={`h-8 px-3 inline-flex items-center font-mono text-[10px] uppercase tracking-[0.2em] border transition whitespace-nowrap ${
-              isActive ? activeCls : idleCls
-            }`}
-            data-testid={`${testid}-${it.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
-          >
-            {it}
-          </button>
-        );
-      })}
-    </div>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="appearance-none bg-transparent pl-3 pr-7 h-full font-mono text-[11px] uppercase tracking-[0.18em] outline-none cursor-pointer"
+      >
+        {options.map((o) => (
+          <option key={o} value={o} className="bg-[#0a0a0a] text-[#e5e5e5]">
+            {o}
+          </option>
+        ))}
+      </select>
+      <span aria-hidden="true" className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none font-mono text-[10px]">▾</span>
+    </label>
   );
 }
