@@ -725,6 +725,15 @@ Triggered by user feedback: "i like the previous look better, it has a cleaner l
 - The maker editor + `/shop` page still expose all 16 categories (no change there).
 - Verified end-to-end at 1920×1080: home hero now shows the clean 3-pill row.
 
+## 2026-04-28 — Home hero / CategoryStrip vertical density tightened
+Triggered by user mark-up showing dead space between the live-now strip and "SHOP BY CATEGORY" heading.
+- ✅ `Hero.jsx` `min-h-[88svh]` → `min-h-[72svh]` (-16svh ≈ 173px on 1080p) — hero no longer reserves 88% of viewport height when the content only fills ~60%.
+- ✅ `Hero.jsx` content padding `pt-44 md:pt-52 pb-20` → `pt-36 md:pt-44 pb-10` (saves ~72px combined).
+- ✅ Live-now strip top margin `mt-16` → `mt-8` (-32px).
+- ✅ `CategoryStrip.jsx` section padding `py-16 md:py-20` → `py-10 md:py-12` (-44px on desktop).
+- Net: ~300px reclaimed. Before the change "SHOP BY CATEGORY" was off-screen at 1080p; now it's visible alongside the hero CTA + live-now strip in a single viewport.
+
+
 
 
 

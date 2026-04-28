@@ -16,7 +16,7 @@ const TILES = [
 
 export default function CategoryStrip() {
   return (
-    <section className="w-full py-16 md:py-20 bg-[#0a0a0a] border-b border-[#262626]" data-testid="category-strip">
+    <section className="w-full py-10 md:py-12 bg-[#0a0a0a] border-b border-[#262626]" data-testid="category-strip">
       <div className="w-full max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12">
         <div className="flex items-end justify-between mb-8">
           <div>

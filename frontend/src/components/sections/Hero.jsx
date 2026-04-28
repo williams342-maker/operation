@@ -22,14 +22,14 @@ export default function Hero() {
   };
 
   return (
-    <section id="top" className="relative w-full min-h-[88svh] overflow-hidden" data-testid="hero-section">
+    <section id="top" className="relative w-full min-h-[72svh] overflow-hidden" data-testid="hero-section">
       <div className="absolute inset-0">
         <img src={HERO_BG} alt="" className="absolute inset-0 w-full h-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-b from-black/85 via-black/65 to-[#0a0a0a]" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_30%,rgba(255,69,0,0.18),transparent_55%)]" />
       </div>
 
-      <div className="relative z-10 w-full max-w-[1400px] mx-auto px-4 md:px-8 pt-44 md:pt-52 pb-20 text-center">
+      <div className="relative z-10 w-full max-w-[1400px] mx-auto px-4 md:px-8 pt-36 md:pt-44 pb-10 text-center">
         <motion.div
           initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7 }}
@@ -89,7 +89,7 @@ export default function Hero() {
           ))}
         </motion.div>
 
-        <div className="mt-16 flex items-center justify-center gap-8 font-mono text-[10px] uppercase tracking-[0.25em] text-[#525252]">
+        <div className="mt-8 flex items-center justify-center gap-8 font-mono text-[10px] uppercase tracking-[0.25em] text-[#525252]">
           <span className="flex items-center gap-2"><span className="w-1.5 h-1.5 bg-[#ff4500] animate-pulse" /> 12 makers · live now</span>
           <span className="hidden md:inline">Plasma · Laser · Router</span>
           <span className="hidden md:flex items-center gap-2"><ArrowDown size={12} /> Scroll</span>
