@@ -642,5 +642,12 @@ Triggered by user feedback: "I need a save button when creating a new listing, I
 - ✅ **Manual `submit()` deduped**: now uses `slug || autoSlug` for the target — eliminates the race where a fast typist gets two drafts (one from autosave, one from clicking Save Draft a beat later).
 - Verified end-to-end via Playwright on `/maker/listings/new`: idle → no indicator → typed title → 1.7s wait → "Saved just now" indicator appears → edit description → still 1 draft on dashboard (no duplicates). Editor lint clean.
 
+## 2026-04-28 — ImageCropModal viewport overflow fix
+User reported: on their (short) viewport the crop modal extended below the visible area, so the Apply Crop button was unreachable — they could only see the cropper canvas + the bottom edge of the Zoom slider (screenshot artifact `d4u93lzy_image.png`).
+- ✅ Restructured `ImageCropModal.jsx` to a `flex flex-col max-h-[92vh]` shell. Header / aspect row / sliders / footer are all `shrink-0`; the cropper canvas swapped from `aspect-square` (which forced the whole modal taller than the viewport on short screens) to `flex-1 min-h-[260px]` so it shrinks to fit whatever vertical space remains.
+- ✅ Footer made sticky-bottom with `bg-[#0a0a0a]` so the orange Apply Crop CTA + Skip button never get scrolled off-screen, regardless of viewport height. Hide the auxiliary "Auto-compressed" hint on `<sm` widths to give the CTAs more breathing room.
+- Verified across viewports 1400×720, 1280×800, 1100×600 — Apply Crop button is fully in-viewport and click-functional in every case. Image flow end-to-end (upload → crop → confirm → form.images.length === 1) verified on the tight 1100×600 case.
+
+
 
 
