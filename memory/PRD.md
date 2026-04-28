@@ -635,4 +635,12 @@ Triggered by user feedback: "I need a save button when creating a new listing, I
 - ✅ **Publish blocker hint** — when `canPublish === false`, a small amber "◇ Add title, description, price… to publish" line renders directly under the disabled Publish button (and the same string is set as the button's `title=` for tooltip on hover). Pulls from the existing `errors` map so it auto-updates as the maker fills in fields. Hidden the moment the form is publish-ready.
 - Verified end-to-end via Playwright: upload PNG → crop modal → confirm → re-crop with 45° rotation → Save Draft → "Draft saved." toast → redirected to dashboard with drafts count incremented. Editor lint clean.
 
+## 2026-04-28 — Listing Editor: autosave-as-you-type
+- ✅ **Debounced autosave** wired into the editor — every form mutation triggers a 1500ms `setTimeout` that PATCHes (`updateMakerProduct`) the existing draft, or POSTs a fresh draft (`createMakerProduct` with `status: "draft"`) on first save for new listings. The returned slug is stashed in `autoSlug` state so subsequent autosaves (and the manual Save Draft / Publish click) PATCH in place — no duplicate drafts, regardless of typing speed.
+- ✅ **`AutoSaveIndicator` pill** in the editor's action bar renders three states: `Saving…` (animated spinner), `Saved Xs ago` (emerald check, relative time), `Save failed` (amber alert, advises Save Draft as fallback). Idle state renders nothing — visually quiet by default. A 30s ticker (`agoTick`) refreshes the relative time without re-rendering on every keystroke.
+- ✅ **Skips when**: editor still hydrating (`!loaded`), manual save in flight (`saving`), OR no slug AND no title yet (nothing worth persisting).
+- ✅ **Manual `submit()` deduped**: now uses `slug || autoSlug` for the target — eliminates the race where a fast typist gets two drafts (one from autosave, one from clicking Save Draft a beat later).
+- Verified end-to-end via Playwright on `/maker/listings/new`: idle → no indicator → typed title → 1.7s wait → "Saved just now" indicator appears → edit description → still 1 draft on dashboard (no duplicates). Editor lint clean.
+
+
 

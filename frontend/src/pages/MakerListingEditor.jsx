@@ -58,6 +58,19 @@ export default function MakerListingEditor() {
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(!isEdit);
 
+  // ---- Autosave state ----
+  // `autoStatus` is the lifecycle for the indicator pill: idle (no edits
+  // yet), saving (request in flight), saved (successful save), error
+  // (last attempt failed — manual retry recommended).
+  const [autoStatus, setAutoStatus] = useState("idle");
+  const [lastSavedAt, setLastSavedAt] = useState(null);
+  // Slug of the draft auto-created on a brand-new listing. Once set, all
+  // subsequent autosaves PATCH instead of creating duplicate drafts.
+  const [autoSlug, setAutoSlug] = useState(null);
+  // Bumps every 30s so the "Saved 3s ago" copy stays fresh without
+  // re-rendering on every keystroke.
+  const [agoTick, setAgoTick] = useState(0);
+
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
 
   // Auth gate + initial data load
@@ -422,8 +435,13 @@ export default function MakerListingEditor() {
     try {
       const payload = buildPayload(statusOverride);
       let res;
-      if (isEdit) {
-        res = await updateMakerProduct(slug, payload);
+      // If autosave already created a draft for this /new session, PATCH
+      // it rather than POSTing a fresh row — otherwise we'd end up with
+      // duplicate drafts whenever the maker types fast enough to trigger
+      // autosave then immediately clicks Save Draft / Publish.
+      const targetSlug = slug || autoSlug;
+      if (targetSlug) {
+        res = await updateMakerProduct(targetSlug, payload);
         toast.success(statusOverride === "published" ? "Listing published." : "Draft saved.");
       } else {
         res = await createMakerProduct(payload);
@@ -464,6 +482,53 @@ export default function MakerListingEditor() {
     window.open(`/shop/${slug}`, "_blank");
   };
 
+  // ---------------- Autosave ------------------------------------------------
+  // Skip autosave when:
+  //   • Loader is still hydrating an existing listing (initial setForm).
+  //   • The user has typed nothing meaningful yet (no title) AND we have no
+  //     existing slug to patch — there's nothing worth persisting.
+  //   • A manual save is already in flight (avoid race).
+  //
+  // Behaviour:
+  //   • Debounce 1500ms after the last form mutation.
+  //   • If `slug` (existing edit) or `autoSlug` (already auto-created), PATCH.
+  //   • Otherwise CREATE a new draft with status='draft' and stash the slug
+  //     so subsequent edits patch in place (no duplicate drafts).
+  const effectiveSlug = slug || autoSlug;
+
+  useEffect(() => {
+    if (!loaded) return;
+    if (saving) return;
+    if (!effectiveSlug && !form.title.trim()) return;
+    const t = setTimeout(async () => {
+      try {
+        setAutoStatus("saving");
+        const payload = buildPayload("draft");
+        if (effectiveSlug) {
+          await updateMakerProduct(effectiveSlug, payload);
+        } else {
+          const created = await createMakerProduct({ ...payload, status: "draft" });
+          if (created?.slug) setAutoSlug(created.slug);
+        }
+        setLastSavedAt(new Date());
+        setAutoStatus("saved");
+      } catch (e) {
+        // Swallow — silent failures show as a yellow indicator pill, the
+        // maker still has the manual Save Draft button as a fallback.
+        setAutoStatus("error");
+      }
+    }, 1500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form, loaded, saving, effectiveSlug]);
+
+  // Tick every 30s so the "Saved 3s ago" relative time updates without
+  // redrawing the whole tree on every keystroke.
+  useEffect(() => {
+    const id = setInterval(() => setAgoTick((n) => n + 1), 30_000);
+    return () => clearInterval(id);
+  }, []);
+
   if (!loaded) {
     return (
       <div className="pt-40 text-center font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500]">
@@ -497,6 +562,9 @@ export default function MakerListingEditor() {
             saving={saving}
             canPublish={canPublish}
             errors={errors}
+            autoStatus={autoStatus}
+            lastSavedAt={lastSavedAt}
+            agoTick={agoTick}
             onClone={cloneListing}
             onPreview={previewListing}
             onSaveDraft={() => submit("draft")}
@@ -867,6 +935,9 @@ export default function MakerListingEditor() {
             saving={saving}
             canPublish={canPublish}
             errors={errors}
+            autoStatus={autoStatus}
+            lastSavedAt={lastSavedAt}
+            agoTick={agoTick}
             onClone={cloneListing}
             onPreview={previewListing}
             onSaveDraft={() => submit("draft")}

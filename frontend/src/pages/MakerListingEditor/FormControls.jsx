@@ -1,5 +1,5 @@
 import React from "react";
-import { Copy, Eye, Save, Send } from "lucide-react";
+import { Copy, Eye, Save, Send, Check, Loader2, AlertCircle } from "lucide-react";
 
 /**
  * Shared form controls for the Listing Editor. These are pure presentational
@@ -117,7 +117,7 @@ export function ToggleRow({ label, hint, on, onChange, testid }) {
   );
 }
 
-export function ActionButtons({ isEdit, saving, canPublish, errors, onClone, onPreview, onSaveDraft, onPublish }) {
+export function ActionButtons({ isEdit, saving, canPublish, errors, autoStatus, lastSavedAt, agoTick, onClone, onPreview, onSaveDraft, onPublish }) {
   // Build a short "what's missing" hint shown next to a disabled Publish
   // button so the maker isn't left wondering why the orange CTA is greyed
   // out. We only show it when there are actual validation issues; the hint
@@ -129,6 +129,7 @@ export function ActionButtons({ isEdit, saving, canPublish, errors, onClone, onP
 
   return (
     <div className="flex items-center gap-2">
+      <AutoSaveIndicator status={autoStatus} lastSavedAt={lastSavedAt} agoTick={agoTick} />
       {isEdit && (
         <button
           type="button" onClick={onClone}
@@ -176,4 +177,72 @@ export function ActionButtons({ isEdit, saving, canPublish, errors, onClone, onP
       </div>
     </div>
   );
+}
+
+
+// Compact pill that shows the autosave lifecycle. Mounted inside the
+// action bar so the maker always knows whether their last keystroke is
+// safe on the server. Idle state renders nothing — visually quiet by
+// default, only speaks up when there's something to say.
+//
+//   • saving → spinning loader + "Saving…"
+//   • saved  → green check + relative time ("Saved 3s ago")
+//   • error  → amber alert + "Save failed"
+//
+// `agoTick` is a counter the parent bumps every 30s so the relative
+// "X ago" string stays fresh without re-rendering on every keystroke.
+export function AutoSaveIndicator({ status, lastSavedAt, agoTick }) {
+  if (status === "idle") return null;
+  // Reference the tick so React re-renders this component periodically.
+  void agoTick;
+
+  if (status === "saving") {
+    return (
+      <span
+        className="hidden md:inline-flex items-center gap-1.5 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-[#a3a3a3]"
+        data-testid="editor-autosave-saving"
+      >
+        <Loader2 size={11} className="animate-spin" />
+        Saving…
+      </span>
+    );
+  }
+
+  if (status === "error") {
+    return (
+      <span
+        className="hidden md:inline-flex items-center gap-1.5 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-amber-400"
+        data-testid="editor-autosave-error"
+        title="Last autosave failed — use Save Draft to retry."
+      >
+        <AlertCircle size={11} />
+        Save failed
+      </span>
+    );
+  }
+
+  // status === "saved"
+  return (
+    <span
+      className="hidden md:inline-flex items-center gap-1.5 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-emerald-400/80"
+      data-testid="editor-autosave-saved"
+    >
+      <Check size={11} />
+      Saved {relativeTime(lastSavedAt)}
+    </span>
+  );
+}
+
+// Tiny relative-time helper. Coarse buckets — granularity below 5s isn't
+// useful, and we never need >24h precision since the page won't outlive
+// a single session.
+function relativeTime(date) {
+  if (!date) return "just now";
+  const sec = Math.max(0, Math.round((Date.now() - date.getTime()) / 1000));
+  if (sec < 5) return "just now";
+  if (sec < 60) return `${sec}s ago`;
+  const min = Math.round(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.round(min / 60);
+  return `${hr}h ago`;
 }
