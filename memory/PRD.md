@@ -718,6 +718,14 @@ Triggered by user screenshot showing the technique pills rendering as tall verti
 - ✅ Search input gets a clear-X button when a query is set. Reset link shows count of active filters ("↺ RESET 2 FILTERS") and clears all three at once.
 - Verified end-to-end via Playwright at 1920×1080: all 16 category pills render in 2 clean rows; technique row renders horizontally with proper button heights; clicking a category surfaces the reset link with correct count. Lint clean.
 
+## 2026-04-28 — Home hero pills reverted to curated 3-item set
+Triggered by user feedback: "i like the previous look better, it has a cleaner look. I want to keep the categories available for makers just not on the home screen."
+- ✅ Reverted `Hero.jsx` `PILLS` from 6 (`Wall Art · Custom Signs · Outdoor Art · Wedding Gifts · Business Signage · Address Numbers`) back to the original curated 3 (`Wall Art · Custom Signs · Outdoor Art`).
+- ✅ Added an inline comment documenting that the home hero is intentionally a *marketing* surface — the full 16-category list lives on `/shop` filter strip and inside the maker listing editor.
+- The maker editor + `/shop` page still expose all 16 categories (no change there).
+- Verified end-to-end at 1920×1080: home hero now shows the clean 3-pill row.
+
+
 
 
 
