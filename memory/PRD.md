@@ -701,6 +701,15 @@ Triggered by user feedback: "the large welcome back and shop seems large and ove
 - ✅ Push-down effect: Crafters Plus upgrade card now lands above the fold; "1 step to launch-ready shop" checklist + start of Recent Orders + Quick Links all visible without scrolling on a 1080p screen (was previously off-screen below the giant header).
 - Verified end-to-end via Playwright: 4 KPI pills render, clicking the Live KPI navigates to the Listings tab (`products-view-switcher` mounted). Lint clean.
 
+## 2026-04-28 — Maker Dashboard: "Today" alerts panel
+- ✅ New collapsible **`TodayAlerts`** section between the compact header and the Crafters Plus upgrade card. Surfaces actionable items the maker needs to address — Etsy "Action Items" pattern.
+- Alert categories implemented:
+  - 🔴 **Danger**: orders pending shipment > 3 days · Stripe payouts not connected
+  - 🟡 **Warning**: listings expiring within 7 days · low-stock listings (≤1 unit) · unread DMs · Founding Seller beta ending within 14 days
+- Auto-collapses when zero alerts (renders nothing on a healthy dashboard). Header summary shows count + tone breakdown ("2 items need you · 1 urgent · 1 warning"). Each alert has tone-coded dot + icon + a CTA that jumps to the relevant tab via `onTabChange`.
+- Verified end-to-end via Playwright on the iron-and-oak demo shop: panel renders 2 alerts (Stripe-missing as danger, low-stock as warning), header summary correct, ChevronDown toggle expand/collapses the list. Lint clean.
+
+
 
 
 

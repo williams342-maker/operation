@@ -1,8 +1,8 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   ShoppingBag, Box, MessageSquare, AlertTriangle, DollarSign,
-  ArrowUpRight, Sparkles,
+  ArrowUpRight, Sparkles, Clock, Package, ChevronDown,
 } from "lucide-react";
 import PlusUpgradeNudge from "./PlusUpgradeNudge";
 
@@ -130,6 +130,18 @@ export default function DashboardTab({
           onTabChange={onTabChange}
         />
       </header>
+
+      {/* TODAY — actionable alerts surface. Defaults open when there are
+          high-priority items, collapsed when everything's quiet (so it
+          never adds noise on a clean dashboard). Each alert has a CTA
+          that jumps to the relevant tab. */}
+      <TodayAlerts
+        maker={maker}
+        orders={orders}
+        products={products}
+        unreadMessages={unreadMessages}
+        onTabChange={onTabChange}
+      />
 
       {/* CRAFTERS PLUS UPGRADE NUDGE — always visible for Free makers, never
           dismissible (per spec: surfacing is the point). Hidden for Plus
@@ -389,5 +401,211 @@ function QuickLink({ to, onClick, icon: Icon, label, testId }) {
       </div>
       <span className="font-mono text-[10px] text-[#a3a3a3]">→</span>
     </button>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+// TODAY alerts — Etsy-style "action items" panel
+// ---------------------------------------------------------------------------
+//
+// Why a panel instead of just dropping these into the existing checklist?
+// The checklist is one-shot onboarding (clears once you complete it). The
+// Today panel is recurring — it re-fires daily for shipping deadlines,
+// expiring listings, low stock, etc. They're different mental categories
+// and conflating them dilutes both.
+//
+// Tone hierarchy:
+//   • danger — late shipments, payout setup missing → red border
+//   • warn   — listings expiring this week, low stock, unread DMs → amber
+//   • info   — gentle nudges (no orders yet, etc.) → neutral grey
+//
+// Default behavior:
+//   • If any DANGER alerts → panel auto-expands.
+//   • If only WARN/INFO   → panel collapsed (one-line summary only).
+//   • If zero alerts      → renders nothing (silent on a healthy dashboard).
+function TodayAlerts({ maker, orders, products, unreadMessages, onTabChange }) {
+  const alerts = useMemo(() => {
+    const out = [];
+    const now = Date.now();
+    const dayMs = 86400 * 1000;
+
+    // --- Late shipments: orders pending > 3 days ---
+    orders.forEach((o) => {
+      const status = (o.status || "").toLowerCase();
+      if (status === "shipped" || status === "delivered" || status === "cancelled") return;
+      const created = o.created_at ? new Date(o.created_at).getTime() : 0;
+      if (!created) return;
+      const ageDays = Math.floor((now - created) / dayMs);
+      if (ageDays >= 3) {
+        out.push({
+          tone: "danger",
+          icon: Clock,
+          label: `Order #${(o.id || "").slice(0, 8)} awaiting shipment`,
+          detail: `${ageDays} day${ageDays > 1 ? "s" : ""} since the buyer paid.`,
+          cta: { label: "Ship now →", target: "orders" },
+          key: `late-${o.id}`,
+        });
+      }
+    });
+
+    // --- Stripe payouts not connected ---
+    if (!maker?.stripe_charges_enabled || !maker?.stripe_payouts_enabled) {
+      out.push({
+        tone: "danger",
+        icon: DollarSign,
+        label: "Connect Stripe to receive payouts",
+        detail: "We can't send money until your Stripe account is set up.",
+        cta: { label: "Set up payouts →", target: "financials" },
+        key: "stripe-missing",
+      });
+    }
+
+    // --- Listings expiring this week ---
+    const expiringSoon = (products || []).filter((p) => {
+      if (p.deleted_at || p.status === "draft") return false;
+      if (!p.expires_at) return false;
+      const exp = new Date(p.expires_at).getTime();
+      return exp > now && exp - now < 7 * dayMs;
+    });
+    if (expiringSoon.length > 0) {
+      out.push({
+        tone: "warn",
+        icon: Clock,
+        label: `${expiringSoon.length} listing${expiringSoon.length > 1 ? "s" : ""} expiring within 7 days`,
+        detail: "Renew them to keep buyers landing on the page.",
+        cta: { label: "Manage listings →", target: "listings" },
+        key: "expiring",
+      });
+    }
+
+    // --- Low stock (in_stock <= 1, only on live listings) ---
+    const lowStock = (products || []).filter(
+      (p) => !p.deleted_at && p.status !== "draft" && (p.in_stock || 0) <= 1,
+    );
+    if (lowStock.length > 0) {
+      out.push({
+        tone: "warn",
+        icon: Package,
+        label: `${lowStock.length} listing${lowStock.length > 1 ? "s" : ""} low on stock`,
+        detail: "1 unit or fewer — bump the count or buyers will see 'sold out'.",
+        cta: { label: "Update stock →", target: "listings" },
+        key: "lowstock",
+      });
+    }
+
+    // --- Unread DMs (only flag when count is non-trivial) ---
+    if (unreadMessages > 0) {
+      out.push({
+        tone: "warn",
+        icon: MessageSquare,
+        label: `${unreadMessages} unread message${unreadMessages > 1 ? "s" : ""}`,
+        detail: "Buyers expect a reply within 24 hours.",
+        cta: { label: "Open messages →", target: "messages" },
+        key: "unread-dms",
+      });
+    }
+
+    // --- Beta countdown ---
+    if (maker?.maker_beta_expires_at) {
+      const exp = new Date(maker.maker_beta_expires_at).getTime();
+      const daysLeft = Math.ceil((exp - now) / dayMs);
+      if (daysLeft > 0 && daysLeft <= 14) {
+        out.push({
+          tone: "warn",
+          icon: AlertTriangle,
+          label: `Founding Seller beta ends in ${daysLeft} day${daysLeft === 1 ? "" : "s"}`,
+          detail: "Your reduced commission rate expires soon.",
+          cta: { label: "Plan ahead →", target: "settings" },
+          key: "beta-soon",
+        });
+      }
+    }
+
+    return out;
+  }, [maker, orders, products, unreadMessages]);
+
+  const hasDanger = alerts.some((a) => a.tone === "danger");
+  // Default open whenever there's something to show — auto-collapses
+  // entirely when the maker hits zero alerts (handled below).
+  const [open, setOpen] = useState(true);
+
+  if (alerts.length === 0) return null;
+
+  const dangerCount = alerts.filter((a) => a.tone === "danger").length;
+  const warnCount = alerts.filter((a) => a.tone === "warn").length;
+
+  return (
+    <section
+      className={`border ${hasDanger ? "border-red-700/60" : "border-amber-700/40"} bg-[#0d0d0d]`}
+      data-testid="today-alerts"
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[#161616] transition"
+        aria-expanded={open}
+        data-testid="today-alerts-toggle"
+      >
+        <span
+          className={`font-mono text-[10px] uppercase tracking-[0.22em] ${
+            hasDanger ? "text-red-400" : "text-amber-400"
+          }`}
+        >
+          ◆ Today
+        </span>
+        <span className="font-mono text-[11px] text-[#e5e5e5]">
+          {alerts.length} item{alerts.length > 1 ? "s" : ""} need{alerts.length === 1 ? "s" : ""} you
+          {dangerCount > 0 && <span className="text-red-400 ml-2">· {dangerCount} urgent</span>}
+          {warnCount > 0 && <span className="text-amber-400 ml-2">· {warnCount} warning{warnCount > 1 ? "s" : ""}</span>}
+        </span>
+        <ChevronDown
+          size={14}
+          className={`ml-auto text-[#a3a3a3] transition-transform ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+
+      {open && (
+        <ul className="divide-y divide-[#1f1f1f] border-t border-[#1f1f1f]" data-testid="today-alerts-list">
+          {alerts.map((a) => (
+            <AlertRow key={a.key} alert={a} onTabChange={onTabChange} />
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+const TONE_STYLE = {
+  danger: { dot: "bg-red-500", text: "text-red-400" },
+  warn: { dot: "bg-amber-500", text: "text-amber-400" },
+  info: { dot: "bg-[#525252]", text: "text-[#a3a3a3]" },
+};
+
+function AlertRow({ alert, onTabChange }) {
+  const style = TONE_STYLE[alert.tone] || TONE_STYLE.info;
+  const Icon = alert.icon;
+  return (
+    <li
+      className="flex items-start gap-3 px-4 py-3"
+      data-testid={`today-alert-${alert.key}`}
+    >
+      <span className={`mt-1.5 w-1.5 h-1.5 rounded-full shrink-0 ${style.dot}`} aria-hidden="true" />
+      <Icon size={14} className={`mt-0.5 shrink-0 ${style.text}`} />
+      <div className="flex-1 min-w-0">
+        <div className="font-mono text-xs text-[#e5e5e5]">{alert.label}</div>
+        <div className="font-mono text-[10px] text-[#737373] mt-0.5">{alert.detail}</div>
+      </div>
+      {alert.cta && (
+        <button
+          type="button"
+          onClick={() => onTabChange?.(alert.cta.target)}
+          className="shrink-0 px-3 py-1 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[9px] uppercase tracking-[0.22em] transition"
+          data-testid={`today-alert-cta-${alert.key}`}
+        >
+          {alert.cta.label}
+        </button>
+      )}
+    </li>
   );
 }
