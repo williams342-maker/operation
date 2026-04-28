@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import {
   aiListingCopy, aiSeoAudit, aiSeoBulk,
   fetchDiscountCodes, createDiscountCode, toggleDiscountCode, deleteDiscountCode,
-  fetchMakerProducts, queueBufferShare,
+  fetchMakerProducts, makerShareListingToBuffer,
 } from "../../lib/api";
 
 /**
@@ -159,7 +159,7 @@ function SocialMedia() {
   const share = async (slug) => {
     setBusy(slug);
     try {
-      await queueBufferShare(slug);
+      await makerShareListingToBuffer(slug);
       toast.success("Queued to Buffer — will post across your linked socials.");
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Buffer queue failed.");
