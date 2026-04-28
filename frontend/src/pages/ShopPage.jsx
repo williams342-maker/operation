@@ -7,6 +7,7 @@ import { CardSkeleton } from "../components/Skeleton";
 import { Search, Wrench } from "lucide-react";
 import { useStructuredData } from "../lib/seo";
 import { CATEGORIES } from "./MakerListingEditor/constants";
+import SupportVeteransStrip from "../components/SupportVeteransStrip";
 
 // Buyer-facing filter strip. "All" pinned to the front; the rest mirrors
 // the CATEGORIES list makers see in the editor so anything they publish
@@ -54,8 +55,9 @@ export default function ShopPage() {
   }), [products, cat, tech, q]);
 
   return (
-    <div className="pt-32 pb-24 grain min-h-screen" data-testid="shop-page">
-      <div className="w-full max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12">
+    <div className="pb-24 grain min-h-screen" data-testid="shop-page">
+      <SupportVeteransStrip />
+      <div className="w-full max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12 pt-12 md:pt-16">
         <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-4">◆ SHOP</div>
         <h1 className="font-display text-[64px] md:text-[140px] leading-[0.88] mb-12">
           The <span className="text-outline">Marketplace</span>
