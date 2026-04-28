@@ -578,3 +578,10 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - ✅ Frontend `RotatePasswordModal.jsx` renders as a blocking full-screen overlay in `AdminDashboard` whenever `me.requires_password_rotation === true`. No close button, no overlay-click dismiss, no esc-to-close. Requires current password + new password (≥10 chars, different from current) + confirmation. On success, calls `refresh()` which re-fetches `/admin/me` — modal auto-unmounts when the flag flips back to false.
 - Verified end-to-end: backdate `last_password_change_at` to 45 days ago → login returns `requires_password_rotation: true` → admin redirected to dashboard → blocking modal "YOUR PASSWORD HAS EXPIRED." renders → fill current/new/confirm → modal dismisses → admin console fully accessible. Password set via `/auth/password/set/admin` bumps `last_password_change_at` to now, resetting the 30-day clock.
 
+
+## 2026-04-28 — Pre-expiry password rotation banner
+- ✅ **Non-blocking warning banner** at the top of `AdminDashboard` (between the stats and the tab bar) — shows when `password_rotation.days_until_required <= 5` AND `!requires_password_rotation`. Yellow bordered, reads "Your password expires in X days. Rotate now to reset the 30-day clock" with a one-click "Rotate now →" CTA.
+- ✅ **Dismissible modal** — `RotatePasswordModal` now accepts an optional `onClose` prop. When provided (voluntary rotation from the banner), esc/overlay-click dismiss works, a ✕ close button renders, and the copy swaps from "YOUR PASSWORD HAS EXPIRED" / "Rotation required" to "ROTATE YOUR PASSWORD" / "Rotate early" so admins know it's optional. When absent (post-expiry), the modal stays hard-blocking.
+- ✅ On successful voluntary rotation, both `onDone()` AND `onClose()` fire — dashboard refreshes `/admin/me` and the modal unmounts.
+- Verified via Playwright: backdate password to 27 days old → dashboard renders banner with "3 days" text, blocking modal NOT present → click "Rotate now" → dismissible modal opens with "ROTATE YOUR PASSWORD" headline + ✕ close button → close without rotating → modal dismisses, banner still visible. Screenshot confirms the final visual.
+

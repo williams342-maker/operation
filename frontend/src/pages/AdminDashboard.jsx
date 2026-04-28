@@ -59,6 +59,9 @@ export default function AdminDashboard() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
+  // `voluntaryRotate` = admin clicked "Rotate now" from the pre-expiry
+  // banner. Opens the same RotatePasswordModal in dismissible mode.
+  const [voluntaryRotate, setVoluntaryRotate] = useState(false);
 
   const logout = () => {
     localStorage.removeItem("cm_admin_jwt");
@@ -160,6 +163,39 @@ export default function AdminDashboard() {
           <Stat label="Revenue" value={`$${totalRevenue.toFixed(0)}`} testId="stat-revenue" />
         </div>
 
+        {/* Pre-expiry password rotation warning — shown when the admin is
+            within 5 days of the forced rotation deadline but NOT yet past
+            it (past = blocking modal takes over). One-click "Rotate now"
+            opens the same modal in dismissible mode. */}
+        {me && !me.requires_password_rotation
+          && typeof me.password_rotation?.days_until_required === "number"
+          && me.password_rotation.days_until_required <= 5
+          && me.password_rotation.policy_days > 0 && (
+          <div
+            className="mb-8 border border-yellow-600/60 bg-yellow-600/10 px-4 md:px-5 py-3 flex flex-col md:flex-row md:items-center gap-3 md:gap-4"
+            data-testid="password-expiry-banner"
+          >
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-yellow-400 shrink-0">
+              ◆ Security
+            </div>
+            <div className="flex-1 font-mono text-xs text-[#e5e5e5] leading-relaxed">
+              Your password expires in{" "}
+              <b className="text-yellow-300" data-testid="password-expiry-days">
+                {me.password_rotation.days_until_required}{" "}
+                {me.password_rotation.days_until_required === 1 ? "day" : "days"}
+              </b>
+              . Rotate now to reset the {me.password_rotation.policy_days}-day clock.
+            </div>
+            <button
+              onClick={() => setVoluntaryRotate(true)}
+              className="px-4 py-2 bg-yellow-500 hover:bg-yellow-400 text-[#0a0a0a] border border-yellow-600 font-mono text-[10px] uppercase tracking-[0.22em] shrink-0 transition"
+              data-testid="password-expiry-rotate-btn"
+            >
+              Rotate now →
+            </button>
+          </div>
+        )}
+
         <div
           className="-mx-4 md:mx-0 px-4 md:px-0 flex border-b border-[#262626] mb-8 overflow-x-auto sticky top-[64px] md:top-0 bg-[#0a0a0a] z-20 scrollbar-thin"
           data-testid="admin-tabs"
@@ -209,6 +245,17 @@ export default function AdminDashboard() {
           policyDays={me.password_rotation?.policy_days || 30}
           daysSince={me.password_rotation?.days_since_change || 0}
           onDone={refresh}
+        />
+      )}
+
+      {/* Voluntary (dismissible) rotation — opened from the pre-expiry banner. */}
+      {voluntaryRotate && me && !me.requires_password_rotation && (
+        <RotatePasswordModal
+          email={me.email}
+          policyDays={me.password_rotation?.policy_days || 30}
+          daysSince={me.password_rotation?.days_since_change || 0}
+          onDone={refresh}
+          onClose={() => setVoluntaryRotate(false)}
         />
       )}
     </div>

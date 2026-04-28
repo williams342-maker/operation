@@ -16,14 +16,17 @@ import useModalA11y from "../../hooks/useModalA11y";
  * and the modal unmounts naturally once `requires_password_rotation` flips
  * back to false.
  */
-export default function RotatePasswordModal({ email, policyDays, daysSince, onDone }) {
+export default function RotatePasswordModal({ email, policyDays, daysSince, onDone, onClose }) {
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  // Pass a no-op closer so a11y hook doesn't wire esc-to-close.
-  const dialogRef = useModalA11y(() => {});
+  // When `onClose` is provided (voluntary rotation from the pre-expiry
+  // banner), esc/overlay-click dismiss. When it's absent (hard block after
+  // expiry), the modal is persistent and can only be cleared by rotating.
+  const dialogRef = useModalA11y(onClose || (() => {}));
+  const dismissible = !!onClose;
 
   const submit = async (e) => {
     e.preventDefault();
@@ -37,6 +40,7 @@ export default function RotatePasswordModal({ email, policyDays, daysSince, onDo
       await passwordSet("admin", next, current, token);
       toast.success("Password rotated — you're good for another 30 days.");
       await onDone?.();
+      onClose?.();
     } catch (e2) {
       const d = e2?.response?.data?.detail;
       setErr(typeof d === "string" ? d : "Couldn't rotate — check your current password and try again.");
@@ -49,24 +53,37 @@ export default function RotatePasswordModal({ email, policyDays, daysSince, onDo
     <div
       className="fixed inset-0 z-[70] bg-black/95 backdrop-blur-md flex items-center justify-center p-4"
       data-testid="rotate-password-modal"
+      onClick={dismissible ? onClose : undefined}
     >
       <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="rotate-pw-headline"
-        className="bg-[#0a0a0a] border border-[#ff4500] max-w-md w-full p-6 space-y-4"
+        className="bg-[#0a0a0a] border border-[#ff4500] max-w-md w-full p-6 space-y-4 relative"
+        onClick={(e) => e.stopPropagation()}
       >
+        {dismissible && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="absolute top-3 right-3 font-mono text-xs text-[#a3a3a3] hover:text-[#ff4500] px-2 py-1 border border-[#262626] hover:border-[#ff4500] transition"
+            data-testid="rotate-pw-close"
+            aria-label="Close"
+          >
+            ✕
+          </button>
+        )}
         <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500]">
-          ◆ Security · Rotation required
+          ◆ Security · {dismissible ? "Rotate early" : "Rotation required"}
         </div>
         <h3 id="rotate-pw-headline" className="font-display text-3xl uppercase leading-[0.95]">
-          Your Password Has Expired.
+          {dismissible ? "Rotate Your Password." : "Your Password Has Expired."}
         </h3>
         <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed">
           Admin passwords must be rotated every <b className="text-[#e5e5e5]">{policyDays} days</b>.
           Yours was last changed <b className="text-[#e5e5e5]">{daysSince} days ago</b>.
-          Set a new password to continue.
+          {dismissible ? " You can rotate now or come back later." : " Set a new password to continue."}
         </p>
         <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] border border-[#262626] px-3 py-2">
           {email}
