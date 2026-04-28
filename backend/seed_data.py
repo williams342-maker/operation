@@ -109,3 +109,52 @@ async def seed_if_empty():
     if await db.activity_events.count_documents({}) == 0:
         for a in SEED_ACTIVITY:
             await db.activity_events.insert_one({**ActivityEvent(**a).model_dump()})
+    await _seed_admin_password()
+
+
+async def _seed_admin_password():
+    """Seed the super-admin password from env so production (and any fresh
+    deploy) has a working email+password admin login out of the box.
+
+    Set `ADMIN_INIT_PASSWORD_HASH` in the deploy env to a bcrypt($2b$) hash
+    of the chosen password (generate locally with `hash_password(...)`).
+    Optionally set `ADMIN_INIT_EMAIL` to override which admin to seed;
+    defaults to `OPS_EMAIL`. The seeder is **idempotent**:
+      - if the admin row already has any `password_hash`, it's left alone
+        (so users who rotate their password via /auth/password/set are
+        never clobbered by the env hash on redeploy);
+      - it only writes when the admin row is missing a hash.
+    """
+    import os as _os
+    h = (_os.environ.get("ADMIN_INIT_PASSWORD_HASH") or "").strip()
+    if not h.startswith("$2"):
+        return  # not configured (or not a bcrypt hash) — do nothing
+    email = (_os.environ.get("ADMIN_INIT_EMAIL")
+             or _os.environ.get("OPS_EMAIL") or "").lower().strip()
+    if not email:
+        return
+    from core import now_iso
+    existing = await db.admin_users.find_one(
+        {"email": email}, {"_id": 0, "password_hash": 1},
+    )
+    if existing and existing.get("password_hash"):
+        return  # user has already set/rotated a password — hands off
+    await db.admin_users.update_one(
+        {"email": email},
+        {
+            "$set": {
+                "email": email,
+                "password_hash": h,
+                "password_set_at": now_iso(),
+                "last_password_change_at": now_iso(),
+                "password_reset_nonce": "",
+                "is_active": True,
+                "capabilities": ["super_admin"],
+            },
+            "$setOnInsert": {
+                "created_at": now_iso(),
+                "invited_by": "env-seed",
+            },
+        },
+        upsert=True,
+    )
