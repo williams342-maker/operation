@@ -166,3 +166,17 @@ body {
 /* Hide scrollbars on horizontal product rails (Etsy-style) */
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+
+/* Maker dashboard KPI pulse — fires when a tile receives a new event
+   from the 30s poll. 3 quick orange flashes via a box-shadow halo.
+   Auto-stops after the animation completes (no `infinite`). */
+@keyframes kpi-pulse-halo {
+    0%   { box-shadow: 0 0 0 0   rgba(255, 69, 0, 0.55); }
+    40%  { box-shadow: 0 0 0 14px rgba(255, 69, 0, 0); }
+    60%  { box-shadow: 0 0 0 0   rgba(255, 69, 0, 0.55); }
+    100% { box-shadow: 0 0 0 14px rgba(255, 69, 0, 0); }
+}
+.kpi-pulse {
+    animation: kpi-pulse-halo 1.6s ease-out;
+}

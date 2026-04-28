@@ -26,6 +26,8 @@ export default function DashboardTab({
   orders = [],
   products = [],
   unreadMessages = 0,
+  fresh = {},
+  freshKey = 0,
   onTabChange,
 }) {
   const live = useMemo(
@@ -130,6 +132,7 @@ export default function DashboardTab({
           onClick={() => onTabChange?.("orders")}
           testId="kpi-orders"
           accent={openOrders.length > 0}
+          pulseKey={fresh.orders ? `o-${freshKey}` : null}
         />
         <KPI
           icon={MessageSquare}
@@ -138,6 +141,7 @@ export default function DashboardTab({
           onClick={() => onTabChange?.("messages")}
           testId="kpi-messages"
           accent={unreadMessages > 0}
+          pulseKey={fresh.messages ? `m-${freshKey}` : null}
         />
         <KPI
           icon={DollarSign}
@@ -289,20 +293,34 @@ export default function DashboardTab({
   );
 }
 
-function KPI({ icon: Icon, label, value, sub, onClick, testId, accent = false }) {
+function KPI({ icon: Icon, label, value, sub, onClick, testId, accent = false, pulseKey = null }) {
   return (
     <button
       onClick={onClick}
-      className={`text-left p-4 border transition ${
+      // `key={pulseKey}` forces a remount when a new event arrives, which
+      // restarts the CSS animation. Without it, the same animation class
+      // wouldn't re-fire if the maker stays on the dashboard across
+      // multiple polling cycles.
+      key={pulseKey || testId}
+      className={`text-left p-4 border transition relative ${
         accent
           ? "border-[#ff4500] bg-[#ff4500]/5 hover:bg-[#ff4500]/10"
           : "border-[#262626] hover:border-[#ff4500]"
-      }`}
+      } ${pulseKey ? "kpi-pulse" : ""}`}
       data-testid={testId}
+      data-fresh={pulseKey ? "true" : undefined}
     >
       <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">
         <Icon size={12} />
         <span>{label}</span>
+        {pulseKey && (
+          <span
+            className="ml-auto px-1.5 py-0.5 bg-[#ff4500] text-black font-bold text-[8px] tracking-[0.2em] animate-pulse"
+            data-testid={`${testId}-new-flag`}
+          >
+            NEW
+          </span>
+        )}
       </div>
       <div className={`font-display text-3xl md:text-4xl ${accent ? "text-[#ff4500]" : ""}`}>
         {value}

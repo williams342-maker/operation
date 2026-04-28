@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
-  fetchMakerMe, fetchMakerOrders, fetchMakerProducts,
+  fetchMakerMe, fetchMakerOrders, fetchMakerProducts, fetchMakerThreads,
 } from "../lib/api";
 
 import ShopManagerLayout from "./MakerDashboard/ShopManagerLayout";
@@ -32,9 +32,15 @@ export default function MakerDashboard() {
   const [maker, setMaker] = useState(null);
   const [orders, setOrders] = useState([]);
   const [products, setProducts] = useState([]);
+  const [threads, setThreads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
+  // Tracks which KPI tiles incremented on the last poll so the Dashboard
+  // can pulse them. `freshKey` bumps on every increment so the pulse
+  // animation re-fires even if the same KPI keeps gaining (e.g. 2 → 3 → 4).
+  const [fresh, setFresh] = useState({ orders: false, messages: false, products: false });
+  const [freshKey, setFreshKey] = useState(0);
 
   const [tab, setTab] = useState(() => (window.location.hash || "#dashboard").replace("#", ""));
   useEffect(() => {
@@ -75,10 +81,13 @@ export default function MakerDashboard() {
     }
     (async () => {
       try {
-        const [me, ords, prods] = await Promise.all([
+        const [me, ords, prods, ths] = await Promise.all([
           fetchMakerMe(), fetchMakerOrders(), fetchMakerProducts(),
+          fetchMakerThreads().catch(() => ({ threads: [] })),
         ]);
         setMaker(me); setOrders(ords); setProducts(prods);
+        // /messages/maker/threads returns `{threads: [...]}` — unwrap it.
+        setThreads(Array.isArray(ths) ? ths : (ths?.threads || []));
       } catch (e) {
         if (e?.response?.status === 401) { logout(); return; }
         setErr(e?.response?.data?.detail || "Failed to load.");
@@ -86,6 +95,97 @@ export default function MakerDashboard() {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ---- Live polling (30s) ----------------------------------------------
+  // Why a single ref-based interval and NOT a per-tile auto-refresh hook?
+  //  - The same source of truth (orders/products/threads) feeds the
+  //    Dashboard KPIs AND the deeper tabs. Polling once and propagating
+  //    via React state keeps every surface in sync without duplicate
+  //    requests.
+  //  - The browser tab visibility check stops polling when the maker
+  //    backgrounds the tab — saves API hits while still updating the
+  //    moment they switch back (visibilitychange refetches immediately).
+  //  - We compare counts via refs (not state) so the polling closure
+  //    always sees the latest, regardless of React render timing.
+  const ordersRef = useRef(orders);
+  const threadsRef = useRef(threads);
+  const productsRef = useRef(products);
+  ordersRef.current = orders;
+  threadsRef.current = threads;
+  productsRef.current = products;
+
+  useEffect(() => {
+    if (loading || !localStorage.getItem("cm_maker_jwt")) return;
+    let cancelled = false;
+
+    const unreadCount = (ths) =>
+      (ths || []).reduce((s, t) => s + (t.unread_for_maker || 0), 0);
+
+    const poll = async () => {
+      if (cancelled || document.hidden) return;
+      try {
+        const [ords, prods, ths] = await Promise.all([
+          fetchMakerOrders().catch(() => null),
+          fetchMakerProducts().catch(() => null),
+          fetchMakerThreads().catch(() => null),
+        ]);
+        if (cancelled) return;
+        // /messages/maker/threads returns `{threads: [...]}` — unwrap.
+        const thsList = Array.isArray(ths) ? ths : (ths?.threads || null);
+        const next = { orders: false, messages: false, products: false };
+        let bump = false;
+
+        if (Array.isArray(ords)) {
+          if (ords.length > (ordersRef.current?.length || 0)) {
+            next.orders = true; bump = true;
+          }
+          setOrders(ords);
+        }
+        if (Array.isArray(thsList)) {
+          if (unreadCount(thsList) > unreadCount(threadsRef.current)) {
+            next.messages = true; bump = true;
+          }
+          setThreads(thsList);
+        }
+        if (Array.isArray(prods)) {
+          // Quietly refresh products (no pulse — makers edit these
+          // themselves, surprise pulses would be noise).
+          setProducts(prods);
+        }
+        if (bump) {
+          setFresh(next);
+          setFreshKey((k) => k + 1);
+          // Self-clear the pulse flags after the animation duration so
+          // re-renders don't re-fire stale animations.
+          setTimeout(() => {
+            setFresh({ orders: false, messages: false, products: false });
+          }, 4000);
+          // Light touch toast — only when the maker is on the dashboard
+          // (other tabs already surface their own activity).
+          if ((window.location.hash || "#dashboard").includes("dashboard")) {
+            if (next.orders && next.messages) {
+              toast.success("New order and new message just came in.");
+            } else if (next.orders) {
+              toast.success("New order just came in.");
+            } else if (next.messages) {
+              toast.success("New message from a buyer.");
+            }
+          }
+        }
+      } catch {
+        /* polling errors are non-fatal — we'll try again next interval */
+      }
+    };
+
+    const id = setInterval(poll, 30_000);
+    const onVisible = () => { if (!document.hidden) poll(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [loading]);
 
   if (loading) {
     return (
@@ -121,6 +221,9 @@ export default function MakerDashboard() {
             maker={maker}
             orders={orders}
             products={products}
+            unreadMessages={threads.reduce((s, t) => s + (t.unread_for_maker || 0), 0)}
+            fresh={fresh}
+            freshKey={freshKey}
             onTabChange={changeTab}
           />
         )}
