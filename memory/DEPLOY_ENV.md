@@ -36,8 +36,8 @@ FRONTEND_URL=https://craftersmarket.org
 ## 📧 EMAIL — fixes the "no emails on production" issue
 
 ```
-EMAIL_PROVIDER=mailtrap
-EMAIL_FALLBACK_PROVIDER=postmark
+EMAIL_PROVIDER=postmark
+EMAIL_FALLBACK_PROVIDER=mailtrap
 SENDER_EMAIL=team@craftersmarket.org
 SENDER_NAME=Crafters Market
 OPS_EMAIL=team@craftersmarket.org
@@ -53,10 +53,10 @@ BREVO_API_KEY=xkeysib-2b6d9693de8834c8cb08fb352dd643cf78f79c68d5939d127e9a150ce1
 ```
 
 > 💡 With these 2 things in place, the email pipeline will work on prod:
-> 1. `EMAIL_PROVIDER=mailtrap` (primary, currently DNS-pending)
-> 2. `EMAIL_FALLBACK_PROVIDER=postmark` (working fallback — catches 100% of sends)
+> 1. `EMAIL_PROVIDER=postmark` (primary, working)
+> 2. `EMAIL_FALLBACK_PROVIDER=mailtrap` (fallback, DNS still pending — will activate once verified)
 >
-> The new admin dashboard badge will read 🟡 **DEGRADED** until Mailtrap DNS is verified, then flip to 🟢 **OK**.
+> The new admin dashboard badge will read 🟢 **OK** on prod once new traffic flows.
 
 ---
 
