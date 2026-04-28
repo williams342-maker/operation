@@ -6,6 +6,7 @@ import {
 } from "../lib/api";
 
 import ShopManagerLayout from "./MakerDashboard/ShopManagerLayout";
+import DashboardTab from "./MakerDashboard/DashboardTab";
 import ProductsList from "./MakerDashboard/ProductsList";
 import OrdersList from "./MakerDashboard/OrdersList";
 import StatsTab from "./MakerDashboard/StatsTab";
@@ -35,13 +36,22 @@ export default function MakerDashboard() {
   const [err, setErr] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
 
-  const [tab, setTab] = useState(() => (window.location.hash || "#listings").replace("#", ""));
+  const [tab, setTab] = useState(() => (window.location.hash || "#dashboard").replace("#", ""));
   useEffect(() => {
-    const onHash = () => setTab((window.location.hash || "#listings").replace("#", ""));
+    const onHash = () => setTab((window.location.hash || "#dashboard").replace("#", ""));
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
   const changeTab = (id) => { window.location.hash = id; setTab(id); };
+
+  // The Dashboard tab's "Edit shop" checklist CTA dispatches this event
+  // instead of routing to a tab — opens the same profile drawer the
+  // top-bar "Edit Shop" button uses.
+  useEffect(() => {
+    const handler = () => setProfileOpen(true);
+    window.addEventListener("cm:open-profile-drawer", handler);
+    return () => window.removeEventListener("cm:open-profile-drawer", handler);
+  }, []);
 
   const logout = () => {
     localStorage.removeItem("cm_maker_jwt");
@@ -106,6 +116,14 @@ export default function MakerDashboard() {
         onLogout={logout}
         onOpenProfile={() => setProfileOpen(true)}
       >
+        {tab === "dashboard"  && (
+          <DashboardTab
+            maker={maker}
+            orders={orders}
+            products={products}
+            onTabChange={changeTab}
+          />
+        )}
         {tab === "listings"   && <ProductsList products={products} onRefresh={refreshProducts} />}
         {tab === "orders"     && <OrdersTabWrapper orders={orders} />}
         {tab === "messages"   && <MessagesTab maker={maker} />}

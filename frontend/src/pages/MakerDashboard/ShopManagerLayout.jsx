@@ -3,9 +3,11 @@ import { Link } from "react-router-dom";
 import {
   Box, MessageSquare, ShoppingBag, BarChart3, AlertTriangle,
   Megaphone, DollarSign, HelpCircle, Sparkles, Settings, ArrowLeft,
+  LayoutDashboard,
 } from "lucide-react";
 
 const NAV = [
+  { id: "dashboard",   label: "Dashboard",   icon: LayoutDashboard },
   { id: "listings",    label: "Listings",    icon: Box },
   { id: "orders",      label: "Orders",      icon: ShoppingBag },
   { id: "messages",    label: "Messages",    icon: MessageSquare },
