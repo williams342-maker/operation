@@ -1,6 +1,6 @@
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import Cropper from "react-easy-crop";
-import { X, Check, RotateCcw } from "lucide-react";
+import { X, Check, RotateCcw, GripHorizontal } from "lucide-react";
 
 /** Crop modal for product photos.
  *  Wraps `react-easy-crop` so the caller just receives the final cropped
@@ -28,6 +28,87 @@ export default function ImageCropModal({
   const cropPx = useRef(null);
   const [busy, setBusy] = useState(false);
 
+  // ---- Drag-to-resize ----------------------------------------------------
+  // Power-users on big monitors want to stretch the cropper for fine
+  // detail work. We persist the maker's preferred size to localStorage so
+  // it sticks across sessions; the default aims to match the previous
+  // Tailwind max-w-2xl (~672px) sized layout for first-time users.
+  const STORAGE_KEY = "cm_crop_modal_size";
+  const DEFAULT_W = 672;
+  const minSize = { w: 480, h: 420 };
+  const readStoredSize = () => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return null;
+      const v = JSON.parse(raw);
+      if (typeof v?.w === "number" && typeof v?.h === "number") return v;
+    } catch (_) { /* ignore parse errors */ }
+    return null;
+  };
+  const [size, setSize] = useState(() => {
+    const stored = readStoredSize();
+    const fallback = {
+      w: DEFAULT_W,
+      h: Math.round((typeof window !== "undefined" ? window.innerHeight : 800) * 0.92),
+    };
+    return stored || fallback;
+  });
+  const dragRef = useRef(null);    // { startX, startY, startW, startH }
+  const [resizing, setResizing] = useState(false);
+
+  // Clamp the stored size against the current viewport on mount and on
+  // every viewport resize so a maker who shrinks their browser window
+  // never gets stranded with a modal larger than the screen.
+  useEffect(() => {
+    const clamp = () => {
+      setSize((s) => ({
+        w: Math.min(Math.max(s.w, minSize.w), window.innerWidth - 32),
+        h: Math.min(Math.max(s.h, minSize.h), window.innerHeight - 32),
+      }));
+    };
+    clamp();
+    window.addEventListener("resize", clamp);
+    return () => window.removeEventListener("resize", clamp);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const onResizeStart = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragRef.current = {
+      startX: e.clientX, startY: e.clientY,
+      startW: size.w, startH: size.h,
+    };
+    setResizing(true);
+
+    const onMove = (ev) => {
+      const d = dragRef.current;
+      if (!d) return;
+      const nextW = Math.min(
+        Math.max(d.startW + (ev.clientX - d.startX), minSize.w),
+        window.innerWidth - 32,
+      );
+      const nextH = Math.min(
+        Math.max(d.startH + (ev.clientY - d.startY), minSize.h),
+        window.innerHeight - 32,
+      );
+      setSize({ w: nextW, h: nextH });
+    };
+    const onUp = () => {
+      setResizing(false);
+      dragRef.current = null;
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      // Persist final size — read from latest state via a settler.
+      setSize((s) => {
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); } catch (_) { /* ignore */ }
+        return s;
+      });
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  };
+
   const onCropComplete = useCallback((_area, areaPx) => {
     cropPx.current = areaPx;
   }, []);
@@ -50,7 +131,8 @@ export default function ImageCropModal({
     <div className="fixed inset-0 z-[90] flex items-center justify-center" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-black/85 backdrop-blur-sm" onClick={onCancel} />
       <div
-        className="relative w-full max-w-2xl bg-[#0a0a0a] border border-[#262626] mx-4 max-h-[92vh] flex flex-col"
+        className={`relative bg-[#0a0a0a] border border-[#262626] mx-4 flex flex-col ${resizing ? "select-none" : ""}`}
+        style={{ width: `${size.w}px`, height: `${size.h}px`, maxWidth: "calc(100vw - 32px)", maxHeight: "calc(100vh - 32px)" }}
         data-testid="image-crop-modal"
       >
         <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-[#262626]">
@@ -160,6 +242,23 @@ export default function ImageCropModal({
             </button>
           </div>
         </div>
+
+        {/* Drag handle in the bottom-right corner. The orange grip + cursor
+            change make the affordance discoverable; persistence lives in
+            localStorage so the maker's preferred size sticks. Hidden on
+            <md viewports — touch-resize on phones is more annoying than
+            useful. */}
+        <button
+          type="button"
+          onMouseDown={onResizeStart}
+          className="hidden md:flex absolute bottom-0 right-0 w-5 h-5 items-center justify-center text-[#525252] hover:text-[#ff4500] cursor-nwse-resize"
+          style={{ touchAction: "none" }}
+          aria-label="Drag to resize crop window"
+          title="Drag to resize"
+          data-testid="crop-resize-handle"
+        >
+          <GripHorizontal size={14} className="rotate-45" />
+        </button>
       </div>
     </div>
   );

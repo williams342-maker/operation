@@ -648,6 +648,15 @@ User reported: on their (short) viewport the crop modal extended below the visib
 - ✅ Footer made sticky-bottom with `bg-[#0a0a0a]` so the orange Apply Crop CTA + Skip button never get scrolled off-screen, regardless of viewport height. Hide the auxiliary "Auto-compressed" hint on `<sm` widths to give the CTAs more breathing room.
 - Verified across viewports 1400×720, 1280×800, 1100×600 — Apply Crop button is fully in-viewport and click-functional in every case. Image flow end-to-end (upload → crop → confirm → form.images.length === 1) verified on the tight 1100×600 case.
 
+## 2026-04-28 — Crop modal: drag-to-resize + size persistence
+- ✅ **Drag handle in the bottom-right corner** of `ImageCropModal` (orange grip icon, `cursor-nwse-resize`). Power-users on big monitors can stretch the cropper to fill 80% of a 4K screen for fine detail work.
+- ✅ **Constraints**: min 480×420 (so the cropper canvas + sliders never collapse), max `viewport - 32px` on both axes (so the modal can never spill past the screen edge).
+- ✅ **Auto-clamp on viewport resize**: a `window.resize` listener re-clamps the saved size against the new viewport so a maker who shrinks their browser never gets stranded with a too-large modal.
+- ✅ **localStorage persistence** — final size is written to `cm_crop_modal_size` on mouseup, so the maker's preferred crop window sticks across sessions and across multiple photo uploads in the same listing.
+- ✅ **Hidden on `<md` viewports** — touch resize on phones is more annoying than useful; mobile gets the full-bleed fitted modal as before.
+- Verified end-to-end via Playwright: dragging +400px/+200px grew modal 672×994 → 1072×1048; localStorage written; reopening the modal restored 1072×1048; react-easy-crop ResizeObserver auto-adapted the cropper canvas to the new dimensions.
+
+
 
 
 
