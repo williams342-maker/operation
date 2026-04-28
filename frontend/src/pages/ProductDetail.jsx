@@ -3,14 +3,17 @@ import { useParams, Link } from "react-router-dom";
 import { fetchProduct, fetchMaker } from "../lib/api";
 import { useCart } from "../lib/cart";
 import { useStructuredData } from "../lib/seo";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ZoomIn } from "lucide-react";
 import SaveDropButton from "../components/SaveDropButton";
+import ImageLightbox from "../components/ImageLightbox";
 
 export default function ProductDetail() {
   const { slug } = useParams();
   const [p, setP] = useState(null);
   const [maker, setMaker] = useState(null);
   const [active, setActive] = useState(0);
+  // null = closed; 0..N = open at that image index
+  const [lightboxIdx, setLightboxIdx] = useState(null);
   const [qty, setQty] = useState(1);
   const [added, setAdded] = useState(false);
   const [selectedVariantId, setSelectedVariantId] = useState(null);
@@ -81,7 +84,7 @@ export default function ProductDetail() {
         </Link>
         <div className="grid md:grid-cols-12 gap-6">
           <div className="md:col-span-5">
-            <div className="aspect-[4/5] bg-[#121212] border border-[#262626] overflow-hidden mb-3 relative max-w-[340px] mx-auto md:mx-0">
+            <div className="aspect-[4/5] bg-[#121212] border border-[#262626] overflow-hidden mb-3 relative max-w-[340px] mx-auto md:mx-0 group">
               {active === -1 && p.model_url ? (
                 <model-viewer
                   src={p.model_url}
@@ -93,12 +96,25 @@ export default function ProductDetail() {
                   data-testid="product-model-viewer"
                 />
               ) : (
-                <img
-                  src={(selectedVariant && selectedVariant.image) || p.images[Math.max(0, active)]}
-                  alt={p.title}
-                  className="w-full h-full object-cover media-img"
-                  data-testid="product-hero-image"
-                />
+                <button
+                  type="button"
+                  onClick={() => setLightboxIdx(Math.max(0, active))}
+                  className="w-full h-full block relative overflow-hidden"
+                  aria-label="Open full-size view"
+                  data-testid="product-hero-zoom"
+                >
+                  <img
+                    src={(selectedVariant && selectedVariant.image) || p.images[Math.max(0, active)]}
+                    alt={p.title}
+                    className="w-full h-full object-cover media-img transition-transform duration-300 group-hover:scale-105"
+                    data-testid="product-hero-image"
+                  />
+                  {/* Zoom hint pill — fades in on hover so it doesn't
+                      compete with the image at rest. */}
+                  <span className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 px-2 py-1 bg-black/70 backdrop-blur border border-[#262626] font-mono text-[9px] uppercase tracking-[0.22em] text-[#e5e5e5] opacity-0 group-hover:opacity-100 transition">
+                    <ZoomIn size={10} /> Zoom
+                  </span>
+                </button>
               )}
               <span className="tag absolute top-4 left-4 text-[#ff4500] border-[#ff4500]">{p.technique}</span>
               {p.model_url && (
@@ -284,6 +300,13 @@ export default function ProductDetail() {
           </div>
         </div>
       </div>
+      {lightboxIdx !== null && p.images?.length > 0 && (
+        <ImageLightbox
+          images={p.images}
+          startIndex={lightboxIdx}
+          onClose={() => setLightboxIdx(null)}
+        />
+      )}
     </div>
   );
 }
