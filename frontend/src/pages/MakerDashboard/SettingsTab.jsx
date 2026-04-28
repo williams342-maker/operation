@@ -283,7 +283,16 @@ function useSettingsForm(maker, fields, onSaved) {
     e.preventDefault();
     setBusy(true);
     try {
-      const updated = await updateMakerProfile(form);
+      // Only send fields that actually changed — avoids leaking the
+      // empty-string defaults from useSettingsForm into bool-typed columns
+      // (e.g. is_veteran_owned, vacation_mode) on the backend, which would
+      // fail Pydantic validation for Optional[bool].
+      const patch = Object.fromEntries(
+        fields
+          .filter((f) => (form[f] ?? "") !== (initial[f] ?? ""))
+          .map((f) => [f, form[f]]),
+      );
+      const updated = await updateMakerProfile(patch);
       toast.success("Saved.");
       onSaved?.(updated);
     } catch (e2) {
@@ -331,7 +340,7 @@ function InfoAppearance({ maker, onSaved }) {
 // Section: About your shop
 // ============================================================================
 function AboutShop({ maker, onSaved }) {
-  const fields = ["bio", "story_headline", "story"];
+  const fields = ["bio", "story_headline", "story", "is_veteran_owned"];
   const { form, set, dirty, busy, submit } = useSettingsForm(maker, fields, onSaved);
   return (
     <FormShell
@@ -351,6 +360,25 @@ function AboutShop({ maker, onSaved }) {
       <Field label="Your story" hint="Long-form — talk about your craft, process, and what makes your shop different.">
         <textarea rows={8} className={`${inputCls} resize-none leading-relaxed`} value={form.story} onChange={(e) => set("story")(e.target.value)} />
       </Field>
+      <ToggleRow
+        label={
+          <span className="inline-flex items-center gap-2">
+            <span className="inline-block w-4 h-2.5 border border-white/30 overflow-hidden align-middle">
+              <svg viewBox="0 0 19 10" aria-hidden="true" className="block w-full h-full">
+                {Array.from({ length: 13 }).map((_, i) => (
+                  <rect key={i} x="0" y={(i * 10) / 13} width="19" height={10 / 13} fill={i % 2 === 0 ? "#b22234" : "#ffffff"} />
+                ))}
+                <rect x="0" y="0" width="7.6" height={(7 * 10) / 13} fill="#3c3b6e" />
+              </svg>
+            </span>
+            Veteran-Owned business
+          </span>
+        }
+        hint="When ON, a US-flag 'Veteran-Owned' badge shows on every one of your listings and on your maker profile. Honors your service and signals to buyers who want to support veteran makers."
+        value={!!form.is_veteran_owned}
+        onChange={set("is_veteran_owned")}
+        testId="settings-veteran-owned"
+      />
     </FormShell>
   );
 }

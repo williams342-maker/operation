@@ -85,6 +85,17 @@ async def list_products(category: Optional[str] = None, technique: Optional[str]
     products = await db.products.find(query, {"_id": 0}).to_list(400)
     nowiso = now_iso()
 
+    # Denormalize the veteran-owned flag from each maker so ProductCard can
+    # render the US-flag badge without a second round-trip. One bulk fetch
+    # of just the veteran-owned slugs keeps this O(veteran_count).
+    vet_slugs = {
+        m["slug"] async for m in db.makers.find(
+            {"is_veteran_owned": True}, {"_id": 0, "slug": 1},
+        )
+    }
+    for p in products:
+        p["maker_is_veteran"] = p.get("maker_slug") in vet_slugs
+
     def _sort_key(p):
         promo = p.get("promoted_until")
         is_promoted = bool(promo and promo > nowiso)
@@ -110,6 +121,11 @@ async def get_product(slug: str):
     )
     if not doc:
         raise HTTPException(404, "Product not found")
+    # Denormalize veteran-owned flag from the maker (see list_products note).
+    maker = await db.makers.find_one(
+        {"slug": doc.get("maker_slug")}, {"_id": 0, "is_veteran_owned": 1},
+    )
+    doc["maker_is_veteran"] = bool(maker and maker.get("is_veteran_owned"))
     return doc
 
 

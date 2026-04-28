@@ -87,6 +87,10 @@ class Product(BaseModel):
     seo_tags: List[str] = []                # max 13, validated in router
     # ---- Contact override (optional — defaults to maker email) ----
     contact_email: Optional[str] = None
+    # Denormalized from the maker on read — never stored on the product doc.
+    # Lets ProductCard render the US-flag "Veteran-Owned" badge without a
+    # second round-trip to /api/makers.
+    maker_is_veteran: bool = False
     created_at: str = Field(default_factory=now_iso)
 
 
@@ -193,6 +197,12 @@ class Maker(BaseModel):
     is_beta: bool = False
     beta_approved_at: Optional[str] = None
     beta_expires_at: Optional[str] = None
+    # ---- Veteran-Owned badge ----
+    # Self-declared via Shop Manager → Settings → About your shop. When ON,
+    # a US-flag "Veteran-Owned" badge renders on every listing card and the
+    # maker's profile hero. Free / honor-system today; we may add doc upload
+    # verification later (DoD DD-214 / VA proof).
+    is_veteran_owned: bool = False
     # ---- Settings tab fields (Etsy-parity) ----
     # Vacation mode: when on, shop pages render a banner and disable Add-to-Cart
     # across all listings until toggled off. Optional message shown to buyers.
@@ -362,6 +372,7 @@ class MakerProfileUpdate(BaseModel):
     processing_time: Optional[str] = None
     returns_policy: Optional[str] = None
     accepts_custom_orders: Optional[bool] = None
+    is_veteran_owned: Optional[bool] = None
 
 
 # ---- Admin ----

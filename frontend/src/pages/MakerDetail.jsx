@@ -7,6 +7,7 @@ import MakerReviews from "../components/MakerReviews";
 import FollowButton from "../components/FollowButton";
 import FollowersList from "../components/FollowersList";
 import ContactMakerModal from "../components/ContactMakerModal";
+import VeteranBadge from "../components/VeteranBadge";
 import { Mail } from "lucide-react";
 
 export default function MakerDetail() {
@@ -65,6 +66,9 @@ export default function MakerDetail() {
               >
                 ★ Plus
               </span>
+            )}
+            {m.is_veteran_owned && (
+              <VeteranBadge testId="maker-veteran-badge" />
             )}
           </div>
           <h1 className="font-display text-[64px] md:text-[120px] leading-[0.88]">{m.name}</h1>

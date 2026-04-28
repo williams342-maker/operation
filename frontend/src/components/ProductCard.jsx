@@ -2,6 +2,7 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowUpRight } from "lucide-react";
+import VeteranBadge from "./VeteranBadge";
 
 export default function ProductCard({ p, i = 0 }) {
   return (
@@ -24,6 +25,13 @@ export default function ProductCard({ p, i = 0 }) {
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
           <span className="tag absolute top-4 left-4 text-[#ff4500] border-[#ff4500]">{p.technique}</span>
           <span className="tag absolute top-4 right-4">{p.category}</span>
+          {p.maker_is_veteran && (
+            <VeteranBadge
+              size="compact"
+              className="absolute top-12 right-4"
+              testId={`product-card-veteran-${p.slug}`}
+            />
+          )}
           {p.promoted_until && new Date(p.promoted_until) > new Date() && (
             <span
               className="tag absolute bottom-4 left-4 text-emerald-300 border-emerald-400 bg-black/70"

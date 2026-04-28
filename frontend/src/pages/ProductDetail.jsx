@@ -6,6 +6,7 @@ import { useStructuredData } from "../lib/seo";
 import { ArrowLeft, ZoomIn } from "lucide-react";
 import SaveDropButton from "../components/SaveDropButton";
 import ImageLightbox from "../components/ImageLightbox";
+import VeteranBadge from "../components/VeteranBadge";
 
 export default function ProductDetail() {
   const { slug } = useParams();
@@ -295,6 +296,11 @@ export default function ProductDetail() {
                 <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#a3a3a3] mb-2">Maker</div>
                 <div className="font-display text-2xl mb-1">{maker.name}</div>
                 <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3]">{maker.location}</div>
+                {maker.is_veteran_owned && (
+                  <div className="mt-2.5">
+                    <VeteranBadge testId="product-detail-veteran-badge" />
+                  </div>
+                )}
               </Link>
             )}
           </div>
