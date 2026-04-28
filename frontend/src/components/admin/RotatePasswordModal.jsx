@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { toast } from "sonner";
 import { passwordSet } from "../../lib/api";
 import useModalA11y from "../../hooks/useModalA11y";
+import PasswordInput from "../PasswordInput";
 
 /**
  * Blocking "rotate your admin password" modal.
@@ -92,9 +93,8 @@ export default function RotatePasswordModal({ email, policyDays, daysSince, onDo
         <form onSubmit={submit} className="space-y-3" data-testid="rotate-pw-form">
           <label className="block">
             <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Current password</span>
-            <input
+            <PasswordInput
               required
-              type="password"
               autoComplete="current-password"
               value={current}
               onChange={(e) => setCurrent(e.target.value)}
@@ -106,9 +106,8 @@ export default function RotatePasswordModal({ email, policyDays, daysSince, onDo
             <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
               New password <span className="text-[#525252]">(min 10 chars)</span>
             </span>
-            <input
+            <PasswordInput
               required
-              type="password"
               autoComplete="new-password"
               minLength={10}
               value={next}
@@ -119,9 +118,8 @@ export default function RotatePasswordModal({ email, policyDays, daysSince, onDo
           </label>
           <label className="block">
             <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Confirm new password</span>
-            <input
+            <PasswordInput
               required
-              type="password"
               autoComplete="new-password"
               minLength={10}
               value={confirm}

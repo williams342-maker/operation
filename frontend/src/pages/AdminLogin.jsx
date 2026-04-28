@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { requestAdminLink, fetchAuthFlags, passwordLogin } from "../lib/api";
+import PasswordInput from "../components/PasswordInput";
 
 /**
  * Dedicated admin sign-in page. Reached only via the unlabeled ◆ glyph in
@@ -128,8 +129,7 @@ export default function AdminLogin() {
               </button>
               {showPassword && (
                 <form onSubmit={onPassword} className="space-y-3 mt-4" data-testid="admin-password-form">
-                  <input
-                    type="password"
+                  <PasswordInput
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Password"
