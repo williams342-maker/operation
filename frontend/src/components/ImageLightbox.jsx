@@ -30,6 +30,12 @@ export default function ImageLightbox({ images, startIndex = 0, onClose }) {
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const dragRef = useRef(null);
+  // Touch state for mobile swipe + pinch detection. Two distinct shapes:
+  //   • { kind: "swipe", startX, startY }                 — single finger
+  //   • { kind: "pinch", startDist, startZoom }           — two fingers
+  // Stored in a ref (not state) so the in-flight gesture doesn't trigger
+  // re-renders on every move event.
+  const touchRef = useRef(null);
 
   // Reset zoom/pan whenever the image changes — otherwise the buyer
   // would land on the next photo with the previous photo's pan offset
@@ -87,6 +93,66 @@ export default function ImageLightbox({ images, startIndex = 0, onClose }) {
     document.addEventListener("mouseup", onUp);
   };
 
+  // ---- Touch gestures ----------------------------------------------------
+  // Single finger at zoom=1 → swipe horizontally to navigate (>50px swipe
+  //   triggers prev/next), vertical swipe down >100px closes the lightbox.
+  // Single finger when zoomed in → pan the image.
+  // Two fingers → pinch to zoom (1× ↔ 4×). Distance ratio between current
+  //   touch points and the start distance scales the zoom relative to
+  //   the zoom level when the gesture began.
+  const distance = (t0, t1) =>
+    Math.hypot(t0.clientX - t1.clientX, t0.clientY - t1.clientY);
+
+  const onTouchStart = (e) => {
+    if (e.touches.length === 2) {
+      touchRef.current = {
+        kind: "pinch",
+        startDist: distance(e.touches[0], e.touches[1]),
+        startZoom: zoom,
+      };
+    } else if (e.touches.length === 1) {
+      touchRef.current = {
+        kind: zoom > 1 ? "pan" : "swipe",
+        startX: e.touches[0].clientX,
+        startY: e.touches[0].clientY,
+        startPan: { ...pan },
+      };
+    }
+  };
+
+  const onTouchMove = (e) => {
+    const t = touchRef.current;
+    if (!t) return;
+    if (t.kind === "pinch" && e.touches.length === 2) {
+      const ratio = distance(e.touches[0], e.touches[1]) / t.startDist;
+      setZoom(Math.max(1, Math.min(4, t.startZoom * ratio)));
+    } else if (t.kind === "pan" && e.touches.length === 1) {
+      setPan({
+        x: t.startPan.x + (e.touches[0].clientX - t.startX),
+        y: t.startPan.y + (e.touches[0].clientY - t.startY),
+      });
+    }
+  };
+
+  const onTouchEnd = (e) => {
+    const t = touchRef.current;
+    touchRef.current = null;
+    if (!t || t.kind !== "swipe") return;
+    // changedTouches is the finger that just lifted — that's what we
+    // measure the swipe distance against.
+    const tch = e.changedTouches[0];
+    if (!tch) return;
+    const dx = tch.clientX - t.startX;
+    const dy = tch.clientY - t.startY;
+    if (Math.abs(dx) > Math.abs(dy)) {
+      if (dx > 50) setIndex((i) => (i - 1 + images.length) % images.length);
+      else if (dx < -50) setIndex((i) => (i + 1) % images.length);
+    } else if (dy > 100) {
+      // Swipe-down to dismiss — common pattern in mobile photo viewers.
+      onClose();
+    }
+  };
+
   const src = images[index];
   const hasMany = images.length > 1;
 
@@ -111,6 +177,10 @@ export default function ImageLightbox({ images, startIndex = 0, onClose }) {
       <div
         className="relative w-full h-full flex items-center justify-center overflow-hidden"
         onWheel={onWheel}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        style={{ touchAction: "none" }}
       >
         <img
           src={src}
@@ -166,9 +236,12 @@ export default function ImageLightbox({ images, startIndex = 0, onClose }) {
         </>
       )}
 
-      {/* Hint footer */}
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252] hidden md:block">
+      {/* Hint footer — desktop and mobile show different copy. */}
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252] hidden md:block whitespace-nowrap">
         Wheel to zoom · Drag to pan · ← → to navigate · Esc to close
+      </div>
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252] md:hidden whitespace-nowrap">
+        Pinch to zoom · Swipe ← → · Swipe down to close
       </div>
     </div>
   );
