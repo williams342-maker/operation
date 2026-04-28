@@ -1,8 +1,8 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronDown, Camera, Package, DollarSign, Truck, Award, Sparkles, Shield, Upload,
   Rocket, ImageIcon, Tag, MessageSquare, BarChart3, BookOpen, Mail, FileText,
-  Building2, Wrench, ScrollText,
+  Building2, Wrench, ScrollText, Search, X,
 } from "lucide-react";
 import CsvImportModal from "./CsvImportModal";
 
@@ -294,6 +294,62 @@ export default function HelpTab() {
     new Set([CATEGORIES.find((c) => c.children.some((ch) => ch.id === CATEGORIES[0].children[0].id)).id]),
   );
   const [importing, setImporting] = useState(false);
+  const [query, setQuery] = useState("");
+  const searchRef = useRef(null);
+
+  // Cmd/Ctrl+K focuses the search box. Esc clears it. The keyboard shortcut
+  // is one of the things that makes a help center feel "fast" instead of
+  // "clicky", so the muscle-memory cost is worth it.
+  useEffect(() => {
+    const onKey = (e) => {
+      const cmdK = (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k";
+      if (cmdK) {
+        e.preventDefault();
+        searchRef.current?.focus();
+        searchRef.current?.select();
+      }
+      if (e.key === "Escape" && document.activeElement === searchRef.current) {
+        setQuery("");
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  // Build a filtered category tree based on the query. Match against:
+  //  - Category label
+  //  - Leaf label
+  //  - Body title + intro
+  //  - Every step in body.steps
+  // Returns the same shape as `CATEGORIES` but with only matching leaves.
+  // Empty query short-circuits to the unfiltered tree.
+  const { filtered, matchCount, isSearching } = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return { filtered: CATEGORIES, matchCount: 0, isSearching: false };
+    const matches = (s) => (s || "").toLowerCase().includes(q);
+    let count = 0;
+    const trimmed = CATEGORIES.map((c) => {
+      const catMatch = matches(c.label);
+      const kids = c.children.filter((ch) => {
+        if (catMatch) return true;
+        if (matches(ch.label)) return true;
+        if (matches(ch.body?.title)) return true;
+        if (matches(ch.body?.intro)) return true;
+        if ((ch.body?.steps || []).some(matches)) return true;
+        return false;
+      });
+      count += kids.length;
+      return kids.length > 0 ? { ...c, children: kids } : null;
+    }).filter(Boolean);
+    return { filtered: trimmed, matchCount: count, isSearching: true };
+  }, [query]);
+
+  // When searching, auto-expand every matching category so results are
+  // visible without an extra click.
+  const effectiveOpen = useMemo(() => {
+    if (!isSearching) return openCategories;
+    return new Set(filtered.map((c) => c.id));
+  }, [isSearching, filtered, openCategories]);
 
   const active = ALL_LEAVES[activeId] || ALL_LEAVES[CATEGORIES[0].children[0].id];
 
@@ -322,28 +378,38 @@ export default function HelpTab() {
         </h1>
         <p className="font-mono text-sm text-[#a3a3a3] mt-2 max-w-2xl">
           Everything we wish we'd known before opening our first shop. Pick a topic
-          on the left.
+          on the left, or search across every article.
         </p>
       </div>
 
       <div className="grid lg:grid-cols-[280px_1fr] gap-6">
         {/* Sub-nav */}
         <HelpSubNav
-          categories={CATEGORIES}
+          categories={filtered}
           activeId={activeId}
-          openCategories={openCategories}
+          openCategories={effectiveOpen}
           onToggleCategory={toggleCategory}
           onPick={handlePick}
+          query={query}
+          setQuery={setQuery}
+          searchRef={searchRef}
+          isSearching={isSearching}
+          matchCount={matchCount}
         />
 
         {/* Active leaf content */}
         <div className="min-w-0" data-testid={`help-leaf-${active.id}`}>
-          <ArticlePane
-            leaf={active}
-            onAction={(leaf) => {
-              if (leaf.action === "openImport") setImporting(true);
-            }}
-          />
+          {isSearching && matchCount === 0 ? (
+            <NoResults query={query} onClear={() => setQuery("")} />
+          ) : (
+            <ArticlePane
+              leaf={active}
+              query={query}
+              onAction={(leaf) => {
+                if (leaf.action === "openImport") setImporting(true);
+              }}
+            />
+          )}
         </div>
       </div>
 
@@ -360,9 +426,48 @@ export default function HelpTab() {
 // ============================================================================
 // Sub-nav — collapsible categories, Etsy-style
 // ============================================================================
-function HelpSubNav({ categories, activeId, openCategories, onToggleCategory, onPick }) {
+function HelpSubNav({ categories, activeId, openCategories, onToggleCategory, onPick, query, setQuery, searchRef, isSearching, matchCount }) {
   return (
-    <>
+    <div className="space-y-3">
+      {/* Search box — Cmd/Ctrl+K to focus, Esc to clear. Live-filters
+          categories AND right-pane content match-count messaging. */}
+      <div className="relative" data-testid="help-search-wrap">
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#525252] pointer-events-none" />
+        <input
+          ref={searchRef}
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search help…"
+          aria-label="Search help articles"
+          className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none pl-9 pr-16 py-2.5 font-mono text-xs text-[#e5e5e5] placeholder:text-[#525252]"
+          data-testid="help-search-input"
+        />
+        {query ? (
+          <button
+            type="button"
+            onClick={() => setQuery("")}
+            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-[#a3a3a3] hover:text-[#ff4500] transition"
+            aria-label="Clear search"
+            data-testid="help-search-clear"
+          >
+            <X size={14} />
+          </button>
+        ) : (
+          <kbd className="hidden md:inline-flex absolute right-2 top-1/2 -translate-y-1/2 px-1.5 py-0.5 border border-[#262626] font-mono text-[9px] uppercase tracking-[0.18em] text-[#525252]">
+            ⌘K
+          </kbd>
+        )}
+      </div>
+      {isSearching && (
+        <div
+          className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] px-1"
+          data-testid="help-search-result-count"
+        >
+          ◆ {matchCount} match{matchCount === 1 ? "" : "es"}
+        </div>
+      )}
+
       {/* Mobile: flat select */}
       <div className="lg:hidden">
         <select
@@ -391,74 +496,112 @@ function HelpSubNav({ categories, activeId, openCategories, onToggleCategory, on
         className="hidden lg:block bg-[#0d0d0d] border border-[#1f1f1f] p-2 self-start"
         data-testid="help-subnav"
       >
-        {categories.map((c) => {
-          const Icon = c.icon;
-          const isOpen = openCategories.has(c.id);
-          const containsActive = c.children.some((ch) => ch.id === activeId);
-          return (
-            <div key={c.id} data-testid={`help-cat-${c.id}`}>
-              <button
-                type="button"
-                onClick={() => onToggleCategory(c.id)}
-                aria-expanded={isOpen}
-                className={`w-full text-left px-3 py-2.5 flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.18em] transition border-l-2 ${
-                  containsActive
-                    ? "border-[#ff4500] text-[#e5e5e5]"
-                    : "border-transparent text-[#a3a3a3] hover:text-[#e5e5e5] hover:bg-[#161616]"
-                }`}
-                data-testid={`help-cat-${c.id}-toggle`}
-              >
-                <Icon size={14} className="shrink-0" />
-                <span className="flex-1 truncate">{c.label}</span>
-                <ChevronDown
-                  size={12}
-                  className={`opacity-60 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`}
-                />
-              </button>
-              {isOpen && (
-                <ul className="pb-1.5">
-                  {c.children.map((ch) => {
-                    const isActive = ch.id === activeId;
-                    return (
-                      <li key={ch.id}>
-                        <button
-                          type="button"
-                          onClick={() => onPick(ch)}
-                          className={`w-full text-left pl-10 pr-3 py-2 font-mono text-[11px] tracking-[0.04em] transition ${
-                            isActive
-                              ? "bg-[#ff4500]/10 text-[#ff4500]"
-                              : "text-[#a3a3a3] hover:text-[#e5e5e5] hover:bg-[#161616]"
-                          }`}
-                          data-testid={`help-leaf-link-${ch.id}`}
-                        >
-                          {ch.label}
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </div>
-          );
-        })}
+        {categories.length === 0 ? (
+          <div className="px-3 py-6 text-center font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252]" data-testid="help-subnav-empty">
+            No matches.
+          </div>
+        ) : (
+          categories.map((c) => {
+            const Icon = c.icon;
+            const isOpen = openCategories.has(c.id);
+            const containsActive = c.children.some((ch) => ch.id === activeId);
+            return (
+              <div key={c.id} data-testid={`help-cat-${c.id}`}>
+                <button
+                  type="button"
+                  onClick={() => onToggleCategory(c.id)}
+                  aria-expanded={isOpen}
+                  className={`w-full text-left px-3 py-2.5 flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.18em] transition border-l-2 ${
+                    containsActive
+                      ? "border-[#ff4500] text-[#e5e5e5]"
+                      : "border-transparent text-[#a3a3a3] hover:text-[#e5e5e5] hover:bg-[#161616]"
+                  }`}
+                  data-testid={`help-cat-${c.id}-toggle`}
+                >
+                  <Icon size={14} className="shrink-0" />
+                  <span className="flex-1 truncate">{c.label}</span>
+                  <ChevronDown
+                    size={12}
+                    className={`opacity-60 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`}
+                  />
+                </button>
+                {isOpen && (
+                  <ul className="pb-1.5">
+                    {c.children.map((ch) => {
+                      const isActive = ch.id === activeId;
+                      return (
+                        <li key={ch.id}>
+                          <button
+                            type="button"
+                            onClick={() => onPick(ch)}
+                            className={`w-full text-left pl-10 pr-3 py-2 font-mono text-[11px] tracking-[0.04em] transition ${
+                              isActive
+                                ? "bg-[#ff4500]/10 text-[#ff4500]"
+                                : "text-[#a3a3a3] hover:text-[#e5e5e5] hover:bg-[#161616]"
+                            }`}
+                            data-testid={`help-leaf-link-${ch.id}`}
+                          >
+                            {ch.label}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            );
+          })
+        )}
       </nav>
-    </>
+    </div>
+  );
+}
+
+// Empty-state right-pane shown only when search query has zero results.
+function NoResults({ query, onClear }) {
+  return (
+    <div
+      className="border border-dashed border-[#262626] p-10 text-center"
+      data-testid="help-no-results"
+    >
+      <Search size={28} className="mx-auto text-[#525252] mb-3" />
+      <h2 className="font-display text-2xl uppercase mb-2">
+        No help articles match "<span className="text-[#ff4500]">{query}</span>"
+      </h2>
+      <p className="font-mono text-xs text-[#a3a3a3] max-w-md mx-auto mb-5 leading-relaxed">
+        Try a broader term, or email{" "}
+        <a href="mailto:team@craftersmarket.org" className="text-[#ff4500] hover:underline">
+          team@craftersmarket.org
+        </a>{" "}
+        — we usually reply within a business day.
+      </p>
+      <button
+        type="button"
+        onClick={onClear}
+        className="px-4 py-2 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition"
+        data-testid="help-no-results-clear"
+      >
+        Clear search →
+      </button>
+    </div>
   );
 }
 
 // ============================================================================
 // Right pane — renders the active guide
 // ============================================================================
-function ArticlePane({ leaf, onAction }) {
+function ArticlePane({ leaf, query, onAction }) {
   const { body, kind } = leaf;
   return (
     <article className="border border-[#262626] p-5 md:p-7 space-y-5">
       <header className="border-b border-[#1f1f1f] pb-4">
         <h2 className="font-display text-2xl md:text-3xl uppercase leading-[1.05]">
-          {body?.title || leaf.label}
+          <Highlight text={body?.title || leaf.label} query={query} />
         </h2>
         {body?.intro && (
-          <p className="font-mono text-xs text-[#a3a3a3] mt-2 leading-relaxed">{body.intro}</p>
+          <p className="font-mono text-xs text-[#a3a3a3] mt-2 leading-relaxed">
+            <Highlight text={body.intro} query={query} />
+          </p>
         )}
       </header>
 
@@ -469,7 +612,7 @@ function ArticlePane({ leaf, onAction }) {
               <span className="text-[#ff4500] shrink-0 font-bold">
                 {String(i + 1).padStart(2, "0")}
               </span>
-              <span>{line}</span>
+              <span><Highlight text={line} query={query} /></span>
             </li>
           ))}
         </ul>
@@ -510,5 +653,27 @@ function ArticlePane({ leaf, onAction }) {
         </a>
       </footer>
     </article>
+  );
+}
+
+// Highlights any case-insensitive occurrences of `query` inside `text`.
+// Returns plain text when query is empty (zero overhead for the common case).
+function Highlight({ text, query }) {
+  if (!query || !query.trim() || !text) return text || null;
+  const q = query.trim().toLowerCase();
+  const re = new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi");
+  const parts = String(text).split(re);
+  return (
+    <>
+      {parts.map((p, i) =>
+        p && p.toLowerCase() === q ? (
+          <mark key={i} className="bg-[#ff4500]/30 text-[#ffe5d6] px-0.5 rounded-sm">
+            {p}
+          </mark>
+        ) : (
+          <React.Fragment key={i}>{p}</React.Fragment>
+        ),
+      )}
+    </>
   );
 }
