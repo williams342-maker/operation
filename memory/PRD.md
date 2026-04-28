@@ -596,3 +596,11 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - ✅ **`EmailHealthBadge.jsx`** — compact pill in the AdminDashboard header (next to LiveNowBadge), polls every 60s. Renders a colored dot (emerald/yellow/red/gray) + label + 24h success count. Failing dots animate-pulse. Tooltip surfaces the full hint on hover.
 - Verified end-to-end: badge renders "EMAIL · DOWN · 0/42 24H" with full diagnostic tooltip in the preview environment (Mailtrap currently 100% failing, Postmark catching as fallback). Endpoint correctly classifies the real state.
 
+## 2026-04-28 — Financials tab live search (parity with Help search)
+- ✅ Added a search box to the Financials sub-nav at `/maker/dashboard → Financials` with the same UX as `HelpTab`:
+  - `⌘K`/`Ctrl+K` focuses, `Esc` clears, `X` clear button, live `◆ N matches` counter.
+  - Filters the 7 sub-sections (Payment account, Monthly statements, Payment settings, QuickBooks, Xero, TurboTax, Legal & tax) by label + per-section keyword bag (`stripe`, `1099`, `quickbooks`, `xero`, `turbotax`, `payout`, etc.).
+  - Auto-jumps the right pane to the first matching section so results are visible immediately.
+  - Right-pane content highlights occurrences of the query inside transaction history rows, monthly-statement labels, payment-settings copy, export blurbs, and Legal & tax body text using the same `<mark className="bg-[#ff4500]/30">` style as Help.
+  - Empty-state right-pane when zero sections match — suggests sample queries (`stripe`, `1099`, `quickbooks`, `payout`) and offers a Clear search action. Sub-nav also collapses to a compact "No matches." pill.
+- Verified end-to-end via Playwright: searching `1099` → 1 match, sub-nav narrows to Legal & tax, three "1099" highlights render in the right pane. `zzzzzzzz` → empty state. X-clear restores full nav.
