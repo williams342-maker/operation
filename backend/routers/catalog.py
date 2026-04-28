@@ -264,6 +264,13 @@ async def create_maker_application(payload: MakerApplicationCreate, bg: Backgrou
     # Auto-detect Founding Seller Beta signups (BetaPage prefixes the about
     # field with this marker before hitting /api/maker-applications).
     if "[FOUNDING SELLER BETA]" in (payload.about or ""):
+        # Gate: beta signups must also be enabled by admin toggle.
+        if not await get_setting("beta_signup_enabled", True):
+            raise HTTPException(
+                403,
+                "Founding Seller Beta signups are closed right now. "
+                "Please apply at /apply instead.",
+            )
         app_obj.is_beta = True
     await db.maker_applications.insert_one(app_obj.model_dump())
     await db.activity_events.insert_one(

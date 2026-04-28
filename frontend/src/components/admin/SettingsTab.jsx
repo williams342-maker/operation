@@ -37,6 +37,12 @@ const SWITCHES = [
     messageLabel: "'Applications closed' copy",
   },
   {
+    key: "beta_signup_enabled",
+    label: "Founding Seller Beta Signup",
+    blurb: "Master switch for the bold ◆ BETA SIGNUP button in the header AND the /beta landing page. When OFF, the Nav hides the pill and /beta shows a 'spots are closed' state — existing Founding Sellers keep their perks.",
+    tone: "warn",
+  },
+  {
     key: "live_chat_enabled",
     label: "Live Chat",
     blurb: "Master kill-switch for WebSocket chat. When OFF, new connections are rejected and the Chat tab is hidden in /community.",

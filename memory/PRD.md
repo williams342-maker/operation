@@ -554,3 +554,12 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - ✅ **New API client fn** — `toggleMakerBeta(slug, enabled)` in `/app/frontend/src/lib/api.js`.
 - Verified end-to-end: beta application via `/beta` → admin approves → maker auto-created with 90-day expiry (`Apr 27 2026 → Jul 26 2026`) → toggle OFF clears fields → toggle ON resets the 90-day countdown. Badge, switch, and "89D 23H LEFT" countdown all render in admin Applications tab. Unknown slug → 404, unauthenticated → 401.
 
+
+## 2026-04-28 — Admin toggle: Beta Signup master switch
+- ✅ **New site setting** `beta_signup_enabled` (default `true`) in `/app/backend/routers/settings.py` defaults, public `GET /api/settings`, admin `GET /api/admin/settings`, and the `SettingsPatch` model.
+- ✅ **Server-side gate** — `POST /api/maker-applications` now rejects any submission tagged `[FOUNDING SELLER BETA]` with HTTP 403 (`"Founding Seller Beta signups are closed right now. Please apply at /apply instead."`) whenever the flag is off. Regular `/apply` submissions continue to work.
+- ✅ **Nav gating** (`/app/frontend/src/components/sections/Nav.jsx`) — the bold ◆ BETA SIGNUP desktop pill, compact mobile variant, and mobile-drawer entry all hide when the flag is off. Reads via `useSiteSettings()` (60s polling).
+- ✅ **/beta page gating** (`/app/frontend/src/pages/BetaPage.jsx`) — when off AND settings have loaded, renders a "BETA SPOTS ARE CLOSED" state with a CTA to `/apply` instead of the founding-seller form. Uses a strict `settings.beta_signup_enabled === false` check so there's no flash-of-closed during initial load.
+- ✅ **Admin UI row** (`/app/frontend/src/components/admin/SettingsTab.jsx`) — new `beta_signup_enabled` switch between "Allow New Maker Applications" and "Live Chat", with blurb explaining the master-switch behaviour ("hides the ◆ BETA SIGNUP button sitewide AND swaps /beta to a 'spots closed' state — existing Founding Sellers keep their perks"). Toggles like every other admin switch (optimistic UI + `refreshSiteSettings()` after save).
+- Verified end-to-end: toggle OFF → `GET /api/settings` returns `false` → Nav button disappears on home, /beta renders the "BETA SPOTS ARE CLOSED" screen, `POST /api/maker-applications` with beta marker returns 403, regular /apply submissions still return 200 with `is_beta: false`. Toggle back ON → everything restored.
+

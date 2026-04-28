@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { submitMakerApplication } from "../lib/api";
+import { useSiteSettings } from "../hooks/useSiteSettings";
 import { useStructuredData } from "../lib/seo";
 
 // Founding Seller Beta program landing page.
@@ -25,6 +26,9 @@ export default function BetaPage() {
       isPartOf: { "@type": "WebSite", "@id": "https://craftersmarket.org/#website" },
     },
   });
+
+  const settings = useSiteSettings();
+  const betaSignupEnabled = settings?.beta_signup_enabled !== false;
 
   const [f, setF] = useState({
     name: "",
@@ -76,6 +80,34 @@ export default function BetaPage() {
         <p className="font-mono text-sm text-[#a3a3a3] max-w-md mx-auto leading-relaxed">
           We review every founding-seller application personally. Expect a reply within 3–5 business days.
         </p>
+      </div>
+    );
+  }
+
+  // Admin has turned the Founding Seller Beta signup off — show a "closed"
+  // state instead of the form. Existing Founding Sellers keep their access;
+  // this just stops new signups.
+  if (settings && settings.beta_signup_enabled === false) {
+    return (
+      <div className="pt-40 pb-24 min-h-screen text-center grain px-4" data-testid="beta-closed">
+        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-4">
+          ◆ Founding Seller Program · Paused
+        </div>
+        <h1 className="font-display text-6xl md:text-8xl mb-6 leading-[0.9]">
+          Beta Spots Are <span className="text-outline-orange">Closed.</span>
+        </h1>
+        <p className="font-mono text-sm text-[#a3a3a3] max-w-md mx-auto leading-relaxed mb-8">
+          We're at capacity for our Founding Seller cohort. The program will
+          reopen for a second wave — keep an eye on our journal, or apply as a
+          regular maker below.
+        </p>
+        <Link
+          to="/apply"
+          className="btn-industrial btn-primary"
+          data-testid="beta-closed-apply-link"
+        >
+          Apply to sell (regular) →
+        </Link>
       </div>
     );
   }

@@ -31,6 +31,10 @@ DEFAULT_SETTINGS: dict = {
     "beta_message": "You're using Crafters Market Beta. Found a bug or have an idea?",
     "allow_maker_applications": True,
     "applications_closed_message": "We're at capacity for new makers right now. Applications will reopen soon.",
+    # Founding Seller Beta signup CTA (Nav button + /beta page gate). When
+    # OFF, the Nav hides the "◆ BETA SIGNUP" pill and /beta renders a
+    # "spots are closed" state instead of the application form.
+    "beta_signup_enabled": True,
     "live_chat_enabled": True,
     "auto_clear_idle_rooms": False,
     "idle_clear_minutes": 60,
@@ -71,6 +75,7 @@ async def public_settings():
         "beta_message": s["beta_message"],
         "allow_maker_applications": s["allow_maker_applications"],
         "applications_closed_message": s["applications_closed_message"],
+        "beta_signup_enabled": s["beta_signup_enabled"],
         "live_chat_enabled": s["live_chat_enabled"],
     }
 
@@ -129,6 +134,7 @@ class SettingsPatch(BaseModel):
     beta_message: Optional[str] = None
     allow_maker_applications: Optional[bool] = None
     applications_closed_message: Optional[str] = None
+    beta_signup_enabled: Optional[bool] = None
     live_chat_enabled: Optional[bool] = None
     auto_clear_idle_rooms: Optional[bool] = None
     idle_clear_minutes: Optional[int] = Field(default=None, ge=5, le=1440)
