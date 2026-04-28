@@ -22,6 +22,7 @@ import {
 import MediaSection from "./MakerListingEditor/MediaSection";
 import AiAssistantSection from "./MakerListingEditor/AiAssistantSection";
 import PricingSection from "./MakerListingEditor/PricingSection";
+import { estimateShipping } from "../lib/shippingEstimator";
 
 /** Crafters Market — full-page Listing Editor.
  *
@@ -859,6 +860,8 @@ export default function MakerListingEditor() {
                 <span>L</span><span>W</span><span>H</span><span>Unit</span>
               </div>
             </div>
+
+            <ShippingEstimatePreview form={form} />
           </div>
         </Section>
 
@@ -1020,6 +1023,76 @@ export default function MakerListingEditor() {
           onConfirm={onCropConfirm}
         />
       )}
+    </div>
+  );
+}
+
+
+// Live shipping-rate preview shown directly under the packed-dimensions
+// inputs. Uses a pure client-side estimator (`/app/frontend/src/lib/
+// shippingEstimator.js`) so there's no API round-trip — the maker sees
+// a realistic ballpark the moment they finish typing weight + size.
+function ShippingEstimatePreview({ form }) {
+  const est = useMemo(() => estimateShipping(form), [form]);
+  if (!est) return null;
+  const cheapest = est.options[0];
+  const padding = parseFloat(est.dimLb) > parseFloat(est.actualLb);
+
+  return (
+    <div
+      className="mt-6 border border-emerald-500/30 bg-emerald-500/5 p-4"
+      data-testid="ship-estimate-preview"
+    >
+      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-400 mb-2">
+        ◆ Estimated rates · zone-4 average
+      </div>
+      <div className="flex items-baseline gap-3 mb-3 flex-wrap">
+        <span className="font-display text-2xl text-emerald-300" data-testid="ship-estimate-cheapest">
+          ${cheapest.cost.toFixed(2)}
+        </span>
+        <span className="font-mono text-[11px] text-[#a3a3a3]">
+          via {cheapest.carrier} {cheapest.service} · {cheapest.days} days
+        </span>
+      </div>
+
+      <div className="space-y-1.5 mb-3" data-testid="ship-estimate-options">
+        {est.options.map((opt, i) => (
+          <div
+            key={`${opt.carrier}-${opt.service}`}
+            className={`grid grid-cols-[1fr_auto_auto] gap-3 px-2 py-1 font-mono text-[11px] ${
+              i === 0 ? "text-emerald-300" : "text-[#a3a3a3]"
+            }`}
+            data-testid={`ship-estimate-row-${i}`}
+          >
+            <span className="truncate">
+              {i === 0 && "✓ "}
+              {opt.carrier} {opt.service}
+            </span>
+            <span className="text-[#525252]">{opt.days}d</span>
+            <span className={i === 0 ? "text-emerald-300" : "text-[#e5e5e5]"}>
+              ${opt.cost.toFixed(2)}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[10px] text-[#737373]">
+        <span>Actual <span className="text-[#a3a3a3]">{est.actualLb} lb</span></span>
+        <span>Dim <span className="text-[#a3a3a3]">{est.dimLb} lb</span></span>
+        <span>Billable <span className="text-emerald-400">{est.billableLb} lb</span></span>
+      </div>
+      {padding && (
+        <p
+          className="font-mono text-[10px] text-amber-400/90 mt-2 leading-relaxed"
+          data-testid="ship-estimate-dim-warning"
+        >
+          ◇ Your package volume is driving the cost (carriers bill on the larger of actual vs. dim weight).
+          Tighter packaging could lower this estimate.
+        </p>
+      )}
+      <p className="font-mono text-[9px] text-[#525252] mt-3 leading-relaxed">
+        Estimates are zone-4 averages from public 2026 rate tables — actual checkout costs vary by buyer ZIP. Carriers bill the larger of actual vs. dimensional (L×W×H ÷ 166) weight.
+      </p>
     </div>
   );
 }

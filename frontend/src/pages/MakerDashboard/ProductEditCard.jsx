@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   updateMakerProduct, deleteMakerProduct, restoreMakerProduct,
@@ -233,10 +233,11 @@ export default function ProductEditCard({ product, archived = false, draft = fal
               ✎ Edit listing
             </Link>
 
-            {/* Secondary actions — small bordered pill buttons in a 2-col
-                grid so the card stays compact and every action gets a
-                visible hover state. Was previously bare text links which
-                looked unfinished and had a weak click target. */}
+            {/* Secondary actions — primary 3 inline + overflow menu for
+                3D model + Delete (the destructive / advanced ones). The
+                kebab pattern keeps the visible card compact and pushes
+                Delete one click away from the happy path of edit / promote /
+                share. */}
             <div className="mt-2 grid grid-cols-2 gap-1.5" data-testid={`product-actions-${p.slug}`}>
               <ActionPill
                 onClick={onTogglePublish}
@@ -280,18 +281,13 @@ export default function ProductEditCard({ product, archived = false, draft = fal
                   label={renewing ? "…" : "↻ Renew $0.20"}
                 />
               )}
-              <ActionPill
-                onClick={() => setOpen((o) => !o)}
-                tone="neutral"
-                testid={`product-toggle-edit-${p.slug}`}
-                label={open ? "− Close 3D" : "+ 3D model"}
-              />
-              <ActionPill
-                onClick={onDelete}
-                disabled={removing}
-                tone="danger"
-                testid={`product-delete-${p.slug}`}
-                label={removing ? "Deleting…" : "⊗ Delete"}
+              <OverflowMenu
+                onModel={() => setOpen((o) => !o)}
+                modelLabel={open ? "− Close 3D" : "+ 3D model"}
+                onDelete={onDelete}
+                deleteLabel={removing ? "Deleting…" : "⊗ Delete"}
+                deleteDisabled={removing}
+                testid={`product-overflow-${p.slug}`}
               />
             </div>
             {statusErr && (
@@ -421,5 +417,65 @@ function ActionPill({ onClick, disabled, tone = "neutral", testid, label }) {
     >
       {label}
     </button>
+  );
+}
+
+// Overflow menu for the destructive / advanced actions on each product
+// card. Etsy "kebab" pattern — single ⋯ button reveals a tiny anchored
+// popover with 3D-model + Delete. Click-outside-to-close handled via a
+// document-level mousedown listener mounted only while the menu is open.
+function OverflowMenu({ onModel, modelLabel, onDelete, deleteLabel, deleteDisabled, testid }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [open]);
+  const t = TONES.neutral;
+  return (
+    <div className="relative" ref={wrapRef}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={`w-full px-2 py-1.5 border font-mono text-[9px] uppercase tracking-[0.18em] text-center transition ${t.border} ${t.text} ${t.hoverBg}`}
+        data-testid={testid}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        title="More actions"
+      >
+        ⋯ More
+      </button>
+      {open && (
+        <div
+          className="absolute right-0 top-full mt-1 z-20 w-44 bg-[#0d0d0d] border border-[#262626] shadow-xl"
+          role="menu"
+          data-testid={`${testid}-menu`}
+        >
+          <button
+            type="button"
+            onClick={() => { setOpen(false); onModel(); }}
+            className="w-full text-left px-3 py-2 font-mono text-[10px] uppercase tracking-[0.18em] text-[#a3a3a3] hover:text-[#ff4500] hover:bg-[#ff4500]/5 transition"
+            role="menuitem"
+            data-testid={`${testid}-3d`}
+          >
+            {modelLabel}
+          </button>
+          <button
+            type="button"
+            onClick={() => { setOpen(false); onDelete(); }}
+            disabled={deleteDisabled}
+            className="w-full text-left px-3 py-2 font-mono text-[10px] uppercase tracking-[0.18em] text-red-400 hover:text-red-300 hover:bg-red-500/10 transition disabled:opacity-50 border-t border-[#1f1f1f]"
+            role="menuitem"
+            data-testid={`${testid}-delete`}
+          >
+            {deleteLabel}
+          </button>
+        </div>
+      )}
+    </div>
   );
 }

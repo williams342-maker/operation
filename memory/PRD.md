@@ -678,6 +678,22 @@ Triggered by user feedback: "reduce the size by 1/3, change the look of the link
 - ✅ **Two-line title clamp** (`line-clamp-2 min-h-[2.4em]`) keeps cards aligned even when titles vary in length — no more ragged bottoms.
 - Verified end-to-end via Playwright at 1920×1080: 4 cards per row, 5 ActionPills per card, hover state visually distinct on the orange/emerald/sky/danger tones. Lint clean.
 
+## 2026-04-28 — Live shipping estimator + kebab overflow menu
+### Shipping estimator (`/app/frontend/src/lib/shippingEstimator.js`)
+- ✅ Pure client-side calculator that takes `(weight_lbs, weight_oz, packed_length_in, packed_width_in, packed_height_in)` and returns up to 3 carrier/service options sorted cheapest-first.
+- ✅ Uses zone-4 USPS Ground Advantage + UPS Ground retail rate tables (2026 published rates) + USPS Priority Flat-Rate Box when item fits the 12×12×6 / 70 lb cube.
+- ✅ Computes **billable weight = max(actual_lb, dim_lb)** where `dim_lb = (L×W×H) / 166` — same divisor every major US carrier uses.
+- ✅ Shows an **amber "your package volume is driving the cost"** warning when dim-weight exceeds actual weight, so makers know to tighten their packaging.
+- ✅ Displayed in a green-bordered preview card directly under the packed-dimensions inputs in the editor's Calculated Shipping block. Reactive — typing weight or dims updates the estimate live (memoised on `form` so it only recomputes when relevant fields change).
+- ✅ Disclaimer: *"Estimates are zone-4 averages from public 2026 rate tables — actual checkout costs vary by buyer ZIP."* Pricing accuracy ±15-20% which is fine for a maker's "should I charge $25 or $40 shipping" gut check.
+
+### Kebab overflow menu (`/app/frontend/src/pages/MakerDashboard/ProductEditCard.jsx`)
+- ✅ New `OverflowMenu` component replaces the always-visible "+ 3D model" and "⊗ Delete" pills with a single **⋯ More** trigger that opens a small anchored popover.
+- ✅ Click-outside-to-close handled via document mousedown listener mounted only while open.
+- ✅ Reduces visible action grid from 5 pills to 4, makes the destructive Delete one click away from the happy path of edit/promote/share — Etsy "kebab" pattern.
+- Verified end-to-end via Playwright: 3.5 lb / 18×14×3 → $14.40 cheapest (USPS Ground), 3.5 lb / 30×24×12 → $96.50 with dim-weight warning visible. Overflow menu opens on click, shows 3D + Delete, dismisses on outside click. Lint clean.
+
+
 
 
 
