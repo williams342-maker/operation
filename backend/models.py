@@ -73,6 +73,13 @@ class Product(BaseModel):
     shipping_carrier: Optional[str] = None
     shipping_est_delivery: Optional[str] = None  # e.g. "5-7 business days"
     processing_time: Optional[str] = None        # e.g. "1-3 business days"
+    # Packed dimensions — distinct from the item's own dimensions because a
+    # 24x18 wall sign might ship in a 30x24x4 cardboard mailer once it's
+    # bubble-wrapped + corner-protected. Carriers price by packed size, not
+    # the bare item, so we collect both.
+    packed_length_in: Optional[float] = None
+    packed_width_in: Optional[float] = None
+    packed_height_in: Optional[float] = None
     # ---- Returns ----
     accept_returns: bool = False
     accept_exchanges: bool = False
@@ -120,6 +127,9 @@ class MakerProductCreate(BaseModel):
     shipping_carrier: Optional[str] = None
     shipping_est_delivery: Optional[str] = None
     processing_time: Optional[str] = None
+    packed_length_in: Optional[float] = None
+    packed_width_in: Optional[float] = None
+    packed_height_in: Optional[float] = None
     accept_returns: bool = False
     accept_exchanges: bool = False
     seo_tags: List[str] = []

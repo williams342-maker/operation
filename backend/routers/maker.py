@@ -117,6 +117,9 @@ class MakerProductUpdate(BaseModel):
     shipping_carrier: Optional[str] = None
     shipping_est_delivery: Optional[str] = None
     processing_time: Optional[str] = None
+    packed_length_in: Optional[float] = None
+    packed_width_in: Optional[float] = None
+    packed_height_in: Optional[float] = None
     accept_returns: Optional[bool] = None
     accept_exchanges: Optional[bool] = None
     seo_tags: Optional[List[str]] = None
@@ -417,6 +420,9 @@ async def maker_create_product(
         shipping_carrier=payload.shipping_carrier,
         shipping_est_delivery=payload.shipping_est_delivery,
         processing_time=payload.processing_time,
+        packed_length_in=payload.packed_length_in,
+        packed_width_in=payload.packed_width_in,
+        packed_height_in=payload.packed_height_in,
         accept_returns=bool(payload.accept_returns),
         accept_exchanges=bool(payload.accept_exchanges),
         seo_tags=(payload.seo_tags or [])[:13],

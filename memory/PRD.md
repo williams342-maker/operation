@@ -662,6 +662,16 @@ User reported: on their (short) viewport the crop modal extended below the visib
 - ✅ **Backend shipping defaults extended** in `/app/backend/routers/checkout.py` `SHIPPING_BY_CATEGORY` map to give every new category a sensible fallback rate (Jewelry $8, Furniture $95, etc.) — tuned by typical package weight so checkout has accurate estimates when a maker hasn't set their own `shipping_domestic_usd`.
 - Non-breaking: `Product.category` is a free-form `str` in `models.py`, so legacy listings keep working. Verified the editor dropdown shows all 16, `/shop` renders all 16 filter pills, lint clean across all four touched files.
 
+## 2026-04-28 — Shipping section: weight + packed dimensions (calculated shipping)
+Triggered by user reference screenshot showing Etsy's calculated-shipping inputs.
+- ✅ **New "Calculated shipping" sub-block** appended to the Shipping section in the editor (`/maker/listings/new` and edit). Includes:
+  - **Item weight** (lb + oz) — same `weight_lbs`/`weight_oz` form fields as Item Details, no duplication. Single source of truth means typing in one place updates the other.
+  - **Item size when packed** (L / W / H in inches) — three new fields with helper copy "Size after the item's been prepped for packaging — e.g. folded, rolled, or padded — but before it goes into a box."
+- ✅ Backend `Product` model + `ProductCreate` + `MakerProductUpdate` schema all extended with `packed_length_in`, `packed_width_in`, `packed_height_in` (all `Optional[float]` for backwards compat — existing listings get `None` and keep working).
+- ✅ Create + PATCH handlers wired through `payload.packed_*` to the persisted document.
+- Verified end-to-end via Playwright + curl: filled lb=2, oz=4, L/W/H=18/14/3 → autosave fired → backend GET `/api/maker/products` returns `weight_lbs=2.0, weight_oz=4.0, packed_length_in=18.0, packed_width_in=14.0, packed_height_in=3.0`. Lint clean across all four touched files.
+
+
 
 
 

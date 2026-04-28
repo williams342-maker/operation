@@ -106,6 +106,9 @@ export default function MakerListingEditor() {
             shipping_international_usd: found.shipping_international_usd ?? "",
             shipping_carrier: found.shipping_carrier ?? "",
             shipping_est_delivery: found.shipping_est_delivery ?? "",
+            packed_length_in: found.packed_length_in ?? "",
+            packed_width_in: found.packed_width_in ?? "",
+            packed_height_in: found.packed_height_in ?? "",
             personalization_instructions: found.personalization_instructions ?? "",
             video_url: found.video_url ?? "",
             contact_email: found.contact_email ?? me?.email ?? "",
@@ -419,6 +422,9 @@ export default function MakerListingEditor() {
     shipping_international_usd: form.shipping_international_usd === "" ? null : Number(form.shipping_international_usd),
     shipping_carrier: form.shipping_carrier || null,
     shipping_est_delivery: form.shipping_est_delivery || null,
+    packed_length_in: form.packed_length_in === "" ? null : Number(form.packed_length_in),
+    packed_width_in: form.packed_width_in === "" ? null : Number(form.packed_width_in),
+    packed_height_in: form.packed_height_in === "" ? null : Number(form.packed_height_in),
     processing_time: form.processing_time,
     accept_returns: form.accept_returns,
     accept_exchanges: form.accept_exchanges,
@@ -792,6 +798,66 @@ export default function MakerListingEditor() {
               <Select value={form.shipping_est_delivery} onChange={(v) => set({ shipping_est_delivery: v })}
                 options={[["", "Select range…"], ...DELIVERY_RANGES.map((d) => [d, d])]}
                 testid="editor-shipping-est-delivery" />
+            </div>
+          </div>
+
+          {/* Calculated-shipping inputs — weight + packed size. Lets carriers
+              quote real-time rates instead of the maker eyeballing a flat
+              fee. Weight maps to the same `weight_lbs`/`weight_oz` fields
+              from Item Details (single source of truth — typing here
+              updates there and vice versa). */}
+          <div className="mt-6 pt-6 border-t border-[#262626]" data-testid="editor-shipping-calc">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mb-2">
+              ◆ Calculated shipping
+            </div>
+            <p className="font-mono text-xs text-[#a3a3a3] mb-5 max-w-2xl leading-relaxed">
+              Weight and packed size let carriers quote live rates at checkout instead of the buyer paying your flat fee. Required for USPS / UPS / FedEx calculated profiles.
+            </p>
+
+            <div className="mb-5">
+              <Label>Item weight *</Label>
+              <div className="grid grid-cols-4 gap-2 max-w-md">
+                <NumInput
+                  value={form.weight_lbs}
+                  onChange={(v) => set({ weight_lbs: v })}
+                  placeholder="0" testid="editor-ship-weight-lbs"
+                />
+                <span className="self-center font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">lb</span>
+                <NumInput
+                  value={form.weight_oz}
+                  onChange={(v) => set({ weight_oz: v })}
+                  placeholder="0" testid="editor-ship-weight-oz"
+                />
+                <span className="self-center font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">oz</span>
+              </div>
+            </div>
+
+            <div>
+              <Label>Item size when packed *</Label>
+              <p className="font-mono text-[10px] text-[#525252] mb-2 max-w-2xl">
+                Size after the item's been prepped for packaging — e.g. folded, rolled, or padded — but before it goes into a box.
+              </p>
+              <div className="grid grid-cols-4 gap-2 max-w-2xl">
+                <NumInput
+                  value={form.packed_length_in}
+                  onChange={(v) => set({ packed_length_in: v })}
+                  placeholder="Length" testid="editor-packed-length"
+                />
+                <NumInput
+                  value={form.packed_width_in}
+                  onChange={(v) => set({ packed_width_in: v })}
+                  placeholder="Width" testid="editor-packed-width"
+                />
+                <NumInput
+                  value={form.packed_height_in}
+                  onChange={(v) => set({ packed_height_in: v })}
+                  placeholder="Height" testid="editor-packed-height"
+                />
+                <span className="self-center font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">in</span>
+              </div>
+              <div className="grid grid-cols-4 gap-2 font-mono text-[9px] uppercase tracking-[0.18em] text-[#525252] mt-1 px-1 max-w-2xl">
+                <span>L</span><span>W</span><span>H</span><span>Unit</span>
+              </div>
             </div>
           </div>
         </Section>
