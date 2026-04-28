@@ -733,6 +733,14 @@ Triggered by user mark-up showing dead space between the live-now strip and "SHO
 - ✅ `CategoryStrip.jsx` section padding `py-16 md:py-20` → `py-10 md:py-12` (-44px on desktop).
 - Net: ~300px reclaimed. Before the change "SHOP BY CATEGORY" was off-screen at 1080p; now it's visible alongside the hero CTA + live-now strip in a single viewport.
 
+## 2026-04-28 — Hero parallax effect
+- ✅ Subtle scroll-driven parallax on the hero background. Uses framer-motion's `useScroll` + `useTransform` keyed off the section ref's `["start start", "end start"]` viewport offsets:
+  - Background image translates Y `0% → 12%` of section height (with `scale-110` over-render so it never reveals empty edges).
+  - Gradient + radial overlay translates half as much (`0% → 6%`) so the lighting "follows" the image without unsticking from it.
+- ✅ **Honors `prefers-reduced-motion`** via `useReducedMotion()` — both layers pin at `0%` when the OS / browser asks for less motion.
+- Verified end-to-end: initial transform `none`, after `window.scrollTo(0, 600)` the bg `<motion.div>` reports `matrix(1, 0, 0, 1, 0, 71.983)` → +72px Y drift confirmed. Lint clean.
+
+
 
 
 

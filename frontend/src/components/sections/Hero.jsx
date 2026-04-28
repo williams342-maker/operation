@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, useScroll, useTransform, useReducedMotion } from "framer-motion";
 import { Search, ArrowDown } from "lucide-react";
 
 const HERO_BG =
@@ -21,13 +21,34 @@ export default function Hero() {
     nav(q.trim() ? `/shop?q=${encodeURIComponent(q.trim())}` : "/shop");
   };
 
+  // Subtle parallax — the background image drifts up ~12% of the section
+  // height as the user scrolls past, the gradient + radial overlay drift
+  // half as much (so the lighting "follows" but doesn't unstick from the
+  // image). Honors prefers-reduced-motion: when the OS asks for less
+  // motion, we pin both layers and skip the transform entirely.
+  const sectionRef = useRef(null);
+  const reduced = useReducedMotion();
+  const { scrollYProgress } = useScroll({
+    target: sectionRef,
+    offset: ["start start", "end start"],
+  });
+  const bgY = useTransform(scrollYProgress, [0, 1], reduced ? ["0%", "0%"] : ["0%", "12%"]);
+  const overlayY = useTransform(scrollYProgress, [0, 1], reduced ? ["0%", "0%"] : ["0%", "6%"]);
+
   return (
-    <section id="top" className="relative w-full min-h-[72svh] overflow-hidden" data-testid="hero-section">
-      <div className="absolute inset-0">
-        <img src={HERO_BG} alt="" className="absolute inset-0 w-full h-full object-cover" />
+    <section
+      ref={sectionRef}
+      id="top"
+      className="relative w-full min-h-[72svh] overflow-hidden"
+      data-testid="hero-section"
+    >
+      <motion.div className="absolute inset-0" style={{ y: bgY }} aria-hidden="true">
+        <img src={HERO_BG} alt="" className="absolute inset-0 w-full h-full object-cover scale-110" />
+      </motion.div>
+      <motion.div className="absolute inset-0" style={{ y: overlayY }} aria-hidden="true">
         <div className="absolute inset-0 bg-gradient-to-b from-black/85 via-black/65 to-[#0a0a0a]" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_30%,rgba(255,69,0,0.18),transparent_55%)]" />
-      </div>
+      </motion.div>
 
       <div className="relative z-10 w-full max-w-[1400px] mx-auto px-4 md:px-8 pt-36 md:pt-44 pb-10 text-center">
         <motion.div
