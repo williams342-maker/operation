@@ -327,9 +327,9 @@ class CheckoutRequest(BaseModel):
 
 class ActivityEvent(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    kind: str  # sold | shipped | listed | applied
+    kind: str  # sold | shipped | listed | applied | drop | admin
     text: str
-    location: str
+    location: Optional[str] = None  # admin housekeeping events have no location
     created_at: str = Field(default_factory=now_iso)
 
 

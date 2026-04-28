@@ -289,7 +289,10 @@ async def create_maker_application(payload: MakerApplicationCreate, bg: Backgrou
 
 @router.get("/activity", response_model=List[ActivityEvent])
 async def list_activity(limit: int = 20):
-    return await db.activity_events.find({}, {"_id": 0}).sort("created_at", -1).to_list(limit)
+    # Exclude internal admin housekeeping events from the public ticker.
+    return await db.activity_events.find(
+        {"kind": {"$ne": "admin"}}, {"_id": 0},
+    ).sort("created_at", -1).to_list(limit)
 
 
 # ---------------------------------------------------------------------------
