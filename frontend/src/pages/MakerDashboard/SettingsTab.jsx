@@ -340,7 +340,7 @@ function InfoAppearance({ maker, onSaved }) {
 // Section: About your shop
 // ============================================================================
 function AboutShop({ maker, onSaved }) {
-  const fields = ["bio", "story_headline", "story", "is_veteran_owned"];
+  const fields = ["bio", "story_headline", "story", "is_veteran_owned", "watermark_images"];
   const { form, set, dirty, busy, submit } = useSettingsForm(maker, fields, onSaved);
   return (
     <FormShell
@@ -378,6 +378,13 @@ function AboutShop({ maker, onSaved }) {
         value={!!form.is_veteran_owned}
         onChange={set("is_veteran_owned")}
         testId="settings-veteran-owned"
+      />
+      <ToggleRow
+        label="Watermark my listing photos"
+        hint="When ON, every new listing photo you upload is stamped with your shop name (tiled across the image + corner stamp). Deters image theft. Existing photos aren't re-processed — re-upload them to apply the watermark retroactively."
+        value={!!form.watermark_images}
+        onChange={set("watermark_images")}
+        testId="settings-watermark"
       />
     </FormShell>
   );

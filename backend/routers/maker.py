@@ -28,6 +28,49 @@ def _slugify(s: str) -> str:
     return s[:80] or "listing"
 
 
+async def _upload_listing_image(
+    data_url: str, maker_slug: str, key_prefix: str,
+) -> Optional[str]:
+    """Watermark-aware upload of a single base64 data URL to R2.
+
+    Reads `watermark_images` + `name` off the maker doc. When watermarking
+    is ON, decodes → composites a tiled diagonal label + corner stamp →
+    re-encodes as JPEG → uploads. Otherwise falls back to the standard
+    `upload_data_url` passthrough.
+
+    Returns the public R2 URL, or None if R2 isn't configured or the
+    input wasn't a valid image data URL (caller decides the fallback).
+    Raises HTTPException(502) on R2 failures (caller should let it bubble).
+    """
+    try:
+        from r2_storage import (
+            ALLOWED_CONTENT_TYPES,
+            is_configured as _r2_ok,
+            upload_bytes,
+            upload_data_url,
+        )
+    except Exception:
+        return None
+    if not _r2_ok():
+        return None
+
+    maker_doc = await db.makers.find_one(
+        {"slug": maker_slug}, {"_id": 0, "watermark_images": 1, "name": 1},
+    )
+    wm_on = bool(maker_doc and maker_doc.get("watermark_images"))
+    shop_name = (maker_doc or {}).get("name") or maker_slug
+
+    if wm_on:
+        from image_watermark import maybe_watermark_data_url
+        result = maybe_watermark_data_url(data_url, shop_name)
+        if result is not None:
+            wm_bytes, wm_ct = result
+            ext = ALLOWED_CONTENT_TYPES.get(wm_ct, "jpg")
+            key = f"{key_prefix.rstrip('/')}/{uuid.uuid4().hex}.{ext}"
+            return upload_bytes(wm_bytes, key, wm_ct)
+    return upload_data_url(data_url, key_prefix=key_prefix)
+
+
 @router.post("/maker/auth/request")
 async def maker_auth_request(payload: MakerLoginRequest, bg: BackgroundTasks):
     """Send a magic link if a maker with that email exists. Always returns 200 (no enumeration)."""
@@ -161,6 +204,42 @@ async def maker_update_product(
                 raise HTTPException(400, "Each variant needs a label.")
             if v.in_stock < 0:
                 raise HTTPException(400, "Variant stock must be non-negative.")
+
+    # If the patch includes new images as data URLs (the editor still
+    # ships them as base64 until upload), push them through R2 with the
+    # same watermark-aware pipeline used on create. http(s) URLs pass
+    # straight through.
+    if payload.images is not None:
+        new_images: List[str] = []
+        for img in payload.images:
+            if isinstance(img, str) and img.startswith("data:"):
+                try:
+                    url = await _upload_listing_image(img, slug, f"products/{slug}")
+                    new_images.append(url or img)
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    logger.exception("R2 upload (patch) failed for maker=%s: %s", slug, e)
+                    raise HTTPException(502, "Could not upload image to storage.")
+            else:
+                new_images.append(img)
+        payload.images = new_images
+
+    if payload.variants is not None:
+        for v in payload.variants:
+            if v.image and isinstance(v.image, str) and v.image.startswith("data:"):
+                try:
+                    url = await _upload_listing_image(
+                        v.image, slug, f"products/{slug}/variants",
+                    )
+                    if url:
+                        v.image = url
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    logger.exception("R2 variant upload (patch) failed maker=%s: %s", slug, e)
+                    raise HTTPException(502, "Could not upload variant image.")
+
     updates = {k: v for k, v in payload.model_dump(exclude_none=True).items()}
     if updates:
         await db.products.update_one({"slug": product_slug}, {"$set": updates})
@@ -349,17 +428,14 @@ async def maker_create_product(
     # Upload any inline base64 data URLs to R2 (if configured) so we never
     # bloat MongoDB with image bytes. Pass-through any http(s) URLs as-is.
     final_images: List[str] = []
-    try:
-        from r2_storage import is_configured as _r2_ok, upload_data_url
-    except Exception:
-        _r2_ok = lambda: False  # noqa: E731
-        upload_data_url = None  # type: ignore
     if payload.images:
         for img in payload.images:
-            if img.startswith("data:") and _r2_ok():
+            if img.startswith("data:"):
                 try:
-                    url = upload_data_url(img, key_prefix=f"products/{slug}")
+                    url = await _upload_listing_image(img, slug, f"products/{slug}")
                     final_images.append(url or img)
+                except HTTPException:
+                    raise
                 except Exception as e:
                     logger.exception("R2 upload failed for maker=%s: %s", slug, e)
                     raise HTTPException(502, "Could not upload image to storage.")
@@ -371,13 +447,15 @@ async def maker_create_product(
     final_variants: List[ProductVariant] = []
     for v in (payload.variants or []):
         img = v.image
-        if img and isinstance(img, str) and img.startswith("data:") and _r2_ok():
+        if img and isinstance(img, str) and img.startswith("data:"):
             try:
-                url = upload_data_url(img, key_prefix=f"products/{slug}/variants")
+                url = await _upload_listing_image(img, slug, f"products/{slug}/variants")
                 v_dump = v.model_dump()
                 v_dump["image"] = url or img
                 final_variants.append(ProductVariant(**v_dump))
                 continue
+            except HTTPException:
+                raise
             except Exception as e:
                 logger.exception("R2 variant-image upload failed maker=%s: %s", slug, e)
                 raise HTTPException(502, "Could not upload variant image.")

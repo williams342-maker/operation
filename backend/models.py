@@ -203,6 +203,13 @@ class Maker(BaseModel):
     # maker's profile hero. Free / honor-system today; we may add doc upload
     # verification later (DoD DD-214 / VA proof).
     is_veteran_owned: bool = False
+    # ---- Watermark on uploaded photos ----
+    # When ON, every listing photo uploaded by this maker is watermarked
+    # at upload time (tiled diagonal label + corner stamp with the shop's
+    # name). Existing photos are not retroactively re-processed; toggle
+    # OFF disables the behaviour for future uploads only. Deters casual
+    # right-click theft and re-listing on rival marketplaces.
+    watermark_images: bool = False
     # ---- Settings tab fields (Etsy-parity) ----
     # Vacation mode: when on, shop pages render a banner and disable Add-to-Cart
     # across all listings until toggled off. Optional message shown to buyers.
@@ -373,6 +380,7 @@ class MakerProfileUpdate(BaseModel):
     returns_policy: Optional[str] = None
     accepts_custom_orders: Optional[bool] = None
     is_veteran_owned: Optional[bool] = None
+    watermark_images: Optional[bool] = None
 
 
 # ---- Admin ----
