@@ -58,11 +58,23 @@ async def admin_auth_verify(payload: AdminVerifyRequest):
 @router.get("/admin/me")
 async def admin_me(claims: dict = Depends(current_admin)):
     is_super, caps = await admin_capabilities(claims)
+    # Surface the password rotation status so the admin dashboard can render
+    # a blocking "rotate your password" modal on page refresh (not just on
+    # initial login). Cheap — one extra admin_users lookup per dashboard hit.
+    email = claims["email"]
+    user = await db.admin_users.find_one(
+        {"email": email},
+        {"_id": 0, "password_hash": 1, "last_password_change_at": 1, "password_set_at": 1},
+    ) or {}
+    from routers.auth_password import password_rotation_status
+    rotation = password_rotation_status("admin", user)
     return {
-        "email": claims["email"],
+        "email": email,
         "role": claims["role"],
         "is_super_admin": is_super,
         "capabilities": caps,
+        "requires_password_rotation": rotation["required"],
+        "password_rotation": rotation,
     }
 
 

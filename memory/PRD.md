@@ -563,3 +563,18 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - ✅ **Admin UI row** (`/app/frontend/src/components/admin/SettingsTab.jsx`) — new `beta_signup_enabled` switch between "Allow New Maker Applications" and "Live Chat", with blurb explaining the master-switch behaviour ("hides the ◆ BETA SIGNUP button sitewide AND swaps /beta to a 'spots closed' state — existing Founding Sellers keep their perks"). Toggles like every other admin switch (optimistic UI + `refreshSiteSettings()` after save).
 - Verified end-to-end: toggle OFF → `GET /api/settings` returns `false` → Nav button disappears on home, /beta renders the "BETA SPOTS ARE CLOSED" screen, `POST /api/maker-applications` with beta marker returns 403, regular /apply submissions still return 200 with `is_beta: false`. Toggle back ON → everything restored.
 
+
+## 2026-04-28 — Production deploy helper + admin password rotation (30-day policy)
+### Admin password seeder (env-driven, idempotent)
+- ✅ `seed_data._seed_admin_password()` reads `ADMIN_INIT_PASSWORD_HASH` (bcrypt `$2b$` hash) + `ADMIN_INIT_EMAIL` (defaults to `OPS_EMAIL`) from the deploy env and seeds a super-admin row into `admin_users` on first boot.
+- Idempotent: skips if the admin already has a `password_hash`, so a user-rotated password is never clobbered by a redeploy. Fires inside the existing `seed_if_empty()` startup hook.
+- Unblocks the "password works in preview but not in prod" gap — user sets the env var once in Emergent deploy settings, every future fresh deploy gets the same admin password automatically.
+
+### Admin password rotation (30-day forced rotation)
+- ✅ New env `ADMIN_PASSWORD_ROTATION_DAYS=30` (set to `0` to disable). Admin role only; buyers/makers unaffected (NIST 2024 guidance against forced rotation for end-users).
+- ✅ Backend helper `password_rotation_status(role, user)` in `/app/backend/routers/auth_password.py` returns `{required, days_since_change, days_until_required, policy_days}` from `last_password_change_at` → `password_set_at` fallback.
+- ✅ `POST /api/auth/password/login` response now includes `requires_password_rotation` + `password_rotation` fields alongside the JWT.
+- ✅ `GET /api/admin/me` surfaces the same fields — page refresh re-triggers the gate so an admin can't just close the tab and bypass it.
+- ✅ Frontend `RotatePasswordModal.jsx` renders as a blocking full-screen overlay in `AdminDashboard` whenever `me.requires_password_rotation === true`. No close button, no overlay-click dismiss, no esc-to-close. Requires current password + new password (≥10 chars, different from current) + confirmation. On success, calls `refresh()` which re-fetches `/admin/me` — modal auto-unmounts when the flag flips back to false.
+- Verified end-to-end: backdate `last_password_change_at` to 45 days ago → login returns `requires_password_rotation: true` → admin redirected to dashboard → blocking modal "YOUR PASSWORD HAS EXPIRED." renders → fill current/new/confirm → modal dismisses → admin console fully accessible. Password set via `/auth/password/set/admin` bumps `last_password_change_at` to now, resetting the 30-day clock.
+

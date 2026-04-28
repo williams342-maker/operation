@@ -38,6 +38,12 @@ ENABLE_BUYER_PASSWORD_AUTH = os.environ.get("ENABLE_BUYER_PASSWORD_AUTH", "true"
 ENABLE_MAKER_PASSWORD_AUTH = os.environ.get("ENABLE_MAKER_PASSWORD_AUTH", "true").lower() == "true"
 ENABLE_ADMIN_PASSWORD_AUTH = os.environ.get("ENABLE_ADMIN_PASSWORD_AUTH", "true").lower() == "true"
 
+# Password rotation policy — admin passwords must be rotated every N days.
+# Set to 0 to disable enforcement. Default 30d per the platform security
+# review. Buyers + makers are NOT forced to rotate (industry standard — NIST
+# no longer recommends periodic rotation for end-users).
+ADMIN_PASSWORD_ROTATION_DAYS = int(os.environ.get("ADMIN_PASSWORD_ROTATION_DAYS", "30"))
+
 Role = Literal["buyer", "maker", "admin"]
 
 
@@ -93,6 +99,50 @@ def _session_version_for(role: Role, user: dict) -> int:
     return int(user.get("session_version", 0) or 0)
 
 
+def password_rotation_status(role: Role, user: dict) -> dict:
+    """Return `{required, days_since_change, days_until_required, policy_days}`
+    for the rotation policy. Admin-only enforcement — buyers/makers always
+    return `required=False`.
+
+    Uses `last_password_change_at` → `password_set_at` fallback → now_iso()
+    if neither exists (shouldn't happen for a row with a password_hash, but
+    we default to "just rotated" so a legacy row doesn't lock anyone out).
+    """
+    if role != "admin" or ADMIN_PASSWORD_ROTATION_DAYS <= 0:
+        return {
+            "required": False,
+            "days_since_change": 0,
+            "days_until_required": None,
+            "policy_days": ADMIN_PASSWORD_ROTATION_DAYS if role == "admin" else 0,
+        }
+    from datetime import datetime, timezone
+    ts = user.get("last_password_change_at") or user.get("password_set_at")
+    if not ts:
+        # No password ever set — nothing to rotate. Shouldn't happen on a
+        # successful login path, but belt + braces.
+        return {
+            "required": False,
+            "days_since_change": 0,
+            "days_until_required": ADMIN_PASSWORD_ROTATION_DAYS,
+            "policy_days": ADMIN_PASSWORD_ROTATION_DAYS,
+        }
+    try:
+        dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+    except Exception:
+        return {"required": False, "days_since_change": 0,
+                "days_until_required": None,
+                "policy_days": ADMIN_PASSWORD_ROTATION_DAYS}
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    age_days = (datetime.now(timezone.utc) - dt).days
+    return {
+        "required": age_days >= ADMIN_PASSWORD_ROTATION_DAYS,
+        "days_since_change": age_days,
+        "days_until_required": max(0, ADMIN_PASSWORD_ROTATION_DAYS - age_days),
+        "policy_days": ADMIN_PASSWORD_ROTATION_DAYS,
+    }
+
+
 # ───────────────────── login ─────────────────────
 class PasswordLoginIn(BaseModel):
     email: EmailStr
@@ -138,7 +188,14 @@ async def password_login(payload: PasswordLoginIn):
         "last_login_method": "password",
     })
     logger.info("[auth] password login · role=%s · email=%s", payload.role, em)
-    return {"token": jwt_token, "role": payload.role, "user": _public_user(payload.role, user)}
+    rotation = password_rotation_status(payload.role, user)
+    return {
+        "token": jwt_token,
+        "role": payload.role,
+        "user": _public_user(payload.role, user),
+        "requires_password_rotation": rotation["required"],
+        "password_rotation": rotation,
+    }
 
 
 def _public_user(role: Role, user: dict) -> dict:

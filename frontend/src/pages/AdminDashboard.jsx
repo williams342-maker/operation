@@ -26,6 +26,7 @@ import ChatModTab from "../components/admin/ChatModTab";
 import RetentionTab from "../components/admin/RetentionTab";
 import TeamTab from "../components/admin/TeamTab";
 import RefundApprovalsTab from "../components/admin/RefundApprovalsTab";
+import RotatePasswordModal from "../components/admin/RotatePasswordModal";
 import LiveNowBadge from "../components/admin/LiveNowBadge";
 
 const TABS = [
@@ -198,6 +199,18 @@ export default function AdminDashboard() {
         {tab === "team" && me?.is_super_admin && <TeamTab />}
         {tab === "settings" && <SettingsTab />}
       </div>
+
+      {/* Password rotation gate — modal blocks the entire console until the
+          admin sets a new password. Driven by `/api/admin/me`, so a simple
+          page refresh clears it the moment rotation succeeds. */}
+      {me?.requires_password_rotation && (
+        <RotatePasswordModal
+          email={me.email}
+          policyDays={me.password_rotation?.policy_days || 30}
+          daysSince={me.password_rotation?.days_since_change || 0}
+          onDone={refresh}
+        />
+      )}
     </div>
   );
 }
