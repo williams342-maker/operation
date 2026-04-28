@@ -656,6 +656,13 @@ User reported: on their (short) viewport the crop modal extended below the visib
 - ✅ **Hidden on `<md` viewports** — touch resize on phones is more annoying than useful; mobile gets the full-bleed fitted modal as before.
 - Verified end-to-end via Playwright: dragging +400px/+200px grew modal 672×994 → 1072×1048; localStorage written; reopening the modal restored 1072×1048; react-easy-crop ResizeObserver auto-adapted the cropper canvas to the new dimensions.
 
+## 2026-04-28 — Listing categories expanded 5 → 16
+- ✅ **Editor + buyer-facing filter aligned** to a single source of truth in `/app/frontend/src/pages/MakerListingEditor/constants.js`. Both `MakerListingEditor` and the legacy `NewListingModal` now import from there, and `ShopPage` filter pills use the same list (with "All" prepended).
+- New buckets added: **Wedding Gifts, Business Signage, Address Numbers, Lighting & Lamps, Garden & Yard Art, Memorial & Tribute, Furniture, Kitchen & Bar, Sculpture, Jewelry, Holiday & Seasonal**. "Other" pinned to the bottom as the catch-all.
+- ✅ **Backend shipping defaults extended** in `/app/backend/routers/checkout.py` `SHIPPING_BY_CATEGORY` map to give every new category a sensible fallback rate (Jewelry $8, Furniture $95, etc.) — tuned by typical package weight so checkout has accurate estimates when a maker hasn't set their own `shipping_domestic_usd`.
+- Non-breaking: `Product.category` is a free-form `str` in `models.py`, so legacy listings keep working. Verified the editor dropdown shows all 16, `/shop` renders all 16 filter pills, lint clean across all four touched files.
+
+
 
 
 

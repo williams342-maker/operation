@@ -3,7 +3,31 @@
 // on state/effects/handlers and so individual section components can import
 // just what they need without round-tripping through the parent.
 
-export const CATEGORIES = ["Wall Art", "Custom Signs", "Outdoor Art", "Home Decor", "Other"];
+// Listing categories. Ordered roughly by buyer demand on the marketplace
+// (Wall Art / Custom Signs first; niche buckets later) so the dropdown is
+// faster to scan for the most common cases. Adding a new value here is
+// non-breaking — `Product.category` is a free-form string in the backend
+// (see `models.py`), so historical listings keep working.
+//
+// Keep "Other" pinned to the bottom as the catch-all.
+export const CATEGORIES = [
+  "Wall Art",
+  "Custom Signs",
+  "Outdoor Art",
+  "Home Decor",
+  "Wedding Gifts",
+  "Business Signage",
+  "Address Numbers",
+  "Lighting & Lamps",
+  "Garden & Yard Art",
+  "Memorial & Tribute",
+  "Furniture",
+  "Kitchen & Bar",
+  "Sculpture",
+  "Jewelry",
+  "Holiday & Seasonal",
+  "Other",
+];
 export const TECHNIQUES = ["PLASMA", "LASER", "ROUTER", "FORGE", "CUSTOM"];
 export const WHO_MADE_IT = [
   ["i_made_it", "I made it"],

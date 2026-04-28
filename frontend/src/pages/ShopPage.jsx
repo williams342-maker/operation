@@ -6,8 +6,12 @@ import EmptyState from "../components/EmptyState";
 import { CardSkeleton } from "../components/Skeleton";
 import { Search, Wrench } from "lucide-react";
 import { useStructuredData } from "../lib/seo";
+import { CATEGORIES } from "./MakerListingEditor/constants";
 
-const CATS = ["All", "Wall Art", "Custom Signs", "Outdoor Art"];
+// Buyer-facing filter strip. "All" pinned to the front; the rest mirrors
+// the CATEGORIES list makers see in the editor so anything they publish
+// is filterable by buyers from day one.
+const CATS = ["All", ...CATEGORIES];
 const TECHS = ["All", "PLASMA", "LASER", "ROUTER", "3D", "CUSTOM"];
 
 export default function ShopPage() {

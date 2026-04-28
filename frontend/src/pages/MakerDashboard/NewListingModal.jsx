@@ -1,8 +1,8 @@
 import React, { useRef, useState } from "react";
 import { createMakerProduct, uploadMakerModel } from "../../lib/api";
 import { LabeledField } from "./_shared";
+import { CATEGORIES } from "../MakerListingEditor/constants";
 
-const CATEGORIES = ["Wall Art", "Custom Signs", "Outdoor Art", "Home Decor", "Other"];
 const TECHNIQUES = ["PLASMA", "LASER", "ROUTER", "CUSTOM"];
 const MAX_IMG_W = 1600;
 const MAX_IMG_KB = 130;       // target after compression

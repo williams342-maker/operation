@@ -67,10 +67,26 @@ async def _decrement_stock_and_collect_low(
     return low_by_maker
 
 # ---- Shipping config ----
+# Per-category shipping fallback used when a maker hasn't set their own
+# shipping_domestic_usd on a listing. Tuned roughly by typical package
+# weight — small flat decor (Jewelry, Address Numbers) → $20, mid-size
+# wall pieces → $25–35, heavy outdoor / furniture / garden → $55–95.
 SHIPPING_BY_CATEGORY = {
     "Wall Art": 25.0,
     "Custom Signs": 35.0,
     "Outdoor Art": 55.0,
+    "Home Decor": 25.0,
+    "Wedding Gifts": 20.0,
+    "Business Signage": 45.0,
+    "Address Numbers": 20.0,
+    "Lighting & Lamps": 35.0,
+    "Garden & Yard Art": 55.0,
+    "Memorial & Tribute": 25.0,
+    "Furniture": 95.0,
+    "Kitchen & Bar": 25.0,
+    "Sculpture": 65.0,
+    "Jewelry": 8.0,
+    "Holiday & Seasonal": 25.0,
 }
 DEFAULT_SHIPPING = 30.0
 FREE_SHIPPING_THRESHOLD = 250.0
