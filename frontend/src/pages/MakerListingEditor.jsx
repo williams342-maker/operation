@@ -126,6 +126,9 @@ export default function MakerListingEditor() {
   const fileRef = useRef(null);
   // Crop queue: pending files waiting to go through the crop modal.
   const [cropQueue, setCropQueue] = useState([]);     // [dataUrl, ...]
+  // When set, the head of cropQueue replaces an existing photo at this
+  // index instead of appending. Used by the per-tile re-crop button.
+  const [cropTargetIdx, setCropTargetIdx] = useState(null);
   const [seoBusy, setSeoBusy] = useState(false);
 
   const onPickPhotos = async (e) => {
@@ -156,11 +159,34 @@ export default function MakerListingEditor() {
   };
 
   const onCropConfirm = (croppedDataUrl) => {
-    setForm((f) => ({ ...f, images: [...f.images, croppedDataUrl] }));
+    setForm((f) => {
+      // If the queue head was tagged with a target index, replace that
+      // photo in-place (re-crop flow). Otherwise append (initial upload).
+      const idx = cropTargetIdx;
+      if (idx != null && idx >= 0 && idx < f.images.length) {
+        const next = [...f.images];
+        next[idx] = croppedDataUrl;
+        return { ...f, images: next };
+      }
+      return { ...f, images: [...f.images, croppedDataUrl] };
+    });
+    setCropTargetIdx(null);
     setCropQueue((q) => q.slice(1));
   };
   const onCropCancel = () => {
+    setCropTargetIdx(null);
     setCropQueue((q) => q.slice(1));   // skip — file is dropped
+  };
+
+  // Re-open the crop modal for an already-uploaded photo so the maker can
+  // adjust crop / rotation after the fact. The current image data URL is
+  // pushed onto the queue head and `cropTargetIdx` tracks which slot to
+  // replace on confirm.
+  const recropImage = (i) => {
+    const src = form.images[i];
+    if (!src) return;
+    setCropTargetIdx(i);
+    setCropQueue((q) => [src, ...q]);
   };
   const videoFileRef = useRef(null);
   const [videoUploading, setVideoUploading] = useState(0);   // 0..100
@@ -470,6 +496,7 @@ export default function MakerListingEditor() {
             isEdit={isEdit}
             saving={saving}
             canPublish={canPublish}
+            errors={errors}
             onClone={cloneListing}
             onPreview={previewListing}
             onSaveDraft={() => submit("draft")}
@@ -483,7 +510,7 @@ export default function MakerListingEditor() {
         <MediaSection
           form={form} errors={errors} set={set}
           fileRef={fileRef} onPickPhotos={onPickPhotos}
-          removeImage={removeImage} promoteCover={promoteCover}
+          removeImage={removeImage} promoteCover={promoteCover} recropImage={recropImage}
           dragSrc={dragSrc} dragOver={dragOver}
           onDragStart={onDragStart} onDragOver={onDragOver}
           onDragLeaveTile={onDragLeaveTile} onDrop={onDrop} onDragEnd={onDragEnd}
@@ -839,6 +866,7 @@ export default function MakerListingEditor() {
             isEdit={isEdit}
             saving={saving}
             canPublish={canPublish}
+            errors={errors}
             onClone={cloneListing}
             onPreview={previewListing}
             onSaveDraft={() => submit("draft")}

@@ -117,7 +117,16 @@ export function ToggleRow({ label, hint, on, onChange, testid }) {
   );
 }
 
-export function ActionButtons({ isEdit, saving, canPublish, onClone, onPreview, onSaveDraft, onPublish }) {
+export function ActionButtons({ isEdit, saving, canPublish, errors, onClone, onPreview, onSaveDraft, onPublish }) {
+  // Build a short "what's missing" hint shown next to a disabled Publish
+  // button so the maker isn't left wondering why the orange CTA is greyed
+  // out. We only show it when there are actual validation issues; the hint
+  // disappears the moment the form is publish-ready.
+  const missingFields = errors ? Object.keys(errors) : [];
+  const missingHint = missingFields.length > 0
+    ? `Add ${missingFields.slice(0, 3).join(", ")}${missingFields.length > 3 ? "…" : ""} to publish`
+    : "";
+
   return (
     <div className="flex items-center gap-2">
       {isEdit && (
@@ -136,20 +145,35 @@ export function ActionButtons({ isEdit, saving, canPublish, onClone, onPreview, 
       >
         <Eye size={12} /> Preview
       </button>
+      {/* Save Draft is the always-available escape hatch — the safest action
+          for a half-finished listing. Painted bright (white text + emerald
+          left border accent) so it never gets lost next to the orange
+          Publish CTA. */}
       <button
         type="button" onClick={onSaveDraft} disabled={saving}
-        className="px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-2 disabled:opacity-50"
+        className="px-4 py-1.5 border-2 border-emerald-500/70 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 hover:border-emerald-400 font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-2 disabled:opacity-50 transition"
         data-testid="editor-save-draft-btn"
       >
         <Save size={12} /> {saving ? "Saving…" : "Save Draft"}
       </button>
-      <button
-        type="button" onClick={onPublish} disabled={saving || !canPublish}
-        className="btn-industrial btn-primary inline-flex items-center gap-2 disabled:opacity-50 px-4 py-1.5"
-        data-testid="editor-publish-btn"
-      >
-        <Send size={12} /> {saving ? "Publishing…" : "Publish Listing"}
-      </button>
+      <div className="flex flex-col items-end gap-1">
+        <button
+          type="button" onClick={onPublish} disabled={saving || !canPublish}
+          className="btn-industrial btn-primary inline-flex items-center gap-2 disabled:opacity-50 px-4 py-1.5"
+          data-testid="editor-publish-btn"
+          title={!canPublish && missingHint ? missingHint : undefined}
+        >
+          <Send size={12} /> {saving ? "Publishing…" : "Publish Listing"}
+        </button>
+        {!canPublish && missingHint && (
+          <span
+            className="hidden md:block font-mono text-[9px] uppercase tracking-[0.18em] text-amber-400/80 max-w-[220px] text-right leading-tight"
+            data-testid="editor-publish-hint"
+          >
+            ◇ {missingHint}
+          </span>
+        )}
+      </div>
     </div>
   );
 }

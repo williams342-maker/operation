@@ -1,5 +1,5 @@
 import React from "react";
-import { Trash2, Upload } from "lucide-react";
+import { Trash2, Upload, Crop } from "lucide-react";
 import { Section, Label, FieldError } from "./FormControls";
 import { MAX_IMAGES } from "./constants";
 
@@ -15,7 +15,7 @@ import { MAX_IMAGES } from "./constants";
 export default function MediaSection({
   form, errors,
   // Photos
-  fileRef, onPickPhotos, removeImage, promoteCover,
+  fileRef, onPickPhotos, removeImage, promoteCover, recropImage,
   dragSrc, dragOver, onDragStart, onDragOver, onDragLeaveTile, onDrop, onDragEnd,
   // Video
   videoFileRef, onPickVideo, videoUploading, videoErr, removeVideo, set,
@@ -65,6 +65,15 @@ export default function MediaSection({
                     Set as cover
                   </button>
                 )}
+                <button
+                  onClick={() => recropImage(i)}
+                  className="p-1.5 border border-[#262626] hover:border-[#ff4500] text-[#a3a3a3] hover:text-[#ff4500]"
+                  data-testid={`editor-recrop-image-${i}`}
+                  aria-label="Crop or rotate"
+                  title="Crop / rotate"
+                >
+                  <Crop size={12} />
+                </button>
                 <button
                   onClick={() => removeImage(i)}
                   className="p-1.5 border border-[#262626] hover:border-red-500 text-red-400"

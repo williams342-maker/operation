@@ -628,3 +628,11 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - The orchestrator file keeps state, effects, validation, submit/clone/preview flows, and the inline sections that aren't worth extracting yet (Listing Details, Item Details, Personalization, Shipping, Processing Time, Return Policy, SEO Tags, Contact — each <60 lines).
 - Frontend smoke verified end-to-end: `/maker/listings/new` renders all 12 sections; `/maker/listings/{slug}/edit` hydrates the form correctly through the new sub-component split (title pre-fills, photo grid renders, AI prompt accepts input).
 
+## 2026-04-28 — Listing Editor: re-crop + prominent Save Draft + publish-blocker hint
+Triggered by user feedback: "I need a save button when creating a new listing, I can upload the image, but I cannot save it, add a crop and rotate."
+- ✅ **Per-photo Crop / rotate button** — every uploaded photo tile now exposes a crop icon in its hover overlay (`data-testid="editor-recrop-image-{i}"`). Clicking re-opens `ImageCropModal` (which already supports zoom + rotation -180→180° + aspect 1:1/4:5/16:9) seeded with that photo, then **replaces it in-place** instead of appending — handled via a new `cropTargetIdx` state the parent passes alongside the crop queue.
+- ✅ **Save Draft promoted to a primary, emerald-painted CTA** in the action bar (header + footer). Was previously a low-contrast bordered button next to the orange Publish CTA — the dim styling led the user to think it was missing/disabled. Now `border-2 border-emerald-500/70 bg-emerald-500/10 text-emerald-300` so it's impossible to miss.
+- ✅ **Publish blocker hint** — when `canPublish === false`, a small amber "◇ Add title, description, price… to publish" line renders directly under the disabled Publish button (and the same string is set as the button's `title=` for tooltip on hover). Pulls from the existing `errors` map so it auto-updates as the maker fills in fields. Hidden the moment the form is publish-ready.
+- Verified end-to-end via Playwright: upload PNG → crop modal → confirm → re-crop with 45° rotation → Save Draft → "Draft saved." toast → redirected to dashboard with drafts count incremented. Editor lint clean.
+
+
