@@ -1,12 +1,17 @@
 """Transactional email helpers for Crafters Market.
 
-Supports six providers via EMAIL_PROVIDER env flag:
-  - "mailtrap" (default 2026-05): Mailtrap Sending API — primary
-  - "postmark": Postmark transactional REST API (current fallback)
+Supports seven providers via EMAIL_PROVIDER env flag:
+  - "mailgun": Mailgun REST API (NEW · 2026-04-29 · primary candidate)
+  - "mailtrap" (default 2026-05): Mailtrap Sending API
+  - "postmark": Postmark transactional REST API
   - "sender": Sender.net transactional REST API
   - "mailersend": MailerSend / MailerLite transactional REST API
   - "brevo": Brevo / Sendinblue REST API
   - "resend": Resend SDK (legacy fallback)
+
+Fallback chain: EMAIL_PROVIDER → EMAIL_FALLBACK_PROVIDER → EMAIL_FALLBACK_PROVIDER_2.
+The chain skips any provider missing its API key and any pair where two consecutive
+slots are the same (so misconfiguration can't burn three slots on the same vendor).
 """
 import os
 import asyncio
@@ -29,6 +34,14 @@ logger.propagate = True
 
 EMAIL_PROVIDER = os.environ.get("EMAIL_PROVIDER", "mailtrap").lower()
 EMAIL_FALLBACK_PROVIDER = os.environ.get("EMAIL_FALLBACK_PROVIDER", "postmark").lower()
+# 3rd link in the chain. Defaults to "" (disabled) so existing 2-link
+# deploys keep their behaviour unchanged. To get the user's requested
+# Mailgun → Postmark → Mailtrap chain, set:
+#   EMAIL_PROVIDER=mailgun
+#   EMAIL_FALLBACK_PROVIDER=postmark
+#   EMAIL_FALLBACK_PROVIDER_2=mailtrap
+EMAIL_FALLBACK_PROVIDER_2 = os.environ.get("EMAIL_FALLBACK_PROVIDER_2", "").lower()
+
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
 BREVO_API_KEY = os.environ.get("BREVO_API_KEY", "")
 MAILERSEND_API_KEY = os.environ.get("MAILERSEND_API_KEY", "")
@@ -36,6 +49,14 @@ SENDER_API_KEY = os.environ.get("SENDER_API_KEY", "")
 POSTMARK_API_KEY = os.environ.get("POSTMARK_API_KEY", "")
 POSTMARK_MESSAGE_STREAM = os.environ.get("POSTMARK_MESSAGE_STREAM", "outbound")
 MAILTRAP_API_KEY = os.environ.get("MAILTRAP_API_KEY", "")
+# Mailgun (REST API). Region is "us" (default) or "eu" — Mailgun runs two
+# isolated stacks; calling the wrong region returns 404 with a confusing
+# "domain not found" body. The domain is the *sending* subdomain
+# verified in the Mailgun dashboard, e.g. "mg.craftersmarket.org".
+MAILGUN_API_KEY = os.environ.get("MAILGUN_API_KEY", "")
+MAILGUN_DOMAIN = os.environ.get("MAILGUN_DOMAIN", "")
+MAILGUN_REGION = os.environ.get("MAILGUN_REGION", "us").lower()
+
 SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "team@craftersmarket.org")
 SENDER_NAME = os.environ.get("SENDER_NAME", "Crafters Market")
 OPS_EMAIL = os.environ.get("OPS_EMAIL", "")
@@ -45,6 +66,8 @@ if RESEND_API_KEY:
 
 
 def _has_provider() -> bool:
+    if EMAIL_PROVIDER == "mailgun":
+        return bool(MAILGUN_API_KEY and MAILGUN_DOMAIN)
     if EMAIL_PROVIDER == "mailtrap":
         return bool(MAILTRAP_API_KEY)
     if EMAIL_PROVIDER == "postmark":
@@ -56,6 +79,54 @@ def _has_provider() -> bool:
     if EMAIL_PROVIDER == "brevo":
         return bool(BREVO_API_KEY)
     return bool(RESEND_API_KEY)
+
+
+async def _send_mailgun(to: str, subject: str, html: str):
+    """Send via Mailgun REST API.
+    https://documentation.mailgun.com/docs/mailgun/api-reference/openapi-final/tag/Messages
+
+    Endpoint: POST https://api{.eu}.mailgun.net/v3/<MAILGUN_DOMAIN>/messages
+    Auth:     HTTP Basic, username=`api`, password=<MAILGUN_API_KEY>
+              (httpx encodes via the `auth=(...)` tuple)
+    Form-encoded body (NOT JSON) — that's a Mailgun quirk.
+
+    Notes:
+      - MAILGUN_DOMAIN is the *sending subdomain* (e.g. mg.craftersmarket.org),
+        not the bare apex domain. Configure under Sending → Domains.
+      - SPF + DKIM DNS records must be added & verified for that subdomain
+        BEFORE production sends. Free tier allows sandbox-only sends until
+        the custom domain is verified.
+      - Region: "us" (api.mailgun.net) vs "eu" (api.eu.mailgun.net). Mismatch
+        gives a misleading 404 "domain not found" — set MAILGUN_REGION=eu
+        if your account was created in the EU stack.
+      - Permanent errors (4xx) → don't retry, fall through to next provider.
+        Transient errors (429/5xx/timeout) → also fall through (we don't
+        retry the same provider; the fallback chain handles redundancy).
+    """
+    base = "https://api.eu.mailgun.net" if MAILGUN_REGION == "eu" else "https://api.mailgun.net"
+    url = f"{base}/v3/{MAILGUN_DOMAIN}/messages"
+    data = {
+        "from": f"{SENDER_NAME} <{SENDER_EMAIL}>",
+        "to": to,
+        "subject": subject,
+        "html": html,
+        "o:tag": "transactional",
+        "o:tracking": "no",  # transactional auth/receipt mail — no engagement tracking
+    }
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            r = await client.post(url, auth=("api", MAILGUN_API_KEY), data=data)
+    except httpx.RequestError as e:
+        logger.warning("mailgun transport error → %s: %s", to, e)
+        return {"_error": True, "status": 0, "body": f"transport: {e}"[:500]}
+
+    if r.status_code >= 400:
+        logger.warning("mailgun error %d → %s: %s", r.status_code, to, r.text[:300])
+        return {"_error": True, "status": r.status_code, "body": r.text[:500]}
+    body = r.json() if r.content else {}
+    msg_id = body.get("id")
+    logger.info("mailgun sent → %s · id=%s", to, msg_id)
+    return {"message_id": msg_id, "status": r.status_code}
 
 
 async def _send_mailtrap(to: str, subject: str, html: str):
@@ -246,6 +317,8 @@ async def _send_resend(to: str, subject: str, html: str):
 
 async def _send_via(provider: str, to: str, subject: str, html: str):
     """Single dispatch — returns provider result dict or None."""
+    if provider == "mailgun":
+        return await _send_mailgun(to, subject, html)
     if provider == "mailtrap":
         return await _send_mailtrap(to, subject, html)
     if provider == "postmark":
@@ -261,6 +334,7 @@ async def _send_via(provider: str, to: str, subject: str, html: str):
 
 def _provider_has_key(provider: str) -> bool:
     return bool({
+        "mailgun": MAILGUN_API_KEY and MAILGUN_DOMAIN,
         "mailtrap": MAILTRAP_API_KEY,
         "postmark": POSTMARK_API_KEY,
         "sender": SENDER_API_KEY, "mailersend": MAILERSEND_API_KEY,
@@ -277,64 +351,47 @@ async def _send(to: str, subject: str, html: str):
         })
         return None
 
-    # Primary attempt
-    result = await _send_via(EMAIL_PROVIDER, to, subject, html)
-    primary_failed = (
-        result is None
-        or (isinstance(result, dict) and result.get("_error"))
-    )
+    # Build the fallback chain. Skip empty slots, missing API keys, and any
+    # exact-duplicate consecutive providers (so a misconfigured deploy can't
+    # waste two slots on the same vendor).
+    chain = [EMAIL_PROVIDER]
+    for fb in (EMAIL_FALLBACK_PROVIDER, EMAIL_FALLBACK_PROVIDER_2):
+        if fb and fb != chain[-1] and _provider_has_key(fb):
+            chain.append(fb)
 
-    # Fallback attempt (only if primary failed AND a different fallback is configured)
-    if (
-        primary_failed
-        and EMAIL_FALLBACK_PROVIDER
-        and EMAIL_FALLBACK_PROVIDER != EMAIL_PROVIDER
-        and _provider_has_key(EMAIL_FALLBACK_PROVIDER)
-    ):
-        primary_err_code = result.get("status") if isinstance(result, dict) else None
-        primary_err_body = result.get("body") if isinstance(result, dict) else "transport_error"
-        logger.warning(
-            "[email] %s failed (%s) — falling back to %s",
-            EMAIL_PROVIDER, primary_err_code, EMAIL_FALLBACK_PROVIDER,
+    last_err_code = None
+    last_err_body = None
+    for idx, provider in enumerate(chain):
+        result = await _send_via(provider, to, subject, html)
+        failed = (
+            result is None
+            or (isinstance(result, dict) and result.get("_error"))
         )
-        await _record_event({
-            "to": to, "subject": subject, "provider": EMAIL_PROVIDER,
-            "status": "failed", "error_code": primary_err_code,
-            "error_body": (primary_err_body or "")[:500],
-        })
-        fb_result = await _send_via(EMAIL_FALLBACK_PROVIDER, to, subject, html)
-        if fb_result and not (isinstance(fb_result, dict) and fb_result.get("_error")):
+        if not failed:
+            # Success — log against THIS provider.
+            status = "sent" if idx == 0 else "sent_via_fallback"
             await _record_event({
-                "to": to, "subject": subject, "provider": EMAIL_FALLBACK_PROVIDER,
-                "status": "sent_via_fallback",
-                "message_id": (fb_result or {}).get("message_id"),
+                "to": to, "subject": subject, "provider": provider,
+                "status": status,
+                "message_id": (result or {}).get("message_id"),
             })
-            return fb_result
-        # Fallback also failed → record and bail
-        fb_err_code = fb_result.get("status") if isinstance(fb_result, dict) else None
-        fb_err_body = fb_result.get("body") if isinstance(fb_result, dict) else "transport_error"
+            return result
+        # Capture the failure for the audit trail.
+        last_err_code = result.get("status") if isinstance(result, dict) else None
+        last_err_body = result.get("body") if isinstance(result, dict) else "transport_error"
         await _record_event({
-            "to": to, "subject": subject, "provider": EMAIL_FALLBACK_PROVIDER,
-            "status": "failed", "error_code": fb_err_code,
-            "error_body": (fb_err_body or "")[:500],
+            "to": to, "subject": subject, "provider": provider,
+            "status": "failed", "error_code": last_err_code,
+            "error_body": (last_err_body or "")[:500],
         })
-        return None
-
-    # No fallback path — record primary outcome and return
-    if primary_failed:
-        err_code = result.get("status") if isinstance(result, dict) else None
-        err_body = result.get("body") if isinstance(result, dict) else "transport_error"
-        await _record_event({
-            "to": to, "subject": subject, "provider": EMAIL_PROVIDER,
-            "status": "failed", "error_code": err_code,
-            "error_body": (err_body or "")[:500],
-        })
-        return None
-    await _record_event({
-        "to": to, "subject": subject, "provider": EMAIL_PROVIDER, "status": "sent",
-        "message_id": (result or {}).get("message_id"),
-    })
-    return result
+        # If there's another provider in the chain, log the fall-through.
+        if idx + 1 < len(chain):
+            logger.warning(
+                "[email] %s failed (%s) — falling back to %s",
+                provider, last_err_code, chain[idx + 1],
+            )
+    # All providers in the chain failed.
+    return None
 
 
 async def _record_event(row: dict) -> None:
