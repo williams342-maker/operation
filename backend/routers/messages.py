@@ -207,13 +207,50 @@ async def start_thread(
 
 
 # --------------- Maker ---------------
+# Folder filter — applied to the thread list.
+#   inbox    : not archived, not trashed (default)
+#   starred  : starred_for_<role> = True
+#   unread   : unread_for_<role> > 0
+#   sent     : last_sender == <role>
+#   archive  : archived_for_<role> = True (and not trashed)
+#   trash    : trashed_at_for_<role> set
+def _folder_filter(folder: str, role: str) -> dict:
+    """Build a Mongo query for the given folder + role ('maker'|'buyer')."""
+    f = (folder or "inbox").lower()
+    if f == "trash":
+        return {f"trashed_at_for_{role}": {"$ne": None}}
+    base = {
+        f"trashed_at_for_{role}": {"$in": [None, ""]},
+    }
+    if f == "archive":
+        base[f"archived_for_{role}"] = True
+        return base
+    base[f"archived_for_{role}"] = {"$ne": True}
+    if f == "starred":
+        base[f"starred_for_{role}"] = True
+    elif f == "unread":
+        base[f"unread_for_{role}"] = {"$gt": 0}
+    elif f == "sent":
+        base["last_sender"] = role
+    # "inbox" = base only
+    return base
+
+
 @router.get("/messages/maker/threads")
-async def maker_list_threads(slug: str = Depends(current_maker_slug)):
-    rows = await db.dm_threads.find(
-        {"maker_slug": slug},
-        {"_id": 0},
-    ).sort("last_message_at", -1).limit(200).to_list(200)
-    # Compute thread-level preview on the fly.
+async def maker_list_threads(
+    slug: str = Depends(current_maker_slug),
+    folder: str = "inbox",
+    q: str = "",
+):
+    query = {"maker_slug": slug}
+    query.update(_folder_filter(folder, "maker"))
+    if q.strip():
+        # Simple search across buyer_name / buyer_email / subject (case-insensitive).
+        rgx = {"$regex": re.escape(q.strip()), "$options": "i"}
+        query["$or"] = [
+            {"buyer_name": rgx}, {"buyer_email": rgx}, {"subject": rgx},
+        ]
+    rows = await db.dm_threads.find(query, {"_id": 0}).sort("last_message_at", -1).limit(200).to_list(200)
     out = []
     for t in rows:
         last = await db.dm_messages.find_one(
@@ -221,7 +258,84 @@ async def maker_list_threads(slug: str = Depends(current_maker_slug)):
             sort=[("created_at", -1)],
         )
         out.append(_thread_response(t, last))
-    return {"threads": out}
+    # Folder counts so the sidebar can show numbers without N round-trips.
+    counts = {}
+    for fname in ("inbox", "starred", "unread", "sent", "archive", "trash"):
+        c_query = {"maker_slug": slug}
+        c_query.update(_folder_filter(fname, "maker"))
+        counts[fname] = await db.dm_threads.count_documents(c_query)
+    return {"threads": out, "counts": counts}
+
+
+# Patch endpoint — set star / archive / trash / mark-unread on a thread,
+# from the MAKER's perspective. Each flag is independent so the same
+# row can be e.g. starred AND archived.
+class MakerThreadPatch(BaseModel):
+    starred: Optional[bool] = None
+    archived: Optional[bool] = None
+    trashed: Optional[bool] = None  # True → move to trash; False → restore
+    mark_unread: Optional[bool] = None  # True → bump unread_for_maker to 1
+
+
+@router.patch("/messages/maker/threads/{thread_id}")
+async def maker_patch_thread(
+    thread_id: str, payload: MakerThreadPatch,
+    slug: str = Depends(current_maker_slug),
+):
+    t = await db.dm_threads.find_one(
+        {"id": thread_id, "maker_slug": slug}, {"_id": 0, "id": 1},
+    )
+    if not t:
+        raise HTTPException(404, "Thread not found.")
+    updates: dict = {}
+    if payload.starred is not None:
+        updates["starred_for_maker"] = bool(payload.starred)
+    if payload.archived is not None:
+        updates["archived_for_maker"] = bool(payload.archived)
+    if payload.trashed is not None:
+        updates["trashed_at_for_maker"] = now_iso() if payload.trashed else None
+    if payload.mark_unread is True:
+        updates["unread_for_maker"] = 1
+    if payload.mark_unread is False:
+        updates["unread_for_maker"] = 0
+    if not updates:
+        return {"ok": True, "noop": True}
+    await db.dm_threads.update_one({"id": thread_id}, {"$set": updates})
+    return {"ok": True, "updated": list(updates.keys())}
+
+
+# Bulk variant — apply the same patch to many threads at once. Used by
+# the "select 5 → click Trash" UI flow.
+class MakerBulkPatch(MakerThreadPatch):
+    thread_ids: list[str]
+
+
+@router.post("/messages/maker/threads/bulk")
+async def maker_bulk_patch(
+    payload: MakerBulkPatch, slug: str = Depends(current_maker_slug),
+):
+    if not payload.thread_ids:
+        raise HTTPException(400, "thread_ids is required.")
+    if len(payload.thread_ids) > 200:
+        raise HTTPException(400, "Too many threads in one bulk operation (max 200).")
+    updates: dict = {}
+    if payload.starred is not None:
+        updates["starred_for_maker"] = bool(payload.starred)
+    if payload.archived is not None:
+        updates["archived_for_maker"] = bool(payload.archived)
+    if payload.trashed is not None:
+        updates["trashed_at_for_maker"] = now_iso() if payload.trashed else None
+    if payload.mark_unread is True:
+        updates["unread_for_maker"] = 1
+    if payload.mark_unread is False:
+        updates["unread_for_maker"] = 0
+    if not updates:
+        return {"ok": True, "matched": 0}
+    res = await db.dm_threads.update_many(
+        {"id": {"$in": payload.thread_ids}, "maker_slug": slug},
+        {"$set": updates},
+    )
+    return {"ok": True, "matched": res.matched_count, "modified": res.modified_count}
 
 
 @router.get("/messages/maker/threads/{thread_id}")
@@ -287,13 +401,22 @@ async def maker_reply(
 
 # --------------- Buyer (signed-in community user) ---------------
 @router.get("/messages/buyer/threads")
-async def buyer_list_threads(claims: dict = Depends(current_buyer)):
+async def buyer_list_threads(
+    claims: dict = Depends(current_buyer),
+    folder: str = "inbox",
+    q: str = "",
+):
     email = _norm_email(claims.get("email"))
     if not email:
         raise HTTPException(401, "Buyer email missing from session.")
-    rows = await db.dm_threads.find(
-        {"buyer_email": email}, {"_id": 0},
-    ).sort("last_message_at", -1).limit(200).to_list(200)
+    query = {"buyer_email": email}
+    query.update(_folder_filter(folder, "buyer"))
+    if q.strip():
+        rgx = {"$regex": re.escape(q.strip()), "$options": "i"}
+        query["$or"] = [
+            {"maker_name": rgx}, {"maker_slug": rgx}, {"subject": rgx},
+        ]
+    rows = await db.dm_threads.find(query, {"_id": 0}).sort("last_message_at", -1).limit(200).to_list(200)
     out = []
     for t in rows:
         last = await db.dm_messages.find_one(
@@ -301,7 +424,81 @@ async def buyer_list_threads(claims: dict = Depends(current_buyer)):
             sort=[("created_at", -1)],
         )
         out.append(_thread_response(t, last))
-    return {"threads": out}
+    counts = {}
+    for fname in ("inbox", "starred", "unread", "sent", "archive", "trash"):
+        c_query = {"buyer_email": email}
+        c_query.update(_folder_filter(fname, "buyer"))
+        counts[fname] = await db.dm_threads.count_documents(c_query)
+    return {"threads": out, "counts": counts}
+
+
+# Buyer-side patch — same shape as the maker version, mirrored fields.
+class BuyerThreadPatch(BaseModel):
+    starred: Optional[bool] = None
+    archived: Optional[bool] = None
+    trashed: Optional[bool] = None
+    mark_unread: Optional[bool] = None
+
+
+@router.patch("/messages/buyer/threads/{thread_id}")
+async def buyer_patch_thread(
+    thread_id: str, payload: BuyerThreadPatch,
+    claims: dict = Depends(current_buyer),
+):
+    email = _norm_email(claims.get("email"))
+    t = await db.dm_threads.find_one(
+        {"id": thread_id, "buyer_email": email}, {"_id": 0, "id": 1},
+    )
+    if not t:
+        raise HTTPException(404, "Thread not found.")
+    updates: dict = {}
+    if payload.starred is not None:
+        updates["starred_for_buyer"] = bool(payload.starred)
+    if payload.archived is not None:
+        updates["archived_for_buyer"] = bool(payload.archived)
+    if payload.trashed is not None:
+        updates["trashed_at_for_buyer"] = now_iso() if payload.trashed else None
+    if payload.mark_unread is True:
+        updates["unread_for_buyer"] = 1
+    if payload.mark_unread is False:
+        updates["unread_for_buyer"] = 0
+    if not updates:
+        return {"ok": True, "noop": True}
+    await db.dm_threads.update_one({"id": thread_id}, {"$set": updates})
+    return {"ok": True, "updated": list(updates.keys())}
+
+
+class BuyerBulkPatch(BuyerThreadPatch):
+    thread_ids: list[str]
+
+
+@router.post("/messages/buyer/threads/bulk")
+async def buyer_bulk_patch(
+    payload: BuyerBulkPatch, claims: dict = Depends(current_buyer),
+):
+    email = _norm_email(claims.get("email"))
+    if not payload.thread_ids:
+        raise HTTPException(400, "thread_ids is required.")
+    if len(payload.thread_ids) > 200:
+        raise HTTPException(400, "Too many threads in one bulk operation (max 200).")
+    updates: dict = {}
+    if payload.starred is not None:
+        updates["starred_for_buyer"] = bool(payload.starred)
+    if payload.archived is not None:
+        updates["archived_for_buyer"] = bool(payload.archived)
+    if payload.trashed is not None:
+        updates["trashed_at_for_buyer"] = now_iso() if payload.trashed else None
+    if payload.mark_unread is True:
+        updates["unread_for_buyer"] = 1
+    if payload.mark_unread is False:
+        updates["unread_for_buyer"] = 0
+    if not updates:
+        return {"ok": True, "matched": 0}
+    res = await db.dm_threads.update_many(
+        {"id": {"$in": payload.thread_ids}, "buyer_email": email},
+        {"$set": updates},
+    )
+    return {"ok": True, "matched": res.matched_count, "modified": res.modified_count}
 
 
 @router.get("/messages/buyer/threads/{thread_id}")

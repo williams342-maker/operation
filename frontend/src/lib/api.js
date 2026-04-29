@@ -101,12 +101,18 @@ export const startMessageThread = (payload) =>
   http.post("/messages/start", payload).then((r) => r.data);
 
 // Maker side
-export const fetchMakerThreads = () =>
-  http.get("/messages/maker/threads", { headers: authHeaders() }).then((r) => r.data);
+export const fetchMakerThreads = (folder = "inbox", q = "") =>
+  http.get("/messages/maker/threads", {
+    headers: authHeaders(), params: { folder, q },
+  }).then((r) => r.data);
 export const fetchMakerThread = (id) =>
   http.get(`/messages/maker/threads/${id}`, { headers: authHeaders() }).then((r) => r.data);
 export const replyMakerThread = (id, body) =>
   http.post(`/messages/maker/threads/${id}/reply`, { body }, { headers: authHeaders() }).then((r) => r.data);
+export const patchMakerThread = (id, patch) =>
+  http.patch(`/messages/maker/threads/${id}`, patch, { headers: authHeaders() }).then((r) => r.data);
+export const bulkPatchMakerThreads = (thread_ids, patch) =>
+  http.post("/messages/maker/threads/bulk", { thread_ids, ...patch }, { headers: authHeaders() }).then((r) => r.data);
 
 // CSV Import
 export const csvImportPreview = (file, source = "etsy") => {
@@ -424,12 +430,18 @@ export const communityMe = () =>
   http.get("/community/me", { headers: buyerAuthHeaders() }).then((r) => r.data);
 
 // Buyer-side DM helpers (require community JWT)
-export const fetchBuyerThreads = () =>
-  http.get("/messages/buyer/threads", { headers: buyerAuthHeaders() }).then((r) => r.data);
+export const fetchBuyerThreads = (folder = "inbox", q = "") =>
+  http.get("/messages/buyer/threads", {
+    headers: buyerAuthHeaders(), params: { folder, q },
+  }).then((r) => r.data);
 export const fetchBuyerThread = (id) =>
   http.get(`/messages/buyer/threads/${id}`, { headers: buyerAuthHeaders() }).then((r) => r.data);
 export const replyBuyerThread = (id, body) =>
   http.post(`/messages/buyer/threads/${id}/reply`, { body }, { headers: buyerAuthHeaders() }).then((r) => r.data);
+export const patchBuyerThread = (id, patch) =>
+  http.patch(`/messages/buyer/threads/${id}`, patch, { headers: buyerAuthHeaders() }).then((r) => r.data);
+export const bulkPatchBuyerThreads = (thread_ids, patch) =>
+  http.post("/messages/buyer/threads/bulk", { thread_ids, ...patch }, { headers: buyerAuthHeaders() }).then((r) => r.data);
 
 export const uploadAvatar = (file) => {
   const fd = new FormData();
