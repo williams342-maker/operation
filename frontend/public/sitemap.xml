@@ -5,6 +5,11 @@
   on every request from MongoDB (products, makers, blog posts) so it
   always reflects the latest catalog without a build step.
 
+  The inner <loc> MUST be on the same host as the URLs inside the child
+  sitemap (Google's cross-submit rule). The backend emits apex-hosted URLs
+  (https://craftersmarket.org/...) so this index also uses apex. Keep
+  these two in sync when you rename the canonical hostname.
+
   Why a static index instead of a redirect or rewrite?
     - Kubernetes ingress sends /api/* to the FastAPI backend and
       everything else to the React frontend. We can't add a
@@ -15,6 +20,6 @@
 -->
 <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <sitemap>
-    <loc>https://www.craftersmarket.org/api/sitemap.xml</loc>
+    <loc>https://craftersmarket.org/api/sitemap.xml</loc>
   </sitemap>
 </sitemapindex>

@@ -425,6 +425,164 @@ function MaintenanceScheduleCard({ settings, onPatch, busy }) {
   );
 }
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SEO diagnostics — hits the public /api/seo/diag endpoint and surfaces
+// exactly what `site_root()` resolved to. Flags preview-domain leakage
+// (happens when PUBLIC_SITE_URL env var isn't set on a deploy) with a red
+// "FIX ME" badge so the operator can't miss it.
+// ─────────────────────────────────────────────────────────────────────────────
+function SeoDiagCard() {
+  const [data, setData] = useState(null);
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const refresh = async () => {
+    setBusy(true);
+    setErr("");
+    try {
+      const API = process.env.REACT_APP_BACKEND_URL;
+      const r = await fetch(`${API}/api/seo/diag`);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      setData(await r.json());
+    } catch (e) {
+      setErr(e.message || "Failed to load");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  useEffect(() => { refresh(); }, []);
+
+  const leaked = data?.preview_domain_leakage;
+  const healthy = data && !leaked;
+
+  return (
+    <section className="border border-[#262626] p-4 md:p-5" data-testid="seo-diag-card">
+      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+        <div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">SEO · sitemap & robots</div>
+          <h3 className="font-display text-xl mt-1 text-[#e5e5e5]">Indexing health</h3>
+          <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-xl">
+            Confirms `PUBLIC_SITE_URL` is wired correctly and search engines
+            will see <code className="text-[#ff4500]">craftersmarket.org</code>{" "}
+            URLs (not preview hostnames). Refresh after any deploy.
+          </p>
+        </div>
+        <button
+          onClick={refresh}
+          disabled={busy}
+          data-testid="seo-diag-refresh"
+          className="shrink-0 px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+        >
+          {busy ? "…" : "↻ Refresh"}
+        </button>
+      </div>
+
+      {err && <div className="mt-4 font-mono text-xs text-red-400">{err}</div>}
+
+      {data && (
+        <div className="mt-4 space-y-3">
+          {/* Health pill */}
+          <div className="flex items-center gap-2">
+            <span
+              className={`inline-block px-2 py-1 border font-mono text-[10px] uppercase tracking-[0.22em] font-bold ${
+                healthy
+                  ? "border-emerald-500/60 text-emerald-400 bg-emerald-500/5"
+                  : "border-red-500/60 text-red-400 bg-red-500/5"
+              }`}
+              data-testid="seo-diag-status"
+            >
+              {healthy ? "◆ OK" : "✕ Preview leak"}
+            </span>
+            <span className="font-mono text-xs text-[#e5e5e5]">
+              resolved to <code className="text-[#ff4500]">{data.resolved_site_root}</code>
+            </span>
+          </div>
+
+          {/* Breakdown */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 font-mono text-xs">
+            <DiagStat label="static" value={data.breakdown.static_pages} />
+            <DiagStat label="products" value={data.breakdown.products} />
+            <DiagStat label="makers" value={data.breakdown.makers} />
+            <DiagStat label="blog" value={data.breakdown.blog_posts} />
+          </div>
+
+          {/* Env var status */}
+          <div className="font-mono text-[11px] text-[#a3a3a3] space-y-1 border-t border-[#262626] pt-3">
+            <div>
+              <span className="text-[#525252]">PUBLIC_SITE_URL:</span>{" "}
+              {data.public_site_url_env ? (
+                <code className="text-emerald-400">{data.public_site_url_env}</code>
+              ) : (
+                <span className="text-red-400 font-bold">✕ not set · add to backend env</span>
+              )}
+            </div>
+            <div>
+              <span className="text-[#525252]">X-Forwarded-Host:</span>{" "}
+              <code className="text-[#e5e5e5]">{data.x_forwarded_host || "—"}</code>
+            </div>
+            <div>
+              <span className="text-[#525252]">Total indexable URLs:</span>{" "}
+              <code className="text-[#ff4500]">{data.total_indexable_urls}</code>
+            </div>
+          </div>
+
+          {/* Quick links */}
+          <div className="flex flex-wrap gap-2 font-mono text-[10px] uppercase tracking-[0.22em] pt-2">
+            <a
+              href={data.checks.sitemap_endpoint}
+              target="_blank"
+              rel="noreferrer"
+              className="px-2 py-1 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] transition"
+              data-testid="seo-diag-link-sitemap"
+            >
+              → sitemap.xml
+            </a>
+            <a
+              href={data.checks.robots_endpoint}
+              target="_blank"
+              rel="noreferrer"
+              className="px-2 py-1 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] transition"
+              data-testid="seo-diag-link-robots"
+            >
+              → robots.txt
+            </a>
+            <a
+              href={data.checks.static_index}
+              target="_blank"
+              rel="noreferrer"
+              className="px-2 py-1 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] transition"
+              data-testid="seo-diag-link-index"
+            >
+              → static index
+            </a>
+          </div>
+
+          {leaked && (
+            <div className="mt-3 border-l-2 border-red-500 pl-3 font-mono text-[11px] text-red-400 leading-relaxed" data-testid="seo-diag-leak-warning">
+              <b>Preview-domain leak detected.</b> Your backend is emitting sitemap
+              URLs rooted at a preview hostname. Set{" "}
+              <code className="text-[#e5e5e5]">PUBLIC_SITE_URL=https://craftersmarket.org</code>{" "}
+              in the deployed backend env, redeploy, then refresh.
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function DiagStat({ label, value }) {
+  return (
+    <div className="border border-[#262626] p-2 text-center">
+      <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#a3a3a3]">{label}</div>
+      <div className="font-display text-2xl text-[#e5e5e5]">{value}</div>
+    </div>
+  );
+}
+
+
 export default function SettingsTab() {
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -531,6 +689,8 @@ export default function SettingsTab() {
       </div>
 
       <MaintenanceScheduleCard settings={settings} onPatch={onPatch} busy={busy} />
+
+      <SeoDiagCard />
 
       <div className="grid md:grid-cols-2 gap-3">
         <IdleClearNowCard />

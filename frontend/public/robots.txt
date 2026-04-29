@@ -42,4 +42,4 @@ Allow: /
 User-agent: CCBot
 Allow: /
 
-Sitemap: https://www.craftersmarket.org/sitemap.xml
+Sitemap: https://craftersmarket.org/sitemap.xml

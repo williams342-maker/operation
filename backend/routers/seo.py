@@ -101,6 +101,51 @@ async def sitemap_xml(http_request: Request):
     return Response(content=xml, media_type="application/xml")
 
 
+@router.get("/seo/diag")
+async def seo_diagnostics(http_request: Request):
+    """Public SEO health check — confirms the sitemap and robots.txt are
+    wired correctly. Returns what `site_root` resolves to (with/without
+    env vars), the URL counts, and whether preview-domain leakage is
+    happening.
+
+    Safe to hit from any browser; helps operators verify that a deploy
+    picked up `PUBLIC_SITE_URL` without needing SSH.
+    """
+    import os
+    root = site_root(http_request)
+    fwd_host = http_request.headers.get("x-forwarded-host") or ""
+
+    products_n = await db.products.count_documents({"deleted_at": None, "status": {"$ne": "draft"}})
+    makers_n = await db.makers.count_documents({})
+    posts_n = await db.blog_posts.count_documents({})
+
+    # Flag any inner hostname that looks like a preview/staging URL so
+    # the operator sees "leakage" immediately if env vars are misset.
+    preview_markers = ("emergentagent.com", "vercel.app", "onrender.com", "preview.")
+    leakage = any(m in root for m in preview_markers)
+
+    return {
+        "resolved_site_root": root,
+        "public_site_url_env": os.environ.get("PUBLIC_SITE_URL") or None,
+        "public_backend_url_env": os.environ.get("PUBLIC_BACKEND_URL") or None,
+        "x_forwarded_host": fwd_host or None,
+        "preview_domain_leakage": leakage,
+        "total_indexable_urls": 8 + products_n + makers_n + posts_n,
+        "breakdown": {
+            "static_pages": 8,
+            "products": products_n,
+            "makers": makers_n,
+            "blog_posts": posts_n,
+        },
+        "checks": {
+            "sitemap_endpoint": f"{root}/api/sitemap.xml",
+            "robots_endpoint":  f"{root}/api/robots.txt",
+            "static_index":     f"{root}/sitemap.xml",
+        },
+    }
+
+
+
 @router.get("/robots.txt")
 async def robots_txt(http_request: Request):
     root = site_root(http_request)

@@ -837,3 +837,28 @@ Triggered by user: "for beta members, I want a founding member login button. in 
 ### Tests
 - **testing_agent_v3_fork iter46**: 100% frontend pass. Full E2E boost flow verified: `POST /api/maker/products/carved-oak-wedding-monogram/promote?weeks=1` → 200 → success toast → KPI cells flip 0→1 Active / 5→4 Eligible → new row appears in Active Promotions with FEATURED badge + countdown. Zero console/page errors on Maker Messages tab AND Buyer /messages page.
 
+
+
+
+## 2026-04-29 — SEO verification: PUBLIC_SITE_URL hardening + diagnostics
+
+### Findings (prod + preview audit)
+- **Local/staging**: `PUBLIC_SITE_URL=https://craftersmarket.org` IS set in `/app/backend/.env`. Sitemap emits 26 canonical apex URLs correctly.
+- **Production (`https://www.craftersmarket.org/api/sitemap.xml`)**: returned 24 URLs ALL rooted at `https://active-project-4.preview.emergentagent.com/` — meaning the deployed backend did NOT have `PUBLIC_SITE_URL` set and was falling back to the `X-Forwarded-Host`. Google would see preview URLs as canonical → duplicate-content penalty risk.
+- **Preview domain `/robots.txt`**: Cloudflare edge injects a "Managed Content" block that DISALLOWS GPTBot / ClaudeBot / Google-Extended / CCBot / Bytespider / Applebot-Extended at the TOP (before our Allow rules). First-match-wins robots.txt semantics mean AI crawlers are fully blocked on preview. Production domain was clean.
+- **Static sitemap-index inconsistency**: pointed to `https://www.craftersmarket.org/api/sitemap.xml` (www) but inner URLs used apex — Google flags cross-submit inconsistency.
+
+### Fixes shipped
+- **`core.site_root()` hardened** with layered fallback:
+  1. `PUBLIC_SITE_URL` env var (preferred)
+  2. `PUBLIC_BACKEND_URL` env var
+  3. `X-Forwarded-Host` header — ONLY if it doesn't match preview markers (`emergentagent.com`, `vercel.app`, `onrender.com`, `preview.`, `staging.`, `localhost`)
+  4. Hard-coded safety net: `https://craftersmarket.org`
+  Verified by simulation — with all env vars stripped and a preview forwarded-host header, `site_root()` now returns `https://craftersmarket.org`. Zero chance of preview leakage into sitemap.
+- **Static `sitemap.xml` + `robots.txt`** updated to use apex (`https://craftersmarket.org/...`) consistently with backend emission.
+- **New public endpoint**: `GET /api/seo/diag` returns JSON with `resolved_site_root`, both env vars, `x_forwarded_host`, `preview_domain_leakage` bool, and URL count breakdown (static/products/makers/blog). Callable from any browser for post-deploy verification without SSH.
+- **New Admin Settings card**: "SEO · Sitemap & Robots · Indexing Health" — live-polls `/api/seo/diag`, shows green/red health pill, breakdown KPIs, env-var status, and 3 quick links (sitemap.xml, robots.txt, static index). Renders a big red "Preview-domain leak detected" warning when misconfigured.
+
+### Action items for user
+- ⚠️ **DEPLOY ACTION**: Add `PUBLIC_SITE_URL=https://craftersmarket.org` to the production backend env vars and redeploy. After deploy, hit `https://craftersmarket.org/api/seo/diag` or the new Admin Settings card to verify.
+- ℹ️ Cloudflare AI-bot block was reported clean on the production domain (only preview had it). If it ever appears on prod, Cloudflare Dashboard → Security → Bots → "AI Scrapers and Crawlers" → OFF.

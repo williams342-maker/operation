@@ -81,12 +81,30 @@ def public_host(http_request: Request) -> str:
 
 
 def site_root(http_request: Request) -> str:
-    """Public site origin for canonical URLs in the sitemap."""
-    site = PUBLIC_SITE_URL or PUBLIC_BACKEND_URL
-    if site:
-        return site
-    fwd_host = http_request.headers.get("x-forwarded-host")
+    """Public site origin for canonical URLs in the sitemap.
+
+    Preference order:
+      1. `PUBLIC_SITE_URL` env var (explicit operator intent).
+      2. `PUBLIC_BACKEND_URL` env var (backend origin — usually the same
+         hostname as the site in single-domain deployments).
+      3. Forwarded host header — BUT only if it doesn't look like a
+         preview / staging domain (e.g. *.emergentagent.com, *.vercel.app).
+         We never want to emit preview URLs in an SEO sitemap because
+         search engines will index them and create duplicate-content / 301
+         penalties when we later flip to prod.
+      4. Hard-coded prod hostname (`https://craftersmarket.org`).
+    """
+    if PUBLIC_SITE_URL:
+        return PUBLIC_SITE_URL
+    if PUBLIC_BACKEND_URL:
+        return PUBLIC_BACKEND_URL
+    fwd_host = http_request.headers.get("x-forwarded-host") or ""
     fwd_proto = http_request.headers.get("x-forwarded-proto", "https")
-    if fwd_host:
+    preview_markers = (
+        "emergentagent.com", "vercel.app", "onrender.com",
+        "preview.", "staging.", "localhost",
+    )
+    if fwd_host and not any(m in fwd_host for m in preview_markers):
         return f"{fwd_proto}://{fwd_host}"
-    return str(http_request.base_url).rstrip("/")
+    # Safety net: never let search engines discover preview URLs.
+    return "https://craftersmarket.org"
