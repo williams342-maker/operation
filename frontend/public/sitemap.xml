@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Sitemap INDEX — points search engines at the dynamic sitemap that lives
+  on the backend at /api/sitemap.xml. The dynamic sitemap is regenerated
+  on every request from MongoDB (products, makers, blog posts) so it
+  always reflects the latest catalog without a build step.
+
+  Why a static index instead of a redirect or rewrite?
+    - Kubernetes ingress sends /api/* to the FastAPI backend and
+      everything else to the React frontend. We can't add a
+      server-level rewrite from /sitemap.xml → /api/sitemap.xml without
+      ingress access, so we use the W3C sitemap-index format which
+      explicitly supports "this sitemap lives at another URL". Google,
+      Bing, Yandex, Baidu all follow it correctly.
+-->
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <sitemap>
+    <loc>https://www.craftersmarket.org/api/sitemap.xml</loc>
+  </sitemap>
+</sitemapindex>
