@@ -784,3 +784,38 @@ User reported: shipping was being charged at checkout even on listings with `fre
 - **Bug fixes shipped this session:**
   - `GET /api/activity` 500 → `ActivityEvent.location` made optional + `kind=admin` filtered from public ticker (admin housekeeping events were leaking + crashing the home-page ticker).
   - Frontend compile error → `MarketingTab.jsx` was importing `queueBufferShare` (doesn't exist) → fixed to `makerShareListingToBuffer`.
+
+
+
+## 2026-04-29 — Admin: split member lists + Broadcast composer + Founding login
+Triggered by user: "for beta members, I want a founding member login button. in the admin page, separate approved members / rejected members in different lists. I need a paid members list in the admin section. also add a site wide mail button for admin to announce issues or upcoming events along with a mail button on each application."
+
+### ✅ Founding Member Login CTAs
+- **`/beta` hero strip** — new outlined "◆ Founding Member Login →" button above the hero headline (`data-testid="beta-founding-login-btn"`) with copy "Already a Founding Seller? Sign in with the email on your approved application." Routes to existing `/maker/login` magic-link flow.
+- **Nav "FOUNDING LOGIN" pill** — subtle outlined orange pill next to the bold "◆ BETA SIGNUP" button (`data-testid="nav-founding-login-btn"`). Only renders when the visitor is signed-out (hidden when a JWT is present in localStorage) so the "Account" CTA naturally takes over.
+
+### ✅ Admin tabs split (Applications → Applications + Approved Makers + Rejected)
+- **Applications tab** now scoped to Pending + Beta filter pills only. Approved/Rejected pills removed; a footer hint points admins to the dedicated tabs. Default view is Pending (daily review queue stays actionable).
+- **Approved Makers tab** (`/admin/dashboard → Approved Makers`) — new member directory listing every approved maker with: studio + slug, email (mailto:), badges (BETA/★ PLUS/◆ VET), live listings count, lifetime GMV (from `maker_payouts`), approved-on date, and per-row Grant/Revoke Beta toggle. Search box + filter pills (All/Beta/Plus/Veteran) with live counts.
+- **Rejected tab** — historical archive of rejected applications. Each row has `✉ Email` + `✕ Delete` buttons.
+- **Plus Members tab** — every active Crafters Plus subscriber. 4 KPI stat cards (Active count, MRR, 30d GMV, Canceling), table with subscription status, start/renew dates, 30d GMV, and net value/mo (1% commission savings − $12).
+
+### ✅ Site-wide Broadcast composer
+- **New admin tab "Broadcast"** (`components/admin/BroadcastTab.jsx`) — Etsy-style announcement composer. Template quick-picks (Outage / Launch / Event / Custom) swap headline + subject. Audience picker: All Makers / Plus Members / Founding Sellers / Buyers & Community / Pending Applicants / Everyone. Preview button resolves audience via `POST /api/admin/broadcast/preview` and shows sample emails + total count. Test-send to a single address before firing live. Hard cap of 5,000 recipients per send.
+
+### ✅ Per-application ✉ Email button
+- Every row on the Applications + Rejected lists now has a `✉ Email` button next to Delete. Opens `AdminEmailModal.jsx` — subject + message compose → `POST /api/admin/maker-applications/{id}/email` → transactional send via the existing Mailgun→Postmark→Mailtrap fallback chain. Audit row written to `admin_audit` with `kind='applicant_email'`.
+
+### Backend
+- 6 new endpoints in `/app/backend/routers/admin.py`:
+  - `GET /api/admin/makers/approved` — member directory with listings count + GMV join.
+  - `GET /api/admin/makers/rejected` — rejected applications sorted by `decided_at` desc.
+  - `GET /api/admin/makers/plus` — Plus subscribers with 30d GMV + net-value computation.
+  - `POST /api/admin/maker-applications/{id}/email` — single-recipient message to applicant.
+  - `POST /api/admin/broadcast/preview` — cohort resolver (audience → count + sample).
+  - `POST /api/admin/broadcast/send` — fan-out send (test mode via `test_email`, live mode via audience) with 5k-recipient guardrail.
+- Two new email helpers in `/app/backend/email_service.py`: `send_admin_message_to_applicant`, `send_admin_broadcast` — both rendered through the existing `_shell` dark industrial template.
+- `$nin` used instead of duplicate `$ne` so lint is clean and Mongo parses the cohort query correctly.
+
+### Tests
+- **19/19 backend pytest pass** (`tests/test_iter45_admin_lists_broadcast.py` created by testing agent). Frontend 100% — every data-testid resolves, email modal + broadcast preview/test-send flows verified end-to-end with success toasts.
