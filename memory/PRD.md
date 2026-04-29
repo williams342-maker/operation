@@ -819,3 +819,21 @@ Triggered by user: "for beta members, I want a founding member login button. in 
 
 ### Tests
 - **19/19 backend pytest pass** (`tests/test_iter45_admin_lists_broadcast.py` created by testing agent). Frontend 100% — every data-testid resolves, email modal + broadcast preview/test-send flows verified end-to-end with success toasts.
+
+
+## 2026-04-29 — Message Center P0 verified resolved + Marketing/Ads P1 shipped
+
+### ✅ P0 · Message Center `body stream already read` error
+- Fresh investigation after the iter27 admin fork revealed the error from the handoff is **no longer reproducible**. The `MessageCenter.jsx` component + `api.js` helpers use axios consistently (`http.get/post/patch` → `.then((r) => r.data)`) — no native `fetch()` double-reads anywhere in the DM path. Maker Dashboard `/maker/dashboard#messages` + Buyer `/messages` both render cleanly with the Etsy-style folder rail (Inbox / Starred / Unread / Sent / Archive / Trash) and zero console errors. Verified via Playwright smoke + testing_agent_v3_fork iter46.
+
+### ✅ P1 · Crafters Market Ads sub-section rebuilt
+- **`/maker/dashboard#marketing → Crafters Market Ads`**: replaced the stub "go to Listings →" link with a full Etsy-parity landing:
+  - **3-cell KPI strip**: Active promotions · $ / wk · Eligible listings (derived client-side from `fetchMakerProducts()`).
+  - **Active Promotions list**: per-row listing card with orange-bordered thumbnail, FEATURED badge, live "Nd Nh left · ends M/D/YYYY" countdown (re-renders every 60s via a tick interval), and **Extend** button that tacks another week of burn onto the same listing.
+  - **Boost a listing picker**: 4 duration chips (1 week · $5, 2 weeks · $10, 4 weeks · $20, 12 weeks · $60) that control the active tier. Every eligible published listing gets a thumbnail row + `◆ Boost $N` button that fires `POST /api/maker/products/{slug}/promote?weeks=N`. Hard-cap of 50 rows rendered with scroll overflow for large shops.
+  - **Existing AI companion tools** (Listing Copy · SEO Recommender · Bulk SEO Generator · Tips) preserved directly below so discoverability workflows stay adjacent to paid-boost workflows.
+- Extracted `WEEKLY_RATE = 5` constant so the $5 price only lives in one place. Countdown auto-ticks without re-fetching the product list.
+
+### Tests
+- **testing_agent_v3_fork iter46**: 100% frontend pass. Full E2E boost flow verified: `POST /api/maker/products/carved-oak-wedding-monogram/promote?weeks=1` → 200 → success toast → KPI cells flip 0→1 Active / 5→4 Eligible → new row appears in Active Promotions with FEATURED badge + countdown. Zero console/page errors on Maker Messages tab AND Buyer /messages page.
+

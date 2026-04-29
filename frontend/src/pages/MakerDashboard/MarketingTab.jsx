@@ -121,10 +121,18 @@ function SubNav({ sections, activeId, onPick, open, onToggleOpen }) {
 // Section: Crafters Market Ads — Etsy-parity landing with live metrics,
 // active promotions list, and one-click boost per eligible listing.
 // ============================================================================
+const WEEKLY_RATE = 5; // USD per week, per promoted listing.
+
 function AdsSection() {
   const [products, setProducts] = useState(null);
   const [busy, setBusy] = useState("");
   const [weeks, setWeeks] = useState(1);
+  // Drives the "Nd Nh left" countdowns without forcing a product re-fetch.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setTick((v) => v + 1), 60_000);
+    return () => clearInterval(t);
+  }, []);
 
   const refresh = () =>
     fetchMakerProducts()
@@ -150,20 +158,21 @@ function AdsSection() {
   }, [products]);
 
   const weeklySpend = activePromos.reduce((sum, p) => {
-    // $5/week — count weeks remaining (rounded up, min 1) as this-week burn.
+    // Count weeks remaining (rounded up, min 1) as this-week burn.
     const msLeft = new Date(p.promoted_until).getTime() - Date.now();
     const weeksLeft = Math.max(1, Math.ceil(msLeft / (7 * 24 * 60 * 60 * 1000)));
-    return sum + 5 * weeksLeft;
+    return sum + WEEKLY_RATE * weeksLeft;
   }, 0);
 
   const boost = async (slug) => {
     setBusy(slug);
     try {
       await promoteMakerProduct(slug, weeks);
+      const total = weeks * WEEKLY_RATE;
       toast.success(
         weeks === 1
-          ? `Boosted · $5 charged to pending balance.`
-          : `Boosted ${weeks} weeks · $${weeks * 5} charged to pending balance.`,
+          ? `Boosted · $${WEEKLY_RATE} charged to pending balance.`
+          : `Boosted ${weeks} weeks · $${total} charged to pending balance.`,
       );
       await refresh();
     } catch (e) {
@@ -227,7 +236,7 @@ function AdsSection() {
                   : "border-[#262626] text-[#a3a3a3] hover:border-[#525252] hover:text-[#e5e5e5]"
               }`}
             >
-              {w === 1 ? "1 week" : `${w} weeks`} · ${w * 5}
+              {w === 1 ? "1 week" : `${w} weeks`} · ${w * WEEKLY_RATE}
             </button>
           ))}
         </div>
@@ -256,14 +265,14 @@ function AdsSection() {
                   className="px-3 py-1.5 border border-[#ff4500] text-[#ff4500] hover:bg-[#ff4500] hover:text-black font-mono text-[10px] uppercase tracking-[0.22em] font-bold transition disabled:opacity-50 inline-flex items-center gap-1.5"
                   data-testid={`ads-boost-${p.slug}`}
                 >
-                  <Zap size={11} /> {busy === p.slug ? "…" : `Boost $${weeks * 5}`}
+                  <Zap size={11} /> {busy === p.slug ? "…" : `Boost $${weeks * WEEKLY_RATE}`}
                 </button>
               </li>
             ))}
           </ul>
         )}
         <p className="font-mono text-[10px] text-[#525252] mt-3">
-          ◇ $5 per week · charged to your pending balance · settled from your next payout. No daily cap.
+          ◇ ${WEEKLY_RATE} per week · charged to your pending balance · settled from your next payout. No daily cap.
         </p>
       </Section>
 
