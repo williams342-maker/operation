@@ -1,21 +1,83 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { decideMakerApplication, toggleMakerBeta } from "../../lib/api";
+import { decideMakerApplication, deleteMakerApplication, toggleMakerBeta } from "../../lib/api";
 import { formatDate } from "./_shared";
 
+// Filter pills — "Pending" is the default so rejected apps don't clutter
+// the admin's actionable queue. "Beta" is the dedicated view the user
+// asked for ("a spot for beta applications") — same data, just sliced.
+const FILTERS = [
+  { id: "pending",  label: "Pending"  },
+  { id: "beta",     label: "Beta"     },
+  { id: "approved", label: "Approved" },
+  { id: "rejected", label: "Rejected" },
+  { id: "all",      label: "All"      },
+];
+
+function matchesFilter(app, filterId) {
+  const status = app.status || "pending";
+  if (filterId === "all")      return true;
+  if (filterId === "pending")  return !app.status;
+  if (filterId === "approved") return status === "approved";
+  if (filterId === "rejected") return status === "rejected";
+  if (filterId === "beta")     return !!app.is_beta;
+  return true;
+}
+
 export default function ApplicationsList({ items, onChange }) {
-  if (!items.length) {
-    return (
-      <p className="font-mono text-sm text-[#a3a3a3]" data-testid="apps-empty">
-        No applications yet.
-      </p>
-    );
-  }
+  const [filter, setFilter] = useState("pending");
+  // Counts per filter so the admin sees the queue depth at a glance.
+  const counts = useMemo(() => {
+    const c = { pending: 0, beta: 0, approved: 0, rejected: 0, all: items.length };
+    items.forEach((a) => {
+      if (!a.status) c.pending += 1;
+      if (a.is_beta) c.beta += 1;
+      if (a.status === "approved") c.approved += 1;
+      if (a.status === "rejected") c.rejected += 1;
+    });
+    return c;
+  }, [items]);
+
+  const filtered = items.filter((a) => matchesFilter(a, filter));
+
   return (
     <div className="space-y-4" data-testid="apps-list">
-      {items.map((a) => (
-        <ApplicationRow key={a.id} app={a} onChange={onChange} />
-      ))}
+      {/* Filter pills bar */}
+      <div className="flex flex-wrap items-center gap-2 pb-3 border-b border-[#262626]" data-testid="apps-filters">
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] mr-1">Filter:</span>
+        {FILTERS.map((f) => {
+          const active = filter === f.id;
+          const count = counts[f.id];
+          return (
+            <button
+              key={f.id}
+              type="button"
+              onClick={() => setFilter(f.id)}
+              data-testid={`apps-filter-${f.id}`}
+              className={`px-2.5 py-1.5 border font-mono text-[10px] uppercase tracking-[0.22em] transition inline-flex items-center gap-2 ${
+                active
+                  ? "border-[#ff4500] text-[#ff4500] bg-[#ff4500]/5"
+                  : "border-[#262626] text-[#a3a3a3] hover:border-[#525252] hover:text-[#e5e5e5]"
+              }`}
+            >
+              {f.label}
+              <span className={`text-[9px] ${active ? "text-[#ff4500]" : "text-[#525252]"}`}>{count}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {filtered.length === 0 ? (
+        <p className="font-mono text-sm text-[#a3a3a3] py-6" data-testid="apps-empty">
+          {filter === "pending"
+            ? "No pending applications — you're all caught up."
+            : `No ${filter} applications.`}
+        </p>
+      ) : (
+        filtered.map((a) => (
+          <ApplicationRow key={a.id} app={a} onChange={onChange} />
+        ))
+      )}
     </div>
   );
 }
@@ -124,6 +186,7 @@ function BetaToggleSwitch({ slug, initialEnabled, initialExpiresAt, onUpdated })
 function ApplicationRow({ app, onChange }) {
   const [note, setNote] = useState(app.note || "");
   const [busy, setBusy] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const decided = app.status === "approved" || app.status === "rejected";
   const decide = async (approved) => {
     setBusy(true);
@@ -132,6 +195,22 @@ function ApplicationRow({ app, onChange }) {
       await onChange();
     } finally {
       setBusy(false);
+    }
+  };
+  const remove = async () => {
+    if (!window.confirm(
+      `Permanently delete this application?\n\n` +
+      `Studio: ${app.studio_name}\nStatus: ${app.status || "pending"}\n\n` +
+      `This removes the application row only. Approved makers (and their listings/orders) are NOT affected.`,
+    )) return;
+    setDeleting(true);
+    try {
+      await deleteMakerApplication(app.id);
+      toast.success("Application deleted.");
+      await onChange();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Failed to delete.");
+      setDeleting(false);
     }
   };
   // Strip the internal `[FOUNDING SELLER BETA]` marker from the public
@@ -187,6 +266,21 @@ function ApplicationRow({ app, onChange }) {
             </div>
           ) : null}
         </div>
+        {/* Delete control — kept on every row so admins can clean up
+            spam/test/duplicate apps regardless of status. The confirm
+            dialog explains we only remove the application audit row,
+            not the maker / listings / orders. */}
+        <button
+          type="button"
+          onClick={remove}
+          disabled={deleting}
+          aria-label="Delete application"
+          title="Delete this application"
+          data-testid={`app-delete-${app.id}`}
+          className="shrink-0 self-start inline-flex items-center gap-1.5 px-2.5 py-1 border border-[#262626] hover:border-red-500 hover:text-red-400 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+        >
+          {deleting ? "…" : "✕ Delete"}
+        </button>
       </div>
       <p className="font-mono text-xs text-[#e5e5e5] leading-relaxed mt-3">{displayAbout}</p>
 

@@ -3,7 +3,7 @@ from typing import Optional
 import os
 import secrets
 from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response
 from pydantic import BaseModel, EmailStr
 
 from core import ADMIN_CAPABILITIES, ADMIN_CAP_PRESETS, ADMIN_EMAILS, db, logger, now_iso
@@ -608,6 +608,40 @@ async def admin_run_plus_roi_digest(apply: bool = False, _: dict = Depends(curre
     """
     from digests import run_plus_roi_digest
     return await run_plus_roi_digest(apply=apply)
+
+
+@router.delete("/admin/maker-applications/{app_id}")
+async def admin_delete_application(
+    app_id: str, claims: dict = Depends(current_admin),
+):
+    """Hard-delete an application row.
+
+    Intended primarily for cleaning up rejected applications that are
+    cluttering the admin queue. Safe to call on any status (pending,
+    approved, rejected) — but for approved applications it does NOT
+    delete the linked maker doc; the maker is a separate record. So this
+    is fine for "remove the application audit row" without affecting
+    anyone who's already shopping under that maker slug.
+
+    Returns 204 on success. 404 if the row doesn't exist (idempotent
+    behaviour: deleting twice is fine, second call just returns 404).
+    """
+    appn = await db.maker_applications.find_one({"id": app_id}, {"_id": 0})
+    if not appn:
+        raise HTTPException(404, "Application not found")
+    await db.maker_applications.delete_one({"id": app_id})
+    # Audit trail — we want a paper trail of what got deleted in case of
+    # a "wait, why is that maker's application gone?" investigation later.
+    await db.admin_audit.insert_one({
+        "kind": "application_deleted",
+        "email": claims["email"],
+        "app_id": app_id,
+        "applicant_email": appn.get("email"),
+        "studio_name": appn.get("studio_name"),
+        "previous_status": appn.get("status") or "pending",
+        "created_at": now_iso(),
+    })
+    return Response(status_code=204)
 
 
 @router.patch("/admin/maker-applications/{app_id}")

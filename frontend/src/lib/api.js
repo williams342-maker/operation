@@ -392,6 +392,8 @@ export const fetchAdminOrders = () =>
   http.get("/admin/orders", { headers: adminAuthHeaders() }).then((r) => r.data);
 export const decideMakerApplication = (id, payload) =>
   http.patch(`/admin/maker-applications/${id}`, payload, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const deleteMakerApplication = (id) =>
+  http.delete(`/admin/maker-applications/${id}`, { headers: adminAuthHeaders() }).then((r) => r.data);
 export const toggleMakerBeta = (slug, enabled) =>
   http.post(`/admin/makers/${slug}/beta`, { enabled }, { headers: adminAuthHeaders() }).then((r) => r.data);
 export const quoteCustomOrder = (id, payload) =>
