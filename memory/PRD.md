@@ -862,3 +862,41 @@ Triggered by user: "for beta members, I want a founding member login button. in 
 ### Action items for user
 - ⚠️ **DEPLOY ACTION**: Add `PUBLIC_SITE_URL=https://craftersmarket.org` to the production backend env vars and redeploy. After deploy, hit `https://craftersmarket.org/api/seo/diag` or the new Admin Settings card to verify.
 - ℹ️ Cloudflare AI-bot block was reported clean on the production domain (only preview had it). If it ever appears on prod, Cloudflare Dashboard → Security → Bots → "AI Scrapers and Crawlers" → OFF.
+
+
+## 2026-04-29 — 🐛 P0 Bug fix: "flaky when entering data" across every modal with a form
+
+### Reported
+User: *"when entering email it kept going back to name"* — typed in the email field of the Beta Feedback floating widget, focus kept bouncing back to the name field mid-word.
+
+### Root cause (found via reproduction + code audit)
+**`/app/frontend/src/hooks/useModalA11y.js`** — the shared modal a11y hook had this useEffect:
+```js
+useEffect(() => { /* attach keydown + setTimeout(focus first input) */ }, [onCancel, autoFocusSelector]);
+```
+Every caller passes an inline arrow like `useModalA11y(() => setOpen(false))` — so `onCancel` is a **new function reference every render**. React saw `[onCancel]` change each render → tore down + re-ran the effect → the `setTimeout(() => focus-first-focusable(), 0)` fired → focus stolen to the Name input. Every keystroke in the Email or Message field triggered a re-render (controlled input), which triggered the effect, which stole focus back to Name. Hence "it kept going back to name".
+
+**Compounding bug**: every form using this pattern also had a stale-closure in the onChange handler:
+```js
+const set = (k) => (e) => setF({ ...f, [k]: e.target.value });  // reads stale `f` per render
+```
+At fast typing speeds, earlier keystrokes overwrote later ones with stale snapshots from other fields.
+
+### Fix
+- **`useModalA11y.js` fully rewritten**: `onCancel` now lives in a `useRef` that's updated via a separate `useEffect([onCancel])` — the keydown listener reads `onCancelRef.current` at event time, so the callback is always fresh WITHOUT re-attaching. The keydown listener and auto-focus setTimeout moved into two no-dep `useEffect(() => {}, [])` hooks — auto-focus fires exactly once on mount, never again. Escape + Tab focus-trap still work.
+- **Every form using the curried `set` pattern switched to functional updater**: `setF((c) => ({ ...c, [k]: v }))` so concurrent keystrokes never read a stale `f`.
+- **Added `name=` + `autoComplete=` attrs** to all form inputs (`name`, `email`, `organization`, `address-level2`, `url`, `tel`, `off` for free-text/textareas). Helps browser autofill behave predictably instead of cross-filling fields.
+
+### Files touched
+- `/app/frontend/src/hooks/useModalA11y.js` — hook rewrite
+- `/app/frontend/src/components/BetaBanner.jsx` — floating feedback form
+- `/app/frontend/src/pages/ApplyPage.jsx`
+- `/app/frontend/src/pages/BetaPage.jsx`
+- `/app/frontend/src/pages/CustomOrderPage.jsx` (StepDescribe + StepContact)
+
+### Tests (iter47)
+- **Frontend 100% pass**. Verified: Beta Feedback modal accepts independent input across name/email/message; `/apply`, `/beta`, and `/custom-order#step5` all retain per-field values with no cross-leakage; editing an earlier field mid-form doesn't clobber later fields (confirms functional updater works); ESC still closes modals; Tab still cycles focus inside the dialog.
+
+### Downstream benefit
+Every other modal that used `useModalA11y` (DigestsTab, UsersTab, RotatePasswordModal, ContactMakerModal, CsvImportModal, MakerDashboard DM modal, AdminEmailModal via its own pattern) automatically benefits — no more focus-stealing on keystrokes.
+
