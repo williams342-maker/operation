@@ -100,13 +100,15 @@ export default function BetaBanner({ message, position = "top" }) {
                 </button>
               </div>
             ) : (
-              <form onSubmit={submit} className="space-y-3" data-testid="beta-feedback-form">
+              <form onSubmit={submit} className="space-y-3" data-testid="beta-feedback-form" autoComplete="on">
                 <label className="block">
                   <span className="block font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-1">Name</span>
                   <input
                     required
+                    name="name"
+                    autoComplete="name"
                     value={form.name}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    onChange={(e) => { const v = e.target.value; setForm((c) => ({ ...c, name: v })); }}
                     className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm text-[#e5e5e5]"
                     data-testid="beta-feedback-name"
                   />
@@ -116,8 +118,10 @@ export default function BetaBanner({ message, position = "top" }) {
                   <input
                     required
                     type="email"
+                    name="email"
+                    autoComplete="email"
                     value={form.email}
-                    onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    onChange={(e) => { const v = e.target.value; setForm((c) => ({ ...c, email: v })); }}
                     className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm text-[#e5e5e5]"
                     data-testid="beta-feedback-email"
                   />
@@ -127,8 +131,10 @@ export default function BetaBanner({ message, position = "top" }) {
                   <textarea
                     required
                     rows={5}
+                    name="message"
+                    autoComplete="off"
                     value={form.message}
-                    onChange={(e) => setForm({ ...form, message: e.target.value })}
+                    onChange={(e) => { const v = e.target.value; setForm((c) => ({ ...c, message: v })); }}
                     placeholder="What's broken? What would you change?"
                     className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm text-[#e5e5e5]"
                     data-testid="beta-feedback-message"

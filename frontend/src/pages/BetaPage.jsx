@@ -41,7 +41,13 @@ export default function BetaPage() {
   });
   const [state, setState] = useState("idle");
   const [errMsg, setErrMsg] = useState("");
-  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  // Functional updater — fixes the stale-closure bug where typing fast
+  // in one field could overwrite another field's value with an old
+  // snapshot of `f`. Each keystroke now reads the latest state.
+  const set = (k) => (e) => {
+    const v = e.target.value;
+    setF((c) => ({ ...c, [k]: v }));
+  };
   const toggle = (t) =>
     setF((c) => ({
       ...c,
@@ -247,14 +253,14 @@ export default function BetaPage() {
             Spots are limited. Once they're gone, they're gone.
           </p>
 
-          <form onSubmit={submit} className="grid md:grid-cols-2 gap-6" data-testid="beta-form">
+          <form onSubmit={submit} className="grid md:grid-cols-2 gap-6" data-testid="beta-form" autoComplete="on">
             {[
-              ["Your name", "name", true],
-              ["Email", "email", true],
-              ["Studio / shop name", "studio_name", true],
-              ["City, State", "location", true],
-              ["Portfolio URL (Instagram, Etsy, site)", "portfolio_url", false],
-            ].map(([label, k, req]) => (
+              ["Your name", "name", true, "name"],
+              ["Email", "email", true, "email"],
+              ["Studio / shop name", "studio_name", true, "organization"],
+              ["City, State", "location", true, "address-level2"],
+              ["Portfolio URL (Instagram, Etsy, site)", "portfolio_url", false, "url"],
+            ].map(([label, k, req, autoComp]) => (
               <label key={k} className={`block ${k === "portfolio_url" ? "md:col-span-2" : ""}`}>
                 <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#a3a3a3]">
                   {label}
@@ -262,6 +268,8 @@ export default function BetaPage() {
                 <input
                   required={req}
                   type={k === "email" ? "email" : k === "portfolio_url" ? "url" : "text"}
+                  name={k}
+                  autoComplete={autoComp}
                   value={f[k]}
                   onChange={set(k)}
                   data-testid={`beta-${k}`}
@@ -302,6 +310,8 @@ export default function BetaPage() {
                 rows={5}
                 value={f.about}
                 onChange={set("about")}
+                name="about"
+                autoComplete="off"
                 data-testid="beta-about"
                 className="w-full mt-2 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none p-4 font-mono text-sm resize-none"
               />

@@ -25,7 +25,16 @@ export default function ApplyPage() {
   const [f, setF] = useState({ name: "", email: "", studio_name: "", location: "", techniques: [], portfolio_url: "", about: "" });
   const [state, setState] = useState("idle");
   const [errMsg, setErrMsg] = useState("");
-  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  // Functional updater + per-call snapshot of the new value. Fixes the
+  // "typing in email bounces back to name" stale-closure bug: the old
+  // form `const set = (k) => (e) => setF({ ...f, [k]: v })` captured a
+  // stale `f` per render, so fast keystrokes overwrote each other with
+  // old field values. `(c) => ({ ...c, [k]: v })` always reads the
+  // latest state from React's reducer.
+  const set = (k) => (e) => {
+    const v = e.target.value;
+    setF((c) => ({ ...c, [k]: v }));
+  };
   const toggle = (t) => setF((c) => ({ ...c, techniques: c.techniques.includes(t) ? c.techniques.filter((x) => x !== t) : [...c.techniques, t] }));
 
   const submit = async (e) => {
@@ -75,11 +84,12 @@ export default function ApplyPage() {
           <MakerFeeTable title="What you'll pay if approved" />
         </div>
 
-        <form onSubmit={submit} className="grid md:grid-cols-2 gap-6 border-y border-[#262626] py-8" data-testid="apply-form">
-          {[["Your name", "name", true], ["Email", "email", true], ["Studio name", "studio_name", true], ["City, State", "location", true], ["Portfolio URL (optional)", "portfolio_url", false]].map(([label, k, req]) => (
+        <form onSubmit={submit} className="grid md:grid-cols-2 gap-6 border-y border-[#262626] py-8" data-testid="apply-form" autoComplete="on">
+          {[["Your name", "name", true, "name"], ["Email", "email", true, "email"], ["Studio name", "studio_name", true, "organization"], ["City, State", "location", true, "address-level2"], ["Portfolio URL (optional)", "portfolio_url", false, "url"]].map(([label, k, req, autoComp]) => (
             <label key={k} className={`block ${k === "portfolio_url" ? "md:col-span-2" : ""}`}>
               <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#a3a3a3]">{label}</span>
               <input required={req} type={k === "email" ? "email" : k === "portfolio_url" ? "url" : "text"}
+                name={k} autoComplete={autoComp}
                 value={f[k]} onChange={set(k)} data-testid={`apply-${k}`}
                 className="w-full mt-2 bg-transparent border-b border-[#262626] focus:border-[#ff4500] outline-none py-3 font-mono text-sm" />
             </label>
@@ -98,6 +108,7 @@ export default function ApplyPage() {
           <label className="md:col-span-2 block">
             <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#a3a3a3]">About your shop</span>
             <textarea required rows={5} value={f.about} onChange={set("about")} data-testid="apply-about"
+              name="about" autoComplete="off"
               className="w-full mt-2 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none p-4 font-mono text-sm resize-none" />
           </label>
           <div className="md:col-span-2 flex justify-end pt-4">

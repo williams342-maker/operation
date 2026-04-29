@@ -132,7 +132,13 @@ function StepCategory({ value, onPick }) {
 //  Step 2 — Describe your piece
 // ============================================================
 function StepDescribe({ category, form, setForm }) {
-  const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+  // Functional updater — prevents fast-typed keystrokes from using a
+  // stale `form` snapshot and clobbering other fields. See BetaPage /
+  // ApplyPage for the same fix.
+  const set = (k) => (e) => {
+    const v = e.target.value;
+    setForm((c) => ({ ...c, [k]: v }));
+  };
   const cat = CATEGORIES.find((c) => c.id === category);
   return (
     <div data-testid="step-describe">
@@ -441,7 +447,12 @@ function StepUpload({ value, onPick }) {
 //  Step 5 — Contact info + order summary
 // ============================================================
 function StepContact({ form, setForm, summary, consent }) {
-  const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+  // Functional updater — prevents stale-closure "data bounces back to
+  // another field" bug when typing email/phone fast.
+  const set = (k) => (e) => {
+    const v = e.target.value;
+    setForm((c) => ({ ...c, [k]: v }));
+  };
   return (
     <div data-testid="step-contact">
       <Headline eyebrow="Step 5 of 5" title="Contact information" />
@@ -453,6 +464,7 @@ function StepContact({ form, setForm, summary, consent }) {
         <Field label="Your name *">
           <input
             required value={form.name} onChange={set("name")}
+            name="name" autoComplete="name"
             placeholder="Jane Smith"
             className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-3 font-mono text-sm text-[#e5e5e5] placeholder:text-[#525252]"
             data-testid="co-name"
@@ -461,6 +473,7 @@ function StepContact({ form, setForm, summary, consent }) {
         <Field label="Email address *">
           <input
             required type="email" value={form.email} onChange={set("email")}
+            name="email" autoComplete="email"
             placeholder="jane@example.com"
             className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-3 font-mono text-sm text-[#e5e5e5] placeholder:text-[#525252]"
             data-testid="co-email"
@@ -469,6 +482,7 @@ function StepContact({ form, setForm, summary, consent }) {
         <Field label="Phone (optional)" full>
           <input
             type="tel" value={form.phone} onChange={set("phone")}
+            name="phone" autoComplete="tel"
             placeholder="(555) 123-4567"
             className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-3 font-mono text-sm text-[#e5e5e5] placeholder:text-[#525252]"
             data-testid="co-phone"
