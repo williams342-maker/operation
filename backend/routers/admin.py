@@ -55,6 +55,65 @@ async def admin_auth_verify(payload: AdminVerifyRequest):
     return {"token": jwt_token, "email": email}
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Emergency admin recovery — works ONLY when ADMIN_RECOVERY_SECRET env is set.
+# Default state: endpoint silently 404s (acts as if it doesn't exist) so even
+# a portscan returns nothing. Designed for the case where outbound email is
+# broken and the operator has no shell on prod (e.g. craftersmarket.org while
+# Postmark/Mailtrap are still in approval).
+#
+# Usage: set ADMIN_RECOVERY_SECRET=<long-random-string> in the deploy env,
+# redeploy, then visit:
+#   https://<domain>/api/admin/auth/recovery?secret=<the-secret>
+# The endpoint mints an admin magic token (same code path as the email link)
+# and 302-redirects you to /admin/verify?token=… which signs you in.
+#
+# IMPORTANT: when email is working again, REMOVE the env var (or rotate it).
+# Every successful use is logged to admin_audit so you have a paper trail.
+# ─────────────────────────────────────────────────────────────────────────────
+@router.get("/admin/auth/recovery", include_in_schema=False)
+async def admin_auth_recovery(secret: str = "", request_email: Optional[str] = None):
+    from fastapi.responses import RedirectResponse
+    expected = os.environ.get("ADMIN_RECOVERY_SECRET", "").strip()
+    if not expected:
+        # Endpoint disabled — pretend it doesn't exist.
+        raise HTTPException(404, "Not Found")
+    # Constant-time compare so brute-forcers can't time-side-channel.
+    if not secrets.compare_digest(secret or "", expected):
+        # Don't reveal the env var is set; same 404 as disabled.
+        raise HTTPException(404, "Not Found")
+    # Default: log in as the configured operator. Allow override via query
+    # param ONLY if it matches an existing super-admin or active admin row,
+    # so the secret can't be used to mint tokens for arbitrary emails.
+    requested = (request_email or "").lower().strip()
+    if requested:
+        is_admin_row = await db.admin_users.find_one(
+            {"email": requested, "is_active": True}, {"_id": 0, "email": 1},
+        )
+        if requested not in ADMIN_EMAILS and not is_admin_row:
+            raise HTTPException(403, "Email is not an authorized admin.")
+        target_email = requested
+    else:
+        target_email = next(iter(ADMIN_EMAILS), None) or os.environ.get("OPS_EMAIL", "")
+        if not target_email:
+            raise HTTPException(500, "No admin email configured (set OPS_EMAIL).")
+    token = issue_admin_magic_token(target_email)
+    # Audit trail — every recovery use leaves a row.
+    await db.admin_audit.insert_one({
+        "kind": "admin_recovery_link_used",
+        "email": target_email,
+        "created_at": now_iso(),
+    })
+    logger.warning(
+        "ADMIN RECOVERY link issued via /admin/auth/recovery for %s — "
+        "remove ADMIN_RECOVERY_SECRET env once email is working.",
+        target_email,
+    )
+    # Redirect to the standard verify page so the existing JS handles sign-in.
+    # 302 (Found) — short-lived redirect so the browser doesn't cache it.
+    return RedirectResponse(url=f"/admin/verify?token={token}", status_code=302)
+
+
 @router.get("/admin/me")
 async def admin_me(claims: dict = Depends(current_admin)):
     is_super, caps = await admin_capabilities(claims)
