@@ -1105,3 +1105,77 @@ async def send_dm_to_buyer(
         f"[Crafters Market] {maker_name} replied to your message",
         html,
     )
+
+
+
+async def send_admin_message_to_applicant(
+    applicant_email: str,
+    applicant_name: str,
+    subject: str,
+    message: str,
+    admin_email: str = "",
+):
+    """One-off message from an admin to a single maker-application applicant.
+
+    Uses the same dark industrial shell as other transactional emails so it
+    feels native to Crafters Market. Lets the team follow up on a specific
+    application without copy/pasting into Gmail.
+    """
+    if not applicant_email:
+        return None
+    safe_msg = (message or "").replace("\n", "<br/>")
+    body = (
+        f"<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 18px'>"
+        f"Hi {applicant_name or 'there'},</p>"
+        f"<div style='font-size:14px;color:#e5e5e5;line-height:1.7;"
+        f"border-left:2px solid #ff4500;padding:4px 0 4px 16px;margin:0 0 18px'>"
+        f"{safe_msg}</div>"
+        "<p style='font-size:12px;color:#525252;line-height:1.6;margin-top:24px'>"
+        "Reply to this email to reach the team directly."
+        "</p>"
+    )
+    sender_label = admin_email or "Crafters Market Team"
+    html = _shell(
+        "A Note From The Team.",
+        f"Personal follow-up from {sender_label}.",
+        body, "Maker program · direct message",
+    )
+    return await _send(
+        applicant_email,
+        f"[Crafters Market] {subject}",
+        html,
+    )
+
+
+async def send_admin_broadcast(
+    recipient_email: str,
+    subject: str,
+    message: str,
+    headline: str = "Announcement.",
+    intro: str = "An update from the Crafters Market team.",
+):
+    """Single-recipient send used by the admin broadcast composer.
+
+    The admin endpoint loops over the recipient cohort and calls this
+    helper for each address — keeping per-send logging via the existing
+    `_record_event` pipeline so the operator can see exactly who got it
+    and which provider was used.
+    """
+    if not recipient_email:
+        return None
+    safe_msg = (message or "").replace("\n", "<br/>")
+    body = (
+        f"<div style='font-size:14px;color:#e5e5e5;line-height:1.7;margin:0 0 18px'>"
+        f"{safe_msg}</div>"
+        "<p style='font-size:12px;color:#525252;line-height:1.6;margin-top:24px;"
+        "border-top:1px solid #262626;padding-top:14px'>"
+        "You're receiving this because you have an account on Crafters Market. "
+        "Reply to this email to reach the team."
+        "</p>"
+    )
+    html = _shell(headline, intro, body, "Announcement · ops")
+    return await _send(
+        recipient_email,
+        f"[Crafters Market] {subject}",
+        html,
+    )

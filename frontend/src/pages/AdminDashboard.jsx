@@ -12,6 +12,10 @@ import AnalyticsTab from "../components/admin/AnalyticsTab";
 import WebAnalyticsTab from "../components/admin/WebAnalyticsTab";
 import MakerAnalyticsTab from "../components/admin/MakerAnalyticsTab";
 import ApplicationsList from "../components/admin/ApplicationsList";
+import ApprovedMakersTab from "../components/admin/ApprovedMakersTab";
+import RejectedAppsTab from "../components/admin/RejectedAppsTab";
+import PlusMembersTab from "../components/admin/PlusMembersTab";
+import BroadcastTab from "../components/admin/BroadcastTab";
 import CustomOrdersList from "../components/admin/CustomOrdersList";
 import PaidOrdersList from "../components/admin/PaidOrdersList";
 import ListingsTab from "../components/admin/ListingsTab";
@@ -36,6 +40,10 @@ const TABS = [
   { id: "web", label: "Web Analytics" },
   { id: "makers", label: "Maker Analytics" },
   { id: "applications", label: "Applications" },
+  { id: "approved-makers", label: "Approved Makers" },
+  { id: "rejected-apps", label: "Rejected" },
+  { id: "plus-members", label: "Plus Members" },
+  { id: "broadcast", label: "Broadcast" },
   { id: "custom", label: "Custom Orders" },
   { id: "orders", label: "Paid Orders" },
   { id: "approvals", label: "Refund Approvals" },
@@ -223,6 +231,10 @@ export default function AdminDashboard() {
         {tab === "web" && <WebAnalyticsTab />}
         {tab === "makers" && <MakerAnalyticsTab />}
         {tab === "applications" && <ApplicationsList items={apps} onChange={refresh} />}
+        {tab === "approved-makers" && <ApprovedMakersTab />}
+        {tab === "rejected-apps" && <RejectedAppsTab />}
+        {tab === "plus-members" && <PlusMembersTab />}
+        {tab === "broadcast" && <BroadcastTab />}
         {tab === "custom" && <CustomOrdersList items={custom} onChange={refresh} />}
         {tab === "orders" && <PaidOrdersList items={orders} />}
         {tab === "approvals" && <RefundApprovalsTab me={me} />}

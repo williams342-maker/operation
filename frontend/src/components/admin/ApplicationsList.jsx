@@ -2,15 +2,14 @@ import React, { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { decideMakerApplication, deleteMakerApplication, toggleMakerBeta } from "../../lib/api";
 import { formatDate } from "./_shared";
+import AdminEmailModal from "./AdminEmailModal";
 
-// Filter pills — "Pending" is the default so rejected apps don't clutter
-// the admin's actionable queue. "Beta" is the dedicated view the user
-// asked for ("a spot for beta applications") — same data, just sliced.
+// Filter pills — Pending is the default so decided applications don't
+// clutter the daily review queue. Approved and Rejected moved to dedicated
+// tabs ("Approved Makers" / "Rejected") so each list has its own focus.
 const FILTERS = [
   { id: "pending",  label: "Pending"  },
   { id: "beta",     label: "Beta"     },
-  { id: "approved", label: "Approved" },
-  { id: "rejected", label: "Rejected" },
   { id: "all",      label: "All"      },
 ];
 
@@ -18,9 +17,7 @@ function matchesFilter(app, filterId) {
   const status = app.status || "pending";
   if (filterId === "all")      return true;
   if (filterId === "pending")  return !app.status;
-  if (filterId === "approved") return status === "approved";
-  if (filterId === "rejected") return status === "rejected";
-  if (filterId === "beta")     return !!app.is_beta;
+  if (filterId === "beta")     return !!app.is_beta && !status.match(/rejected/);
   return true;
 }
 
@@ -28,12 +25,10 @@ export default function ApplicationsList({ items, onChange }) {
   const [filter, setFilter] = useState("pending");
   // Counts per filter so the admin sees the queue depth at a glance.
   const counts = useMemo(() => {
-    const c = { pending: 0, beta: 0, approved: 0, rejected: 0, all: items.length };
+    const c = { pending: 0, beta: 0, all: items.length };
     items.forEach((a) => {
       if (!a.status) c.pending += 1;
-      if (a.is_beta) c.beta += 1;
-      if (a.status === "approved") c.approved += 1;
-      if (a.status === "rejected") c.rejected += 1;
+      if (a.is_beta && a.status !== "rejected") c.beta += 1;
     });
     return c;
   }, [items]);
@@ -78,6 +73,9 @@ export default function ApplicationsList({ items, onChange }) {
           <ApplicationRow key={a.id} app={a} onChange={onChange} />
         ))
       )}
+      <p className="font-mono text-[10px] text-[#525252] uppercase tracking-[0.22em] pt-2 border-t border-[#262626]">
+        ◆ Approved makers and rejected applications now live in dedicated tabs.
+      </p>
     </div>
   );
 }
@@ -187,6 +185,7 @@ function ApplicationRow({ app, onChange }) {
   const [note, setNote] = useState(app.note || "");
   const [busy, setBusy] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [emailOpen, setEmailOpen] = useState(false);
   const decided = app.status === "approved" || app.status === "rejected";
   const decide = async (approved) => {
     setBusy(true);
@@ -266,21 +265,33 @@ function ApplicationRow({ app, onChange }) {
             </div>
           ) : null}
         </div>
-        {/* Delete control — kept on every row so admins can clean up
-            spam/test/duplicate apps regardless of status. The confirm
-            dialog explains we only remove the application audit row,
-            not the maker / listings / orders. */}
-        <button
-          type="button"
-          onClick={remove}
-          disabled={deleting}
-          aria-label="Delete application"
-          title="Delete this application"
-          data-testid={`app-delete-${app.id}`}
-          className="shrink-0 self-start inline-flex items-center gap-1.5 px-2.5 py-1 border border-[#262626] hover:border-red-500 hover:text-red-400 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
-        >
-          {deleting ? "…" : "✕ Delete"}
-        </button>
+        {/* Email + Delete controls — the ✉ Email button lets the admin
+            reply to the applicant directly (pending, approved, or
+            rejected). Delete removes the audit row without affecting the
+            maker / listings / orders. */}
+        <div className="flex gap-2 shrink-0 self-start">
+          <button
+            type="button"
+            onClick={() => setEmailOpen(true)}
+            aria-label="Email applicant"
+            title="Send a direct email to this applicant"
+            data-testid={`app-email-${app.id}`}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition"
+          >
+            ✉ Email
+          </button>
+          <button
+            type="button"
+            onClick={remove}
+            disabled={deleting}
+            aria-label="Delete application"
+            title="Delete this application"
+            data-testid={`app-delete-${app.id}`}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 border border-[#262626] hover:border-red-500 hover:text-red-400 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+          >
+            {deleting ? "…" : "✕ Delete"}
+          </button>
+        </div>
       </div>
       <p className="font-mono text-xs text-[#e5e5e5] leading-relaxed mt-3">{displayAbout}</p>
 
@@ -337,6 +348,14 @@ function ApplicationRow({ app, onChange }) {
             onUpdated={onChange}
           />
         </div>
+      )}
+      {emailOpen && (
+        <AdminEmailModal
+          applicationId={app.id}
+          recipientEmail={app.email}
+          recipientName={app.name || app.studio_name}
+          onClose={() => setEmailOpen(false)}
+        />
       )}
     </div>
   );

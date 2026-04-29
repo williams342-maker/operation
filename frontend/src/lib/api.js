@@ -402,6 +402,18 @@ export const deleteMakerApplication = (id) =>
   http.delete(`/admin/maker-applications/${id}`, { headers: adminAuthHeaders() }).then((r) => r.data);
 export const toggleMakerBeta = (slug, enabled) =>
   http.post(`/admin/makers/${slug}/beta`, { enabled }, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const fetchAdminApprovedMakers = () =>
+  http.get("/admin/makers/approved", { headers: adminAuthHeaders() }).then((r) => r.data);
+export const fetchAdminRejectedApplications = () =>
+  http.get("/admin/makers/rejected", { headers: adminAuthHeaders() }).then((r) => r.data);
+export const fetchAdminPlusMembers = () =>
+  http.get("/admin/makers/plus", { headers: adminAuthHeaders() }).then((r) => r.data);
+export const emailMakerApplicant = (id, payload) =>
+  http.post(`/admin/maker-applications/${id}/email`, payload, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const previewAdminBroadcast = (payload) =>
+  http.post("/admin/broadcast/preview", payload, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const sendAdminBroadcast = (payload) =>
+  http.post("/admin/broadcast/send", payload, { headers: adminAuthHeaders() }).then((r) => r.data);
 export const quoteCustomOrder = (id, payload) =>
   http.patch(`/admin/custom-orders/${id}`, payload, { headers: adminAuthHeaders() }).then((r) => r.data);
 

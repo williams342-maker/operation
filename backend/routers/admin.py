@@ -8,7 +8,8 @@ from pydantic import BaseModel, EmailStr
 
 from core import ADMIN_CAPABILITIES, ADMIN_CAP_PRESETS, ADMIN_EMAILS, db, logger, now_iso
 from email_service import (
-    send_admin_magic_link, send_admin_team_invite,
+    send_admin_broadcast, send_admin_magic_link,
+    send_admin_message_to_applicant, send_admin_team_invite,
     send_application_decision, send_custom_order_quote,
 )
 from maker_auth import (
@@ -346,6 +347,317 @@ async def admin_toggle_maker_beta(
     await db.makers.update_one({"slug": slug}, {"$set": update})
     logger.info("admin toggled beta: slug=%s enabled=%s", slug, body.enabled)
     return {"ok": True, "slug": slug, **update}
+
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Member directories — separate "approved makers" / "rejected applicants" /
+# "Crafters Plus paid members" lists for the admin console. These split the
+# Applications tab into focused queues so the daily review (pending) doesn't
+# co-mingle with long-tail historical data.
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/admin/makers/approved")
+async def admin_approved_makers(_: dict = Depends(current_admin)):
+    """Every approved maker with enriched stats: listings count, lifetime GMV,
+    Plus / Beta status. One Mongo round trip + a couple of small aggregations."""
+    makers = await db.makers.find({}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    if not makers:
+        return []
+    slugs = [m["slug"] for m in makers if m.get("slug")]
+
+    # Listings count per maker (live + drafts, excluding soft-deleted).
+    listings_pipe = [
+        {"$match": {"maker": {"$in": slugs}, "deleted_at": None}},
+        {"$group": {"_id": "$maker", "count": {"$sum": 1}}},
+    ]
+    listings_by_slug = {
+        r["_id"]: r["count"] async for r in db.products.aggregate(listings_pipe)
+    }
+
+    # Lifetime GMV from settled payouts (most accurate maker-side number).
+    payouts_pipe = [
+        {"$match": {"maker_slug": {"$in": slugs}, "status": {"$in": ["succeeded", "succeeded-zero"]}}},
+        {"$group": {"_id": "$maker_slug", "gross": {"$sum": "$gross_cents"}}},
+    ]
+    gmv_by_slug = {
+        r["_id"]: round((r.get("gross") or 0) / 100, 2)
+        async for r in db.maker_payouts.aggregate(payouts_pipe)
+    }
+
+    # Resolve original application date by email for the "approved on" column.
+    emails = [m.get("email") for m in makers if m.get("email")]
+    apps = await db.maker_applications.find(
+        {"email": {"$in": emails}, "status": "approved"},
+        {"_id": 0, "email": 1, "decided_at": 1, "created_at": 1},
+    ).to_list(len(emails))
+    approved_by_email = {a["email"]: a.get("decided_at") or a.get("created_at") for a in apps}
+
+    out = []
+    for m in makers:
+        slug = m.get("slug")
+        out.append({
+            "slug": slug,
+            "name": m.get("name") or m.get("studio_name"),
+            "email": m.get("email"),
+            "location": m.get("location"),
+            "is_beta": bool(m.get("is_beta")),
+            "beta_expires_at": m.get("beta_expires_at"),
+            "is_veteran_owned": bool(m.get("is_veteran_owned")),
+            "subscription_status": m.get("subscription_status") or "free",
+            "listings_count": listings_by_slug.get(slug, 0),
+            "lifetime_gmv": gmv_by_slug.get(slug, 0.0),
+            "created_at": m.get("created_at"),
+            "approved_at": approved_by_email.get(m.get("email")),
+        })
+    return out
+
+
+@router.get("/admin/makers/rejected")
+async def admin_rejected_applications(_: dict = Depends(current_admin)):
+    """Rejected maker applications, newest first. Separate list so the
+    daily Applications queue stays focused on actionable rows."""
+    return await db.maker_applications.find(
+        {"status": "rejected"}, {"_id": 0},
+    ).sort("decided_at", -1).to_list(500)
+
+
+@router.get("/admin/makers/plus")
+async def admin_plus_members(_: dict = Depends(current_admin)):
+    """All Crafters Plus paid subscribers (active or trialing).
+
+    Surfaces Stripe subscription metadata + last-30-days GMV so the admin
+    can see ROI + upcoming renewal dates without leaving the dashboard.
+    """
+    plus_makers = await db.makers.find(
+        {"subscription_status": {"$in": ["active", "trialing"]}},
+        {"_id": 0},
+    ).sort("created_at", -1).to_list(500)
+
+    if not plus_makers:
+        return []
+
+    slugs = [m["slug"] for m in plus_makers if m.get("slug")]
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+
+    # 30-day GMV per Plus maker — same source as the maker-side ROI panel.
+    gmv_pipe = [
+        {"$match": {
+            "maker_slug": {"$in": slugs},
+            "status": {"$in": ["succeeded", "succeeded-zero"]},
+            "created_at": {"$gte": cutoff},
+        }},
+        {"$group": {"_id": "$maker_slug", "gross": {"$sum": "$gross_cents"}}},
+    ]
+    gmv30_by_slug = {
+        r["_id"]: round((r.get("gross") or 0) / 100, 2)
+        async for r in db.maker_payouts.aggregate(gmv_pipe)
+    }
+
+    out = []
+    for m in plus_makers:
+        slug = m.get("slug")
+        gmv30 = gmv30_by_slug.get(slug, 0.0)
+        # Plus saves 1% commission (4% vs 5%) net of $12/mo cost.
+        net_value = round((gmv30 * 0.01) - 12.0, 2)
+        out.append({
+            "slug": slug,
+            "name": m.get("name") or m.get("studio_name"),
+            "email": m.get("email"),
+            "subscription_status": m.get("subscription_status"),
+            "stripe_subscription_id": m.get("stripe_subscription_id"),
+            "stripe_customer_id": m.get("stripe_customer_id"),
+            "current_period_end": m.get("subscription_current_period_end"),
+            "cancel_at_period_end": bool(m.get("subscription_cancel_at_period_end")),
+            "is_beta": bool(m.get("is_beta")),
+            "is_veteran_owned": bool(m.get("is_veteran_owned")),
+            "started_at": m.get("subscription_started_at") or m.get("created_at"),
+            "gmv_30d": gmv30,
+            "plus_net_value_30d": net_value,
+        })
+    return out
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Admin-to-applicant single message + site-wide broadcast composer.
+# ─────────────────────────────────────────────────────────────────────────────
+
+class ApplicantEmailRequest(BaseModel):
+    subject: str
+    message: str
+
+
+@router.post("/admin/maker-applications/{app_id}/email")
+async def admin_email_applicant(
+    app_id: str, body: ApplicantEmailRequest, bg: BackgroundTasks,
+    claims: dict = Depends(current_admin),
+):
+    """Send a one-off email to a specific maker-application applicant.
+
+    The composer in `ApplicationsList.jsx` opens a small modal next to the
+    row and posts here. We store an audit row in `admin_audit` so the
+    operator can prove the message was sent.
+    """
+    app = await db.maker_applications.find_one({"id": app_id}, {"_id": 0})
+    if not app:
+        raise HTTPException(404, "Application not found")
+    if not app.get("email"):
+        raise HTTPException(400, "Application has no email on file")
+    subject = (body.subject or "").strip()
+    message = (body.message or "").strip()
+    if not subject or not message:
+        raise HTTPException(400, "Subject and message are required")
+    if len(subject) > 180:
+        raise HTTPException(400, "Subject must be 180 characters or less")
+
+    bg.add_task(
+        send_admin_message_to_applicant,
+        app["email"], app.get("name") or "", subject, message, claims.get("email", ""),
+    )
+    await db.admin_audit.insert_one({
+        "id": secrets.token_hex(12),
+        "kind": "applicant_email",
+        "actor": claims.get("email"),
+        "target": app["email"],
+        "subject": subject[:200],
+        "application_id": app_id,
+        "created_at": now_iso(),
+    })
+    return {"ok": True, "to": app["email"]}
+
+
+class BroadcastRequest(BaseModel):
+    subject: str
+    message: str
+    audience: str  # "all_makers" | "plus_makers" | "beta_makers" | "buyers" | "applicants_pending" | "everyone"
+    headline: Optional[str] = None
+    test_email: Optional[EmailStr] = None  # If set, only sends to this address
+
+
+async def _resolve_broadcast_audience(audience: str) -> list[str]:
+    """Return the deduped lower-cased recipient email list for the given cohort."""
+    emails: set[str] = set()
+
+    async def _add_from(cursor):
+        async for row in cursor:
+            e = (row.get("email") or "").strip().lower()
+            if e:
+                emails.add(e)
+
+    if audience in ("all_makers", "everyone"):
+        await _add_from(db.makers.find({}, {"_id": 0, "email": 1}))
+    if audience in ("plus_makers", "everyone"):
+        await _add_from(db.makers.find(
+            {"subscription_status": {"$in": ["active", "trialing"]}}, {"_id": 0, "email": 1},
+        ))
+    if audience in ("beta_makers", "everyone"):
+        await _add_from(db.makers.find({"is_beta": True}, {"_id": 0, "email": 1}))
+    if audience in ("buyers", "everyone"):
+        # Distinct buyer emails from paid transactions.
+        cur = db.payment_transactions.find(
+            {"customer_email": {"$nin": [None, ""]}},
+            {"_id": 0, "customer_email": 1},
+        )
+        async for row in cur:
+            e = (row.get("customer_email") or "").strip().lower()
+            if e:
+                emails.add(e)
+        # Plus community users with verified emails.
+        await _add_from(db.community_users.find({}, {"_id": 0, "email": 1}))
+    if audience in ("applicants_pending", "everyone"):
+        await _add_from(db.maker_applications.find(
+            {"status": {"$in": [None, ""]}}, {"_id": 0, "email": 1},
+        ))
+    return sorted(emails)
+
+
+@router.post("/admin/broadcast/preview")
+async def admin_broadcast_preview(
+    body: BroadcastRequest, _: dict = Depends(current_admin),
+):
+    """Returns the audience size + sample of recipient emails so the admin
+    can sanity-check the cohort before pulling the trigger."""
+    if body.audience not in {
+        "all_makers", "plus_makers", "beta_makers", "buyers",
+        "applicants_pending", "everyone",
+    }:
+        raise HTTPException(400, "Unknown audience")
+    recipients = await _resolve_broadcast_audience(body.audience)
+    return {
+        "audience": body.audience,
+        "count": len(recipients),
+        "sample": recipients[:10],
+    }
+
+
+@router.post("/admin/broadcast/send")
+async def admin_broadcast_send(
+    body: BroadcastRequest, bg: BackgroundTasks,
+    claims: dict = Depends(current_admin),
+):
+    """Site-wide announcement composer — fires one transactional email per
+    recipient via the existing fallback chain.
+
+    Safety rails:
+      - subject + message required
+      - audience must be one of the known cohorts
+      - if `test_email` is provided, ONLY that address gets the send (preview)
+      - hard cap of 5,000 recipients per call to avoid runaway sends
+    """
+    subject = (body.subject or "").strip()
+    message = (body.message or "").strip()
+    if not subject or not message:
+        raise HTTPException(400, "Subject and message are required")
+    if len(subject) > 180:
+        raise HTTPException(400, "Subject must be 180 characters or less")
+
+    headline = (body.headline or "Announcement.")[:120]
+    intro = "An update from the Crafters Market team."
+
+    # Test mode — single recipient, doesn't touch the cohort.
+    if body.test_email:
+        bg.add_task(send_admin_broadcast, str(body.test_email), subject, message, headline, intro)
+        await db.admin_audit.insert_one({
+            "id": secrets.token_hex(12),
+            "kind": "broadcast_test",
+            "actor": claims.get("email"),
+            "audience": body.audience,
+            "subject": subject[:200],
+            "recipients_count": 1,
+            "created_at": now_iso(),
+        })
+        return {"ok": True, "mode": "test", "recipients": 1, "to": str(body.test_email)}
+
+    if body.audience not in {
+        "all_makers", "plus_makers", "beta_makers", "buyers",
+        "applicants_pending", "everyone",
+    }:
+        raise HTTPException(400, "Unknown audience")
+
+    recipients = await _resolve_broadcast_audience(body.audience)
+    if not recipients:
+        raise HTTPException(400, "No recipients in that audience")
+    if len(recipients) > 5000:
+        raise HTTPException(400, f"Audience too large ({len(recipients)} > 5000). Refine the cohort.")
+
+    # Schedule sends as background tasks so the API returns instantly even
+    # for a few hundred recipients. Each send goes through `_send` which
+    # writes its own row to `email_events` for status tracking.
+    for addr in recipients:
+        bg.add_task(send_admin_broadcast, addr, subject, message, headline, intro)
+
+    await db.admin_audit.insert_one({
+        "id": secrets.token_hex(12),
+        "kind": "broadcast_send",
+        "actor": claims.get("email"),
+        "audience": body.audience,
+        "subject": subject[:200],
+        "recipients_count": len(recipients),
+        "created_at": now_iso(),
+    })
+    return {"ok": True, "mode": "live", "audience": body.audience, "recipients": len(recipients)}
+
+
 
 
 @router.get("/admin/custom-orders")

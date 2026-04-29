@@ -115,6 +115,30 @@ export default function BetaPage() {
   return (
     <div className="pt-32 pb-24 grain min-h-screen" data-testid="beta-page">
       <div className="w-full max-w-[1100px] mx-auto px-4 md:px-8">
+        {/* Founding Member Login — approved beta members sign in through
+            the standard maker portal (magic-link). Prominent at the top so
+            returning founders don't have to hunt for it. */}
+        <div
+          className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-10 pb-5 border-b border-[#262626]"
+          data-testid="beta-founding-login-strip"
+        >
+          <div>
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+              Already a Founding Seller?
+            </div>
+            <div className="font-mono text-xs text-[#e5e5e5] mt-1">
+              Sign in with the email on your approved application.
+            </div>
+          </div>
+          <Link
+            to="/maker/login"
+            data-testid="beta-founding-login-btn"
+            className="inline-flex items-center justify-center gap-2 px-5 py-3 border-2 border-[#ff4500] text-[#ff4500] hover:bg-[#ff4500] hover:text-black font-mono text-[11px] uppercase tracking-[0.22em] font-bold transition"
+          >
+            ◆ Founding Member Login →
+          </Link>
+        </div>
+
         {/* Hero */}
         <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-4">
           ◆ Founding Seller Program
