@@ -18,7 +18,7 @@ import { ArrowRight } from "lucide-react";
 export default function SupportVeteransStrip() {
   return (
     <section
-      className="relative isolate overflow-hidden border-b border-[#1f1f1f] bg-gradient-to-r from-[#0a0e1c] via-[#0d1126] to-[#0a0e1c] pt-[calc(var(--beta-banner-h,0px)+120px)]"
+      className="relative isolate overflow-hidden border-b border-[#1f1f1f] bg-gradient-to-r from-[#0a0e1c] via-[#0d1126] to-[#0a0e1c] pt-[calc(var(--beta-banner-h,0px)+96px)]"
       data-testid="support-veterans-strip"
     >
       {/* Subtle striped backdrop (American flag stripe motif) */}
