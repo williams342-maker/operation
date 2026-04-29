@@ -297,75 +297,94 @@ function InviteModal({ presets, allCaps, onClose, onInvited }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-lg bg-[#0a0a0a] border border-[#262626] mx-4" data-testid="team-invite-modal">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#262626]">
+      <div
+        className="relative w-full max-w-md bg-[#0a0a0a] border border-[#262626] mx-4 max-h-[88vh] flex flex-col"
+        data-testid="team-invite-modal"
+      >
+        {/* Compact header — half the previous vertical footprint */}
+        <div className="flex items-center justify-between px-5 py-3 border-b border-[#262626] shrink-0">
           <div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mb-1">◆ Grant access</div>
-            <h2 className="font-display text-2xl uppercase">Invite Admin</h2>
+            <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#ff4500]">◆ Grant access</div>
+            <h2 className="font-display text-lg uppercase leading-tight">Invite Admin</h2>
           </div>
-          <button onClick={onClose} className="p-2 text-[#a3a3a3] hover:text-[#ff4500]" aria-label="Close">
-            <X size={18} />
+          <button onClick={onClose} className="p-1.5 text-[#a3a3a3] hover:text-[#ff4500]" aria-label="Close">
+            <X size={16} />
           </button>
         </div>
-        <form onSubmit={submit} className="p-6 space-y-4">
-          <div>
-            <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] block mb-1.5">Email *</label>
-            <input
-              type="email" value={email} onChange={(e) => setEmail(e.target.value)} required
-              className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm"
-              data-testid="team-invite-email"
-            />
-          </div>
-          <div>
-            <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] block mb-1.5">Quick presets</label>
-            <div className="flex flex-wrap gap-2">
-              {Object.entries(presets).map(([key, presetCaps]) => (
-                <button
-                  type="button" key={key} onClick={() => applyPreset(key)}
-                  className="px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.18em]"
-                  title={presetCaps.join(", ")}
-                  data-testid={`team-preset-${key}`}
-                >
-                  {key.replace(/_/g, " ")}
-                </button>
-              ))}
+        {/* Scrollable body — keeps header + send button fixed in view */}
+        <form onSubmit={submit} className="flex flex-col flex-1 min-h-0">
+          <div className="px-5 py-4 space-y-3 overflow-y-auto flex-1">
+            <div>
+              <label className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#a3a3a3] block mb-1">Email *</label>
+              <input
+                type="email" value={email} onChange={(e) => setEmail(e.target.value)} required
+                className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-2.5 py-1.5 font-mono text-xs"
+                data-testid="team-invite-email"
+              />
+            </div>
+            <div>
+              <label className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#a3a3a3] block mb-1">Quick presets</label>
+              <div className="flex flex-wrap gap-1.5">
+                {Object.entries(presets).map(([key, presetCaps]) => (
+                  <button
+                    type="button" key={key} onClick={() => applyPreset(key)}
+                    className="px-2 py-1 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[9px] uppercase tracking-[0.18em]"
+                    title={presetCaps.join(", ")}
+                    data-testid={`team-preset-${key}`}
+                  >
+                    {key.replace(/_/g, " ")}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#a3a3a3] block mb-1">Capabilities *</label>
+              {/* 2-col compact grid — was a full-width 9-row stack with 3-line cards */}
+              <div className="grid grid-cols-2 gap-1.5">
+                {allCaps.map((c) => {
+                  const on = caps.includes(c);
+                  return (
+                    <label
+                      key={c}
+                      className={`flex items-center gap-2 px-2 py-1.5 border cursor-pointer transition ${
+                        on ? "border-[#ff4500] bg-[#ff4500]/5" : "border-[#262626] hover:border-[#404040]"
+                      }`}
+                      data-testid={`team-invite-cap-${c}`}
+                      title={CAP_HINTS[c]}
+                    >
+                      <input
+                        type="checkbox" checked={on}
+                        onChange={() => toggleCap(c)}
+                        className="accent-[#ff4500] shrink-0"
+                      />
+                      <span className={`font-mono text-[10px] uppercase tracking-[0.18em] truncate ${on ? "text-[#ff4500]" : "text-[#e5e5e5]"}`}>
+                        {CAP_LABELS[c] || c}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+            <div>
+              <label className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#a3a3a3] block mb-1">Note (optional)</label>
+              <input
+                type="text" value={note} onChange={(e) => setNote(e.target.value)} maxLength={400}
+                className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-2.5 py-1.5 font-mono text-xs"
+                placeholder="e.g. Q2 finance hire — refunds + payouts only"
+              />
             </div>
           </div>
-          <div>
-            <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] block mb-1.5">Capabilities *</label>
-            <div className="space-y-2">
-              {allCaps.map((c) => (
-                <label key={c} className="flex items-start gap-3 p-3 border border-[#262626] hover:border-[#404040] cursor-pointer" data-testid={`team-invite-cap-${c}`}>
-                  <input
-                    type="checkbox" checked={caps.includes(c)}
-                    onChange={() => toggleCap(c)}
-                    className="mt-0.5 accent-[#ff4500]"
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className="font-mono text-xs uppercase tracking-[0.22em] text-[#e5e5e5] block">
-                      {CAP_LABELS[c] || c}
-                    </span>
-                    <span className="font-mono text-[10px] text-[#737373] mt-0.5 block">
-                      {CAP_HINTS[c]}
-                    </span>
-                  </span>
-                </label>
-              ))}
-            </div>
-          </div>
-          <div>
-            <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] block mb-1.5">Note (optional)</label>
-            <input
-              type="text" value={note} onChange={(e) => setNote(e.target.value)} maxLength={400}
-              className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm"
-              placeholder="e.g. Q2 finance hire — refunds + payouts only"
-            />
-          </div>
-          <div className="flex justify-end gap-2 pt-2 border-t border-[#262626]">
-            <button type="button" onClick={onClose} className="px-4 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em]">
+          {/* Sticky action footer — Send button always visible regardless of screen height */}
+          <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-[#262626] bg-[#0a0a0a] shrink-0">
+            <button type="button" onClick={onClose} className="px-3 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em]">
               Cancel
             </button>
-            <button type="submit" disabled={busy} className="btn-industrial btn-primary inline-flex items-center gap-2 disabled:opacity-50" data-testid="team-invite-submit">
+            <button
+              type="submit"
+              disabled={busy}
+              className="px-5 py-2 bg-[#ff4500] hover:bg-[#ff5722] text-black font-mono text-[11px] uppercase tracking-[0.22em] inline-flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_0_1px_#ff4500]"
+              data-testid="team-invite-submit"
+            >
               <Users size={14} /> {busy ? "Sending…" : "Send Invite"}
             </button>
           </div>
