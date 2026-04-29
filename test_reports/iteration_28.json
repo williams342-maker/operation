@@ -1,0 +1,24 @@
+{
+  "summary": "Iter 46 frontend-only verification: P0 Message Center body-stream regression and P1 Crafters Market Ads sub-section. Both fully pass. Maker Dashboard /maker/dashboard#messages renders the folder rail (INBOX/STARRED/UNREAD/SENT/ARCHIVE/TRASH) with the 'Nothing yet.' empty state and zero console/page errors (no 'body stream already read' TypeError). Buyer /messages page returned 401s from API (expected — used maker JWT, no buyer JWT was provided in the spec) but produced zero JS body-stream errors. Marketing > Crafters Market Ads renders all spec'd data-testids (ads-section, ads-hero, ads-stat-active/spend/eligible, ads-active, ads-boost, ads-eligible-list). Duration chip swap (1/2/4/12 weeks at $5/$10/$20/$60) correctly updates the active state and the per-row Boost button price label. Boost flow E2E worked: POST /api/maker/products/carved-oak-wedding-monogram/promote?weeks=1 → 200, success toast shown, KPI cells re-derived (Active 0→1, Eligible 5→4), ads-active-{slug} row + ads-extend-{slug} button rendered with FEATURED badge and countdown ('6d 23h left · ends 5/6/2026'). Sub-nav swaps between Ads/Sales/Social/Share work, and AI companion tools (listing copy, SEO recommender, bulk SEO) render in the Ads section.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "AdsSection in MarketingTab.jsx is the only consumer that derives buckets from fetchMakerProducts() client-side. With 100+ listings the eligible.slice(0, 50) cap is fine, but consider server-side pagination or filtering once a maker has many listings — currently every render re-walks the full product list.",
+    "weeklySpend math assumes a fixed $5/wk rate hardcoded in 2 places (hero card + boost handler toast). Worth extracting WEEKLY_RATE = 5 into a const so a future price change doesn't drift between the math and the user-facing string.",
+    "PromotedRow countdown re-evaluates on each render but never re-renders unless products change — when the page is left open the 'd h left' label will go stale. Low priority cosmetic; a 60s setInterval or rerender on focus would fix."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a", "frontend": "100%"},
+  "test_credentials": "Maker JWT minted via maker_auth.issue_session_jwt('iron-and-oak','iron-and-oak@craftersmarket.org', role='maker'); stored as localStorage.cm_maker_jwt after clearing cm_admin_jwt. Buyer-side /messages was probed without a buyer JWT (none was supplied in the request beyond a reference to test_credentials.md), so that page returned 401s on the data calls but rendered the shell without body-stream JS errors.",
+  "seed_data_creation": "Boost flow created one promoted listing (carved-oak-wedding-monogram, 1 week) on iron-and-oak via the legitimate POST /promote endpoint. This is real test data and will auto-expire in 7 days; no manual cleanup needed.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter46 P0+P1 fully verified. Test artifacts: zero console errors on Marketing tab including after Boost API call. Confirmed testids: ads-section, ads-hero, ads-stat-active, ads-stat-spend, ads-stat-eligible, ads-active, ads-active-list, ads-active-{slug}, ads-extend-{slug}, ads-boost, ads-weeks-1/2/4/12, ads-eligible-list, ads-boost-{slug}, marketing-subnav-ads/sales/social/share, marketing-section-{ads|sales|social|share}, marketing-cat-toggle. iron-and-oak maker now has 1 active promotion (carved-oak-wedding-monogram) + 4 eligible listings remaining. To retest from a clean state, either pick a different slug or wait 7d for auto-expiry. No buyer JWT was tested for /messages — main agent should self-verify that page if a regression suite needs full coverage.",
+  "rca_of_the_issue": "N/A — both items in scope passed. The reported P0 'body stream already read' was already non-reproducible per the original session note; this run confirms the same: 0 such errors across maker /messages and buyer /messages."
+}
