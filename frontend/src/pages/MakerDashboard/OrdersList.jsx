@@ -21,9 +21,26 @@ export default function OrdersList({ orders, onChange }) {
         body="Share your shop link to start moving pieces — every paid order lands here with the buyer's contact info."
         cta={{
           label: "Share My Shop",
-          onClick: () => {
-            if (navigator.share) navigator.share({ url: window.location.origin + "/makers" });
-            else navigator.clipboard?.writeText(window.location.origin + "/makers");
+          onClick: async () => {
+            const url = window.location.origin + "/makers";
+            // navigator.share rejects with AbortError when the user dismisses
+            // the share sheet — swallow it silently and fall back to copy.
+            // Other rejections (NotAllowedError, etc.) also fall back gracefully.
+            try {
+              if (navigator.share) {
+                await navigator.share({ url });
+                return;
+              }
+            } catch (e) {
+              if (e?.name === "AbortError") return;
+              // fall through to clipboard copy
+            }
+            try {
+              await navigator.clipboard?.writeText(url);
+              toast.success("Shop link copied to clipboard.");
+            } catch {
+              toast.error("Couldn't share — copy the URL from the address bar.");
+            }
           },
           testId: "orders-empty-cta",
         }}
@@ -146,7 +163,31 @@ function OrderRow({ order, onChange }) {
           data-testid={`order-detail-${order.session_id}`}
         >
           {loadingDetail && (
-            <p className="font-mono text-xs text-[#525252]">Loading detail…</p>
+            <div data-testid={`order-detail-skeleton-${order.session_id}`}>
+              <div className="grid md:grid-cols-2 gap-6 animate-pulse">
+                <div>
+                  <div className="h-3 w-20 bg-[#262626] mb-3" />
+                  <div className="h-3 w-48 bg-[#1f1f1f] mb-2" />
+                  <div className="h-3 w-40 bg-[#1f1f1f] mb-2" />
+                  <div className="h-3 w-32 bg-[#1f1f1f]" />
+                </div>
+                <div>
+                  <div className="h-3 w-20 bg-[#262626] mb-3" />
+                  <div className="h-3 w-full bg-[#1f1f1f] mb-2" />
+                  <div className="h-3 w-full bg-[#1f1f1f] mb-2" />
+                  <div className="h-3 w-3/4 bg-[#1f1f1f]" />
+                </div>
+              </div>
+              <div className="mt-5 space-y-2 animate-pulse">
+                <div className="flex gap-3 items-center">
+                  <div className="w-14 h-14 bg-[#1f1f1f]" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-3 w-2/3 bg-[#1f1f1f]" />
+                    <div className="h-3 w-1/3 bg-[#262626]" />
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
           {detail && (
             <>

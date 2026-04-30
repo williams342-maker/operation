@@ -122,6 +122,48 @@ export default function MakerLogin() {
           <p className="mt-12 font-mono text-[11px] text-[#525252] uppercase tracking-[0.22em]">
             Not a maker yet? <Link to="/apply" className="text-[#ff4500]">Apply to the program →</Link>
           </p>
+
+          {/* Trouble-signing-in expander — handles the 3 cases that
+              account for ~80% of "I can't log in" support tickets.
+              Collapsed by default so it doesn't clutter the happy path. */}
+          <details className="mt-6 font-mono text-[11px]" data-testid="maker-login-troubleshoot">
+            <summary className="cursor-pointer text-[#a3a3a3] hover:text-[#ff4500] uppercase tracking-[0.22em] list-none inline-flex items-center gap-2">
+              <span className="text-[#ff4500]">◆</span> Trouble signing in?
+            </summary>
+            <div className="mt-3 space-y-3 text-[#a3a3a3] leading-relaxed border-l-2 border-[#262626] pl-4">
+              <div>
+                <div className="uppercase tracking-[0.22em] text-[#e5e5e5] text-[10px] mb-1">
+                  ① Link not arriving?
+                </div>
+                <p className="normal-case tracking-normal">
+                  Check spam / promotions / all-mail folders. Add
+                  <code className="text-[#ff4500] mx-1">team@craftersmarket.org</code>
+                  to your contacts. Links can take up to 2 minutes to arrive from Mailgun / Postmark.
+                </p>
+              </div>
+              <div>
+                <div className="uppercase tracking-[0.22em] text-[#e5e5e5] text-[10px] mb-1">
+                  ② "Link expired"?
+                </div>
+                <p className="normal-case tracking-normal">
+                  Magic links last 15 minutes. Just submit your email again — a fresh link replaces any pending one.
+                </p>
+              </div>
+              <div>
+                <div className="uppercase tracking-[0.22em] text-[#e5e5e5] text-[10px] mb-1">
+                  ③ "We couldn't find an account"?
+                </div>
+                <p className="normal-case tracking-normal">
+                  Make sure you're using the same email you applied with.
+                  Approved Founding Sellers received a "Welcome" email — reply-search for it to confirm the right address.
+                  Still stuck?{" "}
+                  <a href="mailto:team@craftersmarket.org" className="text-[#ff4500] underline hover:no-underline">
+                    team@craftersmarket.org
+                  </a>.
+                </p>
+              </div>
+            </div>
+          </details>
         </motion.div>
       </div>
     </div>
