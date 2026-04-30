@@ -246,16 +246,16 @@ export default function DashboardTab({
             <ul className="divide-y divide-[#1f1f1f]">
               {recentOrders.map((o) => (
                 <li
-                  key={o.id}
+                  key={o.session_id || o.id || o.created_at}
                   className="py-3 flex items-center justify-between gap-3"
-                  data-testid={`dashboard-order-${o.id}`}
+                  data-testid={`dashboard-order-${o.session_id || o.id}`}
                 >
                   <div className="min-w-0 flex-1">
                     <div className="font-mono text-xs text-[#e5e5e5] truncate">
-                      #{(o.id || "").slice(0, 8)} · {o.buyer_email || "—"}
+                      #{(o.session_id || o.id || "").slice(0, 8)} · {o.buyer_email || "—"}
                     </div>
                     <div className="font-mono text-[10px] text-[#a3a3a3] mt-0.5">
-                      {o.status?.toUpperCase() || "PENDING"} · {(o.created_at || "").slice(0, 10)}
+                      {(o.order_status || o.status || "pending").toUpperCase()} · {(o.created_at || "").slice(0, 10)}
                     </div>
                   </div>
                   <div className="font-display text-lg shrink-0">

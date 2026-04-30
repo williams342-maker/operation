@@ -194,6 +194,56 @@ def _rate_amount(rate) -> float:
         return 0.0
 
 
+def validate_address(addr: dict) -> dict:
+    """Run Shippo's address validation. Returns:
+        {"is_valid": bool, "messages": [...], "suggested": {...|null}}
+    The suggested block is Shippo's corrected recommendation; present it
+    to the user as a "Did you mean…?" hint before they click Get Rates.
+    """
+    try:
+        a = _client().addresses.create(components.AddressCreateRequest(
+            name=addr.get("name") or "",
+            company=addr.get("company") or "",
+            street1=addr.get("street1") or "",
+            street2=addr.get("street2") or "",
+            city=addr.get("city") or "",
+            state=addr.get("state") or "",
+            zip=addr.get("zip") or addr.get("postal_code") or "",
+            country=(addr.get("country") or "US").upper()[:2],
+            phone=addr.get("phone") or "",
+            email=addr.get("email") or "",
+            validate=True,
+        ))
+    except Exception as e:
+        raise ShippoError(f"Address validation failed: {e}")
+    vr = getattr(a, "validation_results", None)
+    messages = []
+    for m in (getattr(vr, "messages", None) or []):
+        messages.append({
+            "source": getattr(m, "source", "") or "",
+            "code": getattr(m, "code", "") or "",
+            "text": getattr(m, "text", "") or "",
+            "type": getattr(m, "type", "") or "",
+        })
+    is_valid = bool(getattr(vr, "is_valid", False))
+    # Shippo's validation also returns the normalised address as the
+    # response body itself; surface the key fields as `suggested` so the
+    # UI can one-click accept corrections.
+    suggested = {
+        "name": getattr(a, "name", "") or "",
+        "street1": getattr(a, "street1", "") or "",
+        "street2": getattr(a, "street2", "") or "",
+        "city": getattr(a, "city", "") or "",
+        "state": getattr(a, "state", "") or "",
+        "zip": getattr(a, "zip", "") or "",
+        "country": getattr(a, "country", "") or "",
+    }
+    return {"is_valid": is_valid, "messages": messages, "suggested": suggested}
+
+
+
+
+
 def _rate_currency(rate) -> str:
     return getattr(rate, "currency", "USD") if rate is not None else "USD"
 

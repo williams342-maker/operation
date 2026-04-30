@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import {
   ChevronDown, Wallet, FileText, Settings as SettingsIcon, BookOpen,
   Calculator, ScrollText, ExternalLink, Search, X, Truck,
@@ -6,7 +7,7 @@ import {
 import {
   fetchMakerPayouts, fetchMakerTransactions,
   stripeConnectOnboard, stripeConnectStatus, stripeConnectDashboardLink,
-  fetchMakerShippingLedger, setMakerShippingCadence,
+  fetchMakerShippingLedger, setMakerShippingCadence, setMakerShippingCap,
 } from "../../lib/api";
 import { StatsSkeleton } from "../../components/Skeleton";
 
@@ -875,7 +876,7 @@ function ShippingPanel({ query }) {
 
           {/* Cadence toggle */}
           <div
-            className="border border-[#1f1f1f] bg-[#0a0a0a] p-4 mb-6 flex items-center justify-between gap-4 flex-wrap"
+            className="border border-[#1f1f1f] bg-[#0a0a0a] p-4 mb-4 flex items-center justify-between gap-4 flex-wrap"
             data-testid="shipping-cadence-row"
           >
             <div className="min-w-0">
@@ -905,6 +906,9 @@ function ShippingPanel({ query }) {
               ))}
             </div>
           </div>
+
+          {/* Monthly spend cap — safety guard for the unbilled pile. */}
+          <CapRow data={data} reload={load} />
 
           {/* Ledger table */}
           {rows.length === 0 ? (
@@ -990,6 +994,81 @@ function MetricCard({ label, value, hint, accent, testId }) {
       {hint && (
         <div className="font-mono text-[10px] text-[#525252] mt-1">{hint}</div>
       )}
+    </div>
+  );
+}
+
+function CapRow({ data, reload }) {
+  // Initialise the input to the dollar value of the stored cap (0 = disabled).
+  const [capInput, setCapInput] = useState(
+    ((data.monthly_cap_cents || 0) / 100).toFixed(2),
+  );
+  const [saving, setSaving] = useState(false);
+  const monthSpent = (data.month_spent_cents || 0) / 100;
+  const cap = data.monthly_cap_cents || 0;
+  const overCap = cap > 0 && (data.month_spent_cents || 0) >= cap;
+  const near = cap > 0 && (data.month_spent_cents || 0) >= cap * 0.8 && !overCap;
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const usd = Math.max(0, parseFloat(capInput) || 0);
+      await setMakerShippingCap(usd);
+      toast.success(usd === 0 ? "Cap disabled." : `Cap set to $${usd.toFixed(2)}/mo.`);
+      await reload();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Couldn't save cap.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      className="border border-[#1f1f1f] bg-[#0a0a0a] p-4 mb-6 flex items-center justify-between gap-4 flex-wrap"
+      data-testid="shipping-cap-row"
+    >
+      <div className="min-w-0 flex-1">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-1">
+          Monthly spend cap
+        </div>
+        <p className="font-mono text-xs text-[#525252] leading-relaxed">
+          Set a safety limit on label spend — we'll block label purchases once
+          this month's shipping exceeds it. <span className="text-[#a3a3a3]">Set to 0 to disable.</span>
+        </p>
+        <div className="mt-2 font-mono text-[11px]">
+          <span className="text-[#a3a3a3]">This month: </span>
+          <span className={overCap ? "text-red-400" : near ? "text-yellow-400" : "text-[#e5e5e5]"}>
+            ${monthSpent.toFixed(2)}
+          </span>
+          {cap > 0 && (
+            <span className="text-[#525252]"> / ${(cap / 100).toFixed(2)}</span>
+          )}
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <div className="flex items-center border border-[#262626] bg-[#0e0e0e]">
+          <span className="px-2 font-mono text-xs text-[#525252]">$</span>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={capInput}
+            onChange={(e) => setCapInput(e.target.value)}
+            className="w-24 bg-transparent outline-none px-2 py-2 font-mono text-xs text-[#e5e5e5]"
+            data-testid="shipping-cap-input"
+          />
+          <span className="px-2 font-mono text-[10px] text-[#525252]">/mo</span>
+        </div>
+        <button
+          onClick={save}
+          disabled={saving}
+          className="btn-industrial disabled:opacity-50"
+          data-testid="shipping-cap-save"
+        >
+          {saving ? "Saving…" : "Save"}
+        </button>
+      </div>
     </div>
   );
 }

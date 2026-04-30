@@ -27,6 +27,7 @@ A follow-up scheduled job (Phase 2) rolls up unbilled rows per maker and
 generates a Stripe invoice (weekly or biweekly, operator-configured).
 """
 from __future__ import annotations
+import os
 import uuid
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -94,6 +95,55 @@ async def _maker_doc(slug: str) -> dict:
     if not m:
         raise HTTPException(404, "Maker not found.")
     return m
+
+
+async def _ensure_stripe_customer(maker: dict) -> str:
+    """Lazily create a Stripe Customer if the maker doesn't have one yet.
+
+    Called on first label purchase so non-Plus makers still get auto
+    invoicing. Non-fatal: if Stripe fails, we return '' and log — the
+    ledger row still gets written; the weekly invoice job will skip the
+    maker with reason='no_stripe_customer' until the next purchase
+    retries customer creation. Idempotent via `stripe_customer_id`
+    presence check.
+    """
+    existing = maker.get("stripe_customer_id")
+    if existing:
+        return existing
+    try:
+        import stripe as stripe_sdk
+        from core import STRIPE_API_KEY
+        stripe_sdk.api_key = STRIPE_API_KEY
+        cust = stripe_sdk.Customer.create(
+            email=maker.get("email") or None,
+            name=maker.get("name") or maker["slug"],
+            metadata={"maker_slug": maker["slug"], "source": "shipping_label"},
+        )
+        cid = cust["id"]
+        await db.makers.update_one(
+            {"slug": maker["slug"]},
+            {"$set": {"stripe_customer_id": cid, "updated_at": now_iso()}},
+        )
+        logger.info("[shipping] auto-created Stripe Customer for maker=%s id=%s", maker["slug"], cid)
+        return cid
+    except Exception as e:
+        logger.warning("[shipping] auto stripe-customer create failed for %s: %s", maker.get("slug"), e)
+        return ""
+
+
+async def _current_month_shipping_spend_cents(slug: str) -> int:
+    """Total billed_cents spent this calendar month (UTC), billed or not."""
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
+    cursor = db.shipping_ledger.aggregate([
+        {"$match": {"maker_slug": slug, "created_at": {"$gte": month_start}}},
+        {"$group": {"_id": None, "total": {"$sum": "$billed_cents"}}},
+    ])
+    total = 0
+    async for row in cursor:
+        total = row.get("total") or 0
+    return int(total)
 
 
 async def _assert_owns_order(slug: str, session_id: str) -> dict:
@@ -249,6 +299,26 @@ async def buy_label(session_id: str, body: BuyLabelReq, slug: str = Depends(curr
     await _assert_owns_order(slug, session_id)
     if not shippo_service.is_configured():
         raise HTTPException(503, "Shippo isn't configured on this deployment.")
+
+    # (b) Monthly spend cap guard — if the maker set a cap, block BEFORE
+    # we hit Shippo so a label is never purchased they can't afford.
+    # Cap=0 means disabled. Check against this-month ledger spend + the
+    # buyer-advertised rate amount (in cents).
+    maker = await _maker_doc(slug)
+    cap_cents = int(maker.get("shipping_monthly_cap_cents") or 0)
+    if cap_cents > 0:
+        already = await _current_month_shipping_spend_cents(slug)
+        incoming_cents = int(round((body.rate_amount or 0) * 100))
+        if already + incoming_cents > cap_cents:
+            raise HTTPException(
+                402,
+                f"This label would exceed your monthly shipping cap "
+                f"(${cap_cents/100:.2f}). You've spent ${already/100:.2f} "
+                f"this month; this label is ${incoming_cents/100:.2f}. "
+                f"Raise the cap in Financials → Shipping labels, or "
+                f"purchase postage elsewhere for this order.",
+            )
+
     try:
         label = shippo_service.buy_label(body.rate_id, body.label_file_type)
     except shippo_service.ShippoError as e:
@@ -288,6 +358,15 @@ async def buy_label(session_id: str, body: BuyLabelReq, slug: str = Depends(curr
         "created_at": now_iso(),
     }
     await db.shipping_ledger.insert_one(ledger_entry)
+
+    # (a) Lazy Stripe Customer creation — so the weekly invoice job can
+    # later collect from this maker. Fire-and-forget: a Stripe failure
+    # here does NOT fail the label purchase (maker's package still
+    # ships). Weekly job will just skip them until next purchase.
+    try:
+        await _ensure_stripe_customer(maker)
+    except Exception:
+        logger.exception("[shipping] _ensure_stripe_customer wrapper failed")
 
     # Mirror the existing Mark-Shipped behaviour so the tx moves to the
     # Fulfilled tab and the tracking pill renders immediately.
@@ -400,6 +479,25 @@ async def _send_delivered_email(tx: dict):
         items=tx.get("items") or [],
         maker_slugs=maker_slugs,
     )
+    # (c) SMS fan-out — peak referral moment. Fire-and-forget; no-op if
+    # Twilio isn't configured on this deployment.
+    import twilio_service
+    phone = (
+        (tx.get("shipping_details") or {}).get("phone")
+        or tx.get("customer_phone")
+    )
+    if phone and twilio_service.is_configured():
+        first_maker = maker_slugs[0] if maker_slugs else ""
+        site = (os.environ.get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
+        shop_link = f"{site}/makers/{first_maker}" if first_maker else site
+        body = (
+            f"Your Crafters Market package was delivered. "
+            f"Loved it? Leave {first_maker or 'the maker'} a quick review: {shop_link}"
+        )
+        try:
+            twilio_service.send_sms(phone, body)
+        except Exception:
+            logger.exception("[shipping] SMS dispatch failed (non-fatal)")
 
 
 # ─────────────────────── endpoints ───────────────────────
@@ -490,6 +588,7 @@ async def maker_ledger(slug: str = Depends(current_maker_slug)):
     lifetime_cents = sum(r.get("billed_cents", 0) for r in rows)
     billed_cents = lifetime_cents - unbilled_cents
     unbilled_count = sum(1 for r in rows if not r.get("billed_at"))
+    month_spent = await _current_month_shipping_spend_cents(slug)
     return {
         "cadence": m.get("shipping_billing_cadence") or "weekly",
         "currency": rows[0]["currency"] if rows else "USD",
@@ -497,6 +596,8 @@ async def maker_ledger(slug: str = Depends(current_maker_slug)):
         "unbilled_count": unbilled_count,
         "lifetime_cents": lifetime_cents,
         "billed_cents": billed_cents,
+        "monthly_cap_cents": int(m.get("shipping_monthly_cap_cents") or 0),
+        "month_spent_cents": month_spent,
         "rows": rows,
     }
 
@@ -514,3 +615,38 @@ async def set_cadence(body: CadenceUpdate, slug: str = Depends(current_maker_slu
         {"$set": {"shipping_billing_cadence": body.cadence, "updated_at": now_iso()}},
     )
     return {"ok": True, "cadence": body.cadence}
+
+
+class CapUpdate(BaseModel):
+    # Dollars — converted to cents server-side so client-side floats don't
+    # drift. 0 = disabled. Upper bound is a sanity guard (no $1M caps).
+    monthly_cap_usd: float
+
+
+@router.patch("/maker/shipping/cap")
+async def set_cap(body: CapUpdate, slug: str = Depends(current_maker_slug)):
+    cents = int(round((body.monthly_cap_usd or 0) * 100))
+    if cents < 0:
+        raise HTTPException(400, "Cap must be >= 0 (0 disables the cap).")
+    if cents > 100_000_00:  # $100,000/mo is the sanity ceiling
+        raise HTTPException(400, "Cap must be less than $100,000/mo.")
+    await db.makers.update_one(
+        {"slug": slug},
+        {"$set": {"shipping_monthly_cap_cents": cents, "updated_at": now_iso()}},
+    )
+    return {"ok": True, "monthly_cap_cents": cents}
+
+
+@router.post("/maker/shipping/validate-address")
+async def validate_address(body: ShipAddress, slug: str = Depends(current_maker_slug)):
+    """(f) Pre-flight address validation via Shippo. Used by the modal
+    before fetching rates so typos get caught early. Returns either
+    `{is_valid: true}` or `{is_valid: false, messages: [...], suggested: {...}}`.
+    """
+    if not shippo_service.is_configured():
+        raise HTTPException(503, "Shippo isn't configured on this deployment.")
+    try:
+        result = shippo_service.validate_address(body.model_dump())
+    except shippo_service.ShippoError as e:
+        raise HTTPException(400, str(e))
+    return result

@@ -6,6 +6,7 @@ import {
   fetchShippingRates,
   buyShippingLabel,
   saveShipFromAddress,
+  validateShippingAddress,
 } from "../../lib/api";
 
 /**
@@ -38,6 +39,39 @@ export default function ShippingLabelModal({ sessionId, onClose, onSuccess }) {
 
   const [buying, setBuying] = useState(false);
   const [purchased, setPurchased] = useState(null); // {label_url, tracking_number, ...}
+
+  // (f) per-address validation flags — null=untouched, {ok:true}=valid,
+  // {ok:false, messages, suggested}=Shippo flagged it with corrections.
+  const [fromValidation, setFromValidation] = useState(null);
+  const [toValidation, setToValidation] = useState(null);
+  const [validating, setValidating] = useState(false);
+
+  const runValidation = async () => {
+    setValidating(true);
+    try {
+      const [f, t] = await Promise.all([
+        validateShippingAddress(fromAddr).catch((e) => ({ is_valid: false, messages: [{ text: e?.response?.data?.detail || "Validation error" }], suggested: null })),
+        validateShippingAddress(toAddr).catch((e) => ({ is_valid: false, messages: [{ text: e?.response?.data?.detail || "Validation error" }], suggested: null })),
+      ]);
+      setFromValidation({ ok: f.is_valid, messages: f.messages || [], suggested: f.suggested });
+      setToValidation({ ok: t.is_valid, messages: t.messages || [], suggested: t.suggested });
+    } finally {
+      setValidating(false);
+    }
+  };
+
+  const applySuggestion = (which) => {
+    const v = which === "from" ? fromValidation : toValidation;
+    if (!v?.suggested) return;
+    const merged = { ...(which === "from" ? fromAddr : toAddr), ...v.suggested };
+    if (which === "from") {
+      setFromAddr(merged);
+      setFromValidation({ ok: true, messages: [], suggested: null });
+    } else {
+      setToAddr(merged);
+      setToValidation({ ok: true, messages: [], suggested: null });
+    }
+  };
 
   useEffect(() => {
     (async () => {
@@ -192,18 +226,24 @@ export default function ShippingLabelModal({ sessionId, onClose, onSuccess }) {
           {!loading && step === "review" && fromAddr && toAddr && parcel && (
             <>
               <div className="grid md:grid-cols-2 gap-5">
-                <AddressCard
-                  label="Ship From (your studio)"
-                  value={fromAddr}
-                  onChange={setFromAddr}
-                  testIdPrefix="ship-from"
-                />
-                <AddressCard
-                  label="Ship To (buyer)"
-                  value={toAddr}
-                  onChange={setToAddr}
-                  testIdPrefix="ship-to"
-                />
+                <div>
+                  <AddressCard
+                    label="Ship From (your studio)"
+                    value={fromAddr}
+                    onChange={(v) => { setFromAddr(v); setFromValidation(null); }}
+                    testIdPrefix="ship-from"
+                  />
+                  <ValidationInline v={fromValidation} onApply={() => applySuggestion("from")} testId="ship-from-validation" />
+                </div>
+                <div>
+                  <AddressCard
+                    label="Ship To (buyer)"
+                    value={toAddr}
+                    onChange={(v) => { setToAddr(v); setToValidation(null); }}
+                    testIdPrefix="ship-to"
+                  />
+                  <ValidationInline v={toValidation} onApply={() => applySuggestion("to")} testId="ship-to-validation" />
+                </div>
               </div>
               <label className="flex items-center gap-2 font-mono text-[11px] text-[#a3a3a3]">
                 <input
@@ -219,6 +259,15 @@ export default function ShippingLabelModal({ sessionId, onClose, onSuccess }) {
               <ParcelCard value={parcel} onChange={setParcel} />
 
               <div className="flex justify-end gap-2 pt-2">
+                <button
+                  onClick={runValidation}
+                  disabled={loading || validating || !configured}
+                  className="btn-industrial disabled:opacity-50"
+                  data-testid="shipping-validate-addresses"
+                  title="Catch typos before we hit Shippo for live rates"
+                >
+                  {validating ? "Validating…" : "Validate addresses"}
+                </button>
                 <button
                   onClick={handleClose}
                   className="btn-industrial"
@@ -380,6 +429,44 @@ export default function ShippingLabelModal({ sessionId, onClose, onSuccess }) {
     </div>
   );
 }
+
+function ValidationInline({ v, onApply, testId }) {
+  if (!v) return null;
+  if (v.ok) {
+    return (
+      <div
+        className="mt-2 font-mono text-[10px] text-emerald-400 flex items-center gap-1"
+        data-testid={`${testId}-ok`}
+      >
+        <Check size={11} /> Validated
+      </div>
+    );
+  }
+  const hasSuggestion = v.suggested && (v.suggested.street1 || v.suggested.zip);
+  return (
+    <div
+      className="mt-2 border border-yellow-400/40 bg-yellow-400/5 p-2 space-y-1"
+      data-testid={`${testId}-warn`}
+    >
+      <div className="font-mono text-[10px] text-yellow-400 flex items-center gap-1">
+        <AlertTriangle size={11} /> Address needs attention
+      </div>
+      {(v.messages || []).slice(0, 2).map((m, i) => (
+        <div key={i} className="font-mono text-[10px] text-[#a3a3a3]">{m.text}</div>
+      ))}
+      {hasSuggestion && (
+        <button
+          onClick={onApply}
+          className="mt-1 btn-industrial text-[10px] py-1 px-2"
+          data-testid={`${testId}-apply`}
+        >
+          Use suggested: {v.suggested.street1}, {v.suggested.city} {v.suggested.state} {v.suggested.zip}
+        </button>
+      )}
+    </div>
+  );
+}
+
 
 function AddressCard({ label, value, onChange, testIdPrefix }) {
   const set = (k) => (e) => onChange({ ...value, [k]: e.target.value });
