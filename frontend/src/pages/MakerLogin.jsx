@@ -36,10 +36,34 @@ export default function MakerLogin() {
           <h1 className="font-display text-[56px] md:text-[88px] leading-[0.88] mb-6 uppercase">
             Sign In.
           </h1>
-          <p className="font-mono text-sm text-[#a3a3a3] leading-relaxed mb-10">
+          <p className="font-mono text-sm text-[#a3a3a3] leading-relaxed mb-6">
             Enter the email on file with Crafters Market. We'll send you a one-click sign-in link
             — no password, good for 15 minutes.
           </p>
+
+          {/* Founding Seller badge — previously a separate pill in the top Nav.
+              Consolidated here so there's a single sign-in entry point: regular
+              approved makers AND Founding Sellers both sign in with the same
+              magic-link flow. The banner makes the Founding-Seller path
+              discoverable without fragmenting the surface. */}
+          <div
+            className="mb-10 border border-[#ff4500]/40 bg-[#ff4500]/5 px-4 py-3 flex items-start gap-3"
+            data-testid="maker-login-founding-banner"
+          >
+            <span className="font-mono text-[#ff4500] text-lg leading-none shrink-0">◆</span>
+            <div className="flex-1">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mb-1">
+                Founding Seller?
+              </div>
+              <p className="font-mono text-[11px] text-[#a3a3a3] leading-relaxed">
+                Sign in here with the same email you used when you applied to the beta.
+                Not yet a Founding Seller?{" "}
+                <Link to="/beta" className="text-[#ff4500] underline hover:no-underline" data-testid="maker-login-beta-link">
+                  Claim a spot →
+                </Link>
+              </p>
+            </div>
+          </div>
 
           <form onSubmit={onSubmit} className="space-y-4" data-testid="maker-login-form">
             <label className="block">

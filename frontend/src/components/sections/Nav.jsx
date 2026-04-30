@@ -120,20 +120,11 @@ export default function Nav() {
               </Link>
             </>
           )}
-          {/* Founding Member Login — subtle outlined pill next to Beta
-              Signup so returning approved beta sellers know exactly where
-              to sign in. Only shown when signed out (when signed in the
-              generic "Account" button already routes to /maker/dashboard). */}
-          {!signedInRole && (
-            <Link
-              to="/maker/login"
-              className="hidden md:inline-flex items-center gap-1 px-3 py-2 border border-[#ff4500]/60 text-[#ff4500] hover:bg-[#ff4500]/10 font-mono text-[10px] font-bold uppercase tracking-[0.22em] transition"
-              data-testid="nav-founding-login-btn"
-              title="Already a Founding Seller? Sign in here."
-            >
-              Founding Login
-            </Link>
-          )}
+          {/* Founding Member Login pill intentionally removed from the
+              top Nav in iter61 — the maker/login page is now the single
+              sign-in entry point (which welcomes both regular makers AND
+              Founding Sellers). Keeping one CTA reduces cognitive load
+              and funnel leakage. */}
           {/* Sign-in button — placed next to Cart so a returning user can
               authenticate from anywhere on the site. Switches to "Account"
               when signed in (any role). */}
