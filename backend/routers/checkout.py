@@ -314,6 +314,14 @@ async def create_checkout(req: CheckoutRequest, http_request: Request):
     quote = _quote_for(resolved)
     if quote["total_before_tax"] <= 0:
         raise HTTPException(400, "Invalid total")
+    # Stripe's hard minimum for a USD Checkout Session is $0.50. Catch it
+    # here with a friendly message instead of a generic 500 from Stripe.
+    if quote["total_before_tax"] < 0.50:
+        raise HTTPException(
+            400,
+            "Order total must be at least $0.50 — please add another item "
+            "or pick a listing with a higher price.",
+        )
 
     # Resolve discount BEFORE building Stripe line items so we can pass a
     # deterministic discount line (Stripe Coupon) instead of mutating prices.
@@ -435,19 +443,43 @@ async def create_checkout(req: CheckoutRequest, http_request: Request):
                 line_items[target]["price_data"]["unit_amount"] = max(50, old_amt - reduce_per_unit)
             session_kwargs["line_items"] = line_items
     try_with_tax = os.environ.get("STRIPE_AUTOMATIC_TAX", "true").lower() == "true"
-    try:
-        if try_with_tax:
+    session = None
+    # First attempt — with automatic_tax enabled if configured. Tax-related
+    # Stripe errors (e.g. missing head office address in test mode) should
+    # silently fall back to a tax-less session. Anything else (amount too
+    # low, bad line item, invalid currency) is caller-visible.
+    if try_with_tax:
+        try:
             kwargs_tax = {**session_kwargs, "automatic_tax": {"enabled": True}}
             if req.customer_email:
                 kwargs_tax["customer_email"] = req.customer_email
             session = stripe_sdk.checkout.Session.create(**kwargs_tax)
-        else:
-            raise RuntimeError("automatic_tax disabled by env")
-    except Exception as e:  # pragma: no cover
-        logger.warning("automatic_tax not available, retrying without it: %s", e)
-        if req.customer_email:
-            session_kwargs["customer_email"] = req.customer_email
-        session = stripe_sdk.checkout.Session.create(**session_kwargs)
+        except stripe_sdk.error.InvalidRequestError as e:
+            msg = (getattr(e, "user_message", None) or str(e)).lower()
+            # Tax config problems → fall through to the tax-less retry.
+            # Everything else → propagate as a friendly 400.
+            if "tax" not in msg and "origin" not in msg:
+                logger.warning("Stripe invalid checkout request: %s", e)
+                raise HTTPException(
+                    400,
+                    f"Checkout was rejected: {getattr(e, 'user_message', None) or str(e)}",
+                )
+            logger.warning("automatic_tax rejected by Stripe, retrying without it: %s", e)
+        except Exception as e:  # pragma: no cover
+            logger.warning("automatic_tax not available, retrying without it: %s", e)
+
+    # Fallback: no automatic_tax.
+    if session is None:
+        try:
+            if req.customer_email:
+                session_kwargs["customer_email"] = req.customer_email
+            session = stripe_sdk.checkout.Session.create(**session_kwargs)
+        except stripe_sdk.error.InvalidRequestError as e:
+            logger.warning("Stripe invalid checkout request (no-tax retry): %s", e)
+            raise HTTPException(
+                400,
+                f"Checkout was rejected: {getattr(e, 'user_message', None) or str(e)}",
+            )
 
     total = quote["total_before_tax"]
     # Attribution: anything other than "internal"/empty is treated as off-site
