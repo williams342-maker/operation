@@ -498,6 +498,11 @@ export const fetchAdminPlusMembers = () =>
   http.get("/admin/makers/plus", { headers: adminAuthHeaders() }).then((r) => r.data);
 export const emailMakerApplicant = (id, payload) =>
   http.post(`/admin/maker-applications/${id}/email`, payload, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const previewApplicationDecisionEmail = (id, { approved = true, note = "" } = {}) =>
+  http.get(`/admin/maker-applications/${id}/preview-email`, {
+    headers: adminAuthHeaders(),
+    params: { approved, note },
+  }).then((r) => r.data);
 export const previewAdminBroadcast = (payload) =>
   http.post("/admin/broadcast/preview", payload, { headers: adminAuthHeaders() }).then((r) => r.data);
 export const sendAdminBroadcast = (payload) =>

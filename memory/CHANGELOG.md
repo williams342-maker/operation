@@ -1,6 +1,18 @@
 # Crafters Market — CHANGELOG
 
-_All dated iteration entries. Newest on top. Each iter is verified (via testing agent or self-tested) before landing — unless explicitly noted._
+## 2026-02 — iter70 — Welcome-Packet Email Preview Modal · admin QA without sending (TESTED ✅ 18/18 + e2e screenshots)
+- ✨ **Pure renderer** `render_application_decision_email(name, studio, approved, note, sign_in_link) -> {subject, html}` extracted out of `send_application_decision`. Now both the dispatcher AND the new admin preview endpoint share one source of truth — the QA preview is bit-for-bit identical to what the applicant receives.
+- ✨ **New endpoint** `GET /api/admin/maker-applications/{id}/preview-email?approved=&note=` — admin-only; returns `{recipient, applicant_name, studio, approved, subject, html}`. Uses a `token=preview` placeholder for the magic-link CTA so we don't mint real tokens at preview-time (links are minted only at decide-time so they're always fresh). 404 on unknown id.
+- ✨ **WelcomePacketPreviewModal.jsx** — split-pane modal with iframe email preview on the right, live note editor + subject + recipient on the left. Tabs for `✦ Approval · Welcome packet` vs `✕ Rejection · Short + kind`. Note textarea debounce-rerenders (250 ms) so admins see their copy bake into the quote-block almost instantly. Sandboxed iframe (`sandbox=""`), reuses brand palette, pill-shaped close button. Seeds initial note from the parent ApplicationRow's note state.
+- ✨ **`▤ Preview email` button** added to every pending ApplicationRow, sitting next to Approve/Reject. Disabled while a decide call is in flight.
+- Tests: 7 new in `test_iter70_welcome_packet_preview.py` (renderer approve/reject/note paths + endpoint 404 + full payload + reject path + dispatcher uses renderer). 11 prior in `test_iter28_*` still green = **18/18**. Live e2e screenshots captured for approval, rejection, and note-rendering states — all clean.
+- Files: `email_service.py` (extracted renderer), `routers/admin.py` (new endpoint + import), `lib/api.js` (helper), `components/admin/ApplicationsList.jsx` (button + modal mount), new `components/admin/WelcomePacketPreviewModal.jsx`, new `tests/test_iter70_welcome_packet_preview.py`.
+
+
+## 2026-02 — iter69b — Twilio SMS · credentials wired + verified (BLOCKED on A2P 10DLC)
+- ✨ **Twilio Account SID / Auth Token / From #** added to `/app/backend/.env` per user input. `twilio_service.is_configured()` flips to True · From number `+12086063449` confirmed owned + SMS-capable + MMS-capable on the Twilio account.
+- ✓ **End-to-end test send fired** → Twilio API returned 201 with Message SID. Status check came back `undelivered` with **error code 30034** ("Message from an Unregistered Number" — US carrier A2P 10DLC requirement). Code path is verified; carrier registration is the only blocker.
+- ✓ **`send_delivery_sms` path** in Shippo webhook (`routers/shipping.py`) was already wired; still no-op safe when Twilio is unconfigured. Will auto-light up the moment A2P brand+campaign approves at https://console.twilio.com/us1/develop/sms/regulatory-compliance/a2p-10dlc (1-3 business days, ~$4/mo + $15 vetting for Sole Proprietor tier).
 
 
 ## 2026-02 — iter69 — Application Received Email · refreshed copy + Beta-aware (TESTED ✅ 11/11)

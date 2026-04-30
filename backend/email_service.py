@@ -751,12 +751,13 @@ async def send_admin_team_invite(admin_email: str, capability_labels: str, link:
 
 
 
-async def send_application_decision(applicant_email: str, name: str, studio: str,
-                                    approved: bool, note: str = "",
-                                    sign_in_link: str = ""):
-    """Approval path emits a comprehensive welcome packet: sign-in link, first
-    steps checklist, fee breakdown, support resources. Decline path stays
-    short + kind."""
+def render_application_decision_email(
+    name: str, studio: str, approved: bool, note: str = "",
+    sign_in_link: str = "",
+) -> dict:
+    """Pure renderer — returns `{subject, html}` without dispatching.
+    Used by `send_application_decision` AND the admin preview endpoint
+    so the QA preview is bit-for-bit identical to what gets sent."""
     title = "Welcome to the Workshop." if approved else "Application Update."
     intro = (
         f"Hi {name}, your studio {studio} is in. Here's everything you need to launch."
@@ -834,7 +835,19 @@ async def send_application_decision(applicant_email: str, name: str, studio: str
         if approved
         else f"Crafters Market application update — {studio}"
     )
-    return await _send(applicant_email, subject, html)
+    return {"subject": subject, "html": html}
+
+
+async def send_application_decision(applicant_email: str, name: str, studio: str,
+                                    approved: bool, note: str = "",
+                                    sign_in_link: str = ""):
+    """Approval path emits a comprehensive welcome packet: sign-in link, first
+    steps checklist, fee breakdown, support resources. Decline path stays
+    short + kind."""
+    rendered = render_application_decision_email(
+        name, studio, approved, note=note, sign_in_link=sign_in_link,
+    )
+    return await _send(applicant_email, rendered["subject"], rendered["html"])
 
 
 async def send_custom_order_quote(buyer_email: str, name: str, project_type: str,

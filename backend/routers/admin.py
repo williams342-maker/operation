@@ -11,6 +11,7 @@ from email_service import (
     send_admin_broadcast, send_admin_magic_link,
     send_admin_message_to_applicant, send_admin_team_invite,
     send_application_decision, send_custom_order_quote,
+    render_application_decision_email,
 )
 from maker_auth import (
     admin_capabilities, current_admin, current_buyer, current_maker_slug,
@@ -964,6 +965,37 @@ async def admin_delete_application(
         "created_at": now_iso(),
     })
     return Response(status_code=204)
+
+
+@router.get("/admin/maker-applications/{app_id}/preview-email")
+async def admin_preview_application_email(
+    app_id: str, approved: bool = True, note: str = "",
+    _: dict = Depends(current_admin),
+):
+    """Returns the exact `{subject, html, recipient}` that
+    `send_application_decision` would dispatch — without sending anything.
+    Lets admins preview the welcome packet (or rejection note) before
+    clicking Approve/Reject. The `note` query param is rendered live so
+    admins see how their inline note appears in the final quote block."""
+    appn = await db.maker_applications.find_one({"id": app_id}, {"_id": 0})
+    if not appn:
+        raise HTTPException(404, "Application not found")
+    # Use a non-functional placeholder for the magic link so the admin sees
+    # where the CTA lives without us minting a real one (links are minted
+    # only at decide-time so they're always fresh).
+    rendered = render_application_decision_email(
+        appn["name"], appn["studio_name"], approved,
+        note=note or "",
+        sign_in_link="https://craftersmarket.org/maker/verify?token=preview",
+    )
+    return {
+        "recipient": appn["email"],
+        "applicant_name": appn["name"],
+        "studio": appn["studio_name"],
+        "approved": approved,
+        "subject": rendered["subject"],
+        "html": rendered["html"],
+    }
 
 
 @router.patch("/admin/maker-applications/{app_id}")

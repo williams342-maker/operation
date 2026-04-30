@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { decideMakerApplication, deleteMakerApplication, toggleMakerBeta } from "../../lib/api";
 import { formatDate } from "./_shared";
 import AdminEmailModal from "./AdminEmailModal";
+import WelcomePacketPreviewModal from "./WelcomePacketPreviewModal";
 
 // Filter pills — Pending is the default so decided applications don't
 // clutter the daily review queue. Approved and Rejected moved to dedicated
@@ -186,6 +187,7 @@ function ApplicationRow({ app, onChange }) {
   const [busy, setBusy] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const decided = app.status === "approved" || app.status === "rejected";
   const decide = async (approved) => {
     setBusy(true);
@@ -312,6 +314,16 @@ function ApplicationRow({ app, onChange }) {
           />
           <div className="flex gap-3">
             <button
+              onClick={() => setPreviewOpen(true)}
+              disabled={busy}
+              type="button"
+              data-testid={`app-preview-${app.id}`}
+              className="px-5 py-3 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+              title="Preview the email the applicant will receive on approve / reject"
+            >
+              ▤ Preview email
+            </button>
+            <button
               onClick={() => decide(true)}
               disabled={busy}
               className="btn-industrial btn-primary disabled:opacity-50"
@@ -355,6 +367,15 @@ function ApplicationRow({ app, onChange }) {
           recipientEmail={app.email}
           recipientName={app.name || app.studio_name}
           onClose={() => setEmailOpen(false)}
+        />
+      )}
+      {previewOpen && (
+        <WelcomePacketPreviewModal
+          applicationId={app.id}
+          applicantName={app.name}
+          studio={app.studio_name}
+          initialNote={note}
+          onClose={() => setPreviewOpen(false)}
         />
       )}
     </div>
