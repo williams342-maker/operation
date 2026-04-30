@@ -1,6 +1,25 @@
 # Crafters Market — Modernized Homepage + Full Marketplace
 
 
+## 2026-02 — iter58 — Checkout "Try Again" Bug Fix (TESTED ✅)
+- 🐛 **Fixed**: `/api/checkout/session` was returning HTTP 500 when Stripe
+  rejected the session (e.g. total < $0.50 USD minimum). Frontend showed
+  generic "Checkout failed. Try again." with no actionable signal.
+- ✅ **Pre-check**: `quote["total_before_tax"] < 0.50` returns 400 with
+  "Order total must be at least $0.50 — please add another item or pick
+  a listing with a higher price." BEFORE invoking Stripe.
+- ✅ **InvalidRequestError split**: tax-config errors silently retry
+  without `automatic_tax`; amount/currency/line-item errors raise 400
+  with Stripe's `user_message` surfaced verbatim so shoppers see WHY.
+- ✅ **No-tax retry path** also catches InvalidRequestError → 400.
+  Defense in depth against any Stripe rejection.
+- Tests: 6/6 backend pytest + frontend /cart live-verified (the friendly
+  string renders verbatim below the checkout button). See
+  `/app/backend/tests/test_iter58_checkout_min_total.py` and
+  `/app/test_reports/iteration_40.json`.
+
+
+
 ## 2026-02 — iter57 — Printable Bench-Sheet PDF (TESTED ✅)
 - ✅ **`/maker/briefs/{briefId}/print`** route — Letter-sized paper-style
   layout with full brief details, large Code128 barcode (60h × 2.4w,
