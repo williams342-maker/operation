@@ -1,7 +1,39 @@
 # Crafters Market — Modernized Homepage + Full Marketplace
 
 
-## 2026-02 — iter60 — "Keep Me Signed In" Maker Login Toggle (self-tested ✅)
+## 2026-02 — iter60 — Shippo Shipping-Label Integration (TESTED ✅)
+- ✨ **New**: Makers can now purchase live shipping labels from the Orders
+  drawer via Shippo. Test key live in `/app/backend/.env`
+  (`SHIPPO_API_KEY`). 3-step modal: Review → Rates → Done.
+- 🚚 **Billing model**: platform pays Shippo directly; every purchased
+  label inserts a row in new `shipping_ledger` collection
+  (`maker_slug`, `amount_cents`, `billed_cents`, `tracking_number`,
+  `billed_at=null`, `invoice_id=null`). Phase-2 follow-up will roll up
+  unbilled rows per maker into a weekly Stripe invoice.
+- ✅ **Smart defaults**: Ship-From pulls from new `maker.ship_from_address`
+  (editable per shipment; "save as default" checkbox persists). Parcel
+  dims/weight auto-filled from first line-item's listing
+  (`weight_lbs`/`weight_oz`/`dimensions`) — editable per shipment.
+  Cheapest rate auto-selected; maker can override.
+- ✅ **Fulfilment wiring**: on successful purchase, `payment_transactions`
+  row is stamped with `order_status=fulfilled`, `shipped_at`,
+  `tracking_number`, `tracking_carrier`, `shippo_label_url`,
+  `shippo_tx_id`. Existing manual "Mark shipped" fallback preserved in
+  a collapsible expander.
+- 🐛 **Post-testing fix**: modal step-3 was unmounting instantly because
+  `onSuccess()` collapsed the parent drawer mid-render. Moved refresh
+  to `handleClose` (X / Done / backdrop), keeping the label PDF +
+  tracking # copy affordances visible until user dismisses.
+- New files: `backend/shippo_service.py`, `backend/routers/shipping.py`,
+  `frontend/src/pages/MakerDashboard/ShippingLabelModal.jsx`.
+  Tests: `/app/backend/tests/test_shipping_shippo.py` (12/12 green),
+  `/app/test_reports/iteration_42.json`.
+- **Phase 2 next up** (P1): Shippo webhook for auto tracking-status
+  updates; APScheduler job for weekly maker invoice run; Admin
+  "Shipping Ledger" reconciliation page.
+
+
+## 2026-02 — iter59b — "Keep Me Signed In" Maker Login Toggle (self-tested ✅)
 - ✨ **New checkbox on `/maker/login`**: "Keep me signed in for 30 days",
   ON by default. When unchecked, `MakerVerify` stamps an 8-hour expiry
   (`cm_maker_jwt_exp`) on the stored JWT.

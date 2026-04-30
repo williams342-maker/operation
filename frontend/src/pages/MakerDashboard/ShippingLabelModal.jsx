@@ -104,7 +104,11 @@ export default function ShippingLabelModal({ sessionId, onClose, onSuccess }) {
       setPurchased(res);
       setStep("done");
       toast.success("Shipping label purchased.");
-      if (onSuccess) await onSuccess();
+      // IMPORTANT: don't call onSuccess() here — it collapses the parent
+      // order drawer which unmounts this modal and the user loses the
+      // label PDF link / tracking # before they can click. Defer the
+      // parent refresh until the user closes the modal explicitly
+      // (handleClose / Done button).
     } catch (e) {
       setErr(e?.response?.data?.detail || "Label purchase failed.");
     } finally {
@@ -112,10 +116,20 @@ export default function ShippingLabelModal({ sessionId, onClose, onSuccess }) {
     }
   };
 
+  // Called by X / Cancel / Done / backdrop. If the label was purchased,
+  // NOW is when we tell the parent to refetch — after the user has had
+  // a chance to open the PDF and copy the tracking number.
+  const handleClose = async () => {
+    if (purchased && onSuccess) {
+      try { await onSuccess(); } catch (_) { /* ignore */ }
+    }
+    onClose();
+  };
+
   return (
     <div
       className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-start md:items-center justify-center px-3 py-8 overflow-y-auto"
-      onClick={onClose}
+      onClick={handleClose}
       data-testid="shipping-label-modal"
     >
       <div
@@ -140,7 +154,7 @@ export default function ShippingLabelModal({ sessionId, onClose, onSuccess }) {
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="p-2 text-[#a3a3a3] hover:text-[#ff4500]"
             data-testid="shipping-modal-close"
             title="Close"
@@ -206,7 +220,7 @@ export default function ShippingLabelModal({ sessionId, onClose, onSuccess }) {
 
               <div className="flex justify-end gap-2 pt-2">
                 <button
-                  onClick={onClose}
+                  onClick={handleClose}
                   className="btn-industrial"
                   data-testid="shipping-cancel"
                 >
@@ -352,7 +366,7 @@ export default function ShippingLabelModal({ sessionId, onClose, onSuccess }) {
 
               <div className="flex justify-end pt-2">
                 <button
-                  onClick={onClose}
+                  onClick={handleClose}
                   className="btn-industrial btn-primary"
                   data-testid="shipping-close-done"
                 >
