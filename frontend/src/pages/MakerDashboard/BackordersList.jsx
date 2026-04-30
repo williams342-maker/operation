@@ -17,6 +17,7 @@ import {
   acceptBackorderRequest, declineBackorderRequest, fulfillBackorderRequest,
 } from "../../lib/api";
 import EmptyState from "../../components/EmptyState";
+import DeclineReasonPicker from "../../components/DeclineReasonPicker";
 import { formatDate } from "./_shared";
 
 const STATUS_CLASS = {
@@ -162,17 +163,13 @@ function BackorderRow({ req, onChange }) {
 
           {status === "pending" && showDecline && (
             <div className="space-y-3 pt-2" data-testid={`backorder-decline-form-${req.id}`}>
-              <div>
-                <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] mb-1.5">Reason (optional, shown to buyer)</div>
-                <textarea
-                  rows={3}
-                  value={declineReason}
-                  onChange={(e) => setDeclineReason(e.target.value)}
-                  placeholder="e.g. Booked through Q3 — happy to revisit in October."
-                  className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
-                  data-testid={`backorder-decline-reason-${req.id}`}
-                />
-              </div>
+              <DeclineReasonPicker
+                kind="backorder"
+                value={declineReason}
+                onChange={setDeclineReason}
+                testIdPrefix={`backorder-decline-${req.id}`}
+                placeholder="e.g. Booked through Q3 — happy to revisit in October."
+              />
               <div className="flex gap-2">
                 <button
                   type="button"

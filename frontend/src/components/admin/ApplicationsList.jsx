@@ -4,6 +4,7 @@ import { decideMakerApplication, deleteMakerApplication, toggleMakerBeta } from 
 import { formatDate } from "./_shared";
 import AdminEmailModal from "./AdminEmailModal";
 import WelcomePacketPreviewModal from "./WelcomePacketPreviewModal";
+import DeclineReasonPicker from "../DeclineReasonPicker";
 
 // Filter pills — Pending is the default so decided applications don't
 // clutter the daily review queue. Approved and Rejected moved to dedicated
@@ -304,13 +305,13 @@ function ApplicationRow({ app, onChange }) {
               ◆ Approving this applicant will grant Founding Seller Beta with a 90-day window.
             </p>
           )}
-          <textarea
+          <DeclineReasonPicker
+            kind="application"
             value={note}
-            onChange={(e) => setNote(e.target.value)}
+            onChange={setNote}
+            testIdPrefix={`app-note-${app.id}`}
+            placeholder="Optional note (sent to applicant on Approve OR Reject)"
             rows={2}
-            placeholder="Optional note (sent to applicant)"
-            className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
-            data-testid={`app-note-${app.id}`}
           />
           <div className="flex gap-3">
             <button

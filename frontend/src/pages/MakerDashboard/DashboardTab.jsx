@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   ShoppingBag, Box, MessageSquare, AlertTriangle, DollarSign,
-  ArrowUpRight, Sparkles, Clock, Package, ChevronDown,
+  ArrowUpRight, Sparkles, Clock, Package, ChevronDown, Hourglass,
 } from "lucide-react";
 import PlusUpgradeNudge from "./PlusUpgradeNudge";
 
@@ -27,6 +27,7 @@ export default function DashboardTab({
   orders = [],
   products = [],
   unreadMessages = 0,
+  pendingBackorders = 0,
   fresh = {},
   freshKey = 0,
   onTabChange,
@@ -124,6 +125,7 @@ export default function DashboardTab({
           openOrders={openOrders.length}
           totalOrders={orders.length}
           unreadMessages={unreadMessages}
+          pendingBackorders={pendingBackorders}
           totalRevenue={totalRevenue}
           fresh={fresh}
           freshKey={freshKey}
@@ -298,7 +300,7 @@ export default function DashboardTab({
   );
 }
 
-function KpiStrip({ live, drafts, openOrders, totalOrders, unreadMessages, totalRevenue, fresh, freshKey, onTabChange }) {
+function KpiStrip({ live, drafts, openOrders, totalOrders, unreadMessages, pendingBackorders, totalRevenue, fresh, freshKey, onTabChange }) {
   return (
     <div
       className="flex items-stretch divide-x divide-[#1f1f1f] border border-[#1f1f1f] overflow-x-auto"
@@ -322,6 +324,21 @@ function KpiStrip({ live, drafts, openOrders, totalOrders, unreadMessages, total
         accent={openOrders > 0}
         pulseKey={fresh.orders ? `o-${freshKey}` : null}
       />
+      {/* Backorders KPI — only renders when the maker has at least one
+          pending request. Keeps the strip clean for makers who never
+          enabled backorders, but immediately surfaces incoming requests
+          for those who did. */}
+      {pendingBackorders > 0 && (
+        <KpiPill
+          icon={Hourglass}
+          label="Backorders"
+          value={pendingBackorders}
+          sub="pending"
+          onClick={() => onTabChange?.("orders")}
+          testId="kpi-backorders"
+          accent
+        />
+      )}
       <KpiPill
         icon={MessageSquare}
         label="DMs"

@@ -1,5 +1,29 @@
 # Crafters Market — CHANGELOG
 
+## 2026-02 — iter75 — Three closing-loop improvements (TESTED ✅ 15/15 + e2e)
+
+### #1 · Backorder requests KPI tile on Maker Dashboard
+- ✨ **5th tile** in the Maker Dashboard KPI strip — `Backorders · N pending` with a Hourglass icon, orange accent. Clicking jumps to the Orders tab. Tile only renders when `pendingBackorders > 0` so makers who never enabled backorders see a clean strip.
+- ✨ **`pendingBackorders` parent state** in `MakerDashboard.jsx` — fetched alongside other dashboard data on mount; bubbled back up from `OrdersTabWrapper` after every accept/decline/fulfill via `onBackordersChange` callback so the badge stays in sync without a separate poller.
+
+### #2 · Resend tracking email · maker order row
+- ✨ **`POST /api/maker/orders/{sid}/resend-tracking-email`** — re-fires `send_buyer_shipped` (iter72) for an already-shipped order. Rate-limited to 1 / 60s via `last_tracking_resend_at` stamp; returns 429 with remaining seconds during the cooldown. 400 when no tracking exists yet, 400 when buyer email missing. Cross-maker isolation enforced (404).
+- ✨ **"Resend tracking email" link** next to "Reprint label" on every fulfilled order's expanded row, gated behind a confirm-dialog so a misclick doesn't spam the buyer. Reuses the same email body so the buyer sees the same receipt + tracking pill they'd expect.
+
+### #3 · Decline reason library
+- ✨ **`<DeclineReasonPicker>`** shared component — preset chips that seed the textarea + a `✕ Custom` button to clear. Two preset libraries: `application` (Portfolio thin / Niche fit / Geo not yet supported / Incomplete) and `backorder` (Booked through quarter / Materials unavailable / Discontinued / Scope mismatch). Active preset gets an orange ring; textarea stays the source-of-truth so admins can edit after picking.
+- ✨ Wired into both decline flows — admin Application reject (`ApplicationsList.jsx`) and maker Backorder decline (`BackordersList.jsx`). Single source of truth keeps tone consistent across the founding team and reduces "blank textarea paralysis" on rejections.
+
+### Tests · 15/15
+- `test_iter75_resend_tracking.py` (4): happy-path dispatch + rate-limit at 60s + 400 on missing tracking + 404 cross-maker isolation.
+- `test_iter74_backorder_lifecycle.py` (11) — still green from prior iteration.
+
+### E2E
+Live screenshots captured for: KPI strip with new Backorders tile rendering correctly with `pendingBackorders=1`, decline picker shown empty + populated after preset click. Lint clean (Python ruff + ESLint).
+
+Files added: `frontend/src/components/DeclineReasonPicker.jsx`, `backend/tests/test_iter75_resend_tracking.py`. Modified: `routers/maker.py` (resend endpoint), `frontend/src/lib/api.js` (helper), `MakerDashboard.jsx` (state + props plumbing), `MakerDashboard/DashboardTab.jsx` (5th KPI tile), `MakerDashboard/OrdersList.jsx` (resend button), `MakerDashboard/BackordersList.jsx` + `components/admin/ApplicationsList.jsx` (decline picker integrations).
+
+
 ## 2026-02 — iter74 — 0-Stock Backorder Lifecycle · request-only flow with maker accept/decline (TESTED ✅ 11/11 + e2e)
 
 ### Buyer side · Product Detail OOS UX

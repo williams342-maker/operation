@@ -1070,6 +1070,67 @@ async def maker_mark_shipped(
     return {"ok": True, "order_status": "fulfilled", "shipped_at": update["shipped_at"]}
 
 
+@router.post("/maker/orders/{session_id}/resend-tracking-email")
+async def resend_tracking_email(
+    session_id: str, bg: BackgroundTasks,
+    slug: str = Depends(current_maker_slug),
+):
+    """Re-send the buyer's "shipped + tracking" email. Useful when the
+    buyer accidentally deleted it, the email landed in spam, or the
+    maker updated the tracking number after first ship.
+
+    Reuses `send_buyer_shipped` (iter72) so the email body is bit-for-bit
+    identical to what the buyer originally received, except for a small
+    "Resent at <ts>" footer note. Stamps `last_tracking_resend_at` to
+    rate-limit accidental triple-clicks (1 resend / 60 seconds)."""
+    tx = await db.payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
+    if not tx:
+        raise HTTPException(404, "Order not found.")
+    # Cross-maker guard mirrors the mark-shipped endpoint
+    my_pids = {p["id"] for p in await db.products.find({"maker_slug": slug}, {"_id": 0, "id": 1}).to_list(500) if p.get("id")}
+    my_pslugs = {p["slug"] for p in await db.products.find({"maker_slug": slug}, {"_id": 0, "slug": 1}).to_list(500) if p.get("slug")}
+    has_my_item = any(
+        (ci.get("product_id") in my_pids) or (ci.get("product_id") in my_pslugs) or (ci.get("product_slug") in my_pslugs)
+        for ci in tx.get("items", [])
+    )
+    if not has_my_item:
+        raise HTTPException(404, "Order not found.")
+    tracking = tx.get("tracking_number")
+    if not tracking:
+        raise HTTPException(400, "No tracking number on this order yet — mark it shipped first.")
+    buyer_email = tx.get("customer_email") or (tx.get("shipping_details") or {}).get("email")
+    if not buyer_email:
+        raise HTTPException(400, "No buyer email on file for this order.")
+    # Throttle — 60 seconds between resends so a triple-click doesn't
+    # trigger 3 inboxed emails. Compare ISO strings via `>=`.
+    last = tx.get("last_tracking_resend_at")
+    if last:
+        try:
+            from datetime import datetime, timezone
+            last_dt = datetime.fromisoformat(last.replace("Z", "+00:00"))
+            delta = (datetime.now(timezone.utc) - last_dt).total_seconds()
+            if delta < 60:
+                raise HTTPException(429, f"Please wait {int(60 - delta)}s before resending again.")
+        except ValueError:
+            pass  # corrupt timestamp — let it through
+    ts = now_iso()
+    await db.payment_transactions.update_one(
+        {"session_id": session_id},
+        {"$set": {"last_tracking_resend_at": ts, "tracking_resend_count": (tx.get("tracking_resend_count") or 0) + 1}},
+    )
+    bg.add_task(
+        send_buyer_shipped,
+        buyer_email,
+        tx.get("customer_name") or (tx.get("shipping_details") or {}).get("name"),
+        tracking,
+        tx.get("tracking_carrier") or "",
+        tx.get("items") or [],
+        float(tx.get("amount") or 0) or None,
+        tx.get("id") or session_id,
+        tx.get("tracking_url_provider"),
+    )
+    return {"ok": True, "resent_at": ts}
+
 
 @router.get("/maker/stats")
 async def maker_stats(slug: str = Depends(current_maker_slug)):

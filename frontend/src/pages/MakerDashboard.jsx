@@ -84,6 +84,11 @@ export default function MakerDashboard() {
   const [orders, setOrders] = useState([]);
   const [products, setProducts] = useState([]);
   const [threads, setThreads] = useState([]);
+  // Pending backorder requests count — surfaced as a 5th KPI tile on the
+  // Dashboard tab so makers see incoming requests at a glance instead
+  // of having to drill into Orders → Backorders. Lazy-fetched and
+  // refreshed alongside the rest of the dashboard data.
+  const [pendingBackorders, setPendingBackorders] = useState(0);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
@@ -185,13 +190,18 @@ export default function MakerDashboard() {
     }
     (async () => {
       try {
-        const [me, ords, prods, ths] = await Promise.all([
+        const [me, ords, prods, ths, bos] = await Promise.all([
           fetchMakerMe(), fetchMakerOrders(), fetchMakerProducts(),
           fetchMakerThreads().catch(() => ({ threads: [] })),
+          // Don't fail the whole dashboard load if the backorder endpoint
+          // hiccups — treat it as zero pending and surface nothing.
+          fetchMakerBackorderRequests().catch(() => []),
         ]);
         setMaker(me); setOrders(ords); setProducts(prods);
-        // /messages/maker/threads returns `{threads: [...]}` — unwrap it.
         setThreads(Array.isArray(ths) ? ths : (ths?.threads || []));
+        setPendingBackorders(
+          (Array.isArray(bos) ? bos : []).filter((b) => b.status === "pending").length,
+        );
       } catch (e) {
         if (e?.response?.status === 401) { logout(); return; }
         setErr(e?.response?.data?.detail || "Failed to load.");
@@ -326,13 +336,18 @@ export default function MakerDashboard() {
             orders={orders}
             products={products}
             unreadMessages={threads.reduce((s, t) => s + (t.unread_for_maker || 0), 0)}
+            pendingBackorders={pendingBackorders}
             fresh={fresh}
             freshKey={freshKey}
             onTabChange={changeTab}
           />
         )}
         {tab === "listings"   && <ProductsList products={products} onRefresh={refreshProducts} />}
-        {tab === "orders"     && <OrdersTabWrapper orders={orders} reload={() => fetchMakerOrders().then(setOrders).catch(() => {})} />}
+        {tab === "orders"     && <OrdersTabWrapper
+            orders={orders}
+            reload={() => fetchMakerOrders().then(setOrders).catch(() => {})}
+            onBackordersChange={(list) => setPendingBackorders(list.filter((b) => b.status === "pending").length)}
+          />}}
         {tab === "messages"   && <MessagesTab maker={maker} />}
         {tab === "briefs"     && <BriefsTab />}
         {tab === "stats"      && <StatsTab />}
@@ -362,15 +377,20 @@ export default function MakerDashboard() {
 }
 
 /** Orders tab — wraps the existing list with Pending/Fulfilled/Backorders subtabs. */
-function OrdersTabWrapper({ orders, reload }) {
+function OrdersTabWrapper({ orders, reload, onBackordersChange }) {
   const [sub, setSub] = useState("pending");
   const [backorders, setBackorders] = useState([]);
   // Lazy-load backorder requests on first switch into that tab so we
   // avoid an extra API hit on every dashboard mount. Refetched after
   // every accept/decline/fulfill via reloadBackorders() handed down.
   const reloadBackorders = React.useCallback(
-    () => fetchMakerBackorderRequests().then(setBackorders).catch(() => {}),
-    [],
+    () => fetchMakerBackorderRequests()
+      .then((list) => {
+        setBackorders(list);
+        onBackordersChange?.(list);
+      })
+      .catch(() => {}),
+    [onBackordersChange],
   );
   useEffect(() => {
     if (sub === "backorders") reloadBackorders();

@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { Receipt, ChevronDown, Truck, MapPin, Phone, Mail, User, Package, ExternalLink, Sparkles, RefreshCw, CheckCircle2 } from "lucide-react";
 import EmptyState from "../../components/EmptyState";
 import { formatDate } from "./_shared";
-import { fetchMakerOrderDetail, markOrderShipped, refreshShippingTracking } from "../../lib/api";
+import { fetchMakerOrderDetail, markOrderShipped, refreshShippingTracking, resendTrackingEmail } from "../../lib/api";
 import ShippingLabelModal from "./ShippingLabelModal";
 
 // Map backend tier → Tailwind classes. Keep the 4 named tiers in sync
@@ -73,6 +73,7 @@ function OrderRow({ order, onChange }) {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [busyShip, setBusyShip] = useState(false);
   const [busyRefresh, setBusyRefresh] = useState(false);
+  const [busyResend, setBusyResend] = useState(false);
   const [trackingNum, setTrackingNum] = useState(order.tracking_number || "");
   const [carrier, setCarrier] = useState(order.tracking_carrier || "USPS");
   const [labelModalOpen, setLabelModalOpen] = useState(false);
@@ -128,6 +129,19 @@ function OrderRow({ order, onChange }) {
       toast.error(e?.response?.data?.detail || "Couldn't refresh tracking.");
     } finally {
       setBusyRefresh(false);
+    }
+  };
+
+  const handleResendTracking = async () => {
+    if (!window.confirm("Resend the tracking email to the buyer?\n\nThe email will be a copy of the original shipping notification — useful when the buyer says they never got it.")) return;
+    setBusyResend(true);
+    try {
+      await resendTrackingEmail(order.session_id);
+      toast.success("Tracking email resent — buyer will see it in their inbox.");
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Couldn't resend.");
+    } finally {
+      setBusyResend(false);
     }
   };
 
@@ -449,6 +463,15 @@ function OrderRow({ order, onChange }) {
                           <Package size={11} /> Reprint label
                         </a>
                       )}
+                      <button
+                        onClick={handleResendTracking}
+                        disabled={busyResend}
+                        className="text-[#a3a3a3] hover:text-[#ff4500] inline-flex items-center gap-1 text-[11px] disabled:opacity-40"
+                        data-testid={`order-resend-tracking-${order.session_id}`}
+                        title="Re-send the shipping + tracking email to the buyer"
+                      >
+                        <Mail size={11} /> {busyResend ? "Sending…" : "Resend tracking email"}
+                      </button>
                     </div>
                   )}
 

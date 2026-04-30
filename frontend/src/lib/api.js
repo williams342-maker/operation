@@ -114,6 +114,8 @@ export const fetchMakerOrderDetail = (sessionId) =>
   http.get(`/maker/orders/${sessionId}`, { headers: authHeaders() }).then((r) => r.data);
 export const markOrderShipped = (sessionId, payload) =>
   http.post(`/maker/orders/${sessionId}/ship`, payload || {}, { headers: authHeaders() }).then((r) => r.data);
+export const resendTrackingEmail = (sessionId) =>
+  http.post(`/maker/orders/${sessionId}/resend-tracking-email`, {}, { headers: authHeaders() }).then((r) => r.data);
 
 // ──────────── Shippo shipping labels ────────────
 export const fetchShipFromAddress = () =>
