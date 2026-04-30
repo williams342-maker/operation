@@ -933,3 +933,32 @@ Every other modal that used `useModalA11y` (DigestsTab, UsersTab, RotatePassword
 - `/app/frontend/src/lib/api.js` (+ `uploadDesignFileDirect` with onUploadProgress)
 - `/app/frontend/src/pages/CommunityPage.jsx` (rewrote `FilesTab` + `FileUploadForm`)
 
+
+
+## 2026-04-30 — Design-file abuse moderation: ⚑ Report + quarantine queue
+
+### Rationale
+Now that any community user (buyer or maker) can upload design files directly, we need self-moderation — a buyer could rip a design off an Etsy listing and post it. Without a report mechanism the admin would only find out when the original maker DMs us.
+
+### Shipped
+- **Public endpoint** `POST /api/community/files/{file_id}/report` — any signed-in user flags a file. Reasons: stolen / copyright / duplicate / malware / inaccurate / other. Dedup by `(file_id, reported_by)`: a second report from the same user on the same file returns `{duplicate: true, id: existing_report_id}` instead of a 4xx so the UI can show the soft "we already have it" message. Increments a fast `open_reports` counter on the file document for admin-queue sorting.
+- **Admin endpoints** (in `admin.py`):
+  - `GET /api/admin/design-files/reports?status=open|resolved|dismissed|all` — moderation queue with `file` hydrated from `design_files`.
+  - `POST /api/admin/design-files/reports/{id}/resolve` — body `{action: 'quarantine'|'dismiss', note?}`. **quarantine** soft-deletes the file (`quarantined_at` set) and rolls up EVERY open report on that file to resolved in one pass; **dismiss** closes just that one row. Both write `admin_audit`.
+  - `POST /api/admin/design-files/{file_id}/unquarantine` — restores a file if we mis-moderated.
+- **Public list filter**: `GET /api/community/files` now excludes `quarantined_at != null`, so quarantined files vanish from Community > Design Files immediately.
+- **Frontend ⚑ Report button** on every `FileCard` (`CommunityPage.jsx`): shows when signed in, hidden when signed out. Opens new `ReportFileModal` — reason dropdown + details textarea + red Submit → success state with "24h review" copy. Dedup case surfaces a friendly "You already reported this file" notice.
+- **Admin "File Reports" tab** (`components/admin/DesignFileReportsTab.jsx`) — new in AdminDashboard. 3 status filter pills (Open / Resolved / Dismissed). Rows show thumbnail + reason badge + "2× reports" amber badge when multiple people flagged the same file + uploader + reporter + role + timestamp + optional moderator note textarea + "Quarantine file" (red) and "◇ Dismiss" buttons. Resolved rows show "↺ Restore file" when their file is still quarantined.
+
+### Tests (iter49)
+- **Backend pytest 14/14 PASS**. Manual curl smoke: report 200 (buyer + maker), dedup OK, invalid reason 400, no-auth 401, admin list 200, quarantine rolls up + hides from public, dismiss keeps public, unquarantine restores.
+- **Frontend 100% PASS**. Verified E2E: buyer sees ⚑ Report, submits, success toast; duplicate attempt shows soft message; admin sees the row in Open queue, clicks Quarantine → file vanishes from /community, row moves to Resolved with ↺ Restore button; dismiss path works identically without hiding the file.
+
+### Files touched
+- `/app/backend/routers/community.py` (new `REPORT_REASONS` + `FileReportRequest` + `POST /community/files/{id}/report`; `list_design_files` now filters `quarantined_at`)
+- `/app/backend/routers/admin.py` (3 new admin endpoints: list / resolve / unquarantine)
+- `/app/frontend/src/lib/api.js` (4 new fns: reportDesignFile, fetchAdminDesignFileReports, resolveDesignFileReport, unquarantineDesignFile)
+- `/app/frontend/src/pages/CommunityPage.jsx` (FileCard now renders ⚑ Report; new `ReportFileModal` component)
+- `/app/frontend/src/components/admin/DesignFileReportsTab.jsx` (new)
+- `/app/frontend/src/pages/AdminDashboard.jsx` (imports + new 'file-reports' tab)
+
