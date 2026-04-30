@@ -8,6 +8,7 @@ import {
 import {
   updateMakerProfile, makerCloseShop, makerReopenShop,
   makerRequestDeletion, makerCancelDeletion, cancelMakerSubscription,
+  fetchMakerMe,
 } from "../../lib/api";
 import UpgradeTab from "./UpgradeTab";
 
@@ -487,6 +488,18 @@ function AccountPanel({ maker, onSaved }) {
 
   const [busy, setBusy] = useState("");
 
+  // Account actions return `{ok: true}` only — they don't include the
+  // full maker doc. We re-fetch /maker/me after each mutation and hand
+  // the result to `onSaved` so the parent's `setMaker(m)` gets a real
+  // maker (not undefined) and the current Settings sub-section stays
+  // mounted without flashing an empty state.
+  const refreshMaker = async () => {
+    try {
+      const m = await fetchMakerMe();
+      onSaved?.(m);
+    } catch { /* silently ignore — toast already surfaced the primary success */ }
+  };
+
   const downgrade = async () => {
     if (!window.confirm(
       "Cancel Crafters Plus at the end of your billing period?\n\n" +
@@ -497,7 +510,7 @@ function AccountPanel({ maker, onSaved }) {
     try {
       await cancelMakerSubscription();
       toast.success("Plus will cancel at the end of the current period.");
-      onSaved?.();
+      await refreshMaker();
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Cancel failed.");
     } finally { setBusy(""); }
@@ -513,7 +526,7 @@ function AccountPanel({ maker, onSaved }) {
     try {
       await makerCloseShop();
       toast.success("Shop closed. Reopen whenever you're ready.");
-      onSaved?.();
+      await refreshMaker();
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Close failed.");
     } finally { setBusy(""); }
@@ -524,7 +537,7 @@ function AccountPanel({ maker, onSaved }) {
     try {
       await makerReopenShop();
       toast.success("Shop reopened. Welcome back.");
-      onSaved?.();
+      await refreshMaker();
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Reopen failed.");
     } finally { setBusy(""); }
@@ -548,7 +561,7 @@ function AccountPanel({ maker, onSaved }) {
     try {
       const r = await makerRequestDeletion();
       toast.success(`Deletion scheduled in ${r.days_remaining} days. Cancel anytime.`);
-      onSaved?.();
+      await refreshMaker();
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Delete request failed.");
     } finally { setBusy(""); }
@@ -559,7 +572,7 @@ function AccountPanel({ maker, onSaved }) {
     try {
       await makerCancelDeletion();
       toast.success("Deletion cancelled — your account is safe.");
-      onSaved?.();
+      await refreshMaker();
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Cancel failed.");
     } finally { setBusy(""); }

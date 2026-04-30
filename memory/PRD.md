@@ -962,3 +962,62 @@ Now that any community user (buyer or maker) can upload design files directly, w
 - `/app/frontend/src/components/admin/DesignFileReportsTab.jsx` (new)
 - `/app/frontend/src/pages/AdminDashboard.jsx` (imports + new 'file-reports' tab)
 
+
+
+## 2026-04-30 — Etsy-style Info & Appearance, Social, Admin left-sidebar, Account lifecycle
+
+### User ask (4 items, all shipped)
+User uploaded an Etsy "Info & Appearance" screenshot and asked for: (1) more Etsy-style fields, (2) social media connect per shop, (3) admin nav moved to LEFT, (4) account cancel + Plus downgrade + **full hard-delete after 30-day grace**.
+
+### 1. Etsy-style Info & Appearance
+Added 5 new fields on the `Maker` model (`models.py`) + PATCH `/api/maker/profile`:
+- `shop_title` — tagline under the shop name, shown on the shop hero + search results.
+- `order_receipt_banner_url` — 760×100 printed on emailed order receipts.
+- `shop_announcement` — pinned notice at top of the public shop page (orange left-border callout).
+- `message_to_buyers` — auto-appended to order confirmation emails (physical goods).
+- `message_to_buyers_digital` — shown on the Downloads page + digital delivery email.
+Frontend `InfoAppearance` section rewritten with all 5 new inputs + existing 4, with per-field hints and character limits.
+
+### 2. Social Media connect per shop
+New `Social media` sub-section in Maker Settings. Seven platforms: Facebook / Instagram / Twitter / TikTok / YouTube / Pinterest / Website. Pure URL vanity links (no OAuth) rendered as a compact "connect" grid with green ◆ Connected / gray ◇ Not set pills. Public shop page (`MakerDetail.jsx`) renders a `<SocialLinks>` block below the bio — one icon+label pill per filled link.
+
+### 3. Admin nav moved to LEFT (desktop) — keeps horizontal scroll on mobile
+Rewrote `AdminDashboard.jsx` tab rail:
+- **≥ lg (1024px)**: `grid-cols-[220px_1fr]` with a **sticky vertical sidebar** on the left. Active tab highlighted by a left border + tint.
+- **< lg**: horizontal scroll bar at top (unchanged).
+No tab IDs or testids changed — zero regression risk for existing E2E tests.
+
+### 4. Account lifecycle — Downgrade / Close / Delete with 30-day grace
+New endpoints in `maker.py`:
+- `POST /api/maker/account/close` — sets `shop_closed=true` + `vacation_mode=true`. Reversible.
+- `POST /api/maker/account/reopen` — clears closure flags.
+- `POST /api/maker/account/request-deletion` — **starts 30-day grace**. Writes `deletion_requested_at` + `deletion_cancels_at` (now + 30d), auto-closes the shop so no new orders land during the window. 400 if already pending.
+- `POST /api/maker/account/cancel-deletion` — backs out of the pending deletion.
+- **Existing** `POST /api/maker/subscription/cancel` — used for the Plus → Free downgrade (cancels at period end).
+
+**Scheduled job** `_job_purge_deleted_makers` runs daily at 03:30 UTC (`scheduler.py`):
+- Finds makers where `deletion_cancels_at <= now`.
+- Hard-deletes `products`, `maker_payouts`, `design_files`, `dm_threads`, `reviews`, matching `maker_applications`.
+- **Anonymizes** (not deletes) `payment_transactions` → `maker_slug = "__deleted__{slug}"` so financial / tax records survive.
+- Deletes the `makers` doc.
+- Writes an `admin_audit` row capturing purge counts per collection.
+
+**New `AccountPanel`** section in Settings UI (`SettingsTab.jsx`):
+- Current-plan badge (★ Plus or ◇ Free) + Downgrade to Free button (on Plus shops).
+- Shop status card (Open / Closed) + Close / Reopen buttons.
+- **Red Danger Zone** with `Request account deletion` — opens `window.prompt` requiring user to type `DELETE` verbatim; then flips to a big red "Pending deletion — N days remaining" banner with a **Cancel deletion** button.
+- Account actions call `fetchMakerMe()` after each mutation so the current Settings sub-section stays mounted (no flash-to-Info on state refresh).
+
+### Tests (iter50)
+- **Backend pytest 11/11 PASS**. Manual curl smoke: PATCH with all new fields persists, account-lifecycle endpoints all return expected shapes, dup-deletion 400, cancel-deletion clears flags.
+- **Frontend 100% PASS** (testing agent iter50). Verified: new Info & Appearance fields save, Social Media pills flip Connected/Not set, Account & Plan close/reopen/delete/cancel-delete full E2E, admin sidebar at 1920px (vertical) + horizontal at 390px, public shop page renders shop_title + announcement + closed banner + social links.
+
+### Files touched
+- `/app/backend/models.py` (Maker + MakerProfileUpdate)
+- `/app/backend/routers/maker.py` (4 new account endpoints)
+- `/app/backend/scheduler.py` (_job_purge_deleted_makers daily cron)
+- `/app/frontend/src/lib/api.js` (4 new maker-account fns)
+- `/app/frontend/src/pages/MakerDashboard/SettingsTab.jsx` (InfoAppearance expanded, SocialMedia + AccountPanel added)
+- `/app/frontend/src/pages/AdminDashboard.jsx` (left-sidebar layout)
+- `/app/frontend/src/pages/MakerDetail.jsx` (shop_title + announcement + closed banner + SocialLinks)
+
