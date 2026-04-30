@@ -1,6 +1,31 @@
 # Crafters Market — Modernized Homepage + Full Marketplace
 
 
+## 2026-02 — iter56 — 10-Digit Tracking + Code128 Barcode (TESTED ✅)
+- ✅ **Tracking number** on every `custom_orders` doc (10 random digits,
+  unique-indexed, 5-attempt collision re-roll). Backfilled all 86 existing
+  briefs.
+- ✅ **Public lookup**: `GET /api/custom-orders/track/{n}` returns sanitised
+  status (no PII — only project_type, material, lifecycle timestamps,
+  reddit URL). Validates 10-digit format strictly.
+- ✅ **Public `/track/{number}` page**: input form + 7-stage timeline
+  (submitted → quoted → assigned → accepted → in_progress → won_bid →
+  completed) with current-stage marker + Code128 barcode header.
+  Declined briefs surface a dedicated red row.
+- ✅ **Code128 barcode** via `jsbarcode@3.12.3` rendered on:
+  - public `/track/{number}` page header
+  - admin `CustomOrdersList` row header
+  - maker `BriefsTab` card header
+- ✅ **Admin search**: `GET /api/admin/custom-orders?tracking=NNNNNNNNNN`
+  filters to a single brief by tracking number.
+- ✅ **Buyer confirmation email** now includes the tracking number + a
+  direct `/track/{n}` link.
+- Tests: 13/13 new + 52/52 regression = 65/65 backend pytest. See
+  `/app/backend/tests/test_iter56_tracking_number.py` and
+  `/app/test_reports/iteration_38.json`.
+
+
+
 ## 2026-02 — iter55 — P2 Cleanup + ★ Route-to-Top (TESTED ✅)
 - ✅ **Stripe Open Dashboard 409 polish**: backend now returns
   `{detail: {code: "onboarding_incomplete", message: ...}}` instead of a
