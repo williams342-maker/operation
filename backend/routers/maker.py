@@ -896,6 +896,7 @@ async def maker_orders(slug: str = Depends(current_maker_slug)):
             "buyer_email": tx.get("customer_email"),
             "created_at": tx.get("created_at"),
             "payment_status": tx.get("payment_status"),
+            "order_status": tx.get("order_status") or "pending",
             "items": my_lines,
             "maker_subtotal": round(sum(line["subtotal"] for line in my_lines), 2),
         })
