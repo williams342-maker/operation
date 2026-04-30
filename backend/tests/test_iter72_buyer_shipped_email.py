@@ -176,9 +176,13 @@ async def test_mark_shipped_does_not_resend_when_already_sent():
 
 
 @pytest.mark.asyncio
-async def test_mark_shipped_skips_email_when_no_tracking_number_supplied():
-    """Manual fulfilled-without-tracking still works (e.g. local pickup)."""
-    from fastapi import BackgroundTasks
+async def test_mark_shipped_rejects_when_no_tracking_number_supplied():
+    """Iter78 guardrail — without tracking # + carrier AND without a
+    Shippo label on the tx, the endpoint must 400. Previously this was
+    allowed (local pickup), but "ship + ghost" was leaving buyers with
+    no way to track their package, so per iter78 tracking is now
+    required for all non-Shippo fulfillments."""
+    from fastapi import BackgroundTasks, HTTPException
     from routers.maker import maker_mark_shipped, OrderShipUpdate
 
     fake_db = MagicMock()
@@ -196,7 +200,10 @@ async def test_mark_shipped_skips_email_when_no_tracking_number_supplied():
     bg = BackgroundTasks()
     body = OrderShipUpdate()  # no tracking
     with patch("routers.maker.db", fake_db):
-        await maker_mark_shipped("cs_3", body, bg, slug="mk")
+        with pytest.raises(HTTPException) as exc:
+            await maker_mark_shipped("cs_3", body, bg, slug="mk")
+    assert exc.value.status_code == 400
+    # No email scheduled
     fn_names = [t.func.__name__ for t in bg.tasks]
     assert "send_buyer_shipped" not in fn_names
 

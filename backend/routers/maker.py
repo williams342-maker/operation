@@ -1029,6 +1029,25 @@ async def maker_mark_shipped(
     )
     if not has_my_item:
         raise HTTPException(404, "Order not found.")
+
+    # Guardrail — if the seller didn't use Shippo to buy a label, they
+    # MUST provide tracking # + carrier manually before the order can be
+    # marked fulfilled. Prevents the "ship + ghost" pattern where a
+    # maker hit Mark Shipped without any way for the buyer to track the
+    # package. Shippo-bought labels already carry tracking on the tx
+    # doc, so they bypass this check naturally.
+    bought_via_shippo = bool(tx.get("shippo_tx_id") or tx.get("shippo_label_url"))
+    existing_tracking = tx.get("tracking_number")
+    incoming_tracking = (body.tracking_number or "").strip() if body.tracking_number else ""
+    incoming_carrier = (body.tracking_carrier or "").strip() if body.tracking_carrier else ""
+    if not bought_via_shippo and not existing_tracking:
+        if not incoming_tracking or not incoming_carrier:
+            raise HTTPException(
+                400,
+                "Tracking number and carrier are required to mark this order "
+                "shipped. Either buy a label through Shippo (auto-fills tracking) "
+                "or enter your manual tracking details below.",
+            )
     update = {
         "order_status": "fulfilled",
         "shipped_at": now_iso(),

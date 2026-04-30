@@ -1,5 +1,16 @@
 # Crafters Market — CHANGELOG
 
+## 2026-02 — iter78 — Mark-Shipped Guardrail · tracking required for non-Shippo fulfillments (TESTED ✅ 14/14)
+**Fix:** Previously a maker could hit "Mark shipped" with nothing filled in — buyer was left in the dark with no tracking. Per user request, now enforced on both layers:
+
+- **Backend** — `POST /maker/orders/{sid}/ship` returns 400 unless either (a) the tx already carries a Shippo label (`shippo_tx_id` or `shippo_label_url`), (b) the tx already has `tracking_number` stamped (e.g. from the Shippo webhook), OR (c) the request body supplies BOTH `tracking_number` AND `tracking_carrier`. Carrier without tracking → rejected (useless). Tracking without carrier → rejected (USPS/UPS/FedEx numbers overlap).
+- **Frontend** — manual-ship form: Mark-shipped button disabled until tracking # non-empty AND carrier picked; input tints orange-bordered when empty; helper text "Both tracking number and carrier are required so the buyer can track their package"; placeholder "(required)" on the tracking field.
+
+**Tests 14/14:** 6 new in `test_iter78_ship_guardrail.py` (rejects-no-tracking, rejects-carrier-only, rejects-tracking-only, accepts-both, Shippo bypass, pre-stamped-tracking bypass) + 8 prior iter72 tests (updated one to match the new contract).
+
+Files: `backend/routers/maker.py` (guardrail block), `frontend/src/pages/MakerDashboard/OrdersList.jsx` (disabled-button UX), new `backend/tests/test_iter78_ship_guardrail.py`, updated `tests/test_iter72_buyer_shipped_email.py`.
+
+
 ## 2026-02 — iter77 — Bug fix · Admin "Refire order emails" now works + includes tracking email (TESTED ✅ 5/5 + live verified)
 
 **Root cause:** The `POST /api/admin/orders/{session_id}/refire-emails` endpoint read from `db.transactions` (0 docs — legacy collection) instead of `db.payment_transactions` (204 paid orders — source of truth since iter60-ish). Every REFIRE click returned `404 Order not found.` — exactly the error in the user's screenshot.

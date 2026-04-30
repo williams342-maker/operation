@@ -377,35 +377,46 @@ function OrderRow({ order, onChange }) {
                       <Truck size={12} /> Or mark shipped manually
                       <ChevronDown size={12} className="ml-auto transition-transform group-open:rotate-180" />
                     </summary>
-                    <div className="mt-3 grid md:grid-cols-3 gap-2 items-stretch">
-                      <select
-                        value={carrier}
-                        onChange={(e) => setCarrier(e.target.value)}
-                        className="bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
-                        data-testid={`order-carrier-${order.session_id}`}
-                      >
-                        <option value="USPS">USPS</option>
-                        <option value="UPS">UPS</option>
-                        <option value="FedEx">FedEx</option>
-                        <option value="DHL">DHL</option>
-                        <option value="Other">Other</option>
-                      </select>
-                      <input
-                        type="text"
-                        value={trackingNum}
-                        onChange={(e) => setTrackingNum(e.target.value)}
-                        placeholder="Tracking # (optional)"
-                        className="bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
-                        data-testid={`order-tracking-${order.session_id}`}
-                      />
-                      <button
-                        onClick={handleShip}
-                        disabled={busyShip}
-                        className="btn-industrial disabled:opacity-50"
-                        data-testid={`order-ship-${order.session_id}`}
-                      >
-                        {busyShip ? "Marking…" : "Mark shipped"}
-                      </button>
+                    <div className="mt-3 space-y-2">
+                      <p className="font-mono text-[10px] text-[#a3a3a3] leading-relaxed">
+                        Both <b className="text-[#e5e5e5]">tracking number</b> and <b className="text-[#e5e5e5]">carrier</b> are required
+                        so the buyer can track their package.
+                      </p>
+                      <div className="grid md:grid-cols-3 gap-2 items-stretch">
+                        <select
+                          value={carrier}
+                          onChange={(e) => setCarrier(e.target.value)}
+                          required
+                          className="bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
+                          data-testid={`order-carrier-${order.session_id}`}
+                        >
+                          <option value="USPS">USPS</option>
+                          <option value="UPS">UPS</option>
+                          <option value="FedEx">FedEx</option>
+                          <option value="DHL">DHL</option>
+                          <option value="Other">Other</option>
+                        </select>
+                        <input
+                          type="text"
+                          value={trackingNum}
+                          onChange={(e) => setTrackingNum(e.target.value)}
+                          placeholder="Tracking # (required)"
+                          required
+                          className={`bg-transparent border focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5] placeholder:text-[#525252] ${
+                            trackingNum.trim() ? "border-[#262626]" : "border-[#ff4500]/40"
+                          }`}
+                          data-testid={`order-tracking-${order.session_id}`}
+                        />
+                        <button
+                          onClick={handleShip}
+                          disabled={busyShip || !trackingNum.trim() || !carrier}
+                          className="btn-industrial disabled:opacity-40 disabled:cursor-not-allowed"
+                          data-testid={`order-ship-${order.session_id}`}
+                          title={!trackingNum.trim() ? "Enter a tracking number first" : ""}
+                        >
+                          {busyShip ? "Marking…" : "Mark shipped"}
+                        </button>
+                      </div>
                     </div>
                   </details>
                 </section>
