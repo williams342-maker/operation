@@ -11,7 +11,7 @@ _Prioritized backlog: P0 > P1 > P2. Blocked items flag the gating credential/dec
 ## P1
 
 - **Reddit Feed UI** · backend built; BLOCKED awaiting `REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET` / `REDDIT_USERNAME` / `REDDIT_PASSWORD`.
-- **Buyer SMS on DELIVERED** · alongside email; delivery is peak referral moment. BLOCKED on Twilio keys (Account SID + Auth Token + From #).
+- **Buyer SMS on DELIVERED** · alongside email; delivery is peak referral moment. **BLOCKED on A2P 10DLC** carrier registration (Twilio creds are wired + verified end-to-end via a test send 2026-04-30; carrier returned error 30034 — Unregistered Number). Will auto-light up the moment A2P brand+campaign approves at https://console.twilio.com/us1/develop/sms/regulatory-compliance/a2p-10dlc (1-3 business days, ~$4/mo + $15 vetting for Sole Proprietor tier).
 
 ## P2
 
