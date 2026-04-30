@@ -271,6 +271,25 @@ async def optional_buyer(authorization: str | None = Header(default=None)) -> di
     return claims if claims.get("role") == "buyer" else None
 
 
+async def current_any_user(authorization: str | None = Header(default=None)) -> dict:
+    """FastAPI dependency: accepts any signed-in community user (buyer OR maker).
+
+    Returns the JWT claims with `role` set so the caller can distinguish
+    maker uploads (attribute to a shop) from buyer uploads (attribute to
+    a community user). 401s when no valid JWT is supplied.
+    """
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Sign in to continue.")
+    token = authorization.split(" ", 1)[1].strip()
+    claims = decode_session_jwt(token)
+    role = claims.get("role")
+    if role not in ("buyer", "maker"):
+        raise HTTPException(status_code=403, detail="Community access required.")
+    await _check_session_version(role, claims)
+    return claims
+
+
+
 _buyer_serializer = URLSafeTimedSerializer(SECRET, salt="buyer-magic-link")
 
 

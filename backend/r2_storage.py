@@ -160,6 +160,74 @@ def upload_video_bytes(data: bytes, key_prefix: str,
     )
 
 
+
+# Community design-file uploads — shared library of DXF / SVG / STL / GLB /
+# AI / EPS / PDF / ZIP so makers AND buyers can both contribute.
+ALLOWED_DESIGN_FILE_TYPES = {
+    "image/vnd.dxf":                   "dxf",
+    "application/dxf":                 "dxf",
+    "application/x-dxf":               "dxf",
+    "image/svg+xml":                   "svg",
+    "model/stl":                       "stl",
+    "application/vnd.ms-pki.stl":      "stl",
+    "application/sla":                 "stl",
+    "model/gltf-binary":               "glb",
+    "model/gltf+json":                 "gltf",
+    "application/postscript":          "ai",   # .ai / .eps share this
+    "application/illustrator":         "ai",
+    "application/pdf":                 "pdf",
+    "application/zip":                 "zip",
+    "application/x-zip-compressed":    "zip",
+    "application/octet-stream":        "bin",  # fallback; we sniff extension
+}
+
+# Extension → mime (used to sanitize browser-provided content-type for CAD
+# files that often arrive as application/octet-stream).
+_DESIGN_EXT_TO_CT = {
+    "dxf": "application/dxf",
+    "svg": "image/svg+xml",
+    "stl": "model/stl",
+    "glb": "model/gltf-binary",
+    "gltf": "model/gltf+json",
+    "ai":  "application/postscript",
+    "eps": "application/postscript",
+    "pdf": "application/pdf",
+    "zip": "application/zip",
+}
+
+MAX_DESIGN_BYTES = 25 * 1024 * 1024  # 25 MB — CAD source files rarely exceed this.
+
+
+def upload_design_file_bytes(data: bytes, key_prefix: str,
+                             filename: str | None = None,
+                             content_type: str = "") -> tuple[str, str]:
+    """Upload a community design file (dxf/svg/stl/glb/ai/eps/pdf/zip).
+    Returns `(public_url, extension)` so the caller can store the canonical
+    file type in MongoDB for filtering.
+
+    Falls back to extension-sniffing when the browser sends
+    `application/octet-stream` — common for .dxf/.stl/.eps uploads.
+    """
+    ct = (content_type or "").lower().strip()
+    # Try content-type first.
+    ext = ALLOWED_DESIGN_FILE_TYPES.get(ct)
+    # Fall back to file extension if content-type was missing/generic.
+    if not ext or ext == "bin":
+        if filename and "." in filename:
+            guess = filename.rsplit(".", 1)[-1].lower().strip()
+            if guess in _DESIGN_EXT_TO_CT:
+                ext = guess
+                ct = _DESIGN_EXT_TO_CT[guess]
+    if not ext or ext == "bin":
+        raise ValueError(
+            "Unsupported file type. Allowed: DXF, SVG, STL, GLB/GLTF, AI, EPS, PDF, ZIP."
+        )
+    key = f"{key_prefix.rstrip('/')}/{uuid.uuid4().hex}.{ext}"
+    url = upload_bytes(data, key, ct or _DESIGN_EXT_TO_CT.get(ext, "application/octet-stream"),
+                       max_bytes=MAX_DESIGN_BYTES)
+    return url, ext.upper()
+
+
 _DATA_URL_RE = re.compile(r"^data:(?P<ct>[\w/+.\-]+);base64,(?P<b64>.+)$", re.DOTALL)
 
 

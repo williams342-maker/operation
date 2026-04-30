@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { Heart, Download, Send, Plus, Lock } from "lucide-react";
 import {
   fetchShowcase, createShowcase, likeShowcase,
-  fetchDesignFiles, downloadDesignFile, unlockDownloadsCheckout, uploadDesignFile,
+  fetchDesignFiles, downloadDesignFile, unlockDownloadsCheckout, uploadDesignFile, uploadDesignFileDirect,
   fetchForumThreads, fetchForumThread, fetchForumCategories,
   createForumThread, replyForumThread, uploadForumAttachment,
   deleteChatMessage, deleteForumThread, deleteForumReply,
@@ -331,25 +331,42 @@ function ShowcaseCard({ post, onLike, canLike }) {
 function FilesTab({ me }) {
   const [files, setFiles] = useState([]);
   const [showUpload, setShowUpload] = useState(false);
+  // Any signed-in community user (buyer OR maker) can contribute a file.
+  // `me` is the buyer-side session; maker-JWT also gates access. Both
+  // paths are accepted by the backend `current_any_user` dependency.
   const isMaker = !!localStorage.getItem("cm_maker_jwt");
+  const isSignedIn = !!me || isMaker;
   const refresh = () => fetchDesignFiles().then(setFiles);
   useEffect(() => { refresh(); }, []);
 
   return (
     <div data-testid="files-tab">
       <div className="mb-6 flex flex-col sm:flex-row justify-between gap-3">
-        <p className="font-mono text-xs text-[#a3a3a3]">
-          {files.length} community files
-        </p>
-        {isMaker && (
-          <button onClick={() => setShowUpload((s) => !s)} className="btn-industrial btn-primary inline-flex items-center gap-2 self-start" data-testid="files-upload-btn">
+        <div>
+          <p className="font-mono text-xs text-[#a3a3a3]">
+            {files.length} community files
+          </p>
+          {!isSignedIn && (
+            <p className="font-mono text-[10px] text-[#525252] mt-1" data-testid="files-signin-hint">
+              Sign in to upload a DXF, SVG, STL, GLB, AI, EPS, PDF, or ZIP.
+            </p>
+          )}
+        </div>
+        {isSignedIn && (
+          <button
+            onClick={() => setShowUpload((s) => !s)}
+            className="btn-industrial btn-primary inline-flex items-center gap-2 self-start"
+            data-testid="files-upload-btn"
+          >
             <Plus size={14} /> {showUpload ? "Cancel" : "Upload a file"}
           </button>
         )}
       </div>
       {showUpload && <FileUploadForm onSaved={() => { setShowUpload(false); refresh(); }} />}
       {!files.length ? (
-        <p className="font-mono text-sm text-[#a3a3a3]" data-testid="files-empty">No design files yet — makers can upload DXF/SVG/STL files for the community.</p>
+        <p className="font-mono text-sm text-[#a3a3a3]" data-testid="files-empty">
+          No design files yet — be the first to share a DXF / SVG / STL / GLB.
+        </p>
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="files-grid">
           {files.map((f) => (
@@ -361,36 +378,205 @@ function FilesTab({ me }) {
   );
 }
 
+// Real multipart uploader — any signed-in community user can contribute.
+// Falls back to an external-URL-paste mode for makers who host on
+// Dropbox / Drive / their own CDN (zero-copy, no R2 spend).
 function FileUploadForm({ onSaved }) {
+  const [mode, setMode] = useState("upload"); // "upload" | "url"
   const [f, setF] = useState({ title: "", description: "", file_type: "DXF", download_url: "", thumbnail_url: "" });
+  const [picked, setPicked] = useState(null); // File object
+  const [progress, setProgress] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const isMaker = !!localStorage.getItem("cm_maker_jwt");
+
+  const onFileChange = (e) => {
+    const file = e.target.files?.[0];
+    setErr("");
+    if (!file) { setPicked(null); return; }
+    // 25 MB cap — matches the backend MAX_DESIGN_BYTES.
+    if (file.size > 25 * 1024 * 1024) {
+      setErr(`File must be ≤ 25MB. Yours is ${(file.size / 1024 / 1024).toFixed(1)}MB.`);
+      setPicked(null);
+      e.target.value = "";
+      return;
+    }
+    // Infer file_type from extension so the user doesn't have to pick.
+    const ext = (file.name.split(".").pop() || "").toUpperCase();
+    if (["DXF", "SVG", "STL", "GLB", "GLTF", "AI", "EPS", "PDF", "ZIP"].includes(ext)) {
+      setF((c) => ({ ...c, file_type: ext === "GLTF" ? "GLB" : ext }));
+    }
+    setPicked(file);
+  };
+
   const submit = async (e) => {
     e.preventDefault();
+    setErr("");
     setBusy(true);
-    try { await uploadDesignFile(f); onSaved(); }
-    finally { setBusy(false); }
+    setProgress(0);
+    try {
+      if (mode === "upload") {
+        if (!picked) throw new Error("Pick a file to upload.");
+        await uploadDesignFileDirect(
+          { file: picked, title: f.title, description: f.description, thumbnail_url: f.thumbnail_url },
+          { onProgress: setProgress },
+        );
+      } else {
+        await uploadDesignFile(f); // URL-paste, maker-only
+      }
+      onSaved();
+    } catch (e2) {
+      setErr(e2?.response?.data?.detail || e2?.message || "Upload failed.");
+    } finally {
+      setBusy(false);
+    }
   };
+
   return (
-    <form onSubmit={submit} className="border border-[#262626] p-5 mb-6 grid md:grid-cols-2 gap-3" data-testid="file-upload-form">
-      <input required placeholder="Title" value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })}
-             className="bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
-             data-testid="file-title" />
-      <select value={f.file_type} onChange={(e) => setF({ ...f, file_type: e.target.value })}
-              className="bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
-              data-testid="file-type">
-        {["DXF", "SVG", "STL", "GLB", "OTHER"].map((t) => <option key={t} value={t}>{t}</option>)}
-      </select>
-      <input required placeholder="Download URL (Dropbox/Drive/etc.)" value={f.download_url} onChange={(e) => setF({ ...f, download_url: e.target.value })}
-             className="md:col-span-2 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
-             data-testid="file-url" />
-      <input placeholder="Thumbnail URL (optional)" value={f.thumbnail_url} onChange={(e) => setF({ ...f, thumbnail_url: e.target.value })}
-             className="md:col-span-2 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
-             data-testid="file-thumb" />
-      <textarea required placeholder="What's in it?" rows={2} value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })}
-                className="md:col-span-2 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs resize-y"
-                data-testid="file-description" />
-      <button type="submit" disabled={busy} className="btn-industrial btn-primary md:col-span-2 disabled:opacity-50" data-testid="file-submit">
-        {busy ? "Uploading…" : "Publish file →"}
+    <form
+      onSubmit={submit}
+      className="border border-[#262626] p-5 mb-6 space-y-4"
+      data-testid="file-upload-form"
+    >
+      {/* Mode switcher — only makers see the URL-paste option (they're the
+          ones with existing cloud storage). Buyers get a single upload path. */}
+      {isMaker && (
+        <div className="flex gap-2 pb-2 border-b border-[#262626]" data-testid="file-upload-mode">
+          {[
+            { id: "upload", label: "Upload a file" },
+            { id: "url", label: "Paste a link" },
+          ].map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => setMode(m.id)}
+              data-testid={`file-mode-${m.id}`}
+              className={`px-3 py-1.5 border font-mono text-[10px] uppercase tracking-[0.22em] transition ${
+                mode === m.id
+                  ? "border-[#ff4500] text-[#ff4500] bg-[#ff4500]/5"
+                  : "border-[#262626] text-[#a3a3a3] hover:border-[#525252] hover:text-[#e5e5e5]"
+              }`}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="grid md:grid-cols-2 gap-3">
+        <input
+          required
+          placeholder="Title"
+          name="title"
+          autoComplete="off"
+          value={f.title}
+          onChange={(e) => { const v = e.target.value; setF((c) => ({ ...c, title: v })); }}
+          className="bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+          data-testid="file-title"
+        />
+        {mode === "url" ? (
+          <select
+            value={f.file_type}
+            name="file_type"
+            onChange={(e) => { const v = e.target.value; setF((c) => ({ ...c, file_type: v })); }}
+            className="bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+            data-testid="file-type"
+          >
+            {["DXF", "SVG", "STL", "GLB", "OTHER"].map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+        ) : (
+          <div className="relative flex items-center border border-[#262626] focus-within:border-[#ff4500] px-3 py-2">
+            <input
+              type="file"
+              required
+              accept=".dxf,.svg,.stl,.glb,.gltf,.ai,.eps,.pdf,.zip"
+              onChange={onFileChange}
+              data-testid="file-picker"
+              disabled={busy}
+              className="w-full font-mono text-xs text-[#e5e5e5] file:mr-3 file:py-1 file:px-3 file:border file:border-[#ff4500] file:text-[#ff4500] file:bg-transparent file:font-mono file:text-[10px] file:uppercase file:tracking-[0.22em] hover:file:bg-[#ff4500]/10 file:cursor-pointer cursor-pointer disabled:opacity-50"
+            />
+          </div>
+        )}
+      </div>
+
+      {mode === "url" && (
+        <input
+          required
+          placeholder="Download URL (Dropbox/Drive/etc.)"
+          name="download_url"
+          autoComplete="url"
+          value={f.download_url}
+          onChange={(e) => { const v = e.target.value; setF((c) => ({ ...c, download_url: v })); }}
+          className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+          data-testid="file-url"
+        />
+      )}
+
+      <input
+        placeholder="Thumbnail URL (optional, jpg/png/webp)"
+        name="thumbnail_url"
+        autoComplete="url"
+        value={f.thumbnail_url}
+        onChange={(e) => { const v = e.target.value; setF((c) => ({ ...c, thumbnail_url: v })); }}
+        className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+        data-testid="file-thumb"
+      />
+
+      <textarea
+        required
+        placeholder="What's in it? Materials, dimensions, licensing…"
+        rows={2}
+        name="description"
+        autoComplete="off"
+        value={f.description}
+        onChange={(e) => { const v = e.target.value; setF((c) => ({ ...c, description: v })); }}
+        className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs resize-y"
+        data-testid="file-description"
+      />
+
+      {/* Preview of the picked file — shows before upload starts. */}
+      {mode === "upload" && picked && !busy && (
+        <div className="flex items-center gap-3 px-3 py-2 border border-[#262626] bg-[#0f0f0f]" data-testid="file-preview">
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] px-1.5 py-0.5 border border-[#ff4500] text-[#ff4500]">
+            {f.file_type}
+          </span>
+          <span className="font-mono text-xs text-[#e5e5e5] truncate">{picked.name}</span>
+          <span className="font-mono text-[10px] text-[#a3a3a3] shrink-0">
+            {(picked.size / 1024 / 1024).toFixed(2)} MB
+          </span>
+        </div>
+      )}
+
+      {/* Upload progress bar — only shown during an in-flight upload. */}
+      {busy && mode === "upload" && (
+        <div className="space-y-1" data-testid="file-progress">
+          <div className="h-1 bg-[#1a1a1a] overflow-hidden">
+            <div
+              className="h-full bg-[#ff4500] transition-[width] duration-200"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          <div className="font-mono text-[10px] text-[#a3a3a3]">
+            Uploading {picked?.name}… {progress}%
+          </div>
+        </div>
+      )}
+
+      {err && (
+        <div className="font-mono text-xs text-red-400" data-testid="file-upload-error">
+          {err}
+        </div>
+      )}
+
+      <button
+        type="submit"
+        disabled={busy || (mode === "upload" && !picked)}
+        className="btn-industrial btn-primary w-full disabled:opacity-50"
+        data-testid="file-submit"
+      >
+        {busy ? (mode === "upload" ? `Uploading… ${progress}%` : "Publishing…") : "Publish file →"}
       </button>
     </form>
   );

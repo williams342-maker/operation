@@ -479,6 +479,31 @@ export const unlockDownloadsCheckout = () =>
 export const uploadDesignFile = (payload) =>
   http.post("/community/files", payload, { headers: authHeaders() }).then((r) => r.data); // maker auth
 
+// Direct multipart upload — works for any signed-in community user (buyer OR maker).
+// Passes the freshest Bearer token (maker JWT wins over buyer JWT for attribution).
+export const uploadDesignFileDirect = (
+  { file, title, description, thumbnail_url = "" },
+  { onProgress } = {},
+) => {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("title", title);
+  form.append("description", description);
+  if (thumbnail_url) form.append("thumbnail_url", thumbnail_url);
+  const mkr = localStorage.getItem("cm_maker_jwt");
+  const byr = localStorage.getItem("cm_buyer_jwt");
+  const token = mkr || byr;
+  return http.post("/community/files/upload", form, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    onUploadProgress: (ev) => {
+      if (onProgress && ev.total) onProgress(Math.round((ev.loaded * 100) / ev.total));
+    },
+  }).then((r) => r.data);
+};
+
 export const fetchForumThreads = (category = "") =>
   http.get("/community/forum", { params: category ? { category } : {} }).then((r) => r.data);
 export const fetchForumCategories = () =>

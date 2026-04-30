@@ -20,7 +20,7 @@ from pydantic import BaseModel, EmailStr
 from core import db, logger, now_iso
 from email_service import _send, _shell  # reuse Resend helper directly for buyer link
 from maker_auth import (
-    current_buyer, current_maker_slug, decode_session_jwt,
+    current_any_user, current_buyer, current_maker_slug, decode_session_jwt,
     issue_buyer_magic_token, issue_session_jwt, verify_buyer_magic_token,
 )
 
@@ -282,6 +282,82 @@ async def upload_design_file(payload: DesignFileMeta, slug: str = Depends(curren
     await db.design_files.insert_one(doc)
     doc.pop("_id", None)
     return doc
+
+
+@router.post("/community/files/upload")
+async def upload_design_file_direct(
+    file: UploadFile = File(...),
+    title: str = Form(...),
+    description: str = Form(...),
+    thumbnail_url: str = Form(""),
+    claims: dict = Depends(current_any_user),
+):
+    """Direct file upload for the community design-file library.
+
+    Any signed-in community user (buyer OR maker) can post a design file.
+    Files are uploaded to R2 under `community-files/<user>/<uuid>.<ext>`,
+    then a `design_files` row is created with the resolved public URL.
+
+    The existing URL-paste endpoint (`POST /community/files`) is kept for
+    makers who host on Dropbox/Drive. This endpoint is the preferred
+    path — no external hosting required, and we can moderate the bytes.
+    """
+    title = (title or "").strip()
+    description = (description or "").strip()
+    if not title or len(title) > 120:
+        raise HTTPException(400, "Title is required (max 120 chars).")
+    if not description or len(description) > 800:
+        raise HTTPException(400, "Description is required (max 800 chars).")
+
+    from r2_storage import is_configured as r2_ok, upload_design_file_bytes
+    if not r2_ok():
+        raise HTTPException(503, "File uploads are not configured.")
+
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(400, "Empty file.")
+
+    role = claims.get("role", "buyer")
+    if role == "maker":
+        user_key = claims.get("sub", "maker")
+        uploader_label = claims.get("sub", "maker")
+        maker = await db.makers.find_one({"slug": user_key}, {"_id": 0, "name": 1})
+        uploader_name = (maker or {}).get("name") or user_key
+    else:
+        user_key = claims.get("sub", "buyer")
+        u = await db.community_users.find_one({"user_id": user_key}, {"_id": 0, "name": 1})
+        uploader_label = user_key
+        uploader_name = (u or {}).get("name") or "Community Member"
+
+    try:
+        url, ext = upload_design_file_bytes(
+            raw,
+            key_prefix=f"community-files/{uploader_label}",
+            filename=file.filename,
+            content_type=file.content_type or "",
+        )
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+    doc = {
+        "id": str(uuid.uuid4()),
+        "maker_slug": uploader_label if role == "maker" else None,
+        "uploader_role": role,
+        "uploader_id": user_key,
+        "maker_name": uploader_name,  # kept as `maker_name` for backward compat with existing UI
+        "title": title[:120],
+        "description": description[:800],
+        "file_type": ext,
+        "download_url": url,
+        "thumbnail_url": (thumbnail_url or "").strip()[:600] or None,
+        "downloads": 0,
+        "size_bytes": len(raw),
+        "created_at": now_iso(),
+    }
+    await db.design_files.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
 
 
 @router.get("/community/files/{file_id}/download")
