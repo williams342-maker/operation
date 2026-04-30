@@ -1,6 +1,40 @@
 # Crafters Market — Modernized Homepage + Full Marketplace
 
 
+## 🟡 PENDING — Reddit Forum Aggregator (BLOCKED on credentials)
+Backend scaffold is **complete and live** at `/app/backend/routers/reddit_feeds.py`,
+returning empty posts gracefully until credentials arrive. To activate:
+
+1. Visit https://www.reddit.com/prefs/apps → "create another app"
+2. Type: **script** · about_url: `https://craftersmarket.org` · redirect: anything
+3. Add to `/app/backend/.env`:
+   ```
+   REDDIT_CLIENT_ID=<14-char string under app name>
+   REDDIT_CLIENT_SECRET=<27-char "secret" field>
+   ```
+4. `sudo supervisorctl restart backend`
+5. Build the Frontend tab in `CommunityPage.jsx`:
+   - Add `{ id: "reddit", label: "Reddit" }` to `TABS`
+   - New `RedditTab` component that calls `GET /api/community/reddit`
+   - Filter chips for the 5 default subs (forhire, CNC, woodworking,
+     metalfabrication, 3Dprinting) using `subreddit=` query param
+   - "Sort: Hot · New · Top" toggle (`sort=` query param)
+   - Each post card: title, r/sub badge, score, comments, link-out to reddit.com
+   - Show `configured: false` placeholder ("Reddit feed activates when admin
+     adds API keys") until configured
+6. Admin UI in `components/admin/SettingsTab.jsx`:
+   - List/add/remove subs via `GET|POST|DELETE /api/admin/reddit/subreddits`
+   - "Refresh cache" button → `POST /api/admin/reddit/refresh`
+
+Default subs (already seeded): `r/forhire`, `r/CNC`, `r/woodworking`,
+`r/metalfabrication`, `r/3Dprinting`.
+Cache TTL: 15 min · Sort: hot (default) · Read-only · Link-out only.
+Reference: integration playbook returned by integration_playbook_expert_v2
+(2026-04-30 session) — confirms script-app + client_credentials grant +
+oauth.reddit.com base URL + 60 req/min budget.
+
+
+
 ## 2026-02 — iter51 — Auto-Boost + Feedback Reply + Upgrade Confetti (TESTED ✅)
 - ✅ **Auto-Boost best-sellers** (maker): daily 04:00-UTC cron `_job_auto_boost_best_sellers`
   promotes a maker's top 30-day sellers (default ≥10 orders, max 3 listings/run, $5/wk each).

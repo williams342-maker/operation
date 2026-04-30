@@ -1,25 +1,32 @@
 """Reddit subreddit feeds — read-only aggregation pinned to the Forum.
 
-Why public JSON, not OAuth?
-- Reddit's anonymous `https://www.reddit.com/r/<sub>/<sort>.json` endpoints
-  serve up to ~60 req/min per IP. We cache aggressively (15 min) per
-  subreddit/sort tuple, so a busy forum tab never breaches that budget.
-- A custom User-Agent is the ONLY hard requirement. Reddit blocks anonymous
-  requests with empty / browser-like UAs.
-- Admin can add/remove subreddits live without redeploys.
+Reddit shut down anonymous server-side .json access in 2024 — every public
+subreddit listing now requires an OAuth2 bearer token even though we only
+read public content. Setup (free, 60 req/min):
+  1. Visit https://www.reddit.com/prefs/apps → "create another app"
+  2. Type: "script" · about_url: https://craftersmarket.org · redirect: anything
+  3. Set in /app/backend/.env:
+       REDDIT_CLIENT_ID=<14-char string under the app name>
+       REDDIT_CLIENT_SECRET=<27-char "secret" field>
+  4. Restart backend. The aggregator activates automatically.
+
+Until the keys are set, every fetch returns an empty list AND the public
+status endpoint reports `configured: false` so the UI can show a "coming
+soon" placeholder instead of a broken feed. No crashes, no log spam.
 
 Endpoints:
-- `GET /api/community/reddit`                     — public aggregated feed
-- `GET /api/community/reddit/subreddits`          — public list (so the UI
-   can show a sub-filter chip strip)
-- `GET /api/admin/reddit/subreddits`              — admin list
-- `POST /api/admin/reddit/subreddits` {name}      — add (no leading "r/")
-- `DELETE /api/admin/reddit/subreddits/{name}`    — remove
-- `POST /api/admin/reddit/refresh`                — bust the cache
+- `GET  /api/community/reddit`                 — public aggregated feed
+- `GET  /api/community/reddit/status`          — UI gate (configured / cache age)
+- `GET  /api/community/reddit/subreddits`      — public sub list
+- `GET  /api/admin/reddit/subreddits`          — admin list
+- `POST /api/admin/reddit/subreddits` {name}   — add (no leading "r/")
+- `DELETE /api/admin/reddit/subreddits/{name}` — remove
+- `POST /api/admin/reddit/refresh`             — bust the cache
 """
 from __future__ import annotations
 
 import asyncio
+import os
 import re
 import time
 from typing import Optional, List
@@ -49,18 +56,22 @@ CACHE_TTL_SECONDS = 15 * 60   # 15 minutes per (sub, sort)
 PER_SUB_LIMIT = 12            # posts per sub on a single fetch
 USER_AGENT = "web:craftersmarket.org:v1.0 (forum-aggregator)"
 
-# Subreddit slug — Reddit's own constraint: 3-21 chars, [a-zA-Z0-9_].
+# Reddit's slug constraint: 3-21 chars, [a-zA-Z0-9_].
 _SUB_RE = re.compile(r"^[A-Za-z0-9_]{3,21}$")
 
-# In-process cache (sub, sort) → (timestamp, posts list)
-_cache: dict = {}
+# In-process caches.
+_cache: dict = {}                 # (sub, sort) → (timestamp, posts list)
 _cache_lock = asyncio.Lock()
+_token_state: dict = {"token": None, "expires_at": 0.0}
+_token_lock = asyncio.Lock()
+
+
+def _credentials_present() -> bool:
+    return bool(os.environ.get("REDDIT_CLIENT_ID")) and bool(os.environ.get("REDDIT_CLIENT_SECRET"))
 
 
 # ---------------- Mongo helpers ----------------
 async def _get_subreddits() -> List[str]:
-    """Return the admin-configured subreddit list. Seeds from DEFAULT
-    list on first run so the feature works out of the box."""
     doc = await db.reddit_config.find_one({"_id": "global"}, {"_id": 0})
     if not doc:
         await db.reddit_config.insert_one(
@@ -80,17 +91,45 @@ async def _set_subreddits(subs: List[str]) -> None:
     )
 
 
+# ---------------- OAuth2 (client credentials) ----------------
+async def _get_bearer_token() -> Optional[str]:
+    """Return a cached bearer token, refreshing 5 min before expiry. Returns
+    None when REDDIT_CLIENT_ID / REDDIT_CLIENT_SECRET are not configured."""
+    if not _credentials_present():
+        return None
+    now = time.time()
+    async with _token_lock:
+        if _token_state["token"] and now < (_token_state["expires_at"] - 300):
+            return _token_state["token"]
+        try:
+            async with httpx.AsyncClient(
+                timeout=10.0, headers={"User-Agent": USER_AGENT},
+            ) as client:
+                r = await client.post(
+                    "https://www.reddit.com/api/v1/access_token",
+                    auth=(os.environ["REDDIT_CLIENT_ID"], os.environ["REDDIT_CLIENT_SECRET"]),
+                    data={"grant_type": "client_credentials"},
+                )
+            if r.status_code != 200:
+                logger.warning("[reddit] token endpoint → HTTP %s · %s", r.status_code, r.text[:200])
+                return None
+            j = r.json()
+            _token_state["token"] = j["access_token"]
+            _token_state["expires_at"] = now + int(j.get("expires_in") or 3600)
+            return _token_state["token"]
+        except Exception as e:
+            logger.warning("[reddit] token acquisition failed: %s", e)
+            return None
+
+
 # ---------------- Reddit fetch ----------------
 def _normalise(item: dict, sub: str) -> Optional[dict]:
-    """Pluck only the fields we render — avoids bloating mongo / network
-    when the cache spills onto the wire."""
     d = item.get("data") or {}
     if d.get("over_18") or d.get("hidden") or d.get("removed_by_category"):
         return None
     title = (d.get("title") or "").strip()
     if not title:
         return None
-    # Only keep image-y previews — Reddit serves HTML-encoded URLs.
     thumb = d.get("thumbnail")
     if thumb in {"self", "default", "nsfw", "spoiler", "image", ""} or not thumb:
         thumb = None
@@ -113,7 +152,9 @@ def _normalise(item: dict, sub: str) -> Optional[dict]:
 
 
 async def _fetch_subreddit(sub: str, sort: str) -> List[dict]:
-    """Hit reddit.com once for a (sub, sort) tuple. Cached 15 min."""
+    """Hit oauth.reddit.com once for a (sub, sort) tuple. Cached 15 min.
+    Silently returns [] (or last-good cache) when credentials are missing
+    or Reddit returns an error."""
     sort = sort if sort in ALLOWED_SORTS else DEFAULT_SORT
     cache_key = (sub, sort)
     now = time.time()
@@ -122,31 +163,50 @@ async def _fetch_subreddit(sub: str, sort: str) -> List[dict]:
         if cached and (now - cached[0]) < CACHE_TTL_SECONDS:
             return cached[1]
 
-    url = f"https://www.reddit.com/r/{sub}/{sort}.json"
+    token = await _get_bearer_token()
+    if not token:
+        # No credentials yet — return whatever stale cache we have, else empty.
+        return cached[1] if cached else []
+
+    url = f"https://oauth.reddit.com/r/{sub}/{sort}"
     params = {"limit": PER_SUB_LIMIT}
     if sort == "top":
         params["t"] = "week"
     try:
         async with httpx.AsyncClient(
             timeout=8.0,
-            headers={"User-Agent": USER_AGENT, "Accept": "application/json"},
+            headers={
+                "User-Agent": USER_AGENT,
+                "Authorization": f"bearer {token}",
+                "Accept": "application/json",
+            },
             follow_redirects=True,
         ) as client:
             r = await client.get(url, params=params)
+        if r.status_code == 401:
+            # Token rejected — invalidate and try once more.
+            async with _token_lock:
+                _token_state["token"] = None
+                _token_state["expires_at"] = 0.0
+            token = await _get_bearer_token()
+            if token:
+                async with httpx.AsyncClient(
+                    timeout=8.0,
+                    headers={"User-Agent": USER_AGENT,
+                             "Authorization": f"bearer {token}",
+                             "Accept": "application/json"},
+                    follow_redirects=True,
+                ) as client:
+                    r = await client.get(url, params=params)
         if r.status_code != 200:
             logger.warning("[reddit] %s/%s → HTTP %s", sub, sort, r.status_code)
-            # Stale cache > broken UI: serve last good if present.
-            if cached:
-                return cached[1]
-            return []
+            return cached[1] if cached else []
         body = r.json()
         children = (body.get("data") or {}).get("children") or []
         posts = [p for p in (_normalise(c, sub) for c in children) if p]
     except Exception as e:
         logger.warning("[reddit] %s/%s fetch failed: %s", sub, sort, e)
-        if cached:
-            return cached[1]
-        return []
+        return cached[1] if cached else []
 
     async with _cache_lock:
         _cache[cache_key] = (now, posts)
@@ -154,6 +214,19 @@ async def _fetch_subreddit(sub: str, sort: str) -> List[dict]:
 
 
 # ---------------- Public endpoints ----------------
+@router.get("/community/reddit/status")
+async def feed_status():
+    """Lets the UI tell the difference between 'no credentials yet' and
+    'credentials present but Reddit is hiccuping'. The frontend uses this
+    to decide between rendering a 'coming soon' placeholder vs an empty
+    state."""
+    return {
+        "configured": _credentials_present(),
+        "subreddits": await _get_subreddits(),
+        "cache_ttl_seconds": CACHE_TTL_SECONDS,
+    }
+
+
 @router.get("/community/reddit/subreddits")
 async def list_subreddits_public():
     return {"subreddits": await _get_subreddits()}
@@ -165,9 +238,6 @@ async def aggregated_feed(
     subreddit: Optional[str] = None,
     limit: int = 60,
 ):
-    """Pulls every configured sub (or just one if `subreddit` is provided),
-    sorts by score desc, and returns up to `limit` rows. The UI's filter
-    chips toggle the `subreddit` query param."""
     if sort not in ALLOWED_SORTS:
         sort = DEFAULT_SORT
     limit = max(1, min(200, int(limit)))
@@ -184,7 +254,12 @@ async def aggregated_feed(
         merged.sort(key=lambda p: p.get("created_utc", 0), reverse=True)
     else:
         merged.sort(key=lambda p: p.get("score", 0), reverse=True)
-    return {"posts": merged[:limit], "sort": sort, "subreddits": subs}
+    return {
+        "posts": merged[:limit],
+        "sort": sort,
+        "subreddits": subs,
+        "configured": _credentials_present(),
+    }
 
 
 # ---------------- Admin endpoints ----------------
@@ -194,9 +269,12 @@ class AddSubreddit(BaseModel):
 
 @router.get("/admin/reddit/subreddits")
 async def admin_list(_: dict = Depends(current_admin)):
-    return {"subreddits": await _get_subreddits(),
-            "defaults": DEFAULT_SUBREDDITS,
-            "cache_ttl_seconds": CACHE_TTL_SECONDS}
+    return {
+        "subreddits": await _get_subreddits(),
+        "defaults": DEFAULT_SUBREDDITS,
+        "cache_ttl_seconds": CACHE_TTL_SECONDS,
+        "configured": _credentials_present(),
+    }
 
 
 @router.post("/admin/reddit/subreddits")
@@ -219,7 +297,6 @@ async def admin_remove(name: str, _: dict = Depends(current_admin)):
     if len(new_subs) == len(subs):
         raise HTTPException(404, f"r/{name} not found.")
     await _set_subreddits(new_subs)
-    # Drop cached entries for the removed sub so its posts disappear immediately.
     async with _cache_lock:
         for k in list(_cache.keys()):
             if k[0].lower() == name.lower():
@@ -229,8 +306,7 @@ async def admin_remove(name: str, _: dict = Depends(current_admin)):
 
 @router.post("/admin/reddit/refresh")
 async def admin_refresh_cache(_: dict = Depends(current_admin)):
-    """Manual cache bust — useful right after publishing a brand or sale
-    push to a relevant sub and wanting to see it in the forum immediately."""
     async with _cache_lock:
         _cache.clear()
     return {"ok": True, "cache": "cleared"}
+
