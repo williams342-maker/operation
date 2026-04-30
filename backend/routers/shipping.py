@@ -650,3 +650,75 @@ async def validate_address(body: ShipAddress, slug: str = Depends(current_maker_
     except shippo_service.ShippoError as e:
         raise HTTPException(400, str(e))
     return result
+
+
+# ───────────────────── Shipping analytics (mini-chart) ─────────────────────
+@router.get("/maker/shipping/analytics")
+async def shipping_analytics(
+    days: int = 30,
+    slug: str = Depends(current_maker_slug),
+):
+    """Daily bucket roll-up grouped by carrier. Powers the Maker
+    Financials Shipping-labels mini-chart. Returns one row per day for
+    the last N days (default 30, clamped to 7..180), even days with
+    zero spend — keeps the sparkline visually stable."""
+    from datetime import datetime, timedelta, timezone
+    days = max(7, min(int(days or 30), 180))
+
+    now = datetime.now(timezone.utc)
+    start = (now - timedelta(days=days - 1)).replace(
+        hour=0, minute=0, second=0, microsecond=0,
+    )
+    start_iso = start.isoformat()
+
+    rows = await db.shipping_ledger.find(
+        {"maker_slug": slug, "created_at": {"$gte": start_iso}},
+        {"_id": 0, "created_at": 1, "provider": 1, "billed_cents": 1},
+    ).to_list(5000)
+
+    # Bucket by UTC date + provider bucket.
+    # Top-level buckets are deliberately lower-case for FE palette lookup.
+    def _prov(p: str) -> str:
+        p = (p or "").lower()
+        if p.startswith("usps"):
+            return "usps"
+        if p.startswith("ups"):
+            return "ups"
+        if p == "fedex":
+            return "fedex"
+        if p.startswith("dhl"):
+            return "dhl"
+        return "other"
+
+    series_by_day: dict[str, dict] = {}
+    for i in range(days):
+        d = (start + timedelta(days=i)).date().isoformat()
+        series_by_day[d] = {"date": d, "usps": 0, "ups": 0, "fedex": 0, "dhl": 0, "other": 0, "total": 0, "count": 0}
+
+    totals = {"usps": 0, "ups": 0, "fedex": 0, "dhl": 0, "other": 0, "total": 0, "count": 0}
+
+    for r in rows:
+        try:
+            day = r["created_at"][:10]
+        except Exception:
+            continue
+        if day not in series_by_day:
+            continue  # defensive — out-of-window row
+        cents = int(r.get("billed_cents") or 0)
+        bucket = _prov(r.get("provider"))
+        series_by_day[day][bucket] += cents
+        series_by_day[day]["total"] += cents
+        series_by_day[day]["count"] += 1
+        totals[bucket] += cents
+        totals["total"] += cents
+        totals["count"] += 1
+
+    series = [series_by_day[d] for d in sorted(series_by_day.keys())]
+    # Top carrier by lifetime dollars in the window.
+    top = max(("usps", "ups", "fedex", "dhl", "other"), key=lambda k: totals[k]) if totals["count"] else None
+    return {
+        "days": days,
+        "series": series,
+        "totals": totals,
+        "top_carrier": top,
+    }

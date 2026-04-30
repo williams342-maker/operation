@@ -136,6 +136,8 @@ export const setMakerShippingCap = (monthlyCapUsd) =>
   http.patch("/maker/shipping/cap", { monthly_cap_usd: monthlyCapUsd }, { headers: authHeaders() }).then((r) => r.data);
 export const validateShippingAddress = (addr) =>
   http.post("/maker/shipping/validate-address", addr, { headers: authHeaders() }).then((r) => r.data);
+export const fetchShippingAnalytics = (days = 30) =>
+  http.get("/maker/shipping/analytics", { params: { days }, headers: authHeaders() }).then((r) => r.data);
 
 // Admin · shipping ledger
 export const adminFetchShippingLedger = (token, params = {}) =>

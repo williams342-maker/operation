@@ -8,6 +8,7 @@ import {
   fetchMakerPayouts, fetchMakerTransactions,
   stripeConnectOnboard, stripeConnectStatus, stripeConnectDashboardLink,
   fetchMakerShippingLedger, setMakerShippingCadence, setMakerShippingCap,
+  fetchShippingAnalytics,
 } from "../../lib/api";
 import { StatsSkeleton } from "../../components/Skeleton";
 
@@ -910,6 +911,9 @@ function ShippingPanel({ query }) {
           {/* Monthly spend cap — safety guard for the unbilled pile. */}
           <CapRow data={data} reload={load} />
 
+          {/* 30-day shipping analytics mini-chart, stacked by carrier. */}
+          <ShippingAnalyticsCard />
+
           {/* Ledger table */}
           {rows.length === 0 ? (
             <p className="font-mono text-xs text-[#737373] py-6" data-testid="shipping-ledger-empty">
@@ -1072,6 +1076,176 @@ function CapRow({ data, reload }) {
     </div>
   );
 }
+
+// ────────────────────────────────────────────────────────────────────
+// 30-day shipping analytics mini-chart, stacked by carrier.
+// Pure-SVG so no chart lib cost. Each day is a vertical bar stacked by
+// carrier (USPS / UPS / FedEx / DHL / Other). Toggle between 7/30/90 days.
+// ────────────────────────────────────────────────────────────────────
+const CARRIER_COLORS = {
+  usps:  "#ff4500",           // brand orange
+  ups:   "#8a5a2a",           // UPS brown
+  fedex: "#7c3aed",           // violet-600
+  dhl:   "#facc15",           // yellow-400
+  other: "#a3a3a3",           // neutral
+};
+const CARRIER_LABELS = {
+  usps: "USPS", ups: "UPS", fedex: "FedEx", dhl: "DHL", other: "Other",
+};
+
+function ShippingAnalyticsCard() {
+  const [windowDays, setWindowDays] = useState(30);
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetchShippingAnalytics(windowDays)
+      .then((d) => { if (!cancelled) setData(d); })
+      .catch(() => { if (!cancelled) setData(null); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [windowDays]);
+
+  const series = data?.series || [];
+  const totals = data?.totals || { total: 0, count: 0 };
+  const maxDay = Math.max(1, ...series.map((s) => s.total || 0));
+  // Viewbox uses logical units: 1 per day wide, 100 tall. CSS handles responsive scaling.
+  const W = Math.max(series.length, 1);
+  const H = 100;
+  const barPad = 0.1; // 10% gap each side → 80% bar width
+
+  return (
+    <div
+      className="border border-[#1f1f1f] bg-[#0a0a0a] p-4 mb-6"
+      data-testid="shipping-analytics-card"
+    >
+      <div className="flex items-baseline justify-between mb-3 flex-wrap gap-3">
+        <div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+            ◆ Shipping volume · last {windowDays} days
+          </div>
+          <div className="font-mono text-[11px] text-[#525252] mt-1">
+            {totals.count > 0 ? (
+              <>
+                {totals.count} label{totals.count === 1 ? "" : "s"} · $
+                {((totals.total || 0) / 100).toFixed(2)} spent
+                {data?.top_carrier && (
+                  <>
+                    <span className="mx-1">·</span>
+                    top carrier{" "}
+                    <span style={{ color: CARRIER_COLORS[data.top_carrier] }}>
+                      {CARRIER_LABELS[data.top_carrier]}
+                    </span>
+                  </>
+                )}
+              </>
+            ) : loading ? "Loading…" : "No labels in this window yet."}
+          </div>
+        </div>
+        {/* Window toggle */}
+        <div className="flex border border-[#262626]" role="group" aria-label="Window">
+          {[7, 30, 90].map((d) => (
+            <button
+              key={d}
+              onClick={() => setWindowDays(d)}
+              className={`px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.22em] transition ${
+                windowDays === d
+                  ? "bg-[#ff4500] text-black"
+                  : "text-[#a3a3a3] hover:text-[#ff4500]"
+              }`}
+              data-testid={`shipping-analytics-window-${d}`}
+            >
+              {d}d
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Chart */}
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        preserveAspectRatio="none"
+        className="w-full h-24 block"
+        data-testid="shipping-analytics-svg"
+      >
+        {/* Zero-baseline */}
+        <line x1="0" y1={H} x2={W} y2={H} stroke="#1f1f1f" strokeWidth="0.4" />
+        {series.map((s, i) => {
+          // Stack order (bottom-up): usps, ups, fedex, dhl, other
+          const keys = ["usps", "ups", "fedex", "dhl", "other"];
+          let yCursor = H;
+          const x = i + barPad;
+          const w = 1 - barPad * 2;
+          return (
+            <g key={s.date}>
+              <title>{`${s.date} · $${(s.total / 100).toFixed(2)} · ${s.count} label${s.count === 1 ? "" : "s"}`}</title>
+              {keys.map((k) => {
+                const cents = s[k] || 0;
+                if (cents <= 0) return null;
+                const segH = (cents / maxDay) * (H - 2); // reserve 2u for baseline
+                yCursor -= segH;
+                return (
+                  <rect
+                    key={k}
+                    x={x}
+                    y={yCursor}
+                    width={w}
+                    height={segH}
+                    fill={CARRIER_COLORS[k]}
+                    opacity={0.95}
+                  />
+                );
+              })}
+            </g>
+          );
+        })}
+      </svg>
+
+      {/* Axis labels — first + middle + last */}
+      {series.length > 0 && (
+        <div className="flex justify-between font-mono text-[9px] text-[#525252] mt-1">
+          <span>{_fmtDay(series[0].date)}</span>
+          {series.length > 2 && <span>{_fmtDay(series[Math.floor(series.length / 2)].date)}</span>}
+          <span>{_fmtDay(series[series.length - 1].date)}</span>
+        </div>
+      )}
+
+      {/* Legend — only carriers with data */}
+      {totals.count > 0 && (
+        <div className="flex flex-wrap gap-3 mt-3">
+          {Object.keys(CARRIER_LABELS).map((k) => {
+            const cents = totals[k] || 0;
+            if (cents <= 0) return null;
+            return (
+              <div
+                key={k}
+                className="flex items-center gap-1.5 font-mono text-[10px] text-[#a3a3a3]"
+                data-testid={`shipping-analytics-legend-${k}`}
+              >
+                <span
+                  className="inline-block w-2 h-2"
+                  style={{ backgroundColor: CARRIER_COLORS[k] }}
+                />
+                {CARRIER_LABELS[k]} · ${(cents / 100).toFixed(2)}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function _fmtDay(iso) {
+  if (!iso) return "";
+  try {
+    return new Date(iso + "T00:00:00Z").toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  } catch { return iso; }
+}
+
+
 
 // Highlights case-insensitive occurrences of `query` in `text`. Identical
 // to the HelpTab implementation — kept inline rather than extracted to a
