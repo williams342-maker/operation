@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronDown, Wallet, FileText, Settings as SettingsIcon, BookOpen,
-  Calculator, ScrollText, ExternalLink, Search, X,
+  Calculator, ScrollText, ExternalLink, Search, X, Truck,
 } from "lucide-react";
 import {
   fetchMakerPayouts, fetchMakerTransactions,
   stripeConnectOnboard, stripeConnectStatus, stripeConnectDashboardLink,
+  fetchMakerShippingLedger, setMakerShippingCadence,
 } from "../../lib/api";
 import { StatsSkeleton } from "../../components/Skeleton";
 
@@ -68,6 +69,15 @@ const SECTIONS = [
     label: "TurboTax export",
     icon: Calculator,
     keywords: ["turbotax", "tax", "schedule c", "self-employed", "annual", "income", "fees"],
+  },
+  {
+    id: "shipping",
+    label: "Shipping labels",
+    icon: Truck,
+    keywords: [
+      "shipping", "shippo", "label", "tracking", "invoice", "usps", "ups",
+      "fedex", "parcel", "carrier", "weekly", "biweekly", "cadence",
+    ],
   },
   {
     id: "legal-tax",
@@ -183,6 +193,7 @@ export default function FinancialsTab() {
               {section === "quickbooks" && <ExportPanel format="quickbooks" txns={txns} query={query} />}
               {section === "xero" && <ExportPanel format="xero" txns={txns} query={query} />}
               {section === "turbotax" && <ExportPanel format="turbotax" txns={txns} query={query} />}
+              {section === "shipping" && <ShippingPanel query={query} />}
               {section === "legal-tax" && <LegalTax query={query} />}
             </>
           )}
@@ -767,6 +778,219 @@ function Section({ title, testId, children }) {
       </div>
       {children}
     </section>
+  );
+}
+
+// ============================================================================
+// Shipping panel — Phase 2C. Shows "you owe $X on next invoice" pill,
+// cadence toggle (weekly / biweekly), and the per-label table with
+// tracking + PDF reprint links.
+// ============================================================================
+function ShippingPanel({ query }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
+  const [savingCadence, setSavingCadence] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    setErr("");
+    try {
+      setData(await fetchMakerShippingLedger());
+    } catch (e) {
+      setErr(e?.response?.data?.detail || "Couldn't load shipping ledger.");
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => { load(); }, []);
+
+  const changeCadence = async (next) => {
+    if (!data || data.cadence === next) return;
+    setSavingCadence(true);
+    try {
+      await setMakerShippingCadence(next);
+      setData({ ...data, cadence: next });
+    } catch (e) {
+      setErr(e?.response?.data?.detail || "Couldn't save cadence.");
+    } finally {
+      setSavingCadence(false);
+    }
+  };
+
+  const q = (query || "").trim().toLowerCase();
+  const rows = (data?.rows || []).filter((r) => {
+    if (!q) return true;
+    return (
+      (r.tracking_number || "").toLowerCase().includes(q)
+      || (r.provider || "").toLowerCase().includes(q)
+      || (r.servicelevel_name || "").toLowerCase().includes(q)
+      || (r.session_id || "").toLowerCase().includes(q)
+    );
+  });
+
+  return (
+    <Section title="Shipping labels" testId="financials-shipping">
+      <p className="font-mono text-xs text-[#a3a3a3] mb-5 leading-relaxed max-w-xl">
+        Crafters Market pays the carrier when you buy a label from the Orders tab.
+        On your next invoice run (see cadence below) we'll charge your on-file
+        card for the labels you've used.
+      </p>
+
+      {err && (
+        <div className="border border-red-500/40 bg-red-500/5 p-3 text-xs text-red-400 font-mono mb-4">
+          {err}
+        </div>
+      )}
+
+      {loading && !data && (
+        <div className="font-mono text-xs text-[#737373] py-6">Loading ledger…</div>
+      )}
+
+      {data && (
+        <>
+          {/* Unbilled pile — the headline */}
+          <div
+            className="grid md:grid-cols-3 gap-4 mb-6"
+            data-testid="financials-shipping-summary"
+          >
+            <MetricCard
+              label="Next invoice"
+              value={`$${(data.unbilled_cents / 100).toFixed(2)}`}
+              hint={`${data.unbilled_count} label${data.unbilled_count === 1 ? "" : "s"} pending`}
+              accent
+              testId="shipping-next-invoice-amount"
+            />
+            <MetricCard
+              label="Billed to date"
+              value={`$${(data.billed_cents / 100).toFixed(2)}`}
+              hint="Settled on prior invoices"
+            />
+            <MetricCard
+              label="Lifetime"
+              value={`$${(data.lifetime_cents / 100).toFixed(2)}`}
+              hint="All labels ever purchased"
+            />
+          </div>
+
+          {/* Cadence toggle */}
+          <div
+            className="border border-[#1f1f1f] bg-[#0a0a0a] p-4 mb-6 flex items-center justify-between gap-4 flex-wrap"
+            data-testid="shipping-cadence-row"
+          >
+            <div className="min-w-0">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-1">
+                Invoice cadence
+              </div>
+              <p className="font-mono text-xs text-[#525252] leading-relaxed">
+                Weekly runs every Monday · biweekly runs every other Monday.
+                Missed a charge? We'll retry automatically for up to 3 days.
+              </p>
+            </div>
+            <div className="flex border border-[#262626]" role="group" aria-label="Cadence">
+              {["weekly", "biweekly"].map((c) => (
+                <button
+                  key={c}
+                  onClick={() => changeCadence(c)}
+                  disabled={savingCadence}
+                  className={`px-4 py-2 font-mono text-[11px] uppercase tracking-[0.22em] transition ${
+                    data.cadence === c
+                      ? "bg-[#ff4500] text-black"
+                      : "text-[#a3a3a3] hover:text-[#ff4500]"
+                  }`}
+                  data-testid={`shipping-cadence-${c}`}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Ledger table */}
+          {rows.length === 0 ? (
+            <p className="font-mono text-xs text-[#737373] py-6" data-testid="shipping-ledger-empty">
+              {q
+                ? <>No labels match "<span className="text-[#ff4500]">{query}</span>".</>
+                : "No shipping labels yet. Head to Orders to buy your first one."}
+            </p>
+          ) : (
+            <div className="border border-[#1f1f1f]" data-testid="shipping-ledger-table">
+              <div className="hidden md:grid grid-cols-[1fr_1fr_1fr_100px_110px_80px] gap-3 px-4 py-2 border-b border-[#1f1f1f] font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252]">
+                <span>Date</span>
+                <span>Carrier · Service</span>
+                <span>Tracking</span>
+                <span className="text-right">Amount</span>
+                <span>Status</span>
+                <span>Label</span>
+              </div>
+              {rows.map((r) => (
+                <div
+                  key={r.id}
+                  className="grid md:grid-cols-[1fr_1fr_1fr_100px_110px_80px] gap-3 px-4 py-3 border-b border-[#1f1f1f] last:border-b-0 font-mono text-xs text-[#e5e5e5] items-center"
+                  data-testid={`shipping-row-${r.id}`}
+                >
+                  <span className="text-[#a3a3a3]">{new Date(r.created_at).toLocaleDateString()}</span>
+                  <span className="truncate">
+                    <span className="text-[#ff4500]">{r.provider}</span>
+                    <span className="text-[#525252]"> · </span>
+                    {r.servicelevel_name}
+                  </span>
+                  <span className="truncate">
+                    {r.tracking_url_provider ? (
+                      <a href={r.tracking_url_provider} target="_blank" rel="noopener noreferrer"
+                         className="underline hover:text-[#ff4500]">{r.tracking_number}</a>
+                    ) : r.tracking_number}
+                  </span>
+                  <span className="text-right">${((r.billed_cents || 0) / 100).toFixed(2)}</span>
+                  <span>
+                    {r.billed_at ? (
+                      <span className="px-1.5 py-0.5 border border-emerald-400/40 text-emerald-400 text-[9px] uppercase tracking-[0.18em]">
+                        Billed
+                      </span>
+                    ) : (
+                      <span className="px-1.5 py-0.5 border border-yellow-400/40 text-yellow-400 text-[9px] uppercase tracking-[0.18em]">
+                        Unbilled
+                      </span>
+                    )}
+                  </span>
+                  <span>
+                    {r.label_url && (
+                      <a
+                        href={r.label_url}
+                        target="_blank" rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-[#ff4500] hover:underline"
+                        data-testid={`shipping-row-pdf-${r.id}`}
+                      >
+                        <FileText size={11} /> PDF
+                      </a>
+                    )}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </Section>
+  );
+}
+
+function MetricCard({ label, value, hint, accent, testId }) {
+  return (
+    <div
+      className={`border p-4 ${accent ? "border-[#ff4500]/50 bg-[#ff4500]/5" : "border-[#1f1f1f] bg-[#0a0a0a]"}`}
+      data-testid={testId}
+    >
+      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-1">
+        {label}
+      </div>
+      <div className={`font-display text-3xl ${accent ? "text-[#ff4500]" : "text-[#e5e5e5]"}`}>
+        {value}
+      </div>
+      {hint && (
+        <div className="font-mono text-[10px] text-[#525252] mt-1">{hint}</div>
+      )}
+    </div>
   );
 }
 

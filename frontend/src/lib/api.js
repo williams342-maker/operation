@@ -128,6 +128,26 @@ export const buyShippingLabel = (sessionId, payload) =>
   http.post(`/maker/orders/${sessionId}/shipping/buy-label`, payload, { headers: authHeaders() }).then((r) => r.data);
 export const refreshShippingTracking = (sessionId) =>
   http.post(`/maker/orders/${sessionId}/shipping/refresh-tracking`, {}, { headers: authHeaders() }).then((r) => r.data);
+export const fetchMakerShippingLedger = () =>
+  http.get("/maker/shipping/ledger", { headers: authHeaders() }).then((r) => r.data);
+export const setMakerShippingCadence = (cadence) =>
+  http.patch("/maker/shipping/cadence", { cadence }, { headers: authHeaders() }).then((r) => r.data);
+
+// Admin · shipping ledger
+export const adminFetchShippingLedger = (token, params = {}) =>
+  http.get("/admin/shipping-ledger", { params, headers: { Authorization: `Bearer ${token}` } }).then((r) => r.data);
+export const adminFetchShippingRollup = (token) =>
+  http.get("/admin/shipping-ledger/rollup", { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.data);
+export const adminMarkShippingBilled = (token, ledgerId, payload) =>
+  http.post(`/admin/shipping-ledger/${ledgerId}/mark-billed`, payload, { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.data);
+export const adminRunShippingInvoices = (token, dryRun = true) =>
+  http.post("/admin/shipping-ledger/run-invoices", { dry_run: dryRun }, { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.data);
+export const adminShippingLedgerCsvUrl = (token, params = {}) => {
+  const qs = new URLSearchParams(params).toString();
+  // NOTE: the caller appends the token via fetch w/ Authorization — CSV
+  // download uses a blob fetch rather than a direct <a href>.
+  return `${API}/admin/shipping-ledger/export.csv${qs ? `?${qs}` : ""}`;
+};
 export const fetchMakerStats = () =>
   http.get("/maker/stats", { headers: authHeaders() }).then((r) => r.data);
 export const fetchMakerViolations = () =>

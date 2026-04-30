@@ -1,0 +1,36 @@
+{
+  "summary": "Phase 2B/2C/2D Shippo invoicing + admin/maker ledger UI fully verified. 17/17 backend pytest cases green (maker ledger shape, cadence toggle weekly/biweekly/invalid-400, admin list+filters, rollup math, CSV 14-header export, dry-run roll-up structure, mark-billed 404+already-billed-400, cross-role rejection). Frontend Playwright run also fully green: Maker Financials → Shipping labels renders 3 metric cards ($13 Next / $6.50 Billed / $19.50 Lifetime), cadence toggle PATCHes /api/maker/shipping/cadence, 4-row ledger w/ 4 PDF links + billed/unbilled pills. All 8 existing Financials sub-nav sections (payment-account / monthly-statements / payment-settings / quickbooks / xero / turbotax / legal-tax / shipping) render — no regression. Admin sidebar 'Shipping Ledger' tab → ShippingLedgerTab renders rollup ($13 unbilled iron-and-oak/3 labels), filters, 4 action buttons (Dry-run/Invoice-now/Refresh/CSV), row table with Mark-billed CTAs. 'Invoice now' fires native confirm() with message 'This will create REAL Stripe invoices and charge makers. Continue?'. Dry-run reports '0 makers · $0.00' toast — matches iron-and-oak skip-because-no-stripe-customer expected behaviour.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter43_shipping_phase2.py",
+    "/app/test_reports/pytest/iter43.xml"
+  ],
+  "action_items": [
+    "(carry-over from iter42, NOT introduced in this phase) DashboardTab still emits 'Encountered two children with the same key, late-undefined' on every maker dashboard render. Hunt down the duplicate key when convenient — purely a noise issue."
+  ],
+  "critical_code_review_comments": [
+    "admin_shipping.py mark-billed: claims.get('email') falls back to claims.get('sub') for billed_by_admin — fine, but for the single-admin deployment 'sub' is literally the string 'admin' so the audit row is uninformative. Consider always preferring email and warning if absent.",
+    "admin_shipping.py export.csv has no maker_slug-or-billed validation — passing billed=foo is silently ignored (q stays empty). Low severity, but a 400 on unknown filter would be friendlier.",
+    "shipping.py maker_ledger picks rows[0].currency as the response currency. If the maker has rows in mixed currencies (could happen post-Phase-3 if international), this hides the mismatch — small footgun, harmless today.",
+    "shipping_invoicing._eligible_today() hard-codes 'biweekly fires only on even ISO week' — works but tie this to a unit test so a future timezone migration doesn't silently flip the parity.",
+    "ShippingLedgerTab.jsx 'Invoice now' uses window.confirm() — fine for ops, but consider a styled modal for parity with MarkBilledModal."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter43_shipping_phase2.py"
+  ],
+  "success_rate": {"backend": "100% (17/17)", "frontend": "100% (all selectors found, all flows green)"},
+  "test_credentials": "Maker (iron-and-oak) + admin (team@craftersmarket.org) JWTs minted via maker_auth.issue_session_jwt(). Injected into localStorage as cm_maker_jwt / cm_admin_jwt with matching *_exp keys to bypass magic-link login. SHIPPO_API_KEY already in /app/backend/.env (test mode).",
+  "seed_data_creation": "No new seeds — relied on the 4 ledger rows already on iron-and-oak (1 billed at $6.50, 3 unbilled totalling $13.00) created across iter42 Phase-1 testing + main agent's manual mark-billed during this phase.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Phase 2B/2C/2D fully wired and integration-clean. The APScheduler shipping_invoices_weekly cron-job is registered (verified at startup log; not exposed via an API). For an end-to-end real-Stripe invoice run, stamp a stripe_customer_id on the iron-and-oak maker doc (e.g. via stripe.Customer.create + db.makers.update_one) and re-run POST /api/admin/shipping-ledger/run-invoices with dry_run=false. Until then, dry-run correctly reports the skip with reason 'no_stripe_customer'. Cadence column on maker doc is `shipping_billing_cadence`; defaults to 'weekly' if unset.",
+  "rca of the issue": "n/a — no new bugs found in this phase."
+}

@@ -267,6 +267,21 @@ async def _job_apply_scheduled_toggles() -> None:
         logger.exception("[scheduler] scheduled-toggles failed: %s", e)
 
 
+async def _job_shipping_invoices_weekly() -> None:
+    """Monday 10:00 UTC — roll up each maker's unbilled shipping ledger
+    rows into a Stripe invoice. See shipping_invoicing.py for details."""
+    try:
+        from shipping_invoicing import run_weekly_shipping_invoices
+        summary = await run_weekly_shipping_invoices(dry_run=False)
+        logger.info(
+            "[scheduler] shipping_invoices_weekly scanned=%d invoiced=%d cents=%d skipped=%d",
+            summary["scanned_makers"], summary["invoiced_makers"],
+            summary["invoiced_cents"], len(summary["skipped"]),
+        )
+    except Exception as e:
+        logger.exception("[scheduler] shipping_invoices_weekly failed: %s", e)
+
+
 def start_scheduler() -> AsyncIOScheduler | None:
     """Boot the scheduler if SCHEDULER_ENABLED isn't 'false'."""
     global _scheduler
@@ -305,6 +320,11 @@ def start_scheduler() -> AsyncIOScheduler | None:
     # for maintenance windows); job is dirt-cheap when nothing is scheduled.
     sched.add_job(_job_apply_scheduled_toggles, CronTrigger(minute="*"),
                   id="apply_scheduled_toggles", replace_existing=True)
+    # Weekly shipping invoice — Mondays 10:00 UTC. Biweekly makers are
+    # gated inside the job (even ISO week only).
+    sched.add_job(_job_shipping_invoices_weekly,
+                  CronTrigger(day_of_week="mon", hour=10, minute=0),
+                  id="shipping_invoices_weekly", replace_existing=True)
     sched.start()
     _scheduler = sched
     logger.info(

@@ -24,6 +24,7 @@ from routers.reddit_feeds import router as reddit_feeds_router
 from routers.seo import router as seo_router
 from routers.settings import router as settings_router
 from routers.shipping import router as shipping_router
+from routers.admin_shipping import router as admin_shipping_router
 from routers.follows import router as follows_router
 from routers.ad_spend import router as ad_spend_router
 from routers.buffer import router as buffer_router
@@ -64,6 +65,7 @@ api.include_router(messages_router)
 api.include_router(retention_router)
 api.include_router(reddit_feeds_router)
 api.include_router(shipping_router)
+api.include_router(admin_shipping_router)
 app.include_router(api)
 
 app.add_middleware(

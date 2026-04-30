@@ -475,3 +475,42 @@ async def shippo_webhook(req: Request):
 
     await _apply_tracking_update(tx["session_id"], status, status_details, eta)
     return {"received": True}
+
+
+# ───────────────────── Phase 2C · maker ledger view ─────────────────────
+@router.get("/maker/shipping/ledger")
+async def maker_ledger(slug: str = Depends(current_maker_slug)):
+    """Returns the maker's shipping ledger: unbilled pile (next invoice),
+    lifetime totals, and the raw rows sorted newest-first."""
+    m = await _maker_doc(slug)
+    rows = await db.shipping_ledger.find(
+        {"maker_slug": slug}, {"_id": 0},
+    ).sort("created_at", -1).to_list(500)
+    unbilled_cents = sum(r.get("billed_cents", 0) for r in rows if not r.get("billed_at"))
+    lifetime_cents = sum(r.get("billed_cents", 0) for r in rows)
+    billed_cents = lifetime_cents - unbilled_cents
+    unbilled_count = sum(1 for r in rows if not r.get("billed_at"))
+    return {
+        "cadence": m.get("shipping_billing_cadence") or "weekly",
+        "currency": rows[0]["currency"] if rows else "USD",
+        "unbilled_cents": unbilled_cents,
+        "unbilled_count": unbilled_count,
+        "lifetime_cents": lifetime_cents,
+        "billed_cents": billed_cents,
+        "rows": rows,
+    }
+
+
+class CadenceUpdate(BaseModel):
+    cadence: str  # "weekly" | "biweekly"
+
+
+@router.patch("/maker/shipping/cadence")
+async def set_cadence(body: CadenceUpdate, slug: str = Depends(current_maker_slug)):
+    if body.cadence not in ("weekly", "biweekly"):
+        raise HTTPException(400, "cadence must be 'weekly' or 'biweekly'")
+    await db.makers.update_one(
+        {"slug": slug},
+        {"$set": {"shipping_billing_cadence": body.cadence, "updated_at": now_iso()}},
+    )
+    return {"ok": True, "cadence": body.cadence}

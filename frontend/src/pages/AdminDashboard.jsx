@@ -31,6 +31,7 @@ import ChatModTab from "../components/admin/ChatModTab";
 import RetentionTab from "../components/admin/RetentionTab";
 import TeamTab from "../components/admin/TeamTab";
 import RefundApprovalsTab from "../components/admin/RefundApprovalsTab";
+import ShippingLedgerTab from "../components/admin/ShippingLedgerTab";
 import RotatePasswordModal from "../components/admin/RotatePasswordModal";
 import EmailHealthBadge from "../components/admin/EmailHealthBadge";
 import LiveNowBadge from "../components/admin/LiveNowBadge";
@@ -48,6 +49,7 @@ const TABS = [
   { id: "custom", label: "Custom Orders" },
   { id: "orders", label: "Paid Orders" },
   { id: "approvals", label: "Refund Approvals" },
+  { id: "shipping-ledger", label: "Shipping Ledger" },
   { id: "listings", label: "Listings" },
   { id: "users", label: "Users" },
   { id: "reviews", label: "Reviews" },
@@ -253,6 +255,7 @@ export default function AdminDashboard() {
             {tab === "custom" && <CustomOrdersList items={custom} onChange={refresh} />}
             {tab === "orders" && <PaidOrdersList items={orders} />}
             {tab === "approvals" && <RefundApprovalsTab me={me} />}
+            {tab === "shipping-ledger" && <ShippingLedgerTab />}
             {tab === "listings" && <ListingsTab />}
             {tab === "users" && <UsersTab />}
             {tab === "reviews" && <ReviewsTab />}
