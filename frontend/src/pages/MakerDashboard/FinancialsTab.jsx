@@ -351,15 +351,30 @@ function PaymentAccount({ payouts, status, txns, onRefresh, query }) {
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
 
+  // Always coerce error.detail to a string — FastAPI returns a list-of-objects
+  // for 422 validation errors, and rendering that as a React child blanks the
+  // component with "Objects are not valid as a React child".
+  const errMsg = (e, fallback) => {
+    const d = e?.response?.data?.detail;
+    if (typeof d === "string") return d;
+    if (Array.isArray(d)) return d.map((x) => x?.msg || JSON.stringify(x)).join("; ");
+    return fallback;
+  };
+
   const onConnect = async () => {
     setBusy("connect"); setErr("");
-    try { const r = await stripeConnectOnboard(); window.location.href = r.url; }
-    catch (e) { setErr(e?.response?.data?.detail || "Could not start onboarding."); setBusy(""); }
+    try {
+      const r = await stripeConnectOnboard(window.location.origin);
+      window.location.href = r.url;
+    } catch (e) {
+      setErr(errMsg(e, "Could not start onboarding."));
+      setBusy("");
+    }
   };
   const onDashboard = async () => {
     setBusy("dashboard"); setErr("");
     try { const r = await stripeConnectDashboardLink(); window.location.href = r.url; }
-    catch (e) { setErr(e?.response?.data?.detail || "Could not open dashboard."); setBusy(""); }
+    catch (e) { setErr(errMsg(e, "Could not open dashboard.")); setBusy(""); }
   };
 
   // Filter transaction history rows by query — match against kind, reference,

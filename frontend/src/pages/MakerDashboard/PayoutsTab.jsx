@@ -13,13 +13,21 @@ export default function PayoutsTab() {
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
 
+  // Coerce 422 array-detail errors to a string so we never crash the page.
+  const errMsg = (e, fallback) => {
+    const d = e?.response?.data?.detail;
+    if (typeof d === "string") return d;
+    if (Array.isArray(d)) return d.map((x) => x?.msg || JSON.stringify(x)).join("; ");
+    return fallback;
+  };
+
   const loadAll = async () => {
     try {
       const [s, p] = await Promise.all([stripeConnectStatus(), fetchMakerPayouts()]);
       setStatus(s);
       setPayouts(p);
     } catch (e) {
-      setErr(e?.response?.data?.detail || "Failed to load payouts info.");
+      setErr(errMsg(e, "Failed to load payouts info."));
     } finally {
       setLoading(false);
     }
@@ -33,7 +41,7 @@ export default function PayoutsTab() {
       const r = await stripeConnectOnboard(window.location.origin);
       window.location.href = r.url;
     } catch (e) {
-      setErr(e?.response?.data?.detail || "Could not start onboarding.");
+      setErr(errMsg(e, "Could not start onboarding."));
       setBusy("");
     }
   };
@@ -44,7 +52,7 @@ export default function PayoutsTab() {
       const r = await stripeConnectDashboardLink();
       window.open(r.url, "_blank", "noopener");
     } catch (e) {
-      setErr(e?.response?.data?.detail || "Could not open Stripe dashboard.");
+      setErr(errMsg(e, "Could not open Stripe dashboard."));
     } finally { setBusy(""); }
   };
 
