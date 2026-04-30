@@ -7,7 +7,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Up
 from pydantic import BaseModel, ConfigDict
 
 from core import db, logger, now_iso
-from email_service import send_maker_magic_link
+from email_service import send_maker_magic_link, send_buyer_shipped
 from maker_auth import (
     current_maker_slug, issue_magic_token, issue_session_jwt, verify_magic_token,
 )
@@ -1007,11 +1007,14 @@ class OrderShipUpdate(BaseModel):
 
 @router.post("/maker/orders/{session_id}/ship")
 async def maker_mark_shipped(
-    session_id: str, body: OrderShipUpdate,
+    session_id: str, body: OrderShipUpdate, bg: BackgroundTasks,
     slug: str = Depends(current_maker_slug),
 ):
     """Mark an order as shipped — optionally attach a tracking # + carrier.
-    The order moves to the Fulfilled tab."""
+    The order moves to the Fulfilled tab. When a tracking number is
+    provided AND the buyer hasn't already been emailed about this
+    shipment, fires a buyer-shipped email with the receipt + tracking
+    deep-link as a background task."""
     tx = await db.payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
     if not tx:
         raise HTTPException(404, "Order not found.")
@@ -1036,6 +1039,32 @@ async def maker_mark_shipped(
     await db.payment_transactions.update_one(
         {"session_id": session_id}, {"$set": update},
     )
+
+    # Buyer notification — only when we have BOTH a tracking number AND a
+    # buyer email, AND we haven't already emailed this shipment. Idempotent
+    # via `shipped_email_sent` flag so re-clicking Mark Shipped doesn't
+    # double-send.
+    final_tracking = update.get("tracking_number") or tx.get("tracking_number")
+    final_carrier = update.get("tracking_carrier") or tx.get("tracking_carrier") or ""
+    buyer_email = tx.get("customer_email") or (tx.get("shipping_details") or {}).get("email")
+    if final_tracking and buyer_email and not tx.get("shipped_email_sent"):
+        # Stamp first so a duplicate request loses the idempotency race.
+        await db.payment_transactions.update_one(
+            {"session_id": session_id, "shipped_email_sent": {"$ne": True}},
+            {"$set": {"shipped_email_sent": True, "shipped_email_at": now_iso()}},
+        )
+        bg.add_task(
+            send_buyer_shipped,
+            buyer_email,
+            tx.get("customer_name") or (tx.get("shipping_details") or {}).get("name"),
+            final_tracking,
+            final_carrier,
+            tx.get("items") or [],
+            float(tx.get("amount") or 0) or None,
+            tx.get("id") or session_id,
+            tx.get("tracking_url_provider"),
+        )
+
     return {"ok": True, "order_status": "fulfilled", "shipped_at": update["shipped_at"]}
 
 

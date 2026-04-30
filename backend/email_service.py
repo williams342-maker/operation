@@ -592,6 +592,102 @@ async def send_buyer_custom_ack(buyer_email: str, name: str, project_type: str, 
     return await _send(buyer_email, "We got your custom brief", html)
 
 
+async def send_buyer_shipped(
+    buyer_email: str, buyer_name: str | None,
+    tracking_number: str, carrier: str,
+    items: list[dict] | None = None,
+    total: float | None = None,
+    order_id: str | None = None,
+    tracking_url: str | None = None,
+):
+    """Fired the moment a maker either buys a Shippo label OR manually
+    pastes a tracking number into the dashboard. The buyer gets a clean
+    receipt-style summary (line items + total) PLUS the tracking number,
+    carrier, and a deep-link button so they can monitor the package.
+
+    Carrier deep-links default to the carrier's own track-by-number page
+    when `tracking_url` isn't supplied. Order id is included in the
+    subject when present so the buyer's mailbox sorts naturally."""
+    if not buyer_email:
+        return None
+    name = (buyer_name or "there").split()[0]
+    site = (os.environ.get("PUBLIC_SITE_URL") or os.environ.get("FRONTEND_URL")
+            or "https://craftersmarket.org").rstrip("/")
+    carrier_clean = (carrier or "").strip()
+    carrier_lc = carrier_clean.lower()
+    # Carrier deep-link fallbacks. tracking_url (when supplied by Shippo)
+    # always wins because it's pre-built for the exact carrier+number.
+    if not tracking_url and tracking_number:
+        if "usps" in carrier_lc:
+            tracking_url = f"https://tools.usps.com/go/TrackConfirmAction?tLabels={tracking_number}"
+        elif "ups" in carrier_lc:
+            tracking_url = f"https://www.ups.com/track?tracknum={tracking_number}"
+        elif "fedex" in carrier_lc:
+            tracking_url = f"https://www.fedex.com/fedextrack/?trknbr={tracking_number}"
+        elif "dhl" in carrier_lc:
+            tracking_url = f"https://www.dhl.com/en/express/tracking.html?AWB={tracking_number}"
+
+    body = (
+        f"<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 18px'>"
+        f"Hi {name}, your Crafters Market order is on the way.</p>"
+        # Tracking pill
+        "<div style='border:1px solid #ff4500;padding:18px;margin:0 0 22px'>"
+        "<div style='font-family:JetBrains Mono,monospace;font-size:10px;letter-spacing:0.22em;"
+        "text-transform:uppercase;color:#ff4500;margin:0 0 6px'>◆ Tracking number</div>"
+        f"<div style='font-family:JetBrains Mono,monospace;font-size:18px;color:#e5e5e5;"
+        f"letter-spacing:1px;margin:0 0 8px;word-break:break-all'>{tracking_number}</div>"
+        f"<div style='font-family:JetBrains Mono,monospace;font-size:11px;color:#a3a3a3;"
+        f"letter-spacing:0.18em;text-transform:uppercase;margin:0 0 14px'>via {carrier_clean or 'carrier'}</div>"
+    )
+    if tracking_url:
+        body += (
+            f"<a href='{tracking_url}' style='display:inline-block;background:#ff4500;color:#0a0a0a;"
+            "padding:12px 22px;font-family:Impact,Arial Black,sans-serif;font-size:13px;letter-spacing:0.18em;"
+            f"text-transform:uppercase;text-decoration:none;border:1px solid #ff4500'>Track package →</a>"
+        )
+    body += "</div>"
+
+    # Receipt summary so the email doubles as a record of what shipped
+    if items:
+        body += (
+            "<div style='font-family:JetBrains Mono,monospace;font-size:10px;letter-spacing:0.22em;"
+            "text-transform:uppercase;color:#a3a3a3;margin:0 0 8px'>What's in the box</div>"
+        )
+        body += _items_table(items)
+    if total is not None:
+        body += (
+            f"<div style='border-top:1px solid #262626;padding-top:14px;font-size:13px;color:#e5e5e5'>"
+            f"<span style='color:#a3a3a3;letter-spacing:0.22em;text-transform:uppercase;font-size:11px'>"
+            f"Order total</span> <span style='color:#ff4500;font-family:Impact,sans-serif;font-size:24px;"
+            f"float:right;line-height:1'>${total:.2f}</span>"
+            "<div style='clear:both'></div></div>"
+        )
+    if order_id:
+        body += (
+            f"<p style='font-family:JetBrains Mono,monospace;font-size:10px;color:#525252;"
+            f"letter-spacing:0.18em;text-transform:uppercase;margin-top:14px'>"
+            f"Order: <a href='{site}/track/{tracking_number}' style='color:#ff4500'>"
+            f"{order_id[:14]}…</a></p>"
+        )
+    body += (
+        "<p style='font-size:13px;color:#a3a3a3;line-height:1.6;margin-top:22px'>"
+        "Carrier-side scans usually appear within 24-48 hours. Reply to this email "
+        "anytime if anything looks off — it goes straight to the maker.</p>"
+    )
+
+    html = _shell(
+        "Shipped.",
+        f"Your package is on the way · {carrier_clean or 'carrier'}",
+        body, "Shipping notification",
+    )
+    subj_suffix = f" · order {order_id[:8]}" if order_id else ""
+    return await _send(
+        buyer_email,
+        f"Shipped · {tracking_number} · {carrier_clean or 'carrier'}{subj_suffix}",
+        html,
+    )
+
+
 async def send_buyer_delivered(
     buyer_email: str, buyer_name: str | None,
     tracking_number: str, carrier: str,

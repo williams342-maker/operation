@@ -94,6 +94,42 @@ async def _build_product_index() -> dict[str, dict]:
     return {p["id"]: p for p in products if p.get("id")}
 
 
+def _delta_pct(current: float, prior: float) -> float | None:
+    """Return percent change current-vs-prior. None when prior is 0
+    (avoids "infinite growth" noise — the UI shows a neutral pill instead)."""
+    if not prior:
+        return None
+    return round(((current - prior) / prior) * 100.0, 1)
+
+
+async def _period_metrics(start_iso: str, end_iso: str) -> dict:
+    """Bundled aggregates for the date window. Used twice per call: once
+    for the trailing 30 days, once for the 30 days before that, so we
+    can compute period-over-period deltas."""
+    # Paid orders + revenue in window
+    rev_pipeline = [
+        {"$match": {
+            "payment_status": "paid",
+            "amount": {"$gt": 0},
+            "created_at": {"$gte": start_iso, "$lt": end_iso},
+        }},
+        {"$group": {"_id": None, "revenue": {"$sum": "$amount"}, "orders": {"$sum": 1}}},
+    ]
+    res = await db.payment_transactions.aggregate(rev_pipeline).to_list(1)
+    revenue = float(res[0]["revenue"]) if res else 0.0
+    orders = int(res[0]["orders"]) if res else 0
+    # New users in window
+    users = await db.community_users.count_documents({
+        "created_at": {"$gte": start_iso, "$lt": end_iso},
+    })
+    return {
+        "revenue": round(revenue, 2),
+        "orders": orders,
+        "users": users,
+        "avg_order_value": round(revenue / orders, 2) if orders else 0.0,
+    }
+
+
 # ── Overview ─────────────────────────────────────────────────
 @router.get("/overview")
 async def overview(_: dict = Depends(verify_workshop_token)):
@@ -109,6 +145,18 @@ async def overview(_: dict = Depends(verify_workshop_token)):
     rev_result = await db.payment_transactions.aggregate(rev_pipeline).to_list(1)
     total_revenue = rev_result[0]["total"] if rev_result else 0
 
+    # Period-over-period: trailing 30 days vs the 30 days before that.
+    now = datetime.now(timezone.utc)
+    win_now_start = now - timedelta(days=30)
+    win_prev_start = now - timedelta(days=60)
+    cur = await _period_metrics(_iso(win_now_start), _iso(now))
+    prv = await _period_metrics(_iso(win_prev_start), _iso(win_now_start))
+    deltas = {
+        "revenue":         {"current": cur["revenue"],         "prior": prv["revenue"],         "pct": _delta_pct(cur["revenue"],         prv["revenue"])},
+        "orders":          {"current": cur["orders"],          "prior": prv["orders"],          "pct": _delta_pct(cur["orders"],          prv["orders"])},
+        "users":           {"current": cur["users"],           "prior": prv["users"],           "pct": _delta_pct(cur["users"],           prv["users"])},
+        "avg_order_value": {"current": cur["avg_order_value"], "prior": prv["avg_order_value"], "pct": _delta_pct(cur["avg_order_value"], prv["avg_order_value"])},
+    }
     months = _last_12_months()
     monthly = []
     for m in months:
@@ -151,6 +199,7 @@ async def overview(_: dict = Depends(verify_workshop_token)):
             "pageviews": total_listings * 12 + total_users * 3,  # synthetic — workshop original
             "pages_per_session": 3.1,
         },
+        "deltas": deltas,  # period-over-period (trailing 30d vs prior 30d)
         "monthly_revenue": monthly,
         "new_users": [
             {"month": _month_label(m), "users": new_users_by_month.get(m.strftime("%Y-%m"), 0)}

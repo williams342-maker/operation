@@ -1,5 +1,24 @@
 # Crafters Market — CHANGELOG
 
+## 2026-02 — iter72 — Buyer-Shipped Email + Workshop KPI Deltas (TESTED ✅ 12/12 + e2e)
+
+### Bug fix · Buyer never received tracking + receipt on shipment
+- ✨ **New `send_buyer_shipped(...)`** in `email_service.py` — receipt-style line items + total + a tracking pill with carrier deep-link button. Subject: `Shipped · {tracking} · {carrier} · order {ord_id[:8]}` (mailbox sorts naturally). Carrier fallbacks for USPS / UPS / FedEx / DHL when Shippo's `tracking_url_provider` isn't supplied.
+- ✨ **Wired into both ship endpoints**: `POST /maker/orders/{sid}/ship` (manual mark-shipped) AND `POST /maker/orders/{sid}/shipping/buy-label` (Shippo label-buy). Idempotent via `shipped_email_sent` flag — re-clicking Mark Shipped doesn't double-send. Stamp-then-dispatch ordering wins the race against parallel calls.
+- ✨ Skips silently when buyer email is missing OR no tracking number was provided (so manual local-pickup orders don't error).
+
+### Improvement · Compare-to-last-period KPI badges on Workshop Analytics
+- ✨ **`_period_metrics(start, end)` + `_delta_pct(cur, prior)`** helpers in `routers/workshop_analytics.py`. The `/overview` endpoint now returns a `deltas` block with `{revenue, orders, users, avg_order_value}`, each carrying `{current, prior, pct}` (trailing 30 days vs the 30 days before that). `pct` is `null` when prior=0 so the UI can render a `◆ NEW` pill instead of `+∞%`.
+- ✨ **`<DeltaPill>` component** in `WorkshopAnalyticsDashboard.jsx` — colored chip below each KPI tile: ▲ `+X.X%` green when up, ▼ `-X.X%` red when down, → `flat` grey when 0, `◆ NEW` orange when prior was empty. Hover-tooltip exposes the raw `30d: X · prior 30d: Y` numbers. Caption "Δ vs prior 30 days · trailing-window comparison" sits right below the grid so admins know the window.
+
+### Tests · 12/12
+- `test_iter72_buyer_shipped_email.py` (8): renderer (tracking + receipt + carrier deep-links), mark-shipped wiring (sends on first ship, does NOT re-send when flag set, skips on no-tracking, skips on no-email).
+- `test_iter72b_workshop_kpi_deltas.py` (4): `_delta_pct` math + zero-prior handling + 1-decimal rounding + `/overview` integration shape.
+- Live curl: `/api/workshop-analytics/overview` returns `deltas` block with all 4 metrics. E2E screenshot confirms `◆ NEW` orange pills rendering on the Overview tab. Lint clean (Python ruff + ESLint).
+
+Files: `email_service.py` (+88 lines · new `send_buyer_shipped`), `routers/maker.py` (mark-shipped wiring + bg task), `routers/shipping.py` (buy-label wiring + bg task), `routers/workshop_analytics.py` (delta helpers + overview payload), `pages/WorkshopAnalyticsDashboard.jsx` (DeltaPill + KpiGrid extension). 2 new test files.
+
+
 ## 2026-02 — iter71 — Workshop Analytics Dashboard · isolated `/api/workshop-analytics/*` + new admin page (TESTED ✅ live data + e2e screenshots)
 - ✨ **New isolated router** `/app/backend/routers/workshop_analytics.py` mounted under `/api/workshop-analytics/*` so it sits cleanly alongside the existing `/api/analytics/*` and `/api/admin/analytics/*` routes — zero risk of regression to the live tracking + admin charts. Endpoints: `/overview`, `/sales`, `/sellers`, `/users`, `/live`, `/traffic`, `/pageviews` (7 total).
 - ✨ **Dual auth** — `verify_workshop_token(request)` accepts EITHER an admin JWT (Bearer token, our existing in-app auth) OR the workshop's static `X-Analytics-Token` header (secret pulled from `WORKSHOP_ANALYTICS_TOKEN` env var, defaults to "cm-analytics-readonly-2024" for paste-in compat). Both paths verified with curl + 403 on missing.

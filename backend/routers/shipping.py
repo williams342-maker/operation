@@ -30,7 +30,7 @@ from __future__ import annotations
 import os
 import uuid
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict
 
 from core import db, logger, now_iso
@@ -295,7 +295,7 @@ async def fetch_rates(session_id: str, body: RateReq, slug: str = Depends(curren
 
 
 @router.post("/maker/orders/{session_id}/shipping/buy-label")
-async def buy_label(session_id: str, body: BuyLabelReq, slug: str = Depends(current_maker_slug)):
+async def buy_label(session_id: str, body: BuyLabelReq, bg: BackgroundTasks, slug: str = Depends(current_maker_slug)):
     await _assert_owns_order(slug, session_id)
     if not shippo_service.is_configured():
         raise HTTPException(503, "Shippo isn't configured on this deployment.")
@@ -378,10 +378,41 @@ async def buy_label(session_id: str, body: BuyLabelReq, slug: str = Depends(curr
             "updated_at": now_iso(),
             "tracking_number": label["tracking_number"],
             "tracking_carrier": provider,
+            "tracking_url_provider": label["tracking_url_provider"],
             "shippo_label_url": label["label_url"],
             "shippo_tx_id": label["transaction_id"],
         }},
     )
+
+    # Buyer notification — send the receipt + tracking email exactly once
+    # per order (idempotent via `shipped_email_sent`). We re-load the tx
+    # so the items[] / customer_email / amount fields are fresh, then
+    # stamp the flag in the same update we use to win the race.
+    tx_for_email = await db.payment_transactions.find_one(
+        {"session_id": session_id}, {"_id": 0},
+    ) or {}
+    buyer_email = (
+        tx_for_email.get("customer_email")
+        or (tx_for_email.get("shipping_details") or {}).get("email")
+    )
+    if buyer_email and not tx_for_email.get("shipped_email_sent"):
+        await db.payment_transactions.update_one(
+            {"session_id": session_id, "shipped_email_sent": {"$ne": True}},
+            {"$set": {"shipped_email_sent": True, "shipped_email_at": now_iso()}},
+        )
+        from email_service import send_buyer_shipped
+        bg.add_task(
+            send_buyer_shipped,
+            buyer_email,
+            tx_for_email.get("customer_name")
+                or (tx_for_email.get("shipping_details") or {}).get("name"),
+            label["tracking_number"],
+            provider,
+            tx_for_email.get("items") or [],
+            float(tx_for_email.get("amount") or 0) or None,
+            tx_for_email.get("id") or session_id,
+            label.get("tracking_url_provider"),
+        )
 
     logger.info(
         "[shipping] maker=%s session=%s tracking=%s amount=$%.2f test=%s",

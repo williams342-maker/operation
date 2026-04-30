@@ -173,16 +173,20 @@ export default function WorkshopAnalyticsDashboard() {
 // ---------- Section: Overview ----------
 function OverviewSection({ d }) {
   const k = d.kpis;
+  const dl = d.deltas || {};
   return (
     <div className="space-y-6" data-testid="workshop-overview">
       <KpiGrid items={[
-        { label: "Buyers",        value: k.total_users.toLocaleString(),  testId: "kpi-users"    },
-        { label: "Paid Orders",   value: k.total_orders.toLocaleString(), testId: "kpi-orders"   },
+        { label: "Buyers",        value: k.total_users.toLocaleString(),  testId: "kpi-users",    delta: dl.users    },
+        { label: "Paid Orders",   value: k.total_orders.toLocaleString(), testId: "kpi-orders",   delta: dl.orders   },
         { label: "Listings",      value: k.total_listings,                testId: "kpi-listings" },
         { label: "Makers",        value: k.total_makers,                  testId: "kpi-makers"   },
-        { label: "Revenue",       value: `$${k.total_revenue.toLocaleString()}`, testId: "kpi-revenue" },
-        { label: "Avg Order",     value: `$${k.avg_order_value.toFixed(2)}`,    testId: "kpi-aov"     },
+        { label: "Revenue",       value: `$${k.total_revenue.toLocaleString()}`,                       testId: "kpi-revenue", delta: dl.revenue          },
+        { label: "Avg Order",     value: `$${k.avg_order_value.toFixed(2)}`,                            testId: "kpi-aov",     delta: dl.avg_order_value  },
       ]} />
+      <p className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252]" data-testid="delta-explainer">
+        ◆ Δ vs prior 30 days · trailing-window comparison
+      </p>
       <div className="grid lg:grid-cols-2 gap-6">
         <ChartCard title="Monthly Revenue · 12 mo">
           <ResponsiveContainer width="100%" height={260}>
@@ -537,8 +541,48 @@ function KpiGrid({ items }) {
         <div key={it.label} className="border border-[#262626] p-4 hover:border-[#ff4500] transition" data-testid={it.testId}>
           <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252]">{it.label}</div>
           <div className="font-display text-2xl text-[#e5e5e5] mt-1 break-words">{it.value}</div>
+          {it.delta !== undefined && <DeltaPill delta={it.delta} />}
         </div>
       ))}
+    </div>
+  );
+}
+
+/**
+ * Delta pill — renders the period-over-period change as a colored chip:
+ *   • +X.X% on green when current > prior
+ *   • -X.X% on red   when current < prior
+ *   • flat   on grey when delta=0
+ *   • new    on orange when prior=0 (pct is null — there's no meaningful %)
+ *   • —      neutral when delta is missing
+ */
+function DeltaPill({ delta }) {
+  if (!delta) return <div className="h-4 mt-1.5" />;
+  const { pct, current, prior } = delta;
+  // pct is null when prior was 0 (no meaningful base — show "new" pill)
+  if (pct === null || pct === undefined) {
+    if (current > 0 && (prior === 0 || prior === null)) {
+      return (
+        <div className="mt-1.5 inline-flex items-center gap-1 font-mono text-[9px] uppercase tracking-[0.18em] text-[#ff4500]" data-testid="delta-pill-new">
+          ◆ NEW
+        </div>
+      );
+    }
+    return <div className="h-4 mt-1.5" />;
+  }
+  const up = pct > 0;
+  const flat = pct === 0;
+  const color = flat ? "text-[#525252]" : up ? "text-[#7FAF7E]" : "text-[#E8875A]";
+  const arrow = flat ? "→" : up ? "▲" : "▼";
+  const pctText = flat ? "flat" : `${up ? "+" : ""}${pct}%`;
+  return (
+    <div
+      className={`mt-1.5 inline-flex items-center gap-1 font-mono text-[9px] uppercase tracking-[0.18em] ${color}`}
+      title={`30d: ${current} · prior 30d: ${prior}`}
+      data-testid="delta-pill"
+    >
+      <span>{arrow}</span>
+      <span>{pctText}</span>
     </div>
   );
 }
