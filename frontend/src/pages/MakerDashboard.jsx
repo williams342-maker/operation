@@ -28,6 +28,46 @@ function normalizeTab(id) {
   return id;
 }
 
+// Valid top-level tab ids. Used to guard against `?tab=<anything>` junk
+// (e.g. rewriter-mangled links) — unknown ids fall back to "dashboard".
+const KNOWN_TABS = new Set([
+  "dashboard", "listings", "orders", "messages", "briefs", "stats",
+  "violations", "marketing", "financials", "help", "settings",
+]);
+
+/**
+ * Resolve the initial tab from the URL, supporting BOTH deep-link patterns:
+ *   • `#orders`           — original hash fragment (keeps back-button working)
+ *   • `?tab=orders`       — query param (email link-rewriters often strip
+ *                          fragments so this is the safer pattern in
+ *                          transactional emails)
+ *   • `?tab=orders#orders`— both present, query param wins
+ * When a `?tab=` query param is present, we also rewrite the URL to put
+ * it in the hash so the existing `hashchange` listener stays authoritative
+ * for subsequent nav within the page.
+ */
+function resolveInitialTabFromUrl() {
+  try {
+    const sp = new URLSearchParams(window.location.search);
+    const q = (sp.get("tab") || "").trim().toLowerCase();
+    if (q) {
+      const id = normalizeTab(q);
+      const valid = KNOWN_TABS.has(id);
+      // Always strip the `tab` param — whether valid (rewritten to hash)
+      // or invalid (dropped entirely) — so we don't keep junk params in
+      // the URL bar after the user shared a mangled link.
+      sp.delete("tab");
+      const qs = sp.toString();
+      const newUrl = `${window.location.pathname}${qs ? "?" + qs : ""}${valid ? "#" + id : ""}`;
+      window.history.replaceState(null, "", newUrl);
+      if (valid) return id;
+    }
+  } catch {
+    // URLSearchParams throws in ancient browsers — fall through.
+  }
+  return normalizeTab((window.location.hash || "#dashboard").replace("#", ""));
+}
+
 /**
  * MakerDashboard 2.0 — Etsy-inspired Shop Manager layout.
  * Top bar (status badges + Edit Shop + Sign Out) → left sidebar nav →
@@ -51,7 +91,7 @@ export default function MakerDashboard() {
   const [fresh, setFresh] = useState({ orders: false, messages: false, products: false });
   const [freshKey, setFreshKey] = useState(0);
 
-  const [tab, setTab] = useState(() => normalizeTab((window.location.hash || "#dashboard").replace("#", "")));
+  const [tab, setTab] = useState(() => resolveInitialTabFromUrl());
   useEffect(() => {
     const onHash = () => setTab(normalizeTab((window.location.hash || "#dashboard").replace("#", "")));
     window.addEventListener("hashchange", onHash);

@@ -1,5 +1,12 @@
 # Crafters Market — CHANGELOG
 
+## 2026-02 — iter73 — Maker Dashboard `?tab=...` Deep-Links · email-rewriter-safe (TESTED ✅ 13/13 + e2e)
+- ✨ **Query-param deep-link support** on `/maker/dashboard?tab=orders` (and every other tab: `listings`, `messages`, `briefs`, `stats`, `financials`, `settings`, etc.). `?tab=<id>` mirrors the existing `#<id>` hash behaviour but survives email link-rewriters (Postmark / SendGrid / Mailgun) that strip URL fragments before dispatch. On mount we validate the id against `KNOWN_TABS`, rewrite the URL to `#<id>` so subsequent hashchange stays authoritative, and fall back to dashboard when the id is unknown (junk values like `?tab=evil` are stripped entirely — no phishing-looking URLs sticking around).
+- ✨ **`send_maker_new_order` email now includes an "Open orders tab →" CTA** that deep-links via `?tab=orders` — the canonical use-case this feature unblocks. Every new-order email is now a one-click path to shipping/fulfillment.
+- Tests: `test_iter73_tab_deeplink.py` (1 — renderer generates `?tab=orders` link, not `#orders`). All 13 backend tests from iter72/72b/73 green. Live e2e smoke confirmed `?tab=orders` → Orders tab selected + URL rewritten to `#orders`; `?tab=evil` → junk stripped. Frontend lint clean.
+- Files: `frontend/src/pages/MakerDashboard.jsx` (+`resolveInitialTabFromUrl` helper, +`KNOWN_TABS` guard), `backend/email_service.py` (+CTA in `send_maker_new_order`), new `backend/tests/test_iter73_tab_deeplink.py`.
+
+
 ## 2026-02 — iter72 — Buyer-Shipped Email + Workshop KPI Deltas (TESTED ✅ 12/12 + e2e)
 
 ### Bug fix · Buyer never received tracking + receipt on shipment

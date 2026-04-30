@@ -752,6 +752,18 @@ async def send_maker_new_order(maker_email: str, maker_name: str,
     body += f"<div style='border-top:1px solid #262626;padding-top:14px;font-size:13px;color:#e5e5e5'>Subtotal for your shop: <b style='color:#ff4500'>${subtotal:.2f}</b></div>"
     if buyer_email:
         body += f"<p style='font-size:13px;color:#a3a3a3;margin-top:16px'>Buyer: <a href='mailto:{buyer_email}' style='color:#ff4500'>{buyer_email}</a></p>"
+    # Deep-link to the Orders tab so the maker can print labels / mark
+    # shipped in one click. `?tab=orders` (not `#orders`) because email
+    # link-rewriters often strip URL fragments.
+    site = (os.environ.get("PUBLIC_SITE_URL") or os.environ.get("FRONTEND_URL")
+            or "https://craftersmarket.org").rstrip("/")
+    body += (
+        f"<div style='margin-top:22px'>"
+        f"<a href='{site}/maker/dashboard?tab=orders' style='display:inline-block;"
+        "background:#ff4500;color:#0a0a0a;padding:12px 22px;font-family:Impact,Arial Black,sans-serif;"
+        "font-size:13px;letter-spacing:0.18em;text-transform:uppercase;text-decoration:none;"
+        "border:1px solid #ff4500'>Open orders tab →</a></div>"
+    )
     body += "<p style='font-size:13px;color:#a3a3a3;line-height:1.6;margin-top:18px'>Reach out to the buyer with an ETA and tracking info as you build. Crafters Market handles the payout — you handle the craft.</p>"
     html = _shell(f"Order for {maker_name}.", "A new piece is on your bench.", body, "Maker order alert")
     return await _send(maker_email, f"New order · ${subtotal:.2f} · {maker_name}", html)
