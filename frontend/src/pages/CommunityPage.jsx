@@ -15,6 +15,7 @@ import {
   fetchProducts, fetchMakers,
 } from "../lib/api";
 import { useSiteSettings } from "../hooks/useSiteSettings";
+import QualityBadge from "../components/QualityBadge";
 
 const TABS = [
   { id: "showcase", label: "Showcase" },
@@ -804,7 +805,10 @@ function FileCard({ file, canDownload, me, onRefresh }) {
         </div>
         <span className="font-mono text-[10px] text-[#525252] shrink-0">{file.downloads} downloads</span>
       </div>
-      <div className="font-display text-xl leading-tight">{file.title}</div>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="font-display text-xl leading-tight flex-1 min-w-0">{file.title}</div>
+        {file.quality && <QualityBadge quality={file.quality} />}
+      </div>
       <p className="font-mono text-[11px] text-[#a3a3a3] leading-relaxed">{file.description}</p>
 
       {/* Owner-only smart prompts: nudge them to enrich the bundle. The

@@ -1,5 +1,36 @@
 # Crafters Market — CHANGELOG
 
+## 2026-02 — iter76 — Bundle Quality Score for Community Files (TESTED ✅ 9/9 + e2e)
+
+Twilio A2P 10DLC registration is parked as paperwork-only — runs in the user's Twilio Console, no code involvement. Once approved, the existing `send_delivery_sms` path (iter69b) starts working with zero changes.
+
+### Score formula · 5 dimensions × 20pts = 100
+- **Visual preview** (thumbnail OR auto-rendered) · 25 (slightly weighted because buyers scan visually)
+- **Context** (description ≥ 60 chars) · 15
+- **Multi-format** (≥2 variants) · 20
+- **Production-ready** (DXF / SVG / STL / DWG / NC / EPS / PDF / OBJ / 3MF / STEP / GCODE present) · 20
+- **2D + 3D coverage** (covers ≥2 of {2D, 3D, CNC} workflows) · 20
+
+Tiers: ⭐ excellent (80+) · ✦ good (60-79) · ○ basic (40-59) · △ incomplete (<40).
+
+### Backend
+- `_compute_quality_score(doc) -> {score, tier, breakdown}` pure function in `routers/community.py`. Each breakdown entry carries `{label, points, earned, hint}` so the UI can render an actionable tooltip listing exactly which dimensions are missing and what to add to fix each.
+- `_with_quality(doc)` injector — never mutates the source doc, always returns a fresh dict (avoids polluting cached Mongo docs).
+- Wired into `GET /api/community/files` (list) + new `GET /api/community/files/{file_id}` (detail) + the upload endpoint return payload — uploaders see their score immediately after creating the bundle, no refresh needed.
+
+### Frontend
+- `<QualityBadge>` shared component — color-coded score chip with hover tooltip showing the 5-row checklist. ✓ for earned dimensions, ○ for missed, with the actionable hint dim-rendered below each missed dimension. Two sizes (`sm` for grid view, `lg` for detail page).
+- Wired into the FileCard in `CommunityPage.jsx` Files tab.
+
+### Tests · 9/9
+`test_iter76_bundle_quality.py`: full bundle → 100 / excellent · minimal upload → incomplete · breakdown carries actionable hints · thumbnail alone doesn't pass basic · DXF + thumb + desc → 60 / good · 2D+3D bonus pushes 80→100 · missing-keys safety · `_with_quality` returns copy not mutation · list endpoint includes `quality` field.
+
+### E2E
+Live curl confirms `quality` field on every `/api/community/files` row. Screenshots captured: 3-bundle grid showing emerald 100, emerald 80, orange 60 + red 20 incomplete fixtures all rendering correctly. Tooltip-on-hover screenshot confirms breakdown checklist with actionable hints. Lint clean (Python ruff + ESLint).
+
+Files added: `backend/tests/test_iter76_bundle_quality.py`, `frontend/src/components/QualityBadge.jsx`. Modified: `backend/routers/community.py` (helper + endpoint return), `frontend/src/pages/CommunityPage.jsx` (badge import + FileCard wiring).
+
+
 ## 2026-02 — iter75 — Three closing-loop improvements (TESTED ✅ 15/15 + e2e)
 
 ### #1 · Backorder requests KPI tile on Maker Dashboard

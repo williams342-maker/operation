@@ -267,10 +267,76 @@ async def list_design_files(limit: int = 50):
     # Quarantined files (flagged + actioned by admin) are hidden from the
     # public list so abuse reports can be resolved without a race where
     # the file stays discoverable until a cache invalidation.
-    return await db.design_files.find(
+    rows = await db.design_files.find(
         {"quarantined_at": None},
         {"_id": 0},
     ).sort("created_at", -1).to_list(limit)
+    return [_with_quality(r) for r in rows]
+
+
+# ── Bundle Quality Score ──────────────────────────────────────────────
+# Buyers download community files for one reason — to make stuff. So we
+# rank bundles on how usable they are, not on aesthetic polish:
+#
+#   • Visual preview      (thumbnail, auto-generated OR uploaded)  · 25
+#   • Context/description (≥60 chars — actually explains the file) · 15
+#   • Multi-format bundle (≥2 variants — laser AND CNC etc.)       · 20
+#   • Production-ready    (DXF / SVG / STL / DWG / NC present)     · 20
+#   • Both 2D AND 3D      (laser AND 3D-printable coverage)        · 20
+#
+# Tiers: ⭐ Excellent (80+) · Good (60-79) · Basic (40-59) · Incomplete (<40)
+PROD_2D = {"dxf", "svg", "ai", "eps", "pdf"}
+PROD_3D = {"stl", "obj", "3mf", "step", "stp"}
+PROD_CNC = {"dwg", "nc", "tap", "gcode"}
+PROD_ALL = PROD_2D | PROD_3D | PROD_CNC
+
+
+def _compute_quality_score(doc: dict) -> dict:
+    """Pure function over a `design_files` doc → `{score, tier, breakdown}`.
+    Computed on-the-fly per request so editing a bundle (adding a thumb,
+    fleshing out the description) recomputes immediately — no batch job
+    or migration needed."""
+    formats: set[str] = set()
+    if doc.get("file_type"):
+        formats.add(str(doc["file_type"]).lower())
+    for v in doc.get("variants") or []:
+        if v.get("format"):
+            formats.add(str(v["format"]).lower())
+    desc = (doc.get("description") or "").strip()
+    has_thumb = bool(doc.get("thumbnail_url"))
+    multi_format = len(formats) >= 2
+    prod_ready = bool(formats & PROD_ALL)
+    has_2d = bool(formats & PROD_2D)
+    has_3d = bool(formats & PROD_3D)
+    has_cnc = bool(formats & PROD_CNC)
+    coverage_count = sum([has_2d, has_3d, has_cnc])
+
+    breakdown = [
+        {"label": "Visual preview",     "earned": has_thumb,                      "points": 25, "hint": "Add a thumbnail or generate one with the STL/DXF auto-render."},
+        {"label": "Context",            "earned": len(desc) >= 60,                "points": 15, "hint": "Describe the design in 60+ chars (size, intended use, materials)."},
+        {"label": "Multi-format",       "earned": multi_format,                   "points": 20, "hint": "Add format variants (DXF + SVG, STL + STEP, etc.)."},
+        {"label": "Production-ready",   "earned": prod_ready,                     "points": 20, "hint": "Include at least one CNC/laser/3D-print-ready format (DXF, SVG, STL, DWG, NC)."},
+        {"label": "2D + 3D coverage",   "earned": coverage_count >= 2,            "points": 20, "hint": "Cover both 2D (laser/CNC) and 3D (STL/STEP) workflows for max reach."},
+    ]
+    score = sum(b["points"] for b in breakdown if b["earned"])
+    if score >= 80:
+        tier = "excellent"
+    elif score >= 60:
+        tier = "good"
+    elif score >= 40:
+        tier = "basic"
+    else:
+        tier = "incomplete"
+    return {"score": score, "tier": tier, "breakdown": breakdown}
+
+
+def _with_quality(doc: dict) -> dict:
+    """Inject `quality` into a design_file response payload."""
+    if not doc:
+        return doc
+    doc = dict(doc)
+    doc["quality"] = _compute_quality_score(doc)
+    return doc
 
 
 @router.post("/community/files")
@@ -400,7 +466,7 @@ async def upload_design_file_direct(
     }
     await db.design_files.insert_one(doc)
     doc.pop("_id", None)
-    return doc
+    return _with_quality(doc)
 
 
 def _is_design_file_owner(doc: dict, claims: dict) -> bool:
