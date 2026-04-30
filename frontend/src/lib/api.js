@@ -3,6 +3,27 @@ const BASE = process.env.REACT_APP_BACKEND_URL;
 export const API = `${BASE}/api`;
 export const http = axios.create({ baseURL: API });
 
+// Global response interceptor — FastAPI returns 422 with `detail` as an array
+// of {type, loc, msg, ...} objects. Components that do
+// `setErr(e?.response?.data?.detail || "fallback")` would then try to render
+// an array of objects as a React child and crash with "Objects are not valid
+// as a React child". Flatten it to a readable string here so every consumer
+// gets a string regardless of status code.
+http.interceptors.response.use(
+  (r) => r,
+  (error) => {
+    const d = error?.response?.data?.detail;
+    if (Array.isArray(d)) {
+      error.response.data.detail = d
+        .map((x) => (x && typeof x === "object" ? (x.msg || JSON.stringify(x)) : String(x)))
+        .join("; ");
+    } else if (d && typeof d === "object") {
+      error.response.data.detail = d.msg || JSON.stringify(d);
+    }
+    return Promise.reject(error);
+  },
+);
+
 export const fetchProducts = (params) => http.get("/products", { params }).then((r) => r.data);
 export const fetchProduct = (slug) => http.get(`/products/${slug}`).then((r) => r.data);
 export const fetchMakers = () => http.get("/makers").then((r) => r.data);
