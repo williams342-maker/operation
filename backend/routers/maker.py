@@ -988,6 +988,14 @@ async def maker_order_detail(session_id: str, slug: str = Depends(current_maker_
         "shipped_at": tx.get("shipped_at"),
         "tracking_carrier": tx.get("tracking_carrier"),
         "tracking_number": tx.get("tracking_number"),
+        "tracking_status": tx.get("tracking_status"),
+        "tracking_status_label": tx.get("tracking_status_label"),
+        "tracking_status_tier": tx.get("tracking_status_tier"),
+        "tracking_status_eta": tx.get("tracking_status_eta"),
+        "tracking_updated_at": tx.get("tracking_updated_at"),
+        "tracking_history": tx.get("tracking_history") or [],
+        "shippo_label_url": tx.get("shippo_label_url"),
+        "delivered_at": tx.get("delivered_at"),
         "buyer_note": tx.get("buyer_note"),
     }
 

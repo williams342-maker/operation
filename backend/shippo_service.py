@@ -229,3 +229,36 @@ def get_tracking(carrier_token: str, tracking_number: str) -> Optional[dict]:
         "status_date": str(getattr(ts, "status_date", "") or "") if ts else "",
         "eta": str(getattr(t, "eta", "") or ""),
     }
+
+
+def ensure_tracking_webhook(public_url: str) -> dict:
+    """Idempotently register `public_url` as a `track_updated` webhook.
+
+    Shippo treats webhooks as unique on (url, event). We list existing
+    webhooks and skip creation if one already points at our URL for that
+    event. This avoids accumulating duplicates on every backend reboot
+    when a dev restarts the stack.
+    """
+    if not is_configured():
+        return {"registered": False, "reason": "SHIPPO_API_KEY missing"}
+    if not public_url:
+        return {"registered": False, "reason": "empty public_url"}
+    try:
+        c = _client()
+        existing = c.webhooks.list_webhooks()
+        results = getattr(existing, "results", None) or []
+        for w in results:
+            if getattr(w, "url", "") == public_url and getattr(w, "event", "") == "track_updated":
+                return {"registered": True, "webhook_id": w.object_id, "created": False}
+        # Not found → create.
+        w = c.webhooks.create_webhook(components.WebhookUpdateRequest(
+            url=public_url,
+            event=components.WebhookEventTypeEnum.TRACK_UPDATED,
+            active=True,
+            is_test=is_test_key(),
+        ))
+        logger.info("[shippo] registered tracking webhook url=%s id=%s", public_url, getattr(w, "object_id", ""))
+        return {"registered": True, "webhook_id": getattr(w, "object_id", ""), "created": True}
+    except Exception as e:
+        logger.warning("[shippo] webhook registration failed (non-fatal): %s", e)
+        return {"registered": False, "reason": str(e)}

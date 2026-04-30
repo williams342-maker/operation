@@ -571,6 +571,61 @@ async def send_buyer_custom_ack(buyer_email: str, name: str, project_type: str, 
     return await _send(buyer_email, "We got your custom brief", html)
 
 
+async def send_buyer_delivered(
+    buyer_email: str, buyer_name: str | None,
+    tracking_number: str, carrier: str,
+    items: list[dict] | None = None, maker_slugs: list[str] | None = None,
+):
+    """Fired once, from the Shippo `track_updated` webhook, when tracking
+    status first transitions to DELIVERED. Includes a per-maker review CTA
+    so we capitalise on the delivery moment for UGC. Idempotency is
+    enforced at the call site (webhook writes `delivered_email_sent=True`
+    on the order tx doc before calling this)."""
+    site = (os.environ.get("PUBLIC_SITE_URL") or os.environ.get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
+    name = (buyer_name or "there").split()[0]
+    body = (
+        f"<p style='font-size:14px;color:#e5e5e5;line-height:1.6'>Hi {name}, your package just arrived.</p>"
+        f"<p style='font-size:13px;color:#a3a3a3;line-height:1.6'>"
+        f"Tracking: <b style='color:#ff4500;font-family:monospace;letter-spacing:1px'>{tracking_number}</b>"
+        f" · via {carrier}</p>"
+    )
+    if items:
+        body += _items_table(items)
+
+    # Per-maker review CTA — same pattern as buyer_receipt, but triggered
+    # at delivery which is a much higher-intent moment than order-confirm.
+    review_buttons = ""
+    seen = set()
+    for slug in (maker_slugs or []):
+        if not slug or slug in seen:
+            continue
+        seen.add(slug)
+        link = (
+            f"{site}/makers/{slug}#leave-review"
+            f"?utm_source=email&utm_medium=transactional&utm_campaign=delivered-review"
+        )
+        review_buttons += (
+            f"<a href='{link}' style='display:inline-block;margin:6px 8px 0 0;"
+            "background:transparent;color:#ff4500;border:1px solid #ff4500;"
+            "padding:10px 18px;font-family:JetBrains Mono,monospace;font-size:11px;"
+            f"letter-spacing:0.22em;text-transform:uppercase;text-decoration:none'>★ Review {slug}</a>"
+        )
+    if review_buttons:
+        body += (
+            "<div style='border-top:1px solid #262626;padding-top:18px;margin-top:24px'>"
+            "<p style='font-size:11px;letter-spacing:0.22em;text-transform:uppercase;"
+            "color:#a3a3a3;margin:0 0 6px'>◆ Was the craft worth the wait?</p>"
+            "<p style='font-size:13px;color:#e5e5e5;line-height:1.6;margin:0 0 12px'>"
+            "Leave a quick review — it's the single biggest thing you can do to "
+            "support an independent maker.</p>"
+            f"<div style='line-height:1.8'>{review_buttons}</div>"
+            "</div>"
+        )
+    html = _shell("Delivered.", "Your Crafters Market package has arrived.", body, "Delivery notification")
+    return await _send(buyer_email, f"Delivered · {carrier} · {tracking_number}", html)
+
+
+
 async def send_maker_new_order(maker_email: str, maker_name: str,
                                items: list, subtotal: float,
                                buyer_email: str | None):

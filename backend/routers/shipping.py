@@ -10,6 +10,11 @@ POST   /api/maker/orders/{sid}/shipping/buy-label {shipment_id, rate_id}
     → purchases a Shippo label, records a row in `shipping_ledger` (so we
       can bill the maker on our weekly invoice run), marks the order
       fulfilled, stamps tracking_number + tracking_carrier + label_url.
+POST   /api/maker/orders/{sid}/shipping/refresh-tracking
+    → manual poll to Shippo when the webhook is behind; updates tracking_status.
+POST   /api/shippo/webhook                       PUBLIC — Shippo track_updated
+    → updates order tracking_status + tracking_history; on first DELIVERED
+      fires a one-off buyer email (idempotent via `delivered_email_sent`).
 
 Billing model (Phase 1)
 -----------------------
@@ -24,7 +29,7 @@ generates a Stripe invoice (weekly or biweekly, operator-configured).
 from __future__ import annotations
 import uuid
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict
 
 from core import db, logger, now_iso
@@ -317,3 +322,156 @@ async def buy_label(session_id: str, body: BuyLabelReq, slug: str = Depends(curr
         "test_mode": bool(label.get("test")),
         "ledger_id": ledger_entry["id"],
     }
+
+
+# ─────────────────────── tracking-status helpers ───────────────────────
+# Maps Shippo's `tracking_status.status` to a simple UI-friendly label +
+# colour tier. We keep the raw status on the doc for history/debug, but
+# surface the simplified label to the dashboard.
+_STATUS_LABEL = {
+    "UNKNOWN":    ("Label created", "gray"),
+    "PRE_TRANSIT": ("Label created", "gray"),
+    "TRANSIT":    ("In transit",     "orange"),
+    "DELIVERED":  ("Delivered",      "emerald"),
+    "RETURNED":   ("Returned",       "red"),
+    "FAILURE":    ("Delivery failed", "red"),
+}
+
+
+async def _apply_tracking_update(session_id: str, status: str, status_details: str, eta: str | None):
+    """Idempotent: update the tx doc's tracking_status + append a history
+    event. Fires the buyer-delivered email exactly once (guarded by
+    `delivered_email_sent`). Returns True if this call caused a status
+    transition, False if it was a no-op."""
+    tx = await db.payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
+    if not tx:
+        return False
+    prev = tx.get("tracking_status") or ""
+    if prev == status:
+        return False  # no-op — don't thrash the history array
+
+    label, tier = _STATUS_LABEL.get(status, (status.title() if status else "Unknown", "gray"))
+    event = {
+        "status": status,
+        "label": label,
+        "tier": tier,
+        "details": status_details or "",
+        "eta": eta or "",
+        "at": now_iso(),
+    }
+    await db.payment_transactions.update_one(
+        {"session_id": session_id},
+        {
+            "$set": {
+                "tracking_status": status,
+                "tracking_status_label": label,
+                "tracking_status_tier": tier,
+                "tracking_status_eta": eta or "",
+                "tracking_updated_at": now_iso(),
+            },
+            "$push": {"tracking_history": event},
+        },
+    )
+
+    # One-shot delivery email — idempotent via `delivered_email_sent`.
+    if status == "DELIVERED" and not tx.get("delivered_email_sent"):
+        try:
+            await _send_delivered_email(tx)
+        except Exception:
+            logger.exception("[shipping] delivered email dispatch failed")
+        await db.payment_transactions.update_one(
+            {"session_id": session_id},
+            {"$set": {"delivered_email_sent": True, "delivered_at": now_iso()}},
+        )
+    return True
+
+
+async def _send_delivered_email(tx: dict):
+    from email_service import send_buyer_delivered
+    to = tx.get("customer_email") or (tx.get("shipping_details") or {}).get("email")
+    if not to:
+        return
+    maker_slugs = list({(it.get("maker_slug") or "") for it in (tx.get("items") or []) if it.get("maker_slug")})
+    await send_buyer_delivered(
+        buyer_email=to,
+        buyer_name=tx.get("customer_name") or (tx.get("shipping_details") or {}).get("name"),
+        tracking_number=tx.get("tracking_number") or "",
+        carrier=tx.get("tracking_carrier") or "carrier",
+        items=tx.get("items") or [],
+        maker_slugs=maker_slugs,
+    )
+
+
+# ─────────────────────── endpoints ───────────────────────
+@router.post("/maker/orders/{session_id}/shipping/refresh-tracking")
+async def refresh_tracking(session_id: str, slug: str = Depends(current_maker_slug)):
+    """Manual pull-through — used when the webhook is slow or missing.
+    Queries Shippo `tracking_status` directly and applies whatever comes back."""
+    tx = await _assert_owns_order(slug, session_id)
+    tracking_number = tx.get("tracking_number")
+    carrier = (tx.get("tracking_carrier") or "").lower()
+    if not tracking_number:
+        raise HTTPException(400, "This order has no tracking number yet.")
+
+    # Shippo wants its carrier TOKEN (e.g. 'usps'). Our `tracking_carrier`
+    # column stores the display name ('USPS') since Phase 1 — map common ones.
+    carrier_token = _carrier_to_shippo_token(carrier)
+    if not carrier_token:
+        raise HTTPException(400, f"Unknown carrier '{tx.get('tracking_carrier')}'.")
+
+    result = shippo_service.get_tracking(carrier_token, tracking_number)
+    if not result:
+        return {"ok": False, "reason": "Shippo has no tracking data yet."}
+    changed = await _apply_tracking_update(
+        session_id, result.get("status") or "", result.get("status_details") or "", result.get("eta") or "",
+    )
+    return {"ok": True, "changed": changed, "status": result.get("status"), "eta": result.get("eta")}
+
+
+def _carrier_to_shippo_token(carrier: str) -> str:
+    mapping = {
+        "usps":  "usps",
+        "ups":   "ups",
+        "fedex": "fedex",
+        "dhl":   "dhl_express",
+        "dhlexpress": "dhl_express",
+    }
+    return mapping.get((carrier or "").replace(" ", "").lower(), "")
+
+
+# ─────────────────── PUBLIC webhook (no auth) ───────────────────
+@router.post("/shippo/webhook")
+async def shippo_webhook(req: Request):
+    """Shippo POSTs here whenever a tracked package changes state.
+
+    Payload shape (track_updated):
+        { "event": "track_updated", "test": bool, "data": { ...TrackingStatus... } }
+    We look up the order by `tracking_number` + apply the status change.
+    Always returns 200 to tell Shippo "received" — otherwise Shippo
+    retries 2x and eventually drops the event.
+    """
+    try:
+        payload = await req.json()
+    except Exception:
+        return {"received": True}
+    event = payload.get("event") or payload.get("type") or ""
+    data = payload.get("data") or payload
+    tracking_number = (data or {}).get("tracking_number") or ""
+    status_block = (data or {}).get("tracking_status") or {}
+    status = (status_block.get("status") or "").upper()
+    status_details = status_block.get("status_details") or ""
+    eta = (data or {}).get("eta") or ""
+
+    logger.info("[shippo.webhook] event=%s tracking=%s status=%s", event, tracking_number, status)
+
+    if not tracking_number or not status:
+        return {"received": True, "reason": "missing tracking_number or status"}
+
+    tx = await db.payment_transactions.find_one({"tracking_number": tracking_number}, {"_id": 0, "session_id": 1})
+    if not tx:
+        # Not-our-package — Shippo sometimes replays for accounts that
+        # share a webhook URL during development. Ack but skip.
+        return {"received": True, "reason": "unknown tracking"}
+
+    await _apply_tracking_update(tx["session_id"], status, status_details, eta)
+    return {"received": True}

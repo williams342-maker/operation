@@ -1,10 +1,19 @@
 import React, { useState } from "react";
 import { toast } from "sonner";
-import { Receipt, ChevronDown, Truck, MapPin, Phone, Mail, User, Package, ExternalLink, Sparkles } from "lucide-react";
+import { Receipt, ChevronDown, Truck, MapPin, Phone, Mail, User, Package, ExternalLink, Sparkles, RefreshCw, CheckCircle2 } from "lucide-react";
 import EmptyState from "../../components/EmptyState";
 import { formatDate } from "./_shared";
-import { fetchMakerOrderDetail, markOrderShipped } from "../../lib/api";
+import { fetchMakerOrderDetail, markOrderShipped, refreshShippingTracking } from "../../lib/api";
 import ShippingLabelModal from "./ShippingLabelModal";
+
+// Map backend tier → Tailwind classes. Keep the 4 named tiers in sync
+// with _STATUS_LABEL in backend/routers/shipping.py.
+const TIER_CLASSES = {
+  gray:    "border-[#525252]/50 text-[#a3a3a3] bg-[#525252]/5",
+  orange:  "border-[#ff4500]/50 text-[#ff4500] bg-[#ff4500]/5",
+  emerald: "border-emerald-400/50 text-emerald-400 bg-emerald-400/5",
+  red:     "border-red-500/50 text-red-400 bg-red-500/5",
+};
 
 /**
  * Orders list. Each row is a click-to-expand accordion that loads full
@@ -63,6 +72,7 @@ function OrderRow({ order, onChange }) {
   const [detail, setDetail] = useState(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [busyShip, setBusyShip] = useState(false);
+  const [busyRefresh, setBusyRefresh] = useState(false);
   const [trackingNum, setTrackingNum] = useState(order.tracking_number || "");
   const [carrier, setCarrier] = useState(order.tracking_carrier || "USPS");
   const [labelModalOpen, setLabelModalOpen] = useState(false);
@@ -97,6 +107,27 @@ function OrderRow({ order, onChange }) {
       toast.error(e?.response?.data?.detail || "Failed to mark shipped.");
     } finally {
       setBusyShip(false);
+    }
+  };
+
+  const handleRefreshTracking = async () => {
+    setBusyRefresh(true);
+    try {
+      const res = await refreshShippingTracking(order.session_id);
+      if (res?.changed) {
+        toast.success(`Tracking refreshed · ${res.status || "updated"}`);
+        // Re-fetch detail to reflect the new status + history
+        setDetail(null);
+        const d = await fetchMakerOrderDetail(order.session_id);
+        setDetail(d);
+        if (onChange) await onChange();
+      } else {
+        toast(res?.reason || "No tracking updates yet.");
+      }
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Couldn't refresh tracking.");
+    } finally {
+      setBusyRefresh(false);
     }
   };
 
@@ -365,19 +396,78 @@ function OrderRow({ order, onChange }) {
                   </details>
                 </section>
               ) : (
-                <section className="pt-4 border-t border-[#262626]" data-testid={`order-shipped-${order.session_id}`}>
-                  <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-400 mb-2 flex items-center gap-2">
-                    <Truck size={12} /> Shipped
-                    {detail.shipped_at && (
-                      <span className="text-[#a3a3a3]">
-                        · {new Date(detail.shipped_at).toLocaleDateString()}
+                <section
+                  className="pt-4 border-t border-[#262626] space-y-3"
+                  data-testid={`order-shipped-${order.session_id}`}
+                >
+                  <div className="flex items-center flex-wrap gap-3">
+                    <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-400 flex items-center gap-2">
+                      <Truck size={12} /> Shipped
+                      {detail.shipped_at && (
+                        <span className="text-[#a3a3a3] normal-case tracking-normal">
+                          · {new Date(detail.shipped_at).toLocaleDateString()}
+                        </span>
+                      )}
+                    </div>
+                    {detail.tracking_status_label && (
+                      <span
+                        className={`px-2 py-0.5 border font-mono text-[10px] uppercase tracking-[0.18em] ${
+                          TIER_CLASSES[detail.tracking_status_tier] || TIER_CLASSES.gray
+                        }`}
+                        data-testid={`order-tracking-pill-${order.session_id}`}
+                      >
+                        {detail.tracking_status_tier === "emerald" && <CheckCircle2 size={10} className="inline mr-1 -mt-0.5" />}
+                        {detail.tracking_status_label}
+                        {detail.tracking_status_eta && (
+                          <span className="ml-1 normal-case tracking-normal text-[9px] opacity-70">
+                            · ETA {new Date(detail.tracking_status_eta).toLocaleDateString()}
+                          </span>
+                        )}
                       </span>
                     )}
+                    <button
+                      onClick={handleRefreshTracking}
+                      disabled={busyRefresh || !detail.tracking_number}
+                      className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] disabled:opacity-40 inline-flex items-center gap-1"
+                      data-testid={`order-refresh-tracking-${order.session_id}`}
+                      title="Pull latest tracking status from the carrier"
+                    >
+                      <RefreshCw size={11} className={busyRefresh ? "animate-spin" : ""} /> {busyRefresh ? "Refreshing…" : "Refresh"}
+                    </button>
                   </div>
+
                   {detail.tracking_number && (
-                    <div className="font-mono text-xs text-[#e5e5e5]">
-                      {detail.tracking_carrier} · {detail.tracking_number}
+                    <div className="font-mono text-xs text-[#e5e5e5] flex items-center gap-3 flex-wrap">
+                      <span>{detail.tracking_carrier} · {detail.tracking_number}</span>
+                      {detail.shippo_label_url && (
+                        <a
+                          href={detail.shippo_label_url}
+                          target="_blank" rel="noopener noreferrer"
+                          className="text-[#ff4500] hover:underline inline-flex items-center gap-1 text-[11px]"
+                          data-testid={`order-reprint-label-${order.session_id}`}
+                        >
+                          <Package size={11} /> Reprint label
+                        </a>
+                      )}
                     </div>
+                  )}
+
+                  {Array.isArray(detail.tracking_history) && detail.tracking_history.length > 0 && (
+                    <details className="font-mono text-[10px]">
+                      <summary className="cursor-pointer text-[#a3a3a3] hover:text-[#ff4500] uppercase tracking-[0.22em]">
+                        Tracking history ({detail.tracking_history.length})
+                      </summary>
+                      <ul className="mt-2 space-y-1 pl-3 border-l border-[#262626]">
+                        {[...detail.tracking_history].reverse().map((h, i) => (
+                          <li key={i} className="text-[#a3a3a3]">
+                            <span className={`mr-2 ${(TIER_CLASSES[h.tier] || "").split(" ")[1] || ""}`}>●</span>
+                            <span className="text-[#e5e5e5]">{h.label || h.status}</span>
+                            {h.details && <span className="ml-2">· {h.details}</span>}
+                            {h.at && <span className="ml-2 text-[#525252]">· {new Date(h.at).toLocaleString()}</span>}
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
                   )}
                 </section>
               )}

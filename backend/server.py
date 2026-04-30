@@ -80,6 +80,17 @@ async def on_startup():
     await seed_if_empty()
     from scheduler import start_scheduler
     start_scheduler()
+    # Register the Shippo tracking webhook idempotently. PUBLIC_BACKEND_URL
+    # is the only thing we trust for a stable callback origin — skip if
+    # unset so dev stacks don't pollute the Shippo account with preview URLs.
+    try:
+        import shippo_service
+        public_backend = os.environ.get("PUBLIC_BACKEND_URL", "").rstrip("/")
+        if public_backend and shippo_service.is_configured():
+            res = shippo_service.ensure_tracking_webhook(f"{public_backend}/api/shippo/webhook")
+            logger.info("[shippo] webhook registration: %s", res)
+    except Exception:
+        logger.exception("[shippo] webhook bootstrap failed (non-fatal)")
     logger.info("Crafters Market API ready (seed checked).")
 
 

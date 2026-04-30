@@ -1,6 +1,36 @@
 # Crafters Market — Modernized Homepage + Full Marketplace
 
 
+## 2026-02 — iter61 — Phase 2A · Shippo Auto-Tracking Webhook (self-tested ✅)
+- ✨ **New public webhook `POST /api/shippo/webhook`**: receives
+  `track_updated` events from Shippo, maps `status` → UI-friendly
+  label + colour tier (gray/orange/emerald/red), pushes event to new
+  `tracking_history` array on the tx doc, and on first DELIVERED
+  transition fires a one-off buyer email (idempotent via
+  `delivered_email_sent`).
+- ✅ **Auto-register on startup**: `shippo_service.ensure_tracking_webhook()`
+  idempotently registers `{PUBLIC_BACKEND_URL}/api/shippo/webhook` as a
+  `track_updated` webhook — skipped if already present, so reboots
+  don't accumulate duplicates.
+- ✅ **Manual refresh**: new `POST /api/maker/orders/{sid}/shipping/refresh-tracking`
+  lets the maker pull the latest status directly from Shippo
+  `tracking_status` when the webhook is slow. Button sits next to the
+  live status pill in the Orders drawer.
+- ✅ **Live status pill** on fulfilled order rows, colour-tiered
+  (orange = in transit, emerald = delivered, red = returned/failure).
+  Expandable "Tracking history" shows every transition with timestamp +
+  carrier detail string.
+- ✅ **Reprint-label link** surfaces when `shippo_label_url` is present
+  — makers can re-open the PDF without touching the modal.
+- ✅ **New `send_buyer_delivered` email**: per-maker review CTAs at the
+  delivery moment (highest-intent UGC trigger).
+- Verified: 3-event webhook curl sequence (TRANSIT → DELIVERED → DELIVERED-replay)
+  produced: final status=DELIVERED, history=2 (replay no-op),
+  delivered_email_sent=True, delivered_at stamped.
+- **Phase 2C next**: Maker Financials → "Shipping" tab ("You owe $X.XX
+  on your next shipping invoice" + label table).
+
+
 ## 2026-02 — iter60 — Shippo Shipping-Label Integration (TESTED ✅)
 - ✨ **New**: Makers can now purchase live shipping labels from the Orders
   drawer via Shippo. Test key live in `/app/backend/.env`
