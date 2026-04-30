@@ -1,6 +1,29 @@
 # Crafters Market — Modernized Homepage + Full Marketplace
 
 
+## 2026-02 — iter57 — Printable Bench-Sheet PDF (TESTED ✅)
+- ✅ **`/maker/briefs/{briefId}/print`** route — Letter-sized paper-style
+  layout with full brief details, large Code128 barcode (60h × 2.4w,
+  black-on-white for laser-print legibility), buyer info, admin note,
+  and a 7-step shop-floor checklist (Received → Measured → Cut →
+  Assembled → Finished → Ready → Delivered) with empty checkbox + Date
+  / Initials boxes per step.
+- ✅ **Native `window.print()`** triggers the browser's Save-as-PDF —
+  zero new deps (no jsPDF/html2canvas/Puppeteer).
+- ✅ **`@media print` CSS** strips chrome (`.no-print` hides Back +
+  Print buttons), sets @page Letter with 0.4in margins.
+- ✅ **GET `/api/maker/briefs/{briefId}`** — single-brief fetch with
+  cross-maker isolation (404 for foreign briefs, ambiguous detail
+  string to prevent existence leakage).
+- ✅ **"Print sheet" button** on every maker BriefsTab card opens the
+  print page in a new tab (target=_blank + rel=noopener for tabnabbing
+  protection).
+- Tests: 7/7 backend pytest pass. See
+  `/app/backend/tests/test_iter57_print_brief.py` and
+  `/app/test_reports/iteration_39.json`.
+
+
+
 ## 2026-02 — iter56 — 10-Digit Tracking + Code128 Barcode (TESTED ✅)
 - ✅ **Tracking number** on every `custom_orders` doc (10 random digits,
   unique-indexed, 5-attempt collision re-roll). Backfilled all 86 existing
