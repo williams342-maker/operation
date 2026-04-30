@@ -17,6 +17,7 @@ import MarketingTab from "./MakerDashboard/MarketingTab";
 import FinancialsTab from "./MakerDashboard/FinancialsTab";
 import HelpTab from "./MakerDashboard/HelpTab";
 import MessagesTab from "./MakerDashboard/MessagesTab";
+import BriefsTab from "./MakerDashboard/BriefsTab";
 import ProfileForm from "./MakerDashboard/ProfileForm";
 import useModalA11y from "../hooks/useModalA11y";
 
@@ -290,6 +291,7 @@ export default function MakerDashboard() {
         {tab === "listings"   && <ProductsList products={products} onRefresh={refreshProducts} />}
         {tab === "orders"     && <OrdersTabWrapper orders={orders} />}
         {tab === "messages"   && <MessagesTab maker={maker} />}
+        {tab === "briefs"     && <BriefsTab />}
         {tab === "stats"      && <StatsTab />}
         {tab === "violations" && <ViolationsTab />}
         {tab === "marketing"  && <MarketingTab />}

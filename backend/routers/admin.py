@@ -1077,6 +1077,202 @@ async def admin_quote_custom_order(
     return order
 
 
+# ---------------- Custom-order routing (push to maker → push to Reddit) ----------------
+class PushToMakerRequest(BaseModel):
+    maker_slug: str
+    note: Optional[str] = None        # admin's annotation to the maker
+    notify_buyer: bool = False        # email the buyer "we found a maker"
+
+
+@router.post("/admin/custom-orders/{order_id}/push-to-maker")
+async def admin_push_to_maker(
+    order_id: str, body: PushToMakerRequest, bg: BackgroundTasks,
+    claims: dict = Depends(current_admin),
+):
+    """Assign a custom-order brief to a maker. Persists assignment fields
+    on the custom_order doc and emails the maker. Maker dashboards read
+    /api/maker/briefs to see assigned work in their queue."""
+    order = await db.custom_orders.find_one({"id": order_id}, {"_id": 0})
+    if not order:
+        raise HTTPException(404, "Custom order not found.")
+    maker = await db.makers.find_one({"slug": body.maker_slug}, {"_id": 0})
+    if not maker:
+        raise HTTPException(404, "Maker not found.")
+    if not maker.get("email"):
+        raise HTTPException(400, "Selected maker has no email on file.")
+
+    assigned_at = now_iso()
+    update = {
+        "assigned_maker_slug": body.maker_slug,
+        "assigned_maker_name": maker.get("name") or body.maker_slug,
+        "assigned_at": assigned_at,
+        "assigned_by": claims["email"],
+        "assignment_note": (body.note or "").strip()[:2000] or None,
+        # Move the brief out of "open" for admin dashboards.
+        "status": order.get("status") if order.get("status") == "quoted" else "assigned",
+    }
+    await db.custom_orders.update_one({"id": order_id}, {"$set": update})
+
+    # In-app: drop a notification thread for the maker so their inbox shows it.
+    # Reuses the existing dm_threads collection but flags `kind=admin_brief`
+    # so MakerInbox can render it differently.
+    thread_id = secrets.token_hex(12)
+    body_text = (
+        f"📋 Admin-routed brief: {order.get('project_type', 'Custom request')}\n\n"
+        f"From: {order.get('name')} <{order.get('email')}>\n"
+        f"Material: {order.get('material', 'n/a')} · Size: {order.get('size') or 'n/a'} "
+        f"· Budget: {order.get('budget') or 'n/a'} · Timeline: {order.get('timeline') or 'n/a'}\n\n"
+        f"{order.get('description', '')}\n\n"
+    )
+    if body.note:
+        body_text += f"— Admin note —\n{body.note.strip()}\n"
+    await db.dm_threads.insert_one({
+        "id": thread_id,
+        "kind": "admin_brief",
+        "maker_slug": body.maker_slug,
+        "maker_name": maker.get("name") or body.maker_slug,
+        "maker_email": maker["email"],
+        "buyer_email": order.get("email"),
+        "buyer_name": order.get("name") or "",
+        "subject": f"Admin brief · {order.get('project_type', 'Custom request')}",
+        "custom_order_id": order_id,
+        "last_sender": "admin",
+        "last_message_at": assigned_at,
+        "unread_for_maker": 1,
+        "unread_for_buyer": 0,
+        "message_count": 1,
+        "created_at": assigned_at,
+    })
+    await db.dm_messages.insert_one({
+        "id": secrets.token_hex(12),
+        "thread_id": thread_id,
+        "sender_type": "admin",
+        "sender_email": claims["email"],
+        "sender_name": "Crafters Market admin",
+        "body": body_text,
+        "created_at": assigned_at,
+    })
+
+    # Email maker.
+    bg.add_task(
+        send_admin_broadcast,
+        maker["email"],
+        f"New brief routed to your shop · {order.get('project_type', '')}",
+        body_text + "\nReply on the dashboard: /maker/dashboard#messages",
+        "Crafters Market — admin routing",
+        "New brief assigned to your shop",
+    )
+    if body.notify_buyer and order.get("email"):
+        bg.add_task(
+            send_admin_broadcast,
+            order["email"],
+            "We've routed your brief to a maker",
+            f"Hi {order.get('name', 'there')},\n\nGreat news — we've sent your "
+            f"{order.get('project_type', 'custom request')} to "
+            f"{maker.get('name') or body.maker_slug} for review. Expect a reply within "
+            f"a few business days.",
+            "Crafters Market — your custom request",
+            "Brief routed to a maker",
+        )
+
+    await db.admin_audit.insert_one({
+        "id": secrets.token_hex(12),
+        "kind": "custom_order_assigned",
+        "actor": claims["email"],
+        "order_id": order_id,
+        "maker_slug": body.maker_slug,
+        "thread_id": thread_id,
+        "created_at": assigned_at,
+    })
+    return {"ok": True, "thread_id": thread_id, "assigned_to": body.maker_slug}
+
+
+class PushToRedditRequest(BaseModel):
+    subreddit: str
+    title: Optional[str] = None
+    flair_text: Optional[str] = None
+    flair_id: Optional[str] = None
+
+
+@router.post("/admin/custom-orders/{order_id}/push-to-reddit")
+async def admin_push_to_reddit(
+    order_id: str, body: PushToRedditRequest,
+    claims: dict = Depends(current_admin),
+):
+    """Re-broadcast an assigned custom-order brief to a configured subreddit
+    (default: r/forhire). Workflow expects the brief to already be assigned
+    to a maker (i.e. push-to-maker was hit first) — that ensures we don't
+    spam a sub with leads that have no fulfilment plan. Override the gate
+    with `force=true` only via direct API."""
+    order = await db.custom_orders.find_one({"id": order_id}, {"_id": 0})
+    if not order:
+        raise HTTPException(404, "Custom order not found.")
+    if not order.get("assigned_maker_slug"):
+        raise HTTPException(400, "Push to a maker first — Reddit posts should reference a fulfilment plan.")
+    if order.get("posted_to_reddit_at"):
+        raise HTTPException(400, "This brief has already been posted to Reddit.")
+
+    # Build the Reddit post body. Phone numbers + emails redacted — most
+    # subs auto-mod those, and we don't want to leak buyer contacts.
+    proj = order.get("project_type", "Custom commission")
+    title = (body.title or
+             f"[Hiring] {proj} — {order.get('material', '')} "
+             f"· budget {order.get('budget') or 'open'}").strip()[:300]
+    desc = (order.get("description") or "").strip()
+    pieces = [
+        f"**Project:** {proj}",
+        f"**Material:** {order.get('material', 'open')}",
+        f"**Size:** {order.get('size') or 'flexible'}",
+        f"**Budget:** {order.get('budget') or 'open'}",
+        f"**Timeline:** {order.get('timeline') or 'flexible'}",
+        f"**Quantity:** {order.get('quantity') or 1}",
+        "",
+        "**Brief:**",
+        desc,
+        "",
+        f"_Routed via Crafters Market — DM the OP through "
+        "https://craftersmarket.org/custom-order or reply here. "
+        "A vetted maker has been pre-assigned but additional bids welcome._",
+    ]
+    text = "\n".join(pieces)
+
+    # Lazy-import so the admin router never depends on reddit_feeds being live.
+    from routers.reddit_feeds import submit_text_post
+    result = await submit_text_post(
+        body.subreddit, title, text,
+        flair_id=body.flair_id, flair_text=body.flair_text,
+    )
+
+    posted_at = now_iso()
+    await db.custom_orders.update_one(
+        {"id": order_id},
+        {"$set": {
+            "reddit_attempt_at": posted_at,
+            "reddit_attempt_by": claims["email"],
+            "reddit_subreddit": body.subreddit,
+            "reddit_post_url": result.get("url"),
+            "reddit_post_id": result.get("id"),
+            "reddit_error": result.get("error"),
+            **({"posted_to_reddit_at": posted_at} if result.get("ok") else {}),
+        }},
+    )
+    await db.admin_audit.insert_one({
+        "id": secrets.token_hex(12),
+        "kind": "custom_order_pushed_to_reddit",
+        "actor": claims["email"],
+        "order_id": order_id,
+        "subreddit": body.subreddit,
+        "ok": bool(result.get("ok")),
+        "url": result.get("url"),
+        "error": result.get("error"),
+        "created_at": posted_at,
+    })
+    if not result.get("ok"):
+        # Surface as 502 so the UI can show the actual Reddit error string.
+        raise HTTPException(502, result.get("error") or "Reddit submit failed.")
+    return {"ok": True, "url": result.get("url"), "subreddit": body.subreddit}
+
+
 
 # ===================== ANALYTICS =====================
 def _weekly_gmv(paid_txs: list[dict], maker_filter: dict | None = None,

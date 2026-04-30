@@ -3,13 +3,14 @@ import { Link } from "react-router-dom";
 import {
   Box, MessageSquare, ShoppingBag, BarChart3, AlertTriangle,
   Megaphone, DollarSign, HelpCircle, Settings, ArrowLeft,
-  LayoutDashboard, SlidersHorizontal,
+  LayoutDashboard, SlidersHorizontal, Inbox,
 } from "lucide-react";
 
 const NAV = [
   { id: "dashboard",   label: "Dashboard",   icon: LayoutDashboard },
   { id: "listings",    label: "Listings",    icon: Box },
   { id: "orders",      label: "Orders",      icon: ShoppingBag },
+  { id: "briefs",      label: "Briefs",      icon: Inbox },
   { id: "messages",    label: "Messages",    icon: MessageSquare },
   { id: "stats",       label: "Stats",       icon: BarChart3 },
   { id: "violations",  label: "Violations",  icon: AlertTriangle },

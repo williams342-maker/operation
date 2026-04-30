@@ -532,6 +532,21 @@ export const fetchAutoBoostStatus = () =>
 export const updateAutoBoost = (payload) =>
   http.patch("/maker/auto-boost", payload, { headers: authHeaders() }).then((r) => r.data);
 
+// Custom-order routing (admin) + maker brief inbox
+export const pushBriefToMaker = (orderId, payload) =>
+  http.post(`/admin/custom-orders/${orderId}/push-to-maker`, payload,
+    { headers: adminAuthHeaders() }).then((r) => r.data);
+export const pushBriefToReddit = (orderId, payload) =>
+  http.post(`/admin/custom-orders/${orderId}/push-to-reddit`, payload,
+    { headers: adminAuthHeaders() }).then((r) => r.data);
+export const fetchRedditFeedStatus = () =>
+  http.get("/community/reddit/status").then((r) => r.data);
+export const fetchMakerBriefs = () =>
+  http.get("/maker/briefs", { headers: authHeaders() }).then((r) => r.data);
+export const updateMakerBrief = (briefId, payload) =>
+  http.patch(`/maker/briefs/${briefId}`, payload, { headers: authHeaders() }).then((r) => r.data);
+
+
 // Direct multipart upload — works for any signed-in community user (buyer OR maker).
 // Passes the freshest Bearer token (maker JWT wins over buyer JWT for attribution).
 export const uploadDesignFileDirect = (

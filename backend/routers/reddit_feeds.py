@@ -222,6 +222,7 @@ async def feed_status():
     state."""
     return {
         "configured": _credentials_present(),
+        "can_post": _can_post_to_reddit(),
         "subreddits": await _get_subreddits(),
         "cache_ttl_seconds": CACHE_TTL_SECONDS,
     }
@@ -309,4 +310,124 @@ async def admin_refresh_cache(_: dict = Depends(current_admin)):
     async with _cache_lock:
         _cache.clear()
     return {"ok": True, "cache": "cleared"}
+
+
+# ---------------- Posting (script-app password grant) ----------------
+# Posting requires a USER context — the OAuth client_credentials flow is
+# read-only. Reddit's "script" app type uses the password grant: we
+# authenticate the configured Reddit account directly and then call
+# /api/submit on its behalf. To enable, set in /app/backend/.env:
+#   REDDIT_USERNAME=<the account that owns the script app>
+#   REDDIT_PASSWORD=<that account's password>
+# (CLIENT_ID + CLIENT_SECRET from the read-only setup are reused.)
+_post_token_state: dict = {"token": None, "expires_at": 0.0}
+_post_token_lock = asyncio.Lock()
+
+
+def _can_post_to_reddit() -> bool:
+    return (
+        _credentials_present()
+        and bool(os.environ.get("REDDIT_USERNAME"))
+        and bool(os.environ.get("REDDIT_PASSWORD"))
+    )
+
+
+async def _get_user_token() -> Optional[str]:
+    """Fetch a user-context bearer token via the password grant. Cached
+    until 5 min before expiry. Returns None when REDDIT_USERNAME /
+    REDDIT_PASSWORD are missing."""
+    if not _can_post_to_reddit():
+        return None
+    now = time.time()
+    async with _post_token_lock:
+        if _post_token_state["token"] and now < (_post_token_state["expires_at"] - 300):
+            return _post_token_state["token"]
+        try:
+            async with httpx.AsyncClient(
+                timeout=10.0, headers={"User-Agent": USER_AGENT},
+            ) as client:
+                r = await client.post(
+                    "https://www.reddit.com/api/v1/access_token",
+                    auth=(os.environ["REDDIT_CLIENT_ID"], os.environ["REDDIT_CLIENT_SECRET"]),
+                    data={
+                        "grant_type": "password",
+                        "username": os.environ["REDDIT_USERNAME"],
+                        "password": os.environ["REDDIT_PASSWORD"],
+                    },
+                )
+            if r.status_code != 200:
+                logger.warning("[reddit] user token endpoint → HTTP %s · %s", r.status_code, r.text[:200])
+                return None
+            j = r.json()
+            _post_token_state["token"] = j["access_token"]
+            _post_token_state["expires_at"] = now + int(j.get("expires_in") or 3600)
+            return _post_token_state["token"]
+        except Exception as e:
+            logger.warning("[reddit] user token acquisition failed: %s", e)
+            return None
+
+
+async def submit_text_post(
+    subreddit: str, title: str, text: str,
+    flair_id: Optional[str] = None, flair_text: Optional[str] = None,
+) -> dict:
+    """Submit a self-text post to `subreddit`. Returns
+    `{ok: bool, url: str|None, error: str|None}`. Used by admin custom-order
+    push-to-reddit. Will not raise — error string is bubbled to the caller
+    so the admin can see why a sub rejected it (auto-mod, missing flair,
+    new-account karma gate, etc.)."""
+    if not _can_post_to_reddit():
+        return {"ok": False, "url": None,
+                "error": "Reddit posting not configured (missing REDDIT_USERNAME / REDDIT_PASSWORD)."}
+    if not _SUB_RE.match(subreddit):
+        return {"ok": False, "url": None, "error": "Invalid subreddit name."}
+    title = (title or "").strip()[:300]
+    if not title:
+        return {"ok": False, "url": None, "error": "Title required."}
+    text = (text or "").strip()[:40000]
+
+    token = await _get_user_token()
+    if not token:
+        return {"ok": False, "url": None, "error": "Reddit auth failed (check username/password)."}
+    payload = {
+        "sr": subreddit,
+        "kind": "self",
+        "title": title,
+        "text": text,
+        "api_type": "json",
+        "sendreplies": "true",
+    }
+    if flair_id:
+        payload["flair_id"] = flair_id
+    if flair_text:
+        payload["flair_text"] = flair_text[:64]
+    try:
+        async with httpx.AsyncClient(
+            timeout=15.0,
+            headers={"User-Agent": USER_AGENT,
+                     "Authorization": f"bearer {token}",
+                     "Accept": "application/json"},
+        ) as client:
+            r = await client.post(
+                "https://oauth.reddit.com/api/submit",
+                data=payload,
+            )
+        if r.status_code != 200:
+            return {"ok": False, "url": None,
+                    "error": f"Reddit HTTP {r.status_code}: {r.text[:300]}"}
+        body = r.json() if r.content else {}
+        # Reddit's response shape:
+        #   {json: {errors: [...], data: {url, name, id, drafts_count}}}
+        envelope = (body.get("json") or {})
+        errors = envelope.get("errors") or []
+        if errors:
+            return {"ok": False, "url": None,
+                    "error": "; ".join(" ".join(str(p) for p in e) for e in errors)}
+        data = envelope.get("data") or {}
+        return {"ok": True, "url": data.get("url") or None,
+                "id": data.get("id"), "name": data.get("name"), "error": None}
+    except Exception as e:
+        logger.exception("[reddit] submit failed: %s", e)
+        return {"ok": False, "url": None, "error": str(e)}
+
 

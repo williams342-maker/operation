@@ -1212,3 +1212,47 @@ async def maker_update_auto_boost(
         raise HTTPException(400, "Nothing to update.")
     await db.makers.update_one({"slug": slug}, {"$set": update})
     return {"ok": True, "applied": update}
+
+
+
+# ---------------- Admin-routed briefs ----------------
+@router.get("/maker/briefs")
+async def maker_assigned_briefs(slug: str = Depends(current_maker_slug)):
+    """List custom-order briefs that an admin routed to this maker via
+    POST /api/admin/custom-orders/{id}/push-to-maker. Newest first."""
+    rows = await db.custom_orders.find(
+        {"assigned_maker_slug": slug},
+        {"_id": 0},
+    ).sort("assigned_at", -1).to_list(200)
+    return rows
+
+
+class BriefStatusUpdate(BaseModel):
+    status: str  # "accepted" | "declined" | "in_progress" | "completed"
+    note: Optional[str] = None
+
+
+@router.patch("/maker/briefs/{brief_id}")
+async def maker_update_brief(
+    brief_id: str, body: BriefStatusUpdate,
+    slug: str = Depends(current_maker_slug),
+):
+    """Maker action on an admin-routed brief — accept, decline, mark
+    in-progress, or mark complete. The admin sees status in the audit log
+    and the brief row in the admin custom-orders dashboard."""
+    valid = {"accepted", "declined", "in_progress", "completed"}
+    if body.status not in valid:
+        raise HTTPException(400, f"status must be one of: {', '.join(sorted(valid))}")
+    brief = await db.custom_orders.find_one(
+        {"id": brief_id, "assigned_maker_slug": slug},
+        {"_id": 0},
+    )
+    if not brief:
+        raise HTTPException(404, "Brief not found or not assigned to your shop.")
+    update = {
+        "maker_response_status": body.status,
+        "maker_response_at": now_iso(),
+        "maker_response_note": (body.note or "").strip()[:2000] or None,
+    }
+    await db.custom_orders.update_one({"id": brief_id}, {"$set": update})
+    return {"ok": True, "status": body.status}
