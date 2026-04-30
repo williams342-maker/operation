@@ -244,11 +244,11 @@ export default function DashboardTab({
             </div>
           ) : (
             <ul className="divide-y divide-[#1f1f1f]">
-              {recentOrders.map((o) => (
+              {recentOrders.map((o, idx) => (
                 <li
-                  key={o.session_id || o.id || o.created_at}
+                  key={`${o.session_id || o.id || o.created_at || "order"}-${idx}`}
                   className="py-3 flex items-center justify-between gap-3"
-                  data-testid={`dashboard-order-${o.session_id || o.id}`}
+                  data-testid={`dashboard-order-${o.session_id || o.id || idx}`}
                 >
                   <div className="min-w-0 flex-1">
                     <div className="font-mono text-xs text-[#e5e5e5] truncate">

@@ -3,6 +3,37 @@
 _All dated iteration entries. Newest on top. Each iter is verified (via testing agent or self-tested) before landing — unless explicitly noted._
 
 
+## 2026-02 — iter63 — Six-item batch: auto-Stripe-customer, spend cap, SMS nudge wiring, PRD split, key-bug, address validation (TESTED ✅ 11/11 backend)
+- ✨ **(a) Auto Stripe Customer on first label purchase**: `_ensure_stripe_customer()`
+  lazily creates a Stripe Customer for makers without one, stamps it on
+  the maker doc, idempotent. Graceful 401 handling — if the key is bad
+  (e.g. placeholder in dev env) the label purchase still succeeds; the
+  weekly invoice job will simply skip that maker until next attempt.
+- ✨ **(b) Monthly shipping-spend cap**: PATCH `/api/maker/shipping/cap`
+  with `{monthly_cap_usd}`. Enforced in `buy_label` BEFORE Shippo call —
+  returns 402 with actionable message naming the cap amount + spent
+  amount + where to adjust. Cap=0 disables. UI: new `CapRow` in Maker
+  Financials → Shipping labels, yellow at ≥80% of cap / red when over.
+  Ledger response now exposes `monthly_cap_cents` + `month_spent_cents`.
+- ✨ **(c) Twilio SMS delivery nudge**: new `twilio_service.py` wrapper
+  with graceful no-op if not configured. Wired into the Shippo DELIVERED
+  webhook path — peak referral moment. Awaiting user's Twilio keys
+  (`TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_FROM_NUMBER`).
+- ✨ **(d) PRD.md split** into PRD.md (82 lines, stable problem
+  statement + architecture), CHANGELOG.md (1269 lines, dated iters),
+  ROADMAP.md (57 lines, P0/P1/P2 buckets).
+- 🐛 **(e) DashboardTab duplicate-key** fix: recent-orders `<li key>` now
+  uses `${session_id||id||created_at}-${idx}` for guaranteed uniqueness.
+  (First pass in iter63 failed — 3 orders share fallback value. Fixed
+  post-test-agent feedback with index-tail.)
+- ✨ **(f) Pre-flight address validation**: new POST
+  `/api/maker/shipping/validate-address` calls Shippo addresses.create
+  with `validate=True`. UI: "Validate addresses" button on
+  ShippingLabelModal step-1 fires parallel validation for both
+  addresses; renders green ✓ or yellow warning w/ "Use suggested: ..."
+  one-click apply. Catches typos BEFORE the rate lookup.
+- Tests: 11/11 backend pytest green (`/app/test_reports/iteration_44.json`).
+
 
 ## 2026-02 — iter62 — Phase 2B/2C/2D · Shipping Invoicing End-to-End (TESTED ✅ 100%)
 - ✨ **Maker Financials → "Shipping labels" sub-tab** (Phase 2C):
