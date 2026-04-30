@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   quoteCustomOrder, pushBriefToMaker, pushBriefToReddit,
-  fetchRedditFeedStatus, fetchMakers, http,
+  fetchRedditFeedStatus, fetchMakers, fetchBriefMakerSuggestions, http,
 } from "../../lib/api";
 import { adminAuthHeaders } from "../../lib/api"; // eslint-disable-line no-unused-vars
 import { formatDate } from "./_shared";
@@ -141,6 +141,16 @@ function CustomOrderRow({ order, makers, reddit, onChange }) {
   const [redditSub, setRedditSub] = useState(
     (reddit.subreddits && reddit.subreddits[0]) || "forhire",
   );
+  const [suggestions, setSuggestions] = useState([]);
+
+  // Load top-N maker suggestions for this brief on first render.
+  // Skips re-fetching if the brief is already assigned (not useful then).
+  useEffect(() => {
+    if (order.assigned_maker_slug) return;
+    fetchBriefMakerSuggestions(order.id)
+      .then((d) => setSuggestions(d.suggestions || []))
+      .catch(() => {});
+  }, [order.id, order.assigned_maker_slug]);
 
   const submitQuote = async () => {
     if (!quote || isNaN(Number(quote))) return;
@@ -292,6 +302,35 @@ function CustomOrderRow({ order, makers, reddit, onChange }) {
         <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-3">
           Step 2 · Route to a maker
         </div>
+        {suggestions.length > 0 && !order.assigned_maker_slug && (
+          <div className="mb-3 pb-3 border-b border-[#1a1a1a]" data-testid={`brief-suggestions-${order.id}`}>
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-yellow-400 mb-2 flex items-center gap-1">
+              ✨ Suggested matches
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              {suggestions.slice(0, 5).map((s, i) => (
+                <button
+                  key={s.slug}
+                  type="button"
+                  onClick={() => setMakerSlug(s.slug)}
+                  className={`text-left px-3 py-2 border transition font-mono text-xs hover:border-yellow-400 ${
+                    makerSlug === s.slug
+                      ? "border-yellow-400 bg-yellow-400/5"
+                      : "border-[#262626]"
+                  }`}
+                  data-testid={`brief-suggestion-${order.id}-${i}`}
+                  title={s.reason}
+                >
+                  <div className="text-[#e5e5e5]">
+                    {i === 0 && <span className="text-yellow-400 mr-1">★</span>}
+                    {s.name}
+                  </div>
+                  <div className="text-[10px] text-[#a3a3a3] mt-0.5">{s.reason}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <div className="grid md:grid-cols-3 gap-3 items-start">
           <select
             value={makerSlug}

@@ -1187,6 +1187,109 @@ async def admin_push_to_maker(
     return {"ok": True, "thread_id": thread_id, "assigned_to": body.maker_slug}
 
 
+@router.get("/admin/custom-orders/{order_id}/maker-suggestions")
+async def admin_maker_suggestions(
+    order_id: str, _: dict = Depends(current_admin),
+):
+    """Rank makers for a brief by:
+      A. material/category overlap — counts the maker's published products
+         whose `materials` array OR `category` text matches the brief's
+         material or project_type (case-insensitive substring).
+      B. historical win-rate on routed briefs (`won_bid / routed`).
+      C. total briefs routed (tie-break, mild boost — proven engagement).
+    Skips makers with shop_closed/vacation_mode set or no email on file.
+    Returns top 8 with `reason` + `score` so the UI can show why."""
+    order = await db.custom_orders.find_one({"id": order_id}, {"_id": 0})
+    if not order:
+        raise HTTPException(404, "Custom order not found.")
+    material = (order.get("material") or "").strip().lower()
+    project_type = (order.get("project_type") or "").strip().lower()
+    keywords = {w for w in (material, project_type) if w}
+
+    # 1. Maker history aggregation.
+    agg_pipeline = [
+        {"$match": {"assigned_maker_slug": {"$ne": None}}},
+        {"$group": {
+            "_id": "$assigned_maker_slug",
+            "routed": {"$sum": 1},
+            "won": {"$sum": {"$cond": [{"$eq": ["$maker_response_status", "won_bid"]}, 1, 0]}},
+            "completed": {"$sum": {"$cond": [{"$eq": ["$maker_response_status", "completed"]}, 1, 0]}},
+            "declined": {"$sum": {"$cond": [{"$eq": ["$maker_response_status", "declined"]}, 1, 0]}},
+        }},
+    ]
+    history_rows = [r async for r in db.custom_orders.aggregate(agg_pipeline)]
+    history = {r["_id"]: r for r in history_rows if r.get("_id")}
+
+    # 2. Active makers — exclude closed shops + missing emails.
+    cursor = db.makers.find(
+        {"shop_closed": {"$ne": True}, "vacation_mode": {"$ne": True},
+         "email": {"$exists": True, "$ne": None}},
+        {"_id": 0, "slug": 1, "name": 1, "location": 1, "techniques": 1},
+    )
+    makers = await cursor.to_list(500)
+
+    # 3. Score loop. For every active maker, count their published products
+    #    whose materials/category match this brief.
+    suggestions = []
+    for m in makers:
+        slug = m["slug"]
+        # Material/category overlap (counted across published products)
+        match_q = {
+            "maker_slug": slug,
+            "status": "published",
+        }
+        product_count = await db.products.count_documents(match_q)
+        if not product_count:
+            continue
+        if keywords:
+            or_clauses = []
+            for kw in keywords:
+                or_clauses.append({"materials": {"$regex": kw, "$options": "i"}})
+                or_clauses.append({"category": {"$regex": kw, "$options": "i"}})
+                or_clauses.append({"technique": {"$regex": kw, "$options": "i"}})
+            material_match = await db.products.count_documents({**match_q, "$or": or_clauses})
+        else:
+            material_match = 0
+
+        h = history.get(slug, {"routed": 0, "won": 0, "completed": 0, "declined": 0})
+        routed = h["routed"]
+        win_rate = (h["won"] / routed) if routed else 0.0
+        # Score: material match dominates (each match = +5), then a 100x
+        # multiplier on win_rate, plus a mild boost for past engagement.
+        score = (material_match * 5) + (win_rate * 100) + min(routed, 5)
+
+        # Build a human-readable "reason" string the UI shows under each suggestion.
+        reasons = []
+        if material_match:
+            reasons.append(f"{material_match} matching listing{'s' if material_match != 1 else ''}")
+        if h["won"]:
+            reasons.append(f"{int(win_rate * 100)}% win-rate ({h['won']}/{routed})")
+        elif routed:
+            reasons.append(f"{routed} prior brief{'s' if routed != 1 else ''}")
+        if h["declined"] >= 3 and h["declined"] >= routed:
+            # Spent flag — many declines, never won → don't highlight.
+            score *= 0.5
+            reasons.append(f"⚠ {h['declined']} declined")
+        if not reasons:
+            reasons.append(f"{product_count} active listings")
+
+        suggestions.append({
+            "slug": slug,
+            "name": m.get("name") or slug,
+            "location": m.get("location") or "",
+            "score": round(score, 2),
+            "material_match": material_match,
+            "product_count": product_count,
+            "win_rate": win_rate,
+            "won": h["won"],
+            "routed": routed,
+            "reason": " · ".join(reasons),
+        })
+
+    suggestions.sort(key=lambda s: s["score"], reverse=True)
+    return {"suggestions": suggestions[:8], "keywords": list(keywords)}
+
+
 @router.get("/admin/custom-orders/funnel")
 async def admin_brief_funnel(_: dict = Depends(current_admin)):
     """Conversion-rate analytics for the brief routing pipeline. Counts

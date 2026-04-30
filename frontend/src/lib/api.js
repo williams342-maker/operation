@@ -539,6 +539,9 @@ export const pushBriefToMaker = (orderId, payload) =>
 export const pushBriefToReddit = (orderId, payload) =>
   http.post(`/admin/custom-orders/${orderId}/push-to-reddit`, payload,
     { headers: adminAuthHeaders() }).then((r) => r.data);
+export const fetchBriefMakerSuggestions = (orderId) =>
+  http.get(`/admin/custom-orders/${orderId}/maker-suggestions`,
+    { headers: adminAuthHeaders() }).then((r) => r.data);
 export const fetchRedditFeedStatus = () =>
   http.get("/community/reddit/status").then((r) => r.data);
 export const fetchMakerBriefs = () =>
