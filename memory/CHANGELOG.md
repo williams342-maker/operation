@@ -3,6 +3,34 @@
 _All dated iteration entries. Newest on top. Each iter is verified (via testing agent or self-tested) before landing — unless explicitly noted._
 
 
+## 2026-02 — iter68 — STL → PNG Auto-Thumbnail Renderer (TESTED ✅ 14/14 + frontend green)
+- ✨ **Pure-Python renderer** (`backend/stl_renderer.py`) using `trimesh`
+  4.12 + Matplotlib Agg backend (no GPU/OpenGL needed). 800×600 PNG in
+  brand palette (`#0a0a0a` bg, `#ff4500` mesh, `#262626` edges). Caps:
+  50 MB / 250k triangles with quadric-decimation fallback.
+- ✨ **New endpoint** `POST /api/community/files/{id}/render/stl-thumbnail`
+  — owner-only, idempotent (409 if `thumbnail_url` already set). Fetches
+  STL from R2, renders off the event loop via `asyncio.to_thread`,
+  uploads PNG to R2, stamps the design_files row with `thumbnail_url`
+  + `thumbnail_auto_generated=true`. 422 on parse failure with friendly
+  copy ("STL appears corrupted or unreadable — re-export from your
+  slicer"). 400 if no STL in bundle.
+- ✨ **Smart "Missing a thumbnail" prompt** on owner FileCards. Same
+  orange-dashed strip pattern as the DXF→SVG one. One click → toast,
+  thumb appears at the top of the card with a **`✦ RENDERED`** ribbon
+  overlay so buyers know it's machine-generated.
+- ✨ **Card actually shows the thumbnail now**: FileCard renders an
+  `<img>` at the top of the card whenever `thumbnail_url` is set
+  (4:3 aspect, object-contain). This was a latent gap from before —
+  uploaded thumbnails were stored but never displayed.
+- Tests: 14/14 backend pytest + frontend visual verification
+  (`/app/test_reports/iteration_49.json`). Performance: 64KB STL →
+  107KB PNG in **334ms**. All cross-user/role security paths verified
+  (uses `_is_design_file_owner` from iter67).
+- Deps added: `trimesh==4.12.1`, `matplotlib==3.10.9` (both pure-Python
+  on the rendering side, no system libs required in the K8s pod).
+
+
 ## 2026-02 — iter67 — DXF→SVG Converter + Smart "Missing Format" Prompt + 🔒 ownership-bug fix (TESTED ✅)
 - ✨ **Pure-Python converter** (`backend/dxf_converter.py`) using
   `ezdxf` 1.4.3 (BSD licence). Strict `ezdxf.read` first; falls back
