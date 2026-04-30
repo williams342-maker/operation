@@ -48,6 +48,57 @@ export default function PricingSection({
             <p className="font-mono text-[10px] text-[#525252] mt-1">units available</p>
           </div>
         </div>
+
+        {/* Backorder controls — only relevant once the listing might hit
+            0 stock. Three states: inherit (null) / on (true) / off (false).
+            Lead-time is shown only when on, since `off` will never need it. */}
+        <div className="mt-5 border-t border-[#262626] pt-5">
+          <Label>Backorders</Label>
+          <p className="font-mono text-[10px] text-[#525252] mb-3 leading-relaxed">
+            When this listing hits 0 stock, should buyers be able to submit a
+            backorder request? Default uses your shop-wide setting.
+          </p>
+          <div className="flex flex-wrap gap-2 mb-3" data-testid="editor-backorder-mode">
+            {[
+              { v: null,  label: "◆ Use shop default" },
+              { v: true,  label: "✓ Allow backorders" },
+              { v: false, label: "✕ Disable" },
+            ].map((opt) => {
+              const active = (form.accepts_backorders === undefined ? null : form.accepts_backorders) === opt.v;
+              return (
+                <button
+                  key={String(opt.v)}
+                  type="button"
+                  onClick={() => set({ accepts_backorders: opt.v })}
+                  data-testid={`editor-backorder-${opt.v === null ? "inherit" : opt.v ? "on" : "off"}`}
+                  className={`px-3 py-2 border font-mono text-[11px] uppercase tracking-[0.22em] transition ${
+                    active
+                      ? "border-[#ff4500] bg-[#ff4500]/10 text-[#ff4500]"
+                      : "border-[#262626] text-[#a3a3a3] hover:border-[#ff4500]/50"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+          {form.accepts_backorders === true && (
+            <div data-testid="editor-backorder-lead-row">
+              <Label>Lead time (weeks)</Label>
+              <input
+                type="number" min="1" max="52" step="1"
+                value={form.backorder_lead_weeks ?? ""}
+                onChange={(e) => set({ backorder_lead_weeks: e.target.value === "" ? null : parseInt(e.target.value, 10) })}
+                placeholder="4"
+                className="w-32 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm"
+                data-testid="editor-backorder-lead"
+              />
+              <p className="font-mono text-[10px] text-[#525252] mt-1 leading-relaxed">
+                Shown to buyers as &ldquo;~N weeks after acceptance&rdquo;. Default 4 weeks if blank.
+              </p>
+            </div>
+          )}
+        </div>
       </Section>
 
       {/* ---------- Variations ---------- */}

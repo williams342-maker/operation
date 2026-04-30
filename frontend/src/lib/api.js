@@ -292,6 +292,20 @@ const adminAuthHeaders = () => {
 export const fetchAdminAnalytics = () =>
   http.get("/admin/analytics", { headers: adminAuthHeaders() }).then((r) => r.data);
 
+// ---------- Backorders ----------
+export const fetchBackorderPolicy = (slug) =>
+  http.get(`/products/${slug}/backorder-policy`).then((r) => r.data);
+export const submitBackorderRequest = (slug, payload) =>
+  http.post(`/products/${slug}/backorder-request`, payload).then((r) => r.data);
+export const fetchMakerBackorderRequests = () =>
+  http.get("/maker/backorder-requests", { headers: authHeaders() }).then((r) => r.data);
+export const acceptBackorderRequest = (id) =>
+  http.post(`/maker/backorder-requests/${id}/accept`, {}, { headers: authHeaders() }).then((r) => r.data);
+export const declineBackorderRequest = (id, decline_reason = "") =>
+  http.post(`/maker/backorder-requests/${id}/decline`, { decline_reason }, { headers: authHeaders() }).then((r) => r.data);
+export const fulfillBackorderRequest = (id) =>
+  http.post(`/maker/backorder-requests/${id}/fulfill`, {}, { headers: authHeaders() }).then((r) => r.data);
+
 // ---------- Workshop Analytics Dashboard (isolated namespace) ----------
 const fetchWorkshop = (path) =>
   http.get(`/workshop-analytics${path}`, { headers: adminAuthHeaders() }).then((r) => r.data);

@@ -167,6 +167,8 @@ class MakerProductUpdate(BaseModel):
     accept_exchanges: Optional[bool] = None
     seo_tags: Optional[List[str]] = None
     contact_email: Optional[str] = None
+    accepts_backorders: Optional[bool] = None
+    backorder_lead_weeks: Optional[int] = None
 
 
 class ProductVariantInput(BaseModel):

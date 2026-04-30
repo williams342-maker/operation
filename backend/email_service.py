@@ -687,6 +687,165 @@ async def send_buyer_shipped(
         html,
     )
 
+async def send_buyer_backorder_received(
+    buyer_email: str, buyer_name: str, product_title: str,
+    lead_weeks: int, maker_name: str,
+):
+    """Confirmation that the request was logged. Sets the maker's
+    expected lead time as a concrete number of weeks so the buyer knows
+    when to expect a yes/no."""
+    if not buyer_email:
+        return None
+    body = (
+        f"<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 18px'>"
+        f"Hi {buyer_name.split()[0] if buyer_name else 'there'}, your backorder request for "
+        f"<b style='color:#ff4500'>{product_title}</b> has been sent to {maker_name}.</p>"
+        "<div style='border:1px solid #262626;padding:18px;margin:18px 0'>"
+        "<div style='font-family:JetBrains Mono,monospace;font-size:10px;letter-spacing:0.22em;"
+        "text-transform:uppercase;color:#a3a3a3;margin:0 0 10px'>Lead time</div>"
+        f"<div style='font-family:Impact,sans-serif;font-size:28px;color:#ff4500;line-height:1'>"
+        f"~{lead_weeks} {'week' if lead_weeks == 1 else 'weeks'}</div>"
+        "<div style='font-family:JetBrains Mono,monospace;font-size:11px;color:#525252;margin-top:6px'>"
+        "from the day the maker accepts</div></div>"
+        "<p style='font-size:13px;color:#a3a3a3;line-height:1.6'>"
+        f"{maker_name} will review your request and reach out by email — usually within 2 business days. "
+        "Payment is collected only once they accept and confirm. No charge today."
+        "</p>"
+    )
+    html = _shell(
+        "Backorder request received.",
+        f"We forwarded it to {maker_name}.",
+        body, "Backorders",
+    )
+    return await _send(
+        buyer_email,
+        f"Backorder request received · {product_title}",
+        html,
+    )
+
+
+async def send_maker_backorder_alert(
+    maker_email: str, maker_name: str, buyer_name: str, buyer_email: str,
+    product_title: str, quantity: int, message: str,
+):
+    if not maker_email:
+        return None
+    site = (os.environ.get("PUBLIC_SITE_URL") or os.environ.get("FRONTEND_URL")
+            or "https://craftersmarket.org").rstrip("/")
+    body = (
+        f"<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 18px'>"
+        f"Hi {maker_name}, you have a new backorder request for "
+        f"<b style='color:#ff4500'>{product_title}</b>.</p>"
+        "<div style='border:1px solid #262626;padding:16px;margin:18px 0;font-size:13px;color:#e5e5e5;line-height:1.7'>"
+        f"<div><span style='color:#a3a3a3'>Buyer:</span> {buyer_name} · "
+        f"<a href='mailto:{buyer_email}' style='color:#ff4500'>{buyer_email}</a></div>"
+        f"<div><span style='color:#a3a3a3'>Quantity:</span> {quantity}</div>"
+    )
+    if message:
+        body += (
+            "<div style='border-top:1px solid #1f1f1f;margin-top:10px;padding-top:10px'>"
+            "<div style='color:#a3a3a3;font-size:11px;text-transform:uppercase;letter-spacing:0.22em;margin-bottom:6px'>Message</div>"
+            f"<div style='color:#e5e5e5'>{message}</div></div>"
+        )
+    body += "</div>"
+    body += (
+        f"<a href='{site}/maker/dashboard?tab=orders' style='display:inline-block;"
+        "background:#ff4500;color:#0a0a0a;padding:12px 22px;font-family:Impact,Arial Black,sans-serif;"
+        "font-size:13px;letter-spacing:0.18em;text-transform:uppercase;text-decoration:none;"
+        "border:1px solid #ff4500'>Review backorder →</a>"
+        "<p style='font-size:12px;color:#525252;line-height:1.6;margin-top:18px'>"
+        "Open the Backorders sub-tab inside Orders to accept or decline. "
+        "Buyers see your decision via email; payment is handled off-platform after you accept.</p>"
+    )
+    html = _shell(
+        "New backorder request.",
+        f"{buyer_name} wants to backorder a piece.",
+        body, "Maker backorder alert",
+    )
+    return await _send(
+        maker_email,
+        f"Backorder request · {product_title} · {buyer_name}",
+        html,
+    )
+
+
+async def send_buyer_backorder_accepted(
+    buyer_email: str, buyer_name: str, product_title: str, lead_weeks: int,
+    maker_name: str, maker_email: str,
+):
+    if not buyer_email:
+        return None
+    name = buyer_name.split()[0] if buyer_name else "there"
+    contact = (
+        f"<a href='mailto:{maker_email}' style='color:#ff4500'>{maker_email}</a>"
+        if maker_email else "the maker directly"
+    )
+    body = (
+        f"<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 18px'>"
+        f"Great news, {name} — {maker_name} accepted your backorder request for "
+        f"<b style='color:#ff4500'>{product_title}</b>.</p>"
+        "<div style='border:1px solid #ff4500;padding:18px;margin:18px 0'>"
+        "<div style='font-family:JetBrains Mono,monospace;font-size:10px;letter-spacing:0.22em;"
+        "text-transform:uppercase;color:#ff4500;margin:0 0 8px'>◆ Confirmed lead time</div>"
+        f"<div style='font-family:Impact,sans-serif;font-size:32px;color:#e5e5e5;line-height:1'>"
+        f"~{lead_weeks} {'week' if lead_weeks == 1 else 'weeks'}</div></div>"
+        "<p style='font-size:13px;color:#e5e5e5;line-height:1.6'>"
+        f"{maker_name} will be in touch shortly to coordinate payment and shipping. "
+        f"Reply to this email or contact them directly: {contact}.</p>"
+        "<p style='font-size:12px;color:#525252;line-height:1.6;margin-top:14px'>"
+        "Crafters Market doesn't process backorder payments — these are handled directly between "
+        "you and the maker so they can quote materials, customizations, and shipping accurately."
+        "</p>"
+    )
+    html = _shell(
+        "Backorder accepted.",
+        f"{maker_name} confirmed your request.",
+        body, "Backorders",
+    )
+    return await _send(
+        buyer_email,
+        f"Backorder accepted · {product_title}",
+        html,
+    )
+
+
+async def send_buyer_backorder_declined(
+    buyer_email: str, buyer_name: str, product_title: str,
+    maker_name: str, reason: str,
+):
+    if not buyer_email:
+        return None
+    name = buyer_name.split()[0] if buyer_name else "there"
+    body = (
+        f"<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 18px'>"
+        f"Hi {name}, {maker_name} isn't able to fulfill your backorder request for "
+        f"<b style='color:#e5e5e5'>{product_title}</b> right now.</p>"
+    )
+    if reason:
+        body += (
+            "<div style='border-left:2px solid #ff4500;padding:6px 14px;margin:18px 0;"
+            f"font-size:13px;color:#e5e5e5;line-height:1.6'>{reason}</div>"
+        )
+    body += (
+        "<p style='font-size:13px;color:#a3a3a3;line-height:1.6'>"
+        "Don't take it personally — capacity, materials availability, and "
+        "seasonal workloads all factor in. You're welcome to browse other makers' "
+        "shops or check back later when stock is restored."
+        "</p>"
+    )
+    html = _shell(
+        "Backorder update.",
+        f"From {maker_name}",
+        body, "Backorders",
+    )
+    return await _send(
+        buyer_email,
+        f"Backorder update · {product_title}",
+        html,
+    )
+
+
+
 
 async def send_buyer_delivered(
     buyer_email: str, buyer_name: str | None,

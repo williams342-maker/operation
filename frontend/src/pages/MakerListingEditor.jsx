@@ -125,6 +125,10 @@ export default function MakerListingEditor() {
             processing_time: found.processing_time || "1-3 business days",
             variants: found.variants || [],
             status: found.status || "draft",
+            // Backorders — preserve `null` (inherit from maker default)
+            // distinct from explicit `false` (override off)
+            accepts_backorders: found.accepts_backorders ?? null,
+            backorder_lead_weeks: found.backorder_lead_weeks ?? null,
           });
           setLoaded(true);
         }
@@ -431,6 +435,8 @@ export default function MakerListingEditor() {
     accept_exchanges: form.accept_exchanges,
     seo_tags: form.seo_tags,
     contact_email: form.contact_email || null,
+    accepts_backorders: form.accepts_backorders,
+    backorder_lead_weeks: form.backorder_lead_weeks ?? null,
   });
 
   const submit = async (statusOverride) => {

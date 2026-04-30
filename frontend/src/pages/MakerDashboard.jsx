@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import confetti from "canvas-confetti";
 import {
   fetchMakerMe, fetchMakerOrders, fetchMakerProducts, fetchMakerThreads,
+  fetchMakerBackorderRequests,
 } from "../lib/api";
 
 import ShopManagerLayout from "./MakerDashboard/ShopManagerLayout";
@@ -11,6 +12,7 @@ import DashboardTab from "./MakerDashboard/DashboardTab";
 import SettingsTab from "./MakerDashboard/SettingsTab";
 import ProductsList from "./MakerDashboard/ProductsList";
 import OrdersList from "./MakerDashboard/OrdersList";
+import BackordersList from "./MakerDashboard/BackordersList";
 import StatsTab from "./MakerDashboard/StatsTab";
 import ViolationsTab from "./MakerDashboard/ViolationsTab";
 import MarketingTab from "./MakerDashboard/MarketingTab";
@@ -359,29 +361,49 @@ export default function MakerDashboard() {
   );
 }
 
-/** Orders tab — wraps the existing list with Pending/Fulfilled subtabs. */
+/** Orders tab — wraps the existing list with Pending/Fulfilled/Backorders subtabs. */
 function OrdersTabWrapper({ orders, reload }) {
   const [sub, setSub] = useState("pending");
+  const [backorders, setBackorders] = useState([]);
+  // Lazy-load backorder requests on first switch into that tab so we
+  // avoid an extra API hit on every dashboard mount. Refetched after
+  // every accept/decline/fulfill via reloadBackorders() handed down.
+  const reloadBackorders = React.useCallback(
+    () => fetchMakerBackorderRequests().then(setBackorders).catch(() => {}),
+    [],
+  );
+  useEffect(() => {
+    if (sub === "backorders") reloadBackorders();
+  }, [sub, reloadBackorders]);
+
   const pending = orders.filter((o) => (o.order_status || "pending") !== "fulfilled");
   const fulfilled = orders.filter((o) => o.order_status === "fulfilled");
-  const visible = sub === "pending" ? pending : fulfilled;
+  const visible = sub === "pending" ? pending : sub === "fulfilled" ? fulfilled : null;
+  const pendingBackorders = backorders.filter((b) => b.status === "pending").length;
+
   return (
     <div className="space-y-6" data-testid="orders-tab">
       <header className="pb-6 border-b border-[#262626]">
         <h2 className="font-display text-3xl md:text-4xl uppercase">Orders.</h2>
         <p className="font-mono text-xs text-[#a3a3a3] mt-2">
           Pending orders need shipping action. Fulfilled orders are paid out via Stripe.
+          Backorder requests are handled off-platform.
         </p>
       </header>
-      <div className="flex gap-2" data-testid="orders-subtabs">
+      <div className="flex gap-2 flex-wrap" data-testid="orders-subtabs">
         <SubTab active={sub === "pending"} onClick={() => setSub("pending")} count={pending.length} testid="orders-sub-pending">
           Pending
         </SubTab>
         <SubTab active={sub === "fulfilled"} onClick={() => setSub("fulfilled")} count={fulfilled.length} testid="orders-sub-fulfilled">
           Fulfilled
         </SubTab>
+        <SubTab active={sub === "backorders"} onClick={() => setSub("backorders")} count={pendingBackorders} testid="orders-sub-backorders">
+          Backorders
+        </SubTab>
       </div>
-      <OrdersList orders={visible} onChange={reload} />
+      {sub === "backorders"
+        ? <BackordersList requests={backorders} onChange={reloadBackorders} />
+        : <OrdersList orders={visible} onChange={reload} />}
     </div>
   );
 }

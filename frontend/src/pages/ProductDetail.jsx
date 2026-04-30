@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { fetchProduct, fetchMaker } from "../lib/api";
+import { fetchProduct, fetchMaker, fetchBackorderPolicy } from "../lib/api";
 import { useCart } from "../lib/cart";
 import { useStructuredData } from "../lib/seo";
 import { ArrowLeft, ZoomIn } from "lucide-react";
 import SaveDropButton from "../components/SaveDropButton";
 import ImageLightbox from "../components/ImageLightbox";
 import VeteranBadge from "../components/VeteranBadge";
+import BackorderRequestModal from "../components/BackorderRequestModal";
 
 export default function ProductDetail() {
   const { slug } = useParams();
@@ -18,16 +19,27 @@ export default function ProductDetail() {
   const [qty, setQty] = useState(1);
   const [added, setAdded] = useState(false);
   const [selectedVariantId, setSelectedVariantId] = useState(null);
+  // Backorder policy is fetched lazily from the dedicated endpoint so
+  // the rule (per-listing override on top of maker default) lives in
+  // exactly one place — the backend. Frontend is a dumb consumer.
+  const [backorderPolicy, setBackorderPolicy] = useState(null);
+  const [backorderOpen, setBackorderOpen] = useState(false);
   const { add } = useCart();
 
   useEffect(() => {
     setActive(0);
     setSelectedVariantId(null);
+    setBackorderPolicy(null);
     fetchProduct(slug).then(async (prod) => {
       setP(prod);
       // Auto-select first variant if any
       if (prod?.variants?.length) setSelectedVariantId(prod.variants[0].id);
       if (prod?.maker_slug) setMaker(await fetchMaker(prod.maker_slug).catch(() => null));
+      // Only hit the policy endpoint when the listing is actually OOS —
+      // saves a round-trip on the 99% of listings that have stock.
+      if (prod && (prod.in_stock || 0) <= 0) {
+        fetchBackorderPolicy(slug).then(setBackorderPolicy).catch(() => setBackorderPolicy({ allowed: false }));
+      }
     });
   }, [slug]);
 
@@ -275,21 +287,82 @@ export default function ProductDetail() {
               </div>
             )}
 
-            <div className="flex items-center gap-4 mb-6">
-              <div className="flex items-center border border-[#262626]">
-                <button onClick={() => setQty(Math.max(1, qty - 1))} className="px-4 py-3 hover:bg-[#1a1a1a]">−</button>
-                <span className="px-4 font-mono text-sm" data-testid="product-qty">{qty}</span>
-                <button onClick={() => setQty(qty + 1)} className="px-4 py-3 hover:bg-[#1a1a1a]">+</button>
-              </div>
-              <button onClick={onAdd} data-testid="product-add-cart" className="btn-industrial btn-primary flex-1 justify-center">
-                {added ? "Added ✓" : "Add to cart →"}
-              </button>
-              <SaveDropButton
-                makerSlug={p.maker_slug}
-                makerName={maker?.name || p.maker_slug}
-                productSlug={p.slug}
-              />
-            </div>
+            {/* Stock & cart row — three states:
+                 1. In stock → quantity stepper + Add to cart
+                 2. 0 stock + backorders allowed → Request backorder CTA
+                 3. 0 stock + no backorders → Sold out (disabled) */}
+            {(() => {
+              const oos = (effectiveStock != null ? effectiveStock : p.in_stock) <= 0;
+              if (!oos) {
+                return (
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className="flex items-center border border-[#262626]">
+                      <button onClick={() => setQty(Math.max(1, qty - 1))} className="px-4 py-3 hover:bg-[#1a1a1a]">−</button>
+                      <span className="px-4 font-mono text-sm" data-testid="product-qty">{qty}</span>
+                      <button onClick={() => setQty(qty + 1)} className="px-4 py-3 hover:bg-[#1a1a1a]">+</button>
+                    </div>
+                    <button onClick={onAdd} data-testid="product-add-cart" className="btn-industrial btn-primary flex-1 justify-center">
+                      {added ? "Added ✓" : "Add to cart →"}
+                    </button>
+                    <SaveDropButton makerSlug={p.maker_slug} makerName={maker?.name || p.maker_slug} productSlug={p.slug} />
+                  </div>
+                );
+              }
+              // Out of stock — render the OOS pill + backorder or sold-out CTA
+              const lead = backorderPolicy?.lead_weeks ?? p.backorder_lead_weeks ?? 4;
+              return (
+                <div className="mb-6 space-y-3" data-testid="product-oos-block">
+                  <div className="border border-[#ff4500] bg-[#ff4500]/5 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
+                    <div>
+                      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">◆ Currently out of stock</div>
+                      <div className="font-mono text-xs text-[#a3a3a3] mt-0.5">0 available</div>
+                    </div>
+                    {backorderPolicy?.allowed && (
+                      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+                        Lead time · <span className="text-[#e5e5e5]">~{lead} {lead === 1 ? "week" : "weeks"}</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    {backorderPolicy === null ? (
+                      <button
+                        type="button"
+                        disabled
+                        data-testid="product-backorder-loading"
+                        className="btn-industrial flex-1 justify-center opacity-50"
+                      >
+                        Checking…
+                      </button>
+                    ) : backorderPolicy.allowed ? (
+                      <button
+                        type="button"
+                        onClick={() => setBackorderOpen(true)}
+                        data-testid="product-backorder-cta"
+                        className="btn-industrial btn-primary flex-1 justify-center"
+                      >
+                        Request backorder →
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled
+                        data-testid="product-sold-out"
+                        className="btn-industrial flex-1 justify-center opacity-50 cursor-not-allowed"
+                      >
+                        Sold out
+                      </button>
+                    )}
+                    <SaveDropButton makerSlug={p.maker_slug} makerName={maker?.name || p.maker_slug} productSlug={p.slug} />
+                  </div>
+                  {backorderPolicy?.allowed && (
+                    <p className="font-mono text-[10px] text-[#525252] leading-relaxed">
+                      Maker reviews each request manually. Payment is coordinated
+                      after they accept — no charge today.
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
 
             {maker && (
               <Link to={`/makers/${maker.slug}`} className="block border border-[#262626] hover:border-[#ff4500] p-5 transition">
@@ -311,6 +384,15 @@ export default function ProductDetail() {
           images={p.images}
           startIndex={lightboxIdx}
           onClose={() => setLightboxIdx(null)}
+        />
+      )}
+      {backorderOpen && (
+        <BackorderRequestModal
+          productSlug={p.slug}
+          productTitle={p.title}
+          makerName={maker?.name || p.maker_slug}
+          leadWeeks={backorderPolicy?.lead_weeks || p.backorder_lead_weeks || 4}
+          onClose={() => setBackorderOpen(false)}
         />
       )}
     </div>
@@ -339,7 +421,9 @@ function ProductBasics({ product: p, effectiveStock }) {
   })();
   const materials = (p.materials || []).slice(0, 3).join(", ") || null;
   const stockNum = effectiveStock != null ? effectiveStock : p.in_stock;
-  const stock = stockNum != null ? `${stockNum} in stock` : null;
+  const stock = stockNum != null
+    ? (stockNum <= 0 ? "0 available" : `${stockNum} in stock`)
+    : null;
 
   const rows = [
     ["Size", dimStr],

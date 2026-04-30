@@ -87,6 +87,16 @@ class Product(BaseModel):
     seo_tags: List[str] = []                # max 13, validated in router
     # ---- Contact override (optional — defaults to maker email) ----
     contact_email: Optional[str] = None
+    # ---- Backorders ----
+    # When the listing is at 0 stock but still published, buyers see a
+    # "Request backorder" CTA instead of "Sold out". The maker reviews
+    # each request manually and confirms / declines. Payment is handled
+    # off-platform (no auto-charge) per user choice 2b.
+    #   • None  → inherit from maker.accepts_backorders_default
+    #   • True  → backorders ON regardless of maker default
+    #   • False → backorders OFF regardless of maker default
+    accepts_backorders: Optional[bool] = None
+    backorder_lead_weeks: Optional[int] = None  # set by maker; surfaced on the OOS pill
     # Denormalized from the maker on read — never stored on the product doc.
     # Lets ProductCard render the US-flag "Veteran-Owned" badge without a
     # second round-trip to /api/makers.
@@ -138,6 +148,9 @@ class MakerProductCreate(BaseModel):
     accept_exchanges: bool = False
     seo_tags: List[str] = []
     contact_email: Optional[str] = None
+    # Backorder gating (see Product class for semantics)
+    accepts_backorders: Optional[bool] = None
+    backorder_lead_weeks: Optional[int] = None
 
 
 class Maker(BaseModel):
@@ -222,6 +235,10 @@ class Maker(BaseModel):
     processing_time: Optional[str] = ""   # e.g. "1-3 business days"
     returns_policy: Optional[str] = ""    # free-text policy text
     accepts_custom_orders: bool = True    # gates the "Request Custom" CTA
+    # Maker-level default for backorders. Per-listing `accepts_backorders`
+    # overrides this when set; when null on the listing, this default
+    # applies. Defaults to False — makers must opt in.
+    accepts_backorders_default: bool = False
     # ---- Etsy-style Info & Appearance ----
     shop_title: Optional[str] = ""                    # Shop hero tagline (appears under the shop name)
     order_receipt_banner_url: Optional[str] = ""      # 760×100 banner printed on order receipts + emails
@@ -423,6 +440,7 @@ class MakerProfileUpdate(BaseModel):
     processing_time: Optional[str] = None
     returns_policy: Optional[str] = None
     accepts_custom_orders: Optional[bool] = None
+    accepts_backorders_default: Optional[bool] = None
     is_veteran_owned: Optional[bool] = None
     watermark_images: Optional[bool] = None
     # Etsy-style Info & Appearance
@@ -463,3 +481,45 @@ class ApplicationDecision(BaseModel):
 class CustomOrderQuote(BaseModel):
     quote: float
     message: Optional[str] = ""
+
+
+# ---- Backorders ----
+class BackorderRequest(BaseModel):
+    """A buyer's request to be notified / fulfilled when a 0-stock listing
+    can be made again. Lifecycle:
+       pending → accepted (maker confirmed; maker handles payment offline)
+       pending → declined (maker said no, with reason)
+       accepted → fulfilled (maker marked it shipped after charging the buyer)
+    """
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    product_id: str
+    product_slug: str
+    product_title: str
+    maker_slug: str
+    buyer_email: EmailStr
+    buyer_name: str
+    quantity: int = 1
+    message: Optional[str] = ""        # buyer's note to the maker
+    lead_weeks_quoted: Optional[int] = None  # snapshot of the listing's lead time at request time
+    status: str = "pending"            # pending | accepted | declined | fulfilled | cancelled
+    decline_reason: Optional[str] = ""
+    created_at: str = Field(default_factory=now_iso)
+    accepted_at: Optional[str] = None
+    declined_at: Optional[str] = None
+    fulfilled_at: Optional[str] = None
+
+
+class BackorderRequestCreate(BaseModel):
+    """Public payload from the product detail backorder modal."""
+    model_config = ConfigDict(extra="ignore")
+    buyer_email: EmailStr
+    buyer_name: str
+    quantity: int = 1
+    message: Optional[str] = ""
+
+
+class BackorderDecision(BaseModel):
+    """Maker accept/decline payload."""
+    model_config = ConfigDict(extra="ignore")
+    decline_reason: Optional[str] = ""

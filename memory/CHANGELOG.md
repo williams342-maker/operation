@@ -1,5 +1,33 @@
 # Crafters Market — CHANGELOG
 
+## 2026-02 — iter74 — 0-Stock Backorder Lifecycle · request-only flow with maker accept/decline (TESTED ✅ 11/11 + e2e)
+
+### Buyer side · Product Detail OOS UX
+- ✨ **3-state stock row** on `ProductDetail.jsx`: in-stock → quantity stepper + Add to cart (unchanged); 0-stock + backorders allowed → orange "◆ Currently out of stock / 0 available" pill with `~N weeks` lead-time + a big "Request backorder →" CTA; 0-stock + backorders OFF → disabled "Sold out". Previously the Add-to-cart button still worked at 0 stock (silent bug — fixed).
+- ✨ **`<BackorderRequestModal>`** — name / email / qty / message form; "How this works" callout; success state confirms request was sent + reminds "no charge today". Calls `POST /api/products/{slug}/backorder-request`.
+- ✨ **Stock chip** ("0 available" vs "N in stock") added to the ProductBasics dl strip so OOS state surfaces above the fold even when the buyer is scrolling fast.
+
+### Maker side · Settings + Listing editor + Orders sub-tab
+- ✨ **Maker Settings → Options** — new toggle "Accept backorder requests by default" (`accepts_backorders_default`). Per-listing override sits inside the listing editor.
+- ✨ **Listing editor → Pricing section** — 3-state segmented control (`◆ Use shop default` / `✓ Allow backorders` / `✕ Disable`) + conditional "Lead time (weeks)" input that only appears when listing-level "Allow" is selected. Defaults to inherit (null) so existing listings keep the maker-default behavior.
+- ✨ **Orders tab → 3rd "Backorders" sub-tab** in `MakerDashboard.jsx`. Lazy-fetched on first switch-in, refreshes after each accept/decline/fulfill. Inline `◆ BACKORDER` tag PLUS lifecycle status pill (pending / accepted / fulfilled / declined) on every row — covers both UX patterns the user requested.
+- ✨ **`<BackordersList>`** — accordion-row UI: buyer info + mailto link, lead-time quoted, buyer message in a quoted block, decline reason (when applicable). Action buttons gated by lifecycle state: pending → Accept / Decline-with-optional-reason; accepted → Mark Fulfilled.
+
+### Backend · Lifecycle + emails
+- ✨ **New `/api/products/{slug}/backorder-policy`** (public) returns `{allowed, lead_weeks, in_stock}` so the React layer doesn't duplicate the per-listing-override-on-maker-default logic. **`/backorder-request`** (public) creates a request with cross-checks: product exists + published + 0 stock + backorders allowed.
+- ✨ **Maker endpoints** — `GET /api/maker/backorder-requests`, `POST .../{id}/accept`, `POST .../{id}/decline` (with reason), `POST .../{id}/fulfill`. State machine: `pending → accepted | declined`, `accepted → fulfilled`. Cross-maker isolation enforced via `maker_slug` filter on every query.
+- ✨ **4 new email templates** (`send_buyer_backorder_received` / `_alert` to maker / `_accepted` / `_declined`). All include lead-time prominently displayed; declined emails include the maker's optional reason as a quoted block; maker alert links via `?tab=orders` deep-link.
+- ✨ **Schema** — Product gets `accepts_backorders: Optional[bool]` + `backorder_lead_weeks: Optional[int]`; Maker gets `accepts_backorders_default: bool`; new `backorder_requests` collection with full lifecycle timestamps.
+
+### Tests · 11/11
+`test_iter74_backorder_lifecycle.py`: policy resolver (3 — inherit / per-listing override / per-listing lead-time), submit guards (3 — in-stock rejected / disabled rejected / success path schedules emails), accept (2 — flips status / rejects non-pending), decline (1), fulfill (1 — only-on-accepted), cross-maker isolation (1).
+
+### E2E
+Live curl roundtrip against real product (`mountain-range-silhouette`) — policy returns correct allowed/lead values, submit creates the doc + returns 200. Frontend screenshots captured for OOS pdp, backorder modal, backorders sub-tab (collapsed list) and expanded row with action buttons. All states render with correct copy.
+
+Files added: `backend/routers/backorder.py`, `backend/tests/test_iter74_backorder_lifecycle.py`, `frontend/src/components/BackorderRequestModal.jsx`, `frontend/src/pages/MakerDashboard/BackordersList.jsx`. Modified: `models.py`, `email_service.py`, `server.py`, `routers/maker.py` (MakerProductUpdate fields), `frontend/src/lib/api.js`, `pages/ProductDetail.jsx`, `pages/MakerDashboard.jsx`, `pages/MakerDashboard/SettingsTab.jsx`, `pages/MakerListingEditor/PricingSection.jsx`, `pages/MakerListingEditor/constants.js`, `pages/MakerListingEditor.jsx`.
+
+
 ## 2026-02 — iter73 — Maker Dashboard `?tab=...` Deep-Links · email-rewriter-safe (TESTED ✅ 13/13 + e2e)
 - ✨ **Query-param deep-link support** on `/maker/dashboard?tab=orders` (and every other tab: `listings`, `messages`, `briefs`, `stats`, `financials`, `settings`, etc.). `?tab=<id>` mirrors the existing `#<id>` hash behaviour but survives email link-rewriters (Postmark / SendGrid / Mailgun) that strip URL fragments before dispatch. On mount we validate the id against `KNOWN_TABS`, rewrite the URL to `#<id>` so subsequent hashchange stays authoritative, and fall back to dashboard when the id is unknown (junk values like `?tab=evil` are stripped entirely — no phishing-looking URLs sticking around).
 - ✨ **`send_maker_new_order` email now includes an "Open orders tab →" CTA** that deep-links via `?tab=orders` — the canonical use-case this feature unblocks. Every new-order email is now a one-click path to shipping/fulfillment.

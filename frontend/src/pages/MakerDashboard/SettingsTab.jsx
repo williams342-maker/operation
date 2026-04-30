@@ -772,7 +772,7 @@ function AboutShop({ maker, onSaved }) {
 // Section: Options
 // ============================================================================
 function Options({ maker, onSaved }) {
-  const fields = ["vacation_mode", "vacation_message", "accepts_custom_orders", "external_ads_opt_out"];
+  const fields = ["vacation_mode", "vacation_message", "accepts_custom_orders", "accepts_backorders_default", "external_ads_opt_out"];
   const { form, set, dirty, busy, submit } = useSettingsForm(maker, fields, onSaved);
   return (
     <FormShell
@@ -801,6 +801,13 @@ function Options({ maker, onSaved }) {
         value={!!form.accepts_custom_orders}
         onChange={set("accepts_custom_orders")}
         testId="settings-custom-orders"
+      />
+      <ToggleRow
+        label="Accept backorder requests by default"
+        hint="When a listing is out of stock, buyers can submit a backorder request instead of seeing 'Sold out'. You can override this per-listing in the listing editor."
+        value={!!form.accepts_backorders_default}
+        onChange={set("accepts_backorders_default")}
+        testId="settings-backorders-default"
       />
       <ToggleRow
         label="Opt out of off-site ads"

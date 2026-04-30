@@ -82,5 +82,8 @@ export const emptyForm = () => ({
   accept_returns: false, accept_exchanges: false,
   seo_tags: [], seo_input: "",
   contact_email: "",
+  // Backorders — `null` means inherit from maker.accepts_backorders_default
+  accepts_backorders: null,
+  backorder_lead_weeks: null,
   status: "draft",
 });
