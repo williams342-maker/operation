@@ -3,6 +3,33 @@
 _All dated iteration entries. Newest on top. Each iter is verified (via testing agent or self-tested) before landing — unless explicitly noted._
 
 
+## 2026-02 — iter65 — 🐛 Mobile Login Lockout Fix (HIGH-priority bug, TESTED ✅ 21/21)
+- 🐛 **User report**: "I can't log in from my phone — it doesn't ask for
+  login info, just takes me to a page that says 'precision craft
+  delivered'." That phrase is from the **Footer**.
+- **Root cause**: the hamburger menu had NO Sign in link
+  (`Nav.jsx` mobile drawer only listed Shop/Makers/Custom/Community/
+  Journal/Contact). The inline top-bar Sign in button got squeezed
+  off small viewports by the [Beta][Sign in][Cart][Hamburger] cluster.
+  Users opened the hamburger looking for Sign in, didn't find it,
+  scrolled the page → landed on the footer "Precision craft. Delivered."
+  and assumed the site was broken.
+- **Fix** (`Nav.jsx`):
+  1. Added `mobile-nav-signin` as the FIRST item in the hamburger
+     drawer with a bright User icon + large display font. Text flips
+     to "Account" when signed in. Routes to `accountHref` (same logic
+     as the desktop button: /signin if logged out, role-specific
+     dashboard if signed in).
+  2. Hid the inline top-bar Sign in button on small screens
+     (`hidden sm:inline-flex`) so the [Beta][Cart][Hamburger] cluster
+     fits cleanly on iPhone SE (375px) and up.
+- Verified across 5 viewports (iPhone SE, iPhone 14 Pro, tablet,
+  desktop, signed-in state) — 21/21 assertions green
+  (`/app/test_reports/iteration_46.json`). Sign in is now reachable
+  from any phone, lands on `/signin` with the form visible above the
+  fold.
+
+
 ## 2026-02 — iter64 — Shipping Analytics Mini-Chart (TESTED ✅ 16/16)
 - ✨ **New endpoint** `GET /api/maker/shipping/analytics?days=N`
   (clamps 7..180, default 30). Returns daily zero-filled buckets
