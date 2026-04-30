@@ -900,3 +900,36 @@ At fast typing speeds, earlier keystrokes overwrote later ones with stale snapsh
 ### Downstream benefit
 Every other modal that used `useModalA11y` (DigestsTab, UsersTab, RotatePasswordModal, ContactMakerModal, CsvImportModal, MakerDashboard DM modal, AdminEmailModal via its own pattern) automatically benefits — no more focus-stealing on keystrokes.
 
+
+
+## 2026-04-30 — Community Design Files: open-to-all uploads with real file picker
+
+### User ask
+*"on design files, add a way to upload new files from users"* — the Community > Design Files tab previously restricted uploads to makers only, and accepted only an external URL paste (Dropbox/Drive). Users wanted to contribute files directly.
+
+### Shipped
+- **`POST /api/community/files/upload`** (multipart) — new endpoint that accepts `file` + `title` + `description` + optional `thumbnail_url`. Requires any signed-in community user (buyer OR maker) via the new `current_any_user` dependency.
+- **Accepted types**: DXF, SVG, STL, GLB, GLTF, AI, EPS, PDF, ZIP. 25 MB cap (`MAX_DESIGN_BYTES`). Content-type sniffing with extension fallback for CAD files that arrive as `application/octet-stream`.
+- **Direct R2 upload**: files stream to `cdn.craftersmarket.org/community-files/{user}/{uuid}.{ext}` via the existing `upload_design_file_bytes()` helper in `r2_storage.py`. `design_files` Mongo row created with `uploader_role` (buyer|maker) + `maker_name` (backward-compat display label) + `size_bytes`.
+- **Frontend `FileUploadForm`**: full rewrite with:
+  - Mode toggle (**Upload a file** / **Paste a link**) — makers see both; buyers get the upload path only (they don't have cloud storage to paste from).
+  - Native `<input type="file">` with `accept=".dxf,.svg,.stl,.glb,.gltf,.ai,.eps,.pdf,.zip"`.
+  - Client-side 25 MB guardrail with inline error before the upload fires.
+  - Extension-inferred `file_type` badge — user doesn't pick the type manually.
+  - **Live upload progress bar** via `axios.onUploadProgress` → percent-fill animation.
+  - Signed-out visitor sees a "Sign in to upload a DXF, SVG…" hint instead of a broken button.
+- **FilesTab** now gates the upload button on `isSignedIn = !!me || isMaker` instead of the old `isMaker`-only check.
+- Functional `setF((c) => ({...c, ...}))` + `name=` + `autoComplete=` attrs added (prevents the flaky-form bug fixed in iter47 from recurring).
+
+### Tests (iter48)
+- **Backend 10/10 pytest PASS**. Curl smoke: maker upload 200, buyer upload 200, .txt rejected 400 ("Unsupported file type"), no-auth rejected 401.
+- **Frontend**: signed-out hint renders, maker upload flow verified end-to-end in Playwright (file appeared in grid with SVG badge + "BY IRON & OAK STUDIO" attribution). Buyer card "BY COMMUNITY MEMBER" visible in seed grid from curl test.
+- **File URLs**: both test uploads returned working `https://cdn.craftersmarket.org/community-files/{user}/{uuid}.svg` URLs (R2 + custom domain wired correctly).
+
+### Files touched
+- `/app/backend/maker_auth.py` (+ `current_any_user` dep)
+- `/app/backend/r2_storage.py` (+ `ALLOWED_DESIGN_FILE_TYPES` map + `upload_design_file_bytes()`)
+- `/app/backend/routers/community.py` (+ `POST /community/files/upload`)
+- `/app/frontend/src/lib/api.js` (+ `uploadDesignFileDirect` with onUploadProgress)
+- `/app/frontend/src/pages/CommunityPage.jsx` (rewrote `FilesTab` + `FileUploadForm`)
+
