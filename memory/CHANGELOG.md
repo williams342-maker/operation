@@ -3,6 +3,24 @@
 _All dated iteration entries. Newest on top. Each iter is verified (via testing agent or self-tested) before landing — unless explicitly noted._
 
 
+## 2026-02 — iter64 — Shipping Analytics Mini-Chart (TESTED ✅ 16/16)
+- ✨ **New endpoint** `GET /api/maker/shipping/analytics?days=N`
+  (clamps 7..180, default 30). Returns daily zero-filled buckets
+  grouped by carrier (usps / ups / fedex / dhl / other) + per-carrier
+  totals + `top_carrier` label. Date bucketing uses UTC day slice of
+  `created_at`.
+- ✨ **Pure-SVG stacked-bar mini-chart** mounted in Maker Financials →
+  Shipping labels, between the spend-cap row and the ledger table.
+  7/30/90-day window toggle, brand-aligned carrier palette
+  (USPS #ff4500, UPS #8a5a2a, FedEx #7c3aed, DHL #facc15, Other #a3a3a3),
+  first/middle/last date axis, legend auto-filters to carriers with
+  data, hover-title shows day total. No new npm deps.
+- Tests: 16/16 backend pytest green
+  (`/app/test_reports/iteration_45.json`). Auth gate, clamping,
+  zero-fill, ordering, per-day-total-equals-carrier-sum invariant, and
+  today's seed totals all verified.
+
+
 ## 2026-02 — iter63 — Six-item batch: auto-Stripe-customer, spend cap, SMS nudge wiring, PRD split, key-bug, address validation (TESTED ✅ 11/11 backend)
 - ✨ **(a) Auto Stripe Customer on first label purchase**: `_ensure_stripe_customer()`
   lazily creates a Stripe Customer for makers without one, stamps it on
