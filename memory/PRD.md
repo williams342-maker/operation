@@ -1,6 +1,30 @@
 # Crafters Market — Modernized Homepage + Full Marketplace
 
 
+## 2026-02 — iter59 — Pending-Order Click-to-Expand + Mark Shipped (TESTED ✅)
+- 🐛 **Fixed**: pending-order rows were static divs — couldn't drill into
+  buyer info. Now each row is a click-to-expand accordion.
+- ✅ **New `GET /api/maker/orders/{session_id}`**: returns full detail —
+  buyer name, email (mailto), phone (tel), ship-to address (with line1,
+  line2, city, state, postal, country), Open-in-Maps link, buyer note,
+  line items with images + prices + quantities + subtotals, tracking
+  fields. Cross-maker isolation enforced (404 with ambiguous detail).
+- ✅ **New `POST /api/maker/orders/{session_id}/ship`**: marks
+  fulfilled + stamps shipped_at + optional tracking_carrier + tracking_number.
+  Independent cross-maker guard (defense in depth).
+- ✅ **Stripe fallback**: detail endpoint pulls shipping_details from
+  live Stripe `Session.retrieve(..., expand=[...])` when not cached
+  locally, then writes it back to the tx doc for the next read.
+- ✅ **UI**: click-to-expand drawer with Buyer | Ship-to grid, yellow
+  buyer-note callout, itemised list w/ images, USPS/UPS/FedEx/DHL
+  carrier dropdown + tracking input + orange Mark-shipped CTA.
+  Fulfilled rows show emerald "shipped" pill + tracking instead of form.
+- Tests: 8/8 backend pytest + frontend 100% live-verified. See
+  `/app/backend/tests/test_iter59_order_detail.py` and
+  `/app/test_reports/iteration_41.json`.
+
+
+
 ## 2026-02 — iter58 — Checkout "Try Again" Bug Fix (TESTED ✅)
 - 🐛 **Fixed**: `/api/checkout/session` was returning HTTP 500 when Stripe
   rejected the session (e.g. total < $0.50 USD minimum). Frontend showed
