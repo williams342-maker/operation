@@ -24,6 +24,28 @@ http.interceptors.response.use(
   },
 );
 
+// ────────────── Maker session expiry enforcement ──────────────
+// If the user unchecked "Keep me signed in" on the login page,
+// MakerVerify stores `cm_maker_jwt_exp` (ms-epoch). Whenever this
+// module loads — and on every authed request — we check whether
+// that deadline has passed and, if so, purge the token so the
+// next protected call 401s and the user is bounced back to login.
+// If the key is absent, the session is treated as persistent.
+const purgeMakerSessionIfExpired = () => {
+  try {
+    const exp = localStorage.getItem("cm_maker_jwt_exp");
+    if (!exp) return;
+    if (Date.now() > Number(exp)) {
+      localStorage.removeItem("cm_maker_jwt");
+      localStorage.removeItem("cm_maker_slug");
+      localStorage.removeItem("cm_maker_jwt_exp");
+    }
+  } catch (_) {
+    // localStorage can throw in private-mode / quota edge cases — ignore.
+  }
+};
+purgeMakerSessionIfExpired();
+
 export const fetchProducts = (params) => http.get("/products", { params }).then((r) => r.data);
 export const fetchProduct = (slug) => http.get(`/products/${slug}`).then((r) => r.data);
 export const fetchMakers = () => http.get("/makers").then((r) => r.data);
@@ -80,6 +102,7 @@ export const verifyMakerToken = (token) =>
   http.post("/maker/auth/verify", { token }).then((r) => r.data);
 
 const authHeaders = () => {
+  purgeMakerSessionIfExpired();
   const t = localStorage.getItem("cm_maker_jwt");
   return t ? { Authorization: `Bearer ${t}` } : {};
 };

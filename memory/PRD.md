@@ -1,6 +1,21 @@
 # Crafters Market — Modernized Homepage + Full Marketplace
 
 
+## 2026-02 — iter60 — "Keep Me Signed In" Maker Login Toggle (self-tested ✅)
+- ✨ **New checkbox on `/maker/login`**: "Keep me signed in for 30 days",
+  ON by default. When unchecked, `MakerVerify` stamps an 8-hour expiry
+  (`cm_maker_jwt_exp`) on the stored JWT.
+- ✅ **Expiry enforcement in `/app/frontend/src/lib/api.js`**: new
+  `purgeMakerSessionIfExpired()` runs on module load AND inside
+  `authHeaders()`, so expired tokens are purged before any authed
+  call fires. Missing expiry key = treated as persistent.
+- ✅ **Helper text flips** based on checkbox state — explicit UX copy
+  for shared-computer scenarios ("~8 hours") vs private devices.
+- ✅ **Cleanup**: `resetIdentity` ("Not you?") and `MakerDashboard.logout`
+  now also remove the `cm_maker_jwt_exp` key.
+- Files: `MakerLogin.jsx`, `MakerVerify.jsx`, `MakerDashboard.jsx`, `lib/api.js`.
+
+
 ## 2026-02 — iter59 — Pending-Order Click-to-Expand + Mark Shipped (TESTED ✅)
 - 🐛 **Fixed**: pending-order rows were static divs — couldn't drill into
   buyer info. Now each row is a click-to-expand accordion.

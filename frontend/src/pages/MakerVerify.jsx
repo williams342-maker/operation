@@ -21,6 +21,17 @@ export default function MakerVerify() {
         const res = await verifyMakerToken(token);
         localStorage.setItem("cm_maker_jwt", res.token);
         localStorage.setItem("cm_maker_slug", res.maker.slug);
+        // Honor the "Keep me signed in" preference set on MakerLogin.
+        // "1" (default) → persistent session, no expiry key stored.
+        // "0"           → ephemeral ~8-hour session; api.js purges on
+        //                 every page load / authed request once expired.
+        const persist = localStorage.getItem("cm_maker_persist");
+        if (persist === "0") {
+          const EIGHT_HOURS_MS = 8 * 60 * 60 * 1000;
+          localStorage.setItem("cm_maker_jwt_exp", String(Date.now() + EIGHT_HOURS_MS));
+        } else {
+          localStorage.removeItem("cm_maker_jwt_exp");
+        }
         navigate("/maker/dashboard", { replace: true });
       } catch (err) {
         setError(err?.response?.data?.detail || "Could not verify the link.");

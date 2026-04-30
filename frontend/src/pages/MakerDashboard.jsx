@@ -123,6 +123,7 @@ export default function MakerDashboard() {
   const logout = () => {
     localStorage.removeItem("cm_maker_jwt");
     localStorage.removeItem("cm_maker_slug");
+    localStorage.removeItem("cm_maker_jwt_exp");
     navigate("/maker/login", { replace: true });
   };
 

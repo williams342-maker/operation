@@ -7,11 +7,16 @@ import { requestMakerLink } from "../lib/api";
 // is the raw email, not a token — safe to persist. Gives us a "Not you?"
 // affordance on the login screen so a returning user never has to retype.
 const LAST_EMAIL_KEY = "cm_maker_last_email";
+// "1" = persistent (default), "0" = ephemeral ~8h session.
+// Read by MakerVerify.jsx once the magic link succeeds to decide whether
+// to stamp a `cm_maker_jwt_exp` expiry on the stored token.
+const PERSIST_KEY = "cm_maker_persist";
 
 export default function MakerLogin() {
   const [email, setEmail] = useState("");
   const [state, setState] = useState({ status: "idle", message: "" });
   const [rememberedEmail, setRememberedEmail] = useState("");
+  const [keepSignedIn, setKeepSignedIn] = useState(true);
 
   // On mount, pre-fill with the last email they signed in with (if any).
   // This is passive — the user can still type over it.
@@ -21,12 +26,19 @@ export default function MakerLogin() {
       setEmail(prior);
       setRememberedEmail(prior);
     }
+    // Default to persistent unless they previously opted out.
+    const savedPersist = localStorage.getItem(PERSIST_KEY);
+    if (savedPersist === "0") setKeepSignedIn(false);
   }, []);
 
   const onSubmit = async (e) => {
     e.preventDefault();
     if (!email) return;
     setState({ status: "loading", message: "" });
+    // Persist the preference BEFORE the magic-link verify so MakerVerify
+    // (which runs on a different page load from a different browser tab)
+    // reads the right value. Device-local, no server round-trip needed.
+    localStorage.setItem(PERSIST_KEY, keepSignedIn ? "1" : "0");
     try {
       const res = await requestMakerLink(email.trim(), window.location.origin);
       localStorage.setItem(LAST_EMAIL_KEY, email.trim());
@@ -47,6 +59,7 @@ export default function MakerLogin() {
     localStorage.removeItem(LAST_EMAIL_KEY);
     localStorage.removeItem("cm_maker_jwt");
     localStorage.removeItem("cm_maker_slug");
+    localStorage.removeItem("cm_maker_jwt_exp");
     setEmail("");
     setRememberedEmail("");
     setState({ status: "idle", message: "" });
@@ -136,6 +149,33 @@ export default function MakerLogin() {
                 className="mt-2 w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-4 py-3 font-mono text-sm text-[#e5e5e5] transition"
                 data-testid="maker-login-email"
               />
+            </label>
+
+            {/* "Keep me signed in" — default ON. When OFF, MakerVerify stamps
+                an 8-hour expiry on the JWT so shared / public machines get
+                an auto-sign-out. Stored device-locally; no server round-trip. */}
+            <label
+              className="flex items-start gap-3 cursor-pointer group select-none"
+              data-testid="maker-login-keep-signed-in-label"
+            >
+              <input
+                type="checkbox"
+                checked={keepSignedIn}
+                onChange={(e) => setKeepSignedIn(e.target.checked)}
+                disabled={state.status === "loading" || state.status === "sent"}
+                className="mt-[3px] h-4 w-4 accent-[#ff4500] cursor-pointer disabled:cursor-not-allowed"
+                data-testid="maker-login-keep-signed-in"
+              />
+              <span className="flex-1">
+                <span className="block font-mono text-[11px] uppercase tracking-[0.22em] text-[#e5e5e5] group-hover:text-[#ff4500] transition">
+                  Keep me signed in for 30 days
+                </span>
+                <span className="block font-mono text-[10px] text-[#525252] mt-1 normal-case tracking-normal leading-relaxed">
+                  {keepSignedIn
+                    ? "You'll stay signed in on this device until you sign out."
+                    : "You'll be signed out automatically after ~8 hours — good for shared or public computers."}
+                </span>
+              </span>
             </label>
 
             <button
