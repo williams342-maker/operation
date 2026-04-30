@@ -27,7 +27,30 @@ async def test_applicant_received_email_includes_studio_and_timeline():
     assert "Forge & Fern" in captured["subject"]
     # Timeline expectations + applicant name personalisation
     assert "Maya Chen" in captured["html"]
-    assert "3 business days" in captured["html"]
+    assert "3-5 business days" in captured["html"]
+    assert "welcome packet" in captured["html"].lower()
+
+
+@pytest.mark.asyncio
+async def test_applicant_received_beta_flair_when_beta_flag_set():
+    """Beta applicants get a Founding Seller flair + matching subject;
+    core copy (timeline, welcome packet) stays identical."""
+    from email_service import send_applicant_received
+    captured = {}
+
+    async def fake_send(to, subj, html):
+        captured["subject"] = subj
+        captured["html"] = html
+        return {"id": "ack"}
+
+    with patch("email_service._send", fake_send):
+        await send_applicant_received(
+            "founder@example.com", "Maya", "Forge & Fern", is_beta=True,
+        )
+    assert "Founding Seller" in captured["subject"]
+    assert "Founding Seller Beta" in captured["html"]
+    # Core promise still present
+    assert "3-5 business days" in captured["html"]
     assert "welcome packet" in captured["html"].lower()
 
 

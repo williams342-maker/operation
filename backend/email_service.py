@@ -507,22 +507,37 @@ async def send_ops_new_application(name: str, studio: str, location: str, email:
     return await _send(OPS_EMAIL, f"New maker application · {studio}", html)
 
 
-async def send_applicant_received(applicant_email: str, name: str, studio: str):
-    """Sent to the applicant immediately after they submit a maker application —
-    confirms receipt and sets expectations on the review timeline."""
+async def send_applicant_received(applicant_email: str, name: str, studio: str,
+                                  is_beta: bool = False):
+    """Sent to the applicant immediately after they submit a maker (or
+    Founding Seller Beta) application — a warm thank-you that confirms
+    receipt and sets a 3–5 business-day review expectation. When
+    `is_beta=True` we add a small Founding Seller flair to the header
+    and subject; the core message and timeline stay identical so we have
+    one source of truth for both flows."""
     if not applicant_email:
         return None
+    program_label = "Founding Seller Beta" if is_beta else "Maker program"
+    flair = (
+        "<div style='display:inline-block;padding:4px 10px;border:1px solid #ff4500;"
+        "border-radius:999px;font-family:JetBrains Mono,monospace;font-size:10px;"
+        "letter-spacing:0.22em;text-transform:uppercase;color:#ff4500;margin:0 0 14px'>"
+        "◆ Founding Seller Beta</div>"
+        if is_beta else ""
+    )
     body = (
+        f"{flair}"
         "<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 18px'>"
-        f"Hi {name}, we got your application for <b style='color:#ff4500'>{studio}</b>. "
-        "It's already in our review queue.</p>"
+        f"Hi {name}, thank you for your application for "
+        f"<b style='color:#ff4500'>{studio}</b>. It's currently under review."
+        "</p>"
         "<div style='border-top:1px solid #262626;padding-top:18px;margin:18px 0'>"
         "<div style='font-family:JetBrains Mono,monospace;font-size:10px;letter-spacing:0.22em;"
         "text-transform:uppercase;color:#a3a3a3;margin:0 0 12px'>What happens next</div>"
         "<ol style='font-size:13px;color:#e5e5e5;line-height:1.7;padding-left:20px;margin:0'>"
-        "<li>A founding-team member personally reviews every application — usually within 3 business days.</li>"
+        "<li>Expect <b style='color:#e5e5e5'>3-5 business days</b> for a founding-team member to review your application.</li>"
+        "<li>If we have any questions about your application, we'll email you directly — just reply to this thread.</li>"
         "<li>If you're a fit, we'll send a welcome packet with your sign-in link, listing template, and Stripe payouts setup.</li>"
-        "<li>If we need more info first, we'll just reply to this email.</li>"
         "</ol>"
         "</div>"
         "<p style='font-size:13px;color:#a3a3a3;line-height:1.6;margin:18px 0 0'>"
@@ -533,14 +548,20 @@ async def send_applicant_received(applicant_email: str, name: str, studio: str):
         "Questions? Just reply — this email goes straight to the team."
         "</p>"
     )
-    html = _shell(
-        "Application Received.",
-        "We're reviewing it now — here's what to expect.",
-        body, "Maker program · application",
+    headline = (
+        "Founding Seller Application Received." if is_beta
+        else "Application Received."
     )
+    html = _shell(
+        headline,
+        "Thanks for applying — your application is currently under review.",
+        body, f"{program_label} · application",
+    )
+    subject_prefix = "Founding Seller application received" if is_beta \
+        else "We got your Crafters Market application"
     return await _send(
         applicant_email,
-        f"We got your Crafters Market application · {studio}",
+        f"{subject_prefix} · {studio}",
         html,
     )
 

@@ -3,6 +3,27 @@
 _All dated iteration entries. Newest on top. Each iter is verified (via testing agent or self-tested) before landing — unless explicitly noted._
 
 
+## 2026-02 — iter69 — Application Received Email · refreshed copy + Beta-aware (TESTED ✅ 11/11)
+- ✨ **Updated `send_applicant_received(...)`** copy in `email_service.py` to
+  the user-approved wording: "thank you for your application … currently
+  under review. Expect **3-5 business days** … if we have any questions
+  about your application, we'll email you directly."
+- ✨ **`is_beta` flag** added — when true, prepends a Founding Seller Beta
+  pill in the body, swaps the headline to "Founding Seller Application
+  Received." and changes the subject to `Founding Seller application
+  received · {studio}`. Core promise (3-5 business days, welcome packet,
+  questions-via-reply) stays identical so we have one source of truth.
+- ✨ **Wired through** in `routers/catalog.py` — the `/api/maker-applications`
+  endpoint now passes `app_obj.is_beta` to the bg task, so applicants
+  routing through `/beta` (which prefixes `[FOUNDING SELLER BETA]` in
+  `about`) automatically get the founding-seller variant.
+- Tests: 11/11 in `test_iter28_application_emails_eua.py` (added new
+  `test_applicant_received_beta_flair_when_beta_flag_set`). Live
+  smoke-tested via curl against `/api/maker-applications` for both
+  regular + beta flows — HTTP 200, ops email delivered via Postmark,
+  applicant email dispatched through provider fallback chain.
+
+
 ## 2026-02 — iter68 — STL → PNG Auto-Thumbnail Renderer (TESTED ✅ 14/14 + frontend green)
 - ✨ **Pure-Python renderer** (`backend/stl_renderer.py`) using `trimesh`
   4.12 + Matplotlib Agg backend (no GPU/OpenGL needed). 800×600 PNG in

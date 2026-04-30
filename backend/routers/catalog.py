@@ -356,7 +356,8 @@ async def create_maker_application(payload: MakerApplicationCreate, bg: Backgrou
                 payload.email, payload.about)
     # Confirm receipt to the applicant immediately so they know we got it.
     bg.add_task(send_applicant_received,
-                payload.email, payload.name, payload.studio_name)
+                payload.email, payload.name, payload.studio_name,
+                app_obj.is_beta)
     return app_obj
 
 
