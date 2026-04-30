@@ -476,8 +476,24 @@ export const downloadDesignFile = (id) =>
   http.get(`/community/files/${id}/download`, { headers: buyerAuthHeaders() }).then((r) => r.data);
 export const unlockDownloadsCheckout = () =>
   http.post(`/community/files/unlock-checkout`, {}, { headers: buyerAuthHeaders() }).then((r) => r.data);
+export const reportDesignFile = (fileId, payload) => {
+  const mkr = localStorage.getItem("cm_maker_jwt");
+  const byr = localStorage.getItem("cm_buyer_jwt");
+  const token = mkr || byr;
+  return http.post(
+    `/community/files/${fileId}/report`,
+    payload,
+    { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+  ).then((r) => r.data);
+};
 export const uploadDesignFile = (payload) =>
-  http.post("/community/files", payload, { headers: authHeaders() }).then((r) => r.data); // maker auth
+  http.post("/community/files", payload, { headers: authHeaders() }).then((r) => r.data); // maker auth (legacy URL-paste path)
+export const fetchAdminDesignFileReports = (status = "open") =>
+  http.get(`/admin/design-files/reports?status=${status}`, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const resolveDesignFileReport = (id, payload) =>
+  http.post(`/admin/design-files/reports/${id}/resolve`, payload, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const unquarantineDesignFile = (id) =>
+  http.post(`/admin/design-files/${id}/unquarantine`, {}, { headers: adminAuthHeaders() }).then((r) => r.data);
 
 // Direct multipart upload — works for any signed-in community user (buyer OR maker).
 // Passes the freshest Bearer token (maker JWT wins over buyer JWT for attribution).

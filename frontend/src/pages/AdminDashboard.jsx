@@ -16,6 +16,7 @@ import ApprovedMakersTab from "../components/admin/ApprovedMakersTab";
 import RejectedAppsTab from "../components/admin/RejectedAppsTab";
 import PlusMembersTab from "../components/admin/PlusMembersTab";
 import BroadcastTab from "../components/admin/BroadcastTab";
+import DesignFileReportsTab from "../components/admin/DesignFileReportsTab";
 import CustomOrdersList from "../components/admin/CustomOrdersList";
 import PaidOrdersList from "../components/admin/PaidOrdersList";
 import ListingsTab from "../components/admin/ListingsTab";
@@ -50,6 +51,7 @@ const TABS = [
   { id: "listings", label: "Listings" },
   { id: "users", label: "Users" },
   { id: "reviews", label: "Reviews" },
+  { id: "file-reports", label: "File Reports" },
   { id: "audit", label: "Audit Log" },
   { id: "ads", label: "Ads" },
   { id: "buffer", label: "Social" },
@@ -235,6 +237,7 @@ export default function AdminDashboard() {
         {tab === "rejected-apps" && <RejectedAppsTab />}
         {tab === "plus-members" && <PlusMembersTab />}
         {tab === "broadcast" && <BroadcastTab />}
+        {tab === "file-reports" && <DesignFileReportsTab />}
         {tab === "custom" && <CustomOrdersList items={custom} onChange={refresh} />}
         {tab === "orders" && <PaidOrdersList items={orders} />}
         {tab === "approvals" && <RefundApprovalsTab me={me} />}

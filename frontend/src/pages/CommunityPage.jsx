@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Heart, Download, Send, Plus, Lock } from "lucide-react";
+import { Heart, Download, Send, Plus, Lock, Flag } from "lucide-react";
 import {
   fetchShowcase, createShowcase, likeShowcase,
   fetchDesignFiles, downloadDesignFile, unlockDownloadsCheckout, uploadDesignFile, uploadDesignFileDirect,
+  reportDesignFile,
   fetchForumThreads, fetchForumThread, fetchForumCategories,
   createForumThread, replyForumThread, uploadForumAttachment,
   deleteChatMessage, deleteForumThread, deleteForumReply,
@@ -584,6 +585,9 @@ function FileUploadForm({ onSaved }) {
 
 function FileCard({ file, canDownload }) {
   const [status, setStatus] = useState(null);
+  const [reportOpen, setReportOpen] = useState(false);
+  // Only signed-in users can report (same auth gate as the upload path).
+  const canReport = !!localStorage.getItem("cm_maker_jwt") || !!localStorage.getItem("cm_buyer_jwt");
   const onDownload = async () => {
     if (!canDownload) return;
     try {
@@ -608,7 +612,19 @@ function FileCard({ file, canDownload }) {
       </div>
       <div className="font-display text-xl leading-tight">{file.title}</div>
       <p className="font-mono text-[11px] text-[#a3a3a3] leading-relaxed">{file.description}</p>
-      <div className="font-mono text-[10px] text-[#525252] uppercase tracking-[0.22em]">by {file.maker_name}</div>
+      <div className="flex items-center justify-between">
+        <div className="font-mono text-[10px] text-[#525252] uppercase tracking-[0.22em]">by {file.maker_name}</div>
+        {canReport && (
+          <button
+            onClick={() => setReportOpen(true)}
+            className="font-mono text-[10px] text-[#525252] hover:text-red-400 inline-flex items-center gap-1 transition"
+            data-testid={`file-report-btn-${file.id}`}
+            title="Flag this file for admin review"
+          >
+            <Flag size={11} /> Report
+          </button>
+        )}
+      </div>
       {status?.kind === "locked" ? (
         <button onClick={unlock} className="btn-industrial btn-primary inline-flex items-center justify-center gap-2" data-testid={`file-unlock-${file.id}`}>
           <Lock size={14} /> Unlock $5 — 6 mo unlimited
@@ -622,6 +638,131 @@ function FileCard({ file, canDownload }) {
       )}
       {/* Silent metering: removed the "X/5 free" counter on purpose so users
           aren't reminded of a quota until they actually hit it. */}
+      {reportOpen && (
+        <ReportFileModal
+          file={file}
+          onClose={() => setReportOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+// One-off report composer — opened from the ⚑ Report button on any
+// design-file card. Any signed-in user can flag for IP/copyright/etc.
+// We never show the reporter's identity to the uploader to avoid
+// retaliation loops.
+const REPORT_REASON_OPTIONS = [
+  { id: "stolen",     label: "Stolen work / IP infringement" },
+  { id: "copyright",  label: "Copyright violation" },
+  { id: "duplicate",  label: "Duplicate listing" },
+  { id: "malware",    label: "Malware / suspicious file" },
+  { id: "inaccurate", label: "Mislabelled or broken" },
+  { id: "other",      label: "Other concern" },
+];
+
+function ReportFileModal({ file, onClose }) {
+  const [reason, setReason] = useState("stolen");
+  const [details, setDetails] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+  const [err, setErr] = useState("");
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    setErr("");
+    try {
+      const r = await reportDesignFile(file.id, { reason, details });
+      setDone(r.duplicate ? "duplicate" : "sent");
+    } catch (e2) {
+      setErr(e2?.response?.data?.detail || "Report failed — try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4"
+      data-testid="report-file-modal"
+      onClick={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}
+    >
+      <div className="w-full max-w-md bg-[#0a0a0a] border border-red-500/50 p-6 space-y-4">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-red-400">◆ Report file</div>
+            <h3 className="font-display text-xl mt-1">Flag for admin review</h3>
+            <p className="font-mono text-[11px] text-[#a3a3a3] mt-1 truncate">{file.title}</p>
+          </div>
+          <button
+            onClick={onClose}
+            disabled={busy}
+            aria-label="Close"
+            data-testid="report-file-close"
+            className="font-mono text-xl text-[#a3a3a3] hover:text-red-400 disabled:opacity-50"
+          >✕</button>
+        </div>
+
+        {done ? (
+          <div
+            className="border border-emerald-700/60 bg-emerald-900/20 p-3 font-mono text-xs text-emerald-300"
+            data-testid="report-file-success"
+          >
+            {done === "duplicate"
+              ? "You already reported this file — the admin team has it."
+              : "Thanks — the admin team will review this within 24h. Your identity isn't shared with the uploader."}
+            <button
+              onClick={onClose}
+              className="block mt-3 underline hover:text-emerald-200 font-mono text-xs"
+              data-testid="report-file-done-close"
+            >
+              Close
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={submit} className="space-y-3" autoComplete="off">
+            <div>
+              <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Reason</label>
+              <select
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                data-testid="report-file-reason"
+                className="w-full mt-1.5 bg-[#0a0a0a] border border-[#262626] focus:border-red-400 outline-none px-3 py-2 font-mono text-sm text-[#e5e5e5]"
+              >
+                {REPORT_REASON_OPTIONS.map((r) => (
+                  <option key={r.id} value={r.id}>{r.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Details (optional)</label>
+              <textarea
+                value={details}
+                onChange={(e) => setDetails(e.target.value)}
+                rows={3}
+                maxLength={1000}
+                placeholder="Link to the original, context, anything that helps us verify…"
+                data-testid="report-file-details"
+                className="w-full mt-1.5 bg-transparent border border-[#262626] focus:border-red-400 outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5] resize-none"
+              />
+            </div>
+            {err && <div className="font-mono text-xs text-red-400" data-testid="report-file-error">{err}</div>}
+            <button
+              type="submit"
+              disabled={busy}
+              data-testid="report-file-submit"
+              className="w-full px-4 py-2 bg-red-600 hover:bg-red-500 border border-red-600 text-white font-mono text-xs uppercase tracking-[0.22em] font-bold transition disabled:opacity-50"
+            >
+              {busy ? "Sending…" : "Submit report →"}
+            </button>
+            <p className="font-mono text-[10px] text-[#525252] leading-relaxed">
+              Reports are reviewed by Crafters Market admins. Misuse of this
+              tool (mass/false reports) may suspend your account.
+            </p>
+          </form>
+        )}
+      </div>
     </div>
   );
 }

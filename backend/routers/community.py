@@ -264,7 +264,13 @@ class DesignFileMeta(BaseModel):
 
 @router.get("/community/files")
 async def list_design_files(limit: int = 50):
-    return await db.design_files.find({}, {"_id": 0}).sort("created_at", -1).to_list(limit)
+    # Quarantined files (flagged + actioned by admin) are hidden from the
+    # public list so abuse reports can be resolved without a race where
+    # the file stays discoverable until a cache invalidation.
+    return await db.design_files.find(
+        {"quarantined_at": None},
+        {"_id": 0},
+    ).sort("created_at", -1).to_list(limit)
 
 
 @router.post("/community/files")
@@ -443,6 +449,85 @@ async def unlock_checkout(claims: dict = Depends(current_buyer)):
         "created_at": now_iso(),
     })
     return {"url": session.url, "session_id": session.id}
+
+
+
+# ===================== DESIGN FILE REPORTS =====================
+# Open-to-all design-file uploads mean anyone can post a file they ripped
+# off another maker's listing / an external copyrighted source. This
+# report flow gives any community user (buyer or maker) a one-click way
+# to flag a file, and admin a quarantine/dismiss moderation queue.
+
+REPORT_REASONS = {
+    "stolen":      "Stolen work / IP infringement",
+    "copyright":   "Copyright violation",
+    "duplicate":   "Duplicate listing",
+    "malware":     "Malware / suspicious file",
+    "inaccurate":  "Mislabelled or broken",
+    "other":       "Other concern",
+}
+
+
+class FileReportRequest(BaseModel):
+    reason: str               # one of REPORT_REASONS keys
+    details: Optional[str] = None
+
+
+@router.post("/community/files/{file_id}/report")
+async def report_design_file(
+    file_id: str,
+    body: FileReportRequest,
+    claims: dict = Depends(current_any_user),
+):
+    """Flag a design file for admin review (stolen work, copyright, etc.).
+
+    Any signed-in community user can report. We de-dupe by
+    (file_id, reported_by) so a single user can't spam the queue — they
+    can only have one open report per file. Reports are private (never
+    exposed to the uploader) to avoid retaliation.
+    """
+    reason = (body.reason or "").strip()
+    if reason not in REPORT_REASONS:
+        raise HTTPException(400, "Invalid reason.")
+    details = (body.details or "").strip()[:1000]
+
+    file_doc = await db.design_files.find_one({"id": file_id}, {"_id": 0, "id": 1, "title": 1, "maker_name": 1, "maker_slug": 1, "uploader_id": 1})
+    if not file_doc:
+        raise HTTPException(404, "File not found.")
+
+    reporter = claims.get("sub", "")
+    existing = await db.design_file_reports.find_one({
+        "file_id": file_id,
+        "reported_by": reporter,
+        "status": "open",
+    }, {"_id": 0, "id": 1})
+    if existing:
+        return {"ok": True, "duplicate": True, "id": existing["id"]}
+
+    doc = {
+        "id": str(uuid.uuid4()),
+        "file_id": file_id,
+        "file_title": file_doc.get("title"),
+        "file_uploader": file_doc.get("maker_name") or file_doc.get("maker_slug") or file_doc.get("uploader_id"),
+        "reported_by": reporter,
+        "reported_role": claims.get("role"),
+        "reason": reason,
+        "reason_label": REPORT_REASONS[reason],
+        "details": details,
+        "status": "open",
+        "created_at": now_iso(),
+        "resolved_at": None,
+        "resolver": None,
+        "resolver_note": None,
+    }
+    await db.design_file_reports.insert_one(doc)
+    # Increment a fast counter on the file itself so the admin queue can
+    # sort by "most reported" without a join.
+    await db.design_files.update_one(
+        {"id": file_id},
+        {"$inc": {"open_reports": 1}},
+    )
+    return {"ok": True, "duplicate": False, "id": doc["id"]}
 
 
 # ===================== FORUM =====================

@@ -1843,3 +1843,128 @@ async def mod_delete_forum_reply(reply_id: str, authorization: str | None = Head
         {"id": rep.get("thread_id")}, {"$inc": {"reply_count": -1}}
     )
     return {"deleted": True, "by": claims["email"]}
+
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Design-file moderation queue — triaged reports from /community/files/:id/report.
+# Admin can resolve a report with "quarantine" (hide the file platform-wide)
+# or "dismiss" (mark clean, no action).
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/admin/design-files/reports")
+async def admin_design_file_reports(
+    status: str = "open",
+    _: dict = Depends(current_admin),
+):
+    """Moderation queue — reports from the design-file library.
+
+    Default shows `open` reports. Pass `?status=resolved` or `?status=dismissed`
+    to view historical actions. `?status=all` returns everything.
+    """
+    q: dict = {} if status == "all" else {"status": status}
+    rows = await db.design_file_reports.find(q, {"_id": 0}).sort("created_at", -1).to_list(500)
+    if not rows:
+        return []
+    file_ids = list({r["file_id"] for r in rows})
+    files = await db.design_files.find(
+        {"id": {"$in": file_ids}},
+        {"_id": 0, "id": 1, "title": 1, "file_type": 1, "download_url": 1,
+         "thumbnail_url": 1, "maker_name": 1, "maker_slug": 1, "uploader_id": 1,
+         "uploader_role": 1, "created_at": 1, "quarantined_at": 1,
+         "open_reports": 1, "size_bytes": 1},
+    ).to_list(len(file_ids))
+    files_by_id = {f["id"]: f for f in files}
+    for r in rows:
+        r["file"] = files_by_id.get(r["file_id"])
+    return rows
+
+
+class FileReportResolution(BaseModel):
+    action: str              # "quarantine" | "dismiss"
+    note: Optional[str] = ""
+
+
+@router.post("/admin/design-files/reports/{report_id}/resolve")
+async def admin_resolve_file_report(
+    report_id: str,
+    body: FileReportResolution,
+    claims: dict = Depends(current_admin),
+):
+    """Close out an open report by either quarantining the file or
+    dismissing the report. Quarantine soft-deletes the file from the
+    public list AND marks ALL open reports for that file as resolved."""
+    action = (body.action or "").strip().lower()
+    if action not in ("quarantine", "dismiss"):
+        raise HTTPException(400, "action must be 'quarantine' or 'dismiss'")
+
+    report = await db.design_file_reports.find_one({"id": report_id}, {"_id": 0})
+    if not report:
+        raise HTTPException(404, "Report not found")
+    if report.get("status") != "open":
+        raise HTTPException(400, f"Report is already {report['status']}")
+
+    now = now_iso()
+    note = (body.note or "")[:500]
+
+    if action == "quarantine":
+        # Hide the file AND roll up every open report on that file to
+        # 'resolved' — no point forcing the admin to click 5 times for
+        # 5 redundant reports on the same bad asset.
+        await db.design_files.update_one(
+            {"id": report["file_id"]},
+            {"$set": {"quarantined_at": now, "quarantined_by": claims.get("email"), "open_reports": 0}},
+        )
+        await db.design_file_reports.update_many(
+            {"file_id": report["file_id"], "status": "open"},
+            {"$set": {
+                "status": "resolved", "resolved_at": now,
+                "resolver": claims.get("email"), "resolver_note": note or "Quarantined",
+                "resolution_action": "quarantine",
+            }},
+        )
+    else:  # dismiss
+        await db.design_file_reports.update_one(
+            {"id": report_id},
+            {"$set": {
+                "status": "dismissed", "resolved_at": now,
+                "resolver": claims.get("email"), "resolver_note": note or "Dismissed",
+                "resolution_action": "dismiss",
+            }},
+        )
+        await db.design_files.update_one(
+            {"id": report["file_id"], "open_reports": {"$gt": 0}},
+            {"$inc": {"open_reports": -1}},
+        )
+
+    await db.admin_audit.insert_one({
+        "id": secrets.token_hex(12),
+        "kind": f"design_file_report_{action}",
+        "actor": claims.get("email"),
+        "file_id": report["file_id"],
+        "report_id": report_id,
+        "note": note,
+        "created_at": now,
+    })
+    return {"ok": True, "action": action, "file_id": report["file_id"]}
+
+
+@router.post("/admin/design-files/{file_id}/unquarantine")
+async def admin_unquarantine_file(
+    file_id: str, claims: dict = Depends(current_admin),
+):
+    """Restore a previously-quarantined file (mis-moderation safety net)."""
+    r = await db.design_files.update_one(
+        {"id": file_id},
+        {"$set": {"quarantined_at": None, "quarantined_by": None}},
+    )
+    if r.matched_count == 0:
+        raise HTTPException(404, "File not found")
+    await db.admin_audit.insert_one({
+        "id": secrets.token_hex(12),
+        "kind": "design_file_unquarantine",
+        "actor": claims.get("email"),
+        "file_id": file_id,
+        "created_at": now_iso(),
+    })
+    return {"ok": True}
