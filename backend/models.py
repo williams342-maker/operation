@@ -249,6 +249,16 @@ class Maker(BaseModel):
     # a red banner with days-remaining so the maker can back out.
     deletion_requested_at: Optional[str] = None
     deletion_cancels_at: Optional[str] = None  # iso: 30 days after request
+    # ---- Auto-boost on best-sellers ----
+    # Daily cron promotes the top-N selling listings (>= threshold orders in
+    # the past 30 days) for 1 week each at $5/wk — billed to pending balance.
+    # Admin/Plus opt-in; off by default. `auto_boost_min_orders_30d` sets
+    # the bar (default 10), `auto_boost_max_per_run` caps spend per day.
+    auto_boost_enabled: bool = False
+    auto_boost_min_orders_30d: int = 10
+    auto_boost_max_per_run: int = 3
+    auto_boost_last_run_at: Optional[str] = None
+    auto_boost_total_spent_usd: float = 0.0
     created_at: str = Field(default_factory=now_iso)
 
 
@@ -422,6 +432,10 @@ class MakerProfileUpdate(BaseModel):
     social_youtube: Optional[str] = None
     social_pinterest: Optional[str] = None
     website_url: Optional[str] = None
+    # Auto-boost preferences
+    auto_boost_enabled: Optional[bool] = None
+    auto_boost_min_orders_30d: Optional[int] = None
+    auto_boost_max_per_run: Optional[int] = None
 
 
 # ---- Admin ----

@@ -504,6 +504,12 @@ export const makerRequestDeletion = () =>
   http.post("/maker/account/request-deletion", {}, { headers: authHeaders() }).then((r) => r.data);
 export const makerCancelDeletion = () =>
   http.post("/maker/account/cancel-deletion", {}, { headers: authHeaders() }).then((r) => r.data);
+export const replyToFeedback = (id, payload) =>
+  http.post(`/admin/feedback/${id}/reply`, payload, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const fetchAutoBoostStatus = () =>
+  http.get("/maker/auto-boost/status", { headers: authHeaders() }).then((r) => r.data);
+export const updateAutoBoost = (payload) =>
+  http.patch("/maker/auto-boost", payload, { headers: authHeaders() }).then((r) => r.data);
 
 // Direct multipart upload — works for any signed-in community user (buyer OR maker).
 // Passes the freshest Bearer token (maker JWT wins over buyer JWT for attribution).

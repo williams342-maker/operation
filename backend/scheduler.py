@@ -130,6 +130,96 @@ async def _job_purge_deleted_makers() -> None:
         logger.exception("[scheduler] purge_deleted_makers failed: %s", e)
 
 
+
+
+async def _job_auto_boost_best_sellers() -> None:
+    """Auto-boost best-selling listings for opted-in makers.
+
+    For each maker with `auto_boost_enabled=true`:
+      1. Find their published listings with order count in the last 30
+         days >= `auto_boost_min_orders_30d` (default 10) AND not currently
+         promoted (`promoted_until <= now or null`).
+      2. Sort by 30-day order count desc, take top `auto_boost_max_per_run`
+         (default 3) and promote each for 1 week ($5).
+      3. Increment `auto_boost_total_spent_usd` and stamp `auto_boost_last_run_at`.
+
+    All-or-nothing: a per-maker exception is logged but never blocks
+    other makers' runs. Boost charges go to the existing pending-balance
+    flow (settled out of the maker's next payout).
+    """
+    from datetime import datetime, timezone, timedelta
+    from core import db
+    try:
+        cutoff_iso = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+        now_iso_v = datetime.now(timezone.utc).isoformat()
+        opted_in = await db.makers.find(
+            {"auto_boost_enabled": True},
+            {"_id": 0, "slug": 1, "auto_boost_min_orders_30d": 1, "auto_boost_max_per_run": 1},
+        ).to_list(500)
+        if not opted_in:
+            return
+        promoted_total = 0
+        for m in opted_in:
+            slug = m["slug"]
+            min_orders = m.get("auto_boost_min_orders_30d") or 10
+            max_per = m.get("auto_boost_max_per_run") or 3
+            try:
+                # Aggregate 30d order counts per listing for this maker.
+                pipe = [
+                    {"$match": {
+                        "maker_slug": slug,
+                        "status": {"$in": ["succeeded", "succeeded-zero"]},
+                        "created_at": {"$gte": cutoff_iso},
+                    }},
+                    {"$unwind": "$line_items"},
+                    {"$group": {"_id": "$line_items.product_slug", "n": {"$sum": "$line_items.quantity"}}},
+                    {"$match": {"n": {"$gte": min_orders}}},
+                    {"$sort": {"n": -1}},
+                    {"$limit": max_per},
+                ]
+                tops = [r async for r in db.maker_payouts.aggregate(pipe)]
+                for row in tops:
+                    p_slug = row["_id"]
+                    if not p_slug:
+                        continue
+                    p = await db.products.find_one({"slug": p_slug, "maker": slug, "deleted_at": None}, {"_id": 0, "promoted_until": 1, "status": 1})
+                    if not p or p.get("status") != "published":
+                        continue
+                    if p.get("promoted_until") and p["promoted_until"] > now_iso_v:
+                        continue  # already promoted
+                    # 1 week boost.
+                    end = (datetime.now(timezone.utc) + timedelta(days=7)).isoformat()
+                    await db.products.update_one(
+                        {"slug": p_slug, "maker": slug},
+                        {"$set": {"promoted_until": end, "auto_boosted": True}},
+                    )
+                    # Charge to pending balance (mirrors the manual /promote endpoint).
+                    await db.maker_pending_charges.insert_one({
+                        "id": __import__("uuid").uuid4().hex,
+                        "maker_slug": slug,
+                        "product_slug": p_slug,
+                        "amount_cents": 500,
+                        "kind": "auto_boost",
+                        "weeks": 1,
+                        "created_at": now_iso_v,
+                    })
+                    await db.makers.update_one(
+                        {"slug": slug},
+                        {"$inc": {"auto_boost_total_spent_usd": 5}},
+                    )
+                    promoted_total += 1
+                # Stamp last-run timestamp regardless of how many promoted.
+                await db.makers.update_one(
+                    {"slug": slug},
+                    {"$set": {"auto_boost_last_run_at": now_iso_v}},
+                )
+            except Exception as e:
+                logger.exception("[scheduler] auto_boost failed for maker %s: %s", slug, e)
+        if promoted_total:
+            logger.info("[scheduler] auto-boosted %d listings across %d makers", promoted_total, len(opted_in))
+    except Exception as e:
+        logger.exception("[scheduler] auto_boost_best_sellers failed: %s", e)
+
 async def _job_apply_scheduled_toggles() -> None:
     """Honor admin-set scheduled flips for `maintenance_mode`. Runs every
     minute; cheap (single Mongo doc read). Once a scheduled time passes,
@@ -203,6 +293,13 @@ def start_scheduler() -> AsyncIOScheduler | None:
     # forum posts, reviews). See `_job_purge_deleted_makers` for details.
     sched.add_job(_job_purge_deleted_makers, CronTrigger(hour=3, minute=30),
                   id="purge_deleted_makers", replace_existing=True)
+    # Auto-boost on best-sellers — runs daily at 04:00 UTC. For each maker
+    # that opted in (`auto_boost_enabled=true`), promotes up to N listings
+    # whose 30-day order count crosses the threshold and aren't currently
+    # promoted. $5/wk per listing billed to pending balance.
+    sched.add_job(_job_auto_boost_best_sellers, CronTrigger(hour=4, minute=0),
+                  id="auto_boost_best_sellers", replace_existing=True)
+
 
     # Scheduled site-switches run every minute (1-min granularity is enough
     # for maintenance windows); job is dirt-cheap when nothing is scheduled.

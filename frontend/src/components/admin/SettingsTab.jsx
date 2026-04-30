@@ -7,6 +7,7 @@ import {
   adminClearIdleChat,
   fetchAdminFeedback,
   adminResolveFeedback,
+  replyToFeedback,
 } from "../../lib/api";
 import { refreshSiteSettings } from "../../hooks/useSiteSettings";
 import { RowsSkeleton } from "../Skeleton";
@@ -270,6 +271,7 @@ function FeedbackInbox() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("open"); // open | all | resolved
+  const [replyTarget, setReplyTarget] = useState(null);
 
   const refresh = async () => {
     setLoading(true);
@@ -328,24 +330,146 @@ function FeedbackInbox() {
                 {it.email}
               </a>
               <p className="font-mono text-xs text-[#e5e5e5] leading-relaxed mt-2 whitespace-pre-wrap">{it.message}</p>
-              {!it.resolved && (
+              {it.replied_at && (
+                <div className="mt-2 font-mono text-[10px] text-emerald-400">
+                  ◆ Replied by {it.replied_by} · {(it.replied_at || "").slice(0, 16).replace("T", " ")} · "{it.replied_subject}"
+                </div>
+              )}
+              <div className="mt-3 flex items-center gap-2 flex-wrap">
+                {!it.resolved && (
+                  <button
+                    onClick={() => resolve(it.id)}
+                    className="px-3 py-1 border border-emerald-800 hover:border-emerald-500 hover:text-emerald-300 font-mono text-[10px] uppercase tracking-[0.22em]"
+                    data-testid={`feedback-resolve-${it.id}`}
+                  >
+                    Mark resolved
+                  </button>
+                )}
                 <button
-                  onClick={() => resolve(it.id)}
-                  className="mt-3 px-3 py-1 border border-emerald-800 hover:border-emerald-500 hover:text-emerald-300 font-mono text-[10px] uppercase tracking-[0.22em]"
-                  data-testid={`feedback-resolve-${it.id}`}
+                  onClick={() => setReplyTarget(it)}
+                  className="px-3 py-1 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5"
+                  data-testid={`feedback-reply-${it.id}`}
                 >
-                  Mark resolved
+                  ✉ Reply
                 </button>
-              )}
-              {it.resolved && (
-                <span className="inline-block mt-3 px-2 py-0.5 border border-emerald-800 bg-emerald-900/30 text-emerald-300 font-mono text-[9px] uppercase tracking-[0.22em]">
-                  Resolved
-                </span>
-              )}
+                {it.resolved && (
+                  <span className="inline-block px-2 py-0.5 border border-emerald-800 bg-emerald-900/30 text-emerald-300 font-mono text-[9px] uppercase tracking-[0.22em]">
+                    Resolved
+                  </span>
+                )}
+              </div>
             </div>
           ))}
         </div>
       )}
+      {replyTarget && (
+        <FeedbackReplyModal
+          feedback={replyTarget}
+          onClose={() => setReplyTarget(null)}
+          onSent={async () => { setReplyTarget(null); await refresh(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// One-shot reply composer for a beta-feedback item. Reuses the same dark
+// shell as the Admin Email modal — single recipient transactional send +
+// optional auto-resolve.
+function FeedbackReplyModal({ feedback, onClose, onSent }) {
+  const [subject, setSubject] = useState(`Re: your feedback to Crafters Market`);
+  const [message, setMessage] = useState(
+    `Hi ${feedback.name || "there"},\n\nThanks for the feedback — `,
+  );
+  const [autoResolve, setAutoResolve] = useState(true);
+  const [busy, setBusy] = useState(false);
+
+  const send = async () => {
+    if (!subject.trim() || !message.trim()) {
+      toast.error("Subject and message are required.");
+      return;
+    }
+    setBusy(true);
+    try {
+      await replyToFeedback(feedback.id, {
+        subject, message, auto_resolve: autoResolve,
+      });
+      toast.success(`Reply sent to ${feedback.email}.`);
+      onSent();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Reply failed.");
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4"
+      data-testid="feedback-reply-modal"
+      onClick={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}
+    >
+      <div className="w-full max-w-xl bg-[#0a0a0a] border border-[#ff4500] p-6 md:p-8">
+        <div className="flex items-start justify-between gap-4 pb-4 border-b border-[#262626]">
+          <div>
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">◆ Feedback reply</div>
+            <h3 className="font-display text-2xl mt-1">Reply to {feedback.name}</h3>
+            <p className="font-mono text-xs text-[#a3a3a3] mt-1 break-all">{feedback.email}</p>
+          </div>
+          <button
+            onClick={onClose}
+            disabled={busy}
+            data-testid="feedback-reply-close"
+            className="font-mono text-xl text-[#a3a3a3] hover:text-[#ff4500] disabled:opacity-50"
+          >✕</button>
+        </div>
+        <div className="mt-4 border-l-2 border-[#262626] pl-3">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] mb-1">Original</div>
+          <p className="font-mono text-xs text-[#a3a3a3] whitespace-pre-wrap leading-relaxed line-clamp-5">{feedback.message}</p>
+        </div>
+        <div className="space-y-3 mt-5">
+          <div>
+            <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Subject</label>
+            <input
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              maxLength={180}
+              data-testid="feedback-reply-subject"
+              className="w-full mt-1.5 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm text-[#e5e5e5]"
+            />
+          </div>
+          <div>
+            <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Message</label>
+            <textarea
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              rows={7}
+              data-testid="feedback-reply-message"
+              className="w-full mt-1.5 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm text-[#e5e5e5] resize-none leading-relaxed"
+            />
+          </div>
+          <label className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] cursor-pointer">
+            <input
+              type="checkbox"
+              checked={autoResolve}
+              onChange={(e) => setAutoResolve(e.target.checked)}
+              data-testid="feedback-reply-resolve"
+            />
+            Mark as resolved after sending
+          </label>
+        </div>
+        <div className="flex justify-end gap-3 mt-5 pt-4 border-t border-[#262626]">
+          <button
+            onClick={onClose}
+            disabled={busy}
+            className="px-4 py-2 border border-[#262626] hover:border-[#525252] font-mono text-xs uppercase tracking-[0.22em] disabled:opacity-50"
+          >Cancel</button>
+          <button
+            onClick={send}
+            disabled={busy || !subject.trim() || !message.trim()}
+            data-testid="feedback-reply-send"
+            className="btn-industrial btn-primary disabled:opacity-50"
+          >{busy ? "Sending…" : "Send reply →"}</button>
+        </div>
+      </div>
     </div>
   );
 }

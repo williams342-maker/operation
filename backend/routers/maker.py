@@ -1138,3 +1138,77 @@ async def maker_cancel_deletion(slug: str = Depends(current_maker_slug)):
         "created_at": now_iso(),
     })
     return {"ok": True}
+
+
+@router.get("/maker/auto-boost/status")
+async def maker_auto_boost_status(slug: str = Depends(current_maker_slug)):
+    """Stats for the Marketing Ads auto-boost panel: current toggle state,
+    last-run timestamp, lifetime spend, and the listing count that would
+    boost on the next run (preview)."""
+    from datetime import datetime, timezone, timedelta
+    m = await db.makers.find_one(
+        {"slug": slug},
+        {"_id": 0, "auto_boost_enabled": 1, "auto_boost_min_orders_30d": 1,
+         "auto_boost_max_per_run": 1, "auto_boost_last_run_at": 1,
+         "auto_boost_total_spent_usd": 1},
+    ) or {}
+    min_orders = m.get("auto_boost_min_orders_30d") or 10
+    max_per = m.get("auto_boost_max_per_run") or 3
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+    now_v = datetime.now(timezone.utc).isoformat()
+    pipe = [
+        {"$match": {"maker_slug": slug, "status": {"$in": ["succeeded", "succeeded-zero"]}, "created_at": {"$gte": cutoff}}},
+        {"$unwind": "$line_items"},
+        {"$group": {"_id": "$line_items.product_slug", "n": {"$sum": "$line_items.quantity"}}},
+        {"$match": {"n": {"$gte": min_orders}}},
+        {"$sort": {"n": -1}},
+        {"$limit": max_per * 4},  # extra to filter already-promoted
+    ]
+    rows = [r async for r in db.maker_payouts.aggregate(pipe)]
+    next_candidates = []
+    for r in rows:
+        if not r["_id"]:
+            continue
+        p = await db.products.find_one({"slug": r["_id"], "maker": slug, "deleted_at": None}, {"_id": 0, "title": 1, "promoted_until": 1, "status": 1, "images": 1})
+        if not p or p.get("status") != "published":
+            continue
+        if p.get("promoted_until") and p["promoted_until"] > now_v:
+            continue
+        next_candidates.append({"slug": r["_id"], "title": p.get("title"), "orders_30d": r["n"], "thumbnail": (p.get("images") or [None])[0]})
+        if len(next_candidates) >= max_per:
+            break
+    return {
+        "enabled": bool(m.get("auto_boost_enabled")),
+        "min_orders_30d": min_orders,
+        "max_per_run": max_per,
+        "last_run_at": m.get("auto_boost_last_run_at"),
+        "total_spent_usd": m.get("auto_boost_total_spent_usd") or 0,
+        "next_candidates": next_candidates,
+        "next_run_at": "Daily at 04:00 UTC",
+    }
+
+
+class AutoBoostUpdate(BaseModel):
+    enabled: Optional[bool] = None
+    min_orders_30d: Optional[int] = None
+    max_per_run: Optional[int] = None
+
+
+@router.patch("/maker/auto-boost")
+async def maker_update_auto_boost(
+    body: AutoBoostUpdate, slug: str = Depends(current_maker_slug),
+):
+    """Update auto-boost preferences. All fields optional; pass only what
+    you want to change. Sane bounds enforced server-side so a curious
+    operator can't auto-spend $1000/wk by accident."""
+    update: dict = {}
+    if body.enabled is not None:
+        update["auto_boost_enabled"] = bool(body.enabled)
+    if body.min_orders_30d is not None:
+        update["auto_boost_min_orders_30d"] = max(3, min(100, int(body.min_orders_30d)))
+    if body.max_per_run is not None:
+        update["auto_boost_max_per_run"] = max(1, min(10, int(body.max_per_run)))
+    if not update:
+        raise HTTPException(400, "Nothing to update.")
+    await db.makers.update_one({"slug": slug}, {"$set": update})
+    return {"ok": True, "applied": update}

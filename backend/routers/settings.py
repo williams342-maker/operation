@@ -220,6 +220,65 @@ async def admin_resolve_feedback(
     return {"resolved": True}
 
 
+class FeedbackReplyRequest(BaseModel):
+    subject: str
+    message: str
+    auto_resolve: bool = True
+
+
+@router.post("/admin/feedback/{feedback_id}/reply")
+async def admin_reply_feedback(
+    feedback_id: str, body: FeedbackReplyRequest,
+    bg: BackgroundTasks, claims: dict = Depends(current_admin),
+):
+    """Send a one-off email reply to a beta-feedback submitter and (by
+    default) close the ticket. Reuses the existing send_admin_broadcast
+    helper since it's a single-recipient transactional with the same shell.
+    """
+    fb = await db.beta_feedback.find_one({"id": feedback_id}, {"_id": 0})
+    if not fb:
+        raise HTTPException(404, "Feedback not found.")
+    if not fb.get("email"):
+        raise HTTPException(400, "Feedback has no email on file.")
+    subject = (body.subject or "").strip()
+    message = (body.message or "").strip()
+    if not subject or not message:
+        raise HTTPException(400, "Subject and message are required.")
+    if len(subject) > 180:
+        raise HTTPException(400, "Subject must be ≤ 180 characters.")
+
+    from email_service import send_admin_broadcast
+    bg.add_task(
+        send_admin_broadcast,
+        fb["email"], subject, message,
+        "Reply from Crafters Market",
+        f"Re: your feedback to the team",
+    )
+    update: dict = {
+        "replied_at": now_iso(),
+        "replied_by": claims["email"],
+        "replied_subject": subject[:200],
+    }
+    if body.auto_resolve and not fb.get("resolved"):
+        update.update({
+            "resolved": True,
+            "resolved_by": claims["email"],
+            "resolved_at": now_iso(),
+        })
+    await db.beta_feedback.update_one({"id": feedback_id}, {"$set": update})
+    await db.admin_audit.insert_one({
+        "id": __import__("secrets").token_hex(12),
+        "kind": "feedback_reply",
+        "actor": claims["email"],
+        "feedback_id": feedback_id,
+        "to": fb["email"],
+        "subject": subject[:200],
+        "auto_resolved": body.auto_resolve,
+        "created_at": now_iso(),
+    })
+    return {"ok": True, "to": fb["email"], "resolved": update.get("resolved", fb.get("resolved", False))}
+
+
 @router.get("/admin/ai-mod-log")
 async def admin_ai_mod_log(limit: int = 100, _: dict = Depends(current_admin)):
     """Recent AI moderation events for the admin Audit tab."""

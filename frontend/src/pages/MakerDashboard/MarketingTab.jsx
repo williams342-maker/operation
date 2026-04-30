@@ -9,6 +9,7 @@ import {
   aiListingCopy, aiSeoAudit, aiSeoBulk,
   fetchDiscountCodes, createDiscountCode, toggleDiscountCode, deleteDiscountCode,
   fetchMakerProducts, makerShareListingToBuffer, promoteMakerProduct,
+  fetchAutoBoostStatus, updateAutoBoost,
 } from "../../lib/api";
 
 /**
@@ -277,11 +278,148 @@ function AdsSection() {
       </Section>
 
       {/* Keep the existing AI discovery tools as companion content */}
+      <AutoBoostPanel />
       <ListingCopyGenerator />
       <SeoRecommender />
       <BulkSeoGenerator />
       <MarketingTips />
     </div>
+  );
+}
+
+// ============================================================================
+// Auto-boost on best-sellers — opt-in toggle + threshold knobs + preview
+// of which listings would boost on the next nightly run. $5/wk per listing.
+// ============================================================================
+function AutoBoostPanel() {
+  const [data, setData] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const refresh = () => fetchAutoBoostStatus().then(setData).catch(() => setData({ enabled: false }));
+  useEffect(() => { refresh(); }, []);
+
+  const toggle = async (next) => {
+    setBusy(true);
+    try {
+      await updateAutoBoost({ enabled: next });
+      toast.success(next ? "Auto-boost enabled. We'll run nightly at 04:00 UTC." : "Auto-boost paused.");
+      await refresh();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Failed.");
+    } finally { setBusy(false); }
+  };
+
+  const updateField = async (key, value) => {
+    setBusy(true);
+    try {
+      await updateAutoBoost({ [key]: value });
+      await refresh();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Failed.");
+    } finally { setBusy(false); }
+  };
+
+  if (!data) {
+    return <Section title="Auto-boost best-sellers" testId="ads-auto-boost"><p className="font-mono text-xs text-[#525252]">Loading…</p></Section>;
+  }
+
+  const candidates = data.next_candidates || [];
+  const enabled = data.enabled;
+
+  return (
+    <Section title="Auto-boost best-sellers" testId="ads-auto-boost">
+      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-4">
+        <div className="max-w-xl">
+          <p className="font-mono text-xs text-[#e5e5e5] leading-relaxed">
+            Once a day we look at your top sellers from the last 30 days. Any listing
+            with <b className="text-[#ff4500]">{data.min_orders_30d}+</b> orders that
+            isn't already promoted gets <b className="text-[#ff4500]">1 week of free promotion</b>.
+            Up to <b className="text-[#ff4500]">{data.max_per_run}</b> listings per run.
+          </p>
+          <p className="font-mono text-[10px] text-[#525252] mt-2">
+            $5/wk per boosted listing — billed to your pending balance.
+            {data.last_run_at && ` Last run: ${new Date(data.last_run_at).toLocaleString()}.`}
+          </p>
+          {data.total_spent_usd > 0 && (
+            <p className="font-mono text-[10px] text-[#525252]">
+              Lifetime auto-boost spend: <b className="text-[#a3a3a3]">${data.total_spent_usd.toFixed(2)}</b>
+            </p>
+          )}
+        </div>
+        <button
+          onClick={() => toggle(!enabled)}
+          disabled={busy}
+          data-testid="auto-boost-toggle"
+          className={`shrink-0 px-4 py-2 border font-mono text-[10px] uppercase tracking-[0.22em] font-bold transition disabled:opacity-50 ${
+            enabled
+              ? "border-[#ff4500] bg-[#ff4500] text-black hover:bg-[#ff5722]"
+              : "border-[#262626] text-[#a3a3a3] hover:border-[#ff4500] hover:text-[#ff4500]"
+          }`}
+        >
+          {enabled ? "◆ Auto-boost ON" : "◇ Enable auto-boost"}
+        </button>
+      </div>
+
+      {enabled && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4 border-t border-[#1f1f1f] pt-3">
+          <div>
+            <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Min orders / 30d to qualify</label>
+            <select
+              value={data.min_orders_30d}
+              onChange={(e) => updateField("min_orders_30d", Number(e.target.value))}
+              disabled={busy}
+              data-testid="auto-boost-threshold"
+              className="w-full mt-1 bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5] disabled:opacity-50"
+            >
+              {[3, 5, 10, 15, 20, 30, 50].map((n) => (
+                <option key={n} value={n}>{n} orders</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Max listings per run (cap)</label>
+            <select
+              value={data.max_per_run}
+              onChange={(e) => updateField("max_per_run", Number(e.target.value))}
+              disabled={busy}
+              data-testid="auto-boost-max-per-run"
+              className="w-full mt-1 bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5] disabled:opacity-50"
+            >
+              {[1, 2, 3, 5, 10].map((n) => (
+                <option key={n} value={n}>{n} (~${n * 5}/wk max)</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
+
+      {/* Preview of who would boost next */}
+      <div data-testid="auto-boost-preview">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">
+          Next-run preview ({candidates.length})
+        </div>
+        {candidates.length === 0 ? (
+          <p className="font-mono text-xs text-[#525252] py-2">
+            {enabled
+              ? "No listings hit the threshold right now — keep selling and we'll catch the next surge."
+              : "Enable auto-boost above to see your candidates."}
+          </p>
+        ) : (
+          <ul className="border border-[#1f1f1f] divide-y divide-[#1f1f1f]" data-testid="auto-boost-list">
+            {candidates.map((c) => (
+              <li key={c.slug} className="flex items-center gap-3 px-3 py-2" data-testid={`auto-boost-candidate-${c.slug}`}>
+                {c.thumbnail && <img src={c.thumbnail} alt="" className="w-10 h-10 object-cover border border-[#1f1f1f]" />}
+                <div className="flex-1 min-w-0">
+                  <div className="font-mono text-xs text-[#e5e5e5] truncate">{c.title}</div>
+                  <div className="font-mono text-[10px] text-[#525252]">{c.orders_30d} orders in 30d</div>
+                </div>
+                <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] shrink-0">★ Will boost</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </Section>
   );
 }
 
