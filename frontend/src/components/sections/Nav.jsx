@@ -130,7 +130,7 @@ export default function Nav() {
               when signed in (any role). */}
           <Link
             to={accountHref}
-            className="relative inline-flex items-center gap-2 px-4 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em] transition"
+            className="hidden sm:inline-flex relative items-center gap-2 px-4 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em] transition"
             data-testid="nav-signin-btn"
           >
             <User size={14} /> {signedInRole ? "Account" : "Sign in"}
@@ -174,11 +174,31 @@ export default function Nav() {
               </button>
             </div>
             <ul className="flex flex-col p-8 gap-6">
+              {/* Sign in / Account — first item, always visible. Mobile users
+                  were getting stranded looking for this in the hamburger
+                  (it was only in the top-bar cluster which got squeezed off
+                  small screens). Putting it at the top of the drawer
+                  removes that dead-end completely. */}
+              <motion.li
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0 }}
+              >
+                <Link
+                  to={accountHref}
+                  onClick={() => setOpen(false)}
+                  className="font-display text-5xl block hover:text-[#ff4500] transition flex items-center gap-3"
+                  data-testid="mobile-nav-signin"
+                >
+                  <User size={28} className="text-[#ff4500]" />
+                  {signedInRole ? "Account" : "Sign in"}
+                </Link>
+              </motion.li>
               {betaSignupEnabled && (
                 <motion.li
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0 }}
+                  transition={{ delay: 0.05 }}
                 >
                   <Link
                     to="/beta"
@@ -195,12 +215,13 @@ export default function Nav() {
                   key={l.href}
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: (i + 1) * 0.07 }}
+                  transition={{ delay: (i + 2) * 0.05 }}
                 >
                   <Link
                     to={l.href}
                     onClick={() => setOpen(false)}
                     className="font-display text-5xl block hover:text-[#ff4500] transition"
+                    data-testid={`mobile-nav-link-${l.label.toLowerCase().replace(/\s/g, "-")}`}
                   >
                     {l.label}
                   </Link>
