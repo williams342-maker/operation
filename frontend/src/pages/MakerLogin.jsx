@@ -1,14 +1,60 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { requestMakerLink } from "../lib/api";
 
+// localStorage key for remembering the last-used sign-in email. The value
+// is the raw email, not a token — safe to persist. Gives us a "Not you?"
+// affordance on the login screen so a returning user never has to retype.
+const LAST_EMAIL_KEY = "cm_maker_last_email";
+
 export default function MakerLogin() {
   const [email, setEmail] = useState("");
   const [state, setState] = useState({ status: "idle", message: "" });
+  const [rememberedEmail, setRememberedEmail] = useState("");
+
+  // On mount, pre-fill with the last email they signed in with (if any).
+  // This is passive — the user can still type over it.
+  useEffect(() => {
+    const prior = localStorage.getItem(LAST_EMAIL_KEY) || "";
+    if (prior) {
+      setEmail(prior);
+      setRememberedEmail(prior);
+    }
+  }, []);
 
   const onSubmit = async (e) => {
     e.preventDefault();
+    if (!email) return;
+    setState({ status: "loading", message: "" });
+    try {
+      const res = await requestMakerLink(email.trim(), window.location.origin);
+      localStorage.setItem(LAST_EMAIL_KEY, email.trim());
+      setRememberedEmail(email.trim());
+      setState({ status: "sent", message: res.message });
+    } catch (err) {
+      setState({
+        status: "error",
+        message: err?.response?.data?.detail || "Could not send the link. Try again.",
+      });
+    }
+  };
+
+  // "Not you?" / switch-user — wipes the remembered email and fully
+  // resets the form. Also clears any stale JWTs just in case so the
+  // next successful magic-link verify issues a fresh session.
+  const resetIdentity = () => {
+    localStorage.removeItem(LAST_EMAIL_KEY);
+    localStorage.removeItem("cm_maker_jwt");
+    localStorage.removeItem("cm_maker_slug");
+    setEmail("");
+    setRememberedEmail("");
+    setState({ status: "idle", message: "" });
+  };
+
+  // Resend the sign-in link without re-typing the email. Re-uses the
+  // submit handler logic but doesn't require the form event.
+  const resendLink = async () => {
     if (!email) return;
     setState({ status: "loading", message: "" });
     try {
@@ -17,7 +63,7 @@ export default function MakerLogin() {
     } catch (err) {
       setState({
         status: "error",
-        message: err?.response?.data?.detail || "Could not send the link. Try again.",
+        message: err?.response?.data?.detail || "Could not resend the link. Try again.",
       });
     }
   };
@@ -67,8 +113,18 @@ export default function MakerLogin() {
 
           <form onSubmit={onSubmit} className="space-y-4" data-testid="maker-login-form">
             <label className="block">
-              <span className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3]">
-                Email
+              <span className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3] flex items-center justify-between gap-3">
+                <span>Email</span>
+                {rememberedEmail && state.status === "idle" && (
+                  <button
+                    type="button"
+                    onClick={resetIdentity}
+                    className="normal-case tracking-normal text-[11px] text-[#a3a3a3] hover:text-[#ff4500] underline"
+                    data-testid="maker-login-not-you"
+                  >
+                    Not {rememberedEmail}? Use a different email
+                  </button>
+                )}
               </span>
               <input
                 type="email"
@@ -105,6 +161,27 @@ export default function MakerLogin() {
                 ◆ Check your inbox
               </div>
               <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed">{state.message}</p>
+              <div className="mt-4 pt-4 border-t border-[#ff4500]/20 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={resendLink}
+                  className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#ff4500] hover:underline"
+                  data-testid="maker-login-resend"
+                  title="Re-send the magic link to the same email"
+                >
+                  ↻ Resend link
+                </button>
+                <span className="text-[#525252]">·</span>
+                <button
+                  type="button"
+                  onClick={resetIdentity}
+                  className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] hover:underline"
+                  data-testid="maker-login-switch-user"
+                  title="Sign in with a different email"
+                >
+                  ← Use a different email
+                </button>
+              </div>
             </div>
           )}
 
