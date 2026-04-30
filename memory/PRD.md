@@ -1,6 +1,33 @@
 # Crafters Market — Modernized Homepage + Full Marketplace
 
 
+## 2026-02 — iter62 — Phase 2B/2C/2D · Shipping Invoicing End-to-End (TESTED ✅ 100%)
+- ✨ **Maker Financials → "Shipping labels" sub-tab** (Phase 2C):
+  3 metric cards (Next invoice / Billed to date / Lifetime), weekly ↔
+  biweekly cadence toggle, full ledger table with tracking links + PDF
+  reprint per row.
+- ✨ **Weekly Stripe Invoice job** (Phase 2B): APScheduler cron
+  `shipping_invoices_weekly` every Monday 10:00 UTC. For each maker
+  with unbilled rows AND cadence gate (weekly = always; biweekly = even
+  ISO week only), creates one Stripe `InvoiceItem` per ledger row
+  (`idempotency_key="shipping-item-{id}"`) and auto-finalizes a single
+  Invoice. Rows get stamped `billed_at` + `invoice_id`. Skip reasons
+  logged (`no_stripe_customer`, `stripe_error:...`). Admin "Run now"
+  defaults to dry_run for safety.
+- ✨ **Admin Shipping Ledger tab** (Phase 2D): per-maker rollup (top
+  10), filters (maker_slug / tracking# / billed-yes-no), manual
+  mark-billed modal (records `billed_by_admin` + note for audit), Run
+  Now Dry/Real buttons, CSV export with 14 columns.
+- New files: `backend/shipping_invoicing.py`,
+  `backend/routers/admin_shipping.py`,
+  `frontend/src/components/admin/ShippingLedgerTab.jsx`. Edits:
+  `FinancialsTab.jsx` ShippingPanel section, `AdminDashboard.jsx` tab
+  wiring, `lib/api.js` 7 new helpers, `scheduler.py` cron registration.
+- Tests: `/app/test_reports/iteration_43.json` — 17/17 backend pytest
+  + 100% frontend Playwright (no regressions to existing 7 Financials
+  sub-nav sections). No retest needed.
+
+
 ## 2026-02 — iter61 — Phase 2A · Shippo Auto-Tracking Webhook (self-tested ✅)
 - ✨ **New public webhook `POST /api/shippo/webhook`**: receives
   `track_updated` events from Shippo, maps `status` → UI-friendly
