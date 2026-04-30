@@ -600,6 +600,78 @@ async def convert_dxf_to_svg(
     return {"ok": True, "variant": new_variant}
 
 
+@router.post("/community/files/{file_id}/render/stl-thumbnail")
+async def render_stl_thumbnail(
+    file_id: str,
+    claims: dict = Depends(current_any_user),
+):
+    """Render a PNG thumbnail from an STL in this bundle and stamp it
+    on `thumbnail_url`. Same auth + idempotency pattern as DXF→SVG.
+
+    Idempotency: 409 if the bundle already has a thumbnail_url AND
+    the maker is requesting a regeneration without `?force=true`. We
+    keep this simple for now (no force flag) — UI prompt only appears
+    when thumbnail is missing.
+    """
+    doc = await db.design_files.find_one({"id": file_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Design file not found.")
+    if not _is_design_file_owner(doc, claims):
+        raise HTTPException(403, "You can only render thumbnails for your own uploads.")
+    if doc.get("thumbnail_url"):
+        raise HTTPException(409, "This bundle already has a thumbnail.")
+
+    # Find the STL source (primary or first STL variant).
+    primary_fmt = (doc.get("file_type") or "").upper()
+    src_url = doc.get("download_url") if primary_fmt == "STL" else None
+    if not src_url:
+        for v in (doc.get("variants") or []):
+            if (v.get("format") or "").upper() == "STL":
+                src_url = v.get("url")
+                break
+    if not src_url:
+        raise HTTPException(400, "No STL in this bundle to render.")
+
+    # Fetch + render off the event loop (matplotlib is CPU-heavy).
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.get(src_url)
+            resp.raise_for_status()
+            stl_bytes = resp.content
+    except Exception as e:
+        raise HTTPException(502, f"Couldn't fetch source STL: {e}")
+
+    import asyncio
+    from stl_renderer import render_stl_to_png
+    try:
+        png_bytes = await asyncio.to_thread(render_stl_to_png, stl_bytes)
+    except ValueError as e:
+        msg = str(e)
+        if msg.startswith("Couldn't parse STL:"):
+            msg = "This STL appears corrupted or unreadable. Try re-exporting from your slicer."
+        raise HTTPException(422, msg)
+
+    from r2_storage import upload_design_file_bytes
+    uploader_label = doc.get("maker_slug") or doc.get("uploader_id") or "user"
+    try:
+        url, _ext = upload_design_file_bytes(
+            png_bytes,
+            key_prefix=f"community-files/{uploader_label}",
+            filename=f"{doc.get('id')}-thumbnail.png",
+            content_type="image/png",
+        )
+    except ValueError as e:
+        raise HTTPException(500, f"Couldn't store generated thumbnail: {e}")
+
+    await db.design_files.update_one(
+        {"id": file_id},
+        {"$set": {"thumbnail_url": url, "thumbnail_auto_generated": True}},
+    )
+    logger.info("[stl2png] generated thumbnail for file_id=%s size=%dB", file_id, len(png_bytes))
+    return {"ok": True, "thumbnail_url": url, "size_bytes": len(png_bytes)}
+
+
 
 @router.get("/community/files/{file_id}/download")
 async def download_design_file(file_id: str, claims: dict = Depends(current_buyer)):

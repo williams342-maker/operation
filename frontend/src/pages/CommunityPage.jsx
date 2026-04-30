@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import {
   fetchShowcase, createShowcase, likeShowcase,
   fetchDesignFiles, downloadDesignFile, unlockDownloadsCheckout, uploadDesignFile, uploadDesignFileDirect,
-  reportDesignFile, convertDxfToSvg,
+  reportDesignFile, convertDxfToSvg, renderStlThumbnail,
   fetchForumThreads, fetchForumThread, fetchForumCategories,
   createForumThread, replyForumThread, uploadForumAttachment,
   deleteChatMessage, deleteForumThread, deleteForumReply,
@@ -675,6 +675,7 @@ function FileCard({ file, canDownload, me, onRefresh }) {
   const [reportOpen, setReportOpen] = useState(false);
   const [downloadOpen, setDownloadOpen] = useState(false);
   const [converting, setConverting] = useState(false);
+  const [rendering, setRendering] = useState(false);
   // Only signed-in users can report (same auth gate as the upload path).
   const canReport = !!localStorage.getItem("cm_maker_jwt") || !!localStorage.getItem("cm_buyer_jwt");
   const variants = Array.isArray(file.variants) ? file.variants : [];
@@ -695,6 +696,7 @@ function FileCard({ file, canDownload, me, onRefresh }) {
     ...variants.map((v) => (v.format || "").toUpperCase()),
   ]);
   const canConvertDxfToSvg = isOwner && allFmts.has("DXF") && !allFmts.has("SVG");
+  const canRenderStlThumb = isOwner && allFmts.has("STL") && !file.thumbnail_url;
 
   const onConvert = async () => {
     if (converting) return;
@@ -707,6 +709,20 @@ function FileCard({ file, canDownload, me, onRefresh }) {
       toast.error(e?.response?.data?.detail || "Couldn't generate SVG.");
     } finally {
       setConverting(false);
+    }
+  };
+
+  const onRenderThumb = async () => {
+    if (rendering) return;
+    setRendering(true);
+    try {
+      await renderStlThumbnail(file.id);
+      toast.success("Thumbnail rendered.");
+      if (onRefresh) await onRefresh();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Couldn't render thumbnail.");
+    } finally {
+      setRendering(false);
     }
   };
 
@@ -732,7 +748,31 @@ function FileCard({ file, canDownload, me, onRefresh }) {
     window.location.href = r.url;
   };
   return (
-    <div className="border border-[#262626] hover:border-[#ff4500] transition p-4 flex flex-col gap-3" data-testid={`file-${file.id}`}>
+    <div className="border border-[#262626] hover:border-[#ff4500] transition flex flex-col overflow-hidden" data-testid={`file-${file.id}`}>
+      {/* Optional gallery preview — auto-promoted from a raster variant
+          on upload, OR rendered later via STL→PNG. The orange "✦ generated"
+          ribbon flags the trust signal so buyers don't think they're seeing
+          a hand-shot studio photo. */}
+      {file.thumbnail_url && (
+        <div className="relative aspect-[4/3] bg-[#0a0a0a] overflow-hidden border-b border-[#262626]">
+          <img
+            src={file.thumbnail_url}
+            alt={file.title}
+            loading="lazy"
+            className="w-full h-full object-contain"
+            data-testid={`file-thumbnail-${file.id}`}
+          />
+          {file.thumbnail_auto_generated && (
+            <span
+              className="absolute top-2 left-2 px-1.5 py-0.5 border border-[#ff4500]/60 bg-[#0a0a0a]/80 text-[#ff4500] font-mono text-[9px] uppercase tracking-[0.22em]"
+              title="Rendered automatically from your STL"
+            >
+              ✦ rendered
+            </span>
+          )}
+        </div>
+      )}
+      <div className="p-4 flex flex-col gap-3">
       {/* Format chips row — primary + variants. Click any chip to download
           that specific format. Hides on signed-out users. */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -792,6 +832,30 @@ function FileCard({ file, canDownload, me, onRefresh }) {
             data-testid={`file-generate-svg-${file.id}`}
           >
             {converting ? "Generating…" : "Generate"}
+          </button>
+        </div>
+      )}
+
+      {canRenderStlThumb && (
+        <div
+          className="border border-dashed border-[#ff4500]/40 bg-[#ff4500]/5 px-3 py-2 flex items-center justify-between gap-3"
+          data-testid={`file-prompt-missing-thumb-${file.id}`}
+        >
+          <div className="min-w-0">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] flex items-center gap-1">
+              <Sparkles size={11} /> Missing a thumbnail
+            </div>
+            <p className="font-mono text-[10px] text-[#a3a3a3] mt-0.5 leading-relaxed">
+              We'll render your STL into a gallery-ready preview image.
+            </p>
+          </div>
+          <button
+            onClick={onRenderThumb}
+            disabled={rendering}
+            className="btn-industrial text-[10px] py-1.5 px-3 inline-flex items-center gap-1 shrink-0 disabled:opacity-50"
+            data-testid={`file-render-thumb-${file.id}`}
+          >
+            {rendering ? "Rendering…" : "Render"}
           </button>
         </div>
       )}
@@ -873,6 +937,7 @@ function FileCard({ file, canDownload, me, onRefresh }) {
           onClose={() => setReportOpen(false)}
         />
       )}
+      </div>
     </div>
   );
 }

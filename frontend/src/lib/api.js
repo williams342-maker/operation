@@ -689,6 +689,17 @@ export const convertDxfToSvg = (fileId) => {
   }).then((r) => r.data);
 };
 
+// Render an STL in this bundle to a PNG thumbnail and stamp it on
+// thumbnail_url. Owner-only, idempotent (409 if thumbnail already set).
+export const renderStlThumbnail = (fileId) => {
+  const mkr = localStorage.getItem("cm_maker_jwt");
+  const byr = localStorage.getItem("cm_buyer_jwt");
+  const token = mkr || byr;
+  return http.post(`/community/files/${fileId}/render/stl-thumbnail`, null, {
+    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+  }).then((r) => r.data);
+};
+
 export const fetchForumThreads = (category = "") =>
   http.get("/community/forum", { params: category ? { category } : {} }).then((r) => r.data);
 export const fetchForumCategories = () =>
