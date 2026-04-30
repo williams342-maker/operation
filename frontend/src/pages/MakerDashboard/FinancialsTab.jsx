@@ -373,8 +373,31 @@ function PaymentAccount({ payouts, status, txns, onRefresh, query }) {
   };
   const onDashboard = async () => {
     setBusy("dashboard"); setErr("");
-    try { const r = await stripeConnectDashboardLink(); window.location.href = r.url; }
-    catch (e) { setErr(errMsg(e, "Could not open dashboard.")); setBusy(""); }
+    try {
+      const r = await stripeConnectDashboardLink();
+      window.location.href = r.url;
+    } catch (e) {
+      // Backend signals onboarding-incomplete via HTTP 409 with detail.code.
+      // Detect either the structured object OR the legacy string fallback,
+      // and silently re-launch onboarding instead of dumping a raw error.
+      const detail = e?.response?.data?.detail;
+      const isIncomplete =
+        e?.response?.status === 409 &&
+        ((typeof detail === "object" && detail?.code === "onboarding_incomplete") ||
+          (typeof detail === "string" && /onboarding/i.test(detail)));
+      if (isIncomplete) {
+        try {
+          const r = await stripeConnectOnboard(window.location.origin);
+          window.location.href = r.url;
+          return;
+        } catch (e2) {
+          setErr(errMsg(e2, "Finish your Stripe onboarding to open the dashboard."));
+        }
+      } else {
+        setErr(errMsg(e, "Could not open dashboard."));
+      }
+      setBusy("");
+    }
   };
 
   // Filter transaction history rows by query — match against kind, reference,

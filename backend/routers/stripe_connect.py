@@ -154,10 +154,32 @@ async def connect_dashboard_link(slug: str = Depends(current_maker_slug)):
     maker = await db.makers.find_one({"slug": slug}, {"_id": 0})
     if not maker or not maker.get("stripe_account_id"):
         raise HTTPException(400, "Connect your Stripe account first.")
+    # Stripe's Account.create_login_link rejects accounts that haven't
+    # finished onboarding (charges_enabled=false). Translate that into
+    # a friendly 409 the UI can react to by re-launching onboarding.
+    if not maker.get("stripe_charges_enabled"):
+        raise HTTPException(
+            409,
+            {
+                "code": "onboarding_incomplete",
+                "message": "Finish your Stripe onboarding before opening the dashboard.",
+            },
+        )
     s = _stripe()
     try:
         link = s.Account.create_login_link(maker["stripe_account_id"])
     except Exception as e:
+        msg = str(e)
+        # Stripe still occasionally rejects with "may not have completed
+        # onboarding" — surface as 409 so the UI offers the relaunch.
+        if "may not have completed" in msg or "onboarding" in msg.lower():
+            raise HTTPException(
+                409,
+                {
+                    "code": "onboarding_incomplete",
+                    "message": "Stripe says onboarding isn't complete yet. Re-launch the wizard to finish.",
+                },
+            )
         logger.exception("Stripe LoginLink.create failed: %s", e)
         raise HTTPException(502, "Could not open Stripe dashboard.")
     return {"url": link.url}

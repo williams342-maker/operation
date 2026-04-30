@@ -52,7 +52,22 @@ export default function PayoutsTab() {
       const r = await stripeConnectDashboardLink();
       window.open(r.url, "_blank", "noopener");
     } catch (e) {
-      setErr(errMsg(e, "Could not open Stripe dashboard."));
+      const detail = e?.response?.data?.detail;
+      const isIncomplete =
+        e?.response?.status === 409 &&
+        ((typeof detail === "object" && detail?.code === "onboarding_incomplete") ||
+          (typeof detail === "string" && /onboarding/i.test(detail)));
+      if (isIncomplete) {
+        try {
+          const r = await stripeConnectOnboard(window.location.origin);
+          window.location.href = r.url;
+          return;
+        } catch (e2) {
+          setErr(errMsg(e2, "Finish your Stripe onboarding to open the dashboard."));
+        }
+      } else {
+        setErr(errMsg(e, "Could not open Stripe dashboard."));
+      }
     } finally { setBusy(""); }
   };
 

@@ -304,8 +304,37 @@ function CustomOrderRow({ order, makers, reddit, onChange }) {
         </div>
         {suggestions.length > 0 && !order.assigned_maker_slug && (
           <div className="mb-3 pb-3 border-b border-[#1a1a1a]" data-testid={`brief-suggestions-${order.id}`}>
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-yellow-400 mb-2 flex items-center gap-1">
-              ✨ Suggested matches
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-yellow-400 mb-2 flex items-center justify-between gap-2">
+              <span>✨ Suggested matches</span>
+              <button
+                type="button"
+                onClick={async () => {
+                  const top = suggestions[0];
+                  setBusy("autoroute"); setErr("");
+                  try {
+                    const r = await pushBriefToMaker(order.id, {
+                      maker_slug: top.slug,
+                      note: `Routed to you because: ${top.reason}.`,
+                      notify_buyer: notifyBuyer,
+                    });
+                    toast.success(`Auto-routed to ${top.name} · ${top.reason}.`);
+                    setMakerSlug(top.slug);
+                    setAdminNote("");
+                    void r;
+                    await onChange();
+                  } catch (e) {
+                    const detail = e?.response?.data?.detail || "Failed to auto-route.";
+                    setErr(detail);
+                    toast.error(detail);
+                  } finally { setBusy(""); }
+                }}
+                disabled={busy === "autoroute"}
+                className="px-2.5 py-1 border border-yellow-400/60 text-yellow-400 hover:bg-yellow-400/10 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+                data-testid={`brief-autoroute-${order.id}`}
+                title={`One-click route to ${suggestions[0].name} (top match: ${suggestions[0].reason})`}
+              >
+                {busy === "autoroute" ? "Routing…" : "★ Route to top →"}
+              </button>
             </div>
             <div className="flex gap-2 flex-wrap">
               {suggestions.slice(0, 5).map((s, i) => (
