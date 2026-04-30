@@ -114,6 +114,18 @@ export const fetchMakerOrderDetail = (sessionId) =>
   http.get(`/maker/orders/${sessionId}`, { headers: authHeaders() }).then((r) => r.data);
 export const markOrderShipped = (sessionId, payload) =>
   http.post(`/maker/orders/${sessionId}/ship`, payload || {}, { headers: authHeaders() }).then((r) => r.data);
+
+// ──────────── Shippo shipping labels ────────────
+export const fetchShipFromAddress = () =>
+  http.get("/maker/shipping/from-address", { headers: authHeaders() }).then((r) => r.data);
+export const saveShipFromAddress = (payload) =>
+  http.patch("/maker/shipping/from-address", payload, { headers: authHeaders() }).then((r) => r.data);
+export const fetchShippingDefaults = (sessionId) =>
+  http.get(`/maker/orders/${sessionId}/shipping-defaults`, { headers: authHeaders() }).then((r) => r.data);
+export const fetchShippingRates = (sessionId, payload) =>
+  http.post(`/maker/orders/${sessionId}/shipping/rates`, payload, { headers: authHeaders() }).then((r) => r.data);
+export const buyShippingLabel = (sessionId, payload) =>
+  http.post(`/maker/orders/${sessionId}/shipping/buy-label`, payload, { headers: authHeaders() }).then((r) => r.data);
 export const fetchMakerStats = () =>
   http.get("/maker/stats", { headers: authHeaders() }).then((r) => r.data);
 export const fetchMakerViolations = () =>

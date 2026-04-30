@@ -1,9 +1,10 @@
 import React, { useState } from "react";
 import { toast } from "sonner";
-import { Receipt, ChevronDown, Truck, MapPin, Phone, Mail, User, Package, ExternalLink } from "lucide-react";
+import { Receipt, ChevronDown, Truck, MapPin, Phone, Mail, User, Package, ExternalLink, Sparkles } from "lucide-react";
 import EmptyState from "../../components/EmptyState";
 import { formatDate } from "./_shared";
 import { fetchMakerOrderDetail, markOrderShipped } from "../../lib/api";
+import ShippingLabelModal from "./ShippingLabelModal";
 
 /**
  * Orders list. Each row is a click-to-expand accordion that loads full
@@ -64,6 +65,7 @@ function OrderRow({ order, onChange }) {
   const [busyShip, setBusyShip] = useState(false);
   const [trackingNum, setTrackingNum] = useState(order.tracking_number || "");
   const [carrier, setCarrier] = useState(order.tracking_carrier || "USPS");
+  const [labelModalOpen, setLabelModalOpen] = useState(false);
 
   const toggle = async () => {
     const next = !open;
@@ -305,40 +307,62 @@ function OrderRow({ order, onChange }) {
 
               {/* Shipping action */}
               {!isFulfilled ? (
-                <section className="pt-4 border-t border-[#262626]">
-                  <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-3 flex items-center gap-2">
-                    <Truck size={12} /> Mark as shipped
-                  </div>
-                  <div className="grid md:grid-cols-3 gap-2 items-stretch">
-                    <select
-                      value={carrier}
-                      onChange={(e) => setCarrier(e.target.value)}
-                      className="bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
-                      data-testid={`order-carrier-${order.session_id}`}
-                    >
-                      <option value="USPS">USPS</option>
-                      <option value="UPS">UPS</option>
-                      <option value="FedEx">FedEx</option>
-                      <option value="DHL">DHL</option>
-                      <option value="Other">Other</option>
-                    </select>
-                    <input
-                      type="text"
-                      value={trackingNum}
-                      onChange={(e) => setTrackingNum(e.target.value)}
-                      placeholder="Tracking # (optional)"
-                      className="bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
-                      data-testid={`order-tracking-${order.session_id}`}
-                    />
+                <section className="pt-4 border-t border-[#262626] space-y-4">
+                  {/* Primary: one-click shipping label via Shippo. */}
+                  <div>
+                    <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2 flex items-center gap-2">
+                      <Sparkles size={12} className="text-[#ff4500]" /> Create shipping label
+                    </div>
                     <button
-                      onClick={handleShip}
-                      disabled={busyShip}
-                      className="btn-industrial btn-primary disabled:opacity-50"
-                      data-testid={`order-ship-${order.session_id}`}
+                      onClick={() => setLabelModalOpen(true)}
+                      className="btn-industrial btn-primary w-full flex items-center justify-center gap-2"
+                      data-testid={`order-create-label-${order.session_id}`}
                     >
-                      {busyShip ? "Marking…" : "Mark shipped →"}
+                      <Package size={14} /> Buy a label via Shippo →
                     </button>
+                    <p className="mt-2 font-mono text-[10px] text-[#525252] leading-relaxed">
+                      Platform pays the carrier — cost is added to your weekly invoice.
+                      Tracking # auto-fills on the order once purchased.
+                    </p>
                   </div>
+
+                  {/* Fallback: manual mark-shipped for hand-dropped / self-purchased labels. */}
+                  <details className="group">
+                    <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] flex items-center gap-2 list-none">
+                      <Truck size={12} /> Or mark shipped manually
+                      <ChevronDown size={12} className="ml-auto transition-transform group-open:rotate-180" />
+                    </summary>
+                    <div className="mt-3 grid md:grid-cols-3 gap-2 items-stretch">
+                      <select
+                        value={carrier}
+                        onChange={(e) => setCarrier(e.target.value)}
+                        className="bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
+                        data-testid={`order-carrier-${order.session_id}`}
+                      >
+                        <option value="USPS">USPS</option>
+                        <option value="UPS">UPS</option>
+                        <option value="FedEx">FedEx</option>
+                        <option value="DHL">DHL</option>
+                        <option value="Other">Other</option>
+                      </select>
+                      <input
+                        type="text"
+                        value={trackingNum}
+                        onChange={(e) => setTrackingNum(e.target.value)}
+                        placeholder="Tracking # (optional)"
+                        className="bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
+                        data-testid={`order-tracking-${order.session_id}`}
+                      />
+                      <button
+                        onClick={handleShip}
+                        disabled={busyShip}
+                        className="btn-industrial disabled:opacity-50"
+                        data-testid={`order-ship-${order.session_id}`}
+                      >
+                        {busyShip ? "Marking…" : "Mark shipped"}
+                      </button>
+                    </div>
+                  </details>
                 </section>
               ) : (
                 <section className="pt-4 border-t border-[#262626]" data-testid={`order-shipped-${order.session_id}`}>
@@ -360,6 +384,19 @@ function OrderRow({ order, onChange }) {
             </>
           )}
         </div>
+      )}
+
+      {labelModalOpen && (
+        <ShippingLabelModal
+          sessionId={order.session_id}
+          onClose={() => setLabelModalOpen(false)}
+          onSuccess={async () => {
+            // Refresh both the drawer's cached detail and the parent list so
+            // the row flips to the Fulfilled tab and the shipped pill renders.
+            setDetail(null);
+            if (onChange) await onChange();
+          }}
+        />
       )}
     </div>
   );
