@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Inbox, ExternalLink } from "lucide-react";
+import { Inbox, ExternalLink, Printer } from "lucide-react";
 import { fetchMakerBriefs, updateMakerBrief } from "../../lib/api";
 import Barcode from "../../components/Barcode";
 
@@ -185,6 +185,16 @@ function BriefCard({ brief, onChange, dim = false }) {
         >
           {status === "won_bid" ? "🎯 won the bid" : status}
         </span>
+        <a
+          href={`/maker/briefs/${brief.id}/print`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="ml-auto md:ml-0 inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.22em] px-2 py-1 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] transition"
+          data-testid={`brief-print-${brief.id}`}
+          title="Open a print-optimised bench sheet (Save as PDF in browser dialog)"
+        >
+          <Printer size={11} /> Print sheet
+        </a>
         {brief.assigned_at && (
           <span className="font-mono text-[10px] text-[#525252] ml-auto">
             Routed {new Date(brief.assigned_at).toLocaleDateString()}

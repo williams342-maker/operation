@@ -42,6 +42,7 @@ import MakerListingEditor from "./pages/MakerListingEditor";
 import BetaPage from "./pages/BetaPage";
 import SignInPage, { ForgotPasswordPage, ResetPasswordPage } from "./pages/SignInPage";
 import TrackBriefPage from "./pages/TrackBriefPage";
+import MakerBriefPrintPage from "./pages/MakerBriefPrintPage";
 import AIAssistant from "./components/AIAssistant";
 import MaintenancePage from "./components/MaintenancePage";
 import BetaBanner from "./components/BetaBanner";
@@ -144,6 +145,7 @@ function App() {
                 <Route path="/maker/login" element={<MakerLogin />} />
                 <Route path="/maker/verify" element={<MakerVerify />} />
                 <Route path="/maker/dashboard" element={<MakerDashboard />} />
+                <Route path="/maker/briefs/:briefId/print" element={<MakerBriefPrintPage />} />
                 <Route path="/maker/stripe/return" element={<MakerStripeReturn />} />
                 <Route path="/admin/login" element={<AdminLogin />} />
                 <Route path="/admin/verify" element={<AdminVerify />} />

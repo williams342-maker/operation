@@ -1227,6 +1227,19 @@ async def maker_assigned_briefs(slug: str = Depends(current_maker_slug)):
     return rows
 
 
+@router.get("/maker/briefs/{brief_id}")
+async def maker_get_brief(brief_id: str, slug: str = Depends(current_maker_slug)):
+    """Fetch a single brief — used by the print-friendly bench sheet
+    page so the maker can pull just one brief without paging."""
+    brief = await db.custom_orders.find_one(
+        {"id": brief_id, "assigned_maker_slug": slug},
+        {"_id": 0},
+    )
+    if not brief:
+        raise HTTPException(404, "Brief not found or not assigned to your shop.")
+    return brief
+
+
 class BriefStatusUpdate(BaseModel):
     status: str  # "accepted" | "declined" | "in_progress" | "completed" | "won_bid"
     note: Optional[str] = None

@@ -546,6 +546,8 @@ export const fetchRedditFeedStatus = () =>
   http.get("/community/reddit/status").then((r) => r.data);
 export const fetchMakerBriefs = () =>
   http.get("/maker/briefs", { headers: authHeaders() }).then((r) => r.data);
+export const fetchMakerBrief = (briefId) =>
+  http.get(`/maker/briefs/${briefId}`, { headers: authHeaders() }).then((r) => r.data);
 export const updateMakerBrief = (briefId, payload) =>
   http.patch(`/maker/briefs/${briefId}`, payload, { headers: authHeaders() }).then((r) => r.data);
 
