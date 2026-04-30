@@ -1,6 +1,27 @@
 # Crafters Market — Modernized Homepage + Full Marketplace
 
 
+## 2026-02 — iter55 — P2 Cleanup + ★ Route-to-Top (TESTED ✅)
+- ✅ **Stripe Open Dashboard 409 polish**: backend now returns
+  `{detail: {code: "onboarding_incomplete", message: ...}}` instead of a
+  generic 502 when `stripe_charges_enabled=false`. FinancialsTab + PayoutsTab
+  detect this and silently re-launch the onboarding wizard so the maker
+  never sees a confusing error — they just continue where they left off.
+- ✅ **★ Route to top match** — orange button next to "✨ Suggested matches"
+  header in admin Step 2. One click pushes the top-suggestion maker with a
+  templated note ("Routed to you because: {reason}."). Clears 30+ briefs
+  from a backlog in seconds.
+- ⚠ **Carry-over dev-tooling artifact**: `<span> cannot be a child of <option>`
+  warning in dev/preview is from visual-editor's `<span data-ve-dynamic>`
+  wrapper around `<option>` children. Confirmed dev-only — won't affect
+  production builds. Filed as P3 cleanup.
+- Tests: 5/5 new + 31/31 regression = 36/36 backend pytest. Live-verified
+  74 autoroute buttons, click→push 200, funnel updates. See
+  `/app/backend/tests/test_iter55_stripe_409_and_autoroute.py` and
+  `/app/test_reports/iteration_37.json`.
+
+
+
 ## 2026-02 — iter54 — Maker Routing Recommendations (TESTED ✅)
 - ✅ **GET `/api/admin/custom-orders/{id}/maker-suggestions`** — ranks active
   makers for a brief by: (a) material/category overlap with their published
