@@ -3,6 +3,37 @@
 _All dated iteration entries. Newest on top. Each iter is verified (via testing agent or self-tested) before landing — unless explicitly noted._
 
 
+## 2026-02 — iter66 — Multi-Format Community File Bundles (TESTED ✅ 23/23 + frontend green)
+- ✨ **Bundle uploads**: `POST /api/community/files/upload` now accepts
+  1..10 files in a single request. First file is the **primary**
+  (back-compat with `file_type`+`download_url`); the rest land in a new
+  `variants[]` array on the design_files row. Maker can ship a single
+  card carrying e.g. `hero.jpg + model.stl + cut.dxf + preview.svg +
+  program.gcode`.
+- ✨ **New endpoints**:
+  - `POST /community/files/{id}/variants` (uploader-only, 409 on duplicate)
+  - `DELETE /community/files/{id}/variants/{fmt}` (primary protected, 404 on unknown)
+- ✨ **Expanded format support**: added `dwg`, `jpg`, `png`, `webp`,
+  `gcode`, `nc`, `tap` alongside existing dxf/svg/stl/glb/ai/eps/pdf/zip.
+- ✨ **Auto-thumbnail**: if a bundle includes a raster (jpg/png/webp)
+  and the user didn't paste a thumbnail URL, we promote the first raster
+  variant to `thumbnail_url` so cards look polished out-of-the-gate.
+- ✨ **Frontend** (`CommunityPage.jsx`): file input is now `multiple`,
+  preview list shows each picked file with Primary/Variant pill +
+  remove-✕, duplicate-format and >10-file guards run client-side.
+  FileCard shows colour-coded format chips (◆PRIMARY orange + grey
+  variants) and the Download button becomes a dropdown when a bundle
+  has 2+ formats — each row shows format + size, click downloads that
+  specific variant URL.
+- Tests: 23/23 backend pytest + frontend verified
+  (`/app/test_reports/iteration_47.json`). Cross-uploader 403, duplicate
+  409, primary-protect 400, auto-thumbnail, 11-file & dup-extension
+  client-guards all green.
+- **Next up** (user requested): DXF → SVG converter via `ezdxf` lib
+  (~40 min, slots into the new variants[] array as auto-generated SVG
+  sibling). Awaiting user go-ahead.
+
+
 ## 2026-02 — iter65 — 🐛 Mobile Login Lockout Fix (HIGH-priority bug, TESTED ✅ 21/21)
 - 🐛 **User report**: "I can't log in from my phone — it doesn't ask for
   login info, just takes me to a page that says 'precision craft
