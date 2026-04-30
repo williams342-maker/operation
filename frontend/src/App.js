@@ -33,6 +33,7 @@ import MakerStripeReturn from "./pages/MakerStripeReturn";
 import AdminLogin from "./pages/AdminLogin";
 import AdminVerify from "./pages/AdminVerify";
 import AdminDashboard from "./pages/AdminDashboard";
+import WorkshopAnalyticsDashboard from "./pages/WorkshopAnalyticsDashboard";
 import ContactPage from "./pages/ContactPage";
 import PolicyPage from "./pages/PolicyPage";
 import CommunityPage from "./pages/CommunityPage";
@@ -152,6 +153,7 @@ function App() {
                 <Route path="/admin/login" element={<AdminLogin />} />
                 <Route path="/admin/verify" element={<AdminVerify />} />
                 <Route path="/admin/dashboard" element={<AdminDashboard />} />
+                <Route path="/admin/workshop-analytics" element={<WorkshopAnalyticsDashboard />} />
                 <Route path="/contact" element={<ContactPage />} />
                 <Route path="/track" element={<TrackBriefPage />} />
                 <Route path="/track/:trackingNumber" element={<TrackBriefPage />} />

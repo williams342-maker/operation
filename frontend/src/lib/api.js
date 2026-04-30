@@ -291,6 +291,17 @@ const adminAuthHeaders = () => {
 };
 export const fetchAdminAnalytics = () =>
   http.get("/admin/analytics", { headers: adminAuthHeaders() }).then((r) => r.data);
+
+// ---------- Workshop Analytics Dashboard (isolated namespace) ----------
+const fetchWorkshop = (path) =>
+  http.get(`/workshop-analytics${path}`, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const fetchWorkshopOverview = () => fetchWorkshop("/overview");
+export const fetchWorkshopSales = () => fetchWorkshop("/sales");
+export const fetchWorkshopSellers = () => fetchWorkshop("/sellers");
+export const fetchWorkshopUsers = () => fetchWorkshop("/users");
+export const fetchWorkshopLive = () => fetchWorkshop("/live");
+export const fetchWorkshopTraffic = () => fetchWorkshop("/traffic");
+export const fetchWorkshopPageviews = () => fetchWorkshop("/pageviews");
 export const fetchAdminWebAnalytics = () =>
   http.get("/admin/analytics/web", { headers: adminAuthHeaders() }).then((r) => r.data);
 export const fetchAdminLiveNow = () =>

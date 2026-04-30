@@ -33,6 +33,7 @@ from routers.chat_mod import router as chat_mod_router
 from routers.stripe_connect import router as stripe_connect_router
 from routers.subscriptions import router as subscriptions_router
 from routers.analytics import router as analytics_router
+from routers.workshop_analytics import router as workshop_analytics_router
 from seed_data import seed_if_empty
 
 app = FastAPI(title="Crafters Market API")
@@ -66,6 +67,7 @@ api.include_router(retention_router)
 api.include_router(reddit_feeds_router)
 api.include_router(shipping_router)
 api.include_router(admin_shipping_router)
+api.include_router(workshop_analytics_router)
 app.include_router(api)
 
 app.add_middleware(
