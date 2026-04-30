@@ -894,13 +894,141 @@ async def maker_orders(slug: str = Depends(current_maker_slug)):
         out.append({
             "session_id": tx.get("session_id"),
             "buyer_email": tx.get("customer_email"),
+            "buyer_name": tx.get("customer_name") or tx.get("buyer_name"),
             "created_at": tx.get("created_at"),
             "payment_status": tx.get("payment_status"),
             "order_status": tx.get("order_status") or "pending",
             "items": my_lines,
             "maker_subtotal": round(sum(line["subtotal"] for line in my_lines), 2),
+            "shipped_at": tx.get("shipped_at"),
+            "tracking_carrier": tx.get("tracking_carrier"),
+            "tracking_number": tx.get("tracking_number"),
         })
     return out
+
+
+@router.get("/maker/orders/{session_id}")
+async def maker_order_detail(session_id: str, slug: str = Depends(current_maker_slug)):
+    """Single order detail — shipping address, full buyer info, line items.
+    Enforces that at least one product in the order belongs to the caller
+    (cross-maker isolation)."""
+    tx = await db.payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
+    if not tx:
+        raise HTTPException(404, "Order not found.")
+
+    # Cross-maker isolation — only show if we have at least one of their products.
+    products = await db.products.find({"maker_slug": slug}, {"_id": 0}).to_list(500)
+    by_id = {p["id"]: p for p in products if p.get("id")}
+    by_slug = {p["slug"]: p for p in products if p.get("slug")}
+
+    lines = []
+    for ci in tx.get("items", []):
+        pid = ci.get("product_id")
+        p = by_id.get(pid) or by_slug.get(pid)
+        if not p:
+            continue
+        qty = int(ci.get("quantity", 1))
+        unit_price = float(p["price"])
+        variant_label = None
+        variant_id = ci.get("variant_id")
+        if variant_id:
+            for v in (p.get("variants") or []):
+                if v.get("id") == variant_id:
+                    unit_price = float(p["price"]) + float(v.get("price_delta", 0))
+                    variant_label = v.get("label")
+                    break
+        lines.append({
+            "product_slug": p["slug"],
+            "title": p["title"] + (f" — {variant_label}" if variant_label else ""),
+            "image": (p.get("images") or [None])[0],
+            "price": unit_price,
+            "quantity": qty,
+            "subtotal": round(unit_price * qty, 2),
+        })
+    if not lines:
+        raise HTTPException(404, "Order not found.")
+
+    # Pull shipping address from Stripe when we haven't cached it locally yet.
+    # (Webhook doesn't record shipping today.) Best-effort — don't 500 if Stripe
+    # is unreachable or the session is a seed row.
+    shipping = tx.get("shipping_details") or tx.get("customer_details") or None
+    if not shipping and session_id.startswith("cs_") and not session_id.startswith("cs_test_seed"):
+        try:
+            import stripe as stripe_sdk
+            from core import STRIPE_API_KEY
+            stripe_sdk.api_key = STRIPE_API_KEY
+            sess = stripe_sdk.checkout.Session.retrieve(
+                session_id, expand=["shipping_details", "customer_details"],
+            )
+            shipping = {
+                "name": (sess.get("shipping_details") or {}).get("name")
+                        or (sess.get("customer_details") or {}).get("name"),
+                "phone": (sess.get("customer_details") or {}).get("phone"),
+                "address": (sess.get("shipping_details") or {}).get("address")
+                           or (sess.get("customer_details") or {}).get("address"),
+            }
+            # Cache on the tx doc so subsequent opens don't re-hit Stripe.
+            await db.payment_transactions.update_one(
+                {"session_id": session_id},
+                {"$set": {"shipping_details": shipping, "updated_at": now_iso()}},
+            )
+        except Exception as e:
+            logger.info("[maker/orders/detail] stripe retrieve skipped: %s", e)
+
+    return {
+        "session_id": session_id,
+        "buyer_email": tx.get("customer_email"),
+        "buyer_name": tx.get("customer_name") or tx.get("buyer_name"),
+        "created_at": tx.get("created_at"),
+        "payment_status": tx.get("payment_status"),
+        "order_status": tx.get("order_status") or "pending",
+        "items": lines,
+        "maker_subtotal": round(sum(line["subtotal"] for line in lines), 2),
+        "shipping": shipping,
+        "shipped_at": tx.get("shipped_at"),
+        "tracking_carrier": tx.get("tracking_carrier"),
+        "tracking_number": tx.get("tracking_number"),
+        "buyer_note": tx.get("buyer_note"),
+    }
+
+
+class OrderShipUpdate(BaseModel):
+    tracking_number: str | None = None
+    tracking_carrier: str | None = None
+
+
+@router.post("/maker/orders/{session_id}/ship")
+async def maker_mark_shipped(
+    session_id: str, body: OrderShipUpdate,
+    slug: str = Depends(current_maker_slug),
+):
+    """Mark an order as shipped — optionally attach a tracking # + carrier.
+    The order moves to the Fulfilled tab."""
+    tx = await db.payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
+    if not tx:
+        raise HTTPException(404, "Order not found.")
+    # Cross-maker guard — only allow if tx contains at least one of my products.
+    my_pids = {p["id"] for p in await db.products.find({"maker_slug": slug}, {"_id": 0, "id": 1}).to_list(500) if p.get("id")}
+    my_pslugs = {p["slug"] for p in await db.products.find({"maker_slug": slug}, {"_id": 0, "slug": 1}).to_list(500) if p.get("slug")}
+    has_my_item = any(
+        (ci.get("product_id") in my_pids) or (ci.get("product_id") in my_pslugs) or (ci.get("product_slug") in my_pslugs)
+        for ci in tx.get("items", [])
+    )
+    if not has_my_item:
+        raise HTTPException(404, "Order not found.")
+    update = {
+        "order_status": "fulfilled",
+        "shipped_at": now_iso(),
+        "updated_at": now_iso(),
+    }
+    if body.tracking_number:
+        update["tracking_number"] = body.tracking_number.strip()
+    if body.tracking_carrier:
+        update["tracking_carrier"] = body.tracking_carrier.strip()
+    await db.payment_transactions.update_one(
+        {"session_id": session_id}, {"$set": update},
+    )
+    return {"ok": True, "order_status": "fulfilled", "shipped_at": update["shipped_at"]}
 
 
 

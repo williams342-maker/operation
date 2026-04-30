@@ -87,6 +87,10 @@ export const fetchMakerMe = () =>
   http.get("/maker/me", { headers: authHeaders() }).then((r) => r.data);
 export const fetchMakerOrders = () =>
   http.get("/maker/orders", { headers: authHeaders() }).then((r) => r.data);
+export const fetchMakerOrderDetail = (sessionId) =>
+  http.get(`/maker/orders/${sessionId}`, { headers: authHeaders() }).then((r) => r.data);
+export const markOrderShipped = (sessionId, payload) =>
+  http.post(`/maker/orders/${sessionId}/ship`, payload || {}, { headers: authHeaders() }).then((r) => r.data);
 export const fetchMakerStats = () =>
   http.get("/maker/stats", { headers: authHeaders() }).then((r) => r.data);
 export const fetchMakerViolations = () =>

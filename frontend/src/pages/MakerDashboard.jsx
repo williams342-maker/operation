@@ -289,7 +289,7 @@ export default function MakerDashboard() {
           />
         )}
         {tab === "listings"   && <ProductsList products={products} onRefresh={refreshProducts} />}
-        {tab === "orders"     && <OrdersTabWrapper orders={orders} />}
+        {tab === "orders"     && <OrdersTabWrapper orders={orders} reload={() => fetchMakerOrders().then(setOrders).catch(() => {})} />}
         {tab === "messages"   && <MessagesTab maker={maker} />}
         {tab === "briefs"     && <BriefsTab />}
         {tab === "stats"      && <StatsTab />}
@@ -319,7 +319,7 @@ export default function MakerDashboard() {
 }
 
 /** Orders tab — wraps the existing list with Pending/Fulfilled subtabs. */
-function OrdersTabWrapper({ orders }) {
+function OrdersTabWrapper({ orders, reload }) {
   const [sub, setSub] = useState("pending");
   const pending = orders.filter((o) => (o.order_status || "pending") !== "fulfilled");
   const fulfilled = orders.filter((o) => o.order_status === "fulfilled");
@@ -340,7 +340,7 @@ function OrdersTabWrapper({ orders }) {
           Fulfilled
         </SubTab>
       </div>
-      <OrdersList orders={visible} />
+      <OrdersList orders={visible} onChange={reload} />
     </div>
   );
 }
