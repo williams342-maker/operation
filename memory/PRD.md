@@ -1,5 +1,27 @@
 # Crafters Market — Modernized Homepage + Full Marketplace
 
+
+## 2026-02 — iter51 — Auto-Boost + Feedback Reply + Upgrade Confetti (TESTED ✅)
+- ✅ **Auto-Boost best-sellers** (maker): daily 04:00-UTC cron `_job_auto_boost_best_sellers`
+  promotes a maker's top 30-day sellers (default ≥10 orders, max 3 listings/run, $5/wk each).
+  Frontend toggle + threshold/max-per-run selects + candidate preview in
+  Marketing tab. `GET /api/maker/auto-boost/status` + `PATCH /api/maker/auto-boost`
+  (server clamps 3-100 / 1-10).
+- ✅ **Admin feedback reply**: `POST /api/admin/feedback/{id}/reply` with
+  {subject,message,auto_resolve}. UI: `FeedbackReplyModal` in
+  `components/admin/SettingsTab.jsx`. Persists replied_at/replied_by/replied_subject,
+  optionally flips resolved=true, writes admin_audit row.
+- ✅ **Upgrade confetti** (`canvas-confetti@1.9.4`): fires on
+  `/maker/dashboard?plus=success` (3-burst orange/white/amber palette),
+  shows success toast, refreshes maker doc, cleans URL preserving #settings hash.
+  Gated on `cm_maker_jwt` so unauthenticated hits redirect cleanly to login.
+- Tests: 16/16 backend pytest + frontend E2E pass. See
+  `/app/backend/tests/test_iter51_autoboost_feedback_reply.py` and
+  `/app/test_reports/iteration_33.json`.
+- Known cosmetic console warning: `<select>/<option>` nested inside a `<span>`
+  at `ShopManagerLayout.jsx:100` — pre-existing, no functional impact.
+
+
 ## Original Problem Statement
 > "look at my current website craftersmarket.org make it more modern and dynamic"
 
