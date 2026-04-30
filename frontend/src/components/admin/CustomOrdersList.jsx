@@ -12,16 +12,22 @@ export default function CustomOrdersList({ items, onChange }) {
   const [reddit, setReddit] = useState({ configured: false, can_post: false, subreddits: [] });
   const [funnel, setFunnel] = useState(null);
 
+  const reloadFunnel = () => {
+    const tok = localStorage.getItem("cm_admin_jwt");
+    if (!tok) return;
+    http.get("/admin/custom-orders/funnel", { headers: { Authorization: `Bearer ${tok}` } })
+      .then((r) => setFunnel(r.data))
+      .catch(() => {});
+  };
+
   useEffect(() => {
     fetchMakers().then(setMakers).catch(() => {});
     fetchRedditFeedStatus().then(setReddit).catch(() => {});
-    // Funnel uses the same admin auth as the rest of the admin UI.
-    const tok = localStorage.getItem("cm_admin_jwt");
-    if (tok) {
-      http.get("/admin/custom-orders/funnel", { headers: { Authorization: `Bearer ${tok}` } })
-        .then((r) => setFunnel(r.data))
-        .catch(() => {});
-    }
+    reloadFunnel();
+    // Light polling — refreshes the analytics card every 60s without
+    // forcing the admin to manually reload after a maker flips won_bid.
+    const t = setInterval(reloadFunnel, 60_000);
+    return () => clearInterval(t);
   }, [items]);
 
   return (

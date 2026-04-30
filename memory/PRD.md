@@ -1,6 +1,26 @@
 # Crafters Market — Modernized Homepage + Full Marketplace
 
 
+## 2026-02 — iter53 — Brief Funnel + Won-the-Bid + Reddit Cross-Post (TESTED ✅)
+- ✅ **GET `/api/admin/custom-orders/funnel`** — 9 lifecycle stages
+  (submitted/quoted/routed/accepted/in_progress/completed/won_bid/declined/posted_to_reddit),
+  win-rate, decline-rate, reddit-rate, plus by-subreddit and by-maker
+  conversion breakdowns.
+- ✅ **`won_bid` status** added to maker `BriefsTab` action panel — yellow
+  "🎯 WON THE BID" pill, sets `won_bid_at` timestamp, drives admin analytics.
+- ✅ **Reddit cross-post into existing thread**: when admin push-to-reddit
+  succeeds, the live URL is appended into the maker's existing `admin_brief`
+  thread automatically (no thread switch needed). Best-effort: silently
+  no-ops if no thread exists.
+- ✅ **Admin FunnelCard** at top of Custom Briefs tab — 8 stat boxes,
+  win/reddit rate badges, by-sub + by-maker breakdowns. Auto-polls every
+  60s so admin sees live conversion analytics without refreshing.
+- Tests: 8/8 backend pytest + frontend live-verified. See
+  `/app/backend/tests/test_iter53_funnel_wonbid.py` and
+  `/app/test_reports/iteration_35.json`.
+
+
+
 ## 2026-02 — iter52 — Custom Brief Routing (admin → maker → Reddit) (TESTED ✅)
 - ✅ **Push-to-Maker**: `POST /api/admin/custom-orders/{id}/push-to-maker`
   {maker_slug, note?, notify_buyer?} — assigns brief, drops `dm_threads` row
