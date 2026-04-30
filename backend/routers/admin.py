@@ -1187,6 +1187,76 @@ async def admin_push_to_maker(
     return {"ok": True, "thread_id": thread_id, "assigned_to": body.maker_slug}
 
 
+@router.get("/admin/custom-orders/funnel")
+async def admin_brief_funnel(_: dict = Depends(current_admin)):
+    """Conversion-rate analytics for the brief routing pipeline. Counts
+    each lifecycle stage and surfaces the win-rate (won_bid / routed)
+    so the admin can see which Reddit subs / makers convert best."""
+    submitted = await db.custom_orders.count_documents({})
+    quoted = await db.custom_orders.count_documents({"status": "quoted"})
+    routed = await db.custom_orders.count_documents({"assigned_maker_slug": {"$exists": True, "$ne": None}})
+    accepted = await db.custom_orders.count_documents({"maker_response_status": "accepted"})
+    in_progress = await db.custom_orders.count_documents({"maker_response_status": "in_progress"})
+    completed = await db.custom_orders.count_documents({"maker_response_status": "completed"})
+    won = await db.custom_orders.count_documents({"maker_response_status": "won_bid"})
+    declined = await db.custom_orders.count_documents({"maker_response_status": "declined"})
+    on_reddit = await db.custom_orders.count_documents({"posted_to_reddit_at": {"$exists": True, "$ne": None}})
+
+    # Per-subreddit conversion (won_bid / posted_to_reddit_at where reddit_subreddit=…)
+    sub_pipeline = [
+        {"$match": {"posted_to_reddit_at": {"$ne": None}}},
+        {"$group": {
+            "_id": "$reddit_subreddit",
+            "posted": {"$sum": 1},
+            "won": {"$sum": {"$cond": [{"$eq": ["$maker_response_status", "won_bid"]}, 1, 0]}},
+        }},
+        {"$sort": {"posted": -1}},
+    ]
+    by_sub = [r async for r in db.custom_orders.aggregate(sub_pipeline)]
+
+    # Per-maker conversion
+    maker_pipeline = [
+        {"$match": {"assigned_maker_slug": {"$ne": None}}},
+        {"$group": {
+            "_id": "$assigned_maker_slug",
+            "routed": {"$sum": 1},
+            "won": {"$sum": {"$cond": [{"$eq": ["$maker_response_status", "won_bid"]}, 1, 0]}},
+            "declined": {"$sum": {"$cond": [{"$eq": ["$maker_response_status", "declined"]}, 1, 0]}},
+        }},
+        {"$sort": {"routed": -1}},
+        {"$limit": 20},
+    ]
+    by_maker = [r async for r in db.custom_orders.aggregate(maker_pipeline)]
+
+    return {
+        "stages": {
+            "submitted": submitted,
+            "quoted": quoted,
+            "routed": routed,
+            "accepted": accepted,
+            "in_progress": in_progress,
+            "completed": completed,
+            "won_bid": won,
+            "declined": declined,
+            "posted_to_reddit": on_reddit,
+        },
+        "win_rate": (won / routed) if routed else 0.0,
+        "decline_rate": (declined / routed) if routed else 0.0,
+        "reddit_post_rate": (on_reddit / routed) if routed else 0.0,
+        "by_subreddit": [
+            {"subreddit": r["_id"], "posted": r["posted"], "won": r["won"],
+             "win_rate": (r["won"] / r["posted"]) if r["posted"] else 0.0}
+            for r in by_sub if r.get("_id")
+        ],
+        "by_maker": [
+            {"maker_slug": r["_id"], "routed": r["routed"], "won": r["won"],
+             "declined": r["declined"],
+             "win_rate": (r["won"] / r["routed"]) if r["routed"] else 0.0}
+            for r in by_maker if r.get("_id")
+        ],
+    }
+
+
 class PushToRedditRequest(BaseModel):
     subreddit: str
     title: Optional[str] = None
@@ -1230,7 +1300,7 @@ async def admin_push_to_reddit(
         "**Brief:**",
         desc,
         "",
-        f"_Routed via Crafters Market — DM the OP through "
+        "_Routed via Crafters Market — DM the OP through "
         "https://craftersmarket.org/custom-order or reply here. "
         "A vetted maker has been pre-assigned but additional bids welcome._",
     ]
@@ -1270,7 +1340,41 @@ async def admin_push_to_reddit(
     if not result.get("ok"):
         # Surface as 502 so the UI can show the actual Reddit error string.
         raise HTTPException(502, result.get("error") or "Reddit submit failed.")
-    return {"ok": True, "url": result.get("url"), "subreddit": body.subreddit}
+
+    # Cross-post the live Reddit URL into the maker's existing brief thread
+    # (created by push-to-maker) so they can monitor bids without leaving the
+    # dashboard. Best-effort: if no thread exists yet (admin skipped the
+    # standard flow), we silently no-op.
+    reddit_url = result.get("url") or ""
+    thread = await db.dm_threads.find_one(
+        {"custom_order_id": order_id, "kind": "admin_brief"},
+        {"_id": 0, "id": 1, "maker_slug": 1},
+    )
+    if thread and reddit_url:
+        update_msg = (
+            f"📢 Brief is now live on r/{body.subreddit}: {reddit_url}\n\n"
+            "Bids and comments will land on the Reddit thread — feel free to "
+            "engage there directly. Mark this brief as 'Won the bid' from your "
+            "Briefs tab once a Reddit lead converts."
+        )
+        await db.dm_messages.insert_one({
+            "id": secrets.token_hex(12),
+            "thread_id": thread["id"],
+            "sender_type": "admin",
+            "sender_email": claims["email"],
+            "sender_name": "Crafters Market admin",
+            "body": update_msg,
+            "created_at": posted_at,
+        })
+        await db.dm_threads.update_one(
+            {"id": thread["id"]},
+            {"$set": {
+                "last_sender": "admin",
+                "last_message_at": posted_at,
+            }, "$inc": {"unread_for_maker": 1, "message_count": 1}},
+        )
+
+    return {"ok": True, "url": reddit_url, "subreddit": body.subreddit}
 
 
 

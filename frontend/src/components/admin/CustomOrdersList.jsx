@@ -2,37 +2,123 @@ import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   quoteCustomOrder, pushBriefToMaker, pushBriefToReddit,
-  fetchRedditFeedStatus, fetchMakers,
+  fetchRedditFeedStatus, fetchMakers, http,
 } from "../../lib/api";
+import { adminAuthHeaders } from "../../lib/api"; // eslint-disable-line no-unused-vars
 import { formatDate } from "./_shared";
 
 export default function CustomOrdersList({ items, onChange }) {
   const [makers, setMakers] = useState([]);
   const [reddit, setReddit] = useState({ configured: false, can_post: false, subreddits: [] });
+  const [funnel, setFunnel] = useState(null);
 
   useEffect(() => {
     fetchMakers().then(setMakers).catch(() => {});
     fetchRedditFeedStatus().then(setReddit).catch(() => {});
-  }, []);
+    // Funnel uses the same admin auth as the rest of the admin UI.
+    const tok = localStorage.getItem("cm_admin_jwt");
+    if (tok) {
+      http.get("/admin/custom-orders/funnel", { headers: { Authorization: `Bearer ${tok}` } })
+        .then((r) => setFunnel(r.data))
+        .catch(() => {});
+    }
+  }, [items]);
 
-  if (!items.length) {
-    return (
-      <p className="font-mono text-sm text-[#a3a3a3]" data-testid="custom-empty">
-        No custom briefs yet.
-      </p>
-    );
-  }
   return (
-    <div className="space-y-4" data-testid="custom-list">
-      {items.map((c) => (
-        <CustomOrderRow
-          key={c.id}
-          order={c}
-          makers={makers}
-          reddit={reddit}
-          onChange={onChange}
-        />
-      ))}
+    <div className="space-y-6">
+      {funnel && <FunnelCard funnel={funnel} />}
+      {!items.length ? (
+        <p className="font-mono text-sm text-[#a3a3a3]" data-testid="custom-empty">
+          No custom briefs yet.
+        </p>
+      ) : (
+        <div className="space-y-4" data-testid="custom-list">
+          {items.map((c) => (
+            <CustomOrderRow
+              key={c.id}
+              order={c}
+              makers={makers}
+              reddit={reddit}
+              onChange={onChange}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FunnelCard({ funnel }) {
+  const s = funnel.stages || {};
+  const pct = (n) => `${Math.round((n || 0) * 100)}%`;
+  return (
+    <div className="border border-[#262626] p-4 md:p-5" data-testid="brief-funnel-card">
+      <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+          ◆ Brief routing funnel
+        </div>
+        <div className="flex gap-3 font-mono text-[10px] uppercase tracking-[0.22em]">
+          <span className="text-[#a3a3a3]">
+            Win-rate <b className="text-yellow-400">{pct(funnel.win_rate)}</b>
+          </span>
+          <span className="text-[#a3a3a3]">
+            Reddit-rate <b className="text-orange-400">{pct(funnel.reddit_post_rate)}</b>
+          </span>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+        <FunnelStat label="Submitted" value={s.submitted} />
+        <FunnelStat label="Quoted" value={s.quoted} />
+        <FunnelStat label="Routed" value={s.routed} accent />
+        <FunnelStat label="Accepted" value={s.accepted} />
+        <FunnelStat label="On Reddit" value={s.posted_to_reddit} />
+        <FunnelStat label="Won" value={s.won_bid} highlight />
+        <FunnelStat label="Completed" value={s.completed} />
+        <FunnelStat label="Declined" value={s.declined} />
+      </div>
+      {(funnel.by_subreddit?.length || funnel.by_maker?.length) ? (
+        <div className="mt-4 pt-4 border-t border-[#1a1a1a] grid md:grid-cols-2 gap-4">
+          {funnel.by_subreddit?.length > 0 && (
+            <div data-testid="funnel-by-subreddit">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">
+                By subreddit
+              </div>
+              <ul className="space-y-1 font-mono text-xs text-[#e5e5e5]">
+                {funnel.by_subreddit.slice(0, 5).map((r) => (
+                  <li key={r.subreddit} className="flex justify-between gap-3">
+                    <span>r/{r.subreddit}</span>
+                    <span className="text-[#a3a3a3]">{r.posted} posted · {r.won} won · <b className="text-yellow-400">{pct(r.win_rate)}</b></span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {funnel.by_maker?.length > 0 && (
+            <div data-testid="funnel-by-maker">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">
+                By maker
+              </div>
+              <ul className="space-y-1 font-mono text-xs text-[#e5e5e5]">
+                {funnel.by_maker.slice(0, 5).map((r) => (
+                  <li key={r.maker_slug} className="flex justify-between gap-3">
+                    <span>{r.maker_slug}</span>
+                    <span className="text-[#a3a3a3]">{r.routed} routed · {r.won} won · <b className="text-yellow-400">{pct(r.win_rate)}</b></span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function FunnelStat({ label, value, accent, highlight }) {
+  return (
+    <div className={`px-3 py-2 border ${highlight ? "border-yellow-400/40 bg-yellow-400/5" : accent ? "border-cyan-400/40 bg-cyan-400/5" : "border-[#1f1f1f]"}`}>
+      <div className="font-display text-2xl">{value || 0}</div>
+      <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#a3a3a3]">{label}</div>
     </div>
   );
 }

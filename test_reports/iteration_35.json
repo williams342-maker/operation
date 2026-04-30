@@ -1,0 +1,32 @@
+{
+  "summary": "Iter53 — Funnel analytics + won_bid maker status + reddit cross-post code-path. Backend 8/8 pytest PASS (auth-gating, funnel shape with 9 stages + 3 rates + by_subreddit + by_maker, won_bid PATCH persists + funnel reflects immediately, reddit cross-post code-path static-verified). Frontend admin FunnelCard renders all 8 FunnelStat boxes with live DB data (Submitted=75, Quoted=37, Routed=1, Won=1, Win-rate=100%, Reddit-rate=0%) plus by_maker showing 'iron-and-oak: 1 routed · 1 won · 100%'. Maker BriefsTab Past section shows yellow '🎯 WON THE BID' pill with correct testid; brief-won-* button correctly hidden once status flips.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter53_funnel_wonbid.py",
+    "/app/test_reports/pytest/iter53_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "[good] GET /api/admin/custom-orders/funnel correctly admin-gated (401 without token, 403 with maker token). Returns full shape: stages.{submitted,quoted,routed,accepted,in_progress,completed,won_bid,declined,posted_to_reddit}, win_rate, decline_rate, reddit_post_rate, by_subreddit[], by_maker[]. Aggregations exclude null _id. Per-maker rate divides by routed count. Per-subreddit rate divides by posted count.",
+    "[good] PATCH /api/maker/briefs/{id} accepts won_bid as a valid status, sets won_bid_at timestamp, and the funnel endpoint reflects the change immediately (verified end-to-end — won_bid count incremented from 0 to 1, by_maker showed iron-and-oak with win_rate=1.0).",
+    "[good] Reddit cross-post into existing dm_thread is correctly placed AFTER the 502 raise on failure (verified by string-index check in source). Cross-post is best-effort: silently no-ops when no admin_brief thread exists. Updates dm_threads.{last_sender='admin', last_message_at, unread_for_maker+1, message_count+1} on the existing thread keyed by custom_order_id+kind.",
+    "[good] FunnelCard component (CustomOrdersList.jsx) wires brief-funnel-card, funnel-by-subreddit, funnel-by-maker testids correctly. Conditionally renders breakdown sections only when arrays are non-empty.",
+    "[good] BriefsTab.jsx now treats won_bid as a closed-section status (line 31). Status pill uses yellow border/text/bg-tint when status==='won_bid' and renders '🎯 won the bid' (rendered uppercase in UI by tracking-class). Won-the-bid button is gated to status accepted|in_progress (correct — invisible after the flip).",
+    "[minor non-blocking] FunnelCard does NOT re-fetch on a manual won_bid action — it only re-fetches when `items` prop changes (deps: [items]). Since the maker-side action doesn't bump the admin's items array, an admin viewing the tab won't see the funnel update until a refresh / tab switch / next admin action. Consider adding an explicit refresh-on-onChange or a polling interval if real-time analytics is desired."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter53_funnel_wonbid.py (new — 8 tests, all PASS)"
+  ],
+  "success_rate": {"backend": "100% (8/8)", "frontend": "100% — admin funnel verified live, maker won_bid pill verified live"},
+  "test_credentials": "Admin JWT minted via maker_auth.issue_session_jwt('admin','team@craftersmarket.org','admin'); Maker JWT via issue_session_jwt('iron-and-oak','iron-and-oak@craftersmarket.org','maker'). Stored in localStorage as cm_admin_jwt / cm_maker_jwt. JWT expiry 24h admin, 7d maker.",
+  "seed_data_creation": "Created 1 custom_orders row during pytest (TEST_iter53_wonbid@example.com), assigned to iron-and-oak, flipped to won_bid. Cleaned up by session-scoped autouse fixture. The pre-existing 'plasma-cut welcome sign' brief (be5845d6...) was already in won_bid state from prior manual testing — that is the row driving the funnel's won=1 and the maker's Past section.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Iter53 endpoints fully verified. The reddit cross-post code-path could not be live-tested (no REDDIT_USERNAME/PASSWORD in preview env) but is statically verified to: (1) be placed AFTER the 502-raise so it only runs on success; (2) look up the existing dm_thread by custom_order_id+kind='admin_brief'; (3) insert a dm_messages row with the reddit URL; (4) bump unread_for_maker + message_count and set last_sender='admin'. To exercise live, monkey-patch routers.reddit_feeds.submit_text_post in pytest. FunnelCard refreshes only when items prop changes (deps:[items]) — flagged as non-blocking minor.",
+  "rca_of_the_issue": "N/A — features working as specified."
+}

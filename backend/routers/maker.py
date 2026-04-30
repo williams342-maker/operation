@@ -1228,7 +1228,7 @@ async def maker_assigned_briefs(slug: str = Depends(current_maker_slug)):
 
 
 class BriefStatusUpdate(BaseModel):
-    status: str  # "accepted" | "declined" | "in_progress" | "completed"
+    status: str  # "accepted" | "declined" | "in_progress" | "completed" | "won_bid"
     note: Optional[str] = None
 
 
@@ -1238,9 +1238,10 @@ async def maker_update_brief(
     slug: str = Depends(current_maker_slug),
 ):
     """Maker action on an admin-routed brief — accept, decline, mark
-    in-progress, or mark complete. The admin sees status in the audit log
-    and the brief row in the admin custom-orders dashboard."""
-    valid = {"accepted", "declined", "in_progress", "completed"}
+    in-progress, mark complete, OR mark won-the-bid (the brief
+    converted from a routed lead into actual paid work). The 'won_bid'
+    status drives the admin's conversion-rate analytics."""
+    valid = {"accepted", "declined", "in_progress", "completed", "won_bid"}
     if body.status not in valid:
         raise HTTPException(400, f"status must be one of: {', '.join(sorted(valid))}")
     brief = await db.custom_orders.find_one(
@@ -1254,5 +1255,7 @@ async def maker_update_brief(
         "maker_response_at": now_iso(),
         "maker_response_note": (body.note or "").strip()[:2000] or None,
     }
+    if body.status == "won_bid":
+        update["won_bid_at"] = now_iso()
     await db.custom_orders.update_one({"id": brief_id}, {"$set": update})
     return {"ok": True, "status": body.status}

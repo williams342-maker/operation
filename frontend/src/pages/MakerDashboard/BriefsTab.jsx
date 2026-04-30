@@ -28,7 +28,7 @@ export default function BriefsTab() {
 
   const open = briefs.filter((b) => !b.maker_response_status || b.maker_response_status === "pending");
   const active = briefs.filter((b) => ["accepted", "in_progress"].includes(b.maker_response_status));
-  const closed = briefs.filter((b) => ["declined", "completed"].includes(b.maker_response_status));
+  const closed = briefs.filter((b) => ["declined", "completed", "won_bid"].includes(b.maker_response_status));
 
   return (
     <div className="space-y-6" data-testid="briefs-tab">
@@ -159,17 +159,19 @@ function BriefCard({ brief, onChange, dim = false }) {
         </span>
         <span
           className={`font-mono text-[11px] uppercase tracking-[0.22em] px-2 py-1 border ${
-            status === "accepted" || status === "in_progress"
-              ? "border-emerald-400/40 text-emerald-400"
-              : status === "completed"
+            status === "won_bid"
+              ? "border-yellow-400/60 text-yellow-400 bg-yellow-400/5"
+              : status === "accepted" || status === "in_progress"
                 ? "border-emerald-400/40 text-emerald-400"
-                : status === "declined"
-                  ? "border-red-400/30 text-red-400"
-                  : "border-[#ff4500]/40 text-[#ff4500]"
+                : status === "completed"
+                  ? "border-emerald-400/40 text-emerald-400"
+                  : status === "declined"
+                    ? "border-red-400/30 text-red-400"
+                    : "border-[#ff4500]/40 text-[#ff4500]"
           }`}
           data-testid={`brief-status-${brief.id}`}
         >
-          {status}
+          {status === "won_bid" ? "🎯 won the bid" : status}
         </span>
         {brief.assigned_at && (
           <span className="font-mono text-[10px] text-[#525252] ml-auto">
@@ -220,14 +222,25 @@ function BriefCard({ brief, onChange, dim = false }) {
               </button>
             )}
             {(status === "accepted" || status === "in_progress") && (
-              <button
-                onClick={() => handleAction("completed")}
-                disabled={!!busy}
-                className="px-4 py-2 border border-emerald-400/40 text-emerald-400 hover:bg-emerald-400/10 font-mono text-[11px] uppercase tracking-[0.22em] transition disabled:opacity-50"
-                data-testid={`brief-complete-${brief.id}`}
-              >
-                {busy === "completed" ? "Updating…" : "Mark completed"}
-              </button>
+              <>
+                <button
+                  onClick={() => handleAction("won_bid")}
+                  disabled={!!busy}
+                  className="px-4 py-2 border border-yellow-400/60 text-yellow-400 hover:bg-yellow-400/10 font-mono text-[11px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+                  data-testid={`brief-won-${brief.id}`}
+                  title="Mark this brief as a won bid — converts the lead into a tracked sale for admin analytics."
+                >
+                  {busy === "won_bid" ? "Updating…" : "🎯 Won the bid"}
+                </button>
+                <button
+                  onClick={() => handleAction("completed")}
+                  disabled={!!busy}
+                  className="px-4 py-2 border border-emerald-400/40 text-emerald-400 hover:bg-emerald-400/10 font-mono text-[11px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+                  data-testid={`brief-complete-${brief.id}`}
+                >
+                  {busy === "completed" ? "Updating…" : "Mark completed"}
+                </button>
+              </>
             )}
           </div>
         </div>
