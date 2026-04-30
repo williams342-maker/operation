@@ -677,6 +677,18 @@ export const deleteDesignFileVariant = (fileId, fmt) => {
   }).then((r) => r.data);
 };
 
+// Auto-generate an SVG preview variant from a DXF in this bundle.
+// Backend uses ezdxf to render and uploads the result as a new variant.
+// Returns 409 if the bundle already has an SVG.
+export const convertDxfToSvg = (fileId) => {
+  const mkr = localStorage.getItem("cm_maker_jwt");
+  const byr = localStorage.getItem("cm_buyer_jwt");
+  const token = mkr || byr;
+  return http.post(`/community/files/${fileId}/convert/dxf-to-svg`, null, {
+    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+  }).then((r) => r.data);
+};
+
 export const fetchForumThreads = (category = "") =>
   http.get("/community/forum", { params: category ? { category } : {} }).then((r) => r.data);
 export const fetchForumCategories = () =>

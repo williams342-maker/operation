@@ -492,6 +492,96 @@ async def delete_design_file_variant(
     return {"ok": True, "removed": fmt_norm}
 
 
+@router.post("/community/files/{file_id}/convert/dxf-to-svg")
+async def convert_dxf_to_svg(
+    file_id: str,
+    claims: dict = Depends(current_any_user),
+):
+    """Generate an SVG preview from a DXF in this bundle and append it
+    as a new variant. Used to enrich uploads that arrived as DXF-only.
+
+    Auth: same rule as variant management — uploader OR any maker.
+    Idempotency: if the bundle already has an SVG (primary or variant),
+    we return 409 to avoid silent overwrites.
+    """
+    doc = await db.design_files.find_one({"id": file_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Design file not found.")
+
+    role = claims.get("role", "buyer")
+    sub = claims.get("sub", "")
+    if role != "maker" and doc.get("uploader_id") != sub:
+        raise HTTPException(403, "You can only convert your own uploads.")
+
+    # Already has an SVG anywhere in the bundle? short-circuit.
+    primary_fmt = (doc.get("file_type") or "").upper()
+    variant_fmts = {(v.get("format") or "").upper() for v in (doc.get("variants") or [])}
+    if primary_fmt == "SVG" or "SVG" in variant_fmts:
+        raise HTTPException(409, "This bundle already has an SVG variant.")
+
+    # Find the DXF source. Prefer primary; fall back to the first DXF
+    # variant. If neither exists, this design isn't a candidate.
+    src_url = None
+    if primary_fmt == "DXF":
+        src_url = doc.get("download_url")
+    else:
+        for v in (doc.get("variants") or []):
+            if (v.get("format") or "").upper() == "DXF":
+                src_url = v.get("url")
+                break
+    if not src_url:
+        raise HTTPException(400, "No DXF in this bundle to convert.")
+
+    # Fetch the DXF bytes from R2 (URL is public). httpx is already a dep.
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.get(src_url)
+            resp.raise_for_status()
+            dxf_bytes = resp.content
+    except Exception as e:
+        raise HTTPException(502, f"Couldn't fetch source DXF: {e}")
+
+    # Convert in a thread executor — ezdxf is CPU-bound and may take a
+    # few seconds on a large drawing; keeping it off the event loop
+    # avoids blocking other requests.
+    import asyncio
+    from dxf_converter import convert_dxf_bytes_to_svg
+    try:
+        svg_bytes = await asyncio.to_thread(convert_dxf_bytes_to_svg, dxf_bytes)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+
+    # Upload the SVG to R2 under the same uploader prefix.
+    from r2_storage import upload_design_file_bytes
+    uploader_label = doc.get("maker_slug") or doc.get("uploader_id") or "user"
+    try:
+        url, ext = upload_design_file_bytes(
+            svg_bytes,
+            key_prefix=f"community-files/{uploader_label}",
+            filename=f"{doc.get('id')}-auto.svg",
+            content_type="image/svg+xml",
+        )
+    except ValueError as e:
+        raise HTTPException(500, f"Couldn't store generated SVG: {e}")
+
+    new_variant = {
+        "format": ext,                  # "SVG"
+        "url": url,
+        "filename": f"{doc.get('title','design')[:60]}.svg",
+        "size_bytes": len(svg_bytes),
+        "uploaded_at": now_iso(),
+        "auto_generated": True,         # flag for UI ("✦ generated") if we want it later
+        "source_format": "DXF",
+    }
+    await db.design_files.update_one(
+        {"id": file_id},
+        {"$push": {"variants": new_variant}},
+    )
+    logger.info("[dxf2svg] generated variant for file_id=%s size=%dB", file_id, len(svg_bytes))
+    return {"ok": True, "variant": new_variant}
+
+
 
 @router.get("/community/files/{file_id}/download")
 async def download_design_file(file_id: str, claims: dict = Depends(current_buyer)):

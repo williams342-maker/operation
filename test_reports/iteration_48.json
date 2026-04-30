@@ -1,0 +1,40 @@
+{
+  "summary": "iter67 DXF→SVG converter — backend 13/14 PASS + frontend verified. Converter unit tests (real-dxf, malformed, empty) green. Endpoint 200 happy-path returns {format:SVG, auto_generated:true, source_format:DXF, size_bytes>0, url ending .svg}; generated SVG on R2 starts with '<?xml' / '<svg' and is served as content-type containing 'svg'. Idempotent 409 on re-run, 409 when primary is SVG, 400 when bundle has no DXF (STL-only), 404 on unknown file id, 401 anonymous, 422 on malformed DXF bytes (no 500s). ONE FAILURE exposes a real security bug: a *different* maker (test-other-iter67) successfully converted iron-and-oak's DXF-only bundle and got 200 — spec requires 403. Root cause: routers/community.py line 513 uses `role != 'maker' and doc.get('uploader_id') != sub` which lets *any* maker bypass the uploader check; this is the same ambient-admin pattern flagged on /variants endpoints in iter47 review. Frontend verified on /community → Design Files with injected cm_maker_jwt+cm_maker_slug='iron-and-oak': SVG chip `[data-testid=file-variant-chip-bfd64dbe-c857-4e54-a737-f02d0cacee69-SVG]` renders with text '✦ SVG' + title 'Auto-generated from DXF' (orange-tinted). 25 'Missing an SVG preview' prompts + Generate buttons rendered for owner DXF-only bundles; prompts hidden on non-owner cards (isOwner gate). Clicking Generate on a bad-DXF card correctly surfaces 422 → toast.error and prompt stays; on SUCCESS path the frontend calls /convert/dxf-to-svg with Bearer token, then onRefresh() re-fetches and the prompt disappears while the ✦ SVG chip appears (verified via backend idempotency test + variant-persisted list GET).",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "POST /api/community/files/{id}/convert/dxf-to-svg", "issue": "Cross-maker authorization bypass: any account with role='maker' can convert any other maker's bundle (got 200 instead of spec'd 403 'You can only convert your own uploads.'). Line 513 uses `role != 'maker' AND uploader_id != sub` — should be `slug != doc.maker_slug` OR drop the role bypass so only the actual uploader (or an admin role) can convert. Same pattern exists on /variants POST + DELETE (iter47 review) — fixing here should fix there too.", "priority": "HIGH"}
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/community Design Files", "issues": ["SIGN IN button in the page header and nav remain visible even when cm_maker_jwt is populated — the maker JWT is recognised by FileCard (chips + prompt render) but NOT by the top-nav 'Account' widget, which only watches the buyer JWT key. Minor — maker-portal sign-in lives at /maker/login and this is a dual-auth system, but a signed-in maker on /community seeing 'SIGN IN →' is confusing."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter67_dxf_to_svg.py",
+    "/app/test_reports/pytest/iter67_results.xml"
+  ],
+  "action_items": [
+    "SECURITY FIX: tighten /community/files/{id}/convert/dxf-to-svg auth — replace `role != 'maker' and uploader_id != sub` with `claims.get('sub') != doc.get('maker_slug') and claims.get('sub') != doc.get('uploader_id')` (or add an explicit admin role check). Apply the same to POST /variants and DELETE /variants/{fmt} to close the iter47 flag. Then re-run /app/backend/tests/test_iter67_dxf_to_svg.py — test_03 should flip to PASS with 403.",
+    "(Optional polish) On conversion failure in the UI, `toast.error(e?.response?.data?.detail || 'Couldn't generate SVG.')` works but the 422 'Couldn't parse DXF: …' string leaks raw ezdxf error text to the user. Consider mapping known 4xx messages to friendlier copy (e.g. 'This DXF is corrupted or unsupported.')."
+  ],
+  "critical_code_review_comments": [
+    "dxf_converter.py strict→recover path is correct; sets text fallback not via text_policy (the docstring says so, but the code doesn't actually set one). Not a bug today because modelspace text on our test DXF rendered fine, but the docstring oversells what's implemented. Minor doc-vs-code drift.",
+    "community.py convert endpoint: 502 on httpx exception is a reasonable upstream-fetch mapping, but the `except Exception` is over-broad — a transient network blip would surface to the maker as 502 with the raw exception string. Consider narrowing to httpx.HTTPError and returning a cleaner 'Couldn't fetch source DXF.' message.",
+    "Convert endpoint swallows the R2 upload path inside `except ValueError` only — a boto3 ClientError would escape as 500. r2_storage.upload_design_file_bytes raises ValueError on unsupported ext, but S3/Boto errors would not be caught here. Low probability in practice but worth a broader `except Exception as e: raise HTTPException(502, ...)`.",
+    "Frontend CommunityPage.jsx line 689–692 isOwner uses `file.uploader_id === myBuyerId` — this works only for buyer uploads. For maker uploads, uploader_id is the maker slug, so the maker_slug comparison on line 690 is what actually triggers. Works as intended, but the dual-key check is confusing; a comment clarifying which path matches which auth would help future readers."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter67_dxf_to_svg.py (new — 14 tests)"
+  ],
+  "success_rate": {"backend": "93% (13/14 — single failure is the documented cross-maker authz bug)", "frontend": "100% in-scope checks (chips + prompts + testids + API call + error-toast path)"},
+  "test_credentials": "Maker JWT minted via issue_session_jwt('iron-and-oak','iron-and-oak@craftersmarket.org',role='maker'). Cross-user JWT: issue_session_jwt('test-other-iter67','other-iter67@example.com',role='maker'). No maker-row validation at issue time — confirmed.",
+  "seed_data_creation": "Test bundles created (safe TEST_ prefix): TEST_ITER67_DXF_ONLY (now has auto-generated SVG variant), TEST_ITER67_CROSSUSER (now has auto-generated SVG — inadvertently, via the bug — good evidence for the security fix), TEST_ITER67_SVG_ONLY, TEST_ITER67_STL_ONLY, TEST_ITER67_BAD_DXF (two — one leaks across pytest runs because the bundle can't be converted; prompt stays). All under uploader iron-and-oak — admin can purge via TEST_ prefix.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Pytest at /app/backend/tests/test_iter67_dxf_to_svg.py is regression-safe — loads /app/frontend/.env fallback for BASE_URL because /app/backend/.env doesn't expose REACT_APP_BACKEND_URL. Re-run after the auth fix: test_03_cross_user_forbidden should flip to PASS with 403. Frontend has no overlay blocking /community Files tab in this run — the visual-editor overlay from iter47 is NOT active here; `await page.click('button:has-text(\"Design Files\"), force=True)` works reliably. Injecting maker JWT via localStorage keys `cm_maker_jwt` and `cm_maker_slug='iron-and-oak'` gives full owner UI without the nav header recognising it (separate widget). Known file bfd64dbe-c857-4e54-a737-f02d0cacee69 has the SVG variant permanently appended by prior main-agent curl — chip renders.",
+  "rca of the issue": "CROSS-MAKER CONVERT BUG — Reproduction: 1) mint JWT A for iron-and-oak, 2) upload DXF-only bundle as A, 3) mint JWT B for any other slug with role='maker', 4) POST /api/community/files/{id}/convert/dxf-to-svg with Bearer B → returns 200 and appends SVG variant, effectively acting on A's data. Root cause: routers/community.py:513 `if role != 'maker' and doc.get('uploader_id') != sub:` — the boolean short-circuits to False for any maker token regardless of ownership. Fix: change to `if doc.get('uploader_id') != sub and doc.get('maker_slug') != sub and role != 'admin':` (or similar). Mitigation: same pattern must be fixed on /variants POST + DELETE in the same file; otherwise makers can also add/remove formats on each other's bundles. No data loss in prod today (bundles just gain an extra SVG variant) but it's a genuine tampering surface."
+}

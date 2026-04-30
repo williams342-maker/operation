@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Heart, Download, Send, Plus, Lock, Flag } from "lucide-react";
+import { Heart, Download, Send, Plus, Lock, Flag, Sparkles } from "lucide-react";
+import { toast } from "sonner";
 import {
   fetchShowcase, createShowcase, likeShowcase,
   fetchDesignFiles, downloadDesignFile, unlockDownloadsCheckout, uploadDesignFile, uploadDesignFileDirect,
-  reportDesignFile,
+  reportDesignFile, convertDxfToSvg,
   fetchForumThreads, fetchForumThread, fetchForumCategories,
   createForumThread, replyForumThread, uploadForumAttachment,
   deleteChatMessage, deleteForumThread, deleteForumReply,
@@ -371,7 +372,7 @@ function FilesTab({ me }) {
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="files-grid">
           {files.map((f) => (
-            <FileCard key={f.id} file={f} canDownload={!!me} />
+            <FileCard key={f.id} file={f} canDownload={!!me} me={me} onRefresh={refresh} />
           ))}
         </div>
       )}
@@ -669,14 +670,45 @@ function FileUploadForm({ onSaved }) {
   );
 }
 
-function FileCard({ file, canDownload }) {
+function FileCard({ file, canDownload, me, onRefresh }) {
   const [status, setStatus] = useState(null);
   const [reportOpen, setReportOpen] = useState(false);
   const [downloadOpen, setDownloadOpen] = useState(false);
+  const [converting, setConverting] = useState(false);
   // Only signed-in users can report (same auth gate as the upload path).
   const canReport = !!localStorage.getItem("cm_maker_jwt") || !!localStorage.getItem("cm_buyer_jwt");
   const variants = Array.isArray(file.variants) ? file.variants : [];
   const hasBundle = variants.length > 0;
+
+  // Owner-only smart prompts. Identity comes from the bundle's
+  // `uploader_id` (buyer userid) OR `maker_slug`. We compare against
+  // both available JWT subjects so makers who happen to also be buyers
+  // see only their own prompts.
+  const myMakerSlug = localStorage.getItem("cm_maker_slug") || "";
+  const myBuyerId = me?.user_id || "";
+  const isOwner = (
+    (file.maker_slug && file.maker_slug === myMakerSlug)
+    || (file.uploader_id && file.uploader_id === myBuyerId)
+  );
+  const allFmts = new Set([
+    (file.file_type || "").toUpperCase(),
+    ...variants.map((v) => (v.format || "").toUpperCase()),
+  ]);
+  const canConvertDxfToSvg = isOwner && allFmts.has("DXF") && !allFmts.has("SVG");
+
+  const onConvert = async () => {
+    if (converting) return;
+    setConverting(true);
+    try {
+      await convertDxfToSvg(file.id);
+      toast.success("SVG preview generated.");
+      if (onRefresh) await onRefresh();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Couldn't generate SVG.");
+    } finally {
+      setConverting(false);
+    }
+  };
 
   const onDownload = async (variantUrl) => {
     if (!canDownload) return;
@@ -714,11 +746,19 @@ function FileCard({ file, canDownload }) {
           {variants.map((v) => (
             <span
               key={v.format + (v.url || "")}
-              className="font-mono text-[10px] uppercase tracking-[0.22em] px-1.5 py-0.5 border border-[#525252] text-[#a3a3a3]"
-              title={v.filename || `${v.format} variant`}
+              className={`font-mono text-[10px] uppercase tracking-[0.22em] px-1.5 py-0.5 border ${
+                v.auto_generated
+                  ? "border-[#ff4500]/50 text-[#ff4500] bg-[#ff4500]/5"
+                  : "border-[#525252] text-[#a3a3a3]"
+              }`}
+              title={
+                v.auto_generated
+                  ? `Auto-generated from ${v.source_format || "source"}`
+                  : (v.filename || `${v.format} variant`)
+              }
               data-testid={`file-variant-chip-${file.id}-${v.format}`}
             >
-              {v.format}
+              {v.auto_generated && "✦ "}{v.format}
             </span>
           ))}
         </div>
@@ -726,6 +766,35 @@ function FileCard({ file, canDownload }) {
       </div>
       <div className="font-display text-xl leading-tight">{file.title}</div>
       <p className="font-mono text-[11px] text-[#a3a3a3] leading-relaxed">{file.description}</p>
+
+      {/* Owner-only smart prompts: nudge them to enrich the bundle. The
+          DXF→SVG one-click is the highest-impact (laser/CNC shops post
+          DXFs constantly, but DXFs don't preview in browsers — generated
+          SVG sibling fixes both the preview gap AND the variant choice
+          for downloaders). */}
+      {canConvertDxfToSvg && (
+        <div
+          className="border border-dashed border-[#ff4500]/40 bg-[#ff4500]/5 px-3 py-2 flex items-center justify-between gap-3"
+          data-testid={`file-prompt-missing-svg-${file.id}`}
+        >
+          <div className="min-w-0">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] flex items-center gap-1">
+              <Sparkles size={11} /> Missing an SVG preview
+            </div>
+            <p className="font-mono text-[10px] text-[#a3a3a3] mt-0.5 leading-relaxed">
+              We can render your DXF as a clean SVG so it shows in browsers.
+            </p>
+          </div>
+          <button
+            onClick={onConvert}
+            disabled={converting}
+            className="btn-industrial text-[10px] py-1.5 px-3 inline-flex items-center gap-1 shrink-0 disabled:opacity-50"
+            data-testid={`file-generate-svg-${file.id}`}
+          >
+            {converting ? "Generating…" : "Generate"}
+          </button>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div className="font-mono text-[10px] text-[#525252] uppercase tracking-[0.22em]">by {file.maker_name}</div>
         {canReport && (
