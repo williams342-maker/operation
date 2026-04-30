@@ -208,49 +208,63 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        <div
-          className="-mx-4 md:mx-0 px-4 md:px-0 flex border-b border-[#262626] mb-8 overflow-x-auto sticky top-[64px] md:top-0 bg-[#0a0a0a] z-20 scrollbar-thin"
-          data-testid="admin-tabs"
-        >
-          {TABS.filter((t) => !t.superOnly || me?.is_super_admin).map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={`px-3 md:px-5 py-3 font-mono text-[10px] md:text-[11px] uppercase tracking-[0.18em] md:tracking-[0.22em] border-b-2 transition whitespace-nowrap shrink-0 ${
-                tab === t.id
-                  ? "border-[#ff4500] text-[#ff4500]"
-                  : "border-transparent text-[#a3a3a3] hover:text-[#e5e5e5]"
-              }`}
-              data-testid={`admin-tab-${t.id}`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
+        {/* Admin nav — left sidebar on desktop (lg+), scrollable horizontal
+            bar on mobile/tablet. The sidebar is sticky so long pages keep
+            the tab rail visible as you scroll through content. */}
+        <div className="lg:grid lg:grid-cols-[220px_1fr] lg:gap-8">
+          <nav
+            className="-mx-4 lg:mx-0 px-4 lg:px-0 mb-6 lg:mb-0 flex lg:flex-col lg:sticky lg:top-6 lg:self-start lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto border-b lg:border-b-0 lg:border-r border-[#262626] lg:pr-4 overflow-x-auto lg:overflow-x-visible scrollbar-thin bg-[#0a0a0a] lg:bg-transparent sticky top-[64px] lg:top-6 z-20"
+            data-testid="admin-tabs"
+            aria-label="Admin sections"
+          >
+            {TABS.filter((t) => !t.superOnly || me?.is_super_admin).map((t) => {
+              const active = tab === t.id;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setTab(t.id)}
+                  className={`
+                    font-mono text-[10px] md:text-[11px] uppercase tracking-[0.18em] md:tracking-[0.22em] whitespace-nowrap transition
+                    px-3 md:px-5 py-3 shrink-0 border-b-2 lg:border-b-0 lg:border-l-2 lg:w-full lg:text-left lg:px-3 lg:py-2.5
+                    ${active
+                      ? "border-[#ff4500] text-[#ff4500] lg:bg-[#ff4500]/5"
+                      : "border-transparent text-[#a3a3a3] hover:text-[#e5e5e5] lg:hover:bg-[#121212]"}
+                  `}
+                  data-testid={`admin-tab-${t.id}`}
+                  aria-current={active ? "page" : undefined}
+                >
+                  {t.label}
+                </button>
+              );
+            })}
+          </nav>
 
-        {tab === "analytics" && <AnalyticsTab />}
-        {tab === "retention" && <RetentionTab />}
-        {tab === "web" && <WebAnalyticsTab />}
-        {tab === "makers" && <MakerAnalyticsTab />}
-        {tab === "applications" && <ApplicationsList items={apps} onChange={refresh} />}
-        {tab === "approved-makers" && <ApprovedMakersTab />}
-        {tab === "rejected-apps" && <RejectedAppsTab />}
-        {tab === "plus-members" && <PlusMembersTab />}
-        {tab === "broadcast" && <BroadcastTab />}
-        {tab === "file-reports" && <DesignFileReportsTab />}
-        {tab === "custom" && <CustomOrdersList items={custom} onChange={refresh} />}
-        {tab === "orders" && <PaidOrdersList items={orders} />}
-        {tab === "approvals" && <RefundApprovalsTab me={me} />}
-        {tab === "listings" && <ListingsTab />}
-        {tab === "users" && <UsersTab />}
-        {tab === "reviews" && <ReviewsTab />}
-        {tab === "audit" && <AuditTab />}
-        {tab === "ads" && <AdsTab />}
-        {tab === "buffer" && <BufferTab />}
-        {tab === "chat" && <ChatModTab />}
-        {tab === "digests" && <DigestsTab />}
-        {tab === "team" && me?.is_super_admin && <TeamTab />}
-        {tab === "settings" && <SettingsTab />}
+          <div className="min-w-0">
+            {tab === "analytics" && <AnalyticsTab />}
+            {tab === "retention" && <RetentionTab />}
+            {tab === "web" && <WebAnalyticsTab />}
+            {tab === "makers" && <MakerAnalyticsTab />}
+            {tab === "applications" && <ApplicationsList items={apps} onChange={refresh} />}
+            {tab === "approved-makers" && <ApprovedMakersTab />}
+            {tab === "rejected-apps" && <RejectedAppsTab />}
+            {tab === "plus-members" && <PlusMembersTab />}
+            {tab === "broadcast" && <BroadcastTab />}
+            {tab === "file-reports" && <DesignFileReportsTab />}
+            {tab === "custom" && <CustomOrdersList items={custom} onChange={refresh} />}
+            {tab === "orders" && <PaidOrdersList items={orders} />}
+            {tab === "approvals" && <RefundApprovalsTab me={me} />}
+            {tab === "listings" && <ListingsTab />}
+            {tab === "users" && <UsersTab />}
+            {tab === "reviews" && <ReviewsTab />}
+            {tab === "audit" && <AuditTab />}
+            {tab === "ads" && <AdsTab />}
+            {tab === "buffer" && <BufferTab />}
+            {tab === "chat" && <ChatModTab />}
+            {tab === "digests" && <DigestsTab />}
+            {tab === "team" && me?.is_super_admin && <TeamTab />}
+            {tab === "settings" && <SettingsTab />}
+          </div>
+        </div>
       </div>
 
       {/* Password rotation gate — modal blocks the entire console until the

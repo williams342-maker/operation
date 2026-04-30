@@ -222,6 +222,33 @@ class Maker(BaseModel):
     processing_time: Optional[str] = ""   # e.g. "1-3 business days"
     returns_policy: Optional[str] = ""    # free-text policy text
     accepts_custom_orders: bool = True    # gates the "Request Custom" CTA
+    # ---- Etsy-style Info & Appearance ----
+    shop_title: Optional[str] = ""                    # Shop hero tagline (appears under the shop name)
+    order_receipt_banner_url: Optional[str] = ""      # 760×100 banner printed on order receipts + emails
+    shop_announcement: Optional[str] = ""             # Pinned notice on shop page (outages, sales, etc.)
+    message_to_buyers: Optional[str] = ""             # Auto-appended to all order confirmation emails
+    message_to_buyers_digital: Optional[str] = ""     # Shown on Downloads page for digital items
+    # ---- Social media ----
+    # Pure URL inputs (no OAuth) — vanity links surfaced on the shop profile.
+    social_facebook: Optional[str] = ""
+    social_instagram: Optional[str] = ""
+    social_twitter: Optional[str] = ""
+    social_tiktok: Optional[str] = ""
+    social_youtube: Optional[str] = ""
+    social_pinterest: Optional[str] = ""
+    website_url: Optional[str] = ""
+    # ---- Account lifecycle (shop closure + deletion) ----
+    # `shop_closed` is a stronger form of vacation_mode — permanently pauses
+    # sales until re-opened, hides the shop from search/category pages, and
+    # blocks new listings. Re-openable anytime (non-destructive).
+    shop_closed: bool = False
+    shop_closed_at: Optional[str] = None
+    # 30-day grace delete: sets `deletion_requested_at`; a scheduler (or
+    # manual check at login) purges the shop + all listings on day 30.
+    # Setting to None cancels the request. While flagged, the UI renders
+    # a red banner with days-remaining so the maker can back out.
+    deletion_requested_at: Optional[str] = None
+    deletion_cancels_at: Optional[str] = None  # iso: 30 days after request
     created_at: str = Field(default_factory=now_iso)
 
 
@@ -381,6 +408,20 @@ class MakerProfileUpdate(BaseModel):
     accepts_custom_orders: Optional[bool] = None
     is_veteran_owned: Optional[bool] = None
     watermark_images: Optional[bool] = None
+    # Etsy-style Info & Appearance
+    shop_title: Optional[str] = None
+    order_receipt_banner_url: Optional[str] = None
+    shop_announcement: Optional[str] = None
+    message_to_buyers: Optional[str] = None
+    message_to_buyers_digital: Optional[str] = None
+    # Social media links
+    social_facebook: Optional[str] = None
+    social_instagram: Optional[str] = None
+    social_twitter: Optional[str] = None
+    social_tiktok: Optional[str] = None
+    social_youtube: Optional[str] = None
+    social_pinterest: Optional[str] = None
+    website_url: Optional[str] = None
 
 
 # ---- Admin ----

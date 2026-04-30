@@ -8,7 +8,7 @@ import FollowButton from "../components/FollowButton";
 import FollowersList from "../components/FollowersList";
 import ContactMakerModal from "../components/ContactMakerModal";
 import VeteranBadge from "../components/VeteranBadge";
-import { Mail } from "lucide-react";
+import { Mail, Facebook, Instagram, Twitter, Youtube, Globe } from "lucide-react";
 
 export default function MakerDetail() {
   const { slug } = useParams();
@@ -72,6 +72,14 @@ export default function MakerDetail() {
             )}
           </div>
           <h1 className="font-display text-[64px] md:text-[120px] leading-[0.88]">{m.name}</h1>
+          {m.shop_title && (
+            <div
+              className="font-display text-xl md:text-2xl text-[#e5e5e5] mt-2 italic"
+              data-testid="maker-shop-title"
+            >
+              {m.shop_title}
+            </div>
+          )}
           <div className="font-mono text-xs uppercase tracking-[0.22em] text-[#a3a3a3] mt-2">{m.location} · {m.listings_count} listings · ★ {m.rating}</div>
           <div className="mt-5 flex flex-wrap items-center gap-3">
             <FollowButton makerSlug={m.slug} makerName={m.name} />
@@ -86,12 +94,36 @@ export default function MakerDetail() {
         </div>
       </div>
       <div className="w-full max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12">
+        {/* Pinned shop announcement — operator-controlled notice for sales,
+            vacation warnings, or new drops. Kept high on the page so it's
+            seen before buyers scroll into listings. */}
+        {m.shop_announcement && (
+          <div
+            className="border-l-4 border-[#ff4500] bg-[#ff4500]/5 px-4 py-3 mb-10 font-mono text-sm text-[#e5e5e5] leading-relaxed"
+            data-testid="maker-shop-announcement"
+          >
+            <span className="font-bold text-[#ff4500] mr-2 uppercase tracking-[0.22em] text-[10px]">◆ From the shop</span>
+            {m.shop_announcement}
+          </div>
+        )}
+        {/* Shop-closed banner — overrides everything else if the maker
+            closed the shop (vacation/pause/pending-deletion states). */}
+        {m.shop_closed && (
+          <div
+            className="border border-amber-600 bg-amber-950/30 px-4 py-3 mb-10 font-mono text-sm text-amber-300"
+            data-testid="maker-shop-closed-banner"
+          >
+            ◆ This shop is temporarily closed. Existing listings may not be
+            fulfilled until the shop reopens.
+          </div>
+        )}
         <div className="grid md:grid-cols-12 gap-8 mb-16">
           <p className="md:col-span-7 font-mono text-base text-[#e5e5e5] leading-relaxed">{m.bio}</p>
           <div className="md:col-span-4 md:col-start-9 flex flex-wrap gap-2 self-start">
             {m.techniques.map((t) => <span key={t} className="tag text-[#ff4500] border-[#ff4500]">{t}</span>)}
           </div>
         </div>
+        <SocialLinks maker={m} />
         <h2 className="font-display text-4xl md:text-6xl mb-8">From the workshop</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {products.map((p, i) => <ProductCard key={p.id} p={p} i={i} />)}
@@ -101,6 +133,42 @@ export default function MakerDetail() {
         <Link to="/makers" className="inline-block mt-12 industrial-link font-mono text-xs uppercase tracking-[0.22em]">← All makers</Link>
       </div>
       {contactOpen && <ContactMakerModal maker={m} onClose={() => setContactOpen(false)} />}
+    </div>
+  );
+}
+
+// Shop-level social/external links. Rendered between the bio and the
+// listings grid. Pure vanity links — no OAuth, no data sync. Hidden
+// entirely if the maker hasn't set any (common for new shops).
+const SOCIAL_ICONS = {
+  social_facebook:  { Icon: Facebook,  label: "Facebook"  },
+  social_instagram: { Icon: Instagram, label: "Instagram" },
+  social_twitter:   { Icon: Twitter,   label: "Twitter"   },
+  social_tiktok:    { Icon: Globe,     label: "TikTok"    },
+  social_youtube:   { Icon: Youtube,   label: "YouTube"   },
+  social_pinterest: { Icon: Globe,     label: "Pinterest" },
+  website_url:      { Icon: Globe,     label: "Website"   },
+};
+
+function SocialLinks({ maker }) {
+  const links = Object.entries(SOCIAL_ICONS)
+    .map(([key, cfg]) => ({ key, url: (maker[key] || "").trim(), ...cfg }))
+    .filter((l) => l.url);
+  if (!links.length) return null;
+  return (
+    <div className="flex flex-wrap gap-2 mb-14" data-testid="maker-social-links">
+      {links.map((l) => (
+        <a
+          key={l.key}
+          href={l.url}
+          target="_blank"
+          rel="noreferrer nofollow"
+          className="inline-flex items-center gap-2 px-3 py-2 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition"
+          data-testid={`maker-social-${l.key}`}
+        >
+          <l.Icon size={12} /> {l.label}
+        </a>
+      ))}
     </div>
   );
 }

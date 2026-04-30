@@ -3,8 +3,12 @@ import { toast } from "sonner";
 import {
   Image as ImageIcon, BookOpen, SlidersHorizontal, Truck, Shield,
   Users, Megaphone, Languages, Sparkles, Facebook, ChevronRight,
+  Share2, AlertTriangle,
 } from "lucide-react";
-import { updateMakerProfile } from "../../lib/api";
+import {
+  updateMakerProfile, makerCloseShop, makerReopenShop,
+  makerRequestDeletion, makerCancelDeletion, cancelMakerSubscription,
+} from "../../lib/api";
 import UpgradeTab from "./UpgradeTab";
 
 /**
@@ -29,6 +33,7 @@ import UpgradeTab from "./UpgradeTab";
 const SECTIONS = [
   { id: "info",       label: "Info & Appearance", icon: ImageIcon, kind: "form" },
   { id: "about",      label: "About your shop",   icon: BookOpen,  kind: "form" },
+  { id: "social",     label: "Social media",      icon: Share2,    kind: "form" },
   { id: "options",    label: "Options",           icon: SlidersHorizontal, kind: "form" },
   { id: "shipping",   label: "Shipping settings", icon: Truck,     kind: "form" },
   { id: "policy",     label: "Policy settings",   icon: Shield,    kind: "form" },
@@ -37,6 +42,7 @@ const SECTIONS = [
   { id: "languages",  label: "Languages and translations", icon: Languages, kind: "soon" },
   { id: "subscription", label: "Your subscription", icon: Sparkles, kind: "embed" },
   { id: "facebook",   label: "Facebook Shops",    icon: Facebook,  kind: "soon" },
+  { id: "account",    label: "Account & Plan",    icon: AlertTriangle, kind: "form" },
 ];
 
 export default function SettingsTab({ maker = {}, onMakerUpdated, onTabChange, initialSection = null }) {
@@ -98,6 +104,9 @@ export default function SettingsTab({ maker = {}, onMakerUpdated, onTabChange, i
           {active.kind === "form" && active.id === "about" && (
             <AboutShop maker={maker} onSaved={onMakerUpdated} />
           )}
+          {active.kind === "form" && active.id === "social" && (
+            <SocialMedia maker={maker} onSaved={onMakerUpdated} />
+          )}
           {active.kind === "form" && active.id === "options" && (
             <Options maker={maker} onSaved={onMakerUpdated} />
           )}
@@ -106,6 +115,9 @@ export default function SettingsTab({ maker = {}, onMakerUpdated, onTabChange, i
           )}
           {active.kind === "form" && active.id === "policy" && (
             <Policy maker={maker} onSaved={onMakerUpdated} />
+          )}
+          {active.kind === "form" && active.id === "account" && (
+            <AccountPanel maker={maker} onSaved={onMakerUpdated} />
           )}
           {active.kind === "embed" && active.id === "subscription" && (
             <UpgradeTab maker={maker} />
@@ -309,12 +321,16 @@ function useSettingsForm(maker, fields, onSaved) {
 // Section: Info & Appearance
 // ============================================================================
 function InfoAppearance({ maker, onSaved }) {
-  const fields = ["name", "location", "portrait", "cover"];
+  const fields = [
+    "name", "shop_title", "location", "portrait", "cover",
+    "order_receipt_banner_url", "shop_announcement",
+    "message_to_buyers", "message_to_buyers_digital",
+  ];
   const { form, set, dirty, busy, submit } = useSettingsForm(maker, fields, onSaved);
   return (
     <FormShell
       title="Info & Appearance"
-      blurb="The basics buyers see at the top of your shop. URLs to images should point at uploaded R2 assets."
+      blurb="The basics buyers see at the top of your shop + auto-messaging that goes out with every order. URLs should point at uploaded R2 assets."
       onSubmit={submit}
       dirty={dirty}
       busy={busy}
@@ -323,16 +339,355 @@ function InfoAppearance({ maker, onSaved }) {
       <Field label="Shop name" testId="settings-info-name">
         <input className={inputCls} value={form.name} onChange={(e) => set("name")(e.target.value)} />
       </Field>
+      <Field label="Shop title" hint="A short tagline shown under your shop name. Appears in search results — treat it like an SEO headline.">
+        <input
+          className={inputCls}
+          value={form.shop_title || ""}
+          onChange={(e) => set("shop_title")(e.target.value)}
+          maxLength={140}
+          placeholder="e.g. Precision CNC art since 2019"
+          data-testid="settings-info-shop-title"
+        />
+      </Field>
       <Field label="Location" hint="City, state — keeps shipping estimates honest.">
         <input className={inputCls} value={form.location} onChange={(e) => set("location")(e.target.value)} />
       </Field>
-      <Field label="Portrait URL" hint="Square headshot or logo (recommended 800×800).">
-        <input className={inputCls} value={form.portrait} onChange={(e) => set("portrait")(e.target.value)} />
+      <Field label="Shop icon URL" hint="Square headshot or logo (recommended 800×800). Shown on cards, receipts, and your profile.">
+        <input className={inputCls} value={form.portrait} onChange={(e) => set("portrait")(e.target.value)} placeholder="https://cdn.craftersmarket.org/…" />
       </Field>
       <Field label="Cover URL" hint="Wide banner that fills your shop hero (recommended 2400×800).">
-        <input className={inputCls} value={form.cover} onChange={(e) => set("cover")(e.target.value)} />
+        <input className={inputCls} value={form.cover} onChange={(e) => set("cover")(e.target.value)} placeholder="https://cdn.craftersmarket.org/…" />
+      </Field>
+      <Field label="Order receipt banner URL" hint="Thin banner (760×100, <2MB) printed at the top of emailed order receipts. Great place for a brand mark.">
+        <input
+          className={inputCls}
+          value={form.order_receipt_banner_url || ""}
+          onChange={(e) => set("order_receipt_banner_url")(e.target.value)}
+          placeholder="https://cdn.craftersmarket.org/…"
+          data-testid="settings-info-receipt-banner"
+        />
+      </Field>
+      <Field label="Shop announcement" hint="Pinned notice shown at the top of your shop page. Use it for sales, vacations, or new drops.">
+        <textarea
+          rows={3}
+          className={`${inputCls} resize-none`}
+          value={form.shop_announcement || ""}
+          onChange={(e) => set("shop_announcement")(e.target.value)}
+          maxLength={800}
+          placeholder="Thanks everyone for all your support. Please contact me if you have any questions…"
+          data-testid="settings-info-announcement"
+        />
+      </Field>
+      <Field label="Message to buyers" hint="Auto-appended to order confirmation emails for physical goods. Set tone and turnaround expectations.">
+        <textarea
+          rows={4}
+          className={`${inputCls} resize-none`}
+          value={form.message_to_buyers || ""}
+          onChange={(e) => set("message_to_buyers")(e.target.value)}
+          maxLength={1200}
+          placeholder="Thank you for your order! I'm adding new patterns all the time…"
+          data-testid="settings-info-msg-buyers"
+        />
+      </Field>
+      <Field label="Message to buyers for digital items" hint="Shown on the Downloads page and in the digital-item delivery email.">
+        <textarea
+          rows={3}
+          className={`${inputCls} resize-none`}
+          value={form.message_to_buyers_digital || ""}
+          onChange={(e) => set("message_to_buyers_digital")(e.target.value)}
+          maxLength={1200}
+          placeholder="Thanks for downloading! Need a different file format? Message me…"
+          data-testid="settings-info-msg-digital"
+        />
       </Field>
     </FormShell>
+  );
+}
+
+// ============================================================================
+// Section: Social media — pure URL inputs, rendered as a compact "connect"
+// grid. No OAuth — these are vanity links surfaced on the shop profile.
+// ============================================================================
+const SOCIAL_SPECS = [
+  { key: "social_facebook",  label: "Facebook",  placeholder: "https://facebook.com/yourshop",   hint: "fb.com/…"       },
+  { key: "social_instagram", label: "Instagram", placeholder: "https://instagram.com/yourshop",  hint: "instagram.com/…" },
+  { key: "social_twitter",   label: "Twitter/X", placeholder: "https://twitter.com/yourshop",    hint: "twitter.com/…"  },
+  { key: "social_tiktok",    label: "TikTok",    placeholder: "https://tiktok.com/@yourshop",    hint: "tiktok.com/@…"  },
+  { key: "social_youtube",   label: "YouTube",   placeholder: "https://youtube.com/@yourshop",   hint: "youtube.com/@…" },
+  { key: "social_pinterest", label: "Pinterest", placeholder: "https://pinterest.com/yourshop",  hint: "pinterest.com/…"},
+  { key: "website_url",      label: "Website",   placeholder: "https://yourshop.com",            hint: "Your own domain"},
+];
+
+function SocialMedia({ maker, onSaved }) {
+  const fields = SOCIAL_SPECS.map((s) => s.key);
+  const { form, set, dirty, busy, submit } = useSettingsForm(maker, fields, onSaved);
+  return (
+    <FormShell
+      title="Social media"
+      blurb="Link your social profiles so buyers can follow your work outside Crafters Market. Links surface on your shop page and in every listing footer."
+      onSubmit={submit}
+      dirty={dirty}
+      busy={busy}
+      testId="settings-social"
+    >
+      <div className="space-y-3">
+        {SOCIAL_SPECS.map((s) => {
+          const connected = !!(form[s.key] || "").trim();
+          return (
+            <div
+              key={s.key}
+              className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3 border border-[#262626] p-3"
+              data-testid={`settings-social-${s.key}`}
+            >
+              <div className="md:w-40 shrink-0">
+                <div className="font-mono text-xs uppercase tracking-[0.22em] text-[#e5e5e5]">{s.label}</div>
+                <div className="font-mono text-[10px] text-[#525252] mt-0.5">{s.hint}</div>
+              </div>
+              <input
+                className={`${inputCls} flex-1`}
+                type="url"
+                name={s.key}
+                autoComplete="url"
+                value={form[s.key] || ""}
+                onChange={(e) => set(s.key)(e.target.value)}
+                placeholder={s.placeholder}
+                data-testid={`settings-social-${s.key}-input`}
+              />
+              <span
+                className={`shrink-0 font-mono text-[10px] uppercase tracking-[0.22em] px-2 py-1 border ${
+                  connected
+                    ? "border-emerald-500/60 text-emerald-400"
+                    : "border-[#262626] text-[#525252]"
+                }`}
+                data-testid={`settings-social-${s.key}-status`}
+              >
+                {connected ? "◆ Connected" : "◇ Not set"}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </FormShell>
+  );
+}
+
+// ============================================================================
+// Section: Account & Plan — downgrade (cancel Plus), close shop, request
+// 30-day deletion (and back out during grace). Kept as a separate section
+// with prominent red styling so nobody nukes their shop by accident.
+// ============================================================================
+function AccountPanel({ maker, onSaved }) {
+  const isPlus = ["active", "trialing"].includes(maker?.subscription_status);
+  const closed = !!maker?.shop_closed;
+  const deletionAt = maker?.deletion_requested_at;
+  const purgeAt = maker?.deletion_cancels_at;
+  const daysRemaining = purgeAt
+    ? Math.max(0, Math.ceil((new Date(purgeAt).getTime() - Date.now()) / (24 * 3600 * 1000)))
+    : null;
+
+  const [busy, setBusy] = useState("");
+
+  const downgrade = async () => {
+    if (!window.confirm(
+      "Cancel Crafters Plus at the end of your billing period?\n\n" +
+      "You'll keep Plus benefits until the period ends, then drop to Free " +
+      "(10 listings/mo quota, 5% fee).",
+    )) return;
+    setBusy("downgrade");
+    try {
+      await cancelMakerSubscription();
+      toast.success("Plus will cancel at the end of the current period.");
+      onSaved?.();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Cancel failed.");
+    } finally { setBusy(""); }
+  };
+
+  const closeShop = async () => {
+    if (!window.confirm(
+      "Close your shop platform-wide?\n\n" +
+      "Buyers see a 'This shop is closed' banner. No new orders. " +
+      "Existing listings stay. You can reopen anytime.",
+    )) return;
+    setBusy("close");
+    try {
+      await makerCloseShop();
+      toast.success("Shop closed. Reopen whenever you're ready.");
+      onSaved?.();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Close failed.");
+    } finally { setBusy(""); }
+  };
+
+  const reopen = async () => {
+    setBusy("reopen");
+    try {
+      await makerReopenShop();
+      toast.success("Shop reopened. Welcome back.");
+      onSaved?.();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Reopen failed.");
+    } finally { setBusy(""); }
+  };
+
+  const requestDelete = async () => {
+    const ok = window.prompt(
+      "DELETE YOUR ACCOUNT?\n\n" +
+      "This starts a 30-day grace period. On day 30 we permanently remove:\n" +
+      "• Your shop profile\n" +
+      "• All listings\n" +
+      "• Messages, reviews, design files\n\n" +
+      "Financial records (orders, payouts, tax) are preserved for accounting.\n\n" +
+      "To continue, type DELETE below:",
+    );
+    if (ok !== "DELETE") {
+      if (ok !== null) toast.error("Cancelled — you didn't type DELETE.");
+      return;
+    }
+    setBusy("delete");
+    try {
+      const r = await makerRequestDeletion();
+      toast.success(`Deletion scheduled in ${r.days_remaining} days. Cancel anytime.`);
+      onSaved?.();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Delete request failed.");
+    } finally { setBusy(""); }
+  };
+
+  const cancelDelete = async () => {
+    setBusy("cancel-delete");
+    try {
+      await makerCancelDeletion();
+      toast.success("Deletion cancelled — your account is safe.");
+      onSaved?.();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Cancel failed.");
+    } finally { setBusy(""); }
+  };
+
+  return (
+    <div className="space-y-6" data-testid="settings-account">
+      <div>
+        <h2 className="font-display text-2xl text-[#e5e5e5]">Account & Plan</h2>
+        <p className="font-mono text-sm text-[#a3a3a3] mt-2 max-w-2xl">
+          Downgrade your subscription, close your shop, or request account deletion.
+        </p>
+      </div>
+
+      {/* Pending-deletion banner — red, impossible to miss */}
+      {deletionAt && (
+        <div className="border-2 border-red-600 bg-red-950/30 p-4" data-testid="account-deletion-banner">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-red-400 mb-1">◆ Pending deletion</div>
+          <div className="font-display text-xl text-red-300">
+            Your account is scheduled for deletion in {daysRemaining} {daysRemaining === 1 ? "day" : "days"}.
+          </div>
+          <p className="font-mono text-xs text-red-300/80 mt-2">
+            On {new Date(purgeAt).toLocaleDateString()}, your shop and every listing will be permanently removed.
+            Change your mind?
+          </p>
+          <button
+            onClick={cancelDelete}
+            disabled={busy === "cancel-delete"}
+            className="mt-3 px-4 py-2 bg-white hover:bg-[#e5e5e5] text-red-700 border border-white font-mono text-[10px] uppercase tracking-[0.22em] font-bold disabled:opacity-50"
+            data-testid="account-cancel-deletion-btn"
+          >
+            {busy === "cancel-delete" ? "…" : "← Cancel deletion — keep my account"}
+          </button>
+        </div>
+      )}
+
+      {/* Plan downgrade */}
+      <section className="border border-[#262626] p-5">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          <div>
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Current plan</div>
+            <div className="font-display text-2xl mt-1">
+              {isPlus ? (
+                <span className="text-emerald-400">★ Crafters Plus · $12/mo</span>
+              ) : (
+                <span className="text-[#a3a3a3]">◇ Free</span>
+              )}
+            </div>
+          </div>
+          {isPlus ? (
+            <button
+              onClick={downgrade}
+              disabled={!!busy}
+              className="px-4 py-2 border border-[#262626] hover:border-amber-500 hover:text-amber-400 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+              data-testid="account-downgrade-btn"
+            >
+              {busy === "downgrade" ? "…" : "Downgrade to Free"}
+            </button>
+          ) : (
+            <span className="font-mono text-[10px] text-[#525252] uppercase tracking-[0.22em]">
+              Upgrade available in "Your subscription" →
+            </span>
+          )}
+        </div>
+      </section>
+
+      {/* Close / reopen shop */}
+      <section className="border border-[#262626] p-5">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          <div>
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Shop status</div>
+            <div className="font-display text-2xl mt-1">
+              {closed ? (
+                <span className="text-amber-400">◆ Closed · No new orders</span>
+              ) : (
+                <span className="text-emerald-400">◆ Open</span>
+              )}
+            </div>
+            <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-md">
+              Closing hides your shop from search and blocks new orders without deleting data. Reopen anytime.
+            </p>
+          </div>
+          {closed ? (
+            <button
+              onClick={reopen}
+              disabled={!!busy}
+              className="px-4 py-2 border border-emerald-600 text-emerald-400 hover:bg-emerald-600 hover:text-white font-mono text-[10px] uppercase tracking-[0.22em] font-bold transition disabled:opacity-50"
+              data-testid="account-reopen-btn"
+            >
+              {busy === "reopen" ? "…" : "Reopen shop"}
+            </button>
+          ) : (
+            <button
+              onClick={closeShop}
+              disabled={!!busy || !!deletionAt}
+              className="px-4 py-2 border border-amber-600 text-amber-400 hover:bg-amber-600 hover:text-black font-mono text-[10px] uppercase tracking-[0.22em] font-bold transition disabled:opacity-50"
+              data-testid="account-close-btn"
+            >
+              {busy === "close" ? "…" : "Close shop"}
+            </button>
+          )}
+        </div>
+      </section>
+
+      {/* Danger zone */}
+      <section className="border-2 border-red-900/60 bg-red-950/10 p-5" data-testid="account-danger-zone">
+        <div className="flex items-center gap-2 mb-3">
+          <AlertTriangle size={16} className="text-red-500" />
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-red-500 font-bold">Danger zone</span>
+        </div>
+        <div className="font-display text-xl text-[#e5e5e5] mb-2">Delete my account</div>
+        <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed max-w-2xl">
+          Starts a <b className="text-red-400">30-day grace period</b>. After 30 days your shop
+          and every listing, message, review, and design file is permanently
+          removed. Orders and payouts are preserved (required for accounting &
+          tax compliance) but your maker identifier is anonymized. Cancellable
+          anytime during the 30-day window.
+        </p>
+        <button
+          onClick={requestDelete}
+          disabled={!!busy || !!deletionAt}
+          className="mt-4 px-4 py-2 border border-red-600 text-red-400 hover:bg-red-600 hover:text-white font-mono text-[10px] uppercase tracking-[0.22em] font-bold transition disabled:opacity-50"
+          data-testid="account-delete-btn"
+        >
+          {busy === "delete" ? "…" : deletionAt ? "Deletion pending →" : "Request account deletion"}
+        </button>
+      </section>
+    </div>
   );
 }
 

@@ -1,0 +1,38 @@
+{
+  "summary": "Iter50 - Etsy-style 'Info & Appearance' + Social Media + Account/Plan lifecycle for makers + Admin left-sidebar layout. Backend 11/11 pytest PASS. Frontend: all new sections (Info & Appearance fields, Social Media pills, Account & Plan with close/reopen/delete flows, Pending-deletion banner, Admin vertical sidebar at lg+) render and integrate correctly end-to-end.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "MakerDashboard Settings sub-nav", "issues": ["After any save that calls onSaved() (e.g. close-shop / reopen / request-delete / cancel-delete), the Settings sub-nav visually resets to the first section ('Info & Appearance') because the Account panel re-renders with fresh maker props. Not a correctness bug — state is right — but the user is bounced off the Account tab immediately after each action. Consider keeping activeSubnav across maker-refetches."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter50_shop_appearance.py",
+    "/app/test_reports/pytest/iter50_results.xml"
+  ],
+  "action_items": [
+    "[optional UX] Preserve activeSubnav across maker refetch in SettingsTab so users stay on 'Account & Plan' after clicking close/reopen/delete/cancel."
+  ],
+  "critical_code_review_comments": [
+    "[cosmetic] Test-request spec listed public-shop social pill testids as 'maker-social-{key}' but MakerDetail.jsx uses `data-testid={`maker-social-${l.key}`}` where l.key already has the 'social_' prefix — so the actual ids are 'maker-social-social_facebook' etc. Container 'maker-social-links' is fine. Either drop the 'social_' prefix from the key (`facebook`,`instagram`,…) or document the full id in the review_request so automated tests don't miss them.",
+    "[cosmetic] maker_request_deletion endpoint writes admin_audit with 'actor' + 'created_at' — most other maker-originated audit rows in this codebase use 'maker_slug' + 'ts'. Minor schema drift; consider normalizing.",
+    "[cosmetic] POST /maker/account/request-deletion also forces shop_closed=true (and vacation_mode=true) before writing the audit row. Cancel-deletion does NOT reopen the shop automatically — the user has to click 'Reopen' separately. That's intentional per copy, but worth noting: a user who cancels deletion will still appear closed until they explicitly reopen.",
+    "[minor UX] AccountPanel's close/reopen/delete actions each call onSaved() which re-fetches the maker and triggers a parent re-render that snaps active sub-nav back to 'info'. Low-priority but noticeable.",
+    "[cosmetic] Delete flow uses window.prompt('… type DELETE below:') — works but is browser-native and un-styleable. A proper modal would match the rest of the dark theme."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter50_shop_appearance.py (new — 11 tests all PASS)"
+  ],
+  "success_rate": {"backend": "100% (11/11)", "frontend": "100% — Info & Appearance persist, Social pills all connected, Account & Plan close/reopen/delete/cancel-delete all PASS, Admin sidebar vertical at 1920px and horizontal-scroll at 390px, public shop shows title + announcement + closed-banner + social-links"},
+  "test_credentials": "Maker JWT minted fresh via maker_auth.issue_session_jwt('iron-and-oak',…,'maker'); Admin JWT via issue_session_jwt('admin','team@craftersmarket.org','admin').",
+  "seed_data_creation": "Patched iron-and-oak Maker doc with shop_title / banner / announcement / msg_to_buyers / msg_digital / 6 social URLs + website_url. Toggled shop_closed on/off and deletion_requested_at on/off during test — all restored to clean state (shop_closed=false, no deletion pending) before finishing.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Testids: Settings sub-nav uses `settings-subnav-{id}` (NOT `subnav-{id}`). Social rows: `settings-social-{key}`, `settings-social-{key}-input`, `settings-social-{key}-status` where key is full like 'social_facebook'. Public-shop social pills: `maker-social-{key}` where key is again full 'social_facebook' → resulting id is `maker-social-social_facebook`. Account panel ops that mutate maker state trigger onSaved() which resets the sub-nav to first item — re-click `settings-subnav-account` after each action. request-deletion also closes shop; cancel-deletion does NOT auto-reopen — call reopen explicitly. Test file: /app/backend/tests/test_iter50_shop_appearance.py",
+  "rca_of_the_issue": "N/A — feature is working."
+}

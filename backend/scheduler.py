@@ -68,6 +68,68 @@ async def _job_clear_idle_chat() -> None:
         logger.exception("[scheduler] idle-chat cleanup failed: %s", e)
 
 
+
+async def _job_purge_deleted_makers() -> None:
+    """Hard-delete makers whose 30-day grace window has elapsed.
+
+    Runs daily. For each maker with `deletion_cancels_at <= now`:
+      - Purge products (hard delete — the soft-delete flag doesn't matter
+        once the whole shop is gone)
+      - Purge maker_payouts, dms / threads, design_files, forum posts,
+        reviews, maker_applications where email matches
+      - Insert an audit row capturing what was purged
+      - Remove the maker doc itself
+
+    We deliberately DO NOT purge `payment_transactions` or `orders` — those
+    are financial records and must survive for accounting/tax. Instead we
+    anonymize the maker_slug on those rows to a tombstone.
+    """
+    from datetime import datetime, timezone
+    from core import db, now_iso
+    try:
+        now = datetime.now(timezone.utc).isoformat()
+        cutoff = await db.makers.find(
+            {"deletion_cancels_at": {"$ne": None, "$lte": now}},
+            {"_id": 0, "slug": 1, "email": 1, "name": 1},
+        ).to_list(500)
+        if not cutoff:
+            return
+        for m in cutoff:
+            slug = m["slug"]
+            # Child-collection purges.
+            products_del = await db.products.delete_many({"maker": slug})
+            payouts_del = await db.maker_payouts.delete_many({"maker_slug": slug})
+            files_del = await db.design_files.delete_many({"maker_slug": slug})
+            threads_del = await db.dm_threads.delete_many({"maker_slug": slug})
+            reviews_del = await db.reviews.delete_many({"maker": slug})
+            apps_del = await db.maker_applications.delete_many({"email": m.get("email")}) if m.get("email") else None
+            # Financial rows — anonymize, don't delete.
+            await db.payment_transactions.update_many(
+                {"maker_slug": slug},
+                {"$set": {"maker_slug": f"__deleted__{slug}"}},
+            )
+            # Finally, the maker doc itself.
+            await db.makers.delete_one({"slug": slug})
+            await db.admin_audit.insert_one({
+                "id": __import__("uuid").uuid4().hex,
+                "kind": "maker_purged",
+                "actor": "scheduler",
+                "slug": slug,
+                "email": m.get("email"),
+                "shop_name": m.get("name"),
+                "products_deleted": products_del.deleted_count,
+                "payouts_deleted": payouts_del.deleted_count,
+                "design_files_deleted": files_del.deleted_count,
+                "dm_threads_deleted": threads_del.deleted_count,
+                "reviews_deleted": reviews_del.deleted_count,
+                "applications_deleted": apps_del.deleted_count if apps_del else 0,
+                "created_at": now_iso(),
+            })
+            logger.info("[scheduler] purged maker %s after 30-day grace", slug)
+    except Exception as e:
+        logger.exception("[scheduler] purge_deleted_makers failed: %s", e)
+
+
 async def _job_apply_scheduled_toggles() -> None:
     """Honor admin-set scheduled flips for `maintenance_mode`. Runs every
     minute; cheap (single Mongo doc read). Once a scheduled time passes,
@@ -135,6 +197,13 @@ def start_scheduler() -> AsyncIOScheduler | None:
     # the auto_clear_idle_rooms toggle is OFF, so no need to redeploy to switch.
     sched.add_job(_job_clear_idle_chat, CronTrigger(minute="*/10"),
                   id="clear_idle_chat", replace_existing=True)
+    # 30-day account-deletion purge — runs once per day. Finds any maker
+    # with `deletion_cancels_at <= now` and hard-deletes the maker doc +
+    # every orphaned child row (listings, payouts, messages, design files,
+    # forum posts, reviews). See `_job_purge_deleted_makers` for details.
+    sched.add_job(_job_purge_deleted_makers, CronTrigger(hour=3, minute=30),
+                  id="purge_deleted_makers", replace_existing=True)
+
     # Scheduled site-switches run every minute (1-min granularity is enough
     # for maintenance windows); job is dirt-cheap when nothing is scheduled.
     sched.add_job(_job_apply_scheduled_toggles, CronTrigger(minute="*"),

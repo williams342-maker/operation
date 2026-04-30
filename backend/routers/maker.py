@@ -1033,3 +1033,108 @@ async def maker_transactions(slug: str = Depends(current_maker_slug)):
         })
     rows.sort(key=lambda x: x["created_at"] or "", reverse=True)
     return {"transactions": rows[:200]}
+
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Account lifecycle — close / reopen shop + request 30-day deletion.
+#
+# "Close shop" is reversible: sets `shop_closed=True`, hides the shop from
+# public search, blocks new listings, but preserves all data. Reopen anytime.
+#
+# "Request deletion" starts a 30-day grace window during which the maker
+# (or admin) can cancel. A scheduled job purges the shop + every related
+# row (listings, payouts, messages) on day 30. The maker can log in during
+# the grace window and see a red banner with the countdown.
+# ─────────────────────────────────────────────────────────────────────────────
+
+from datetime import timedelta as _td
+
+
+@router.post("/maker/account/close")
+async def maker_close_shop(slug: str = Depends(current_maker_slug)):
+    """Pause the shop platform-wide (reversible). Hides from search, blocks
+    new orders + listings, keeps existing data intact."""
+    now = now_iso()
+    await db.makers.update_one(
+        {"slug": slug},
+        {"$set": {"shop_closed": True, "shop_closed_at": now, "vacation_mode": True}},
+    )
+    await db.admin_audit.insert_one({
+        "id": uuid.uuid4().hex,
+        "kind": "maker_shop_closed",
+        "actor": slug,
+        "created_at": now,
+    })
+    return {"ok": True, "shop_closed": True, "shop_closed_at": now}
+
+
+@router.post("/maker/account/reopen")
+async def maker_reopen_shop(slug: str = Depends(current_maker_slug)):
+    """Un-close a previously-closed shop. Does NOT auto-disable vacation
+    mode — the maker can toggle that separately from Settings."""
+    await db.makers.update_one(
+        {"slug": slug},
+        {"$set": {"shop_closed": False, "shop_closed_at": None}},
+    )
+    return {"ok": True, "shop_closed": False}
+
+
+@router.post("/maker/account/request-deletion")
+async def maker_request_deletion(slug: str = Depends(current_maker_slug)):
+    """Start a 30-day deletion grace period. After 30 days a scheduled job
+    hard-purges the maker + listings + payouts + forum posts + files.
+
+    Cancellable anytime via /maker/account/cancel-deletion while in grace.
+    We ALSO close the shop immediately so no new orders land during the
+    window — nothing worse than a buyer placing an order minutes before
+    the shop vanishes.
+    """
+    m = await db.makers.find_one({"slug": slug}, {"_id": 0, "deletion_requested_at": 1})
+    if m and m.get("deletion_requested_at"):
+        raise HTTPException(400, "A deletion request is already active. Cancel it first to restart the clock.")
+    now_dt = datetime.now(timezone.utc)
+    purge_dt = now_dt + _td(days=30)
+    await db.makers.update_one(
+        {"slug": slug},
+        {"$set": {
+            "deletion_requested_at": now_dt.isoformat(),
+            "deletion_cancels_at": purge_dt.isoformat(),
+            "shop_closed": True,
+            "shop_closed_at": now_dt.isoformat(),
+            "vacation_mode": True,
+        }},
+    )
+    await db.admin_audit.insert_one({
+        "id": uuid.uuid4().hex,
+        "kind": "maker_deletion_requested",
+        "actor": slug,
+        "created_at": now_dt.isoformat(),
+        "purge_at": purge_dt.isoformat(),
+    })
+    return {
+        "ok": True,
+        "deletion_requested_at": now_dt.isoformat(),
+        "purge_at": purge_dt.isoformat(),
+        "days_remaining": 30,
+    }
+
+
+@router.post("/maker/account/cancel-deletion")
+async def maker_cancel_deletion(slug: str = Depends(current_maker_slug)):
+    """Back out of a pending 30-day deletion. Leaves the shop in its
+    closed state — the maker can call /reopen separately to resume sales."""
+    m = await db.makers.find_one({"slug": slug}, {"_id": 0, "deletion_requested_at": 1})
+    if not m or not m.get("deletion_requested_at"):
+        raise HTTPException(400, "No deletion request is active.")
+    await db.makers.update_one(
+        {"slug": slug},
+        {"$set": {"deletion_requested_at": None, "deletion_cancels_at": None}},
+    )
+    await db.admin_audit.insert_one({
+        "id": uuid.uuid4().hex,
+        "kind": "maker_deletion_canceled",
+        "actor": slug,
+        "created_at": now_iso(),
+    })
+    return {"ok": True}

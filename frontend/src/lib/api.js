@@ -495,6 +495,16 @@ export const resolveDesignFileReport = (id, payload) =>
 export const unquarantineDesignFile = (id) =>
   http.post(`/admin/design-files/${id}/unquarantine`, {}, { headers: adminAuthHeaders() }).then((r) => r.data);
 
+// Maker account lifecycle — close / reopen shop + 30-day grace deletion.
+export const makerCloseShop = () =>
+  http.post("/maker/account/close", {}, { headers: authHeaders() }).then((r) => r.data);
+export const makerReopenShop = () =>
+  http.post("/maker/account/reopen", {}, { headers: authHeaders() }).then((r) => r.data);
+export const makerRequestDeletion = () =>
+  http.post("/maker/account/request-deletion", {}, { headers: authHeaders() }).then((r) => r.data);
+export const makerCancelDeletion = () =>
+  http.post("/maker/account/cancel-deletion", {}, { headers: authHeaders() }).then((r) => r.data);
+
 // Direct multipart upload — works for any signed-in community user (buyer OR maker).
 // Passes the freshest Bearer token (maker JWT wins over buyer JWT for attribution).
 export const uploadDesignFileDirect = (
