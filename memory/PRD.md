@@ -1021,3 +1021,22 @@ New endpoints in `maker.py`:
 - `/app/frontend/src/pages/AdminDashboard.jsx` (left-sidebar layout)
 - `/app/frontend/src/pages/MakerDetail.jsx` (shop_title + announcement + closed banner + SocialLinks)
 
+
+
+## 2026-04-30 — Upgrade CTA fix: direct link to Stripe checkout, hidden when on Plus
+
+### User ask
+*"when I hit the upgrade my account it should take me to the upgrade page and pay or if the account is already upgraded it shouldn't show up"*
+
+### Issue
+The new `AccountPanel` "Current plan" section was rendering a dead text label (`Upgrade available in 'Your subscription' →`) for free shops instead of an actual button. The `PlusUpgradeNudge` on the dashboard fired an event-bus indirection (Settings → Subscription tab → Upgrade page → Pay) — three clicks too many.
+
+### Fix
+- **`AccountPanel`** — replaced the dead label with a real `<Link to="/maker/billing">★ Upgrade my account →</Link>` styled as a primary orange CTA button (`data-testid="account-upgrade-btn"`). Already hidden by ternary when `isPlus`, so Plus subscribers see the **Downgrade to Free** button instead.
+- **`PlusUpgradeNudge`** — converted both CTAs (`plus-nudge-cta` + the inline "Upgrade" callout) from `onClick={onUpgrade}` event-bus handlers to `<Link to="/maker/billing">` so users go straight into Stripe checkout. The nudge already auto-hides when Plus is active.
+
+### Verified
+- **Free state**: `★ UPGRADE MY ACCOUNT →` button visible, `href="/maker/billing"`, downgrade button absent.
+- **Plus state**: button hidden (`upgrade-btn count=0`), `Downgrade to Free` button present (`downgrade-btn count=1`), header shows green `★ CRAFTERS PLUS · $12/MO` badge.
+- Files: `/app/frontend/src/pages/MakerDashboard/SettingsTab.jsx`, `/app/frontend/src/pages/MakerDashboard/PlusUpgradeNudge.jsx`.
+

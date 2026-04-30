@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import {
   Image as ImageIcon, BookOpen, SlidersHorizontal, Truck, Shield,
@@ -632,9 +633,18 @@ function AccountPanel({ maker, onSaved }) {
               {busy === "downgrade" ? "…" : "Downgrade to Free"}
             </button>
           ) : (
-            <span className="font-mono text-[10px] text-[#525252] uppercase tracking-[0.22em]">
-              Upgrade available in "Your subscription" →
-            </span>
+            // Free shop → take them straight into Stripe checkout via the
+            // existing /maker/billing flow (`startMakerSubscription`). Skips
+            // the old "Settings → Your Subscription → Upgrade tab → Upgrade"
+            // chain so they're one click away from paying. Hidden entirely
+            // for active Plus subscribers (covered by the `isPlus` branch).
+            <Link
+              to="/maker/billing"
+              className="inline-flex items-center justify-center px-4 py-2 bg-[#ff4500] hover:bg-[#ff5722] text-black border border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em] font-bold transition"
+              data-testid="account-upgrade-btn"
+            >
+              ★ Upgrade my account →
+            </Link>
           )}
         </div>
       </section>

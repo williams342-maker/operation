@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { Sparkles, Check, ArrowRight } from "lucide-react";
 import { fetchFeePolicy } from "../../lib/api";
 
@@ -91,14 +92,17 @@ export default function PlusUpgradeNudge({ maker, orders = [], onUpgrade }) {
         </div>
 
         <div className="flex md:flex-col items-stretch gap-3 shrink-0 md:min-w-[180px]">
-          <button
-            onClick={onUpgrade}
+          {/* Direct to /maker/billing — kicks off Stripe Checkout in one
+              click. The earlier indirection (event → Settings → Subscription
+              tab → Upgrade button) wasted three clicks. */}
+          <Link
+            to="/maker/billing"
             className="btn-industrial btn-primary inline-flex items-center justify-center gap-2"
             data-testid="plus-nudge-cta"
           >
             Upgrade to Plus
             <ArrowRight size={14} />
-          </button>
+          </Link>
           <button
             onClick={onUpgrade}
             className="px-3 py-2 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition"
