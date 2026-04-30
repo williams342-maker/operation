@@ -1,6 +1,24 @@
 # Crafters Market — Modernized Homepage + Full Marketplace
 
 
+## 2026-02 — iter54 — Maker Routing Recommendations (TESTED ✅)
+- ✅ **GET `/api/admin/custom-orders/{id}/maker-suggestions`** — ranks active
+  makers for a brief by: (a) material/category overlap with their published
+  products (regex match against `materials`/`category`/`technique`),
+  (b) historical win-rate (won_bid / routed × 100), (c) tie-break via routed
+  count (capped at 5). Score halved for makers with ≥3 declines and no wins.
+  Filters out shop_closed/vacation_mode/no-email/zero-product makers.
+  Returns top 8 with score + reason string.
+- ✅ **Admin Step 2 UI**: "✨ Suggested matches" chip strip above the maker
+  dropdown. First chip ★-prefixed. One click sets the dropdown. Each chip
+  shows the reason ("3 matching listings", "100% win-rate (1/1)", "⚠ 3 declined").
+  Skipped entirely for already-assigned briefs.
+- Tests: 9/9 new + 22/22 regression = 31/31 backend pytest pass. See
+  `/app/backend/tests/test_iter54_maker_suggestions.py` and
+  `/app/test_reports/iteration_36.json`.
+
+
+
 ## 2026-02 — iter53 — Brief Funnel + Won-the-Bid + Reddit Cross-Post (TESTED ✅)
 - ✅ **GET `/api/admin/custom-orders/funnel`** — 9 lifecycle stages
   (submitted/quoted/routed/accepted/in_progress/completed/won_bid/declined/posted_to_reddit),
