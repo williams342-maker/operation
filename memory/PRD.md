@@ -1,6 +1,29 @@
 # Crafters Market — Modernized Homepage + Full Marketplace
 
 
+## 2026-02 — iter52 — Custom Brief Routing (admin → maker → Reddit) (TESTED ✅)
+- ✅ **Push-to-Maker**: `POST /api/admin/custom-orders/{id}/push-to-maker`
+  {maker_slug, note?, notify_buyer?} — assigns brief, drops `dm_threads` row
+  with `kind=admin_brief`, optional buyer email confirmation, admin_audit log.
+- ✅ **Push-to-Reddit**: `POST /api/admin/custom-orders/{id}/push-to-reddit`
+  {subreddit, title?, flair?} — gated on `assigned_maker_slug` AND on
+  `REDDIT_USERNAME` + `REDDIT_PASSWORD` env (script-app password grant).
+  Self-text posts via `oauth.reddit.com/api/submit`. Persists
+  `reddit_attempt_at`, `reddit_subreddit`, `reddit_error`,
+  `posted_to_reddit_at`, `reddit_post_url` for analytics.
+- ✅ **Maker Briefs Tab**: new `BriefsTab.jsx` + nav item in `ShopManagerLayout`.
+  GET /api/maker/briefs + PATCH /api/maker/briefs/{id} (accept/decline/in_progress/completed).
+  3 sections: New / Active / Past. Cross-maker isolation enforced.
+- ✅ **Admin 3-step workflow** in `CustomOrdersList.jsx`: Step 1 Quote (existing) → Step 2 Push to maker (dropdown + note + notify-buyer checkbox) → Step 3 Push to Reddit (gated UI message until env keys arrive).
+- Tests: 14/14 backend pytest + frontend E2E pass. See
+  `/app/backend/tests/test_iter52_brief_routing.py` and
+  `/app/test_reports/iteration_34.json`.
+- DB extensions on `custom_orders`: `assigned_maker_slug`, `assigned_maker_name`,
+  `assigned_at`, `assigned_by`, `assignment_note`, `maker_response_status`,
+  `maker_response_at`, `maker_response_note`, plus reddit_* fields above.
+
+
+
 ## 🟡 PENDING — Reddit Forum Aggregator (BLOCKED on credentials)
 Backend scaffold is **complete and live** at `/app/backend/routers/reddit_feeds.py`,
 returning empty posts gracefully until credentials arrive. To activate:
