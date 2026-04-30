@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Inbox, ExternalLink } from "lucide-react";
 import { fetchMakerBriefs, updateMakerBrief } from "../../lib/api";
+import Barcode from "../../components/Barcode";
 
 /**
  * Maker Briefs Tab — admin-routed custom-order briefs for this maker.
@@ -121,11 +122,22 @@ function BriefCard({ brief, onChange, dim = false }) {
             </a>
           </div>
         </div>
-        <div className="text-right shrink-0">
+        <div className="text-right shrink-0 flex flex-col items-end gap-2">
           <div className="font-display text-2xl text-[#ff4500]">{brief.budget || "open"}</div>
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] mt-1">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252]">
             Budget · {brief.timeline || "flexible"}
           </div>
+          {brief.tracking_number && (
+            <div className="border border-[#1f1f1f] px-2 py-1 bg-[#0a0a0a]" title={`Tracking #${brief.tracking_number}`}>
+              <Barcode
+                value={brief.tracking_number}
+                height={28}
+                width={1.3}
+                fontSize={9}
+                testId={`brief-barcode-${brief.id}`}
+              />
+            </div>
+          )}
         </div>
       </header>
 

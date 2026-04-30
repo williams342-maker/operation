@@ -1,0 +1,41 @@
+{
+  "summary": "Iter56 — 10-digit tracking number + Code128 barcode on every custom-order brief. Backend 13/13 NEW pytest PASS (POST returns 10-digit numeric tracking_number, two-brief uniqueness, public GET /track/{n} returns 400 on bad/short/long/alpha, 404 on unknown, 200 with sanitised payload that EXCLUDES email/phone/description/admin_note/buyer_name, admin auth gate, admin 400 on bad format, admin lookup by tracking returns matching row, admin unknown returns []; Mongo backfill verified — 0 rows missing tracking_number out of 86 total, unique index on tracking_number present, all values are 10-digit numeric strings and globally unique). Backend regression 52/52 PASS (iter51+52+53+54+55). Frontend live-verified on preview: (a) /track/5233713298 → barcode SVG with 26 rects (data-testid=track-barcode-5233713298), 7 stages rendered (submitted/quoted/assigned/accepted/in_progress/won_bid/completed all present as track-stage-{key}), 'Submitted · CURRENT' marker correctly highlighted on the submitted row, 'Submitted 4/30/2026' header date rendered. (b) /track form invalid input '12345' → 'Tracking number must be 10 digits.' shown via track-error testid. (c) /track/0000000099 (unknown) → friendly 404 message 'We couldn't find a brief with that tracking number...' (d) Admin /admin/dashboard → Custom Orders tab → 82 brief-barcode-{order.id} testids rendered, top-right of each row, each with 26 rect bars and 10-digit number under bars. (e) Maker /maker/dashboard → Briefs tab → 1 brief-barcode-{brief.id} testid (won-bid brief 2656469497), 26 rect bars, top-right of card. PageErrors=0. One carry-over hydration warning '<span> cannot be a child of <option>' fires (not introduced by iter56 — documented in iter37; root cause is visual-editor x-* dev wrapper around <option> children of CustomOrdersList maker-select dropdown).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "AdminDashboard · CustomOrdersList", "issues": ["Carry-over from iter54/55: hydration warning '<span> cannot be a child of <option>' still fires once on mount. Not introduced by iter56. Source: visual-editor dev tooling wraps <option> children with <span data-ve-dynamic> in CustomOrdersList.jsx maker-select. Likely dev-only. Already documented in iteration_37.json action_items."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter56_tracking_number.py",
+    "/app/test_reports/pytest/iter56_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "[good] CustomOrder.tracking_number uses default_factory with 10 random digits via secrets.choice — leading-zero-safe, cryptographically random.",
+    "[good] catalog.create_custom_order has 5-attempt collision re-roll loop guarding the unique Mongo index — defensive even though 10B address space makes collision vanishingly unlikely.",
+    "[good] Public GET /custom-orders/track/{n} validates strictly with .isdigit() AND len==10 (rejects leading-zero-stripped ints, alpha, short, long); returns 400 'Invalid tracking number.' for malformed and 404 'Brief not found.' for missing — both exactly per spec.",
+    "[good] Public payload is whitelist-built (only 11 named fields explicitly returned) — no risk of accidental PII leakage even if model gains new fields. Tests confirmed email/phone/description/admin_note/name/buyer_name/budget all absent from response.",
+    "[good] Status derivation in public_track_brief correctly cascades: maker_response_status (won_bid > completed > in_progress > accepted > declined) → assigned_maker_slug (assigned) → status=='quoted' (quoted) → submitted (default). Lifecycle accurately reflected.",
+    "[good] Admin custom_orders accepts ?tracking= query, strict 10-digit validation matches public endpoint, query short-circuits to {tracking_number: tracking} so the existing pagination/sort still applies.",
+    "[good] Mongo unique index on tracking_number confirmed present (sparse to allow legacy null-safety), enforced at DB layer as belt-and-suspenders alongside app-level re-roll.",
+    "[good] Backfill complete — 0/86 rows missing tracking_number, all values are unique 10-digit numeric strings (verified via direct Mongo aggregation in pytest).",
+    "[good] Buyer confirmation email send_buyer_custom_ack now accepts tracking_number kwarg — tracking link surfaced in email body so buyers can return to /track/{n} (not directly tested but signature inspected).",
+    "[good] Frontend Barcode component uses jsbarcode Code128 with proper testId prop, ref-based SVG render, aria-label for a11y. Renders 26 rect bars per 10-digit value as expected.",
+    "[good] data-testid namespace consistent: track-barcode-{n} on /track, brief-barcode-{order.id} on admin + maker — 82+1 distinct testids rendered live.",
+    "[good] /track route registered for both /track and /track/:trackingNumber (App.js line ~152) — verified working both with and without param.",
+    "[minor·carry-over] Hydration warning <span> in <option> still fires (iter54 carry-over, NOT iter56)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter56_tracking_number.py (NEW — 13 tests, all PASS)"
+  ],
+  "success_rate": {"backend": "100% (13/13 iter56 + 52/52 regression iter51-55 = 65/65)", "frontend": "100% — barcode rendered on all 3 surfaces (track/admin/maker), 7-stage timeline + CURRENT marker correct, form validation + 404 friendly message both correct, 0 page errors"},
+  "test_credentials": "Admin JWT via maker_auth.issue_session_jwt('admin','team@craftersmarket.org','admin') stored in localStorage as cm_admin_jwt. Maker JWT for iron-and-oak via issue_magic_token + /api/maker/auth/verify, stored as cm_maker_jwt + cm_maker_slug='iron-and-oak'. Public /track endpoints required no auth.",
+  "seed_data_creation": "Created 3 TEST_ custom_orders rows during pytest (TEST_iter56, TEST_iter56_b, TEST_PW). Each got a unique 10-digit tracking_number from the default_factory. They live in the admin queue but are clearly TEST_-prefixed so easy to purge later.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Iter56 fully verified end-to-end (backend + frontend). Sample tracking numbers seeded for visual checks: 5233713298 (TEST_PW, status=submitted), 2656469497 (won_bid maker-side), 8631663047 (assigned). To re-verify the public /track page in preview, just hit https://active-project-4.preview.emergentagent.com/track/5233713298 — no auth needed. The carry-over '<span> in <option>' hydration warning is dev-tooling artifact (visual-editor x-* attributes), already triaged in iter37; do not re-flag as a new issue. Email send_buyer_custom_ack(tracking_number=...) signature is wired but actual email content not visually tested — it's a background task; could be tested via email_log inspection if needed in iter57.",
+  "rca_of_the_issue": "N/A — feature works as specified."
+}

@@ -661,8 +661,18 @@ async def admin_broadcast_send(
 
 
 @router.get("/admin/custom-orders")
-async def admin_custom_orders(_: dict = Depends(current_admin)):
-    return await db.custom_orders.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
+async def admin_custom_orders(
+    tracking: str | None = None,
+    _: dict = Depends(current_admin),
+):
+    """List all briefs (newest first) OR look up one by tracking number
+    when `?tracking=` is provided."""
+    q = {}
+    if tracking:
+        if not tracking.isdigit() or len(tracking) != 10:
+            raise HTTPException(400, "Tracking number must be 10 digits.")
+        q["tracking_number"] = tracking
+    return await db.custom_orders.find(q, {"_id": 0}).sort("created_at", -1).to_list(500)
 
 
 @router.get("/admin/orders")

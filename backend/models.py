@@ -296,8 +296,15 @@ class BlogPost(BaseModel):
     created_at: str = Field(default_factory=now_iso)
 
 
+import secrets
 class CustomOrder(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    # Public-safe 10-digit tracking number printed on every brief. Random
+    # so it's not enumerable; stored as a string so leading zeros survive.
+    # Uniqueness is enforced server-side at insert time (collision-retry).
+    tracking_number: str = Field(
+        default_factory=lambda: "".join(secrets.choice("0123456789") for _ in range(10)),
+    )
     name: str
     email: EmailStr
     phone: Optional[str] = None

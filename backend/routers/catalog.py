@@ -211,6 +211,18 @@ async def create_custom_order(payload: CustomOrderCreate, bg: BackgroundTasks):
     data["policy_accepted_at"] = now_iso()
     data.pop("policy_accepted", None)
     order = CustomOrder(**data)
+    # Tracking number uniqueness — re-roll on the rare collision. 10 digits
+    # = 10B address space so collisions are vanishingly unlikely, but we
+    # still guard for correctness.
+    for _ in range(5):
+        existing = await db.custom_orders.find_one(
+            {"tracking_number": order.tracking_number}, {"_id": 1},
+        )
+        if not existing:
+            break
+        order = order.model_copy(update={
+            "tracking_number": "".join(__import__("secrets").choice("0123456789") for _ in range(10)),
+        })
     await db.custom_orders.insert_one(order.model_dump())
     await db.activity_events.insert_one(
         ActivityEvent(kind="applied",
@@ -220,8 +232,53 @@ async def create_custom_order(payload: CustomOrderCreate, bg: BackgroundTasks):
     bg.add_task(send_ops_new_custom_order,
                 payload.name, payload.email, payload.project_type,
                 payload.material, payload.description, payload.budget)
-    bg.add_task(send_buyer_custom_ack, payload.email, payload.name, payload.project_type)
+    bg.add_task(send_buyer_custom_ack, payload.email, payload.name, payload.project_type, order.tracking_number)
     return order
+
+
+@router.get("/custom-orders/track/{tracking_number}")
+async def public_track_brief(tracking_number: str):
+    """Public lookup — anyone with the tracking number can see basic
+    status. Returns a sanitised view (no buyer email/phone, no admin
+    notes) so the URL is safe to share."""
+    if not tracking_number.isdigit() or len(tracking_number) != 10:
+        raise HTTPException(400, "Invalid tracking number.")
+    order = await db.custom_orders.find_one(
+        {"tracking_number": tracking_number}, {"_id": 0},
+    )
+    if not order:
+        raise HTTPException(404, "Brief not found.")
+
+    # Compute a public-friendly status pill from the lifecycle fields.
+    status = "submitted"
+    if order.get("maker_response_status") == "won_bid":
+        status = "won_bid"
+    elif order.get("maker_response_status") == "completed":
+        status = "completed"
+    elif order.get("maker_response_status") == "in_progress":
+        status = "in_progress"
+    elif order.get("maker_response_status") == "accepted":
+        status = "accepted"
+    elif order.get("maker_response_status") == "declined":
+        status = "declined"
+    elif order.get("assigned_maker_slug"):
+        status = "assigned"
+    elif order.get("status") == "quoted":
+        status = "quoted"
+
+    return {
+        "tracking_number": tracking_number,
+        "status": status,
+        "project_type": order.get("project_type"),
+        "material": order.get("material"),
+        "submitted_at": order.get("created_at"),
+        "quoted_at": order.get("quoted_at"),
+        "assigned_at": order.get("assigned_at"),
+        "assigned_maker_name": order.get("assigned_maker_name"),
+        "won_bid_at": order.get("won_bid_at"),
+        "reddit_post_url": order.get("reddit_post_url"),
+        "reddit_subreddit": order.get("reddit_subreddit"),
+    }
 
 
 @router.post("/custom-orders/upload-design")

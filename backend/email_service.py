@@ -556,8 +556,17 @@ async def send_ops_new_custom_order(name: str, email: str, project_type: str, ma
     return await _send(OPS_EMAIL, f"New custom brief · {project_type}", html)
 
 
-async def send_buyer_custom_ack(buyer_email: str, name: str, project_type: str):
-    body = f"<p style='font-size:13px;color:#a3a3a3;line-height:1.6'>Hi {name}, we received your <b style='color:#e5e5e5'>{project_type}</b> brief and a maker will review it within 24 hours. We'll send a free quote — no commitment.</p>"
+async def send_buyer_custom_ack(buyer_email: str, name: str, project_type: str, tracking_number: str | None = None):
+    site_url = os.environ.get("PUBLIC_SITE_URL", "https://craftersmarket.org")
+    track_link = (
+        f"<p style='font-size:13px;color:#a3a3a3;line-height:1.6;margin-top:14px'>"
+        f"Your tracking number: <b style='color:#ff4500;font-family:monospace;letter-spacing:1px'>{tracking_number}</b><br/>"
+        f"Check the status anytime: <a href='{site_url}/track/{tracking_number}' style='color:#ff4500'>{site_url}/track/{tracking_number}</a></p>"
+    ) if tracking_number else ""
+    body = (
+        f"<p style='font-size:13px;color:#a3a3a3;line-height:1.6'>Hi {name}, we received your <b style='color:#e5e5e5'>{project_type}</b> brief and a maker will review it within 24 hours. We'll send a free quote — no commitment.</p>"
+        f"{track_link}"
+    )
     html = _shell("Brief Received.", "Thanks for the custom request.", body, "Custom queue")
     return await _send(buyer_email, "We got your custom brief", html)
 

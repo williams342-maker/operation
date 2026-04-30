@@ -6,6 +6,7 @@ import {
 } from "../../lib/api";
 import { adminAuthHeaders } from "../../lib/api"; // eslint-disable-line no-unused-vars
 import { formatDate } from "./_shared";
+import Barcode from "../Barcode";
 
 export default function CustomOrdersList({ items, onChange }) {
   const [makers, setMakers] = useState([]);
@@ -241,7 +242,18 @@ function CustomOrderRow({ order, makers, reddit, onChange }) {
             {order.material} · {order.size || "size n/a"} · {order.budget || "budget n/a"}
           </div>
         </div>
-        <div className="flex flex-col gap-1 items-end">
+        <div className="flex flex-col gap-2 items-start md:items-end">
+          {order.tracking_number && (
+            <div className="border border-[#1f1f1f] px-3 py-2 bg-[#0a0a0a]" title={`Tracking #${order.tracking_number}`}>
+              <Barcode
+                value={order.tracking_number}
+                height={32}
+                width={1.4}
+                fontSize={10}
+                testId={`brief-barcode-${order.id}`}
+              />
+            </div>
+          )}
           {isAssigned && makerStatus && (
             <span className="font-mono text-[10px] uppercase tracking-[0.22em] px-2 py-1 border border-[#262626]"
                   data-testid={`brief-maker-status-${order.id}`}>

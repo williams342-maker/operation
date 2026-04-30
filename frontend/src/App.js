@@ -41,6 +41,7 @@ import BuyerMessagesPage from "./pages/BuyerMessagesPage";
 import MakerListingEditor from "./pages/MakerListingEditor";
 import BetaPage from "./pages/BetaPage";
 import SignInPage, { ForgotPasswordPage, ResetPasswordPage } from "./pages/SignInPage";
+import TrackBriefPage from "./pages/TrackBriefPage";
 import AIAssistant from "./components/AIAssistant";
 import MaintenancePage from "./components/MaintenancePage";
 import BetaBanner from "./components/BetaBanner";
@@ -148,6 +149,8 @@ function App() {
                 <Route path="/admin/verify" element={<AdminVerify />} />
                 <Route path="/admin/dashboard" element={<AdminDashboard />} />
                 <Route path="/contact" element={<ContactPage />} />
+                <Route path="/track" element={<TrackBriefPage />} />
+                <Route path="/track/:trackingNumber" element={<TrackBriefPage />} />
                 <Route path="/policy" element={<PolicyPage />} />
                 <Route path="/terms" element={<Navigate to="/policy#terms" replace />} />
                 <Route path="/tos" element={<Navigate to="/policy#terms" replace />} />
