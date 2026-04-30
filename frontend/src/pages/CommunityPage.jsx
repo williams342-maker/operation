@@ -349,7 +349,7 @@ function FilesTab({ me }) {
           </p>
           {!isSignedIn && (
             <p className="font-mono text-[10px] text-[#525252] mt-1" data-testid="files-signin-hint">
-              Sign in to upload a DXF, SVG, STL, GLB, AI, EPS, PDF, or ZIP.
+              Sign in to upload a bundle — pick multiple formats (jpg, stl, dxf, dwg, svg, g-code, pdf, zip…) for the same design.
             </p>
           )}
         </div>
@@ -366,7 +366,7 @@ function FilesTab({ me }) {
       {showUpload && <FileUploadForm onSaved={() => { setShowUpload(false); refresh(); }} />}
       {!files.length ? (
         <p className="font-mono text-sm text-[#a3a3a3]" data-testid="files-empty">
-          No design files yet — be the first to share a DXF / SVG / STL / GLB.
+          No design files yet — be the first to share a bundle.
         </p>
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="files-grid">
@@ -382,32 +382,73 @@ function FilesTab({ me }) {
 // Real multipart uploader — any signed-in community user can contribute.
 // Falls back to an external-URL-paste mode for makers who host on
 // Dropbox / Drive / their own CDN (zero-copy, no R2 spend).
+//
+// Multi-format bundles: the file picker accepts up to 10 files at once.
+// First-picked becomes the **primary** (its format chip drives the card
+// header); the rest land as variants. Typical bundle for a maker:
+// hero.jpg + model.stl + cut.dxf + preview.svg + program.gcode.
+const ACCEPTED_EXTS = ["dxf", "dwg", "svg", "stl", "glb", "gltf", "ai", "eps", "pdf", "zip", "jpg", "jpeg", "png", "webp", "gcode", "nc", "tap"];
+const ACCEPTED_ATTR = ACCEPTED_EXTS.map((e) => "." + e).join(",");
+const MAX_VARIANTS_PER_BUNDLE = 10;
+const MAX_BUNDLE_BYTES = 25 * 1024 * 1024; // matches MAX_DESIGN_BYTES per file
+
 function FileUploadForm({ onSaved }) {
   const [mode, setMode] = useState("upload"); // "upload" | "url"
   const [f, setF] = useState({ title: "", description: "", file_type: "DXF", download_url: "", thumbnail_url: "" });
-  const [picked, setPicked] = useState(null); // File object
+  const [picked, setPicked] = useState([]); // File[] — first is primary
   const [progress, setProgress] = useState(0);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const isMaker = !!localStorage.getItem("cm_maker_jwt");
 
+  const inferFmt = (file) => {
+    const ext = (file.name.split(".").pop() || "").toUpperCase();
+    return ext === "GLTF" ? "GLB" : (ext === "JPEG" ? "JPG" : ext);
+  };
+
   const onFileChange = (e) => {
-    const file = e.target.files?.[0];
     setErr("");
-    if (!file) { setPicked(null); return; }
-    // 25 MB cap — matches the backend MAX_DESIGN_BYTES.
-    if (file.size > 25 * 1024 * 1024) {
-      setErr(`File must be ≤ 25MB. Yours is ${(file.size / 1024 / 1024).toFixed(1)}MB.`);
-      setPicked(null);
+    const fl = Array.from(e.target.files || []);
+    if (!fl.length) { setPicked([]); return; }
+    if (fl.length > MAX_VARIANTS_PER_BUNDLE) {
+      setErr(`Pick up to ${MAX_VARIANTS_PER_BUNDLE} files per design (one per format).`);
       e.target.value = "";
       return;
     }
-    // Infer file_type from extension so the user doesn't have to pick.
-    const ext = (file.name.split(".").pop() || "").toUpperCase();
-    if (["DXF", "SVG", "STL", "GLB", "GLTF", "AI", "EPS", "PDF", "ZIP"].includes(ext)) {
-      setF((c) => ({ ...c, file_type: ext === "GLTF" ? "GLB" : ext }));
+    // Per-file size cap (matches backend MAX_DESIGN_BYTES). Reject the
+    // whole batch if any file is over — clearer error than partial fail.
+    for (const file of fl) {
+      if (file.size > MAX_BUNDLE_BYTES) {
+        setErr(`'${file.name}' is ${(file.size / 1024 / 1024).toFixed(1)} MB — must be ≤ 25 MB.`);
+        e.target.value = "";
+        setPicked([]);
+        return;
+      }
     }
-    setPicked(file);
+    // Reject duplicate formats client-side so the backend doesn't burn
+    // an upload only to 400 us back. First-of-each-format wins.
+    const seen = new Set();
+    const deduped = [];
+    for (const file of fl) {
+      const fmt = inferFmt(file).toLowerCase();
+      if (seen.has(fmt)) {
+        setErr(`Duplicate format '${fmt}'. Each format may appear once per bundle.`);
+        e.target.value = "";
+        setPicked([]);
+        return;
+      }
+      seen.add(fmt);
+      deduped.push(file);
+    }
+    // Auto-detect primary format from the first picked file.
+    setF((c) => ({ ...c, file_type: inferFmt(deduped[0]) }));
+    setPicked(deduped);
+  };
+
+  const removePicked = (idx) => {
+    const next = picked.filter((_, i) => i !== idx);
+    setPicked(next);
+    if (next.length) setF((c) => ({ ...c, file_type: inferFmt(next[0]) }));
   };
 
   const submit = async (e) => {
@@ -417,9 +458,9 @@ function FileUploadForm({ onSaved }) {
     setProgress(0);
     try {
       if (mode === "upload") {
-        if (!picked) throw new Error("Pick a file to upload.");
+        if (!picked.length) throw new Error("Pick at least one file to upload.");
         await uploadDesignFileDirect(
-          { file: picked, title: f.title, description: f.description, thumbnail_url: f.thumbnail_url },
+          { files: picked, title: f.title, description: f.description, thumbnail_url: f.thumbnail_url },
           { onProgress: setProgress },
         );
       } else {
@@ -492,7 +533,8 @@ function FileUploadForm({ onSaved }) {
             <input
               type="file"
               required
-              accept=".dxf,.svg,.stl,.glb,.gltf,.ai,.eps,.pdf,.zip"
+              multiple
+              accept={ACCEPTED_ATTR}
               onChange={onFileChange}
               data-testid="file-picker"
               disabled={busy}
@@ -501,6 +543,15 @@ function FileUploadForm({ onSaved }) {
           </div>
         )}
       </div>
+
+      {/* Multi-file picker hint — only for upload mode. */}
+      {mode === "upload" && (
+        <p className="font-mono text-[10px] text-[#525252] -mt-2" data-testid="file-multi-hint">
+          Tip: select multiple files at once to bundle formats for the same design
+          — e.g. <span className="text-[#ff4500]">hero.jpg + model.stl + cut.dxf + program.gcode</span>.
+          The first file picked is the primary; the rest become variants. Up to {MAX_VARIANTS_PER_BUNDLE} per bundle, ≤ 25 MB each.
+        </p>
+      )}
 
       {mode === "url" && (
         <input
@@ -537,17 +588,48 @@ function FileUploadForm({ onSaved }) {
         data-testid="file-description"
       />
 
-      {/* Preview of the picked file — shows before upload starts. */}
-      {mode === "upload" && picked && !busy && (
-        <div className="flex items-center gap-3 px-3 py-2 border border-[#262626] bg-[#0f0f0f]" data-testid="file-preview">
-          <span className="font-mono text-[10px] uppercase tracking-[0.22em] px-1.5 py-0.5 border border-[#ff4500] text-[#ff4500]">
-            {f.file_type}
-          </span>
-          <span className="font-mono text-xs text-[#e5e5e5] truncate">{picked.name}</span>
-          <span className="font-mono text-[10px] text-[#a3a3a3] shrink-0">
-            {(picked.size / 1024 / 1024).toFixed(2)} MB
-          </span>
-        </div>
+      {/* Preview of all picked files — first row is the primary; others
+          are variants. Each is removable individually before submit. */}
+      {mode === "upload" && picked.length > 0 && !busy && (
+        <ul className="space-y-1.5" data-testid="file-preview-list">
+          {picked.map((file, i) => {
+            const fmt = (file.name.split(".").pop() || "").toUpperCase();
+            return (
+              <li
+                key={`${file.name}-${i}`}
+                className="flex items-center gap-3 px-3 py-2 border border-[#262626] bg-[#0f0f0f]"
+                data-testid={`file-preview-${i}`}
+              >
+                <span
+                  className={`font-mono text-[10px] uppercase tracking-[0.22em] px-1.5 py-0.5 border ${
+                    i === 0 ? "border-[#ff4500] text-[#ff4500] bg-[#ff4500]/5" : "border-[#525252] text-[#a3a3a3]"
+                  }`}
+                  title={i === 0 ? "Primary format (drives the card header)" : "Variant"}
+                >
+                  {fmt}
+                </span>
+                {i === 0 && (
+                  <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#ff4500]">
+                    Primary
+                  </span>
+                )}
+                <span className="font-mono text-xs text-[#e5e5e5] truncate flex-1">{file.name}</span>
+                <span className="font-mono text-[10px] text-[#a3a3a3] shrink-0">
+                  {(file.size / 1024 / 1024).toFixed(2)} MB
+                </span>
+                <button
+                  type="button"
+                  onClick={() => removePicked(i)}
+                  className="font-mono text-[10px] text-[#525252] hover:text-red-400"
+                  data-testid={`file-preview-remove-${i}`}
+                  title="Remove from bundle"
+                >
+                  ✕
+                </button>
+              </li>
+            );
+          })}
+        </ul>
       )}
 
       {/* Upload progress bar — only shown during an in-flight upload. */}
@@ -560,7 +642,7 @@ function FileUploadForm({ onSaved }) {
             />
           </div>
           <div className="font-mono text-[10px] text-[#a3a3a3]">
-            Uploading {picked?.name}… {progress}%
+            Uploading {picked.length === 1 ? picked[0].name : `${picked.length} files`}… {progress}%
           </div>
         </div>
       )}
@@ -573,11 +655,15 @@ function FileUploadForm({ onSaved }) {
 
       <button
         type="submit"
-        disabled={busy || (mode === "upload" && !picked)}
+        disabled={busy || (mode === "upload" && !picked.length)}
         className="btn-industrial btn-primary w-full disabled:opacity-50"
         data-testid="file-submit"
       >
-        {busy ? (mode === "upload" ? `Uploading… ${progress}%` : "Publishing…") : "Publish file →"}
+        {busy
+          ? (mode === "upload" ? `Uploading… ${progress}%` : "Publishing…")
+          : (picked.length > 1
+              ? `Publish bundle (${picked.length} formats) →`
+              : "Publish file →")}
       </button>
     </form>
   );
@@ -586,17 +672,26 @@ function FileUploadForm({ onSaved }) {
 function FileCard({ file, canDownload }) {
   const [status, setStatus] = useState(null);
   const [reportOpen, setReportOpen] = useState(false);
+  const [downloadOpen, setDownloadOpen] = useState(false);
   // Only signed-in users can report (same auth gate as the upload path).
   const canReport = !!localStorage.getItem("cm_maker_jwt") || !!localStorage.getItem("cm_buyer_jwt");
-  const onDownload = async () => {
+  const variants = Array.isArray(file.variants) ? file.variants : [];
+  const hasBundle = variants.length > 0;
+
+  const onDownload = async (variantUrl) => {
     if (!canDownload) return;
+    setDownloadOpen(false);
     try {
       const r = await downloadDesignFile(file.id);
       if (r.locked) {
         setStatus({ kind: "locked", message: r.message });
       } else {
-        setStatus({ kind: "ready", url: r.url, used: r.downloads_used });
-        window.open(r.url, "_blank", "noopener");
+        // For the primary, use the metered URL (returned by backend).
+        // For variants, the metered count was already incremented above
+        // — we just open the variant URL directly.
+        const url = variantUrl || r.url;
+        setStatus({ kind: "ready", url, used: r.downloads_used });
+        window.open(url, "_blank", "noopener");
       }
     } catch { setStatus({ kind: "err" }); }
   };
@@ -606,9 +701,28 @@ function FileCard({ file, canDownload }) {
   };
   return (
     <div className="border border-[#262626] hover:border-[#ff4500] transition p-4 flex flex-col gap-3" data-testid={`file-${file.id}`}>
-      <div className="flex items-baseline justify-between">
-        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">◆ {file.file_type}</span>
-        <span className="font-mono text-[10px] text-[#525252]">{file.downloads} downloads</span>
+      {/* Format chips row — primary + variants. Click any chip to download
+          that specific format. Hides on signed-out users. */}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span
+            className="font-mono text-[10px] uppercase tracking-[0.22em] px-1.5 py-0.5 border border-[#ff4500] text-[#ff4500]"
+            title="Primary format"
+          >
+            ◆ {file.file_type}
+          </span>
+          {variants.map((v) => (
+            <span
+              key={v.format + (v.url || "")}
+              className="font-mono text-[10px] uppercase tracking-[0.22em] px-1.5 py-0.5 border border-[#525252] text-[#a3a3a3]"
+              title={v.filename || `${v.format} variant`}
+              data-testid={`file-variant-chip-${file.id}-${v.format}`}
+            >
+              {v.format}
+            </span>
+          ))}
+        </div>
+        <span className="font-mono text-[10px] text-[#525252] shrink-0">{file.downloads} downloads</span>
       </div>
       <div className="font-display text-xl leading-tight">{file.title}</div>
       <p className="font-mono text-[11px] text-[#a3a3a3] leading-relaxed">{file.description}</p>
@@ -629,12 +743,58 @@ function FileCard({ file, canDownload }) {
         <button onClick={unlock} className="btn-industrial btn-primary inline-flex items-center justify-center gap-2" data-testid={`file-unlock-${file.id}`}>
           <Lock size={14} /> Unlock $5 — 6 mo unlimited
         </button>
-      ) : (
-        <button onClick={onDownload} disabled={!canDownload}
+      ) : !hasBundle ? (
+        // Single-format files keep the simple direct-download button.
+        <button onClick={() => onDownload(null)} disabled={!canDownload}
                 className="btn-industrial inline-flex items-center justify-center gap-2 border border-[#262626] hover:border-[#ff4500] disabled:opacity-50"
                 data-testid={`file-download-${file.id}`}>
           <Download size={14} /> {canDownload ? "Download" : "Sign in to download"}
         </button>
+      ) : (
+        // Multi-format bundles get a dropdown so the user picks the format
+        // they actually want. Each click hits the same metered endpoint
+        // so quotas stay accurate.
+        <div className="relative" data-testid={`file-download-bundle-${file.id}`}>
+          <button
+            onClick={() => canDownload && setDownloadOpen((s) => !s)}
+            disabled={!canDownload}
+            className="btn-industrial w-full inline-flex items-center justify-center gap-2 border border-[#262626] hover:border-[#ff4500] disabled:opacity-50"
+            data-testid={`file-download-${file.id}`}
+          >
+            <Download size={14} />
+            {canDownload ? `Download · pick format` : "Sign in to download"}
+          </button>
+          {downloadOpen && canDownload && (
+            <div
+              className="absolute left-0 right-0 top-full mt-1 z-20 border border-[#262626] bg-[#0a0a0a] shadow-xl"
+              data-testid={`file-download-menu-${file.id}`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                onClick={() => onDownload(null)}
+                className="w-full text-left px-3 py-2 font-mono text-xs text-[#e5e5e5] hover:bg-[#1a1a1a] flex items-center justify-between"
+                data-testid={`file-download-fmt-${file.id}-${file.file_type}`}
+              >
+                <span><span className="text-[#ff4500]">◆ {file.file_type}</span> <span className="text-[#525252]">· primary</span></span>
+                <Download size={12} />
+              </button>
+              {variants.map((v) => (
+                <button
+                  key={v.format + (v.url || "")}
+                  onClick={() => onDownload(v.url)}
+                  className="w-full text-left px-3 py-2 font-mono text-xs text-[#e5e5e5] hover:bg-[#1a1a1a] flex items-center justify-between border-t border-[#1a1a1a]"
+                  data-testid={`file-download-fmt-${file.id}-${v.format}`}
+                >
+                  <span>
+                    {v.format}
+                    {v.size_bytes && <span className="text-[#525252] ml-2">{(v.size_bytes / 1024 / 1024).toFixed(2)} MB</span>}
+                  </span>
+                  <Download size={12} />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       )}
       {/* Silent metering: removed the "X/5 free" counter on purpose so users
           aren't reminded of a quota until they actually hit it. */}

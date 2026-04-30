@@ -621,12 +621,17 @@ export const updateMakerBrief = (briefId, payload) =>
 
 // Direct multipart upload — works for any signed-in community user (buyer OR maker).
 // Passes the freshest Bearer token (maker JWT wins over buyer JWT for attribution).
+//
+// Multi-format bundles: pass either `file` (single) OR `files` (array).
+// First file becomes the primary; the rest land in the variants[] array.
 export const uploadDesignFileDirect = (
-  { file, title, description, thumbnail_url = "" },
+  { file, files, title, description, thumbnail_url = "" },
   { onProgress } = {},
 ) => {
   const form = new FormData();
-  form.append("file", file);
+  // Bundle multi-format support — accept either shape.
+  const list = Array.isArray(files) && files.length > 0 ? files : (file ? [file] : []);
+  for (const f of list) form.append("files", f);
   form.append("title", title);
   form.append("description", description);
   if (thumbnail_url) form.append("thumbnail_url", thumbnail_url);
@@ -641,6 +646,34 @@ export const uploadDesignFileDirect = (
     onUploadProgress: (ev) => {
       if (onProgress && ev.total) onProgress(Math.round((ev.loaded * 100) / ev.total));
     },
+  }).then((r) => r.data);
+};
+
+// Append additional format variants to an existing bundle (uploader-only).
+export const addDesignFileVariants = (fileId, files, { onProgress } = {}) => {
+  const form = new FormData();
+  for (const f of files) form.append("files", f);
+  const mkr = localStorage.getItem("cm_maker_jwt");
+  const byr = localStorage.getItem("cm_buyer_jwt");
+  const token = mkr || byr;
+  return http.post(`/community/files/${fileId}/variants`, form, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    onUploadProgress: (ev) => {
+      if (onProgress && ev.total) onProgress(Math.round((ev.loaded * 100) / ev.total));
+    },
+  }).then((r) => r.data);
+};
+
+// Remove a single format variant (uploader-only). Primary file is locked.
+export const deleteDesignFileVariant = (fileId, fmt) => {
+  const mkr = localStorage.getItem("cm_maker_jwt");
+  const byr = localStorage.getItem("cm_buyer_jwt");
+  const token = mkr || byr;
+  return http.delete(`/community/files/${fileId}/variants/${fmt}`, {
+    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
   }).then((r) => r.data);
 };
 

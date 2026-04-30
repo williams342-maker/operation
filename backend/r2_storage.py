@@ -162,11 +162,17 @@ def upload_video_bytes(data: bytes, key_prefix: str,
 
 
 # Community design-file uploads — shared library of DXF / SVG / STL / GLB /
-# AI / EPS / PDF / ZIP so makers AND buyers can both contribute.
+# AI / EPS / PDF / ZIP / DWG / G-code / common image formats so makers AND
+# buyers can both contribute. Multi-format bundles (one design, multiple
+# format variants) are now supported via `variants[]` in design_files.
 ALLOWED_DESIGN_FILE_TYPES = {
     "image/vnd.dxf":                   "dxf",
     "application/dxf":                 "dxf",
     "application/x-dxf":               "dxf",
+    "image/x-dwg":                     "dwg",
+    "application/acad":                "dwg",
+    "application/x-acad":              "dwg",
+    "application/autocad_dwg":         "dwg",
     "image/svg+xml":                   "svg",
     "model/stl":                       "stl",
     "application/vnd.ms-pki.stl":      "stl",
@@ -178,21 +184,36 @@ ALLOWED_DESIGN_FILE_TYPES = {
     "application/pdf":                 "pdf",
     "application/zip":                 "zip",
     "application/x-zip-compressed":    "zip",
+    # Raster preview images (so a design can ship its own thumbnail).
+    "image/jpeg":                      "jpg",
+    "image/png":                       "png",
+    "image/webp":                      "webp",
+    # G-code (machine instructions). Almost always served as text/plain or
+    # octet-stream by the browser — we sniff the extension below.
+    "text/x-gcode":                    "gcode",
     "application/octet-stream":        "bin",  # fallback; we sniff extension
 }
 
 # Extension → mime (used to sanitize browser-provided content-type for CAD
 # files that often arrive as application/octet-stream).
 _DESIGN_EXT_TO_CT = {
-    "dxf": "application/dxf",
-    "svg": "image/svg+xml",
-    "stl": "model/stl",
-    "glb": "model/gltf-binary",
-    "gltf": "model/gltf+json",
-    "ai":  "application/postscript",
-    "eps": "application/postscript",
-    "pdf": "application/pdf",
-    "zip": "application/zip",
+    "dxf":   "application/dxf",
+    "dwg":   "image/x-dwg",
+    "svg":   "image/svg+xml",
+    "stl":   "model/stl",
+    "glb":   "model/gltf-binary",
+    "gltf":  "model/gltf+json",
+    "ai":    "application/postscript",
+    "eps":   "application/postscript",
+    "pdf":   "application/pdf",
+    "zip":   "application/zip",
+    "jpg":   "image/jpeg",
+    "jpeg":  "image/jpeg",
+    "png":   "image/png",
+    "webp":  "image/webp",
+    "gcode": "text/x-gcode",
+    "nc":    "text/x-gcode",  # Mach3 / Fanuc post-processor extension
+    "tap":   "text/x-gcode",  # Some CAM packages export .tap
 }
 
 MAX_DESIGN_BYTES = 25 * 1024 * 1024  # 25 MB — CAD source files rarely exceed this.

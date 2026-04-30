@@ -292,7 +292,7 @@ async def upload_design_file(payload: DesignFileMeta, slug: str = Depends(curren
 
 @router.post("/community/files/upload")
 async def upload_design_file_direct(
-    file: UploadFile = File(...),
+    files: List[UploadFile] = File(...),
     title: str = Form(...),
     description: str = Form(...),
     thumbnail_url: str = Form(""),
@@ -300,13 +300,19 @@ async def upload_design_file_direct(
 ):
     """Direct file upload for the community design-file library.
 
-    Any signed-in community user (buyer OR maker) can post a design file.
-    Files are uploaded to R2 under `community-files/<user>/<uuid>.<ext>`,
-    then a `design_files` row is created with the resolved public URL.
+    Multi-format bundles: pass 1+ files in a single request. The first
+    file becomes the **primary** (back-compat: `file_type` + `download_url`
+    keep their classic single-file meaning). Every additional file lands
+    in the `variants[]` array. Typical maker bundle for one design:
+    ``hero.jpg`` + ``model.stl`` + ``cut.dxf`` + ``preview.svg`` +
+    ``program.gcode`` — all attached to one community card.
 
-    The existing URL-paste endpoint (`POST /community/files`) is kept for
-    makers who host on Dropbox/Drive. This endpoint is the preferred
-    path — no external hosting required, and we can moderate the bytes.
+    Any signed-in community user (buyer OR maker) can post a design file.
+    Files are uploaded to R2 under
+    ``community-files/<user>/<uuid>.<ext>``, then a `design_files` row is
+    created with the resolved public URLs. The existing URL-paste
+    endpoint (`POST /community/files`) is kept for makers who host on
+    Dropbox/Drive.
     """
     title = (title or "").strip()
     description = (description or "").strip()
@@ -314,14 +320,14 @@ async def upload_design_file_direct(
         raise HTTPException(400, "Title is required (max 120 chars).")
     if not description or len(description) > 800:
         raise HTTPException(400, "Description is required (max 800 chars).")
+    if not files:
+        raise HTTPException(400, "At least one file is required.")
+    if len(files) > 10:
+        raise HTTPException(400, "At most 10 format variants per design.")
 
     from r2_storage import is_configured as r2_ok, upload_design_file_bytes
     if not r2_ok():
         raise HTTPException(503, "File uploads are not configured.")
-
-    raw = await file.read()
-    if not raw:
-        raise HTTPException(400, "Empty file.")
 
     role = claims.get("role", "buyer")
     if role == "maker":
@@ -335,34 +341,155 @@ async def upload_design_file_direct(
         uploader_label = user_key
         uploader_name = (u or {}).get("name") or "Community Member"
 
-    try:
-        url, ext = upload_design_file_bytes(
-            raw,
-            key_prefix=f"community-files/{uploader_label}",
-            filename=file.filename,
-            content_type=file.content_type or "",
-        )
-    except ValueError as e:
-        raise HTTPException(400, str(e))
+    uploaded = []
+    seen_exts: set[str] = set()
+    for idx, f in enumerate(files):
+        raw = await f.read()
+        if not raw:
+            raise HTTPException(400, f"File '{f.filename or idx}' is empty.")
+        try:
+            url, ext = upload_design_file_bytes(
+                raw,
+                key_prefix=f"community-files/{uploader_label}",
+                filename=f.filename,
+                content_type=f.content_type or "",
+            )
+        except ValueError as e:
+            raise HTTPException(400, f"{f.filename or 'file'}: {e}")
+        # Reject duplicate format variants — one row per format keeps the
+        # download dropdown clean. Re-uploading the same format should go
+        # through the dedicated PATCH endpoint instead.
+        if ext.lower() in seen_exts:
+            raise HTTPException(400, f"Duplicate format '{ext}' in this bundle. Each format may appear once.")
+        seen_exts.add(ext.lower())
+        uploaded.append({
+            "format": ext,           # e.g. "STL", "DXF", "JPG"
+            "url": url,
+            "filename": (f.filename or "").strip()[:200] or None,
+            "size_bytes": len(raw),
+            "uploaded_at": now_iso(),
+        })
+
+    primary = uploaded[0]
+    variants = uploaded[1:]  # may be empty for single-file uploads
+
+    # Auto-thumbnail: if the user didn't supply one and the bundle has a
+    # raster image (jpg/png/webp), promote it to thumbnail so cards look
+    # right out of the gate.
+    auto_thumb = None
+    for v in uploaded:
+        if v["format"].lower() in ("jpg", "jpeg", "png", "webp"):
+            auto_thumb = v["url"]
+            break
 
     doc = {
         "id": str(uuid.uuid4()),
         "maker_slug": uploader_label if role == "maker" else None,
         "uploader_role": role,
         "uploader_id": user_key,
-        "maker_name": uploader_name,  # kept as `maker_name` for backward compat with existing UI
+        "maker_name": uploader_name,  # kept for back-compat with existing UI
         "title": title[:120],
         "description": description[:800],
-        "file_type": ext,
-        "download_url": url,
-        "thumbnail_url": (thumbnail_url or "").strip()[:600] or None,
+        "file_type": primary["format"],
+        "download_url": primary["url"],
+        "thumbnail_url": (thumbnail_url or "").strip()[:600] or auto_thumb,
+        "variants": variants,
         "downloads": 0,
-        "size_bytes": len(raw),
+        "size_bytes": primary["size_bytes"],
         "created_at": now_iso(),
     }
     await db.design_files.insert_one(doc)
     doc.pop("_id", None)
     return doc
+
+
+@router.post("/community/files/{file_id}/variants")
+async def add_design_file_variants(
+    file_id: str,
+    files: List[UploadFile] = File(...),
+    claims: dict = Depends(current_any_user),
+):
+    """Append additional format variants to an existing design bundle.
+    Only the original uploader (or any maker for moderation) can add."""
+    doc = await db.design_files.find_one({"id": file_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Design file not found.")
+
+    role = claims.get("role", "buyer")
+    sub = claims.get("sub", "")
+    if role != "maker" and doc.get("uploader_id") != sub:
+        raise HTTPException(403, "You can only add variants to your own uploads.")
+
+    from r2_storage import is_configured as r2_ok, upload_design_file_bytes
+    if not r2_ok():
+        raise HTTPException(503, "File uploads are not configured.")
+
+    existing_variants = doc.get("variants") or []
+    seen_exts = {v.get("format", "").lower() for v in existing_variants}
+    seen_exts.add((doc.get("file_type") or "").lower())
+
+    new_variants = []
+    uploader_label = doc.get("maker_slug") or doc.get("uploader_id") or "user"
+    for f in files:
+        raw = await f.read()
+        if not raw:
+            continue
+        try:
+            url, ext = upload_design_file_bytes(
+                raw,
+                key_prefix=f"community-files/{uploader_label}",
+                filename=f.filename,
+                content_type=f.content_type or "",
+            )
+        except ValueError as e:
+            raise HTTPException(400, f"{f.filename or 'file'}: {e}")
+        if ext.lower() in seen_exts:
+            raise HTTPException(409, f"Format '{ext}' is already attached to this design. Delete it first to replace.")
+        seen_exts.add(ext.lower())
+        new_variants.append({
+            "format": ext,
+            "url": url,
+            "filename": (f.filename or "").strip()[:200] or None,
+            "size_bytes": len(raw),
+            "uploaded_at": now_iso(),
+        })
+
+    if new_variants:
+        await db.design_files.update_one(
+            {"id": file_id},
+            {"$push": {"variants": {"$each": new_variants}}},
+        )
+    return {"ok": True, "added": new_variants}
+
+
+@router.delete("/community/files/{file_id}/variants/{fmt}")
+async def delete_design_file_variant(
+    file_id: str, fmt: str,
+    claims: dict = Depends(current_any_user),
+):
+    """Remove a single format variant from a design bundle. The primary
+    file (file_type / download_url) cannot be removed via this endpoint
+    — delete the whole bundle if you need that."""
+    doc = await db.design_files.find_one({"id": file_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Design file not found.")
+
+    role = claims.get("role", "buyer")
+    sub = claims.get("sub", "")
+    if role != "maker" and doc.get("uploader_id") != sub:
+        raise HTTPException(403, "You can only edit your own uploads.")
+
+    fmt_norm = fmt.upper()
+    if (doc.get("file_type") or "").upper() == fmt_norm:
+        raise HTTPException(400, "Cannot remove the primary file via this endpoint.")
+
+    r = await db.design_files.update_one(
+        {"id": file_id},
+        {"$pull": {"variants": {"format": fmt_norm}}},
+    )
+    if r.modified_count == 0:
+        raise HTTPException(404, f"No '{fmt_norm}' variant found on this design.")
+    return {"ok": True, "removed": fmt_norm}
 
 
 
