@@ -836,15 +836,55 @@ async def admin_refire_order_emails(
     """Re-send the buyer receipt + maker order notification + ops alert for an
     existing paid order. Useful when a customer says "I never got the email"
     or a maker missed the new-order ping. Idempotent — does not double-charge
-    or double-fulfill anything; only fires emails."""
+    or double-fulfill anything; only fires emails.
+
+    When the order has already been fulfilled (tracking number on file), we
+    ALSO re-fire the buyer's tracking + receipt email (`send_buyer_shipped`)
+    on top of the original receipt — admins normally hit Refire after a
+    customer says "I lost my tracking", and this gives them everything in
+    one click. Rate-limited via `last_admin_refire_at` (1 fire / 30s) so
+    triple-clicks don't spam the buyer's inbox."""
     from email_service import (
         send_buyer_receipt, send_maker_new_order, send_ops_new_order,
+        send_buyer_shipped,
     )
-    tx = await db.transactions.find_one({"session_id": session_id}, {"_id": 0})
+    # The paid-orders source-of-truth is `payment_transactions` — the older
+    # `transactions` collection is empty in production. Fall back to the
+    # legacy collection only if nothing is found in the new one (defensive
+    # so we don't break any pre-cutover data).
+    tx = await db.payment_transactions.find_one(
+        {"session_id": session_id}, {"_id": 0},
+    ) or await db.transactions.find_one(
+        {"session_id": session_id}, {"_id": 0},
+    )
     if not tx:
         raise HTTPException(404, "Order not found.")
+
+    # 30-second cooldown to protect the buyer's inbox from triple-clicks.
+    last = tx.get("last_admin_refire_at")
+    if last:
+        try:
+            from datetime import datetime, timezone
+            last_dt = datetime.fromisoformat(last.replace("Z", "+00:00"))
+            delta = (datetime.now(timezone.utc) - last_dt).total_seconds()
+            if delta < 30:
+                raise HTTPException(429, f"Please wait {int(30 - delta)}s before refiring again.")
+        except ValueError:
+            pass
     sent: list[str] = []
     failed: list[dict] = []
+
+    # Buyer email field migrated from `buyer_email` (legacy) → `customer_email`
+    # (current schema). Read both so admin refire works on either era.
+    buyer_email = (
+        tx.get("customer_email") or tx.get("buyer_email")
+        or (tx.get("shipping_details") or {}).get("email")
+        or ""
+    )
+    buyer_name = (
+        tx.get("customer_name")
+        or (tx.get("shipping_details") or {}).get("name")
+    )
 
     # Reconstruct order summary for the buyer receipt
     items = tx.get("items") or []
@@ -858,12 +898,32 @@ async def admin_refire_order_emails(
     # 1) Buyer receipt
     try:
         await send_buyer_receipt(
-            buyer_email=tx.get("buyer_email") or "",
+            buyer_email=buyer_email,
             summary=summary, total=total, items=items,
         )
         sent.append("buyer_receipt")
     except Exception as e:
         failed.append({"kind": "buyer_receipt", "error": str(e)})
+
+    # 1b) If the order is already fulfilled with a tracking number, also
+    # re-send the shipping confirmation — this is what most "I lost the
+    # email" complaints actually need.
+    tracking = tx.get("tracking_number")
+    if tracking and buyer_email:
+        try:
+            await send_buyer_shipped(
+                buyer_email=buyer_email,
+                buyer_name=buyer_name,
+                tracking_number=tracking,
+                carrier=tx.get("tracking_carrier") or "",
+                items=items,
+                total=total or None,
+                order_id=tx.get("id") or session_id,
+                tracking_url=tx.get("tracking_url_provider"),
+            )
+            sent.append("buyer_shipped")
+        except Exception as e:
+            failed.append({"kind": "buyer_shipped", "error": str(e)})
 
     # 2) Maker per-line notifications
     by_maker: dict[str, list[dict]] = {}
@@ -881,7 +941,7 @@ async def admin_refire_order_emails(
                 maker_email=maker["email"],
                 maker_name=maker.get("name") or ms,
                 items=lines, subtotal=subtotal,
-                buyer_email=tx.get("buyer_email"),
+                buyer_email=buyer_email,
             )
             sent.append(f"maker:{ms}")
         except Exception as e:
@@ -891,11 +951,20 @@ async def admin_refire_order_emails(
     try:
         await send_ops_new_order(
             summary=summary, total=total, items=items,
-            buyer_email=tx.get("buyer_email"),
+            buyer_email=buyer_email,
         )
         sent.append("ops")
     except Exception as e:
         failed.append({"kind": "ops", "error": str(e)})
+
+    # Stamp the cooldown + bookkeeping
+    await db.payment_transactions.update_one(
+        {"session_id": session_id},
+        {"$set": {
+            "last_admin_refire_at": now_iso(),
+            "admin_refire_count": (tx.get("admin_refire_count") or 0) + 1,
+        }},
+    )
 
     logger.info(
         "[admin_refire_order_emails] %s by=%s sent=%s failed=%s",

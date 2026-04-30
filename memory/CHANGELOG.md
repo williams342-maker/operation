@@ -1,5 +1,32 @@
 # Crafters Market — CHANGELOG
 
+## 2026-02 — iter77 — Bug fix · Admin "Refire order emails" now works + includes tracking email (TESTED ✅ 5/5 + live verified)
+
+**Root cause:** The `POST /api/admin/orders/{session_id}/refire-emails` endpoint read from `db.transactions` (0 docs — legacy collection) instead of `db.payment_transactions` (204 paid orders — source of truth since iter60-ish). Every REFIRE click returned `404 Order not found.` — exactly the error in the user's screenshot.
+
+**Fix:**
+- Read from `payment_transactions` first, fall back to `transactions` for any legacy data
+- Buyer email field handling: prefer `customer_email` (current schema), fall back to `buyer_email` (legacy)
+- Reconstruct buyer name from `customer_name` or nested `shipping_details.name`
+
+**Bonus improvement (per user's hint "check email for tracking / completed order"):**
+- When the target order already has a `tracking_number`, refire ALSO fires `send_buyer_shipped` (iter72) so the buyer gets the tracking + receipt email in the same click. Covers the most common reason admins hit REFIRE post-fulfillment ("I lost the tracking email, can you resend?").
+- Response `sent` array now distinguishes: `buyer_receipt` / `buyer_shipped` / `maker:{slug}` / `ops` so the admin panel toast can display exactly what fired.
+
+**Rate-limit:** 30-second cooldown via `last_admin_refire_at` stamp, returns 429 with remaining seconds during the window — prevents accidental triple-clicks from spamming the buyer's inbox.
+
+**Tests · 5/5** (`test_iter77_admin_refire_fix.py`):
+1. reads from payment_transactions (not legacy)
+2. includes buyer_shipped when tracking present
+3. falls back to legacy `transactions` when new collection empty
+4. 404 on unknown session
+5. 429 within 30s cooldown
+
+**Live verified:** curl against real paid-with-tracking order (`cs_test_76f53b8a1d28dfdc10fa68a22ec7` · Jane Wilson · $156.99 · USPS 9334...0826) returned `{"sent":["buyer_receipt","buyer_shipped","ops"],"failed":[]}` HTTP 200. Second click within 30s returned HTTP 429 with countdown. Unknown session still returns 404.
+
+Files: `backend/routers/admin.py` (endpoint rewrite), new `backend/tests/test_iter77_admin_refire_fix.py`.
+
+
 ## 2026-02 — iter76 — Bundle Quality Score for Community Files (TESTED ✅ 9/9 + e2e)
 
 Twilio A2P 10DLC registration is parked as paperwork-only — runs in the user's Twilio Console, no code involvement. Once approved, the existing `send_delivery_sms` path (iter69b) starts working with zero changes.
