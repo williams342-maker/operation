@@ -3,6 +3,35 @@
 _All dated iteration entries. Newest on top. Each iter is verified (via testing agent or self-tested) before landing — unless explicitly noted._
 
 
+## 2026-02 — iter67 — DXF→SVG Converter + Smart "Missing Format" Prompt + 🔒 ownership-bug fix (TESTED ✅)
+- ✨ **Pure-Python converter** (`backend/dxf_converter.py`) using
+  `ezdxf` 1.4.3 (BSD licence). Strict `ezdxf.read` first; falls back
+  to `ezdxf.recover.read` for malformed/older DXFs. Renders modelspace
+  via `SVGBackend` to a 400×400mm SVG.
+- ✨ **New endpoint** `POST /api/community/files/{id}/convert/dxf-to-svg`
+  — owner-only. Fetches the source DXF from R2, runs the conversion
+  off the event loop via `asyncio.to_thread`, uploads the SVG to R2 as
+  a new variant with `auto_generated:true` + `source_format:'DXF'`.
+  Idempotent: 409 if SVG already exists; 400 if no DXF in bundle;
+  422 with friendlier copy on parse failure ("DXF appears corrupted
+  or unsupported variant — try re-exporting as R2010 or newer.").
+- ✨ **Smart "missing SVG" prompt** on the maker's own FileCards: if a
+  bundle has DXF but no SVG, the card shows an orange-dashed strip
+  with `Sparkles` icon + "Generate" CTA. One-click → SVG appears in
+  the chip row tagged `✦ SVG` (auto-generated visual style).
+- 🔒 **Security**: testing agent caught a cross-maker access bug on
+  `/variants` POST + DELETE (introduced iter66) AND on the new
+  /convert endpoint — the old `role != "maker" and uploader_id != sub`
+  check let any maker mutate any other maker's bundle. Fixed by
+  extracting `_is_design_file_owner(doc, claims)` helper that requires
+  exact `maker_slug == sub` (or `uploader_id == sub` for buyer
+  uploads) and using it across all three endpoints. Verified via
+  curl: 403 for cross-user, 200 for owner.
+- Tests: `/app/test_reports/iteration_48.json` 13/14 → fixed; main
+  agent self-verified the security fix end-to-end (3 endpoints × 3
+  user perspectives).
+
+
 ## 2026-02 — iter66 — Multi-Format Community File Bundles (TESTED ✅ 23/23 + frontend green)
 - ✨ **Bundle uploads**: `POST /api/community/files/upload` now accepts
   1..10 files in a single request. First file is the **primary**

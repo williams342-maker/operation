@@ -403,6 +403,24 @@ async def upload_design_file_direct(
     return doc
 
 
+def _is_design_file_owner(doc: dict, claims: dict) -> bool:
+    """Strict ownership check for design-file mutations.
+
+    Pre-iter68 versions had a buggy `role != "maker" and uploader_id != sub`
+    test that let ANY maker mutate ANY other maker's bundle (the test
+    agent caught this on the /convert endpoint in iter67). The fix:
+    require an exact slug/sub match — admins go through admin endpoints.
+    """
+    sub = claims.get("sub", "")
+    if not sub:
+        return False
+    # Maker-uploaded bundle: maker_slug must match the JWT subject (slug).
+    if doc.get("maker_slug"):
+        return doc["maker_slug"] == sub
+    # Buyer-uploaded bundle: uploader_id must match the JWT subject.
+    return doc.get("uploader_id") == sub
+
+
 @router.post("/community/files/{file_id}/variants")
 async def add_design_file_variants(
     file_id: str,
@@ -410,14 +428,12 @@ async def add_design_file_variants(
     claims: dict = Depends(current_any_user),
 ):
     """Append additional format variants to an existing design bundle.
-    Only the original uploader (or any maker for moderation) can add."""
+    Only the original uploader can add (admins use admin endpoints)."""
     doc = await db.design_files.find_one({"id": file_id}, {"_id": 0})
     if not doc:
         raise HTTPException(404, "Design file not found.")
 
-    role = claims.get("role", "buyer")
-    sub = claims.get("sub", "")
-    if role != "maker" and doc.get("uploader_id") != sub:
+    if not _is_design_file_owner(doc, claims):
         raise HTTPException(403, "You can only add variants to your own uploads.")
 
     from r2_storage import is_configured as r2_ok, upload_design_file_bytes
@@ -474,9 +490,7 @@ async def delete_design_file_variant(
     if not doc:
         raise HTTPException(404, "Design file not found.")
 
-    role = claims.get("role", "buyer")
-    sub = claims.get("sub", "")
-    if role != "maker" and doc.get("uploader_id") != sub:
+    if not _is_design_file_owner(doc, claims):
         raise HTTPException(403, "You can only edit your own uploads.")
 
     fmt_norm = fmt.upper()
@@ -508,9 +522,7 @@ async def convert_dxf_to_svg(
     if not doc:
         raise HTTPException(404, "Design file not found.")
 
-    role = claims.get("role", "buyer")
-    sub = claims.get("sub", "")
-    if role != "maker" and doc.get("uploader_id") != sub:
+    if not _is_design_file_owner(doc, claims):
         raise HTTPException(403, "You can only convert your own uploads.")
 
     # Already has an SVG anywhere in the bundle? short-circuit.
@@ -550,7 +562,13 @@ async def convert_dxf_to_svg(
     try:
         svg_bytes = await asyncio.to_thread(convert_dxf_bytes_to_svg, dxf_bytes)
     except ValueError as e:
-        raise HTTPException(422, str(e))
+        # The raw ezdxf message can be cryptic (e.g. "DXFTagError: ..."). Map
+        # the common parse-failure case to friendlier copy; keep the rendering
+        # message verbatim because that's actually useful (which entity blew up).
+        msg = str(e)
+        if msg.startswith("Couldn't parse DXF:"):
+            msg = "This DXF appears corrupted or is in an unsupported variant. Try re-exporting from your CAD tool as DXF R2010 or newer."
+        raise HTTPException(422, msg)
 
     # Upload the SVG to R2 under the same uploader prefix.
     from r2_storage import upload_design_file_bytes
