@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import confetti from "canvas-confetti";
 import {
   fetchMakerMe, fetchMakerOrders, fetchMakerProducts, fetchMakerThreads,
 } from "../lib/api";
@@ -77,6 +78,44 @@ export default function MakerDashboard() {
     };
     window.addEventListener("cm:open-settings", handler);
     return () => window.removeEventListener("cm:open-settings", handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Crafters Plus checkout returns the maker here with `?plus=success` (or
+  // `?plus=canceled` on cancel). Celebrate the upgrade with a brief
+  // confetti burst + toast, refresh the maker doc so the badge updates,
+  // and clean the URL so a refresh doesn't re-fire the celebration.
+  useEffect(() => {
+    // Skip the celebration if the maker isn't actually signed-in — they'll
+    // be bounced to /maker/login and the canvas would render briefly on
+    // top of the login page (looks like a bug, isn't useful).
+    if (!localStorage.getItem("cm_maker_jwt")) return;
+    const params = new URLSearchParams(window.location.search);
+    const flag = params.get("plus");
+    if (!flag) return;
+    if (flag === "success") {
+      // Stripe webhooks are async — give the subscription a moment to flip
+      // active before we re-fetch the maker doc.
+      const fire = () => {
+        const burst = (origin) => confetti({
+          particleCount: 60, spread: 70, startVelocity: 45,
+          origin, colors: ["#ff4500", "#ffffff", "#ff8c42", "#fbbf24"],
+          disableForReducedMotion: true,
+        });
+        burst({ x: 0.2, y: 0.3 });
+        setTimeout(() => burst({ x: 0.8, y: 0.3 }), 220);
+        setTimeout(() => burst({ x: 0.5, y: 0.2 }), 440);
+      };
+      fire();
+      toast.success("Welcome to Crafters Plus! 1% lower commission and 15 free listings/mo are live.", { duration: 6000 });
+      setTimeout(() => { fetchMakerMe().then(setMaker).catch(() => {}); }, 1500);
+      // Pre-route to billing tab so the maker sees the active subscription card.
+      window.location.hash = "settings";
+    } else if (flag === "canceled") {
+      toast("Upgrade canceled — no charge made.", { duration: 4000 });
+    }
+    const hashKept = window.location.hash || "";
+    window.history.replaceState({}, "", window.location.pathname + hashKept);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
