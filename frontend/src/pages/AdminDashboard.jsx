@@ -18,6 +18,8 @@ import RejectedAppsTab from "../components/admin/RejectedAppsTab";
 import PlusMembersTab from "../components/admin/PlusMembersTab";
 import BroadcastTab from "../components/admin/BroadcastTab";
 import DesignFileReportsTab from "../components/admin/DesignFileReportsTab";
+import DesignFilesTab from "../components/admin/DesignFilesTab";
+import AdminCommandPalette from "../components/admin/AdminCommandPalette";
 import CustomOrdersList from "../components/admin/CustomOrdersList";
 import PaidOrdersList from "../components/admin/PaidOrdersList";
 import ListingsTab from "../components/admin/ListingsTab";
@@ -55,6 +57,7 @@ const TABS = [
   { id: "custom", label: "Custom Orders" },
   { id: "digests", label: "Digests" },
   { id: "file-reports", label: "File Reports" },
+  { id: "design-files", label: "Design Files" },
   { id: "listings", label: "Listings" },
   { id: "makers", label: "Maker Analytics" },
   { id: "orders", label: "Paid Orders" },
@@ -86,6 +89,14 @@ export default function AdminDashboard() {
   // `voluntaryRotate` = admin clicked "Rotate now" from the pre-expiry
   // banner. Opens the same RotatePasswordModal in dismissible mode.
   const [voluntaryRotate, setVoluntaryRotate] = useState(false);
+
+  // Tabs visible to this admin — drops superOnly entries unless we're the
+  // super admin. Memoized so the command palette and the sidebar share
+  // the exact same list (otherwise ⌘K could navigate to a hidden tab).
+  const visibleTabs = React.useMemo(
+    () => TABS.filter((t) => !t.superOnly || me?.is_super_admin),
+    [me],
+  );
 
   // Reset scroll to top whenever the active tab changes — keeps tab
   // switches from landing the admin mid-page on the new section.
@@ -244,7 +255,7 @@ export default function AdminDashboard() {
             data-testid="admin-tabs"
             aria-label="Admin sections"
           >
-            {TABS.filter((t) => !t.superOnly || me?.is_super_admin).map((t) => {
+            {visibleTabs.map((t) => {
               const active = tab === t.id;
               return (
                 <button
@@ -277,6 +288,7 @@ export default function AdminDashboard() {
             {tab === "plus-members" && <PlusMembersTab />}
             {tab === "broadcast" && <BroadcastTab />}
             {tab === "file-reports" && <DesignFileReportsTab />}
+            {tab === "design-files" && <DesignFilesTab />}
             {tab === "custom" && <CustomOrdersList items={custom} onChange={refresh} />}
             {tab === "orders" && <PaidOrdersList items={orders} />}
             {tab === "approvals" && <RefundApprovalsTab me={me} />}
@@ -319,6 +331,14 @@ export default function AdminDashboard() {
           onClose={() => setVoluntaryRotate(false)}
         />
       )}
+
+      {/* ⌘+K / Ctrl+K · admin command palette · global navigator */}
+      <AdminCommandPalette
+        tabs={visibleTabs}
+        onPickTab={(id) => setTab(id)}
+        currentTab={tab}
+        logout={logout}
+      />
     </div>
   );
 }

@@ -658,6 +658,12 @@ export const resolveDesignFileReport = (id, payload) =>
   http.post(`/admin/design-files/reports/${id}/resolve`, payload, { headers: adminAuthHeaders() }).then((r) => r.data);
 export const unquarantineDesignFile = (id) =>
   http.post(`/admin/design-files/${id}/unquarantine`, {}, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const fetchAdminDesignFiles = (params = {}) =>
+  http.get("/admin/design-files", { params, headers: adminAuthHeaders() }).then((r) => r.data);
+export const adminQuarantineDesignFile = (id, note = "") =>
+  http.post(`/admin/design-files/reports/${id}/resolve`, {}, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const adminDeleteDesignFile = (id) =>
+  http.delete(`/admin/design-files/${id}`, { headers: adminAuthHeaders() }).then((r) => r.data);
 
 // Maker account lifecycle — close / reopen shop + 30-day grace deletion.
 export const makerCloseShop = () =>

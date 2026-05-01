@@ -2482,3 +2482,94 @@ async def admin_unquarantine_file(
         "created_at": now_iso(),
     })
     return {"ok": True}
+
+
+@router.get("/admin/design-files")
+async def admin_list_design_files(
+    limit: int = 100,
+    quarantined: Optional[bool] = None,
+    q: Optional[str] = None,
+    _: dict = Depends(current_admin),
+):
+    """Full design-file index for admin moderation. Defaults to all files
+    sorted newest-first. Filters: quarantined=true|false, q=substring on
+    title/maker_name/uploader."""
+    flt: dict = {}
+    if quarantined is True:
+        flt["quarantined_at"] = {"$ne": None}
+    elif quarantined is False:
+        flt["quarantined_at"] = None
+    if q:
+        rgx = {"$regex": q, "$options": "i"}
+        flt["$or"] = [{"title": rgx}, {"maker_name": rgx}, {"uploader_name": rgx}]
+    rows = await db.design_files.find(
+        flt,
+        {
+            "_id": 0, "id": 1, "title": 1, "file_type": 1, "download_url": 1,
+            "thumbnail_url": 1, "maker_name": 1, "maker_slug": 1, "uploader_id": 1,
+            "uploader_name": 1, "uploader_role": 1, "created_at": 1,
+            "quarantined_at": 1, "open_reports": 1, "size_bytes": 1,
+            "download_count": 1,
+        },
+    ).sort("created_at", -1).to_list(max(1, min(limit, 500)))
+    return {"items": rows, "count": len(rows)}
+
+
+@router.delete("/admin/design-files/{file_id}")
+async def admin_delete_design_file(
+    file_id: str, claims: dict = Depends(current_admin),
+):
+    """Hard-delete a design file: removes the R2 object (best-effort) AND
+    every related row (the file itself, all reports tied to it, all
+    download records). Quarantine is the safer first step — only use this
+    when the file is unsafe, infringes, or is permanently spam. Action is
+    irreversible.
+    """
+    f = await db.design_files.find_one({"id": file_id}, {"_id": 0})
+    if not f:
+        raise HTTPException(404, "File not found")
+
+    # Best-effort R2 cleanup. We don't fail the delete if R2 is offline —
+    # the DB rows still get removed so the file disappears from the UI.
+    r2_keys: list[str] = []
+    try:
+        from r2_storage import is_configured as _r2_ok, key_from_public_url, delete_key
+        if _r2_ok():
+            for url in (f.get("download_url"), f.get("thumbnail_url")):
+                if not url:
+                    continue
+                k = key_from_public_url(url)
+                if k:
+                    r2_keys.append(k)
+                    try:
+                        delete_key(k)
+                    except Exception as e:  # noqa: BLE001
+                        logger.warning("R2 delete failed for %s: %s", k, e)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("R2 cleanup error during file %s delete: %s", file_id, e)
+
+    # Drop every related DB row in one transaction-equivalent sweep.
+    res_files = await db.design_files.delete_one({"id": file_id})
+    res_reports = await db.design_file_reports.delete_many({"file_id": file_id})
+    res_downloads = await db.design_file_downloads.delete_many({"file_id": file_id})
+
+    await db.admin_audit.insert_one({
+        "id": secrets.token_hex(12),
+        "kind": "design_file_hard_delete",
+        "actor": claims.get("email"),
+        "file_id": file_id,
+        "title": (f.get("title") or "")[:160],
+        "uploader": f.get("uploader_name") or f.get("maker_name") or f.get("uploader_id"),
+        "r2_keys_purged": r2_keys,
+        "reports_purged": res_reports.deleted_count,
+        "download_rows_purged": res_downloads.deleted_count,
+        "created_at": now_iso(),
+    })
+    return {
+        "ok": True,
+        "deleted": res_files.deleted_count == 1,
+        "r2_keys_purged": len(r2_keys),
+        "reports_purged": res_reports.deleted_count,
+        "downloads_purged": res_downloads.deleted_count,
+    }
+

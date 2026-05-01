@@ -1,5 +1,29 @@
 # Crafters Market — CHANGELOG
 
+## 2026-02 — iter90 — Admin design-file delete + ⌘+K command palette ✅
+
+**Two shipped today:**
+
+### 1. Admin Design-File Delete (irreversible hard-delete)
+Previously admins could only **quarantine** community design files (soft-delete). Now there's a true delete:
+
+- **Backend**: `GET /api/admin/design-files` (filter + search + sort newest-first) and `DELETE /api/admin/design-files/{id}` (purges R2 objects best-effort + DB row + every linked report + every download record + writes audit log entry with `r2_keys_purged` count).
+- **Frontend**: New "Design Files" admin tab with thumbnails, type chips, search box, Live/Quarantined filter pills, restore button (for quarantined files), and a red Delete button that opens a typed-confirmation dialog ("Type DELETE to confirm") so a tired admin can't fire it accidentally.
+- Distinct from existing **File Reports** tab (moderation queue triggered by user flags) — this one lets admins browse/delete any file regardless of report status.
+
+### 2. Admin Command Palette (⌘+K / Ctrl+K)
+Global keyboard navigator. Fuzzy-matches every tab name + 3 cross-tab actions ("Open Workshop Analytics", "Visit live homepage", "Sign out").
+
+- ⌘K / Ctrl+K to open · Esc to close · ↑↓ to navigate · ↵ to execute
+- Skips while typing in inputs/textareas so it doesn't fight browser autocomplete
+- Filtered list shows current active tab with a "current" tag
+- Result count + keyboard-hint footer
+
+**Tests** (5/5 — `test_iter90_admin_design_file_delete.py`): list endpoint, quarantined filter, search, full delete lifecycle (rows + reports + downloads + audit row), 404 on missing id.
+
+Files: `backend/routers/admin.py` (2 new endpoints + helper), `frontend/src/lib/api.js` (3 new methods), `frontend/src/components/admin/DesignFilesTab.jsx` (new ~280 lines), `frontend/src/components/admin/AdminCommandPalette.jsx` (new ~180 lines), `frontend/src/pages/AdminDashboard.jsx` (mount + visibleTabs memo). New: `backend/tests/test_iter90_admin_design_file_delete.py`.
+
+
 ## 2026-02 — iter89 — Admin nav: alphabetical tabs + Workshop Analytics top-bar link ✅
 
 **Two small ergonomic wins** for the admin dashboard:
