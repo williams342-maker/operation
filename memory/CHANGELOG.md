@@ -1,5 +1,16 @@
 # Crafters Market — CHANGELOG
 
+## 2026-02 — iter89 — Admin nav: alphabetical tabs + Workshop Analytics top-bar link ✅
+
+**Two small ergonomic wins** for the admin dashboard:
+
+1. **Alphabetized sidebar tabs** — was previously grouped roughly by theme (analytics first, settings last) but A→Z is now standard for 25+ items where users hunt by label. Source order in `TABS` doesn't matter anymore — a defensive runtime `.sort()` guarantees the rendered order so future edits that forget to alphabetize still ship correctly.
+
+2. **"📊 Workshop Analytics" top-bar link** — orange-bordered button next to the EMAIL/LIVE badges on `/admin/dashboard`. Was previously a hidden URL (`/admin/workshop-analytics`) that admins had to bookmark. Now one click from the operations console.
+
+Files: `frontend/src/pages/AdminDashboard.jsx` only.
+
+
 ## 2026-02 — iter88 — H1 fallback for non-JS crawlers ✅
 
 **Issue surfaced by user-run SEO checker**: "There is no H1 heading specified."

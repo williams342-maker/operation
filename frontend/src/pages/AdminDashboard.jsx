@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { motion } from "framer-motion";
+import { BarChart3 } from "lucide-react";
 import {
   fetchAdminMe,
   fetchAdminApplications,
@@ -39,33 +40,39 @@ import EmailHealthBadge from "../components/admin/EmailHealthBadge";
 import LiveNowBadge from "../components/admin/LiveNowBadge";
 
 const TABS = [
+  // Source-of-truth list — sorted alphabetically by label below so adding
+  // a new tab doesn't require manual reordering. Order in this array is
+  // not meaningful.
+  { id: "ads", label: "Ads" },
   { id: "analytics", label: "Analytics" },
-  { id: "retention", label: "Retention" },
-  { id: "web", label: "Web Analytics" },
-  { id: "makers", label: "Maker Analytics" },
   { id: "applications", label: "Applications" },
   { id: "approved-makers", label: "Approved Makers" },
-  { id: "rejected-apps", label: "Rejected" },
-  { id: "plus-members", label: "Plus Members" },
-  { id: "broadcast", label: "Broadcast" },
-  { id: "custom", label: "Custom Orders" },
-  { id: "orders", label: "Paid Orders" },
-  { id: "approvals", label: "Refund Approvals" },
-  { id: "shipping-ledger", label: "Shipping Ledger" },
-  { id: "listings", label: "Listings" },
-  { id: "users", label: "Users" },
-  { id: "reviews", label: "Reviews" },
-  { id: "file-reports", label: "File Reports" },
   { id: "audit", label: "Audit Log" },
-  { id: "ads", label: "Ads" },
-  { id: "buffer", label: "Social" },
-  { id: "chat", label: "Chat Mod" },
-  { id: "digests", label: "Digests" },
   { id: "feedback", label: "Beta Feedback" },
+  { id: "broadcast", label: "Broadcast" },
+  { id: "chat", label: "Chat Mod" },
   { id: "contact", label: "Contact Inbox" },
-  { id: "team", label: "Team", superOnly: true },
+  { id: "custom", label: "Custom Orders" },
+  { id: "digests", label: "Digests" },
+  { id: "file-reports", label: "File Reports" },
+  { id: "listings", label: "Listings" },
+  { id: "makers", label: "Maker Analytics" },
+  { id: "orders", label: "Paid Orders" },
+  { id: "plus-members", label: "Plus Members" },
+  { id: "approvals", label: "Refund Approvals" },
+  { id: "rejected-apps", label: "Rejected" },
+  { id: "retention", label: "Retention" },
+  { id: "reviews", label: "Reviews" },
   { id: "settings", label: "Settings" },
+  { id: "shipping-ledger", label: "Shipping Ledger" },
+  { id: "buffer", label: "Social" },
+  { id: "team", label: "Team", superOnly: true },
+  { id: "users", label: "Users" },
+  { id: "web", label: "Web Analytics" },
 ];
+// Defensive: guarantee A→Z order at runtime so any future TABS edits that
+// forget the sort still render alphabetically.
+TABS.sort((a, b) => a.label.localeCompare(b.label));
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -170,6 +177,14 @@ export default function AdminDashboard() {
           <div className="flex items-center gap-3 self-start md:self-auto shrink-0 flex-wrap">
             <EmailHealthBadge />
             <LiveNowBadge />
+            <Link
+              to="/admin/workshop-analytics"
+              className="inline-flex items-center gap-1.5 px-3 md:px-4 py-2 border border-[#ff4500]/40 text-[#ff4500] hover:bg-[#ff4500]/10 hover:border-[#ff4500] font-mono text-[10px] md:text-[11px] uppercase tracking-[0.22em] transition"
+              data-testid="admin-workshop-analytics-link"
+              title="Full Recharts dashboard with KPIs, cohorts, and time-range pills"
+            >
+              <BarChart3 size={12} /> Workshop Analytics
+            </Link>
             <button
               onClick={logout}
               className="px-3 md:px-4 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[10px] md:text-[11px] uppercase tracking-[0.22em] transition"
