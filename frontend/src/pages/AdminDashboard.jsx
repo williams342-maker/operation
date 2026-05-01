@@ -24,6 +24,7 @@ import UsersTab from "../components/admin/UsersTab";
 import ReviewsTab from "../components/admin/ReviewsTab";
 import DigestsTab from "../components/admin/DigestsTab";
 import FeedbackTab from "../components/admin/FeedbackTab";
+import ContactInboxTab from "../components/admin/ContactInboxTab";
 import SettingsTab from "../components/admin/SettingsTab";
 import AuditTab from "../components/admin/AuditTab";
 import AdsTab from "../components/admin/AdsTab";
@@ -61,6 +62,7 @@ const TABS = [
   { id: "chat", label: "Chat Mod" },
   { id: "digests", label: "Digests" },
   { id: "feedback", label: "Beta Feedback" },
+  { id: "contact", label: "Contact Inbox" },
   { id: "team", label: "Team", superOnly: true },
   { id: "settings", label: "Settings" },
 ];
@@ -273,6 +275,7 @@ export default function AdminDashboard() {
             {tab === "chat" && <ChatModTab />}
             {tab === "digests" && <DigestsTab />}
             {tab === "feedback" && <FeedbackTab />}
+            {tab === "contact" && <ContactInboxTab />}
             {tab === "team" && me?.is_super_admin && <TeamTab />}
             {tab === "settings" && <SettingsTab />}
           </div>

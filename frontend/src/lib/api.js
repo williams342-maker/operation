@@ -397,6 +397,24 @@ export const fetchAdminFeedback = (resolved) =>
     .then((r) => r.data);
 export const adminResolveFeedback = (id) =>
   http.post(`/admin/feedback/${id}/resolve`, {}, { headers: adminAuthHeaders() }).then((r) => r.data);
+
+// ---------- Public Contact form + admin inbox ----------
+export const sendContactMessage = (payload) =>
+  http.post("/contact-messages", payload).then((r) => r.data);
+export const fetchAdminContactMessages = (resolved, topic) =>
+  http
+    .get("/admin/contact-messages", {
+      params: {
+        ...(resolved !== undefined ? { resolved } : {}),
+        ...(topic ? { topic } : {}),
+      },
+      headers: adminAuthHeaders(),
+    })
+    .then((r) => r.data);
+export const adminResolveContactMessage = (id) =>
+  http.post(`/admin/contact-messages/${id}/resolve`, {}, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const adminReplyContactMessage = (id, payload) =>
+  http.post(`/admin/contact-messages/${id}/reply`, payload, { headers: adminAuthHeaders() }).then((r) => r.data);
 export const fetchFollowStatus = (maker_slug, jwt) => {
   const headers = jwt ? { Authorization: `Bearer ${jwt}` } : {};
   return http.get(`/makers/${maker_slug}/follow-status`, { headers }).then((r) => r.data);

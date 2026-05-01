@@ -1,5 +1,35 @@
 # Crafters Market — CHANGELOG
 
+## 2026-02 — iter85 — Public Contact form + admin Contact Inbox tab ✅
+
+**Public `/contact` page** got a real "Send us a message" form (previously was static info only). Submissions land in a dedicated admin inbox alongside the iter84 Beta Feedback tab.
+
+**Public side (`ContactPage.jsx`):**
+- Two-column layout: existing contact info on the left, new form on the right
+- Fields: Name (required) · Email (required) · Topic dropdown (8 options: General / Custom-order / Order help / Maker program / Press / Partnership / Bug / Other) · Subject (optional) · Message (8-4000 chars, required)
+- **Anti-spam**: hidden honeypot `website` field — bots filling JSON forms tend to populate every field; if non-empty the endpoint silently 200s without persisting (verified in test). Plus an in-process IP rate limiter (10/min/IP) on `/api/contact-messages` to mitigate scripted floods without requiring captcha.
+- **UX confirmation**: success state shows a green confirmation card with the submitter's name + email + a "Send another" reset CTA.
+- **Privacy note**: form footer reassures the email is not added to any marketing list.
+
+**Backend (`routers/contact_messages.py`):**
+- `POST /api/contact-messages` (public) — persist + email ops + auto-reply submitter (24h SLA confirmation with quoted message)
+- `GET /api/admin/contact-messages?resolved=&topic=` — newest-first listing with IPs stripped from the response (privacy)
+- `POST /admin/contact-messages/:id/resolve`
+- `POST /admin/contact-messages/:id/reply` — sends Postmark email + auto-resolves + writes `admin_audit` row (audit trail for any outbound team correspondence)
+
+**Frontend admin (`ContactInboxTab.jsx`, ~330 lines):**
+- Mirrors the FeedbackTab pattern: filter pills (Pending / Resolved / All), topic-pill row, received-order numbering, inline collapsible Reply composer, one-click Resolve.
+- Topic chips are color-coded: Custom (orange), Order help (amber), Bug (red), Press (purple), Partnership (sky), General/Other/Maker program (neutral).
+- Phone field renders as a clickable `tel:` link when the submitter included one.
+- Status chips: `✓ Resolved` (emerald) and `✉ Replied` (sky).
+
+**Two new email templates:** `send_contact_message_to_ops` + `send_contact_message_autoreply` (the latter quotes the original message back to the submitter so they have a paper trail).
+
+**Tests** (3/3 — `test_iter85_contact_inbox.py`): submit validation (too-short/invalid-email rejected), honeypot silently succeeds without persisting, full inbox lifecycle (3 submissions → newest-first → topic filter → mid-row resolve → reply auto-resolve → IPs not leaked).
+
+Files: `backend/routers/contact_messages.py` (new), `backend/email_service.py` (2 new templates), `backend/server.py` (mount). Frontend: `lib/api.js`, `pages/ContactPage.jsx` (form + ContactForm sub-component), `components/admin/ContactInboxTab.jsx` (new), `pages/AdminDashboard.jsx` (mount). New: `backend/tests/test_iter85_contact_inbox.py`.
+
+
 ## 2026-02 — iter84 — Admin Beta Feedback inbox tab ✅
 
 **New admin tab** (Operations → "Beta Feedback") for reviewing every public Beta Feedback widget submission **in the order it was received** (newest first). Backend endpoints already existed (`GET /api/admin/feedback`, resolve/reply); this iteration ships the missing frontend.

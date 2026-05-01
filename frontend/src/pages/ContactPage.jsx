@@ -1,6 +1,19 @@
-import React from "react";
-import { Mail, MapPin, Instagram } from "lucide-react";
+import React, { useState } from "react";
+import { Mail, MapPin, Instagram, Send, Check, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { useStructuredData } from "../lib/seo";
+import { sendContactMessage } from "../lib/api";
+
+const TOPICS = [
+  { id: "general", label: "General question" },
+  { id: "custom_order", label: "Custom-order inquiry" },
+  { id: "order_help", label: "Help with an existing order" },
+  { id: "maker_program", label: "Maker program" },
+  { id: "press", label: "Press / media" },
+  { id: "partnership", label: "Partnership / wholesale" },
+  { id: "bug", label: "Found a bug" },
+  { id: "other", label: "Something else" },
+];
 
 export default function ContactPage() {
   useStructuredData({
@@ -61,22 +74,147 @@ export default function ContactPage() {
             </div>
           </div>
 
-          <div className="border border-[#262626] p-6 md:p-10 bg-[#121212] h-fit">
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mb-3">
-              ◆ Response time
+          <div className="border border-[#262626] p-6 md:p-10 bg-[#121212] h-fit space-y-6">
+            <div>
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mb-3">
+                ◆ Send us a message
+              </div>
+              <h3 className="font-display text-3xl mb-2 leading-tight">
+                We reply within 24 hours, weekdays.
+              </h3>
+              <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed mb-6">
+                Use the form below — it lands directly in our team inbox and you'll get an instant confirmation reply.
+              </p>
             </div>
-            <h3 className="font-display text-3xl mb-4 leading-tight">
-              We reply to every email within 24 hours, weekdays.
-            </h3>
-            <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed">
-              Time-sensitive? Open the AI assistant in the lower-right corner — it can answer
-              product questions, point you at the right page, and even capture a custom brief
-              that lands directly in the team's inbox.
-            </p>
+            <ContactForm />
           </div>
         </div>
       </div>
     </div>
+  );
+}
+
+function ContactForm() {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [topic, setTopic] = useState("general");
+  const [subject, setSubject] = useState("");
+  const [message, setMessage] = useState("");
+  const [website, setWebsite] = useState("");  // honeypot
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!name.trim() || !email.includes("@") || message.trim().length < 8) {
+      toast.error("Please fill in name, a valid email, and a message (8+ chars).");
+      return;
+    }
+    setBusy(true);
+    try {
+      await sendContactMessage({
+        name: name.trim(), email: email.trim(),
+        topic, subject: subject.trim(), message: message.trim(),
+        website,  // honeypot — should always be empty for real users
+      });
+      setDone(true);
+      toast.success("Message received — we'll reply within 24 hours.");
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Couldn't send. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (done) {
+    return (
+      <div className="border border-emerald-500/40 bg-emerald-500/5 p-5" data-testid="contact-form-success">
+        <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-400">
+          <Check size={14} /> Message sent
+        </div>
+        <p className="font-mono text-sm text-[#e5e5e5] mt-3 leading-relaxed">
+          Thanks {name.split(" ")[0]} — we'll be back at <span className="text-[#ff4500]">{email}</span> within 24 business hours. A confirmation copy is on its way to your inbox now.
+        </p>
+        <button
+          type="button"
+          onClick={() => {
+            setDone(false); setName(""); setEmail(""); setTopic("general");
+            setSubject(""); setMessage("");
+          }}
+          className="mt-4 font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500]"
+          data-testid="contact-form-send-another"
+        >
+          Send another →
+        </button>
+      </div>
+    );
+  }
+
+  const inputCls = "w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2.5 font-mono text-sm text-[#e5e5e5]";
+  return (
+    <form onSubmit={submit} className="space-y-3" data-testid="contact-form" noValidate>
+      {/* Honeypot field — hidden via CSS, real users never see it. */}
+      <input
+        type="text"
+        tabIndex={-1}
+        autoComplete="off"
+        value={website}
+        onChange={(e) => setWebsite(e.target.value)}
+        style={{ position: "absolute", left: "-9999px", height: 0, opacity: 0 }}
+        aria-hidden="true"
+      />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <label className="block">
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Name *</span>
+          <input
+            type="text" required value={name} onChange={(e) => setName(e.target.value)}
+            className={`${inputCls} mt-1`} data-testid="contact-form-name"
+          />
+        </label>
+        <label className="block">
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Email *</span>
+          <input
+            type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
+            className={`${inputCls} mt-1`} placeholder="you@studio.com" data-testid="contact-form-email"
+          />
+        </label>
+      </div>
+      <label className="block">
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Topic</span>
+        <select
+          value={topic} onChange={(e) => setTopic(e.target.value)}
+          className={`${inputCls} mt-1`} data-testid="contact-form-topic"
+        >
+          {TOPICS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+        </select>
+      </label>
+      <label className="block">
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Subject (optional)</span>
+        <input
+          type="text" value={subject} onChange={(e) => setSubject(e.target.value)}
+          className={`${inputCls} mt-1`} placeholder="Quick summary" data-testid="contact-form-subject"
+        />
+      </label>
+      <label className="block">
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Message *</span>
+        <textarea
+          required rows={6} value={message} onChange={(e) => setMessage(e.target.value)}
+          className={`${inputCls} mt-1 resize-none leading-relaxed`}
+          placeholder="Tell us what you're working on or how we can help…"
+          data-testid="contact-form-message"
+        />
+      </label>
+      <button
+        type="submit" disabled={busy}
+        className="btn-industrial btn-primary w-full justify-center disabled:opacity-50"
+        data-testid="contact-form-submit"
+      >
+        {busy ? (<><Loader2 size={14} className="animate-spin" /> Sending…</>) : (<><Send size={14} /> Send message</>)}
+      </button>
+      <p className="font-mono text-[10px] text-[#525252] leading-relaxed">
+        We use this form to reply to you — your email is never shared, sold, or added to any marketing list.
+      </p>
+    </form>
   );
 }
 

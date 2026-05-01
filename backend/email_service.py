@@ -1283,6 +1283,69 @@ async def send_beta_feedback(name: str, email: str, message: str, page: str = ""
     return await _send(OPS_EMAIL, f"Beta feedback · {name}", html)
 
 
+async def send_contact_message_to_ops(
+    name: str, email: str, message: str, subject: str = "",
+    phone: str = "", topic: str = "",
+):
+    """Forward a public Contact-form submission to the ops inbox.
+    Lighter wrapper around the beta-feedback shell with the contact-form
+    fields. Ops can reply directly to the submitter (Reply-To stays on
+    the submitter's address)."""
+    if not OPS_EMAIL:
+        return
+    safe_msg = (message or "").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br/>")
+    rows = [("Name", name), ("Email", email)]
+    if phone:
+        rows.append(("Phone", phone))
+    if topic:
+        rows.append(("Topic", topic))
+    if subject:
+        rows.append(("Subject", subject))
+    body = f"""
+      <table width='100%' cellpadding='0' cellspacing='0' style='font-size:13px;border-top:1px solid #262626'>
+        {''.join(f"<tr><td style='padding:8px 0;color:#a3a3a3;font-size:11px;letter-spacing:0.22em;text-transform:uppercase'>{k}</td><td style='padding:8px 0;color:#e5e5e5;text-align:right'>{v}</td></tr>" for k, v in rows)}
+      </table>
+      <div style='font-size:13px;color:#e5e5e5;margin-top:18px;line-height:1.6;border-left:2px solid #ff4500;padding:6px 14px;background:#0d0d0d'>{safe_msg}</div>
+      <p style='font-size:11px;color:#a3a3a3;margin-top:18px'>Reply directly to <a href='mailto:{email}' style='color:#ff4500'>{email}</a> — they'll get it.</p>
+    """
+    html = _shell(
+        "New Contact Message.",
+        "Someone just submitted the website contact form.",
+        body,
+        "Crafters Market · Contact form",
+    )
+    subj = f"Contact · {name}" + (f" · {subject}" if subject else "")
+    return await _send(OPS_EMAIL, subj, html)
+
+
+async def send_contact_message_autoreply(
+    to_email: str, to_name: str, original_message: str,
+):
+    """Soft confirmation to the submitter — sets a 24h SLA expectation
+    and quotes the message they sent so they have a paper trail."""
+    if not to_email:
+        return
+    safe_quote = (original_message or "").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br/>")
+    body = (
+        f"<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 18px'>"
+        f"Hi {to_name.split()[0] if to_name else 'there'}, thanks for reaching out — "
+        "we received your message and will reply within 24 business hours.</p>"
+        "<p style='font-size:13px;color:#a3a3a3;line-height:1.6;margin:0 0 14px'>"
+        "For reference, here's what you sent us:</p>"
+        f"<div style='font-size:13px;color:#e5e5e5;line-height:1.6;border-left:2px solid #ff4500;"
+        f"padding:6px 14px;background:#0d0d0d'>{safe_quote}</div>"
+        "<p style='font-size:12px;color:#525252;line-height:1.6;margin-top:18px'>"
+        "If your inquiry is urgent, you can also reach us directly at "
+        "<a href='mailto:team@craftersmarket.org' style='color:#ff4500'>team@craftersmarket.org</a>.</p>"
+    )
+    html = _shell(
+        "Message Received.",
+        "We've got your note — looking into it now.",
+        body, "Crafters Market · Contact",
+    )
+    return await _send(to_email, "We got your message · Crafters Market", html)
+
+
 
 # ============================================================
 #  Listing-publish notifications (maker confirm + ops + followers)
