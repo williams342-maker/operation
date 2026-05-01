@@ -315,6 +315,22 @@ async def _job_updates_digest() -> None:
         logger.exception("[scheduler] updates_digest failed: %s", e)
 
 
+async def _job_maker_restock_digest() -> None:
+    """Sundays 09:00 UTC — one digest email per maker with an open
+    waitlist queue. Idempotent per ISO week. See
+    /app/backend/maker_restock_digest.py for full logic."""
+    try:
+        from maker_restock_digest import run_weekly_restock_digest
+        r = await run_weekly_restock_digest(trigger="cron")
+        if r.get("makers_notified"):
+            logger.info(
+                "[scheduler] maker_restock_digest week=%s notified=%d",
+                r.get("week"), r["makers_notified"],
+            )
+    except Exception as e:
+        logger.exception("[scheduler] maker_restock_digest failed: %s", e)
+
+
 def start_scheduler() -> AsyncIOScheduler | None:
     """Boot the scheduler if SCHEDULER_ENABLED isn't 'false'."""
     global _scheduler
@@ -369,6 +385,11 @@ def start_scheduler() -> AsyncIOScheduler | None:
     sched.add_job(_job_updates_digest,
                   CronTrigger(hour=9, minute=0),
                   id="updates_digest", replace_existing=True)
+    # Maker restock weekly digest — Sundays 09:00 UTC. One email per
+    # maker summarising open waitlist queues. Idempotent per ISO week.
+    sched.add_job(_job_maker_restock_digest,
+                  CronTrigger(day_of_week="sun", hour=9, minute=0),
+                  id="maker_restock_digest", replace_existing=True)
     sched.start()
     _scheduler = sched
     logger.info(

@@ -569,6 +569,14 @@ async def _resolve_broadcast_audience(audience: str) -> list[str]:
         await _add_from(db.maker_applications.find(
             {"status": {"$in": [None, ""]}}, {"_id": 0, "email": 1},
         ))
+    # iter99 — opt-in product-update subscribers (from /updates page).
+    # These users explicitly asked to hear from us; they're included in
+    # 'everyone' so launch announcements reach them too. They have a
+    # one-click unsubscribe baked into every digest, so this is safe.
+    if audience in ("update_subscribers", "everyone"):
+        await _add_from(db.update_subscribers.find(
+            {"unsubscribed_at": None}, {"_id": 0, "email": 1},
+        ))
     return sorted(emails)
 
 
@@ -580,7 +588,7 @@ async def admin_broadcast_preview(
     can sanity-check the cohort before pulling the trigger."""
     if body.audience not in {
         "all_makers", "plus_makers", "beta_makers", "buyers",
-        "applicants_pending", "everyone",
+        "applicants_pending", "update_subscribers", "everyone",
     }:
         raise HTTPException(400, "Unknown audience")
     recipients = await _resolve_broadcast_audience(body.audience)
@@ -631,7 +639,7 @@ async def admin_broadcast_send(
 
     if body.audience not in {
         "all_makers", "plus_makers", "beta_makers", "buyers",
-        "applicants_pending", "everyone",
+        "applicants_pending", "update_subscribers", "everyone",
     }:
         raise HTTPException(400, "Unknown audience")
 

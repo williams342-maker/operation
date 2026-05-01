@@ -1,5 +1,22 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05 — iter99 — Four P2 features in one pass ✅
+
+**1. ErrorBoundary per admin tab.** New `AdminTabBoundary.jsx` wraps every conditional tab render in `AdminDashboard`. If a single tab's component crashes (unhandled exception, missing import, undefined destructure) only that tab renders an isolated "Something went sideways. [Retry]" card with collapsible stack trace. The rest of the console stays alive. Born from the iter93 ProdHealthBanner-import incident that blacked out the entire admin.
+
+**2. Coming Soon waitlist capture.** The Coming Soon cards on `/custom-order` (Neon & Light, Furniture) now expand to an inline email form on click. Idempotent per (email, category). New collection `coming_soon_waitlist`, public `POST /api/coming-soon/waitlist`, admin `GET /api/admin/coming-soon/waitlist`. Three card states: idle → expanded form → "On the list" with orange pill.
+
+**3. Broadcast-to-Subscribers audience.** Extended the existing Broadcast admin tab with a new audience option "Update Subscribers" — sends ad-hoc messages to opt-in /updates subscribers. Also added them to the "Everyone" union so launch announcements reach product-update subscribers automatically. Sorted, deduped, lower-cased like every other audience.
+
+**4. Maker restock weekly digest.** New cron `maker_restock_digest@cron[day_of_week='sun', hour='9', minute='0']` aggregates open `restock_waitlist` rows per maker and sends one weekly summary email with product titles + buyer counts + dashboard CTA. Idempotent per ISO week (re-running mid-week is a no-op). New module `/app/backend/maker_restock_digest.py`, new email template `send_maker_restock_digest()`.
+
+**Regression guard:** `tests/test_iter99_p2_features.py` — 7 tests covering coming-soon idempotency, unknown-category rejection, restock digest no-op + force + per-week idempotency, broadcast audience resolution, and 'everyone' union including subscribers. All green.
+
+**Verified:** All 7 backend tests pass. Browser test confirms Coming Soon card → inline form → "On the list" success state with toast. Backend curl proves `/api/coming-soon/waitlist` accepts valid + rejects invalid, broadcast preview to `update_subscribers` returns 3 active subs, restock digest cron is registered.
+
+---
+
+
 ## 2026-05 — iter98 — Updates digest polish: CSV export + staleness + OPS summary ✅
 
 **Three improvements in one pass:**

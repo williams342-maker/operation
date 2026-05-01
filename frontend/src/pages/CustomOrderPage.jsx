@@ -13,6 +13,9 @@ import PolicyConsent, { usePolicyConsent } from "../components/PolicyConsent";
 // ============================================================
 //  Category catalog — 7 piece types incl. 3D Printing
 // ============================================================
+// API base for the inline waitlist form on the Coming-Soon cards.
+const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+
 const CATEGORIES = [
   { id: "Wall Art",        icon: Layers,   blurb: "Decorative panels, murals, sculptures",  materials: ["Metal", "Wood", "Acrylic"] },
   { id: "Custom Sign",     icon: FileText, blurb: "Business, home, event signage",          materials: ["Metal", "Wood", "Acrylic"] },
@@ -144,32 +147,11 @@ function StepCategory({ value, onPick }) {
           );
         })}
         {/* Coming-soon teasers — disabled cards rounding out the grid
-            to a clean 3×3. Clicking them does nothing except a
-            gentle toast so users know we're listening. */}
-        {COMING_SOON.map((c) => {
-          const Icon = c.icon;
-          return (
-            <button
-              key={c.id}
-              type="button"
-              onClick={() => toast(`${c.id} — ${c.tease}`, { description: "We'll ping you when it's live." })}
-              className="text-left border border-dashed border-[#262626] bg-[#0a0a0a]/70 p-6 opacity-60 hover:opacity-90 hover:border-[#525252] transition-all duration-200 relative cursor-pointer"
-              data-testid={`category-card-coming-soon-${c.id.replace(/[\s/]/g, "-").toLowerCase()}`}
-            >
-              <span className="absolute top-3 right-3 font-mono text-[9px] uppercase tracking-[0.22em] px-2 py-0.5 border border-[#ff4500]/40 text-[#ff4500]/80 bg-[#ff4500]/5">
-                Coming Soon
-              </span>
-              <div className="w-12 h-12 flex items-center justify-center mb-5 bg-[#1a1a1a] text-[#525252]">
-                <Icon size={20} />
-              </div>
-              <div className="font-display text-2xl mb-2 leading-tight text-[#a3a3a3]">{c.id}</div>
-              <div className="font-mono text-xs text-[#525252] mb-5 leading-relaxed">{c.blurb}</div>
-              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]/60 italic">
-                ◇ {c.tease}
-              </div>
-            </button>
-          );
-        })}
+            to a clean 3×3. Clicking them opens an inline waitlist
+            capture so we can notify users when each category launches. */}
+        {COMING_SOON.map((c) => (
+          <ComingSoonCard key={c.id} category={c} />
+        ))}
       </div>
     </div>
   );
@@ -796,6 +778,116 @@ export default function CustomOrderPage() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+
+// -------------------- ComingSoonCard --------------------
+// Captures email signups against the teased categories (Neon & Light,
+// Furniture). Three states: idle card → expanded with email input → done.
+function ComingSoonCard({ category }) {
+  const Icon = category.icon;
+  const [open, setOpen] = React.useState(false);
+  const [email, setEmail] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  const [done, setDone] = React.useState(false);
+  const slugId = category.id.replace(/[\s/]/g, "-").toLowerCase();
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (busy || !email.trim()) return;
+    setBusy(true);
+    try {
+      const r = await fetch(`${API}/coming-soon/waitlist`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim(), category: category.id }),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json();
+      if (data.ok) {
+        setDone(true);
+        toast(`On the list for ${category.id}.`, { description: "We'll ping you when it goes live." });
+      } else {
+        toast.error("That doesn't look like a valid email.");
+      }
+    } catch {
+      toast.error("Couldn't subscribe. Try again in a moment.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (done) {
+    return (
+      <div
+        className="text-left border border-[#ff4500]/40 bg-gradient-to-br from-[#1a0a05] to-[#0f0f0f] p-6 relative"
+        data-testid={`category-card-coming-soon-${slugId}-done`}
+      >
+        <span className="absolute top-3 right-3 font-mono text-[9px] uppercase tracking-[0.22em] px-2 py-0.5 border border-[#ff4500]/40 text-[#ff4500] bg-[#ff4500]/10">
+          On the list
+        </span>
+        <div className="w-12 h-12 flex items-center justify-center mb-5 bg-[#ff4500]/15 text-[#ff4500]">
+          <Icon size={20} />
+        </div>
+        <div className="font-display text-2xl mb-2 leading-tight text-[#e5e5e5]">{category.id}</div>
+        <div className="font-mono text-xs text-[#a3a3a3] mb-1 leading-relaxed">
+          You'll be the first to hear when this ships.
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`text-left border ${open ? "border-[#ff4500]/60" : "border-dashed border-[#262626]"} bg-[#0a0a0a]/70 p-6 ${open ? "" : "opacity-70 hover:opacity-95 hover:border-[#525252]"} transition-all duration-200 relative`}
+      data-testid={`category-card-coming-soon-${slugId}`}
+    >
+      <span className="absolute top-3 right-3 font-mono text-[9px] uppercase tracking-[0.22em] px-2 py-0.5 border border-[#ff4500]/40 text-[#ff4500]/80 bg-[#ff4500]/5">
+        Coming Soon
+      </span>
+      <div className="w-12 h-12 flex items-center justify-center mb-5 bg-[#1a1a1a] text-[#525252]">
+        <Icon size={20} />
+      </div>
+      <div className="font-display text-2xl mb-2 leading-tight text-[#a3a3a3]">{category.id}</div>
+      <div className="font-mono text-xs text-[#525252] mb-3 leading-relaxed">{category.blurb}</div>
+      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]/60 italic mb-4">
+        ◇ {category.tease}
+      </div>
+      {!open ? (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] hover:text-[#ff6633] transition border-b border-[#ff4500]/40 pb-1"
+          data-testid={`coming-soon-notify-btn-${slugId}`}
+        >
+          Notify me →
+        </button>
+      ) : (
+        <form onSubmit={submit} className="flex flex-col gap-2" data-testid={`coming-soon-form-${slugId}`}>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            required
+            disabled={busy}
+            maxLength={200}
+            className="bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5] placeholder:text-[#525252]"
+            data-testid={`coming-soon-email-${slugId}`}
+            autoFocus
+          />
+          <button
+            type="submit"
+            disabled={busy || !email.trim()}
+            className="btn-industrial btn-primary font-mono text-[10px] uppercase tracking-[0.22em] py-2 disabled:opacity-50"
+            data-testid={`coming-soon-submit-${slugId}`}
+          >
+            {busy ? "Saving…" : "Add me to the list"}
+          </button>
+        </form>
+      )}
     </div>
   );
 }

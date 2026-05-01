@@ -11,6 +11,7 @@ const AUDIENCES = [
   { id: "beta_makers",        label: "Founding Sellers",   hint: "Makers currently in the 90-day beta." },
   { id: "buyers",             label: "Buyers & Community", hint: "Past paying customers + community accounts." },
   { id: "applicants_pending", label: "Pending Applicants", hint: "Haven't been approved or rejected yet." },
+  { id: "update_subscribers", label: "Update Subscribers", hint: "Public /updates page subscribers — opt-in for product news." },
   { id: "everyone",           label: "Everyone",           hint: "Union of all cohorts above — use sparingly." },
 ];
 

@@ -24,6 +24,7 @@ import ReviewDisputesTab from "../components/admin/ReviewDisputesTab";
 import ProdHealthTab from "../components/admin/ProdHealthTab";
 import ProdHealthBanner from "../components/admin/ProdHealthBanner";
 import UpdatesAdminTab from "../components/admin/UpdatesAdminTab";
+import AdminTabBoundary from "../components/admin/AdminTabBoundary";
 import CustomOrdersList from "../components/admin/CustomOrdersList";
 import PaidOrdersList from "../components/admin/PaidOrdersList";
 import ListingsTab from "../components/admin/ListingsTab";
@@ -290,6 +291,7 @@ export default function AdminDashboard() {
           </nav>
 
           <div className="min-w-0">
+            <AdminTabBoundary tabId={tab} key={tab}>
             {tab === "analytics" && <AnalyticsTab />}
             {tab === "retention" && <RetentionTab />}
             {tab === "web" && <WebAnalyticsTab />}
@@ -319,6 +321,7 @@ export default function AdminDashboard() {
             {tab === "contact" && <ContactInboxTab />}
             {tab === "team" && me?.is_super_admin && <TeamTab />}
             {tab === "settings" && <SettingsTab />}
+            </AdminTabBoundary>
           </div>
         </div>
       </div>

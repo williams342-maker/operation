@@ -1782,3 +1782,41 @@ async def send_ops_updates_dispatch_summary(*, advanced_to: str, new_entries: in
     html = _shell("Digest sent.", f"iter{advanced_to} delivered to {sent} subs.", body, "Updates · ops")
     return await _send(OPS_EMAIL, f"[Crafters Market] Digest dispatched · iter{advanced_to} · {sent} sent", html)
 
+
+
+# ------------------------------------------------------------------
+# Maker restock weekly digest (iter99) — fired Sundays 09:00 UTC by
+# /app/backend/maker_restock_digest.py. One email per maker with at
+# least one open waitlist entry, summarising every backordered product.
+# ------------------------------------------------------------------
+async def send_maker_restock_digest(*, email: str, name: str,
+                                    products: list, total_pending: int):
+    site = (os.environ.get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
+    if site.lower().endswith(".emergentagent.com") or "preview." in site.lower():
+        site = "https://craftersmarket.org"
+    items = []
+    for p in products[:20]:
+        title = (p.get("product_title") or "").strip() or p.get("product_slug", "")
+        link = f"{site}/shop/{p.get('product_slug', '')}"
+        items.append(
+            "<div style='border-left:2px solid #ff4500;padding:6px 0 6px 14px;margin:0 0 14px'>"
+            f"<div style='font-size:14px;color:#e5e5e5;font-weight:700;margin-bottom:4px'>"
+            f"<a href='{link}' style='color:#e5e5e5;text-decoration:none'>{title}</a></div>"
+            f"<div style='font-size:12px;color:#a3a3a3'>"
+            f"<b style='color:#ff4500'>{p.get('count', 0)}</b> buyer{'s' if p.get('count', 0) != 1 else ''} waiting"
+            "</div></div>"
+        )
+    body = (
+        f"<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 22px'>Hey {name},</p>"
+        f"<p style='font-size:14px;color:#a3a3a3;line-height:1.6;margin:0 0 26px'>"
+        f"You have <b style='color:#ff4500'>{total_pending}</b> "
+        f"buyer{'s' if total_pending != 1 else ''} waiting on restocks across "
+        f"<b style='color:#e5e5e5'>{len(products)}</b> "
+        f"product{'s' if len(products) != 1 else ''}. Here's the breakdown — restocking moves these into immediate orders.</p>"
+        + "".join(items)
+        + f"<div style='text-align:center;margin:32px 0 10px'>"
+        f"<a href='{site}/maker/dashboard' style='display:inline-block;background:#ff4500;color:#0a0a0a;text-decoration:none;font-weight:700;padding:14px 24px;font-size:13px;letter-spacing:0.15em;text-transform:uppercase'>Open Dashboard →</a>"
+        "</div>"
+    )
+    html = _shell("Restock queue.", f"{total_pending} buyers waiting across {len(products)} products.", body, "Maker · weekly")
+    return await _send(email, f"[Crafters Market] {total_pending} buyers waiting on restocks", html)
