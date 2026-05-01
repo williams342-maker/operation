@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import re
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 from core import db, logger, now_iso
@@ -27,6 +27,7 @@ from routers.updates import _parse_changelog, CHANGELOG_PATH
 
 EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 STATE_KEY = "updates_digest"
+STALE_AFTER_DAYS = 30  # iter98 — warn when no new entries shipped in this window
 
 
 def _new_token() -> str:
@@ -92,6 +93,37 @@ async def _state() -> dict:
     return await db.system_state.find_one({"key": STATE_KEY}, {"_id": 0}) or {}
 
 
+def _days_since(iso_str: Optional[str]) -> Optional[int]:
+    """Return whole days between `iso_str` and now (UTC). None if unparseable."""
+    if not iso_str:
+        return None
+    try:
+        dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return max(0, int((datetime.now(timezone.utc) - dt).total_seconds() // 86400))
+
+
+async def staleness() -> dict:
+    """Surface "no recent activity" warning data for the admin preview.
+
+    `is_stale` is True iff we have dispatched at least once before AND
+    it's been > STALE_AFTER_DAYS since that dispatch. Caller decides
+    what to do with it (we just surface the data).
+    """
+    state = await _state()
+    last_at = state.get("last_dispatched_at")
+    days = _days_since(last_at)
+    is_stale = bool(last_at and days is not None and days > STALE_AFTER_DAYS)
+    return {
+        "is_stale": is_stale,
+        "days_since_dispatch": days,
+        "threshold_days": STALE_AFTER_DAYS,
+    }
+
+
 async def _set_state_pointer(iter_id: str) -> None:
     await db.system_state.update_one(
         {"key": STATE_KEY},
@@ -118,9 +150,12 @@ def _entries_since(raw: str, last_iter: Optional[str], limit: int = 10) -> list[
 
 
 # -------------------- Cron entrypoint --------------------
-async def run_digest_dispatch(*, force: bool = False, dry_run: bool = False) -> dict:
+async def run_digest_dispatch(*, force: bool = False, dry_run: bool = False,
+                              trigger: str = "manual") -> dict:
     """Detect new changelog entries since the last dispatch and email
-    every active subscriber. Returns a summary suitable for cron logs."""
+    every active subscriber. Returns a summary suitable for cron logs.
+    `trigger` is for the OPS summary email so we can tell apart cron
+    runs from admin-button runs (default 'manual')."""
     if not CHANGELOG_PATH.exists():
         return {"ran": False, "reason": "no_changelog"}
     raw = CHANGELOG_PATH.read_text(encoding="utf-8")
@@ -165,6 +200,24 @@ async def run_digest_dispatch(*, force: bool = False, dry_run: bool = False) -> 
         "[updates_digest] new_entries=%d subscribers=%d sent=%d failed=%d advanced_to=%s",
         len(fresh), len(subs), sent, failed, newest_iter,
     )
+
+    # iter98 — fire one summary email to OPS_EMAIL after a live dispatch
+    # so the operator gets a closing-loop confirmation in the same inbox
+    # that surfaces watchdog alerts. Skip on dry-run.
+    if not dry_run and sent > 0:
+        try:
+            from email_service import send_ops_updates_dispatch_summary
+            await send_ops_updates_dispatch_summary(
+                advanced_to=newest_iter,
+                new_entries=len(fresh),
+                subscribers=len(subs),
+                sent=sent,
+                failed=failed,
+                trigger=trigger,
+            )
+        except Exception:
+            logger.exception("[updates_digest] OPS summary email failed")
+
     return {
         "ran": True,
         "new_entries": len(fresh),

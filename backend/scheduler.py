@@ -305,7 +305,7 @@ async def _job_updates_digest() -> None:
     nothing is new. See /app/backend/updates_digest.py for full logic."""
     try:
         from updates_digest import run_digest_dispatch
-        r = await run_digest_dispatch()
+        r = await run_digest_dispatch(trigger="cron")
         if r.get("new_entries"):
             logger.info(
                 "[scheduler] updates_digest new=%d sent=%d failed=%d",

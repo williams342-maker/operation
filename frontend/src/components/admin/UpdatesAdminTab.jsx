@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Send, Eye, RefreshCw, Mail, AlertTriangle } from "lucide-react";
+import { Send, Eye, RefreshCw, Mail, AlertTriangle, Download, Clock } from "lucide-react";
 import {
   fetchAdminUpdatesPreview,
   adminUpdatesDispatch,
 } from "../../lib/api";
+
+const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 /**
  * Updates digest control panel — iter97.
@@ -84,6 +86,26 @@ export default function UpdatesAdminTab() {
         </p>
       </header>
 
+      {/* Stale warning — surfaces when no new entries have shipped in 30+
+          days. Doesn't pause anything (the cron auto-no-ops); just nudges
+          the operator that subscribers haven't heard from us. */}
+      {snap?.stale?.is_stale && (
+        <div
+          className="border border-yellow-700/60 bg-yellow-900/20 px-4 py-3 font-mono text-[11px] text-yellow-300 flex items-start gap-3"
+          data-testid="updates-stale-banner"
+        >
+          <Clock size={14} className="shrink-0 mt-0.5" />
+          <div>
+            <div className="text-yellow-200 mb-1">
+              ⚠ {snap.stale.days_since_dispatch} days since last digest
+            </div>
+            <div className="text-[#a3a3a3] leading-relaxed">
+              Subscribers haven't heard from us in over {snap.stale.threshold_days} days. Either ship a new CHANGELOG entry to re-engage them, or consider sending a status note via the broadcast tab.
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Stat label="Active Subs" value={snap?.active_subscribers ?? 0} testId="updates-stat-active" />
@@ -161,6 +183,40 @@ export default function UpdatesAdminTab() {
         >
           <RefreshCw size={13} /> Refresh
         </button>
+        <a
+          href={`${API}/admin/updates/subscribers.csv`}
+          target="_blank"
+          rel="noreferrer"
+          onClick={(e) => {
+            // Inject the auth header by fetching the file with axios instead
+            // of letting the anchor download (browsers don't send custom
+            // headers on plain anchor downloads).
+            e.preventDefault();
+            const token = window.localStorage.getItem("cm_admin_jwt");
+            fetch(`${API}/admin/updates/subscribers.csv`, {
+              headers: token ? { Authorization: `Bearer ${token}` } : {},
+            })
+              .then((r) => {
+                if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                return r.blob();
+              })
+              .then((blob) => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `subscribers-${new Date().toISOString().slice(0, 10)}.csv`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(url);
+              })
+              .catch((err) => setErr(`CSV export failed: ${err.message}`));
+          }}
+          className="btn-industrial inline-flex items-center justify-center gap-2 cursor-pointer"
+          data-testid="updates-export-csv-btn"
+        >
+          <Download size={13} /> Export CSV
+        </a>
       </div>
 
       {err && (

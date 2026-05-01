@@ -1756,3 +1756,29 @@ async def send_updates_digest(*, email: str, name: str, entries: list, unsubscri
     )
     html = _shell("New on Crafters Market.", f"{n} update{'s' if n != 1 else ''} since you last heard from us.", body, "Updates digest")
     return await _send(email, f"[Crafters Market] {headline} — {entries[0].get('title','')}"[:120], html)
+
+# ------------------------------------------------------------------
+# Updates digest OPS summary (iter98) — closing-loop confirmation
+# fired from updates_digest.run_digest_dispatch() after a live send.
+# ------------------------------------------------------------------
+async def send_ops_updates_dispatch_summary(*, advanced_to: str, new_entries: int,
+                                            subscribers: int, sent: int, failed: int,
+                                            trigger: str = "manual"):
+    if not OPS_EMAIL:
+        return
+    fail_chip = (
+        f"<span style='color:#fca5a5'>· {failed} failed</span>"
+        if failed > 0 else ""
+    )
+    body = (
+        "<div style='background:#052e16;border-left:4px solid #22c55e;padding:16px 18px;margin:0 0 18px'>"
+        "<div style='font-size:10px;letter-spacing:0.3em;color:#22c55e;text-transform:uppercase;margin-bottom:8px'>◆ Updates digest dispatched</div>"
+        f"<div style='font-size:18px;color:#86efac;font-weight:700'>iter{advanced_to} sent to {sent} subscriber{'s' if sent != 1 else ''}</div>"
+        f"<div style='font-size:13px;color:#bbf7d0;margin-top:6px'>"
+        f"{new_entries} new entr{'ies' if new_entries != 1 else 'y'} · {subscribers} active on list {fail_chip}"
+        "</div></div>"
+        f"<p style='font-size:12px;color:#a3a3a3;margin:0'>Trigger: <code>{trigger}</code></p>"
+    )
+    html = _shell("Digest sent.", f"iter{advanced_to} delivered to {sent} subs.", body, "Updates · ops")
+    return await _send(OPS_EMAIL, f"[Crafters Market] Digest dispatched · iter{advanced_to} · {sent} sent", html)
+

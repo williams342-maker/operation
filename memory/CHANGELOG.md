@@ -1,5 +1,22 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05 — iter98 — Updates digest polish: CSV export + staleness + OPS summary ✅
+
+**Three improvements in one pass:**
+
+1. **CSV export of subscriber list** — `GET /api/admin/updates/subscribers.csv` (admin-only) streams a downloadable CSV with email/name/subscribed_at/unsubscribed_at/joined_at_iter/status. New "Export CSV" button on the Updates admin tab. Excludes `unsubscribe_token` from the export (don't leak unsubscribe URLs).
+
+2. **Auto-pause warning when CHANGELOG goes silent for 30+ days** — `staleness()` helper computes days since last dispatch. Surfaced as `stale: {is_stale, days_since_dispatch, threshold_days}` in the preview endpoint. Yellow warning banner on the admin tab kicks in past the 30-day threshold ("Subscribers haven't heard from us in over 30 days. Either ship a new entry or send a status note via Broadcast"). The cron continues to no-op silently — banner is the operator nudge.
+
+3. **Post-dispatch OPS summary email** — `send_ops_updates_dispatch_summary()` fires from `run_digest_dispatch()` after a live send (skipped on dry-run). Lands in the same OPS_EMAIL inbox as watchdog alerts so operators get closing-loop confirmation. Includes counts (new_entries / subscribers / sent / failed) and a `trigger` field ('cron' vs 'admin-button') so you can tell apart automated vs manual dispatches.
+
+**Regression guard:** `tests/test_iter98_updates_polish.py` (6 tests, all green) + `tests/test_iter98_csv_export.py` (2 tests, green via shared TestClient fixture). Covers _days_since edge cases, staleness threshold logic, OPS-summary fire-on-live + skip-on-dry-run, CSV content-type/disposition headers, auth gating.
+
+**Files:** `updates_digest.py` (staleness + OPS summary call + trigger param), `email_service.py` (template), `routers/prod_health.py` (CSV endpoint + stale field on preview), `scheduler.py` (passes trigger='cron'), `components/admin/UpdatesAdminTab.jsx` (stale banner + Export CSV button), `tests/test_iter98_*.py` (new x2).
+
+---
+
+
 ## 2026-05 — iter97 — Admin "Send digest now" panel ✅
 
 **Why:** The iter96 cron fires at 9 AM UTC daily. Operators wanted on-demand control: see exactly which entries would dispatch BEFORE clicking, choose timing (e.g. send during US business hours), and dry-run to verify diff after a redeploy.
