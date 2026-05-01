@@ -20,7 +20,19 @@ export default function AdminVerify() {
       try {
         const res = await verifyAdminToken(token);
         localStorage.setItem("cm_admin_jwt", res.token);
-        navigate("/admin/dashboard", { replace: true });
+        // iter106 — honor a deep-link target stashed by AdminDashboard
+        // before the redirect to /admin/login (e.g. clicking a Slack
+        // webhook link to /admin/dashboard?tab=feedback&open=<id> while
+        // logged out). Whitelist the path prefix so a tampered
+        // localStorage value can't open-redirect us off-domain.
+        const after = (() => {
+          try { return localStorage.getItem("cm_admin_after") || ""; } catch { return ""; }
+        })();
+        try { localStorage.removeItem("cm_admin_after"); } catch {}
+        navigate(
+          after && after.startsWith("/admin/") ? after : "/admin/dashboard",
+          { replace: true },
+        );
       } catch (err) {
         setError(err?.response?.data?.detail || "Could not verify the link.");
       }

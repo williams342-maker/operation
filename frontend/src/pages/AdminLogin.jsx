@@ -55,7 +55,14 @@ export default function AdminLogin() {
       localStorage.setItem("cm_admin_jwt", r.token);
       // Intentionally do NOT stamp cm_last_email / cm_last_name for admin
       // sign-ins — keeps the "Welcome back" banner free of admin identity.
-      navigate("/admin/dashboard");
+      // iter106 — honor a deep-link target captured by AdminDashboard
+      // before the redirect (e.g. /admin/dashboard?tab=feedback&open=<id>
+      // arriving from a Slack/Discord webhook click).
+      const after = (() => {
+        try { return localStorage.getItem("cm_admin_after") || ""; } catch { return ""; }
+      })();
+      try { localStorage.removeItem("cm_admin_after"); } catch {}
+      navigate(after && after.startsWith("/admin/") ? after : "/admin/dashboard");
     } catch (err) {
       const code = err?.response?.status;
       const msg = err?.response?.data?.detail

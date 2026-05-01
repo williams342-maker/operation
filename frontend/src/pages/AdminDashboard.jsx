@@ -188,6 +188,19 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     if (!localStorage.getItem("cm_admin_jwt")) {
+      // iter106 — preserve the deep-link target (`?tab=…&open=…`) across
+      // the magic-link round-trip. We stash the original location in
+      // localStorage; AdminVerify (and the password flow on AdminLogin)
+      // pick it up after a successful sign-in. Only stash when there's
+      // an actual deep-link payload — otherwise we'd accidentally stamp
+      // every cold-load with the bare `/admin/dashboard` (no value).
+      if (
+        window.location.pathname.startsWith("/admin/dashboard") &&
+        window.location.search
+      ) {
+        const here = window.location.pathname + window.location.search;
+        try { localStorage.setItem("cm_admin_after", here); } catch {}
+      }
       navigate("/admin/login", { replace: true });
       return;
     }

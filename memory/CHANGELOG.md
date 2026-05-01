@@ -1,5 +1,21 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05 — iter106 — Webhook deep-links survive the magic-link sign-in round-trip ✅
+
+**Why:** iter105 deep-links jump the operator straight to the right admin row — but only if they're already signed in. If the Slack/Discord click landed on a logged-out browser, `/admin/dashboard?tab=feedback&open=<id>` redirected to `/admin/login`, the magic-link email arrived, the click brought them to `/admin/verify` → `/admin/dashboard` (no query params), and the deep-link target was lost. On-call rotation operators paying for that papercut every time.
+
+**What:**
+- `AdminDashboard.jsx` auth guard — when redirecting an unauthenticated request to `/admin/login`, it now stashes the original `pathname + search` to `localStorage.cm_admin_after` first. Strict guard: only stashes when `pathname.startsWith("/admin/dashboard")` AND `search` is non-empty (avoids the React StrictMode double-effect race that would have stamped `/admin/login` over the real target).
+- `AdminVerify.jsx` — on successful magic-link verify, reads `cm_admin_after`, removes the key, and navigates there instead of the bare `/admin/dashboard`. Whitelist guard: only honors paths starting with `/admin/` so a tampered localStorage value can't open-redirect off-domain.
+- `AdminLogin.jsx` — same consume-and-navigate logic on the password sign-in path so both auth modes land the operator at the originally-clicked deep-link.
+
+**Why localStorage and not a backend round-trip:** the magic-link email is generated server-side without knowledge of the original click context. Persisting through localStorage on the same browser is the cheapest correct relay for the dominant on-device flow. Cross-device flows (open email on phone, type on laptop) still fall back to bare `/admin/dashboard` — acceptable edge case.
+
+**Verified end-to-end:** Live screenshot smoke-test confirms (1) the deep-link URL gets correctly stashed, (2) bare `/admin/dashboard` loads do NOT pollute the stash, (3) the redirect to `/admin/login` is preserved cleanly. JSX lint clean across all 3 admin pages.
+
+---
+
+
 ## 2026-05 — iter105 — Webhook deep-links jump operator straight to the row ✅
 
 **Why:** iter104 Slack/Discord webhooks all linked back to `/admin/dashboard` generically — operator still had to click through to the right tab, scroll, and visually scan for the new item. Now one click drops them on the exact row, pulse-highlighted.
