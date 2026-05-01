@@ -90,7 +90,21 @@
     </head>
     <body>
         <noscript>You need to enable JavaScript to run this app.</noscript>
-        <div id="root"></div>
+        <div id="root">
+            <!--
+              Pre-mount fallback content for crawlers / link previewers that
+              don't execute JavaScript (Screaming Frog default mode, some social
+              link unfurlers, search console "view crawled HTML"). React
+              completely replaces this on mount, so users with JS never see it.
+              The H1 here matches the homepage Hero's H1 so non-JS scans
+              report a consistent primary heading.
+            -->
+            <header style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0">
+                <h1>Crafters Market — Find Something Built By Hand.</h1>
+                <p>Hand-finished metal &amp; wood pieces from approved CNC artisans. Built to order. Shipped nationwide. Stripe-secured checkout, direct-to-maker payouts.</p>
+                <p>Browse <a href="/shop">the shop</a>, meet our <a href="/makers">makers</a>, request a <a href="/custom-order">custom order</a>, or <a href="/journal">read the workshop journal</a>.</p>
+            </header>
+        </div>
         <a
             id="emergent-badge"
             target="_blank"

@@ -1,5 +1,21 @@
 # Crafters Market — CHANGELOG
 
+## 2026-02 — iter88 — H1 fallback for non-JS crawlers ✅
+
+**Issue surfaced by user-run SEO checker**: "There is no H1 heading specified."
+
+**Root cause**: The site is client-side rendered. Inside the static `index.html`, `<div id="root"></div>` is empty before React mounts. JS-aware crawlers (modern Googlebot, GPTBot, ClaudeBot, Bingbot) execute the bundle and see the per-page H1s correctly — but **non-JS crawlers** (Screaming Frog default mode, some social link unfurlers, "View crawled HTML" in Google Search Console) see zero body content and report "no H1".
+
+**Fix**: Added a server-rendered fallback `<header>` inside `#root` containing an H1 + a brief site description + 4 deep-links into the main sections. The fallback uses the standard `sr-only` clip-path technique so:
+  • Non-JS crawlers see a meaningful primary heading + content
+  • Users with JS get the full React app (React's `createRoot(...).render(...)` replaces `#root`'s children on mount, so the fallback disappears)
+  • Verified live: post-mount DOM contains exactly one H1 ("Find Something Built By Hand." — the Hero), zero visual artifact
+
+Per-page H1 audit (also done): every public page (Shop, ProductDetail, MakerDetail, MakersPage, JournalPage, JournalDetail, ContactPage, PolicyPage, BetaPage, ApplyPage, CustomOrderPage) already has exactly one H1 in its rendered state. Pages with 2-4 H1s in source code are all conditional renders (success vs form vs closed states) — only one ever appears in the DOM at a time.
+
+Files: `frontend/public/index.html` only.
+
+
 ## 2026-02 — iter87 — AI tag review tray (keep / drop before commit) ✅
 
 **Problem:** Clicking "✦ AI suggest tags" silently merged every AI-generated tag into the listing. AI commonly fills all 13 slots with a 60/40 mix of gold + filler, which crowds out tags the maker wanted to add manually.
