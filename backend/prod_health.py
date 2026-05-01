@@ -70,6 +70,17 @@ async def _fire_outage_alert(endpoint: str, status: int, reason: str):
         await send_ops_prod_outage_alert(endpoint=endpoint, status=status, reason=reason)
     except Exception:
         logger.exception("[prod_health] outage alert email failed for %s", endpoint)
+    # iter104 — also fan out to Slack/Discord.
+    try:
+        from notify_webhook import notify_team
+        await notify_team(
+            kind="outage",
+            title=endpoint,
+            summary=f"Endpoint **{endpoint}** is failing — {reason or f'HTTP {status}'}",
+            fields=[("Status", str(status) if status else "—"), ("Reason", reason or "—")],
+        )
+    except Exception:
+        logger.exception("[prod_health] outage webhook fan-out failed for %s", endpoint)
 
 
 async def _fire_recovery_alert(endpoint: str, downtime_minutes: int):
@@ -78,6 +89,17 @@ async def _fire_recovery_alert(endpoint: str, downtime_minutes: int):
         await send_ops_prod_recovery(endpoint=endpoint, downtime_minutes=downtime_minutes)
     except Exception:
         logger.exception("[prod_health] recovery alert email failed for %s", endpoint)
+    # iter104 — webhook fan-out for the all-clear.
+    try:
+        from notify_webhook import notify_team
+        await notify_team(
+            kind="recovery",
+            title=endpoint,
+            summary=f"Endpoint **{endpoint}** recovered after ~{downtime_minutes} min.",
+            fields=[("Downtime", f"~{downtime_minutes} min")],
+        )
+    except Exception:
+        logger.exception("[prod_health] recovery webhook fan-out failed for %s", endpoint)
 
 
 async def _probe(client: httpx.AsyncClient, base: str, path: str) -> dict:

@@ -112,6 +112,18 @@ async def submit_beta_feedback(payload: BetaFeedbackIn, bg: BackgroundTasks):
         message=doc["message"],
         page=doc["page"],
     )
+    # iter104 — fan out to Slack/Discord (no-op if unconfigured).
+    import os as _os
+    from notify_webhook import notify_team
+    _site = (_os.environ.get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
+    bg.add_task(
+        notify_team,
+        kind="feedback",
+        title=f"{doc['name']} ({doc['email']})",
+        summary=doc["message"][:1000],
+        fields=[("Page", doc["page"] or "—"), ("Submitted", doc["created_at"])],
+        link=f"{_site}/admin/dashboard",
+    )
     logger.info("[beta] feedback received from %s on %s", doc["email"], doc["page"] or "?")
     return {"received": True, "id": doc["id"]}
 
@@ -452,3 +464,36 @@ async def admin_email_test(payload: TestEmailIn, claims: dict = Depends(current_
         )
         return {"sent": False, "to": to, "last_error": last}
     return {"sent": True, "to": to, "result": result}
+
+
+
+# ---------------- Team-notification webhooks (iter104) ----------------
+@router.get("/admin/webhooks/diag")
+async def admin_webhooks_diag(_: dict = Depends(current_admin)):
+    """Surface which Slack/Discord webhooks are armed in the running env.
+    Never returns the actual URLs — boolean flags only — so an admin
+    glancing at the dashboard can confirm config without leaking secrets."""
+    from notify_webhook import is_configured
+    return {"configured": is_configured()}
+
+
+class _WebhookTestIn(BaseModel):
+    note: Optional[str] = None  # operator-supplied label that lands in the message body
+
+
+@router.post("/admin/webhooks/test")
+async def admin_webhooks_test(payload: _WebhookTestIn, claims: dict = Depends(current_admin)):
+    """Fire a one-shot ping to every configured provider so the admin can
+    verify Slack/Discord delivery without waiting for a real outage."""
+    from notify_webhook import notify_team, is_configured
+    cfg = is_configured()
+    if not (cfg["slack"] or cfg["discord"]):
+        return {"sent": False, "reason": "no_provider_configured", "configured": cfg}
+    summary = (payload.note or "").strip() or "Diagnostic ping from the admin dashboard."
+    res = await notify_team(
+        kind="test",
+        title=f"Webhook test — {claims.get('email', 'admin')}",
+        summary=summary,
+        fields=[("Triggered by", claims.get("email") or "admin")],
+    )
+    return {"sent": True, "providers": res, "configured": cfg}

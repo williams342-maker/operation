@@ -1,5 +1,32 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05 — iter104 — Slack/Discord webhooks for Beta Feedback, Contact, Prod Outage ✅
+
+**Why:** Until now the team only learned about new beta feedback / contact messages / prod outages via email. Email is fine for a daily digest, lousy for "respond in the next 5 min." Slack and Discord are where the team actually lives. One integration handles all three streams.
+
+**What:**
+- New module `backend/notify_webhook.py` with a single entrypoint `notify_team(kind, title, summary, fields, link)`. Auto-detects which providers are configured via `SLACK_WEBHOOK_URL` / `DISCORD_WEBHOOK_URL` env vars. Either, both, or neither (silent no-op).
+- Three call sites wired via `BackgroundTasks`:
+  1. `POST /api/feedback` (beta feedback) — `kind="feedback"`
+  2. `POST /api/contact` (public contact form) — `kind="contact"`
+  3. `prod_health._fire_outage_alert` and `_fire_recovery_alert` — `kind="outage"` and `kind="recovery"`
+- Slack gets rich block-kit messages (header + section + action button to admin dashboard). Discord gets embeds with category-color theming. Both fan out concurrently with `asyncio.gather`.
+- Per-process in-memory dedup window (60s) suppresses identical (kind, title) repeats — guards against caller-bug-induced spam. Outage and recovery transitions bypass dedup (operational alerting must always go through).
+- Failure on one provider doesn't block the other. Every failure logged at WARNING with provider + status. Best-effort delivery.
+
+**Admin tooling:**
+- `GET /api/admin/webhooks/diag` — boolean flags `{slack: bool, discord: bool}`. Never leaks the actual URLs.
+- `POST /api/admin/webhooks/test` — fires a one-shot ping to every configured provider with the operator's email in the body, so admins can verify delivery without waiting for a real outage.
+
+**Setup:** Set `SLACK_WEBHOOK_URL` (Slack: Apps → Incoming Webhooks → Add → copy URL) and/or `DISCORD_WEBHOOK_URL` (Discord: Server Settings → Integrations → Webhooks → New → copy URL) in `/app/backend/.env`. Restart backend. Hit `POST /api/admin/webhooks/test` to confirm delivery.
+
+**Regression guard:** `tests/test_iter104_team_webhooks.py` — 11 tests covering: no-op when unconfigured, slack-only, discord-only, both-configured fan-out, dedup window for non-operational kinds, dedup bypass for outage, single-provider-failure resilience, beta-feedback POST wiring, contact POST wiring, outage transition wiring, recovery transition wiring. All green.
+
+**Verified:** Live `GET /api/admin/webhooks/diag` returns 401 unauthenticated (proper admin gating).
+
+---
+
+
 ## 2026-05 — iter103 — Welcome emails for /updates + /coming-soon waitlists ✅
 
 **Why:** Users who subscribed to the public Updates digest or joined a Coming-Soon category waitlist (Neon & Light, Furniture) got *nothing* back after submitting their email. No confirmation, no acknowledgment — just a silent toast on the form. People reasonably assumed it broke. Closes the loop with a branded one-shot email so the buyer/maker knows the signup landed.

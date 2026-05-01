@@ -132,6 +132,21 @@ async def submit_contact_message(
         to_email=doc["email"], to_name=doc["name"],
         original_message=doc["message"],
     )
+    # iter104 — fan out to Slack/Discord (no-op if unconfigured).
+    import os as _os
+    from notify_webhook import notify_team
+    _site = (_os.environ.get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
+    bg.add_task(
+        notify_team,
+        kind="contact",
+        title=f"{doc['subject'] or doc['topic']} — {doc['name']}",
+        summary=doc["message"][:1000],
+        fields=[
+            ("From", f"{doc['name']} <{doc['email']}>"),
+            ("Topic", doc["topic"]),
+        ] + ([("Phone", doc["phone"])] if doc["phone"] else []),
+        link=f"{_site}/admin/dashboard",
+    )
     logger.info(
         "[contact] message received from %s · topic=%s · id=%s",
         doc["email"], topic, doc["id"],
