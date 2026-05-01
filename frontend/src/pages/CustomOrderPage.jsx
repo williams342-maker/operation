@@ -23,6 +23,26 @@ const CATEGORIES = [
   { id: "3D Printed Piece",icon: Box,      blurb: "Functional & decorative additive prints", materials: ["PLA", "PETG", "Resin", "Nylon"] },
 ];
 
+// Coming-soon placeholders — fill out the Step 1 grid into a clean 3×3
+// layout and tease categories we'll unlock once enough makers request
+// them. Disabled cards (can't be selected); shown greyed-out with a
+// subtle "Coming Soon" chip + witty blurb so the page feels alive
+// rather than half-built.
+const COMING_SOON = [
+  {
+    id: "Neon & Light",
+    icon: Zap,
+    blurb: "Hand-bent neon and LED pieces. Sparks fly soon.",
+    tease: "Warming up the glass.",
+  },
+  {
+    id: "Furniture",
+    icon: Box,
+    blurb: "Tables, benches, shelving built to your exact dimensions.",
+    tease: "Gluing the clamps.",
+  },
+];
+
 const TIMELINES = ["ASAP", "1-2 weeks", "2-4 weeks", "1-2 months", "3+ months", "Flexible"];
 const QUANTITIES = ["1", "2-5", "6-10", "11-25", "26-100", "100+"];
 const BUDGETS = [
@@ -119,6 +139,33 @@ function StepCategory({ value, onPick }) {
                     {m}
                   </span>
                 ))}
+              </div>
+            </button>
+          );
+        })}
+        {/* Coming-soon teasers — disabled cards rounding out the grid
+            to a clean 3×3. Clicking them does nothing except a
+            gentle toast so users know we're listening. */}
+        {COMING_SOON.map((c) => {
+          const Icon = c.icon;
+          return (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => toast(`${c.id} — ${c.tease}`, { description: "We'll ping you when it's live." })}
+              className="text-left border border-dashed border-[#262626] bg-[#0a0a0a]/70 p-6 opacity-60 hover:opacity-90 hover:border-[#525252] transition-all duration-200 relative cursor-pointer"
+              data-testid={`category-card-coming-soon-${c.id.replace(/[\s/]/g, "-").toLowerCase()}`}
+            >
+              <span className="absolute top-3 right-3 font-mono text-[9px] uppercase tracking-[0.22em] px-2 py-0.5 border border-[#ff4500]/40 text-[#ff4500]/80 bg-[#ff4500]/5">
+                Coming Soon
+              </span>
+              <div className="w-12 h-12 flex items-center justify-center mb-5 bg-[#1a1a1a] text-[#525252]">
+                <Icon size={20} />
+              </div>
+              <div className="font-display text-2xl mb-2 leading-tight text-[#a3a3a3]">{c.id}</div>
+              <div className="font-mono text-xs text-[#525252] mb-5 leading-relaxed">{c.blurb}</div>
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]/60 italic">
+                ◇ {c.tease}
               </div>
             </button>
           );
@@ -706,39 +753,47 @@ export default function CustomOrderPage() {
           />
         )}
 
-        {/* Footer nav */}
-        <div className="flex items-center justify-between gap-4 mt-16 pt-8 border-t border-[#262626]">
-          <button
-            type="button"
-            onClick={back}
-            disabled={step === 1}
-            className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] disabled:opacity-30 disabled:hover:text-[#a3a3a3] transition"
-            data-testid="co-back"
-          >
-            <ArrowLeft size={14} /> Back
-          </button>
+        {/* Footer nav — sticky so the Continue button follows the user
+            through every step (each "window" always has a visible CTA).
+            Backdrop blur + solid fallback keeps content legible behind. */}
+        <div className="sticky bottom-0 -mx-4 md:-mx-8 mt-16 z-30 bg-[#0a0a0a]/95 supports-[backdrop-filter]:bg-[#0a0a0a]/80 backdrop-blur-md border-t border-[#262626]">
+          <div className="flex items-center justify-between gap-4 px-4 md:px-8 py-4">
+            <button
+              type="button"
+              onClick={back}
+              disabled={step === 1}
+              className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] disabled:opacity-30 disabled:hover:text-[#a3a3a3] transition"
+              data-testid="co-back"
+            >
+              <ArrowLeft size={14} /> Back
+            </button>
 
-          {step < 5 ? (
-            <button
-              type="button"
-              onClick={next}
-              disabled={!stepValid(step)}
-              className="btn-industrial btn-primary disabled:opacity-50 flex items-center gap-2"
-              data-testid="co-next"
-            >
-              Continue <ArrowRight size={14} />
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={submit}
-              disabled={submitting || !stepValid(5)}
-              className="btn-industrial btn-primary disabled:opacity-50 flex items-center gap-2"
-              data-testid="co-submit"
-            >
-              {submitting ? "Submitting…" : "Submit Order"} <ArrowRight size={14} />
-            </button>
-          )}
+            <div className="hidden sm:block font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252]">
+              Step {step} of 5
+            </div>
+
+            {step < 5 ? (
+              <button
+                type="button"
+                onClick={next}
+                disabled={!stepValid(step)}
+                className="btn-industrial btn-primary disabled:opacity-50 flex items-center gap-2"
+                data-testid="co-next"
+              >
+                Continue <ArrowRight size={14} />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={submit}
+                disabled={submitting || !stepValid(5)}
+                className="btn-industrial btn-primary disabled:opacity-50 flex items-center gap-2"
+                data-testid="co-submit"
+              >
+                {submitting ? "Submitting…" : "Submit Order"} <ArrowRight size={14} />
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
