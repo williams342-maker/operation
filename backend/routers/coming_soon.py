@@ -11,7 +11,7 @@ import re
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends
 from pydantic import BaseModel, EmailStr
 
 from core import db, logger, now_iso
@@ -32,8 +32,10 @@ class _SignupBody(BaseModel):
 
 
 @router.post("/coming-soon/waitlist")
-async def join_coming_soon_waitlist(body: _SignupBody):
-    """Public endpoint — auth-free. Idempotent on (email, category)."""
+async def join_coming_soon_waitlist(body: _SignupBody, bg: BackgroundTasks):
+    """Public endpoint — auth-free. Idempotent on (email, category).
+    Fires a one-shot confirmation email on NEW signups (suppressed on
+    re-submissions so users aren't spammed)."""
     cat = (body.category or "").strip()
     if cat not in ALLOWED_CATEGORIES:
         return {"ok": False, "error": "unknown_category"}
@@ -51,6 +53,9 @@ async def join_coming_soon_waitlist(body: _SignupBody):
         "joined_at": now_iso(),
         "notified_at": None,
     })
+    # iter103 — confirm in writing so the user knows their email saved.
+    from email_service import send_coming_soon_confirmation
+    bg.add_task(send_coming_soon_confirmation, email=email, name=name or "", category=cat)
     logger.info("[coming_soon_waitlist] new signup category=%s email=%s", cat, email)
     return {"ok": True, "already": False}
 

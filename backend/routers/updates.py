@@ -15,7 +15,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import APIRouter, Body
+from fastapi import APIRouter, BackgroundTasks, Body
 from fastapi.responses import RedirectResponse, HTMLResponse
 from pydantic import BaseModel, EmailStr
 
@@ -167,13 +167,30 @@ class _SubscribeBody(BaseModel):
 
 
 @router.post("/updates/subscribe")
-async def subscribe_to_updates(body: _SubscribeBody):
+async def subscribe_to_updates(body: _SubscribeBody, bg: BackgroundTasks):
     """Idempotent: same email twice = no-op. Returns ok=True either way
-    so we don't leak whether an address is already on the list."""
+    so we don't leak whether an address is already on the list. iter103
+    fires a one-shot welcome email on NEW + REACTIVATED signups."""
     from updates_digest import subscribe
+    from core import db
     res = await subscribe(str(body.email), body.name)
     if not res.get("ok"):
         return {"ok": False, "error": res.get("error", "unknown")}
+    # Welcome email — only fired on first-ever signup or on reactivation
+    # of a previously-unsubscribed address. Re-subscribing an already-
+    # active email is a true no-op (`already=True`) and gets nothing.
+    if not res.get("already"):
+        sub = await db.update_subscribers.find_one(
+            {"email": str(body.email).strip().lower()},
+            {"_id": 0, "name": 1, "unsubscribe_token": 1},
+        ) or {}
+        from email_service import send_updates_subscribe_welcome
+        bg.add_task(
+            send_updates_subscribe_welcome,
+            email=str(body.email).strip().lower(),
+            name=sub.get("name") or body.name or "",
+            unsubscribe_token=sub.get("unsubscribe_token") or "",
+        )
     return {"ok": True}
 
 

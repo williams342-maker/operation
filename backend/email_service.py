@@ -1883,3 +1883,64 @@ async def send_maker_restock_digest(*, email: str, name: str,
     )
     html = _shell("Restock queue.", f"{total_pending} buyers waiting across {len(products)} products.", body, "Maker · weekly")
     return await _send(email, f"[Crafters Market] {total_pending} buyers waiting on restocks", html)
+
+
+# ------------------------------------------------------------------
+# Coming-Soon waitlist confirmation (iter103) — fired from the
+# /api/coming-soon/waitlist endpoint when a NEW signup goes through.
+# Skipped on already-on-list re-submissions (handled by the caller).
+# ------------------------------------------------------------------
+async def send_coming_soon_confirmation(*, email: str, name: str, category: str):
+    if not email:
+        return
+    site = (os.environ.get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
+    if site.lower().endswith(".emergentagent.com") or "preview." in site.lower():
+        site = "https://craftersmarket.org"
+    greet = f"Hey {name}," if name else "Hey,"
+    body = (
+        f"<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 22px'>{greet}</p>"
+        f"<p style='font-size:14px;color:#a3a3a3;line-height:1.6;margin:0 0 22px'>"
+        f"You're on the waitlist for <b style='color:#ff4500'>{category}</b>. "
+        "We'll send you exactly one email — no marketing, no follow-ups — the moment this category goes live. "
+        "Until then, your spot is saved.</p>"
+        f"<div style='text-align:center;margin:32px 0 10px'>"
+        f"<a href='{site}/shop' style='display:inline-block;background:#ff4500;color:#0a0a0a;text-decoration:none;font-weight:700;padding:14px 24px;font-size:13px;letter-spacing:0.15em;text-transform:uppercase'>Browse the catalog →</a>"
+        "</div>"
+    )
+    html = _shell("On the list.", f"We'll ping you when {category} goes live.", body, f"Coming Soon · {category}")
+    return await _send(email, f"[Crafters Market] You're on the list for {category}", html)
+
+
+# ------------------------------------------------------------------
+# /updates digest welcome email (iter103) — fired from the
+# /api/updates/subscribe endpoint on first-time subscribe (or
+# reactivation). Skipped on already-active re-submissions.
+# ------------------------------------------------------------------
+async def send_updates_subscribe_welcome(*, email: str, name: str, unsubscribe_token: str = ""):
+    if not email:
+        return
+    site = (os.environ.get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
+    if site.lower().endswith(".emergentagent.com") or "preview." in site.lower():
+        site = "https://craftersmarket.org"
+    unsub = f"{site}/api/updates/unsubscribe?token={unsubscribe_token}" if unsubscribe_token else ""
+    greet = f"Hey {name}," if name else "Hey,"
+    body = (
+        f"<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 22px'>{greet}</p>"
+        "<p style='font-size:14px;color:#a3a3a3;line-height:1.6;margin:0 0 22px'>"
+        "You're subscribed to Crafters Market updates. From here on out, when we ship something new — a feature, a fix, a polish — you'll get a short digest. "
+        "<b style='color:#e5e5e5'>One email per release week.</b> No filler. No marketing.</p>"
+        "<div style='font-size:11px;letter-spacing:0.22em;color:#525252;text-transform:uppercase;margin:28px 0 8px'>◆ What you can expect</div>"
+        "<ul style='font-size:13px;color:#e5e5e5;line-height:1.7;padding-left:20px;margin:0'>"
+        "<li>One short digest of recent improvements, plain English</li>"
+        "<li>Occasional founder notes when there's something worth saying</li>"
+        "<li>Zero marketing — we hate that as much as you do</li>"
+        "</ul>"
+        f"<div style='text-align:center;margin:32px 0 10px'>"
+        f"<a href='{site}/updates' style='display:inline-block;background:#ff4500;color:#0a0a0a;text-decoration:none;font-weight:700;padding:14px 24px;font-size:13px;letter-spacing:0.15em;text-transform:uppercase'>See what we've shipped →</a>"
+        "</div>"
+        + (f"<p style='font-size:11px;color:#525252;line-height:1.55;margin:30px 0 0;text-align:center'>"
+           f"Changed your mind? <a href='{unsub}' style='color:#525252;text-decoration:underline'>Unsubscribe</a> in one click — no questions asked.</p>"
+           if unsub else "")
+    )
+    html = _shell("Welcome aboard.", "You'll hear from us when we ship something new.", body, "Crafters Market · Updates")
+    return await _send(email, "[Crafters Market] You're subscribed to updates", html)
