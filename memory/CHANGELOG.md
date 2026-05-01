@@ -1,5 +1,23 @@
 # Crafters Market — CHANGELOG
 
+## 2026-02 — iter80 — Per-shop returns/exchange policy + Maker portrait/cover image uploads (TESTED ✅ 4/4)
+**User report:** "When selecting returns and exchanges allowed the system does not allow you to customize return and exchange setting per company." Plus the parked Edit-Shop image upload feature.
+
+**Returns/exchange — per-shop customization (Settings → Policy settings):**
+- New maker fields: `accepts_returns_default`, `accepts_exchanges_default`, `return_window_days` (default 14), `return_shipping_paid_by` ("buyer"|"seller"), `restocking_fee_pct` (0-100), `non_returnable_items` (text). Existing free-text `returns_policy` stays as a catch-all narrative.
+- UI shows two ToggleRows; when EITHER is on, a structured rules block appears with window-days, who-pays-shipping, restocking-fee, and excluded-items inputs. A live "Buyer will see" preview renders the final sentence buyers get on every product page.
+- Per-listing `accept_returns`/`accept_exchanges` toggles unchanged — those override per-product when set.
+
+**Maker portrait + cover image uploads:**
+- New endpoints: `POST /api/maker/uploads/portrait` and `POST /api/maker/uploads/cover` — multipart UploadFile, validates PNG/JPG/WebP/GIF + 10MB cap, pushes bytes to Cloudflare R2 under `portraits/{slug}/...` and `covers/{slug}/...`, persists URL onto `makers.{portrait|cover}`. Shared `_upload_profile_image()` helper.
+- Settings → Info & Appearance now shows drag-and-drop image dropzones (square preview for shop icon, 3:1 wide preview for cover) replacing the old URL text inputs. Loader2 spinner during upload, X-button to remove.
+
+**Bonus UX (same iteration):** Fixed scroll-position bug across all tabbed surfaces — Maker Dashboard tabs, Admin Dashboard tabs, Maker Settings sub-sections, Community page tabs, and Workshop Analytics tabs now auto-scroll to top on switch. Routed pages were already covered by the global `<ScrollTop />`.
+
+**Tests 4/4:** unauth-rejected, uploads-persist (R2 + DB), policy-PATCH-persists, bad-MIME-rejected. All passing.
+
+Files: `backend/models.py` (Maker + MakerProfileUpdate), `backend/routers/maker.py` (3 new endpoints + helper), `frontend/src/lib/api.js` (uploadMakerPortrait/Cover), `frontend/src/pages/MakerDashboard/SettingsTab.jsx` (ImageDropzone + Policy rewrite + scroll fix), `frontend/src/pages/MakerDashboard.jsx`, `frontend/src/pages/AdminDashboard.jsx`, `frontend/src/pages/CommunityPage.jsx`, `frontend/src/pages/WorkshopAnalyticsDashboard.jsx`. New: `backend/tests/test_iter80_returns_policy_and_image_uploads.py`.
+
 ## 2026-02 — iter78 — Mark-Shipped Guardrail · tracking required for non-Shippo fulfillments (TESTED ✅ 14/14)
 **Fix:** Previously a maker could hit "Mark shipped" with nothing filled in — buyer was left in the dark with no tracking. Per user request, now enforced on both layers:
 

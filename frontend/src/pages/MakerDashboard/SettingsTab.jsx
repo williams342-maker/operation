@@ -4,12 +4,12 @@ import { toast } from "sonner";
 import {
   Image as ImageIcon, BookOpen, SlidersHorizontal, Truck, Shield,
   Users, Megaphone, Languages, Sparkles, Facebook, ChevronRight,
-  Share2, AlertTriangle,
+  Share2, AlertTriangle, Upload, X, Loader2,
 } from "lucide-react";
 import {
   updateMakerProfile, makerCloseShop, makerReopenShop,
   makerRequestDeletion, makerCancelDeletion, cancelMakerSubscription,
-  fetchMakerMe,
+  fetchMakerMe, uploadMakerPortrait, uploadMakerCover,
 } from "../../lib/api";
 import UpgradeTab from "./UpgradeTab";
 
@@ -243,6 +243,101 @@ function Field({ label, hint, children, testId }) {
 
 const inputCls = "w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2.5 font-mono text-sm text-[#e5e5e5]";
 
+/**
+ * Drag-and-drop image uploader for shop assets (portrait / cover).
+ * - Accepts PNG / JPG / WebP, ≤10MB.
+ * - On success, calls `onUploaded(url)` so the parent can persist via
+ *   the maker profile (the upload endpoint already updates the maker
+ *   doc — `onUploaded` is just so the UI reflects immediately).
+ * - Renders a square preview for "portrait", wide hero for "cover".
+ */
+function ImageDropzone({ value, onUploaded, uploadFn, kind, testId }) {
+  const [busy, setBusy] = useState(false);
+  const [drag, setDrag] = useState(false);
+  const inputId = `dropzone-${kind}-${React.useId()}`;
+  const aspect = kind === "cover" ? "aspect-[3/1]" : "aspect-square max-w-[180px]";
+
+  const handleFile = async (file) => {
+    if (!file) return;
+    if (!/^image\/(png|jpe?g|webp)$/i.test(file.type)) {
+      toast.error("Use a PNG, JPG, or WebP image.");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Image must be 10 MB or smaller.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const { url } = await uploadFn(file);
+      onUploaded(url);
+      toast.success(`${kind === "cover" ? "Cover" : "Shop icon"} updated.`);
+    } catch (e) {
+      const d = e?.response?.data?.detail;
+      toast.error(typeof d === "string" ? d : "Upload failed — try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div data-testid={testId}>
+      <div
+        className={`${aspect} relative border-2 border-dashed transition-colors overflow-hidden bg-[#0a0a0a] ${
+          drag ? "border-[#ff4500] bg-[#ff4500]/5" : "border-[#262626]"
+        }`}
+        onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
+        onDragLeave={() => setDrag(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDrag(false);
+          handleFile(e.dataTransfer.files?.[0]);
+        }}
+      >
+        {value ? (
+          <>
+            <img src={value} alt="" className="w-full h-full object-cover" />
+            <button
+              type="button"
+              onClick={() => onUploaded("")}
+              className="absolute top-2 right-2 bg-black/70 hover:bg-black border border-[#262626] p-1.5"
+              data-testid={`${testId}-remove`}
+              aria-label="Remove image"
+            >
+              <X className="w-3.5 h-3.5 text-[#e5e5e5]" />
+            </button>
+          </>
+        ) : (
+          <label
+            htmlFor={inputId}
+            className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer text-center px-4"
+          >
+            {busy ? (
+              <Loader2 className="w-5 h-5 text-[#ff4500] animate-spin" />
+            ) : (
+              <>
+                <Upload className="w-5 h-5 text-[#a3a3a3] mb-2" />
+                <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#e5e5e5]">
+                  Drop image or click
+                </div>
+                <div className="font-mono text-[10px] text-[#a3a3a3] mt-1">PNG · JPG · WebP · ≤10MB</div>
+              </>
+            )}
+          </label>
+        )}
+      </div>
+      <input
+        id={inputId}
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        className="hidden"
+        onChange={(e) => handleFile(e.target.files?.[0])}
+        data-testid={`${testId}-input`}
+      />
+    </div>
+  );
+}
+
 function ToggleRow({ label, hint, value, onChange, testId }) {
   return (
     <div className="flex items-start justify-between gap-3 border border-[#262626] p-3" data-testid={testId}>
@@ -360,11 +455,23 @@ function InfoAppearance({ maker, onSaved }) {
       <Field label="Location" hint="City, state — keeps shipping estimates honest.">
         <input className={inputCls} value={form.location} onChange={(e) => set("location")(e.target.value)} />
       </Field>
-      <Field label="Shop icon URL" hint="Square headshot or logo (recommended 800×800). Shown on cards, receipts, and your profile.">
-        <input className={inputCls} value={form.portrait} onChange={(e) => set("portrait")(e.target.value)} placeholder="https://cdn.craftersmarket.org/…" />
+      <Field label="Shop icon (square headshot or logo)" hint="Recommended 800×800. Shown on cards, receipts, and your profile. Drop an image to upload directly to the CDN — no URL juggling.">
+        <ImageDropzone
+          value={form.portrait}
+          onUploaded={(url) => set("portrait")(url)}
+          uploadFn={uploadMakerPortrait}
+          kind="portrait"
+          testId="settings-info-portrait-dropzone"
+        />
       </Field>
-      <Field label="Cover URL" hint="Wide banner that fills your shop hero (recommended 2400×800).">
-        <input className={inputCls} value={form.cover} onChange={(e) => set("cover")(e.target.value)} placeholder="https://cdn.craftersmarket.org/…" />
+      <Field label="Cover image" hint="Wide banner that fills your shop hero (recommended 2400×800). Drop an image to upload directly.">
+        <ImageDropzone
+          value={form.cover}
+          onUploaded={(url) => set("cover")(url)}
+          uploadFn={uploadMakerCover}
+          kind="cover"
+          testId="settings-info-cover-dropzone"
+        />
       </Field>
       <Field label="Order receipt banner URL" hint="Thin banner (760×100, <2MB) printed at the top of emailed order receipts. Great place for a brand mark.">
         <input
@@ -867,20 +974,124 @@ function Shipping({ maker, onSaved, onTabChange }) {
 // Section: Policy settings
 // ============================================================================
 function Policy({ maker, onSaved }) {
-  const fields = ["returns_policy"];
+  const fields = [
+    "returns_policy",
+    "accepts_returns_default",
+    "accepts_exchanges_default",
+    "return_window_days",
+    "return_shipping_paid_by",
+    "restocking_fee_pct",
+    "non_returnable_items",
+  ];
   const { form, set, dirty, busy, submit } = useSettingsForm(maker, fields, onSaved);
+  const acceptsAny = !!form.accepts_returns_default || !!form.accepts_exchanges_default;
   return (
     <FormShell
       title="Policy settings"
-      blurb="Returns, refunds, and exchange copy — shown on every product page below the description."
+      blurb="Returns, refunds, and exchange rules — shown on every product page below the price. These are your shop-wide defaults; per-listing overrides remain on each listing's editor."
       onSubmit={submit}
       dirty={dirty}
       busy={busy}
       testId="settings-policy"
     >
-      <Field label="Returns & exchanges policy" hint="Be specific: timeframe, who pays return shipping, custom-order exclusions.">
-        <textarea rows={8} className={`${inputCls} resize-none leading-relaxed`} value={form.returns_policy} onChange={(e) => set("returns_policy")(e.target.value)} />
+      <div className="space-y-3">
+        <ToggleRow
+          label="Accept returns by default"
+          hint="Buyers can return items for a refund within your return window."
+          value={!!form.accepts_returns_default}
+          onChange={(v) => set("accepts_returns_default")(v)}
+          testId="policy-accepts-returns"
+        />
+        <ToggleRow
+          label="Accept exchanges by default"
+          hint="Buyers can exchange items for a different size, color, or variation."
+          value={!!form.accepts_exchanges_default}
+          onChange={(v) => set("accepts_exchanges_default")(v)}
+          testId="policy-accepts-exchanges"
+        />
+      </div>
+
+      {acceptsAny && (
+        <div className="border border-[#262626] bg-[#0a0a0a] p-4 space-y-4" data-testid="policy-rules-block">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+            ◆ Your return / exchange rules
+          </div>
+          <Field label="Return window (days)" hint="How long after delivery a buyer can request a return.">
+            <input
+              type="number"
+              min={1}
+              max={365}
+              className={inputCls}
+              value={form.return_window_days ?? 14}
+              onChange={(e) => set("return_window_days")(parseInt(e.target.value || "0", 10))}
+              data-testid="policy-return-window"
+            />
+          </Field>
+          <Field label="Who pays return shipping?" hint="Most shops pass shipping cost to the buyer unless the error was theirs.">
+            <select
+              className={inputCls}
+              value={form.return_shipping_paid_by || "buyer"}
+              onChange={(e) => set("return_shipping_paid_by")(e.target.value)}
+              data-testid="policy-return-shipping-payer"
+            >
+              <option value="buyer">Buyer pays return shipping</option>
+              <option value="seller">Seller pays return shipping</option>
+            </select>
+          </Field>
+          <Field label="Restocking fee (%)" hint="Optional — deducted from the refund. Leave at 0 for no fee.">
+            <input
+              type="number"
+              min={0}
+              max={100}
+              className={inputCls}
+              value={form.restocking_fee_pct ?? 0}
+              onChange={(e) => set("restocking_fee_pct")(Math.max(0, Math.min(100, parseInt(e.target.value || "0", 10))))}
+              data-testid="policy-restocking-fee"
+            />
+          </Field>
+          <Field label="Items that CANNOT be returned" hint="One per line or a short paragraph. Custom/personalized items are typically non-returnable.">
+            <textarea
+              rows={3}
+              className={`${inputCls} resize-none leading-relaxed`}
+              value={form.non_returnable_items || ""}
+              onChange={(e) => set("non_returnable_items")(e.target.value)}
+              data-testid="policy-non-returnable"
+            />
+          </Field>
+        </div>
+      )}
+
+      <Field label="Additional return / exchange notes" hint="Free-text policy shown on every product page. Use this for anything the structured fields above don't cover.">
+        <textarea rows={6} className={`${inputCls} resize-none leading-relaxed`} value={form.returns_policy || ""} onChange={(e) => set("returns_policy")(e.target.value)} data-testid="policy-returns-notes" />
       </Field>
+
+      <div className="border border-[#262626] bg-[#0d0d0d] p-4">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-1">
+          ◆ Buyer will see
+        </div>
+        <p className="font-mono text-xs text-[#e5e5e5] leading-relaxed" data-testid="policy-buyer-preview">
+          {acceptsAny ? (
+            <>
+              This shop accepts {[
+                form.accepts_returns_default && "returns",
+                form.accepts_exchanges_default && "exchanges",
+              ].filter(Boolean).join(" and ")} within{" "}
+              <span className="text-white">{form.return_window_days ?? 14} days</span> of delivery.{" "}
+              {form.return_shipping_paid_by === "seller"
+                ? "The seller covers return shipping."
+                : "The buyer pays return shipping."}{" "}
+              {form.restocking_fee_pct > 0 && (
+                <>A <span className="text-white">{form.restocking_fee_pct}%</span> restocking fee applies. </>
+              )}
+              {form.non_returnable_items && (
+                <>Excluded: <span className="text-white">{form.non_returnable_items}</span></>
+              )}
+            </>
+          ) : (
+            "This shop does not accept returns or exchanges."
+          )}
+        </p>
+      </div>
     </FormShell>
   );
 }

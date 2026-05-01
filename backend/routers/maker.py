@@ -750,6 +750,68 @@ async def maker_upload_banner(
     return {"url": url, "size": len(body)}
 
 
+@router.post("/maker/uploads/portrait")
+async def maker_upload_portrait(
+    file: UploadFile = File(...),
+    slug: str = Depends(current_maker_slug),
+):
+    """Upload a maker portrait photo (square headshot shown on the shop
+    profile + listing pages). Persists URL onto makers.portrait."""
+    return await _upload_profile_image(file, slug, kind="portrait", folder="portraits")
+
+
+@router.post("/maker/uploads/cover")
+async def maker_upload_cover(
+    file: UploadFile = File(...),
+    slug: str = Depends(current_maker_slug),
+):
+    """Upload a maker cover photo (wide hero image shown atop the shop page).
+    Persists URL onto makers.cover."""
+    return await _upload_profile_image(file, slug, kind="cover", folder="covers")
+
+
+async def _upload_profile_image(
+    file: UploadFile, slug: str, *, kind: str, folder: str,
+) -> dict:
+    """Shared implementation for portrait/cover uploads — both write to R2
+    and update the maker doc with the resulting CDN URL on a single field
+    matching `kind` (one of "portrait" | "cover")."""
+    try:
+        from r2_storage import is_configured as _r2_ok, upload_bytes, ALLOWED_CONTENT_TYPES
+    except Exception:
+        raise HTTPException(503, "R2 storage is not available.")
+    if not _r2_ok():
+        raise HTTPException(503, "R2 storage is not configured.")
+
+    m = await db.makers.find_one({"slug": slug}, {"_id": 0})
+    if not m:
+        raise HTTPException(404, "Maker not found.")
+
+    ct = (file.content_type or "").lower()
+    if ct not in ALLOWED_CONTENT_TYPES:
+        raise HTTPException(400, f"{kind.capitalize()} must be a PNG / JPG / WebP image.")
+    body = await file.read()
+    if len(body) == 0:
+        raise HTTPException(400, "Empty file.")
+    # ~10 MB hard cap (matches existing listing-image limits).
+    if len(body) > 10 * 1024 * 1024:
+        raise HTTPException(400, f"{kind.capitalize()} must be 10 MB or smaller.")
+
+    import uuid
+    ext = ALLOWED_CONTENT_TYPES[ct]
+    key = f"{folder}/{slug}/{uuid.uuid4().hex}.{ext}"
+    try:
+        url = upload_bytes(body, key, ct)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        logger.exception("%s upload failed for maker=%s: %s", kind, slug, e)
+        raise HTTPException(502, f"Could not upload {kind}.")
+
+    await db.makers.update_one({"slug": slug}, {"$set": {kind: url}})
+    return {"url": url, "size": len(body)}
+
+
 # ---------------- Billing ledger ---------------------------------------------
 
 @router.get("/maker/billing")

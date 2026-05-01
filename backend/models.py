@@ -233,7 +233,18 @@ class Maker(BaseModel):
     story: Optional[str] = ""             # long-form shop story (markdown ok)
     # Policy settings — surfaced on every product detail page below the price.
     processing_time: Optional[str] = ""   # e.g. "1-3 business days"
-    returns_policy: Optional[str] = ""    # free-text policy text
+    returns_policy: Optional[str] = ""    # free-text policy text (catch-all)
+    # Per-shop default returns/exchange policy. Each listing still has its own
+    # accept_returns / accept_exchanges toggle (per-product override) but these
+    # fields capture the SHOP-level rules that apply when returns are accepted:
+    # window length, who pays return shipping, restocking fee, exclusions.
+    # Surfaced on shop policy pages and product detail pages.
+    accepts_returns_default: bool = False
+    accepts_exchanges_default: bool = False
+    return_window_days: int = 14            # e.g. 14, 30
+    return_shipping_paid_by: str = "buyer"  # "buyer" | "seller"
+    restocking_fee_pct: int = 0             # 0-100
+    non_returnable_items: Optional[str] = "Custom or personalized orders, digital downloads, intimate or hygienic items."
     accepts_custom_orders: bool = True    # gates the "Request Custom" CTA
     # Maker-level default for backorders. Per-listing `accepts_backorders`
     # overrides this when set; when null on the listing, this default
@@ -439,6 +450,12 @@ class MakerProfileUpdate(BaseModel):
     story: Optional[str] = None
     processing_time: Optional[str] = None
     returns_policy: Optional[str] = None
+    accepts_returns_default: Optional[bool] = None
+    accepts_exchanges_default: Optional[bool] = None
+    return_window_days: Optional[int] = None
+    return_shipping_paid_by: Optional[str] = None
+    restocking_fee_pct: Optional[int] = None
+    non_returnable_items: Optional[str] = None
     accepts_custom_orders: Optional[bool] = None
     accepts_backorders_default: Optional[bool] = None
     is_veteran_owned: Optional[bool] = None

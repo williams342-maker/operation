@@ -268,6 +268,20 @@ export const uploadMakerBanner = (file) => {
     headers: { ...authHeaders(), "Content-Type": "multipart/form-data" },
   }).then((r) => r.data);
 };
+export const uploadMakerPortrait = (file) => {
+  const fd = new FormData();
+  fd.append("file", file);
+  return http.post("/maker/uploads/portrait", fd, {
+    headers: { ...authHeaders(), "Content-Type": "multipart/form-data" },
+  }).then((r) => r.data);
+};
+export const uploadMakerCover = (file) => {
+  const fd = new FormData();
+  fd.append("file", file);
+  return http.post("/maker/uploads/cover", fd, {
+    headers: { ...authHeaders(), "Content-Type": "multipart/form-data" },
+  }).then((r) => r.data);
+};
 export const updateMakerExternalAdsOptOut = (opt_out) =>
   http.patch("/maker/profile", { external_ads_opt_out: opt_out }, { headers: authHeaders() }).then((r) => r.data);
 export const updateMakerProfile = (payload) =>
