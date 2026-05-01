@@ -1,5 +1,20 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05 — iter94 — Sitemap strips test/seed slugs ✅
+
+**Why:** Post-iter92 sitemap audit showed 6 test/seed artifacts leaking into the public sitemap (`test-iter21-bg-ba4bba`, `test-studio`, `iter9-acct-f301ff35`, `test-allowedstudio-iter18`, `api-test-studio`, `final-test-studio`). Google crawls these low-content pages and dings the overall site quality score.
+
+**Fix:** `/app/backend/routers/seo.py::_is_test_slug()` — a focused regex helper that filters product/maker/journal slugs before they enter the sitemap. Patterns are narrow by design (require a signal ONLY test data would plausibly produce — iter digit suffix, hex UUID fragment, explicit `final-test`/`api-test` prefix) so a real listing titled `test-driven-signage` or `iterations-on-oak` is preserved.
+
+**Diagnostics:** `/api/seo/diag` now exposes `test_slugs_stripped` so you can see in real-time how many slugs got filtered per collection.
+
+**Regression guard:** `/app/backend/tests/test_iter94_sitemap_test_slug_filter.py` — 3 tests (catches all 6 prod offenders, preserves 15 real slugs including edge cases like `test-driven-signage`, handles empty/None). All green.
+
+**Preview verified:** Sitemap shrank from 31 → 22 URLs, zero test slugs leak.
+
+---
+
+
 ## 2026-05 — iter93 — Prod Health Watchdog (5-min cron + admin banner) ✅
 
 **Why:** iter92 surfaced a silent prod outage (all `/api/*` returning 502). We only caught it by manually curl-ing. Building a proactive watchdog so the next outage pages ops in ~10 min, not "whenever someone happens to look."

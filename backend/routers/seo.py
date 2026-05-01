@@ -5,6 +5,7 @@ intentionally welcoming to all major web crawlers AND AI crawlers
 (GPTBot, ClaudeBot, PerplexityBot, etc.) — products show up as cited
 results in AI answers, which is free distribution.
 """
+import re
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Request
@@ -13,6 +14,33 @@ from fastapi.responses import PlainTextResponse, Response
 from core import db, site_root
 
 router = APIRouter()
+
+
+# Any slug matching one of these patterns is considered a test/seed
+# artifact and stripped from the sitemap. Google won't crawl it and
+# we won't get dinged for low-quality content in Search Console.
+#
+# These patterns are narrow by design — we'd rather let a test slug
+# slip through occasionally than strip a real listing titled "test-
+# driven-signage" or "iterations-on-oak". Every pattern here must
+# contain a signal that ONLY test/seed data would plausibly produce
+# (iter digit suffix, hex UUID fragment, etc.).
+_TEST_SLUG_PATTERNS: tuple[re.Pattern, ...] = (
+    re.compile(r"^iter\d+[-_]", re.IGNORECASE),              # iter9-*, iter21-*
+    re.compile(r"^final[-_]test($|[-_])", re.IGNORECASE),    # final-test, final-test-*
+    re.compile(r"^api[-_]test($|[-_])", re.IGNORECASE),      # api-test, api-test-*
+    re.compile(r"^test[-_]iter\d", re.IGNORECASE),           # test-iter21-*, TEST_iter68_*
+    re.compile(r"^test[-_](studio|allowed)", re.IGNORECASE), # test-studio, test-allowedstudio-*
+    re.compile(r"[-_]iter\d+[-_]", re.IGNORECASE),           # *-iter21-bg-*, *_iter18_*
+    re.compile(r"[-_](bg|suffix)[-_][a-f0-9]{6,}$", re.IGNORECASE),  # *-bg-ba4bba
+)
+
+
+def _is_test_slug(slug: str) -> bool:
+    """True if a slug looks like a test/seed artifact."""
+    if not slug:
+        return True
+    return any(p.search(slug) for p in _TEST_SLUG_PATTERNS)
 
 
 def _xml_escape(s: str) -> str:
@@ -73,12 +101,16 @@ async def sitemap_xml(http_request: Request):
 
     urls = [_u(p, today, cf, pr) for p, cf, pr in static]
     for p in products:
+        if _is_test_slug(p.get("slug", "")):
+            continue  # strip test/seed listings from the public sitemap
         imgs = [(img, p.get("title") or "") for img in (p.get("images") or [])[:3]]
         urls.append(_u(
             f"/shop/{p['slug']}", p.get("created_at"),
             "weekly", "0.8", imgs,
         ))
     for m in makers:
+        if _is_test_slug(m.get("slug", "")):
+            continue
         cover = m.get("banner_image_url") or m.get("cover")
         imgs = [(cover, m.get("name") or "")] if cover else []
         urls.append(_u(
@@ -86,6 +118,8 @@ async def sitemap_xml(http_request: Request):
             "weekly", "0.7", imgs,
         ))
     for b in posts:
+        if _is_test_slug(b.get("slug", "")):
+            continue
         imgs = [(b["cover"], b.get("title") or "")] if b.get("cover") else []
         urls.append(_u(
             f"/journal/{b['slug']}", b.get("created_at"),
@@ -115,9 +149,19 @@ async def seo_diagnostics(http_request: Request):
     root = site_root(http_request)
     fwd_host = http_request.headers.get("x-forwarded-host") or ""
 
-    products_n = await db.products.count_documents({"deleted_at": None, "status": {"$ne": "draft"}})
-    makers_n = await db.makers.count_documents({})
-    posts_n = await db.blog_posts.count_documents({})
+    products_all = await db.products.find(
+        {"deleted_at": None, "status": {"$ne": "draft"}}, {"_id": 0, "slug": 1},
+    ).to_list(2000)
+    makers_all = await db.makers.find({}, {"_id": 0, "slug": 1}).to_list(2000)
+    posts_all = await db.blog_posts.find({}, {"_id": 0, "slug": 1}).to_list(2000)
+    products_n = sum(1 for p in products_all if not _is_test_slug(p.get("slug", "")))
+    makers_n = sum(1 for m in makers_all if not _is_test_slug(m.get("slug", "")))
+    posts_n = sum(1 for b in posts_all if not _is_test_slug(b.get("slug", "")))
+    stripped = {
+        "products": len(products_all) - products_n,
+        "makers": len(makers_all) - makers_n,
+        "blog_posts": len(posts_all) - posts_n,
+    }
 
     # Flag any inner hostname that looks like a preview/staging URL so
     # the operator sees "leakage" immediately if env vars are misset.
@@ -137,6 +181,7 @@ async def seo_diagnostics(http_request: Request):
             "makers": makers_n,
             "blog_posts": posts_n,
         },
+        "test_slugs_stripped": stripped,
         "checks": {
             "sitemap_endpoint": f"{root}/api/sitemap.xml",
             "robots_endpoint":  f"{root}/api/robots.txt",
