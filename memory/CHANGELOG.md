@@ -1,5 +1,25 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05 — iter108 — One-click crawler-preview dropdown in admin Listings tab ✅
+
+**Why:** iter107 shipped the OG prerender routes, but verifying any specific listing's social preview meant copy-pasting the slug into Facebook's Sharing Debugger / LinkedIn's Post Inspector / Twitter's Card Validator by hand. ~30s of friction per spot-check, every time. Now: one click per listing, four deep-links, zero copy-paste.
+
+**What:**
+- New `CrawlerPreviewMenu` component inline in `ListingsTab.jsx`, rendered as a small `↗ Preview` button per row. Native `<details>` / `<summary>` toggle (no extra state, no click-outside handler needed). On open, drops a 4-link menu:
+  1. ◆ View OG card → opens `/api/og/product/<slug>` directly (sanity-check raw HTML)
+  2. ◆ Facebook debugger → `developers.facebook.com/tools/debug/?q=<encoded-og-url>`
+  3. ◆ LinkedIn inspector → `linkedin.com/post-inspector/inspect/<encoded-og-url>`
+  4. ◆ Twitter / X validator → `cards-dev.twitter.com/validator?url=<encoded-og-url>`
+- All four targets receive the canonical apex URL (`https://craftersmarket.org/api/og/product/<slug>`) — never the preview pod, which would just time out the validators.
+- Stable testids: `listing-preview-{slug}`, `listing-preview-toggle-{slug}`, `listing-preview-menu-{slug}`, plus per-link testids (`-og-`, `-fb-`, `-li-`, `-tw-`).
+
+**Verified live:** Magic-link signed in as `team@craftersmarket.org`, landed on the Listings tab, all 10 visible products rendered with `↗ Preview`. Opened the first row's dropdown — all 4 links present and visible, FB href confirmed as `https://developers.facebook.com/tools/debug/?q=https%3A%2F%2Fcraftersmarket.org%2Fapi%2Fog%2Fproduct%2Facrylic-kraken-keychain-…`. Visual + DOM-level confirmation in one screenshot.
+
+**Lint clean.** Pure frontend addition — no backend or test churn needed.
+
+---
+
+
 ## 2026-05 — iter107 — Server-side OG prerender for crawlers (Facebook/LinkedIn/Discord/Pinterest) ✅
 
 **Why:** When a maker pasted a product link into Slack, Pinterest, Discord, or LinkedIn, the crawler hit `/shop/<slug>`, got the SPA shell, and rendered the *generic homepage card* every time. No per-product image. No per-product title. No per-product price. Every share looked identical, every share was a missed conversion.

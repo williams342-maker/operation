@@ -1,6 +1,62 @@
 import React, { useEffect, useState } from "react";
 import { fetchProducts, adminPatchProduct, adminDeleteProduct } from "../../lib/api";
 
+// iter108 — One-click OG preview affordance per listing. Operators
+// hover/click "↗ Preview" → native <details> drops down 4 deep-links
+// straight into the maker's product OG card and the 3 major social
+// debuggers. Saves 30s of copy-pasting URLs into validators every
+// time we want to spot-check a listing's social preview.
+function ogTargets(slug) {
+  // Resolve the canonical apex once — every debugger needs a publicly
+  // reachable URL, NOT the preview pod, or the validator just times out.
+  const SITE = "https://craftersmarket.org";
+  const og = `${SITE}/api/og/product/${slug}`;
+  const enc = encodeURIComponent(og);
+  return {
+    og,
+    facebook: `https://developers.facebook.com/tools/debug/?q=${enc}`,
+    linkedin: `https://www.linkedin.com/post-inspector/inspect/${enc}`,
+    twitter:  `https://cards-dev.twitter.com/validator?url=${enc}`,
+  };
+}
+
+function CrawlerPreviewMenu({ slug }) {
+  const t = ogTargets(slug);
+  const linkCls =
+    "block px-3 py-2 font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] hover:bg-[#1a1a1a] transition";
+  return (
+    <details className="relative" data-testid={`listing-preview-${slug}`}>
+      <summary
+        className="list-none cursor-pointer px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.22em] border border-[#262626] text-[#a3a3a3] hover:border-[#ff4500] hover:text-[#ff4500] transition"
+        data-testid={`listing-preview-toggle-${slug}`}
+      >
+        ↗ Preview
+      </summary>
+      <div
+        className="absolute right-0 mt-1 z-20 min-w-[220px] border border-[#262626] bg-[#0a0a0a] shadow-xl"
+        data-testid={`listing-preview-menu-${slug}`}
+      >
+        <a href={t.og} target="_blank" rel="noopener noreferrer" className={linkCls}
+           data-testid={`listing-preview-og-${slug}`}>
+          ◆ View OG card →
+        </a>
+        <a href={t.facebook} target="_blank" rel="noopener noreferrer" className={linkCls}
+           data-testid={`listing-preview-fb-${slug}`}>
+          ◆ Facebook debugger →
+        </a>
+        <a href={t.linkedin} target="_blank" rel="noopener noreferrer" className={linkCls}
+           data-testid={`listing-preview-li-${slug}`}>
+          ◆ LinkedIn inspector →
+        </a>
+        <a href={t.twitter} target="_blank" rel="noopener noreferrer" className={linkCls}
+           data-testid={`listing-preview-tw-${slug}`}>
+          ◆ Twitter / X validator →
+        </a>
+      </div>
+    </details>
+  );
+}
+
 // ===================== LISTINGS =====================
 export default function ListingsTab() {
   const [products, setProducts] = useState([]);
@@ -59,6 +115,7 @@ function ListingRow({ p, onChange }) {
         >
           {p.featured ? "★ Featured" : "☆ Feature"}
         </button>
+        <CrawlerPreviewMenu slug={p.slug} />
         <div className="flex items-center gap-2">
           <input
             type="number"

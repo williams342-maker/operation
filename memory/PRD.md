@@ -75,6 +75,7 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - ✅ Webhook deep-links jump operator to the highlighted admin row (iter105)
 - ✅ Webhook deep-links survive magic-link sign-in round-trip (iter106)
 - ✅ Server-side OG prerender routes for crawlers (iter107)
+- ✅ One-click crawler-preview dropdown in admin Listings tab (iter108)
 
 ## Next Action Items
 - 🟡 **P3 — "It's live" launch button** on Coming Soon admin tab — auto-emails the waitlist when admin flips the switch.
