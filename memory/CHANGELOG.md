@@ -1,5 +1,25 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05 — iter92 — Sitemap preview-URL leak: hardened site_root() ✅
+
+**Context:** After a production redeploy, `https://craftersmarket.org/api/sitemap.xml` was emitting `https://active-project-4.preview.emergentagent.com/...` URLs — a hard SEO liability (Google would index the preview domain and 301-penalty us on flip).
+
+**Root cause:** `site_root()` in `core.py` preferred `PUBLIC_BACKEND_URL` env var unconditionally. On Emergent deploys the `.env` file is shipped as-is, so prod pods ended up with `PUBLIC_BACKEND_URL=<preview URL>`. Preview-marker filtering was only applied to the `x-forwarded-host` header, not to the env vars.
+
+**Fix:**
+- Extracted `_looks_like_preview(origin)` helper with an expanded marker list (`emergentagent.com`, `emergent.host`, `vercel.app`, `onrender.com`, `preview.`, `staging.`, `localhost`, `127.0.0.1`).
+- `site_root()` now runs EVERY candidate (PUBLIC_SITE_URL → PUBLIC_BACKEND_URL → forwarded-host) through the preview check; falls back to hard-coded `https://craftersmarket.org` if all are preview.
+- Extracted `_CANONICAL_SITE_ROOT` constant so there's one place to update the apex.
+
+**Regression guard:** `/app/backend/tests/test_iter92_sitemap_preview_guard.py` (4 tests, all green) — enforces that preview URLs can never slip through even with misconfigured env vars.
+
+**Files touched:** `/app/backend/core.py`, `/app/backend/tests/test_iter92_sitemap_preview_guard.py` (new).
+
+**Operator action after merge:** Redeploy prod → purge Cloudflare cache for `/api/sitemap.xml` + `/sitemap.xml` → resubmit sitemap in Google Search Console.
+
+---
+
+
 ## 2026-02 — iter90 — Admin design-file delete + ⌘+K command palette ✅
 
 **Two shipped today:**

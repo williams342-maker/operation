@@ -80,31 +80,55 @@ def public_host(http_request: Request) -> str:
     return str(http_request.base_url).rstrip("/")
 
 
+# Preview / staging / localhost host markers. Any URL containing one of
+# these tokens is considered non-canonical and MUST NOT appear in the
+# sitemap — otherwise Google will index the preview domain and create
+# duplicate-content penalties when we later flip to prod.
+_PREVIEW_HOST_MARKERS: tuple[str, ...] = (
+    "emergentagent.com",
+    "emergent.host",
+    "vercel.app",
+    "onrender.com",
+    "preview.",
+    "staging.",
+    "localhost",
+    "127.0.0.1",
+)
+
+# Hard-coded canonical prod hostname. Final safety net when every other
+# source of truth looks like a preview domain.
+_CANONICAL_SITE_ROOT = "https://craftersmarket.org"
+
+
+def _looks_like_preview(origin: str) -> bool:
+    """True if `origin` contains any known preview/staging host marker."""
+    if not origin:
+        return True
+    lower = origin.lower()
+    return any(m in lower for m in _PREVIEW_HOST_MARKERS)
+
+
 def site_root(http_request: Request) -> str:
     """Public site origin for canonical URLs in the sitemap.
 
-    Preference order:
+    Preference order (first non-preview match wins):
       1. `PUBLIC_SITE_URL` env var (explicit operator intent).
-      2. `PUBLIC_BACKEND_URL` env var (backend origin — usually the same
-         hostname as the site in single-domain deployments).
-      3. Forwarded host header — BUT only if it doesn't look like a
-         preview / staging domain (e.g. *.emergentagent.com, *.vercel.app).
-         We never want to emit preview URLs in an SEO sitemap because
-         search engines will index them and create duplicate-content / 301
-         penalties when we later flip to prod.
+      2. `PUBLIC_BACKEND_URL` env var — only if it is NOT a preview URL.
+         (On some deploys this var is pre-populated with the preview URL
+         at build time; we must not blindly trust it.)
+      3. Forwarded host header — only if it doesn't look like a preview.
       4. Hard-coded prod hostname (`https://craftersmarket.org`).
     """
-    if PUBLIC_SITE_URL:
+    # 1. Explicit operator intent always wins, but still validate.
+    if PUBLIC_SITE_URL and not _looks_like_preview(PUBLIC_SITE_URL):
         return PUBLIC_SITE_URL
-    if PUBLIC_BACKEND_URL:
+    # 2. Backend URL env var — skip if it smells like preview.
+    if PUBLIC_BACKEND_URL and not _looks_like_preview(PUBLIC_BACKEND_URL):
         return PUBLIC_BACKEND_URL
+    # 3. Forwarded host header.
     fwd_host = http_request.headers.get("x-forwarded-host") or ""
     fwd_proto = http_request.headers.get("x-forwarded-proto", "https")
-    preview_markers = (
-        "emergentagent.com", "vercel.app", "onrender.com",
-        "preview.", "staging.", "localhost",
-    )
-    if fwd_host and not any(m in fwd_host for m in preview_markers):
+    if fwd_host and not _looks_like_preview(fwd_host):
         return f"{fwd_proto}://{fwd_host}"
-    # Safety net: never let search engines discover preview URLs.
-    return "https://craftersmarket.org"
+    # 4. Safety net: never let search engines discover preview URLs.
+    return _CANONICAL_SITE_ROOT
