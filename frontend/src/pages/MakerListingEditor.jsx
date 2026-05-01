@@ -151,6 +151,11 @@ export default function MakerListingEditor() {
   // index instead of appending. Used by the per-tile re-crop button.
   const [cropTargetIdx, setCropTargetIdx] = useState(null);
   const [seoBusy, setSeoBusy] = useState(false);
+  // AI tag review buffer — array of { tag, kept } objects shown after AI
+  // suggestions are returned but BEFORE they're committed to form.seo_tags.
+  // Lets the maker un-check filler tags so the 13-slot budget isn't wasted
+  // on weak suggestions.
+  const [aiTagReview, setAiTagReview] = useState([]);
 
   const onPickPhotos = async (e) => {
     const files = Array.from(e.target.files || []);
@@ -323,14 +328,57 @@ export default function MakerListingEditor() {
         category: form.category,
         existing_tags: form.seo_tags,
       });
-      const merged = Array.from(new Set([...(form.seo_tags || []), ...(r.tags || [])])).slice(0, MAX_TAGS);
-      set({ seo_tags: merged });
-      toast.success(`Added ${merged.length - (form.seo_tags?.length || 0)} new SEO tag${merged.length === 1 ? "" : "s"}.`);
+      // Open the review tray instead of merging directly. Drops anything
+      // that's already in seo_tags (would be a no-op anyway).
+      const fresh = (r.tags || [])
+        .map((t) => (t || "").trim().toLowerCase())
+        .filter((t) => t && !form.seo_tags.includes(t));
+      const slotsLeft = MAX_TAGS - form.seo_tags.length;
+      if (!fresh.length) {
+        toast.message("No new tag suggestions — your existing tags already cover the topic.");
+      } else {
+        // Pre-check the first `slotsLeft` items; the rest start unchecked
+        // so the user has to actively make room for them.
+        setAiTagReview(
+          fresh.map((t, idx) => ({ tag: t, kept: idx < slotsLeft })),
+        );
+        toast.success(
+          `${fresh.length} suggestion${fresh.length === 1 ? "" : "s"} ready — review below before applying.`,
+        );
+      }
     } catch (err) {
       toast.error(err?.response?.data?.detail || "AI tag generation failed.");
     } finally {
       setSeoBusy(false);
     }
+  };
+
+  const toggleAiTag = (tag) => {
+    setAiTagReview((rows) => rows.map((r) => r.tag === tag ? { ...r, kept: !r.kept } : r));
+  };
+  const applyAiTagReview = () => {
+    const kept = aiTagReview.filter((r) => r.kept).map((r) => r.tag);
+    if (!kept.length) {
+      toast.error("Tick at least one tag to apply, or click Discard.");
+      return;
+    }
+    const slots = MAX_TAGS - form.seo_tags.length;
+    const truncated = kept.slice(0, slots);
+    const merged = Array.from(new Set([...(form.seo_tags || []), ...truncated])).slice(0, MAX_TAGS);
+    const added = merged.length - (form.seo_tags?.length || 0);
+    set({ seo_tags: merged });
+    setAiTagReview([]);
+    if (kept.length > slots) {
+      toast.warning(
+        `Added ${added} tag${added === 1 ? "" : "s"} (${kept.length - slots} skipped — limit reached).`,
+      );
+    } else {
+      toast.success(`Added ${added} tag${added === 1 ? "" : "s"} to your listing.`);
+    }
+  };
+  const discardAiTagReview = () => {
+    setAiTagReview([]);
+    toast.message("AI suggestions discarded.");
   };
 
   // ---- Tags ----
@@ -943,6 +991,69 @@ export default function MakerListingEditor() {
           <p className="font-mono text-[10px] text-[#525252] -mt-2 mb-4">
             ◆ Uses your current title, category, and description. Won't duplicate tags you've already added.
           </p>
+          {aiTagReview.length > 0 && (
+            <div
+              className="border border-[#ff4500]/50 bg-[#ff4500]/5 p-4 mb-4 space-y-3"
+              data-testid="ai-tag-review"
+            >
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div>
+                  <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">
+                    ✦ Review AI suggestions
+                  </div>
+                  <p className="font-mono text-[11px] text-[#a3a3a3] mt-1 leading-relaxed">
+                    Tick the ones that fit your listing — only checked tags get added. {(() => {
+                      const kept = aiTagReview.filter((r) => r.kept).length;
+                      const slots = MAX_TAGS - form.seo_tags.length;
+                      return (
+                        <span className={kept > slots ? "text-amber-400" : "text-[#525252]"}>
+                          {kept} selected · {slots} slot{slots === 1 ? "" : "s"} available
+                          {kept > slots && " — only the first " + slots + " will be applied"}
+                        </span>
+                      );
+                    })()}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={discardAiTagReview}
+                    className="px-3 py-1.5 border border-[#262626] hover:border-[#a3a3a3] font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#e5e5e5]"
+                    data-testid="ai-tag-review-discard"
+                  >
+                    Discard
+                  </button>
+                  <button
+                    type="button"
+                    onClick={applyAiTagReview}
+                    className="px-3 py-1.5 border border-[#ff4500] bg-[#ff4500]/10 hover:bg-[#ff4500]/20 font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]"
+                    data-testid="ai-tag-review-apply"
+                  >
+                    Apply selected →
+                  </button>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2" data-testid="ai-tag-review-list">
+                {aiTagReview.map((row) => (
+                  <button
+                    key={row.tag}
+                    type="button"
+                    onClick={() => toggleAiTag(row.tag)}
+                    data-testid={`ai-tag-${row.tag}`}
+                    className={`inline-flex items-center gap-2 px-3 py-1.5 border font-mono text-[11px] transition ${
+                      row.kept
+                        ? "border-[#ff4500] bg-[#ff4500]/15 text-[#ff4500]"
+                        : "border-[#262626] text-[#525252] line-through hover:text-[#a3a3a3]"
+                    }`}
+                    aria-pressed={row.kept}
+                  >
+                    <span className="text-[10px]">{row.kept ? "✓" : "○"}</span>
+                    {row.tag}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           {form.seo_tags.length >= MAX_TAGS && (
             <div
               className="flex items-start gap-2 px-3 py-2.5 mb-3 border border-amber-500/50 bg-amber-500/10"

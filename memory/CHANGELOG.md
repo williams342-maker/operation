@@ -1,5 +1,22 @@
 # Crafters Market — CHANGELOG
 
+## 2026-02 — iter87 — AI tag review tray (keep / drop before commit) ✅
+
+**Problem:** Clicking "✦ AI suggest tags" silently merged every AI-generated tag into the listing. AI commonly fills all 13 slots with a 60/40 mix of gold + filler, which crowds out tags the maker wanted to add manually.
+
+**Fix:** Suggestions now land in a **review tray** above the SEO chips section. Each tag renders as a toggleable chip:
+- ✓ Pre-checked tags (filled orange) will be added on Apply
+- ○ Unchecked tags (line-through, dim) are skipped
+- Live counter: "X selected · Y slots available" — turns amber if you've ticked more than will fit
+- **Discard** clears the tray; **Apply selected →** commits
+
+If the maker already has 13 tags when AI runs, no review tray opens (the existing limit-banner takes over). If AI returns nothing new (everything already in tags), a soft toast acknowledges no work needed instead of silently doing nothing.
+
+If the maker selects more tags than slots remain (e.g. 9 selected but only 6 slots free), only the first 6 are applied and a `toast.warning` reports how many were skipped.
+
+Files: `frontend/src/pages/MakerListingEditor.jsx` only.
+
+
 ## 2026-02 — iter86 — SEO tag limit · loud "you hit 13/13" feedback ✅
 
 User report: "AI is automatically generating 13/13 tags but when you type your own you can still hit Add — possibly add pop-up saying you have reached maximum limit of tags."
