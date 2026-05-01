@@ -1,5 +1,24 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05 — iter96 — Updates digest growth flywheel ✅
+
+**Why:** /updates is a great trust-builder, but visitors leave and never come back. Capturing email turns every shipped feature into an automated re-engagement nudge.
+
+**What:**
+- New collection `update_subscribers` (email, name?, subscribed_at, unsubscribe_token, unsubscribed_at, joined_at_iter).
+- `POST /api/updates/subscribe` — idempotent, EmailStr validated, snapshots current latest iter so new subscribers don't get blasted with backlog.
+- `GET /api/updates/unsubscribe?token=...` — one-click HTML page with brand-matched "Got It. You're Out." typography. Always 200 (handles invalid/already-removed tokens gracefully).
+- Daily cron `updates_digest@cron[hour='9', minute='0']` reads CHANGELOG.md, compares latest iter to `system_state.updates_digest.last_dispatched_iter`. If new entries exist → emails every active subscriber whose `joined_at_iter` is older than each entry. Pointer advances after dispatch.
+- `email_service.send_updates_digest()` — orange-spine HTML template with up to 8 entries, "See full timeline →" CTA, and footer unsubscribe link.
+- Frontend: `SubscribeCard` component on `/updates` between header and timeline (Name optional, Email required). Success state shows confirmation card; errors render inline.
+
+**Regression guard:** `tests/test_iter96_updates_digest.py` — 11 tests covering iter comparison (digit-suffix safe), entries_since math (no pointer / mid-list / unknown pointer), subscribe idempotency + reactivation, email validation, dispatch no-op when nothing new, dispatch advances pointer + skips fresh joiners. All green.
+
+**Verified end-to-end:** Browser test confirms subscribe form → success card; unsubscribe page renders with brand styling. Backend tests prove the dispatch logic + idempotency.
+
+---
+
+
 ## 2026-05 — iter95 — Public "What's New" page (auto-refreshes per redeploy) ✅
 
 **Why:** Users have no visibility into the constant stream of improvements shipping behind the scenes. A public "what's new" page builds trust ("they're actively shipping"), surfaces recent fixes for users to validate, and creates a soft re-engagement loop.

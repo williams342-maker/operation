@@ -299,6 +299,22 @@ async def _job_prod_health_watchdog() -> None:
         logger.exception("[scheduler] prod_health_watchdog failed: %s", e)
 
 
+async def _job_updates_digest() -> None:
+    """Daily 09:00 UTC — detect new CHANGELOG entries since the last
+    dispatch and email every active subscriber on /updates. No-op when
+    nothing is new. See /app/backend/updates_digest.py for full logic."""
+    try:
+        from updates_digest import run_digest_dispatch
+        r = await run_digest_dispatch()
+        if r.get("new_entries"):
+            logger.info(
+                "[scheduler] updates_digest new=%d sent=%d failed=%d",
+                r["new_entries"], r.get("sent", 0), r.get("failed", 0),
+            )
+    except Exception as e:
+        logger.exception("[scheduler] updates_digest failed: %s", e)
+
+
 def start_scheduler() -> AsyncIOScheduler | None:
     """Boot the scheduler if SCHEDULER_ENABLED isn't 'false'."""
     global _scheduler
@@ -347,6 +363,12 @@ def start_scheduler() -> AsyncIOScheduler | None:
     # Self-skips when running ON the prod host (would be circular).
     sched.add_job(_job_prod_health_watchdog, CronTrigger(minute="*/5"),
                   id="prod_health_watchdog", replace_existing=True)
+    # Updates digest — once daily at 09:00 UTC. No-op when no new
+    # CHANGELOG entries since last dispatch. Re-engagement nudge for
+    # /updates subscribers; bumps DAU and re-surfaces shipped features.
+    sched.add_job(_job_updates_digest,
+                  CronTrigger(hour=9, minute=0),
+                  id="updates_digest", replace_existing=True)
     sched.start()
     _scheduler = sched
     logger.info(

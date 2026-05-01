@@ -421,6 +421,10 @@ export const fetchAdminProdHealth = () =>
 export const adminProdHealthCheckNow = () =>
   http.post("/admin/prod-health/check-now", {}, { headers: adminAuthHeaders() }).then((r) => r.data);
 
+// ---------- Updates digest subscription (iter96) ----------
+export const subscribeToUpdates = (email, name) =>
+  http.post("/updates/subscribe", { email, name }).then((r) => r.data);
+
 // ---------- Public Contact form + admin inbox ----------
 export const sendContactMessage = (payload) =>
   http.post("/contact-messages", payload).then((r) => r.data);

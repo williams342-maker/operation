@@ -1716,3 +1716,43 @@ async def send_ops_prod_recovery(*, endpoint: str, downtime_minutes: int):
     )
     html = _shell("Prod Restored.", f"Endpoint {endpoint} is responding normally.", body, "Watchdog · ops")
     return await _send(OPS_EMAIL, f"[Crafters Market] ✅ Prod recovered: {endpoint}", html)
+
+
+# ------------------------------------------------------------------
+# Updates digest (iter96) — fired by the daily cron in
+# updates_digest.py whenever new CHANGELOG entries are detected.
+# ------------------------------------------------------------------
+async def send_updates_digest(*, email: str, name: str, entries: list, unsubscribe_token: str):
+    site = (os.environ.get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
+    if site.lower().endswith(".emergentagent.com") or "preview." in site.lower():
+        site = "https://craftersmarket.org"  # belt-and-suspenders
+    unsub = f"{site}/api/updates/unsubscribe?token={unsubscribe_token}"
+    greeting = f"Hey {name}," if name else "Hey,"
+    items = []
+    for e in entries[:8]:
+        title = (e.get("title") or "").strip()
+        blurb = (e.get("blurb") or "").strip()
+        items.append(
+            "<div style='border-left:2px solid #ff4500;padding:4px 0 4px 14px;margin:0 0 18px'>"
+            f"<div style='font-size:11px;letter-spacing:0.22em;color:#ff4500;text-transform:uppercase;margin-bottom:4px'>◆ {e.get('date','')}</div>"
+            f"<div style='font-size:17px;color:#e5e5e5;font-weight:700;margin-bottom:6px'>{title}</div>"
+            + (f"<div style='font-size:13px;color:#a3a3a3;line-height:1.55'>{blurb}</div>" if blurb else "")
+            + "</div>"
+        )
+    n = len(entries)
+    headline = "1 new update" if n == 1 else f"{n} new updates"
+    body = (
+        f"<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 22px'>{greeting}</p>"
+        f"<p style='font-size:14px;color:#a3a3a3;line-height:1.6;margin:0 0 26px'>"
+        f"Here's what shipped on Crafters Market since you last heard from us — "
+        f"<b style='color:#e5e5e5'>{headline}</b>.</p>"
+        + "".join(items)
+        + f"<div style='text-align:center;margin:36px 0 10px'>"
+        f"<a href='{site}/updates' style='display:inline-block;background:#ff4500;color:#0a0a0a;text-decoration:none;font-weight:700;padding:14px 24px;font-size:13px;letter-spacing:0.15em;text-transform:uppercase'>See the full timeline →</a>"
+        "</div>"
+        f"<p style='font-size:11px;color:#525252;line-height:1.55;margin:30px 0 0;text-align:center'>"
+        f"You're getting this because you subscribed at {site}/updates. "
+        f"<a href='{unsub}' style='color:#525252;text-decoration:underline'>Unsubscribe</a>.</p>"
+    )
+    html = _shell("New on Crafters Market.", f"{n} update{'s' if n != 1 else ''} since you last heard from us.", body, "Updates digest")
+    return await _send(email, f"[Crafters Market] {headline} — {entries[0].get('title','')}"[:120], html)

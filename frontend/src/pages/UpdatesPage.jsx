@@ -9,9 +9,10 @@
  */
 import React, { useEffect, useState } from "react";
 import axios from "axios";
-import { Sparkles, RefreshCw, ArrowRight } from "lucide-react";
+import { Sparkles, RefreshCw, ArrowRight, Mail, CheckCircle2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useStructuredData } from "../lib/seo";
+import { subscribeToUpdates } from "../lib/api";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -74,6 +75,10 @@ export default function UpdatesPage() {
             </div>
           )}
         </div>
+
+        {/* Subscribe — capture email so each future redeploy with a new
+            CHANGELOG entry triggers a digest. Idempotent on backend. */}
+        <SubscribeCard />
 
         {loading && (
           <div className="font-mono text-xs text-[#525252]" data-testid="updates-loading">Loading…</div>
@@ -155,6 +160,103 @@ export default function UpdatesPage() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// -------------------- subscribe card --------------------
+function SubscribeCard() {
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+  const [err, setErr] = useState("");
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (busy) return;
+    setBusy(true);
+    setErr("");
+    try {
+      const r = await subscribeToUpdates(email.trim(), name.trim() || null);
+      if (r?.ok) setDone(true);
+      else setErr("That doesn't look like a valid email.");
+    } catch (e2) {
+      setErr(e2?.response?.data?.detail || "Couldn't subscribe. Try again in a moment.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (done) {
+    return (
+      <div
+        className="mb-16 border border-[#ff4500]/40 bg-gradient-to-br from-[#1a0a05] to-[#0f0f0f] p-6 md:p-8 flex items-center gap-4"
+        data-testid="updates-subscribe-success"
+      >
+        <CheckCircle2 size={28} className="text-[#ff4500] shrink-0" />
+        <div>
+          <div className="font-display text-xl uppercase leading-tight mb-1">You're on the list.</div>
+          <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed">
+            We'll only email you when something new ships. No filler. Unsubscribe in one click any time.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="mb-16 border border-[#262626] bg-[#0f0f0f] p-6 md:p-8"
+      data-testid="updates-subscribe-card"
+    >
+      <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.32em] text-[#ff4500] mb-3">
+        <Mail size={12} /> Stay in the loop
+      </div>
+      <h3 className="font-display text-2xl md:text-3xl uppercase leading-tight mb-2">
+        Get an email when we ship something new.
+      </h3>
+      <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed mb-5 max-w-xl">
+        One short digest only when there's a real update. No marketing. One-click unsubscribe.
+      </p>
+      <form onSubmit={submit} className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3" data-testid="updates-subscribe-form">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <input
+            type="text"
+            placeholder="Name (optional)"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            disabled={busy}
+            maxLength={120}
+            className="bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-4 py-3 font-mono text-sm text-[#e5e5e5] placeholder:text-[#525252]"
+            data-testid="updates-subscribe-name"
+          />
+          <input
+            type="email"
+            placeholder="you@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            disabled={busy}
+            maxLength={200}
+            className="bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-4 py-3 font-mono text-sm text-[#e5e5e5] placeholder:text-[#525252]"
+            data-testid="updates-subscribe-email"
+          />
+        </div>
+        <button
+          type="submit"
+          disabled={busy || !email.trim()}
+          className="btn-industrial btn-primary inline-flex items-center justify-center gap-2 disabled:opacity-50"
+          data-testid="updates-subscribe-submit"
+        >
+          {busy ? "Subscribing…" : "Subscribe"} <ArrowRight size={14} />
+        </button>
+      </form>
+      {err && (
+        <div className="mt-3 font-mono text-[11px] text-red-400" data-testid="updates-subscribe-error">
+          {err}
+        </div>
+      )}
     </div>
   );
 }

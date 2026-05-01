@@ -9,12 +9,15 @@ entry as: title (translated to plain English), date, short blurb.
 """
 from __future__ import annotations
 
+import os
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Body
+from fastapi.responses import RedirectResponse, HTMLResponse
+from pydantic import BaseModel, EmailStr
 
 from core import logger
 
@@ -152,3 +155,57 @@ async def public_updates(limit: int = DEFAULT_LIMIT):
         "count": len(entries),
         "entries": entries,
     }
+
+
+# ============================================================
+# Subscription endpoints — capture emails on the /updates page
+# and let users 1-click unsubscribe from any digest email.
+# ============================================================
+class _SubscribeBody(BaseModel):
+    email: EmailStr
+    name: Optional[str] = None
+
+
+@router.post("/updates/subscribe")
+async def subscribe_to_updates(body: _SubscribeBody):
+    """Idempotent: same email twice = no-op. Returns ok=True either way
+    so we don't leak whether an address is already on the list."""
+    from updates_digest import subscribe
+    res = await subscribe(str(body.email), body.name)
+    if not res.get("ok"):
+        return {"ok": False, "error": res.get("error", "unknown")}
+    return {"ok": True}
+
+
+@router.get("/updates/unsubscribe")
+async def unsubscribe_from_updates(token: str = ""):
+    """One-click unsubscribe link from digest emails. Always returns a
+    friendly HTML page (not JSON) because email clients open the link
+    directly in a browser."""
+    from updates_digest import unsubscribe
+    res = await unsubscribe(token)
+    msg = "You're unsubscribed from Crafters Market updates." if res.get("ok") and res.get("found") \
+        else "We couldn't find that subscription — it may have already been removed."
+    site = (os.environ.get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
+    if "preview." in site or site.endswith(".emergentagent.com"):
+        site = "https://craftersmarket.org"
+    html = (
+        "<!doctype html><html><head><meta charset='utf-8'>"
+        "<title>Unsubscribed · Crafters Market</title>"
+        "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+        "<style>body{margin:0;background:#0a0a0a;color:#e5e5e5;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;}"
+        ".wrap{max-width:560px;margin:0 auto;padding:120px 24px;text-align:center}"
+        "h1{font-family:'Impact','Anton',sans-serif;font-size:64px;letter-spacing:-0.02em;line-height:0.95;margin:0 0 28px;text-transform:uppercase}"
+        "h1 span{color:#ff4500}"
+        "p{font-size:13px;color:#a3a3a3;line-height:1.7;margin:0 0 32px}"
+        "a{display:inline-block;padding:14px 24px;background:#ff4500;color:#0a0a0a;text-decoration:none;font-weight:700;font-size:12px;letter-spacing:0.15em;text-transform:uppercase}"
+        ".chip{font-size:10px;letter-spacing:0.32em;color:#ff4500;text-transform:uppercase;margin-bottom:18px}"
+        "</style></head><body>"
+        "<div class='wrap'>"
+        "<div class='chip'>◆ Crafters Market</div>"
+        f"<h1>Got it.<br/><span>You're out.</span></h1>"
+        f"<p>{msg}</p>"
+        f"<a href='{site}'>Back to the site →</a>"
+        "</div></body></html>"
+    )
+    return HTMLResponse(content=html)
