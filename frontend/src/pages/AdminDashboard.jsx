@@ -76,6 +76,12 @@ export default function AdminDashboard() {
   // banner. Opens the same RotatePasswordModal in dismissible mode.
   const [voluntaryRotate, setVoluntaryRotate] = useState(false);
 
+  // Reset scroll to top whenever the active tab changes — keeps tab
+  // switches from landing the admin mid-page on the new section.
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [tab]);
+
   const logout = () => {
     localStorage.removeItem("cm_admin_jwt");
     navigate("/admin/login", { replace: true });

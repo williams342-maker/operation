@@ -106,6 +106,13 @@ export default function MakerDashboard() {
   }, []);
   const changeTab = (id) => { window.location.hash = id; setTab(id); };
 
+  // Reset scroll to top whenever the active tab changes — otherwise
+  // switching from a long Dashboard scroll into Listings/Orders keeps
+  // the previous scroll offset and lands buyers mid-page.
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [tab]);
+
   // The Dashboard tab's "Edit shop" checklist CTA dispatches this event
   // instead of routing to a tab — opens the same profile drawer the
   // top-bar "Edit Shop" button uses.

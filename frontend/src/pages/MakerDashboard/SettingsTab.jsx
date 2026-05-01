@@ -65,6 +65,12 @@ export default function SettingsTab({ maker = {}, onMakerUpdated, onTabChange, i
   }, [initialSection]);
   const active = SECTIONS.find((s) => s.id === section) || SECTIONS[0];
 
+  // Reset scroll on settings sub-section change — same UX fix as the
+  // outer Maker Dashboard tabs.
+  React.useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [section]);
+
   // When a deep-link section is selected, route to that tab and don't
   // mount any form below — keeps the URL accurate.
   const handlePick = (s) => {
