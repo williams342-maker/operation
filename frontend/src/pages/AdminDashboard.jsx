@@ -21,6 +21,8 @@ import DesignFileReportsTab from "../components/admin/DesignFileReportsTab";
 import DesignFilesTab from "../components/admin/DesignFilesTab";
 import AdminCommandPalette from "../components/admin/AdminCommandPalette";
 import ReviewDisputesTab from "../components/admin/ReviewDisputesTab";
+import ProdHealthTab from "../components/admin/ProdHealthTab";
+import ProdHealthBanner from "../components/admin/ProdHealthBanner";
 import CustomOrdersList from "../components/admin/CustomOrdersList";
 import PaidOrdersList from "../components/admin/PaidOrdersList";
 import ListingsTab from "../components/admin/ListingsTab";
