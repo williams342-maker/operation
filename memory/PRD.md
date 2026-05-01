@@ -72,6 +72,7 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - ✅ Contact form follow-up email on resolve (iter102)
 - ✅ Welcome emails on /updates and /coming-soon waitlist signups (iter103)
 - ✅ Slack/Discord webhooks for Beta Feedback / Contact / Prod Outages (iter104)
+- ✅ Webhook deep-links jump operator to the highlighted admin row (iter105)
 
 ## Next Action Items
 - 🟠 **P1 — Dynamic OG-prerender route** for non-JS crawlers (Facebook/LinkedIn/Discord) so product cards render specifically.

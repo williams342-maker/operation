@@ -1,5 +1,24 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05 — iter105 — Webhook deep-links jump operator straight to the row ✅
+
+**Why:** iter104 Slack/Discord webhooks all linked back to `/admin/dashboard` generically — operator still had to click through to the right tab, scroll, and visually scan for the new item. Now one click drops them on the exact row, pulse-highlighted.
+
+**What:**
+- Backend: every `notify_team` call now passes a tab-aware deep-link.
+  - Beta feedback → `/admin/dashboard?tab=feedback&open=<id>`
+  - Contact message → `/admin/dashboard?tab=contact&open=<id>`
+  - Outage / recovery → `/admin/dashboard?tab=prod-health` (endpoint-level, no row id)
+- Frontend (`AdminDashboard.jsx`):
+  - Lazy `useState` initializer reads `?tab=` from URL on mount and switches the active tab without a flash of the default "applications" tab. Whitelist-validates against the known TAB ids so a malformed link can't break the page.
+  - Effect polls for the row's stable `data-testid` (`feedback-row-<id>` / `contact-row-<id>`) up to 12 times at 250ms intervals (rows load async after auth/fetch). On hit: `scrollIntoView({behavior: smooth, block: center})` + adds `.admin-deeplink-pulse` class for a 2.4s orange glow, then strips `?open=` from the URL so a refresh doesn't re-pulse the same row.
+  - New `@keyframes admin-deeplink-glow` in `index.css` — 2-color pulse (`#ff4500`-tinted background + inset 1px ring), `scroll-margin-top: 96px` so the row clears the sticky tab rail.
+
+**Regression guard:** `tests/test_iter105_webhook_deeplinks.py` — 4 tests verifying the `link` field of every `notify_team` call carries the right `?tab=…&open=<id>` shape across all 4 call sites (feedback, contact, outage, recovery). All green. JSX lint clean. Live screenshot confirms `/admin/dashboard?tab=feedback&open=…` renders without JS error (gates to /admin/login when unauth, as expected).
+
+---
+
+
 ## 2026-05 — iter104 — Slack/Discord webhooks for Beta Feedback, Contact, Prod Outage ✅
 
 **Why:** Until now the team only learned about new beta feedback / contact messages / prod outages via email. Email is fine for a daily digest, lousy for "respond in the next 5 min." Slack and Discord are where the team actually lives. One integration handles all three streams.

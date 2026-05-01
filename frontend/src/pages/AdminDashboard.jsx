@@ -88,7 +88,20 @@ TABS.sort((a, b) => a.label.localeCompare(b.label));
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
-  const [tab, setTab] = useState("applications");
+  // iter105 — Deep-link from Slack/Discord webhooks: /admin/dashboard?tab=feedback&open=<id>
+  // jumps straight to the right tab + scrolls the highlighted row into view.
+  // We read the query params lazily inside useState so the initial render
+  // already shows the deep-linked tab (no flash of "applications").
+  const [tab, setTab] = useState(() => {
+    if (typeof window === "undefined") return "applications";
+    const t = new URLSearchParams(window.location.search).get("tab");
+    // Whitelist: only honor known tab ids so a malformed link can't break the page.
+    return t && TABS.some((x) => x.id === t) ? t : "applications";
+  });
+  const [openRowId, setOpenRowId] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return new URLSearchParams(window.location.search).get("open") || "";
+  });
   const [me, setMe] = useState(null);
   const [apps, setApps] = useState([]);
   const [custom, setCustom] = useState([]);
@@ -112,6 +125,48 @@ export default function AdminDashboard() {
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, [tab]);
+
+  // iter105 — Deep-link consumer: when the URL had ?open=<id>, find the
+  // row's data-testid (`feedback-row-<id>` / `contact-row-<id>` / etc.),
+  // scroll it into view, and pulse-highlight it for ~2.5s. We retry the
+  // lookup a few times because the tab content loads async (the row
+  // doesn't exist on first paint). After consuming, strip the query
+  // params so a manual refresh doesn't re-pulse the same row.
+  useEffect(() => {
+    if (!openRowId) return;
+    let cancelled = false;
+    let attempts = 0;
+    const tryHighlight = () => {
+      if (cancelled) return;
+      attempts += 1;
+      // Tab-specific row testids — extend here when more tabs deep-link.
+      const candidates = [
+        `feedback-row-${openRowId}`,
+        `contact-row-${openRowId}`,
+      ];
+      const el = candidates
+        .map((tid) => document.querySelector(`[data-testid="${tid}"]`))
+        .find(Boolean);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.classList.add("admin-deeplink-pulse");
+        setTimeout(() => el.classList.remove("admin-deeplink-pulse"), 2500);
+        // Strip ?open= so a refresh doesn't re-pulse.
+        const url = new URL(window.location.href);
+        url.searchParams.delete("open");
+        window.history.replaceState({}, "", url.toString());
+        setOpenRowId("");
+        return;
+      }
+      if (attempts < 12) setTimeout(tryHighlight, 250); // up to 3s of polling
+    };
+    // First attempt on next paint so the tab has had a chance to render.
+    const t = setTimeout(tryHighlight, 200);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [tab, openRowId]);
 
   const logout = () => {
     localStorage.removeItem("cm_admin_jwt");

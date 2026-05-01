@@ -113,6 +113,7 @@ async def submit_beta_feedback(payload: BetaFeedbackIn, bg: BackgroundTasks):
         page=doc["page"],
     )
     # iter104 — fan out to Slack/Discord (no-op if unconfigured).
+    # iter105 — deep-link to the row inside the admin dashboard.
     import os as _os
     from notify_webhook import notify_team
     _site = (_os.environ.get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
@@ -122,7 +123,7 @@ async def submit_beta_feedback(payload: BetaFeedbackIn, bg: BackgroundTasks):
         title=f"{doc['name']} ({doc['email']})",
         summary=doc["message"][:1000],
         fields=[("Page", doc["page"] or "—"), ("Submitted", doc["created_at"])],
-        link=f"{_site}/admin/dashboard",
+        link=f"{_site}/admin/dashboard?tab=feedback&open={doc['id']}",
     )
     logger.info("[beta] feedback received from %s on %s", doc["email"], doc["page"] or "?")
     return {"received": True, "id": doc["id"]}

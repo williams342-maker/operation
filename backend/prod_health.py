@@ -71,13 +71,16 @@ async def _fire_outage_alert(endpoint: str, status: int, reason: str):
     except Exception:
         logger.exception("[prod_health] outage alert email failed for %s", endpoint)
     # iter104 — also fan out to Slack/Discord.
+    # iter105 — deep-link operator straight to the prod-health tab.
     try:
         from notify_webhook import notify_team
+        site = (os.environ.get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
         await notify_team(
             kind="outage",
             title=endpoint,
             summary=f"Endpoint **{endpoint}** is failing — {reason or f'HTTP {status}'}",
             fields=[("Status", str(status) if status else "—"), ("Reason", reason or "—")],
+            link=f"{site}/admin/dashboard?tab=prod-health",
         )
     except Exception:
         logger.exception("[prod_health] outage webhook fan-out failed for %s", endpoint)
@@ -90,13 +93,16 @@ async def _fire_recovery_alert(endpoint: str, downtime_minutes: int):
     except Exception:
         logger.exception("[prod_health] recovery alert email failed for %s", endpoint)
     # iter104 — webhook fan-out for the all-clear.
+    # iter105 — deep-link operator straight to the prod-health tab.
     try:
         from notify_webhook import notify_team
+        site = (os.environ.get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
         await notify_team(
             kind="recovery",
             title=endpoint,
             summary=f"Endpoint **{endpoint}** recovered after ~{downtime_minutes} min.",
             fields=[("Downtime", f"~{downtime_minutes} min")],
+            link=f"{site}/admin/dashboard?tab=prod-health",
         )
     except Exception:
         logger.exception("[prod_health] recovery webhook fan-out failed for %s", endpoint)

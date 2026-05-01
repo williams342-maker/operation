@@ -133,6 +133,7 @@ async def submit_contact_message(
         original_message=doc["message"],
     )
     # iter104 — fan out to Slack/Discord (no-op if unconfigured).
+    # iter105 — deep-link to the contact row inside the admin dashboard.
     import os as _os
     from notify_webhook import notify_team
     _site = (_os.environ.get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
@@ -145,7 +146,7 @@ async def submit_contact_message(
             ("From", f"{doc['name']} <{doc['email']}>"),
             ("Topic", doc["topic"]),
         ] + ([("Phone", doc["phone"])] if doc["phone"] else []),
-        link=f"{_site}/admin/dashboard",
+        link=f"{_site}/admin/dashboard?tab=contact&open={doc['id']}",
     )
     logger.info(
         "[contact] message received from %s · topic=%s · id=%s",
