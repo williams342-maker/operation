@@ -425,6 +425,15 @@ export const adminProdHealthCheckNow = () =>
 export const subscribeToUpdates = (email, name) =>
   http.post("/updates/subscribe", { email, name }).then((r) => r.data);
 
+// ---------- Admin updates digest controls (iter97) ----------
+export const fetchAdminUpdatesPreview = () =>
+  http.get("/admin/updates/preview", { headers: adminAuthHeaders() }).then((r) => r.data);
+export const adminUpdatesDispatch = ({ dry_run = false, force = false } = {}) =>
+  http.post("/admin/updates/dispatch", null, {
+    headers: adminAuthHeaders(),
+    params: { dry_run, force },
+  }).then((r) => r.data);
+
 // ---------- Public Contact form + admin inbox ----------
 export const sendContactMessage = (payload) =>
   http.post("/contact-messages", payload).then((r) => r.data);

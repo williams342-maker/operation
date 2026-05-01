@@ -23,6 +23,7 @@ import AdminCommandPalette from "../components/admin/AdminCommandPalette";
 import ReviewDisputesTab from "../components/admin/ReviewDisputesTab";
 import ProdHealthTab from "../components/admin/ProdHealthTab";
 import ProdHealthBanner from "../components/admin/ProdHealthBanner";
+import UpdatesAdminTab from "../components/admin/UpdatesAdminTab";
 import CustomOrdersList from "../components/admin/CustomOrdersList";
 import PaidOrdersList from "../components/admin/PaidOrdersList";
 import ListingsTab from "../components/admin/ListingsTab";
@@ -75,6 +76,7 @@ const TABS = [
   { id: "shipping-ledger", label: "Shipping Ledger" },
   { id: "buffer", label: "Social" },
   { id: "team", label: "Team", superOnly: true },
+  { id: "updates", label: "Updates" },
   { id: "users", label: "Users" },
   { id: "web", label: "Web Analytics" },
 ];
@@ -297,6 +299,7 @@ export default function AdminDashboard() {
             {tab === "rejected-apps" && <RejectedAppsTab />}
             {tab === "plus-members" && <PlusMembersTab />}
             {tab === "prod-health" && <ProdHealthTab />}
+            {tab === "updates" && <UpdatesAdminTab />}
             {tab === "broadcast" && <BroadcastTab />}
             {tab === "file-reports" && <DesignFileReportsTab />}
             {tab === "design-files" && <DesignFilesTab />}

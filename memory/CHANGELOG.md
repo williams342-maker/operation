@@ -1,5 +1,21 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05 — iter97 — Admin "Send digest now" panel ✅
+
+**Why:** The iter96 cron fires at 9 AM UTC daily. Operators wanted on-demand control: see exactly which entries would dispatch BEFORE clicking, choose timing (e.g. send during US business hours), and dry-run to verify diff after a redeploy.
+
+**What:**
+- `GET /api/admin/updates/preview` — pure read; returns `{last_dispatched_iter, latest_changelog_iter, queued_entries, active_subscribers, unsubscribed_count, would_send}`.
+- `POST /api/admin/updates/dispatch?dry_run=true|false&force=true|false` — same logic as the cron, just on-demand.
+- New admin tab "Updates" (alphabetical, between "Team" and "Users"). Stats grid + pointer state + entry preview + Dry Run / Send Now / Refresh buttons + double-confirm modal before live send. Color-coded result tile (yellow=dry-run, green=live).
+
+**Verified end-to-end:** Browser test confirms tab renders, preview data accurate (queued=1, would_send=3 for current state), dry-run does not advance pointer, confirm modal opens/cancels cleanly. No console errors. Auth-gated (401 without admin JWT).
+
+**Files:** `routers/prod_health.py` (extended with 2 endpoints), `components/admin/UpdatesAdminTab.jsx` (new), `pages/AdminDashboard.jsx` (tab wired alphabetically), `lib/api.js` (helpers).
+
+---
+
+
 ## 2026-05 — iter96 — Updates digest growth flywheel ✅
 
 **Why:** /updates is a great trust-builder, but visitors leave and never come back. Capturing email turns every shipped feature into an automated re-engagement nudge.
