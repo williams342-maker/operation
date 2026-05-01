@@ -58,7 +58,25 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - (Awaiting DNS) Custom CDN domain `cdn.craftersmarket.org` — guide ready at `/app/memory/R2_CUSTOM_DOMAIN_SETUP.md`
 - (Optional analytics) Cohort retention, bounce-rate-by-page, Discord/Slack live-visitor ping
 
+## Recent Marketing/Engagement Layer (iter92→iter103, 2026-05)
+- ✅ Prod Health Watchdog cron + Admin banner
+- ✅ SEO sitemap hardened (preview URL strip + test-slug filter)
+- ✅ Marketing landing pages (`/launch`, `/makers-beta`, `/for-makers`)
+- ✅ Public `/updates` page driven by `CHANGELOG.md`
+- ✅ Updates digest flywheel: subscribe / unsubscribe / daily cron / admin send-now / CSV export / stale banner / OPS summary
+- ✅ Coming-Soon waitlist UI/API for Neon & Furniture
+- ✅ Admin Broadcast → Subscribers
+- ✅ Maker weekly Restock digest cron
+- ✅ Admin Growth Stats Heartbeat bar (24h / 7d)
+- ✅ Beta feedback follow-up email on resolve (iter101)
+- ✅ Contact form follow-up email on resolve (iter102)
+- ✅ Welcome emails on /updates and /coming-soon waitlist signups (iter103)
+
 ## Next Action Items
+- 🟠 **P1 — Slack/Discord webhook** for new Beta Feedback / Contact / Prod Outages (one integration, all 3 streams).
+- 🟠 **P1 — Dynamic OG-prerender route** for non-JS crawlers (Facebook/LinkedIn/Discord) so product cards render specifically.
+- 🟡 **P3 — "It's live" launch button** on Coming Soon admin tab — auto-emails the waitlist when admin flips the switch.
+- 🟡 **P3 — Maker-side opt-out toggle** for the weekly Restock digest.
 - 🟢 **P7 — Real off-site ad spend** (Google Ads / Meta Marketing API) — needs user-supplied API credentials.
 - 🟡 **P14 — UX polish backlog** still on the table from the offered list:
     - (e) Loading skeletons replacing "Loading…" text on all dashboards

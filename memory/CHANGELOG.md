@@ -1,5 +1,26 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05 — iter103 — Welcome emails for /updates + /coming-soon waitlists ✅
+
+**Why:** Users who subscribed to the public Updates digest or joined a Coming-Soon category waitlist (Neon & Light, Furniture) got *nothing* back after submitting their email. No confirmation, no acknowledgment — just a silent toast on the form. People reasonably assumed it broke. Closes the loop with a branded one-shot email so the buyer/maker knows the signup landed.
+
+**What:**
+- New email template `send_updates_subscribe_welcome()` — fired from `POST /api/updates/subscribe`. Sets expectations ("one email per release week, no marketing"), CTAs to `/updates`, includes a one-click unsubscribe link from day one.
+- New email template `send_coming_soon_confirmation()` — fired from `POST /api/coming-soon/waitlist`. Echoes back the category they're waiting on ("You're on the list for Neon & Light"), CTAs to `/shop` so they don't bounce.
+- Both wired via `BackgroundTasks` so the API returns instantly while the email queues async.
+
+**Idempotency rules (so we never spam):**
+1. `/updates/subscribe` — welcome only fires on a brand-new signup OR on reactivation of a previously-unsubscribed address. Re-subscribing an already-active email is a true no-op.
+2. `/coming-soon/waitlist` — confirmation only fires when the (email, category) pair is brand new. Re-submitting the same pair returns `already=True` silently.
+3. Same email signing up for *different* categories (e.g. Neon AND Furniture) correctly fires one email per category — they're distinct waitlists.
+
+**Regression guard:** `tests/test_iter103_welcome_emails.py` — 7 tests covering: new signup fires, duplicate is silent, reactivation re-fires (with refreshed unsubscribe token), new coming-soon signup fires, duplicate coming-soon is silent, unknown category rejected without email, multi-category signups fire per category. All green.
+
+**Verified live:** `/api/updates` and `/api/coming-soon/waitlist` smoke-tested against the preview backend — endpoints respond correctly and reject invalid categories cleanly.
+
+---
+
+
 ## 2026-05 — iter102 — Contact form follow-up email on resolve ✅
 
 **Why:** Sister of iter101 — same loop-closing pattern, applied to the public contact form. Visitors who use `/contact` got nothing back when an admin marked their message resolved. Now they get a branded acknowledgment.
