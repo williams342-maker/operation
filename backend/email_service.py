@@ -1316,6 +1316,36 @@ async def send_beta_feedback_resolved(name: str, email: str, message: str, page:
     return await _send(email, "[Crafters Market] We reviewed your feedback", html)
 
 
+async def send_contact_message_resolved(name: str, email: str, message: str, subject: str = ""):
+    """Auto-acknowledgment email when an admin marks a contact-form
+    submission resolved without writing a tailored Reply. Sister of
+    `send_beta_feedback_resolved` (iter101) — different copy because
+    contact messages are usually buyer/visitor questions rather than
+    bug reports, but identical guard rails on the caller side."""
+    if not email:
+        return
+    safe_msg = (message or "").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br/>")
+    safe_subj = (subject or "").replace("<", "&lt;").replace(">", "&gt;")
+    site = (os.environ.get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
+    if site.lower().endswith(".emergentagent.com") or "preview." in site.lower():
+        site = "https://craftersmarket.org"
+    body = (
+        f"<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 22px'>Hey {name or 'there'},</p>"
+        "<p style='font-size:14px;color:#a3a3a3;line-height:1.6;margin:0 0 22px'>"
+        "Thanks for reaching out — we got your note and have addressed it on our end. "
+        "If something's still on your mind, just reply to this email and it lands directly with the team."
+        "</p>"
+        "<div style='font-size:11px;letter-spacing:0.22em;color:#525252;text-transform:uppercase;margin:28px 0 8px'>◆ Your message</div>"
+        + (f"<div style='font-size:13px;color:#e5e5e5;font-weight:700;margin:0 0 8px'>{safe_subj}</div>" if safe_subj else "")
+        + f"<div style='font-size:13px;color:#a3a3a3;line-height:1.6;border-left:2px solid #ff4500;padding:6px 14px;background:#0d0d0d'>{safe_msg}</div>"
+        + f"<div style='text-align:center;margin:32px 0 10px'>"
+        f"<a href='{site}/shop' style='display:inline-block;background:#ff4500;color:#0a0a0a;text-decoration:none;font-weight:700;padding:14px 24px;font-size:13px;letter-spacing:0.15em;text-transform:uppercase'>Browse the catalog →</a>"
+        "</div>"
+    )
+    html = _shell("Got your note.", "We've reviewed your message and closed it out.", body, "Crafters Market · Contact")
+    return await _send(email, "[Crafters Market] We got your note", html)
+
+
 async def send_contact_message_to_ops(
     name: str, email: str, message: str, subject: str = "",
     phone: str = "", topic: str = "",

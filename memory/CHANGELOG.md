@@ -1,5 +1,16 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05 — iter102 — Contact form follow-up email on resolve ✅
+
+**Why:** Sister of iter101 — same loop-closing pattern, applied to the public contact form. Visitors who use `/contact` got nothing back when an admin marked their message resolved. Now they get a branded acknowledgment.
+
+**What:** New email template `send_contact_message_resolved()` — different copy from the beta version ("Got your note — addressed it on our end" rather than "reviewed your feedback"), echoes back the original subject + message for context, CTAs to `/shop` instead of `/updates` since contact senders are usually buyers/visitors. `/admin/contact-messages/{id}/resolve` now takes BackgroundTasks and fires the email behind the same three guards as iter101 (email present, no prior reply, no prior follow-up).
+
+**Regression guard:** `tests/test_iter102_contact_followup.py` — 4 tests mirror iter101 (happy path, skip-when-replied, idempotent re-resolve, no-email skip). All green. Live curl smoke confirms `{"resolved":true,"followup_sent":true}`.
+
+---
+
+
 ## 2026-05 — iter101 — Beta feedback follow-up email on resolve ✅
 
 **Why:** Users who submit beta feedback get nothing back when an admin marks the ticket resolved without writing a custom reply. They wonder if anyone read it. A short auto-follow-up closes the loop and reinforces that we're listening.

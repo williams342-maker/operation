@@ -159,16 +159,38 @@ async def admin_list_contact_messages(
 
 @router.post("/admin/contact-messages/{message_id}/resolve")
 async def admin_resolve_contact_message(
-    message_id: str, claims: dict = Depends(current_admin),
+    message_id: str, bg: BackgroundTasks,
+    claims: dict = Depends(current_admin),
 ):
-    r = await db.contact_messages.update_one(
-        {"id": message_id},
-        {"$set": {"resolved": True, "resolved_by": claims["email"],
-                  "resolved_at": now_iso()}},
-    )
-    if r.matched_count == 0:
+    msg = await db.contact_messages.find_one({"id": message_id}, {"_id": 0})
+    if not msg:
         raise HTTPException(404, "Message not found.")
-    return {"resolved": True}
+    update = {
+        "resolved": True,
+        "resolved_by": claims["email"],
+        "resolved_at": now_iso(),
+    }
+    # iter102 — fire an automated acknowledgment email when an admin
+    # marks a contact message resolved without writing a tailored Reply.
+    # Same three guards as the beta-feedback follow-up (iter101):
+    # email present, no prior reply, no prior follow-up.
+    will_send = bool(
+        msg.get("email")
+        and not msg.get("replied_at")
+        and not msg.get("followup_sent_at")
+    )
+    if will_send:
+        from email_service import send_contact_message_resolved
+        bg.add_task(
+            send_contact_message_resolved,
+            name=msg.get("name", ""),
+            email=msg["email"],
+            message=msg.get("message", ""),
+            subject=msg.get("subject", ""),
+        )
+        update["followup_sent_at"] = now_iso()
+    await db.contact_messages.update_one({"id": message_id}, {"$set": update})
+    return {"resolved": True, "followup_sent": will_send}
 
 
 class ContactReplyRequest(BaseModel):
