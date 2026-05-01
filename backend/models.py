@@ -252,6 +252,11 @@ class Maker(BaseModel):
     # because most shops should require proofs to prevent disputes).
     custom_order_policy: Optional[str] = ""
     custom_orders_require_proof: bool = True
+    # Maker-only UI preference: render the Shop Manager (dashboard +
+    # all sub-tabs) on a light backdrop instead of the dark industrial
+    # theme. Public shop / buyer pages are unaffected — this is purely
+    # a personal accessibility/eye-strain accommodation for the seller.
+    appearance_mode: str = "dark"  # "dark" | "light"
     # Maker-level default for backorders. Per-listing `accepts_backorders`
     # overrides this when set; when null on the listing, this default
     # applies. Defaults to False — makers must opt in.
@@ -465,6 +470,7 @@ class MakerProfileUpdate(BaseModel):
     accepts_custom_orders: Optional[bool] = None
     custom_order_policy: Optional[str] = None
     custom_orders_require_proof: Optional[bool] = None
+    appearance_mode: Optional[str] = None
     accepts_backorders_default: Optional[bool] = None
     is_veteran_owned: Optional[bool] = None
     watermark_images: Optional[bool] = None

@@ -1,5 +1,22 @@
 # Crafters Market — CHANGELOG
 
+## 2026-02 — iter82 — Maker Dashboard Light Mode + Custom-Orders policy clarified on /policy (TESTED ✅)
+
+**Light Mode for Shop Manager** (per-maker accessibility option):
+- New maker field: `appearance_mode: "dark" | "light"` (default `"dark"`). Saved on the maker doc so it follows the seller across devices.
+- Toggle in **Settings → Options** → "Light mode for Shop Manager" switch with hint copy explaining it only flips the private dashboard, not the public shop or rest of the site.
+- CSS implementation: `.theme-light` overrides in `index.css` remap the hardcoded brand hex values (`bg-[#0a0a0a]`, `text-[#e5e5e5]`, `border-[#262626]`, etc. — Tailwind escapes them as `\[\#…\]` in the compiled CSS) to a light palette. Orange `#ff4500` accent left untouched so brand cues (active tab, primary CTAs, KPI numbers) read on both themes. Grain texture is suppressed in light mode so the white bg reads clean.
+- Applied via `data-theme` attribute on the `ShopManagerLayout` root — only this subtree flips. Buyer-facing pages, the global Nav, the beta banner, custom-order ticker, and Cart all stay on the dark brand theme.
+
+**Custom-Orders /policy clarification:**
+- Updated `PolicyPage.jsx` Custom & Personalized Orders section to explain the platform's proof-required default is exactly that — a default — and that each shop's individual policy on their profile takes precedence.
+- Added a "Shop-specific policies" sub-section explaining that some shops opt out of proofs for very simple personalizations (e.g. name engraving on a stock SKU).
+
+**Tests:** iter82 — `appearance_mode` round-trips through PATCH /maker/profile (light → dark → restore).
+
+Files: `backend/models.py` (Maker + MakerProfileUpdate), `frontend/src/index.css` (~50 lines of `.theme-light` overrides), `frontend/src/pages/MakerDashboard/ShopManagerLayout.jsx` (conditional class), `frontend/src/pages/MakerDashboard/SettingsTab.jsx` (Options toggle), `frontend/src/pages/PolicyPage.jsx` (custom-orders copy). New: `backend/tests/test_iter82_appearance_mode.py`.
+
+
 ## 2026-02 — iter81 — Full sweep · scroll fix carry-over + 4 quick UI wins + restock waitlist + retention cohorts (TESTED ✅ 5/5 + 4/4 iter80)
 
 **Quick UI wins (the parked iter79 batch):**

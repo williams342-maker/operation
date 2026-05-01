@@ -136,15 +136,20 @@ const SECTIONS = [
     id: "custom",
     icon: Wand2,
     title: "Custom & Personalized Orders",
-    intro: "Custom and personalized orders are a specialty of Crafters Market. Because each piece is made to your unique specifications, these orders require special considerations.",
+    intro: "Custom and personalized orders are a specialty of Crafters Market. Because each piece is made to your unique specifications, these orders require special considerations. The standards below are platform defaults — each shop may publish its own custom-order policy under their shop's profile, which takes precedence.",
     blocks: [
       {
+        heading: "Platform standard (most shops follow this)",
         bullets: [
-          "A design proof will be sent for your approval before production begins",
-          "You must approve the proof in writing (email or message) before we proceed",
+          "A design proof is sent for your approval before production begins",
+          "You approve the proof in writing (email or message) before work proceeds",
           "Changes to the design after proof approval may incur additional fees",
           "Production begins only after proof approval and full payment",
         ],
+      },
+      {
+        heading: "Shop-specific policies",
+        text: "Some shops opt out of the proof-approval step for very simple personalizations (e.g. name engraving on a stock SKU). Each shop's individual custom-order policy is shown on their profile and on every product detail page. Always review the seller's policy before placing a custom order.",
       },
     ],
     callout: {
@@ -159,7 +164,7 @@ const SECTIONS = [
         </>
       ),
     },
-    outro: "Rush production is available for most custom orders for an additional fee. Contact us before ordering to confirm availability.",
+    outro: "Rush production is available for most custom orders for an additional fee. Contact the maker before ordering to confirm availability.",
   },
 
   {

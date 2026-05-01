@@ -41,7 +41,13 @@ export default function ShopManagerLayout({
   const payoutsReady = !!(maker?.stripe_charges_enabled && maker?.stripe_payouts_enabled);
 
   return (
-    <div className="min-h-screen grain bg-[#0a0a0a] text-[#e5e5e5]" data-testid="shop-manager-layout">
+    <div
+      className={`min-h-screen grain bg-[#0a0a0a] text-[#e5e5e5] ${
+        maker?.appearance_mode === "light" ? "theme-light" : ""
+      }`}
+      data-testid="shop-manager-layout"
+      data-theme={maker?.appearance_mode === "light" ? "light" : "dark"}
+    >
       {/* TOP BAR — sits below the global Nav (which is the site header).
           We mount this at pt-32 to clear the global header + beta banner. */}
       <div className="pt-32" />

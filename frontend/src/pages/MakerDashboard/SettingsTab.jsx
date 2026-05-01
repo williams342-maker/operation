@@ -885,7 +885,7 @@ function AboutShop({ maker, onSaved }) {
 // Section: Options
 // ============================================================================
 function Options({ maker, onSaved }) {
-  const fields = ["vacation_mode", "vacation_message", "accepts_custom_orders", "accepts_backorders_default", "external_ads_opt_out"];
+  const fields = ["vacation_mode", "vacation_message", "accepts_custom_orders", "accepts_backorders_default", "external_ads_opt_out", "appearance_mode"];
   const { form, set, dirty, busy, submit } = useSettingsForm(maker, fields, onSaved);
   return (
     <FormShell
@@ -896,6 +896,13 @@ function Options({ maker, onSaved }) {
       busy={busy}
       testId="settings-options"
     >
+      <ToggleRow
+        label="Light mode for Shop Manager"
+        hint="Render your dashboard, listings, orders, and settings on a white backdrop instead of the default industrial dark theme. Affects only your private dashboard — your public shop and the rest of the site stay on the brand-standard dark theme. Saved on your account so it follows you across devices."
+        value={form.appearance_mode === "light"}
+        onChange={(v) => set("appearance_mode")(v ? "light" : "dark")}
+        testId="settings-appearance-light"
+      />
       <ToggleRow
         label="Vacation mode"
         hint="When ON, your shop shows a 'Currently away' banner and Add-to-Cart is disabled across all listings."
