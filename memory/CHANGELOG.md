@@ -1,5 +1,20 @@
 # Crafters Market — CHANGELOG
 
+## 2026-02 — iter86 — SEO tag limit · loud "you hit 13/13" feedback ✅
+
+User report: "AI is automatically generating 13/13 tags but when you type your own you can still hit Add — possibly add pop-up saying you have reached maximum limit of tags."
+
+**Diagnosis:** The Add button + Enter-key handler were already gated at MAX_TAGS, but the feedback was too quiet — counter was tiny gray text, button only dimmed to 50% opacity, toast was a 1-line "Max 13 tags." that disappeared in 4s.
+
+**Fix (visual loudness pass):**
+- **Amber warning banner** appears above the input the moment `seo_tags.length === 13`: ⚠ "**You've reached the maximum of 13 tags.** Remove a tag below to add a new one." Impossible to miss.
+- **Counter** flips from gray `13/13` → bold amber `13/13` at limit.
+- **Input field** is now disabled (was enabled before, only the Add button was) with `cursor-not-allowed` + placeholder swap to "Limit reached — remove a tag first".
+- **Better toasts**: explicit error "You've hit the 13-tag limit. Remove a tag first to add 'xyz'." + a new informational toast on duplicate attempts ('"xyz" is already in your tags.').
+
+Files: `frontend/src/pages/MakerListingEditor.jsx` only.
+
+
 ## 2026-02 — iter85 — Public Contact form + admin Contact Inbox tab ✅
 
 **Public `/contact` page** got a real "Send us a message" form (previously was static info only). Submissions land in a dedicated admin inbox alongside the iter84 Beta Feedback tab.

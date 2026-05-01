@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { toast } from "sonner";
 import {
-  ArrowLeft, Sparkles, X, Tag,
+  ArrowLeft, Sparkles, X, Tag, AlertTriangle,
 } from "lucide-react";
 import {
   fetchMakerMe, fetchMakerProducts, createMakerProduct,
@@ -338,10 +338,15 @@ export default function MakerListingEditor() {
     const cleaned = (raw || "").replace(/[#,]/g, "").trim().toLowerCase();
     if (!cleaned) return;
     if (form.seo_tags.length >= MAX_TAGS) {
-      toast.error(`Max ${MAX_TAGS} tags.`);
+      toast.error(
+        `You've hit the ${MAX_TAGS}-tag limit. Remove a tag first to add "${cleaned}".`,
+      );
       return;
     }
-    if (form.seo_tags.includes(cleaned)) return;
+    if (form.seo_tags.includes(cleaned)) {
+      toast.message(`"${cleaned}" is already in your tags.`);
+      return;
+    }
     set({ seo_tags: [...form.seo_tags, cleaned], seo_input: "" });
   };
   const removeTag = (t) => set({ seo_tags: form.seo_tags.filter((x) => x !== t) });
@@ -938,7 +943,30 @@ export default function MakerListingEditor() {
           <p className="font-mono text-[10px] text-[#525252] -mt-2 mb-4">
             ◆ Uses your current title, category, and description. Won't duplicate tags you've already added.
           </p>
-          <Label>Add tag <span className="text-[#525252]">{form.seo_tags.length}/{MAX_TAGS}</span></Label>
+          {form.seo_tags.length >= MAX_TAGS && (
+            <div
+              className="flex items-start gap-2 px-3 py-2.5 mb-3 border border-amber-500/50 bg-amber-500/10"
+              data-testid="editor-seo-max-banner"
+              role="status"
+            >
+              <AlertTriangle size={14} className="text-amber-400 shrink-0 mt-0.5" />
+              <div className="font-mono text-[11px] text-amber-300 leading-relaxed">
+                <b>You've reached the maximum of {MAX_TAGS} tags.</b>
+                <span className="text-amber-200/80"> Remove a tag below to add a new one.</span>
+              </div>
+            </div>
+          )}
+          <Label>
+            Add tag{" "}
+            <span
+              className={`${
+                form.seo_tags.length >= MAX_TAGS ? "text-amber-400 font-bold" : "text-[#525252]"
+              }`}
+              data-testid="editor-seo-counter"
+            >
+              {form.seo_tags.length}/{MAX_TAGS}
+            </span>
+          </Label>
           <div className="flex gap-2">
             <input
               type="text" value={form.seo_input}
@@ -948,14 +976,19 @@ export default function MakerListingEditor() {
                   e.preventDefault(); addTag(form.seo_input);
                 }
               }}
-              placeholder="e.g. metal wall art"
-              className="flex-1 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm"
+              placeholder={
+                form.seo_tags.length >= MAX_TAGS
+                  ? "Limit reached — remove a tag first"
+                  : "e.g. metal wall art"
+              }
+              disabled={form.seo_tags.length >= MAX_TAGS}
+              className="flex-1 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm disabled:opacity-50 disabled:cursor-not-allowed"
               data-testid="editor-seo-input"
             />
             <button
               type="button" onClick={() => addTag(form.seo_input)}
               disabled={!form.seo_input.trim() || form.seo_tags.length >= MAX_TAGS}
-              className="px-4 py-2 border border-[#ff4500] text-[#ff4500] hover:bg-[#ff4500]/10 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
+              className="px-4 py-2 border border-[#ff4500] text-[#ff4500] hover:bg-[#ff4500]/10 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50 disabled:cursor-not-allowed"
               data-testid="editor-seo-add"
             >
               Add
