@@ -24,6 +24,7 @@ const cols = [
   {
     title: "Company",
     links: [
+      { label: "What's New", href: "/updates" },
       { label: "Journal", href: "/journal" },
       { label: "Makers", href: "/makers" },
       { label: "Custom Orders", href: "/custom-order" },
@@ -124,6 +125,7 @@ export default function Footer() {
             </Link>
           </div>
           <div className="flex gap-6">
+            <Link to="/updates" className="hover:text-[#ff4500]" data-testid="footer-updates">What's New</Link>
             <Link to="/policy" className="hover:text-[#ff4500]" data-testid="footer-privacy">Privacy</Link>
             <Link to="/policy" className="hover:text-[#ff4500]" data-testid="footer-terms">Terms</Link>
             <Link to="/contact" className="hover:text-[#ff4500]" data-testid="footer-contact">Contact</Link>
