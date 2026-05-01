@@ -1,5 +1,16 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05 — iter95 — Public "What's New" page (auto-refreshes per redeploy) ✅
+
+**Why:** Users have no visibility into the constant stream of improvements shipping behind the scenes. A public "what's new" page builds trust ("they're actively shipping"), surfaces recent fixes for users to validate, and creates a soft re-engagement loop.
+
+**What:** New backend endpoint `GET /api/updates` parses `/app/memory/CHANGELOG.md` at request time, strips engineer-flavored noise (iter numbers, file paths, TESTED markers), and returns the latest 20 entries in plain English. Public frontend at `/updates` (and `/whats-new` alias) renders it as a vertical timeline with orange spine, "LATEST" pill on the newest entry, last-refreshed timestamp, and CTAs to Contact + Beta. Added to sitemap. Auto-refreshes on every redeploy because we read the markdown file, not a frozen list.
+
+**Regression guard:** `tests/test_iter95_updates_page.py` — 5 tests covering title sanitization, blurb extraction, iter-ref/path stripping, and end-to-end endpoint behavior. All green.
+
+---
+
+
 ## 2026-05 — iter94 — Sitemap strips test/seed slugs ✅
 
 **Why:** Post-iter92 sitemap audit showed 6 test/seed artifacts leaking into the public sitemap (`test-iter21-bg-ba4bba`, `test-studio`, `iter9-acct-f301ff35`, `test-allowedstudio-iter18`, `api-test-studio`, `final-test-studio`). Google crawls these low-content pages and dings the overall site quality score.
