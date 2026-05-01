@@ -51,6 +51,11 @@ export default function CommunityPage() {
   const settings = useSiteSettings();
   const liveChatEnabled = !settings || settings.live_chat_enabled !== false;
 
+  // Reset scroll on tab switch (showcase ↔ threads ↔ files ↔ live).
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [tab]);
+
   useEffect(() => {
     const jwt = localStorage.getItem("cm_buyer_jwt");
     if (!jwt) return;

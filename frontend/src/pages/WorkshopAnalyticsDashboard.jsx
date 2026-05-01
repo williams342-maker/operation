@@ -67,6 +67,12 @@ export default function WorkshopAnalyticsDashboard() {
   const [loading, setLoading] = useState({});
   const [errored, setErrored] = useState({});
 
+  // Reset scroll on tab switch — keeps long-scrolling charts from
+  // landing the next tab mid-page.
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [tab]);
+
   useEffect(() => {
     if (!localStorage.getItem("cm_admin_jwt")) {
       toast.error("Admin sign-in required.");
