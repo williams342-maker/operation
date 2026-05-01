@@ -311,6 +311,17 @@ class Review(BaseModel):
     product_slug: Optional[str] = None
     maker_slug: Optional[str] = None
     created_at: str = Field(default_factory=now_iso)
+    # Public maker response — Etsy-style "From the seller" reply rendered
+    # below the review on every public surface. Optional, set by the maker
+    # without admin approval (it's the maker's own published voice).
+    maker_response: Optional[str] = None
+    maker_response_at: Optional[str] = None
+    # Dispute lifecycle. One review can have at most one open dispute at
+    # a time; status flips to upheld/denied once admin rules. We mirror
+    # the latest status on the review doc so the frontend doesn't need
+    # to join across collections to render the maker dashboard.
+    dispute_status: Optional[str] = None  # None | "open" | "upheld" | "denied"
+    dispute_id: Optional[str] = None
 
 
 class ReviewCreate(BaseModel):
@@ -320,6 +331,58 @@ class ReviewCreate(BaseModel):
     text: str
     product_slug: Optional[str] = None
     maker_slug: Optional[str] = None
+
+
+class ReviewDispute(BaseModel):
+    """A maker-filed challenge to a review they believe is unfair, fake,
+    or violates platform policy (off-topic / harassment / from a non-buyer
+    competitor / etc.). Admins resolve to either:
+      - upheld: review is removed from public view (deleted)
+      - denied: review stays; maker is notified with an explanation
+    The maker can ALSO post a public response (no admin approval needed).
+    Disputes are for the harder cases where a reply isn't enough."""
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    review_id: str
+    maker_slug: str
+    review_snapshot: dict        # {name, rating, text, created_at} — frozen
+    reason: str                  # one of REVIEW_DISPUTE_REASONS
+    explanation: str             # free text from the maker
+    status: str = "open"         # open | upheld | denied
+    created_at: str = Field(default_factory=now_iso)
+    resolved_at: Optional[str] = None
+    resolved_by: Optional[str] = None
+    admin_note: Optional[str] = None  # internal admin note (maker doesn't see)
+
+
+REVIEW_DISPUTE_REASONS = (
+    "not_a_buyer",          # reviewer never purchased
+    "factually_wrong",      # specific claims are false (delivered vs not, etc.)
+    "off_topic",            # complaints about something maker didn't sell
+    "harassment",           # personal attack / hate speech / threats
+    "competitor",           # rival shop trying to tank ranking
+    "duplicate",            # same buyer left multiple bad reviews
+    "other",
+)
+
+
+class ReviewDisputeCreate(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    reason: str = Field(min_length=1)
+    explanation: str = Field(min_length=10, max_length=4000)
+
+
+class ReviewMakerResponseCreate(BaseModel):
+    """Maker's public response to a review. Capped at 1500 chars to keep
+    review pages scannable. Empty string clears the response."""
+    model_config = ConfigDict(extra="ignore")
+    response: str = Field(max_length=1500)
+
+
+class ReviewDisputeResolve(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    status: str = Field(pattern="^(upheld|denied)$")
+    admin_note: Optional[str] = ""
 
 
 class BlogPost(BaseModel):

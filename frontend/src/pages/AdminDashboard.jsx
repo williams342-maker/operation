@@ -20,6 +20,7 @@ import BroadcastTab from "../components/admin/BroadcastTab";
 import DesignFileReportsTab from "../components/admin/DesignFileReportsTab";
 import DesignFilesTab from "../components/admin/DesignFilesTab";
 import AdminCommandPalette from "../components/admin/AdminCommandPalette";
+import ReviewDisputesTab from "../components/admin/ReviewDisputesTab";
 import CustomOrdersList from "../components/admin/CustomOrdersList";
 import PaidOrdersList from "../components/admin/PaidOrdersList";
 import ListingsTab from "../components/admin/ListingsTab";
@@ -66,6 +67,7 @@ const TABS = [
   { id: "rejected-apps", label: "Rejected" },
   { id: "retention", label: "Retention" },
   { id: "reviews", label: "Reviews" },
+  { id: "review-disputes", label: "Review Disputes" },
   { id: "settings", label: "Settings" },
   { id: "shipping-ledger", label: "Shipping Ledger" },
   { id: "buffer", label: "Social" },

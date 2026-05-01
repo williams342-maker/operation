@@ -20,6 +20,7 @@ import FinancialsTab from "./MakerDashboard/FinancialsTab";
 import HelpTab from "./MakerDashboard/HelpTab";
 import MessagesTab from "./MakerDashboard/MessagesTab";
 import BriefsTab from "./MakerDashboard/BriefsTab";
+import ReviewsTab from "./MakerDashboard/ReviewsTab";
 import ProfileForm from "./MakerDashboard/ProfileForm";
 import useModalA11y from "../hooks/useModalA11y";
 
@@ -33,7 +34,7 @@ function normalizeTab(id) {
 // Valid top-level tab ids. Used to guard against `?tab=<anything>` junk
 // (e.g. rewriter-mangled links) — unknown ids fall back to "dashboard".
 const KNOWN_TABS = new Set([
-  "dashboard", "listings", "orders", "messages", "briefs", "stats",
+  "dashboard", "listings", "orders", "messages", "briefs", "reviews", "stats",
   "violations", "marketing", "financials", "help", "settings",
 ]);
 
@@ -383,6 +384,7 @@ export default function MakerDashboard() {
           />}}
         {tab === "messages"   && <MessagesTab maker={maker} />}
         {tab === "briefs"     && <BriefsTab />}
+        {tab === "reviews"    && <ReviewsTab />}
         {tab === "stats"      && <StatsTab />}
         {tab === "violations" && <ViolationsTab />}
         {tab === "marketing"  && <MarketingTab />}

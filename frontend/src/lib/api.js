@@ -398,6 +398,23 @@ export const fetchAdminFeedback = (resolved) =>
 export const adminResolveFeedback = (id) =>
   http.post(`/admin/feedback/${id}/resolve`, {}, { headers: adminAuthHeaders() }).then((r) => r.data);
 
+// ---------- Maker reviews + disputes ----------
+export const fetchMakerReviews = () =>
+  http.get("/maker/reviews", { headers: authHeaders() }).then((r) => r.data);
+export const postMakerReviewResponse = (reviewId, response) =>
+  http.post(`/maker/reviews/${reviewId}/response`, { response }, { headers: authHeaders() }).then((r) => r.data);
+export const createReviewDispute = (reviewId, payload) =>
+  http.post(`/maker/reviews/${reviewId}/dispute`, payload, { headers: authHeaders() }).then((r) => r.data);
+
+// ---------- Admin review disputes ----------
+export const fetchAdminReviewDisputes = (status) =>
+  http.get("/admin/review-disputes", {
+    params: status ? { status } : {},
+    headers: adminAuthHeaders(),
+  }).then((r) => r.data);
+export const adminResolveReviewDispute = (id, payload) =>
+  http.post(`/admin/review-disputes/${id}/resolve`, payload, { headers: adminAuthHeaders() }).then((r) => r.data);
+
 // ---------- Public Contact form + admin inbox ----------
 export const sendContactMessage = (payload) =>
   http.post("/contact-messages", payload).then((r) => r.data);
