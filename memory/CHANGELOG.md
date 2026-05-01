@@ -1,5 +1,19 @@
 # Crafters Market — CHANGELOG
 
+## 2026-02 — iter83 — Light/Dark mode keyboard shortcut (⌘+L / Ctrl+L) ✅
+
+**Quality-of-life keystroke** for power-user makers — flip themes from anywhere on the dashboard without navigating to Settings:
+
+- **Listener**: `useEffect` on `MakerDashboard` root listens for `keydown` with `metaKey || ctrlKey` + `KeyL`. Skipped when typing in `INPUT` / `TEXTAREA` / `contentEditable` so browser autocomplete (`Ctrl+L = focus URL bar`) and form input aren't hijacked.
+- **Optimistic UX**: local `setMaker` flips the theme instantly; `updateMakerProfile({appearance_mode: next})` runs in the background. Failure rolls back the local state and shows a red toast.
+- **Toast** confirms the new theme + the shortcut (e.g. "Light mode · Ctrl+L to toggle") with the OS-correct modifier glyph (`⌘` on Mac, `Ctrl` elsewhere).
+- **Settings → Options** hint copy now mentions the shortcut so users discover it.
+
+**Verified** end-to-end in production preview: pressed Ctrl+L twice in a row, dashboard flipped light → dark instantly with green toast confirmations.
+
+Files: `frontend/src/pages/MakerDashboard.jsx` (keydown listener), `frontend/src/pages/MakerDashboard/SettingsTab.jsx` (hint copy).
+
+
 ## 2026-02 — iter82 — Maker Dashboard Light Mode + Custom-Orders policy clarified on /policy (TESTED ✅)
 
 **Light Mode for Shop Manager** (per-maker accessibility option):

@@ -898,7 +898,7 @@ function Options({ maker, onSaved }) {
     >
       <ToggleRow
         label="Light mode for Shop Manager"
-        hint="Render your dashboard, listings, orders, and settings on a white backdrop instead of the default industrial dark theme. Affects only your private dashboard — your public shop and the rest of the site stay on the brand-standard dark theme. Saved on your account so it follows you across devices."
+        hint="Render your dashboard, listings, orders, and settings on a white backdrop instead of the default industrial dark theme. Affects only your private dashboard — your public shop and the rest of the site stay on the brand-standard dark theme. Saved on your account so it follows you across devices. Tip: press ⌘+L (Mac) or Ctrl+L (Windows) anywhere in the dashboard to flip themes instantly."
         value={form.appearance_mode === "light"}
         onChange={(v) => set("appearance_mode")(v ? "light" : "dark")}
         testId="settings-appearance-light"

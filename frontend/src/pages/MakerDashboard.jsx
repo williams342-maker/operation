@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import confetti from "canvas-confetti";
 import {
   fetchMakerMe, fetchMakerOrders, fetchMakerProducts, fetchMakerThreads,
-  fetchMakerBackorderRequests,
+  fetchMakerBackorderRequests, updateMakerProfile,
 } from "../lib/api";
 
 import ShopManagerLayout from "./MakerDashboard/ShopManagerLayout";
@@ -112,6 +112,32 @@ export default function MakerDashboard() {
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, [tab]);
+
+  // ⌘+L / Ctrl+L · keyboard shortcut to flip light ↔ dark mode without
+  // needing to navigate to Settings → Options. Optimistically updates
+  // local state so the theme flips instantly; PATCH runs in the
+  // background so the choice survives across devices. Skipped while
+  // typing in inputs/textareas so we don't hijack browser autocomplete.
+  useEffect(() => {
+    const onKey = (e) => {
+      if (!(e.key === "l" || e.key === "L")) return;
+      if (!(e.metaKey || e.ctrlKey)) return;
+      const tag = (e.target?.tagName || "").toUpperCase();
+      if (tag === "INPUT" || tag === "TEXTAREA" || e.target?.isContentEditable) return;
+      if (!maker) return;
+      e.preventDefault();
+      const next = maker.appearance_mode === "light" ? "dark" : "light";
+      setMaker((m) => ({ ...m, appearance_mode: next }));
+      toast.success(`${next === "light" ? "Light" : "Dark"} mode · ${navigator.platform.toLowerCase().includes("mac") ? "⌘" : "Ctrl"}+L to toggle`);
+      updateMakerProfile({ appearance_mode: next }).catch(() => {
+        // Roll back the optimistic flip if the backend rejects it.
+        setMaker((m) => ({ ...m, appearance_mode: maker.appearance_mode }));
+        toast.error("Couldn't save theme — try again.");
+      });
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [maker]);
 
   // The Dashboard tab's "Edit shop" checklist CTA dispatches this event
   // instead of routing to a tab — opens the same profile drawer the
