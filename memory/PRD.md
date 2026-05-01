@@ -74,12 +74,13 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - ✅ Slack/Discord webhooks for Beta Feedback / Contact / Prod Outages (iter104)
 - ✅ Webhook deep-links jump operator to the highlighted admin row (iter105)
 - ✅ Webhook deep-links survive magic-link sign-in round-trip (iter106)
+- ✅ Server-side OG prerender routes for crawlers (iter107)
 
 ## Next Action Items
-- 🟠 **P1 — Dynamic OG-prerender route** for non-JS crawlers (Facebook/LinkedIn/Discord) so product cards render specifically.
 - 🟡 **P3 — "It's live" launch button** on Coming Soon admin tab — auto-emails the waitlist when admin flips the switch.
 - 🟡 **P3 — Maker-side opt-out toggle** for the weekly Restock digest.
 - 🟢 **P7 — Real off-site ad spend** (Google Ads / Meta Marketing API) — needs user-supplied API credentials.
+- 🔵 **Optional ops** — Wire a Cloudflare Worker that maps crawler User-Agents on `/shop/*`/`/makers/*`/`/journal/*` to the iter107 prerender routes for full rich-share coverage.
 - 🟡 **P14 — UX polish backlog** still on the table from the offered list:
     - (e) Loading skeletons replacing "Loading…" text on all dashboards
     - (f) Empty-state illustrations with CTAs (e.g. "No orders yet — share your shop link")

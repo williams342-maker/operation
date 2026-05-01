@@ -1,5 +1,31 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05 — iter107 — Server-side OG prerender for crawlers (Facebook/LinkedIn/Discord/Pinterest) ✅
+
+**Why:** When a maker pasted a product link into Slack, Pinterest, Discord, or LinkedIn, the crawler hit `/shop/<slug>`, got the SPA shell, and rendered the *generic homepage card* every time. No per-product image. No per-product title. No per-product price. Every share looked identical, every share was a missed conversion.
+
+**What:**
+- New router `backend/routers/og_prerender.py` exposing 3 routes (`include_in_schema=False` so they stay out of `/docs`):
+  - `GET /api/og/product/<slug>` — full HTML with `og:type=product`, `product:price:amount`, `product:price:currency`, plus full Twitter Card meta
+  - `GET /api/og/maker/<slug>` — `og:type=profile`, prepends `◆ Veteran-Owned ·` to description when the maker has the badge
+  - `GET /api/og/journal/<slug>` — `og:type=article` with `article:published_time` + `article:author`
+- Each response includes `<link rel="canonical" href="<spa_url>">` and `<meta http-equiv="refresh" content="0; url=<spa_url>">` — crawlers ignore the meta-refresh and read the rich tags; real browsers honor the refresh and bounce to the SPA so the URL stays useful as a direct share too.
+- Slug regex guard (`^[a-z0-9][a-z0-9_-]{0,119}$`) + soft-404 redirect to the parent listing for unknown slugs (so a stale share never dead-ends).
+- HTML-attribute escape for titles/descriptions (`<`, `>`, `&`, `"`, `'`, newlines) — fixes the silent meta-tag truncation that some crawlers do on un-escaped quotes.
+- Public `GET /api/og/diag` returns sample slugs + their corresponding `og_url` and `spa_url` so operators can paste either into the Facebook Sharing Debugger / LinkedIn Post Inspector / Twitter Card Validator without leaving the dashboard.
+
+**Bug caught + fixed in test:** the first cut of `_render_og_html` emitted `og:type=website` *and* a caller-supplied `og:type=product` override side-by-side. Two `og:type` tags is invalid OG and crawlers pick at random. Refactored the renderer to pull the override out of `extra_props` and replace the default cleanly — now exactly one `og:type` per response.
+
+**How to wire crawler traffic to it (operator action, optional but high-leverage):**
+- Cloudflare Worker: when `User-Agent` matches `facebookexternalhit|LinkedInBot|Twitterbot|Pinterestbot|Slackbot|Discordbot|TelegramBot|WhatsApp` AND path matches `/shop/*` / `/makers/*` / `/journal/*`, rewrite to `/api/og/<kind>/<slug>`. ~12 lines of Worker code, instant rich previews everywhere a link is shared. Without a Worker, the routes are still useful — anyone can paste them directly into a debug tool to verify what crawlers will render.
+
+**Regression guard:** `tests/test_iter107_og_prerender.py` — 9 tests covering all 3 kinds (product/maker/journal), unknown-slug redirects, malformed-slug rejection, HTML escape correctness, single-`og:type` invariant, veteran-owned badge prepend, article published-time, and the diag endpoint shape. All green.
+
+**Verified live:** `/api/og/product/mountain-range-silhouette` returns full prerender HTML with single `og:type=product` tag and proper price meta. `/api/og/diag` enumerates 9 sample slugs across all 3 kinds.
+
+---
+
+
 ## 2026-05 — iter106 — Webhook deep-links survive the magic-link sign-in round-trip ✅
 
 **Why:** iter105 deep-links jump the operator straight to the right admin row — but only if they're already signed in. If the Slack/Discord click landed on a logged-out browser, `/admin/dashboard?tab=feedback&open=<id>` redirected to `/admin/login`, the magic-link email arrived, the click brought them to `/admin/verify` → `/admin/dashboard` (no query params), and the deep-link target was lost. On-call rotation operators paying for that papercut every time.

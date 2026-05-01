@@ -42,6 +42,7 @@ from routers.prod_health import router as prod_health_router
 from routers.updates import router as updates_router
 from routers.coming_soon import router as coming_soon_router
 from routers.growth_stats import router as growth_stats_router
+from routers.og_prerender import router as og_prerender_router
 from seed_data import seed_if_empty
 
 app = FastAPI(title="Crafters Market API")
@@ -84,6 +85,7 @@ api.include_router(prod_health_router)
 api.include_router(updates_router)
 api.include_router(coming_soon_router)
 api.include_router(growth_stats_router)
+api.include_router(og_prerender_router)
 app.include_router(api)
 
 app.add_middleware(
