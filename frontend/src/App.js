@@ -41,6 +41,7 @@ import { CommunityLogin, CommunityVerify, CommunityAuthCallback } from "./pages/
 import BuyerMessagesPage from "./pages/BuyerMessagesPage";
 import MakerListingEditor from "./pages/MakerListingEditor";
 import BetaPage from "./pages/BetaPage";
+import LandingPage from "./pages/LandingPage";
 import SignInPage, { ForgotPasswordPage, ResetPasswordPage } from "./pages/SignInPage";
 import TrackBriefPage from "./pages/TrackBriefPage";
 import MakerBriefPrintPage from "./pages/MakerBriefPrintPage";
@@ -140,6 +141,11 @@ function App() {
                 <Route path="/custom-order" element={<CustomOrderPage />} />
                 <Route path="/apply" element={<ApplyPage />} />
                 <Route path="/beta" element={<BetaPage />} />
+                {/* Marketing landing page — 3 aliased routes for A/B testing
+                    ad copy/URL variants. All render the same component. */}
+                <Route path="/launch" element={<LandingPage />} />
+                <Route path="/makers-beta" element={<LandingPage />} />
+                <Route path="/for-makers" element={<LandingPage />} />
                 <Route path="/journal" element={<JournalPage />} />
                 <Route path="/journal/:slug" element={<JournalDetail />} />
                 <Route path="/cart" element={<CartPage />} />
