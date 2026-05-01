@@ -1,5 +1,18 @@
 # Crafters Market — CHANGELOG
 
+## 2026-02 — iter84 — Admin Beta Feedback inbox tab ✅
+
+**New admin tab** (Operations → "Beta Feedback") for reviewing every public Beta Feedback widget submission **in the order it was received** (newest first). Backend endpoints already existed (`GET /api/admin/feedback`, resolve/reply); this iteration ships the missing frontend.
+
+- **`<FeedbackTab>`** — filter pills (Pending / Resolved / All), received-order numbering (`#3`, `#2`, `#1` …), name + clickable email + relative time + page-context link, inline collapsible Reply composer (subject + textarea), one-click Resolve. Replied tickets carry a sky `✉ Replied` chip; resolved ones an emerald `✓ Resolved` chip.
+- **Reply flow** auto-resolves the ticket on send (single Postmark transactional via `send_admin_broadcast`); ticket records `replied_at` + `replied_by` for audit.
+- Mounted between Digests and Team in `AdminDashboard.jsx` tab nav.
+
+**Tests:** iter84 `test_iter84_admin_feedback_inbox.py` 6/6 — submission → newest-first listing → mid-row resolve → reply auto-resolve → resolved-list lookup → `replied_at` / `replied_by` audit fields all verified.
+
+Files: `frontend/src/components/admin/FeedbackTab.jsx` (new, ~250 lines), `frontend/src/pages/AdminDashboard.jsx` (mount). New: `backend/tests/test_iter84_admin_feedback_inbox.py`.
+
+
 ## 2026-02 — iter83 — Light/Dark mode keyboard shortcut (⌘+L / Ctrl+L) ✅
 
 **Quality-of-life keystroke** for power-user makers — flip themes from anywhere on the dashboard without navigating to Settings:
