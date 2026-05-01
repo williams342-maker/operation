@@ -1283,6 +1283,39 @@ async def send_beta_feedback(name: str, email: str, message: str, page: str = ""
     return await _send(OPS_EMAIL, f"Beta feedback · {name}", html)
 
 
+async def send_beta_feedback_resolved(name: str, email: str, message: str, page: str = ""):
+    """Auto-follow-up email when an admin marks beta feedback "resolved"
+    without writing a custom reply. Echoes back the original message so
+    the user has context, and invites them to keep sending feedback.
+    Sent ONLY when the admin used the bare Resolve action — if they
+    used Reply (which auto-resolves), they already got a tailored
+    response, so this is suppressed by the caller."""
+    if not email:
+        return
+    safe_msg = (message or "").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br/>")
+    site = (os.environ.get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
+    if site.lower().endswith(".emergentagent.com") or "preview." in site.lower():
+        site = "https://craftersmarket.org"
+    body = (
+        f"<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 22px'>Hey {name or 'there'},</p>"
+        "<p style='font-size:14px;color:#a3a3a3;line-height:1.6;margin:0 0 22px'>"
+        "Quick note from the team — we've reviewed your feedback and closed it out. "
+        "Thanks for taking the time to flag it; this is exactly how we improve."
+        "</p>"
+        "<div style='font-size:11px;letter-spacing:0.22em;color:#525252;text-transform:uppercase;margin:28px 0 8px'>◆ Your original note</div>"
+        f"<div style='font-size:13px;color:#a3a3a3;line-height:1.6;border-left:2px solid #ff4500;padding:6px 14px;background:#0d0d0d'>{safe_msg}</div>"
+        + (f"<p style='font-size:11px;color:#525252;margin:8px 0 0;text-align:right'>Submitted from <code style='color:#a3a3a3'>{page}</code></p>" if page else "")
+        + "<p style='font-size:13px;color:#a3a3a3;line-height:1.6;margin:28px 0 0'>"
+        "If something still feels off, just reply to this email — it goes straight to the team."
+        "</p>"
+        f"<div style='text-align:center;margin:32px 0 10px'>"
+        f"<a href='{site}/updates' style='display:inline-block;background:#ff4500;color:#0a0a0a;text-decoration:none;font-weight:700;padding:14px 24px;font-size:13px;letter-spacing:0.15em;text-transform:uppercase'>See what we've shipped →</a>"
+        "</div>"
+    )
+    html = _shell("Closed the loop.", "Your beta feedback has been reviewed and resolved.", body, "Crafters Market · Beta")
+    return await _send(email, "[Crafters Market] We reviewed your feedback", html)
+
+
 async def send_contact_message_to_ops(
     name: str, email: str, message: str, subject: str = "",
     phone: str = "", topic: str = "",

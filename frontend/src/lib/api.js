@@ -434,6 +434,10 @@ export const adminUpdatesDispatch = ({ dry_run = false, force = false } = {}) =>
     params: { dry_run, force },
   }).then((r) => r.data);
 
+// ---------- Admin growth stats (iter100) ----------
+export const fetchAdminGrowthStats = () =>
+  http.get("/admin/growth-stats", { headers: adminAuthHeaders() }).then((r) => r.data);
+
 // ---------- Public Contact form + admin inbox ----------
 export const sendContactMessage = (payload) =>
   http.post("/contact-messages", payload).then((r) => r.data);

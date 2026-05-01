@@ -209,15 +209,39 @@ async def admin_list_feedback(
 
 @router.post("/admin/feedback/{feedback_id}/resolve")
 async def admin_resolve_feedback(
-    feedback_id: str, claims: dict = Depends(current_admin),
+    feedback_id: str,
+    bg: BackgroundTasks,
+    claims: dict = Depends(current_admin),
 ):
-    r = await db.beta_feedback.update_one(
-        {"id": feedback_id},
-        {"$set": {"resolved": True, "resolved_by": claims["email"], "resolved_at": now_iso()}},
-    )
-    if r.matched_count == 0:
+    fb = await db.beta_feedback.find_one({"id": feedback_id}, {"_id": 0})
+    if not fb:
         raise HTTPException(404, "Feedback not found.")
-    return {"resolved": True}
+    update = {
+        "resolved": True,
+        "resolved_by": claims["email"],
+        "resolved_at": now_iso(),
+    }
+    # iter101 — fire an automated follow-up email to the user, but ONLY
+    # if (a) we have an email on file, (b) we haven't already replied
+    # via /reply (which sends its own tailored email), and (c) we
+    # haven't already sent the auto follow-up (idempotent re-resolves).
+    will_send = bool(
+        fb.get("email")
+        and not fb.get("replied_at")
+        and not fb.get("followup_sent_at")
+    )
+    if will_send:
+        from email_service import send_beta_feedback_resolved
+        bg.add_task(
+            send_beta_feedback_resolved,
+            name=fb.get("name", ""),
+            email=fb["email"],
+            message=fb.get("message", ""),
+            page=fb.get("page", ""),
+        )
+        update["followup_sent_at"] = now_iso()
+    await db.beta_feedback.update_one({"id": feedback_id}, {"$set": update})
+    return {"resolved": True, "followup_sent": will_send}
 
 
 class FeedbackReplyRequest(BaseModel):

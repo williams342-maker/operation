@@ -25,6 +25,7 @@ import ProdHealthTab from "../components/admin/ProdHealthTab";
 import ProdHealthBanner from "../components/admin/ProdHealthBanner";
 import UpdatesAdminTab from "../components/admin/UpdatesAdminTab";
 import AdminTabBoundary from "../components/admin/AdminTabBoundary";
+import GrowthStatsBar from "../components/admin/GrowthStatsBar";
 import CustomOrdersList from "../components/admin/CustomOrdersList";
 import PaidOrdersList from "../components/admin/PaidOrdersList";
 import ListingsTab from "../components/admin/ListingsTab";
@@ -220,6 +221,10 @@ export default function AdminDashboard() {
           <Stat label="Paid Orders" value={orders.length} testId="stat-paid-orders" />
           <Stat label="Revenue" value={`$${totalRevenue.toFixed(0)}`} testId="stat-revenue" />
         </div>
+
+        {/* Growth heartbeat — opt-in list deltas (24h / 7d). Daily dopamine
+            hit and early demand signal for which Coming Soon to launch. */}
+        <GrowthStatsBar />
 
         {/* Prod health watchdog banner — only renders when at least one
             critical endpoint is in the alerted state. Clicking "View"

@@ -1,5 +1,25 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05 — iter101 — Beta feedback follow-up email on resolve ✅
+
+**Why:** Users who submit beta feedback get nothing back when an admin marks the ticket resolved without writing a custom reply. They wonder if anyone read it. A short auto-follow-up closes the loop and reinforces that we're listening.
+
+**What:**
+- New email template `send_beta_feedback_resolved()` — branded shell that thanks the user, echoes back their original message + page (so they have context after days/weeks), invites them to keep sending feedback, and CTAs them to `/updates` to see what we've shipped.
+- `/admin/feedback/{id}/resolve` now fires the follow-up via BackgroundTasks. Returns `{"resolved": true, "followup_sent": true|false}` so the admin UI can show whether the email actually queued.
+
+**Three guard rails so we don't spam:**
+1. Skip if `email` is empty (anonymous feedback)
+2. Skip if `replied_at` is set (admin already sent a tailored Reply via /admin/feedback/{id}/reply)
+3. Skip if `followup_sent_at` is already set (idempotent re-resolves don't re-email)
+
+**Regression guard:** `tests/test_iter101_feedback_followup.py` — 4 tests covering happy path, skip-when-already-replied, idempotent re-resolve, skip-when-no-email. All green.
+
+**Verified end-to-end:** Curl test against a seeded row returns `{"resolved":true,"followup_sent":true}` and the email queues through the live provider.
+
+---
+
+
 ## 2026-05 — iter99 — Four P2 features in one pass ✅
 
 **1. ErrorBoundary per admin tab.** New `AdminTabBoundary.jsx` wraps every conditional tab render in `AdminDashboard`. If a single tab's component crashes (unhandled exception, missing import, undefined destructure) only that tab renders an isolated "Something went sideways. [Retry]" card with collapsible stack trace. The rest of the console stays alive. Born from the iter93 ProdHealthBanner-import incident that blacked out the entire admin.
