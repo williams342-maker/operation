@@ -1,11 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Heart, Download, Send, Plus, Lock, Flag, Sparkles } from "lucide-react";
+import { Heart, Download, Send, Plus, Lock, Flag, Sparkles, Trophy } from "lucide-react";
 import { toast } from "sonner";
 import {
   fetchShowcase, createShowcase, likeShowcase,
-  fetchDesignFiles, downloadDesignFile, unlockDownloadsCheckout, uploadDesignFile, uploadDesignFileDirect,
+  fetchDesignFiles, fetchDesignFilesLeaderboard, downloadDesignFile, unlockDownloadsCheckout, uploadDesignFile, uploadDesignFileDirect,
   reportDesignFile, convertDxfToSvg, renderStlThumbnail,
   fetchForumThreads, fetchForumThread, fetchForumCategories,
   createForumThread, replyForumThread, uploadForumAttachment,
@@ -336,6 +336,71 @@ function ShowcaseCard({ post, onLike, canLike }) {
 }
 
 // ===================== DESIGN FILES =====================
+function ContributorLeaderboard() {
+  const [rows, setRows] = useState([]);
+  const [open, setOpen] = useState(true);
+  useEffect(() => {
+    fetchDesignFilesLeaderboard(10)
+      .then((d) => setRows(Array.isArray(d) ? d : []))
+      .catch(() => setRows([]));
+  }, []);
+  if (!rows.length) return null;
+  return (
+    <div className="border border-[#262626] mb-6" data-testid="files-leaderboard">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between gap-3 px-5 py-3 hover:bg-[#1a1a1a]/40 transition"
+      >
+        <span className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">
+          <Trophy size={14} /> Top Contributors
+        </span>
+        <span className="font-mono text-[10px] text-[#525252]">
+          {open ? "Hide" : `Show top ${rows.length}`}
+        </span>
+      </button>
+      {open && (
+        <ol className="border-t border-[#262626] divide-y divide-[#1a1a1a]" data-testid="files-leaderboard-list">
+          {rows.map((r, i) => (
+            <li
+              key={`${r.kind}:${r.handle}`}
+              className="flex items-center gap-3 px-5 py-3"
+              data-testid={`leaderboard-row-${i + 1}`}
+            >
+              <span className={`font-display text-2xl shrink-0 w-7 text-right ${
+                i === 0 ? "text-[#ff4500]" : i < 3 ? "text-[#e5e5e5]" : "text-[#525252]"
+              }`}>{i + 1}</span>
+              {r.avatar ? (
+                <img src={r.avatar} alt="" className="w-8 h-8 object-cover border border-[#262626] shrink-0" />
+              ) : (
+                <div className="w-8 h-8 border border-[#262626] bg-[#0a0a0a] shrink-0" />
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="font-mono text-xs text-[#e5e5e5] truncate">
+                  {r.kind === "maker" ? (
+                    <Link to={`/makers/${r.handle}`} className="hover:text-[#ff4500]">
+                      {r.display_name}
+                    </Link>
+                  ) : r.display_name}
+                  <span className="ml-2 px-1.5 py-0.5 border border-[#262626] text-[#a3a3a3] text-[9px] uppercase tracking-[0.2em]">
+                    {r.kind}
+                  </span>
+                </div>
+                <div className="font-mono text-[10px] text-[#a3a3a3] mt-0.5">
+                  {r.uploads} upload{r.uploads === 1 ? "" : "s"} · {r.downloads} download{r.downloads === 1 ? "" : "s"}
+                </div>
+              </div>
+              <div className="font-display text-xl text-[#ff4500] shrink-0" title="Contribution score (uploads × 5 + downloads)">
+                {r.score}
+              </div>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  );
+}
+
 function FilesTab({ me }) {
   const [files, setFiles] = useState([]);
   const [showUpload, setShowUpload] = useState(false);
@@ -371,6 +436,7 @@ function FilesTab({ me }) {
         )}
       </div>
       {showUpload && <FileUploadForm onSaved={() => { setShowUpload(false); refresh(); }} />}
+      <ContributorLeaderboard />
       {!files.length ? (
         <p className="font-mono text-sm text-[#a3a3a3]" data-testid="files-empty">
           No design files yet — be the first to share a bundle.

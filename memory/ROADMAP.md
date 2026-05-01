@@ -12,12 +12,14 @@ _Prioritized backlog: P0 > P1 > P2. Blocked items flag the gating credential/dec
 
 - **Reddit Feed UI** · backend built; BLOCKED awaiting `REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET` / `REDDIT_USERNAME` / `REDDIT_PASSWORD`.
 - **Buyer SMS on DELIVERED** · alongside email; delivery is peak referral moment. **BLOCKED on A2P 10DLC** carrier registration (Twilio creds are wired + verified end-to-end via a test send 2026-04-30; carrier returned error 30034 — Unregistered Number). Will auto-light up the moment A2P brand+campaign approves at https://console.twilio.com/us1/develop/sms/regulatory-compliance/a2p-10dlc (1-3 business days, ~$4/mo + $15 vetting for Sole Proprietor tier).
+- ~~**"Notify when restocked" CTA on 0-stock items**~~ → SHIPPED in iter81 (waitlist + auto-fire on stock raise + maker demand banner).
 
 ## P2
 
 - **Google Ads Developer Token** · 22-char token needed for real off-site ad-spend telemetry.
 - **DNS record cleanup** · remove unused Brevo / Sender / Mailerlite records once Postmark/Mailgun stability is confirmed.
 - **`?tab=orders` deep-linking** on `/maker/dashboard` for email/docs links.
+- ~~**Real cohort retention calc** on Workshop Users tab~~ → SHIPPED in iter81 (`community_users.last_seen` aggregation).
 
 ## Blocked sections (awaiting external input)
 

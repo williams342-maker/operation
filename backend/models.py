@@ -246,6 +246,12 @@ class Maker(BaseModel):
     restocking_fee_pct: int = 0             # 0-100
     non_returnable_items: Optional[str] = "Custom or personalized orders, digital downloads, intimate or hygienic items."
     accepts_custom_orders: bool = True    # gates the "Request Custom" CTA
+    # Custom & personalized order policy — applies only to custom-order
+    # requests. Free-text override of the platform-wide policy + a toggle
+    # that lets confident shops skip the proof-approval step (default ON
+    # because most shops should require proofs to prevent disputes).
+    custom_order_policy: Optional[str] = ""
+    custom_orders_require_proof: bool = True
     # Maker-level default for backorders. Per-listing `accepts_backorders`
     # overrides this when set; when null on the listing, this default
     # applies. Defaults to False — makers must opt in.
@@ -457,6 +463,8 @@ class MakerProfileUpdate(BaseModel):
     restocking_fee_pct: Optional[int] = None
     non_returnable_items: Optional[str] = None
     accepts_custom_orders: Optional[bool] = None
+    custom_order_policy: Optional[str] = None
+    custom_orders_require_proof: Optional[bool] = None
     accepts_backorders_default: Optional[bool] = None
     is_veteran_owned: Optional[bool] = None
     watermark_images: Optional[bool] = None
@@ -540,3 +548,26 @@ class BackorderDecision(BaseModel):
     """Maker accept/decline payload."""
     model_config = ConfigDict(extra="ignore")
     decline_reason: Optional[str] = ""
+
+
+# ---- Restock waitlist (lighter-weight than backorders) ----
+class RestockWaitlistEntry(BaseModel):
+    """A buyer who wants to hear back when a 0-stock listing is restocked.
+    Distinct from BackorderRequest — no commitment, no maker decision flow.
+    Sent automatically the next time stock goes from 0 → positive."""
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    product_id: str
+    product_slug: str
+    product_title: str
+    maker_slug: str
+    buyer_email: EmailStr
+    buyer_name: Optional[str] = ""
+    created_at: str = Field(default_factory=now_iso)
+    notified_at: Optional[str] = None
+
+
+class RestockWaitlistCreate(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    buyer_email: EmailStr
+    buyer_name: Optional[str] = ""

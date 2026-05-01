@@ -274,6 +274,63 @@ async def list_design_files(limit: int = 50):
     return [_with_quality(r) for r in rows]
 
 
+@router.get("/community/files/leaderboard")
+async def files_leaderboard(limit: int = 10):
+    """Top contributors of community design files by upload count + total
+    downloads. Public — surfaces who's powering the library so contributors
+    get social credit (Etsy "best seller" effect for free shares).
+    Returns an array of {handle, display_name, avatar, uploads, downloads,
+    score} sorted score desc; score = uploads * 5 + downloads."""
+    pipeline = [
+        {"$match": {"quarantined_at": None}},
+        {"$group": {
+            "_id": {
+                # Prefer maker_slug when present (maker-uploaded), else
+                # fall back to the buyer uploader_id. Bucket label first.
+                "key": {"$ifNull": ["$maker_slug", "$uploader_id"]},
+                "kind": {"$cond": [{"$ifNull": ["$maker_slug", False]}, "maker", "buyer"]},
+                "name": {"$ifNull": ["$maker_name", "$uploader_name"]},
+            },
+            "uploads": {"$sum": 1},
+            "downloads": {"$sum": {"$ifNull": ["$download_count", 0]}},
+        }},
+        {"$match": {"_id.key": {"$ne": None}}},
+        {"$sort": {"uploads": -1}},
+        {"$limit": 100},
+    ]
+    rows = await db.design_files.aggregate(pipeline).to_list(100)
+    out = []
+    for r in rows:
+        key = r["_id"]["key"]
+        kind = r["_id"]["kind"]
+        display_name = r["_id"].get("name") or key
+        avatar = ""
+        # Hydrate avatar — makers from `makers.portrait`, buyers from
+        # `community_users.avatar` so the leaderboard has real faces.
+        if kind == "maker":
+            m = await db.makers.find_one({"slug": key}, {"_id": 0, "portrait": 1, "name": 1})
+            if m:
+                avatar = m.get("portrait", "") or ""
+                display_name = m.get("name") or display_name
+        else:
+            u = await db.community_users.find_one({"id": key}, {"_id": 0, "avatar": 1, "username": 1})
+            if u:
+                avatar = u.get("avatar", "") or ""
+                display_name = u.get("username") or display_name
+        score = int(r["uploads"]) * 5 + int(r.get("downloads", 0))
+        out.append({
+            "handle": key,
+            "kind": kind,
+            "display_name": display_name,
+            "avatar": avatar,
+            "uploads": int(r["uploads"]),
+            "downloads": int(r.get("downloads", 0)),
+            "score": score,
+        })
+    out.sort(key=lambda x: x["score"], reverse=True)
+    return out[: max(1, min(limit, 50))]
+
+
 # ── Bundle Quality Score ──────────────────────────────────────────────
 # Buyers download community files for one reason — to make stuff. So we
 # rank bundles on how usable they are, not on aesthetic polish:

@@ -189,6 +189,7 @@ MakerProductUpdate.model_rebuild()
 @router.patch("/maker/products/{product_slug}", response_model=Product)
 async def maker_update_product(
     product_slug: str, payload: MakerProductUpdate,
+    bg: BackgroundTasks,
     slug: str = Depends(current_maker_slug),
 ):
     prod = await db.products.find_one({"slug": product_slug}, {"_id": 0})
@@ -246,6 +247,20 @@ async def maker_update_product(
     if updates:
         await db.products.update_one({"slug": product_slug}, {"$set": updates})
     updated = await db.products.find_one({"slug": product_slug}, {"_id": 0})
+
+    # If the maker just raised stock from 0 → positive, drain the
+    # restock waitlist and email everyone who asked to be notified.
+    if "in_stock" in updates:
+        try:
+            from routers.restock_waitlist import fire_restock_notifications_if_needed
+            await fire_restock_notifications_if_needed(
+                product_id=prod["id"],
+                prev_stock=int(prod.get("in_stock") or 0),
+                new_stock=int(updated.get("in_stock") or 0),
+                bg=bg,
+            )
+        except Exception as e:
+            logger.exception("restock notify dispatch failed: %s", e)
     return updated
 
 

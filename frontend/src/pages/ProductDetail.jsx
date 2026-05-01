@@ -8,6 +8,7 @@ import SaveDropButton from "../components/SaveDropButton";
 import ImageLightbox from "../components/ImageLightbox";
 import VeteranBadge from "../components/VeteranBadge";
 import BackorderRequestModal from "../components/BackorderRequestModal";
+import RestockWaitlistModal from "../components/RestockWaitlistModal";
 
 export default function ProductDetail() {
   const { slug } = useParams();
@@ -24,6 +25,7 @@ export default function ProductDetail() {
   // exactly one place — the backend. Frontend is a dumb consumer.
   const [backorderPolicy, setBackorderPolicy] = useState(null);
   const [backorderOpen, setBackorderOpen] = useState(false);
+  const [restockOpen, setRestockOpen] = useState(false);
   const { add } = useCart();
 
   useEffect(() => {
@@ -352,6 +354,15 @@ export default function ProductDetail() {
                         Sold out
                       </button>
                     )}
+                    <button
+                      type="button"
+                      onClick={() => setRestockOpen(true)}
+                      data-testid="product-notify-restock"
+                      className="px-5 py-3 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em] transition whitespace-nowrap"
+                      title="One email when this listing is restocked"
+                    >
+                      ✉ Notify me
+                    </button>
                     <SaveDropButton makerSlug={p.maker_slug} makerName={maker?.name || p.maker_slug} productSlug={p.slug} />
                   </div>
                   {backorderPolicy?.allowed && (
@@ -393,6 +404,12 @@ export default function ProductDetail() {
           makerName={maker?.name || p.maker_slug}
           leadWeeks={backorderPolicy?.lead_weeks || p.backorder_lead_weeks || 4}
           onClose={() => setBackorderOpen(false)}
+        />
+      )}
+      {restockOpen && (
+        <RestockWaitlistModal
+          product={p}
+          onClose={() => setRestockOpen(false)}
         />
       )}
     </div>

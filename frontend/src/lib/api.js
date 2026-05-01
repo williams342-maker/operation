@@ -322,10 +322,20 @@ export const declineBackorderRequest = (id, decline_reason = "") =>
 export const fulfillBackorderRequest = (id) =>
   http.post(`/maker/backorder-requests/${id}/fulfill`, {}, { headers: authHeaders() }).then((r) => r.data);
 
+// ---------- Restock waitlist (lighter-weight than backorders) ----------
+export const joinRestockWaitlist = (slug, payload) =>
+  http.post(`/products/${slug}/restock-waitlist`, payload).then((r) => r.data);
+export const fetchMakerRestockWaitlist = () =>
+  http.get("/maker/restock-waitlist", { headers: authHeaders() }).then((r) => r.data);
+
 // ---------- Workshop Analytics Dashboard (isolated namespace) ----------
 const fetchWorkshop = (path) =>
   http.get(`/workshop-analytics${path}`, { headers: adminAuthHeaders() }).then((r) => r.data);
-export const fetchWorkshopOverview = () => fetchWorkshop("/overview");
+export const fetchWorkshopOverview = (range_days) =>
+  http.get(`/workshop-analytics/overview`, {
+    headers: adminAuthHeaders(),
+    params: range_days ? { range_days } : {},
+  }).then((r) => r.data);
 export const fetchWorkshopSales = () => fetchWorkshop("/sales");
 export const fetchWorkshopSellers = () => fetchWorkshop("/sellers");
 export const fetchWorkshopUsers = () => fetchWorkshop("/users");
@@ -606,6 +616,8 @@ export const likeShowcase = (id) =>
   http.post(`/community/showcase/${id}/like`, {}, { headers: buyerAuthHeaders() }).then((r) => r.data);
 
 export const fetchDesignFiles = () => http.get("/community/files").then((r) => r.data);
+export const fetchDesignFilesLeaderboard = (limit = 10) =>
+  http.get("/community/files/leaderboard", { params: { limit } }).then((r) => r.data);
 export const downloadDesignFile = (id) =>
   http.get(`/community/files/${id}/download`, { headers: buyerAuthHeaders() }).then((r) => r.data);
 export const unlockDownloadsCheckout = () =>

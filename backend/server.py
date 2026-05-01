@@ -35,6 +35,7 @@ from routers.subscriptions import router as subscriptions_router
 from routers.analytics import router as analytics_router
 from routers.workshop_analytics import router as workshop_analytics_router
 from routers.backorder import router as backorder_router
+from routers.restock_waitlist import router as restock_waitlist_router
 from seed_data import seed_if_empty
 
 app = FastAPI(title="Crafters Market API")
@@ -70,6 +71,7 @@ api.include_router(shipping_router)
 api.include_router(admin_shipping_router)
 api.include_router(workshop_analytics_router)
 api.include_router(backorder_router)
+api.include_router(restock_waitlist_router)
 app.include_router(api)
 
 app.add_middleware(

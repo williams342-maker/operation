@@ -19,6 +19,9 @@ import {
 import EmptyState from "../../components/EmptyState";
 import DeclineReasonPicker from "../../components/DeclineReasonPicker";
 import { formatDate } from "./_shared";
+import { daysSince } from "../../lib/timeAgo";
+
+const STALE_DAYS = 3;
 
 const STATUS_CLASS = {
   pending:   "border-[#ff4500]/50 text-[#ff4500] bg-[#ff4500]/5",
@@ -76,6 +79,10 @@ function BackorderRow({ req, onChange }) {
   };
 
   const status = req.status || "pending";
+  // "Stale" = pending AND created >= STALE_DAYS ago. Nudges makers to
+  // respond before buyers ghost. Surfaces a small red Xd badge in the
+  // collapsed row header.
+  const stale = status === "pending" && (daysSince(req.created_at) ?? 0) >= STALE_DAYS;
   return (
     <div className="border border-[#262626]" data-testid={`backorder-row-${req.id}`}>
       <button
@@ -86,6 +93,15 @@ function BackorderRow({ req, onChange }) {
         <span className={`px-2 py-0.5 border font-mono text-[10px] uppercase tracking-[0.22em] shrink-0 ${STATUS_CLASS[status] || STATUS_CLASS.pending}`}>
           {status}
         </span>
+        {stale && (
+          <span
+            className="px-2 py-0.5 border border-red-500/60 text-red-400 bg-red-500/10 font-mono text-[10px] uppercase tracking-[0.22em] shrink-0"
+            data-testid={`backorder-stale-${req.id}`}
+            title={`No response in ${daysSince(req.created_at)} day(s) — buyer is waiting.`}
+          >
+            ◆ Stale {daysSince(req.created_at)}d
+          </span>
+        )}
         <span className="px-2 py-0.5 border border-[#ff4500] text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] shrink-0">
           ◆ Backorder
         </span>

@@ -1,7 +1,20 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { adminRefundOrder, adminRefireOrderEmails } from "../../lib/api";
 import { formatDate } from "./_shared";
+import { timeAgo } from "../../lib/timeAgo";
+
+// localStorage map: { [session_id]: ISO timestamp } — surface a
+// "Last sent 2m ago" badge after admin clicks Refire so we don't
+// accidentally double-fire emails.
+const REFIRE_KEY = "cm_admin_refire_log";
+const readRefireLog = () => {
+  try { return JSON.parse(localStorage.getItem(REFIRE_KEY) || "{}"); }
+  catch { return {}; }
+};
+const writeRefireLog = (m) => {
+  try { localStorage.setItem(REFIRE_KEY, JSON.stringify(m)); } catch { /* ignore quota */ }
+};
 
 export default function PaidOrdersList({ items }) {
   const [refunding, setRefunding] = useState("");
@@ -10,6 +23,14 @@ export default function PaidOrdersList({ items }) {
     new Set(items.filter((o) => o.refund_status === "refunded").map((o) => o.session_id))
   );
   const [err, setErr] = useState({});
+  const [refireLog, setRefireLog] = useState(readRefireLog);
+  // Tick once per minute so the timeAgo label refreshes without
+  // forcing the admin to reload.
+  const [, setNow] = useState(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(t);
+  }, []);
 
   const refund = async (sid) => {
     if (!window.confirm(
@@ -117,6 +138,15 @@ export default function PaidOrdersList({ items }) {
               >
                 {refiring === o.session_id ? "Sending…" : "✉ Refire"}
               </button>
+              {refireLog[o.session_id] && (
+                <span
+                  className="font-mono text-[10px] text-[#a3a3a3] whitespace-nowrap"
+                  data-testid={`order-refire-last-${o.session_id}`}
+                  title={`Last refired at ${new Date(refireLog[o.session_id]).toLocaleString()}`}
+                >
+                  Last sent {timeAgo(refireLog[o.session_id])}
+                </span>
+              )}
             </div>
           </div>
         );

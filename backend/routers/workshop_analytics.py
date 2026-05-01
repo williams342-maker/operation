@@ -132,7 +132,15 @@ async def _period_metrics(start_iso: str, end_iso: str) -> dict:
 
 # ── Overview ─────────────────────────────────────────────────
 @router.get("/overview")
-async def overview(_: dict = Depends(verify_workshop_token)):
+async def overview(
+    _: dict = Depends(verify_workshop_token),
+    range_days: int = 30,
+):
+    """`range_days` controls the period-over-period KPI window. Accepted
+    values: 7, 14, 30, 60, 90 — anything else falls back to 30 to avoid
+    pathological queries. The 12-month rollups are unaffected."""
+    if range_days not in {7, 14, 30, 60, 90}:
+        range_days = 30
     total_users = await db.community_users.count_documents({})
     total_orders = await db.payment_transactions.count_documents({"payment_status": "paid"})
     total_listings = await db.products.count_documents({})
@@ -145,10 +153,10 @@ async def overview(_: dict = Depends(verify_workshop_token)):
     rev_result = await db.payment_transactions.aggregate(rev_pipeline).to_list(1)
     total_revenue = rev_result[0]["total"] if rev_result else 0
 
-    # Period-over-period: trailing 30 days vs the 30 days before that.
+    # Period-over-period: trailing `range_days` vs the prior `range_days`.
     now = datetime.now(timezone.utc)
-    win_now_start = now - timedelta(days=30)
-    win_prev_start = now - timedelta(days=60)
+    win_now_start = now - timedelta(days=range_days)
+    win_prev_start = now - timedelta(days=range_days * 2)
     cur = await _period_metrics(_iso(win_now_start), _iso(now))
     prv = await _period_metrics(_iso(win_prev_start), _iso(win_now_start))
     deltas = {
@@ -199,7 +207,8 @@ async def overview(_: dict = Depends(verify_workshop_token)):
             "pageviews": total_listings * 12 + total_users * 3,  # synthetic — workshop original
             "pages_per_session": 3.1,
         },
-        "deltas": deltas,  # period-over-period (trailing 30d vs prior 30d)
+        "range_days": range_days,
+        "deltas": deltas,  # period-over-period (trailing N days vs prior N days)
         "monthly_revenue": monthly,
         "new_users": [
             {"month": _month_label(m), "users": new_users_by_month.get(m.strftime("%Y-%m"), 0)}
@@ -362,15 +371,54 @@ async def users(_: dict = Depends(verify_workshop_token)):
     return {
         "monthly_signups": monthly,
         "total_users": total,
-        # Retention shape preserved from workshop file. Replace with a real
-        # cohort calc once we wire activity_events into a cohort builder.
-        "retention": [
-            {"cohort": "Week 1", "rate": 68},
-            {"cohort": "Week 2", "rate": 45},
-            {"cohort": "Week 4", "rate": 31},
-            {"cohort": "Week 8", "rate": 22},
-        ],
+        "retention": await _calc_retention_cohorts(),
     }
+
+
+async def _calc_retention_cohorts() -> list[dict]:
+    """Compute real Week-1/2/4/8 retention using `community_users.last_seen`.
+    A user is "retained at week N" if their last_seen ISO timestamp is at
+    least N weeks after their created_at. Cohorts are computed across
+    every signup so the figure is denoised over the full population.
+    Users with no last_seen are treated as not-retained.
+    """
+    cutoff_days = {"Week 1": 7, "Week 2": 14, "Week 4": 28, "Week 8": 56}
+    cursor = db.community_users.find(
+        {"created_at": {"$type": "string"}},
+        {"_id": 0, "created_at": 1, "last_seen": 1},
+    )
+    rows = await cursor.to_list(20000)
+    out: list[dict] = []
+    for label, days in cutoff_days.items():
+        # Cohort denominator: signups old enough to have HAD a chance to
+        # come back at week N (i.e. signed up ≥ days ago).
+        denom = 0
+        retained = 0
+        for r in rows:
+            try:
+                created = datetime.fromisoformat(str(r["created_at"]).replace("Z", "+00:00"))
+            except Exception:
+                continue
+            if created.tzinfo is None:
+                created = created.replace(tzinfo=timezone.utc)
+            age_days = (datetime.now(timezone.utc) - created).days
+            if age_days < days:
+                continue  # not eligible for this cohort yet
+            denom += 1
+            ls = r.get("last_seen")
+            if not ls:
+                continue
+            try:
+                last = datetime.fromisoformat(str(ls).replace("Z", "+00:00"))
+                if last.tzinfo is None:
+                    last = last.replace(tzinfo=timezone.utc)
+            except Exception:
+                continue
+            if (last - created).days >= days:
+                retained += 1
+        rate = round((retained / denom) * 100.0, 1) if denom else 0.0
+        out.append({"cohort": label, "rate": rate, "denom": denom, "retained": retained})
+    return out
 
 
 # ── Live ─────────────────────────────────────────────────────

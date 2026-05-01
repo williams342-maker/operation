@@ -61,6 +61,9 @@ const axisProps = {
 export default function WorkshopAnalyticsDashboard() {
   const nav = useNavigate();
   const [tab, setTab] = useState("overview");
+  // Period-over-period KPI window (in days). Affects the Overview tab's
+  // delta tiles only — the 12-mo rollup charts are unaffected.
+  const [rangeDays, setRangeDays] = useState(30);
 
   // Each tab fetches lazily so a slow endpoint can't block the rest.
   const [data, setData] = useState({});
@@ -83,7 +86,7 @@ export default function WorkshopAnalyticsDashboard() {
   useEffect(() => {
     if (data[tab] || loading[tab]) return;
     const fetcher = ({
-      overview:  fetchWorkshopOverview,
+      overview:  () => fetchWorkshopOverview(rangeDays),
       sales:     fetchWorkshopSales,
       sellers:   fetchWorkshopSellers,
       users:     fetchWorkshopUsers,
@@ -101,7 +104,15 @@ export default function WorkshopAnalyticsDashboard() {
         setErrored((s) => ({ ...s, [tab]: msg }));
       })
       .finally(() => setLoading((s) => ({ ...s, [tab]: false })));
-  }, [tab, data, loading]);
+  }, [tab, data, loading, rangeDays]);
+
+  // When the user picks a new range, drop the cached overview so the
+  // next render re-fetches with the fresh window.
+  const onPickRange = (n) => {
+    setRangeDays(n);
+    setData((s) => { const c = { ...s }; delete c.overview; return c; });
+    setErrored((s) => { const c = { ...s }; delete c.overview; return c; });
+  };
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#e5e5e5] pt-32 pb-24" data-testid="workshop-analytics-page">
@@ -114,7 +125,27 @@ export default function WorkshopAnalyticsDashboard() {
             </div>
             <h1 className="font-display text-3xl mt-1">Insights, in one place.</h1>
           </div>
-          <div className="flex gap-2 shrink-0">
+          <div className="flex gap-2 shrink-0 items-center">
+            {tab === "overview" && (
+              <div className="flex gap-1 border border-[#262626]" data-testid="workshop-range-selector">
+                {[7, 30, 90].map((n) => {
+                  const active = rangeDays === n;
+                  return (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => onPickRange(n)}
+                      data-testid={`workshop-range-${n}`}
+                      className={`px-3 py-2 font-mono text-[10px] uppercase tracking-[0.22em] transition ${
+                        active ? "bg-[#ff4500] text-black" : "text-[#a3a3a3] hover:text-[#e5e5e5]"
+                      }`}
+                    >
+                      {n}d
+                    </button>
+                  );
+                })}
+              </div>
+            )}
             <Link
               to="/admin/dashboard"
               data-testid="back-to-admin"
@@ -191,7 +222,7 @@ function OverviewSection({ d }) {
         { label: "Avg Order",     value: `$${k.avg_order_value.toFixed(2)}`,                            testId: "kpi-aov",     delta: dl.avg_order_value  },
       ]} />
       <p className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252]" data-testid="delta-explainer">
-        ◆ Δ vs prior 30 days · trailing-window comparison
+        ◆ Δ vs prior {d.range_days || 30} days · trailing-window comparison
       </p>
       <div className="grid lg:grid-cols-2 gap-6">
         <ChartCard title="Monthly Revenue · 12 mo">
@@ -356,15 +387,23 @@ function UsersSection({ d }) {
           </LineChart>
         </ResponsiveContainer>
       </ChartCard>
-      <ChartCard title="Retention Cohorts (sample)">
+      <ChartCard title="Retention Cohorts (real)">
         <div className="grid grid-cols-4 gap-3" data-testid="retention-grid">
           {d.retention.map((c) => (
             <div key={c.cohort} className="border border-[#262626] p-4">
               <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252]">{c.cohort}</div>
               <div className="font-display text-3xl text-[#ff4500] mt-1">{c.rate}%</div>
+              {typeof c.denom === "number" && (
+                <div className="font-mono text-[10px] text-[#525252] mt-1">
+                  {c.retained}/{c.denom} eligible
+                </div>
+              )}
             </div>
           ))}
         </div>
+        <p className="font-mono text-[10px] text-[#525252] mt-3 leading-relaxed">
+          Denominator is users whose signup is old enough to have been able to come back at week N. A user is "retained" if their last_seen ≥ signup + N weeks.
+        </p>
       </ChartCard>
     </div>
   );

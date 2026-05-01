@@ -1,11 +1,11 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Hammer, Check } from "lucide-react";
+import { Hammer, Check, Mail } from "lucide-react";
 import { toast } from "sonner";
 import ProductEditCard from "./ProductEditCard";
 import EmptyState from "../../components/EmptyState";
 import { useConfirm } from "./useConfirm";
-import { restoreMakerProduct, purgeMakerProduct } from "../../lib/api";
+import { restoreMakerProduct, purgeMakerProduct, fetchMakerRestockWaitlist } from "../../lib/api";
 
 /**
  * Listings hub for makers, with three top-level views:
@@ -47,6 +47,16 @@ export default function ProductsList({ products, onChanged, onRefresh }) {
   const counts = { live: live.length, drafts: drafts.length, archived: archived.length };
   const totalAll = counts.live + counts.drafts + counts.archived;
 
+  // Restock waitlist demand — surfaces buyers waiting on 0-stock SKUs
+  // so the maker knows which listings to refill. One aggregate banner
+  // keeps the view uncluttered; per-listing breakdown is one click away.
+  const [restockDemand, setRestockDemand] = useState(null);
+  useEffect(() => {
+    fetchMakerRestockWaitlist()
+      .then((d) => setRestockDemand(d))
+      .catch(() => setRestockDemand(null));
+  }, []);
+
   const switchView = (k) => {
     setView(k);
     setSelected(new Set());
@@ -59,6 +69,34 @@ export default function ProductsList({ products, onChanged, onRefresh }) {
 
   return (
     <div className="space-y-8" data-testid="products-list">
+      {restockDemand && restockDemand.total_pending > 0 && (
+        <div
+          className="border border-[#ff4500]/40 bg-[#ff4500]/5 px-4 py-3 flex items-start gap-3"
+          data-testid="restock-demand-banner"
+        >
+          <Mail size={16} className="text-[#ff4500] mt-0.5 shrink-0" />
+          <div className="min-w-0 flex-1">
+            <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#ff4500]">
+              ◆ Restock demand · {restockDemand.total_pending} {restockDemand.total_pending === 1 ? "buyer" : "buyers"} waiting
+            </div>
+            <div className="font-mono text-xs text-[#e5e5e5] mt-1.5 leading-relaxed">
+              {restockDemand.products.slice(0, 3).map((p, i) => (
+                <span key={p.product_id}>
+                  {i > 0 && " · "}
+                  <span className="text-[#e5e5e5]">{p.product_title}</span>
+                  <span className="text-[#a3a3a3]"> ({p.count})</span>
+                </span>
+              ))}
+              {restockDemand.products.length > 3 && (
+                <span className="text-[#525252]"> +{restockDemand.products.length - 3} more</span>
+              )}
+            </div>
+            <p className="font-mono text-[10px] text-[#a3a3a3] mt-1.5 leading-relaxed">
+              Raise stock on any of these listings → every waitlisted buyer gets an automatic "back in stock" email.
+            </p>
+          </div>
+        </div>
+      )}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3]">
           ◆ {counts.live} live

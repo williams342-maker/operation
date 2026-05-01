@@ -687,6 +687,65 @@ async def send_buyer_shipped(
         html,
     )
 
+async def send_buyer_restock_signup(
+    buyer_email: str, buyer_name: str, product_title: str, maker_name: str,
+):
+    """Soft confirmation that the buyer is on the restock waitlist.
+    Sent the moment they hit "Notify when restocked" on a 0-stock listing.
+    Mirrors the backorder-received tone but sets a different expectation —
+    no maker decision required, just a one-shot email when stock returns."""
+    if not buyer_email:
+        return None
+    body = (
+        f"<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 18px'>"
+        f"Hi {buyer_name.split()[0] if buyer_name else 'there'}, you're on the restock waitlist for "
+        f"<b style='color:#ff4500'>{product_title}</b> from {maker_name}.</p>"
+        "<p style='font-size:13px;color:#a3a3a3;line-height:1.6'>"
+        "We'll email you the moment this listing is back in stock — single email, no marketing, no follow-ups. "
+        "If you'd rather not wait, the maker may also be open to a custom backorder.</p>"
+    )
+    html = _shell(
+        "On the restock list.",
+        f"We'll ping you the moment {product_title} is back.",
+        body, "Restock waitlist",
+    )
+    return await _send(
+        buyer_email,
+        f"You're on the restock list · {product_title}",
+        html,
+    )
+
+
+async def send_buyer_restocked(
+    buyer_email: str, buyer_name: str, product_title: str,
+    product_url: str, maker_name: str,
+):
+    """Restock notification — fired the next time stock goes from 0 → +."""
+    if not buyer_email:
+        return None
+    body = (
+        f"<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 18px'>"
+        f"Good news, {buyer_name.split()[0] if buyer_name else 'there'} — "
+        f"<b style='color:#ff4500'>{product_title}</b> is back in stock at {maker_name}.</p>"
+        f"<a href='{product_url}' style='display:inline-block;"
+        "background:#ff4500;color:#0a0a0a;padding:14px 26px;font-family:Impact,Arial Black,sans-serif;"
+        "font-size:14px;letter-spacing:0.18em;text-transform:uppercase;text-decoration:none;"
+        "border:1px solid #ff4500'>Buy now →</a>"
+        "<p style='font-size:12px;color:#525252;line-height:1.6;margin-top:18px'>"
+        "Stock can sell out quickly. This is a one-shot notification — you won't be on the list again unless you opt back in.</p>"
+    )
+    html = _shell(
+        "Restocked.",
+        f"{product_title} is available again.",
+        body, "Restock alert",
+    )
+    return await _send(
+        buyer_email,
+        f"Back in stock · {product_title}",
+        html,
+    )
+
+
 async def send_buyer_backorder_received(
     buyer_email: str, buyer_name: str, product_title: str,
     lead_weeks: int, maker_name: str,

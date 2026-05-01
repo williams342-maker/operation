@@ -982,6 +982,8 @@ function Policy({ maker, onSaved }) {
     "return_shipping_paid_by",
     "restocking_fee_pct",
     "non_returnable_items",
+    "custom_order_policy",
+    "custom_orders_require_proof",
   ];
   const { form, set, dirty, busy, submit } = useSettingsForm(maker, fields, onSaved);
   const acceptsAny = !!form.accepts_returns_default || !!form.accepts_exchanges_default;
@@ -1064,6 +1066,29 @@ function Policy({ maker, onSaved }) {
       <Field label="Additional return / exchange notes" hint="Free-text policy shown on every product page. Use this for anything the structured fields above don't cover.">
         <textarea rows={6} className={`${inputCls} resize-none leading-relaxed`} value={form.returns_policy || ""} onChange={(e) => set("returns_policy")(e.target.value)} data-testid="policy-returns-notes" />
       </Field>
+
+      <div className="border border-[#262626] bg-[#0a0a0a] p-4 space-y-4" data-testid="policy-custom-orders-block">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+          ◆ Custom &amp; personalized orders
+        </div>
+        <ToggleRow
+          label="Require design proof approval before production"
+          hint="Industry standard. Buyers must approve a written proof (photo, render, mock-up) before you cut/print/ship. Turn OFF for very simple personalizations (e.g. name engraving) where a proof is overkill."
+          value={form.custom_orders_require_proof !== false}
+          onChange={(v) => set("custom_orders_require_proof")(v)}
+          testId="policy-require-proof"
+        />
+        <Field label="Custom-order policy (optional)" hint="Override the platform default. Cover deposits, change-fees, lead times, what's non-customizable. Leave blank to use the platform-wide policy.">
+          <textarea
+            rows={5}
+            className={`${inputCls} resize-none leading-relaxed`}
+            value={form.custom_order_policy || ""}
+            onChange={(e) => set("custom_order_policy")(e.target.value)}
+            placeholder="e.g. 50% deposit at proof approval, 50% before shipment. Two free revisions; additional revisions $25 each. No refunds once cutting begins."
+            data-testid="policy-custom-order-text"
+          />
+        </Field>
+      </div>
 
       <div className="border border-[#262626] bg-[#0d0d0d] p-4">
         <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-1">

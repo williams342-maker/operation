@@ -1,5 +1,36 @@
 # Crafters Market — CHANGELOG
 
+## 2026-02 — iter81 — Full sweep · scroll fix carry-over + 4 quick UI wins + restock waitlist + retention cohorts (TESTED ✅ 5/5 + 4/4 iter80)
+
+**Quick UI wins (the parked iter79 batch):**
+- **Backorder "stale" badge** — pending requests ≥3 days old now show a red `◆ Stale Xd` chip in the row header (hint: "No response in N days — buyer is waiting"). `daysSince()` helper from `timeAgo.js`.
+- **REFIRE "Last sent Xm ago" badge** — admin Paid Orders list stamps a `cm_admin_refire_log` localStorage map on every refire click; surfaces a live `Last sent 2m ago` chip next to the Refire button (1-min ticker keeps it fresh without requiring reload). Prevents accidental double-fires.
+- **Community Files Leaderboard** — new `GET /api/community/files/leaderboard` aggregates `design_files` by uploader (maker_slug or buyer uploader_id), hydrates portrait/avatar + display_name from `makers` / `community_users`, sorts by score = uploads × 5 + downloads. Collapsible card shows top 10 contributors in the Design Files tab.
+- **Workshop Analytics time-range selector** — pills (7d / 30d / 90d) on the Overview tab. Backend `GET /workshop-analytics/overview?range_days=N` accepts {7,14,30,60,90} (others fall back to 30) and returns `range_days` for the frontend label. Cached overview data is invalidated on range change.
+
+**P1 — Restock Waitlist (lighter than backorders):**
+- New collection: `restock_waitlist` (separate from `backorder_requests`). New router: `routers/restock_waitlist.py`.
+- `POST /api/products/{slug}/restock-waitlist` — public (email + optional name), validates listing is at 0 stock, dedups by (product_id + email + notified_at:null) so repeat clicks don't spam.
+- `GET /api/maker/restock-waitlist` — returns aggregated demand `{products: [...], total_pending: N}` for the maker's listings.
+- **Auto-fire on restock**: maker PATCH /maker/products/{slug} now calls `fire_restock_notifications_if_needed()` whenever stock crosses 0 → positive. Drains every pending entry, fires `send_buyer_restocked` email to each buyer (single-email semantics — `notified_at` stamped so they're not re-emailed on subsequent stock changes).
+- **Frontend**: New `<RestockWaitlistModal>` opens from a "✉ Notify me" button next to the Backorder/Sold-out CTA on `ProductDetail`. Maker `ProductsList` gets a top banner showing total pending demand + top-3 listings by waiting count, with a one-line nudge to refill stock.
+- New email templates: `send_buyer_restock_signup` (confirmation) + `send_buyer_restocked` (back-in-stock alert with Buy now CTA).
+
+**P2 — Real cohort retention** (replaces the hardcoded sample data on Workshop Users tab):
+- `_calc_retention_cohorts()` aggregates `community_users.last_seen` against `created_at` for true Week-1/2/4/8 retention. Denominator = users old enough to be eligible; numerator = users whose last_seen ≥ signup + N weeks. Returns `{cohort, rate, denom, retained}` quad per row.
+- Frontend now displays the denominator + explainer line so the figures aren't mistaken for synthetic data.
+
+**Custom-orders policy customization** (from earlier user question):
+- New maker fields: `custom_order_policy` (free text) + `custom_orders_require_proof` (bool, default true). Both are PATCH-able via `MakerProfileUpdate`.
+- Settings → Policy settings now has a dedicated "Custom & personalized orders" block with the proof toggle + free-text policy textarea.
+
+**Bonus carry-over:** Scroll-to-top fix from iter80 already covered all tabbed surfaces; nothing more needed here.
+
+**Tests 5/5 (iter81) + 4/4 (iter80, no regression):** workshop overview range_days, real retention shape, files leaderboard sort, restock waitlist full lifecycle (signup → dedupe → maker dashboard → drain on stock raise), custom-order policy PATCH.
+
+Files: `backend/models.py` (RestockWaitlistEntry/Create + custom-order fields + Maker base), `backend/routers/restock_waitlist.py` (new), `backend/routers/maker.py` (PATCH hook), `backend/routers/community.py` (leaderboard endpoint), `backend/routers/workshop_analytics.py` (range_days + retention calc), `backend/email_service.py` (2 new templates), `backend/server.py` (mount restock router). Frontend: `lib/api.js`, `pages/MakerDashboard/SettingsTab.jsx` (custom-orders block), `pages/MakerDashboard/BackordersList.jsx` (stale chip), `pages/MakerDashboard/ProductsList.jsx` (demand banner), `pages/CommunityPage.jsx` (leaderboard card), `pages/WorkshopAnalyticsDashboard.jsx` (range pills + retention denom), `pages/ProductDetail.jsx` (notify button + modal), `components/RestockWaitlistModal.jsx` (new), `components/admin/PaidOrdersList.jsx` (refire badge). New: `backend/tests/test_iter81_full_sweep.py`.
+
+
 ## 2026-02 — iter80 — Per-shop returns/exchange policy + Maker portrait/cover image uploads (TESTED ✅ 4/4)
 **User report:** "When selecting returns and exchanges allowed the system does not allow you to customize return and exchange setting per company." Plus the parked Edit-Shop image upload feature.
 
