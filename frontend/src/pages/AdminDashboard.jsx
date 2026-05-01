@@ -63,6 +63,7 @@ const TABS = [
   { id: "makers", label: "Maker Analytics" },
   { id: "orders", label: "Paid Orders" },
   { id: "plus-members", label: "Plus Members" },
+  { id: "prod-health", label: "Prod Health" },
   { id: "approvals", label: "Refund Approvals" },
   { id: "rejected-apps", label: "Rejected" },
   { id: "retention", label: "Retention" },
@@ -215,6 +216,11 @@ export default function AdminDashboard() {
           <Stat label="Revenue" value={`$${totalRevenue.toFixed(0)}`} testId="stat-revenue" />
         </div>
 
+        {/* Prod health watchdog banner — only renders when at least one
+            critical endpoint is in the alerted state. Clicking "View"
+            jumps to the Prod Health tab. */}
+        <ProdHealthBanner onJumpToTab={setTab} />
+
         {/* Pre-expiry password rotation warning — shown when the admin is
             within 5 days of the forced rotation deadline but NOT yet past
             it (past = blocking modal takes over). One-click "Rotate now"
@@ -288,6 +294,7 @@ export default function AdminDashboard() {
             {tab === "approved-makers" && <ApprovedMakersTab />}
             {tab === "rejected-apps" && <RejectedAppsTab />}
             {tab === "plus-members" && <PlusMembersTab />}
+            {tab === "prod-health" && <ProdHealthTab />}
             {tab === "broadcast" && <BroadcastTab />}
             {tab === "file-reports" && <DesignFileReportsTab />}
             {tab === "design-files" && <DesignFilesTab />}

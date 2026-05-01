@@ -415,6 +415,12 @@ export const fetchAdminReviewDisputes = (status) =>
 export const adminResolveReviewDispute = (id, payload) =>
   http.post(`/admin/review-disputes/${id}/resolve`, payload, { headers: adminAuthHeaders() }).then((r) => r.data);
 
+// ---------- Prod health watchdog (iter93) ----------
+export const fetchAdminProdHealth = () =>
+  http.get("/admin/prod-health", { headers: adminAuthHeaders() }).then((r) => r.data);
+export const adminProdHealthCheckNow = () =>
+  http.post("/admin/prod-health/check-now", {}, { headers: adminAuthHeaders() }).then((r) => r.data);
+
 // ---------- Public Contact form + admin inbox ----------
 export const sendContactMessage = (payload) =>
   http.post("/contact-messages", payload).then((r) => r.data);

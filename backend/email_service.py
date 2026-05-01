@@ -1666,3 +1666,53 @@ async def send_admin_broadcast(
         f"[Crafters Market] {subject}",
         html,
     )
+
+
+# ------------------------------------------------------------------
+# Production health watchdog (iter93) — one-shot alert + recovery
+# emails fired by /app/backend/prod_health.py. Sent to OPS_EMAIL
+# because A) that's where every other ops alert already lands and
+# B) the sender header is verified for OPS so delivery is reliable.
+# ------------------------------------------------------------------
+async def send_ops_prod_outage_alert(*, endpoint: str, status: int, reason: str):
+    if not OPS_EMAIL:
+        return
+    status_chip = f"HTTP {status}" if status else "UNREACHABLE"
+    body = (
+        "<div style='background:#2a0707;border-left:4px solid #ff4500;padding:16px 18px;margin:0 0 18px'>"
+        "<div style='font-size:10px;letter-spacing:0.3em;color:#ff4500;text-transform:uppercase;margin-bottom:8px'>◆ Production alert</div>"
+        f"<div style='font-size:18px;color:#ff4500;font-weight:700'>{endpoint} is failing</div>"
+        f"<div style='font-size:13px;color:#fca5a5;margin-top:6px'>{status_chip} · {reason or 'no response'}</div>"
+        "</div>"
+        "<p style='font-size:13px;color:#a3a3a3;line-height:1.6;margin:0 0 12px'>"
+        "The watchdog has seen this endpoint fail on two consecutive checks. Recommended actions:"
+        "</p>"
+        "<ul style='font-size:13px;color:#e5e5e5;line-height:1.7;padding-left:18px;margin:0'>"
+        "<li>Redeploy production from the Emergent dashboard</li>"
+        "<li>Verify the backend pod is healthy (supervisor logs)</li>"
+        "<li>Purge Cloudflare cache for the affected route</li>"
+        "</ul>"
+        "<p style='font-size:11px;color:#525252;margin:20px 0 0'>"
+        "You will receive a follow-up email when this endpoint recovers."
+        "</p>"
+    )
+    html = _shell("Prod Down.", f"Endpoint {endpoint} is returning errors.", body, "Watchdog · ops")
+    return await _send(OPS_EMAIL, f"[Crafters Market] 🚨 Prod outage: {endpoint}", html)
+
+
+async def send_ops_prod_recovery(*, endpoint: str, downtime_minutes: int):
+    if not OPS_EMAIL:
+        return
+    window = f"{downtime_minutes} min" if downtime_minutes else "under 1 min"
+    body = (
+        "<div style='background:#052e16;border-left:4px solid #22c55e;padding:16px 18px;margin:0 0 18px'>"
+        "<div style='font-size:10px;letter-spacing:0.3em;color:#22c55e;text-transform:uppercase;margin-bottom:8px'>◆ Recovered</div>"
+        f"<div style='font-size:18px;color:#86efac;font-weight:700'>{endpoint} is back online</div>"
+        f"<div style='font-size:13px;color:#bbf7d0;margin-top:6px'>Approximate downtime: {window}</div>"
+        "</div>"
+        "<p style='font-size:13px;color:#a3a3a3;line-height:1.6;margin:0'>"
+        "The watchdog has cleared the alert. No further action required."
+        "</p>"
+    )
+    html = _shell("Prod Restored.", f"Endpoint {endpoint} is responding normally.", body, "Watchdog · ops")
+    return await _send(OPS_EMAIL, f"[Crafters Market] ✅ Prod recovered: {endpoint}", html)

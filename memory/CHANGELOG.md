@@ -1,5 +1,30 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05 — iter93 — Prod Health Watchdog (5-min cron + admin banner) ✅
+
+**Why:** iter92 surfaced a silent prod outage (all `/api/*` returning 502). We only caught it by manually curl-ing. Building a proactive watchdog so the next outage pages ops in ~10 min, not "whenever someone happens to look."
+
+**What shipped:**
+- `/app/backend/prod_health.py` — polls `CRITICAL_ENDPOINTS` (`/api/sitemap.xml`, `/api/products?limit=1`, `/api/makers`, `/robots.txt`) via httpx. State lives in `prod_health_checks` collection (one doc per endpoint). Fires a one-shot email alert after `ALERT_THRESHOLD=2` consecutive failures, and a one-shot recovery email on return to 200. 4xx is treated as reachable (not an outage).
+- `/app/backend/scheduler.py` — new `prod_health_watchdog` cron at `*/5` min. Self-audit safe: skips when the preview pod IS the prod pod (would be circular).
+- `/app/backend/email_service.py` — two new templates: `send_ops_prod_outage_alert()` + `send_ops_prod_recovery()`. Dispatch to `OPS_EMAIL` via the existing email chain.
+- `/app/backend/routers/prod_health.py` — `GET /api/admin/prod-health` (snapshot) + `POST /api/admin/prod-health/check-now` (manual trigger for the UI button).
+- `/app/frontend/src/components/admin/ProdHealthTab.jsx` — Prod Health admin tab with endpoint cards (status chip, latency, last check, consecutive failures) + "Check Now" button. Polls every 30s.
+- `/app/frontend/src/components/admin/ProdHealthBanner.jsx` — sticky red banner above the stats grid when any endpoint is in the alerted state. Clicking "View" jumps to the tab. Polls every 60s.
+- `/app/frontend/src/pages/AdminDashboard.jsx` — wired new tab alphabetically ("Prod Health" between "Plus Members" and "Refund Approvals") and the banner.
+- `/app/frontend/src/lib/api.js` — `fetchAdminProdHealth()`, `adminProdHealthCheckNow()`.
+
+**Env vars (optional — all have sensible defaults):**
+- `PROD_WATCHDOG_ENABLED` (default `true`) — master kill switch.
+- `PROD_URL` (default: `PUBLIC_SITE_URL` → `https://craftersmarket.org`) — origin to watchdog.
+
+**Regression guard:** `/app/backend/tests/test_iter93_prod_health_watchdog.py` — 6 tests covering state transitions (outage fires once, recovery fires once, 4xx not treated as outage, env-var gating, self-audit skip). All green.
+
+**Verified:** End-to-end curl run against real prod → 4/4 endpoints 200 OK, state persisted, admin endpoints return the snapshot correctly. Scheduler boots the cron job on process start.
+
+---
+
+
 ## 2026-05 — iter92 — Sitemap preview-URL leak: hardened site_root() ✅
 
 **Context:** After a production redeploy, `https://craftersmarket.org/api/sitemap.xml` was emitting `https://active-project-4.preview.emergentagent.com/...` URLs — a hard SEO liability (Google would index the preview domain and 301-penalty us on flip).

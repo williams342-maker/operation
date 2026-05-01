@@ -282,6 +282,23 @@ async def _job_shipping_invoices_weekly() -> None:
         logger.exception("[scheduler] shipping_invoices_weekly failed: %s", e)
 
 
+async def _job_prod_health_watchdog() -> None:
+    """Every 5 min — poll a short list of critical prod endpoints and
+    fire one-shot email alerts when any crosses the failure threshold.
+    Self-audit safe: skips itself when we're already on the prod host.
+    See /app/backend/prod_health.py for full logic."""
+    try:
+        from prod_health import run_prod_health_checks
+        r = await run_prod_health_checks()
+        if not r.get("ran"):
+            return
+        if r.get("failing_count"):
+            logger.warning("[scheduler] prod_health_watchdog · failing=%d target=%s",
+                           r["failing_count"], r.get("target"))
+    except Exception as e:
+        logger.exception("[scheduler] prod_health_watchdog failed: %s", e)
+
+
 def start_scheduler() -> AsyncIOScheduler | None:
     """Boot the scheduler if SCHEDULER_ENABLED isn't 'false'."""
     global _scheduler
@@ -325,6 +342,11 @@ def start_scheduler() -> AsyncIOScheduler | None:
     sched.add_job(_job_shipping_invoices_weekly,
                   CronTrigger(day_of_week="mon", hour=10, minute=0),
                   id="shipping_invoices_weekly", replace_existing=True)
+    # Prod health watchdog — every 5 min. Pings a short list of critical
+    # prod endpoints and emails OPS when any has 2+ consecutive failures.
+    # Self-skips when running ON the prod host (would be circular).
+    sched.add_job(_job_prod_health_watchdog, CronTrigger(minute="*/5"),
+                  id="prod_health_watchdog", replace_existing=True)
     sched.start()
     _scheduler = sched
     logger.info(
