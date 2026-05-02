@@ -1,5 +1,34 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05 — iter111 — IndexNow ping: notify Bing/Yandex/Naver/Seznam/Yep on demand ✅
+
+**Why:** Every redeploy with new listings or copy changes used to wait 1-7 days for natural search-engine recrawl before the SERP snippet caught up. Painful when iter110's tighter meta description ships and you want it indexed *today*. IndexNow is the modern instant-ping protocol — one POST, ~5 search engines re-crawl within hours.
+
+**What:**
+- New module `backend/seo_indexnow.py` — implements the IndexNow protocol end-to-end:
+  - Lazy 32-char hex key generation, persisted to Mongo `system_state/{_id:'indexnow'}` so it survives restarts and is shared across pods (idempotent — same key on every subsequent fetch).
+  - `ping(urls=None, budget=50)` — collects the homepage + 4 landing pages (`/shop`, `/makers`, `/journal`, `/updates`) plus the most-recent products / makers / journal posts (split evenly across the three kinds). De-dupes, caps at IndexNow's 10,000-URL limit, fires one POST to `https://api.indexnow.org/indexnow`. Best-effort: never raises. Captures status, response excerpt, timeout / network errors.
+  - Persists a single audit row (`last_ping_at`, `last_ping_status`, `last_ping_count`, `last_ping_ok`, `last_ping_error`) so the admin UI can surface a "last ping" indicator without re-running.
+- New routes:
+  - `GET /api/indexnow-key.txt` — public ownership-verification file. Returns the bare key (text/plain, no padding) at the path passed as `keyLocation`.
+  - `POST /api/admin/seo/ping` — fires the ping, returns the full result. Body: `{urls?: string[], budget?: number}`.
+  - `GET /api/admin/seo/ping/status` — last-ping audit row for the dashboard.
+- New frontend card `SearchEnginePingCard` in `SettingsTab` (right under SEO diagnostics): big orange "▶ Ping Now" button, last-ping pill (✓/✕ + status code + URL count), result block on click showing what was sent + IndexNow's response + a collapsible URL sample list + the "→ OPEN SEARCH CONSOLE" deep-link for the Google fallback.
+- **Google fallback surfaced explicitly:** Google deprecated their /ping endpoint in 2023 and never adopted IndexNow. The ping response carries a pre-built Search Console deep-link (`google_search_console_url`) and a `next_step_for_google` instruction so operators can finish the job in one click without leaving the dashboard.
+
+**Regression guard:** `tests/test_iter111_indexnow_ping.py` — 9 tests covering: key idempotent generation + persistence, key-file route returns bare text (no padding), URL collection includes all 5 anchor pages, ping ok-path records audit row + correct payload shape, ping 4xx-failure path captures response excerpt without raising, ping timeout captures `error="timeout"` cleanly, both admin endpoints reject unauthenticated callers, admin endpoint passes the result dict through untouched. All green.
+
+**Verified live:** authenticated screenshot confirms the Settings tab now renders the new card. Clicking "Ping Now" on the preview pod successfully fires through to `api.indexnow.org` (status 422 returned because IndexNow's verifier can't reach the preview pod's keyLocation — exactly the expected behavior on preview; will return 200 on prod once redeployed where `https://craftersmarket.org/api/indexnow-key.txt` is reachable). UI surfaces the failure cleanly with the IndexNow error excerpt rendered inline.
+
+**Operator workflow once shipped to prod:**
+1. Click "▶ Ping Now" after each deploy or copy change.
+2. Result card shows ✓ Submitted · 200 within ~3s.
+3. Click "→ Open Search Console" to also nudge Google.
+4. Done. SERP snippets refresh inside ~24h instead of waiting a week.
+
+---
+
+
 ## 2026-05 — iter110 — Tightened SEO copy: meta description, OG, Twitter, JSON-LD ✅
 
 **Why:** The homepage meta description was 178 chars — Google truncates around 155-160, so the tail (`…direct-to-maker payouts.`) was getting cut off in search results. The copy itself also leaned on weak-conversion phrasing ("approved makers", "Stripe-secured checkout") instead of the actual differentiator vs. Etsy: vetted, curated, no mass production.

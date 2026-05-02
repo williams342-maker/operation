@@ -8,10 +8,11 @@ results in AI answers, which is free distribution.
 import re
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import PlainTextResponse, Response
 
 from core import db, site_root
+from maker_auth import current_admin
 
 router = APIRouter()
 
@@ -243,3 +244,50 @@ async def robots_txt(http_request: Request):
         f"Sitemap: {root}/api/sitemap.xml\n"
     )
     return PlainTextResponse(body)
+
+
+
+# ============================================================
+# IndexNow — instant search-engine ping (Bing / Yandex / Naver / Seznam / Yep)
+# Google deprecated their /ping endpoint in 2023; for Google specifically
+# the operator must submit the sitemap from Search Console manually. The
+# admin endpoint below surfaces a deep-link to that page in its response.
+# ============================================================
+from fastapi import Body
+from pydantic import BaseModel
+
+
+@router.get("/indexnow-key.txt", include_in_schema=False)
+async def indexnow_key_file():
+    """IndexNow ownership-verification file. The protocol requires the bare
+    key, plain text, no surrounding whitespace. Lazily generated on first
+    request — operators don't need to do anything to enable verification."""
+    from seo_indexnow import get_key
+    key = await get_key()
+    # Spec is strict: response body MUST be the bare key, MUST NOT have
+    # trailing whitespace/newline beyond what's in the key itself.
+    return PlainTextResponse(content=key, media_type="text/plain; charset=utf-8")
+
+
+class _PingBody(BaseModel):
+    urls: list[str] | None = None  # operator can override the auto-collected list
+    budget: int = 50               # how many catalog URLs to submit when auto-collecting
+
+
+@router.post("/admin/seo/ping")
+async def admin_seo_ping(payload: _PingBody = Body(default=_PingBody()),
+                         _: dict = Depends(current_admin)):
+    """Fire an IndexNow ping and return the result for surfacing in the admin
+    dashboard. Best-effort: never raises, so the UI can render any failure
+    cleanly instead of throwing a stack trace at the operator."""
+    from seo_indexnow import ping
+    result = await ping(urls=payload.urls, budget=int(payload.budget or 50))
+    return result
+
+
+@router.get("/admin/seo/ping/status")
+async def admin_seo_ping_status(_: dict = Depends(current_admin)):
+    """Last-ping audit state — used by the admin SEO card to show when
+    the operator last pinged + whether it landed."""
+    from seo_indexnow import status as ping_status
+    return await ping_status()

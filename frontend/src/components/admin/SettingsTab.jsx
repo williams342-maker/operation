@@ -707,6 +707,179 @@ function DiagStat({ label, value }) {
 }
 
 
+// ─────────────────────────────────────────────────────────────────────────────
+// iter111 — Search-engine ping card. Fires an IndexNow ping (Bing / Yandex /
+// Naver / Seznam / Yep) on demand from the admin dashboard. Google doesn't
+// support IndexNow, so we surface a deep-link to Search Console for the
+// manual step. Saves the operator from waiting 1-7 days for natural recrawl
+// after a deploy or copy refresh.
+// ─────────────────────────────────────────────────────────────────────────────
+function SearchEnginePingCard() {
+  const [status, setStatus] = useState(null);
+  const [result, setResult] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  const refresh = async () => {
+    setErr("");
+    try {
+      const API = process.env.REACT_APP_BACKEND_URL;
+      const token = localStorage.getItem("cm_admin_jwt") || "";
+      const r = await fetch(`${API}/api/admin/seo/ping/status`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      setStatus(await r.json());
+    } catch (e) {
+      setErr(e.message || "Failed to load");
+    }
+  };
+
+  const fire = async () => {
+    setBusy(true);
+    setErr("");
+    setResult(null);
+    try {
+      const API = process.env.REACT_APP_BACKEND_URL;
+      const token = localStorage.getItem("cm_admin_jwt") || "";
+      const r = await fetch(`${API}/api/admin/seo/ping`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ budget: 50 }),
+      });
+      const body = await r.json();
+      setResult(body);
+      await refresh();
+    } catch (e) {
+      setErr(e.message || "Ping failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  useEffect(() => { refresh(); }, []);
+
+  const lastOk = status?.last_ping_ok;
+  const lastWhen = status?.last_ping_at;
+
+  return (
+    <section className="border border-[#262626] p-4 md:p-5" data-testid="seo-ping-card">
+      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+        <div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">SEO · search-engine ping</div>
+          <h3 className="font-display text-xl mt-1 text-[#e5e5e5]">Notify search engines</h3>
+          <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-xl">
+            Pushes the homepage + ~50 most-recent product / maker / journal
+            URLs to <b className="text-[#e5e5e5]">Bing, Yandex, Naver, Seznam, and Yep</b> via IndexNow.
+            They&rsquo;ll re-crawl within hours instead of days. Google doesn&rsquo;t
+            support IndexNow &mdash; use the Search Console link below for that one.
+          </p>
+        </div>
+        <button
+          onClick={fire}
+          disabled={busy}
+          data-testid="seo-ping-fire"
+          className="shrink-0 px-4 py-2 border border-[#ff4500] bg-[#ff4500]/5 text-[#ff4500] hover:bg-[#ff4500] hover:text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] font-bold transition disabled:opacity-50"
+        >
+          {busy ? "Pinging…" : "▶ Ping now"}
+        </button>
+      </div>
+
+      {err && <div className="mt-4 font-mono text-xs text-red-400" data-testid="seo-ping-error">{err}</div>}
+
+      {/* Last-ping audit row */}
+      {status && (
+        <div className="mt-4 flex flex-wrap items-center gap-3 font-mono text-[11px] text-[#a3a3a3]">
+          <span className="text-[#525252]">Last ping:</span>
+          {lastWhen ? (
+            <>
+              <code className="text-[#e5e5e5]">{lastWhen}</code>
+              <span
+                className={`px-2 py-0.5 border font-bold uppercase tracking-[0.22em] text-[10px] ${
+                  lastOk
+                    ? "border-emerald-500/60 text-emerald-400"
+                    : "border-red-500/60 text-red-400"
+                }`}
+                data-testid="seo-ping-last-status"
+              >
+                {lastOk ? `✓ ${status.last_ping_status}` : `✕ ${status.last_ping_status || "err"}`}
+              </span>
+              <span className="text-[#525252]">·</span>
+              <span>{status.last_ping_count} URLs</span>
+              {status.last_ping_error && (
+                <span className="text-red-400">· {status.last_ping_error}</span>
+              )}
+            </>
+          ) : (
+            <span className="text-[#525252]">never</span>
+          )}
+        </div>
+      )}
+
+      {/* Most-recent ping result */}
+      {result && (
+        <div className="mt-4 border-t border-[#262626] pt-4 space-y-3" data-testid="seo-ping-result">
+          <div className="flex items-center gap-2">
+            <span
+              className={`inline-block px-2 py-1 border font-mono text-[10px] uppercase tracking-[0.22em] font-bold ${
+                result.ok
+                  ? "border-emerald-500/60 text-emerald-400 bg-emerald-500/5"
+                  : "border-red-500/60 text-red-400 bg-red-500/5"
+              }`}
+            >
+              {result.ok ? `◆ Submitted · ${result.status}` : `✕ Failed · ${result.status || "err"}`}
+            </span>
+            <span className="font-mono text-xs text-[#e5e5e5]">
+              {result.count} URLs sent to <code className="text-[#ff4500]">api.indexnow.org</code>
+            </span>
+          </div>
+
+          {!result.ok && result.response_excerpt && (
+            <div className="border-l-2 border-red-500 pl-3 font-mono text-[11px] text-red-400 leading-relaxed">
+              <b>IndexNow response:</b> {result.response_excerpt}
+            </div>
+          )}
+
+          {result.urls_sample && result.urls_sample.length > 0 && (
+            <details className="font-mono text-[11px] text-[#a3a3a3]">
+              <summary className="cursor-pointer hover:text-[#ff4500]" data-testid="seo-ping-urls-toggle">
+                ↓ {result.count} URL{result.count === 1 ? "" : "s"} submitted (sample)
+              </summary>
+              <ul className="mt-2 space-y-1 pl-4 max-h-48 overflow-y-auto">
+                {result.urls_sample.map((u) => (
+                  <li key={u} className="text-[#e5e5e5] truncate">
+                    <a href={u} target="_blank" rel="noreferrer" className="hover:text-[#ff4500]">{u}</a>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+
+          {/* Google fallback link — IndexNow doesn't reach Google. */}
+          <div className="border-t border-[#262626] pt-3">
+            <p className="font-mono text-[11px] text-[#a3a3a3] mb-2">
+              Google&rsquo;s turn:
+            </p>
+            <a
+              href={result.google_search_console_url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-block px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition"
+              data-testid="seo-ping-gsc-link"
+            >
+              → Open Search Console &rarr;
+            </a>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+
 export default function SettingsTab() {
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -815,6 +988,8 @@ export default function SettingsTab() {
       <MaintenanceScheduleCard settings={settings} onPatch={onPatch} busy={busy} />
 
       <SeoDiagCard />
+
+      <SearchEnginePingCard />
 
       <div className="grid md:grid-cols-2 gap-3">
         <IdleClearNowCard />
