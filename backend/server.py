@@ -88,6 +88,17 @@ api.include_router(growth_stats_router)
 api.include_router(og_prerender_router)
 app.include_router(api)
 
+# iter109 — Canonical-host 301 redirect middleware. When `CANONICAL_HOST`
+# env var is set (e.g. `craftersmarket.org`), every request arriving on a
+# non-canonical public hostname (most commonly `www.craftersmarket.org`,
+# but also any legacy alias you'd point a CNAME at) is 301-redirected to
+# the canonical equivalent with path + query-string preserved. No-op
+# when `CANONICAL_HOST` is unset — safe default for preview deploys.
+# Added BEFORE CORS so the redirect happens as early as possible and
+# we never leak cross-host cookies / preflight state.
+from canonical_host import CanonicalHostRedirectMiddleware
+app.add_middleware(CanonicalHostRedirectMiddleware)
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,

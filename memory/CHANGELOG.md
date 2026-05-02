@@ -1,5 +1,34 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05 — iter109 — Canonical-host 301 redirect middleware (www ↔ apex consolidation) ✅
+
+**Why:** SEO consolidation. Until now, `www.craftersmarket.org` and `craftersmarket.org` were two separate hosts in Google's eyes — link equity, ranking signals, and indexed pages got split between them, weakening the canonical's authority. Every backlink that pointed at `www.` was effectively half-wasted. Same problem for any legacy CNAME alias. Now: every request to a non-canonical hostname 301-redirects to the canonical equivalent with path + query preserved, and crawlers merge the signals.
+
+**What:**
+- New module `backend/canonical_host.py` — `CanonicalHostRedirectMiddleware`. Reads `CANONICAL_HOST` env var. When set (e.g. `craftersmarket.org`), 301-redirects every request from a non-canonical hostname (most commonly `www.`) to `https://<canonical><path>?<qs>`. When unset → silent no-op (so preview pods never bounce themselves into a loop on the wrong env).
+- Wired in `server.py` BEFORE `CORSMiddleware` so the redirect happens at the earliest possible point in the request lifecycle.
+- Carefully-handled edge cases:
+  - **OPTIONS preflight requests are never redirected** — a 301 on a preflight is a fatal CORS error in some browsers, so we pass them straight through.
+  - **Preview / staging hosts skip the redirect** — `*.preview.emergentagent.com`, `*.emergent.host`, `vercel.app`, `onrender.com`, `localhost`, `127.0.0.1`. They have no canonical equivalent so forcing a 301 would break dev workflows.
+  - **Port stripping** — `craftersmarket.org:443` normalizes to `craftersmarket.org` for compare, so internal K8s health checks don't 301-loop on themselves.
+  - **`X-Forwarded-Host` priority with `Host` fallback** — Cloudflare/K8s usually pass it via XFH, but we fall back to raw `Host` for direct backend traffic. Whitespace-only XFH (misconfigured upstream proxy) also falls through to `Host`.
+  - **Path + query-string preserved byte-for-byte** — critical because Slack/Discord webhook deep-links from iter105 carry `?tab=feedback&open=<uuid>` shapes that must survive the redirect or operator UX breaks.
+
+**Backend-only coverage caveat:** the FastAPI middleware only sees `/api/*` traffic. The frontend SPA serves `/shop/<slug>`, `/makers/<slug>` etc. through a separate container. To 301 those URLs too, add a Cloudflare Bulk Redirect (`https://www.craftersmarket.org/*` → `https://craftersmarket.org/$1`, status 301, preserve qs, subpath matching). Documented in `/app/memory/test_credentials.md` under "Canonical-host 301 redirects."
+
+**Regression guard:** `tests/test_iter109_canonical_host.py` — 10 tests covering: disabled passthrough, canonical match passthrough, www→apex 301, apex→www 301 (when canonical flipped), path+qs byte-for-byte preservation, all 6 preview-marker hosts pass through, OPTIONS preflight passthrough, `Host` header fallback, port stripping, whitespace XFH falls back to Host. All green.
+
+**Verified live:** preview pod (CANONICAL_HOST unset) returns 200 on every request — middleware is a true no-op. Will activate the moment the prod env var is set.
+
+**Operator action to enable on prod:**
+1. Set `CANONICAL_HOST=craftersmarket.org` in the prod backend env.
+2. Restart backend.
+3. Add Cloudflare Bulk Redirect for the SPA's URLs (recipe in `test_credentials.md`).
+4. Verify: `curl -sI https://www.craftersmarket.org/api/og/diag` → `HTTP/2 301` with `Location: https://craftersmarket.org/...`.
+
+---
+
+
 ## 2026-05 — iter108 — One-click crawler-preview dropdown in admin Listings tab ✅
 
 **Why:** iter107 shipped the OG prerender routes, but verifying any specific listing's social preview meant copy-pasting the slug into Facebook's Sharing Debugger / LinkedIn's Post Inspector / Twitter's Card Validator by hand. ~30s of friction per spot-check, every time. Now: one click per listing, four deep-links, zero copy-paste.
