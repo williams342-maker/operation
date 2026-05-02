@@ -176,7 +176,7 @@ async def og_product(slug: str, http_request: Request):
     maker = (doc.get("maker_name") or "").strip()
     title = f"{title_raw}{' · ' + maker if maker else ''} — Crafters Market"
     desc = _truncate(doc.get("description") or "", 200) \
-        or f"Hand-built by {maker or 'an independent maker'} on Crafters Market."
+        or f"Hand-built by {maker or 'a vetted independent maker'} on Crafters Market — curated CNC art, custom signs, and made-to-order originals."
     img = ((doc.get("images") or [None])[0]) or _placeholder_image()
     canonical = f"{_site()}/shop/{slug}"
 
@@ -213,7 +213,7 @@ async def og_maker(slug: str, http_request: Request):
     name = (doc.get("name") or "").strip() or slug
     title = f"{name} — Crafters Market"
     desc_src = (doc.get("tagline") or doc.get("bio") or "").strip() \
-        or f"Independent maker on Crafters Market."
+        or f"{name} — vetted independent maker on Crafters Market. Hand-built CNC art and made-to-order originals, no mass production."
     desc = _truncate(desc_src, 200)
     if doc.get("is_veteran_owned"):
         desc = ("◆ Veteran-Owned · " + desc)[:220]
@@ -247,7 +247,7 @@ async def og_journal(slug: str, http_request: Request):
     title_raw = (doc.get("title") or "").strip() or slug
     title = f"{title_raw} — Crafters Market"
     desc = _truncate(doc.get("excerpt") or doc.get("summary") or "", 200) \
-        or "Read the latest from Crafters Market."
+        or "Notes, builds, and behind-the-scenes from the makers and team at Crafters Market."
     img = doc.get("cover") or _placeholder_image()
     canonical = f"{_site()}/journal/{slug}"
 

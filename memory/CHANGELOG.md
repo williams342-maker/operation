@@ -1,5 +1,26 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05 — iter110 — Tightened SEO copy: meta description, OG, Twitter, JSON-LD ✅
+
+**Why:** The homepage meta description was 178 chars — Google truncates around 155-160, so the tail (`…direct-to-maker payouts.`) was getting cut off in search results. The copy itself also leaned on weak-conversion phrasing ("approved makers", "Stripe-secured checkout") instead of the actual differentiator vs. Etsy: vetted, curated, no mass production.
+
+**Before vs. after:**
+| Surface | Before | After | Length |
+|---|---|---|---|
+| `name="description"` | "Shop hand-built metal & wood CNC art, custom signs, and made-to-order pieces from approved independent makers. Stripe-secured checkout, direct-to-maker payouts." (178c, truncated) | "Hand-built CNC metal & wood art, plasma-cut signs, and made-to-order originals — each piece by a vetted independent maker. Secure checkout, fair payouts." | 153c ✓ |
+| `og:description` | "Shop hand-built CNC metal & wood art, custom signs, and made-to-order pieces from approved independent makers." | "Hand-built CNC metal & wood art and made-to-order originals — straight from vetted independent makers. Curated, not mass-produced." | 130c ✓ |
+| `twitter:description` | "Hand-built metal & wood CNC art, custom signs, and made-to-order pieces from independent makers." | "Real CNC art and made-to-order pieces, hand-built by vetted independent makers. Curated. No mass production." | 108c ✓ |
+| JSON-LD `description` | "Curated marketplace for precision CNC art, custom signs, and handcrafted metal & wood goods from approved independent makers." | "Hand-built CNC metal & wood art, custom plasma-cut signs, and made-to-order originals — every piece by a vetted independent maker. Curated, not mass-produced." | 158c ✓ |
+
+**Positioning shift:** "approved" → "vetted" (active voice, signals real curation), added "Curated, not mass-produced" / "No mass production" as the anti-Etsy differentiator. Each surface now carries a slightly different angle (homepage = trust, OG = anti-mass-production, Twitter = punchy / sharable, JSON-LD = comprehensive) while staying on-brand and keyword-aligned.
+
+**Also tightened the OG-prerender fallbacks** (iter107) — when a product/maker/journal post has no description of its own, the auto-generated fallback now reads as on-brand marketing copy instead of generic boilerplate ("Hand-built by a vetted independent maker… curated CNC art, custom signs, made-to-order originals" / "vetted independent maker… no mass production" / "Notes, builds, and behind-the-scenes from the makers and team").
+
+**iter107 regression:** all 9 OG-prerender tests still green after the fallback copy refresh.
+
+---
+
+
 ## 2026-05 — iter109 — Canonical-host 301 redirect middleware (www ↔ apex consolidation) ✅
 
 **Why:** SEO consolidation. Until now, `www.craftersmarket.org` and `craftersmarket.org` were two separate hosts in Google's eyes — link equity, ranking signals, and indexed pages got split between them, weakening the canonical's authority. Every backlink that pointed at `www.` was effectively half-wasted. Same problem for any legacy CNAME alias. Now: every request to a non-canonical hostname 301-redirects to the canonical equivalent with path + query preserved, and crawlers merge the signals.
