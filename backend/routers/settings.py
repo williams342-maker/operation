@@ -42,6 +42,8 @@ DEFAULT_SETTINGS: dict = {
     "auto_dormant_reengage_enabled": False,
     "auto_offsite_backup_enabled": False,
     "auto_offsite_backup_retention_days": 30,
+    "auto_recovery_drill_enabled": False,
+    "recovery_drill_min_products": 100,
 }
 
 
@@ -158,6 +160,8 @@ class SettingsPatch(BaseModel):
     auto_dormant_reengage_enabled: Optional[bool] = None
     auto_offsite_backup_enabled: Optional[bool] = None
     auto_offsite_backup_retention_days: Optional[int] = Field(default=None, ge=7, le=365)
+    auto_recovery_drill_enabled: Optional[bool] = None
+    recovery_drill_min_products: Optional[int] = Field(default=None, ge=1, le=100000)
 
 
 @router.patch("/admin/settings")

@@ -191,3 +191,20 @@ async def admin_db_backup_offsite_run(_claims: dict = Depends(require_super_admi
              "$unset": {"_manual_backup_in_progress": ""}},
         )
     return result
+
+
+@router.post("/admin/db/backup/drill/run", include_in_schema=False)
+async def admin_db_backup_drill_run(_claims: dict = Depends(require_super_admin())):
+    """Run the recovery drill on demand (super-admin only).
+
+    Bypasses the `auto_recovery_drill_enabled` toggle since this is an
+    explicit manual action — operators should be able to force a drill
+    after recovery from an incident, before a major migration, or just
+    to keep the muscle memory fresh between scheduled quarterly runs.
+
+    The drill restores the latest R2 archive into an isolated drill
+    namespace (never touches prod collections), runs integrity counts,
+    drops the drill namespace, and posts pass/fail to Slack/Discord
+    plus the admin audit log. Returns the full summary dict."""
+    from recovery_drill import run_recovery_drill
+    return await run_recovery_drill(manual=True)

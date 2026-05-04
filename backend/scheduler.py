@@ -368,6 +368,26 @@ async def _job_offsite_backup() -> None:
         logger.exception("[scheduler] offsite_backup failed: %s", e)
 
 
+async def _job_recovery_drill() -> None:
+    """Quarterly DR drill — restores the latest R2 archive into a
+    throwaway namespace, runs integrity probes, drops the namespace,
+    posts the pass/fail to Slack. Self-skips when
+    `auto_recovery_drill_enabled` toggle is OFF. See
+    /app/backend/recovery_drill.py for the full implementation."""
+    try:
+        from recovery_drill import run_recovery_drill
+        r = await run_recovery_drill()
+        if r.get("ran"):
+            logger.info(
+                "[scheduler] recovery_drill ok=%s products=%s duration_s=%s",
+                r.get("ok"),
+                (r.get("counts") or {}).get("products"),
+                r.get("duration_s"),
+            )
+    except Exception as e:
+        logger.exception("[scheduler] recovery_drill failed: %s", e)
+
+
 def start_scheduler() -> AsyncIOScheduler | None:
     """Boot the scheduler if SCHEDULER_ENABLED isn't 'false'."""
     global _scheduler
@@ -441,6 +461,12 @@ def start_scheduler() -> AsyncIOScheduler | None:
     sched.add_job(_job_offsite_backup,
                   CronTrigger(hour=3, minute=15),
                   id="offsite_backup", replace_existing=True)
+    # Quarterly DR drill — first day of Jan/Apr/Jul/Oct at 04:30 UTC
+    # (after that day's offsite_backup has finished and the freshest
+    # archive is in R2). Self-skips when toggle is OFF.
+    sched.add_job(_job_recovery_drill,
+                  CronTrigger(month="1,4,7,10", day=1, hour=4, minute=30),
+                  id="recovery_drill", replace_existing=True)
     sched.start()
     _scheduler = sched
     logger.info(

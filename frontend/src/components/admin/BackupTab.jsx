@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Database, Download, Shield, AlertTriangle, Cloud, RefreshCw, Play } from "lucide-react";
+import { Database, Download, Shield, AlertTriangle, Cloud, RefreshCw, Play, ShieldCheck } from "lucide-react";
 import { timeAgo } from "../../lib/timeAgo";
+import { useConfirm } from "../../hooks/useConfirm";
 
 // Super-admin-only backup tab. Triggers GET /api/admin/db/backup which
 // streams a `mongodump --archive --gzip` of the whole database straight
@@ -28,6 +29,9 @@ export default function BackupTab() {
   const [offsite, setOffsite] = useState(null);
   const [offsiteLoading, setOffsiteLoading] = useState(false);
   const [running, setRunning] = useState(false);
+  const [drillRunning, setDrillRunning] = useState(false);
+  const [drillResult, setDrillResult] = useState(null);
+  const [confirm, confirmModal] = useConfirm();
 
   const loadOffsite = async () => {
     setOffsiteLoading(true);
@@ -83,6 +87,36 @@ export default function BackupTab() {
       toast.error(e.message || "Offsite backup failed.");
     } finally {
       setRunning(false);
+    }
+  };
+
+  const runDrill = async () => {
+    const ok = await confirm({
+      title: "Run a recovery drill now?",
+      body: "Downloads the latest R2 archive, restores it into an isolated namespace on the same Mongo cluster (production collections are NEVER touched), counts records, drops the namespace, and posts the pass/fail to Slack. Takes ~30-60 seconds depending on archive size.",
+      confirmLabel: "Run drill",
+      tone: "primary",
+      testId: "confirm-run-drill",
+    });
+    if (!ok) return;
+    setDrillRunning(true);
+    setDrillResult(null);
+    try {
+      const r = await fetch(`${API}/api/admin/db/backup/drill/run`, {
+        method: "POST", headers: authHeaders(),
+      });
+      const body = await r.json();
+      setDrillResult(body);
+      if (body.ok) {
+        const products = body.counts?.products ?? "?";
+        toast.success(`Drill PASSED · ${products} products restored & verified · ${body.duration_s}s`);
+      } else {
+        toast.error(`Drill FAILED · ${body.error || "see audit log"}`);
+      }
+    } catch (e) {
+      toast.error(e.message || "Drill failed to run.");
+    } finally {
+      setDrillRunning(false);
     }
   };
 
@@ -253,6 +287,56 @@ export default function BackupTab() {
                     >
                       {row.created_at ? timeAgo(row.created_at) : "—"}
                     </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Recovery drill — verify the latest archive is actually restorable */}
+      <div className="border border-emerald-500/30 bg-emerald-500/5 p-5 space-y-4" data-testid="recovery-drill-panel">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-3 min-w-0">
+            <ShieldCheck size={26} className="text-emerald-400 shrink-0" />
+            <div className="min-w-0">
+              <div className="font-display text-xl">Recovery drill</div>
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mt-1">
+                Quarterly @ Jan/Apr/Jul/Oct 1st 04:30 UTC · gated on the <span className="text-[#ff4500]">auto_recovery_drill_enabled</span> toggle
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={runDrill}
+            disabled={drillRunning || (offsite?.count || 0) === 0}
+            className="btn-industrial btn-primary inline-flex items-center gap-2 disabled:opacity-50"
+            data-testid="recovery-drill-run-btn"
+            title={(offsite?.count || 0) === 0 ? "Need at least one R2 archive to drill against" : "Manually run the drill now (super-admin, audit-logged, posts to Slack)"}
+          >
+            <Play size={14} /> {drillRunning ? "Drilling…" : "Run drill"}
+          </button>
+        </div>
+        <div className="font-mono text-[11px] text-[#a3a3a3] leading-relaxed">
+          Downloads the latest R2 archive, restores it into an isolated{" "}
+          <code className="text-emerald-300">_dr_drill_&lt;timestamp&gt;</code> namespace on the same Mongo cluster, runs integrity counts (products ≥ {drillResult?.min_products ?? 100}), drops the namespace, and posts the result to your team's Slack/Discord webhook.
+          <strong className="text-[#e5e5e5]"> Production collections are never touched.</strong>
+        </div>
+        {drillResult && (
+          <div
+            className={`p-4 border ${drillResult.ok ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-300" : "border-red-500/50 bg-red-500/10 text-red-300"}`}
+            data-testid="drill-result"
+          >
+            <div className="font-mono text-[11px] uppercase tracking-[0.22em] mb-2">
+              {drillResult.ok ? "✓ PASS" : "⊗ FAIL"} · {drillResult.duration_s}s
+            </div>
+            {drillResult.error ? (
+              <div className="font-mono text-xs whitespace-pre-wrap break-words">{drillResult.error}</div>
+            ) : (
+              <ul className="font-mono text-xs grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-1">
+                {Object.entries(drillResult.counts || {}).map(([k, v]) => (
+                  <li key={k} className="tabular-nums">
+                    <span className="opacity-60">{k.replace(/_/g, " ")}:</span> {v?.toLocaleString?.() ?? v}
                   </li>
                 ))}
               </ul>

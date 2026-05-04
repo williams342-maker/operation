@@ -77,6 +77,12 @@ const SWITCHES = [
     blurb: "When ON, every night at 03:15 UTC the scheduler runs `mongodump --archive --gzip` of the entire production database, uploads the archive to a private R2 prefix, and sweeps any archive older than the retention window in the same job. Self-skips if R2 is not configured. Manual `Run now` in the Backup tab still works regardless of this toggle (super admin only). The retention window defaults to 30 days; change it via API if you need a longer history.",
     tone: "primary",
   },
+  {
+    key: "auto_recovery_drill_enabled",
+    label: "Auto Recovery Drill (Quarterly)",
+    blurb: "When ON, the first day of each quarter (Jan/Apr/Jul/Oct) at 04:30 UTC the scheduler downloads the latest R2 archive, restores it into an isolated `_dr_drill_<timestamp>` namespace on the same Mongo cluster, counts products + makers + blogs to verify the restore worked, drops the namespace, and posts the pass/fail result to your Slack/Discord webhook. Production collections are NEVER touched (the rename is enforced by mongorestore's `--nsFrom/--nsTo`). Manual trigger via the Backup tab works regardless of this toggle. Untested backups don't exist — flip this ON.",
+    tone: "warn",
+  },
 ];
 
 const toneClass = (tone, on) => {

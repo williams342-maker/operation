@@ -1,5 +1,66 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05 — iter123 — Quarterly DR drill ✅
+
+**Why:** iter119 shipped manual backups, iter121 shipped scheduled offsite backups to R2. The trio is incomplete without **automated verification** that those archives are actually restoreable. Famous quote: "Backups you've never tested don't exist." A drill that fires automatically every quarter (and can be forced manually) closes the loop and turns the backup story from "we hope it works" into "we know it works as of last Thursday."
+
+**What:**
+
+### `recovery_drill.py` — full DR drill module
+End-to-end flow in a single async function (`run_recovery_drill`):
+1. **Pick the latest archive** from R2 under `backups/mongo/` (most recent `LastModified`). Bails with a clear error if R2 is empty (means offsite_backup hasn't run yet) or unconfigured.
+2. **Stream-download to /tmp** in a fresh temp dir. R2 egress is free so this is cost-neutral.
+3. **`mongorestore --gzip --archive=… --nsFrom=<DB_NAME>.* --nsTo=<DRILL_NS>.* --drop`** restores into an isolated `_dr_drill_<YYYYMMDDHHMMSS>` namespace on the SAME Mongo cluster. Production collections are never touched (the rename is enforced by mongorestore itself, not by us).
+4. **Integrity probe** counts records in the drill namespace: products (exact, used as PASS gate), makers, blog_posts, payment_transactions, buyer_users, buyer_subscribers. PASS = `products >= recovery_drill_min_products` (default 100, configurable per env).
+5. **Drop the drill namespace** + delete the /tmp file in a `try/finally` so cleanup runs even if any step above raised.
+6. **Notify the team** via the existing `notify_team()` plumbing (Slack + Discord webhooks). Fields include duration + trigger (Manual / Cron). Pass / fail title + body styled for both providers.
+7. **Audit-log** to `admin_audit_log` regardless of pass/fail so the trail is complete even when Slack is down.
+
+Verified live end-to-end:
+- Manual drill on the test DB: downloaded 269 KB R2 archive, restored into `_dr_drill_20260504191455`, counted 16 products + 7 makers + 3 blog_posts + 205 payment_transactions in 2.09s, dropped the namespace cleanly (0 lingering after).
+- Lowering `recovery_drill_min_products` to 10 flips status to PASS in 1.8s.
+- 0 drill DBs ever lingered between runs.
+
+### Scheduler wire-up
+- `_job_recovery_drill` registered as `recovery_drill@cron[month='1,4,7,10', day='1', hour='4', minute='30']` — first day of Jan/Apr/Jul/Oct at 04:30 UTC. Runs after the day's offsite_backup so the freshest archive is available.
+- Self-skips when `auto_recovery_drill_enabled` toggle is OFF (default). Manual API calls bypass the toggle.
+
+### Settings additions
+- `auto_recovery_drill_enabled: bool` (default False)
+- `recovery_drill_min_products: int` (default 100, bounds 1–100000 enforced by Pydantic validator)
+- New "Auto Recovery Drill (Quarterly)" toggle in admin Settings tab with a long blurb explaining the namespace isolation + Slack notification + how the manual button bypass works. Tone: warn (it's a destructive-sounding action, but it's actually safe).
+
+### Admin endpoint
+`POST /api/admin/db/backup/drill/run` — super-admin-only manual trigger that bypasses the toggle. Returns the full summary dict (drill_db, archive metadata, counts, ok/passed, duration_s).
+
+### BackupTab UI (`BackupTab.jsx`)
+New emerald-bordered "Recovery drill" panel below the offsite-backup section:
+- Scheduling indicator + linked toggle name
+- Disabled state when `offsite.count === 0` (no archives to drill against — clear tooltip)
+- "Run drill" button with confirm modal explaining the isolation + duration estimate
+- Result panel renders inline after the run: PASS/FAIL color-coded, duration, full count grid (or the error message on FAIL)
+- Strong "Production collections are never touched" reassurance copy
+
+### Tests
+`tests/test_iter123_recovery_drill.py` — **7/7 standalone green** covering:
+- Cron honors the toggle (skips with `reason: toggle_off`)
+- Manual mode bypasses the toggle (mocked download/restore/probe/notify all wired)
+- PASS path: products ≥ threshold → ok=True, Slack title contains "PASSED"
+- FAIL path: products < threshold → ok=False, Slack title contains "FAILED"
+- Crash-safety: simulated restore exception still drops the namespace + posts FAIL + audits
+- Empty R2 surfaces a clear error
+- Endpoint requires super admin (403 for non-super)
+- Settings PATCH accepts new keys, rejects out-of-bounds (`min_products: 0` → 422)
+
+### Verified live
+- Backend logs: `recovery_drill@cron[month='1,4,7,10', day='1', hour='4', minute='30']` registered on startup.
+- Manual `POST /api/admin/db/backup/drill/run` returns full summary dict with correct values.
+- 403 enforced on non-super admin.
+- Smoke screenshot: drill panel + run button + namespace-isolation copy all render correctly.
+- Lint clean across `recovery_drill.py`, `BackupTab.jsx`, `SettingsTab.jsx`.
+
+
+
 ## 2026-05 — iter122 — Secrets Rotation Tracker + final window.confirm cleanup ✅
 
 **Why:**

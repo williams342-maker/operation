@@ -112,9 +112,10 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - **P2** Deploy Cloudflare Worker from `/app/docs/cloudflare-worker-prerender.md` (user-side dashboard step) — now fully paired with iter120's SEO-rich per-slug routes.
 - **P2** Apply DNS cleanup from `/app/docs/dns-cleanup.md` (user-side, removes Brevo/Sender/Mailerlite stale records + tightens SPF).
 - **P2** Submit sitemap to GSC + Bing per `/app/docs/seo-submission-checklist.md` (user-side, ~25 min).
-- **P2** Flip Auto Offsite Backup toggle ON in admin Settings + verify nightly cron lands a clean archive in R2.
-- **P3** Quarterly recovery drill — one-click admin endpoint that downloads the latest R2 archive, restores into a throwaway Mongo, runs an integrity probe, posts result to Slack webhook.
-- **P3** Capability-aware tab redirects: when a non-super admin clicks a deep-link to a tab they don't have caps for, redirect to `/admin?tab=<first-visible>` instead of just hiding the sidebar entry.
+- **P2** Flip `Auto Offsite Backup` AND `Auto Recovery Drill` toggles ON in admin Settings, then verify tomorrow's 03:15 UTC backup + Apr 1 drill cron land cleanly.
+- **P2** Walk through Secrets Rotation tab and click "Mark rotated" on every credential rotated this year so timers start from the right baseline.
+- **P3** Capability-aware tab redirects: when a non-super admin clicks a deep-link to a tab they don't have caps for, redirect to the first visible tab instead of just hiding the sidebar entry.
+- **P3** Auto-rotate API keys / Stripe webhook signing keys via the new audit log we now ship — weekly Slack summary of overdue secrets.
 
 ## Blocked (waiting on user)
 - Mailtrap DNS verification in Cloudflare (Postmark covers 100% of mail in the meantime — no buyer impact).
