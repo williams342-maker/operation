@@ -1,5 +1,84 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05 — iter120 — SEO-rich per-page prerender + auto dormant retention + Team polish ✅
+
+**Why:** Three focused features bundled in one iteration:
+
+1. **Per-product/maker SPA prerender fallbacks** — iter118's homepage fallback fixed the `/` blind spot, but `/product/:slug` and `/maker/:slug` still served only OG meta tags with a thin body when crawlers hit them via the Cloudflare Worker. Result: rich link unfurls were perfect, but Bing / DuckDuckBot / Screaming Frog still treated those pages as 30-word stubs. We needed real, indexable per-slug HTML.
+2. **Dormant buyer auto-retention** — the manual "scan + send 15% off" flow on the admin Retention tab works, but it relies on someone remembering to click it. Most of the LTV recovery happens at month-2 of dormancy and gets missed when ops is busy. A scheduled cron solves that.
+3. **Admin Team management polish** — once we had multi-tier admins live, even a 5-person team made the table awkward to scan. Search + filter + relative timestamps make it feel like a real ops tool.
+
+**What:**
+
+### 1) Enhanced OG prerender — full SEO pages (`routers/og_prerender.py`)
+
+Refactored `_render_og_html()` to accept `body_html` and `json_ld` parameters, then enriched each handler:
+
+- **`/api/og/product/{slug}`** now ships:
+  - Full product description (up to 1500 chars)
+  - Maker section with internal link to `/makers/<slug>` and human-readable provenance copy
+  - Details list (price, availability, category, materials, tags)
+  - "Browse more" navigation block (shop, more from maker, more in category, custom-order CTA)
+  - Breadcrumb nav (`Home › Shop › <Category> › <Title>`)
+  - **Schema.org Product JSON-LD** with full Offer (price, currency, availability=`InStock`/`PreOrder`, condition=`NewCondition`)
+  - `<meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large">`
+  - **Verified live**: 450 words, 1 H1, 3 H2s, 10 internal links, JSON-LD, breadcrumb.
+- **`/api/og/maker/{slug}`** now ships:
+  - Full bio (up to 1500 chars)
+  - Facts list (location, techniques, veteran-owned, marketplace context)
+  - **Recent listings** — pulls 6 most recent published products by this maker and renders as `<a>` links to `/shop/<slug>` with prices. Real internal-link juice + topical relevance.
+  - Cross-nav block to `/shop`, `/makers`, `/custom-order`
+  - **Schema.org Person JSON-LD** with `address.addressLocality` + `knowsAbout` (techniques)
+  - **Verified live**: 184 words, 1 H1, 4 H2s, JSON-LD Person.
+- **`/api/og/journal/{slug}`** now ships:
+  - Article body (HTML stripped to plain text, capped 2000 chars)
+  - Author + published_date as `article:author` / `article:published_time` OG tags
+  - **Schema.org Article JSON-LD** with `headline`, `datePublished`, `author`, `publisher`
+  - "Keep reading" cross-nav to `/journal`, `/shop`, `/makers`
+
+All three keep the existing `meta http-equiv=refresh` real-browser bounce so direct visitors still land on the SPA, but crawlers (which ignore meta-refresh) now get fully indexable pages. CSS is inlined and minimal so the pages render cleanly even outside a browser. Paired with the Cloudflare Worker (already documented), social unfurls AND non-Google SEO crawlers now get per-slug-rich content.
+
+### 2) Auto dormant-buyer re-engagement (`scheduler.py` + `routers/retention.py`)
+
+New scheduler entrypoint `run_auto_dormant_reengage()` extracts the manual reengage logic into a callable function, then wires it as a cron job:
+
+- **Schedule:** Tuesdays 14:00 UTC (mid-week US afternoon — best email open rates)
+- **Toggle:** `auto_dormant_reengage_enabled` site_setting, default `False`. Operators flip it from the admin Settings tab — no redeploy. Job early-returns `{"ran": False, "reason": "toggle_off"}` when off.
+- **Targeting:** Buyers dormant 60+ days (configurable floor of 30, ceiling of 365). Sorted by lifetime value descending so highest-value cohort gets the best recovery shot.
+- **Cool-off:** 30 days per buyer (vs 24h for the manual flow). Aggressive cool-off prevents the cron from re-pestering anyone who already ignored a discount last month.
+- **Cap:** 50 emails per run. Over-fetch the candidate pool 4× then post-filter so the cap is reached after dedup.
+- **Code minted:** 15% off marketplace-wide, single-use, 21-day expiry. Stored in `marketing_codes` with `kind: "dormant_reengage"` and `issued_by: "scheduler:auto-dormant"` so manual + auto-issued codes are distinguishable in the audit log.
+- **Kit.com tag:** `dormant-buyer-reengaged-auto` (vs manual blast's `dormant-buyer-reengaged`). Lets ops A/B the response curves between scheduled and ad-hoc cohorts in Kit's analytics.
+- **Audit log:** Every run writes a row to `audit_log` with summary stats (sent, skipped, candidate_count, days, discount_pct).
+
+UI: Added `auto_dormant_reengage_enabled` toggle to admin Settings tab with a long blurb explaining the cadence, cap, cool-off, and Kit.com tagging behavior. Tone: warn (yellow) since flipping it on starts a recurring email blast.
+
+### 3) Admin Team tab polish (`components/admin/TeamTab.jsx`)
+
+- **Search input** — filter by email substring or capability name. Real-time, no debounce needed at this scale.
+- **"Show revoked" toggle** — soft-deactivated admins are hidden by default. Tick to surface them for re-invite or audit.
+- **Counter** — "N / M" shows filtered vs total so it's obvious when a search is hiding rows.
+- **Relative `last_seen`** — replaced the bare `Apr 15` with `2 hours ago` / `42m ago` / `never`, with a tooltip showing the absolute timestamp on hover. Uses the existing `lib/timeAgo.js` helper.
+- **Empty states** — distinct messages for "no admins yet" vs "no matches for 'foo'" so the table never looks broken.
+
+### Tests
+`tests/test_iter120_seo_prerender_and_dormant.py` — **7/7 standalone green** covering:
+- Product prerender: word floor, JSON-LD Product schema, in-stock/preorder branching, breadcrumb, internal links, robots meta.
+- Maker prerender: Person schema, veteran-owned badge, recent-listings rendering.
+- Journal prerender: Article schema, author + published_time meta, HTML body stripped to text.
+- Auto dormant: toggle-off short-circuits, toggle-on completes cleanly with empty candidate pool.
+- Settings PATCH accepts the new toggle.
+
+### Verified live
+- `curl ${API}/api/og/product/<real-slug>` → 8.4 KB HTML, 450 words, JSON-LD Product, 10 internal links.
+- `curl ${API}/api/og/maker/iron-and-oak` → 6.1 KB HTML, JSON-LD Person, 7 internal links to /makers + recent listings.
+- `PATCH /api/admin/settings {auto_dormant_reengage_enabled: true}` → persisted.
+- `run_auto_dormant_reengage()` direct call → `{ran: True, sent: 0, skipped: 0}` with toggle ON, `{ran: False, reason: "toggle_off"}` with toggle OFF.
+- TeamTab smoke screenshot: search + revoke toggle + relative time all render correctly.
+
+Lint clean across `og_prerender.py`, `retention.py`, all touched JSX.
+
+
 ## 2026-05 — iter119 — Backlog cleanup batch ✅
 
 **Why:** Five P2 items from the backlog were small enough to ship in one focused pass while context was still fresh from iter118. Each was a near-term operational quality-of-life win — none of them block any user flow, but together they noticeably reduce the "rough edges" of the admin + maker surface.

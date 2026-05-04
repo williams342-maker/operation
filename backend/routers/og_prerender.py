@@ -81,15 +81,23 @@ def _render_og_html(
     redirect_url: str,
     extra_props: Optional[list[tuple[str, str]]] = None,
     twitter_card: str = "summary_large_image",
+    body_html: str = "",
+    json_ld: Optional[str] = None,
 ) -> str:
     """Build a minimal, crawler-perfect HTML doc.
 
     Real browsers honor the `meta http-equiv=refresh` and bounce to
-    `redirect_url`. Crawlers ignore the refresh and read the meta tags."""
-    # Allow callers to override `og:type` (e.g. "product", "profile",
-    # "article") via extra_props. Having TWO og:type tags is invalid OG
-    # and crawlers may pick either at random — pull the override out of
-    # the extras list and let it replace the default cleanly.
+    `redirect_url`. Crawlers ignore the refresh and read the meta tags.
+
+    `body_html` is injected after the H1/description block — pass real
+    content (long description, breadcrumb, related-items, internal
+    links) so SEO crawlers (not just social unfurlers) get a fully
+    indexable page when Cloudflare's Worker routes them here.
+
+    `json_ld` is a JSON string injected into `<script type="application/ld+json">`
+    — Schema.org Product / Person / Article structured data so Google
+    rich-results, Bing entity panels, etc. light up.
+    """
     extras_list = list(extra_props or [])
     og_type = "website"
     for k, v in extras_list:
@@ -101,10 +109,16 @@ def _render_og_html(
         for k, v in extras_list
         if v
     )
+    json_ld_block = (
+        f'<script type="application/ld+json">{json_ld}</script>'
+        if json_ld else ""
+    )
     return (
         "<!doctype html>"
         "<html lang=\"en\"><head>"
         "<meta charset=\"utf-8\" />"
+        "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />"
+        "<meta name=\"robots\" content=\"index, follow, max-snippet:-1, max-image-preview:large\" />"
         f"<title>{_esc(title)}</title>"
         f"<meta name=\"description\" content=\"{_esc(description)}\" />"
         f"<link rel=\"canonical\" href=\"{_esc(canonical_url)}\" />"
@@ -122,20 +136,33 @@ def _render_og_html(
         f"<meta name=\"twitter:title\" content=\"{_esc(title)}\" />"
         f"<meta name=\"twitter:description\" content=\"{_esc(description)}\" />"
         f"<meta name=\"twitter:image\" content=\"{_esc(image)}\" />"
+        # JSON-LD structured data
+        f"{json_ld_block}"
         # Real-browser fallback — crawlers ignore http-equiv refresh.
         f"<meta http-equiv=\"refresh\" content=\"0; url={_esc(redirect_url)}\" />"
-        "<style>body{margin:0;background:#0a0a0a;color:#e5e5e5;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}"
-        ".w{max-width:560px;margin:0 auto;padding:120px 24px;text-align:center}"
-        "a{color:#ff4500;text-decoration:none;font-weight:700;font-size:12px;letter-spacing:0.18em;text-transform:uppercase}"
+        "<style>body{margin:0;background:#0a0a0a;color:#e5e5e5;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;line-height:1.6}"
+        ".w{max-width:760px;margin:0 auto;padding:60px 24px}"
+        "a{color:#ff4500;text-decoration:underline;font-weight:600}"
+        ".hero{text-align:center;margin-bottom:48px}"
+        ".hero h1{font-family:Impact,Anton,sans-serif;font-size:44px;line-height:1.05;letter-spacing:-0.01em;margin:0 0 20px;text-transform:uppercase;color:#fff}"
+        ".eyebrow{font-size:11px;letter-spacing:0.32em;color:#ff4500;text-transform:uppercase;margin:0 0 16px}"
+        ".lede{font-size:14px;color:#a3a3a3;margin:0 0 28px}"
+        ".cta{display:inline-block;border:1px solid #ff4500;padding:12px 24px;font-size:11px;letter-spacing:0.22em;text-transform:uppercase}"
+        ".sect{margin:36px 0;padding:24px 0;border-top:1px solid #262626}"
+        ".sect h2{font-size:14px;letter-spacing:0.18em;text-transform:uppercase;color:#ff4500;margin:0 0 12px}"
+        "ul{padding-left:20px;margin:8px 0}li{margin:6px 0}"
+        ".breadcrumb{font-size:11px;color:#737373;letter-spacing:0.18em;text-transform:uppercase;margin-bottom:18px}"
+        ".breadcrumb a{color:#a3a3a3;font-weight:500}"
         "</style>"
         "</head><body>"
-        # Visible content for the rare human who lands here directly with
-        # JS-disabled or an aggressive ad-blocker that kills meta-refresh.
         "<div class=\"w\">"
-        f"<p style=\"font-size:11px;letter-spacing:0.32em;color:#ff4500;text-transform:uppercase;margin:0 0 18px\">◆ Crafters Market</p>"
-        f"<h1 style=\"font-family:Impact,Anton,sans-serif;font-size:40px;line-height:1.05;letter-spacing:-0.01em;margin:0 0 24px;text-transform:uppercase\">{_esc(title)}</h1>"
-        f"<p style=\"font-size:13px;color:#a3a3a3;line-height:1.7;margin:0 0 32px\">{_esc(description)}</p>"
-        f"<p><a href=\"{_esc(redirect_url)}\">Open the page →</a></p>"
+        f"<div class=\"hero\">"
+        f"<p class=\"eyebrow\">◆ Crafters Market</p>"
+        f"<h1>{_esc(title)}</h1>"
+        f"<p class=\"lede\">{_esc(description)}</p>"
+        f"<p><a class=\"cta\" href=\"{_esc(redirect_url)}\">Open the page →</a></p>"
+        f"</div>"
+        f"{body_html}"
         "</div></body></html>"
     )
 
@@ -164,7 +191,8 @@ async def og_product(slug: str, http_request: Request):
     doc = await db.products.find_one(
         {"slug": slug, "deleted_at": None, "status": {"$ne": "draft"}},
         {"_id": 0, "title": 1, "description": 1, "images": 1, "price": 1,
-         "maker_name": 1, "maker_slug": 1},
+         "maker_name": 1, "maker_slug": 1, "category": 1, "in_stock": 1,
+         "tags": 1, "materials": 1},
     )
     if not doc:
         # Soft-404: bounce to /shop instead of 404 so a stale share link
@@ -174,22 +202,101 @@ async def og_product(slug: str, http_request: Request):
 
     title_raw = (doc.get("title") or "").strip() or slug
     maker = (doc.get("maker_name") or "").strip()
+    maker_slug = (doc.get("maker_slug") or "").strip()
     title = f"{title_raw}{' · ' + maker if maker else ''} — Crafters Market"
-    desc = _truncate(doc.get("description") or "", 200) \
+    full_desc = (doc.get("description") or "").strip()
+    desc = _truncate(full_desc, 200) \
         or f"Hand-built by {maker or 'a vetted independent maker'} on Crafters Market — curated CNC art, custom signs, and made-to-order originals."
     img = ((doc.get("images") or [None])[0]) or _placeholder_image()
     canonical = f"{_site()}/shop/{slug}"
+    site = _site()
 
-    extras: list[tuple[str, str]] = []
-    if doc.get("price") is not None:
-        extras.append(("product:price:amount", f"{float(doc['price']):.2f}"))
+    extras: list[tuple[str, str]] = [("og:type", "product")]
+    price = doc.get("price")
+    if price is not None:
+        extras.append(("product:price:amount", f"{float(price):.2f}"))
         extras.append(("product:price:currency", "USD"))
-        extras.append(("og:type", "product"))  # overrides "website" above
+
+    # Long-form indexable body — full description, materials, tags,
+    # navigation breadcrumb, price + availability. Crawlers read this
+    # as the primary content of the page.
+    in_stock = bool(doc.get("in_stock", True))
+    category = (doc.get("category") or "").strip()
+    materials = doc.get("materials") or []
+    tags = (doc.get("tags") or [])[:8]
+
+    body_parts: list[str] = []
+    body_parts.append(
+        '<nav class="breadcrumb" aria-label="Breadcrumb">'
+        f'<a href="{site}/">Home</a> · <a href="{site}/shop">Shop</a>'
+        f'{" · <a href=&quot;" + site + "/shop?category=" + _esc(category) + "&quot;>" + _esc(category) + "</a>" if category else ""}'
+        f' · <span>{_esc(title_raw)}</span>'
+        '</nav>'
+    )
+    if full_desc:
+        body_parts.append(
+            f'<section class="sect"><h2>About this piece</h2>'
+            f'<p>{_esc(full_desc[:1500])}</p></section>'
+        )
+    if maker:
+        body_parts.append(
+            f'<section class="sect"><h2>Maker</h2>'
+            f'<p>Hand-built by <a href="{site}/makers/{_esc(maker_slug or "")}">{_esc(maker)}</a> — '
+            f'one of the vetted independent artisans on Crafters Market. Every piece in this shop is built to order in {_esc(maker)}\'s own workshop, never mass-produced.</p>'
+            '</section>'
+        )
+    detail_lines: list[str] = []
+    if price is not None:
+        detail_lines.append(f"<li><strong>Price:</strong> ${float(price):.2f} USD</li>")
+    detail_lines.append(
+        f"<li><strong>Availability:</strong> {'In stock — ready to ship' if in_stock else 'Made to order'}</li>"
+    )
+    if category:
+        detail_lines.append(f"<li><strong>Category:</strong> {_esc(category)}</li>")
+    if materials:
+        detail_lines.append(f"<li><strong>Materials:</strong> {_esc(', '.join(materials[:6]))}</li>")
+    if tags:
+        detail_lines.append(f"<li><strong>Tags:</strong> {_esc(', '.join(tags))}</li>")
+    body_parts.append(
+        '<section class="sect"><h2>Details</h2>'
+        f'<ul>{"".join(detail_lines)}</ul></section>'
+    )
+    body_parts.append(
+        '<section class="sect"><h2>Browse more</h2><ul>'
+        f'<li><a href="{site}/shop">All listings on Crafters Market</a></li>'
+        f'{"<li><a href=&quot;" + site + "/makers/" + _esc(maker_slug) + "&quot;>More from " + _esc(maker) + "</a></li>" if maker_slug and maker else ""}'
+        f'{"<li><a href=&quot;" + site + "/shop?category=" + _esc(category) + "&quot;>More in " + _esc(category) + "</a></li>" if category else ""}'
+        f'<li><a href="{site}/custom-order">Request a custom order</a></li>'
+        '</ul></section>'
+    )
+    body_html = "".join(body_parts)
+
+    # Schema.org Product structured data
+    import json as _json
+    json_ld = _json.dumps({
+        "@context": "https://schema.org/",
+        "@type": "Product",
+        "name": title_raw,
+        "description": _truncate(full_desc, 500) or desc,
+        "image": img,
+        "url": canonical,
+        "brand": {"@type": "Brand", "name": maker or "Crafters Market"},
+        "offers": {
+            "@type": "Offer",
+            "url": canonical,
+            "priceCurrency": "USD",
+            "price": f"{float(price):.2f}" if price is not None else "0.00",
+            "availability": "https://schema.org/InStock" if in_stock else "https://schema.org/PreOrder",
+            "itemCondition": "https://schema.org/NewCondition",
+        },
+    }, separators=(",", ":"))
 
     html = _render_og_html(
         title=title, description=desc, image=img,
         canonical_url=canonical, redirect_url=canonical,
         extra_props=extras,
+        body_html=body_html,
+        json_ld=json_ld,
     )
     return HTMLResponse(content=html)
 
@@ -204,26 +311,95 @@ async def og_maker(slug: str, http_request: Request):
     doc = await db.makers.find_one(
         {"slug": slug},
         {"_id": 0, "name": 1, "bio": 1, "tagline": 1, "cover": 1,
-         "banner_image_url": 1, "is_veteran_owned": 1},
+         "banner_image_url": 1, "is_veteran_owned": 1, "location": 1,
+         "techniques": 1, "headline": 1},
     )
     if not doc:
         logger.info("[og_prerender] maker slug not found: %s", slug)
         return RedirectResponse(f"{_site()}/makers", status_code=302)
 
     name = (doc.get("name") or "").strip() or slug
+    location = (doc.get("location") or "").strip()
     title = f"{name} — Crafters Market"
-    desc_src = (doc.get("tagline") or doc.get("bio") or "").strip() \
+    full_bio = (doc.get("bio") or "").strip()
+    tagline = (doc.get("tagline") or doc.get("headline") or "").strip()
+    desc_src = tagline or full_bio \
         or f"{name} — vetted independent maker on Crafters Market. Hand-built CNC art and made-to-order originals, no mass production."
     desc = _truncate(desc_src, 200)
     if doc.get("is_veteran_owned"):
         desc = ("◆ Veteran-Owned · " + desc)[:220]
     img = (doc.get("banner_image_url") or doc.get("cover") or _placeholder_image())
     canonical = f"{_site()}/makers/{slug}"
+    site = _site()
+
+    # Pull a few of this maker's most recent published listings to add
+    # real internal links + topical relevance for crawlers.
+    listings = await db.products.find(
+        {"maker_slug": slug, "deleted_at": None, "status": {"$ne": "draft"}},
+        {"_id": 0, "slug": 1, "title": 1, "price": 1},
+    ).sort("created_at", -1).limit(6).to_list(6)
+    techniques = doc.get("techniques") or []
+
+    body_parts: list[str] = []
+    body_parts.append(
+        '<nav class="breadcrumb" aria-label="Breadcrumb">'
+        f'<a href="{site}/">Home</a> · <a href="{site}/makers">Makers</a> · '
+        f'<span>{_esc(name)}</span>'
+        '</nav>'
+    )
+    if full_bio:
+        body_parts.append(
+            f'<section class="sect"><h2>About {_esc(name)}</h2>'
+            f'<p>{_esc(full_bio[:1500])}</p></section>'
+        )
+    facts: list[str] = []
+    if location:
+        facts.append(f"<li><strong>Based in:</strong> {_esc(location)}</li>")
+    if techniques:
+        facts.append(f"<li><strong>Techniques:</strong> {_esc(', '.join(techniques[:6]))}</li>")
+    if doc.get("is_veteran_owned"):
+        facts.append("<li><strong>Veteran-owned</strong> — supported on Crafters Market.</li>")
+    facts.append("<li><strong>Marketplace:</strong> Independent maker on Crafters Market.</li>")
+    body_parts.append(
+        f'<section class="sect"><h2>About this shop</h2><ul>{"".join(facts)}</ul></section>'
+    )
+    if listings:
+        list_items = "".join(
+            f'<li><a href="{site}/shop/{_esc(p.get("slug",""))}">{_esc(p.get("title",""))}'
+            f'{" — $" + str(int(p["price"])) if p.get("price") else ""}</a></li>'
+            for p in listings
+        )
+        body_parts.append(
+            '<section class="sect"><h2>Recent listings</h2>'
+            f'<ul>{list_items}</ul></section>'
+        )
+    body_parts.append(
+        '<section class="sect"><h2>Explore the marketplace</h2><ul>'
+        f'<li><a href="{site}/shop">Browse all listings</a></li>'
+        f'<li><a href="{site}/makers">Other vetted makers</a></li>'
+        f'<li><a href="{site}/custom-order">Request a custom order</a></li>'
+        '</ul></section>'
+    )
+    body_html = "".join(body_parts)
+
+    import json as _json
+    json_ld = _json.dumps({
+        "@context": "https://schema.org",
+        "@type": "Person",
+        "name": name,
+        "description": _truncate(full_bio or tagline or desc, 500),
+        "image": img,
+        "url": canonical,
+        "address": {"@type": "PostalAddress", "addressLocality": location} if location else None,
+        "knowsAbout": techniques[:6] if techniques else None,
+    }, separators=(",", ":"), default=str)
 
     html = _render_og_html(
         title=title, description=desc, image=img,
         canonical_url=canonical, redirect_url=canonical,
         extra_props=[("og:type", "profile")],
+        body_html=body_html,
+        json_ld=json_ld,
     )
     return HTMLResponse(content=html)
 
@@ -238,7 +414,7 @@ async def og_journal(slug: str, http_request: Request):
     doc = await db.blog_posts.find_one(
         {"slug": slug},
         {"_id": 0, "title": 1, "excerpt": 1, "summary": 1, "cover": 1,
-         "author": 1, "created_at": 1},
+         "author": 1, "created_at": 1, "body": 1, "content": 1},
     )
     if not doc:
         logger.info("[og_prerender] journal slug not found: %s", slug)
@@ -246,21 +422,75 @@ async def og_journal(slug: str, http_request: Request):
 
     title_raw = (doc.get("title") or "").strip() or slug
     title = f"{title_raw} — Crafters Market"
-    desc = _truncate(doc.get("excerpt") or doc.get("summary") or "", 200) \
+    excerpt = (doc.get("excerpt") or doc.get("summary") or "").strip()
+    desc = _truncate(excerpt or "", 200) \
         or "Notes, builds, and behind-the-scenes from the makers and team at Crafters Market."
     img = doc.get("cover") or _placeholder_image()
     canonical = f"{_site()}/journal/{slug}"
+    site = _site()
+    body_text = (doc.get("body") or doc.get("content") or excerpt or "").strip()
+    # Strip HTML tags lightly for the SEO body — full markup lives on the SPA page.
+    import re as _re
+    body_plain = _re.sub(r"<[^>]+>", " ", body_text)
+    body_plain = _re.sub(r"\s+", " ", body_plain).strip()
+    author = (doc.get("author") or "").strip()
+    created = str(doc.get("created_at") or "")[:10]
 
     extras: list[tuple[str, str]] = [("og:type", "article")]
-    if doc.get("author"):
-        extras.append(("article:author", str(doc["author"])))
-    if doc.get("created_at"):
-        extras.append(("article:published_time", str(doc["created_at"])[:10]))
+    if author:
+        extras.append(("article:author", author))
+    if created:
+        extras.append(("article:published_time", created))
+
+    body_parts: list[str] = []
+    body_parts.append(
+        '<nav class="breadcrumb" aria-label="Breadcrumb">'
+        f'<a href="{site}/">Home</a> · <a href="{site}/journal">Journal</a> · '
+        f'<span>{_esc(title_raw)}</span>'
+        '</nav>'
+    )
+    if body_plain:
+        body_parts.append(
+            f'<section class="sect"><h2>Article</h2>'
+            f'<p>{_esc(body_plain[:2000])}</p></section>'
+        )
+    meta_lines: list[str] = []
+    if author:
+        meta_lines.append(f"<li><strong>Author:</strong> {_esc(author)}</li>")
+    if created:
+        meta_lines.append(f"<li><strong>Published:</strong> {_esc(created)}</li>")
+    if meta_lines:
+        body_parts.append(
+            f'<section class="sect"><h2>Details</h2><ul>{"".join(meta_lines)}</ul></section>'
+        )
+    body_parts.append(
+        '<section class="sect"><h2>Keep reading</h2><ul>'
+        f'<li><a href="{site}/journal">More on the workshop journal</a></li>'
+        f'<li><a href="{site}/shop">Browse the shop</a></li>'
+        f'<li><a href="{site}/makers">Meet the makers</a></li>'
+        '</ul></section>'
+    )
+    body_html = "".join(body_parts)
+
+    import json as _json
+    json_ld = _json.dumps({
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": title_raw,
+        "description": desc,
+        "image": img,
+        "url": canonical,
+        "datePublished": created or None,
+        "author": {"@type": "Person", "name": author} if author else None,
+        "publisher": {"@type": "Organization", "name": "Crafters Market"},
+    }, separators=(",", ":"), default=str)
 
     html = _render_og_html(
         title=title, description=desc, image=img,
         canonical_url=canonical, redirect_url=canonical,
         extra_props=extras,
+        body_html=body_html,
+        json_ld=json_ld,
     )
     return HTMLResponse(content=html)
 

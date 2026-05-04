@@ -39,6 +39,7 @@ DEFAULT_SETTINGS: dict = {
     "auto_clear_idle_rooms": False,
     "idle_clear_minutes": 60,
     "ai_moderator_enabled": False,
+    "auto_dormant_reengage_enabled": False,
 }
 
 
@@ -152,6 +153,7 @@ class SettingsPatch(BaseModel):
     auto_clear_idle_rooms: Optional[bool] = None
     idle_clear_minutes: Optional[int] = Field(default=None, ge=5, le=1440)
     ai_moderator_enabled: Optional[bool] = None
+    auto_dormant_reengage_enabled: Optional[bool] = None
 
 
 @router.patch("/admin/settings")

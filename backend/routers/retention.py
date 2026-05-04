@@ -169,3 +169,118 @@ async def _kit_tag_safe(email: str, tag_name: str):
             await _kit("POST", f"/v4/tags/{tag_id}/subscribers/{sub_id}", {})
     except Exception as e:
         logger.warning("[retention] kit tag failed for %s: %s", email, e)
+
+
+async def run_auto_dormant_reengage(
+    *,
+    days: int = 60,
+    discount_pct: int = 15,
+    expires_in_days: int = 21,
+    max_per_run: int = 50,
+) -> dict:
+    """Scheduler entrypoint — find dormant buyers and send them re-engagement
+    codes automatically. Mirrors the manual `/admin/retention/reengage`
+    flow but runs unattended:
+
+      1. Bail out if the master toggle (`auto_dormant_reengage_enabled`
+         in `site_settings`) is OFF. Default is OFF — operators must
+         explicitly opt in via the admin Settings tab.
+      2. Find buyers dormant `days`+ days. Cap at `max_per_run` per run
+         so a sudden spike of dormancy doesn't blast 1000 emails in one
+         shot.
+      3. Skip anyone already issued a `dormant_reengage` code in the
+         last 30 days (the manual flow's window is 24h, but for the
+         automated cadence we want a longer cool-off so we don't
+         re-pester someone who already ignored the discount).
+      4. Tag in Kit (`dormant-buyer-reengaged-auto` distinguishes
+         scheduled from manual blasts).
+      5. Email + audit-log everything for traceability.
+
+    Returns a summary dict the scheduler can log.
+    """
+    from routers.settings import get_setting
+    if not await get_setting("auto_dormant_reengage_enabled", False):
+        return {"ran": False, "reason": "toggle_off"}
+
+    days = max(30, min(days, MAX_DAYS))
+    cutoff_iso = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    year_ago = (datetime.now(timezone.utc) - timedelta(days=365)).isoformat()
+
+    # 30-day cooldown for auto-flow vs 24h for manual — see docstring.
+    cooldown_iso = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+    recent = await db.marketing_codes.find(
+        {"kind": "dormant_reengage", "created_at": {"$gte": cooldown_iso}},
+        {"_id": 0, "email": 1},
+    ).to_list(10_000)
+    skip_set = {r["email"].lower() for r in recent if r.get("email")}
+
+    # Aggregate orders just like the admin endpoint to find dormant buyers.
+    pipeline = [
+        {"$match": {"status": "paid", "buyer_email": {"$exists": True, "$ne": None}}},
+        {"$match": {"created_at": {"$gte": year_ago}}},
+        {"$group": {
+            "_id": {"$toLower": "$buyer_email"},
+            "last_order_at": {"$max": "$created_at"},
+            "total_orders": {"$sum": 1},
+            "lifetime_value": {"$sum": "$amount"},
+        }},
+        {"$match": {"last_order_at": {"$lt": cutoff_iso}}},
+        {"$sort": {"lifetime_value": -1}},  # highest-LTV first
+        {"$limit": max_per_run * 4},  # over-fetch so post-skip we still hit max
+    ]
+    candidates = await db.payment_transactions.aggregate(pipeline).to_list(max_per_run * 4)
+
+    sent, skipped = 0, 0
+    expires_at = (datetime.now(timezone.utc) + timedelta(days=expires_in_days)).isoformat()
+    for cand in candidates:
+        if sent >= max_per_run:
+            break
+        email = (cand.get("_id") or "").strip().lower()
+        if not email or "@" not in email:
+            continue
+        if email in skip_set:
+            skipped += 1
+            continue
+        code = _gen_code()
+        doc = {
+            "id": secrets.token_urlsafe(8),
+            "code": code, "email": email,
+            "kind": "dormant_reengage",
+            "discount_pct": discount_pct,
+            "scope": "marketplace_wide",
+            "single_use": True, "uses_count": 0, "max_uses": 1,
+            "expires_at": expires_at,
+            "issued_by": "scheduler:auto-dormant",
+            "note": f"Auto-issued · {days}d dormant · ${cand.get('lifetime_value', 0):.0f} LTV",
+            "active": True,
+            "created_at": now_iso(),
+        }
+        try:
+            await db.marketing_codes.insert_one(doc)
+        except Exception as e:
+            logger.warning("[retention.auto] insert failed for %s: %s", email, e)
+            continue
+        # Use a distinct tag so ops can analyze which cohort responds better.
+        try:
+            await _kit_tag_safe(email, "dormant-buyer-reengaged-auto")
+        except Exception:
+            pass
+        try:
+            await send_dormant_buyer_reengage(email, code, discount_pct, expires_in_days)
+        except Exception as e:
+            logger.warning("[retention.auto] email send failed for %s: %s", email, e)
+        sent += 1
+
+    summary = {
+        "ran": True, "sent": sent, "skipped": skipped,
+        "candidate_count": len(candidates),
+        "discount_pct": discount_pct, "expires_in_days": expires_in_days,
+        "days": days,
+    }
+    await db.audit_log.insert_one({
+        "kind": "dormant_reengage_batch_auto",
+        "actor": "scheduler", **summary,
+        "created_at": now_iso(),
+    })
+    logger.info("[retention.auto] %s", summary)
+    return summary

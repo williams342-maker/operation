@@ -331,6 +331,26 @@ async def _job_maker_restock_digest() -> None:
         logger.exception("[scheduler] maker_restock_digest failed: %s", e)
 
 
+async def _job_auto_dormant_reengage() -> None:
+    """Tuesdays 14:00 UTC — auto-discount blast to dormant buyers if the
+    `auto_dormant_reengage_enabled` toggle is ON. The job itself
+    early-returns when the toggle is OFF so flipping the switch in admin
+    Settings is enough — no redeploy. Cap of 50 emails per run + a
+    30-day per-buyer cool-off prevents fatigue. Tags the cohort in Kit
+    as `dormant-buyer-reengaged-auto` (distinct from the manual blast
+    tag) so ops can A/B the response curves."""
+    try:
+        from routers.retention import run_auto_dormant_reengage
+        r = await run_auto_dormant_reengage()
+        if r.get("ran") and r.get("sent"):
+            logger.info(
+                "[scheduler] auto_dormant_reengage sent=%d skipped=%d candidates=%d",
+                r.get("sent", 0), r.get("skipped", 0), r.get("candidate_count", 0),
+            )
+    except Exception as e:
+        logger.exception("[scheduler] auto_dormant_reengage failed: %s", e)
+
+
 def start_scheduler() -> AsyncIOScheduler | None:
     """Boot the scheduler if SCHEDULER_ENABLED isn't 'false'."""
     global _scheduler
@@ -390,6 +410,13 @@ def start_scheduler() -> AsyncIOScheduler | None:
     sched.add_job(_job_maker_restock_digest,
                   CronTrigger(day_of_week="sun", hour=9, minute=0),
                   id="maker_restock_digest", replace_existing=True)
+    # Auto dormant-buyer re-engagement — Tuesdays 14:00 UTC (mid-week,
+    # mid-afternoon ET = good open rate window). Self-skips when the
+    # `auto_dormant_reengage_enabled` toggle is OFF so flipping the
+    # switch in admin Settings is enough — no redeploy.
+    sched.add_job(_job_auto_dormant_reengage,
+                  CronTrigger(day_of_week="tue", hour=14, minute=0),
+                  id="auto_dormant_reengage", replace_existing=True)
     sched.start()
     _scheduler = sched
     logger.info(

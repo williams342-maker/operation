@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Shield, Plus, X, Crown, Users } from "lucide-react";
+import { Shield, Plus, X, Crown, Users, Search } from "lucide-react";
 import {
   fetchAdminTeam, inviteAdmin, updateAdminCaps, revokeAdmin,
 } from "../../lib/api";
 import { useConfirm } from "../../hooks/useConfirm";
+import { timeAgo } from "../../lib/timeAgo";
 
 /** Multi-tier admin team management — visible to super admins only.
  *  Super admins are env-defined (ADMIN_EMAILS) and can never be revoked
@@ -32,6 +33,8 @@ export default function TeamTab() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showInvite, setShowInvite] = useState(false);
+  const [query, setQuery] = useState("");
+  const [showInactive, setShowInactive] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -45,6 +48,19 @@ export default function TeamTab() {
   };
 
   useEffect(() => { load(); }, []);
+
+  const filtered = useMemo(() => {
+    if (!data?.team) return [];
+    const q = query.trim().toLowerCase();
+    return data.team
+      .filter((row) => showInactive || row.is_active !== false)
+      .filter((row) => {
+        if (!q) return true;
+        if ((row.email || "").toLowerCase().includes(q)) return true;
+        if ((row.capabilities || []).some((c) => c.toLowerCase().includes(q))) return true;
+        return false;
+      });
+  }, [data, query, showInactive]);
 
   if (loading || !data) {
     return (
@@ -76,13 +92,39 @@ export default function TeamTab() {
       </div>
 
       <div className="border border-[#262626]" data-testid="team-table">
+        {/* Search + filters */}
+        <div className="flex flex-col sm:flex-row gap-2 sm:items-center px-4 py-3 border-b border-[#262626] bg-[#0c0c0c]">
+          <div className="relative flex-1 min-w-0">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#525252]" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search admins by email or capability…"
+              className="w-full pl-9 pr-3 py-2 bg-black border border-[#262626] focus:border-[#ff4500] outline-none font-mono text-xs"
+              data-testid="team-search-input"
+            />
+          </div>
+          <label className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#a3a3a3] flex items-center gap-2 shrink-0">
+            <input
+              type="checkbox"
+              checked={showInactive}
+              onChange={(e) => setShowInactive(e.target.checked)}
+              className="accent-[#ff4500]"
+              data-testid="team-show-inactive"
+            />
+            Show revoked
+          </label>
+          <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#525252] shrink-0">
+            {filtered.length} / {data.team.length}
+          </div>
+        </div>
         <div className="grid grid-cols-[2fr_3fr_1fr_1fr] gap-3 px-4 py-3 border-b border-[#262626] bg-[#0f0f0f] font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
           <div>Email</div>
           <div>Capabilities</div>
           <div>Last seen</div>
           <div className="text-right">Actions</div>
         </div>
-        {data.team.map((row) => (
+        {filtered.map((row) => (
           <TeamRow
             key={row.email}
             row={row}
@@ -90,9 +132,9 @@ export default function TeamTab() {
             onChanged={load}
           />
         ))}
-        {data.team.length === 0 && (
-          <div className="p-8 text-center font-mono text-[10px] uppercase tracking-[0.3em] text-[#525252]">
-            ◆ No admins yet.
+        {filtered.length === 0 && (
+          <div className="p-8 text-center font-mono text-[10px] uppercase tracking-[0.3em] text-[#525252]" data-testid="team-empty">
+            ◆ {data.team.length === 0 ? "No admins yet." : query ? `No admins match "${query}".` : "No matching admins."}
           </div>
         )}
       </div>
@@ -229,8 +271,12 @@ function TeamRow({ row, allCaps, onChanged }) {
           );
         })}
       </div>
-      <div className="font-mono text-[10px] text-[#737373]">
-        {row.last_seen ? new Date(row.last_seen).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}
+      <div
+        className="font-mono text-[10px] text-[#737373]"
+        title={row.last_seen ? new Date(row.last_seen).toLocaleString() : "Has never logged in."}
+        data-testid={`team-last-seen-${row.email}`}
+      >
+        {row.last_seen ? timeAgo(row.last_seen) : <span className="text-[#525252]">never</span>}
       </div>
       <div className="flex items-center justify-end gap-1.5 text-[10px] font-mono">
         {isSuper ? (

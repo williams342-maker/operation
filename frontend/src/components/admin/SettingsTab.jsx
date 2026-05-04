@@ -65,6 +65,12 @@ const SWITCHES = [
     blurb: "When ON, every chat message AND every forum thread/reply is classified by Claude before being saved. Slurs/threats are blocked and the offender gets a private notice; spammy messages get a warn nudge but still post. Decisions are logged to the audit log with a `chat:`/`forum:` channel prefix.",
     tone: "primary",
   },
+  {
+    key: "auto_dormant_reengage_enabled",
+    label: "Auto Dormant-Buyer Re-engagement",
+    blurb: "When ON, every Tuesday at 14:00 UTC the scheduler finds buyers dormant 60+ days, mints a one-time 15% off marketplace-wide code (21-day expiry), tags them in Kit as `dormant-buyer-reengaged-auto`, and emails each one. Capped at 50 buyers per run with a 30-day per-buyer cool-off so we never re-pester the same person. The manual blast on the Retention tab still works alongside this — they share the same idempotency table.",
+    tone: "warn",
+  },
 ];
 
 const toneClass = (tone, on) => {
