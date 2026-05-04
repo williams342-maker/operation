@@ -1,5 +1,39 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05 — iter112 + iter113 — "It's live" launch button + Maker restock-digest opt-out ✅
+
+Two P3s shipped together — both close loops on flywheels we built earlier this session.
+
+### iter112 — Coming-Soon "It's live" launch button
+
+**Why:** The Neon & Light and Furniture waitlists were collecting signups silently (iter99), but launching each category meant manually composing a Broadcast and pasting subscriber emails. The whole point of the waitlist was *automatic* notification when we open the category.
+
+**What:**
+- New email template `send_coming_soon_launch_announcement(email, name, category, shop_path)` in `email_service.py` — distinct from the on-signup confirmation (different subject, different body, one-shot framing).
+- New endpoint `POST /api/admin/coming-soon/launch` with body `{category, dry_run?, shop_path?}`. `dry_run=True` returns the eligible-recipient count without sending — used by the UI to show a confirm dialog with the count BEFORE pulling the trigger. Real launch stamps `notified_at` on every pending row in one `update_many` BEFORE scheduling background sends, so a crash mid-blast doesn't double-email anyone on retry. Idempotent — re-clicks return `{notified: 0, reason: "no_pending"}` cleanly.
+- `GET /api/admin/coming-soon/waitlist` upgraded to surface `{total, pending, notified}` per category so the UI can show readiness state.
+- New admin tab `ComingSoonTab` (registered alphabetically in `AdminDashboard.jsx` between Chat Mod and Contact Inbox). Per-category card with stat breakdown + "🚀 Launch" button. Confirms via `window.confirm` showing the exact pending count before sending. Empty categories show a disabled "✓ All notified" badge so operators can't accidentally fire an empty blast. Result panel + recent-signups feed below.
+
+### iter113 — Maker-side opt-out for the weekly Restock digest
+
+**Why:** Some makers told us they didn't want the Sunday-morning waitlist summary email — it was useful for high-volume makers but noise for those with one or two listings. They asked for a self-serve toggle instead of having to email the team.
+
+**What:**
+- New field `restock_digest_opt_out: bool = False` on the `Maker` model + same field optional on `MakerProfileUpdate` so the existing `PATCH /api/maker/profile` endpoint accepts it without any router changes.
+- `_per_maker_summary` in `maker_restock_digest.py` reads the flag and skips opted-out makers entirely — they get no email, but their waitlist data remains visible in their dashboard if they ever want to re-engage.
+- Default behavior is **opted IN** (field absent or `False`) so legacy maker docs without the field continue to receive the digest unchanged.
+- New `ToggleRow` in the maker SettingsTab "Options" section — testid `settings-restock-digest-optout`. Hint copy explains the flag clearly: "...the waitlist data is still visible in your dashboard either way."
+
+### Tests
+- `tests/test_iter112_coming_soon_launch.py` — 6 tests: per-category counts, unknown-category rejection, dry-run returns count without sending or stamping, real launch stamps + schedules one email per pending row, idempotent re-click, custom shop_path passes through to the email CTA. **6/6 green.**
+- `tests/test_iter113_restock_optout.py` — 3 tests: cron skips opted-out makers, default opted-in when field absent, model accepts the new field. **3/3 green.**
+
+### Verified live
+Authenticated screenshot of `/admin/dashboard` confirms the new "Coming Soon" tab is registered (alphabetical position), both category cards (Furniture, Neon & Light) render with full count breakdown, empty-state correctly shows the disabled "✓ All notified" affordance.
+
+---
+
+
 ## 2026-05 — iter111 — IndexNow ping: notify Bing/Yandex/Naver/Seznam/Yep on demand ✅
 
 **Why:** Every redeploy with new listings or copy changes used to wait 1-7 days for natural search-engine recrawl before the SERP snippet caught up. Painful when iter110's tighter meta description ships and you want it indexed *today*. IndexNow is the modern instant-ping protocol — one POST, ~5 search engines re-crawl within hours.

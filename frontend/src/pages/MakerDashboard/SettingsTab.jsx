@@ -885,7 +885,7 @@ function AboutShop({ maker, onSaved }) {
 // Section: Options
 // ============================================================================
 function Options({ maker, onSaved }) {
-  const fields = ["vacation_mode", "vacation_message", "accepts_custom_orders", "accepts_backorders_default", "external_ads_opt_out", "appearance_mode"];
+  const fields = ["vacation_mode", "vacation_message", "accepts_custom_orders", "accepts_backorders_default", "external_ads_opt_out", "restock_digest_opt_out", "appearance_mode"];
   const { form, set, dirty, busy, submit } = useSettingsForm(maker, fields, onSaved);
   return (
     <FormShell
@@ -935,6 +935,13 @@ function Options({ maker, onSaved }) {
         value={!!form.external_ads_opt_out}
         onChange={set("external_ads_opt_out")}
         testId="settings-offsite-optout"
+      />
+      <ToggleRow
+        label="Mute the weekly Restock digest email"
+        hint="By default you get one email every Sunday morning summarizing the buyers waiting on each of your back-ordered listings. Turn this ON to stop those emails — the waitlist data is still visible in your dashboard either way."
+        value={!!form.restock_digest_opt_out}
+        onChange={set("restock_digest_opt_out")}
+        testId="settings-restock-digest-optout"
       />
     </FormShell>
   );

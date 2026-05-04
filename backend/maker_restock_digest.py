@@ -62,8 +62,16 @@ async def _per_maker_summary() -> list[dict]:
         })
     summaries = []
     for slug, items in by_maker.items():
-        m = await db.makers.find_one({"slug": slug}, {"_id": 0, "email": 1, "name": 1})
+        m = await db.makers.find_one(
+            {"slug": slug},
+            {"_id": 0, "email": 1, "name": 1, "restock_digest_opt_out": 1},
+        )
         if not m or not m.get("email"):
+            continue
+        # iter113 — respect maker-side opt-out from the weekly digest.
+        # Default is opted-in (field absent or False).
+        if m.get("restock_digest_opt_out"):
+            logger.info("[maker_restock_digest] skipping %s (opted out)", slug)
             continue
         summaries.append({
             "maker_slug": slug, "maker_name": m.get("name") or slug,

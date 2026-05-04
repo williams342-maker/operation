@@ -79,12 +79,20 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - ✅ Canonical-host 301 redirect middleware (www ↔ apex SEO consolidation, iter109)
 - ✅ Tightened SEO copy across meta description, OG, Twitter, JSON-LD (iter110)
 - ✅ IndexNow on-demand search-engine ping (Bing/Yandex/Naver/Seznam/Yep) + admin card (iter111)
+- ✅ "It's live" launch button on Coming Soon admin tab — auto-emails the waitlist (iter112)
+- ✅ Maker-side opt-out toggle for the weekly Restock digest (iter113)
 
 ## Next Action Items
-- 🟡 **P3 — "It's live" launch button** on Coming Soon admin tab — auto-emails the waitlist when admin flips the switch.
-- 🟡 **P3 — Maker-side opt-out toggle** for the weekly Restock digest.
-- 🟢 **P7 — Real off-site ad spend** (Google Ads / Meta Marketing API) — needs user-supplied API credentials.
-- 🔵 **Optional ops** — Wire a Cloudflare Worker that maps crawler User-Agents on `/shop/*`/`/makers/*`/`/journal/*` to the iter107 prerender routes for full rich-share coverage.
+*(All P1/P2/P3s from the original handoff backlog are now shipped or blocked on user paperwork.)*
+
+## Blocked (paperwork)
+- Twilio A2P 10DLC, Affirm/Klarna BNPL, Reddit OAuth, Google Ads dev token
+
+## Optional ops (no code from the agent — operator's call)
+- Cloudflare Worker for crawler-UA → iter107 OG prerender mapping
+- Cloudflare Bulk Redirect for non-`/api` URLs (complements iter109)
+- Slack/Discord webhook URLs in prod backend env (iter104 fan-out goes live)
+- `CANONICAL_HOST` env var for prod (iter109 middleware activates)
 - 🟡 **P14 — UX polish backlog** still on the table from the offered list:
     - (e) Loading skeletons replacing "Loading…" text on all dashboards
     - (f) Empty-state illustrations with CTAs (e.g. "No orders yet — share your shop link")

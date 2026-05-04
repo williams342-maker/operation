@@ -33,6 +33,7 @@ import UsersTab from "../components/admin/UsersTab";
 import ReviewsTab from "../components/admin/ReviewsTab";
 import DigestsTab from "../components/admin/DigestsTab";
 import FeedbackTab from "../components/admin/FeedbackTab";
+import ComingSoonTab from "../components/admin/ComingSoonTab";
 import ContactInboxTab from "../components/admin/ContactInboxTab";
 import SettingsTab from "../components/admin/SettingsTab";
 import AuditTab from "../components/admin/AuditTab";
@@ -59,6 +60,7 @@ const TABS = [
   { id: "feedback", label: "Beta Feedback" },
   { id: "broadcast", label: "Broadcast" },
   { id: "chat", label: "Chat Mod" },
+  { id: "coming-soon", label: "Coming Soon" },
   { id: "contact", label: "Contact Inbox" },
   { id: "custom", label: "Custom Orders" },
   { id: "digests", label: "Digests" },
@@ -376,6 +378,7 @@ export default function AdminDashboard() {
             {tab === "prod-health" && <ProdHealthTab />}
             {tab === "updates" && <UpdatesAdminTab />}
             {tab === "broadcast" && <BroadcastTab />}
+            {tab === "coming-soon" && <ComingSoonTab />}
             {tab === "file-reports" && <DesignFileReportsTab />}
             {tab === "design-files" && <DesignFilesTab />}
             {tab === "custom" && <CustomOrdersList items={custom} onChange={refresh} />}

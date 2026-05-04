@@ -216,6 +216,10 @@ class Maker(BaseModel):
     # maker's profile hero. Free / honor-system today; we may add doc upload
     # verification later (DoD DD-214 / VA proof).
     is_veteran_owned: bool = False
+    # ---- Restock waitlist digest opt-out (iter113) ----
+    # Default false → maker is opted IN to the weekly Sunday digest.
+    # Toggling ON suppresses the email entirely (the cron filters them out).
+    restock_digest_opt_out: bool = False
     # ---- Watermark on uploaded photos ----
     # When ON, every listing photo uploaded by this maker is watermarked
     # at upload time (tiled diagonal label + corner stamp with the shop's
@@ -536,6 +540,7 @@ class MakerProfileUpdate(BaseModel):
     appearance_mode: Optional[str] = None
     accepts_backorders_default: Optional[bool] = None
     is_veteran_owned: Optional[bool] = None
+    restock_digest_opt_out: Optional[bool] = None
     watermark_images: Optional[bool] = None
     # Etsy-style Info & Appearance
     shop_title: Optional[str] = None

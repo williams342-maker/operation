@@ -1944,3 +1944,37 @@ async def send_updates_subscribe_welcome(*, email: str, name: str, unsubscribe_t
     )
     html = _shell("Welcome aboard.", "You'll hear from us when we ship something new.", body, "Crafters Market · Updates")
     return await _send(email, "[Crafters Market] You're subscribed to updates", html)
+
+
+
+# ------------------------------------------------------------------
+# Coming-Soon launch announcement (iter112) — fired by an admin click
+# on the new "It's live" button per category. Distinct from the
+# on-signup confirmation: this one says "the day has come, here's the
+# link". One-shot per (email, category) — the admin endpoint stamps
+# `notified_at` so re-clicks are no-ops.
+# ------------------------------------------------------------------
+async def send_coming_soon_launch_announcement(*, email: str, name: str, category: str,
+                                                shop_path: str = "/shop"):
+    if not email:
+        return
+    site = (os.environ.get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
+    if site.lower().endswith(".emergentagent.com") or "preview." in site.lower():
+        site = "https://craftersmarket.org"
+    # Allow per-launch deep-link override (e.g. `/shop?category=Neon`).
+    cta_href = f"{site}{shop_path}" if shop_path.startswith("/") else f"{site}/{shop_path}"
+    greet = f"Hey {name}," if name else "Hey,"
+    body = (
+        f"<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 22px'>{greet}</p>"
+        f"<p style='font-size:14px;color:#a3a3a3;line-height:1.6;margin:0 0 22px'>"
+        f"<b style='color:#ff4500'>{category}</b> is live. "
+        "You signed up to be notified the moment we opened it — that moment is now. "
+        "Every piece is hand-built by a vetted independent maker. Take a look while the catalog is fresh.</p>"
+        f"<div style='text-align:center;margin:32px 0 10px'>"
+        f"<a href='{cta_href}' style='display:inline-block;background:#ff4500;color:#0a0a0a;text-decoration:none;font-weight:700;padding:14px 24px;font-size:13px;letter-spacing:0.15em;text-transform:uppercase'>Shop {category} →</a>"
+        "</div>"
+        "<p style='font-size:11px;color:#525252;line-height:1.55;margin:30px 0 0;text-align:center'>"
+        "This is the only email you'll get from this list. You're now off the waitlist — no further sends.</p>"
+    )
+    html = _shell("It's live.", f"{category} is open. Here's your first look.", body, f"Launch · {category}")
+    return await _send(email, f"[Crafters Market] {category} is live — your first look", html)
