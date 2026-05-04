@@ -71,6 +71,12 @@ const SWITCHES = [
     blurb: "When ON, every Tuesday at 14:00 UTC the scheduler finds buyers dormant 60+ days, mints a one-time 15% off marketplace-wide code (21-day expiry), tags them in Kit as `dormant-buyer-reengaged-auto`, and emails each one. Capped at 50 buyers per run with a 30-day per-buyer cool-off so we never re-pester the same person. The manual blast on the Retention tab still works alongside this — they share the same idempotency table.",
     tone: "warn",
   },
+  {
+    key: "auto_offsite_backup_enabled",
+    label: "Auto Offsite Mongo Backups",
+    blurb: "When ON, every night at 03:15 UTC the scheduler runs `mongodump --archive --gzip` of the entire production database, uploads the archive to a private R2 prefix, and sweeps any archive older than the retention window in the same job. Self-skips if R2 is not configured. Manual `Run now` in the Backup tab still works regardless of this toggle (super admin only). The retention window defaults to 30 days; change it via API if you need a longer history.",
+    tone: "primary",
+  },
 ];
 
 const toneClass = (tone, on) => {

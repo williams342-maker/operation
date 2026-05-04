@@ -1,5 +1,85 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05 — iter121 — Offsite backups + capability-based admin gating + SEO submission checklist ✅
+
+**Why:** Three high-leverage items that close out the recent admin/SEO arc:
+1. iter119 shipped a manual download endpoint, but the next-step ask was always **scheduled offsite** so a database loss doesn't depend on someone remembering to click.
+2. iter120 shipped multi-tier admin team management, but every non-super admin still saw all 33 tabs — many of which they couldn't use. Capability-based UI hiding finishes that arc.
+3. iter120 also shipped Schema.org JSON-LD on every product/maker/journal page, but the SEO win only lands if the operator actually submits to GSC + Bing. A clean checklist makes that a 25-minute task.
+
+**What:**
+
+### 1) Offsite Mongo backups → R2 (`offsite_backup.py` + `scheduler.py`)
+- New module `/app/backend/offsite_backup.py` with two entrypoints:
+  - `run_offsite_backup()` — the scheduler entrypoint. Spawns `mongodump --archive --gzip` via asyncio subprocess, captures the gzipped archive in memory (5 GB ceiling — bails before OOM), uploads to R2 via the existing `r2_storage` boto3 client under a `backups/mongo/` prefix with `private, no-store` cache header, then sweeps anything older than the configured retention window in the same job. Audit-logged on success AND failure.
+  - `list_offsite_backups(limit=30)` — read-only inventory used by the admin UI to render a recent-runs table. Sorts by `LastModified` descending, returns key/size_bytes/size_mb/created_at.
+- New cron schedule: `_job_offsite_backup` runs nightly at **03:15 UTC** (low-traffic window). Self-skips when `auto_offsite_backup_enabled` toggle is OFF.
+- Verified live: manual run uploaded a 269 KB archive to R2 in 0.94s, retention sweep ran cleanly, audit row written, inventory endpoint reads it back correctly.
+
+### 2) Admin endpoints (`routers/admin_backup.py`)
+- `GET /api/admin/db/backup/diag` — extended to return `r2_configured: bool` so the UI can grey out the offsite controls when R2 env is missing.
+- `GET /api/admin/db/backup/offsite` — returns the recent-archives list (super-admin only).
+- `POST /api/admin/db/backup/offsite/run` — manual-trigger; bypasses the toggle (super admins can always force a snapshot before a risky deploy). Temporarily flips the toggle ON for the single call, then restores the original state in a `try/finally` so the cron behavior is unchanged.
+
+### 3) Site_settings additions
+- `auto_offsite_backup_enabled: bool` (default False)
+- `auto_offsite_backup_retention_days: int` (default 30, bounds 7–365 enforced by Pydantic validator)
+- New "Auto Offsite Mongo Backups" toggle in admin Settings tab with a long blurb explaining the cadence, R2 dependency, and that the manual `Run now` works regardless of the toggle.
+
+### 4) BackupTab UI extended (`BackupTab.jsx`)
+- Existing "Download full backup" button untouched (iter119).
+- New "Offsite (R2) backups" panel showing:
+  - Cadence indicator + linked Settings toggle name
+  - "Refresh" + "Run now" buttons (Run now disabled when R2 not configured)
+  - Inventory table: object key (truncated), size in MB, relative timestamp with absolute-time tooltip
+  - Empty state with the recommended next action (run once or flip toggle)
+  - Amber warning if R2 env vars are missing
+- Verified live screenshot: panel renders, 1 archive visible from the curl test, toast on successful manual run.
+
+### 5) Capability-based admin tab hiding (`AdminDashboard.jsx`)
+Tabs are now annotated with a `caps: [...]` array listing the admin capabilities that grant access. Mapping:
+- `marketplace` → Applications, Approved Makers, Listings, Rejected, Plus Members, Custom Orders
+- `content` → Updates, Broadcast, Coming Soon, Digests, Design Files, Showcase Analytics, Social, Retention
+- `support` → Beta Feedback, Contact Inbox, Custom Orders, Paid Orders
+- `finance` → Ads, Refund Approvals, Paid Orders, Shipping Ledger, Plus Members, Retention
+- `moderation` → Chat Mod, Reviews, Review Disputes, Users, File Reports
+- (no caps) → Audit Log, Analytics, Maker Analytics, Prod Health, Settings, Web Analytics — visible to every admin (read-only / cross-functional)
+- `superOnly: true` → Backup, Team — env-locked super admins only
+
+Filter logic in `visibleTabs` memo:
+- `superOnly` tabs hidden from non-super admins
+- Tabs with `caps: []` or no caps key are visible to everyone
+- Otherwise visible if admin holds AT LEAST ONE of the listed caps
+- The `read_only` capability acts as a view-everything role (sees every non-super tab)
+- A graceful fallback effect drops the active tab to the first visible one if the current selection becomes hidden (e.g. URL tampering, or a tab moves super-only). No more blank panes when a moderator hits `?tab=ads`.
+
+### 6) SEO submission day checklist (`/app/docs/seo-submission-checklist.md`)
+Step-by-step playbook for getting GSC + Bing + Yandex + Pinterest indexing the new Schema.org rich-results signals from iter120:
+- Pre-flight: verify `seo/diag` shows no preview-domain leakage, robots.txt has the right Sitemap line, three URLs pass Google's Rich Results Test
+- Submission day: GSC (DNS verification → submit `api/sitemap.xml`), Bing Webmaster Tools (GSC import shortcut), Yandex (optional), DuckDuckGo (auto-follows Bing), Pinterest Rich Pins
+- Day 1 / 7 / 30 follow-up cadence — what to look for in each console, when to fire IndexNow, when GSC's "Enhancements → Products" should light up
+- Common gotchas: www vs apex canonical, sitemap caching, JSON-LD price-as-string requirement, test-slug regex maintenance
+- Best leading + trailing indicators (`site:craftersmarket.org` count climbing daily, top-product searches showing price + "In stock" annotation)
+
+### Tests
+`tests/test_iter121_offsite_backup_and_caps.py` — **11/11 standalone green** covering:
+- Offsite scheduler bails on toggle-off, R2-not-configured, both correctly
+- Happy path: mongodump mocked, R2 client mocked, asserts put_object call shape + audit row
+- All three offsite endpoints reject non-super admins (403)
+- Inventory + diag return proper shape for super admins
+- Settings PATCH accepts both new keys, rejects out-of-bounds retention (1 day → 422)
+- Capability filter pure-Python lock with 4 cases (super, finance-only, read_only-only, no-caps) — locks the contract so future AdminDashboard.jsx changes that drift will fail this test
+
+### Verified live
+- Diag → `{r2_configured: true, mongodump_present: true, ...}`
+- Manual run → 269 KB archive uploaded in 0.94s
+- Inventory list → reads back the freshly uploaded archive correctly
+- Settings toggle round-trip (ON → run → OFF) works
+- Lint clean across all touched files (`offsite_backup.py`, `admin_backup.py`, `AdminDashboard.jsx`, `BackupTab.jsx`, `SettingsTab.jsx`)
+- BackupTab smoke screenshot: offsite panel + 1 row + run button all rendering
+
+
+
 ## 2026-05 — iter120 — SEO-rich per-page prerender + auto dormant retention + Team polish ✅
 
 **Why:** Three focused features bundled in one iteration:

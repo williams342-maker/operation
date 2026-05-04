@@ -351,6 +351,23 @@ async def _job_auto_dormant_reengage() -> None:
         logger.exception("[scheduler] auto_dormant_reengage failed: %s", e)
 
 
+async def _job_offsite_backup() -> None:
+    """Nightly 03:15 UTC — `mongodump --archive --gzip` → R2 with a
+    retention sweep on the same job. Self-skips when the
+    `auto_offsite_backup_enabled` toggle is OFF. Implementation lives
+    in `/app/backend/offsite_backup.py`."""
+    try:
+        from offsite_backup import run_offsite_backup
+        r = await run_offsite_backup()
+        if r.get("ran") and r.get("ok"):
+            logger.info(
+                "[scheduler] offsite_backup ok size_mb=%s duration_s=%s deleted=%d",
+                r.get("size_mb"), r.get("duration_s"), len(r.get("deleted_keys", [])),
+            )
+    except Exception as e:
+        logger.exception("[scheduler] offsite_backup failed: %s", e)
+
+
 def start_scheduler() -> AsyncIOScheduler | None:
     """Boot the scheduler if SCHEDULER_ENABLED isn't 'false'."""
     global _scheduler
@@ -417,6 +434,13 @@ def start_scheduler() -> AsyncIOScheduler | None:
     sched.add_job(_job_auto_dormant_reengage,
                   CronTrigger(day_of_week="tue", hour=14, minute=0),
                   id="auto_dormant_reengage", replace_existing=True)
+    # Offsite Mongo backup — nightly 03:15 UTC (low-traffic window).
+    # Self-skips when `auto_offsite_backup_enabled` toggle is OFF.
+    # Streams the gzipped archive to R2 + sweeps anything older than the
+    # configured retention window in the same run.
+    sched.add_job(_job_offsite_backup,
+                  CronTrigger(hour=3, minute=15),
+                  id="offsite_backup", replace_existing=True)
     sched.start()
     _scheduler = sched
     logger.info(

@@ -52,40 +52,46 @@ import LiveNowBadge from "../components/admin/LiveNowBadge";
 
 const TABS = [
   // Source-of-truth list — sorted alphabetically by label below so adding
-  // a new tab doesn't require manual reordering. Order in this array is
-  // not meaningful.
-  { id: "ads", label: "Ads" },
+  // Tab definition. `caps` is the list of admin capabilities that can
+  // see + open this tab. Missing/empty `caps` means every admin can
+  // see it (read-only / cross-functional surfaces like Audit Log,
+  // Analytics, Settings). `superOnly: true` further locks the tab to
+  // env-defined super admins regardless of capability.
+  // Order in this array is not meaningful — runtime sort below
+  // guarantees A→Z so adding a new tab doesn't require manual
+  // reordering.
+  { id: "ads", label: "Ads", caps: ["finance"] },
   { id: "analytics", label: "Analytics" },
-  { id: "applications", label: "Applications" },
-  { id: "approved-makers", label: "Approved Makers" },
+  { id: "applications", label: "Applications", caps: ["marketplace"] },
+  { id: "approved-makers", label: "Approved Makers", caps: ["marketplace"] },
   { id: "audit", label: "Audit Log" },
   { id: "backup", label: "Backup", superOnly: true },
-  { id: "feedback", label: "Beta Feedback" },
-  { id: "broadcast", label: "Broadcast" },
-  { id: "chat", label: "Chat Mod" },
-  { id: "coming-soon", label: "Coming Soon" },
-  { id: "contact", label: "Contact Inbox" },
-  { id: "custom", label: "Custom Orders" },
-  { id: "digests", label: "Digests" },
-  { id: "file-reports", label: "File Reports" },
-  { id: "design-files", label: "Design Files" },
-  { id: "listings", label: "Listings" },
+  { id: "feedback", label: "Beta Feedback", caps: ["support"] },
+  { id: "broadcast", label: "Broadcast", caps: ["content"] },
+  { id: "chat", label: "Chat Mod", caps: ["moderation"] },
+  { id: "coming-soon", label: "Coming Soon", caps: ["content"] },
+  { id: "contact", label: "Contact Inbox", caps: ["support"] },
+  { id: "custom", label: "Custom Orders", caps: ["support", "marketplace"] },
+  { id: "digests", label: "Digests", caps: ["content"] },
+  { id: "file-reports", label: "File Reports", caps: ["moderation", "content"] },
+  { id: "design-files", label: "Design Files", caps: ["content"] },
+  { id: "listings", label: "Listings", caps: ["marketplace"] },
   { id: "makers", label: "Maker Analytics" },
-  { id: "orders", label: "Paid Orders" },
-  { id: "plus-members", label: "Plus Members" },
+  { id: "orders", label: "Paid Orders", caps: ["finance", "support"] },
+  { id: "plus-members", label: "Plus Members", caps: ["finance", "marketplace"] },
   { id: "prod-health", label: "Prod Health" },
-  { id: "approvals", label: "Refund Approvals" },
-  { id: "rejected-apps", label: "Rejected" },
-  { id: "retention", label: "Retention" },
-  { id: "reviews", label: "Reviews" },
-  { id: "review-disputes", label: "Review Disputes" },
+  { id: "approvals", label: "Refund Approvals", caps: ["finance"] },
+  { id: "rejected-apps", label: "Rejected", caps: ["marketplace"] },
+  { id: "retention", label: "Retention", caps: ["content", "finance"] },
+  { id: "reviews", label: "Reviews", caps: ["moderation"] },
+  { id: "review-disputes", label: "Review Disputes", caps: ["moderation"] },
   { id: "settings", label: "Settings" },
-  { id: "showcase-analytics", label: "Showcase Analytics" },
-  { id: "shipping-ledger", label: "Shipping Ledger" },
-  { id: "buffer", label: "Social" },
+  { id: "showcase-analytics", label: "Showcase Analytics", caps: ["content"] },
+  { id: "shipping-ledger", label: "Shipping Ledger", caps: ["finance"] },
+  { id: "buffer", label: "Social", caps: ["content"] },
   { id: "team", label: "Team", superOnly: true },
-  { id: "updates", label: "Updates" },
-  { id: "users", label: "Users" },
+  { id: "updates", label: "Updates", caps: ["content"] },
+  { id: "users", label: "Users", caps: ["moderation"] },
   { id: "web", label: "Web Analytics" },
 ];
 // Defensive: guarantee A→Z order at runtime so any future TABS edits that
@@ -118,13 +124,40 @@ export default function AdminDashboard() {
   // banner. Opens the same RotatePasswordModal in dismissible mode.
   const [voluntaryRotate, setVoluntaryRotate] = useState(false);
 
-  // Tabs visible to this admin — drops superOnly entries unless we're the
-  // super admin. Memoized so the command palette and the sidebar share
-  // the exact same list (otherwise ⌘K could navigate to a hidden tab).
-  const visibleTabs = React.useMemo(
-    () => TABS.filter((t) => !t.superOnly || me?.is_super_admin),
-    [me],
-  );
+  // Tabs visible to this admin — drops:
+  //   • `superOnly: true` entries unless this is a super admin
+  //   • `caps: [...]` entries unless the admin holds AT LEAST ONE of
+  //     the listed capabilities. Empty/missing `caps` ⇒ visible to
+  //     every admin (e.g. Audit Log, Settings — read-only stuff).
+  // The `read_only` capability sees every tab (it's a view-everything
+  // shadow role) and can't mutate anything because the per-action
+  // backend guards block writes.
+  // Memoized so the command palette and the sidebar share the exact
+  // same list (otherwise ⌘K could navigate to a hidden tab).
+  const visibleTabs = React.useMemo(() => {
+    const caps = new Set(me?.capabilities || []);
+    const isSuper = !!me?.is_super_admin;
+    const seesEverything = isSuper || caps.has("read_only");
+    return TABS.filter((t) => {
+      if (t.superOnly && !isSuper) return false;
+      if (!t.caps || t.caps.length === 0) return true;
+      if (seesEverything) return true;
+      return t.caps.some((c) => caps.has(c));
+    });
+  }, [me]);
+
+  // Fallback if the admin's current tab gets hidden by capability
+  // filtering (or just by URL tampering): drop them on the first
+  // tab they CAN see, instead of showing a blank pane. Skipped while
+  // `me` is loading so we don't bounce off "applications" before the
+  // permissions are known.
+  useEffect(() => {
+    if (!me) return;
+    if (!visibleTabs.length) return;
+    if (!visibleTabs.some((t) => t.id === tab)) {
+      setTab(visibleTabs[0].id);
+    }
+  }, [me, visibleTabs, tab]);
 
   // Reset scroll to top whenever the active tab changes — keeps tab
   // switches from landing the admin mid-page on the new section.

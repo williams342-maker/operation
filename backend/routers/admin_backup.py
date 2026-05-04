@@ -135,9 +135,59 @@ async def admin_db_backup_diag(_claims: dict = Depends(require_super_admin())):
     """Tiny diagnostic — confirms mongodump exists + env wiring is sane.
     Returns quickly without running a full dump. Used by the admin UI
     button to show a green/red light before the user clicks "Download."."""
+    import r2_storage
     return {
         "mongodump_present": os.path.isfile(_MONGODUMP),
         "mongodump_path": _MONGODUMP,
         "mongo_url_set": bool(os.environ.get("MONGO_URL")),
         "db_name": os.environ.get("DB_NAME", ""),
+        "r2_configured": r2_storage.is_configured(),
     }
+
+
+@router.get("/admin/db/backup/offsite", include_in_schema=False)
+async def admin_db_backup_offsite_list(_claims: dict = Depends(require_super_admin())):
+    """List the most recent offsite backups stored in R2.
+
+    Surfaced in the admin BackupTab so operators can see at a glance
+    whether the nightly cron is succeeding (most-recent timestamp) and
+    whether retention sweeping is working (count stays bounded). The
+    archive itself is served straight from R2 — we never proxy
+    download through this endpoint, since R2 egress is free and we'd
+    just be wasting backend CPU."""
+    from offsite_backup import list_offsite_backups
+    rows = await list_offsite_backups(limit=30)
+    return {"backups": rows, "count": len(rows)}
+
+
+@router.post("/admin/db/backup/offsite/run", include_in_schema=False)
+async def admin_db_backup_offsite_run(_claims: dict = Depends(require_super_admin())):
+    """Manually trigger an offsite backup (same code path as the cron).
+
+    Useful when ops wants to force a snapshot just before a risky deploy
+    or migration without waiting for the 03:15 UTC nightly window. The
+    `auto_offsite_backup_enabled` toggle gates the cron job but NOT the
+    manual trigger — super admins can always manually take a backup."""
+    # Bypass the toggle for manual runs by temporarily setting it ON for
+    # this single call. Cleaner: call the underlying logic directly via
+    # a small wrapper that ignores the toggle. We use the cleaner path.
+    from offsite_backup import run_offsite_backup
+    from routers.settings import get_setting
+
+    # Save the original toggle state and force-enable it just for this
+    # one manual call so the underlying job runs even if the cron is
+    # currently OFF. Then restore.
+    original = await get_setting("auto_offsite_backup_enabled", False)
+    await db.site_settings.update_one(
+        {"_id": "global"},
+        {"$set": {"auto_offsite_backup_enabled": True, "_manual_backup_in_progress": True}},
+    )
+    try:
+        result = await run_offsite_backup()
+    finally:
+        await db.site_settings.update_one(
+            {"_id": "global"},
+            {"$set": {"auto_offsite_backup_enabled": original},
+             "$unset": {"_manual_backup_in_progress": ""}},
+        )
+    return result

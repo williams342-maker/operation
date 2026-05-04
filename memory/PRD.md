@@ -109,11 +109,11 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 ---
 
 ## Outstanding Backlog
-- **P2** Multi-tier Admin Team & Role Management (capability-based UI hiding for non-super admins remaining; search/filter/last-seen done in iter120).
-- **P2** Deploy Cloudflare Worker from `/app/docs/cloudflare-worker-prerender.md` (user-side dashboard step) to light up social crawler prerender. Now fully paired with iter120's SEO-rich per-slug routes.
+- **P2** Deploy Cloudflare Worker from `/app/docs/cloudflare-worker-prerender.md` (user-side dashboard step) — now fully paired with iter120's SEO-rich per-slug routes.
 - **P2** Apply DNS cleanup from `/app/docs/dns-cleanup.md` (user-side, removes Brevo/Sender/Mailerlite stale records + tightens SPF).
+- **P2** Submit sitemap to GSC + Bing per `/app/docs/seo-submission-checklist.md` (user-side, ~25 min).
+- **P2** Flip Auto Offsite Backup toggle ON in admin Settings + verify nightly cron lands a clean archive in R2.
 - **P3** Replace remaining 3 non-destructive `window.confirm()` (AI tag generator, buyer tracking-email resend, AI chat fresh) with themed dialog if desired.
-- **P3** Scheduled offsite Mongo backups — APScheduler nightly mongodump → S3/R2 upload + 30-day retention sweep.
 
 ## Blocked (waiting on user)
 - Mailtrap DNS verification in Cloudflare (Postmark covers 100% of mail in the meantime — no buyer impact).

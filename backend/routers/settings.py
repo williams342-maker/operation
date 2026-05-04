@@ -40,6 +40,8 @@ DEFAULT_SETTINGS: dict = {
     "idle_clear_minutes": 60,
     "ai_moderator_enabled": False,
     "auto_dormant_reengage_enabled": False,
+    "auto_offsite_backup_enabled": False,
+    "auto_offsite_backup_retention_days": 30,
 }
 
 
@@ -154,6 +156,8 @@ class SettingsPatch(BaseModel):
     idle_clear_minutes: Optional[int] = Field(default=None, ge=5, le=1440)
     ai_moderator_enabled: Optional[bool] = None
     auto_dormant_reengage_enabled: Optional[bool] = None
+    auto_offsite_backup_enabled: Optional[bool] = None
+    auto_offsite_backup_retention_days: Optional[int] = Field(default=None, ge=7, le=365)
 
 
 @router.patch("/admin/settings")
