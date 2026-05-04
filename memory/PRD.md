@@ -110,13 +110,11 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 
 ## Outstanding Backlog
 - **P2** Multi-tier Admin Team & Role Management (spec above).
-- **P2** Shopify CSV Import (Etsy mapping done; Shopify needs different mapping).
-- **P2** Refactor `MakerDashboard.jsx` (~1500 lines) into per-component files.
-- **P2** Clean up unused DNS records (Brevo, Sender, Mailerlite).
-- **P2** Replace native `window.confirm()` on listing delete + promote with shadcn `AlertDialog`.
-- **P2** MongoDB `mongodump` backup — admin-only export route or written ops instructions.
 - **P2** Deploy Cloudflare Worker from `/app/docs/cloudflare-worker-prerender.md` (user-side dashboard step) to light up social crawler prerender.
+- **P2** Apply DNS cleanup from `/app/docs/dns-cleanup.md` (user-side, removes Brevo/Sender/Mailerlite stale records + tightens SPF).
+- **P2** Per-product `/product/:slug` and `/maker/:slug` SPA prerender fallbacks (so deep links rank well on non-Google crawlers, not just the homepage).
 - **P3** Dormant buyer retention — Kit.com automated tagging + auto-trigger discount.
+- **P3** Replace remaining 3 non-destructive `window.confirm()` (AI tag generator, buyer tracking-email resend, AI chat fresh) with themed dialog if desired.
 
 ## Blocked (waiting on user)
 - Mailtrap DNS verification in Cloudflare (Postmark covers 100% of mail in the meantime — no buyer impact).

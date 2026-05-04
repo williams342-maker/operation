@@ -5,6 +5,7 @@ import { formatDate } from "./_shared";
 import AdminEmailModal from "./AdminEmailModal";
 import WelcomePacketPreviewModal from "./WelcomePacketPreviewModal";
 import DeclineReasonPicker from "../DeclineReasonPicker";
+import { useConfirm } from "../../hooks/useConfirm";
 
 // Filter pills — Pending is the default so decided applications don't
 // clutter the daily review queue. Approved and Rejected moved to dedicated
@@ -189,6 +190,7 @@ function ApplicationRow({ app, onChange }) {
   const [deleting, setDeleting] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [confirm, confirmModal] = useConfirm();
   const decided = app.status === "approved" || app.status === "rejected";
   const decide = async (approved) => {
     setBusy(true);
@@ -200,11 +202,14 @@ function ApplicationRow({ app, onChange }) {
     }
   };
   const remove = async () => {
-    if (!window.confirm(
-      `Permanently delete this application?\n\n` +
-      `Studio: ${app.studio_name}\nStatus: ${app.status || "pending"}\n\n` +
-      `This removes the application row only. Approved makers (and their listings/orders) are NOT affected.`,
-    )) return;
+    const ok = await confirm({
+      title: "Permanently delete this application?",
+      body: `${app.studio_name} · Status: ${app.status || "pending"}. Removes the application row only — approved makers, listings, and orders are NOT affected.`,
+      confirmLabel: "Delete application",
+      tone: "danger",
+      testId: `confirm-delete-app-${app.id}`,
+    });
+    if (!ok) return;
     setDeleting(true);
     try {
       await deleteMakerApplication(app.id);
@@ -227,6 +232,7 @@ function ApplicationRow({ app, onChange }) {
       }`}
       data-testid={`app-${app.id}`}
     >
+      {confirmModal}
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 pb-3 border-b border-[#262626]">
         <div className="min-w-0">
           <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] flex flex-wrap items-center gap-2">

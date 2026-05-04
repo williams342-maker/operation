@@ -11,6 +11,7 @@ import {
   fetchMakerProducts, makerShareListingToBuffer, promoteMakerProduct,
   fetchAutoBoostStatus, updateAutoBoost,
 } from "../../lib/api";
+import { useConfirm } from "./useConfirm";
 
 /**
  * Etsy-parity Marketing hub.
@@ -860,6 +861,7 @@ function DiscountCodes() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ code: "", kind: "percent", amount: "10", min_order_total: "0", max_uses: "", expires_at: "", notes: "" });
   const [busy, setBusy] = useState(false);
+  const [confirm, confirmModal] = useConfirm();
 
   const refresh = () => fetchDiscountCodes()
     .then((d) => setCodes(d.codes || []))
@@ -886,13 +888,21 @@ function DiscountCodes() {
 
   const toggle = async (c) => { try { await toggleDiscountCode(c.id, !c.active); await refresh(); } catch { toast.error("Could not toggle code."); } };
   const remove = async (c) => {
-    if (!window.confirm(`Delete code "${c.code}"? This cannot be undone.`)) return;
+    const ok = await confirm({
+      title: `Delete code "${c.code}"?`,
+      body: "This cannot be undone. Buyers who try to apply this code at checkout will see an error.",
+      confirmLabel: "Delete code",
+      tone: "danger",
+      testId: `confirm-delete-code-${c.id}`,
+    });
+    if (!ok) return;
     try { await deleteDiscountCode(c.id); toast.success(`Deleted ${c.code}`); await refresh(); }
     catch { toast.error("Could not delete code."); }
   };
 
   return (
     <Section title="Discount Codes" testId="discount-codes">
+      {confirmModal}
       <div className="flex items-start justify-between gap-3 mb-4">
         <p className="font-mono text-xs text-[#a3a3a3] flex-1">
           Promo codes apply at checkout when buyers paste them in. Per-shop, percentage / fixed dollar / free shipping.

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { fetchProducts, adminPatchProduct, adminDeleteProduct } from "../../lib/api";
+import { useConfirm } from "../../hooks/useConfirm";
 
 // iter108 — One-click OG preview affordance per listing. Operators
 // hover/click "↗ Preview" → native <details> drops down 4 deep-links
@@ -74,6 +75,7 @@ export default function ListingsTab() {
 function ListingRow({ p, onChange }) {
   const [busy, setBusy] = useState(false);
   const [stock, setStock] = useState(p.in_stock);
+  const [confirm, confirmModal] = useConfirm();
   const toggleFeatured = async () => {
     setBusy(true);
     try { await adminPatchProduct(p.slug, { featured: !p.featured }); onChange(); }
@@ -85,12 +87,21 @@ function ListingRow({ p, onChange }) {
     finally { setBusy(false); }
   };
   const del = async () => {
-    if (!window.confirm(`Delete listing "${p.title}"? This can't be undone.`)) return;
+    const ok = await confirm({
+      title: "Delete this listing?",
+      body: `"${p.title}" will be removed from the shop immediately. This can't be undone — you'll need the maker to relist it.`,
+      confirmLabel: "Delete listing",
+      tone: "danger",
+      testId: `confirm-delete-listing-${p.slug}`,
+    });
+    if (!ok) return;
     setBusy(true);
     try { await adminDeleteProduct(p.slug); onChange(); }
     finally { setBusy(false); }
   };
   return (
+    <>
+      {confirmModal}
     <div
       className={`border ${p.featured ? "border-[#ff4500]/40" : "border-[#262626]"} hover:border-[#ff4500] transition p-4 flex flex-col md:flex-row md:items-center gap-4`}
       data-testid={`listing-${p.slug}`}
@@ -144,6 +155,7 @@ function ListingRow({ p, onChange }) {
         </button>
       </div>
     </div>
+    </>
   );
 }
 

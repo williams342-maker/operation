@@ -7,6 +7,7 @@ import {
 } from "../../lib/api";
 import { RowsSkeleton } from "../Skeleton";
 import EmptyState from "../EmptyState";
+import { useConfirm } from "../../hooks/useConfirm";
 
 const CHANNELS = ["general", "wins", "help", "marketplace", "makers-only"];
 const MUTE_PRESETS = [
@@ -22,6 +23,7 @@ export default function ChatModTab() {
   const [mutes, setMutes] = useState([]);
   const [loadingMsgs, setLoadingMsgs] = useState(true);
   const [loadingMutes, setLoadingMutes] = useState(true);
+  const [confirm, confirmModal] = useConfirm();
 
   // Manual mute form
   const [muteEmail, setMuteEmail] = useState("");
@@ -58,7 +60,14 @@ export default function ChatModTab() {
   useEffect(() => { refreshMutes(); }, []);
 
   const onDelete = async (id) => {
-    if (!window.confirm("Delete this message? Cannot be undone.")) return;
+    const ok = await confirm({
+      title: "Delete this message?",
+      body: "The message disappears for everyone immediately. This cannot be undone.",
+      confirmLabel: "Delete message",
+      tone: "danger",
+      testId: `confirm-delete-chat-${id}`,
+    });
+    if (!ok) return;
     try {
       await adminChatDeleteMessage(id);
       toast.success("Message deleted.");
@@ -104,6 +113,7 @@ export default function ChatModTab() {
 
   return (
     <div className="space-y-8" data-testid="chat-mod-tab">
+      {confirmModal}
       {/* Channel selector */}
       <div>
         <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-3">

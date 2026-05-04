@@ -10,6 +10,7 @@ import {
   duplicateMakerProduct, uploadMakerVideo,
 } from "../lib/api";
 import ImageCropModal from "../components/ImageCropModal";
+import { useConfirm } from "../hooks/useConfirm";
 import {
   CATEGORIES, TECHNIQUES, WHO_MADE_IT, CONDITIONS, DIM_UNITS, COLORS,
   OCCASIONS, PROCESSING_TIMES, DELIVERY_RANGES, CARRIERS,
@@ -58,6 +59,7 @@ export default function MakerListingEditor() {
   const [aiHidden, setAiHidden] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(!isEdit);
+  const [confirm, confirmModal] = useConfirm();
 
   // ---- Autosave state ----
   // `autoStatus` is the lifecycle for the indicator pill: idle (no edits
@@ -524,7 +526,14 @@ export default function MakerListingEditor() {
 
   const cloneListing = async () => {
     if (!isEdit) return;
-    if (!window.confirm(`Duplicate "${form.title}" as a new draft?`)) return;
+    const ok = await confirm({
+      title: `Duplicate "${form.title}"?`,
+      body: "Creates a new draft with the same photos, copy, and pricing. You can edit the new draft without affecting the original.",
+      confirmLabel: "Duplicate",
+      tone: "primary",
+      testId: "confirm-duplicate-listing",
+    });
+    if (!ok) return;
     setSaving(true);
     try {
       const newDoc = await duplicateMakerProduct(slug);
@@ -606,6 +615,7 @@ export default function MakerListingEditor() {
   // ---------- Render ----------
   return (
     <div className="min-h-screen grain bg-[#0a0a0a] text-[#e5e5e5]" data-testid="maker-listing-editor">
+      {confirmModal}
       <div className="pt-32" />
       {/* Top action bar */}
       <header className="sticky top-[calc(var(--beta-banner-h,0px)+72px)] z-30 bg-[#0a0a0a]/95 backdrop-blur border-b border-[#262626]">

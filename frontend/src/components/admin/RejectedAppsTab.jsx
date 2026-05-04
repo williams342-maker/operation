@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { deleteMakerApplication, fetchAdminRejectedApplications } from "../../lib/api";
 import { formatDate } from "./_shared";
 import AdminEmailModal from "./AdminEmailModal";
+import { useConfirm } from "../../hooks/useConfirm";
 
 // Standalone list of rejected maker applications. Split out from the
 // main Applications tab so the daily review queue stays actionable.
@@ -11,6 +12,7 @@ export default function RejectedAppsTab() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   const [emailTarget, setEmailTarget] = useState(null);
+  const [confirm, confirmModal] = useConfirm();
 
   const refresh = async () => {
     setLoading(true);
@@ -30,9 +32,14 @@ export default function RejectedAppsTab() {
   }, []);
 
   const remove = async (a) => {
-    if (!window.confirm(
-      `Permanently delete this rejected application?\n\nStudio: ${a.studio_name}\nEmail: ${a.email}\n\nThis removes the audit row only.`,
-    )) return;
+    const ok = await confirm({
+      title: "Permanently delete this application?",
+      body: `${a.studio_name} · ${a.email}. Removes the audit row only.`,
+      confirmLabel: "Delete",
+      tone: "danger",
+      testId: `confirm-delete-rejected-${a.id}`,
+    });
+    if (!ok) return;
     try {
       await deleteMakerApplication(a.id);
       toast.success("Application deleted.");
@@ -44,6 +51,7 @@ export default function RejectedAppsTab() {
 
   return (
     <div className="space-y-4" data-testid="rejected-apps-tab">
+      {confirmModal}
       <div>
         <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">◆ Decline Archive</div>
         <h2 className="font-display text-3xl md:text-4xl mt-1">Rejected Applications</h2>

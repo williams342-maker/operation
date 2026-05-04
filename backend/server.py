@@ -25,6 +25,7 @@ from routers.seo import router as seo_router
 from routers.settings import router as settings_router
 from routers.shipping import router as shipping_router
 from routers.admin_shipping import router as admin_shipping_router
+from routers.admin_backup import router as admin_backup_router
 from routers.follows import router as follows_router
 from routers.ad_spend import router as ad_spend_router
 from routers.buffer import router as buffer_router
@@ -86,6 +87,7 @@ api.include_router(updates_router)
 api.include_router(coming_soon_router)
 api.include_router(growth_stats_router)
 api.include_router(og_prerender_router)
+api.include_router(admin_backup_router)
 app.include_router(api)
 
 # iter109 — Canonical-host 301 redirect middleware. When `CANONICAL_HOST`

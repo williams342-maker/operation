@@ -8,6 +8,7 @@ import {
 } from "../../lib/api";
 import { Stat } from "./_shared";
 import { Sparkline } from "../Charts";
+import { useConfirm } from "../../hooks/useConfirm";
 
 const PLATFORM_TONE = {
   google: "border-blue-700/50 text-blue-300",
@@ -20,6 +21,7 @@ export default function AdsTab() {
   const [perf, setPerf] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [confirm, confirmModal] = useConfirm();
 
   const load = async (d = days) => {
     setLoading(true);
@@ -53,7 +55,14 @@ export default function AdsTab() {
   };
 
   const clearDemo = async () => {
-    if (!window.confirm("Wipe all demo ad-spend rows? This is for the synthetic 'demo-' campaigns only — real data is untouched.")) return;
+    const ok = await confirm({
+      title: "Wipe all demo ad-spend rows?",
+      body: "Only synthetic 'demo-' campaigns are deleted — real data is untouched.",
+      confirmLabel: "Wipe demo data",
+      tone: "warn",
+      testId: "confirm-clear-ads-demo",
+    });
+    if (!ok) return;
     setBusy(true);
     try {
       const r = await adminClearAdsDemo();
@@ -73,6 +82,7 @@ export default function AdsTab() {
 
   return (
     <div data-testid="ads-tab" className="space-y-6">
+      {confirmModal}
       <div className="border border-[#262626] p-4 md:p-5">
         <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-2">
           ◆ Off-site Ad Spend

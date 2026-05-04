@@ -4,6 +4,7 @@ import { Shield, Plus, X, Crown, Users } from "lucide-react";
 import {
   fetchAdminTeam, inviteAdmin, updateAdminCaps, revokeAdmin,
 } from "../../lib/api";
+import { useConfirm } from "../../hooks/useConfirm";
 
 /** Multi-tier admin team management — visible to super admins only.
  *  Super admins are env-defined (ADMIN_EMAILS) and can never be revoked
@@ -116,6 +117,7 @@ function TeamRow({ row, allCaps, onChanged }) {
   const [editing, setEditing] = useState(false);
   const [caps, setCaps] = useState(row.capabilities || []);
   const [busy, setBusy] = useState(false);
+  const [confirm, confirmModal] = useConfirm();
   const isSuper = !!row.is_super_admin;
 
   const toggleCap = (c) => {
@@ -160,7 +162,14 @@ function TeamRow({ row, allCaps, onChanged }) {
   };
 
   const revoke = async () => {
-    if (!window.confirm(`Permanently revoke admin access for ${row.email}?`)) return;
+    const ok = await confirm({
+      title: "Revoke admin access?",
+      body: `${row.email} will immediately lose all admin permissions. They can be re-invited later.`,
+      confirmLabel: "Revoke",
+      tone: "danger",
+      testId: `confirm-revoke-${row.email}`,
+    });
+    if (!ok) return;
     setBusy(true);
     try {
       await revokeAdmin(row.email);
@@ -180,6 +189,7 @@ function TeamRow({ row, allCaps, onChanged }) {
       }`}
       data-testid={`team-row-${row.email}`}
     >
+      {confirmModal}
       <div className="font-mono text-xs text-[#e5e5e5] flex items-center gap-2 min-w-0 truncate">
         {isSuper ? <Crown size={12} className="text-[#ff4500] shrink-0" /> : <Shield size={12} className="text-[#a3a3a3] shrink-0" />}
         <span className="truncate">{row.email}</span>

@@ -1,5 +1,78 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05 — iter119 — Backlog cleanup batch ✅
+
+**Why:** Five P2 items from the backlog were small enough to ship in one focused pass while context was still fresh from iter118. Each was a near-term operational quality-of-life win — none of them block any user flow, but together they noticeably reduce the "rough edges" of the admin + maker surface.
+
+**What:**
+
+### 1) Themed confirm dialogs across every destructive action (~15 call sites)
+Replaced native `window.confirm()` with the existing `useConfirm` hook (previously scoped to MakerDashboard) across the full admin + community + maker-editor surface. Promoted the hook to a shared path via a tiny re-export at `/app/frontend/src/hooks/useConfirm.js` so any component in the tree can import without a deep relative path.
+
+Sites migrated:
+- **Admin Listings**: listing delete (the original P2 ask)
+- **Admin Refund Approvals**: approve / deny / execute (3 separate confirms, each with the right tone)
+- **Admin Team**: revoke admin access
+- **Admin Chat Mod**: delete message
+- **Admin Reviews**: delete review
+- **Admin Retention → Dormant Buyers**: send N% discount blast
+- **Admin Broadcast**: live send to N recipients
+- **Admin Shipping Ledger**: real-mode invoice run (warns "this charges makers")
+- **Admin Rejected Apps**: permanent delete
+- **Admin Applications**: permanent delete
+- **Admin Paid Orders**: full-stack refund (buyer + maker reversals)
+- **Admin Ads**: wipe demo data
+- **Admin Coming Soon**: launch waitlist email blast (themed + dry-run integration preserved)
+- **Maker Settings**: cancel Plus, close shop
+- **Maker Marketing**: delete discount code
+- **Maker Listing Editor**: duplicate listing
+- **Community Forum**: delete thread, delete reply
+- **Community Chat**: delete message
+
+Each confirmation now matches the Crafters Market industrial aesthetic, supports `tone` (primary/danger/warn) for color coding, and has a `data-testid` so end-to-end tests can deterministically assert + interact with the dialog. Esc, click-outside, and the X button all resolve to false (cancel). Enter key triggers the focused confirm button. Three remaining `window.confirm` sites are non-destructive (AI batch tag generator "Run?", buyer tracking-email resend "Resend?", AI chat "Start fresh?") and were intentionally left as-is to avoid scope creep.
+
+### 2) Admin MongoDB backup endpoint + UI
+New router `routers/admin_backup.py`:
+- `GET /api/admin/db/backup` — streams a `mongodump --archive --gzip` of the entire production DB straight to the browser (super-admin only).
+- `GET /api/admin/db/backup/diag` — fast pre-flight check (mongodump binary present, MONGO_URL set, DB name) for the UI to render a green/red ready indicator.
+- Audit-logged: every download writes a row to `admin_audit_log` with admin email, IP, UA, filename, db_name. Audit row is written **before** the stream begins so even a mid-transfer disconnection is attributable.
+- Streamed in 64 KB chunks via `asyncio.create_subprocess_exec`. Nothing persists on the backend pod's local disk.
+- Sets `X-Accel-Buffering: no` so Cloudflare / nginx forward the byte stream without buffering — critical for large databases that would otherwise OOM the edge.
+
+New admin tab `BackupTab.jsx` (super-admin only, alphabetical → "Backup") with:
+- Pre-flight diag panel (mongodump path, MONGO_URL set, DB name).
+- One-click "Download backup" button that names the file `crafters-backup-YYYYMMDD-HHMMSS.archive.gz` and saves to the browser's Downloads folder.
+- Last-download size readback (MB).
+- Amber "Handle with care" callout listing the post-download safety steps (encrypt at rest, delete from `~/Downloads`, run quarterly restore drill).
+
+Verified end-to-end with a real `curl` against the preview pod: 266 KB archive streamed cleanly, `mongorestore --dryRun --gzip --archive=…` parses it without error, audit row written.
+
+### 3) Cloudflare Worker prerender ops doc (carried over from iter118 plan)
+`/app/docs/cloudflare-worker-prerender.md` ships a paste-ready Worker that routes `facebookexternalhit`, `LinkedInBot`, `Twitterbot`, `Slackbot`, `Discordbot`, `Applebot`, `redditbot`, `Embedly`, `Iframely`, `AhrefsBot`, etc. to the existing `/api/og/*` prerender endpoints. Includes deploy checklist, curl smoke test, monitoring guidance, fail-open semantics, and a "how to add a new route / UA" recipe.
+
+### 4) MongoDB backup ops doc
+`/app/docs/mongodb-backup.md` documents both the self-serve admin export path (super-admin endpoint) and the shell `mongodump` recipe for cron-driven offsite backups. Covers the recovery drill (quarterly), retention policy (30-day local + S3 mirror), and security notes (super-admin only, audit-logged, encrypted-at-rest after download).
+
+### 5) DNS cleanup ops doc
+`/app/docs/dns-cleanup.md` enumerates exactly which TXT/CNAME records to remove from Cloudflare DNS now that we've consolidated to Postmark + Mailgun + Mailtrap fallback (Brevo, Sender, Mailerlite all decommissioned). Critically, it surfaces the **SPF 10-lookup limit** issue — stale `include:` lines from old providers were pushing us close to the cap, which silently fails on Gmail. Provides the lean replacement SPF, post-cleanup `dig` verification commands, and a "send a test mail to Gmail and check headers" recovery checklist.
+
+### Notes on items that turned out to already be done
+- **Refactor MakerDashboard.jsx** — the file is already 516 lines (not the 1500 cited in the handoff), and the `pages/MakerDashboard/` folder already contains 24 per-component splits (DashboardTab, BillingTab, BriefsTab, MarketingTab, MessagesTab, ProductsList, ProductEditCard, etc.). No additional refactor needed.
+- **Shopify CSV import mapping** — already complete. `routers/csv_import.py` ships both `_parse_etsy_row` and `_parse_shopify_row`, with the latter correctly grouping variants by `Handle`, aggregating inventory across siblings, deduping image URLs, and falling back to `Type → Product Category → "uncategorized"` for the category. Frontend `CsvImportModal.jsx` exposes the etsy/shopify toggle.
+
+### Tests
+- `tests/test_iter119_admin_db_backup.py` — **4/4 green**. Covers: 401 without auth, 403 for non-super admins, diag endpoint shape, full streaming download with mocked subprocess + asserted audit-log insert.
+- All iter118 tests still pass (7/7).
+
+### Verified live
+- Backup endpoint: `curl -H "Authorization: Bearer <super-admin JWT>" $API/api/admin/db/backup` → 200, 266 KB `application/gzip`, validates via `mongorestore --dryRun`. Audit row written.
+- Diag endpoint: returns `{mongodump_present: true, mongodump_path: "/bin/mongodump", mongo_url_set: true, db_name: "test_database"}`.
+- 401 / 403 enforcement: confirmed for non-auth + non-super-admin requests.
+- Frontend: home + admin pages render normally, no regressions.
+- ESLint + Ruff: clean across all touched files.
+
+
+
 ## 2026-05 — iter118 — SEO pre-mount fallback in `index.html` + Cloudflare Worker ops doc ✅
 
 **Why:** User's SEO tool flagged `index.html` as having ~41 crawlable words, a visually-hidden H1, and zero real paragraphs. Classic SPA blind spot: crawlers that don't execute JavaScript (Screaming Frog default mode, Bing/DuckDuckBot, most third-party SEO auditors) saw an empty React shell. Googlebot is fine because it renders JS, but every other crawler treated the homepage as "thin content," tanking our discoverability on non-Google surfaces and hurting link-preview quality.

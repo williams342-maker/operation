@@ -1,5 +1,6 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import React, { useEffect, useState, useCallback } from "react";
+import { useConfirm } from "../../hooks/useConfirm";
 
 // iter112 — Coming-Soon waitlist admin tab.
 // Lists every category we collect waitlist signups for (Neon & Light,
@@ -21,6 +22,7 @@ export default function ComingSoonTab() {
   const [err, setErr] = useState("");
   const [busyCat, setBusyCat] = useState("");
   const [lastResult, setLastResult] = useState(null);
+  const [confirm, confirmModal] = useConfirm();
 
   const refresh = useCallback(async () => {
     setErr("");
@@ -56,13 +58,15 @@ export default function ComingSoonTab() {
         return;
       }
 
-      // Step 2: confirm with the operator. Native confirm is fine here —
-      // this is a destructive (non-undoable) email blast and the friction
-      // of the OK click is the safety we want.
-      const ok = window.confirm(
-        `Launch ${category}?\n\n${dry.would_notify} pending subscriber${dry.would_notify === 1 ? "" : "s"} will receive a one-shot launch email. ` +
-        `This is NOT undoable — already-notified rows are skipped on re-click, so you can safely retry if a single send fails.`,
-      );
+      // Step 2: confirm with the operator. Themed modal matches the rest
+      // of the admin surface so destructive email blasts feel deliberate.
+      const ok = await confirm({
+        title: `Launch ${category}?`,
+        body: `${dry.would_notify} pending subscriber${dry.would_notify === 1 ? "" : "s"} will receive a one-shot launch email. Not undoable — already-notified rows are skipped on retry, so a failed single send is safe to re-run.`,
+        confirmLabel: "🚀 Launch",
+        tone: "danger",
+        testId: `confirm-coming-soon-launch-${category}`,
+      });
       if (!ok) {
         setBusyCat("");
         return;
@@ -90,6 +94,7 @@ export default function ComingSoonTab() {
 
   return (
     <div className="space-y-6" data-testid="admin-coming-soon-tab">
+      {confirmModal}
       <header>
         <h2 className="font-display text-3xl text-[#e5e5e5]">Coming-Soon waitlists</h2>
         <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-2xl">

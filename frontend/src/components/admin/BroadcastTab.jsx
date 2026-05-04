@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { toast } from "sonner";
 import { previewAdminBroadcast, sendAdminBroadcast } from "../../lib/api";
+import { useConfirm } from "../../hooks/useConfirm";
 
 // Site-wide announcement composer. Sends a transactional email to a
 // chosen cohort (all makers / Plus / Beta / buyers / pending applicants /
@@ -31,6 +32,7 @@ export default function BroadcastTab() {
   const [testEmail, setTestEmail] = useState("");
   const [preview, setPreview] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [confirm, confirmModal] = useConfirm();
 
   const selectedAudience = AUDIENCES.find((a) => a.id === audience);
 
@@ -87,11 +89,14 @@ export default function BroadcastTab() {
       toast.error("Preview the audience first.");
       return;
     }
-    if (!window.confirm(
-      `Send this announcement to ${preview.count} recipients?\n\n` +
-      `Subject: ${subject}\nAudience: ${selectedAudience?.label}\n\n` +
-      `This cannot be undone.`,
-    )) return;
+    const ok = await confirm({
+      title: `Send to ${preview.count} recipients?`,
+      body: `Subject: ${subject}\nAudience: ${selectedAudience?.label}\n\nThis cannot be undone once queued.`,
+      confirmLabel: `Send to ${preview.count}`,
+      tone: "danger",
+      testId: "confirm-broadcast-send",
+    });
+    if (!ok) return;
     setBusy(true);
     try {
       const r = await sendAdminBroadcast({ subject, message, audience, headline });
@@ -108,6 +113,7 @@ export default function BroadcastTab() {
 
   return (
     <div className="space-y-6 max-w-4xl" data-testid="broadcast-tab">
+      {confirmModal}
       <div>
         <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">◆ Announcement Composer</div>
         <h2 className="font-display text-3xl md:text-4xl mt-1">Site-Wide Email</h2>

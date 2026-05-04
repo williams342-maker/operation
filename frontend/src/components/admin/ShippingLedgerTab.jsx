@@ -6,6 +6,7 @@ import {
   adminMarkShippingBilled, adminRunShippingInvoices,
   adminShippingLedgerCsvUrl,
 } from "../../lib/api";
+import { useConfirm } from "../../hooks/useConfirm";
 
 /**
  * Admin Shipping Ledger (Phase 2D).
@@ -25,6 +26,7 @@ export default function ShippingLedgerTab() {
   const [filters, setFilters] = useState({ maker_slug: "", billed: "", tracking: "" });
   const [running, setRunning] = useState(false);
   const [markOpen, setMarkOpen] = useState(null); // ledger row being marked
+  const [confirm, confirmModal] = useConfirm();
 
   const load = async () => {
     setLoading(true);
@@ -44,8 +46,15 @@ export default function ShippingLedgerTab() {
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const runInvoices = async (dryRun) => {
-    if (!dryRun && !window.confirm("This will create REAL Stripe invoices and charge makers. Continue?")) {
-      return;
+    if (!dryRun) {
+      const ok = await confirm({
+        title: "Invoice makers now?",
+        body: "This will create REAL Stripe invoices and charge makers for their unbilled shipping labels. Run a dry-run first if you're unsure.",
+        confirmLabel: "Charge makers",
+        tone: "danger",
+        testId: "confirm-invoice-run",
+      });
+      if (!ok) return;
     }
     setRunning(true);
     try {
@@ -81,6 +90,7 @@ export default function ShippingLedgerTab() {
 
   return (
     <div className="space-y-6" data-testid="admin-shipping-ledger">
+      {confirmModal}
       {/* Header + actions */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>

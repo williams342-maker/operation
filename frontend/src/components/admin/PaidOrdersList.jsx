@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { adminRefundOrder, adminRefireOrderEmails } from "../../lib/api";
 import { formatDate } from "./_shared";
 import { timeAgo } from "../../lib/timeAgo";
+import { useConfirm } from "../../hooks/useConfirm";
 
 // localStorage map: { [session_id]: ISO timestamp } — surface a
 // "Last sent 2m ago" badge after admin clicks Refire so we don't
@@ -24,6 +25,7 @@ export default function PaidOrdersList({ items }) {
   );
   const [err, setErr] = useState({});
   const [refireLog, setRefireLog] = useState(readRefireLog);
+  const [confirm, confirmModal] = useConfirm();
   // Tick once per minute so the timeAgo label refreshes without
   // forcing the admin to reload.
   const [, setNow] = useState(Date.now());
@@ -33,9 +35,14 @@ export default function PaidOrdersList({ items }) {
   }, []);
 
   const refund = async (sid) => {
-    if (!window.confirm(
-      "Full refund: this will reverse the buyer's charge AND every maker payout for this order. Platform fee is also refunded. Continue?"
-    )) return;
+    const ok = await confirm({
+      title: "Full refund this order?",
+      body: "Reverses the buyer's charge AND every maker payout for this order. Platform fee is also refunded. This cannot be undone.",
+      confirmLabel: "Refund order",
+      tone: "danger",
+      testId: `confirm-refund-${sid}`,
+    });
+    if (!ok) return;
     setRefunding(sid); setErr((e) => ({ ...e, [sid]: "" }));
     try {
       const r = await adminRefundOrder(sid);
@@ -85,6 +92,7 @@ export default function PaidOrdersList({ items }) {
   }
   return (
     <div className="space-y-3" data-testid="orders-list-admin">
+      {confirmModal}
       {items.map((o) => {
         const isRefunded = refunded.has(o.session_id) || o.refund_status === "refunded";
         return (

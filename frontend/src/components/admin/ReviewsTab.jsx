@@ -1,14 +1,17 @@
 import React, { useEffect, useState } from "react";
 import { fetchReviews, adminCreateReview, adminDeleteReview } from "../../lib/api";
+import { useConfirm } from "../../hooks/useConfirm";
 
 // ===================== REVIEWS =====================
 export default function ReviewsTab() {
   const [reviews, setReviews] = useState([]);
   const [showNew, setShowNew] = useState(false);
+  const [confirm, confirmModal] = useConfirm();
   const refresh = () => fetchReviews().then(setReviews);
   useEffect(() => { refresh(); }, []);
   return (
     <div data-testid="reviews-tab" className="space-y-3">
+      {confirmModal}
       <div className="flex justify-between items-center">
         <p className="font-mono text-xs text-[#a3a3a3]">{reviews.length} reviews</p>
         <button onClick={() => setShowNew((s) => !s)} className="btn-industrial btn-primary inline-flex" data-testid="reviews-new-btn">
@@ -27,7 +30,14 @@ export default function ReviewsTab() {
             </div>
             <button
               onClick={async () => {
-                if (window.confirm("Delete this review?")) {
+                const ok = await confirm({
+                  title: "Delete this review?",
+                  body: `"${r.text.slice(0, 80)}${r.text.length > 80 ? "…" : ""}" — by ${r.name}. This can't be undone.`,
+                  confirmLabel: "Delete",
+                  tone: "danger",
+                  testId: `confirm-delete-review-${r.id}`,
+                });
+                if (ok) {
                   await adminDeleteReview(r.id);
                   refresh();
                 }

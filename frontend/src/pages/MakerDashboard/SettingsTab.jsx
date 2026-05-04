@@ -12,6 +12,7 @@ import {
   fetchMakerMe, uploadMakerPortrait, uploadMakerCover,
 } from "../../lib/api";
 import UpgradeTab from "./UpgradeTab";
+import { useConfirm } from "./useConfirm";
 
 /**
  * Etsy-parity Settings tab for the Maker Shop Manager.
@@ -601,6 +602,7 @@ function AccountPanel({ maker, onSaved }) {
     : null;
 
   const [busy, setBusy] = useState("");
+  const [confirm, confirmModal] = useConfirm();
 
   // Account actions return `{ok: true}` only — they don't include the
   // full maker doc. We re-fetch /maker/me after each mutation and hand
@@ -615,11 +617,14 @@ function AccountPanel({ maker, onSaved }) {
   };
 
   const downgrade = async () => {
-    if (!window.confirm(
-      "Cancel Crafters Plus at the end of your billing period?\n\n" +
-      "You'll keep Plus benefits until the period ends, then drop to Free " +
-      "(10 listings/mo quota, 5% fee).",
-    )) return;
+    const ok = await confirm({
+      title: "Cancel Crafters Plus?",
+      body: "You'll keep Plus benefits until the end of the current billing period, then drop to Free (10 listings/mo quota, 5% fee).",
+      confirmLabel: "Cancel Plus",
+      tone: "warn",
+      testId: "confirm-downgrade-plus",
+    });
+    if (!ok) return;
     setBusy("downgrade");
     try {
       await cancelMakerSubscription();
@@ -631,11 +636,14 @@ function AccountPanel({ maker, onSaved }) {
   };
 
   const closeShop = async () => {
-    if (!window.confirm(
-      "Close your shop platform-wide?\n\n" +
-      "Buyers see a 'This shop is closed' banner. No new orders. " +
-      "Existing listings stay. You can reopen anytime.",
-    )) return;
+    const ok = await confirm({
+      title: "Close your shop platform-wide?",
+      body: "Buyers will see a 'This shop is closed' banner. No new orders. Existing listings stay. You can reopen anytime.",
+      confirmLabel: "Close shop",
+      tone: "warn",
+      testId: "confirm-close-shop",
+    });
+    if (!ok) return;
     setBusy("close");
     try {
       await makerCloseShop();
@@ -694,6 +702,7 @@ function AccountPanel({ maker, onSaved }) {
 
   return (
     <div className="space-y-6" data-testid="settings-account">
+      {confirmModal}
       <div>
         <h2 className="font-display text-2xl text-[#e5e5e5]">Account & Plan</h2>
         <p className="font-mono text-sm text-[#a3a3a3] mt-2 max-w-2xl">

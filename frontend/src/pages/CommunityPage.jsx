@@ -17,6 +17,7 @@ import {
 } from "../lib/api";
 import { useSiteSettings } from "../hooks/useSiteSettings";
 import QualityBadge from "../components/QualityBadge";
+import { useConfirm } from "../hooks/useConfirm";
 
 const TABS = [
   { id: "showcase", label: "Showcase" },
@@ -1623,6 +1624,7 @@ function ThreadDetail({ id, me, onBack }) {
   const [replyAttachments, setReplyAttachments] = useState([]);
   const [replyUploading, setReplyUploading] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [confirm, confirmModal] = useConfirm();
   const isMod = !!localStorage.getItem("cm_admin_jwt") || !!localStorage.getItem("cm_maker_jwt");
   const seenReplyIdsRef = useRef(new Set());
   const mentionDingRef = useRef(null);
@@ -1707,17 +1709,32 @@ function ThreadDetail({ id, me, onBack }) {
     } finally { setBusy(false); }
   };
   const delThread = async () => {
-    if (!window.confirm("Delete this entire thread?")) return;
+    const ok = await confirm({
+      title: "Delete this entire thread?",
+      body: "The thread and every reply will be removed permanently. This cannot be undone.",
+      confirmLabel: "Delete thread",
+      tone: "danger",
+      testId: "confirm-delete-thread",
+    });
+    if (!ok) return;
     await deleteForumThread(thread.id);
     onBack();
   };
   const delReply = async (rid) => {
-    if (!window.confirm("Delete this reply?")) return;
+    const ok = await confirm({
+      title: "Delete this reply?",
+      body: "The reply disappears for everyone. This cannot be undone.",
+      confirmLabel: "Delete reply",
+      tone: "danger",
+      testId: `confirm-delete-reply-${rid}`,
+    });
+    if (!ok) return;
     await deleteForumReply(rid);
     refresh();
   };
   return (
     <div className="space-y-6" data-testid="thread-detail">
+      {confirmModal}
       <button onClick={onBack} className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]" data-testid="thread-back">
         ← back to threads
       </button>
@@ -1793,6 +1810,7 @@ function ChatTab({ me }) {
   const [typing, setTyping] = useState([]);
   const [draft, setDraft] = useState("");
   const [muted, setMuted] = useState(false);
+  const [confirm, confirmModal] = useConfirm();
   const [notifPermission, setNotifPermission] = useState(
     typeof Notification !== "undefined" ? Notification.permission : "denied"
   );
@@ -2010,6 +2028,7 @@ function ChatTab({ me }) {
 
   return (
     <div className="space-y-4" data-testid="chat-tab">
+      {confirmModal}
       <audio
         ref={audioRef}
         src="data:audio/wav;base64,UklGRrICAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YY4CAACAgIB/g4WIiYqLjI6PkJGRkpKSkZGQjouHg395d3VxbWloZWNiYWBeXVtaWVlYV1ZWVldXWFlZW1xeYGFiZGZnaWttbm9wcXJzdHV2d3d4eHl6e3x9foCBg4WGiImLjI6PkJGSkpOTkpGQjouHhH96d3VybmpoZWNiYWBeXVtaWVlYV1ZWVldXWFlaW1xeYGJjZWdoamtsbW9wcXJzdHV2d3d4eHl6e3x9foCBg4WGh4mLjI6PkJGSkpOTkpGQjouHhH96d3VybmpoZWNiYWBeXVtaWVlYV1ZWVldXWFlaW1xeYGJjZWdoamtsbW9wcXJzdHV2d3d4eHl6e3x9foCBg4WGh4mLjI6PkJGSkpOTkpGQjouHhH96d3VybmpoZWNiYWBeXVtaWVlYV1ZWVldXWFlaW1xeYGJjZWdoamtsbW9wcXJzdHV2d3d4eHl6e3x9foCBg4WGh4mLjI6PkJGSkpOTkpGQ"
@@ -2079,7 +2098,14 @@ function ChatTab({ me }) {
                   (localStorage.getItem("cm_admin_jwt") || localStorage.getItem("cm_maker_jwt"))
                     ? async (id) => {
                         if (!id) return;
-                        if (!window.confirm("Delete this message?")) return;
+                        const ok = await confirm({
+                          title: "Delete this message?",
+                          body: "The message is removed for everyone. This cannot be undone.",
+                          confirmLabel: "Delete",
+                          tone: "danger",
+                          testId: `confirm-delete-chat-msg-${id}`,
+                        });
+                        if (!ok) return;
                         try {
                           await deleteChatMessage(id);
                           setMessagesByCh((mm) => ({

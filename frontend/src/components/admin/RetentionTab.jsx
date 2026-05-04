@@ -7,6 +7,7 @@ import {
 import { Stat } from "./_shared";
 import { StatsSkeleton, RowsSkeleton } from "../Skeleton";
 import EmptyState from "../EmptyState";
+import { useConfirm } from "../../hooks/useConfirm";
 
 /**
  * Heat-map color from cohort-retention percentage. We bucket so the eye
@@ -191,6 +192,7 @@ function DormantBuyersPanel() {
   const [pct, setPct] = useState(15);
   const [expiry, setExpiry] = useState(21);
   const [scanned, setScanned] = useState(false);
+  const [confirm, confirmModal] = useConfirm();
 
   const scan = async () => {
     setScanning(true);
@@ -222,9 +224,14 @@ function DormantBuyersPanel() {
       toast.error("Select at least one buyer.");
       return;
     }
-    if (!window.confirm(`Send a ${pct}% off code (expires in ${expiry} days) to ${selected.size} buyer${selected.size === 1 ? "" : "s"}?`)) {
-      return;
-    }
+    const ok = await confirm({
+      title: `Send ${pct}% off to ${selected.size} buyer${selected.size === 1 ? "" : "s"}?`,
+      body: `Codes expire in ${expiry} days. A 24h cooldown skips anyone already emailed today.`,
+      confirmLabel: "Send codes",
+      tone: "primary",
+      testId: "confirm-send-dormant",
+    });
+    if (!ok) return;
     setSending(true);
     try {
       const r = await reengageDormantBuyers({
@@ -243,6 +250,7 @@ function DormantBuyersPanel() {
 
   return (
     <div className="border-t border-[#262626] pt-12 mt-12" data-testid="dormant-panel">
+      {confirmModal}
       <div className="flex items-end justify-between gap-4 flex-wrap mb-6">
         <div>
           <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-1">◆ Win-back</div>

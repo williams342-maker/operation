@@ -45,6 +45,7 @@ import RetentionTab from "../components/admin/RetentionTab";
 import TeamTab from "../components/admin/TeamTab";
 import RefundApprovalsTab from "../components/admin/RefundApprovalsTab";
 import ShippingLedgerTab from "../components/admin/ShippingLedgerTab";
+import BackupTab from "../components/admin/BackupTab";
 import RotatePasswordModal from "../components/admin/RotatePasswordModal";
 import EmailHealthBadge from "../components/admin/EmailHealthBadge";
 import LiveNowBadge from "../components/admin/LiveNowBadge";
@@ -58,6 +59,7 @@ const TABS = [
   { id: "applications", label: "Applications" },
   { id: "approved-makers", label: "Approved Makers" },
   { id: "audit", label: "Audit Log" },
+  { id: "backup", label: "Backup", superOnly: true },
   { id: "feedback", label: "Beta Feedback" },
   { id: "broadcast", label: "Broadcast" },
   { id: "chat", label: "Chat Mod" },
@@ -398,6 +400,7 @@ export default function AdminDashboard() {
             {tab === "feedback" && <FeedbackTab />}
             {tab === "contact" && <ContactInboxTab />}
             {tab === "team" && me?.is_super_admin && <TeamTab />}
+            {tab === "backup" && me?.is_super_admin && <BackupTab />}
             {tab === "settings" && <SettingsTab />}
             {tab === "showcase-analytics" && <ShowcaseAnalyticsTab />}
             </AdminTabBoundary>
