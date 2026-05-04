@@ -34,6 +34,7 @@ import ReviewsTab from "../components/admin/ReviewsTab";
 import DigestsTab from "../components/admin/DigestsTab";
 import FeedbackTab from "../components/admin/FeedbackTab";
 import ComingSoonTab from "../components/admin/ComingSoonTab";
+import ShowcaseAnalyticsTab from "../components/admin/ShowcaseAnalyticsTab";
 import ContactInboxTab from "../components/admin/ContactInboxTab";
 import SettingsTab from "../components/admin/SettingsTab";
 import AuditTab from "../components/admin/AuditTab";
@@ -77,6 +78,7 @@ const TABS = [
   { id: "reviews", label: "Reviews" },
   { id: "review-disputes", label: "Review Disputes" },
   { id: "settings", label: "Settings" },
+  { id: "showcase-analytics", label: "Showcase Analytics" },
   { id: "shipping-ledger", label: "Shipping Ledger" },
   { id: "buffer", label: "Social" },
   { id: "team", label: "Team", superOnly: true },
@@ -397,6 +399,7 @@ export default function AdminDashboard() {
             {tab === "contact" && <ContactInboxTab />}
             {tab === "team" && me?.is_super_admin && <TeamTab />}
             {tab === "settings" && <SettingsTab />}
+            {tab === "showcase-analytics" && <ShowcaseAnalyticsTab />}
             </AdminTabBoundary>
           </div>
         </div>

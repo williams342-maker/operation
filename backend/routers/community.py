@@ -11,7 +11,7 @@ from typing import Dict, List, Optional
 
 import httpx
 from fastapi import (
-    APIRouter, BackgroundTasks, Depends, HTTPException,
+    APIRouter, BackgroundTasks, Body, Depends, HTTPException, Request,
     UploadFile, File, Form,
 )
 from fastapi.responses import Response
@@ -20,8 +20,9 @@ from pydantic import BaseModel, EmailStr
 from core import db, logger, now_iso
 from email_service import _send, _shell  # reuse Resend helper directly for buyer link
 from maker_auth import (
-    current_any_user, current_buyer, current_maker_slug, decode_session_jwt,
-    issue_buyer_magic_token, issue_session_jwt, verify_buyer_magic_token,
+    current_admin, current_any_user, current_buyer, current_maker_slug,
+    decode_session_jwt, issue_buyer_magic_token, issue_session_jwt,
+    verify_buyer_magic_token,
 )
 
 router = APIRouter()
@@ -330,6 +331,169 @@ async def like_showcase(post_id: str, claims: dict = Depends(current_buyer)):
     if r.matched_count == 0:
         raise HTTPException(404, "Post not found")
     return {"ok": True}
+
+
+# ============================================================
+# Showcase analytics — view + click events (iter117)
+# ============================================================
+# Events are written to a dedicated collection so we can answer
+# arbitrary-window questions ("top posts last 7 days," "click-through
+# in the last hour") without per-doc counters going stale. Showcase
+# posts also keep a denormalized `views`/`clicks` counter for the
+# common "all-time totals" query the discovery strip might want later.
+class _ShowcaseEventBody(BaseModel):
+    # Optional surface tag — "home", "product", "maker" — so we can later
+    # answer "did the homepage strip drive more clicks than the product-page
+    # strip?" without having to re-derive context from referer headers.
+    source: Optional[str] = None
+
+
+async def _record_showcase_event(post_id: str, kind: str, source: Optional[str], request: Request):
+    """Insert one event row + bump the denormalized counter on the post."""
+    if kind not in ("view", "click"):
+        return False
+    # Confirm the post exists — cheap projection-only lookup. Avoids us
+    # logging events for fabricated post IDs.
+    post = await db.showcase_posts.find_one({"id": post_id}, {"_id": 0, "id": 1})
+    if not post:
+        return False
+    # Hash the IP for a coarse anonymous "viewer fingerprint" — enough to
+    # dedupe within a window without persisting raw PII.
+    import hashlib
+    raw_ip = (request.client.host if request.client else "") + (request.headers.get("user-agent") or "")
+    fingerprint = hashlib.sha1(raw_ip.encode("utf-8", "ignore")).hexdigest()[:16]
+    # Best-effort dedupe: same (post, kind, fingerprint) within 30 min counts once.
+    from datetime import datetime, timedelta, timezone
+    cutoff = (datetime.now(timezone.utc) - timedelta(minutes=30)).isoformat()
+    recent = await db.showcase_events.find_one({
+        "post_id": post_id, "kind": kind,
+        "fingerprint": fingerprint,
+        "created_at": {"$gte": cutoff},
+    }, {"_id": 0, "post_id": 1})
+    if recent:
+        return True  # already counted recently — silent no-op
+    await db.showcase_events.insert_one({
+        "post_id": post_id,
+        "kind": kind,
+        "source": (source or "")[:32],
+        "fingerprint": fingerprint,
+        "created_at": now_iso(),
+    })
+    counter_field = "views" if kind == "view" else "clicks"
+    await db.showcase_posts.update_one({"id": post_id}, {"$inc": {counter_field: 1}})
+    return True
+
+
+@router.post("/community/showcase/{post_id}/view")
+async def record_showcase_view(post_id: str, request: Request,
+                                body: _ShowcaseEventBody = Body(default=_ShowcaseEventBody())):
+    """Public — fired by `RecentShowcaseStrip` when a tile becomes visible.
+    Anonymous (no auth required) since the strip renders for guests too.
+    Best-effort + dedupes by IP+UA within 30 minutes so a refresh or a
+    page that mounts the strip multiple times doesn't inflate counts."""
+    ok = await _record_showcase_event(post_id, "view", body.source, request)
+    return {"ok": ok}
+
+
+@router.post("/community/showcase/{post_id}/click")
+async def record_showcase_click(post_id: str, request: Request,
+                                 body: _ShowcaseEventBody = Body(default=_ShowcaseEventBody())):
+    """Public — fired when a buyer clicks a strip tile to navigate to the
+    showcase post in the community feed. Same dedupe rules as views."""
+    ok = await _record_showcase_event(post_id, "click", body.source, request)
+    return {"ok": ok}
+
+
+@router.get("/admin/community/showcase/analytics")
+async def admin_showcase_analytics(
+    days: int = 7,
+    limit: int = 10,
+    _: dict = Depends(current_admin),
+):
+    """Top showcase posts by views in the last `days` days, with their
+    click count and computed CTR. Source-attribution counts (home vs.
+    product strip) are surfaced alongside so the operator can see which
+    placement converts harder."""
+    from datetime import datetime, timedelta, timezone
+    # Clamp without falling into the `int(x or 7)` truthiness trap —
+    # explicit None check so `days=0` correctly clamps to 1.
+    try:
+        d = int(days) if days is not None else 7
+        n = int(limit) if limit is not None else 10
+    except (TypeError, ValueError):
+        d, n = 7, 10
+    days = max(1, min(d, 90))
+    limit = max(1, min(n, 50))
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+
+    # Aggregate views + clicks in one pass per kind. Two parallel pipelines
+    # keep the logic readable; the index on (post_id, kind, created_at)
+    # makes both fast even at 6-figure event counts.
+    pipeline_views = [
+        {"$match": {"kind": "view", "created_at": {"$gte": cutoff}}},
+        {"$group": {"_id": "$post_id", "n": {"$sum": 1},
+                    "by_source": {"$push": "$source"}}},
+        {"$sort": {"n": -1}}, {"$limit": limit},
+    ]
+    top_views = await db.showcase_events.aggregate(pipeline_views).to_list(limit)
+
+    if not top_views:
+        return {"days": days, "rows": [], "totals": {"views": 0, "clicks": 0}}
+
+    post_ids = [r["_id"] for r in top_views]
+    posts = await db.showcase_posts.find(
+        {"id": {"$in": post_ids}},
+        {"_id": 0, "id": 1, "title": 1, "user_name": 1, "image_url": 1,
+         "image_urls": 1, "product_slug": 1, "maker_slug": 1, "created_at": 1},
+    ).to_list(len(post_ids))
+    posts_by_id = {p["id"]: p for p in posts}
+
+    # Single click query for all top posts — one round-trip, then bucket
+    # by post_id in Python. Cheaper than N separate aggregates.
+    clicks_pipeline = [
+        {"$match": {"kind": "click", "post_id": {"$in": post_ids},
+                    "created_at": {"$gte": cutoff}}},
+        {"$group": {"_id": "$post_id", "n": {"$sum": 1}}},
+    ]
+    clicks_rows = await db.showcase_events.aggregate(clicks_pipeline).to_list(len(post_ids))
+    clicks_by_id = {r["_id"]: r["n"] for r in clicks_rows}
+
+    rows = []
+    for v in top_views:
+        pid = v["_id"]
+        p = posts_by_id.get(pid)
+        if not p:
+            continue  # post deleted but events linger — skip
+        view_count = v["n"]
+        click_count = clicks_by_id.get(pid, 0)
+        # Source breakdown — counts of each non-empty source string.
+        source_counts: dict[str, int] = {}
+        for s in (v.get("by_source") or []):
+            if s:
+                source_counts[s] = source_counts.get(s, 0) + 1
+        cover = (p.get("image_urls") or [None])[0] or p.get("image_url")
+        rows.append({
+            "post_id": pid,
+            "title": p.get("title", ""),
+            "user_name": p.get("user_name", ""),
+            "image_url": cover,
+            "product_slug": p.get("product_slug"),
+            "maker_slug": p.get("maker_slug"),
+            "post_created_at": p.get("created_at"),
+            "views": view_count,
+            "clicks": click_count,
+            "ctr": round((click_count / view_count) * 100, 1) if view_count else 0,
+            "by_source": source_counts,
+        })
+
+    return {
+        "days": days,
+        "rows": rows,
+        "totals": {
+            "views": sum(r["views"] for r in rows),
+            "clicks": sum(r["clicks"] for r in rows),
+        },
+    }
 
 
 # ===================== SHOWCASE — multi-image upload (iter114) =====================

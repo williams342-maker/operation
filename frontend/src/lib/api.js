@@ -846,6 +846,26 @@ export const fetchRecentShowcase = (params = {}) =>
     .get("/community/showcase/recent", { params })
     .then((r) => r.data);
 
+// iter117 — Showcase analytics: surface-tagged view + click events.
+// Public endpoints (no auth) since the strip renders for guests too.
+// Both fail-silent — analytics must never break the host page render.
+export const recordShowcaseView = (postId, source) =>
+  http
+    .post(`/community/showcase/${postId}/view`, { source })
+    .then((r) => r.data)
+    .catch(() => ({ ok: false }));
+export const recordShowcaseClick = (postId, source) =>
+  http
+    .post(`/community/showcase/${postId}/click`, { source })
+    .then((r) => r.data)
+    .catch(() => ({ ok: false }));
+export const fetchShowcaseAnalytics = (params = {}) =>
+  http
+    .get("/admin/community/showcase/analytics", {
+      params, headers: adminAuthHeaders(),
+    })
+    .then((r) => r.data);
+
 // iter114 — Showcase form: multi-image upload + AI description help.
 export const uploadShowcaseImage = (file, opts = {}) => {
   const fd = new FormData();

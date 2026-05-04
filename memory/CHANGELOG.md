@@ -1,5 +1,38 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05 — iter117 — Showcase analytics: view + click tracking + admin leaderboard ✅
+
+**Why:** iter116 surfaced showcase posts site-wide, but we had zero visibility into whether the strip was actually working. Were people seeing the posts? Clicking through? Was the homepage strip out-pulling the product-page strip? Without instrumentation, the discovery surface was a black box. This iter closes the loop with a per-post leaderboard scoped to a rolling window so operators can answer "is this pulling its weight?" in seconds.
+
+**What:**
+
+### Backend
+- New `showcase_events` collection — `{post_id, kind: "view"|"click", source, fingerprint, created_at}`. Events live separately from the post doc so we can answer arbitrary-window queries ("last 24h", "last 30d") without per-doc counters going stale. Posts also keep denormalized `views` / `clicks` integer counters for the all-time roll-up.
+- New endpoints:
+  - `POST /api/community/showcase/{id}/view` — public, no auth. Body: `{source}`. Inserts an event row + bumps `showcase_posts.views`.
+  - `POST /api/community/showcase/{id}/click` — same shape, kind=click.
+  - `GET /api/admin/community/showcase/analytics?days=7&limit=10` — admin-only. Returns top-N posts by views in the rolling window, with click count, computed CTR, per-source breakdown, and `totals` roll-up.
+- **Dedupe by IP+UA fingerprint within a 30-min window** — same visitor refreshing the strip 5 times counts once. Different visitors all count independently. Fingerprint = `sha1(ip + user_agent)[:16]` so we never persist raw PII.
+- **Phantom-event guard** — fabricated post IDs return `{ok: false}` and write nothing. No way for a script kiddie to inflate views on a non-existent post.
+- **Source truncation** — a malicious client passing a 5KB `source` string gets clamped to 32 chars at insert time so event rows stay tight.
+- **Same Python truthiness gotcha caught in iter116** showed up again in this endpoint — `int(days or 7)` clamped `days=0` to 7. Replaced with explicit None check. (Test asserted `days=0 → days=1`, which caught it cleanly.)
+
+### Frontend
+- `RecentShowcaseStrip` upgraded to fire view + click events. Default `source` resolved from props (`product` / `maker` / `home`). **IntersectionObserver** ensures view events only fire when the tile is actually 50% visible — kills the "homepage hero dominates above-the-fold, every load logs 4 unseen views" inflation. Per-session dedup via `useRef` Set on top of the backend's 30-min window (defense in depth).
+- New admin tab `Showcase Analytics` (alphabetical, after Settings):
+  - 24H / 7D / 30D rolling-window switcher (active state in orange).
+  - Three totals tiles: views, clicks, aggregate CTR.
+  - Per-post leaderboard with cover thumbnail, title, buyer name, product slug deep-context, sortable-by-views default, click count in orange, CTR percentage, and **source split chips** (`home: 5`, `product: 12`) so operators see at a glance which placement is converting.
+
+### Tests
+`tests/test_iter117_showcase_analytics.py` — **11/11 green** covering: view/click counter increment + event-row insert, public no-auth gating, IP+UA dedupe within 30 min, different UAs do NOT dedupe, phantom-post returns `ok=false` + no DB write, source truncation at 32 chars, admin endpoint requires auth, top-N ranking with views/clicks/CTR/source split shape, orphaned events from deleted posts skip cleanly without 500, days clamping (`0→1`, `999→90`).
+
+### Verified end-to-end live
+Magic-link signed in, opened the new admin tab. Real test event from earlier curl already shows up in the 24H view: **1 view, 1 click, 100% CTR, source: `home: 1`**, with the "TEST_iter7 showcase" post and its product slug visible in the row. Full pipeline confirmed: event fire → DB insert → counter bump → aggregate query → per-source attribution → leaderboard render.
+
+---
+
+
 ## 2026-05 — iter116 — "Recently shared by buyers" discovery strip on Home + Product pages ✅
 
 **Why:** The Community Showcase is now full of high-quality posts (multi-image upload + AI-vision descriptions from iter114-115 are getting real use), but every post lived inside the `/community` tab and most buyers never opened it. Wasted social proof, wasted flywheel. Pulling 4 recent posts onto the homepage and product detail pages turns "buyers in the community" into "buyers on the path to checkout."

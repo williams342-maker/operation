@@ -1,7 +1,9 @@
 /* eslint-disable react-hooks/exhaustive-deps */
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { fetchRecentShowcase } from "../lib/api";
+import {
+  fetchRecentShowcase, recordShowcaseView, recordShowcaseClick,
+} from "../lib/api";
 
 // iter116 — "Recently shared" strip.
 //
@@ -23,8 +25,17 @@ export default function RecentShowcaseStrip({
   title = "Recently shared by buyers",
   eyebrow = "◆ Community",
   testId = "recent-showcase-strip",
+  source,  // iter117 — surface tag passed through to analytics events
 }) {
   const [items, setItems] = useState(null); // null = loading
+  // iter117 — per-session view dedup (defense in depth on top of the
+  // backend's IP+UA dedup window). Keeps a refresh from showing as
+  // double-views in the dashboard.
+  const viewedRef = useRef(new Set());
+
+  // Resolve a sensible default `source` tag from the props so callers
+  // who forgot to pass one still get attribution data.
+  const resolvedSource = source || (productSlug ? "product" : (makerSlug ? "maker" : "home"));
 
   useEffect(() => {
     let cancelled = false;
@@ -37,6 +48,42 @@ export default function RecentShowcaseStrip({
       });
     return () => { cancelled = true; };
   }, [productSlug, makerSlug, limit]);
+
+  // iter117 — Once items land, fire one view event per post (per-session
+  // dedupe). We use IntersectionObserver where available so views only
+  // log when the strip actually scrolls into view (a homepage hero
+  // dominates above-the-fold; tracking unseen views inflates the data).
+  useEffect(() => {
+    if (!items || !items.length || typeof window === "undefined") return;
+
+    const fireView = (postId) => {
+      const key = `${postId}:${resolvedSource}`;
+      if (viewedRef.current.has(key)) return;
+      viewedRef.current.add(key);
+      recordShowcaseView(postId, resolvedSource);
+    };
+
+    if (typeof IntersectionObserver === "undefined") {
+      // Older browser — just count all loaded posts as viewed.
+      items.forEach((p) => fireView(p.id));
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((e) => {
+          if (e.isIntersecting && e.target.dataset.postId) {
+            fireView(e.target.dataset.postId);
+          }
+        });
+      },
+      { threshold: 0.5 },  // half the tile in view = "really seen"
+    );
+    document
+      .querySelectorAll(`[data-strip-id="${testId}"] [data-post-id]`)
+      .forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, [items, testId, resolvedSource]);
 
   // Skeleton on first load — prevents the page from "jumping" once items land.
   if (items === null) {
@@ -61,6 +108,7 @@ export default function RecentShowcaseStrip({
     <section
       className="w-full max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12 py-14"
       data-testid={testId}
+      data-strip-id={testId}
     >
       <header className="mb-6 flex items-end justify-between gap-4">
         <div>
@@ -87,6 +135,8 @@ export default function RecentShowcaseStrip({
             <Link
               key={post.id}
               to={`/community#post-${post.id}`}
+              onClick={() => recordShowcaseClick(post.id, resolvedSource)}
+              data-post-id={post.id}
               className="group relative aspect-square bg-[#121212] border border-[#262626] hover:border-[#ff4500] overflow-hidden transition"
               data-testid={`${testId}-item-${post.id}`}
               title={post.title}
