@@ -841,6 +841,11 @@ export const uploadForumAttachment = (file) => {
     .then((r) => r.data);
 };
 
+export const fetchRecentShowcase = (params = {}) =>
+  http
+    .get("/community/showcase/recent", { params })
+    .then((r) => r.data);
+
 // iter114 — Showcase form: multi-image upload + AI description help.
 export const uploadShowcaseImage = (file, opts = {}) => {
   const fd = new FormData();

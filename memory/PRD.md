@@ -83,6 +83,7 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - ✅ Maker-side opt-out toggle for the weekly Restock digest (iter113)
 - ✅ Multi-image upload + AI description help on Community Showcase (iter114)
 - ✅ AI showcase description vision upgrade — Claude Haiku 4.5 reads the buyer's photos (iter115)
+- ✅ "Recently shared by buyers" discovery strip on Home + Product pages (iter116)
 
 ## Next Action Items
 *(All P1/P2/P3s from the original handoff backlog are now shipped or blocked on user paperwork.)*

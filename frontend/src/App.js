@@ -52,6 +52,7 @@ import MaintenancePage from "./components/MaintenancePage";
 import BetaBanner from "./components/BetaBanner";
 import CNCEmblem from "./components/CNCEmblem";
 import NewsletterSignup from "./components/NewsletterSignup";
+import RecentShowcaseStrip from "./components/RecentShowcaseStrip";
 import { Toaster } from "sonner";
 import { trackPageview, captureAttribution } from "./lib/analytics";
 import { useSiteSettings } from "./hooks/useSiteSettings";
@@ -80,6 +81,11 @@ const Home = () => {
       <ForMakers />
       <CNCEmblem />
       <Reviews />
+      <RecentShowcaseStrip
+        eyebrow="◆ From the community"
+        title="Recently shared by buyers"
+        testId="home-recent-showcase"
+      />
       <NewsletterSignup />
       <CustomCTA />
     </>

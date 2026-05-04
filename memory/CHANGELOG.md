@@ -1,5 +1,28 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05 — iter116 — "Recently shared by buyers" discovery strip on Home + Product pages ✅
+
+**Why:** The Community Showcase is now full of high-quality posts (multi-image upload + AI-vision descriptions from iter114-115 are getting real use), but every post lived inside the `/community` tab and most buyers never opened it. Wasted social proof, wasted flywheel. Pulling 4 recent posts onto the homepage and product detail pages turns "buyers in the community" into "buyers on the path to checkout."
+
+**What:**
+- New endpoint `GET /api/community/showcase/recent?limit=4&product_slug=&maker_slug=` — public, no-auth, hard-capped at 12 items, lightweight projection (no `description`, no `user_email` PII, no `_id`). Three-tier match cascade so a brand-new product never renders an empty strip:
+  1. Posts tagged with `product_slug`
+  2. Posts tagged with `maker_slug` (skipped on homepage where neither is set)
+  3. Site-wide newest, deduped against tiers 1+2
+- New reusable component `<RecentShowcaseStrip productSlug? makerSlug? limit?>` — 4-column responsive grid (2 on mobile), skeleton on first paint to prevent layout shift, hover-reveal meta overlay (buyer name in orange + truncated title in display font), `+N` badge for multi-image posts, "VIEW ALL →" deep-link to `/community`. **Self-hides when API returns 0 items** so the homepage never shows a hollow section.
+- Wired into two surfaces:
+  - **Homepage** — between `<Reviews />` and `<NewsletterSignup />`. Generic feed (no slug filter), eyebrow "◆ From the community", title "Recently shared by buyers".
+  - **Product detail** — at the bottom of the page after the modals. Scoped to `productSlug + makerSlug`, eyebrow "◆ From the community", title "Buyers who own this".
+
+**Bug caught + fixed during testing:** the original limit coercion `int(limit or 4)` fell back to 4 when `limit=0` because Python's truthiness coerces `0` to the fallback. Replaced with explicit `None`-check so `limit=0/-5` correctly clamps to `1` instead of silently becoming 4.
+
+**Tested:** `tests/test_iter116_recent_showcase.py` — 10 tests covering: default newest-first ordering, hard cap of 12 enforced server-side, `limit=0`/negative coerced to 1 (the bug), product_slug filter prefers tagged + back-fills, full-tagged-match skips back-fill, maker_slug-only filter, three-tier cascade with no duplicates across tiers, empty-filter returns 200 + valid shape, public no-auth gating works, response excludes heavy fields (`description`, `user_email`, `_id`). **10/10 green.**
+
+**Verified live:** Homepage screenshot confirms the strip renders correctly after Reviews — 4-column grid with proper headline / sub-copy / "VIEW ALL →" link, real image tiles for posts with valid URLs, graceful broken-image rendering for stale dev data with bogus URLs (cosmetic only — real R2 URLs in prod will display normally).
+
+---
+
+
 ## 2026-05 — iter115 — AI showcase description now actually LOOKS at the photos ✅
 
 **Why:** iter114 shipped AI description help on Showcase posts but the LLM only saw the title + tagged product/maker context — it was guessing what the piece looked like. The descriptions came out generic ("looks great in my space") because the model had no concrete details to anchor on. Vision-enabling Claude Haiku 4.5 closes that gap: now it sees the actual cuts, the actual finish, the actual mounting, and writes about what's really there.

@@ -231,6 +231,66 @@ async def list_showcase(limit: int = 50):
     return await db.showcase_posts.find({}, {"_id": 0}).sort("created_at", -1).to_list(limit)
 
 
+@router.get("/community/showcase/recent")
+async def list_recent_showcase(
+    limit: int = 4,
+    product_slug: Optional[str] = None,
+    maker_slug: Optional[str] = None,
+):
+    """Public, no-auth, lightweight feed for the homepage + product-page
+    'Recently shared by buyers' strip (iter116). Prefers posts tagged with
+    the requested product or maker; falls back to general newest-first
+    when nothing is tagged or the tagged feed is too thin to render a
+    full row.
+
+    Why this is its own endpoint and not just the existing /showcase:
+    - Keeps the homepage payload bounded (limit cap of 12) so the strip
+      never accidentally renders 50 cards.
+    - Allows targeted fall-back: a product page first asks for posts that
+      tag *that* product, and only widens the net when it has fewer than
+      `limit` matches.
+    - Ships a minimum-image projection so we don't waste bandwidth pulling
+      the full description / user_email blobs the card doesn't show."""
+    # Clamp to [1, 12]. Note: `int(limit or 4)` would be wrong here —
+    # Python's truthiness coerces 0 to the fallback. Explicit None check.
+    try:
+        n = int(limit) if limit is not None else 4
+    except (TypeError, ValueError):
+        n = 4
+    limit = max(1, min(n, 12))
+    proj = {
+        "_id": 0, "id": 1, "title": 1,
+        "image_url": 1, "image_urls": 1,
+        "product_slug": 1, "maker_slug": 1,
+        "user_name": 1, "user_picture": 1,
+        "likes": 1, "created_at": 1,
+    }
+
+    async def _query(filt: dict, n: int) -> list[dict]:
+        return await db.showcase_posts.find(filt, proj).sort("created_at", -1).limit(n).to_list(n)
+
+    rows: list[dict] = []
+    seen_ids: set[str] = set()
+
+    if product_slug:
+        rows = await _query({"product_slug": product_slug}, limit)
+        seen_ids = {r["id"] for r in rows}
+
+    if maker_slug and len(rows) < limit:
+        more = await _query(
+            {"maker_slug": maker_slug, "id": {"$nin": list(seen_ids)}},
+            limit - len(rows),
+        )
+        rows.extend(more)
+        seen_ids.update(r["id"] for r in more)
+
+    if len(rows) < limit:
+        more = await _query({"id": {"$nin": list(seen_ids)}}, limit - len(rows))
+        rows.extend(more)
+
+    return {"items": rows[:limit], "count": len(rows[:limit])}
+
+
 @router.post("/community/showcase")
 async def create_showcase(post: ShowcasePost, claims: dict = Depends(current_buyer)):
     user = await db.community_users.find_one({"user_id": claims["sub"]}, {"_id": 0})

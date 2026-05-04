@@ -9,6 +9,7 @@ import ImageLightbox from "../components/ImageLightbox";
 import VeteranBadge from "../components/VeteranBadge";
 import BackorderRequestModal from "../components/BackorderRequestModal";
 import RestockWaitlistModal from "../components/RestockWaitlistModal";
+import RecentShowcaseStrip from "../components/RecentShowcaseStrip";
 
 export default function ProductDetail() {
   const { slug } = useParams();
@@ -412,6 +413,18 @@ export default function ProductDetail() {
           onClose={() => setRestockOpen(false)}
         />
       )}
+
+      {/* iter116 — Discovery surface for community showcase posts.
+          Scoped to this product first, falls back to maker, then site-wide
+          so a brand-new product always shows something. Self-hides if the
+          API returns 0 (handled inside the component). */}
+      <RecentShowcaseStrip
+        productSlug={p.slug}
+        makerSlug={p.maker_slug}
+        eyebrow="◆ From the community"
+        title="Buyers who own this"
+        testId="product-recent-showcase"
+      />
     </div>
   );
 }
