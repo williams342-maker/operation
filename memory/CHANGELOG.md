@@ -1,5 +1,46 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05 — iter118 — SEO pre-mount fallback in `index.html` + Cloudflare Worker ops doc ✅
+
+**Why:** User's SEO tool flagged `index.html` as having ~41 crawlable words, a visually-hidden H1, and zero real paragraphs. Classic SPA blind spot: crawlers that don't execute JavaScript (Screaming Frog default mode, Bing/DuckDuckBot, most third-party SEO auditors) saw an empty React shell. Googlebot is fine because it renders JS, but every other crawler treated the homepage as "thin content," tanking our discoverability on non-Google surfaces and hurting link-preview quality.
+
+**What:**
+
+### Frontend (`public/index.html`)
+- Replaced the sr-only clipped `<header>` fallback (which Google devalues and some auditors classify as "hidden H1 = no H1") with a **visible semantic payload** inside `<div id="root">`:
+  - Real `<h1>`: "Precision CNC Art & Handcrafted Goods, Built By Vetted Independent Makers."
+  - Three `<h2>` section headings ("What you can buy on Crafters Market", "Why Crafters Market is different", "Start here").
+  - Six descriptive paragraphs covering positioning, keywords (CNC, plasma-cut, wood signs, monograms, cutting boards, made-to-order), and trust signals (vetted makers, US-based, Stripe checkout, direct payouts).
+  - Five internal links (`/shop`, `/makers`, `/custom-order`, `/journal`, `/coming-soon`, `/contact`) feeding crawl budget to the core indexable destinations.
+  - Light inline styles so the block renders presentably if JS fails or is disabled.
+- **React overwrite is instant** — `createRoot().render()` replaces the children of `#root` synchronously on mount, so JS users never see the fallback. Verified with a live screenshot: the normal "FIND SOMETHING BUILT BY HAND" hero renders, zero trace of the fallback in the DOM post-mount.
+- **Word count: ~41 → 347** in the raw HTML response. H1 count: hidden → 1 visible. P count: 2 → 6. H2 count: 0 → 3.
+
+### Docs (`/app/docs/cloudflare-worker-prerender.md`)
+- Wrote the full Cloudflare Worker recipe for routing social-media crawlers (`facebookexternalhit`, `LinkedInBot`, `Twitterbot`, `Slackbot`, `Discordbot`, `TelegramBot`, `WhatsApp`, `Applebot`, `Pinterest`, `redditbot`, `Embedly`, `Iframely`, `SkypeUriPreview`, `AhrefsBot`, etc.) to our existing `/api/og/product/{slug}`, `/api/og/maker/{slug}`, `/api/og/journal/{slug}` prerender routes.
+- Includes: complete paste-ready Worker JS, route binding checklist, curl-based pre-deploy smoke test, unfurl validator links (FB debugger, LinkedIn post inspector, Twitter cards validator), monitoring + rollback instructions, and an "adding a new route / UA" recipe.
+- Worker is intentionally **fail-open** — if the FastAPI pod is down, crawlers fall through to the SPA rather than getting 5xx.
+
+### Tests
+`tests/test_iter118_seo_prerender_fallback.py` — **7/7 green** covering:
+- `index.html` exists,
+- exactly one visible H1 (explicitly rejects `display:none` / `clip:rect(0,0,0,0)` / `width:1px`),
+- ≥2 H2 section headings and ≥4 `<p>` tags,
+- ≥250-word floor in `#root` (SEO tools flag under this as "thin content"),
+- all five primary internal links present,
+- core keyword coverage (`cnc`, `handcraft`, `signs`, `custom`, `maker`, `wood`),
+- prerender block lives **inside** `#root` so React's `createRoot` overwrites it cleanly.
+
+### Verified end-to-end live
+- `curl -A "Screaming Frog SEO Spider" <preview>` returns 347 words / 1 H1 / 3 H2 / 6 P in the `#root` block.
+- Screenshot of real browser load shows the normal branded hero — fallback is completely replaced the moment React mounts.
+- No visual regression, no FOUC.
+
+### Impact
+Non-Google SEO auditors, Bing, DuckDuckBot, and any crawler that strips JS now see a keyword-rich, semantically-correct homepage with real anchor text feeding the core pages. The Cloudflare Worker doc unblocks the user to turn on rich link unfurls across every major social platform in ~5 minutes of dashboard clicks.
+
+
+
 ## 2026-05 — iter117 — Showcase analytics: view + click tracking + admin leaderboard ✅
 
 **Why:** iter116 surfaced showcase posts site-wide, but we had zero visibility into whether the strip was actually working. Were people seeing the posts? Clicking through? Was the homepage strip out-pulling the product-page strip? Without instrumentation, the discovery surface was a black box. This iter closes the loop with a per-post leaderboard scoped to a rolling window so operators can answer "is this pulling its weight?" in seconds.

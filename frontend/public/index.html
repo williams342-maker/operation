@@ -93,17 +93,57 @@
         <div id="root">
             <!--
               Pre-mount fallback content for crawlers / link previewers that
-              don't execute JavaScript (Screaming Frog default mode, some social
-              link unfurlers, search console "view crawled HTML"). React
-              completely replaces this on mount, so users with JS never see it.
-              The H1 here matches the homepage Hero's H1 so non-JS scans
-              report a consistent primary heading.
+              don't execute JavaScript (Screaming Frog default mode, Bing,
+              Yandex, DuckDuckBot, social-media unfurlers, search console
+              "view crawled HTML", most SEO-audit tools). React completely
+              replaces the children of #root on mount via createRoot().render(),
+              so JS users never see it. Content mirrors the homepage Hero so
+              non-JS scans report a consistent primary heading + word count.
+              Styled to be legible (not clipped / not display:none) because
+              Google devalues hidden text and some SEO linters flag sr-only
+              headings as "missing H1".
             -->
-            <header style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0">
-                <h1>Crafters Market — Find Something Built By Hand.</h1>
-                <p>Hand-finished metal &amp; wood pieces from approved CNC artisans. Built to order. Shipped nationwide. Stripe-secured checkout, direct-to-maker payouts.</p>
-                <p>Browse <a href="/shop">the shop</a>, meet our <a href="/makers">makers</a>, request a <a href="/custom-order">custom order</a>, or <a href="/journal">read the workshop journal</a>.</p>
-            </header>
+            <main data-prerender="true" style="max-width:960px;margin:0 auto;padding:48px 24px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#111;line-height:1.6">
+                <header>
+                    <p style="font-size:12px;letter-spacing:0.18em;text-transform:uppercase;color:#7a5a2f;margin:0 0 12px">Crafters Market · CraftersMarket.org</p>
+                    <h1 style="font-family:'Anton',Impact,sans-serif;font-size:44px;line-height:1.05;margin:0 0 20px;letter-spacing:-0.01em">Precision CNC Art &amp; Handcrafted Goods, Built By Vetted Independent Makers.</h1>
+                    <p style="font-size:18px;margin:0 0 18px">Crafters Market is a curated online marketplace for <strong>handmade CNC metal art, plasma-cut steel signs, custom wood signs, monogram decor, engraved cutting boards, and made-to-order originals</strong>. Every piece is built by an approved independent artisan working out of their own shop or garage — never mass-produced, never drop-shipped.</p>
+                    <p style="font-size:16px;margin:0 0 18px">Shop one-of-a-kind CNC metalwork and woodwork, commission a fully custom build, or discover makers in your state. Checkout is secured by Stripe, shipping is nationwide across the United States, and every order pays the maker directly.</p>
+                </header>
+
+                <section aria-labelledby="cm-what">
+                    <h2 id="cm-what" style="font-size:22px;margin:32px 0 12px">What you can buy on Crafters Market</h2>
+                    <ul style="padding-left:20px;margin:0 0 18px">
+                        <li><strong>Plasma-cut metal signs</strong> — family names, ranch brands, business logos, veteran &amp; first-responder tributes.</li>
+                        <li><strong>CNC wood signs &amp; monograms</strong> — wedding decor, nursery signs, housewarming gifts, bar &amp; garage signage.</li>
+                        <li><strong>Custom cutting boards &amp; charcuterie</strong> — engraved hardwood, end-grain and edge-grain builds.</li>
+                        <li><strong>Made-to-order originals</strong> — send your own art, photo, or idea and commission a one-off piece from a verified maker.</li>
+                        <li><strong>Downloadable CNC &amp; laser files</strong> — SVG, DXF, F3D and STL patterns from professional pattern designers.</li>
+                    </ul>
+                </section>
+
+                <section aria-labelledby="cm-why">
+                    <h2 id="cm-why" style="font-size:22px;margin:32px 0 12px">Why Crafters Market is different</h2>
+                    <p style="margin:0 0 12px">Unlike generic handmade marketplaces, every maker on Crafters Market is <strong>individually reviewed</strong> before listing a single product. We verify real workshop photos, real machines, and real past work — so what you buy is actually hand-built in the United States, not rebranded overseas imports.</p>
+                    <p style="margin:0 0 12px">Makers keep the majority of every sale. Buyers get direct messaging with the artisan, realistic lead times, and the option to request revisions before the piece ships.</p>
+                </section>
+
+                <nav aria-label="Primary" style="margin-top:32px">
+                    <h2 style="font-size:22px;margin:0 0 12px">Start here</h2>
+                    <ul style="padding-left:20px;margin:0">
+                        <li><a href="/shop" style="color:#b8860b;text-decoration:underline">Browse the full shop</a> — in-stock CNC art, signs, boards &amp; more.</li>
+                        <li><a href="/makers" style="color:#b8860b;text-decoration:underline">Meet the makers</a> — vetted independent artisans across the US.</li>
+                        <li><a href="/custom-order" style="color:#b8860b;text-decoration:underline">Request a custom order</a> — tell us your idea, we route it to the right maker.</li>
+                        <li><a href="/journal" style="color:#b8860b;text-decoration:underline">Workshop journal</a> — how-tos, maker spotlights, buyer guides.</li>
+                        <li><a href="/coming-soon" style="color:#b8860b;text-decoration:underline">Coming soon</a> — join the waitlist for upcoming drops.</li>
+                        <li><a href="/contact" style="color:#b8860b;text-decoration:underline">Contact support</a> — real humans, fast replies.</li>
+                    </ul>
+                </nav>
+
+                <footer style="margin-top:40px;padding-top:20px;border-top:1px solid #eee;font-size:13px;color:#666">
+                    <p style="margin:0">Loading the full Crafters Market experience&hellip; If this page does not load, please <a href="/contact" style="color:#b8860b">contact us</a> or enable JavaScript to browse the live marketplace.</p>
+                </footer>
+            </main>
         </div>
         <a
             id="emergent-badge"
