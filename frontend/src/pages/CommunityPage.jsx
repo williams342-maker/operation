@@ -254,6 +254,10 @@ function ShowcaseForm({ onSaved }) {
   const [makers, setMakers] = useState([]);
   const [busy, setBusy] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
+  // iter115 — surface whether the AI actually looked at the photos so
+  // buyers see the difference between "described from title alone" and
+  // "described from your actual uploads."
+  const [aiVisionMeta, setAiVisionMeta] = useState(null);
   const [err, setErr] = useState("");
   const inputRef = React.useRef(null);
 
@@ -312,6 +316,7 @@ function ShowcaseForm({ onSaved }) {
     }
     setAiBusy(true);
     setErr("");
+    setAiVisionMeta(null);
     try {
       const r = await aiDescribeShowcase({
         title: form.title.trim(),
@@ -321,6 +326,7 @@ function ShowcaseForm({ onSaved }) {
       });
       if (r.description) {
         setForm((c) => ({ ...c, description: r.description }));
+        setAiVisionMeta({ vision: !!r.vision_used, count: r.images_seen || 0 });
       } else {
         setErr("AI couldn't generate a description right now — write your own and try again later.");
       }
@@ -462,6 +468,16 @@ function ShowcaseForm({ onSaved }) {
           className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs resize-y"
           data-testid="showcase-description"
         />
+        {aiVisionMeta && (
+          <p
+            className="font-mono text-[10px] text-[#525252] mt-1"
+            data-testid="showcase-ai-vision-badge"
+          >
+            {aiVisionMeta.vision
+              ? `✨ AI read ${aiVisionMeta.count} of your photo${aiVisionMeta.count === 1 ? "" : "s"} — edit freely.`
+              : "◆ AI wrote this from your title and tags. Add photos and re-run for a sharper draft."}
+          </p>
+        )}
       </div>
 
       {err && (

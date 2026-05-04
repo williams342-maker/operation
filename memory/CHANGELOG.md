@@ -1,5 +1,30 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05 — iter115 — AI showcase description now actually LOOKS at the photos ✅
+
+**Why:** iter114 shipped AI description help on Showcase posts but the LLM only saw the title + tagged product/maker context — it was guessing what the piece looked like. The descriptions came out generic ("looks great in my space") because the model had no concrete details to anchor on. Vision-enabling Claude Haiku 4.5 closes that gap: now it sees the actual cuts, the actual finish, the actual mounting, and writes about what's really there.
+
+**What:**
+- New helper `_fetch_image_for_vision(url)` in `routers/community.py` — downloads the URL via httpx, returns base64. Strict validation: HTTP 200 only, content-type must start with `image/`, size capped at 4MB. **Best-effort:** non-image / oversized / timeout / 4xx all return `None` cleanly so a single broken URL never aborts the whole request.
+- New helper `_claude_vision_describe(system, user_text, image_b64s)` — wraps `LlmChat.send_message(UserMessage(text=..., file_contents=[ImageContent(image_base64=b) ...]))` against `claude-haiku-4-5-20251001` (the playbook-confirmed full-version id that supports vision via the universal multimodal path). Failures swallowed; returns `None` on any LLM error so the endpoint can fail open with `{description: ""}`.
+- `ai_describe_showcase` upgraded:
+  - Concurrent `asyncio.gather` fetch of up to 3 images (cap = `SHOWCASE_AI_VISION_MAX_IMAGES`). Even if the buyer attached 8 photos, we only ship the first 3 to keep latency + token cost bounded.
+  - Prompt forks based on whether vision succeeded: vision branch says *"Look carefully at the photos and describe what stands out — the actual cuts, colors, mounting, lighting, materials"*; text-only fallback says *"Write a description from the title and context alone (no photos were attached)"*.
+  - Response shape extended: `{description, vision_used: bool, images_seen: int}` so the UI can show the buyer whether the AI actually looked at the pictures.
+- Frontend (`ShowcaseForm` in `CommunityPage.jsx`):
+  - Tracks `aiVisionMeta` after each AI run.
+  - Renders a small badge under the description textarea:
+    - ✨ **"AI read 3 of your photos — edit freely."** (vision succeeded)
+    - ◆ **"AI wrote this from your title and tags. Add photos and re-run for a sharper draft."** (text-only fallback)
+  - Tells buyers exactly what the AI saw without burying it in a tooltip — drives them to upload photos *before* hitting the AI button next time, which makes their post better and our flywheel tighter.
+
+**Tested:** `tests/test_iter115_showcase_ai_vision.py` — 9 tests covering: image fetch returns base64 on success, returns None on non-image content-type / HTTP error / timeout / oversize, endpoint passes `file_contents` of correct length to Claude, `vision_used=True` + `images_seen=N` surfaced when at least one image fetched, hard cap of 3 images even when buyer attached 8 (with first-3 ordering preserved), graceful fallback to text-only + correct prompt branch when every fetch fails, no fetch attempts at all when buyer hasn't uploaded photos yet. **9/9 green.** iter114 tests updated to patch the new `_claude_vision_describe` symbol — all 12 still green standalone.
+
+**Verified live:** Backend healthy, lint clean. Frontend renders the new badge below the description textarea.
+
+---
+
+
 ## 2026-05 — iter114 — Multi-image showcase + AI description help ✅
 
 **Why:** The Community → Showcase form had two friction points killing post quality and frequency:

@@ -190,7 +190,7 @@ async def test_ai_describe_requires_title():
 async def test_ai_describe_returns_description_from_claude():
     headers = await _seed_buyer()
     fake_reply = {"description": "Looks incredible above the workbench. Crisp cuts, beefy steel."}
-    with patch("routers.ai_marketing._claude_async",
+    with patch("routers.community._claude_vision_describe",
                new=AsyncMock(return_value=fake_reply)):
         async with await _client() as c:
             r = await c.post(
@@ -209,7 +209,7 @@ async def test_ai_describe_fails_open_with_empty_description():
     `{description: ""}` so the UI can prompt the buyer to write their own
     instead of throwing a 500."""
     headers = await _seed_buyer()
-    with patch("routers.ai_marketing._claude_async",
+    with patch("routers.community._claude_vision_describe",
                new=AsyncMock(return_value=None)):
         async with await _client() as c:
             r = await c.post(
@@ -217,7 +217,11 @@ async def test_ai_describe_fails_open_with_empty_description():
                 json={"title": "Just a title"}, headers=headers,
             )
     assert r.status_code == 200
-    assert r.json() == {"description": ""}
+    body = r.json()
+    assert body["description"] == ""
+    # iter115 added vision_used + images_seen to the response shape.
+    assert body.get("vision_used") is False
+    assert body.get("images_seen") == 0
 
 
 @pytest.mark.asyncio(loop_scope="module")
@@ -227,7 +231,6 @@ async def test_ai_describe_includes_product_context_in_prompt():
     to riff on instead of inventing details."""
     from core import db
     headers = await _seed_buyer()
-    # Seed a real product so the route can pull context.
     slug = "iter114-context-prod"
     await db.products.delete_many({"slug": slug})
     await db.products.insert_one({
@@ -238,21 +241,20 @@ async def test_ai_describe_includes_product_context_in_prompt():
     })
     captured = {}
 
-    async def fake_claude(system, user, max_chars=4000):
+    async def fake_vision(*, system, user_text, image_b64s):
         captured["system"] = system
-        captured["user"] = user
+        captured["user_text"] = user_text
         return {"description": "fake"}
 
-    with patch("routers.ai_marketing._claude_async", new=fake_claude):
+    with patch("routers.community._claude_vision_describe", new=fake_vision):
         async with await _client() as c:
             await c.post(
                 "/api/community/showcase/ai-describe",
                 json={"title": "Mounted in cabin", "product_slug": slug},
                 headers=headers,
             )
-    # Product title + maker name must have made it into the user prompt.
-    assert "Big Bear Mountain" in captured["user"]
-    assert "Iter114 Maker" in captured["user"]
+    assert "Big Bear Mountain" in captured["user_text"]
+    assert "Iter114 Maker" in captured["user_text"]
     await db.products.delete_many({"slug": slug})
 
 

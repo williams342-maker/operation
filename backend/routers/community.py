@@ -303,6 +303,69 @@ async def upload_showcase_image(
 
 
 # ===================== SHOWCASE — AI description help (iter114) =====================
+# iter115 — vision upgrade: Claude Haiku 4.5 actually looks at the buyer's
+# photos before writing the description. Up to 3 images are downloaded
+# and base64-encoded; failures fall back to text-only mode without
+# breaking the response.
+EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY", "")
+SHOWCASE_AI_VISION_MAX_IMAGES = 3
+SHOWCASE_AI_VISION_MAX_BYTES = 4 * 1024 * 1024  # per image, keep payload bounded
+
+
+async def _fetch_image_for_vision(url: str) -> str | None:
+    """Download an image URL → base64 string. Returns None on any failure
+    (timeout, oversized, non-image content-type) so the caller can move
+    on without aborting the whole request."""
+    import base64
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
+            r = await client.get(url)
+            if r.status_code != 200:
+                logger.info("[showcase_ai] image fetch %s → HTTP %s", url, r.status_code)
+                return None
+            ctype = (r.headers.get("content-type") or "").lower()
+            if not ctype.startswith("image/"):
+                logger.info("[showcase_ai] %s is not an image (%s)", url, ctype)
+                return None
+            blob = r.content
+            if len(blob) > SHOWCASE_AI_VISION_MAX_BYTES:
+                logger.info("[showcase_ai] %s skipped (%d B > cap)", url, len(blob))
+                return None
+            return base64.b64encode(blob).decode("ascii")
+    except Exception as e:
+        logger.info("[showcase_ai] image fetch failed for %s: %s", url, e)
+        return None
+
+
+async def _claude_vision_describe(*, system: str, user_text: str,
+                                  image_b64s: list[str]) -> dict | None:
+    """One-shot Claude call with optional image attachments. Returns the
+    parsed JSON dict or None on any LLM error (caller fails open).
+    Uses the playbook-confirmed full model id `claude-haiku-4-5-20251001`
+    — the version that supports vision via the universal multimodal path."""
+    if not EMERGENT_LLM_KEY:
+        return None
+    from emergentintegrations.llm.chat import (
+        LlmChat, UserMessage, ImageContent,
+    )
+    from routers.ai_marketing import _parse_json
+    chat = LlmChat(
+        api_key=EMERGENT_LLM_KEY,
+        session_id=f"showcase-{uuid.uuid4().hex[:12]}",
+        system_message=system,
+    ).with_model("anthropic", "claude-haiku-4-5-20251001")
+    msg_kwargs: dict = {"text": user_text[:4000]}
+    if image_b64s:
+        msg_kwargs["file_contents"] = [ImageContent(image_base64=b) for b in image_b64s]
+    try:
+        reply = await chat.send_message(UserMessage(**msg_kwargs))
+    except Exception as e:
+        logger.exception("[showcase_ai] LLM error: %s", e)
+        return None
+    return _parse_json(reply)
+
+
 class _ShowcaseAiBody(BaseModel):
     title: str
     image_urls: List[str] = []
@@ -312,17 +375,19 @@ class _ShowcaseAiBody(BaseModel):
 
 @router.post("/community/showcase/ai-describe")
 async def ai_describe_showcase(body: _ShowcaseAiBody, claims: dict = Depends(current_buyer)):
-    """Generate a punchy 2-3 sentence showcase description from the title +
-    optional product/maker context. Fail-open: returns `{description: ""}`
-    on any LLM error so the UI can fall back to manual entry without a
-    broken state."""
+    """Generate a punchy 2-3 sentence showcase description from the title,
+    optional product/maker context, AND the actual photos the buyer
+    just uploaded. Fail-open: returns `{description: ""}` on any LLM
+    error so the UI can fall back to manual entry without a broken state.
+
+    iter115: vision upgrade. Up to 3 images get downloaded + base64-encoded
+    and shipped to Claude Haiku 4.5 as `ImageContent`. Image-fetch failures
+    are silently dropped so a single broken URL doesn't kill the request."""
     title = (body.title or "").strip()
     if not title:
         raise HTTPException(400, "Title is required to generate a description.")
 
-    # Pull product/maker context if tagged — gives the model concrete details
-    # to riff on instead of inventing them. We keep this lightweight: just
-    # the surface fields, no full-doc spew.
+    # Pull product/maker context if tagged.
     context_lines: list[str] = []
     if body.product_slug:
         p = await db.products.find_one(
@@ -342,30 +407,56 @@ async def ai_describe_showcase(body: _ShowcaseAiBody, claims: dict = Depends(cur
         )
         if m:
             context_lines.append(f"Tagged maker: {m.get('name','')} — {m.get('tagline','') or m.get('bio','')[:200]}")
+
+    # Download up to N images concurrently — gather lets one slow URL not
+    # serialize the whole batch.
+    import asyncio as _asyncio
+    image_b64s: list[str] = []
     if body.image_urls:
-        context_lines.append(f"Buyer attached {len(body.image_urls)} photo(s) of the piece.")
+        results = await _asyncio.gather(
+            *[_fetch_image_for_vision(u) for u in body.image_urls[:SHOWCASE_AI_VISION_MAX_IMAGES]],
+            return_exceptions=False,
+        )
+        image_b64s = [r for r in results if r]
+        if image_b64s:
+            context_lines.append(
+                f"Buyer attached {len(body.image_urls)} photo(s); "
+                f"the {len(image_b64s)} highest-priority are shown below."
+            )
 
     user_msg = (
         f"Title: {title}\n"
         + ("\n".join(context_lines) if context_lines else "(No additional context provided.)")
-        + "\n\nWrite a 2-3 sentence first-person description that captures why "
-          "the buyer loves this piece, where it lives in their space, and what "
-          "stands out about the craftsmanship. Conversational, not salesy. "
-          "Return ONLY a JSON object: {\"description\": \"...\"}."
+        + (
+            "\n\nLook carefully at the photos and describe what stands out — "
+            "the actual cuts, colors, mounting, lighting, materials. "
+            if image_b64s else
+            "\n\nWrite a description from the title and context alone "
+            "(no photos were attached)."
+        )
+        + " Write a 2-3 sentence first-person description: where the piece "
+          "lives in the buyer's space, what catches the eye, why they love "
+          "it. Conversational, not salesy. "
+          'Return ONLY a JSON object: {"description": "..."}.'
     )
     system_msg = (
         "You are a concise copywriter helping buyers post about a "
         "hand-built CNC art / wood / metal piece they bought on Crafters Market. "
-        "Respond ONLY with valid JSON: {\"description\": \"...\"}. "
+        "When images are attached, describe what you actually see — concrete "
+        "details ground the post and make it feel real. "
+        'Respond ONLY with valid JSON: {"description": "..."}. '
         "Keep the description 2-3 sentences, under 280 characters, "
         "warm and authentic, no marketing fluff."
     )
-    # Reuse the established `_claude_async` helper from ai_marketing — same
-    # model (claude-haiku-4-5), same JSON-or-fail-open behavior.
-    from routers.ai_marketing import _claude_async
-    parsed = await _claude_async(system_msg, user_msg)
+    parsed = await _claude_vision_describe(
+        system=system_msg, user_text=user_msg, image_b64s=image_b64s,
+    )
     desc = ((parsed or {}).get("description") or "").strip()
-    return {"description": desc}
+    return {
+        "description": desc,
+        "vision_used": len(image_b64s) > 0,
+        "images_seen": len(image_b64s),
+    }
 
 
 # ===================== DESIGN FILES (with paywall) =====================
