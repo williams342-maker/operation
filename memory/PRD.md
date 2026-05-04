@@ -113,7 +113,8 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - **P2** Apply DNS cleanup from `/app/docs/dns-cleanup.md` (user-side, removes Brevo/Sender/Mailerlite stale records + tightens SPF).
 - **P2** Submit sitemap to GSC + Bing per `/app/docs/seo-submission-checklist.md` (user-side, ~25 min).
 - **P2** Flip Auto Offsite Backup toggle ON in admin Settings + verify nightly cron lands a clean archive in R2.
-- **P3** Replace remaining 3 non-destructive `window.confirm()` (AI tag generator, buyer tracking-email resend, AI chat fresh) with themed dialog if desired.
+- **P3** Quarterly recovery drill — one-click admin endpoint that downloads the latest R2 archive, restores into a throwaway Mongo, runs an integrity probe, posts result to Slack webhook.
+- **P3** Capability-aware tab redirects: when a non-super admin clicks a deep-link to a tab they don't have caps for, redirect to `/admin?tab=<first-visible>` instead of just hiding the sidebar entry.
 
 ## Blocked (waiting on user)
 - Mailtrap DNS verification in Cloudflare (Postmark covers 100% of mail in the meantime — no buyer impact).

@@ -5,6 +5,7 @@ import EmptyState from "../../components/EmptyState";
 import { formatDate } from "./_shared";
 import { fetchMakerOrderDetail, markOrderShipped, refreshShippingTracking, resendTrackingEmail } from "../../lib/api";
 import ShippingLabelModal from "./ShippingLabelModal";
+import { useConfirm } from "./useConfirm";
 
 // Map backend tier → Tailwind classes. Keep the 4 named tiers in sync
 // with _STATUS_LABEL in backend/routers/shipping.py.
@@ -77,6 +78,7 @@ function OrderRow({ order, onChange }) {
   const [trackingNum, setTrackingNum] = useState(order.tracking_number || "");
   const [carrier, setCarrier] = useState(order.tracking_carrier || "USPS");
   const [labelModalOpen, setLabelModalOpen] = useState(false);
+  const [confirm, confirmModal] = useConfirm();
 
   const toggle = async () => {
     const next = !open;
@@ -133,7 +135,14 @@ function OrderRow({ order, onChange }) {
   };
 
   const handleResendTracking = async () => {
-    if (!window.confirm("Resend the tracking email to the buyer?\n\nThe email will be a copy of the original shipping notification — useful when the buyer says they never got it.")) return;
+    const ok = await confirm({
+      title: "Resend tracking email to the buyer?",
+      body: "Sends a copy of the original shipping notification — useful when the buyer says they never got it.",
+      confirmLabel: "Resend",
+      tone: "primary",
+      testId: `confirm-resend-tracking-${order.session_id}`,
+    });
+    if (!ok) return;
     setBusyResend(true);
     try {
       await resendTrackingEmail(order.session_id);
@@ -152,6 +161,7 @@ function OrderRow({ order, onChange }) {
       className={`border transition ${open ? "border-[#ff4500]" : "border-[#262626] hover:border-[#525252]"}`}
       data-testid={`order-${order.session_id}`}
     >
+      {confirmModal}
       {/* Summary row — the whole header is clickable */}
       <button
         type="button"

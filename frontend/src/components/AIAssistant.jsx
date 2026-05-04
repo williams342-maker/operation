@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { MessageCircle, X, Send } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { aiChat, aiSubmitBrief } from "../lib/api";
+import { useConfirm } from "../hooks/useConfirm";
 
 const STARTER = {
   role: "assistant",
@@ -23,6 +24,7 @@ export default function AIAssistant() {
   });
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
+  const [confirm, confirmModal] = useConfirm();
   const [sessionId, setSessionId] = useState(() => localStorage.getItem("cm_ai_session"));
   const scrollRef = useRef(null);
   const location = useLocation();
@@ -110,6 +112,7 @@ export default function AIAssistant() {
 
   return (
     <>
+      {confirmModal}
       {/* Floating launcher — positioned above the Emergent badge so it doesn't get covered */}
       <button
         onClick={() => setOpen((o) => !o)}
@@ -139,8 +142,15 @@ export default function AIAssistant() {
               </div>
               <div className="flex items-center">
               <button
-                onClick={() => {
-                  if (window.confirm("Start a fresh conversation?")) {
+                onClick={async () => {
+                  const ok = await confirm({
+                    title: "Start a fresh conversation?",
+                    body: "Clears the chat history. Your previous messages will be gone.",
+                    confirmLabel: "Start fresh",
+                    tone: "warn",
+                    testId: "confirm-ai-reset",
+                  });
+                  if (ok) {
                     localStorage.removeItem("cm_ai_session");
                     localStorage.removeItem("cm_ai_messages");
                     setSessionId(null);

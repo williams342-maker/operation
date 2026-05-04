@@ -1,5 +1,65 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05 — iter122 — Secrets Rotation Tracker + final window.confirm cleanup ✅
+
+**Why:**
+1. Every team has the same security debt: API keys + webhook signing secrets quietly aging until they're either breached or rotated by an ex-employee. With 11 third-party integrations live, we needed a single place to see "what's overdue and how do I rotate it."
+2. Closing out the iter119 window.confirm migration — 3 last sites (BulkSeoGenerator AI run, OrdersList tracking-resend, AIAssistant chat reset) still used the native browser confirm. Now zero remain across the entire codebase.
+
+**What:**
+
+### 1) Secrets Rotation Tracker (`routers/admin_secrets.py` + `SecretsTab.jsx`)
+
+Backend catalogues 11 tracked credentials across 7 categories with provider-specific rotation cadences:
+- **Payments (180d):** Stripe API key, Stripe webhook signing secret
+- **Storage (180d):** Cloudflare R2 access key
+- **Email (365d):** Postmark server token, Mailgun API key
+- **SMS (365d):** Twilio auth token
+- **AI (365d):** Emergent universal LLM key
+- **Marketing (365d):** Kit.com API key
+- **Notifications (365d):** Slack admin webhook, Discord admin webhook
+- **Shipping (180d):** Shippo API token
+
+Each row records: env var names (NEVER values), last rotation timestamp + admin email, days-until-due, status (`ok` / `due_soon` (<30d) / `overdue` / `missing`), provider rotation URL, and a step-by-step rotation note specific to each provider (e.g. "Use Twilio's secondary token slot for zero-downtime promotion").
+
+Three super-admin-only endpoints:
+- `GET /api/admin/secrets/status` — full catalogue with status, summary counters
+- `POST /api/admin/secrets/mark-rotated` — write rotation row to `secret_rotations` + mirror to `admin_audit_log`. Resets the timer. Doesn't take the secret value (that goes in env directly).
+- `GET /api/admin/secrets/history/{id}` — audit log per secret (who rotated it when, with notes)
+
+Frontend `SecretsTab.jsx`:
+- Summary cards (Tracked / Configured / Overdue / Not set) with red-tinted Overdue counter when > 0
+- Category-grouped sections (Payments, Storage, Email, etc.)
+- Each row: status badge (green/yellow/red), env var pills, cadence, "last rotated by X · Y ago" with absolute-time tooltip, days-until-due, expandable "How to rotate" panel with provider-specific instructions + deep link to the dashboard, "Mark rotated" button (disabled when env not set, themed confirm dialog before commit)
+- Auto-refresh button
+- Wired into AdminDashboard as a `superOnly: true` tab between "Reviews" and "Settings"
+
+**Privacy guarantee:** the implementation does an `os.environ.get(k)` presence check only — never logs, returns, or compares the actual secret value. The endpoint surface area is zero-trust; even with full DB access an attacker can't recover any secret from `secret_rotations` / `admin_audit_log` because we only store the var NAMES.
+
+### 2) Final window.confirm() cleanup
+Migrated the last 3 native confirms to the themed `useConfirm` modal:
+- **`MarketingTab.jsx`** — Bulk SEO tag generator "Run AI on N listings?" → primary tone confirm
+- **`OrdersList.jsx`** — Resend tracking email to buyer → primary tone confirm
+- **`AIAssistant.jsx`** — Start fresh AI conversation → warn tone confirm
+
+`grep -rn "window.confirm" /app/frontend/src` now returns **zero matches** (excluding the hook itself). Every destructive AND non-destructive confirm in the app uses the unified, brand-themed modal with proper data-testids, Esc/click-outside dismiss, and Enter-to-confirm.
+
+### Tests
+`tests/test_iter122_secrets_rotation.py` — **4/4 standalone green** covering:
+- All three `/api/admin/secrets/*` endpoints reject non-super admins with 403
+- `/status` returns the full catalogue with the contract fields the UI expects (id, label, env_keys, status enum, etc.) and the summary integers add up
+- `mark-rotated` writes the audit row, flips status to `ok`, sets days_until_due to ~cadence, surfaces in `/history`
+- Unknown secret_id returns 404
+
+### Verified live
+- Status endpoint: 11 secrets / 7 configured / 7 overdue (initially) → drops to 6 after marking stripe_webhook
+- Mark-rotated round-trip works, audit row written, status reflects in next /status call
+- Non-super admin blocked at 403
+- Smoke screenshot: Secrets tab renders cleanly with 11 rows, categories, summary stats, and the OVERDUE: 5 red counter visible (some markings happened during testing).
+- ESLint + Ruff: clean across `admin_secrets.py`, `SecretsTab.jsx`, `MarketingTab.jsx`, `OrdersList.jsx`, `AIAssistant.jsx`.
+
+
+
 ## 2026-05 — iter121 — Offsite backups + capability-based admin gating + SEO submission checklist ✅
 
 **Why:** Three high-leverage items that close out the recent admin/SEO arc:

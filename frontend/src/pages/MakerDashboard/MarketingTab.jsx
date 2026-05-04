@@ -774,9 +774,17 @@ function BulkSeoGenerator() {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
   const [err, setErr] = useState("");
+  const [confirm, confirmModal] = useConfirm();
 
   const run = async () => {
-    if (!window.confirm(`Run AI tag generator across up to ${maxListings} listings missing tags? Listings with ${threshold}+ tags will be skipped. Existing tags are preserved.`)) return;
+    const ok = await confirm({
+      title: `Run AI tag generator on up to ${maxListings} listings?`,
+      body: `Listings with ${threshold}+ tags are skipped. Existing tags are preserved — only NEW tags are added. Uses your AI quota.`,
+      confirmLabel: "Run AI",
+      tone: "primary",
+      testId: "confirm-ai-seo-bulk",
+    });
+    if (!ok) return;
     setBusy(true); setErr(""); setResult(null);
     try {
       const r = await aiSeoBulk({ max_listings: parseInt(maxListings, 10), min_tags_threshold: parseInt(threshold, 10) });
@@ -791,6 +799,7 @@ function BulkSeoGenerator() {
 
   return (
     <Section title="Bulk SEO Tag Generator" testId="ai-seo-bulk">
+      {confirmModal}
       <p className="font-mono text-xs text-[#a3a3a3] mb-4">
         Run AI across every published listing. Listings with fewer than the threshold get topped up to 13 tags automatically.
       </p>
