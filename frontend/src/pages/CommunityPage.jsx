@@ -9,6 +9,7 @@ import {
   reportDesignFile, convertDxfToSvg, renderStlThumbnail,
   fetchForumThreads, fetchForumThread, fetchForumCategories,
   createForumThread, replyForumThread, uploadForumAttachment,
+  uploadShowcaseImage, aiDescribeShowcase,
   deleteChatMessage, deleteForumThread, deleteForumReply,
   fetchChatHistory, wsChatUrl,
   communityMe, uploadAvatar,
@@ -236,59 +237,244 @@ function ShowcaseTab({ me }) {
   );
 }
 
+// iter114 — Multi-image showcase form with AI description help.
+// Replaces the original single-URL paste with:
+//   • A real file picker (up to 8 images, each ≤ 8MB) that uploads to R2
+//     incrementally with a per-image progress chip.
+//   • A "✨ Help me write this" button that asks Claude to draft the
+//     description from the title + tagged product/maker context.
+const SHOWCASE_MAX_IMAGES = 8;
+const SHOWCASE_MAX_BYTES_PER_FILE = 8 * 1024 * 1024;
+
 function ShowcaseForm({ onSaved }) {
-  const [form, setForm] = useState({ title: "", description: "", image_url: "", product_slug: "", maker_slug: "" });
+  const [form, setForm] = useState({ title: "", description: "", product_slug: "", maker_slug: "" });
+  const [images, setImages] = useState([]); // [{url, name}]
+  const [uploading, setUploading] = useState(false);
   const [products, setProducts] = useState([]);
   const [makers, setMakers] = useState([]);
   const [busy, setBusy] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const inputRef = React.useRef(null);
+
   useEffect(() => {
     Promise.all([fetchProducts(), fetchMakers()]).then(([p, m]) => {
       setProducts(p || []);
       setMakers(m || []);
     });
   }, []);
+
+  const onPickImages = async (e) => {
+    setErr("");
+    const fl = Array.from(e.target.files || []);
+    if (!fl.length) return;
+    const room = SHOWCASE_MAX_IMAGES - images.length;
+    if (fl.length > room) {
+      setErr(`Up to ${SHOWCASE_MAX_IMAGES} photos per post — you have ${images.length} already.`);
+      e.target.value = "";
+      return;
+    }
+    for (const file of fl) {
+      if (!file.type.startsWith("image/")) {
+        setErr(`'${file.name}' isn't an image — pick JPG/PNG/WebP.`);
+        e.target.value = "";
+        return;
+      }
+      if (file.size > SHOWCASE_MAX_BYTES_PER_FILE) {
+        setErr(`'${file.name}' is ${(file.size / 1024 / 1024).toFixed(1)}MB — must be ≤ 8MB.`);
+        e.target.value = "";
+        return;
+      }
+    }
+    setUploading(true);
+    try {
+      // Upload sequentially to keep progress legible. Concurrency would
+      // shave a few hundred ms but 8 images × ~500ms is fine and the
+      // serialized error path is simpler to reason about.
+      for (const file of fl) {
+        const r = await uploadShowcaseImage(file);
+        setImages((cur) => [...cur, { url: r.url, name: r.filename || file.name }]);
+      }
+    } catch (uploadErr) {
+      setErr(uploadErr?.response?.data?.detail || "Upload failed.");
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  };
+
+  const removeImage = (i) => setImages((cur) => cur.filter((_, idx) => idx !== i));
+
+  const runAiDescribe = async () => {
+    if (!form.title.trim()) {
+      setErr("Add a title first — the AI uses it to write the description.");
+      return;
+    }
+    setAiBusy(true);
+    setErr("");
+    try {
+      const r = await aiDescribeShowcase({
+        title: form.title.trim(),
+        image_urls: images.map((i) => i.url),
+        product_slug: form.product_slug || null,
+        maker_slug: form.maker_slug || null,
+      });
+      if (r.description) {
+        setForm((c) => ({ ...c, description: r.description }));
+      } else {
+        setErr("AI couldn't generate a description right now — write your own and try again later.");
+      }
+    } catch (aiErr) {
+      setErr(aiErr?.response?.data?.detail || "AI generation failed.");
+    } finally {
+      setAiBusy(false);
+    }
+  };
+
   const submit = async (e) => {
     e.preventDefault();
+    setErr("");
+    if (!images.length) {
+      setErr("Upload at least one photo of the piece.");
+      return;
+    }
     setBusy(true);
     try {
-      // If user picked a product, default the maker_slug to that product's maker.
       const picked = products.find((p) => p.slug === form.product_slug);
       const payload = {
         title: form.title,
         description: form.description,
-        image_url: form.image_url,
+        image_urls: images.map((i) => i.url),
+        image_url: images[0].url, // primary, for backwards-compat card UI
         product_slug: form.product_slug || null,
         maker_slug: form.maker_slug || (picked ? picked.maker_slug : null),
       };
       await createShowcase(payload);
       onSaved();
+    } catch (subErr) {
+      setErr(subErr?.response?.data?.detail || "Could not post.");
+    } finally {
+      setBusy(false);
     }
-    finally { setBusy(false); }
   };
+
   return (
     <form onSubmit={submit} className="border border-[#262626] p-5 mb-6 grid md:grid-cols-2 gap-3" data-testid="showcase-form">
-      <input required placeholder="Title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })}
-             className="bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
-             data-testid="showcase-title" />
-      <input required placeholder="Image URL" value={form.image_url} onChange={(e) => setForm({ ...form, image_url: e.target.value })}
-             className="bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
-             data-testid="showcase-image" />
-      <select value={form.product_slug} onChange={(e) => setForm({ ...form, product_slug: e.target.value })}
-              className="bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
-              data-testid="showcase-product">
+      <input
+        required placeholder="Title" value={form.title}
+        onChange={(e) => setForm({ ...form, title: e.target.value })}
+        className="md:col-span-2 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+        data-testid="showcase-title"
+      />
+
+      {/* Multi-image picker */}
+      <div className="md:col-span-2 border border-dashed border-[#262626] p-4" data-testid="showcase-image-picker">
+        <div className="flex flex-wrap items-center gap-3 mb-3">
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            disabled={uploading || images.length >= SHOWCASE_MAX_IMAGES}
+            className="btn-industrial btn-secondary inline-flex items-center gap-2 disabled:opacity-50"
+            data-testid="showcase-image-add"
+          >
+            <Plus size={14} />
+            {images.length === 0 ? "Add photos" : `Add more (${images.length}/${SHOWCASE_MAX_IMAGES})`}
+          </button>
+          <p className="font-mono text-[10px] text-[#525252]">
+            JPG/PNG/WebP, ≤ 8MB each. First photo becomes the cover.
+          </p>
+          <input
+            ref={inputRef} type="file" accept="image/*" multiple onChange={onPickImages}
+            className="hidden" data-testid="showcase-image-input"
+          />
+        </div>
+        {uploading && (
+          <p className="font-mono text-[10px] text-[#ff4500] mb-2" data-testid="showcase-image-uploading">
+            Uploading…
+          </p>
+        )}
+        {images.length > 0 && (
+          <div className="grid grid-cols-4 gap-2" data-testid="showcase-image-list">
+            {images.map((img, i) => (
+              <div
+                key={img.url} className="relative group border border-[#262626]"
+                data-testid={`showcase-image-tile-${i}`}
+              >
+                <img src={img.url} alt={img.name} className="w-full aspect-square object-cover" />
+                {i === 0 && (
+                  <span className="absolute top-1 left-1 bg-[#ff4500] text-[#0a0a0a] font-mono text-[8px] uppercase tracking-[0.18em] px-1.5 py-0.5 font-bold">
+                    Cover
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => removeImage(i)}
+                  className="absolute top-1 right-1 bg-[#0a0a0a]/80 text-[#a3a3a3] hover:text-red-400 w-6 h-6 inline-flex items-center justify-center font-mono text-xs border border-[#262626]"
+                  aria-label={`Remove photo ${i + 1}`}
+                  data-testid={`showcase-image-remove-${i}`}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <select
+        value={form.product_slug} onChange={(e) => setForm({ ...form, product_slug: e.target.value })}
+        className="bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+        data-testid="showcase-product"
+      >
         <option value="">— Tag a product (optional) —</option>
         {products.map((p) => <option key={p.slug} value={p.slug}>{p.title}</option>)}
       </select>
-      <select value={form.maker_slug} onChange={(e) => setForm({ ...form, maker_slug: e.target.value })}
-              className="bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
-              data-testid="showcase-maker">
+      <select
+        value={form.maker_slug} onChange={(e) => setForm({ ...form, maker_slug: e.target.value })}
+        className="bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+        data-testid="showcase-maker"
+      >
         <option value="">— Tag a maker (optional) —</option>
         {makers.map((m) => <option key={m.slug} value={m.slug}>{m.name}</option>)}
       </select>
-      <textarea required placeholder="Tell us about it…" rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
-                className="md:col-span-2 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs resize-y"
-                data-testid="showcase-description" />
-      <button type="submit" disabled={busy} className="btn-industrial btn-primary md:col-span-2 disabled:opacity-50" data-testid="showcase-submit">
+
+      {/* Description + AI assist */}
+      <div className="md:col-span-2">
+        <div className="flex items-center justify-between mb-1">
+          <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+            Tell us about it
+          </label>
+          <button
+            type="button"
+            onClick={runAiDescribe}
+            disabled={aiBusy || !form.title.trim()}
+            className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] hover:text-[#e5e5e5] disabled:opacity-40 disabled:cursor-not-allowed transition"
+            data-testid="showcase-ai-describe"
+            title={form.title.trim() ? "Let AI draft a description from your title and tags" : "Add a title first"}
+          >
+            {aiBusy ? "✨ Writing…" : "✨ Help me write this"}
+          </button>
+        </div>
+        <textarea
+          required placeholder="What stands out, where it lives, why you love it…"
+          rows={3} value={form.description}
+          onChange={(e) => setForm({ ...form, description: e.target.value })}
+          className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs resize-y"
+          data-testid="showcase-description"
+        />
+      </div>
+
+      {err && (
+        <p className="md:col-span-2 font-mono text-xs text-red-400" data-testid="showcase-form-error">
+          {err}
+        </p>
+      )}
+
+      <button
+        type="submit" disabled={busy || uploading || images.length === 0}
+        className="btn-industrial btn-primary md:col-span-2 disabled:opacity-50"
+        data-testid="showcase-submit"
+      >
         {busy ? "Posting…" : "Post →"}
       </button>
     </form>
@@ -297,10 +483,28 @@ function ShowcaseForm({ onSaved }) {
 
 function ShowcaseCard({ post, onLike, canLike }) {
   const [liked, setLiked] = useState(false);
+  // iter114 — multi-image showcase posts: render the cover + badge the
+  // gallery size when there's more than one photo. Falls back to the
+  // legacy `image_url` for posts created before iter114.
+  const imageUrls = (post.image_urls && post.image_urls.length > 0)
+    ? post.image_urls
+    : (post.image_url ? [post.image_url] : []);
+  const cover = imageUrls[0];
+  const extraCount = Math.max(0, imageUrls.length - 1);
   return (
     <div className="border border-[#262626] hover:border-[#ff4500] transition group" data-testid={`showcase-${post.id}`}>
-      <div className="aspect-[4/3] overflow-hidden bg-[#121212]">
-        <img src={post.image_url} alt={post.title} className="w-full h-full object-cover group-hover:scale-105 transition duration-700" />
+      <div className="aspect-[4/3] overflow-hidden bg-[#121212] relative">
+        {cover && (
+          <img src={cover} alt={post.title} className="w-full h-full object-cover group-hover:scale-105 transition duration-700" />
+        )}
+        {extraCount > 0 && (
+          <span
+            className="absolute bottom-2 right-2 bg-[#0a0a0a]/85 border border-[#262626] text-[#e5e5e5] font-mono text-[10px] uppercase tracking-[0.18em] px-2 py-1"
+            data-testid={`showcase-${post.id}-image-count`}
+          >
+            +{extraCount} more
+          </span>
+        )}
       </div>
       <div className="p-4">
         <div className="font-display text-xl mb-1">{post.title}</div>

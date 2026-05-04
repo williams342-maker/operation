@@ -841,6 +841,24 @@ export const uploadForumAttachment = (file) => {
     .then((r) => r.data);
 };
 
+// iter114 — Showcase form: multi-image upload + AI description help.
+export const uploadShowcaseImage = (file, opts = {}) => {
+  const fd = new FormData();
+  fd.append("file", file);
+  return http
+    .post("/community/showcase/upload", fd, {
+      headers: { ...buyerAuthHeaders(), "Content-Type": "multipart/form-data" },
+      onUploadProgress: opts.onProgress
+        ? (e) => opts.onProgress(e.total ? Math.round((e.loaded / e.total) * 100) : 0)
+        : undefined,
+    })
+    .then((r) => r.data);
+};
+export const aiDescribeShowcase = (payload) =>
+  http
+    .post("/community/showcase/ai-describe", payload, { headers: buyerAuthHeaders() })
+    .then((r) => r.data);
+
 // Moderator deletes — accepts admin OR maker JWT (backend checks role).
 const modAuthHeaders = () => {
   const t = localStorage.getItem("cm_admin_jwt") || localStorage.getItem("cm_maker_jwt");

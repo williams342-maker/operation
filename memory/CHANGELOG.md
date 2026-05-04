@@ -1,5 +1,34 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05 — iter114 — Multi-image showcase + AI description help ✅
+
+**Why:** The Community → Showcase form had two friction points killing post quality and frequency:
+1. **One image only**, and even that one had to be a *URL paste* — buyers had no way to actually upload the photos they took on their phone of the finished piece. Most just gave up.
+2. **Blank description box.** Buyers don't know what to say beyond "looks great" so they either wrote one-liners or didn't post at all. Meanwhile the listing editor (maker side) has had AI description help for ages — Showcase was the obvious next surface.
+
+**What:**
+
+### Multi-image upload
+- New `ShowcasePost.image_urls: List[str]` field. `image_url` retained as backwards-compat (always populated with `image_urls[0]` server-side, so old card renderers keep working).
+- New endpoint `POST /api/community/showcase/upload` — image-only, JPG/PNG/WebP/GIF, ≤ 8MB each, R2-backed, scoped under `showcase/<user_id>/<uuid>.<ext>` (separate namespace from forum uploads).
+- Server-side cap of 8 photos per post — even if a malicious client posts 50 URLs, the server truncates silently (never trust client validation).
+- Frontend: replaced the single URL paste input with a real file picker (`accept="image/*" multiple`), tile preview grid with cover badge + per-photo remove (×) button, sequential upload to keep progress legible, "Add more (X/8)" affordance once at least one photo is in.
+- `ShowcaseCard` updated to render `image_urls[0]` as the cover with a `+N more` badge in the bottom-right when the post has multiple photos. Old single-image posts continue to render unchanged.
+
+### AI description help
+- New endpoint `POST /api/community/showcase/ai-describe`, body `{title, image_urls?, product_slug?, maker_slug?}` → `{description}`.
+- Reuses the established `_claude_async` helper from `routers/ai_marketing.py` (Claude Haiku 4.5 via emergentintegrations + Emergent LLM key) — same model, same JSON-or-fail-open behavior as the maker listing-copy generator.
+- When `product_slug` is tagged, the prompt is enriched with the product's title, category, maker name, and description — so the LLM riffs on real details instead of inventing them. Same for `maker_slug` (tagline/bio). Photo count surfaced ("Buyer attached 3 photo(s)") so the model can match the specificity of the description to how much the buyer is showing off.
+- Frontend: small **"✨ Help me write this"** button in the description label row. Disabled when the title is empty (with a tooltip explaining why). Calls the endpoint, drops the result into the textarea — buyer can edit / regenerate / discard freely.
+- **Fail-open:** LLM error / timeout → endpoint returns `{description: ""}` and the UI shows "AI couldn't generate one right now — write your own and try again later." Never throws a 500 at the buyer.
+
+**Tested:** `tests/test_iter114_showcase_multi_image_ai.py` — 12 tests covering: new `image_urls` payload accepted with backward-compat field back-fill, legacy single `image_url` payload still works, no-images is rejected, server-side 8-photo cap enforced, upload route rejects non-images and oversized files, R2-down returns 503 cleanly, `ai-describe` requires title, returns description on Claude success, fails open with empty string on Claude failure, prompt includes product/maker context when slugs are tagged, endpoint requires authenticated buyer. **12/12 green.**
+
+**Verified live:** Playwright signed in as a test buyer, opened the Community → Showcase → New form. Confirmed file input has `multiple` + `accept="image/*"`, AI button is correctly disabled before title is typed and enables after, submit is correctly disabled until at least one image lands. Visual screenshot shows the rebuilt form: dashed photo-drop zone with "+ Add Photos" affordance, "✨ Help me write this" button next to "Tell us about it" label, clean 2-column layout.
+
+---
+
+
 ## 2026-05 — iter112 + iter113 — "It's live" launch button + Maker restock-digest opt-out ✅
 
 Two P3s shipped together — both close loops on flywheels we built earlier this session.

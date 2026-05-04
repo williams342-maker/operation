@@ -217,7 +217,11 @@ async def community_me(claims: dict = Depends(current_buyer)):
 class ShowcasePost(BaseModel):
     title: str
     description: str
-    image_url: str               # buyer pastes a URL or uses uploaded asset
+    # iter114 — multi-image showcase. New posts populate `image_urls`;
+    # `image_url` is kept for backwards compat with the existing card UI
+    # (it always holds image_urls[0] when present).
+    image_url: Optional[str] = None
+    image_urls: List[str] = []
     product_slug: Optional[str] = None
     maker_slug: Optional[str] = None
 
@@ -230,13 +234,28 @@ async def list_showcase(limit: int = 50):
 @router.post("/community/showcase")
 async def create_showcase(post: ShowcasePost, claims: dict = Depends(current_buyer)):
     user = await db.community_users.find_one({"user_id": claims["sub"]}, {"_id": 0})
+    if not user:
+        raise HTTPException(404, "User not found")
+    # Normalize image fields — accept either shape from the client and
+    # land both populated in the DB so old + new card renderers both work.
+    payload = post.model_dump()
+    urls = list(payload.get("image_urls") or [])
+    if payload.get("image_url") and payload["image_url"] not in urls:
+        urls.insert(0, payload["image_url"])
+    if not urls:
+        raise HTTPException(400, "At least one image is required.")
+    # Soft cap matches the frontend picker — 8 photos per showcase post.
+    urls = urls[:8]
+    payload["image_urls"] = urls
+    payload["image_url"] = urls[0]
+
     doc = {
         "id": str(uuid.uuid4()),
         "user_id": claims["sub"],
         "user_email": user["email"],
         "user_name": user.get("name", ""),
         "user_picture": user.get("picture", ""),
-        **post.model_dump(),
+        **payload,
         "likes": 0,
         "created_at": now_iso(),
     }
@@ -251,6 +270,102 @@ async def like_showcase(post_id: str, claims: dict = Depends(current_buyer)):
     if r.matched_count == 0:
         raise HTTPException(404, "Post not found")
     return {"ok": True}
+
+
+# ===================== SHOWCASE — multi-image upload (iter114) =====================
+SHOWCASE_MAX_IMAGE_BYTES = 8 * 1024 * 1024          # per-file, matches forum
+SHOWCASE_ALLOWED_IMG_EXT = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
+
+
+@router.post("/community/showcase/upload")
+async def upload_showcase_image(
+    file: UploadFile = File(...), claims: dict = Depends(current_buyer),
+):
+    """Image-only uploader for the showcase form. The frontend calls this
+    once per picked file (the picker accepts up to 8) and accumulates the
+    returned URLs into `image_urls[]` before POST /community/showcase."""
+    await _ensure_user_can_post(claims["sub"])
+    from r2_storage import is_configured as r2_ok, upload_bytes
+    if not r2_ok():
+        raise HTTPException(503, "File uploads are not configured.")
+    raw = await file.read()
+    size = len(raw)
+    mime = (file.content_type or "").lower()
+    name = file.filename or "upload"
+    ext = ("." + name.rsplit(".", 1)[-1].lower()) if "." in name else ""
+    if ext not in SHOWCASE_ALLOWED_IMG_EXT or not mime.startswith("image/"):
+        raise HTTPException(400, f"Images only — got '{name}' ({mime or ext or 'unknown'})")
+    if size > SHOWCASE_MAX_IMAGE_BYTES:
+        raise HTTPException(400, f"Image must be ≤ {SHOWCASE_MAX_IMAGE_BYTES // (1024 * 1024)}MB.")
+    key = f"showcase/{claims['sub']}/{uuid.uuid4().hex}{ext}"
+    url = upload_bytes(data=raw, key=key, content_type=mime)
+    return {"url": url, "filename": name[:120], "size": size}
+
+
+# ===================== SHOWCASE — AI description help (iter114) =====================
+class _ShowcaseAiBody(BaseModel):
+    title: str
+    image_urls: List[str] = []
+    product_slug: Optional[str] = None
+    maker_slug: Optional[str] = None
+
+
+@router.post("/community/showcase/ai-describe")
+async def ai_describe_showcase(body: _ShowcaseAiBody, claims: dict = Depends(current_buyer)):
+    """Generate a punchy 2-3 sentence showcase description from the title +
+    optional product/maker context. Fail-open: returns `{description: ""}`
+    on any LLM error so the UI can fall back to manual entry without a
+    broken state."""
+    title = (body.title or "").strip()
+    if not title:
+        raise HTTPException(400, "Title is required to generate a description.")
+
+    # Pull product/maker context if tagged — gives the model concrete details
+    # to riff on instead of inventing them. We keep this lightweight: just
+    # the surface fields, no full-doc spew.
+    context_lines: list[str] = []
+    if body.product_slug:
+        p = await db.products.find_one(
+            {"slug": body.product_slug},
+            {"_id": 0, "title": 1, "category": 1, "description": 1, "maker_name": 1},
+        )
+        if p:
+            context_lines.append(f"Tagged product: {p.get('title','')} "
+                                 f"(category: {p.get('category','')}, "
+                                 f"maker: {p.get('maker_name','')})")
+            if p.get("description"):
+                context_lines.append(f"Product description: {p['description'][:400]}")
+    if body.maker_slug and not body.product_slug:
+        m = await db.makers.find_one(
+            {"slug": body.maker_slug},
+            {"_id": 0, "name": 1, "tagline": 1, "bio": 1},
+        )
+        if m:
+            context_lines.append(f"Tagged maker: {m.get('name','')} — {m.get('tagline','') or m.get('bio','')[:200]}")
+    if body.image_urls:
+        context_lines.append(f"Buyer attached {len(body.image_urls)} photo(s) of the piece.")
+
+    user_msg = (
+        f"Title: {title}\n"
+        + ("\n".join(context_lines) if context_lines else "(No additional context provided.)")
+        + "\n\nWrite a 2-3 sentence first-person description that captures why "
+          "the buyer loves this piece, where it lives in their space, and what "
+          "stands out about the craftsmanship. Conversational, not salesy. "
+          "Return ONLY a JSON object: {\"description\": \"...\"}."
+    )
+    system_msg = (
+        "You are a concise copywriter helping buyers post about a "
+        "hand-built CNC art / wood / metal piece they bought on Crafters Market. "
+        "Respond ONLY with valid JSON: {\"description\": \"...\"}. "
+        "Keep the description 2-3 sentences, under 280 characters, "
+        "warm and authentic, no marketing fluff."
+    )
+    # Reuse the established `_claude_async` helper from ai_marketing — same
+    # model (claude-haiku-4-5), same JSON-or-fail-open behavior.
+    from routers.ai_marketing import _claude_async
+    parsed = await _claude_async(system_msg, user_msg)
+    desc = ((parsed or {}).get("description") or "").strip()
+    return {"description": desc}
 
 
 # ===================== DESIGN FILES (with paywall) =====================

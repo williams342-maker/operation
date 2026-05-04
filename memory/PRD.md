@@ -81,6 +81,7 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - ✅ IndexNow on-demand search-engine ping (Bing/Yandex/Naver/Seznam/Yep) + admin card (iter111)
 - ✅ "It's live" launch button on Coming Soon admin tab — auto-emails the waitlist (iter112)
 - ✅ Maker-side opt-out toggle for the weekly Restock digest (iter113)
+- ✅ Multi-image upload + AI description help on Community Showcase (iter114)
 
 ## Next Action Items
 *(All P1/P2/P3s from the original handoff backlog are now shipped or blocked on user paperwork.)*
