@@ -1,0 +1,275 @@
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
+import { fetchChatHistory, wsChatUrl } from "../lib/api";
+import { useSiteSettings } from "../hooks/useSiteSettings";
+
+// Floating live-chat popup → community #help channel.
+// Mounts globally so shoppers can chat from any page without leaving.
+// Auto-hides when:
+//  - admin disables `live_chat_enabled` site-setting
+//  - the user is on /community (full chat page already there)
+//  - the user is on /admin or /maker (operator console — irrelevant noise)
+const STORAGE_OPEN = "cm_live_chat_open";
+const STORAGE_DISMISSED = "cm_live_chat_dismissed_at";
+const DISMISS_DAYS = 3;
+const CHANNEL = "help";
+
+function getToken() {
+  return (
+    localStorage.getItem("cm_buyer_jwt") ||
+    localStorage.getItem("cm_maker_jwt") ||
+    localStorage.getItem("cm_admin_jwt") ||
+    ""
+  );
+}
+
+function recentlyDismissed() {
+  try {
+    const ts = parseInt(localStorage.getItem(STORAGE_DISMISSED) || "0", 10);
+    return ts && Date.now() - ts < DISMISS_DAYS * 86400 * 1000;
+  } catch {
+    return false;
+  }
+}
+
+export default function LiveChatWidget() {
+  const settings = useSiteSettings();
+  const [open, setOpen] = useState(() => {
+    try { return localStorage.getItem(STORAGE_OPEN) === "1"; } catch { return false; }
+  });
+  const [messages, setMessages] = useState([]);
+  const [draft, setDraft] = useState("");
+  const [unread, setUnread] = useState(0);
+  const [connected, setConnected] = useState(false);
+  const [buddies, setBuddies] = useState([]);
+  const wsRef = useRef(null);
+  const scrollRef = useRef(null);
+
+  const token = useMemo(() => getToken(), []);
+  const enabled = !settings || settings.live_chat_enabled !== false;
+
+  const path = typeof window !== "undefined" ? window.location.pathname : "";
+  const onChatPage = path.startsWith("/community") || path.startsWith("/admin") || path.startsWith("/maker");
+
+  // Open ↔ close persistence + clear unread when opened
+  useEffect(() => {
+    try { localStorage.setItem(STORAGE_OPEN, open ? "1" : "0"); } catch { /* ignore */ }
+    if (open) setUnread(0);
+  }, [open]);
+
+  // Auto-scroll on new messages while open
+  useEffect(() => {
+    if (open && scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages, open]);
+
+  // Connect WebSocket once we have a token; reconnect on unmount only.
+  useEffect(() => {
+    if (!enabled || onChatPage || !token) return;
+    let alive = true;
+    let ws = null;
+    let backoff = 1000;
+
+    const connect = () => {
+      if (!alive) return;
+      try {
+        ws = new WebSocket(wsChatUrl(CHANNEL, token));
+      } catch {
+        setConnected(false);
+        return;
+      }
+      wsRef.current = ws;
+      ws.onopen = () => { setConnected(true); backoff = 1000; };
+      ws.onclose = () => {
+        setConnected(false);
+        if (alive) setTimeout(connect, Math.min(backoff *= 2, 15000));
+      };
+      ws.onerror = () => { /* close handler will retry */ };
+      ws.onmessage = (e) => {
+        let msg;
+        try { msg = JSON.parse(e.data); } catch { return; }
+        if (msg.kind === "presence" || (msg.kind === "system" && msg.buddies)) {
+          setBuddies(msg.buddies || []);
+          if (msg.kind === "presence") return;
+        }
+        if (msg.kind === "typing") return;
+        setMessages((m) => [...m, msg]);
+        if (msg.kind === "message") {
+          // Only count unread when the panel is closed AND it's not our own.
+          setOpen((isOpen) => {
+            if (!isOpen) setUnread((u) => u + 1);
+            return isOpen;
+          });
+        }
+      };
+    };
+
+    // Backfill recent history before live socket joins so the panel isn't empty.
+    fetchChatHistory(CHANNEL).then((hist) => {
+      if (alive) setMessages(hist || []);
+    }).catch(() => {});
+    connect();
+
+    return () => {
+      alive = false;
+      try { ws && ws.close(); } catch { /* ignore */ }
+    };
+  }, [enabled, onChatPage, token]);
+
+  if (!enabled || onChatPage) return null;
+  if (!open && recentlyDismissed()) return null;
+
+  const send = (e) => {
+    e?.preventDefault?.();
+    const text = draft.trim();
+    const ws = wsRef.current;
+    if (!text || !ws || ws.readyState !== 1) return;
+    ws.send(JSON.stringify({ text }));
+    setDraft("");
+  };
+
+  const dismiss = () => {
+    try { localStorage.setItem(STORAGE_DISMISSED, String(Date.now())); } catch { /* ignore */ }
+    setOpen(false);
+  };
+
+  // Floating launcher button (when collapsed)
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        data-testid="live-chat-launcher"
+        aria-label="Open live chat"
+        className="fixed bottom-6 left-6 z-[60] flex items-center gap-2 px-4 py-3 bg-[#0a0a0a] border border-[#ff4500] hover:bg-[#ff4500] hover:text-[#0a0a0a] text-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em] transition shadow-[0_8px_24px_rgba(0,0,0,0.5)]"
+      >
+        <span aria-hidden>◆</span>
+        Live chat
+        {unread > 0 && (
+          <span
+            data-testid="live-chat-unread"
+            className="ml-1 px-1.5 py-0.5 bg-[#ff4500] text-[#0a0a0a] text-[10px] leading-none font-bold"
+          >
+            {unread > 9 ? "9+" : unread}
+          </span>
+        )}
+      </button>
+    );
+  }
+
+  // Expanded panel
+  return (
+    <div
+      data-testid="live-chat-panel"
+      className="fixed bottom-6 left-6 z-[60] w-[min(92vw,360px)] h-[min(72vh,520px)] bg-[#0a0a0a] border border-[#262626] flex flex-col shadow-[0_12px_36px_rgba(0,0,0,0.7)]"
+    >
+      {/* Header */}
+      <div className="px-4 py-3 border-b border-[#262626] flex items-center gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">
+            ◆ Live chat · #help
+          </div>
+          <div className="font-mono text-[10px] text-[#a3a3a3] mt-0.5">
+            {connected
+              ? `${buddies.length || 0} online`
+              : token ? "Connecting…" : "Sign in to join"}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          aria-label="Minimise chat"
+          data-testid="live-chat-minimise"
+          className="font-mono text-[18px] text-[#525252] hover:text-[#e5e5e5] leading-none px-1"
+          title="Minimise"
+        >
+          –
+        </button>
+        <button
+          type="button"
+          onClick={dismiss}
+          aria-label="Hide for 3 days"
+          data-testid="live-chat-dismiss"
+          className="font-mono text-[14px] text-[#525252] hover:text-rose-400 leading-none px-1"
+          title="Hide for 3 days"
+        >
+          ×
+        </button>
+      </div>
+
+      {/* Body */}
+      {!token ? (
+        <div className="flex-1 flex flex-col items-center justify-center text-center px-6 gap-3">
+          <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed">
+            Sign in to chat with the workshop crew and other shoppers.
+          </p>
+          <Link
+            to="/community/login"
+            data-testid="live-chat-signin"
+            className="px-3 py-2 border border-[#ff4500] text-[#ff4500] hover:bg-[#ff4500] hover:text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] transition"
+          >
+            Sign in →
+          </Link>
+        </div>
+      ) : (
+        <>
+          <div
+            ref={scrollRef}
+            className="flex-1 overflow-y-auto px-3 py-2 space-y-2"
+            data-testid="live-chat-messages"
+          >
+            {messages.length === 0 && (
+              <div className="font-mono text-[10px] text-[#525252] text-center py-6">
+                Be the first to say hi.
+              </div>
+            )}
+            {messages
+              .filter((m) => m.kind === "message" || m.kind === "system")
+              .slice(-80)
+              .map((m, i) => (
+                <div
+                  key={m.id || `${m.created_at}-${i}`}
+                  className="font-mono text-xs leading-relaxed"
+                  data-testid={`live-chat-msg-${i}`}
+                >
+                  {m.kind === "system" ? (
+                    <div className="text-[#525252] italic">— {m.text} —</div>
+                  ) : (
+                    <div>
+                      <span className="text-[#ff4500]">{m.user_name || "anon"}</span>
+                      <span className="text-[#525252]"> · </span>
+                      <span className="text-[#e5e5e5]">{m.text}</span>
+                    </div>
+                  )}
+                </div>
+              ))}
+          </div>
+          <form
+            onSubmit={send}
+            className="border-t border-[#262626] flex"
+            data-testid="live-chat-form"
+          >
+            <input
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              placeholder={connected ? "Type a message…" : "Reconnecting…"}
+              disabled={!connected}
+              maxLength={500}
+              data-testid="live-chat-input"
+              className="flex-1 bg-transparent outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5] placeholder:text-[#525252] disabled:opacity-50"
+            />
+            <button
+              type="submit"
+              disabled={!connected || !draft.trim()}
+              data-testid="live-chat-send"
+              className="px-3 font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] hover:bg-[#ff4500] hover:text-[#0a0a0a] transition border-l border-[#262626] disabled:opacity-30"
+            >
+              Send →
+            </button>
+          </form>
+        </>
+      )}
+    </div>
+  );
+}

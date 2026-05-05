@@ -1,5 +1,34 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05-05 — Live chat is now a floating popup ✅
+
+Added `frontend/src/components/LiveChatWidget.jsx` — a floating
+bottom-left chat launcher that expands into a 360×520 panel wired to the
+existing `wsChatUrl('help', token)` WebSocket. Mounts globally in `App.js`
+so shoppers can chat with the workshop crew from any page (shop, product
+detail, cart, etc.) without leaving what they're browsing.
+
+### Behavior
+- **Auto-hides** on `/community` (full chat page already there), `/admin`, `/maker`
+- **Auto-hides** when admin disables `live_chat_enabled` site setting
+- **Sign-in CTA** when no buyer/maker/admin token is present
+- **WebSocket auto-reconnect** with exponential backoff (1s → 15s cap)
+- **History backfill** via `fetchChatHistory('help')` so panel isn't empty on first open
+- **Unread badge** on launcher when closed and new messages arrive
+- **Persistence**: open/closed state in `localStorage` (`cm_live_chat_open`)
+- **Dismiss**: × button hides the widget for 3 days (`cm_live_chat_dismissed_at`)
+- **Mobile-responsive**: `w-[min(92vw,360px)]` so it fits any phone
+
+### Why bottom-left
+Bottom-right is already busy: AIAssistant button (bottom-24/right-6),
+Made-with-Emergent badge, install PWA banner. Bottom-left is unused and
+keeps the operator-grade widgets clearly visually separated.
+
+### Verified
+- Launcher renders on /shop, expands on click, shows sign-in CTA when no token
+- Panel disappears on /community (no overlap with full ChatTab)
+- WebSocket connects when token is present (curl + browser verified)
+
 ## 2026-05-05 — PWA: shoppers can install Crafters Market as an Android/Chrome app ✅
 
 Picked option (a) PWA over Capacitor/TWA/React Native — same codebase, ships

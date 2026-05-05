@@ -49,6 +49,7 @@ import MakerBriefPrintPage from "./pages/MakerBriefPrintPage";
 import MakerBillingRedirect from "./pages/MakerBillingRedirect";
 import AIAssistant from "./components/AIAssistant";
 import InstallPwaButton from "./components/InstallPwaButton";
+import LiveChatWidget from "./components/LiveChatWidget";
 import MaintenancePage from "./components/MaintenancePage";
 import BetaBanner from "./components/BetaBanner";
 import CNCEmblem from "./components/CNCEmblem";
@@ -210,6 +211,7 @@ function App() {
           }}
         />
         <InstallPwaButton />
+        <LiveChatWidget />
       </BrowserRouter>
     </CartProvider>
   );
