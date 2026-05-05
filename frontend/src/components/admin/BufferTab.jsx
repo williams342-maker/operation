@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   fetchBufferStatus, fetchBufferPosts, adminBufferPost,
+  adminBufferBackfill5star,
 } from "../../lib/api";
 import { Stat } from "./_shared";
 
@@ -59,6 +60,10 @@ export default function BufferTab() {
   const [imageUrl, setImageUrl] = useState("");
   const [selected, setSelected] = useState([]);
   const [submitting, setSubmitting] = useState(false);
+  const [backfillDays, setBackfillDays] = useState(7);
+  const [backfillForce, setBackfillForce] = useState(false);
+  const [backfilling, setBackfilling] = useState(false);
+  const [backfillResult, setBackfillResult] = useState(null);
 
   const channels = status?.channels || [];
 
@@ -131,6 +136,31 @@ export default function BufferTab() {
     }
   };
 
+  const runBackfill = async () => {
+    setBackfilling(true);
+    setBackfillResult(null);
+    try {
+      const r = await adminBufferBackfill5star({
+        days: backfillDays,
+        max_to_post: 20,
+        force: backfillForce,
+      });
+      setBackfillResult(r);
+      if (r.posted > 0) {
+        toast.success(`Posted ${r.posted} 5★ review${r.posted === 1 ? "" : "s"} (scanned ${r.scanned}, skipped ${r.skipped}, failed ${r.failed}).`);
+      } else if (r.scanned === 0) {
+        toast.message("No un-posted 5★ reviews in that window.");
+      } else {
+        toast.warning(`Scanned ${r.scanned}, posted 0 (skipped ${r.skipped}, failed ${r.failed}). See details below.`);
+      }
+      await load();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Backfill failed.");
+    } finally {
+      setBackfilling(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#525252] py-12 text-center" data-testid="buffer-tab-loading">
@@ -186,6 +216,80 @@ export default function BufferTab() {
                 />
               ))}
             </div>
+          </div>
+
+          <div className="border border-[#262626] p-4 space-y-3" data-testid="buffer-backfill-card">
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <div className="min-w-0">
+                <div className="font-display text-lg uppercase text-[#e5e5e5]">Backfill 5★ reviews</div>
+                <p className="font-mono text-[11px] text-[#a3a3a3] leading-relaxed mt-1 max-w-2xl">
+                  Scan recent 5-star reviews that haven't been auto-posted yet and queue them on every connected channel. Idempotent —
+                  reviews already stamped with <code>posted_to_buffer_at</code> are skipped. Useful right after enabling the toggle so
+                  makers' historical raves aren't stuck unposted.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 flex-wrap">
+              <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+                Window:
+                <select
+                  value={backfillDays}
+                  onChange={(e) => setBackfillDays(parseInt(e.target.value, 10))}
+                  data-testid="buffer-backfill-days"
+                  className="ml-2 bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-2 py-1 font-mono text-xs text-[#e5e5e5]"
+                >
+                  <option value={3}>Last 3 days</option>
+                  <option value={7}>Last 7 days</option>
+                  <option value={14}>Last 14 days</option>
+                  <option value={30}>Last 30 days</option>
+                  <option value={60}>Last 60 days</option>
+                  <option value={90}>Last 90 days</option>
+                </select>
+              </label>
+              <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={backfillForce}
+                  onChange={(e) => setBackfillForce(e.target.checked)}
+                  data-testid="buffer-backfill-force"
+                />
+                Force (bypass setting toggle for this run)
+              </label>
+              <button
+                type="button"
+                onClick={runBackfill}
+                disabled={backfilling}
+                data-testid="buffer-backfill-btn"
+                className="btn-industrial btn-primary text-xs disabled:opacity-50"
+              >
+                {backfilling ? "Backfilling…" : "↺ Send last week's 5★"}
+              </button>
+            </div>
+
+            {backfillResult && (
+              <div className="border border-[#ff4500]/40 bg-[#ff4500]/5 p-3 space-y-2" data-testid="buffer-backfill-result">
+                <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">
+                  ◆ Scanned {backfillResult.scanned} · Posted {backfillResult.posted} · Skipped {backfillResult.skipped} · Failed {backfillResult.failed}
+                </div>
+                {(backfillResult.results || []).slice(0, 10).map((r, i) => (
+                  <div key={i} className="font-mono text-[10px] text-[#a3a3a3] grid grid-cols-[80px_1fr_120px] gap-2">
+                    <span className={r.outcome === "posted" ? "text-emerald-400" : r.outcome === "error" ? "text-red-400" : "text-[#525252]"}>
+                      {r.outcome.toUpperCase()}
+                    </span>
+                    <span className="truncate">{r.maker_slug || "—"} · {(r.review_id || "").slice(0, 8)}</span>
+                    <span className="text-right truncate" title={r.error || r.reason || ""}>
+                      {r.outcome === "posted" ? `${r.channels_ok}/${r.channels_ok + r.channels_failed} ch` : (r.error || r.reason || "").slice(0, 40)}
+                    </span>
+                  </div>
+                ))}
+                {(backfillResult.results || []).length > 10 && (
+                  <div className="font-mono text-[10px] text-[#525252]">
+                    + {backfillResult.results.length - 10} more rows…
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <form onSubmit={submit} className="border border-[#262626] p-4 space-y-3" data-testid="buffer-composer">

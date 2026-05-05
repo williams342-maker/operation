@@ -496,6 +496,8 @@ export const fetchBufferPosts = (limit = 50) =>
   http.get("/admin/buffer/posts", { params: { limit }, headers: adminAuthHeaders() }).then((r) => r.data);
 export const adminBufferPost = (payload) =>
   http.post("/admin/buffer/post", payload, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const adminBufferBackfill5star = (payload) =>
+  http.post("/admin/buffer/backfill-5star-reviews", payload || {}, { headers: adminAuthHeaders() }).then((r) => r.data);
 export const makerShareListingToBuffer = (slug) =>
   http
     .post(`/maker/buffer/share-listing/${slug}`, {}, { headers: authHeaders() })

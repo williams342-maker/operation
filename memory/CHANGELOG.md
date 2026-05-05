@@ -1,5 +1,12 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05-05 — 5★ review backfill button (admin Social tab) ✅
+- New `POST /api/admin/buffer/backfill-5star-reviews` — scans `reviews` for un-posted 5★s in the last `days` days (default 7, capped at 90), funnels each through `auto_post_5star_review`. Idempotent — the function's own `posted_to_buffer_at` stamp prevents repeat posts.
+- `force=true` flag temporarily flips the `auto_publish_5star_reviews_enabled` site-setting ON for the call, then restores it. Lets ops do a one-off backfill without permanently flipping the daily auto-flow ON.
+- Per-review `outcome` (posted | skipped | error) returned for ops visibility. Audit-logged to `db.audit_log`.
+- BufferTab UI: new "Backfill 5★ reviews" card with window selector (3/7/14/30/60/90 days), force checkbox, button, and inline result table.
+- Verified end-to-end: 1 historical 5★ review posted to 2/4 channels (the 2 failures = real Buffer rate-limit on duplicate text from earlier test; not a bug). Re-running returns scanned=0 (idempotent).
+
 ## 2026-05-05 — P0 Buffer 5-star auto-publish + P3 Kit dormant-buyer fix ✅
 
 ### P0 — 5-star reviews → Buffer
