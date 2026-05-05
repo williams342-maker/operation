@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import {
   fetchShowcase, createShowcase, likeShowcase,
   fetchDesignFiles, fetchDesignFilesLeaderboard, downloadDesignFile, unlockDownloadsCheckout, uploadDesignFile, uploadDesignFileDirect,
+  addDesignFileVariants, deleteDesignFileVariant,
   reportDesignFile, convertDxfToSvg, renderStlThumbnail,
   fetchForumThreads, fetchForumThread, fetchForumCategories,
   createForumThread, replyForumThread, uploadForumAttachment,
@@ -694,6 +695,9 @@ function FileUploadForm({ onSaved }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const isMaker = !!localStorage.getItem("cm_maker_jwt");
+  // Ref so the "+ Add another file" button can re-open the native picker
+  // dialog without forcing the operator to scroll back up to the input.
+  const pickerRef = React.useRef(null);
 
   const inferFmt = (file) => {
     const ext = (file.name.split(".").pop() || "").toUpperCase();
@@ -703,9 +707,9 @@ function FileUploadForm({ onSaved }) {
   const onFileChange = (e) => {
     setErr("");
     const fl = Array.from(e.target.files || []);
-    if (!fl.length) { setPicked([]); return; }
-    if (fl.length > MAX_VARIANTS_PER_BUNDLE) {
-      setErr(`Pick up to ${MAX_VARIANTS_PER_BUNDLE} files per design (one per format).`);
+    if (!fl.length) {
+      // Empty event — happens when the user opens the picker and cancels
+      // out of it. Don't clobber what they already have selected.
       e.target.value = "";
       return;
     }
@@ -715,28 +719,45 @@ function FileUploadForm({ onSaved }) {
       if (file.size > MAX_BUNDLE_BYTES) {
         setErr(`'${file.name}' is ${(file.size / 1024 / 1024).toFixed(1)} MB — must be ≤ 25 MB.`);
         e.target.value = "";
-        setPicked([]);
         return;
       }
     }
-    // Reject duplicate formats client-side so the backend doesn't burn
-    // an upload only to 400 us back. First-of-each-format wins.
-    const seen = new Set();
-    const deduped = [];
-    for (const file of fl) {
-      const fmt = inferFmt(file).toLowerCase();
-      if (seen.has(fmt)) {
-        setErr(`Duplicate format '${fmt}'. Each format may appear once per bundle.`);
-        e.target.value = "";
-        setPicked([]);
-        return;
+    // ACCUMULATE across multiple picker invocations. The native
+    // `<input type=file>` replaces its `.files` list every time you
+    // open it — so without this merge, picking a 2nd file in a 2nd
+    // click silently throws away the first. We dedupe by format
+    // (each format may appear once per bundle) AND by exact name+size
+    // (so re-picking the same file twice doesn't double-add).
+    setPicked((prev) => {
+      const merged = [...prev];
+      const seenFmts = new Set(merged.map((f) => inferFmt(f).toLowerCase()));
+      const seenKeys = new Set(merged.map((f) => `${f.name}::${f.size}`));
+      for (const file of fl) {
+        const fmt = inferFmt(file).toLowerCase();
+        const key = `${file.name}::${file.size}`;
+        if (seenKeys.has(key)) continue;          // exact dup — silently skip
+        if (seenFmts.has(fmt)) {
+          setErr(`Already have a ${fmt.toUpperCase()} file in this bundle. Remove it first if you want to swap.`);
+          continue;
+        }
+        if (merged.length >= MAX_VARIANTS_PER_BUNDLE) {
+          setErr(`Up to ${MAX_VARIANTS_PER_BUNDLE} files per bundle.`);
+          break;
+        }
+        seenFmts.add(fmt);
+        seenKeys.add(key);
+        merged.push(file);
       }
-      seen.add(fmt);
-      deduped.push(file);
-    }
-    // Auto-detect primary format from the first picked file.
-    setF((c) => ({ ...c, file_type: inferFmt(deduped[0]) }));
-    setPicked(deduped);
+      // Auto-detect primary format from the first file in the merged list.
+      if (merged.length) {
+        setF((c) => ({ ...c, file_type: inferFmt(merged[0]) }));
+      }
+      return merged;
+    });
+    // Clear the input value so the SAME file can be re-picked after a
+    // remove (otherwise Chrome blocks the re-selection because nothing
+    // changed).
+    e.target.value = "";
   };
 
   const removePicked = (idx) => {
@@ -825,8 +846,9 @@ function FileUploadForm({ onSaved }) {
         ) : (
           <div className="relative flex items-center border border-[#262626] focus-within:border-[#ff4500] px-3 py-2">
             <input
+              ref={pickerRef}
               type="file"
-              required
+              required={!picked.length}
               multiple
               accept={ACCEPTED_ATTR}
               onChange={onFileChange}
@@ -841,8 +863,8 @@ function FileUploadForm({ onSaved }) {
       {/* Multi-file picker hint — only for upload mode. */}
       {mode === "upload" && (
         <p className="font-mono text-[10px] text-[#525252] -mt-2" data-testid="file-multi-hint">
-          Tip: select multiple files at once to bundle formats for the same design
-          — e.g. <span className="text-[#ff4500]">hero.jpg + model.stl + cut.dxf + program.gcode</span>.
+          Tip: <strong className="text-[#a3a3a3]">click the picker again</strong> to add another format to the same bundle —
+          e.g. <span className="text-[#ff4500]">hero.jpg + model.stl + cut.dxf + program.gcode</span>.
           The first file picked is the primary; the rest become variants. Up to {MAX_VARIANTS_PER_BUNDLE} per bundle, ≤ 25 MB each.
         </p>
       )}
@@ -923,6 +945,22 @@ function FileUploadForm({ onSaved }) {
               </li>
             );
           })}
+          {/* Explicit "add more" affordance — much clearer than asking
+              the user to re-trigger the file input above. Clicking
+              opens the native picker again; new files are merged
+              (deduped) into the existing bundle. */}
+          {picked.length < MAX_VARIANTS_PER_BUNDLE && (
+            <li>
+              <button
+                type="button"
+                onClick={() => pickerRef.current?.click()}
+                className="w-full px-3 py-2 border border-dashed border-[#ff4500]/50 hover:border-[#ff4500] hover:bg-[#ff4500]/5 font-mono text-[11px] uppercase tracking-[0.18em] text-[#ff4500] flex items-center justify-center gap-2 transition"
+                data-testid="file-add-another"
+              >
+                <Plus size={12} /> Add another format ({MAX_VARIANTS_PER_BUNDLE - picked.length} slots left)
+              </button>
+            </li>
+          )}
         </ul>
       )}
 
@@ -969,6 +1007,11 @@ function FileCard({ file, canDownload, me, onRefresh }) {
   const [downloadOpen, setDownloadOpen] = useState(false);
   const [converting, setConverting] = useState(false);
   const [rendering, setRendering] = useState(false);
+  // Owner-side variant management: progress + error state for the
+  // "Add another format" button rendered below the variant list.
+  const [variantUploading, setVariantUploading] = useState(false);
+  const [variantErr, setVariantErr] = useState("");
+  const variantInputRef = React.useRef(null);
   // Only signed-in users can report (same auth gate as the upload path).
   const canReport = !!localStorage.getItem("cm_maker_jwt") || !!localStorage.getItem("cm_buyer_jwt");
   const variants = Array.isArray(file.variants) ? file.variants : [];
@@ -1079,7 +1122,7 @@ function FileCard({ file, canDownload, me, onRefresh }) {
           {variants.map((v) => (
             <span
               key={v.format + (v.url || "")}
-              className={`font-mono text-[10px] uppercase tracking-[0.22em] px-1.5 py-0.5 border ${
+              className={`font-mono text-[10px] uppercase tracking-[0.22em] px-1.5 py-0.5 border inline-flex items-center gap-1 ${
                 v.auto_generated
                   ? "border-[#ff4500]/50 text-[#ff4500] bg-[#ff4500]/5"
                   : "border-[#525252] text-[#a3a3a3]"
@@ -1092,11 +1135,79 @@ function FileCard({ file, canDownload, me, onRefresh }) {
               data-testid={`file-variant-chip-${file.id}-${v.format}`}
             >
               {v.auto_generated && "✦ "}{v.format}
+              {isOwner && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await deleteDesignFileVariant(file.id, v.format);
+                      onRefresh && onRefresh();
+                    } catch (e) {
+                      toast.error(e?.response?.data?.detail || "Couldn't remove variant.");
+                    }
+                  }}
+                  className="ml-0.5 hover:text-red-400 cursor-pointer leading-none"
+                  title="Remove this variant (owner only)"
+                  data-testid={`file-variant-remove-${file.id}-${v.format}`}
+                >
+                  ×
+                </button>
+              )}
             </span>
           ))}
+          {isOwner && variants.length < 9 && (
+            <>
+              <input
+                ref={variantInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                accept=".dxf,.svg,.stl,.f3d,.gcode,.png,.jpg,.jpeg,.webp,.pdf"
+                onChange={async (e) => {
+                  setVariantErr("");
+                  const fl = Array.from(e.target.files || []);
+                  if (!fl.length) return;
+                  const tooBig = fl.find((f) => f.size > 25 * 1024 * 1024);
+                  if (tooBig) {
+                    setVariantErr(`'${tooBig.name}' is over 25 MB.`);
+                    e.target.value = "";
+                    return;
+                  }
+                  setVariantUploading(true);
+                  try {
+                    await addDesignFileVariants(file.id, fl);
+                    toast.success(`Added ${fl.length} format${fl.length === 1 ? "" : "s"} to bundle.`);
+                    onRefresh && onRefresh();
+                  } catch (err) {
+                    const msg = err?.response?.data?.detail || "Couldn't add variant(s).";
+                    setVariantErr(msg);
+                    toast.error(msg);
+                  } finally {
+                    setVariantUploading(false);
+                    e.target.value = "";
+                  }
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => variantInputRef.current?.click()}
+                disabled={variantUploading}
+                className="font-mono text-[10px] uppercase tracking-[0.22em] px-1.5 py-0.5 border border-dashed border-[#ff4500]/60 text-[#ff4500] hover:bg-[#ff4500]/10 inline-flex items-center gap-1 disabled:opacity-50"
+                title="Owner only — add another format (DXF, SVG, STL, F3D, GCODE, JPG, PNG, PDF)"
+                data-testid={`file-add-variant-${file.id}`}
+              >
+                <Plus size={10} /> {variantUploading ? "Uploading…" : "Add format"}
+              </button>
+            </>
+          )}
         </div>
         <span className="font-mono text-[10px] text-[#525252] shrink-0">{file.downloads} downloads</span>
       </div>
+      {isOwner && variantErr && (
+        <p className="font-mono text-[10px] text-red-400" data-testid={`file-variant-err-${file.id}`}>
+          ⊗ {variantErr}
+        </p>
+      )}
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="font-display text-xl leading-tight flex-1 min-w-0">{file.title}</div>
         {file.quality && <QualityBadge quality={file.quality} />}
