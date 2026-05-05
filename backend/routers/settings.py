@@ -44,11 +44,11 @@ DEFAULT_SETTINGS: dict = {
     "auto_offsite_backup_retention_days": 30,
     "auto_recovery_drill_enabled": False,
     "recovery_drill_min_products": 100,
-    # When ON (default), if an admin edits a community design file via
-    # PATCH /community/files/{id}, we email the original poster a diff
-    # so they're not surprised. Mute during bulk-cleanup runs if you
-    # don't want to spam.
     "email_poster_on_admin_edit": True,
+    # Daily review-prompt sweep. Default ON because reviews are the
+    # single biggest UGC lever for indie shops; ops can mute during
+    # email-deliverability investigations.
+    "auto_review_prompt_enabled": True,
 }
 
 
@@ -168,6 +168,7 @@ class SettingsPatch(BaseModel):
     auto_recovery_drill_enabled: Optional[bool] = None
     recovery_drill_min_products: Optional[int] = Field(default=None, ge=1, le=100000)
     email_poster_on_admin_edit: Optional[bool] = None
+    auto_review_prompt_enabled: Optional[bool] = None
 
 
 @router.patch("/admin/settings")

@@ -89,6 +89,12 @@ const SWITCHES = [
     blurb: "When ON (default), if an admin edits a community design file via the Admin → Design Files tab, we email the original poster a field-level diff so changes don't happen silently. Each edit is also stamped on the file's `admin_edits[]` audit log. Mute this during a bulk-cleanup run if you don't want to spam, then flip back ON. The audit-log row is only written when the email actually goes out.",
     tone: "primary",
   },
+  {
+    key: "auto_review_prompt_enabled",
+    label: "Auto post-delivery review prompts (Daily)",
+    blurb: "When ON (default), at 16:00 UTC every day we sweep all orders delivered between 7 and 30 days ago that haven't been prompted yet, and email the buyer a one-tap review CTA per maker on the order. Idempotent — `review_prompt_sent_at` is the source of truth so the same order can never receive a second prompt. Reviews are the single biggest UGC lever for indie shops; expect a 15-25% review-creation rate on prompted orders. Mute during email-deliverability investigations or domain changes. Manual trigger via `POST /api/admin/marketing/review-prompts/run` works regardless of this toggle.",
+    tone: "primary",
+  },
 ];
 
 const toneClass = (tone, on) => {

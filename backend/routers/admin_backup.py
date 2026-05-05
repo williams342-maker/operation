@@ -234,3 +234,23 @@ async def admin_charge_clearing_run(_claims: dict = Depends(require_super_admin(
     """
     from charge_clearing import clear_plus_ledger_balances
     return await clear_plus_ledger_balances(apply=True)
+
+
+
+@router.get("/admin/marketing/review-prompts/preview", include_in_schema=False)
+async def admin_review_prompts_preview(_claims: dict = Depends(require_super_admin())):
+    """Dry-run the post-delivery review-prompt sweep — returns the
+    candidate count without sending anything. Useful for sanity-checking
+    deliverability before flipping the toggle ON in a fresh environment."""
+    from review_prompts import run_review_prompts
+    return await run_review_prompts(apply=False)
+
+
+@router.post("/admin/marketing/review-prompts/run", include_in_schema=False)
+async def admin_review_prompts_run(_claims: dict = Depends(require_super_admin())):
+    """Manually trigger the post-delivery review-prompt sweep. Bypasses
+    the `auto_review_prompt_enabled` toggle so operators can always run
+    on demand. Idempotent: orders that have already received a prompt
+    (`review_prompt_sent_at` set) are silently skipped."""
+    from review_prompts import run_review_prompts
+    return await run_review_prompts(apply=True)

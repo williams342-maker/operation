@@ -486,6 +486,72 @@ async def send_buyer_receipt(buyer_email: str, summary: str, total: float, items
     return await _send(buyer_email, "Your Crafters Market order is confirmed", html)
 
 
+async def send_buyer_review_prompt(
+    buyer_email: str,
+    buyer_name: str | None,
+    items: list[dict],
+    days_since_delivery: int,
+):
+    """7-day post-delivery review nudge (the moment with the highest
+    conversion). Sends ONE email per order, with a per-maker CTA so
+    multi-maker orders get one button per maker.
+
+    Skips silently when there's no email or no items. Uses the same
+    `_shell()` chrome as other transactional emails for visual parity.
+    """
+    if not buyer_email or not items:
+        return
+    site = (os.environ.get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
+    seen_makers: set[str] = set()
+    cta_html = ""
+    for it in items:
+        slug = it.get("maker_slug")
+        name = it.get("maker_name") or slug
+        if not slug or slug in seen_makers:
+            continue
+        seen_makers.add(slug)
+        # The /makers/{slug}#leave-review anchor auto-scrolls + auto-focuses
+        # the review form on arrival (already wired in MakerReviews.jsx).
+        link = (
+            f"{site}/makers/{slug}#leave-review"
+            "?utm_source=email&utm_medium=transactional&utm_campaign=post-delivery-review"
+        )
+        cta_html += (
+            f"<a href='{link}' style='display:block;margin:8px 0;"
+            "background:#ff4500;color:#000;border:1px solid #ff4500;"
+            "padding:14px 20px;font-family:JetBrains Mono,monospace;font-size:11px;"
+            "letter-spacing:0.22em;text-transform:uppercase;text-decoration:none;"
+            f"font-weight:bold'>★ Leave a review for {name} →</a>"
+        )
+    if not cta_html:
+        return  # nothing to ask about (e.g. all items had no maker_slug)
+
+    name_token = (buyer_name or "").split(" ", 1)[0] if buyer_name else ""
+    body = (
+        f"<p style='font-size:14px;color:#e5e5e5;margin:0 0 18px;line-height:1.6'>"
+        f"{('Hey ' + name_token + ',') if name_token else 'Hey,'} hope your order's been "
+        "settling in nicely. It's been about a week since it landed — got 30 seconds to drop "
+        "a quick review?"
+        "</p>"
+        "<p style='font-size:13px;color:#a3a3a3;margin:0 0 22px;line-height:1.6'>"
+        "Independent makers live and die on reviews. Yours is the single biggest thing you can "
+        "do to support an indie shop — and the form is two taps once you click below."
+        "</p>"
+        f"<div style='margin:0 0 24px'>{cta_html}</div>"
+        "<p style='font-size:11px;color:#525252;margin:18px 0 0;line-height:1.6'>"
+        "We send this nudge once per order. Already reviewed? Thank you — you can ignore this. "
+        "Was something not right? Reply to this email and we'll fix it personally."
+        "</p>"
+    )
+    title = "How was it?"
+    intro = (
+        f"Your order delivered {days_since_delivery} days ago. Quick favor: "
+        "drop your maker a review."
+    )
+    html = _shell(title, intro, body, "Post-delivery review nudge")
+    return await _send(buyer_email, "Got 30 seconds? Quick review request.", html)
+
+
 async def send_admin_edited_design_file(
     poster_email: str,
     poster_name: str,

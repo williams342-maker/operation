@@ -408,6 +408,26 @@ async def _job_charge_clearing() -> None:
         logger.exception("[scheduler] charge_clearing failed: %s", e)
 
 
+async def _job_review_prompts() -> None:
+    """Daily 16:00 UTC — sweep orders delivered 7-30 days ago that
+    haven't received a review-prompt email yet, and send one. See
+    /app/backend/review_prompts.py for the eligibility rules and
+    idempotency guards. Self-skips when the
+    `auto_review_prompt_enabled` toggle is OFF (default ON)."""
+    try:
+        from routers.settings import get_setting
+        if not await get_setting("auto_review_prompt_enabled", True):
+            return
+        from review_prompts import run_review_prompts
+        r = await run_review_prompts(apply=True)
+        logger.info(
+            "[scheduler] review_prompts candidates=%d sent=%d skipped=%d errors=%d",
+            r["candidate_count"], r["sent"], len(r["skipped"]), len(r["errors"]),
+        )
+    except Exception as e:
+        logger.exception("[scheduler] review_prompts failed: %s", e)
+
+
 def start_scheduler() -> AsyncIOScheduler | None:
     """Boot the scheduler if SCHEDULER_ENABLED isn't 'false'."""
     global _scheduler
@@ -494,6 +514,11 @@ def start_scheduler() -> AsyncIOScheduler | None:
     sched.add_job(_job_charge_clearing,
                   CronTrigger(day=1, hour=15, minute=0),
                   id="charge_clearing", replace_existing=True)
+    # Daily review-prompt sweep — 16:00 UTC. Sends one nudge per order
+    # 7-30 days post-delivery; idempotent via review_prompt_sent_at.
+    sched.add_job(_job_review_prompts,
+                  CronTrigger(hour=16, minute=0),
+                  id="review_prompts", replace_existing=True)
     sched.start()
     _scheduler = sched
     logger.info(
