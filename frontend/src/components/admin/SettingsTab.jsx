@@ -83,6 +83,12 @@ const SWITCHES = [
     blurb: "When ON, the first day of each quarter (Jan/Apr/Jul/Oct) at 04:30 UTC the scheduler downloads the latest R2 archive, restores it into an isolated `_dr_drill_<timestamp>` namespace on the same Mongo cluster, counts products + makers + blogs to verify the restore worked, drops the namespace, and posts the pass/fail result to your Slack/Discord webhook. Production collections are NEVER touched (the rename is enforced by mongorestore's `--nsFrom/--nsTo`). Manual trigger via the Backup tab works regardless of this toggle. Untested backups don't exist — flip this ON.",
     tone: "warn",
   },
+  {
+    key: "email_poster_on_admin_edit",
+    label: "Email poster on admin edit",
+    blurb: "When ON (default), if an admin edits a community design file via the Admin → Design Files tab, we email the original poster a field-level diff so changes don't happen silently. Each edit is also stamped on the file's `admin_edits[]` audit log. Mute this during a bulk-cleanup run if you don't want to spam, then flip back ON. The audit-log row is only written when the email actually goes out.",
+    tone: "primary",
+  },
 ];
 
 const toneClass = (tone, on) => {

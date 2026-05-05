@@ -486,6 +486,67 @@ async def send_buyer_receipt(buyer_email: str, summary: str, total: float, items
     return await _send(buyer_email, "Your Crafters Market order is confirmed", html)
 
 
+async def send_admin_edited_design_file(
+    poster_email: str,
+    poster_name: str,
+    file_title: str,
+    file_id: str,
+    diff: dict,
+):
+    """Notify the poster that an admin tidied up their community design
+    file. Surfaces the field-level diff so there's no mystery.
+
+    `diff` is a dict of `{field: {"before": "...", "after": "..."}}`.
+    Only fields that actually changed should be in the dict — empty
+    diff = no email sent.
+    """
+    if not poster_email or not diff:
+        return
+    rows = ""
+    for field, change in diff.items():
+        before = (change.get("before") or "—")
+        after = (change.get("after") or "—")
+        # Truncate long values so the email stays scannable.
+        if len(str(before)) > 240:
+            before = str(before)[:240] + "…"
+        if len(str(after)) > 240:
+            after = str(after)[:240] + "…"
+        rows += (
+            "<tr>"
+            f"<td style='padding:8px 0 4px;color:#a3a3a3;font-size:11px;letter-spacing:0.22em;text-transform:uppercase'>{field}</td>"
+            "</tr>"
+            "<tr>"
+            f"<td style='padding:0 0 4px;color:#737373;font-size:13px;line-height:1.5;text-decoration:line-through'>{before}</td>"
+            "</tr>"
+            "<tr>"
+            f"<td style='padding:0 0 14px;color:#e5e5e5;font-size:13px;line-height:1.5;border-bottom:1px solid #262626'>→ {after}</td>"
+            "</tr>"
+        )
+    site = (os.environ.get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
+    body = (
+        "<p style='font-size:13px;color:#e5e5e5;margin:0 0 14px;line-height:1.6'>"
+        f"Heads up{(' ' + poster_name) if poster_name else ''} — a Crafters Market admin made some tidy-up edits to your community design file "
+        f"<b style='color:#ff4500'>{file_title}</b>. Here's the diff:"
+        "</p>"
+        "<table width='100%' cellpadding='0' cellspacing='0' style='font-size:13px;border-top:1px solid #262626;margin-bottom:18px'>"
+        f"{rows}"
+        "</table>"
+        "<p style='font-size:12px;color:#a3a3a3;line-height:1.6;margin:0 0 18px'>"
+        "Admins typically only fix typos or normalize titles for search. If you think this was made in error, you can update the listing yourself "
+        f"or <a href='mailto:{OPS_EMAIL or 'team@craftersmarket.org'}' style='color:#ff4500'>reply to this email</a>.</p>"
+        f"<p style='margin:0'><a href='{site}/community/files/{file_id}' "
+        "style='display:inline-block;padding:12px 18px;background:#ff4500;color:#000;font-family:JetBrains Mono,monospace;font-size:11px;letter-spacing:0.22em;text-transform:uppercase;font-weight:bold;text-decoration:none'>"
+        "View your file →</a></p>"
+    )
+    html = _shell(
+        "Admin Edit.",
+        "We tidied up your design file — here's exactly what changed.",
+        body,
+        "Moderation note",
+    )
+    return await _send(poster_email, f"Crafters Market: edit on \"{file_title}\"", html)
+
+
 async def send_ops_new_order(summary: str, total: float, items: list[dict], buyer_email: str | None):
     if not OPS_EMAIL: return
     body = _items_table(items) if items else f"<p>{summary}</p>"

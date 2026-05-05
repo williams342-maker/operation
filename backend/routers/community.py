@@ -1074,7 +1074,73 @@ async def update_design_file(
     updates["updated_at"] = now_iso()
     await db.design_files.update_one({"id": file_id}, {"$set": updates})
     fresh = await db.design_files.find_one({"id": file_id}, {"_id": 0})
+
+    # If an admin made the edit, optionally email the original poster
+    # so changes don't happen silently. Settings-driven (default ON) so
+    # ops can mute the alerts during a bulk cleanup if they want.
+    if is_admin:
+        try:
+            from routers.settings import get_setting
+            if await get_setting("email_poster_on_admin_edit", True):
+                # Build a field-level diff of what actually changed, using
+                # the OLD doc + the persisted updates dict. We skip
+                # cosmetic fields (`updated_at`, regenerated tags) so the
+                # email surfaces only the human-meaningful changes.
+                user_facing = {"title", "description", "thumbnail_url"}
+                diff: dict = {}
+                for k in user_facing & set(updates.keys()):
+                    before = doc.get(k)
+                    after = updates.get(k)
+                    if (before or "") != (after or ""):
+                        diff[k] = {"before": before, "after": after}
+                if diff:
+                    poster_email = await _resolve_poster_email(doc)
+                    poster_name = doc.get("maker_name") or ""
+                    if poster_email:
+                        from email_service import send_admin_edited_design_file
+                        await send_admin_edited_design_file(
+                            poster_email,
+                            poster_name,
+                            (fresh or doc).get("title") or doc.get("title") or "",
+                            file_id,
+                            diff,
+                        )
+                        # Also stamp the moderation log so we have an audit
+                        # trail beyond the email service's own delivery
+                        # records — useful when poster forgets they got
+                        # the email.
+                        await db.design_files.update_one(
+                            {"id": file_id},
+                            {"$push": {"admin_edits": {
+                                "ts": now_iso(),
+                                "by": claims.get("sub"),
+                                "diff": diff,
+                                "emailed": True,
+                            }}},
+                        )
+        except Exception as e:
+            logger.exception("[admin_edit_email] failed for file=%s: %s", file_id, e)
+
     return _with_quality(fresh) if fresh else {}
+
+
+async def _resolve_poster_email(doc: dict) -> str | None:
+    """Find the poster's email so we can notify them of admin edits.
+
+    Maker uploads → maker.email by slug.
+    Buyer uploads → community_users.email by user_id (community auth).
+    """
+    if doc.get("maker_slug"):
+        m = await db.makers.find_one({"slug": doc["maker_slug"]}, {"_id": 0, "email": 1})
+        if m and m.get("email"):
+            return m["email"]
+    if doc.get("uploader_id"):
+        u = await db.community_users.find_one(
+            {"user_id": doc["uploader_id"]}, {"_id": 0, "email": 1},
+        )
+        if u and u.get("email"):
+            return u["email"]
+    return None
 
 
 @router.post("/community/files/{file_id}/variants")
