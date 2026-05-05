@@ -1121,6 +1121,10 @@ async def convert_dxf_to_svg(
         msg = str(e)
         if msg.startswith("Couldn't parse DXF:"):
             msg = "This DXF appears corrupted or is in an unsupported variant. Try re-exporting from your CAD tool as DXF R2010 or newer."
+        # All other ValueError messages from the converter (empty
+        # bounding box → friendly hint, paperspace fallback exhaustion,
+        # near-empty SVG output) are already user-facing — let them
+        # through verbatim.
         raise HTTPException(422, msg)
 
     # Upload the SVG to R2 under the same uploader prefix.

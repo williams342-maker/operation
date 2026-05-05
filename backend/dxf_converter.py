@@ -32,6 +32,15 @@ logger = logging.getLogger("crafters")
 MAX_DXF_BYTES = 25 * 1024 * 1024
 
 
+def _entity_count(layout) -> int:
+    """Best-effort count of drawable entities in a layout. ezdxf's
+    `len(layout)` works, but we wrap it for safety."""
+    try:
+        return len(list(layout))
+    except Exception:
+        return 0
+
+
 def convert_dxf_bytes_to_svg(
     dxf_bytes: bytes,
     page_width_mm: int = 400,
@@ -65,10 +74,58 @@ def convert_dxf_bytes_to_svg(
         except Exception as e_recover:
             raise ValueError(f"Couldn't parse DXF: {e_recover}")
 
+    # Pick the layout with actual drawable entities. Many CAD apps
+    # (especially Inkscape / older AutoCAD exports) put geometry in a
+    # paperspace layout instead of modelspace, which makes
+    # `Frontend.draw_layout(msp)` throw "empty bounding box". Try in
+    # this order:
+    #   1. modelspace (the usual case)
+    #   2. the active paperspace layout
+    #   3. any other paperspace layout that has entities
     msp = doc.modelspace()
+    target_layout = msp
+    target_label = "modelspace"
+    if _entity_count(msp) == 0:
+        logger.info("[dxf2svg] modelspace empty; falling back to paperspace")
+        # Try every paperspace layout in tab order. ezdxf's Layouts API
+        # changes between versions (active_layout() vs property), so we
+        # iterate `names_in_taborder()` which is stable across releases.
+        try:
+            for ps_name in doc.layouts.names_in_taborder():
+                if ps_name.lower() == "model":
+                    continue
+                ps = doc.layouts.get(ps_name)
+                if _entity_count(ps) > 0:
+                    target_layout = ps
+                    target_label = f"paperspace ({ps_name!r})"
+                    break
+        except Exception as e:
+            logger.warning("[dxf2svg] paperspace iteration failed: %s", e)
+    if _entity_count(target_layout) == 0:
+        raise ValueError(
+            "This DXF has no drawable geometry (modelspace and all "
+            "paperspace layouts are empty). If your design lives on a "
+            "frozen or hidden layer, unfreeze it and re-export. Or "
+            "upload an SVG directly."
+        )
+
     backend = SVGBackend()
     try:
-        Frontend(RenderContext(doc), backend).draw_layout(msp, finalize=True)
+        Frontend(RenderContext(doc), backend).draw_layout(target_layout, finalize=True)
+    except ValueError as e:
+        # Specific friendly message for the bounding-box case — it almost
+        # always means every entity in the layout we just picked is on a
+        # frozen/off layer or has zero geometric extent. Surface a hint
+        # the user can act on rather than the raw ezdxf string.
+        if "empty bounding box" in str(e).lower():
+            raise ValueError(
+                "Couldn't render this DXF: every entity in "
+                f"{target_label} is on a frozen/off layer, or the "
+                "drawing has no measurable geometry. Try unfreezing all "
+                "layers in your CAD tool and re-exporting as DXF R2010+, "
+                "or upload an SVG directly."
+            )
+        raise ValueError(f"Couldn't render DXF: {e}")
     except Exception as e:
         # Frontend.draw_layout can raise on truly broken entity refs —
         # surface as a clean 4xx so the user gets actionable feedback.
@@ -76,4 +133,17 @@ def convert_dxf_bytes_to_svg(
 
     page = layout.Page(width=page_width_mm, height=page_height_mm, units=layout.Units.mm)
     svg_str = backend.get_string(page)
+    if not svg_str or len(svg_str) < 200:
+        # Defensive — backend can return a near-empty wrapper if it
+        # silently dropped every entity (rare but happens with files
+        # that contain only 3D solids / unsupported types).
+        raise ValueError(
+            "Generated SVG was empty — the DXF may contain only entity "
+            "types we don't render (3D solids, raster images). Upload "
+            "an SVG directly or simplify the DXF."
+        )
+    logger.info(
+        "[dxf2svg] rendered from %s · %d entities · %d bytes SVG",
+        target_label, _entity_count(target_layout), len(svg_str),
+    )
     return svg_str.encode("utf-8")
