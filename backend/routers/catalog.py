@@ -158,7 +158,7 @@ async def list_reviews(
 
 
 @router.post("/reviews", response_model=Review)
-async def create_review(payload: ReviewCreate):
+async def create_review(payload: ReviewCreate, bg: BackgroundTasks):
     """Public review submission. Lightly validated — no auth required to keep
     the post-purchase email CTA frictionless."""
     if not payload.name.strip() or not payload.text.strip():
@@ -183,7 +183,23 @@ async def create_review(payload: ReviewCreate):
         product_slug=payload.product_slug,
         maker_slug=maker_slug,
     )
-    await db.reviews.insert_one(review.model_dump())
+    review_doc = review.model_dump()
+    await db.reviews.insert_one(review_doc)
+
+    # Auto-publish 5-star reviews to Buffer (gated by site setting,
+    # min-length check, and per-review idempotency stamp). All checks
+    # live inside `auto_post_5star_review` — we just dispatch + log.
+    if review.rating == 5:
+        async def _post_to_buffer(r: dict):
+            try:
+                from buffer_service import auto_post_5star_review
+                await auto_post_5star_review(r)
+            except Exception as e:
+                # Never let social posting break the buyer's review submission.
+                from core import logger
+                logger.warning("[reviews] buffer auto-post failed: %s", e)
+        bg.add_task(_post_to_buffer, review_doc)
+
     return review
 
 

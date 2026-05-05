@@ -45,27 +45,31 @@ async def admin_list_dormant(
 ):
     """Buyers who placed at least one paid order in the past 365 days but
     haven't bought anything in `days`. Returns one row per email with the
-    last_order_at + total_orders so admins can decide who to re-engage."""
+    last_order_at + total_orders so admins can decide who to re-engage.
+
+    Source-of-truth is `payment_transactions` (`payment_status='paid'`,
+    `customer_email`, `amount`) — the legacy `orders` collection is empty
+    in production."""
     days = max(7, min(days, MAX_DAYS))
     cutoff_iso = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
     bottom_iso = (datetime.now(timezone.utc) - timedelta(days=365)).isoformat()
     pipeline = [
         {"$match": {
-            "status": "paid",
-            "buyer_email": {"$nin": [None, ""]},
+            "payment_status": "paid",
+            "customer_email": {"$nin": [None, ""]},
             "created_at": {"$gte": bottom_iso},
         }},
         {"$group": {
-            "_id": "$buyer_email",
+            "_id": {"$toLower": "$customer_email"},
             "last_order_at": {"$max": "$created_at"},
             "total_orders": {"$sum": 1},
-            "lifetime_value": {"$sum": "$total"},
+            "lifetime_value": {"$sum": "$amount"},
         }},
         {"$match": {"last_order_at": {"$lte": cutoff_iso}}},
         {"$sort": {"last_order_at": 1}},
         {"$limit": int(limit)},
     ]
-    rows = await db.orders.aggregate(pipeline).to_list(int(limit))
+    rows = await db.payment_transactions.aggregate(pipeline).to_list(int(limit))
     out = [
         {
             "email": r["_id"],
@@ -215,11 +219,13 @@ async def run_auto_dormant_reengage(
     skip_set = {r["email"].lower() for r in recent if r.get("email")}
 
     # Aggregate orders just like the admin endpoint to find dormant buyers.
+    # Source-of-truth: `payment_transactions` w/ `payment_status='paid'`
+    # and `customer_email` (NOT the empty legacy `orders.buyer_email`).
     pipeline = [
-        {"$match": {"status": "paid", "buyer_email": {"$exists": True, "$ne": None}}},
+        {"$match": {"payment_status": "paid", "customer_email": {"$exists": True, "$ne": None}}},
         {"$match": {"created_at": {"$gte": year_ago}}},
         {"$group": {
-            "_id": {"$toLower": "$buyer_email"},
+            "_id": {"$toLower": "$customer_email"},
             "last_order_at": {"$max": "$created_at"},
             "total_orders": {"$sum": 1},
             "lifetime_value": {"$sum": "$amount"},

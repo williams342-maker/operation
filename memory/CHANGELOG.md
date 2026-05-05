@@ -1,6 +1,28 @@
 # Crafters Market — CHANGELOG
 
-## 2026-05-05 — Web Push notifications (VAPID) ✅
+## 2026-05-05 — P0 Buffer 5-star auto-publish + P3 Kit dormant-buyer fix ✅
+
+### P0 — 5-star reviews → Buffer
+- `routers/catalog.py::create_review` now accepts `BackgroundTasks` and dispatches `auto_post_5star_review` when `rating == 5`. Idempotent — `posted_to_buffer_at` stamp prevents repeat posts. Failures swallowed so social posting can never break review submission.
+- New site-setting `auto_publish_5star_reviews_enabled` (default OFF) plumbed through `routers/settings.py` defaults and surfaced as a toggle in admin Settings tab.
+- Verified end-to-end: real review w/ rating=5 → BG task → Buffer multi-channel post (Instagram OK; Pinterest/Facebook hit duplicate-post rate limit on rapid-fire test) → review row stamped with `posted_to_buffer_id`.
+
+### P3 — Kit dormant-buyer auto-discount (bug fix)
+Both the manual admin endpoint (`GET /api/admin/retention/dormant`) and the
+weekly cron (`run_auto_dormant_reengage`) were finding **0 candidates**
+even with real paid orders in the DB. Root cause: schema drift — code
+queried legacy `db.orders` collection (empty) with `status='paid'` /
+`buyer_email` / `total`, but production source-of-truth is
+`db.payment_transactions` with `payment_status='paid'` /
+`customer_email` / `amount`.
+
+Fixed in `routers/retention.py`:
+- `admin_list_dormant`: switched collection + field names + lower-cased email grouping
+- `run_auto_dormant_reengage`: same fix in the scheduler aggregation pipeline
+- Verified: `/admin/retention/dormant?days=7` now returns 4 dormant buyers; cron pipeline structure mirrors admin endpoint exactly
+- Discount-code redemption already correct (`checkout.py:253` honors `marketing_codes` with `scope=marketplace_wide`)
+
+
 
 Added end-to-end Web Push so admins can fan out browser notifications to
 opted-in buyers / makers / anonymous visitors. Replaces the user's

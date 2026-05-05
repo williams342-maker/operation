@@ -95,6 +95,12 @@ const SWITCHES = [
     blurb: "When ON (default), at 16:00 UTC every day we sweep all orders delivered between 7 and 30 days ago that haven't been prompted yet, and email the buyer a one-tap review CTA per maker on the order. Idempotent — `review_prompt_sent_at` is the source of truth so the same order can never receive a second prompt. Reviews are the single biggest UGC lever for indie shops; expect a 15-25% review-creation rate on prompted orders. Mute during email-deliverability investigations or domain changes. Manual trigger via `POST /api/admin/marketing/review-prompts/run` works regardless of this toggle.",
     tone: "primary",
   },
+  {
+    key: "auto_publish_5star_reviews_enabled",
+    label: "Auto-publish 5-star reviews to Buffer",
+    blurb: "When ON, every fresh 5-star review (≥30 chars of text) is auto-queued to every connected Buffer channel — Pinterest, Instagram, Facebook — with the buyer's quote, the maker's name, and a deep link to the product. Idempotent: `posted_to_buffer_at` is stamped on each review so the same row is never re-posted, even on edit. Skips silently if Buffer isn't configured, no channels are connected, or the review is too short. Default OFF — flip ON once your Buffer queue/scheduler is configured to your liking. Free social-proof distribution for makers — expect 1-3 posts/week per active maker.",
+    tone: "primary",
+  },
 ];
 
 const toneClass = (tone, on) => {
