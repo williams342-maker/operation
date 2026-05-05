@@ -1020,7 +1020,11 @@ async def update_design_file(
     doc = await db.design_files.find_one({"id": file_id}, {"_id": 0})
     if not doc:
         raise HTTPException(404, "Design file not found.")
-    if not _is_design_file_owner(doc, claims):
+    # Admins can edit any file for moderation/typo-fix purposes. Note:
+    # `claims` here comes from `current_any_user`, so the role check is
+    # how admin intent is signaled (admin bearer tokens carry role=admin).
+    is_admin = claims.get("role") == "admin"
+    if not is_admin and not _is_design_file_owner(doc, claims):
         raise HTTPException(403, "You can only edit your own uploads.")
 
     updates: dict = {}

@@ -795,10 +795,12 @@ export const addDesignFileVariants = (fileId, files, { onProgress } = {}) => {
 
 // Owner-only metadata edit (title, description, thumbnail_url). Files
 // themselves are immutable — use the variants endpoints to add/remove.
+// Admin JWT is also accepted server-side for moderation edits.
 export const updateDesignFile = (fileId, payload) => {
+  const adm = localStorage.getItem("cm_admin_jwt");
   const mkr = localStorage.getItem("cm_maker_jwt");
   const byr = localStorage.getItem("cm_buyer_jwt");
-  const token = mkr || byr;
+  const token = adm || mkr || byr;
   return http.patch(`/community/files/${fileId}`, payload, {
     headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
   }).then((r) => r.data);

@@ -14,11 +14,12 @@
  */
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Search, Trash2, AlertTriangle, ExternalLink, Eye, EyeOff, Loader2 } from "lucide-react";
+import { Search, Trash2, AlertTriangle, ExternalLink, Eye, EyeOff, Loader2, Pencil, X as XIcon } from "lucide-react";
 import {
   fetchAdminDesignFiles,
   adminDeleteDesignFile,
   unquarantineDesignFile,
+  updateDesignFile,
 } from "../../lib/api";
 import EmptyState from "../EmptyState";
 import { timeAgo } from "../../lib/timeAgo";
@@ -35,6 +36,7 @@ export default function DesignFilesTab() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [confirmDelete, setConfirmDelete] = useState(null); // file row
+  const [editing, setEditing] = useState(null); // file row currently being edited
   const [busy, setBusy] = useState("");
 
   const refresh = async () => {
@@ -155,6 +157,7 @@ export default function DesignFilesTab() {
               busy={busy === f.id}
               onUnquarantine={() => onUnquarantine(f.id)}
               onAskDelete={() => setConfirmDelete(f)}
+              onAskEdit={() => setEditing(f)}
             />
           ))}
         </div>
@@ -168,11 +171,19 @@ export default function DesignFilesTab() {
           onConfirm={() => onDelete(confirmDelete)}
         />
       )}
+
+      {editing && (
+        <EditFileDialog
+          file={editing}
+          onCancel={() => setEditing(null)}
+          onSaved={() => { setEditing(null); refresh(); }}
+        />
+      )}
     </div>
   );
 }
 
-function FileRow({ file, busy, onUnquarantine, onAskDelete }) {
+function FileRow({ file, busy, onUnquarantine, onAskDelete, onAskEdit }) {
   const isQ = !!file.quarantined_at;
   const sizeMB = file.size_bytes ? (file.size_bytes / 1024 / 1024).toFixed(1) : null;
   return (
@@ -230,6 +241,16 @@ function FileRow({ file, busy, onUnquarantine, onAskDelete }) {
         )}
       </div>
       <div className="flex flex-col gap-2 shrink-0">
+        <button
+          type="button"
+          onClick={onAskEdit}
+          disabled={busy}
+          className="px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+          data-testid={`design-file-edit-${file.id}`}
+          title="Edit title, description, or thumbnail (admin override on poster's content)"
+        >
+          <Pencil size={12} className="inline mr-1" />Edit
+        </button>
         {isQ && (
           <button
             type="button"
@@ -310,6 +331,158 @@ function DeleteConfirmDialog({ file, busy, onCancel, onConfirm }) {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function EditFileDialog({ file, onCancel, onSaved }) {
+  const [title, setTitle] = useState(file.title || "");
+  const [description, setDescription] = useState(file.description || "");
+  const [thumbnailUrl, setThumbnailUrl] = useState(file.thumbnail_url || "");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  const dirty = (
+    title.trim() !== (file.title || "")
+    || description.trim() !== (file.description || "")
+    || thumbnailUrl.trim() !== (file.thumbnail_url || "")
+  );
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (busy || !dirty) return;
+    setErr("");
+    if (!title.trim() || title.trim().length > 120) {
+      setErr("Title is required (max 120 chars)."); return;
+    }
+    if (!description.trim() || description.trim().length > 800) {
+      setErr("Description is required (max 800 chars)."); return;
+    }
+    setBusy(true);
+    try {
+      // PATCH accepts admin JWT for moderation overrides — see
+      // backend `update_design_file`. Same payload shape as the
+      // public-facing EditFileModal.
+      await updateDesignFile(file.id, {
+        title: title.trim(),
+        description: description.trim(),
+        thumbnail_url: thumbnailUrl.trim(),
+      });
+      toast.success(`Saved "${title.trim()}".`);
+      onSaved && onSaved();
+    } catch (e2) {
+      setErr(e2?.response?.data?.detail || "Couldn't save changes.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={(e) => { if (e.target === e.currentTarget && !busy) onCancel(); }}
+      data-testid="design-file-edit-dialog"
+    >
+      <form
+        onSubmit={submit}
+        className="w-full max-w-lg bg-[#0a0a0a] border border-[#ff4500]/50 p-6 space-y-4"
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">
+              ◆ Admin edit · {file.maker_name || file.uploader_name || file.uploader_id || "anonymous"}
+            </div>
+            <h3 className="font-display text-2xl mt-1 text-[#e5e5e5]">
+              Edit "{file.title || file.id}"
+            </h3>
+            <p className="font-mono text-[11px] text-[#a3a3a3] mt-1">
+              Updates the poster's listing in place. The file binaries themselves are immutable here — use the variants endpoints for that.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={busy}
+            className="text-[#525252] hover:text-[#e5e5e5] disabled:opacity-50"
+            data-testid="design-file-edit-close"
+            aria-label="Close edit dialog"
+          >
+            <XIcon size={18} />
+          </button>
+        </div>
+
+        <label className="block">
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Title</span>
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            maxLength={120}
+            disabled={busy}
+            className="mt-1 w-full bg-[#050505] border border-[#262626] px-3 py-2 font-mono text-sm text-[#e5e5e5] focus:border-[#ff4500] outline-none"
+            data-testid="design-file-edit-title"
+          />
+        </label>
+
+        <label className="block">
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Description</span>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            maxLength={800}
+            rows={5}
+            disabled={busy}
+            className="mt-1 w-full bg-[#050505] border border-[#262626] px-3 py-2 font-mono text-sm text-[#e5e5e5] focus:border-[#ff4500] outline-none resize-y"
+            data-testid="design-file-edit-description"
+          />
+          <span className="font-mono text-[10px] text-[#525252]">
+            {description.length}/800
+          </span>
+        </label>
+
+        <label className="block">
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+            Thumbnail URL <span className="text-[#525252] normal-case">(optional)</span>
+          </span>
+          <input
+            value={thumbnailUrl}
+            onChange={(e) => setThumbnailUrl(e.target.value)}
+            maxLength={600}
+            disabled={busy}
+            placeholder="https://…"
+            className="mt-1 w-full bg-[#050505] border border-[#262626] px-3 py-2 font-mono text-sm text-[#e5e5e5] focus:border-[#ff4500] outline-none"
+            data-testid="design-file-edit-thumb"
+          />
+          <span className="font-mono text-[10px] text-[#525252]">
+            Clear this field to fall back to an auto-generated thumbnail.
+          </span>
+        </label>
+
+        {err && (
+          <p className="font-mono text-[11px] text-red-400" data-testid="design-file-edit-err">
+            ⊗ {err}
+          </p>
+        )}
+
+        <div className="flex items-center justify-end gap-3 pt-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={busy}
+            className="font-mono text-xs uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#e5e5e5] disabled:opacity-50"
+            data-testid="design-file-edit-cancel"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={busy || !dirty}
+            className="px-4 py-2 border border-[#ff4500] bg-[#ff4500]/10 hover:bg-[#ff4500]/20 font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] disabled:opacity-30 disabled:cursor-not-allowed"
+            data-testid="design-file-edit-save"
+          >
+            {busy ? "Saving…" : "Save changes →"}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }
