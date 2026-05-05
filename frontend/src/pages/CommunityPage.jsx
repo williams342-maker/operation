@@ -877,43 +877,70 @@ function FileUploadForm({ onSaved }) {
       )}
 
       <div className="grid md:grid-cols-2 gap-3">
-        <input
-          required
-          placeholder="Title"
-          name="title"
-          autoComplete="off"
-          value={f.title}
-          onChange={(e) => { const v = e.target.value; setF((c) => ({ ...c, title: v })); }}
-          className="bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
-          data-testid="file-title"
-        />
-        {mode === "url" ? (
-          <select
-            value={f.file_type}
-            name="file_type"
-            onChange={(e) => { const v = e.target.value; setF((c) => ({ ...c, file_type: v })); }}
-            className="bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
-            data-testid="file-type"
-          >
-            {["DXF", "SVG", "STL", "GLB", "OTHER"].map((t) => (
-              <option key={t} value={t}>{t}</option>
-            ))}
-          </select>
-        ) : (
-          <div className="relative flex items-center border border-[#262626] focus-within:border-[#ff4500] px-3 py-2">
-            <input
-              ref={pickerRef}
-              type="file"
-              required={!picked.length}
-              multiple
-              accept={ACCEPTED_ATTR}
-              onChange={onFileChange}
-              data-testid="file-picker"
-              disabled={busy}
-              className="w-full font-mono text-xs text-[#e5e5e5] file:mr-3 file:py-1 file:px-3 file:border file:border-[#ff4500] file:text-[#ff4500] file:bg-transparent file:font-mono file:text-[10px] file:uppercase file:tracking-[0.22em] hover:file:bg-[#ff4500]/10 file:cursor-pointer cursor-pointer disabled:opacity-50"
-            />
-          </div>
-        )}
+        <label className="block">
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+            Title <span className="text-[#ff4500]">*</span>
+          </span>
+          <input
+            required
+            placeholder="e.g. Mountain Range Wall Art — Plasma Cut"
+            name="title"
+            autoComplete="off"
+            value={f.title}
+            onChange={(e) => { const v = e.target.value; setF((c) => ({ ...c, title: v })); }}
+            className="mt-1 w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+            data-testid="file-title"
+          />
+          <span className="font-mono text-[10px] text-[#525252]">
+            Short, descriptive — this is what shows up in search results.
+          </span>
+        </label>
+        <label className="block">
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+            {mode === "url" ? (
+              <>File format <span className="text-[#ff4500]">*</span></>
+            ) : (
+              <>Files <span className="text-[#ff4500]">*</span></>
+            )}
+          </span>
+          {mode === "url" ? (
+            <>
+              <select
+                value={f.file_type}
+                name="file_type"
+                onChange={(e) => { const v = e.target.value; setF((c) => ({ ...c, file_type: v })); }}
+                className="mt-1 w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+                data-testid="file-type"
+              >
+                {["DXF", "SVG", "STL", "GLB", "OTHER"].map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+              <span className="font-mono text-[10px] text-[#525252]">
+                What format is the file you're linking to?
+              </span>
+            </>
+          ) : (
+            <>
+              <div className="mt-1 relative flex items-center border border-[#262626] focus-within:border-[#ff4500] px-3 py-2">
+                <input
+                  ref={pickerRef}
+                  type="file"
+                  required={!picked.length}
+                  multiple
+                  accept={ACCEPTED_ATTR}
+                  onChange={onFileChange}
+                  data-testid="file-picker"
+                  disabled={busy}
+                  className="w-full font-mono text-xs text-[#e5e5e5] file:mr-3 file:py-1 file:px-3 file:border file:border-[#ff4500] file:text-[#ff4500] file:bg-transparent file:font-mono file:text-[10px] file:uppercase file:tracking-[0.22em] hover:file:bg-[#ff4500]/10 file:cursor-pointer cursor-pointer disabled:opacity-50"
+                />
+              </div>
+              <span className="font-mono text-[10px] text-[#525252]">
+                Pick one or several files — the first is the primary preview.
+              </span>
+            </>
+          )}
+        </label>
       </div>
 
       {/* Multi-file picker hint — only for upload mode. */}
@@ -938,27 +965,61 @@ function FileUploadForm({ onSaved }) {
         />
       )}
 
-      <input
-        placeholder="Thumbnail URL (optional, jpg/png/webp)"
-        name="thumbnail_url"
-        autoComplete="url"
-        value={f.thumbnail_url}
-        onChange={(e) => { const v = e.target.value; setF((c) => ({ ...c, thumbnail_url: v })); }}
-        className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
-        data-testid="file-thumb"
-      />
+      <label className="block">
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+          Thumbnail URL <span className="text-[#525252] normal-case">(optional)</span>
+        </span>
+        <input
+          placeholder="https://… (skip this — we auto-generate one from any image you upload)"
+          name="thumbnail_url"
+          autoComplete="url"
+          value={f.thumbnail_url}
+          onChange={(e) => { const v = e.target.value; setF((c) => ({ ...c, thumbnail_url: v })); }}
+          className="mt-1 w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+          data-testid="file-thumb"
+        />
+        <span className="font-mono text-[10px] text-[#525252] leading-relaxed">
+          Want to use a hosted image as the card cover? Paste its URL.
+          Otherwise, leave this blank — we'll auto-pick the first jpg/png/webp in your bundle, or render an STL into a preview for you.
+        </span>
+      </label>
 
-      <textarea
-        required
-        placeholder="What's in it? Materials, dimensions, licensing…"
-        rows={2}
-        name="description"
-        autoComplete="off"
-        value={f.description}
-        onChange={(e) => { const v = e.target.value; setF((c) => ({ ...c, description: v })); }}
-        className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs resize-y"
-        data-testid="file-description"
-      />
+      <label className="block">
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+          Description <span className="text-[#ff4500]">*</span>
+        </span>
+        <textarea
+          required
+          placeholder={
+            "What's in the bundle? A few sentences buyers will love:\n"
+            + "  • What it makes (e.g. 24\" mountain wall art)\n"
+            + "  • Material thickness / cut path notes (1/8\" steel, 0.06 kerf)\n"
+            + "  • Recommended machine (laser, plasma, CNC router)\n"
+            + "  • License — personal use only? Commercial OK?"
+          }
+          rows={5}
+          maxLength={800}
+          name="description"
+          autoComplete="off"
+          value={f.description}
+          onChange={(e) => { const v = e.target.value; setF((c) => ({ ...c, description: v })); }}
+          className="mt-1 w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs resize-y leading-relaxed"
+          data-testid="file-description"
+        />
+        <div className="flex items-center justify-between gap-3 mt-1">
+          <span className="font-mono text-[10px] text-[#525252] leading-relaxed">
+            Tip: clear, scannable descriptions get downloaded 2× more. Hit each bullet above if you can.
+          </span>
+          <span
+            className={`font-mono text-[10px] shrink-0 ${
+              f.description.length >= 750 ? "text-[#ff4500]" : "text-[#525252]"
+            }`}
+            data-testid="file-description-counter"
+          >
+            {f.description.length}/800
+          </span>
+        </div>
+      </label>
 
       {/* Preview of all picked files — first row is the primary; others
           are variants. Each is removable individually before submit. We
