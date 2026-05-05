@@ -34,6 +34,14 @@ prevents arbitrary deep-link injection.
 - Decoupled — uses standard CustomEvent so any component can request the
   popup without prop-drilling.
 
+### Footer "Live chat" link (added in same session)
+- Added a "Live chat" entry to the footer's secondary links row
+  (next to What's New / Privacy / Terms / Contact)
+- Click dispatches the same `cm:open-live-chat` event so the popup
+  opens on `#help` from anywhere in the app
+- Permanent discovery surface for users who don't notice the floating
+  bottom-left widget
+
 ### Behavior
 - **Auto-hides** on `/community` (full chat page already there), `/admin`, `/maker`
 - **Auto-hides** when admin disables `live_chat_enabled` site setting

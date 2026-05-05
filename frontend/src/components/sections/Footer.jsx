@@ -124,7 +124,15 @@ export default function Footer() {
               <span className="text-[10px] leading-none select-none">◆</span>
             </Link>
           </div>
-          <div className="flex gap-6">
+          <div className="flex gap-6 flex-wrap">
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent("cm:open-live-chat", { detail: { channel: "help" } }))}
+              className="hover:text-[#ff4500] cursor-pointer"
+              data-testid="footer-live-chat"
+            >
+              Live chat
+            </button>
             <Link to="/updates" className="hover:text-[#ff4500]" data-testid="footer-updates">What's New</Link>
             <Link to="/policy" className="hover:text-[#ff4500]" data-testid="footer-privacy">Privacy</Link>
             <Link to="/policy" className="hover:text-[#ff4500]" data-testid="footer-terms">Terms</Link>
