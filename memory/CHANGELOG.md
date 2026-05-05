@@ -23,6 +23,17 @@ Header now has a `Full view →` link that takes the user to
 multi-pane experience without losing context. Validated channel allow-list
 prevents arbitrary deep-link injection.
 
+### "Talk to a real person →" cross-widget bridge (added in same session)
+- AIAssistant empty state (when user hasn't asked anything yet) now
+  shows `◆ Talk to a real person →` button
+- Click → closes AI panel + dispatches `cm:open-live-chat` window event +
+  optional `{detail: {channel}}` payload
+- LiveChatWidget listens for the event, clears its 3-day dismiss flag
+  (user's explicit click overrides their earlier dismissal), and opens
+  on the requested channel
+- Decoupled — uses standard CustomEvent so any component can request the
+  popup without prop-drilling.
+
 ### Behavior
 - **Auto-hides** on `/community` (full chat page already there), `/admin`, `/maker`
 - **Auto-hides** when admin disables `live_chat_enabled` site setting

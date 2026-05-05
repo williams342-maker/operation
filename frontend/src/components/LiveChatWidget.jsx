@@ -66,6 +66,20 @@ export default function LiveChatWidget() {
     try { localStorage.setItem("cm_live_chat_channel", channel); } catch { /* ignore */ }
   }, [channel]);
 
+  // Listen for cross-component "open me" requests (e.g. from AIAssistant
+  // empty state CTA). Also clears the dismiss cooldown so the popup
+  // honors the user's explicit click intent.
+  useEffect(() => {
+    const onOpenRequest = (e) => {
+      try { localStorage.removeItem(STORAGE_DISMISSED); } catch { /* ignore */ }
+      const wantedCh = e?.detail?.channel;
+      if (wantedCh && CHANNELS.some((c) => c.id === wantedCh)) setChannel(wantedCh);
+      setOpen(true);
+    };
+    window.addEventListener("cm:open-live-chat", onOpenRequest);
+    return () => window.removeEventListener("cm:open-live-chat", onOpenRequest);
+  }, []);
+
   // Open ↔ close persistence + clear unread when opened
   useEffect(() => {
     try { localStorage.setItem(STORAGE_OPEN, open ? "1" : "0"); } catch { /* ignore */ }

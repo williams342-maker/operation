@@ -188,6 +188,22 @@ export default function AIAssistant() {
                   {m.text}
                 </div>
               ))}
+              {/* Empty state escape hatch — surface the human chat option so
+                  shoppers know they have a real-person option. Only renders
+                  when the user hasn't sent a message yet. */}
+              {messages.length <= 1 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpen(false);
+                    window.dispatchEvent(new CustomEvent("cm:open-live-chat", { detail: { channel: "help" } }));
+                  }}
+                  data-testid="ai-talk-to-human"
+                  className="block mx-auto mt-2 px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] text-[#a3a3a3] font-mono text-[10px] uppercase tracking-[0.22em] transition"
+                >
+                  ◆ Talk to a real person →
+                </button>
+              )}
               {busy && (
                 <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#525252]">
                   ◆ thinking…
