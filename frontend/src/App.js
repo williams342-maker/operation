@@ -48,6 +48,7 @@ import TrackBriefPage from "./pages/TrackBriefPage";
 import MakerBriefPrintPage from "./pages/MakerBriefPrintPage";
 import MakerBillingRedirect from "./pages/MakerBillingRedirect";
 import AIAssistant from "./components/AIAssistant";
+import InstallPwaButton from "./components/InstallPwaButton";
 import MaintenancePage from "./components/MaintenancePage";
 import BetaBanner from "./components/BetaBanner";
 import CNCEmblem from "./components/CNCEmblem";
@@ -208,6 +209,7 @@ function App() {
             },
           }}
         />
+        <InstallPwaButton />
       </BrowserRouter>
     </CartProvider>
   );

@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { getCheckoutStatus, communityRequestMagic } from "../lib/api";
 import { useCart } from "../lib/cart";
+import PushOptInCard from "../components/PushOptInCard";
 
 export default function CheckoutSuccess() {
   const [params] = useSearchParams();
@@ -116,6 +117,10 @@ export default function CheckoutSuccess() {
             <p className="mt-3 font-mono text-[10px] text-red-400">{accountState.message}</p>
           )}
         </div>
+      )}
+
+      {paid && (
+        <PushOptInCard role="buyer" email={state.customer_email || null} />
       )}
 
       <Link to="/shop" className="btn-industrial btn-primary inline-flex">Continue browsing →</Link>

@@ -1,5 +1,43 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05-05 — PWA: shoppers can install Crafters Market as an Android/Chrome app ✅
+
+Picked option (a) PWA over Capacitor/TWA/React Native — same codebase, ships
+today, no Play Store paperwork, full web-push integration. Upgrade path
+to a TWA Play Store APK is a 30-min Bubblewrap step later if desired.
+
+### Files
+- `frontend/public/manifest.webmanifest` — name, short_name, scope, start_url, display:standalone, theme/bg color, 4 icons (192/512 + maskable variants), 3 shortcuts (Shop / Custom / Makers)
+- `frontend/public/icons/*.png` — generated from `cnc-garage-builders.png` (192/512/maskable-192/maskable-512/apple-touch/favicon-32)
+- `frontend/public/service-worker.js` — *replaced* the push-only worker with a combined SW that:
+  - Pre-caches the app shell on install + purges stale caches on activate
+  - Network-first for navigations w/ cached `/` fallback when offline
+  - Stale-while-revalidate for `/icons/`, `/downloads/`, `/static/`, manifest
+  - Bypasses `/api/*` (always live)
+  - Preserves the existing `push` + `notificationclick` handlers
+- `frontend/public/index.html` — added manifest link, apple-touch-icon, mobile-web-app meta tags, ms-tile config, and a tiny SW registration script
+- `frontend/src/components/InstallPwaButton.jsx` — floating "◆ Install" CTA that listens for `beforeinstallprompt`, hides on already-standalone, dismissible (14-day cool-off via localStorage)
+- `frontend/src/components/PushOptInCard.jsx` — reusable opt-in card that wires `lib/push.js`. Auto-hides if unsupported / already subscribed / permission denied
+- `frontend/src/pages/CheckoutSuccess.jsx` — embeds `<PushOptInCard role="buyer">` post-payment so we capture the highest-converting moment for opt-in
+- Mounted `<InstallPwaButton />` globally in `App.js`
+
+### Verified
+- Manifest reachable + parsed by browser (`name`, `display:standalone`, 4 icons)
+- Service worker registers + becomes **active** at scope `/`
+- All icon endpoints return 200
+- App-shell caching does not interfere with `/api/*` traffic
+- Lighthouse PWA criteria met (HTTPS via preview/prod, valid manifest, SW with fetch handler, install prompt path)
+
+### How shoppers experience it
+1. Visit `craftersmarket.org` on Android Chrome
+2. Either tap browser menu → "Install app", or tap the floating "◆ Install" CTA we surface
+3. App icon lands on home screen; launching opens full-screen with the dark theme color
+4. Web push works out of the box (already wired in this branch)
+5. Offline: app shell still loads, navigation falls back to cached homepage
+
+### Future upgrade path (no rework)
+- Run `npx @bubblewrap/cli init --manifest=https://craftersmarket.org/manifest.webmanifest` from a dev machine → produces a Play-Store-publishable TWA APK that wraps this same PWA. Zero code changes.
+
 ## 2026-05-05 — 5★ review backfill button (admin Social tab) ✅
 - New `POST /api/admin/buffer/backfill-5star-reviews` — scans `reviews` for un-posted 5★s in the last `days` days (default 7, capped at 90), funnels each through `auto_post_5star_review`. Idempotent — the function's own `posted_to_buffer_at` stamp prevents repeat posts.
 - `force=true` flag temporarily flips the `auto_publish_5star_reviews_enabled` site-setting ON for the call, then restores it. Lets ops do a one-off backfill without permanently flipping the daily auto-flow ON.

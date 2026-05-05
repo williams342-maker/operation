@@ -36,9 +36,16 @@
         <meta name="twitter:image:alt" content="CNC Garage Builders — Crafters Market emblem" />
 
         <!-- Apple / PWA -->
-        <link rel="apple-touch-icon" href="/downloads/cnc-garage-builders.png" />
+        <link rel="manifest" href="/manifest.webmanifest" />
+        <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+        <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png" />
         <meta name="apple-mobile-web-app-title" content="Crafters Market" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="application-name" content="Crafters Market" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="msapplication-TileColor" content="#0a0a0a" />
+        <meta name="msapplication-TileImage" content="/icons/icon-192.png" />
 
         <!-- Sitemap reference -->
         <link rel="sitemap" type="application/xml" href="/api/sitemap.xml" />
@@ -95,6 +102,15 @@
           function gtag(){dataLayer.push(arguments);}
           gtag('js', new Date());
           gtag('config', 'G-HY3FKJS4JK');
+        </script>
+
+        <!-- PWA service-worker registration (handles offline shell + web push) -->
+        <script>
+          if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function () {
+              navigator.serviceWorker.register('/service-worker.js', { scope: '/' }).catch(function () {});
+            });
+          }
         </script>
     </head>
     <body>
