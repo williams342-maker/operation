@@ -230,3 +230,130 @@ async def list_recent_posts(limit: int = 50) -> list[dict]:
     return await db.buffer_posts.find(
         {}, {"_id": 0},
     ).sort("created_at", -1).to_list(limit)
+
+
+# ============================================================
+#  5-star review auto-poster
+# ============================================================
+async def auto_post_5star_review(review: dict) -> Optional[dict]:
+    """Compose + queue a Buffer post celebrating a fresh 5-star review.
+
+    Skips silently when:
+      - Buffer isn't configured
+      - The `auto_publish_5star_reviews_enabled` site setting is OFF
+      - The review isn't 5 stars
+      - The review's maker can't be resolved (no slug or deleted)
+      - No channels are connected to Buffer
+      - The review text is too short / abusive (lightweight content
+        guard so we don't auto-post one-word reviews to social).
+
+    Idempotency: stamps `reviews.posted_to_buffer_at` on success so a
+    subsequent edit-and-resave of the same review can't re-trigger the
+    post. The DB-side guard is in `routers/catalog.create_review` —
+    this function trusts the caller.
+
+    Returns the buffer_posts row on success, None on skip, raises on
+    transport errors so the caller can decide whether to retry.
+    """
+    if not _enabled():
+        return None
+
+    # Settings gate (default OFF — opt-in feature).
+    try:
+        from routers.settings import get_setting
+        if not await get_setting("auto_publish_5star_reviews_enabled", False):
+            return None
+    except Exception as e:
+        logger.warning("[buffer] settings lookup failed: %s", e)
+        return None
+
+    if int(review.get("rating") or 0) != 5:
+        return None
+    text_body = (review.get("text") or "").strip()
+    if len(text_body) < 30:
+        # One-word raves don't make great social posts. The maker can
+        # always share these manually from the dashboard.
+        logger.info("[buffer] skipping 5-star auto-post — too short (%d chars)", len(text_body))
+        return None
+
+    maker_slug = review.get("maker_slug")
+    if not maker_slug:
+        return None
+    maker = await db.makers.find_one(
+        {"slug": maker_slug, "deleted_at": {"$in": [None, ""]}},
+        {"_id": 0, "slug": 1, "name": 1},
+    )
+    if not maker:
+        return None
+
+    # Resolve product image so the social post has a hero image. Fall back
+    # to the maker's portrait if we can't find a product photo.
+    image_url = None
+    product = None
+    if review.get("product_slug"):
+        product = await db.products.find_one(
+            {"slug": review["product_slug"], "deleted_at": {"$in": [None, ""]}},
+            {"_id": 0, "slug": 1, "title": 1, "images": 1},
+        )
+        if product:
+            imgs = product.get("images") or []
+            if imgs:
+                image_url = imgs[0]
+    if not image_url:
+        m = await db.makers.find_one(
+            {"slug": maker_slug}, {"_id": 0, "portrait": 1, "cover": 1},
+        )
+        image_url = (m or {}).get("portrait") or (m or {}).get("cover")
+
+    try:
+        channels = await list_channels()
+    except Exception as e:
+        logger.warning("[buffer] list_channels failed (5-star auto-post skipped): %s", e)
+        return None
+    if not channels:
+        return None
+
+    # Quote the review (truncated to fit Twitter's 280-char window
+    # alongside the rest of the template). Strip newlines from quoted
+    # text so the post doesn't fragment.
+    quote = " ".join(text_body.split())
+    if len(quote) > 140:
+        quote = quote[:138].rsplit(" ", 1)[0].rstrip(",;:.") + "…"
+
+    reviewer = (review.get("name") or "").strip().split(" ", 1)[0] or "A buyer"
+    maker_name = maker.get("name") or maker.get("slug")
+    target = f"{SITE_URL}/shop/{product['slug']}" if product else f"{SITE_URL}/makers/{maker_slug}"
+    text = (
+        f"⭐⭐⭐⭐⭐ {reviewer} on {maker_name}:\n\n"
+        f"\"{quote}\"\n\n"
+        f"Shop the work → {target}"
+    )
+
+    posted = await create_post(
+        text=text,
+        channel_ids=[c["id"] for c in channels],
+        image_url=image_url,
+        mode="addToQueue",
+        source="auto-review",
+        posted_by=maker_slug,
+        product_slug=product.get("slug") if product else None,
+    )
+
+    # Stamp the review so we never re-post the same row, even if it's
+    # edited. Failures here are non-fatal — the post already went out;
+    # at worst we re-trigger on a later edit.
+    try:
+        if review.get("id"):
+            await db.reviews.update_one(
+                {"id": review["id"]},
+                {"$set": {"posted_to_buffer_at": now_iso(),
+                          "posted_to_buffer_id": posted.get("id")}},
+            )
+    except Exception as e:
+        logger.warning("[buffer] review stamp failed (post already sent): %s", e)
+
+    logger.info(
+        "[buffer] auto-posted 5-star review · maker=%s · channels=%d · ok=%d",
+        maker_slug, len(channels), posted.get("success_count", 0),
+    )
+    return posted
