@@ -736,11 +736,46 @@ export default function MakerListingEditor() {
           </div>
 
           <div className="mt-4">
-            <Label>
-              Description * <span className={`text-[10px] ml-1 ${form.description.length >= 1900 ? "text-[#ff4500]" : "text-[#525252]"}`}>
-                {form.description.length}/2000
-              </span>
-            </Label>
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <Label>
+                Description * <span className={`text-[10px] ml-1 ${form.description.length >= 1900 ? "text-[#ff4500]" : "text-[#525252]"}`}>
+                  {form.description.length}/2000
+                </span>
+              </Label>
+              {/* Pre-fill the description with a structured 5-bullet
+                  template the maker can fill in instead of staring at an
+                  empty textarea. Disabled once they've started writing
+                  so we don't accidentally clobber their copy — confirm
+                  via dialog if they really want to overwrite. */}
+              <button
+                type="button"
+                onClick={() => {
+                  const template = (
+                    "What it makes:\n  \n\n"
+                    + "Dimensions / materials / finish:\n  \n\n"
+                    + "Customization options (sizes, colors, names you can add):\n  \n\n"
+                    + "Care notes / mounting hardware:\n  \n\n"
+                    + "The story — why I made it, what makes it mine:\n  "
+                  );
+                  if (form.description.trim().length === 0) {
+                    set({ description: template });
+                    return;
+                  }
+                  // Use native confirm; matches the visual restraint of
+                  // the editor (no full-screen modal needed for a tiny
+                  // confirmation prompt). If you want a styled dialog
+                  // here, swap in `useConfirm` from MakerDashboard.
+                  if (window.confirm("Replace what you've written with the template?")) {
+                    set({ description: template });
+                  }
+                }}
+                className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] hover:bg-[#ff4500]/10 border border-[#ff4500]/40 px-3 py-1.5 transition"
+                data-testid="editor-description-template"
+                title="Pre-fill the box with a 5-bullet structure. Just fill in the blanks."
+              >
+                ✦ Use template
+              </button>
+            </div>
             <textarea
               rows={6} value={form.description}
               maxLength={2000}
@@ -758,6 +793,7 @@ export default function MakerListingEditor() {
             />
             <p className="font-mono text-[10px] text-[#525252] mt-1 leading-relaxed">
               Tip: listings with 4+ paragraphs convert ~2× better. Hit each bullet above if you can — buyers reward detail.
+              Or click <strong className="text-[#a3a3a3]">✦ Use template</strong> above to pre-fill the structure.
             </p>
             {errors.description && <FieldError msg={errors.description} />}
           </div>

@@ -1,5 +1,84 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05 — iter129 — Pinterest/Twitter/Facebook share + auto-SEO tags + listing template button ✅
+
+Three feature drops aimed at promotion + SEO + maker UX:
+
+### 1. Auto-SEO tags on every design file (`backend/seo_tags.py`)
+Heuristic, dependency-free tagger that runs on every upload + edit and
+populates two new fields on `design_files`:
+
+- `seo_tags: list[str]` — up to 12 ordered, deduped, kebab-case tags
+  pulled from a domain craft vocab (`plasma-cut`, `laser-engraved`,
+  `cnc-router`, `wall-art`, `mountains`, etc.), a material vocab
+  (`steel`, `oak`, `walnut`, …), the bundle's file types
+  (`dxf-file`, `stl-3d-model`), and content-word filler.
+- `seo_description: str` — 160-char first-sentence-preferred meta
+  description with word-boundary truncation.
+
+Wired into:
+- `POST /community/files` (URL-paste maker upload)
+- `POST /community/files/upload` (direct multi-file upload)
+- `PATCH /community/files/{id}` (regenerates whenever title/description change)
+- One-time backfill: 130 existing files retro-tagged via REPL.
+
+Surfaced as `#tag` chips on every FileCard in the Community → Design
+Files tab. Visible text doubles as a search-engine signal.
+
+### 2. New OG prerender route for community design files (`backend/routers/og_prerender.py`)
+`GET /api/og/community/file/{file_id}` returns crawler-targeted HTML
+with:
+- `og:type=article` (Pinterest Rich Pins target)
+- `article:tag` blocks (one per seo_tag, capped at 10)
+- `<meta name="keywords">` with all 12 tags
+- Twitter `summary_large_image` card
+- Schema.org `CreativeWork` JSON-LD with keywords + author + encodingFormat
+- An indexable HTML body (description + bundle details + breadcrumb +
+  cross-links to /community, /shop, /custom-order)
+
+Soft-404 → /community on unknown UUIDs. UUID-shaped path guard prevents
+DB scans on garbage input.
+
+### 3. Promote-this-file share row on every FileCard (`CommunityPage.jsx ShareFileRow`)
+Five buttons, each opening the platform's web-share endpoint with the
+canonical `/community/files/{id}` URL (which crawlers should route to
+the new OG prerender via Cloudflare Worker — same pattern as products):
+
+- **Pinterest** — pre-fills `media`, `description`, full hashtag string. Highest-ROI for long-tail SEO.
+- **X (Twitter)** — `text` + first 3 tags as hashtags
+- **Facebook** — standard `sharer.php?u=...`
+- **IG caption** — copies a paste-ready Instagram caption (title + body + 6 hashtags + URL) since Instagram has no web-share API.
+- **Copy link** — `navigator.clipboard.writeText` of the canonical URL
+
+### 4. "✦ Use template" button in MakerListingEditor description
+Pre-fills the description textarea with a 5-bullet structure (What it
+makes / Dimensions+materials+finish / Customization / Care notes / Story)
+the maker can fill in instead of staring at a blank textarea. Confirms
+before overwriting non-empty content. Tip below the textarea
+references the button by name.
+
+### Files touched
+- New: `backend/seo_tags.py`, `backend/tests/test_iter129_seo_tags.py`
+- Modified: `backend/routers/community.py`, `backend/routers/og_prerender.py`, `frontend/src/pages/CommunityPage.jsx`, `frontend/src/pages/MakerListingEditor.jsx`
+
+### Verified
+- pytest test_iter129_seo_tags.py — 5 paths green (vocab order, dedup, empty input, sentence truncation, OG prerender 200 + 302 soft-404)
+- curl `/api/og/community/file/<id>` → 200 with `og:type=article`, `article:tag`, `keywords` meta, JSON-LD CreativeWork
+- Screenshot: every FileCard now shows tag chips + 5-button promote row
+- Screenshot: listing editor "Use template" button pre-fills 203-char structure
+- Backfilled 130 existing design files with seo_tags retroactively
+
+### Next-step operator action (optional, for max SEO)
+Add a Cloudflare Worker rule (or equivalent on whatever CDN sits in
+front of craftersmarket.org) that rewrites `/community/files/{uuid}`
+requests from Pinterest/Twitter/Facebook crawler UAs to
+`/api/og/community/file/{uuid}` so the share previews are rich. Same
+pattern that's already documented for `/shop/{slug}` →
+`/api/og/product/{slug}`. Without the Worker, the share buttons still
+work — they just fall back to whatever OG meta the SPA shell renders.
+
+---
+
 ## 2026-05 — iter128 — Settle-now + payout-schedule + upload preview + auto DXF→SVG ✅
 
 Bundle of pay-structure and upload-flow polish driven by the user's request:

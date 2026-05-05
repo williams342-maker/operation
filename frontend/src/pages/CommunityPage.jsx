@@ -1399,6 +1399,34 @@ function FileCard({ file, canDownload, me, onRefresh }) {
       </div>
       <p className="font-mono text-[11px] text-[#a3a3a3] leading-relaxed">{file.description}</p>
 
+      {/* SEO tag chips — auto-generated from title+description on upload.
+          Visible text doubles as a search-engine signal and makes the
+          bundle more discoverable on-platform via filter clicks. */}
+      {Array.isArray(file.seo_tags) && file.seo_tags.length > 0 && (
+        <div
+          className="flex flex-wrap gap-1.5"
+          data-testid={`file-tags-${file.id}`}
+        >
+          {file.seo_tags.slice(0, 8).map((t) => (
+            <span
+              key={t}
+              className="font-mono text-[9px] uppercase tracking-[0.18em] px-1.5 py-0.5 border border-[#262626] text-[#a3a3a3] hover:text-[#ff4500] hover:border-[#ff4500]/40 transition cursor-default"
+              title={`Auto-tag: ${t}`}
+            >
+              #{t}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Promote-this-bundle share row. Each button opens the platform's
+          web-share endpoint with the canonical /community/files/{id}
+          URL — that endpoint is intercepted by the OG prerender for
+          bot UAs so the resulting Pin / Tweet / Post gets a rich
+          preview (image + title + tags). For Instagram (no web-share
+          API), we copy a caption-friendly string to the clipboard. */}
+      <ShareFileRow file={file} />
+
       {/* Owner-only smart prompts: nudge them to enrich the bundle. The
           DXF→SVG one-click is the highest-impact (laser/CNC shops post
           DXFs constantly, but DXFs don't preview in browsers — generated
@@ -1699,6 +1727,134 @@ function EditFileModal({ file, onClose, onSaved }) {
   );
 }
 
+// Promote-this-file share row — Pinterest/Twitter/Facebook/Copy-link
+// buttons that fire each platform's web-share endpoint with the
+// canonical /community/files/{id} URL. That URL is intercepted by the
+// OG prerender for crawler UAs, so the resulting Pin / Tweet / Post
+// gets a rich preview built from the file's seo_tags + thumbnail.
+//
+// Instagram has no web-share API, so for Instagram users we copy a
+// caption-friendly string (title + tags + hashtags + URL) to the
+// clipboard and toast — they paste into the Instagram composer.
+function ShareFileRow({ file }) {
+  // Public share URL — apex domain, never preview. Lives at
+  // /community/files/{id}; the backend OG prerender route
+  // (/api/og/community/file/{id}) is what crawlers should be sent to
+  // (operator action via Cloudflare Worker, same pattern as products).
+  const apex = (window.__CM_PUBLIC_SITE_URL__ || "https://craftersmarket.org").replace(/\/$/, "");
+  const url = `${apex}/community/files/${file.id}`;
+  const text = `${file.title} — Free CNC / laser / plasma design files on Crafters Market`;
+  const tags = (file.seo_tags || []).slice(0, 8);
+  const hashtags = tags.map((t) => "#" + t.replace(/[^a-z0-9]/g, "")).filter((h) => h.length > 1);
+
+  const open = (href) => window.open(href, "_blank", "noopener,noreferrer,width=720,height=640");
+
+  const onPinterest = () => {
+    // media= helps Pinterest skip its own image-detection step and use
+    // the actual file thumb directly.
+    const media = (file.thumbnail_url || "").trim();
+    const params = new URLSearchParams({
+      url,
+      description: `${text}\n\n${hashtags.join(" ")}`,
+    });
+    if (media) params.set("media", media);
+    open(`https://pinterest.com/pin/create/button/?${params.toString()}`);
+  };
+
+  const onTwitter = () => {
+    const params = new URLSearchParams({
+      url,
+      text,
+      hashtags: tags.slice(0, 3).map((t) => t.replace(/[^a-z0-9]/g, "")).filter(Boolean).join(","),
+    });
+    open(`https://twitter.com/intent/tweet?${params.toString()}`);
+  };
+
+  const onFacebook = () => {
+    open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`);
+  };
+
+  const onCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Link copied — paste anywhere.");
+    } catch {
+      toast.error("Couldn't copy. Long-press to share manually.");
+    }
+  };
+
+  const onCopyInstagramCaption = async () => {
+    const caption = [
+      `${file.title}`,
+      file.description ? `\n${file.description.slice(0, 220)}` : "",
+      `\n\n${hashtags.slice(0, 6).join(" ")}`,
+      `\n\n👉 ${url}`,
+    ].join("");
+    try {
+      await navigator.clipboard.writeText(caption);
+      toast.success("Caption + link copied — paste into Instagram.");
+    } catch {
+      toast.error("Couldn't copy. Long-press to share manually.");
+    }
+  };
+
+  return (
+    <div
+      className="flex items-center gap-1.5 flex-wrap"
+      data-testid={`file-share-row-${file.id}`}
+    >
+      <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252] mr-1">
+        Promote ↗
+      </span>
+      <button
+        type="button"
+        onClick={onPinterest}
+        className="font-mono text-[10px] uppercase tracking-[0.22em] px-2 py-1 border border-[#262626] hover:border-[#e60023] hover:text-[#e60023] transition"
+        data-testid={`file-share-pinterest-${file.id}`}
+        title="Share to Pinterest — your boards drive long-tail SEO traffic for years"
+      >
+        Pinterest
+      </button>
+      <button
+        type="button"
+        onClick={onTwitter}
+        className="font-mono text-[10px] uppercase tracking-[0.22em] px-2 py-1 border border-[#262626] hover:border-[#1d9bf0] hover:text-[#1d9bf0] transition"
+        data-testid={`file-share-twitter-${file.id}`}
+        title="Post on X / Twitter"
+      >
+        X
+      </button>
+      <button
+        type="button"
+        onClick={onFacebook}
+        className="font-mono text-[10px] uppercase tracking-[0.22em] px-2 py-1 border border-[#262626] hover:border-[#1877f2] hover:text-[#1877f2] transition"
+        data-testid={`file-share-facebook-${file.id}`}
+        title="Share to Facebook"
+      >
+        Facebook
+      </button>
+      <button
+        type="button"
+        onClick={onCopyInstagramCaption}
+        className="font-mono text-[10px] uppercase tracking-[0.22em] px-2 py-1 border border-[#262626] hover:border-[#e1306c] hover:text-[#e1306c] transition"
+        data-testid={`file-share-instagram-${file.id}`}
+        title="Copy a ready-to-paste Instagram caption + link to your clipboard"
+      >
+        IG caption
+      </button>
+      <button
+        type="button"
+        onClick={onCopyLink}
+        className="font-mono text-[10px] uppercase tracking-[0.22em] px-2 py-1 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] transition"
+        data-testid={`file-share-copy-${file.id}`}
+        title="Copy the public share link"
+      >
+        Copy link
+      </button>
+    </div>
+  );
+}
+
 // One-off report composer — opened from the ⚑ Report button on any
 // design-file card. Any signed-in user can flag for IP/copyright/etc.
 // We never show the reporter's identity to the uploader to avoid
@@ -1712,6 +1868,7 @@ const REPORT_REASON_OPTIONS = [
   { id: "other",      label: "Other concern" },
 ];
 
+// One-off report composer — opened from the ⚑ Report button on any
 function ReportFileModal({ file, onClose }) {
   const [reason, setReason] = useState("stolen");
   const [details, setDetails] = useState("");

@@ -18,6 +18,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel, EmailStr
 
 from core import db, logger, now_iso
+from seo_tags import extract_seo_tags, build_seo_description
 from email_service import _send, _shell  # reuse Resend helper directly for buyer link
 from maker_auth import (
     current_admin, current_any_user, current_buyer, current_maker_slug,
@@ -830,6 +831,13 @@ def _with_quality(doc: dict) -> dict:
 async def upload_design_file(payload: DesignFileMeta, slug: str = Depends(current_maker_slug)):
     """Maker-only: post a downloadable design file."""
     maker = await db.makers.find_one({"slug": slug}, {"_id": 0})
+    title = payload.title or ""
+    description = payload.description or ""
+    seo_tags = extract_seo_tags(
+        title, description,
+        file_types=[payload.file_type] if payload.file_type else None,
+    )
+    seo_description = build_seo_description(title, description)
     doc = {
         "id": str(uuid.uuid4()),
         "maker_slug": slug,
@@ -837,6 +845,8 @@ async def upload_design_file(payload: DesignFileMeta, slug: str = Depends(curren
         **payload.model_dump(),
         "downloads": 0,
         "created_at": now_iso(),
+        "seo_tags": seo_tags,
+        "seo_description": seo_description,
     }
     await db.design_files.insert_one(doc)
     doc.pop("_id", None)
@@ -935,6 +945,14 @@ async def upload_design_file_direct(
             auto_thumb = v["url"]
             break
 
+    # Auto-extract SEO tags + meta-description from title+description on
+    # upload. Heuristic-based (no LLM round-trip) so it's deterministic
+    # and free. Surfaces in the OG prerender's `keywords` + Pinterest
+    # Rich Pin `article:tag` blocks AND as filter-chip on the card UI.
+    file_type_codes = [primary["format"]] + [v["format"] for v in variants]
+    seo_tags = extract_seo_tags(title, description, file_types=file_type_codes)
+    seo_description = build_seo_description(title, description)
+
     doc = {
         "id": str(uuid.uuid4()),
         "maker_slug": uploader_label if role == "maker" else None,
@@ -950,6 +968,8 @@ async def upload_design_file_direct(
         "downloads": 0,
         "size_bytes": primary["size_bytes"],
         "created_at": now_iso(),
+        "seo_tags": seo_tags,
+        "seo_description": seo_description,
     }
     await db.design_files.insert_one(doc)
     doc.pop("_id", None)
@@ -1029,6 +1049,23 @@ async def update_design_file(
 
     if not updates:
         return _with_quality(doc)
+
+    # Regenerate the SEO tag set + meta description whenever the title
+    # or body copy changed — the heuristic tagger is fast/free, so we
+    # don't need to skip it on every PATCH. If neither field changed,
+    # we leave the existing tags alone to avoid bumping the updated_at
+    # timestamp on cosmetic-only edits.
+    new_title = updates.get("title", doc.get("title"))
+    new_description = updates.get("description", doc.get("description"))
+    if "title" in updates or "description" in updates:
+        file_type_codes = [doc.get("file_type")] + [
+            v.get("format") for v in (doc.get("variants") or []) if v.get("format")
+        ]
+        updates["seo_tags"] = extract_seo_tags(
+            new_title, new_description,
+            file_types=[c for c in file_type_codes if c],
+        )
+        updates["seo_description"] = build_seo_description(new_title, new_description)
 
     updates["updated_at"] = now_iso()
     await db.design_files.update_one({"id": file_id}, {"$set": updates})

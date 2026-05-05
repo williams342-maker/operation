@@ -301,6 +301,127 @@ async def og_product(slug: str, http_request: Request):
     return HTMLResponse(content=html)
 
 
+    return HTMLResponse(content=html)
+
+
+# ============================================================
+# Community design file (shareable link target)
+# ============================================================
+# Design files are referenced by UUID, not slug, so the SLUG_RE guard
+# doesn't fit — use a UUID-shaped guard instead. Falls back to /community
+# on misses (same soft-404 pattern as products/makers).
+_UUID_RE = re.compile(r"^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$", re.IGNORECASE)
+
+
+@router.get("/og/community/file/{file_id}", include_in_schema=False)
+async def og_community_file(file_id: str, http_request: Request):
+    """Crawler-targeted prerender for a community design file's share URL.
+
+    Crawlers fetch this route directly (no JS), get rich OG / Twitter /
+    Pinterest metadata + an indexable HTML body. Real browsers hit the
+    meta-refresh and end up at /community#files .
+    """
+    if not _UUID_RE.match(file_id or ""):
+        return RedirectResponse(f"{_site()}/community", status_code=302)
+    doc = await db.design_files.find_one(
+        {"id": file_id, "deleted_at": None},
+        {"_id": 0, "id": 1, "title": 1, "description": 1, "thumbnail_url": 1,
+         "maker_name": 1, "maker_slug": 1, "uploader_id": 1,
+         "file_type": 1, "variants": 1, "downloads": 1,
+         "seo_tags": 1, "seo_description": 1},
+    )
+    if not doc:
+        logger.info("[og_prerender] community file not found: %s", file_id)
+        return RedirectResponse(f"{_site()}/community", status_code=302)
+
+    title_raw = (doc.get("title") or "").strip() or "Design Bundle"
+    maker = (doc.get("maker_name") or "").strip()
+    title = f"{title_raw}{' · ' + maker if maker else ''} — Crafters Market Design Files"
+    full_desc = (doc.get("description") or "").strip()
+    desc = (doc.get("seo_description") or "").strip() \
+        or _truncate(full_desc, 200) \
+        or "A community-shared design bundle from Crafters Market — free CNC, laser, and plasma-cut design files."
+    img = (doc.get("thumbnail_url") or "").strip() or _placeholder_image()
+    canonical = f"{_site()}/community/files/{file_id}"
+    site = _site()
+
+    seo_tags = doc.get("seo_tags") or []
+    file_type = (doc.get("file_type") or "").upper()
+    variants = doc.get("variants") or []
+    formats = [file_type] + [(v.get("format") or "").upper() for v in variants]
+    formats = [f for f in formats if f]
+
+    # Pinterest Rich Pin "article:tag" + standard `keywords` meta tag.
+    extras: list[tuple[str, str]] = [("og:type", "article")]
+    for t in seo_tags[:10]:
+        extras.append(("article:tag", t))
+    if maker:
+        extras.append(("article:author", maker))
+
+    keywords_meta = ", ".join(seo_tags[:12])
+
+    body_parts: list[str] = []
+    body_parts.append(
+        '<nav class="breadcrumb" aria-label="Breadcrumb">'
+        f'<a href="{site}/">Home</a> · <a href="{site}/community">Community</a>'
+        f' · <span>{_esc(title_raw)}</span>'
+        '</nav>'
+    )
+    if full_desc:
+        body_parts.append(
+            f'<section class="sect"><h2>About this bundle</h2>'
+            f'<p>{_esc(full_desc[:1500])}</p></section>'
+        )
+    detail_lines: list[str] = []
+    detail_lines.append(f"<li><strong>Formats included:</strong> {_esc(', '.join(formats))}</li>")
+    if maker:
+        detail_lines.append(f"<li><strong>Uploaded by:</strong> {_esc(maker)}</li>")
+    if doc.get("downloads"):
+        detail_lines.append(f"<li><strong>Downloads:</strong> {int(doc['downloads'])}</li>")
+    if seo_tags:
+        detail_lines.append(f"<li><strong>Tags:</strong> {_esc(', '.join(seo_tags[:10]))}</li>")
+    body_parts.append(
+        '<section class="sect"><h2>Bundle details</h2>'
+        f'<ul>{"".join(detail_lines)}</ul></section>'
+    )
+    body_parts.append(
+        '<section class="sect"><h2>Browse more</h2><ul>'
+        f'<li><a href="{site}/community">All community design files</a></li>'
+        f'<li><a href="{site}/shop">Shop hand-built originals</a></li>'
+        f'<li><a href="{site}/custom-order">Request a custom order</a></li>'
+        '</ul></section>'
+    )
+    body_html = "".join(body_parts)
+
+    import json as _json
+    json_ld = _json.dumps({
+        "@context": "https://schema.org/",
+        "@type": "CreativeWork",
+        "name": title_raw,
+        "description": _truncate(full_desc, 500) or desc,
+        "image": img,
+        "url": canonical,
+        "keywords": keywords_meta,
+        "author": {"@type": "Person", "name": maker or "Crafters Market community"},
+        "encodingFormat": ", ".join(formats),
+    }, separators=(",", ":"))
+
+    html = _render_og_html(
+        title=title, description=desc, image=img,
+        canonical_url=canonical, redirect_url=f"{site}/community",
+        extra_props=extras,
+        body_html=body_html,
+        json_ld=json_ld,
+    )
+    if keywords_meta:
+        html = html.replace(
+            "</head>",
+            f'<meta name="keywords" content="{_esc(keywords_meta)}" /></head>',
+            1,
+        )
+    return HTMLResponse(content=html)
+
+
 # ============================================================
 # Maker
 # ============================================================
