@@ -682,6 +682,9 @@ export default function MakerListingEditor() {
             className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm"
             data-testid="editor-title"
           />
+          <p className="font-mono text-[10px] text-[#525252] mt-1 leading-relaxed">
+            Lead with what it is, then a hook (size, technique, vibe). Etsy-style: short titles convert better than keyword stuffing.
+          </p>
           {errors.title && <FieldError msg={errors.title} />}
 
           <div className="grid sm:grid-cols-2 gap-4 mt-4">
@@ -689,16 +692,22 @@ export default function MakerListingEditor() {
               <Label>Category *</Label>
               <Select value={form.category} onChange={(v) => set({ category: v })}
                 options={CATEGORIES.map((c) => [c, c])} testid="editor-category" />
+              <p className="font-mono text-[10px] text-[#525252] mt-1 leading-relaxed">
+                The single best filter buyers use — pick the closest match.
+              </p>
             </div>
             <div>
               <Label>Technique</Label>
               <Select value={form.technique} onChange={(v) => set({ technique: v })}
                 options={TECHNIQUES.map((t) => [t, t])} testid="editor-technique" />
+              <p className="font-mono text-[10px] text-[#525252] mt-1 leading-relaxed">
+                How was it made? Powers technique-based discovery in search.
+              </p>
             </div>
           </div>
 
           <div className="mt-4">
-            <Label>Materials (press Enter to add)</Label>
+            <Label>Materials <span className="text-[#525252] normal-case">(press Enter to add)</span></Label>
             <div className="flex gap-2 flex-wrap mb-2" data-testid="editor-materials-chips">
               {form.materials.map((m) => (
                 <span key={m} className="inline-flex items-center gap-2 px-2 py-1 border border-[#262626] font-mono text-[11px]">
@@ -721,17 +730,35 @@ export default function MakerListingEditor() {
               className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm"
               data-testid="editor-materials-input"
             />
+            <p className="font-mono text-[10px] text-[#525252] mt-1 leading-relaxed">
+              List every material — many buyers filter by "solid wood", "stainless", etc. Add up to 8.
+            </p>
           </div>
 
           <div className="mt-4">
-            <Label>Description *</Label>
+            <Label>
+              Description * <span className={`text-[10px] ml-1 ${form.description.length >= 1900 ? "text-[#ff4500]" : "text-[#525252]"}`}>
+                {form.description.length}/2000
+              </span>
+            </Label>
             <textarea
               rows={6} value={form.description}
+              maxLength={2000}
               onChange={(e) => set({ description: e.target.value })}
-              placeholder="Describe your item in detail. Include dimensions, finish, customization options, and what makes it special. Buyers love knowing the story behind the piece."
-              className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-3 font-mono text-sm resize-y"
+              placeholder={
+                "Describe your item like you're showing it to a friend:\n"
+                + "  • What it is and what it makes (e.g. 24\" mountain wall art for a living room)\n"
+                + "  • Dimensions, materials, finish (e.g. 1/8\" mild steel, raw + clear coat)\n"
+                + "  • Customization options (sizes, colors, names you can add)\n"
+                + "  • Care notes / mounting hardware included?\n"
+                + "  • The story — why you made it, what makes it yours."
+              }
+              className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-3 font-mono text-sm resize-y leading-relaxed"
               data-testid="editor-description"
             />
+            <p className="font-mono text-[10px] text-[#525252] mt-1 leading-relaxed">
+              Tip: listings with 4+ paragraphs convert ~2× better. Hit each bullet above if you can — buyers reward detail.
+            </p>
             {errors.description && <FieldError msg={errors.description} />}
           </div>
         </Section>

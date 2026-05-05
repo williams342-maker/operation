@@ -4,6 +4,8 @@ import {
   ChevronDown, Wallet, FileText, Settings as SettingsIcon, BookOpen,
   Calculator, ScrollText, ExternalLink, Search, X, Truck,
 } from "lucide-react";
+import CreditPacksCard from "./CreditPacksCard";
+
 import {
   fetchMakerPayouts, fetchMakerTransactions,
   stripeConnectOnboard, stripeConnectStatus, stripeConnectDashboardLink,
@@ -777,6 +779,13 @@ function PaymentSettings({ status, query }) {
             Manage Plus billing ↗
           </button>
         )}
+      </div>
+
+      {/* Pre-paid listing credit packs — bulk discount alternative to the
+          per-payout $0.20 cash settlement. Self-fetches and self-handles
+          Stripe Checkout return; renders nothing while loading. */}
+      <div className="mt-8" data-testid="payment-settings-credit-packs">
+        <CreditPacksCard />
       </div>
     </Section>
   );
