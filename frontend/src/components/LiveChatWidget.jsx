@@ -12,7 +12,11 @@ import { useSiteSettings } from "../hooks/useSiteSettings";
 const STORAGE_OPEN = "cm_live_chat_open";
 const STORAGE_DISMISSED = "cm_live_chat_dismissed_at";
 const DISMISS_DAYS = 3;
-const CHANNEL = "help";
+const CHANNELS = [
+  { id: "help",     label: "#help" },
+  { id: "general",  label: "#general" },
+  { id: "showcase", label: "#showcase" },
+];
 
 function getToken() {
   return (
@@ -37,6 +41,12 @@ export default function LiveChatWidget() {
   const [open, setOpen] = useState(() => {
     try { return localStorage.getItem(STORAGE_OPEN) === "1"; } catch { return false; }
   });
+  const [channel, setChannel] = useState(() => {
+    try {
+      const saved = localStorage.getItem("cm_live_chat_channel");
+      return CHANNELS.some((c) => c.id === saved) ? saved : "help";
+    } catch { return "help"; }
+  });
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState("");
   const [unread, setUnread] = useState(0);
@@ -51,6 +61,11 @@ export default function LiveChatWidget() {
   const path = typeof window !== "undefined" ? window.location.pathname : "";
   const onChatPage = path.startsWith("/community") || path.startsWith("/admin") || path.startsWith("/maker");
 
+  // Persist channel selection across sessions
+  useEffect(() => {
+    try { localStorage.setItem("cm_live_chat_channel", channel); } catch { /* ignore */ }
+  }, [channel]);
+
   // Open ↔ close persistence + clear unread when opened
   useEffect(() => {
     try { localStorage.setItem(STORAGE_OPEN, open ? "1" : "0"); } catch { /* ignore */ }
@@ -64,17 +79,22 @@ export default function LiveChatWidget() {
     }
   }, [messages, open]);
 
-  // Connect WebSocket once we have a token; reconnect on unmount only.
+  // Connect WebSocket — reconnects when channel or token changes.
   useEffect(() => {
     if (!enabled || onChatPage || !token) return;
     let alive = true;
     let ws = null;
     let backoff = 1000;
 
+    // Reset state when channel changes so we don't show old room's messages.
+    setMessages([]);
+    setBuddies([]);
+    setConnected(false);
+
     const connect = () => {
       if (!alive) return;
       try {
-        ws = new WebSocket(wsChatUrl(CHANNEL, token));
+        ws = new WebSocket(wsChatUrl(channel, token));
       } catch {
         setConnected(false);
         return;
@@ -106,7 +126,7 @@ export default function LiveChatWidget() {
     };
 
     // Backfill recent history before live socket joins so the panel isn't empty.
-    fetchChatHistory(CHANNEL).then((hist) => {
+    fetchChatHistory(channel).then((hist) => {
       if (alive) setMessages(hist || []);
     }).catch(() => {});
     connect();
@@ -115,7 +135,7 @@ export default function LiveChatWidget() {
       alive = false;
       try { ws && ws.close(); } catch { /* ignore */ }
     };
-  }, [enabled, onChatPage, token]);
+  }, [enabled, onChatPage, token, channel]);
 
   if (!enabled || onChatPage) return null;
   if (!open && recentlyDismissed()) return null;
@@ -165,37 +185,58 @@ export default function LiveChatWidget() {
       className="fixed bottom-6 left-6 z-[60] w-[min(92vw,360px)] h-[min(72vh,520px)] bg-[#0a0a0a] border border-[#262626] flex flex-col shadow-[0_12px_36px_rgba(0,0,0,0.7)]"
     >
       {/* Header */}
-      <div className="px-4 py-3 border-b border-[#262626] flex items-center gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">
-            ◆ Live chat · #help
+      <div className="px-4 py-3 border-b border-[#262626]">
+        <div className="flex items-center gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">
+              ◆ Live chat
+            </div>
+            <div className="font-mono text-[10px] text-[#a3a3a3] mt-0.5">
+              {connected
+                ? `${buddies.length || 0} online`
+                : token ? "Connecting…" : "Sign in to join"}
+            </div>
           </div>
-          <div className="font-mono text-[10px] text-[#a3a3a3] mt-0.5">
-            {connected
-              ? `${buddies.length || 0} online`
-              : token ? "Connecting…" : "Sign in to join"}
-          </div>
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            aria-label="Minimise chat"
+            data-testid="live-chat-minimise"
+            className="font-mono text-[18px] text-[#525252] hover:text-[#e5e5e5] leading-none px-1"
+            title="Minimise"
+          >
+            –
+          </button>
+          <button
+            type="button"
+            onClick={dismiss}
+            aria-label="Hide for 3 days"
+            data-testid="live-chat-dismiss"
+            className="font-mono text-[14px] text-[#525252] hover:text-rose-400 leading-none px-1"
+            title="Hide for 3 days"
+          >
+            ×
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={() => setOpen(false)}
-          aria-label="Minimise chat"
-          data-testid="live-chat-minimise"
-          className="font-mono text-[18px] text-[#525252] hover:text-[#e5e5e5] leading-none px-1"
-          title="Minimise"
-        >
-          –
-        </button>
-        <button
-          type="button"
-          onClick={dismiss}
-          aria-label="Hide for 3 days"
-          data-testid="live-chat-dismiss"
-          className="font-mono text-[14px] text-[#525252] hover:text-rose-400 leading-none px-1"
-          title="Hide for 3 days"
-        >
-          ×
-        </button>
+        {token && (
+          <div className="flex gap-1 mt-2" data-testid="live-chat-channel-tabs">
+            {CHANNELS.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => setChannel(c.id)}
+                data-testid={`live-chat-channel-${c.id}`}
+                className={`flex-1 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.18em] border transition ${
+                  channel === c.id
+                    ? "border-[#ff4500] text-[#ff4500] bg-[#ff4500]/5"
+                    : "border-[#262626] text-[#a3a3a3] hover:border-[#525252] hover:text-[#e5e5e5]"
+                }`}
+              >
+                {c.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Body */}

@@ -4,9 +4,16 @@
 
 Added `frontend/src/components/LiveChatWidget.jsx` — a floating
 bottom-left chat launcher that expands into a 360×520 panel wired to the
-existing `wsChatUrl('help', token)` WebSocket. Mounts globally in `App.js`
+existing `wsChatUrl(channel, token)` WebSocket. Mounts globally in `App.js`
 so shoppers can chat with the workshop crew from any page (shop, product
 detail, cart, etc.) without leaving what they're browsing.
+
+### Channel switcher (added in same session)
+Header now shows a 3-tab selector: `#help` / `#general` / `#showcase`.
+Switching tabs closes the current WebSocket cleanly, opens a new one for
+the chosen channel, backfills history, and resets unread/messages so the
+old room's state never bleeds into the new one. Selection persists in
+`localStorage` (`cm_live_chat_channel`) across sessions.
 
 ### Behavior
 - **Auto-hides** on `/community` (full chat page already there), `/admin`, `/maker`
