@@ -9,6 +9,8 @@ import {
   stripeConnectOnboard, stripeConnectStatus, stripeConnectDashboardLink,
   fetchMakerShippingLedger, setMakerShippingCadence, setMakerShippingCap,
   fetchShippingAnalytics,
+  fetchMakerPayoutSchedule, fetchMakerBilling, fetchMakerSubscription,
+  settleMakerLedgerNow, openMakerSubscriptionPortal,
 } from "../../lib/api";
 import { StatsSkeleton } from "../../components/Skeleton";
 
@@ -599,34 +601,183 @@ function MonthlyStatements({ txns, query }) {
 // Section: Payment settings (Stripe-managed)
 // ============================================================================
 function PaymentSettings({ status, query }) {
+  const [schedule, setSchedule] = useState(null);
+  const [billing, setBilling] = useState(null);
+  const [sub, setSub] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState({ kind: null, text: "" });
+
+  const reload = React.useCallback(() => {
+    fetchMakerPayoutSchedule().then(setSchedule).catch(() => {});
+    fetchMakerBilling().then(setBilling).catch(() => {});
+    fetchMakerSubscription().then(setSub).catch(() => {});
+  }, []);
+  useEffect(() => { reload(); }, [reload]);
+
+  const dollars = (c) => `$${(c / 100).toFixed(2)}`;
+  const isPlus = sub?.status === "active";
+
+  const onSettleNow = async () => {
+    if (!billing) return;
+    setBusy(true);
+    setMsg({ kind: null, text: "" });
+    try {
+      const r = await settleMakerLedgerNow();
+      setMsg({
+        kind: "ok",
+        text: `Invoiced ${dollars(r.amount_cents)} to your card on file (Stripe invoice ${r.invoice_id}). Your ledger is now at $0.`,
+      });
+      reload();
+    } catch (e) {
+      const detail = e?.response?.data?.detail;
+      const text = (typeof detail === "object" && detail?.message) || detail || "Could not settle the balance.";
+      setMsg({ kind: "err", text });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onOpenPortal = async () => {
+    setBusy(true);
+    try {
+      const { url } = await openMakerSubscriptionPortal();
+      window.location.href = url;
+    } catch (e) {
+      const detail = e?.response?.data?.detail;
+      setMsg({ kind: "err", text: (typeof detail === "object" && detail?.message) || detail || "Could not open billing portal." });
+      setBusy(false);
+    }
+  };
+
   return (
     <Section title="Payment settings" testId="payment-settings">
+      {/* Live payout schedule — pulled from Stripe Account.settings.payouts.schedule
+          on every load so the maker sees their actual configured cadence
+          (not the platform default). Falls back to env defaults when Stripe
+          isn't connected yet. */}
+      {schedule && (
+        <div
+          className="mb-6 border border-[#262626] bg-[#0f0f0f] p-4"
+          data-testid="payment-settings-payout-schedule"
+        >
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+                Your payout schedule
+              </div>
+              <div className="font-display text-2xl mt-1 capitalize">
+                {schedule.interval}
+                {schedule.weekly_anchor && (
+                  <span className="text-[#a3a3a3]"> · {schedule.weekly_anchor}</span>
+                )}
+                {schedule.monthly_anchor != null && (
+                  <span className="text-[#a3a3a3]"> · day {schedule.monthly_anchor}</span>
+                )}
+              </div>
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] mt-1">
+                {schedule.delay_days}-day rolling delay · funds settle{" "}
+                {schedule.delay_days <= 2
+                  ? "almost immediately"
+                  : `${schedule.delay_days} days after each sale`}
+                {!schedule.payouts_enabled && (
+                  <span className="text-red-400 ml-2">· payouts not yet enabled</span>
+                )}
+              </div>
+            </div>
+            <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252]">
+              {schedule.source === "stripe" ? "Live from Stripe" : "Default schedule"}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pending listing/promo balance — shown for everyone but the
+          Settle Now button is Plus-only (free-tier balances drain
+          through sale payouts). */}
+      {billing && (
+        <div
+          className="mb-6 border border-[#262626] bg-[#0f0f0f] p-4"
+          data-testid="payment-settings-pending"
+        >
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+                Pending listing / promo charges
+              </div>
+              <div className="font-display text-2xl mt-1 text-[#ff4500]">
+                {dollars(billing.pending_charges_cents)}
+              </div>
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] mt-1">
+                {isPlus
+                  ? "Auto-billed to your card · 1st of every month"
+                  : "Auto-deducted from your next payout"}
+              </div>
+            </div>
+            {isPlus && billing.pending_charges_cents >= 100 && (
+              <button
+                type="button"
+                onClick={onSettleNow}
+                disabled={busy}
+                className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] hover:bg-[#ff4500]/10 border border-[#ff4500]/60 px-4 py-2 transition disabled:opacity-50 self-start"
+                data-testid="payment-settings-settle-now"
+                title="Charge your card on file now instead of waiting for the 1st-of-month sweep"
+              >
+                {busy ? "Settling…" : "◆ Settle now"}
+              </button>
+            )}
+          </div>
+          {msg.text && (
+            <div
+              className={`mt-3 font-mono text-[10px] leading-relaxed ${
+                msg.kind === "ok" ? "text-emerald-400" : "text-red-400"
+              }`}
+              data-testid="payment-settings-settle-msg"
+            >
+              {msg.kind === "ok" ? "✓ " : "⊗ "}{msg.text}
+            </div>
+          )}
+        </div>
+      )}
+
       <p className="font-mono text-xs text-[#a3a3a3] mb-4 leading-relaxed max-w-xl">
         <Highlight
-          text="Payout cadence and bank account routing are managed inside your Stripe dashboard — Crafters Market never touches your banking details."
+          text="Bank account routing is managed inside your Stripe dashboard — Crafters Market never touches your banking details. Use the buttons below to change cadence or update payment info."
           query={query}
         />
       </p>
       <ul className="space-y-2 mb-5 font-mono text-xs text-[#e5e5e5]">
-        <li>• <Highlight text="Default cadence: every 2 business days after funds clear (Stripe standard)" query={query} /></li>
-        <li>• <Highlight text="Switch to weekly or monthly from inside the Stripe dashboard" query={query} /></li>
-        <li>• <Highlight text="Update your bank account or routing info there too" query={query} /></li>
+        <li>• <Highlight text="Switch payout cadence (daily/weekly/monthly with any anchor day) inside Stripe" query={query} /></li>
+        <li>• <Highlight text="Update your bank account, routing, or debit card from the same dashboard" query={query} /></li>
+        <li>• <Highlight text="Plus members: card on file is also used for monthly listing-fee invoices" query={query} /></li>
       </ul>
-      {status?.connected ? (
-        <a
-          href="https://dashboard.stripe.com/express"
-          target="_blank"
-          rel="noreferrer"
-          className="btn-industrial inline-flex items-center gap-2"
-          data-testid="payment-settings-stripe"
-        >
-          Open Stripe Dashboard <ExternalLink size={14} />
-        </a>
-      ) : (
-        <p className="font-mono text-xs text-amber-400">
-          ◇ Connect Stripe first (Payment account → Connect Stripe).
-        </p>
-      )}
+      <div className="flex flex-wrap gap-2">
+        {status?.connected ? (
+          <a
+            href="https://dashboard.stripe.com/express"
+            target="_blank"
+            rel="noreferrer"
+            className="btn-industrial inline-flex items-center gap-2"
+            data-testid="payment-settings-stripe"
+          >
+            Open Stripe Dashboard <ExternalLink size={14} />
+          </a>
+        ) : (
+          <p className="font-mono text-xs text-amber-400">
+            ◇ Connect Stripe first (Payment account → Connect Stripe).
+          </p>
+        )}
+        {isPlus && (
+          <button
+            type="button"
+            onClick={onOpenPortal}
+            disabled={busy}
+            className="font-mono text-[11px] uppercase tracking-[0.22em] text-emerald-400 hover:text-emerald-300 border border-emerald-400/40 px-4 py-2 disabled:opacity-50"
+            data-testid="payment-settings-portal"
+          >
+            Manage Plus billing ↗
+          </button>
+        )}
+      </div>
     </Section>
   );
 }

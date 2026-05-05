@@ -227,6 +227,187 @@ async def get_subscription(slug: str = Depends(current_maker_slug)):
     }
 
 
+@router.post("/maker/billing/settle-now")
+async def settle_now(slug: str = Depends(current_maker_slug)):
+    """Plus-only: invoice this maker's pending listing/promo balance now,
+    instead of waiting for the monthly cron sweep.
+
+    Useful for makers cleaning up their ledger before a tax filing or
+    before pausing Plus. Idempotent within a calendar month — second
+    invocation in the same `YYYY-MM` returns 409 with the existing
+    Stripe invoice id.
+
+    Free-tier makers can't use this (no card on file). Their balance
+    keeps draining sale-by-sale through the existing Stripe Connect
+    transfer settlement.
+    """
+    if not STRIPE_API_KEY:
+        raise HTTPException(503, "Stripe is not configured.")
+    m = await db.makers.find_one({"slug": slug}, {"_id": 0})
+    if not m:
+        raise HTTPException(404, "Maker not found.")
+    if m.get("subscription_status") != "active":
+        raise HTTPException(
+            400,
+            "Settle-now requires an active Crafters Plus subscription "
+            "(card on file). Free-tier balances drain from sale payouts.",
+        )
+    if not m.get("stripe_customer_id"):
+        raise HTTPException(
+            400,
+            "No Stripe customer on file. Open Manage billing first to "
+            "register a card, then try again.",
+        )
+    pending = int(m.get("pending_charges_cents") or 0)
+    if pending <= 0:
+        raise HTTPException(400, "Nothing to settle — your ledger is at $0.")
+    from charge_clearing import (
+        MIN_CLEAR_CENTS, _batch_key, _already_cleared,
+    )
+    if pending < MIN_CLEAR_CENTS:
+        raise HTTPException(
+            400,
+            f"Balance is below the ${MIN_CLEAR_CENTS / 100:.2f} minimum — "
+            "Stripe's per-invoice fee would eat the entire collection. "
+            "Wait until your balance is above the threshold.",
+        )
+    batch = _batch_key()
+    if await _already_cleared(slug, batch):
+        # Find the existing invoice id from charge_history.
+        history = list(reversed(m.get("charge_history") or []))
+        existing = next(
+            (h for h in history
+             if h.get("kind") == "charge_clearing" and h.get("batch") == batch),
+            None,
+        )
+        raise HTTPException(409, {
+            "code": "already_cleared_this_month",
+            "message": "You've already settled your ledger this month.",
+            "batch": batch,
+            "invoice_id": (existing or {}).get("invoice_id"),
+        })
+
+    # Drive the same code path as the monthly cron, but for this single
+    # maker. We temporarily inline the per-maker logic so we don't have
+    # to query every Plus maker just to bill one of them.
+    s = _stripe()
+    try:
+        s.InvoiceItem.create(
+            customer=m["stripe_customer_id"],
+            amount=pending,
+            currency="usd",
+            description=f"Listing + promotion fees through {batch} (settle-now)",
+            metadata={
+                "maker_slug": slug,
+                "kind": "charge_clearing",
+                "batch": batch,
+                "trigger": "settle_now",
+            },
+        )
+        inv = s.Invoice.create(
+            customer=m["stripe_customer_id"],
+            auto_advance=True,
+            collection_method="charge_automatically",
+            description=(
+                f"Crafters Market listing + promotion fees ({batch}). "
+                "Manual settle-now invoice."
+            ),
+            metadata={
+                "maker_slug": slug, "kind": "charge_clearing",
+                "batch": batch, "trigger": "settle_now",
+            },
+        )
+        try:
+            s.Invoice.finalize_invoice(inv.id)
+        except Exception:
+            pass
+    except Exception as e:
+        logger.exception("[settle_now] stripe invoice failed maker=%s: %s", slug, e)
+        raise HTTPException(502, "Couldn't create the Stripe invoice. Try again in a moment.")
+
+    await db.makers.update_one(
+        {"slug": slug},
+        {
+            "$set": {"pending_charges_cents": 0},
+            "$push": {"charge_history": {
+                "kind": "charge_clearing",
+                "slug": None,
+                "amount_cents": -pending,
+                "ts": now_iso(),
+                "batch": batch,
+                "invoice_id": inv.id,
+                "trigger": "settle_now",
+                "note": f"Manual settle-now invoiced {pending}c to Stripe ({batch})",
+            }},
+        },
+    )
+    logger.info("[settle_now] maker=%s amount=%sc invoice=%s batch=%s",
+                slug, pending, inv.id, batch)
+    return {
+        "ok": True,
+        "amount_cents": pending,
+        "batch": batch,
+        "invoice_id": inv.id,
+        "hosted_invoice_url": getattr(inv, "hosted_invoice_url", None),
+    }
+
+
+@router.get("/maker/payout-schedule")
+async def get_payout_schedule(slug: str = Depends(current_maker_slug)):
+    """Return the maker's current Stripe Connect payout schedule so the
+    Billing tab can show "Weekly · Friday · 7 day delay" instead of an
+    opaque "your bank gets paid eventually" message.
+
+    Falls back to the env-default schedule (used at account creation
+    time) when the maker hasn't connected Stripe yet — same numbers
+    they'll get when they do.
+    """
+    m = await db.makers.find_one({"slug": slug}, {"_id": 0})
+    if not m:
+        raise HTTPException(404, "Maker not found.")
+
+    # Defaults (mirror stripe_connect.connect_onboard).
+    default_interval = os.environ.get("MAKER_PAYOUT_INTERVAL", "weekly").lower()
+    default_delay = int(os.environ.get("MAKER_PAYOUT_DELAY_DAYS", "7"))
+    default_anchor = os.environ.get("MAKER_PAYOUT_WEEKLY_ANCHOR", "friday")
+
+    if not m.get("stripe_account_id") or not STRIPE_API_KEY:
+        return {
+            "connected": bool(m.get("stripe_account_id")),
+            "source": "default",
+            "interval": default_interval,
+            "delay_days": default_delay,
+            "weekly_anchor": default_anchor if default_interval == "weekly" else None,
+            "monthly_anchor": None,
+            "payouts_enabled": bool(m.get("stripe_payouts_enabled")),
+        }
+    try:
+        s = _stripe()
+        acct = s.Account.retrieve(m["stripe_account_id"])
+        sched = (getattr(acct, "settings", None) or {}).get("payouts", {}).get("schedule") or {}
+        return {
+            "connected": True,
+            "source": "stripe",
+            "interval": sched.get("interval") or default_interval,
+            "delay_days": int(sched.get("delay_days") if sched.get("delay_days") is not None else default_delay),
+            "weekly_anchor": sched.get("weekly_anchor"),
+            "monthly_anchor": sched.get("monthly_anchor"),
+            "payouts_enabled": bool(getattr(acct, "payouts_enabled", False)),
+        }
+    except Exception as e:
+        logger.warning("payout-schedule fetch failed for maker=%s: %s", slug, e)
+        return {
+            "connected": True,
+            "source": "default",
+            "interval": default_interval,
+            "delay_days": default_delay,
+            "weekly_anchor": default_anchor if default_interval == "weekly" else None,
+            "monthly_anchor": None,
+            "payouts_enabled": bool(m.get("stripe_payouts_enabled")),
+            "error": "stripe-unreachable",
+        }
+
+
 # ---------------- Webhook handlers (called from stripe_connect.py) -----------
 
 async def handle_subscription_event(event_type: str, obj: dict) -> bool:

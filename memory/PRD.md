@@ -25,6 +25,7 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - Admin: `/admin/login|verify|dashboard`
 
 ## What's Implemented (cumulative)
+- ✅ **Settle-now + payout schedule + upload preview + auto DXF→SVG (iter128):** Plus members can `POST /api/maker/billing/settle-now` to invoice accrued balance immediately. Live payout schedule indicator on Financials → Payment settings. Upload form renders real previews (raster blob URL, inline SVG, EXT placeholder). Auto-generate SVG checkbox during upload (default ON when DXF present without SVG sibling). Kit.com auto-discount verified shipped (iter120, working).
 - ✅ **Pay structure (iter126):** Maker payout schedule env-configurable on Stripe Connect onboard (default weekly/Friday/+7d delay). Monthly Plus charge-clearing job (`charge_clearing.py`) auto-invoices accrued listing/promo fees on the 1st @ 15:00 UTC; admin preview + manual-run endpoints under `/api/admin/billing/charge-clearing/*`.
 - ✅ **Community design-file edit (iter126):** `PATCH /api/community/files/{id}` + Edit modal on FileCard for title/description/thumbnail. Same ownership rule as variants endpoints; files themselves stay immutable through this path.
 - ✅ Bold industrial homepage (Hero, Showcase, Categories, Process, ForMakers, Reviews, CustomCTA, Live Activity Ticker)

@@ -1,5 +1,87 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05 — iter128 — Settle-now + payout-schedule + upload preview + auto DXF→SVG ✅
+
+Bundle of pay-structure and upload-flow polish driven by the user's request:
+
+### 1. Live payout-schedule indicator (Maker dashboard → Financials → Payment settings)
+Pulls `Stripe Account.settings.payouts.schedule` on every load so makers see their
+actual configured cadence (interval, weekly/monthly anchor, delay days) instead of
+the opaque "your bank gets paid eventually" copy. Falls back to env defaults
+(weekly/Friday/+7d) when Stripe is unreachable or the maker hasn't onboarded yet.
+
+- New `GET /api/maker/payout-schedule` endpoint.
+- New `fetchMakerPayoutSchedule()` API helper.
+- New panel in `FinancialsTab.PaymentSettings` with `data-testid="payment-settings-payout-schedule"`.
+
+### 2. Settle-now button (Plus members)
+One-click way for Plus subscribers to invoice their accrued listing/promo balance
+right now instead of waiting for the 1st-of-month sweep. Useful for cleaning up the
+ledger before tax filing or pausing Plus.
+
+- New `POST /api/maker/billing/settle-now` endpoint with full validation:
+  - 503 when Stripe isn't configured
+  - 400 when subscription isn't active
+  - 400 when no Stripe customer on file
+  - 400 when balance is $0 or below `CHARGE_CLEARING_MIN_CENTS`
+  - 409 when already cleared in the same `YYYY-MM` batch (returns the
+    existing `invoice_id` in the detail object)
+  - 200 happy path → creates Stripe Invoice, finalizes, zeroes ledger,
+    stamps `charge_history.kind=charge_clearing`/`trigger=settle_now`.
+- New `settleMakerLedgerNow()` API helper.
+- New "◆ Settle now" button in `FinancialsTab.PaymentSettings`
+  (`data-testid="payment-settings-settle-now"`) appearing only for Plus
+  members with balance ≥ $1.00.
+- Tests: `tests/test_iter128_settle_now.py` (4 validation branches).
+
+### 3. Visual file preview at upload time (Community → Design Files)
+The picked-files list in the upload form now renders a real preview thumbnail
+for every file, not just a name + size string:
+
+- **Raster (jpg/jpeg/png/webp/gif):** blob URL `<img>` thumbnail.
+- **SVG:** inline-rendered via `dangerouslySetInnerHTML` (FileReader → text)
+  so the actual vector preview shows, not a blob:// download tab.
+- **STL/DXF/GCODE/F3D/PDF/etc.:** labeled `EXT / no preview` placeholder.
+
+Memory hygiene: blob URLs are revoked in the `useEffect` cleanup pass when
+the picked set changes, so big bundles don't leak.
+
+### 4. Auto DXF→SVG generation at upload time
+New checkbox in the upload form ("✦ Auto-generate SVG preview") that appears
+ONLY when a DXF is in the bundle and no SVG sibling is present. Default-checked
+because:
+- DXFs don't render in browsers, so the download menu without an SVG sibling
+  looks broken to buyers.
+- Generation is free (uses the existing `convertDxfToSvg` endpoint shipped
+  in iter121) and runs after the upload completes.
+- Owners can always remove the generated SVG variant later via the × chip.
+
+Best-effort chain — if the conversion fails after a successful publish, the
+bundle still ships and the user gets a toast warning to retry from the card.
+
+### 5. Verified Kit.com auto-discount ✅ (no work needed)
+End-to-end flow already shipped in iter120 (`routers/retention.py
+.run_auto_dormant_reengage`):
+- Tagged subscribers with `dormant-buyer-reengaged-auto`
+- 60d dormancy threshold, 30d cooldown, 50/run cap, LTV-sorted
+- 15% marketplace-wide single-use code via `marketing_codes`
+- Audit-logged + scheduled Tue 14:00 UTC behind the
+  `auto_dormant_reengage_enabled` toggle.
+
+### Files touched
+`backend/routers/subscriptions.py`, `backend/routers/stripe_connect.py` (already
+in iter126), `frontend/src/lib/api.js`, `frontend/src/pages/MakerDashboard/FinancialsTab.jsx`,
+`frontend/src/pages/MakerDashboard/BillingTab.jsx` (kept in sync even though
+orphaned), `frontend/src/pages/CommunityPage.jsx`, `backend/tests/test_iter128_settle_now.py`.
+
+### Verified live
+- `payment-settings-payout-schedule` renders "WEEKLY · FRIDAY · 7-day delay" for default.
+- `payment-settings-settle-now` button visible + working for Plus member with $7.80 balance.
+- Upload form shows: PNG thumb (blob URL), SVG inline preview, DXF placeholder, "✦ Auto-generate SVG preview" toggle (default ON, hidden when SVG sibling already present).
+- curl: settle-now happy path → 200, idempotent → 409 with stored invoice id.
+
+---
+
 ## 2026-05 — iter126/127 — Payout schedule + monthly Plus charge-clearing + Community design-file edit ✅
 
 Three pay-structure / billing improvements shipped together:

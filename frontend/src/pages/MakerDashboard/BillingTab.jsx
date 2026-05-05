@@ -4,6 +4,7 @@ import {
   fetchMakerBilling, fetchMakerSubscription, fetchMakerPlusRoi,
   fetchMakerCreditPacks, startMakerCreditCheckout, finalizeMakerCreditPurchase,
   startMakerSubscription, cancelMakerSubscription, openMakerSubscriptionPortal,
+  settleMakerLedgerNow, fetchMakerPayoutSchedule,
 } from "../../lib/api";
 import { useConfirm } from "./useConfirm";
 
@@ -13,9 +14,11 @@ export default function BillingTab() {
   const [s, setS] = useState(null);
   const [roi, setRoi] = useState(null);
   const [credits, setCredits] = useState(null);
+  const [schedule, setSchedule] = useState(null);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const [creditMsg, setCreditMsg] = useState("");
+  const [settleMsg, setSettleMsg] = useState("");
 
   const reload = useCallback(() => {
     fetchMakerBilling().then(setB).catch((e) =>
@@ -24,6 +27,7 @@ export default function BillingTab() {
     fetchMakerSubscription().then(setS).catch(() => {});
     fetchMakerPlusRoi().then(setRoi).catch(() => {});
     fetchMakerCreditPacks().then(setCredits).catch(() => {});
+    fetchMakerPayoutSchedule().then(setSchedule).catch(() => {});
   }, []);
   useEffect(() => { reload(); }, [reload]);
 
@@ -106,6 +110,33 @@ export default function BillingTab() {
     }
   };
 
+  const onSettleNow = async () => {
+    if (!b) return;
+    const ok = await confirm({
+      title: "Settle pending balance now?",
+      body: `Stripe will charge your card on file ${dollars(b.pending_charges_cents)} for accrued listing + promo fees. Useful for cleaning up the ledger before tax filing or pausing Plus. Otherwise this auto-runs on the 1st of every month.`,
+      confirmLabel: "Charge my card",
+      cancelLabel: "Wait for monthly sweep",
+      tone: "primary",
+      testId: "confirm-settle-now",
+    });
+    if (!ok) return;
+    setBusy(true);
+    setSettleMsg("");
+    try {
+      const r = await settleMakerLedgerNow();
+      setSettleMsg(`✓ Invoiced ${dollars(r.amount_cents)} to your card on file (Stripe invoice ${r.invoice_id}).`);
+      reload();
+      setTimeout(() => setSettleMsg(""), 8000);
+    } catch (e) {
+      const detail = e?.response?.data?.detail;
+      const msg = (typeof detail === "object" && detail?.message) || detail || "Could not settle the balance.";
+      setErr(msg);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const onBuyCredits = async (pack, label) => {
     const ok = await confirm({
       title: `Buy ${label}?`,
@@ -150,8 +181,34 @@ export default function BillingTab() {
           <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Pending charges</div>
           <div className="font-display text-4xl mt-2 text-[#ff4500]">{dollars(b.pending_charges_cents)}</div>
           <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] mt-2">
-            Auto-deducted from your next payout
+            {isPlus
+              ? "Auto-billed to your card · 1st of every month"
+              : "Auto-deducted from your next payout"}
           </div>
+          {/* Plus members can force an immediate Stripe invoice for the
+              accrued balance instead of waiting for the monthly sweep.
+              Hidden when balance is too low (Stripe per-invoice fee
+              would eat the collection) or when ledger is at $0. */}
+          {isPlus && b.pending_charges_cents >= 100 && (
+            <button
+              type="button"
+              onClick={onSettleNow}
+              disabled={busy}
+              className="mt-3 w-full font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] hover:bg-[#ff4500]/10 border border-[#ff4500]/60 px-3 py-2 transition disabled:opacity-50"
+              data-testid="billing-settle-now"
+              title="Charge your card on file now instead of waiting for the 1st-of-month sweep"
+            >
+              {busy ? "Settling…" : "◆ Settle now"}
+            </button>
+          )}
+          {settleMsg && (
+            <div
+              className="mt-3 font-mono text-[10px] text-emerald-400 leading-relaxed"
+              data-testid="billing-settle-msg"
+            >
+              {settleMsg}
+            </div>
+          )}
         </div>
 
         <div className="border border-[#262626] p-5" data-testid="billing-fee-policy">
@@ -294,6 +351,51 @@ export default function BillingTab() {
           </div>
         )}
       </div>
+
+      {/* Payout schedule indicator — surfaces the actual interval / anchor
+          / delay-days configured on the maker's Stripe Connect account
+          (not the platform default), so makers know exactly when funds
+          will hit their bank. Falls back to the env-default if Stripe
+          isn't reachable or the maker hasn't onboarded yet. */}
+      {schedule && (
+        <div
+          className="border border-[#262626] p-5"
+          data-testid="billing-payout-schedule"
+        >
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+                Payout schedule
+              </div>
+              <div className="font-display text-2xl mt-1 capitalize">
+                {schedule.interval}
+                {schedule.weekly_anchor && (
+                  <span className="text-[#a3a3a3]"> · {schedule.weekly_anchor}</span>
+                )}
+                {schedule.monthly_anchor != null && (
+                  <span className="text-[#a3a3a3]"> · day {schedule.monthly_anchor}</span>
+                )}
+              </div>
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] mt-1">
+                {schedule.delay_days}-day rolling delay · funds settle
+                {" "}
+                {schedule.delay_days <= 2
+                  ? "almost immediately"
+                  : `${schedule.delay_days} days after each sale`}
+                {!schedule.payouts_enabled && (
+                  <span className="text-red-400 ml-2">· payouts not yet enabled</span>
+                )}
+              </div>
+            </div>
+            <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252]">
+              {schedule.source === "stripe" ? "Live from Stripe" : "Default schedule"}
+            </div>
+          </div>
+          <p className="font-mono text-[10px] text-[#525252] mt-3 leading-relaxed">
+            Want a different cadence? Open <button type="button" onClick={onOpenPortal} disabled={busy} className="text-[#ff4500] hover:underline disabled:opacity-50" data-testid="billing-payout-portal-link">Manage billing</button> to change your payout schedule directly in Stripe — daily, weekly (any anchor day), or monthly all available.
+          </p>
+        </div>
+      )}
 
       {/* Listing-credit packs — pre-paid bulk discount alternative to per-payout
           $0.20 cash settlements. Only meaningful for makers past the free quota. */}

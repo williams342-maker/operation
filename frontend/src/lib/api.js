@@ -261,6 +261,10 @@ export const cancelMakerSubscription = () =>
   http.post("/maker/subscription/cancel", {}, { headers: authHeaders() }).then((r) => r.data);
 export const openMakerSubscriptionPortal = () =>
   http.post("/maker/subscription/portal", {}, { headers: authHeaders() }).then((r) => r.data);
+export const settleMakerLedgerNow = () =>
+  http.post("/maker/billing/settle-now", {}, { headers: authHeaders() }).then((r) => r.data);
+export const fetchMakerPayoutSchedule = () =>
+  http.get("/maker/payout-schedule", { headers: authHeaders() }).then((r) => r.data);
 export const uploadMakerBanner = (file) => {
   const fd = new FormData();
   fd.append("file", file);

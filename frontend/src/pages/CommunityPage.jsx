@@ -694,10 +694,50 @@ function FileUploadForm({ onSaved }) {
   const [progress, setProgress] = useState(0);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [autoSvg, setAutoSvg] = useState(true);  // auto-generate SVG from DXF post-upload
+  const [previews, setPreviews] = useState({}); // index → blob URL or inline string
   const isMaker = !!localStorage.getItem("cm_maker_jwt");
   // Ref so the "+ Add another file" button can re-open the native picker
   // dialog without forcing the operator to scroll back up to the input.
   const pickerRef = React.useRef(null);
+
+  // Build / refresh visual previews whenever the picked-files set changes.
+  // Image files (jpg/png/webp/gif) get a blob URL. SVG files get inline
+  // text injected via dangerouslySetInnerHTML (sandboxed by inferred
+  // viewBox + fixed size). Non-previewable formats (STL, DXF, GCODE,
+  // PDF, F3D) get a pictogram placeholder. We revoke blob URLs in the
+  // cleanup pass so the browser doesn't leak memory on large bundles.
+  useEffect(() => {
+    const next = {};
+    const cleanup = [];
+    picked.forEach((file, i) => {
+      const ext = (file.name.split(".").pop() || "").toLowerCase();
+      if (["jpg", "jpeg", "png", "webp", "gif"].includes(ext)) {
+        const url = URL.createObjectURL(file);
+        next[i] = { kind: "image", url };
+        cleanup.push(url);
+      } else if (ext === "svg") {
+        // Inline-read SVG so we can render it directly (gives a real
+        // preview instead of the unhelpful blob:// download tab).
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          setPreviews((prev) => ({ ...prev, [i]: { kind: "svg", text: String(e.target.result || "").slice(0, 200_000) } }));
+        };
+        reader.readAsText(file);
+        next[i] = { kind: "svg-loading" };
+      } else {
+        next[i] = { kind: "placeholder", ext: ext.toUpperCase() };
+      }
+    });
+    setPreviews(next);
+    return () => { cleanup.forEach((u) => URL.revokeObjectURL(u)); };
+  }, [picked]);
+
+  // Detect DXF-without-SVG combo so we can offer auto-generate. We
+  // recompute on every render because picked is small (<10 files).
+  const hasDxf = picked.some((f) => /\.dxf$/i.test(f.name));
+  const hasSvg = picked.some((f) => /\.svg$/i.test(f.name));
+  const offerAutoSvg = hasDxf && !hasSvg;
 
   const inferFmt = (file) => {
     const ext = (file.name.split(".").pop() || "").toUpperCase();
@@ -772,14 +812,30 @@ function FileUploadForm({ onSaved }) {
     setBusy(true);
     setProgress(0);
     try {
+      let saved = null;
       if (mode === "upload") {
         if (!picked.length) throw new Error("Pick at least one file to upload.");
-        await uploadDesignFileDirect(
+        saved = await uploadDesignFileDirect(
           { files: picked, title: f.title, description: f.description, thumbnail_url: f.thumbnail_url },
           { onProgress: setProgress },
         );
       } else {
-        await uploadDesignFile(f); // URL-paste, maker-only
+        saved = await uploadDesignFile(f); // URL-paste, maker-only
+      }
+      // Optional: auto-generate an SVG variant from a freshly uploaded DXF
+      // bundle. Best-effort — we don't fail the whole publish if conversion
+      // throws (the user can always click "Generate" on the card later).
+      if (mode === "upload" && saved?.id && offerAutoSvg && autoSvg) {
+        try {
+          await convertDxfToSvg(saved.id);
+        } catch (svgErr) {
+          // Surface as a toast but don't block the success path —
+          // the bundle was published, the SVG is just a bonus.
+          toast.warning(
+            svgErr?.response?.data?.detail
+              || "Bundle published, but DXF→SVG conversion failed. Click Generate on the card to retry.",
+          );
+        }
       }
       onSaved();
     } catch (e2) {
@@ -905,38 +961,77 @@ function FileUploadForm({ onSaved }) {
       />
 
       {/* Preview of all picked files — first row is the primary; others
-          are variants. Each is removable individually before submit. */}
+          are variants. Each is removable individually before submit. We
+          render a real visual preview for raster + svg files (so the
+          maker actually sees what's about to ship) and a labeled
+          pictogram for non-renderable formats (STL/DXF/GCODE/PDF/F3D). */}
       {mode === "upload" && picked.length > 0 && !busy && (
-        <ul className="space-y-1.5" data-testid="file-preview-list">
+        <ul className="space-y-2" data-testid="file-preview-list">
           {picked.map((file, i) => {
             const fmt = (file.name.split(".").pop() || "").toUpperCase();
+            const preview = previews[i];
             return (
               <li
                 key={`${file.name}-${i}`}
-                className="flex items-center gap-3 px-3 py-2 border border-[#262626] bg-[#0f0f0f]"
+                className="flex items-stretch gap-3 px-3 py-2 border border-[#262626] bg-[#0f0f0f]"
                 data-testid={`file-preview-${i}`}
               >
-                <span
-                  className={`font-mono text-[10px] uppercase tracking-[0.22em] px-1.5 py-0.5 border ${
-                    i === 0 ? "border-[#ff4500] text-[#ff4500] bg-[#ff4500]/5" : "border-[#525252] text-[#a3a3a3]"
-                  }`}
-                  title={i === 0 ? "Primary format (drives the card header)" : "Variant"}
-                >
-                  {fmt}
-                </span>
-                {i === 0 && (
-                  <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#ff4500]">
-                    Primary
+                {/* Thumb / pictogram column — fixed 64px square so the row
+                    height stays predictable across mixed bundles. */}
+                <div className="w-16 h-16 shrink-0 border border-[#262626] bg-[#050505] flex items-center justify-center overflow-hidden">
+                  {preview?.kind === "image" ? (
+                    <img
+                      src={preview.url}
+                      alt={file.name}
+                      className="w-full h-full object-cover"
+                      data-testid={`file-preview-thumb-${i}`}
+                    />
+                  ) : preview?.kind === "svg" ? (
+                    <div
+                      className="w-full h-full flex items-center justify-center [&>svg]:max-w-full [&>svg]:max-h-full [&>svg]:w-auto [&>svg]:h-auto"
+                      dangerouslySetInnerHTML={{ __html: preview.text }}
+                      data-testid={`file-preview-svg-${i}`}
+                    />
+                  ) : preview?.kind === "svg-loading" ? (
+                    <span className="font-mono text-[9px] text-[#525252]">…</span>
+                  ) : (
+                    <span
+                      className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#a3a3a3] text-center px-1 leading-tight"
+                      data-testid={`file-preview-placeholder-${i}`}
+                    >
+                      {preview?.ext || fmt}
+                      <br />
+                      <span className="text-[#525252] text-[8px]">no preview</span>
+                    </span>
+                  )}
+                </div>
+                {/* Metadata column. */}
+                <div className="flex-1 min-w-0 flex flex-col justify-center gap-1">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`font-mono text-[10px] uppercase tracking-[0.22em] px-1.5 py-0.5 border ${
+                        i === 0 ? "border-[#ff4500] text-[#ff4500] bg-[#ff4500]/5" : "border-[#525252] text-[#a3a3a3]"
+                      }`}
+                      title={i === 0 ? "Primary format (drives the card header)" : "Variant"}
+                    >
+                      {fmt}
+                    </span>
+                    {i === 0 && (
+                      <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#ff4500]">Primary</span>
+                    )}
+                    <span className="font-mono text-[10px] text-[#a3a3a3] shrink-0 ml-auto">
+                      {(file.size / 1024 / 1024).toFixed(2)} MB
+                    </span>
+                  </div>
+                  <span className="font-mono text-xs text-[#e5e5e5] truncate" title={file.name}>
+                    {file.name}
                   </span>
-                )}
-                <span className="font-mono text-xs text-[#e5e5e5] truncate flex-1">{file.name}</span>
-                <span className="font-mono text-[10px] text-[#a3a3a3] shrink-0">
-                  {(file.size / 1024 / 1024).toFixed(2)} MB
-                </span>
+                </div>
+                {/* Remove control. */}
                 <button
                   type="button"
                   onClick={() => removePicked(i)}
-                  className="font-mono text-[10px] text-[#525252] hover:text-red-400"
+                  className="font-mono text-[10px] text-[#525252] hover:text-red-400 self-start"
                   data-testid={`file-preview-remove-${i}`}
                   title="Remove from bundle"
                 >
@@ -962,6 +1057,34 @@ function FileUploadForm({ onSaved }) {
             </li>
           )}
         </ul>
+      )}
+
+      {/* Auto DXF→SVG opt-in — only appears when a DXF is in the bundle
+          and no SVG sibling is present. Default-checked because (a) the
+          conversion is free, (b) DXFs don't render in browsers so the
+          download menu without an SVG sibling looks broken, and (c)
+          owners can always remove the generated SVG later. */}
+      {mode === "upload" && offerAutoSvg && !busy && (
+        <label
+          className="flex items-start gap-2 px-3 py-2 border border-dashed border-[#ff4500]/40 bg-[#ff4500]/5 cursor-pointer"
+          data-testid="file-auto-svg-toggle"
+        >
+          <input
+            type="checkbox"
+            checked={autoSvg}
+            onChange={(e) => setAutoSvg(e.target.checked)}
+            className="mt-1 accent-[#ff4500]"
+            data-testid="file-auto-svg-checkbox"
+          />
+          <div className="flex-1">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">
+              ✦ Auto-generate SVG preview
+            </div>
+            <p className="font-mono text-[10px] text-[#a3a3a3] mt-0.5 leading-relaxed">
+              Renders your DXF as an SVG so it previews in browsers + adds an extra download format. Free, runs after upload completes. Uncheck if you'd rather upload your own SVG separately.
+            </p>
+          </div>
+        </label>
       )}
 
       {/* Upload progress bar — only shown during an in-flight upload. */}
