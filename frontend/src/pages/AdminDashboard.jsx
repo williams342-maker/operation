@@ -47,6 +47,7 @@ import RefundApprovalsTab from "../components/admin/RefundApprovalsTab";
 import ShippingLedgerTab from "../components/admin/ShippingLedgerTab";
 import BackupTab from "../components/admin/BackupTab";
 import SecretsTab from "../components/admin/SecretsTab";
+import PushNotificationsTab from "../components/admin/PushNotificationsTab";
 import RotatePasswordModal from "../components/admin/RotatePasswordModal";
 import EmailHealthBadge from "../components/admin/EmailHealthBadge";
 import LiveNowBadge from "../components/admin/LiveNowBadge";
@@ -81,6 +82,7 @@ const TABS = [
   { id: "orders", label: "Paid Orders", caps: ["finance", "support"] },
   { id: "plus-members", label: "Plus Members", caps: ["finance", "marketplace"] },
   { id: "prod-health", label: "Prod Health" },
+  { id: "push", label: "Push Notifications", caps: ["content"] },
   { id: "approvals", label: "Refund Approvals", caps: ["finance"] },
   { id: "rejected-apps", label: "Rejected", caps: ["marketplace"] },
   { id: "retention", label: "Retention", caps: ["content", "finance"] },
@@ -417,6 +419,7 @@ export default function AdminDashboard() {
             {tab === "prod-health" && <ProdHealthTab />}
             {tab === "updates" && <UpdatesAdminTab />}
             {tab === "broadcast" && <BroadcastTab />}
+            {tab === "push" && <PushNotificationsTab />}
             {tab === "coming-soon" && <ComingSoonTab />}
             {tab === "file-reports" && <DesignFileReportsTab />}
             {tab === "design-files" && <DesignFilesTab />}

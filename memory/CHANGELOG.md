@@ -1,5 +1,43 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05-05 — Web Push notifications (VAPID) ✅
+
+Added end-to-end Web Push so admins can fan out browser notifications to
+opted-in buyers / makers / anonymous visitors. Replaces the user's
+original Expo Push request (Expo doesn't run on browsers).
+
+### Backend
+- `routers/push.py` — `pywebpush` + VAPID. Endpoints:
+  - `GET  /api/push/vapid-public-key` (public)
+  - `POST /api/push/register` (anon-OK, but tags role/email if a Bearer JWT is present)
+  - `POST /api/push/unregister`
+  - `GET  /api/admin/push/stats` — counts by audience + last broadcast
+  - `POST /api/admin/push/broadcast` — fan-out + auto-prune dead subs (404/410)
+  - `GET  /api/admin/push/history` — last 50
+  - `POST /api/admin/push/test` — send test push to caller's own subscriptions
+- VAPID keypair generated and stored in backend `.env`:
+  `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY_PEM` / `VAPID_SUBJECT`
+- Mongo collections: `push_subscriptions`, `push_broadcasts`
+
+### Frontend
+- `public/service-worker.js` — handles `push` and `notificationclick`
+- `lib/push.js` — subscribe/unsubscribe helpers (browser API)
+- `components/admin/PushNotificationsTab.jsx` — full composer:
+  per-device enable/disable, test push, audience picker
+  (all/buyers/makers/anon) with live counts, title/body/url, history list
+- Wired into `AdminDashboard.jsx` as new "Push Notifications" tab
+  (capability: `content`)
+- `lib/api.js` — VAPID + admin push helpers
+
+### Verified
+- `curl /api/push/vapid-public-key` returns key
+- Anonymous register/unregister round-trips OK
+- Admin stats + history JSON shape verified
+- Broadcast endpoint auto-prunes Gone/NotFound subscriptions
+- Smoke test in Playwright: tab renders, audience cards + composer work
+
+
+
 ## 2026-05 — iter129 — Pinterest/Twitter/Facebook share + auto-SEO tags + listing template button ✅
 
 Three feature drops aimed at promotion + SEO + maker UX:

@@ -920,3 +920,26 @@ export const wsChatUrl = (channel, token) => {
   const wsBase = BASE.replace(/^http/, "ws");
   return `${wsBase}/api/ws/chat/${channel}?token=${encodeURIComponent(token || "")}`;
 };
+
+
+// ---------- Web Push (VAPID) ----------
+export const fetchVapidPublicKey = () =>
+  http.get("/push/vapid-public-key").then((r) => r.data);
+
+export const registerPushSubscription = (payload) =>
+  http.post("/push/register", payload, { headers: authHeaders() }).then((r) => r.data);
+
+export const unregisterPushSubscription = (endpoint) =>
+  http.post("/push/unregister", { endpoint }).then((r) => r.data);
+
+export const fetchAdminPushStats = () =>
+  http.get("/admin/push/stats", { headers: adminAuthHeaders() }).then((r) => r.data);
+
+export const broadcastAdminPush = (payload) =>
+  http.post("/admin/push/broadcast", payload, { headers: adminAuthHeaders() }).then((r) => r.data);
+
+export const fetchAdminPushHistory = (limit = 50) =>
+  http.get("/admin/push/history", { params: { limit }, headers: adminAuthHeaders() }).then((r) => r.data);
+
+export const sendAdminPushTest = () =>
+  http.post("/admin/push/test", {}, { headers: adminAuthHeaders() }).then((r) => r.data);
