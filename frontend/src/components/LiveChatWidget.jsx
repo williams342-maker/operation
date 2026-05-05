@@ -197,6 +197,16 @@ export default function LiveChatWidget() {
                 : token ? "Connecting…" : "Sign in to join"}
             </div>
           </div>
+          {token && (
+            <Link
+              to={`/community?channel=${channel}`}
+              data-testid="live-chat-fullview"
+              title="Open full chat view"
+              className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] transition px-1"
+            >
+              Full view →
+            </Link>
+          )}
           <button
             type="button"
             onClick={() => setOpen(false)}

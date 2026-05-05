@@ -15,6 +15,14 @@ the chosen channel, backfills history, and resets unread/messages so the
 old room's state never bleeds into the new one. Selection persists in
 `localStorage` (`cm_live_chat_channel`) across sessions.
 
+### "Full view →" deep-link (added in same session)
+Header now has a `Full view →` link that takes the user to
+`/community?channel={current}`. The query string is honored by both
+`CommunityPage` (auto-selects the Live Chat tab) and `ChatTab`
+(pre-selects the requested channel) so users can flip from popup to full
+multi-pane experience without losing context. Validated channel allow-list
+prevents arbitrary deep-link injection.
+
 ### Behavior
 - **Auto-hides** on `/community` (full chat page already there), `/admin`, `/maker`
 - **Auto-hides** when admin disables `live_chat_enabled` site setting

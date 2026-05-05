@@ -48,7 +48,14 @@ const CHANNEL_LABEL = {
 };
 
 export default function CommunityPage() {
-  const [tab, setTab] = useState("showcase");
+  const [tab, setTab] = useState(() => {
+    // Honor `?channel=...` deep-link from the floating LiveChatWidget by
+    // jumping straight into the Live Chat tab.
+    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("channel")) {
+      return "chat";
+    }
+    return "showcase";
+  });
   const [me, setMe] = useState(null);
   const navigate = useNavigate();
   const settings = useSiteSettings();
@@ -2420,7 +2427,13 @@ function ThreadDetail({ id, me, onBack }) {
 
 // ===================== LIVE CHAT (AIM-style + cross-channel unread + @mentions) =====================
 function ChatTab({ me }) {
-  const [channel, setChannel] = useState("general");
+  const [channel, setChannel] = useState(() => {
+    // Honor `?channel=help` deep-link from the floating LiveChatWidget so
+    // users can pop the widget open into the full chat without losing context.
+    if (typeof window === "undefined") return "general";
+    const wanted = new URLSearchParams(window.location.search).get("channel");
+    return ["general", "help", "showcase", "makers-only"].includes(wanted) ? wanted : "general";
+  });
   const [messagesByCh, setMessagesByCh] = useState({});
   const [buddiesByCh, setBuddiesByCh] = useState({});
   const [unread, setUnread] = useState({});
