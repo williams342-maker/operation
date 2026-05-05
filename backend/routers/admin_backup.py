@@ -208,3 +208,29 @@ async def admin_db_backup_drill_run(_claims: dict = Depends(require_super_admin(
     plus the admin audit log. Returns the full summary dict."""
     from recovery_drill import run_recovery_drill
     return await run_recovery_drill(manual=True)
+
+
+
+@router.get("/admin/billing/charge-clearing/preview", include_in_schema=False)
+async def admin_charge_clearing_preview(_claims: dict = Depends(require_super_admin())):
+    """Dry-run the monthly Plus charge-clearing sweep.
+
+    Returns the candidate makers and total cents that *would* be invoiced
+    without actually creating any Stripe Invoice. Lets ops eyeball the
+    batch before the cron runs (or before a manual run).
+    """
+    from charge_clearing import clear_plus_ledger_balances
+    return await clear_plus_ledger_balances(apply=False)
+
+
+@router.post("/admin/billing/charge-clearing/run", include_in_schema=False)
+async def admin_charge_clearing_run(_claims: dict = Depends(require_super_admin())):
+    """Manually trigger the Plus charge-clearing sweep (super-admin only).
+
+    Same code path as the monthly cron but bypasses the
+    `auto_charge_clearing_enabled` toggle — operators can always run a
+    sweep on demand. Each maker's pending balance is invoiced via Stripe
+    against their card on file.
+    """
+    from charge_clearing import clear_plus_ledger_balances
+    return await clear_plus_ledger_balances(apply=True)

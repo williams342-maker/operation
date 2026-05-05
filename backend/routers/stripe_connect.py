@@ -61,6 +61,22 @@ async def connect_onboard(payload: OnboardRequest, slug: str = Depends(current_m
 
     account_id = maker.get("stripe_account_id")
     if not account_id:
+        # Payout schedule — env-configurable. Defaults to weekly Friday with
+        # a 7-day rolling delay (gives us a chargeback window + time to
+        # settle any accrued listing/promo fees before funds leave the
+        # platform balance). Setting MAKER_PAYOUT_INTERVAL=daily|manual
+        # flips behavior; `manual` means payouts only fire when we call
+        # Payout.create explicitly.
+        interval = os.environ.get("MAKER_PAYOUT_INTERVAL", "weekly").lower()
+        delay_days = int(os.environ.get("MAKER_PAYOUT_DELAY_DAYS", "7"))
+        schedule: dict = {"interval": interval, "delay_days": delay_days}
+        if interval == "weekly":
+            schedule["weekly_anchor"] = os.environ.get("MAKER_PAYOUT_WEEKLY_ANCHOR", "friday")
+        elif interval == "monthly":
+            schedule["monthly_anchor"] = int(os.environ.get("MAKER_PAYOUT_MONTHLY_ANCHOR", "1"))
+        elif interval == "manual":
+            # `manual` schedule can't carry delay_days / anchor fields.
+            schedule = {"interval": "manual"}
         try:
             acct = s.Account.create(
                 type="express",
@@ -75,6 +91,7 @@ async def connect_onboard(payload: OnboardRequest, slug: str = Depends(current_m
                     "product_description": "Handcrafted CNC art (plasma-cut metal, "
                                            "laser-engraved wood, custom signs).",
                 },
+                settings={"payouts": {"schedule": schedule}},
                 metadata={"maker_slug": slug},
             )
             account_id = acct.id

@@ -237,6 +237,34 @@ async def handle_subscription_event(event_type: str, obj: dict) -> bool:
     if event_type == "customer.subscription.deleted":
         await _on_sub_deleted(obj)
         return True
+    if event_type == "invoice.payment_succeeded":
+        # Charge-clearing invoices stamp metadata.kind = "charge_clearing".
+        # We zero the ledger inside `clear_plus_ledger_balances` already,
+        # so all this hook does is log the confirmed payment for auditing.
+        md = obj.get("metadata") or {}
+        if md.get("kind") == "charge_clearing":
+            slug = md.get("maker_slug")
+            amt_cents = int(obj.get("amount_paid") or 0)
+            if slug:
+                await db.makers.update_one(
+                    {"slug": slug},
+                    {"$push": {"charge_history": {
+                        "kind": "charge_clearing_paid",
+                        "slug": None,
+                        "amount_cents": -amt_cents,
+                        "ts": now_iso(),
+                        "batch": md.get("batch"),
+                        "invoice_id": obj.get("id"),
+                        "note": f"Stripe confirmed charge-clearing invoice paid ({amt_cents}c)",
+                    }}},
+                )
+                logger.info(
+                    "charge_clearing invoice paid maker=%s amount=%sc batch=%s",
+                    slug, amt_cents, md.get("batch"),
+                )
+            return True
+        # Sub-renewal invoices fall through (status sync handled above).
+        return False
     return False
 
 

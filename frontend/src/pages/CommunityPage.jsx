@@ -1,12 +1,12 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Heart, Download, Send, Plus, Lock, Flag, Sparkles, Trophy } from "lucide-react";
+import { Heart, Download, Send, Plus, Lock, Flag, Sparkles, Trophy, Pencil, X as XIcon } from "lucide-react";
 import { toast } from "sonner";
 import {
   fetchShowcase, createShowcase, likeShowcase,
   fetchDesignFiles, fetchDesignFilesLeaderboard, downloadDesignFile, unlockDownloadsCheckout, uploadDesignFile, uploadDesignFileDirect,
-  addDesignFileVariants, deleteDesignFileVariant,
+  addDesignFileVariants, deleteDesignFileVariant, updateDesignFile,
   reportDesignFile, convertDxfToSvg, renderStlThumbnail,
   fetchForumThreads, fetchForumThread, fetchForumCategories,
   createForumThread, replyForumThread, uploadForumAttachment,
@@ -1004,6 +1004,7 @@ function FileUploadForm({ onSaved }) {
 function FileCard({ file, canDownload, me, onRefresh }) {
   const [status, setStatus] = useState(null);
   const [reportOpen, setReportOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const [downloadOpen, setDownloadOpen] = useState(false);
   const [converting, setConverting] = useState(false);
   const [rendering, setRendering] = useState(false);
@@ -1268,16 +1269,28 @@ function FileCard({ file, canDownload, me, onRefresh }) {
       )}
       <div className="flex items-center justify-between">
         <div className="font-mono text-[10px] text-[#525252] uppercase tracking-[0.22em]">by {file.maker_name}</div>
-        {canReport && (
-          <button
-            onClick={() => setReportOpen(true)}
-            className="font-mono text-[10px] text-[#525252] hover:text-red-400 inline-flex items-center gap-1 transition"
-            data-testid={`file-report-btn-${file.id}`}
-            title="Flag this file for admin review"
-          >
-            <Flag size={11} /> Report
-          </button>
-        )}
+        <div className="flex items-center gap-3">
+          {isOwner && (
+            <button
+              onClick={() => setEditOpen(true)}
+              className="font-mono text-[10px] text-[#525252] hover:text-[#ff4500] inline-flex items-center gap-1 transition"
+              data-testid={`file-edit-btn-${file.id}`}
+              title="Edit title, description, or thumbnail (owner only)"
+            >
+              <Pencil size={11} /> Edit
+            </button>
+          )}
+          {canReport && (
+            <button
+              onClick={() => setReportOpen(true)}
+              className="font-mono text-[10px] text-[#525252] hover:text-red-400 inline-flex items-center gap-1 transition"
+              data-testid={`file-report-btn-${file.id}`}
+              title="Flag this file for admin review"
+            >
+              <Flag size={11} /> Report
+            </button>
+          )}
+        </div>
       </div>
       {status?.kind === "locked" ? (
         <button onClick={unlock} className="btn-industrial btn-primary inline-flex items-center justify-center gap-2" data-testid={`file-unlock-${file.id}`}>
@@ -1344,7 +1357,160 @@ function FileCard({ file, canDownload, me, onRefresh }) {
           onClose={() => setReportOpen(false)}
         />
       )}
+      {editOpen && (
+        <EditFileModal
+          file={file}
+          onClose={() => setEditOpen(false)}
+          onSaved={() => { setEditOpen(false); onRefresh && onRefresh(); }}
+        />
+      )}
       </div>
+    </div>
+  );
+}
+
+// Owner-only metadata editor — title, description, thumbnail URL. The
+// actual files are immutable here; format variants are managed by the
+// "+ Add format" button and the × on each chip in the card header.
+function EditFileModal({ file, onClose, onSaved }) {
+  const [title, setTitle] = useState(file.title || "");
+  const [description, setDescription] = useState(file.description || "");
+  const [thumbUrl, setThumbUrl] = useState(file.thumbnail_url || "");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  const dirty = (
+    title.trim() !== (file.title || "")
+    || description.trim() !== (file.description || "")
+    || thumbUrl.trim() !== (file.thumbnail_url || "")
+  );
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (busy || !dirty) return;
+    setErr("");
+    if (!title.trim() || title.trim().length > 120) {
+      setErr("Title is required (max 120 chars)."); return;
+    }
+    if (!description.trim() || description.trim().length > 800) {
+      setErr("Description is required (max 800 chars)."); return;
+    }
+    setBusy(true);
+    try {
+      await updateDesignFile(file.id, {
+        title: title.trim(),
+        description: description.trim(),
+        thumbnail_url: thumbUrl.trim(),
+      });
+      toast.success("Saved.");
+      onSaved && onSaved();
+    } catch (e2) {
+      setErr(e2?.response?.data?.detail || "Couldn't save changes.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4"
+      data-testid="edit-file-modal"
+      onClick={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}
+    >
+      <form
+        onSubmit={submit}
+        className="w-full max-w-md bg-[#0a0a0a] border border-[#ff4500]/50 p-6 space-y-4"
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">◆ Edit design</div>
+            <h3 className="font-display text-xl mt-1">Update bundle details</h3>
+            <p className="font-mono text-[11px] text-[#a3a3a3] mt-1">
+              Files themselves stay intact — use × on a chip or "+ Add format" to change formats.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={busy}
+            className="text-[#525252] hover:text-[#e5e5e5] disabled:opacity-50"
+            data-testid="edit-file-close"
+            aria-label="Close edit modal"
+          >
+            <XIcon size={18} />
+          </button>
+        </div>
+
+        <label className="block">
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Title</span>
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            maxLength={120}
+            disabled={busy}
+            className="mt-1 w-full bg-[#050505] border border-[#262626] px-3 py-2 font-mono text-sm text-[#e5e5e5] focus:border-[#ff4500] outline-none"
+            data-testid="edit-file-title"
+          />
+        </label>
+
+        <label className="block">
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Description</span>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            maxLength={800}
+            rows={4}
+            disabled={busy}
+            className="mt-1 w-full bg-[#050505] border border-[#262626] px-3 py-2 font-mono text-sm text-[#e5e5e5] focus:border-[#ff4500] outline-none resize-y"
+            data-testid="edit-file-description"
+          />
+          <span className="font-mono text-[10px] text-[#525252]">
+            {description.length}/800
+          </span>
+        </label>
+
+        <label className="block">
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+            Thumbnail URL <span className="text-[#525252] normal-case">(optional)</span>
+          </span>
+          <input
+            value={thumbUrl}
+            onChange={(e) => setThumbUrl(e.target.value)}
+            maxLength={600}
+            disabled={busy}
+            placeholder="https://…"
+            className="mt-1 w-full bg-[#050505] border border-[#262626] px-3 py-2 font-mono text-sm text-[#e5e5e5] focus:border-[#ff4500] outline-none"
+            data-testid="edit-file-thumb-url"
+          />
+          <span className="font-mono text-[10px] text-[#525252]">
+            Clear this field to fall back to an auto-generated thumbnail (if available).
+          </span>
+        </label>
+
+        {err && (
+          <p className="font-mono text-[11px] text-red-400" data-testid="edit-file-err">⊗ {err}</p>
+        )}
+
+        <div className="flex items-center justify-end gap-3 pt-2">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={busy}
+            className="font-mono text-xs uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#e5e5e5] disabled:opacity-50"
+            data-testid="edit-file-cancel"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={busy || !dirty}
+            className="btn-industrial btn-primary inline-flex items-center gap-2 disabled:opacity-50"
+            data-testid="edit-file-save"
+          >
+            {busy ? "Saving…" : "Save changes"}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }

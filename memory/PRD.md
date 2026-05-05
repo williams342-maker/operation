@@ -25,6 +25,8 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - Admin: `/admin/login|verify|dashboard`
 
 ## What's Implemented (cumulative)
+- ✅ **Pay structure (iter126):** Maker payout schedule env-configurable on Stripe Connect onboard (default weekly/Friday/+7d delay). Monthly Plus charge-clearing job (`charge_clearing.py`) auto-invoices accrued listing/promo fees on the 1st @ 15:00 UTC; admin preview + manual-run endpoints under `/api/admin/billing/charge-clearing/*`.
+- ✅ **Community design-file edit (iter126):** `PATCH /api/community/files/{id}` + Edit modal on FileCard for title/description/thumbnail. Same ownership rule as variants endpoints; files themselves stay immutable through this path.
 - ✅ Bold industrial homepage (Hero, Showcase, Categories, Process, ForMakers, Reviews, CustomCTA, Live Activity Ticker)
 - ✅ Marketplace: 11 routed pages, Stripe Checkout Sessions, server-priced cart, polling status, cart context + localStorage, custom-order/apply forms, journal
 - ✅ Maker self-serve portal: magic-link auth, profile/listing edit (incl. `.glb` 3D model URLs), order viewing

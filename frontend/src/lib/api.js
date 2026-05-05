@@ -789,6 +789,17 @@ export const addDesignFileVariants = (fileId, files, { onProgress } = {}) => {
   }).then((r) => r.data);
 };
 
+// Owner-only metadata edit (title, description, thumbnail_url). Files
+// themselves are immutable — use the variants endpoints to add/remove.
+export const updateDesignFile = (fileId, payload) => {
+  const mkr = localStorage.getItem("cm_maker_jwt");
+  const byr = localStorage.getItem("cm_buyer_jwt");
+  const token = mkr || byr;
+  return http.patch(`/community/files/${fileId}`, payload, {
+    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+  }).then((r) => r.data);
+};
+
 // Remove a single format variant (uploader-only). Primary file is locked.
 export const deleteDesignFileVariant = (fileId, fmt) => {
   const mkr = localStorage.getItem("cm_maker_jwt");

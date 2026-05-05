@@ -388,6 +388,26 @@ async def _job_recovery_drill() -> None:
         logger.exception("[scheduler] recovery_drill failed: %s", e)
 
 
+async def _job_charge_clearing() -> None:
+    """Monthly 1st @ 15:00 UTC — sweep Plus makers' pending listing/promo
+    fees and bill via Stripe Invoice. Free-tier makers are skipped (their
+    fees keep draining sale-by-sale). See /app/backend/charge_clearing.py.
+    Self-skips when `auto_charge_clearing_enabled` toggle is OFF (default
+    on for Plus, since they explicitly opted into a card on file)."""
+    try:
+        from routers.settings import get_setting
+        if not await get_setting("auto_charge_clearing_enabled", True):
+            return
+        from charge_clearing import clear_plus_ledger_balances
+        r = await clear_plus_ledger_balances(apply=True)
+        logger.info(
+            "[scheduler] charge_clearing batch=%s invoiced=%d skipped=%d total_cents=%d",
+            r["batch"], r["invoiced"], len(r["skipped"]), r["total_cents"],
+        )
+    except Exception as e:
+        logger.exception("[scheduler] charge_clearing failed: %s", e)
+
+
 def start_scheduler() -> AsyncIOScheduler | None:
     """Boot the scheduler if SCHEDULER_ENABLED isn't 'false'."""
     global _scheduler
@@ -467,6 +487,13 @@ def start_scheduler() -> AsyncIOScheduler | None:
     sched.add_job(_job_recovery_drill,
                   CronTrigger(month="1,4,7,10", day=1, hour=4, minute=30),
                   id="recovery_drill", replace_existing=True)
+    # Monthly Plus charge-clearing — 1st of month @ 15:00 UTC (an hour
+    # after the Plus ROI digest). Bills accrued listing/promo fees to
+    # subscribers' card on file via Stripe Invoice. See _job_charge_clearing
+    # for details + the auto_charge_clearing_enabled toggle.
+    sched.add_job(_job_charge_clearing,
+                  CronTrigger(day=1, hour=15, minute=0),
+                  id="charge_clearing", replace_existing=True)
     sched.start()
     _scheduler = sched
     logger.info(

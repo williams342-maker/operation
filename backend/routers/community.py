@@ -974,6 +974,68 @@ def _is_design_file_owner(doc: dict, claims: dict) -> bool:
     return doc.get("uploader_id") == sub
 
 
+class DesignFileEdit(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    thumbnail_url: Optional[str] = None
+
+
+@router.patch("/community/files/{file_id}")
+async def update_design_file(
+    file_id: str,
+    payload: DesignFileEdit,
+    claims: dict = Depends(current_any_user),
+):
+    """Owner-only edit of a community design bundle's metadata.
+
+    Only fields that are non-None in the payload are updated. The file
+    contents themselves are immutable through this endpoint — use the
+    variants endpoints (POST/DELETE `/variants`) to add/remove formats.
+
+    Validation mirrors the upload endpoint:
+      - title: 1..120 chars
+      - description: 1..800 chars
+      - thumbnail_url: optional URL string, 0..600 chars
+    """
+    doc = await db.design_files.find_one({"id": file_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Design file not found.")
+    if not _is_design_file_owner(doc, claims):
+        raise HTTPException(403, "You can only edit your own uploads.")
+
+    updates: dict = {}
+    if payload.title is not None:
+        title = payload.title.strip()
+        if not title or len(title) > 120:
+            raise HTTPException(400, "Title is required (max 120 chars).")
+        updates["title"] = title[:120]
+    if payload.description is not None:
+        description = payload.description.strip()
+        if not description or len(description) > 800:
+            raise HTTPException(400, "Description is required (max 800 chars).")
+        updates["description"] = description[:800]
+    if payload.thumbnail_url is not None:
+        thumb = payload.thumbnail_url.strip()
+        if len(thumb) > 600:
+            raise HTTPException(400, "Thumbnail URL too long (max 600 chars).")
+        # Empty string clears the custom thumbnail (UI may auto-fall back
+        # to a raster variant on render).
+        updates["thumbnail_url"] = thumb or None
+        # User-supplied thumbnail overrides any auto-rendered one — clear
+        # the "thumbnail_auto_generated" stamp so the orange ribbon goes
+        # away on the public card.
+        if "thumbnail_auto_generated" in doc:
+            updates["thumbnail_auto_generated"] = False
+
+    if not updates:
+        return _with_quality(doc)
+
+    updates["updated_at"] = now_iso()
+    await db.design_files.update_one({"id": file_id}, {"$set": updates})
+    fresh = await db.design_files.find_one({"id": file_id}, {"_id": 0})
+    return _with_quality(fresh) if fresh else {}
+
+
 @router.post("/community/files/{file_id}/variants")
 async def add_design_file_variants(
     file_id: str,

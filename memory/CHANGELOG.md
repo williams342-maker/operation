@@ -1,5 +1,78 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05 — iter126/127 — Payout schedule + monthly Plus charge-clearing + Community design-file edit ✅
+
+Three pay-structure / billing improvements shipped together:
+
+### 1. Maker payout schedule (Stripe Connect)
+Account creation now stamps `settings.payouts.schedule` on every new Express
+account, so once payouts are enabled funds drip out on a predictable cadence
+instead of Stripe's daily-rolling default. Env-driven for easy tuning:
+
+- `MAKER_PAYOUT_INTERVAL` — daily / weekly / monthly / manual. Default `weekly`.
+- `MAKER_PAYOUT_DELAY_DAYS` — chargeback window before funds release. Default `7`.
+- `MAKER_PAYOUT_WEEKLY_ANCHOR` — `monday`–`sunday`. Default `friday`.
+- `MAKER_PAYOUT_MONTHLY_ANCHOR` — 1–31 (used when interval=monthly).
+
+Existing makers keep their current schedule (Stripe never silently mutates
+existing accounts). Operators can change a per-maker schedule from the Stripe
+dashboard.
+
+### 2. Monthly Plus charge-clearing (`charge_clearing.py`)
+Listing fees ($0.20) and promo fees ($5/wk) accrue to
+`maker.pending_charges_cents` and are normally drained from the next sale
+payout. Plus subscribers without sales would carry that balance forever — now
+we sweep it monthly via a Stripe Invoice billed to the card on file:
+
+- New `clear_plus_ledger_balances(apply=...)` module.
+- New scheduler job `charge_clearing@cron[day='1', hour='15', minute='0']`
+  (UTC, 1 hour after the Plus ROI digest). Self-skips when
+  `auto_charge_clearing_enabled` toggle is OFF (default ON for Plus).
+- New admin endpoints (super-admin-only, `admin_backup.py`):
+  - `GET /api/admin/billing/charge-clearing/preview` — dry-run, returns
+    candidate count + total cents that would be invoiced.
+  - `POST /api/admin/billing/charge-clearing/run` — manual trigger that
+    bypasses the toggle.
+- Idempotent: each batch is keyed by `YYYY-MM`. Re-runs in the same month
+  skip already-cleared makers (`charge_history.batch` guard). Sub-$1 balances
+  are skipped (`CHARGE_CLEARING_MIN_CENTS=100`) so Stripe's per-invoice
+  fee doesn't eat the entire collection.
+- Webhook hook: `invoice.payment_succeeded` with
+  `metadata.kind=charge_clearing` now appends a `charge_clearing_paid` row to
+  `charge_history` for the maker so the audit trail is complete.
+
+### 3. Community design-file edit (`PATCH /api/community/files/{id}`)
+Resumes the iter125 in-progress task. Owners can now update
+title/description/thumbnail without deleting + re-uploading. Files themselves
+stay immutable here — format management still flows through the existing
+variants endpoints (× chip + "+ Add format").
+
+- Backend: `update_design_file()` in `routers/community.py`. Same ownership
+  rule as variants (`_is_design_file_owner`): exact maker_slug or uploader_id
+  match against the JWT subject, no maker-can-edit-anyone bug. Validation
+  mirrors the upload endpoint: title 1..120, description 1..800,
+  thumbnail_url 0..600 (empty clears + un-flags `thumbnail_auto_generated`).
+- Frontend: `updateDesignFile()` API helper + new `EditFileModal` component
+  + `Edit` button next to `Report` on every owner-rendered `FileCard`.
+  Modal shows current values, a 22/800 char counter on the description, and
+  a Save button that's disabled until the form is dirty.
+- Tests: `tests/test_iter126_design_file_edit.py` (8 paths: 401, 403, 404,
+  two 400 variants, partial update, file-immutability check, thumbnail
+  clear); `tests/test_iter127_charge_clearing.py` (Mongo-level filter +
+  threshold dry-run, no Stripe required).
+
+### Verified live
+- `PATCH /community/files/<seeded-id>` with valid owner JWT → 200, payload
+  reflects new description; subsequent GET confirms persistence.
+- `PATCH` from a different buyer JWT → 403; no token → 401; unknown id
+  → 404; empty title → 400.
+- `GET /admin/billing/charge-clearing/preview` returns
+  `{batch:'2026-05', candidate_count:0, …}` on the empty test DB (correct).
+- Edit button + modal verified end-to-end via screenshot tool with
+  test-buyer JWT — modal opens, fields prefill, dirty-check works.
+
+---
+
 ## 2026-05 — iter123 — Quarterly DR drill ✅
 
 **Why:** iter119 shipped manual backups, iter121 shipped scheduled offsite backups to R2. The trio is incomplete without **automated verification** that those archives are actually restoreable. Famous quote: "Backups you've never tested don't exist." A drill that fires automatically every quarter (and can be forced manually) closes the loop and turns the backup story from "we hope it works" into "we know it works as of last Thursday."
