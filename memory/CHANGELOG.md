@@ -1,5 +1,28 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05-06 — All product images verified-on-topic ✅
+
+Followed up on the Editor's Picks fix by extending the same pattern to
+the remaining catalog rails ("Wall Art We Love", "Made-to-Order Signs",
+"Plasma-Cut Originals", "/shop").
+
+### Audit findings
+- 4 products (already fixed in prior commit): mountain silhouette, walnut family sign, business sign, address numbers
+- **2 still broken**: `topo-mountains` (Unsplash drift), `outdoor-compass-medallion` (Pexels + Unsplash hot-link)
+- 1 OK: `acrylic-kraken-keychain` — has real maker-uploaded image on `cdn.craftersmarket.org`. Left untouched.
+
+### Fix
+- Generated 2 more photorealistic images via Gemini Nano Banana:
+  - `product-topo-mountains.jpg` — layered topographic plywood wall art in modern living room
+  - `product-compass-medallion.jpg` — 24" plasma-cut compass medallion on cedar fence
+- Compressed PNG → JPEG @ q=82, max 1280px (114 KB + 244 KB)
+- Extended `PRODUCT_IMAGE_MAP` in `backend/product_image_seeds.py` from 4 → 6 entries
+- Re-ran admin endpoint `POST /api/admin/products/seed-featured-images` — `matched: 6, updated: 2`
+
+### Verified
+- All 7 live products audited: 6 ✓ local, 1 ✓ maker-cdn, **0 broken**
+- Visual smoke test on `/shop`: every product card shows a content-matched, photorealistic image
+
 ## 2026-05-06 — Editor's Picks rebuilt with 4 real CNC product images ✅
 
 The "Editor's Picks" homepage rail was showing automated-test products (`TEST_iter21`, `NO-WM Test`, broken Unsplash hot-link) instead of the actual featured products. Two root causes:

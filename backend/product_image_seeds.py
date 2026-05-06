@@ -23,6 +23,8 @@ PRODUCT_IMAGE_MAP = {
     "rustic-family-name-sign":    "/seed-images/product-rustic-family-sign.jpg",
     "custom-business-sign":       "/seed-images/product-business-sign.jpg",
     "industrial-address-numbers": "/seed-images/product-address-numbers.jpg",
+    "topo-mountains":             "/seed-images/product-topo-mountains.jpg",
+    "outdoor-compass-medallion":  "/seed-images/product-compass-medallion.jpg",
 }
 
 # Patterns that identify automated-test product rows that should never
