@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { ArrowUpRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { fetchProducts } from "../../lib/api";
 
-export default function ProductRail({ title, eyebrow, category, technique, viewAllHref = "/shop", testId }) {
+export default function ProductRail({ title, eyebrow, category, technique, featured, viewAllHref = "/shop", testId }) {
   const [items, setItems] = useState([]);
   const ref = useRef(null);
 
@@ -12,8 +12,9 @@ export default function ProductRail({ title, eyebrow, category, technique, viewA
     const params = {};
     if (category) params.category = category;
     if (technique) params.technique = technique;
+    if (featured) params.featured = true;
     fetchProducts(params).then((d) => setItems(d.slice(0, 8))).catch(() => {});
-  }, [category, technique]);
+  }, [category, technique, featured]);
 
   const scroll = (dir) => {
     const el = ref.current; if (!el) return;

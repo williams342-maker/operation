@@ -74,7 +74,7 @@ const Home = () => {
       <Hero />
       <ShopOfTheWeek />
       <CategoryStrip />
-      <ProductRail title="Editor's Picks" eyebrow="◆ Featured" testId="rail-featured" />
+      <ProductRail title="Editor's Picks" eyebrow="◆ Featured" featured testId="rail-featured" />
       <PromoStrip />
       <ProductRail title="Wall Art We Love" eyebrow="◆ Wall Art" category="Wall Art" viewAllHref="/shop?category=Wall%20Art" testId="rail-wall-art" />
       <ProductRail title="Made-to-Order Signs" eyebrow="◆ Custom Signs" category="Custom Signs" viewAllHref="/shop?category=Custom%20Signs" testId="rail-signs" />

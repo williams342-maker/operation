@@ -1,5 +1,30 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05-06 — Editor's Picks rebuilt with 4 real CNC product images ✅
+
+The "Editor's Picks" homepage rail was showing automated-test products (`TEST_iter21`, `NO-WM Test`, broken Unsplash hot-link) instead of the actual featured products. Two root causes:
+
+1. **Rail was unfiltered** — `<ProductRail title="Editor's Picks">` called `fetchProducts({})` with no `featured` filter, so it just sliced the first 8 products by recency. Test products created by automated runs were sneaking in.
+2. **Featured products had broken images** — the 4 actual featured products (mountain-range-silhouette, rustic-family-name-sign, custom-business-sign, industrial-address-numbers) had Unsplash photo IDs whose hosted content had drifted from CNC subject matter.
+
+### Implementation
+- Generated 4 photorealistic product hero images via Gemini Nano Banana (`gemini-3.1-flash-image-preview`):
+  - `walnut-name-sign` style: V-carved "THE WALKERS" rustic sign
+  - `plasma-table-cutting` style: matte-black mountain silhouette wall art
+  - `business-sign`: "BLACKSMITH COFFEE" plasma sign on brick
+  - `address-numbers`: "1247" steel numbers on cedar fence
+- Compressed PNG → JPEG @ q=82 (4 files, ~800KB total). Saved to `/app/frontend/public/seed-images/product-*.jpg`.
+- New module `backend/product_image_seeds.py` with `seed_featured_product_images()` — maps slug → URL, idempotent, returns matched/updated counts.
+- Same module wipes 5 known automated-test products (`TEST_*`, `NO-WM Test`, `*smoke test*`, `*shipping test*`).
+- New endpoint `POST /api/admin/products/seed-featured-images` (audit-logged, admin-only, idempotent).
+- `ProductRail.jsx` → new `featured` prop that passes `?featured=true` to the API.
+- `App.js` → `<ProductRail featured>` so Editor's Picks now ONLY shows featured products.
+
+### Verified
+- API returns exactly 4 featured products with `/seed-images/product-*.jpg` URLs
+- Seed endpoint idempotent: re-runs are safe
+- Visual smoke test on homepage: 4 real CNC product cards visible with prices ($59, $325, $79, $149) and matching images
+
 ## 2026-05-06 — "Featured in showcase" carousel on maker profiles ✅
 
 When a maker has showcase posts tagged to their shop, they now pop up

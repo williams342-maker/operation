@@ -2654,3 +2654,21 @@ async def admin_seed_showcase(
         "created_at": now_iso(),
     })
     return {"ok": True, **summary}
+
+
+@router.post("/admin/products/seed-featured-images", tags=["admin/products"])
+async def admin_seed_featured_product_images(claims: dict = Depends(current_admin)):
+    """Re-point the 4 Editor's Pick products at content-verified hero
+    images served from `/seed-images/product-*.jpg`. Idempotent —
+    safe to re-run; won't touch products outside the known mapping."""
+    from product_image_seeds import seed_featured_product_images
+    summary = await seed_featured_product_images()
+    summary["actor"] = claims.get("email")
+    await db.admin_audit.insert_one({
+        "id": secrets.token_hex(12),
+        "kind": "product_image_seed",
+        "actor": claims.get("email"),
+        "summary": summary,
+        "created_at": now_iso(),
+    })
+    return {"ok": True, **summary}
