@@ -1,5 +1,35 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05-06 — Workshops to Watch cleanup + ProductCard lazy-loading ✅
+
+Final pass on homepage placeholder content. The "Workshops to Watch"
+section was rendering with empty/Unsplash/test-row maker covers; now it
+ships 4 polished, photorealistic CNC shop cards.
+
+### Maker roster cleanup
+- Generated 5 photorealistic shop covers via Gemini Nano Banana
+  (`shop-iron-and-oak`, `shop-metalart-pro`, `shop-williams-cnc`,
+  `shop-oakridge-woodcraft`, `shop-blackforge-signs`) →
+  `/app/frontend/public/seed-images/`
+- Updated 3 existing real makers (`iron-and-oak`, `metalart-pro`,
+  `williams-cnc`) with local cover paths and proper bios; un-closed
+  `iron-and-oak`'s shop so it surfaces on the homepage.
+- Inserted 2 new realistic makers: **Oakridge Woodcraft Co.** (Knoxville)
+  and **Blackforge Sign Co.** (Brooklyn, veteran-owned).
+- Deleted 4 test-garbage rows: `test-studio`, `betaflow-studio`,
+  `test-allowedstudio-iter18`, `iter9-acct-f301ff35`.
+- Hardened `GET /api/makers` (`backend/routers/catalog.py:132`) to
+  exclude rows missing a cover/bio and to skip slugs prefixed with
+  `test-`, `iter*-`, `beta-`, `TEST_`. Sort by `listings_count` desc.
+- `FeaturedShops.jsx` now slices to top 4 and adds
+  `loading="lazy" decoding="async"` to cover images.
+
+### P3 — ProductCard lazy-loading
+- `frontend/src/components/ProductCard.jsx`: first 4 cards eager-load,
+  the rest are `loading="lazy" decoding="async"`. Hero card gets
+  `fetchpriority="high"` to improve LCP on mobile.
+
+
 ## 2026-05-06 — All product images verified-on-topic ✅
 
 Followed up on the Editor's Picks fix by extending the same pattern to

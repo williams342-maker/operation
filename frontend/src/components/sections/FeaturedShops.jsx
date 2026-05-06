@@ -5,7 +5,7 @@ import { fetchMakers } from "../../lib/api";
 
 export default function FeaturedShops() {
   const [makers, setMakers] = useState([]);
-  useEffect(() => { fetchMakers().then(setMakers).catch(() => {}); }, []);
+  useEffect(() => { fetchMakers().then((m) => setMakers((m || []).slice(0, 4))).catch(() => {}); }, []);
   if (!makers.length) return null;
 
   return (
@@ -30,7 +30,7 @@ export default function FeaturedShops() {
                 className="group block bg-[#121212] border border-[#262626] hover:border-[#ff4500] transition overflow-hidden">
                 <div className="grid grid-cols-12 gap-0">
                   <div className="col-span-5 aspect-square overflow-hidden border-r border-[#262626]">
-                    <img src={m.cover} alt={m.name} className="w-full h-full object-cover media-img group-hover:scale-105 transition duration-700" />
+                    <img src={m.cover} alt={m.name} loading="lazy" decoding="async" className="w-full h-full object-cover media-img group-hover:scale-105 transition duration-700" />
                   </div>
                   <div className="col-span-7 p-5 md:p-6 flex flex-col justify-between">
                     <div>

@@ -131,7 +131,16 @@ async def get_product(slug: str):
 
 @router.get("/makers", response_model=List[Maker])
 async def list_makers():
-    return await db.makers.find({}, {"_id": 0}).to_list(200)
+    """Public maker roster — excludes obvious test/incomplete rows.
+    A maker is shown only if it has a non-empty cover image and a bio,
+    and isn't flagged as a temporary test slug (test-*, iter*-acct-*, etc.).
+    """
+    q = {
+        "cover": {"$nin": [None, ""]},
+        "bio": {"$nin": [None, ""]},
+        "slug": {"$not": {"$regex": "^(test-|iter\\d+-|beta-|TEST_)"}},
+    }
+    return await db.makers.find(q, {"_id": 0}).sort("listings_count", -1).to_list(200)
 
 
 @router.get("/makers/{slug}", response_model=Maker)

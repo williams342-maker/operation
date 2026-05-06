@@ -18,6 +18,9 @@ export default function ProductCard({ p, i = 0 }) {
         <div className="relative aspect-[4/5] overflow-hidden">
           <motion.img
             src={p.images?.[0]} alt={p.title}
+            loading={i < 4 ? "eager" : "lazy"}
+            decoding="async"
+            fetchpriority={i === 0 ? "high" : "auto"}
             className="absolute inset-0 w-full h-full object-cover media-img"
             whileHover={{ scale: 1.06 }}
             transition={{ duration: 0.9 }}
