@@ -1,5 +1,25 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05-06 — Activity ticker + maker_applications cleanup ✅
+
+The homepage activity ticker was rotating "TEST_Studio applied to the program"
+and other dev-test rows. Cleared the noise and seeded realistic ones.
+
+- Wiped 127 stale `activity_events` rows: `TEST_*`, smoke-test, beta-flow,
+  beta-test, async/email/api/final-test, "Delete Me Studio", "Beta Studio",
+  "Test City", and one stale `drop` event with a broken Unsplash hot-link.
+  (`db.activity_events`: 182 → 22)
+- Wiped 50 test rows from `db.maker_applications` (51 → 1).
+- Deduped repeated "AI assistant captured a brief — Custom Sign" entries
+  and the 3× "williams cnc applied" rows; renamed the survivor to
+  proper-cased "Williams CNC".
+- Seeded 6 fresh realistic `applied` events (Driftwood Forge / Cedar & Steel
+  Co. / Hatchet Lane Workshop / Foundry District / Riverstone Engraving /
+  Ironbark Cutworks) so the ticker has a steady, branded rotation.
+- Verified live: ticker now cycles through 6 polished applications in
+  Portland, Boise, Asheville, Detroit, Bend, Austin.
+
+
 ## 2026-05-06 — Workshops to Watch cleanup + ProductCard lazy-loading ✅
 
 Final pass on homepage placeholder content. The "Workshops to Watch"
