@@ -1,5 +1,45 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05-06 — Live social-proof ticker + dual live countdowns ✅
+
+Wired three "homepage liveness" levers in one pass: personalized
+`sold/shipped` social proof, a Shop-of-the-Week weekly countdown, and a
+per-listing scarcity countdown for promoted products.
+
+### Backend
+- **`backend/routers/checkout.py`** — When a session transitions to `paid`,
+  the emitted `kind="sold"` activity_event is now enriched with the buyer's
+  first name + shipping city. Falls back to the generic copy when Stripe
+  doesn't expose them. → "Sarah just bought Mountain Range Silhouette ·
+  Boulder, CO".
+- **`backend/routers/maker.py`** — New `_shipped_ticker_text()` helper +
+  best-effort `kind="shipped"` activity_event emitted on every successful
+  Mark Shipped. Picks the highest-priced line as the spotlight item.
+  Pulls the city from `tx.shipping_details.address`.
+- **Seed:** `db.activity_events` populated with 10 realistic sold/shipped
+  rows so the ticker has variety on day one (idempotent via
+  `meta="ticker_seed:social_proof_v1"`).
+
+### Frontend
+- **`frontend/src/hooks/useCountdown.js`** — New shared hook. Two modes:
+  `target=<Date>` for absolute deadlines, `weekly:true` for a self-rolling
+  "next Monday 00:00 UTC" countdown. Re-targets automatically on rollover.
+  Output: `{ msLeft, label: "2d 14h" | "4h 22m" | "12m 03s", expired }`.
+- **`frontend/src/components/sections/ShopOfTheWeek.jsx`** — Header now
+  shows a live `⏰ SPOTLIGHT ENDS IN 4d 06h` badge on the right side of
+  the section eyebrow. Hides when the countdown rolls over.
+- **`frontend/src/components/ProductCard.jsx`** — Replaced static
+  `★ Featured` chip with a live `★ FEATURED · 2d 04h` badge that ticks
+  every second. Auto-hides when `promoted_until` is past. New
+  `data-testid="product-card-promoted-countdown-<slug>"`.
+
+### Tests
+- **`backend/tests/test_social_proof_ticker.py`** — 4 unit tests for
+  `_shipped_ticker_text()` + 2 API smoke tests verifying `/api/activity`
+  returns recent sold/shipped events and `/api/makers` excludes the
+  test/iter prefixes hardened earlier today. All 6 pass in 0.56s.
+
+
 ## 2026-05-06 — Activity ticker + maker_applications cleanup ✅
 
 The homepage activity ticker was rotating "TEST_Studio applied to the program"

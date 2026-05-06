@@ -604,10 +604,33 @@ async def checkout_status(session_id: str, http_request: Request, bg: Background
                                 used_code, session_id, used_amount)
             except Exception as e:
                 logger.exception("[discount] usage recording failed: %s", e)
+            # Enrich the public ticker event with buyer first-name + city when
+            # the Stripe session exposes them. Falls back to the generic copy.
+            buyer_first = ""
+            buyer_city = "Crafters Market"
+            try:
+                cd = getattr(sess, "customer_details", None) if sess else None
+                if cd:
+                    full_name = (cd.get("name") if isinstance(cd, dict) else getattr(cd, "name", "")) or ""
+                    buyer_first = full_name.strip().split()[0] if full_name else ""
+                sd = (getattr(sess, "shipping_details", None) or getattr(sess, "shipping", None)) if sess else None
+                if sd:
+                    addr = sd.get("address") if isinstance(sd, dict) else getattr(sd, "address", None)
+                    if addr:
+                        city = (addr.get("city") if isinstance(addr, dict) else getattr(addr, "city", "")) or ""
+                        state = (addr.get("state") if isinstance(addr, dict) else getattr(addr, "state", "")) or ""
+                        if city and state:
+                            buyer_city = f"{city}, {state}"
+                        elif city:
+                            buyer_city = city
+            except Exception:
+                pass
+            sold_text = (
+                f"{buyer_first} just bought {summary}" if buyer_first
+                else f"{summary} sold to a buyer"
+            )
             await db.activity_events.insert_one(
-                ActivityEvent(kind="sold",
-                              text=f"{summary} sold to a buyer",
-                              location="Crafters Market").model_dump()
+                ActivityEvent(kind="sold", text=sold_text, location=buyer_city).model_dump()
             )
             email_items = []
             by_maker: dict[str, list] = {}

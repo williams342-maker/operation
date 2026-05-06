@@ -1163,7 +1163,45 @@ async def maker_mark_shipped(
             tx.get("tracking_url_provider"),
         )
 
+    # Public ticker: announce the shipment so the homepage/social-proof
+    # banner picks it up. Best-effort — never block the API on this.
+    try:
+        maker_doc = await db.makers.find_one(
+            {"slug": slug}, {"_id": 0, "name": 1},
+        ) or {}
+        ship_addr = (tx.get("shipping_details") or {}).get("address") or {}
+        city = (ship_addr.get("city") or "").strip()
+        state = (ship_addr.get("state") or "").strip()
+        location = f"{city}, {state}" if city and state else (city or "Crafters Market")
+        await db.activity_events.insert_one({
+            "id": str(uuid.uuid4()),
+            "kind": "shipped",
+            "text": _shipped_ticker_text(tx.get("items") or [], maker_doc.get("name") or ""),
+            "location": location,
+            "created_at": now_iso(),
+        })
+    except Exception as e:
+        logger.warning("[ticker] shipped event emit failed: %s", e)
+
     return {"ok": True, "order_status": "fulfilled", "shipped_at": update["shipped_at"]}
+
+
+def _shipped_ticker_text(items: list, maker_name: str) -> str:
+    """Build the public-ticker headline for a freshly-shipped order.
+    Picks the highest-priced line as the spotlight item; falls back to
+    a generic 'an order' when nothing usable is in items."""
+    headline = ""
+    if items:
+        try:
+            best = max(items, key=lambda it: float(it.get("price") or 0))
+            headline = (best.get("title") or "").strip()
+        except Exception:
+            headline = ""
+    if headline and maker_name:
+        return f"{maker_name} shipped {headline}"
+    if headline:
+        return f"Just shipped — {headline}"
+    return f"{maker_name or 'A maker'} shipped an order"
 
 
 @router.post("/maker/orders/{session_id}/resend-tracking-email")

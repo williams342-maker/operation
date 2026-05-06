@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowUpRight, Sparkles } from "lucide-react";
+import { ArrowUpRight, Sparkles, Clock } from "lucide-react";
 import { fetchShopOfTheWeek } from "../../lib/api";
+import useCountdown from "../../hooks/useCountdown";
 
 // Crafters Plus spotlight — rotates the highest-GMV active subscriber onto
 // the homepage with their custom banner + 3 best-selling products. Hides
@@ -10,6 +11,7 @@ import { fetchShopOfTheWeek } from "../../lib/api";
 export default function ShopOfTheWeek() {
   const [data, setData] = useState(null);
   const [ready, setReady] = useState(false);
+  const { label: countdownLabel, expired } = useCountdown({ weekly: true });
 
   useEffect(() => {
     fetchShopOfTheWeek()
@@ -49,6 +51,18 @@ export default function ShopOfTheWeek() {
           <div className="font-mono text-[11px] uppercase tracking-[0.32em] text-[#ff4500]">
             ◆ Shop of the Week · Crafters Plus
           </div>
+          {!expired && countdownLabel && (
+            <div
+              className="ml-auto inline-flex items-center gap-1.5 px-2.5 py-1 border border-[#ff4500]/40 bg-[#1a0a05] font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]"
+              data-testid="sotw-countdown"
+            >
+              <Clock size={11} className="opacity-80" />
+              Spotlight ends in
+              <span className="text-white font-semibold tabular-nums" data-testid="sotw-countdown-value">
+                {countdownLabel}
+              </span>
+            </div>
+          )}
         </motion.div>
 
         <div className="grid lg:grid-cols-12 gap-8 lg:gap-10 items-stretch">

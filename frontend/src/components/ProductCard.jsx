@@ -3,6 +3,27 @@ import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowUpRight } from "lucide-react";
 import VeteranBadge from "./VeteranBadge";
+import useCountdown from "../hooks/useCountdown";
+
+// Inline live "★ Featured · ends in Xh Ym" badge — only visible while
+// `promoted_until` is in the future. Rendered as a sibling so the parent
+// card stays a clean motion container.
+function PromotedBadge({ until, slug }) {
+  const { label, expired } = useCountdown({ target: until });
+  if (expired) return null;
+  return (
+    <span
+      className="tag absolute bottom-4 left-4 text-emerald-300 border-emerald-400 bg-black/70 inline-flex items-center gap-1.5"
+      data-testid={`product-card-promoted-${slug}`}
+    >
+      <span>★ Featured</span>
+      <span className="opacity-60">·</span>
+      <span className="tabular-nums" data-testid={`product-card-promoted-countdown-${slug}`}>
+        {label}
+      </span>
+    </span>
+  );
+}
 
 export default function ProductCard({ p, i = 0 }) {
   return (
@@ -36,12 +57,7 @@ export default function ProductCard({ p, i = 0 }) {
             />
           )}
           {p.promoted_until && new Date(p.promoted_until) > new Date() && (
-            <span
-              className="tag absolute bottom-4 left-4 text-emerald-300 border-emerald-400 bg-black/70"
-              data-testid={`product-card-promoted-${p.slug}`}
-            >
-              ★ Featured
-            </span>
+            <PromotedBadge until={p.promoted_until} slug={p.slug} />
           )}
           <div className="absolute bottom-4 right-4 flex items-end justify-end gap-3">
             <div className="font-display text-3xl text-white drop-shadow-md">${p.price}</div>
