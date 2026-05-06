@@ -14,6 +14,26 @@ Seeded 22 high-quality starter threads via new module
 - `CommunityPage` now honors `?tab=forum` URL param so deep-links from the homepage land on the right tab
 - DB cleanup: deleted 69 stale `TEST_*` and `aimod-*` threads from earlier automated test runs (forum was 91 → 22 real threads)
 
+### Expert-style replies seeded (added in same session)
+- New module `backend/forum_reply_seeds.py` with **88 replies (4 per starter thread)** from 5 synthetic veteran-maker personas:
+  - **Marcus Reed** — plasma + heavy metal, Texas, blunt
+  - **Karen Holtz** — wood signs / V-carving, Pacific NW, methodical
+  - **Tony Rivera** — multi-machine garage shop, FL, troubleshooting nerd
+  - **Sam Whitcombe** — semi-pro, MI, budget-conscious
+  - **Jess Abernathy** — laser engraving + photography, NJ, polished
+- Replies reference real tools (G-Wizard, Whiteside bits, Hypertherm, Howard's Butcher Block Conditioner, Carveco, Vectric, Fusion 360), real numbers (Vref, IPM, RPM, DOC), and sometimes disagree (Marcus says "charge what it's worth"; Sam says "rattle-can is fine until you scale"). Mirrors healthy real-forum dynamics.
+- Personas tagged `is_seed_persona: true` in `community_users` so they're never confused with real makers (no `maker_slug`, no shop, no profile page).
+- Idempotent: matched on `(thread_id, persona_email, seed_order)`. Re-runs insert 0.
+- Reply timestamps staggered 30min-3h after thread creation so threads look "lived in" not auto-spawned.
+- Triggered via `POST /api/admin/forum/seed-replies` (must run AFTER seed-starters).
+
+### Verified
+- 88 replies inserted across 22 threads (exactly 4 each, distribution `{4: 22}`)
+- Idempotent re-run: 0 inserted
+- Sample thread API response shows 4 distinct personas with technically-credible answers
+- Homepage trending strip now ranks threads by their real (non-zero) reply_count
+- Forum tab in /community shows "4 REPLIES" on every thread
+
 ### Verified
 - Endpoint returns 3 real seeded threads (after cleanup)
 - Homepage strip renders, all 3 cards + "All threads →" link present

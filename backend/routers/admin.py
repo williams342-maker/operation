@@ -2604,3 +2604,28 @@ async def admin_seed_forum_starters(claims: dict = Depends(current_admin)):
     })
     return {"ok": True, **summary}
 
+
+@router.post("/admin/forum/seed-replies", tags=["admin/forum"])
+async def admin_seed_forum_replies(claims: dict = Depends(current_admin)):
+    """Insert ~88 expert replies across the 22 starter threads.
+
+    Each starter gets 4 replies from 5 synthetic veteran-maker personas
+    (Marcus, Karen, Tony, Sam, Jess). Replies are technical, sometimes
+    disagree, and reference real tools and numbers. Idempotent — re-runs
+    insert only what's missing.
+
+    Run AFTER seed-starters; if a starter is missing the replies for
+    that key are silently skipped.
+    """
+    from forum_reply_seeds import seed_forum_replies
+    summary = await seed_forum_replies()
+    summary["actor"] = claims.get("email")
+    await db.admin_audit.insert_one({
+        "id": secrets.token_hex(12),
+        "kind": "forum_seed_replies",
+        "actor": claims.get("email"),
+        "summary": summary,
+        "created_at": now_iso(),
+    })
+    return {"ok": True, **summary}
+
