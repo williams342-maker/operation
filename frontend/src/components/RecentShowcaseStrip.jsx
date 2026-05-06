@@ -26,6 +26,7 @@ export default function RecentShowcaseStrip({
   eyebrow = "◆ Community",
   testId = "recent-showcase-strip",
   source,  // iter117 — surface tag passed through to analytics events
+  strict = false,  // when true, never fall back to global newest-first
 }) {
   const [items, setItems] = useState(null); // null = loading
   // iter117 — per-session view dedup (defense in depth on top of the
@@ -39,7 +40,7 @@ export default function RecentShowcaseStrip({
 
   useEffect(() => {
     let cancelled = false;
-    fetchRecentShowcase({ product_slug: productSlug, maker_slug: makerSlug, limit })
+    fetchRecentShowcase({ product_slug: productSlug, maker_slug: makerSlug, limit, strict })
       .then((r) => {
         if (!cancelled) setItems(r.items || []);
       })
@@ -47,7 +48,7 @@ export default function RecentShowcaseStrip({
         if (!cancelled) setItems([]); // fail silent — don't break the host page
       });
     return () => { cancelled = true; };
-  }, [productSlug, makerSlug, limit]);
+  }, [productSlug, makerSlug, limit, strict]);
 
   // iter117 — Once items land, fire one view event per post (per-session
   // dedupe). We use IntersectionObserver where available so views only

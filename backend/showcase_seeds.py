@@ -40,16 +40,20 @@ PERSONAS = {
     "team@craftersmarket.org":                 ("Crafters Market Team", "Crafters Market"),
 }
 
-# Each entry: (seed_key, persona_email, image_slug, title, description)
+# Each entry: (seed_key, persona_email, image_slug, title, description, maker_slug)
 # Images live in /app/frontend/public/seed-images/{slug}.jpg — generated
 # via Gemini Nano Banana, content-verified, served from same origin.
-SHOWCASE_SEEDS: List[Tuple[str, str, str, str, str]] = [
+# `maker_slug` ties the showcase post to a specific Crafters Market shop
+# so it appears in that shop's "Featured in showcase" carousel. None =
+# only appears on the global community feed.
+SHOWCASE_SEEDS: List[Tuple[str, str, str, str, str, str]] = [
     (
         "show-walnut-name-sign",
         "karen.holtz.seed@craftersmarket.org",
         "walnut-name-sign",
         "Walnut family-name sign — 22 inches",
         "Finished this last weekend for a couple's anniversary. V-carved at 0.18\", filled with epoxy, sanded flush. Came out cleaner than I expected on the figured walnut.",
+        "iron-and-oak",
     ),
     (
         "show-plasma-table-cutting",
@@ -57,6 +61,7 @@ SHOWCASE_SEEDS: List[Tuple[str, str, str, str, str]] = [
         "plasma-table-cutting",
         "1/4\" steel coming off the table",
         "Pierce delay set at 1.8s, 65 amps, 50 IPM. Listen to the arc — when the pitch shifts, your consumable's about gone. This run got me 22 pierces before nozzle change.",
+        "metalart-pro",
     ),
     (
         "show-cnc-router-action",
@@ -64,6 +69,7 @@ SHOWCASE_SEEDS: List[Tuple[str, str, str, str, str]] = [
         "cnc-router-action",
         "Mid-cut on a maple commission",
         "1/4\" endmill at 18k RPM, 80 IPM, 0.05\" DOC. Dust collection caught about 90% — the other 10% is on me. Maple chips clean way nicer than pine ever did.",
+        None,
     ),
     (
         "show-end-grain-board",
@@ -71,6 +77,7 @@ SHOWCASE_SEEDS: List[Tuple[str, str, str, str, str]] = [
         "end-grain-cutting-board",
         "End-grain maple board with juice groove",
         "First end-grain board in 6 months — milled the squares oversized, glued in a checkerboard, flattened on the CNC, then routed the juice groove. Howard's wax + mineral oil for finish.",
+        "iron-and-oak",
     ),
     (
         "show-steel-ranch-sign",
@@ -78,6 +85,7 @@ SHOWCASE_SEEDS: List[Tuple[str, str, str, str, str]] = [
         "steel-ranch-sign",
         "Plasma-cut ranch entrance sign",
         "12-foot ranch sign for a working cattle operation. Two pierces per letter, powder-coated matte black. 4 hours of cut time and another 6 of bevel cleanup before the coat.",
+        "metalart-pro",
     ),
     (
         "show-workshop-floor",
@@ -85,6 +93,7 @@ SHOWCASE_SEEDS: List[Tuple[str, str, str, str, str]] = [
         "workshop-shop-floor",
         "Shop tour: 400 sq ft, every inch used",
         "French cleat walls = lifesaver. CNC on the back wall, finishing in the corner with a tent-style spray booth, lumber storage vertical above the bench. Reconfigures in 20 min.",
+        None,
     ),
     (
         "show-laser-walnut",
@@ -92,6 +101,7 @@ SHOWCASE_SEEDS: List[Tuple[str, str, str, str, str]] = [
         "laser-engraved-walnut",
         "Hand-finishing engraved walnut details",
         "The laser gets you 95% there but the cusps where letters meet always need a chisel touch. Five minutes per piece of hand-work doubles the perceived quality.",
+        "iron-and-oak",
     ),
     (
         "show-wedding-sign",
@@ -99,6 +109,7 @@ SHOWCASE_SEEDS: List[Tuple[str, str, str, str, str]] = [
         "wedding-welcome-sign",
         "Wedding welcome sign — 18x24",
         "Birch ply substrate, calligraphy V-carved at 0.12\", milk-paint wash, satin poly. Customer wanted the date in roman numerals which I had to convince myself was fine. It was fine.",
+        "iron-and-oak",
     ),
 ]
 
@@ -163,12 +174,22 @@ async def seed_showcase(wipe_test_rows: bool = True) -> dict:
 
     inserted = 0
     skipped = 0
-    for idx, (seed_key, email, image_slug, title, description) in enumerate(SHOWCASE_SEEDS):
+    updated = 0
+    for idx, (seed_key, email, image_slug, title, description, maker_slug) in enumerate(SHOWCASE_SEEDS):
         existing = await db.showcase_posts.find_one(
-            {"seed_key": seed_key}, {"_id": 0, "id": 1},
+            {"seed_key": seed_key}, {"_id": 0, "id": 1, "maker_slug": 1},
         )
         if existing:
-            skipped += 1
+            # Backfill maker_slug onto already-seeded rows so re-running
+            # this script can retroactively wire posts to maker pages.
+            if existing.get("maker_slug") != maker_slug:
+                await db.showcase_posts.update_one(
+                    {"id": existing["id"]},
+                    {"$set": {"maker_slug": maker_slug}},
+                )
+                updated += 1
+            else:
+                skipped += 1
             continue
         user = user_by_email.get(email)
         if not user:
@@ -188,7 +209,7 @@ async def seed_showcase(wipe_test_rows: bool = True) -> dict:
             "image_url": image_url,
             "image_urls": [image_url],
             "product_slug": None,
-            "maker_slug": None,
+            "maker_slug": maker_slug,
             "likes": 0,
             "views": 0,
             "clicks": 0,
@@ -203,6 +224,7 @@ async def seed_showcase(wipe_test_rows: bool = True) -> dict:
         "wiped_test_rows": wiped,
         "inserted": inserted,
         "skipped": skipped,
+        "updated": updated,
         "total_seeds_defined": len(SHOWCASE_SEEDS),
     }
     logger.info("[showcase_seed] %s", summary)

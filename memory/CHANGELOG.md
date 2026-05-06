@@ -1,5 +1,23 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05-06 — "Featured in showcase" carousel on maker profiles ✅
+
+When a maker has showcase posts tagged to their shop, they now pop up
+in a dedicated carousel on their profile page between the product grid
+and followers list.
+
+### Implementation
+- `GET /api/community/showcase/recent` → added `strict=true` param that disables the newest-first fallback. Maker pages use it so visitors only ever see that specific maker's posts.
+- `RecentShowcaseStrip.jsx` → new `strict` prop passed through to the API.
+- `MakerDetail.jsx` → mounts the strip with `strict`, `makerSlug`, dynamic title (`In {first name} workshop`), and `eyebrow="◆ Featured in showcase"`. Self-hides if maker has zero tagged posts — no empty header on new shops.
+- `showcase_seeds.py` → each seed tuple extended with a `maker_slug` 6th field. Seed loop now backfills `maker_slug` on existing rows so re-running retroactively wires posts to maker pages. Returns `updated` count in summary.
+- Seed mapping: wood/V-carve posts (Karen + Jess) → `iron-and-oak`, plasma/steel posts (Marcus) → `metalart-pro`, generic workshop/CNC shots → no maker tag (showcase feed only).
+
+### Verified
+- Re-seed backfilled 6 posts with maker_slug, 2 already correct (skipped)
+- Strict query returns 4 posts for iron-and-oak, 2 for metalart-pro, **0 for williams-cnc** (proves strict mode isn't falling back)
+- Visual smoke test on `/makers/iron-and-oak`: carousel renders 4 correct wood/CNC images between products and followers
+
 ## 2026-05-06 — Showcase cleanup + 8 real CNC images generated ✅
 
 Showcase had 68 placeholder rows from automated test runs (`placehold.co`,

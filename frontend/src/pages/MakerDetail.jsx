@@ -8,6 +8,7 @@ import FollowButton from "../components/FollowButton";
 import FollowersList from "../components/FollowersList";
 import ContactMakerModal from "../components/ContactMakerModal";
 import VeteranBadge from "../components/VeteranBadge";
+import RecentShowcaseStrip from "../components/RecentShowcaseStrip";
 import { Mail, Facebook, Instagram, Twitter, Youtube, Globe } from "lucide-react";
 
 export default function MakerDetail() {
@@ -128,6 +129,20 @@ export default function MakerDetail() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {products.map((p, i) => <ProductCard key={p.id} p={p} i={i} />)}
         </div>
+
+        {/* Showcase carousel — `strict` ensures we only show posts
+            tagged to THIS maker, never a fallback to global newest. */}
+        <div className="mt-16">
+          <RecentShowcaseStrip
+            makerSlug={m.slug}
+            limit={4}
+            strict
+            eyebrow="◆ Featured in showcase"
+            title={`In ${m.name?.split(" ")[0] || "the"} workshop`}
+            testId="maker-showcase-strip"
+          />
+        </div>
+
         <FollowersList makerSlug={m.slug} />
         <MakerReviews makerSlug={m.slug} makerName={m.name} />
         <Link to="/makers" className="inline-block mt-12 industrial-link font-mono text-xs uppercase tracking-[0.22em]">← All makers</Link>

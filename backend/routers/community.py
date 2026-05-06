@@ -238,12 +238,16 @@ async def list_recent_showcase(
     limit: int = 4,
     product_slug: Optional[str] = None,
     maker_slug: Optional[str] = None,
+    strict: bool = False,
 ):
     """Public, no-auth, lightweight feed for the homepage + product-page
     'Recently shared by buyers' strip (iter116). Prefers posts tagged with
     the requested product or maker; falls back to general newest-first
     when nothing is tagged or the tagged feed is too thin to render a
     full row.
+
+    `strict=true` disables the newest-first fallback — used by maker
+    profile pages where showing another maker's work would be confusing.
 
     Why this is its own endpoint and not just the existing /showcase:
     - Keeps the homepage payload bounded (limit cap of 12) so the strip
@@ -286,7 +290,7 @@ async def list_recent_showcase(
         rows.extend(more)
         seen_ids.update(r["id"] for r in more)
 
-    if len(rows) < limit:
+    if len(rows) < limit and not strict:
         more = await _query({"id": {"$nin": list(seen_ids)}}, limit - len(rows))
         rows.extend(more)
 
