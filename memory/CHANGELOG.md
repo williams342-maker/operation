@@ -1,5 +1,41 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05-06 — Showcase cleanup + 8 real CNC images generated ✅
+
+Showcase had 68 placeholder rows from automated test runs (`placehold.co`,
+`example.com`, `test_buyer_*` users). New visitors saw an obviously fake
+feed.
+
+### Cleanup
+- Wiped 68 placeholder rows on first seed run; another 16 on the second
+  run after a failed attempt with mismatched Unsplash photo IDs (the
+  IDs were valid URLs but the photos at those IDs were unrelated content
+  — sweaters, swimming, ice cream — because Unsplash photo content
+  changes over time without the search API).
+
+### Real images via Gemini Nano Banana
+- Wrote `/tmp/gen_cnc_imgs.py` (one-shot dev script) that calls
+  `gemini-3.1-flash-image-preview` to produce 8 photorealistic CNC,
+  woodworking, and metalworking scenes from detailed prompts.
+- Compressed PNG → progressive JPEG @ q=82, max 1280px long edge: 7.1 MB → 1.4 MB total (-80%).
+- Saved to `/app/frontend/public/seed-images/*.jpg` so they're served
+  same-origin (no third-party CDN risk, no attribution required).
+- Content-verified by re-running Gemini vision on the output to confirm
+  each image actually matches its intended subject.
+
+### Showcase data
+- `backend/showcase_seeds.py` rewritten to map each seed_key → local
+  `/seed-images/{slug}.jpg` URL.
+- 8 seeded posts across 4 personas (Karen, Marcus, Tony, Jess).
+- `JUNK_FILTER` extended to wipe prior Unsplash-based seed rows so a
+  re-seed automatically replaces the bad ones.
+- Triggered via `POST /api/admin/showcase/seed`. Idempotent.
+
+### Verified
+- All 8 `/seed-images/*.jpg` paths return 200
+- API list returns 8 posts with matching captions
+- Visual smoke test on /community: every image visually matches its caption (wedding sign, engraved walnut portrait, real workshop, plasma ranch sign, end-grain board, CNC mid-cut)
+
 ## 2026-05-06 — Forum starter threads (22 seeded across 6 categories) ✅
 
 Forum was empty — new visitors saw "no threads yet" and bounced.

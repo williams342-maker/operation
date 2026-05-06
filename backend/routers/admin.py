@@ -2629,3 +2629,28 @@ async def admin_seed_forum_replies(claims: dict = Depends(current_admin)):
     })
     return {"ok": True, **summary}
 
+
+
+
+@router.post("/admin/showcase/seed", tags=["admin/showcase"])
+async def admin_seed_showcase(
+    wipe_test_rows: bool = True,
+    claims: dict = Depends(current_admin),
+):
+    """Wipe placeholder/test showcase rows and insert ~14 real seeded
+    posts using verified Unsplash CNC/woodworking photos.
+
+    Idempotent — re-runs skip already-seeded rows by `seed_key`. Set
+    `wipe_test_rows=false` to skip the cleanup step.
+    """
+    from showcase_seeds import seed_showcase
+    summary = await seed_showcase(wipe_test_rows=wipe_test_rows)
+    summary["actor"] = claims.get("email")
+    await db.admin_audit.insert_one({
+        "id": secrets.token_hex(12),
+        "kind": "showcase_seed",
+        "actor": claims.get("email"),
+        "summary": summary,
+        "created_at": now_iso(),
+    })
+    return {"ok": True, **summary}
