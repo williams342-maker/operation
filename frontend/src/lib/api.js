@@ -953,3 +953,29 @@ export const fetchAdminPushHistory = (limit = 50) =>
 
 export const sendAdminPushTest = () =>
   http.post("/admin/push/test", {}, { headers: adminAuthHeaders() }).then((r) => r.data);
+
+// ---------- Abandoned cart ----------
+// Best-effort sync for re-engagement push. Sends the buyer's current cart
+// to /api/cart/track. Server resolves the buyer's email from the
+// `cm_buyer_jwt` (when signed-in) or from a registered Web Push
+// endpoint we attach via X-Push-Endpoint header. Self-noops otherwise.
+export const trackCart = async (items) => {
+  let pushEndpoint = "";
+  try {
+    if ("serviceWorker" in navigator) {
+      const reg = await navigator.serviceWorker.getRegistration();
+      const sub = reg ? await reg.pushManager.getSubscription() : null;
+      pushEndpoint = sub?.endpoint || "";
+    }
+  } catch { /* no-op — fall through with empty endpoint */ }
+  const buyerJwt = localStorage.getItem("cm_buyer_jwt");
+  const headers = {};
+  if (buyerJwt) headers.Authorization = `Bearer ${buyerJwt}`;
+  if (pushEndpoint) headers["X-Push-Endpoint"] = pushEndpoint;
+  // Skip the network call entirely when we have no email path
+  if (!buyerJwt && !pushEndpoint) return { ok: true, tracked: false, reason: "no_auth" };
+  return http
+    .post("/cart/track", { items: items || [] }, { headers })
+    .then((r) => r.data)
+    .catch(() => ({ ok: false }));
+};

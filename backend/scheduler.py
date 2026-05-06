@@ -145,6 +145,19 @@ async def _job_purge_deleted_makers() -> None:
 
 
 
+async def _job_abandoned_cart_push() -> None:
+    """Hourly: push the buyers who walked away from their cart >6h ago.
+    See `routers/abandoned_cart.py:fire_abandoned_cart_pushes`."""
+    from routers.abandoned_cart import fire_abandoned_cart_pushes
+    try:
+        r = await fire_abandoned_cart_pushes(idle_hours=6)
+        if r.get("sent"):
+            logger.info("[scheduler] abandoned-cart push: %s", r)
+    except Exception as e:
+        logger.exception("[scheduler] abandoned-cart push failed: %s", e)
+
+
+
 async def _job_secrets_rotation_nudge() -> None:
     """Weekly sweep over tracked credentials: for every overdue secret,
     email OPS_EMAIL once per week and write an admin_audit_log row.
@@ -578,6 +591,11 @@ def start_scheduler() -> AsyncIOScheduler | None:
     # week; everyone else accrues $5 to their pending balance.
     sched.add_job(_job_auto_renew_promotions, CronTrigger(minute=12),
                   id="auto_renew_promotions", replace_existing=True)
+    # Abandoned-cart push — every hour at :42. Requires buyer to have
+    # an email-bound push subscription, so it self-noops for
+    # anonymous shoppers.
+    sched.add_job(_job_abandoned_cart_push, CronTrigger(minute=42),
+                  id="abandoned_cart_push", replace_existing=True)
     # Secrets rotation nudge — every Monday 09:30 UTC. Walks the
     # tracked credentials list, fires an email + audit-log row for
     # any overdue secret. Idempotent within a 7-day window.

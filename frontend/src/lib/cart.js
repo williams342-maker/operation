@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from "react";
+import { trackCart } from "./api";
 
 const CartCtx = createContext(null);
 const STORAGE = "cm_cart_v1";
@@ -13,6 +14,20 @@ export function CartProvider({ children }) {
     catch { return []; }
   });
   useEffect(() => { localStorage.setItem(STORAGE, JSON.stringify(items)); }, [items]);
+
+  // Debounced sync to the abandoned-cart tracker. Fires ~3s after the last
+  // mutation so rapid +/- clicks don't hammer the server. Backend self-noops
+  // if the buyer has no email reachable (no JWT + no push subscription).
+  const syncTimer = useRef(null);
+  useEffect(() => {
+    if (syncTimer.current) clearTimeout(syncTimer.current);
+    syncTimer.current = setTimeout(() => {
+      // Strip image (we don't need it server-side; keeps payload small)
+      const trimmed = items.map(({ image: _img, ...rest }) => rest);
+      trackCart(trimmed).catch(() => {});
+    }, 3000);
+    return () => clearTimeout(syncTimer.current);
+  }, [items]);
 
   const add = useCallback((p, qty = 1, variant = null) => {
     setItems((cur) => {

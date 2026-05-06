@@ -656,6 +656,12 @@ async def checkout_status(session_id: str, http_request: Request, bg: Background
             bg.add_task(send_ops_new_order, summary, total_amount, email_items, buyer)
             if buyer:
                 bg.add_task(send_buyer_receipt, buyer, summary, total_amount, email_items)
+                # Stop any pending abandoned-cart push from firing for this buyer.
+                try:
+                    from routers.abandoned_cart import mark_checked_out
+                    bg.add_task(mark_checked_out, buyer)
+                except Exception:
+                    pass
             for maker_slug, lines in by_maker.items():
                 m = await db.makers.find_one({"slug": maker_slug}, {"_id": 0})
                 if not m or not m.get("email"):

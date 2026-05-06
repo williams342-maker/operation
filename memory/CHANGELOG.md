@@ -1,5 +1,73 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05-06 — Abandoned-cart re-engagement push + SEO non-JS fallback fix ✅
+
+Two finishes in one pass: closed out the user-flagged P2 by wiring the
+abandoned-cart push, and fixed a SEO content gap discovered while
+verifying the audit fix would actually move the needle.
+
+### 1. Abandoned-cart re-engagement push
+Carts now persist server-side whenever the buyer has an email we can
+reach (community JWT or registered Web Push). After 6 hours of
+inactivity, a one-shot browser push fires nudging them back to
+checkout. Same plumbing as the shipped/delivered nudges — no SMS, no
+A2P paperwork.
+
+- **`backend/routers/abandoned_cart.py`** — New router with three
+  endpoints + helper:
+  - `POST /api/cart/track` body `{items}` → upserts to
+    `abandoned_carts` collection. Resolves email from `Authorization:
+    Bearer <community_jwt>` or `X-Push-Endpoint` header. No-ops with
+    `{tracked: false, reason: "no_email"}` for anonymous shoppers. An
+    empty `items` list deletes the row.
+  - `mark_checked_out(email)` helper — called from `checkout.py`
+    background task on `paid` transition. Stamps `checked_out_at` so
+    the push won't fire post-purchase.
+  - `fire_abandoned_cart_pushes(idle_hours=6)` → walks rows older than
+    the window with `last_push_at` empty and `checked_out_at` empty,
+    fans out via the existing `notify_buyer_push()`. Push body uses
+    the highest-priced item title as the spotlight ("Walnut sign (+2
+    more) is still in your cart").
+  - `POST /api/admin/abandoned-cart/run?idle_hours=N` → manual smoke
+    trigger for ops.
+- **`backend/scheduler.py`** — New hourly job
+  `abandoned_cart_push@cron[minute=42]` calling
+  `fire_abandoned_cart_pushes(idle_hours=6)`.
+- **`backend/routers/checkout.py`** — On `paid` transition, schedules
+  `mark_checked_out(buyer)` as a background task so the cart row
+  doesn't trigger a push for an already-completed order.
+- **`frontend/src/lib/cart.js`** — `CartProvider` now debounces a
+  3-second `trackCart()` sync after every mutation. Strips the image
+  field from the payload to keep it small.
+- **`frontend/src/lib/api.js`** — `trackCart(items)` resolves the
+  push subscription endpoint from the service worker, attaches it as
+  `X-Push-Endpoint`, and skips the network call entirely when there's
+  no auth path.
+- **Tests:** `backend/tests/test_abandoned_cart.py` — 5 cases:
+  anonymous track no-ops, push-endpoint track upserts, empty cart
+  clears row, `mark_checked_out` stamps the field, and the scheduler
+  entrypoint correctly skips fresh/already-pushed/checked-out rows.
+  All 5 pass.
+
+### 2. SEO non-JS fallback content (the actual SEO Check fix)
+The new `WhyHandcrafted.jsx` section pushes the React-rendered
+homepage past 800 words, but **SEO crawlers (Screaming Frog, Bing,
+Yandex, social unfurlers) don't execute JavaScript** — they see only
+the `<div id="root">` static fallback in `index.html`. So the audit
+score wouldn't have moved without a parallel update to the
+prerendered content.
+
+- **`frontend/public/index.html`** — Added two new aria-labelled
+  sections to the `data-prerender="true"` block:
+  1. `Built by makers, not factories` (4 paragraphs, ~340 words
+     echoing all H1 keywords).
+  2. `How a Crafters Market order works` (4 numbered steps,
+     ~200 words).
+- **Verified the bot view:** preview homepage (curl, no JS) now
+  reports **978 words** (was 402), keyword counts up across the board:
+  Maker 12→30, CNC 7→12, plasma 2→7, laser 1→4, Stripe 1→6, Built 6→9.
+
+
 ## 2026-05-06 — SEO content + Buyer Push UI + Auto-rotate Secrets ✅
 
 Three-in-one ship: addressed the SEO Check report (homepage word count
