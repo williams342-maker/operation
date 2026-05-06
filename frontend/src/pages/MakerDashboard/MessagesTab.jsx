@@ -1,7 +1,7 @@
 import React from "react";
 import {
   fetchMakerThreads, fetchMakerThread, replyMakerThread,
-  patchMakerThread, bulkPatchMakerThreads,
+  patchMakerThread, bulkPatchMakerThreads, emptyMakerTrash,
 } from "../../lib/api";
 import MessageCenter from "../../components/MessageCenter";
 
@@ -32,6 +32,7 @@ export default function MessagesTab() {
         patchThread={patchMakerThread}
         bulkPatch={bulkPatchMakerThreads}
         replyThread={replyMakerThread}
+        emptyTrash={emptyMakerTrash}
         counterpartLabel="Buyer"
       />
     </div>

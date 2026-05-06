@@ -1,5 +1,75 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05-06 — Off-site product feeds + Empty Trash for messages ✅
+
+Two ships in one pass: replaced the placeholder "Facebook Shops" entry
+with a real off-site channels panel, and added one-click Empty Trash
+to the messaging center.
+
+### 1. Product catalog feeds (Meta + Pinterest + Google)
+Decision: Meta deprecated US Shops checkout in April 2024, so a true
+in-app "Facebook Shops" integration would be dead on arrival. Pivoted
+to **Google Merchant Center–schema CSV feeds**, which Meta Commerce,
+Pinterest Catalogs, and Google Merchant Center all accept verbatim.
+One feed engine, three URL aliases.
+
+- **`backend/routers/feeds.py`** — New router with three public
+  endpoints + one health endpoint:
+  - `GET /api/feeds/meta-catalog.csv` → Facebook + Instagram Commerce.
+  - `GET /api/feeds/pinterest.csv` → Pinterest Catalogs.
+  - `GET /api/feeds/google-merchant.csv` → Google Merchant Center.
+  - `GET /api/feeds/health` → `{row_count, feeds[]}` for the dashboard.
+  - Walks `db.products` for published, in-stock, non-deleted listings.
+    Output uses Google's column names (id, title, description,
+    availability, condition, price, sale_price, link, image_link,
+    additional_image_link, brand, google_product_category, product_type,
+    shipping, shipping_weight, color, material, custom_label_0/1).
+  - `custom_label_0` = technique (PLASMA / LASER / ROUTER) and
+    `custom_label_1` = maker slug, so ad campaigns can segment by
+    technique or by individual shop.
+  - 1-hour CDN cache (`Cache-Control: public, max-age=3600`).
+- **`backend/server.py`** — Registers the new router.
+- **`frontend/src/lib/api.js`** — `fetchFeedsHealth()`.
+- **`frontend/src/pages/MakerDashboard/Settings/ChannelsPanel.jsx`** —
+  New panel inside Settings → "Off-site channels" (renamed from
+  "Facebook Shops"). Shows live row count, regen status, three
+  copy-to-clipboard rows with deep-links to each platform's Catalog
+  Manager, and a footnote about the 2024 Shops checkout shutdown.
+
+### 2. Empty Trash for messages
+- **`backend/routers/messages.py`** — Two new endpoints:
+  - `POST /api/messages/maker/threads/empty-trash`
+  - `POST /api/messages/buyer/threads/empty-trash`
+  - For each trashed thread, hard-deletes the row + dm_messages **only
+    when both sides have trashed it**. Otherwise sets
+    `hidden_for_<role>` so the other party still sees their copy.
+    Returns `{deleted, fully_dropped, hidden_for_*}`.
+- **`backend/routers/messages.py`** — `_folder_filter()` now excludes
+  rows hidden for the current role on every folder query.
+- **`frontend/src/lib/api.js`** — `emptyMakerTrash`, `emptyBuyerTrash`.
+- **`frontend/src/components/MessageCenter.jsx`** — When viewing the
+  Trash folder with ≥1 thread, shows a red "🗑 Empty" button next to
+  the All-select. Confirms via `window.confirm`, toasts the deleted
+  count on success.
+- **`frontend/src/pages/MakerDashboard/MessagesTab.jsx`** +
+  **`pages/BuyerMessagesPage.jsx`** — Pass `emptyTrash` prop through.
+
+### Tests
+- **`backend/tests/test_feeds_and_trash.py`** — 8 cases:
+  4 row-builder unit tests (column completeness, OOS handling,
+  promoted-sale-price, category routing), 2 HTTP smoke tests
+  (`/api/feeds/health` + `/api/feeds/meta-catalog.csv`), and 2
+  empty-trash tests (auth required + correct full-delete vs soft-hide
+  behavior). All 8 pass in 3.7s.
+
+### Verified
+✅ `curl /api/feeds/health` returns 3 channels with the production-domain
+URLs ready to paste into Commerce Manager. ✅ `/api/feeds/meta-catalog.csv`
+returns valid CSV with header row + 6 product rows. ✅ Maker dashboard
+screenshot — Channels panel renders all 3 rows with live `6` count, copy
+buttons, and platform deep-links.
+
+
 ## 2026-05-06 — Abandoned-cart re-engagement push + SEO non-JS fallback fix ✅
 
 Two finishes in one pass: closed out the user-flagged P2 by wiring the

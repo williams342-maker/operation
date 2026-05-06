@@ -47,6 +47,7 @@ from routers.growth_stats import router as growth_stats_router
 from routers.og_prerender import router as og_prerender_router
 from routers.push import router as push_router
 from routers.abandoned_cart import router as abandoned_cart_router
+from routers.feeds import router as feeds_router
 from seed_data import seed_if_empty
 
 app = FastAPI(title="Crafters Market API")
@@ -94,6 +95,7 @@ api.include_router(admin_backup_router)
 api.include_router(admin_secrets_router)
 api.include_router(push_router)
 api.include_router(abandoned_cart_router)
+api.include_router(feeds_router)
 app.include_router(api)
 
 # iter109 — Canonical-host 301 redirect middleware. When `CANONICAL_HOST`

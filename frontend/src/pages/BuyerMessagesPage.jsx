@@ -2,7 +2,7 @@ import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   fetchBuyerThreads, fetchBuyerThread, replyBuyerThread,
-  patchBuyerThread, bulkPatchBuyerThreads,
+  patchBuyerThread, bulkPatchBuyerThreads, emptyBuyerTrash,
 } from "../lib/api";
 import { useStructuredData } from "../lib/seo";
 import MessageCenter from "../components/MessageCenter";
@@ -51,6 +51,7 @@ export default function BuyerMessagesPage() {
           patchThread={patchBuyerThread}
           bulkPatch={bulkPatchBuyerThreads}
           replyThread={replyBuyerThread}
+          emptyTrash={emptyBuyerTrash}
           counterpartLabel="Maker"
         />
       </div>

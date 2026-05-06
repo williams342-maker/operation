@@ -52,6 +52,7 @@ export default function MessageCenter({
   patchThread,
   bulkPatch,
   replyThread,
+  emptyTrash,
   counterpartLabel = "Counterpart",
 }) {
   const [folder, setFolder] = useState("inbox");
@@ -205,6 +206,26 @@ export default function MessageCenter({
                 <button onClick={selectAll} title="Select all"
                   className="text-[#525252] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em]">
                   All
+                </button>
+              )}
+              {folder === "trash" && threads.length > 0 && emptyTrash && (
+                <button
+                  onClick={async () => {
+                    if (!window.confirm(`Permanently delete all ${threads.length} thread${threads.length === 1 ? "" : "s"} in Trash? This cannot be undone.`)) return;
+                    try {
+                      const r = await emptyTrash();
+                      toast.success(`Trash emptied · ${r.deleted ?? 0} thread${(r.deleted ?? 0) === 1 ? "" : "s"} removed.`);
+                      setOpenId(null);
+                      reload();
+                    } catch (e) {
+                      toast.error(e?.response?.data?.detail || "Empty trash failed.");
+                    }
+                  }}
+                  data-testid={`mc-empty-trash-${role}`}
+                  title="Permanently delete every thread in Trash"
+                  className="px-2.5 py-1 border border-red-500/40 text-red-300 hover:bg-red-500/10 font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5 transition"
+                >
+                  <Trash2 size={11} /> Empty
                 </button>
               )}
             </>

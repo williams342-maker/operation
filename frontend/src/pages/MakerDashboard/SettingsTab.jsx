@@ -10,6 +10,7 @@ import InfoAppearance from "./Settings/InfoAppearance";
 import PolicyPanel from "./Settings/PolicyPanel";
 import AccountPanel from "./Settings/AccountPanel";
 import NotificationsPanel from "./Settings/NotificationsPanel";
+import ChannelsPanel from "./Settings/ChannelsPanel";
 
 /**
  * Etsy-parity Settings tab for the Maker Shop Manager.
@@ -36,7 +37,7 @@ const SECTIONS = [
   { id: "offsite",    label: "Offsite Ads",       icon: Megaphone, kind: "deeplink", target: "marketing" },
   { id: "languages",  label: "Languages and translations", icon: Languages, kind: "soon" },
   { id: "subscription", label: "Your subscription", icon: Sparkles, kind: "embed" },
-  { id: "facebook",   label: "Facebook Shops",    icon: Facebook,  kind: "soon" },
+  { id: "facebook",   label: "Off-site channels", icon: Facebook,  kind: "form" },
   { id: "account",    label: "Account & Plan",    icon: AlertTriangle, kind: "form" },
 ];
 
@@ -105,6 +106,9 @@ export default function SettingsTab({ maker = {}, onMakerUpdated, onTabChange, i
           )}
           {active.kind === "form" && active.id === "notifications" && (
             <NotificationsPanel />
+          )}
+          {active.kind === "form" && active.id === "facebook" && (
+            <ChannelsPanel maker={maker} />
           )}
           {active.kind === "form" && active.id === "account" && (
             <AccountPanel maker={maker} onSaved={onMakerUpdated} />

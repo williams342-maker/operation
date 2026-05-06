@@ -203,6 +203,8 @@ export const patchMakerThread = (id, patch) =>
   http.patch(`/messages/maker/threads/${id}`, patch, { headers: authHeaders() }).then((r) => r.data);
 export const bulkPatchMakerThreads = (thread_ids, patch) =>
   http.post("/messages/maker/threads/bulk", { thread_ids, ...patch }, { headers: authHeaders() }).then((r) => r.data);
+export const emptyMakerTrash = () =>
+  http.post("/messages/maker/threads/empty-trash", {}, { headers: authHeaders() }).then((r) => r.data);
 
 // CSV Import
 export const csvImportPreview = (file, source = "etsy") => {
@@ -668,6 +670,8 @@ export const patchBuyerThread = (id, patch) =>
   http.patch(`/messages/buyer/threads/${id}`, patch, { headers: buyerAuthHeaders() }).then((r) => r.data);
 export const bulkPatchBuyerThreads = (thread_ids, patch) =>
   http.post("/messages/buyer/threads/bulk", { thread_ids, ...patch }, { headers: buyerAuthHeaders() }).then((r) => r.data);
+export const emptyBuyerTrash = () =>
+  http.post("/messages/buyer/threads/empty-trash", {}, { headers: buyerAuthHeaders() }).then((r) => r.data);
 
 export const uploadAvatar = (file) => {
   const fd = new FormData();
@@ -941,6 +945,8 @@ export const registerPushSubscription = (payload) =>
 
 export const unregisterPushSubscription = (endpoint) =>
   http.post("/push/unregister", { endpoint }).then((r) => r.data);
+
+export const fetchFeedsHealth = () => http.get("/feeds/health").then((r) => r.data);
 
 export const fetchAdminPushStats = () =>
   http.get("/admin/push/stats", { headers: adminAuthHeaders() }).then((r) => r.data);

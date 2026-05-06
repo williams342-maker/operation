@@ -217,10 +217,13 @@ async def start_thread(
 def _folder_filter(folder: str, role: str) -> dict:
     """Build a Mongo query for the given folder + role ('maker'|'buyer')."""
     f = (folder or "inbox").lower()
+    # Always exclude rows the OTHER role has fully purged via Empty Trash.
+    not_hidden = {f"hidden_for_{role}": {"$ne": True}}
     if f == "trash":
-        return {f"trashed_at_for_{role}": {"$ne": None}}
+        return {f"trashed_at_for_{role}": {"$ne": None}, **not_hidden}
     base = {
         f"trashed_at_for_{role}": {"$in": [None, ""]},
+        **not_hidden,
     }
     if f == "archive":
         base[f"archived_for_{role}"] = True
@@ -302,6 +305,38 @@ async def maker_patch_thread(
         return {"ok": True, "noop": True}
     await db.dm_threads.update_one({"id": thread_id}, {"$set": updates})
     return {"ok": True, "updated": list(updates.keys())}
+
+
+@router.post("/messages/maker/threads/empty-trash")
+async def maker_empty_trash(slug: str = Depends(current_maker_slug)):
+    """Permanently delete every thread currently in this maker's Trash.
+    Drops the dm_messages too. Idempotent — safe to call when trash is
+    empty (returns `{deleted: 0}`)."""
+    trashed = await db.dm_threads.find(
+        {"maker_slug": slug, "trashed_at_for_maker": {"$ne": None}},
+        {"_id": 0, "id": 1, "trashed_at_for_buyer": 1},
+    ).to_list(5000)
+    if not trashed:
+        return {"ok": True, "deleted": 0}
+    # Threads with two parties: only fully delete when BOTH sides have
+    # trashed it. Otherwise just drop the maker's view (set hidden flag).
+    fully_drop_ids = [t["id"] for t in trashed if t.get("trashed_at_for_buyer")]
+    soft_drop_ids = [t["id"] for t in trashed if not t.get("trashed_at_for_buyer")]
+    deleted = 0
+    if fully_drop_ids:
+        await db.dm_messages.delete_many({"thread_id": {"$in": fully_drop_ids}})
+        r = await db.dm_threads.delete_many({"id": {"$in": fully_drop_ids}})
+        deleted += int(r.deleted_count or 0)
+    if soft_drop_ids:
+        # Hide from maker's UI but keep buyer's copy intact.
+        r2 = await db.dm_threads.update_many(
+            {"id": {"$in": soft_drop_ids}},
+            {"$set": {"hidden_for_maker": True}},
+        )
+        deleted += int(r2.modified_count or 0)
+    return {"ok": True, "deleted": deleted,
+            "fully_dropped": len(fully_drop_ids),
+            "hidden_for_maker": len(soft_drop_ids)}
 
 
 # Bulk variant — apply the same patch to many threads at once. Used by
@@ -466,6 +501,35 @@ async def buyer_patch_thread(
         return {"ok": True, "noop": True}
     await db.dm_threads.update_one({"id": thread_id}, {"$set": updates})
     return {"ok": True, "updated": list(updates.keys())}
+
+
+@router.post("/messages/buyer/threads/empty-trash")
+async def buyer_empty_trash(claims: dict = Depends(current_buyer)):
+    """Permanently delete every thread currently in this buyer's Trash.
+    Symmetric to `maker_empty_trash`."""
+    email = _norm_email(claims.get("email"))
+    trashed = await db.dm_threads.find(
+        {"buyer_email": email, "trashed_at_for_buyer": {"$ne": None}},
+        {"_id": 0, "id": 1, "trashed_at_for_maker": 1},
+    ).to_list(5000)
+    if not trashed:
+        return {"ok": True, "deleted": 0}
+    fully_drop_ids = [t["id"] for t in trashed if t.get("trashed_at_for_maker")]
+    soft_drop_ids = [t["id"] for t in trashed if not t.get("trashed_at_for_maker")]
+    deleted = 0
+    if fully_drop_ids:
+        await db.dm_messages.delete_many({"thread_id": {"$in": fully_drop_ids}})
+        r = await db.dm_threads.delete_many({"id": {"$in": fully_drop_ids}})
+        deleted += int(r.deleted_count or 0)
+    if soft_drop_ids:
+        r2 = await db.dm_threads.update_many(
+            {"id": {"$in": soft_drop_ids}},
+            {"$set": {"hidden_for_buyer": True}},
+        )
+        deleted += int(r2.modified_count or 0)
+    return {"ok": True, "deleted": deleted,
+            "fully_dropped": len(fully_drop_ids),
+            "hidden_for_buyer": len(soft_drop_ids)}
 
 
 class BuyerBulkPatch(BuyerThreadPatch):
