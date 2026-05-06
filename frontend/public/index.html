@@ -37,8 +37,12 @@
 
         <!-- Apple / PWA -->
         <link rel="manifest" href="/manifest.webmanifest" />
-        <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+        <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+        <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16.png" />
         <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png" />
+        <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
+        <link rel="mask-icon" href="/icons/icon-512.png" color="#0a0a0a" />
         <meta name="apple-mobile-web-app-title" content="Crafters Market" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -46,6 +50,13 @@
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="msapplication-TileColor" content="#0a0a0a" />
         <meta name="msapplication-TileImage" content="/icons/icon-192.png" />
+
+        <!-- Performance hints (preconnect = TLS + DNS warmup; dns-prefetch = DNS only) -->
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link rel="preconnect" href="https://r2.craftersmarket.org" crossorigin />
+        <link rel="dns-prefetch" href="https://js.stripe.com" />
+        <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
 
         <!-- Sitemap reference -->
         <link rel="sitemap" type="application/xml" href="/api/sitemap.xml" />
@@ -132,25 +143,25 @@
                 <header>
                     <p style="font-size:12px;letter-spacing:0.18em;text-transform:uppercase;color:#7a5a2f;margin:0 0 12px">Crafters Market · CraftersMarket.org</p>
                     <h1 style="font-family:'Anton',Impact,sans-serif;font-size:44px;line-height:1.05;margin:0 0 20px;letter-spacing:-0.01em">Precision CNC Art &amp; Handcrafted Goods, Built By Vetted Independent Makers.</h1>
-                    <p style="font-size:18px;margin:0 0 18px">Crafters Market is a curated online marketplace for <strong>handmade CNC metal art, plasma-cut steel signs, custom wood signs, monogram decor, engraved cutting boards, and made-to-order originals</strong>. Every piece is built by an approved independent artisan working out of their own shop or garage — never mass-produced, never drop-shipped.</p>
-                    <p style="font-size:16px;margin:0 0 18px">Shop one-of-a-kind CNC metalwork and woodwork, commission a fully custom build, or discover makers in your state. Checkout is secured by Stripe, shipping is nationwide across the United States, and every order pays the maker directly.</p>
+                    <p style="font-size:18px;margin:0 0 18px">Crafters Market is a curated online marketplace for <strong>handcrafted CNC metal art, precision plasma-cut steel signs, custom wood signs, monogram decor, engraved cutting boards, and made-to-order originals built by vetted independent makers</strong>. Every piece is precision-cut and handcrafted by an approved independent maker working out of their own shop or garage — never mass-produced, never drop-shipped.</p>
+                    <p style="font-size:16px;margin:0 0 18px">Shop one-of-a-kind handcrafted CNC metalwork and woodwork built by vetted artisans, commission a fully custom build, or discover precision makers in your state. Checkout is secured by Stripe, shipping is nationwide across the United States, and every order pays the maker directly.</p>
                 </header>
 
                 <section aria-labelledby="cm-what">
                     <h2 id="cm-what" style="font-size:22px;margin:32px 0 12px">What you can buy on Crafters Market</h2>
                     <ul style="padding-left:20px;margin:0 0 18px">
-                        <li><strong>Plasma-cut metal signs</strong> — family names, ranch brands, business logos, veteran &amp; first-responder tributes.</li>
-                        <li><strong>CNC wood signs &amp; monograms</strong> — wedding decor, nursery signs, housewarming gifts, bar &amp; garage signage.</li>
-                        <li><strong>Custom cutting boards &amp; charcuterie</strong> — engraved hardwood, end-grain and edge-grain builds.</li>
-                        <li><strong>Made-to-order originals</strong> — send your own art, photo, or idea and commission a one-off piece from a verified maker.</li>
+                        <li><strong>Precision plasma-cut metal signs</strong> — family names, ranch brands, business logos, veteran &amp; first-responder tributes, all handcrafted by vetted makers.</li>
+                        <li><strong>Handcrafted CNC wood signs &amp; monograms</strong> — wedding decor, nursery signs, housewarming gifts, bar &amp; garage signage built to order.</li>
+                        <li><strong>Custom cutting boards &amp; charcuterie</strong> — engraved hardwood, end-grain and edge-grain builds, precision-cut and finished by hand.</li>
+                        <li><strong>Made-to-order originals</strong> — send your own art, photo, or idea and commission a one-off piece handcrafted by a vetted maker.</li>
                         <li><strong>Downloadable CNC &amp; laser files</strong> — SVG, DXF, F3D and STL patterns from professional pattern designers.</li>
                     </ul>
                 </section>
 
                 <section aria-labelledby="cm-why">
                     <h2 id="cm-why" style="font-size:22px;margin:32px 0 12px">Why Crafters Market is different</h2>
-                    <p style="margin:0 0 12px">Unlike generic handmade marketplaces, every maker on Crafters Market is <strong>individually reviewed</strong> before listing a single product. We verify real workshop photos, real machines, and real past work — so what you buy is actually hand-built in the United States, not rebranded overseas imports.</p>
-                    <p style="margin:0 0 12px">Makers keep the majority of every sale. Buyers get direct messaging with the artisan, realistic lead times, and the option to request revisions before the piece ships.</p>
+                    <p style="margin:0 0 12px">Unlike generic handmade marketplaces, every maker on Crafters Market is <strong>individually vetted</strong> before listing a single product. We verify real workshop photos, real machines, and real past work — so what you buy is actually handcrafted and built in the United States, not rebranded overseas imports.</p>
+                    <p style="margin:0 0 12px">Vetted makers keep the majority of every sale. Buyers get direct messaging with the artisan, realistic lead times, and the option to request revisions before the precision-built piece ships.</p>
                 </section>
 
                 <nav aria-label="Primary" style="margin-top:32px">
