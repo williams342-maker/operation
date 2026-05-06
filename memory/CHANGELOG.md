@@ -7,6 +7,18 @@ Seeded 22 high-quality starter threads via new module
 `/app/backend/forum_seeds.py` and admin endpoint
 `POST /api/admin/forum/seed-starters`.
 
+### Trending forum strip on homepage (added in same session)
+- New endpoint `GET /api/community/forum/trending?days=30&limit=3` — sorts threads by reply_count desc, then created_at desc as tiebreaker. Excludes mod-removed threads. Anonymous-friendly.
+- New component `frontend/src/components/TrendingForumStrip.jsx` — 3-card grid with category tag, title (line-clamp 3), poster, and reply count or "Be the first to reply" CTA. Self-hides if API returns 0 threads.
+- Mounted in `App.js` between RecentShowcaseStrip and NewsletterSignup
+- `CommunityPage` now honors `?tab=forum` URL param so deep-links from the homepage land on the right tab
+- DB cleanup: deleted 69 stale `TEST_*` and `aimod-*` threads from earlier automated test runs (forum was 91 → 22 real threads)
+
+### Verified
+- Endpoint returns 3 real seeded threads (after cleanup)
+- Homepage strip renders, all 3 cards + "All threads →" link present
+- Self-hides on empty API response
+
 ### Seed threads (by category)
 - **general** (2): "Introduce yourself", "Honest pricing — how do you actually price a 6-hour custom CNC sign?"
 - **machine-help** (5): stepper skipping, spindle runout without a Haimer, plasma pierce blowout, Z-zero repeatability, 1/8" bit snapping

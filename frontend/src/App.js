@@ -55,6 +55,7 @@ import BetaBanner from "./components/BetaBanner";
 import CNCEmblem from "./components/CNCEmblem";
 import NewsletterSignup from "./components/NewsletterSignup";
 import RecentShowcaseStrip from "./components/RecentShowcaseStrip";
+import TrendingForumStrip from "./components/TrendingForumStrip";
 import { Toaster } from "sonner";
 import { trackPageview, captureAttribution } from "./lib/analytics";
 import { useSiteSettings } from "./hooks/useSiteSettings";
@@ -88,6 +89,7 @@ const Home = () => {
         title="Recently shared by buyers"
         testId="home-recent-showcase"
       />
+      <TrendingForumStrip />
       <NewsletterSignup />
       <CustomCTA />
     </>

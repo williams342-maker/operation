@@ -1605,6 +1605,27 @@ async def list_forum_categories():
     return {"categories": FORUM_CATEGORIES}
 
 
+@router.get("/community/forum/trending")
+async def trending_threads(days: int = 30, limit: int = 3):
+    """Top threads by recent activity (created_at within `days` window).
+    Ordered by reply_count desc, then created_at desc as a tiebreaker.
+
+    Used by the homepage "Trending in the forum" card to funnel shoppers
+    toward open conversations and break the seeded-thread silence.
+    Anonymous-friendly: no auth required — same data as the public list.
+    """
+    days = max(1, min(int(days), 365))
+    limit = max(1, min(int(limit), 12))
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    cursor = db.forum_threads.find(
+        {"created_at": {"$gte": cutoff}, "removed_by_mod": {"$ne": True}},
+        {"_id": 0, "id": 1, "title": 1, "category": 1, "reply_count": 1,
+         "user_name": 1, "created_at": 1},
+    ).sort([("reply_count", -1), ("created_at", -1)])
+    rows = await cursor.to_list(limit)
+    return {"threads": rows, "days": days}
+
+
 @router.get("/community/forum")
 async def list_threads(
     category: Optional[str] = None, tag: Optional[str] = None, limit: int = 50,

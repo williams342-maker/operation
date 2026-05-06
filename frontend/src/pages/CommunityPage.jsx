@@ -49,10 +49,14 @@ const CHANNEL_LABEL = {
 
 export default function CommunityPage() {
   const [tab, setTab] = useState(() => {
-    // Honor `?channel=...` deep-link from the floating LiveChatWidget by
-    // jumping straight into the Live Chat tab.
-    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("channel")) {
-      return "chat";
+    if (typeof window !== "undefined") {
+      const sp = new URLSearchParams(window.location.search);
+      // Honor `?channel=...` deep-link from the floating LiveChatWidget.
+      if (sp.get("channel")) return "chat";
+      // Honor `?tab=forum` (from homepage TrendingForumStrip) and any
+      // explicit `?tab=` value pointing at a known tab.
+      const t = sp.get("tab");
+      if (["showcase", "files", "forum", "chat"].includes(t)) return t;
     }
     return "showcase";
   });

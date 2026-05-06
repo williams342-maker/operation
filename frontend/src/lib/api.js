@@ -843,6 +843,8 @@ export const renderStlThumbnail = (fileId) => {
 
 export const fetchForumThreads = (category = "") =>
   http.get("/community/forum", { params: category ? { category } : {} }).then((r) => r.data);
+export const fetchTrendingForumThreads = (days = 30, limit = 3) =>
+  http.get("/community/forum/trending", { params: { days, limit } }).then((r) => r.data);
 export const fetchForumCategories = () =>
   http.get("/community/forum/categories").then((r) => r.data);
 export const fetchForumThread = (id) => http.get(`/community/forum/${id}`).then((r) => r.data);
