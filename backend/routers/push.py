@@ -277,3 +277,54 @@ async def admin_push_test(claims: dict = Depends(current_admin)):
         ok, _ = _send_one(s, payload)
         sent += int(ok)
     return {"ok": True, "sent": sent, "total": len(subs)}
+
+
+# ───────────────────────────────────────────────────────────────────────
+# Internal helper — fan out a transactional push to a single buyer
+# ───────────────────────────────────────────────────────────────────────
+# Used by shipping/delivery flows to give buyers a real-time browser
+# notification *in addition to* their transactional email. Replaces the
+# "SMS nudge" we deferred — Web Push is free, has no carrier paperwork,
+# and works on every desktop + Android browser the buyer uses.
+#
+# Fire-and-forget: every callsite wraps this in try/except so a push
+# failure never breaks the underlying business flow (shipped email,
+# delivered email, etc.).
+# ───────────────────────────────────────────────────────────────────────
+async def notify_buyer_push(
+    email: str, title: str, body: str, url: str = "/",
+    tag: str = "cm-buyer", icon: Optional[str] = None,
+) -> dict:
+    """Send a transactional push to all subscriptions matching `email`.
+    Returns {sent, total, pruned}. Silently no-ops when VAPID isn't
+    configured or the buyer has zero subscriptions."""
+    if not VAPID_PRIVATE_PEM or not webpush:
+        return {"sent": 0, "total": 0, "pruned": 0, "skipped": "vapid_missing"}
+    if not email:
+        return {"sent": 0, "total": 0, "pruned": 0, "skipped": "no_email"}
+
+    subs = await db.push_subscriptions.find(
+        {"email": email.strip().lower()}, {"_id": 0},
+    ).to_list(50)
+    if not subs:
+        return {"sent": 0, "total": 0, "pruned": 0, "skipped": "no_subs"}
+
+    payload = {
+        "title": title,
+        "body": body,
+        "url": url or "/",
+        "icon": icon or "/downloads/cnc-garage-builders.png",
+        "badge": "/downloads/cnc-garage-builders.png",
+        "tag": tag,
+        "ts": datetime.now(timezone.utc).isoformat(),
+    }
+    sent, dead = 0, []
+    for s in subs:
+        ok, err = _send_one(s, payload)
+        if ok:
+            sent += 1
+        elif err and ("WebPushException:404" in err or "WebPushException:410" in err):
+            dead.append(s["endpoint"])
+    if dead:
+        await db.push_subscriptions.delete_many({"endpoint": {"$in": dead}})
+    return {"sent": sent, "total": len(subs), "pruned": len(dead)}

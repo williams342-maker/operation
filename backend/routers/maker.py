@@ -1217,6 +1217,38 @@ async def maker_mark_shipped(
     except Exception as e:
         logger.warning("[ticker] shipped event emit failed: %s", e)
 
+    # Buyer push companion to the shipped email — replaces the SMS nudge
+    # we deferred. Fires only when the buyer has registered a Web Push
+    # subscription against their email; no-op otherwise. Dispatched in
+    # the background so it never blocks the API response.
+    try:
+        from routers.push import notify_buyer_push
+        if buyer_email:
+            ship_to = "your order"
+            try:
+                items = tx.get("items") or []
+                if items:
+                    best = max(items, key=lambda it: float(it.get("price") or 0))
+                    if best.get("title"):
+                        ship_to = best["title"]
+            except Exception:
+                pass
+            track_carrier = final_carrier or "carrier"
+            push_body = (
+                f"{ship_to} just shipped via {track_carrier}. "
+                f"Tap for tracking."
+            ) if final_tracking else f"{ship_to} just shipped — tracking on the way."
+            bg.add_task(
+                notify_buyer_push,
+                buyer_email,
+                "Your Crafters Market order shipped",
+                push_body,
+                f"/account/orders/{tx.get('id') or session_id}",
+                "cm-buyer-shipped",
+            )
+    except Exception as e:
+        logger.warning("[push] shipped buyer push schedule failed: %s", e)
+
     return {"ok": True, "order_status": "fulfilled", "shipped_at": update["shipped_at"]}
 
 

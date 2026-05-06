@@ -510,25 +510,32 @@ async def _send_delivered_email(tx: dict):
         items=tx.get("items") or [],
         maker_slugs=maker_slugs,
     )
-    # (c) SMS fan-out — peak referral moment. Fire-and-forget; no-op if
-    # Twilio isn't configured on this deployment.
-    import twilio_service
-    phone = (
-        (tx.get("shipping_details") or {}).get("phone")
-        or tx.get("customer_phone")
-    )
-    if phone and twilio_service.is_configured():
-        first_maker = maker_slugs[0] if maker_slugs else ""
-        site = (os.environ.get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
-        shop_link = f"{site}/makers/{first_maker}" if first_maker else site
-        body = (
-            f"Your Crafters Market package was delivered. "
-            f"Loved it? Leave {first_maker or 'the maker'} a quick review: {shop_link}"
-        )
+
+
+async def _send_delivered_push(tx: dict):
+    """Browser push companion for the delivered-email. Free, no carrier
+    paperwork — replaces the deprecated SMS delivery nudge."""
+    from routers.push import notify_buyer_push
+    to = (tx.get("customer_email") or (tx.get("shipping_details") or {}).get("email") or "").strip().lower()
+    if not to:
+        return
+    items = tx.get("items") or []
+    maker_slugs = list({(it.get("maker_slug") or "") for it in items if it.get("maker_slug")})
+    first_maker = maker_slugs[0] if maker_slugs else ""
+    headline = ""
+    if items:
         try:
-            twilio_service.send_sms(phone, body)
+            best = max(items, key=lambda it: float(it.get("price") or 0))
+            headline = (best.get("title") or "").strip()
         except Exception:
-            logger.exception("[shipping] SMS dispatch failed (non-fatal)")
+            headline = ""
+    title = "Your Crafters Market order was delivered"
+    body = (
+        f"Loved {headline}? Tap to leave the maker a quick review."
+        if headline else "Tap to leave the maker a quick review."
+    )
+    url = f"/makers/{first_maker}" if first_maker else "/account/orders"
+    await notify_buyer_push(to, title, body, url=url, tag="cm-buyer-delivered")
 
 
 # ─────────────────────── endpoints ───────────────────────

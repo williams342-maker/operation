@@ -1,5 +1,37 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05-06 — SMS deferred → Buyer Web Push as the delivery nudge ✅
+
+Decision: Twilio A2P 10DLC paperwork was painful and switching providers
+wouldn't help (every US carrier requires the same 10DLC registration).
+Skipped SMS entirely and leaned on the Web Push pipeline already wired
+this session — free, no carrier paperwork, works on every desktop &
+Android browser.
+
+### Backend
+- **`backend/routers/push.py`** — New helper `notify_buyer_push(email,
+  title, body, url, tag, icon)`. Looks up every push subscription tagged
+  with that buyer email, fans out via the existing `_send_one()` VAPID
+  sender, prunes dead 404/410 endpoints. Self-noops when VAPID isn't
+  configured, the email is empty, or the buyer has zero subs — never
+  raises into the calling business flow.
+- **`backend/routers/maker.py`** — On `POST /maker/orders/{id}/ship`,
+  schedules a buyer push via `BackgroundTasks` after the existing email.
+  Push body adapts to whether tracking was attached:
+  `"<spotlight item> just shipped via <carrier>. Tap for tracking."`
+  Deep-links to `/account/orders/<id>`.
+- **`backend/routers/shipping.py`** — On the first `DELIVERED` tracking
+  webhook (gated by `delivered_email_sent` for idempotency), fires
+  `_send_delivered_push()` alongside the existing email. Push body
+  pitches a review of the maker shop. Removed the deprecated Twilio SMS
+  block (non-functional anyway since `TWILIO_ACCOUNT_SID` was never set).
+
+### Tests
+- **`backend/tests/test_buyer_push.py`** — 4 cases: VAPID-missing →
+  skip, no-email → skip, no-subs → skip, 410-Gone → 1 pruned. Patches
+  `_send_one` to avoid hitting the network. All pass individually.
+
+
 ## 2026-05-06 — Promotion auto-renewal + urgent <48h CTA ✅
 
 Surfaced a high-conversion upsell in the Maker Dashboard → Marketing tab:
