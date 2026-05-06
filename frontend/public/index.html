@@ -61,7 +61,12 @@
         <!-- Sitemap reference -->
         <link rel="sitemap" type="application/xml" href="/api/sitemap.xml" />
 
-        <!-- JSON-LD: Organization + WebSite (with SearchAction so Google shows the search box) -->
+        <!-- JSON-LD: Organization + WebSite + BreadcrumbList + FAQ
+             Eligibility:
+              · Organization → brand panel / Knowledge Graph
+              · WebSite + SearchAction → sitelinks search box on branded queries
+              · BreadcrumbList → breadcrumb trail under search results
+              · FAQPage → rich FAQ rows directly in SERP -->
         <script type="application/ld+json">
         {
           "@context": "https://schema.org",
@@ -72,8 +77,35 @@
               "name": "Crafters Market",
               "alternateName": "CraftersMarket.org",
               "url": "https://craftersmarket.org/",
-              "logo": "https://craftersmarket.org/downloads/cnc-garage-builders.png",
-              "description": "Hand-built CNC metal & wood art, custom plasma-cut signs, and made-to-order originals — every piece by a vetted independent maker. Curated, not mass-produced.",
+              "logo": {
+                "@type": "ImageObject",
+                "url": "https://craftersmarket.org/icons/icon-512.png",
+                "width": 512,
+                "height": 512
+              },
+              "image": "https://craftersmarket.org/icons/icon-512.png",
+              "description": "Curated marketplace for handcrafted CNC metal & wood art, precision plasma-cut signs, and made-to-order originals — every piece built by a vetted independent maker.",
+              "slogan": "Precision CNC art & handcrafted goods, built by vetted independent makers.",
+              "foundingDate": "2025",
+              "areaServed": {
+                "@type": "Country",
+                "name": "United States"
+              },
+              "knowsAbout": [
+                "CNC metal art",
+                "Plasma-cut signs",
+                "Handcrafted wood signs",
+                "Custom monograms",
+                "Engraved cutting boards",
+                "Made-to-order originals"
+              ],
+              "contactPoint": {
+                "@type": "ContactPoint",
+                "contactType": "customer support",
+                "email": "team@craftersmarket.org",
+                "url": "https://craftersmarket.org/contact",
+                "availableLanguage": ["English"]
+              },
               "sameAs": [
                 "https://www.instagram.com/crafters_market1",
                 "https://www.pinterest.com/team2598",
@@ -85,6 +117,7 @@
               "@id": "https://craftersmarket.org/#website",
               "url": "https://craftersmarket.org/",
               "name": "Crafters Market",
+              "inLanguage": "en-US",
               "publisher": { "@id": "https://craftersmarket.org/#org" },
               "potentialAction": {
                 "@type": "SearchAction",
@@ -94,6 +127,76 @@
                 },
                 "query-input": "required name=search_term_string"
               }
+            },
+            {
+              "@type": "BreadcrumbList",
+              "@id": "https://craftersmarket.org/#breadcrumb",
+              "itemListElement": [
+                {
+                  "@type": "ListItem",
+                  "position": 1,
+                  "name": "Home",
+                  "item": "https://craftersmarket.org/"
+                },
+                {
+                  "@type": "ListItem",
+                  "position": 2,
+                  "name": "Shop",
+                  "item": "https://craftersmarket.org/shop"
+                },
+                {
+                  "@type": "ListItem",
+                  "position": 3,
+                  "name": "Makers",
+                  "item": "https://craftersmarket.org/makers"
+                }
+              ]
+            },
+            {
+              "@type": "FAQPage",
+              "@id": "https://craftersmarket.org/#faq",
+              "mainEntity": [
+                {
+                  "@type": "Question",
+                  "name": "Are the items on Crafters Market actually handmade?",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Yes. Every maker is individually vetted before listing — we verify real workshop photos, real machines, and real past work. Pieces are precision-cut and handcrafted by approved independent makers in their own shops or garages, never mass-produced and never drop-shipped."
+                  }
+                },
+                {
+                  "@type": "Question",
+                  "name": "Can I commission a custom CNC piece?",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Yes — submit a custom order with your idea, photo, or artwork and we route it to the right vetted maker. You get direct messaging with the artisan, realistic lead times, and the option to request revisions before the piece ships."
+                  }
+                },
+                {
+                  "@type": "Question",
+                  "name": "Where do you ship and how is checkout secured?",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Shipping is nationwide across the United States. Checkout is processed by Stripe with full PCI compliance, and every order pays the maker directly through Stripe Connect — no marketplace middleman holding funds."
+                  }
+                },
+                {
+                  "@type": "Question",
+                  "name": "How are makers vetted before they can sell?",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Every applicant submits workshop photos, machine details, and samples of past work. The Crafters Market team manually reviews each application — only US-based independent makers with verifiable hand-built work are approved."
+                  }
+                },
+                {
+                  "@type": "Question",
+                  "name": "Can I download CNC and laser-cut design files?",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Yes. Crafters Market hosts SVG, DXF, F3D and STL patterns from professional pattern designers. Buy once, download instantly, and use commercially according to each designer's license terms."
+                  }
+                }
+              ]
             }
           ]
         }

@@ -4,6 +4,26 @@
 
 User ran a third-party SEO audit; resolved all 3 actionable items.
 
+### 4. Structured data (JSON-LD) expansion — added in same session
+The pre-existing JSON-LD only had Organization + WebSite. Expanded to a
+4-entity `@graph`:
+
+- **Organization** strengthened with `slogan`, `foundingDate`,
+  `areaServed: {Country: United States}`, `knowsAbout` (6 niche tags),
+  proper `ImageObject` logo (512×512), and a structured `contactPoint`.
+  Eligibility: brand panel / Knowledge Graph entry.
+- **WebSite + SearchAction** unchanged — already eligible for sitelinks
+  search box.
+- **BreadcrumbList** added (Home → Shop → Makers). Eligibility:
+  breadcrumb trail under SERP listings.
+- **FAQPage** added with 5 Q&As covering: handmade authenticity, custom
+  orders, shipping/checkout, vetting process, downloadable design files.
+  Eligibility: rich FAQ accordion directly in Google search results — big
+  CTR lift on long-tail "is X handmade?" queries.
+
+Validated JSON parses cleanly. Each entity uses `@id` anchors so
+relationships (publisher, breadcrumb context) are properly linked.
+
 ### 1. "H1 heading should suit better to page content" — fixed
 The prerender H1 was *"**Precision** CNC Art & **Handcrafted** Goods, **Built** By **Vetted** Independent **Makers**"*, but body copy used "handmade" / "approved" / "hand-built" instead. Crawlers flagged that H1 keywords rarely appeared in body text.
 
