@@ -1,5 +1,35 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05-06 — Forum starter threads (22 seeded across 6 categories) ✅
+
+Forum was empty — new visitors saw "no threads yet" and bounced.
+Seeded 22 high-quality starter threads via new module
+`/app/backend/forum_seeds.py` and admin endpoint
+`POST /api/admin/forum/seed-starters`.
+
+### Seed threads (by category)
+- **general** (2): "Introduce yourself", "Honest pricing — how do you actually price a 6-hour custom CNC sign?"
+- **machine-help** (5): stepper skipping, spindle runout without a Haimer, plasma pierce blowout, Z-zero repeatability, 1/8" bit snapping
+- **techniques** (5): deep V-carve in figured wood, adaptive vs raster strategy, photo dithering on wood, grain direction in 3D relief, DXF cleanup workflow
+- **finishing** (4): end-grain sealing, powder coat vs Rust-Oleum margin economics, blackening engraved steel, 12-month finish aging
+- **resources** (4): feeds-and-speeds calc tier list, US bit suppliers, SVG license traps, CAM software 2026
+- **show-tell** (2): monthly build thread, workshop layout tour
+
+### Implementation
+- All threads post as auto-created `team@craftersmarket.org` "Crafters Market Team" community user
+- Each has a stable `seed_key` for idempotent dedupe — re-running the
+  endpoint inserts 0 if all are already present
+- Backdated timestamps (1 hour apart) so the forum looks "lived in"
+  on first render, not all spawned at the same second
+- Bodies are 2-4 sentence real questions inviting community responses,
+  never marketing copy
+- Audit-logged to `db.admin_audit` with kind `forum_seed_starters`
+
+### Verified
+- Endpoint inserts 22 threads, second call inserts 0 (idempotent)
+- Public `GET /community/forum?category=machine-help` returns the seeds
+- `/community` Forum tab now shows populated thread list in UI
+
 ## 2026-05-06 — SEO Check tool audit fixes ✅
 
 User ran a third-party SEO audit; resolved all 3 actionable items.

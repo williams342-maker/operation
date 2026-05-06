@@ -2581,3 +2581,26 @@ async def admin_delete_design_file(
         "downloads_purged": res_downloads.deleted_count,
     }
 
+
+
+@router.post("/admin/forum/seed-starters", tags=["admin/forum"])
+async def admin_seed_forum_starters(claims: dict = Depends(current_admin)):
+    """Insert ~20 starter forum threads across all 6 categories.
+
+    Idempotent — re-running does not duplicate threads. Useful when:
+      - Spinning up a fresh environment
+      - Forum looks empty and you want a kickstart
+      - After category restructuring (manually backfill missing seed_keys)
+    """
+    from forum_seeds import seed_forum_threads
+    summary = await seed_forum_threads()
+    summary["actor"] = claims.get("email")
+    await db.admin_audit.insert_one({
+        "id": secrets.token_hex(12),
+        "kind": "forum_seed_starters",
+        "actor": claims.get("email"),
+        "summary": summary,
+        "created_at": now_iso(),
+    })
+    return {"ok": True, **summary}
+
