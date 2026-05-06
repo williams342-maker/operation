@@ -25,6 +25,19 @@ from core import logger
 _scheduler: AsyncIOScheduler | None = None
 
 
+async def _job_auto_renew_promotions() -> None:
+    """Hourly: extend any auto-renew-flagged promotion that lapses in the
+    next 6 hours. Plus members renew free; everyone else gets the standard
+    $5/wk fee accrued."""
+    from revenue import auto_renew_due_promotions
+    try:
+        r = await auto_renew_due_promotions(window_hours=6)
+        if r["renewed"]:
+            logger.info("[scheduler] promotion auto-renew: %s", r)
+    except Exception as e:
+        logger.exception("[scheduler] promotion auto-renew failed: %s", e)
+
+
 async def _job_expire_listings() -> None:
     from revenue import expire_due_listings
     try:
@@ -460,6 +473,12 @@ def start_scheduler() -> AsyncIOScheduler | None:
     # promoted. $5/wk per listing billed to pending balance.
     sched.add_job(_job_auto_boost_best_sellers, CronTrigger(hour=4, minute=0),
                   id="auto_boost_best_sellers", replace_existing=True)
+    # Auto-renew promoted listings — hourly. For products opted-in via
+    # `auto_renew_promotion=true`, extends `promoted_until` by 7 days when
+    # it falls inside the next 6-hour window. Plus subscribers comp the
+    # week; everyone else accrues $5 to their pending balance.
+    sched.add_job(_job_auto_renew_promotions, CronTrigger(minute=12),
+                  id="auto_renew_promotions", replace_existing=True)
 
 
     # Scheduled site-switches run every minute (1-min granularity is enough

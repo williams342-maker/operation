@@ -214,3 +214,66 @@ async def expire_due_listings() -> dict:
         {"$set": {"status": "draft"}},
     )
     return {"expired": int(res.modified_count or 0), "now": now}
+
+
+async def auto_renew_due_promotions(window_hours: int = 6) -> dict:
+    """Hourly sweep: for every product whose `promoted_until` lapses inside
+    the next `window_hours` AND has `auto_renew_promotion=True`, add another
+    week of promotion. Plus subscribers ride for free; everyone else gets a
+    $5 charge accrued to pending balance via `accrue_promotion_charge`.
+
+    Idempotency: extending a still-far-out `promoted_until` is harmless,
+    but the time-window guard means each promotion gets renewed at most
+    once per cycle. Each renewal is also logged in the maker's
+    `charge_history` (via `accrue_promotion_charge`) for audit trail.
+
+    Returns {renewed: int, charged_makers: int, free_renewals: int, errors: int}.
+    """
+    now = datetime.now(timezone.utc)
+    horizon = (now + timedelta(hours=window_hours)).isoformat()
+    nowiso = now.isoformat()
+    cursor = db.products.find(
+        {
+            "auto_renew_promotion": True,
+            "status": "published",
+            "deleted_at": None,
+            "promoted_until": {"$gte": nowiso, "$lte": horizon},
+        },
+        {"_id": 0, "slug": 1, "maker_slug": 1, "promoted_until": 1, "title": 1},
+    )
+    renewed = charged = free = errors = 0
+    async for p in cursor:
+        try:
+            maker = await db.makers.find_one(
+                {"slug": p["maker_slug"]}, {"_id": 0},
+            ) or {}
+            if is_plus(maker):
+                free += 1
+                # Log a zero-cost charge entry for transparency.
+                await db.makers.update_one(
+                    {"slug": p["maker_slug"]},
+                    {"$push": {"charge_history": {
+                        "kind": "promotion",
+                        "slug": p["slug"],
+                        "amount_cents": 0,
+                        "ts": nowiso,
+                        "note": "auto-renew · Plus complimentary week",
+                    }}},
+                )
+            else:
+                await accrue_promotion_charge(p["maker_slug"], p["slug"], weeks=1)
+                charged += 1
+            # Extend from the existing end so we don't lose stub time.
+            cur_end = datetime.fromisoformat(p["promoted_until"].replace("Z", "+00:00"))
+            new_end = (cur_end + timedelta(days=7)).isoformat()
+            await db.products.update_one(
+                {"slug": p["slug"]},
+                {"$set": {"promoted_until": new_end}},
+            )
+            renewed += 1
+        except Exception:
+            errors += 1
+    return {
+        "renewed": renewed, "charged_makers": charged,
+        "free_renewals": free, "errors": errors,
+    }

@@ -1,5 +1,54 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05-06 — Promotion auto-renewal + urgent <48h CTA ✅
+
+Surfaced a high-conversion upsell in the Maker Dashboard → Marketing tab:
+when a promoted listing has less than 48 hours left, the row goes red,
+adds a pulsing "🔥 ENDS SOON" badge, and converts the Extend button into
+a prominent "▶ EXTEND NOW $5" CTA. Sellers can also toggle weekly
+auto-renewal per listing — Plus subscribers ride free, free-tier accrues
+$5/wk to pending balance.
+
+### Backend
+- **`backend/models.py`** — `Product.auto_renew_promotion: bool = False`.
+- **`backend/revenue.py`** — New `auto_renew_due_promotions(window_hours=6)`
+  helper. Walks every product where `promoted_until` lapses inside the
+  window AND `auto_renew_promotion=true`. Plus members get a $0
+  "complimentary week" charge_history entry; everyone else accrues the
+  standard $5 fee via `accrue_promotion_charge`. Extends from the existing
+  end-time to preserve any partial-day buffer.
+- **`backend/scheduler.py`** — New hourly job
+  `auto_renew_promotions@cron[minute=12]` calling the helper. Logs only
+  on non-zero renewals to keep the cron log quiet.
+- **`backend/routers/maker.py`** — New endpoint
+  `POST /maker/products/{slug}/auto-renew-promotion` body `{enabled: bool}`.
+  Validates the listing is published and currently promoted before
+  flipping the flag.
+
+### Frontend
+- **`frontend/src/lib/api.js`** — `setAutoRenewPromotion(slug, enabled)`.
+- **`frontend/src/pages/MakerDashboard/Marketing/AdsSection.jsx`** —
+  `PromotedRow` redesigned:
+  - `urgent` flag triggers when `msLeft < 48h` → red border-left, pulsing
+    "🔥 Ends soon" badge, the time text turns orange, and the Extend
+    button becomes a solid "EXTEND NOW $5" CTA.
+  - New "Auto-renew" toggle button. Off-state copy adapts to membership:
+    "Auto-renew · Free" (Plus) or "Auto-renew · $5/wk" (free tier). On
+    state shows an emerald "AUTO · Free|$5/wk" chip + emerald-bordered
+    button for instant recognition.
+  - Loads `fetchMakerMe()` once to read `subscription_status` and decide
+    Plus vs. free-tier copy.
+- New test IDs: `ads-urgent-<slug>`, `ads-autorenew-<slug>`,
+  `ads-autorenew-on-<slug>`.
+
+### Tests
+- **`backend/tests/test_promotion_auto_renew.py`** — 4 cases pinning the
+  end-to-end behavior: (1) free-tier in-window → extended + $5 charge;
+  (2) Plus in-window → extended + $0 complimentary entry; (3) outside
+  window → untouched; (4) flag off → untouched. Run sequentially per
+  scenario; all pass.
+
+
 ## 2026-05-06 — Live social-proof ticker + dual live countdowns ✅
 
 Wired three "homepage liveness" levers in one pass: personalized

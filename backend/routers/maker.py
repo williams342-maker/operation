@@ -384,6 +384,40 @@ async def maker_promote_product(
     return await db.products.find_one({"slug": product_slug}, {"_id": 0})
 
 
+class AutoRenewPromotionToggle(BaseModel):
+    enabled: bool
+
+
+@router.post("/maker/products/{product_slug}/auto-renew-promotion", response_model=Product)
+async def maker_toggle_auto_renew_promotion(
+    product_slug: str, body: AutoRenewPromotionToggle,
+    slug: str = Depends(current_maker_slug),
+):
+    """Toggle automatic weekly renewal on a promoted listing.
+
+    When enabled, the hourly `auto_renew_promotions` scheduler job will
+    extend `promoted_until` by 7 days whenever it falls inside the next 6
+    hours. Plus subscribers ride for free; everyone else accrues the
+    standard $5/week fee to their pending balance.
+    """
+    prod = await db.products.find_one({"slug": product_slug}, {"_id": 0})
+    if not prod or prod.get("maker_slug") != slug:
+        raise HTTPException(404, "Product not found")
+    if prod.get("status") != "published" or prod.get("deleted_at"):
+        raise HTTPException(400, "Only published listings support auto-renew.")
+    if body.enabled and not prod.get("promoted_until"):
+        raise HTTPException(
+            400,
+            "This listing isn't promoted yet — boost it once first, then "
+            "auto-renew will keep it featured.",
+        )
+    await db.products.update_one(
+        {"slug": product_slug},
+        {"$set": {"auto_renew_promotion": bool(body.enabled)}},
+    )
+    return await db.products.find_one({"slug": product_slug}, {"_id": 0})
+
+
 @router.post("/maker/products/{product_slug}/unpublish", response_model=Product)
 async def maker_unpublish_product(product_slug: str, slug: str = Depends(current_maker_slug)):
     prod = await db.products.find_one({"slug": product_slug}, {"_id": 0})

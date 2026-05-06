@@ -49,6 +49,7 @@ class Product(BaseModel):
     # "draft" and the maker can renew for `listing_fee_cents`.
     expires_at: Optional[str] = None
     promoted_until: Optional[str] = None  # ISO ts; if in the future, listing pinned
+    auto_renew_promotion: bool = False  # if true, scheduler extends weekly
     deleted_at: Optional[str] = None  # soft-delete marker; hides from public views
     # ---- Item details (extended) ----
     who_made_it: Optional[str] = None       # "i_made_it" | "another_company" | "supplied_design"

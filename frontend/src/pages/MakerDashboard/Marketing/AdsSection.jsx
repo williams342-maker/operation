@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Calendar, Play, Zap } from "lucide-react";
+import { Calendar, Play, Zap, Flame, RotateCw } from "lucide-react";
 import { toast } from "sonner";
 import {
-  fetchAutoBoostStatus, fetchMakerProducts, promoteMakerProduct, updateAutoBoost,
+  fetchAutoBoostStatus, fetchMakerMe, fetchMakerProducts,
+  promoteMakerProduct, setAutoRenewPromotion, updateAutoBoost,
 } from "../../../lib/api";
 import Section from "./Section";
 
@@ -18,6 +19,7 @@ const WEEKLY_RATE = 5; // USD per week, per promoted listing.
 
 export default function AdsSection() {
   const [products, setProducts] = useState(null);
+  const [me, setMe] = useState(null);
   const [busy, setBusy] = useState("");
   const [weeks, setWeeks] = useState(1);
   // Drives the "Nd Nh left" countdowns without forcing a product re-fetch.
@@ -31,7 +33,12 @@ export default function AdsSection() {
     fetchMakerProducts()
       .then(setProducts)
       .catch(() => setProducts([]));
-  useEffect(() => { refresh(); }, []);
+  useEffect(() => {
+    refresh();
+    fetchMakerMe().then(setMe).catch(() => setMe(null));
+  }, []);
+
+  const isPlus = me?.subscription_status === "active" || me?.subscription_status === "trialing";
 
   // Derive three disjoint buckets from the product list:
   //  - activePromos: promoted_until > now
@@ -73,6 +80,23 @@ export default function AdsSection() {
     } finally { setBusy(""); }
   };
 
+  const toggleAutoRenew = async (slug, next) => {
+    setBusy(`renew:${slug}`);
+    try {
+      await setAutoRenewPromotion(slug, next);
+      toast.success(
+        next
+          ? (isPlus
+              ? "Auto-renew enabled — Plus subscribers ride free."
+              : "Auto-renew enabled — $5/wk will accrue on each renewal.")
+          : "Auto-renew disabled.",
+      );
+      await refresh();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Toggle failed.");
+    } finally { setBusy(""); }
+  };
+
   return (
     <div className="space-y-6" data-testid="ads-section">
       {/* Hero — what is this? */}
@@ -107,7 +131,15 @@ export default function AdsSection() {
         ) : (
           <ul className="border border-[#1f1f1f] divide-y divide-[#1f1f1f]" data-testid="ads-active-list">
             {activePromos.map((p) => (
-              <PromotedRow key={p.id} p={p} onExtend={() => boost(p.slug)} busy={busy === p.slug} />
+              <PromotedRow
+                key={p.id}
+                p={p}
+                isPlus={isPlus}
+                onExtend={() => boost(p.slug)}
+                onToggleAutoRenew={(next) => toggleAutoRenew(p.slug, next)}
+                busy={busy === p.slug}
+                renewBusy={busy === `renew:${p.slug}`}
+              />
             ))}
           </ul>
         )}
@@ -320,14 +352,25 @@ function AdStat({ label, value, testId, tone }) {
 
 // Row in the Active promotions list. Countdown to `promoted_until` + an
 // "Extend" button that adds another week of burn to the same listing.
-function PromotedRow({ p, onExtend, busy }) {
+// When less than 48h remain, the row goes urgent — red flame badge, a
+// pulse animation on the Extend button, and a one-click auto-renew
+// toggle so the seller can lock in next week's pin without lifting a
+// finger. Plus subscribers see "FREE" pricing on the toggle.
+function PromotedRow({ p, isPlus, onExtend, onToggleAutoRenew, busy, renewBusy }) {
   const end = new Date(p.promoted_until);
   const msLeft = end.getTime() - Date.now();
   const daysLeft = Math.max(0, Math.floor(msLeft / (24 * 60 * 60 * 1000)));
   const hoursLeft = Math.max(0, Math.floor((msLeft / (60 * 60 * 1000)) % 24));
+  const urgent = msLeft > 0 && msLeft < 48 * 60 * 60 * 1000;
+  const autoRenew = !!p.auto_renew_promotion;
 
   return (
-    <li className="flex items-center gap-3 px-3 py-2.5" data-testid={`ads-active-${p.slug}`}>
+    <li
+      className={`flex items-center gap-3 px-3 py-2.5 transition-colors ${
+        urgent ? "bg-[#1a0a05] border-l-2 border-l-[#ff4500]" : ""
+      }`}
+      data-testid={`ads-active-${p.slug}`}
+    >
       {p.images?.[0] && (
         <img src={p.images[0]} alt="" className="w-12 h-12 object-cover border border-[#ff4500]/40" />
       )}
@@ -335,21 +378,67 @@ function PromotedRow({ p, onExtend, busy }) {
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-mono text-xs text-[#e5e5e5] truncate">{p.title}</span>
           <span className="inline-block px-1.5 py-0.5 bg-[#ff4500] text-black text-[9px] font-bold">★ FEATURED</span>
+          {urgent && (
+            <span
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-[#ff4500]/15 border border-[#ff4500] text-[9px] font-bold uppercase tracking-[0.18em] text-[#ff4500] animate-pulse"
+              data-testid={`ads-urgent-${p.slug}`}
+            >
+              <Flame size={10} /> Ends soon
+            </span>
+          )}
+          {autoRenew && (
+            <span
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 border border-emerald-400/40 text-[9px] font-bold uppercase tracking-[0.18em] text-emerald-300"
+              data-testid={`ads-autorenew-on-${p.slug}`}
+            >
+              <RotateCw size={10} /> Auto · {isPlus ? "Free" : "$5/wk"}
+            </span>
+          )}
         </div>
         <div className="font-mono text-[10px] text-[#a3a3a3] mt-0.5 flex items-center gap-2">
           <Calendar size={10} className="opacity-60" />
-          {daysLeft}d {hoursLeft}h left · ends {end.toLocaleDateString()}
+          <span className={urgent ? "text-[#ff4500] font-bold" : ""}>
+            {daysLeft}d {hoursLeft}h left
+          </span>
+          <span>· ends {end.toLocaleDateString()}</span>
         </div>
       </div>
-      <button
-        onClick={onExtend}
-        disabled={busy}
-        className="px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50 inline-flex items-center gap-1.5"
-        data-testid={`ads-extend-${p.slug}`}
-        title="Add another week to this promotion"
-      >
-        <Play size={11} /> {busy ? "…" : "Extend"}
-      </button>
+      <div className="flex items-center gap-2 shrink-0">
+        <button
+          type="button"
+          onClick={() => onToggleAutoRenew(!autoRenew)}
+          disabled={renewBusy}
+          className={`px-2.5 py-1.5 border font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50 inline-flex items-center gap-1.5 ${
+            autoRenew
+              ? "border-emerald-400 text-emerald-300 hover:bg-emerald-400/10"
+              : "border-[#262626] text-[#a3a3a3] hover:border-[#525252] hover:text-[#e5e5e5]"
+          }`}
+          data-testid={`ads-autorenew-${p.slug}`}
+          title={
+            autoRenew
+              ? "Click to turn off weekly auto-renewal."
+              : isPlus
+                ? "Free for Plus — auto-extends this promotion every week."
+                : "Auto-extends every week. $5/wk accrues to pending balance."
+          }
+        >
+          <RotateCw size={11} className={renewBusy ? "animate-spin" : ""} />
+          {renewBusy ? "…" : autoRenew ? "Auto-renew on" : `Auto-renew · ${isPlus ? "Free" : "$5/wk"}`}
+        </button>
+        <button
+          onClick={onExtend}
+          disabled={busy}
+          className={`px-3 py-1.5 border font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50 inline-flex items-center gap-1.5 ${
+            urgent
+              ? "border-[#ff4500] bg-[#ff4500] text-black hover:bg-[#ff5a1a]"
+              : "border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500]"
+          }`}
+          data-testid={`ads-extend-${p.slug}`}
+          title="Add another week to this promotion"
+        >
+          <Play size={11} /> {busy ? "…" : urgent ? "Extend now $5" : "Extend"}
+        </button>
+      </div>
     </li>
   );
 }
