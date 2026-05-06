@@ -1,5 +1,62 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05-06 — SEO content + Buyer Push UI + Auto-rotate Secrets ✅
+
+Three-in-one ship: addressed the SEO Check report (homepage word count
++ keyword echo), added the maker-side buyer push opt-in panel, and
+closed out the P3 backlog item for credential rotation hygiene.
+
+### 1. SEO content polish (HIGH-priority audit fix)
+- **`frontend/src/components/sections/WhyHandcrafted.jsx`** — New
+  homepage section between FeaturedShops and Process. Adds **2,348
+  characters** of keyword-rich body content echoing H1 themes ("Built",
+  "makers", "hand", "CNC", "plasma", "laser", "router", "Stripe").
+  Layout: 1 H2 + 3 differentiator pillars (Real makers · Plasma/laser
+  · Stripe-secured) + 4 numbered "How a Crafters Market order works"
+  steps. Wired into `App.js` homepage layout.
+
+### 2. Maker buyer-push opt-in UI
+- **`backend/routers/push.py`** — Two new endpoints:
+  - `GET /api/maker/push/stats` — returns `{subscribed_buyers,
+    total_buyers, marketplace_buyer_subs, vapid_configured,
+    push_on_ship_optout}`. Counts how many of THIS maker's past
+    customers have a Web Push subscription registered against their
+    email vs. marketplace-wide.
+  - `POST /api/maker/push/on-ship` `{optout: bool}` — flips
+    `makers.push_on_ship_optout`.
+- **`backend/routers/maker.py`** — Mark-shipped now respects the new
+  opt-out flag before scheduling the buyer push.
+- **`frontend/src/pages/MakerDashboard/Settings/NotificationsPanel.jsx`**
+  — New "Notifications" tab inside maker Settings showing the 3 reach
+  stats (Your buyers reached / Marketplace-wide / Push system status),
+  the auto-send-on-shipped toggle (checkbox surfaces inverted opt-out
+  so makers see "ON" by default), and an explainer block on how buyers
+  subscribe. Wired into `SettingsTab.jsx` between Policy and Partners.
+- New API client methods: `fetchMakerPushStats`,
+  `setMakerPushOnShipOptout`.
+
+### 3. P3 — Auto-rotate secrets nudge cron
+- **`backend/scheduler.py`** — New job `_job_secrets_rotation_nudge`
+  registered as `secrets_rotation_nudge@cron[day_of_week=mon, hour=9,
+  minute=30]`. Walks `TRACKED_SECRETS`, marks each overdue (no
+  rotation history OR past `cadence_days`), de-dupes against the last
+  7 days of `admin_audit_log` rows tagged
+  `kind="secret_rotation_nudge"`, then emails OPS_EMAIL a single
+  digest with the rotation URLs. Each fresh nudge gets an audit-log
+  row stamped `actor="scheduler"` for full traceability.
+- Verified registered:
+  `secrets_rotation_nudge@cron[day_of_week='mon', hour='9', minute='30']`
+  appears in the scheduler boot log.
+
+### Verified
+- ✅ Homepage screenshot — full SEO section renders, 2,348 chars added.
+- ✅ Maker dashboard screenshot — Notifications tab visible in sidebar,
+  3 stats cards render, toggle defaults to ON.
+- ✅ Curl the new endpoints — both return expected JSON, toggle flips
+  cleanly between optout=true/false.
+- ✅ Lint clean (Python + JS). Backend boots with new cron registered.
+
+
 ## 2026-05-06 — SMS deferred → Buyer Web Push as the delivery nudge ✅
 
 Decision: Twilio A2P 10DLC paperwork was painful and switching providers

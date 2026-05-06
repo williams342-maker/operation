@@ -146,6 +146,67 @@ async def push_unregister(body: UnregisterRequest):
     return {"ok": True, "removed": r.deleted_count}
 
 
+# ───────────── Maker: push stats for own buyers + opt-out toggle ─────────────
+from maker_auth import current_maker_slug  # noqa: E402  (placed here to avoid top circular import)
+
+
+@router.get("/maker/push/stats")
+async def maker_push_stats(slug: str = Depends(current_maker_slug)):
+    """Returns how many of THIS maker's past customers currently have a
+    Web Push subscription registered against their email — i.e. how many
+    of their buyers will actually receive the shipped/delivered nudges
+    we fan out from `notify_buyer_push`.
+
+    Also returns the marketplace-wide count for comparison (so makers
+    can see "you reach 12 of your buyers; the marketplace reaches 3,200
+    total buyers"), plus the maker's own opt-in state."""
+    # Buyer emails who have ordered from this maker
+    txs = await db.payment_transactions.find(
+        {"items.maker_slug": slug, "payment_status": "paid"},
+        {"_id": 0, "customer_email": 1, "shipping_details": 1},
+    ).to_list(5000)
+    emails = set()
+    for t in txs:
+        em = (t.get("customer_email") or (t.get("shipping_details") or {}).get("email") or "").strip().lower()
+        if em:
+            emails.add(em)
+
+    if emails:
+        my_subs = await db.push_subscriptions.count_documents(
+            {"email": {"$in": list(emails)}},
+        )
+    else:
+        my_subs = 0
+
+    total_buyer_subs = await db.push_subscriptions.count_documents({"role": "buyer"})
+    maker = await db.makers.find_one({"slug": slug}, {"_id": 0, "push_on_ship_optout": 1}) or {}
+    return {
+        "subscribed_buyers": my_subs,
+        "total_buyers": len(emails),
+        "marketplace_buyer_subs": total_buyer_subs,
+        "vapid_configured": bool(VAPID_PUBLIC),
+        "push_on_ship_optout": bool(maker.get("push_on_ship_optout")),
+    }
+
+
+class PushOnShipToggle(BaseModel):
+    optout: bool
+
+
+@router.post("/maker/push/on-ship")
+async def maker_set_push_on_ship(
+    body: PushOnShipToggle, slug: str = Depends(current_maker_slug),
+):
+    """Toggle whether marking an order shipped also fires a buyer push.
+    Default OFF (i.e. push fires) — toggling this ON suppresses the
+    push for sellers who don't want to be perceived as 'spammy'."""
+    await db.makers.update_one(
+        {"slug": slug},
+        {"$set": {"push_on_ship_optout": bool(body.optout)}},
+    )
+    return {"ok": True, "push_on_ship_optout": bool(body.optout)}
+
+
 # ───────────── Admin: stats / broadcast / history ─────────────
 @router.get("/admin/push/stats")
 async def admin_push_stats(_: dict = Depends(current_admin)):

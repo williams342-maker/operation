@@ -243,6 +243,10 @@ export const promoteMakerProduct = (slug, weeks = 1) =>
   http.post(`/maker/products/${slug}/promote?weeks=${weeks}`, {}, { headers: authHeaders() }).then((r) => r.data);
 export const setAutoRenewPromotion = (slug, enabled) =>
   http.post(`/maker/products/${slug}/auto-renew-promotion`, { enabled }, { headers: authHeaders() }).then((r) => r.data);
+export const fetchMakerPushStats = () =>
+  http.get("/maker/push/stats", { headers: authHeaders() }).then((r) => r.data);
+export const setMakerPushOnShipOptout = (optout) =>
+  http.post("/maker/push/on-ship", { optout }, { headers: authHeaders() }).then((r) => r.data);
 export const renewMakerProduct = (slug) =>
   http.post(`/maker/products/${slug}/renew`, {}, { headers: authHeaders() }).then((r) => r.data);
 export const fetchMakerBilling = () =>

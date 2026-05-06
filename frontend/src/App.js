@@ -10,6 +10,7 @@ import ProductRail from "./components/sections/ProductRail";
 import PromoStrip from "./components/sections/PromoStrip";
 import FeaturedShops from "./components/sections/FeaturedShops";
 import ShopOfTheWeek from "./components/sections/ShopOfTheWeek";
+import WhyHandcrafted from "./components/sections/WhyHandcrafted";
 import Process from "./components/sections/Process";
 import ForMakers from "./components/sections/ForMakers";
 import Reviews from "./components/sections/Reviews";
@@ -80,6 +81,7 @@ const Home = () => {
       <ProductRail title="Made-to-Order Signs" eyebrow="◆ Custom Signs" category="Custom Signs" viewAllHref="/shop?category=Custom%20Signs" testId="rail-signs" />
       <FeaturedShops />
       <ProductRail title="Plasma-Cut Originals" eyebrow="◆ Technique · Plasma" technique="PLASMA" viewAllHref="/shop" testId="rail-plasma" />
+      <WhyHandcrafted />
       <Process />
       <ForMakers />
       <CNCEmblem />

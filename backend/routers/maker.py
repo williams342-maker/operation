@@ -1219,11 +1219,15 @@ async def maker_mark_shipped(
 
     # Buyer push companion to the shipped email — replaces the SMS nudge
     # we deferred. Fires only when the buyer has registered a Web Push
-    # subscription against their email; no-op otherwise. Dispatched in
-    # the background so it never blocks the API response.
+    # subscription against their email AND the maker hasn't opted out
+    # via Settings → Notifications. Dispatched in the background so it
+    # never blocks the API response.
     try:
         from routers.push import notify_buyer_push
-        if buyer_email:
+        maker_doc_for_push = await db.makers.find_one(
+            {"slug": slug}, {"_id": 0, "push_on_ship_optout": 1},
+        ) or {}
+        if buyer_email and not maker_doc_for_push.get("push_on_ship_optout"):
             ship_to = "your order"
             try:
                 items = tx.get("items") or []

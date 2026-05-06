@@ -2,13 +2,14 @@ import React, { useState } from "react";
 import {
   Image as ImageIcon, BookOpen, SlidersHorizontal, Truck, Shield,
   Users, Megaphone, Languages, Sparkles, Facebook, ChevronRight,
-  Share2, AlertTriangle,
+  Share2, AlertTriangle, Bell,
 } from "lucide-react";
 import UpgradeTab from "./UpgradeTab";
 import { FormShell, Field, ToggleRow, useSettingsForm, inputCls } from "./Settings/_shared";
 import InfoAppearance from "./Settings/InfoAppearance";
 import PolicyPanel from "./Settings/PolicyPanel";
 import AccountPanel from "./Settings/AccountPanel";
+import NotificationsPanel from "./Settings/NotificationsPanel";
 
 /**
  * Etsy-parity Settings tab for the Maker Shop Manager.
@@ -30,6 +31,7 @@ const SECTIONS = [
   { id: "options",    label: "Options",           icon: SlidersHorizontal, kind: "form" },
   { id: "shipping",   label: "Shipping settings", icon: Truck,     kind: "form" },
   { id: "policy",     label: "Policy settings",   icon: Shield,    kind: "form" },
+  { id: "notifications", label: "Notifications",  icon: Bell,      kind: "form" },
   { id: "partners",   label: "Partners you work with", icon: Users, kind: "soon" },
   { id: "offsite",    label: "Offsite Ads",       icon: Megaphone, kind: "deeplink", target: "marketing" },
   { id: "languages",  label: "Languages and translations", icon: Languages, kind: "soon" },
@@ -100,6 +102,9 @@ export default function SettingsTab({ maker = {}, onMakerUpdated, onTabChange, i
           )}
           {active.kind === "form" && active.id === "policy" && (
             <PolicyPanel maker={maker} onSaved={onMakerUpdated} />
+          )}
+          {active.kind === "form" && active.id === "notifications" && (
+            <NotificationsPanel />
           )}
           {active.kind === "form" && active.id === "account" && (
             <AccountPanel maker={maker} onSaved={onMakerUpdated} />

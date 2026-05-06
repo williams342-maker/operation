@@ -145,6 +145,105 @@ async def _job_purge_deleted_makers() -> None:
 
 
 
+async def _job_secrets_rotation_nudge() -> None:
+    """Weekly sweep over tracked credentials: for every overdue secret,
+    email OPS_EMAIL once per week and write an admin_audit_log row.
+
+    Idempotency: don't re-nudge the same `secret_id` if a nudge row was
+    already written within the last 7 days. Prevents the weekly cron
+    from spam-pinging the same admin every Monday.
+    """
+    import os as _os
+    from datetime import datetime, timezone, timedelta
+    from core import db
+    try:
+        from routers.admin_secrets import TRACKED_SECRETS
+
+        now = datetime.now(timezone.utc)
+        rows: dict[str, dict] = {}
+        async for r in db.secret_rotations.find(
+            {}, {"_id": 0}, sort=[("created_at", -1)],
+        ):
+            sid = r.get("secret_id")
+            if sid and sid not in rows:
+                rows[sid] = r
+
+        overdue: list[dict] = []
+        for spec in TRACKED_SECRETS:
+            is_set = any(bool(_os.environ.get(k)) for k in spec["env_keys"])
+            if not is_set:
+                continue
+            last = rows.get(spec["id"])
+            if not last:
+                overdue.append({"id": spec["id"], "label": spec["label"],
+                                "category": spec["category"], "days_overdue": "unknown",
+                                "rotation_url": spec["rotation_url"]})
+                continue
+            try:
+                rotated_dt = datetime.fromisoformat(last["created_at"])
+            except Exception:
+                continue
+            next_due = rotated_dt + timedelta(days=spec["cadence_days"])
+            if next_due < now:
+                overdue.append({
+                    "id": spec["id"], "label": spec["label"],
+                    "category": spec["category"],
+                    "days_overdue": (now - next_due).days,
+                    "rotation_url": spec["rotation_url"],
+                })
+
+        if not overdue:
+            return
+
+        cutoff_iso = (now - timedelta(days=7)).isoformat()
+        recent_nudges = await db.admin_audit_log.find(
+            {"kind": "secret_rotation_nudge", "created_at": {"$gte": cutoff_iso}},
+            {"_id": 0, "secret_id": 1},
+        ).to_list(500)
+        already = {r.get("secret_id") for r in recent_nudges}
+        fresh = [o for o in overdue if o["id"] not in already]
+        if not fresh:
+            return
+
+        ops = (_os.environ.get("OPS_EMAIL") or "").strip()
+        if ops:
+            try:
+                from email_service import _send
+                lines = ["The following credentials are overdue for rotation:", ""]
+                for o in fresh:
+                    lines.append(f"  - {o['label']} ({o['category']}) -- overdue by {o['days_overdue']} days")
+                    lines.append(f"    rotate at: {o['rotation_url']}")
+                lines.append("")
+                lines.append("After rotating each one, mark it complete in Admin -> Secrets.")
+                html = (
+                    "<pre style='font-family:ui-monospace,Menlo,Monaco,monospace;"
+                    "background:#0a0a0a;color:#e5e5e5;padding:18px;line-height:1.55'>"
+                    + "\n".join(lines).replace("<", "&lt;")
+                    + "</pre>"
+                )
+                await _send(
+                    ops,
+                    f"[Crafters Market] {len(fresh)} credential(s) overdue for rotation",
+                    html,
+                )
+            except Exception as e:
+                logger.warning("[scheduler] secrets-nudge email failed: %s", e)
+
+        for o in fresh:
+            await db.admin_audit_log.insert_one({
+                "kind": "secret_rotation_nudge",
+                "secret_id": o["id"],
+                "label": o["label"],
+                "days_overdue": o["days_overdue"],
+                "actor": "scheduler",
+                "created_at": now.isoformat(),
+            })
+        logger.info("[scheduler] secrets nudge: emailed %d overdue items", len(fresh))
+    except Exception as e:
+        logger.exception("[scheduler] secrets rotation nudge failed: %s", e)
+
+
+
 async def _job_auto_boost_best_sellers() -> None:
     """Auto-boost best-selling listings for opted-in makers.
 
@@ -479,6 +578,12 @@ def start_scheduler() -> AsyncIOScheduler | None:
     # week; everyone else accrues $5 to their pending balance.
     sched.add_job(_job_auto_renew_promotions, CronTrigger(minute=12),
                   id="auto_renew_promotions", replace_existing=True)
+    # Secrets rotation nudge — every Monday 09:30 UTC. Walks the
+    # tracked credentials list, fires an email + audit-log row for
+    # any overdue secret. Idempotent within a 7-day window.
+    sched.add_job(_job_secrets_rotation_nudge,
+                  CronTrigger(day_of_week="mon", hour=9, minute=30),
+                  id="secrets_rotation_nudge", replace_existing=True)
 
 
     # Scheduled site-switches run every minute (1-min granularity is enough
