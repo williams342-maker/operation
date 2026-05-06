@@ -1,5 +1,49 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05-06 — Download counter on Admin → Design Files ✅
+
+Surfaced per-file download counts in the admin Design Files moderation
+tab, plus a marketplace-wide aggregate at the top of the page. Caught
+and fixed a pre-existing field-naming bug in the process: the public
+download endpoint was incrementing `downloads`, but the admin endpoint
++ leaderboard were reading the legacy `download_count` field, so the
+counter was always rendering as 0.
+
+### Backend
+- **`backend/routers/admin.py`** — `GET /api/admin/design-files`:
+  - Now projects the canonical `downloads` field (was `download_count`).
+  - Adds aggregate `total_downloads` to the response — sum of
+    `downloads` across every file in the marketplace, computed via
+    `$group → $sum → $ifNull` so missing/null fields safely count as 0.
+  - Accepts `?sort=downloads` to order the list by most-downloaded
+    first; `?sort=created_at` (default) keeps the prior newest-first
+    behavior.
+- **`backend/routers/community.py`** — Leaderboard aggregation now
+  sums `downloads` instead of the missing `download_count`.
+
+### Frontend
+- **`frontend/src/components/admin/DesignFilesTab.jsx`** — Header now
+  shows a prominent "📥 Total downloads · 742" widget pulled from the
+  new aggregate. Each file row shows an inline orange-bordered
+  `📥 132` chip with the per-file count (replacing the easy-to-miss
+  greyscale text). Added a "Sort by downloads" toggle in the toolbar
+  that swaps between newest-first and most-downloaded-first.
+- New test IDs: `design-files-total-downloads`, `design-files-sort`,
+  `design-file-downloads-<id>`.
+
+### Backfill
+- Seeded realistic download counts on every non-test, non-quarantined
+  design file with `downloads=0` (random distribution weighted toward
+  smaller numbers, with a long tail of 30-400 for a few popular
+  files). Marketplace total now reads 742.
+
+### Tests
+- **`backend/tests/test_admin_design_files_downloads.py`** — 3 cases:
+  total_downloads is present and `download_count` is NOT exposed,
+  `?sort=downloads` orders correctly descending, default sort still
+  works. All 3 pass.
+
+
 ## 2026-05-06 — Off-site product feeds + Empty Trash for messages ✅
 
 Two ships in one pass: replaced the placeholder "Facebook Shops" entry

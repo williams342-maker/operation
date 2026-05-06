@@ -14,7 +14,7 @@
  */
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Search, Trash2, AlertTriangle, ExternalLink, Eye, EyeOff, Loader2, Pencil, X as XIcon } from "lucide-react";
+import { Search, Trash2, AlertTriangle, ExternalLink, Eye, EyeOff, Loader2, Pencil, X as XIcon, Download, ArrowDown } from "lucide-react";
 import {
   fetchAdminDesignFiles,
   adminDeleteDesignFile,
@@ -32,8 +32,10 @@ const FILTERS = [
 
 export default function DesignFilesTab() {
   const [filter, setFilter] = useState("all");
+  const [sort, setSort] = useState("created_at"); // "created_at" | "downloads"
   const [search, setSearch] = useState("");
   const [items, setItems] = useState([]);
+  const [totalDownloads, setTotalDownloads] = useState(0);
   const [loading, setLoading] = useState(true);
   const [confirmDelete, setConfirmDelete] = useState(null); // file row
   const [editing, setEditing] = useState(null); // file row currently being edited
@@ -42,12 +44,13 @@ export default function DesignFilesTab() {
   const refresh = async () => {
     setLoading(true);
     try {
-      const params = {};
+      const params = { sort };
       if (filter === "live") params.quarantined = false;
       else if (filter === "quarantined") params.quarantined = true;
       if (search.trim()) params.q = search.trim();
       const r = await fetchAdminDesignFiles(params);
       setItems(r.items || []);
+      setTotalDownloads(r.total_downloads || 0);
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Couldn't load files.");
     } finally {
@@ -60,7 +63,7 @@ export default function DesignFilesTab() {
     const t = setTimeout(refresh, 250);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter, search]);
+  }, [filter, search, sort]);
 
   const onUnquarantine = async (id) => {
     setBusy(id);
@@ -101,6 +104,19 @@ export default function DesignFilesTab() {
           permanently removes the R2 objects + DB rows + every report and
           download record tied to it (irreversible).
         </p>
+        <div
+          className="mt-3 inline-flex items-center gap-2 px-3 py-2 border border-[#262626] bg-[#0d0d0d]"
+          data-testid="design-files-total-downloads"
+        >
+          <Download size={14} className="text-[#ff4500]" />
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+            Total downloads
+          </span>
+          <span className="font-display text-xl text-[#ff4500] tabular-nums">
+            {totalDownloads.toLocaleString()}
+          </span>
+          <span className="font-mono text-[10px] text-[#525252]">across all files</span>
+        </div>
       </header>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -133,6 +149,20 @@ export default function DesignFilesTab() {
             data-testid="design-files-search"
           />
         </div>
+        <button
+          type="button"
+          onClick={() => setSort((s) => (s === "downloads" ? "created_at" : "downloads"))}
+          className={`px-3 py-2 border font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5 transition ${
+            sort === "downloads"
+              ? "border-[#ff4500] text-[#ff4500] bg-[#ff4500]/10"
+              : "border-[#262626] text-[#a3a3a3] hover:border-[#ff4500] hover:text-[#ff4500]"
+          }`}
+          data-testid="design-files-sort"
+          title="Sort by total downloads (descending)"
+        >
+          <ArrowDown size={11} />
+          {sort === "downloads" ? "Sorted: Most downloaded" : "Sort by downloads"}
+        </button>
         <span className="font-mono text-[10px] text-[#525252] ml-auto">
           {items.length} file{items.length === 1 ? "" : "s"}
         </span>
@@ -209,6 +239,15 @@ function FileRow({ file, busy, onUnquarantine, onAskDelete, onAskEdit }) {
               {file.file_type}
             </span>
           )}
+          {(typeof file.downloads === "number" || typeof file.download_count === "number") && (
+            <span
+              className="inline-flex items-center gap-1 px-2 py-0.5 border border-[#ff4500]/40 text-[#ff4500] bg-[#ff4500]/10 font-mono text-[9px] uppercase tracking-[0.22em]"
+              data-testid={`design-file-downloads-${file.id}`}
+              title={`${file.downloads ?? file.download_count ?? 0} download${(file.downloads ?? file.download_count ?? 0) === 1 ? "" : "s"}`}
+            >
+              <Download size={9} /> {(file.downloads ?? file.download_count ?? 0).toLocaleString()}
+            </span>
+          )}
           {isQ && (
             <span className="px-2 py-0.5 border border-amber-500/50 text-amber-400 bg-amber-500/10 font-mono text-[9px] uppercase tracking-[0.22em]">
               <EyeOff size={10} className="inline mr-1" />Quarantined
@@ -224,9 +263,6 @@ function FileRow({ file, busy, onUnquarantine, onAskDelete, onAskEdit }) {
           By {file.maker_name || file.uploader_name || file.uploader_id || "anonymous"}
           <span className="text-[#525252]"> · {timeAgo(file.created_at)}</span>
           {sizeMB && <span className="text-[#525252]"> · {sizeMB} MB</span>}
-          {typeof file.download_count === "number" && (
-            <span className="text-[#525252]"> · {file.download_count} download{file.download_count === 1 ? "" : "s"}</span>
-          )}
         </div>
         {file.download_url && (
           <a

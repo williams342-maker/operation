@@ -2497,11 +2497,13 @@ async def admin_list_design_files(
     limit: int = 100,
     quarantined: Optional[bool] = None,
     q: Optional[str] = None,
+    sort: str = "created_at",  # "created_at" | "downloads"
     _: dict = Depends(current_admin),
 ):
     """Full design-file index for admin moderation. Defaults to all files
     sorted newest-first. Filters: quarantined=true|false, q=substring on
-    title/maker_name/uploader."""
+    title/maker_name/uploader. Sort by `downloads` to surface the most
+    popular files."""
     flt: dict = {}
     if quarantined is True:
         flt["quarantined_at"] = {"$ne": None}
@@ -2510,6 +2512,7 @@ async def admin_list_design_files(
     if q:
         rgx = {"$regex": q, "$options": "i"}
         flt["$or"] = [{"title": rgx}, {"maker_name": rgx}, {"uploader_name": rgx}]
+    sort_field = "downloads" if sort == "downloads" else "created_at"
     rows = await db.design_files.find(
         flt,
         {
@@ -2517,10 +2520,17 @@ async def admin_list_design_files(
             "thumbnail_url": 1, "maker_name": 1, "maker_slug": 1, "uploader_id": 1,
             "uploader_name": 1, "uploader_role": 1, "created_at": 1,
             "quarantined_at": 1, "open_reports": 1, "size_bytes": 1,
-            "download_count": 1,
+            "downloads": 1,
         },
-    ).sort("created_at", -1).to_list(max(1, min(limit, 500)))
-    return {"items": rows, "count": len(rows)}
+    ).sort(sort_field, -1).to_list(max(1, min(limit, 500)))
+    # Also include a marketplace-wide aggregate so the admin UI can show
+    # "{count} files · {sum} total downloads" at a glance without a
+    # separate round-trip.
+    total_downloads_doc = await db.design_files.aggregate([
+        {"$group": {"_id": None, "total": {"$sum": {"$ifNull": ["$downloads", 0]}}}},
+    ]).to_list(1)
+    total_downloads = int((total_downloads_doc or [{}])[0].get("total") or 0)
+    return {"items": rows, "count": len(rows), "total_downloads": total_downloads}
 
 
 @router.delete("/admin/design-files/{file_id}")

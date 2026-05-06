@@ -727,7 +727,7 @@ async def files_leaderboard(limit: int = 10):
                 "name": {"$ifNull": ["$maker_name", "$uploader_name"]},
             },
             "uploads": {"$sum": 1},
-            "downloads": {"$sum": {"$ifNull": ["$download_count", 0]}},
+            "downloads": {"$sum": {"$ifNull": ["$downloads", 0]}},
         }},
         {"$match": {"_id.key": {"$ne": None}}},
         {"$sort": {"uploads": -1}},
