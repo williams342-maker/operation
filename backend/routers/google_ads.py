@@ -163,13 +163,18 @@ async def oauth_callback(
         logger.warning("[google_ads] OAuth callback returned error: %s", error)
         return RedirectResponse(f"{err_redirect}&reason={error}", status_code=302)
     if not code or not state:
+        logger.warning("[google_ads] OAuth callback missing code/state. code=%s state=%s",
+                       bool(code), bool(state))
         return RedirectResponse(f"{err_redirect}&reason=missing_code", status_code=302)
 
     state_doc = await db.integration_oauth_states.find_one({"_id": state})
     if not state_doc or state_doc.get("provider") != "google_ads":
+        logger.warning("[google_ads] OAuth callback got bad/expired state: %s (doc_found=%s)",
+                       state[:12], bool(state_doc))
         return RedirectResponse(f"{err_redirect}&reason=bad_state", status_code=302)
     # Single-use state — delete immediately to prevent replay
     await db.integration_oauth_states.delete_one({"_id": state})
+    logger.info("[google_ads] OAuth callback state validated, exchanging code…")
 
     # Exchange code → tokens. We use httpx directly rather than
     # google-auth-oauthlib's Flow because we already have httpx in the
@@ -184,7 +189,18 @@ async def oauth_callback(
                 "redirect_uri": _redirect_uri(),
                 "grant_type": "authorization_code",
             })
-            resp.raise_for_status()
+            if resp.status_code != 200:
+                # Surface Google's error JSON so the operator (and us)
+                # can see exactly why the exchange was rejected. The
+                # body usually has `{"error":"invalid_grant", ...}`.
+                logger.error(
+                    "[google_ads] token exchange returned %s: %s",
+                    resp.status_code, resp.text[:500],
+                )
+                return RedirectResponse(
+                    f"{err_redirect}&reason=exchange_{resp.status_code}",
+                    status_code=302,
+                )
             tok = resp.json()
     except Exception as e:
         logger.exception("[google_ads] token exchange failed: %s", e)
@@ -192,9 +208,16 @@ async def oauth_callback(
 
     refresh_token = tok.get("refresh_token")
     if not refresh_token:
-        # Most common cause: the OAuth consent screen is in "Testing"
-        # mode without `prompt=consent`, or this admin previously
-        # authorized the app and Google deduped the token.
+        # Most common cause: the OAuth app already issued a refresh
+        # token to this account previously and Google de-dupes. Fix is
+        # to revoke at https://myaccount.google.com/permissions then
+        # click Connect again.
+        logger.warning(
+            "[google_ads] OAuth callback: token exchange OK but no refresh_token in response. "
+            "Keys returned: %s. Likely deduped by Google — admin must revoke at "
+            "https://myaccount.google.com/permissions and reconnect.",
+            list(tok.keys()),
+        )
         return RedirectResponse(
             f"{err_redirect}&reason=no_refresh_token",
             status_code=302,
