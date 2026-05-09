@@ -4,6 +4,7 @@ import {
   updateMakerProduct, deleteMakerProduct, restoreMakerProduct,
   publishMakerProduct, unpublishMakerProduct, uploadMakerModel,
   promoteMakerProduct, renewMakerProduct, makerShareListingToBuffer,
+  downloadProductStoryCard,
 } from "../../lib/api";
 import { useConfirm } from "./useConfirm";
 import { toast } from "sonner";
@@ -270,6 +271,20 @@ export default function ProductEditCard({ product, archived = false, draft = fal
                   tone="sky"
                   testid={`product-share-buffer-${p.slug}`}
                   label={sharing ? "Queueing…" : "↗ Share social"}
+                />
+              )}
+              {!draft && (
+                // One-click 9:16 Instagram/TikTok Story export. Free,
+                // server-rendered, hero + QR + price baked in so the
+                // maker can just save → post.
+                <ActionPill
+                  onClick={() => {
+                    downloadProductStoryCard(p.slug);
+                    toast.success("Story template downloading — drop it in Instagram or TikTok.");
+                  }}
+                  tone="neutral"
+                  testid={`product-story-card-${p.slug}`}
+                  label="↓ Story"
                 />
               )}
               {draft && (

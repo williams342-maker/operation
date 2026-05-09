@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from "react";
 import {
   ChevronDown, Megaphone, Tag, Share2, Gift, Camera, FileText, Hash,
-  TrendingUp, DollarSign, Copy,
+  TrendingUp, DollarSign, Copy, Download,
 } from "lucide-react";
 import { toast } from "sonner";
-import { fetchMakerProducts, makerShareListingToBuffer } from "../../lib/api";
+import { fetchMakerProducts, makerShareListingToBuffer, downloadProductStoryCard } from "../../lib/api";
 import Section from "./Marketing/Section";
 import AdsSection from "./Marketing/AdsSection";
 import AICopyTools from "./Marketing/AICopyTools";
@@ -37,6 +37,7 @@ const SECTIONS = [
   { id: "ads",      label: "Crafters Market Ads", icon: Megaphone },
   { id: "sales",    label: "Sales and discounts", icon: Tag },
   { id: "social",   label: "Social media",        icon: Share2 },
+  { id: "stories",  label: "Story templates",     icon: Download },
   { id: "share",    label: "Share & Save",        icon: Gift },
 ];
 
@@ -63,10 +64,11 @@ export default function MarketingTab() {
           open={open} onToggleOpen={() => setOpen((v) => !v)} />
 
         <div className="min-w-0" data-testid={`marketing-section-${section}`}>
-          {section === "ads"    && <AdsAndAITools />}
-          {section === "sales"  && <DiscountCodes />}
-          {section === "social" && <SocialMedia />}
-          {section === "share"  && <ShareAndSave />}
+          {section === "ads"     && <AdsAndAITools />}
+          {section === "sales"   && <DiscountCodes />}
+          {section === "social"  && <SocialMedia />}
+          {section === "stories" && <StoryTemplates />}
+          {section === "share"   && <ShareAndSave />}
         </div>
       </div>
     </div>
@@ -180,6 +182,65 @@ function SocialMedia() {
                 className="px-3 py-1.5 border border-sky-500/40 text-sky-400 hover:bg-sky-500/10 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
                 data-testid={`social-share-${p.slug}`}>
                 {busy === p.slug ? "Queueing…" : "↗ Queue"}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Section>
+  );
+}
+
+// ============================================================================
+// Section: Story templates — one-click 9:16 IG/TikTok exports per listing
+// ============================================================================
+// Server renders a 1080×1920 PNG composited with hero image + maker name +
+// price + scan-to-shop QR code at `/api/products/{slug}/story-card.png`. We
+// just expose a clickable list here so makers don't have to hunt for it on
+// each listing card. Higher organic reach than carousel posts on both IG and
+// TikTok, and keeps a maker's brand tile visible in the corner of every share.
+function StoryTemplates() {
+  const [products, setProducts] = useState(null);
+  useEffect(() => {
+    fetchMakerProducts()
+      .then((all) => setProducts(all.filter((p) => !p.deleted_at && p.status !== "draft")))
+      .catch(() => setProducts([]));
+  }, []);
+
+  const grab = (slug) => {
+    downloadProductStoryCard(slug);
+    toast.success("Story template downloading — drop it in IG or TikTok.");
+  };
+
+  return (
+    <Section title="Instagram & TikTok story templates" testId="story-templates">
+      <p className="font-mono text-xs text-[#a3a3a3] mb-5 max-w-2xl leading-relaxed">
+        One-click 1080×1920 PNG with your hero shot, price, and a scan-to-shop QR code baked in.
+        Save it, drop it on your IG or TikTok story, and you're done — every scan lands buyers
+        on your listing with UTM credit back to you.
+      </p>
+
+      {products === null ? (
+        <p className="font-mono text-xs text-[#525252]">Loading…</p>
+      ) : products.length === 0 ? (
+        <p className="font-mono text-xs text-[#525252]">Publish a listing first — story templates only generate for live products.</p>
+      ) : (
+        <ul className="border border-[#1f1f1f] divide-y divide-[#1f1f1f]" data-testid="story-templates-list">
+          {products.slice(0, 24).map((p) => (
+            <li key={p.id} className="flex items-center gap-3 px-3 py-2">
+              {p.images?.[0] && (
+                <img src={p.images[0]} alt="" className="w-10 h-10 object-cover" loading="lazy" />
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="font-mono text-xs text-[#e5e5e5] truncate">{p.title}</div>
+                <div className="font-mono text-[10px] text-[#525252]">${p.price.toFixed(0)} · {p.category}</div>
+              </div>
+              <button
+                onClick={() => grab(p.slug)}
+                className="px-3 py-1.5 border border-[#ff4500]/40 text-[#ff4500] hover:bg-[#ff4500]/10 font-mono text-[10px] uppercase tracking-[0.22em] transition flex items-center gap-1.5"
+                data-testid={`story-template-download-${p.slug}`}
+              >
+                <Download size={11} /> Story
               </button>
             </li>
           ))}

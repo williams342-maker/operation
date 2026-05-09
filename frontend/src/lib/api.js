@@ -515,6 +515,26 @@ export const makerShareListingToBuffer = (slug) =>
     .post(`/maker/buffer/share-listing/${slug}`, {}, { headers: authHeaders() })
     .then((r) => r.data);
 
+// 9:16 Instagram/TikTok story PNG. The endpoint returns a binary
+// `image/png` stream so we don't go through the JSON-aware `http`
+// instance — we just expose the URL and let the browser handle the
+// download via an anchor tag (preserves Content-Disposition filename).
+export const productStoryCardUrl = (slug) =>
+  `${API}/products/${encodeURIComponent(slug)}/story-card.png`;
+export const downloadProductStoryCard = (slug) => {
+  const url = productStoryCardUrl(slug);
+  const a = document.createElement("a");
+  a.href = url;
+  a.rel = "noopener";
+  // The server already sets Content-Disposition with the slug-based
+  // filename; this is the fallback for browsers that ignore it on
+  // same-origin downloads.
+  a.download = `${slug}-story.png`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+};
+
 // ---------- Newsletter (Kit.com) ----------
 export const subscribeNewsletter = (email, source = "homepage") =>
   http.post("/newsletter/subscribe", { email, source }).then((r) => r.data);

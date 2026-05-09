@@ -56,10 +56,18 @@ def _font(size: int, *, bold: bool = False) -> ImageFont.ImageFont:
 
 
 async def _fetch_image(url: str) -> Optional[Image.Image]:
+    """Fetch a hero image. Handles three URL shapes the catalog produces:
+    fully-qualified R2/CDN URLs, protocol-relative `//cdn/...`, and
+    site-relative `/seed-images/...` paths (resolved against SITE_URL).
+    """
     if not url:
         return None
+    if url.startswith("//"):
+        url = "https:" + url
+    elif url.startswith("/"):
+        url = SITE_URL + url
     try:
-        async with httpx.AsyncClient(timeout=8) as c:
+        async with httpx.AsyncClient(timeout=8, follow_redirects=True) as c:
             r = await c.get(url)
             r.raise_for_status()
             return Image.open(io.BytesIO(r.content)).convert("RGB")
@@ -127,9 +135,9 @@ def _compose(product: dict, maker: dict, hero_img: Optional[Image.Image]) -> Ima
     )
     draw.text((pill_x + 18, pill_y + 11), pill_text, font=pill_font, fill=FG)
 
-    # Bottom band starts at y=1080 — tall enough for headline + CTA + QR
+    # Bottom band starts at y=1080 — tall enough for headline + CTA + QR.
+    # Spans `band_top → HEIGHT` (840px) which is what the rectangle below uses.
     band_top = WIDTH  # 1080
-    band_h = HEIGHT - band_top  # 840
     draw.rectangle([0, band_top, WIDTH, HEIGHT], fill=(13, 13, 13))
     draw.rectangle([0, band_top, WIDTH, band_top + 6], fill=ACCENT)
 

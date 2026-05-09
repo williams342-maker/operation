@@ -8,6 +8,7 @@ import {
   fetchMakerMe, fetchMakerProducts, createMakerProduct,
   updateMakerProduct, aiListingCopy, aiSeoTags,
   duplicateMakerProduct, uploadMakerVideo,
+  downloadProductStoryCard,
 } from "../lib/api";
 import ImageCropModal from "../components/ImageCropModal";
 import ProcessingProfilePicker from "../components/ProcessingProfilePicker";
@@ -1211,6 +1212,30 @@ export default function MakerListingEditor() {
             Only shared with buyers who contact you directly.
           </p>
         </Section>
+
+        {/* ---------- Story template (only on published edits) ----------
+            Lets a maker grab a 1080×1920 PNG with hero image + price + QR
+            for the listing in one click. Drives organic IG/TikTok reach
+            without forcing them into the dedicated Marketing tab. */}
+        {isEdit && form.status === "published" && (
+          <Section
+            eyebrow="◆ Share kit"
+            title="Instagram & TikTok Story"
+            subtitle="Download a ready-to-post 9:16 image with your hero shot, price, and a scan-to-shop QR code. Updates automatically when you swap photos."
+          >
+            <button
+              type="button"
+              onClick={() => {
+                downloadProductStoryCard(slug);
+                toast.success("Story template downloading — drop it in IG or TikTok stories.");
+              }}
+              className="border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] px-4 py-2.5 font-mono text-xs uppercase tracking-[0.22em] transition flex items-center gap-2"
+              data-testid="editor-download-story-template"
+            >
+              ↓ Download story template
+            </button>
+          </Section>
+        )}
 
         {/* ---------- Bottom action bar ---------- */}
         <div className="flex items-center justify-between border-t border-[#262626] pt-6">
