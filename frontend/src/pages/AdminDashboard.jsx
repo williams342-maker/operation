@@ -23,6 +23,7 @@ import AdminCommandPalette from "../components/admin/AdminCommandPalette";
 import ReviewDisputesTab from "../components/admin/ReviewDisputesTab";
 import ProdHealthTab from "../components/admin/ProdHealthTab";
 import ProdHealthBanner from "../components/admin/ProdHealthBanner";
+import SecretsRotationBanner from "../components/admin/SecretsRotationBanner";
 import UpdatesAdminTab from "../components/admin/UpdatesAdminTab";
 import AdminTabBoundary from "../components/admin/AdminTabBoundary";
 import GrowthStatsBar from "../components/admin/GrowthStatsBar";
@@ -341,6 +342,12 @@ export default function AdminDashboard() {
             critical endpoint is in the alerted state. Clicking "View"
             jumps to the Prod Health tab. */}
         <ProdHealthBanner onJumpToTab={setTab} />
+
+        {/* Secrets rotation hygiene strip — at-a-glance "days since
+            last rotation" for every tracked credential. Red/yellow/
+            green coloring; click to jump to the Secrets tab. Only
+            visible to super-admins (gated by the GET endpoint). */}
+        <SecretsRotationBanner onJumpToTab={setTab} />
 
         {/* Pre-expiry password rotation warning — shown when the admin is
             within 5 days of the forced rotation deadline but NOT yet past

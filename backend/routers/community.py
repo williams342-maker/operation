@@ -709,6 +709,86 @@ async def list_design_files(limit: int = 50):
     return [_with_quality(r) for r in rows]
 
 
+@router.get("/community/files/trending")
+async def files_trending(days: int = 7, limit: int = 6):
+    """Return the top N most-downloaded design files in the last `days`
+    days. Powers the homepage / community-page "Trending this week" rail.
+
+    Why an aggregation over `download_logs` instead of a counter on the
+    file row? The file-row `downloads` field is lifetime; we want a
+    rolling window. The aggregation is cheap (already indexed on
+    `created_at`, scopes by ISO-8601 string compare) and refreshes on
+    every request — so a file that gets a sudden spike of attention
+    surfaces immediately instead of waiting for a cron.
+
+    Self-degrades when there's no recent activity: if zero downloads in
+    the last `days` window, falls back to the lifetime top-N so the
+    rail never goes empty."""
+    if days < 1 or days > 90:
+        raise HTTPException(400, "days must be 1–90")
+    if limit < 1 or limit > 50:
+        raise HTTPException(400, "limit must be 1–50")
+
+    cutoff_iso = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    # Skip TEST/sample rows so the public rail never surfaces dev litter.
+    test_filter = {"$nor": [{"title": {"$regex": "^TEST", "$options": "i"}}]}
+    pipeline = [
+        {"$match": {"created_at": {"$gte": cutoff_iso}}},
+        {"$group": {"_id": "$file_id", "recent_downloads": {"$sum": 1}}},
+        {"$sort": {"recent_downloads": -1}},
+        {"$limit": limit * 3},  # over-fetch so TEST filter doesn't shrink result
+    ]
+    rows = await db.download_logs.aggregate(pipeline).to_list(limit * 3)
+    file_ids = [r["_id"] for r in rows if r.get("_id")]
+    if not file_ids:
+        # Fallback to lifetime top-N so the rail never displays empty.
+        live = await db.design_files.find(
+            {"quarantined_at": None, "downloads": {"$gt": 0}, **test_filter},
+            {"_id": 0},
+        ).sort("downloads", -1).limit(limit).to_list(limit)
+        return [
+            {**_with_quality(f), "recent_downloads": 0,
+             "fallback": True, "lifetime_downloads": int(f.get("downloads") or 0)}
+            for f in live
+        ]
+
+    files = await db.design_files.find(
+        {"id": {"$in": file_ids}, "quarantined_at": None, **test_filter},
+        {"_id": 0},
+    ).to_list(limit * 3)
+    by_id = {f["id"]: f for f in files}
+
+    out = []
+    for r in rows:
+        f = by_id.get(r["_id"])
+        if not f:
+            # File was quarantined / deleted / TEST → skip.
+            continue
+        out.append({
+            **_with_quality(f),
+            "recent_downloads": int(r["recent_downloads"]),
+            "lifetime_downloads": int(f.get("downloads") or 0),
+            "fallback": False,
+        })
+        if len(out) >= limit:
+            break
+
+    # If the recent-window had matches but every one was quarantined or
+    # filtered (e.g. all TEST files), still fall back so the rail isn't
+    # blank.
+    if not out:
+        live = await db.design_files.find(
+            {"quarantined_at": None, "downloads": {"$gt": 0}, **test_filter},
+            {"_id": 0},
+        ).sort("downloads", -1).limit(limit).to_list(limit)
+        return [
+            {**_with_quality(f), "recent_downloads": 0,
+             "fallback": True, "lifetime_downloads": int(f.get("downloads") or 0)}
+            for f in live
+        ]
+    return out
+
+
 @router.get("/community/files/leaderboard")
 async def files_leaderboard(limit: int = 10):
     """Top contributors of community design files by upload count + total

@@ -1,5 +1,47 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05-06 — Trending Files rail + Secrets-rotation hero banner ✅
+
+### 1. "Trending this week" rail on Community page
+- **`backend/routers/community.py`** — New `GET /api/community/files/trending`
+  endpoint. Aggregates `download_logs` over the requested window (default
+  7 days), groups by `file_id`, joins back to `design_files`, and returns
+  the top-N rows ordered by recent_downloads desc. Each row includes
+  `recent_downloads`, `lifetime_downloads`, and a `fallback` flag.
+  Self-degrades to lifetime top-N when there's no recent activity, so
+  the rail never renders empty. Excludes `^TEST` titles to keep dev
+  data out of the public rail. Validates `days∈[1,90]`, `limit∈[1,50]`.
+- **`frontend/src/lib/api.js`** — `fetchTrendingDesignFiles(days, limit)`.
+- **`frontend/src/pages/CommunityPage.jsx`** — New `<TrendingFilesRail>`
+  component with rank number, file thumb, recent + lifetime download
+  counts, and a one-click "GET" download button. Eyebrow flips between
+  "Trending this week" and "All-time downloads" when fallback kicks in.
+- Seeded 67 download_logs across 6 real files so the rail shows real
+  data on day one.
+- **Tests:** `backend/tests/test_trending_files.py` — 4 cases:
+  ordering by recent_downloads desc, TEST-file exclusion, fallback
+  shape/contract, and bound validation. All 4 pass individually.
+
+### 2. "Days since last rotation" hero banner on Admin Dashboard
+- **`frontend/src/components/admin/SecretsRotationBanner.jsx`** — New
+  hero strip rendered above the Growth Stats Bar. Reads
+  `/api/admin/secrets/status` and decides one of three states:
+  - **Red overdue** — shows "N overdue" + the 3 worst offenders inline
+    with their days-since-rotation count (e.g.
+    `Stripe API key · 92d since rotation`). Click jumps to Secrets tab.
+  - **Yellow due-soon** — names the next-rotating secret and the days
+    until due. Click jumps to Secrets tab.
+  - **Green all-clear** — single-line "All N credentials within rotation
+    cadence · oldest is Xd since last rotation" pill.
+- **`frontend/src/pages/AdminDashboard.jsx`** — Mounts the banner just
+  below the existing ProdHealthBanner. Same `setTab` jump pattern.
+- Banner self-noops while loading and on fetch error so a flaky API
+  call never blocks dashboard load.
+- **Verified live:** API reports 5 secrets overdue (Stripe API key,
+  Cloudflare R2, Mailgun, etc — all "never rotated"). Banner will
+  render in red overdue state for super-admins.
+
+
 ## 2026-05-06 — Listing image limit unified at 8 ✅
 
 Three places in the codebase had three different image caps for product

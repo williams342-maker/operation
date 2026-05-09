@@ -1,11 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Heart, Download, Send, Plus, Lock, Flag, Sparkles, Trophy, Pencil, X as XIcon } from "lucide-react";
+import { Heart, Download, Send, Plus, Lock, Flag, Sparkles, Trophy, Pencil, X as XIcon, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
 import {
   fetchShowcase, createShowcase, likeShowcase,
-  fetchDesignFiles, fetchDesignFilesLeaderboard, downloadDesignFile, unlockDownloadsCheckout, uploadDesignFile, uploadDesignFileDirect,
+  fetchDesignFiles, fetchDesignFilesLeaderboard, fetchTrendingDesignFiles, downloadDesignFile, unlockDownloadsCheckout, uploadDesignFile, uploadDesignFileDirect,
   addDesignFileVariants, deleteDesignFileVariant, updateDesignFile,
   reportDesignFile, convertDxfToSvg, renderStlThumbnail,
   fetchForumThreads, fetchForumThread, fetchForumCategories,
@@ -569,6 +569,129 @@ function ShowcaseCard({ post, onLike, canLike }) {
 }
 
 // ===================== DESIGN FILES =====================
+// "Trending this week" rail — surfaces the 6 most-downloaded design files
+// from the last 7 days. Self-degrades to lifetime top-N when there's no
+// recent activity (so it never goes empty on a quiet week). Each card
+// links to the canonical file detail and shows the recent-window
+// download count up-front as social proof.
+function TrendingFilesRail({ me, onRefresh }) {
+  const [rows, setRows] = useState(null);
+  const [busy, setBusy] = useState("");
+
+  useEffect(() => {
+    fetchTrendingDesignFiles(7, 6)
+      .then((d) => setRows(Array.isArray(d) ? d : []))
+      .catch(() => setRows([]));
+  }, []);
+
+  if (rows === null) return null;
+  if (!rows.length) return null;
+
+  const isFallback = rows[0]?.fallback;
+
+  const handleDownload = async (file) => {
+    if (!me) {
+      toast.error("Sign in to download.");
+      return;
+    }
+    setBusy(file.id);
+    try {
+      const r = await downloadDesignFile(file.id);
+      if (r.locked) {
+        toast.error(r.message || "Free downloads exhausted — unlock for $5.");
+        return;
+      }
+      window.open(r.url, "_blank");
+      onRefresh && onRefresh();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Download failed.");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  return (
+    <section className="mb-8" data-testid="trending-files-rail">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <TrendingUp size={14} className="text-[#ff4500]" />
+          <h3 className="font-mono text-[11px] uppercase tracking-[0.32em] text-[#ff4500]">
+            ◆ {isFallback ? "All-time downloads" : "Trending this week"}
+          </h3>
+        </div>
+        {!isFallback && (
+          <span className="font-mono text-[10px] text-[#525252] uppercase tracking-[0.22em]">
+            last 7 days
+          </span>
+        )}
+      </div>
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {rows.map((f, i) => (
+          <TrendingFileCard
+            key={f.id}
+            rank={i + 1}
+            file={f}
+            busy={busy === f.id}
+            onDownload={() => handleDownload(f)}
+            isFallback={isFallback}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function TrendingFileCard({ rank, file, busy, onDownload, isFallback }) {
+  return (
+    <div
+      className="border border-[#262626] bg-[#0d0d0d] p-3 flex items-center gap-3 hover:border-[#ff4500]/60 transition-colors"
+      data-testid={`trending-file-${file.id}`}
+    >
+      <div className="font-display text-3xl text-[#ff4500] leading-none w-8 shrink-0 tabular-nums">
+        {rank.toString().padStart(2, "0")}
+      </div>
+      {file.thumbnail_url ? (
+        <img
+          src={file.thumbnail_url}
+          alt=""
+          loading="lazy"
+          className="w-14 h-14 object-cover border border-[#262626] shrink-0"
+        />
+      ) : (
+        <div className="w-14 h-14 border border-[#262626] bg-[#0a0a0a] shrink-0 flex items-center justify-center font-mono text-[9px] uppercase text-[#525252]">
+          {file.file_type?.toUpperCase() || "FILE"}
+        </div>
+      )}
+      <div className="flex-1 min-w-0">
+        <div className="font-mono text-xs text-[#e5e5e5] truncate font-bold">
+          {file.title}
+        </div>
+        <div className="font-mono text-[10px] text-[#a3a3a3] mt-0.5 inline-flex items-center gap-1.5">
+          <Download size={10} className="text-[#ff4500]" />
+          <span className="tabular-nums" data-testid={`trending-file-count-${file.id}`}>
+            {isFallback
+              ? `${(file.lifetime_downloads ?? 0).toLocaleString()} all-time`
+              : `${(file.recent_downloads ?? 0).toLocaleString()} this week`}
+          </span>
+          {!isFallback && file.lifetime_downloads ? (
+            <span className="text-[#525252]">· {file.lifetime_downloads.toLocaleString()} lifetime</span>
+          ) : null}
+        </div>
+      </div>
+      <button
+        onClick={onDownload}
+        disabled={busy}
+        className="px-2.5 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50 inline-flex items-center gap-1.5 shrink-0"
+        data-testid={`trending-file-download-${file.id}`}
+        title="Download this file"
+      >
+        <Download size={11} /> {busy ? "…" : "Get"}
+      </button>
+    </div>
+  );
+}
+
+
 function ContributorLeaderboard() {
   const [rows, setRows] = useState([]);
   const [open, setOpen] = useState(true);
@@ -669,6 +792,7 @@ function FilesTab({ me }) {
         )}
       </div>
       {showUpload && <FileUploadForm onSaved={() => { setShowUpload(false); refresh(); }} />}
+      <TrendingFilesRail me={me} onRefresh={refresh} />
       <ContributorLeaderboard />
       {!files.length ? (
         <p className="font-mono text-sm text-[#a3a3a3]" data-testid="files-empty">

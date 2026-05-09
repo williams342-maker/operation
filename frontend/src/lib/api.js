@@ -690,6 +690,8 @@ export const likeShowcase = (id) =>
   http.post(`/community/showcase/${id}/like`, {}, { headers: buyerAuthHeaders() }).then((r) => r.data);
 
 export const fetchDesignFiles = () => http.get("/community/files").then((r) => r.data);
+export const fetchTrendingDesignFiles = (days = 7, limit = 6) =>
+  http.get("/community/files/trending", { params: { days, limit } }).then((r) => r.data);
 export const fetchDesignFilesLeaderboard = (limit = 10) =>
   http.get("/community/files/leaderboard", { params: { limit } }).then((r) => r.data);
 export const downloadDesignFile = (id) =>
