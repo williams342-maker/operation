@@ -1085,7 +1085,9 @@ async def grant_weekly_boost_credit(maker_slug: str, source: str = "file_upload"
     has already received their weekly credit (idempotent no-op)."""
     if not maker_slug:
         return None
-    maker = await db.makers.find_one({"slug": maker_slug}, {"_id": 0, "slug": 1})
+    maker = await db.makers.find_one(
+        {"slug": maker_slug}, {"_id": 0, "slug": 1, "email": 1, "name": 1},
+    )
     if not maker:
         return None
 
@@ -1111,6 +1113,25 @@ async def grant_weekly_boost_credit(maker_slug: str, source: str = "file_upload"
         "consumed_for_product_slug": None,
     }
     await db.community_boost_credits.insert_one(credit)
+
+    # Fire-and-forget Web Push so the maker sees the reward inside
+    # their browser/PWA the moment it lands. Failures here must never
+    # break the upload flow → wrap in try/except.
+    try:
+        from routers.push import notify_buyer_push  # general-purpose helper
+        em = (maker.get("email") or "").strip().lower()
+        if em:
+            await notify_buyer_push(
+                em,
+                "🎁 You earned a free 24h boost",
+                f"Thanks for sharing a design this week, {maker.get('name') or 'maker'}. "
+                "Tap to apply your credit to a listing.",
+                url="/maker/dashboard?tab=marketing",
+                tag="cm-maker-boost-credit",
+            )
+    except Exception as e:
+        logger.debug("[boost-credit push] non-fatal: %s", e)
+
     return credit
 
 
