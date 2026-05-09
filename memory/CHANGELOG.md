@@ -1,5 +1,35 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05-06 — Etsy-style processing profiles for new listings ✅
+
+Replaced the legacy "1-3 business days" dropdown with a card-grid
+profile picker matching the reference Etsy UI. Two built-in kinds
+("Made to order" + "Ready to ship") with realistic CNC/wood/metal
+turnaround presets, plus an inline "Create new" form that saves
+custom profiles per-browser via localStorage so makers can reuse
+"Made to order · 5-7 weeks" across every listing without retyping.
+
+- **`frontend/src/components/ProcessingProfilePicker.jsx`** — New
+  picker. Built-ins: Made to order × {1-2w, 2-4w, 4-6w}, Ready to
+  ship × {1-3d, 3-5d, 1-2w}. Custom profiles saved to
+  `localStorage["cm_proc_profiles_v1"]` with delete on hover. Currently
+  applied profile renders in emerald in a "◆ Currently applied"
+  section above the grid; "Create new" form opens inline beneath the
+  toolbar with kind dropdown + free-text range input.
+- **`frontend/src/pages/MakerListingEditor.jsx`** — Processing Time
+  section swapped from `<Select>` to `<ProcessingProfilePicker>`.
+- **`frontend/src/pages/MakerListingEditor/constants.js`** — Default
+  bumped from `"1-3 business days"` to `"Made to order · 1-2 weeks"`
+  so a fresh listing already matches one of the cards.
+- Backend keeps storing the canonical string `"Kind · Range"` on
+  `Product.processing_time` — no schema change. Legacy listings still
+  display correctly; their values just won't highlight a card until
+  the maker picks a new profile.
+
+Verified live: 7 cards render across 2 kinds, the default highlights
+in emerald, "Create new" opens the inline form, lint clean.
+
+
 ## 2026-05-06 — Community-upload boost credits ✅
 
 Reward loop closed: makers who upload a design file to the community

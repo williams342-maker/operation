@@ -78,7 +78,7 @@ export const emptyForm = () => ({
   shipping_domestic_usd: "", shipping_international_usd: "",
   shipping_carrier: "", shipping_est_delivery: "",
   packed_length_in: "", packed_width_in: "", packed_height_in: "",
-  processing_time: "1-3 business days",
+  processing_time: "Made to order · 1-2 weeks",
   accept_returns: false, accept_exchanges: false,
   seo_tags: [], seo_input: "",
   contact_email: "",

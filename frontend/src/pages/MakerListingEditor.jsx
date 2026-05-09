@@ -10,6 +10,7 @@ import {
   duplicateMakerProduct, uploadMakerVideo,
 } from "../lib/api";
 import ImageCropModal from "../components/ImageCropModal";
+import ProcessingProfilePicker from "../components/ProcessingProfilePicker";
 import { useConfirm } from "../hooks/useConfirm";
 import {
   CATEGORIES, TECHNIQUES, WHO_MADE_IT, CONDITIONS, DIM_UNITS, COLORS,
@@ -1001,14 +1002,12 @@ export default function MakerListingEditor() {
         <Section
           eyebrow="◆ Lead time"
           title="Processing Time"
-          subtitle="How long does it take to make and prepare your item before it ships? Buyers see this at checkout."
+          subtitle="How long does it take to make and prepare your item before it ships? Pick a profile or create your own."
         >
-          <Label>Time to ship after order</Label>
-          <Select value={form.processing_time} onChange={(v) => set({ processing_time: v })}
-            options={PROCESSING_TIMES.map((p) => [p, p])} testid="editor-processing-time" />
-          <p className="font-mono text-[10px] text-[#525252] mt-2">
-            ◆ Custom or made-to-order items often need longer processing time.
-          </p>
+          <ProcessingProfilePicker
+            value={form.processing_time}
+            onChange={(v) => set({ processing_time: v })}
+          />
         </Section>
 
         {/* ---------- Return Policy ---------- */}

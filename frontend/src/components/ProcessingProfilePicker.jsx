@@ -1,0 +1,227 @@
+import React, { useEffect, useMemo, useState } from "react";
+import { Check, Plus, X, Trash2 } from "lucide-react";
+
+const STORAGE = "cm_proc_profiles_v1";
+
+// Built-in presets — match what most CNC / wood / metal makers actually
+// quote in the wild. Two "kinds" (made-to-order vs ready-to-ship) ×
+// realistic turnaround times. Buyers see whichever turnaround the
+// maker applies on the listing.
+const BUILT_INS = [
+  { id: "preset-mto-1-2w", kind: "Made to order",  range: "1-2 weeks" },
+  { id: "preset-mto-2-4w", kind: "Made to order",  range: "2-4 weeks" },
+  { id: "preset-mto-4-6w", kind: "Made to order",  range: "4-6 weeks" },
+  { id: "preset-rts-1-3d", kind: "Ready to ship",  range: "1-3 days" },
+  { id: "preset-rts-3-5d", kind: "Ready to ship",  range: "3-5 days" },
+  { id: "preset-rts-1-2w", kind: "Ready to ship",  range: "1-2 weeks" },
+];
+
+const profileLabel = (p) => `${p.kind} · ${p.range}`;
+
+/**
+ * Etsy-style processing profile picker.
+ *
+ * Replaces the legacy single-select dropdown with a card grid. The
+ * canonical value is still the `processing_time` string the parent
+ * stores on the listing (e.g. "Made to order · 1-2 weeks"); we just
+ * give makers a richer chooser + the ability to save reusable custom
+ * profiles in localStorage.
+ *
+ * Why localStorage instead of server-side?
+ *   - Profiles are scoped per-browser per-maker; the actual listing
+ *     value is what gets persisted to the server.
+ *   - Keeps the change zero-migration.
+ */
+export default function ProcessingProfilePicker({ value, onChange }) {
+  const [custom, setCustom] = useState([]);
+  const [creating, setCreating] = useState(false);
+  const [draft, setDraft] = useState({ kind: "Made to order", range: "1-2 weeks" });
+
+  // Load custom profiles
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE);
+      if (raw) setCustom(JSON.parse(raw) || []);
+    } catch { /* ignore */ }
+  }, []);
+
+  const persist = (next) => {
+    setCustom(next);
+    try { localStorage.setItem(STORAGE, JSON.stringify(next)); } catch { /* ignore */ }
+  };
+
+  const profiles = useMemo(() => [...BUILT_INS, ...custom], [custom]);
+  const matchByLabel = (label) => profiles.find((p) => profileLabel(p) === label);
+  const applied = matchByLabel(value);
+
+  const apply = (p) => onChange(profileLabel(p));
+
+  const addCustom = () => {
+    if (!draft.kind.trim() || !draft.range.trim()) return;
+    const id = `custom-${Date.now()}`;
+    const next = [...custom, { id, kind: draft.kind.trim(), range: draft.range.trim() }];
+    persist(next);
+    apply({ id, kind: draft.kind.trim(), range: draft.range.trim() });
+    setCreating(false);
+    setDraft({ kind: "Made to order", range: "1-2 weeks" });
+  };
+
+  const removeCustom = (id) => {
+    const removed = custom.find((p) => p.id === id);
+    persist(custom.filter((p) => p.id !== id));
+    if (removed && profileLabel(removed) === value) {
+      // Fall back to the first preset so the listing isn't left with a deleted profile
+      onChange(profileLabel(BUILT_INS[0]));
+    }
+  };
+
+  // Group "More profiles" by kind so the grid reads nicely
+  const byKind = useMemo(() => {
+    const out = {};
+    profiles.forEach((p) => { (out[p.kind] = out[p.kind] || []).push(p); });
+    return out;
+  }, [profiles]);
+
+  return (
+    <div className="space-y-5" data-testid="processing-profile-picker">
+      {/* Currently applied highlight */}
+      {applied && (
+        <div className="space-y-2">
+          <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#a3a3a3]">
+            ◆ Currently applied
+          </div>
+          <ProfileCard p={applied} applied onClick={() => apply(applied)} testIdSuffix="current" />
+        </div>
+      )}
+
+      {/* All profiles, grouped */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#a3a3a3]">
+            ◆ All profiles
+          </div>
+          {!creating && (
+            <button
+              type="button"
+              onClick={() => setCreating(true)}
+              className="px-2.5 py-1 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5 transition"
+              data-testid="processing-profile-create"
+            >
+              <Plus size={11} /> Create new
+            </button>
+          )}
+        </div>
+
+        {/* Inline create form */}
+        {creating && (
+          <div className="border border-[#ff4500]/40 bg-[#1a0a05] p-4 space-y-3" data-testid="processing-profile-form">
+            <div className="grid grid-cols-2 gap-3">
+              <select
+                value={draft.kind}
+                onChange={(e) => setDraft({ ...draft, kind: e.target.value })}
+                className="bg-[#0a0a0a] border border-[#262626] px-3 py-2 font-mono text-xs text-[#e5e5e5]"
+                data-testid="processing-profile-kind"
+              >
+                <option value="Made to order">Made to order</option>
+                <option value="Ready to ship">Ready to ship</option>
+                <option value="Pre-order">Pre-order</option>
+                <option value="Custom">Custom</option>
+              </select>
+              <input
+                value={draft.range}
+                onChange={(e) => setDraft({ ...draft, range: e.target.value })}
+                placeholder="e.g. 5-7 business days"
+                className="bg-[#0a0a0a] border border-[#262626] px-3 py-2 font-mono text-xs text-[#e5e5e5] placeholder:text-[#525252]"
+                data-testid="processing-profile-range"
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={addCustom}
+                disabled={!draft.kind.trim() || !draft.range.trim()}
+                className="px-3 py-1.5 border border-[#ff4500] bg-[#ff4500] text-black hover:bg-[#ff5a1a] font-mono text-[10px] uppercase tracking-[0.22em] font-bold transition disabled:opacity-50"
+                data-testid="processing-profile-save"
+              >
+                Save & apply
+              </button>
+              <button
+                type="button"
+                onClick={() => setCreating(false)}
+                className="px-3 py-1.5 border border-[#262626] hover:border-[#525252] font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5"
+              >
+                <X size={11} /> Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Grid */}
+        {Object.entries(byKind).map(([kind, list]) => (
+          <div key={kind} className="space-y-2">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252]">
+              {kind}
+            </div>
+            <div className="grid sm:grid-cols-2 gap-2">
+              {list.map((p) => (
+                <ProfileCard
+                  key={p.id}
+                  p={p}
+                  applied={profileLabel(p) === value}
+                  onClick={() => apply(p)}
+                  onRemove={p.id.startsWith("custom-") ? () => removeCustom(p.id) : null}
+                />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <p className="font-mono text-[10px] text-[#525252]">
+        ◆ Custom or made-to-order items often need longer processing time than ready-to-ship inventory.
+      </p>
+    </div>
+  );
+}
+
+function ProfileCard({ p, applied, onClick, onRemove, testIdSuffix }) {
+  const tid = testIdSuffix ?? p.id;
+  return (
+    <div
+      className={`relative flex items-center justify-between gap-3 px-4 py-3 border transition cursor-pointer ${
+        applied
+          ? "border-emerald-400 bg-emerald-500/10"
+          : "border-[#262626] bg-[#0d0d0d] hover:border-[#ff4500]/60"
+      }`}
+      onClick={onClick}
+      data-testid={`processing-profile-card-${tid}`}
+    >
+      <div className="min-w-0">
+        <div className="font-mono text-sm text-[#e5e5e5] font-bold">{p.kind}</div>
+        <div className="font-mono text-[11px] text-[#a3a3a3] mt-0.5">{p.range}</div>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        {applied ? (
+          <span className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-300 font-bold">
+            <Check size={12} /> Applied
+          </span>
+        ) : (
+          <span className="px-2.5 py-1 border border-[#262626] font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+            Apply
+          </span>
+        )}
+        {onRemove && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onRemove(); }}
+            className="text-[#525252] hover:text-red-400 transition"
+            title="Delete this custom profile"
+            data-testid={`processing-profile-delete-${tid}`}
+          >
+            <Trash2 size={12} />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
