@@ -1,5 +1,17 @@
 # Crafters Market — CHANGELOG
 
+## 2026-02 — iter133 · Instagram/TikTok Story template generator ✅
+**One-click 9:16 share-kit for makers.** Server-rendered 1080×1920 PNG composites hero image + maker brand pill + product title + price + scan-to-shop QR code (UTM-tagged `?utm_source=story&utm_medium=qr`) using Pillow + qrcode.
+
+- `GET /api/products/{slug}/story-card.png` — public, attachment download, 1h CDN cache, 404 on unpublished/missing slug. Source: `/app/backend/routers/story_card.py`.
+- `_fetch_image()` resolves site-relative `/seed-images/...` paths against `PUBLIC_SITE_URL` so seeded products render with hero imagery in every environment.
+- Frontend helpers `productStoryCardUrl(slug)` + `downloadProductStoryCard(slug)` in `/app/frontend/src/lib/api.js` (anchor-tag download, same-origin via `/api` proxy → respects Content-Disposition).
+- Three exposure points per user request:
+  - Maker dashboard listings action grid: `data-testid=product-story-card-<slug>` (only on non-draft cards, alongside Promote + Share to Buffer).
+  - Listing Editor: collapsible "Share kit · Instagram & TikTok Story" section appears only for `isEdit && form.status === "published"`, button `editor-download-story-template`.
+  - Marketing tab → new "Story templates" subnav (`marketing-subnav-stories`) listing every published product with per-row `story-template-download-<slug>` button.
+- Test report: `/app/test_reports/iteration_50.json` — 6/6 frontend, all backend functional. Test suite: `/app/backend/tests/test_iter133_story_card.py`.
+
 ## 2026-05-06 — Etsy-style processing profiles for new listings ✅
 
 Replaced the legacy "1-3 business days" dropdown with a card-grid
