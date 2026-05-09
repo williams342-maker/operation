@@ -1,5 +1,25 @@
 # Crafters Market — CHANGELOG
 
+## 2026-02 — iter134 · Google Ads live integration scaffold ✅
+**Real off-site ad spend reporting (read-only).** Full OAuth + daily sync scaffold so the moment the user obtains their dev token + OAuth credentials, it's a 5-minute paste-and-go.
+
+- Backend router `/app/backend/routers/google_ads.py`:
+  - `GET /api/admin/integrations/google-ads/status` — config readiness, missing env vars, connection state, last-sync info, rows synced yesterday.
+  - `GET /api/admin/integrations/google-ads/oauth/start` — mints CSRF state, returns Google authorize URL with `access_type=offline&prompt=consent` (forces refresh-token issuance).
+  - `GET /api/admin/integrations/google-ads/oauth/callback` — exchanges code for refresh_token via httpx, persists to `db.integration_credentials`, 302s back to admin Ads tab.
+  - `POST /api/admin/integrations/google-ads/disconnect` — clears local creds.
+  - `POST /api/admin/integrations/google-ads/sync?date=YYYY-MM-DD` — manual backfill (defaults yesterday).
+- New scheduler job `google_ads_daily_sync` runs at **03:30 UTC daily**. Pulls campaign-level `cost_micros / clicks / impressions / conversions` via GAQL, converts micros→USD, upserts into existing `db.ad_spend` collection (platform="google") so the existing AdsTab dashboard immediately renders live data.
+- Sync runs in `asyncio.run_in_executor` (google-ads SDK is sync-only — would block FastAPI event loop otherwise).
+- Frontend `GoogleAdsConnectionCard` mounted at top of admin AdsTab. Three states surface:
+  - **Not configured**: yellow banner enumerates the missing env vars + where to get each.
+  - **Configured but not connected**: orange "Connect Google Ads" CTA.
+  - **Connected**: connected-at / last-sync-at / rows-synced-yesterday stat tiles + "Sync yesterday now" + "Disconnect".
+  - Toast surfaces OAuth callback success/error from `?google_ads=connected|error&reason=…`.
+- New deps: `google-ads==30.1.0`, `google-auth-oauthlib==1.4.0`. Frozen into `requirements.txt`.
+- Env-var slots seeded blank in `/app/backend/.env`: `GOOGLE_ADS_DEVELOPER_TOKEN / CLIENT_ID / CLIENT_SECRET / LOGIN_CUSTOMER_ID / REDIRECT_URI`. Module is a graceful no-op when unset → preview pods stay healthy.
+- 2026 catches encoded into the SDK config: `use_proto_plus=True` (mandatory in google-ads ≥14), hyphen-stripped `login_customer_id`, `prompt=consent` to force refresh-token issuance even on re-authorization.
+
 ## 2026-02 — iter133 · Instagram/TikTok Story template generator ✅
 **One-click 9:16 share-kit for makers.** Server-rendered 1080×1920 PNG composites hero image + maker brand pill + product title + price + scan-to-shop QR code (UTM-tagged `?utm_source=story&utm_medium=qr`) using Pillow + qrcode.
 

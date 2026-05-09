@@ -535,6 +535,25 @@ export const downloadProductStoryCard = (slug) => {
   a.remove();
 };
 
+// ---------- Google Ads integration ----------
+// Single live integration the admin connects through OAuth from the
+// Ads tab. Backend writes synced rows into the same `ad_spend`
+// collection that the existing tab already renders.
+export const fetchGoogleAdsStatus = () =>
+  http.get("/admin/integrations/google-ads/status",
+    { headers: adminAuthHeaders() }).then((r) => r.data);
+export const startGoogleAdsOauth = () =>
+  http.get("/admin/integrations/google-ads/oauth/start",
+    { headers: adminAuthHeaders() }).then((r) => r.data);
+export const disconnectGoogleAds = () =>
+  http.post("/admin/integrations/google-ads/disconnect", {},
+    { headers: adminAuthHeaders() }).then((r) => r.data);
+export const triggerGoogleAdsSync = (date) =>
+  http.post("/admin/integrations/google-ads/sync",
+    {},
+    { params: date ? { date } : {}, headers: adminAuthHeaders() }
+  ).then((r) => r.data);
+
 // ---------- Newsletter (Kit.com) ----------
 export const subscribeNewsletter = (email, source = "homepage") =>
   http.post("/newsletter/subscribe", { email, source }).then((r) => r.data);

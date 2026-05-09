@@ -553,6 +553,21 @@ async def _job_review_prompts() -> None:
         logger.exception("[scheduler] review_prompts failed: %s", e)
 
 
+async def _job_google_ads_daily_sync() -> None:
+    """Daily 03:30 UTC — pull yesterday's Google Ads campaign metrics
+    into `ad_spend` so the admin Ads tab shows live ROAS data. Self-
+    skips with a logged "not_connected"/"missing_env" reason when the
+    integration isn't wired yet — keeps preview pods quiet."""
+    try:
+        from routers.google_ads import sync_metrics
+        r = await sync_metrics()
+        logger.info("[scheduler] google_ads_daily_sync: %s", r)
+    except Exception as e:
+        logger.exception("[scheduler] google_ads_daily_sync failed: %s", e)
+
+
+
+
 def start_scheduler() -> AsyncIOScheduler | None:
     """Boot the scheduler if SCHEDULER_ENABLED isn't 'false'."""
     global _scheduler
@@ -661,6 +676,13 @@ def start_scheduler() -> AsyncIOScheduler | None:
     sched.add_job(_job_review_prompts,
                   CronTrigger(hour=16, minute=0),
                   id="review_prompts", replace_existing=True)
+    # Google Ads daily metrics sync — 03:30 UTC. Pulls yesterday's
+    # campaign-level spend/clicks/impressions/conversions and upserts
+    # into `ad_spend`. Self-skips when not connected or env vars
+    # incomplete (logs to `integration_sync_log` for admin visibility).
+    sched.add_job(_job_google_ads_daily_sync,
+                  CronTrigger(hour=3, minute=30),
+                  id="google_ads_daily_sync", replace_existing=True)
     sched.start()
     _scheduler = sched
     logger.info(
