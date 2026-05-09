@@ -60,7 +60,7 @@ export const DELIVERY_RANGES = [
 ];
 export const CARRIERS = ["USPS", "UPS", "FedEx", "DHL", "Other"];
 
-export const MAX_IMAGES = 10;
+export const MAX_IMAGES = 8;
 export const MAX_TAGS = 13;
 
 export const emptyForm = () => ({

@@ -444,8 +444,8 @@ async def maker_create_product(
         raise HTTPException(400, "Price must be non-negative.")
     if payload.in_stock < 0:
         raise HTTPException(400, "Stock must be non-negative.")
-    if len(payload.images) > 5:
-        raise HTTPException(400, "Maximum 5 images per listing.")
+    if len(payload.images) > 8:
+        raise HTTPException(400, "Maximum 8 images per listing.")
     for img in payload.images:
         if len(img) > 8_000_000:
             raise HTTPException(

@@ -1,5 +1,23 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05-06 — Listing image limit unified at 8 ✅
+
+Three places in the codebase had three different image caps for product
+listings: backend rejected >5, the legacy NewListingModal capped at 5,
+and the new MakerListingEditor allowed 10. Unified everything to **8**.
+
+- **`backend/routers/maker.py:447`** — `if len(payload.images) > 8`
+  with error "Maximum 8 images per listing." (was 5).
+- **`frontend/src/pages/MakerDashboard/NewListingModal.jsx`** —
+  `MAX_IMAGES = 8` (was 5).
+- **`frontend/src/pages/MakerListingEditor/constants.js`** —
+  `MAX_IMAGES = 8` (was 10). All consumers (MediaSection counter,
+  MakerListingEditor drop handler) auto-update from this constant.
+
+Verified live: POST `/api/maker/products` with 9 images now returns
+HTTP 400 `{"detail": "Maximum 8 images per listing."}`.
+
+
 ## 2026-05-06 — Download counter on Admin → Design Files ✅
 
 Surfaced per-file download counts in the admin Design Files moderation

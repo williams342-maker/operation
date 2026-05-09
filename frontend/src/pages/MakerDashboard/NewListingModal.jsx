@@ -6,7 +6,7 @@ import { CATEGORIES } from "../MakerListingEditor/constants";
 const TECHNIQUES = ["PLASMA", "LASER", "ROUTER", "CUSTOM"];
 const MAX_IMG_W = 1600;
 const MAX_IMG_KB = 130;       // target after compression
-const MAX_IMAGES = 5;
+const MAX_IMAGES = 8;
 
 /**
  * Compress an image File → data URL. Tries WebP first (much smaller for
