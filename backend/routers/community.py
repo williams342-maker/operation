@@ -934,6 +934,11 @@ async def upload_design_file(payload: DesignFileMeta, slug: str = Depends(curren
     }
     await db.design_files.insert_one(doc)
     doc.pop("_id", None)
+    # Reward weekly community contribution with a free 24h boost credit.
+    # Idempotent per ISO week — fires on the first upload of the week
+    # and no-ops on every subsequent upload.
+    if slug:
+        await grant_weekly_boost_credit(slug)
     return doc
 
 
@@ -1057,7 +1062,56 @@ async def upload_design_file_direct(
     }
     await db.design_files.insert_one(doc)
     doc.pop("_id", None)
+    # Reward weekly community contribution. Buyers don't get the boost
+    # (they're not selling), only makers — `grant_weekly_boost_credit`
+    # silently no-ops if the slug doesn't map to a maker row.
+    if role == "maker" and uploader_label:
+        await grant_weekly_boost_credit(uploader_label)
     return _with_quality(doc)
+
+
+async def grant_weekly_boost_credit(maker_slug: str, source: str = "file_upload") -> Optional[dict]:
+    """Reward a maker with a free 1-day promotion credit when they upload
+    a design file to the community. Idempotent per ISO calendar week —
+    you can upload 50 files in a week, you still only get one credit
+    (Sunday → Sunday).
+
+    Credits expire 30 days after grant (use them or lose them) and can
+    be redeemed via `POST /api/maker/boost-credits/{id}/redeem` against
+    any one of the maker's published listings. The redemption stamps
+    `consumed_at` and bumps that listing's `promoted_until` by 24 hours.
+
+    Returns the credit doc when newly granted, or None when the maker
+    has already received their weekly credit (idempotent no-op)."""
+    if not maker_slug:
+        return None
+    maker = await db.makers.find_one({"slug": maker_slug}, {"_id": 0, "slug": 1})
+    if not maker:
+        return None
+
+    now = datetime.now(timezone.utc)
+    iso_year, iso_week, _ = now.isocalendar()
+    week_key = f"{iso_year}-W{iso_week:02d}"
+    existing = await db.community_boost_credits.find_one(
+        {"maker_slug": maker_slug, "iso_week": week_key},
+        {"_id": 0, "id": 1},
+    )
+    if existing:
+        return None
+
+    credit = {
+        "id": str(uuid.uuid4()),
+        "maker_slug": maker_slug,
+        "iso_week": week_key,
+        "source": source,
+        "duration_hours": 24,
+        "granted_at": now.isoformat(),
+        "expires_at": (now + timedelta(days=30)).isoformat(),
+        "consumed_at": None,
+        "consumed_for_product_slug": None,
+    }
+    await db.community_boost_credits.insert_one(credit)
+    return credit
 
 
 def _is_design_file_owner(doc: dict, claims: dict) -> bool:

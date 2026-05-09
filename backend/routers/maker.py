@@ -1,7 +1,7 @@
 """Maker self-serve portal: magic-link auth + profile / products / orders endpoints."""
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel, ConfigDict
@@ -386,6 +386,83 @@ async def maker_promote_product(
 
 class AutoRenewPromotionToggle(BaseModel):
     enabled: bool
+
+
+# ───────────── Community boost credits ─────────────
+@router.get("/maker/boost-credits")
+async def maker_boost_credits(slug: str = Depends(current_maker_slug)):
+    """Free 24h promotion credits earned by uploading at least one design
+    file to the community in a given calendar week. Idempotent per ISO
+    week — see `community.grant_weekly_boost_credit`. Returns only the
+    unredeemed, unexpired credits the maker can spend right now."""
+    now_iso_str = now_iso()
+    rows = await db.community_boost_credits.find(
+        {
+            "maker_slug": slug,
+            "consumed_at": None,
+            "expires_at": {"$gt": now_iso_str},
+        },
+        {"_id": 0},
+    ).sort("granted_at", 1).to_list(50)
+    # Plus a lifetime stat for "you've earned N total" UI flourish.
+    lifetime = await db.community_boost_credits.count_documents({"maker_slug": slug})
+    return {"credits": rows, "available": len(rows), "lifetime_earned": lifetime}
+
+
+class BoostCreditRedeem(BaseModel):
+    product_slug: str
+
+
+@router.post("/maker/boost-credits/{credit_id}/redeem", response_model=Product)
+async def maker_redeem_boost_credit(
+    credit_id: str, body: BoostCreditRedeem,
+    slug: str = Depends(current_maker_slug),
+):
+    """Spend a 24h boost credit on one of the caller's published
+    listings. Bumps `promoted_until` by 24h from now (or extends an
+    existing promotion by another 24h). Marks the credit consumed.
+    All-or-nothing — if the listing isn't owned/published, the credit
+    stays unused so the maker can re-target.
+    """
+    credit = await db.community_boost_credits.find_one(
+        {"id": credit_id, "maker_slug": slug, "consumed_at": None},
+        {"_id": 0},
+    )
+    if not credit:
+        raise HTTPException(404, "Credit not found or already used.")
+    now = datetime.now(timezone.utc)
+    if credit.get("expires_at") and credit["expires_at"] < now.isoformat():
+        raise HTTPException(410, "This credit has expired. New uploads earn fresh credits each week.")
+
+    prod = await db.products.find_one({"slug": body.product_slug}, {"_id": 0})
+    if not prod or prod.get("maker_slug") != slug:
+        raise HTTPException(404, "Product not found")
+    if prod.get("status") != "published" or prod.get("deleted_at"):
+        raise HTTPException(400, "Only published listings can be boosted.")
+
+    # Compute new promoted_until: extend if currently promoted, else now+24h
+    hours = int(credit.get("duration_hours") or 24)
+    cur_until_str = prod.get("promoted_until")
+    base = now
+    if cur_until_str:
+        try:
+            cur = datetime.fromisoformat(cur_until_str.replace("Z", "+00:00"))
+            if cur > now:
+                base = cur
+        except Exception:
+            pass
+    new_until = (base + timedelta(hours=hours)).isoformat()
+
+    await db.products.update_one(
+        {"slug": body.product_slug},
+        {"$set": {"promoted_until": new_until}},
+    )
+    await db.community_boost_credits.update_one(
+        {"id": credit_id},
+        {"$set": {"consumed_at": now.isoformat(),
+                  "consumed_for_product_slug": body.product_slug}},
+    )
+    return await db.products.find_one({"slug": body.product_slug}, {"_id": 0})
 
 
 @router.post("/maker/products/{product_slug}/auto-renew-promotion", response_model=Product)

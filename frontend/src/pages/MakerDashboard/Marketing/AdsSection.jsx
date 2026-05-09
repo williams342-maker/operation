@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Calendar, Play, Zap, Flame, RotateCw } from "lucide-react";
+import { Calendar, Play, Zap, Flame, RotateCw, Gift } from "lucide-react";
 import { toast } from "sonner";
 import {
   fetchAutoBoostStatus, fetchMakerMe, fetchMakerProducts,
+  fetchMakerBoostCredits, redeemBoostCredit,
   promoteMakerProduct, setAutoRenewPromotion, updateAutoBoost,
 } from "../../../lib/api";
 import Section from "./Section";
@@ -33,9 +34,15 @@ export default function AdsSection() {
     fetchMakerProducts()
       .then(setProducts)
       .catch(() => setProducts([]));
+  const [creditState, setCreditState] = useState({ credits: [], available: 0, lifetime_earned: 0 });
+  const refreshCredits = () =>
+    fetchMakerBoostCredits()
+      .then(setCreditState)
+      .catch(() => setCreditState({ credits: [], available: 0, lifetime_earned: 0 }));
   useEffect(() => {
     refresh();
     fetchMakerMe().then(setMe).catch(() => setMe(null));
+    refreshCredits();
   }, []);
 
   const isPlus = me?.subscription_status === "active" || me?.subscription_status === "trialing";
@@ -97,6 +104,17 @@ export default function AdsSection() {
     } finally { setBusy(""); }
   };
 
+  const redeemCredit = async (creditId, slug) => {
+    setBusy(`credit:${slug}`);
+    try {
+      await redeemBoostCredit(creditId, slug);
+      toast.success("🎁 Free 24-hour boost applied — thanks for contributing to the community.");
+      await Promise.all([refresh(), refreshCredits()]);
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Redemption failed.");
+    } finally { setBusy(""); }
+  };
+
   return (
     <div className="space-y-6" data-testid="ads-section">
       {/* Hero — what is this? */}
@@ -145,6 +163,39 @@ export default function AdsSection() {
         )}
       </Section>
 
+      {/* Free boost credits earned by community uploads */}
+      {creditState.available > 0 && (
+        <Section
+          title="Free boost credits"
+          eyebrow="Community reward"
+          testId="ads-credits"
+        >
+          <div className="border border-emerald-500/40 bg-emerald-500/5 p-4">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 border border-emerald-400 bg-emerald-500/10 flex items-center justify-center shrink-0">
+                <Gift size={16} className="text-emerald-300" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-mono text-xs text-[#e5e5e5]">
+                  <b className="text-emerald-300 tabular-nums">{creditState.available}</b>{" "}
+                  free 24-hour boost credit{creditState.available === 1 ? "" : "s"} ready to spend
+                </div>
+                <p className="font-mono text-[11px] text-[#a3a3a3] leading-relaxed mt-1">
+                  Earned by uploading a design file to the community this week.
+                  Click <b>Use credit</b> on any listing below to apply 24 hours of
+                  promotion — extends an existing boost if the listing is already promoted.
+                  {creditState.lifetime_earned > creditState.available && (
+                    <span className="block text-[#525252] mt-1">
+                      Lifetime: {creditState.lifetime_earned} credits earned.
+                    </span>
+                  )}
+                </p>
+              </div>
+            </div>
+          </div>
+        </Section>
+      )}
+
       {/* Boost picker */}
       <Section title="Boost a listing" testId="ads-boost">
         <div className="flex flex-wrap items-center gap-3 mb-4">
@@ -184,14 +235,27 @@ export default function AdsSection() {
                     ${p.price?.toFixed(0) ?? 0} · {p.category} · {p.in_stock ?? 0} in stock
                   </div>
                 </div>
-                <button
-                  onClick={() => boost(p.slug)}
-                  disabled={busy === p.slug}
-                  className="px-3 py-1.5 border border-[#ff4500] text-[#ff4500] hover:bg-[#ff4500] hover:text-black font-mono text-[10px] uppercase tracking-[0.22em] font-bold transition disabled:opacity-50 inline-flex items-center gap-1.5"
-                  data-testid={`ads-boost-${p.slug}`}
-                >
-                  <Zap size={11} /> {busy === p.slug ? "…" : `Boost $${weeks * WEEKLY_RATE}`}
-                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                  {creditState.available > 0 && creditState.credits[0] && (
+                    <button
+                      onClick={() => redeemCredit(creditState.credits[0].id, p.slug)}
+                      disabled={busy === `credit:${p.slug}`}
+                      className="px-2.5 py-1.5 border border-emerald-400 text-emerald-300 hover:bg-emerald-400 hover:text-black font-mono text-[10px] uppercase tracking-[0.22em] font-bold transition disabled:opacity-50 inline-flex items-center gap-1.5"
+                      data-testid={`ads-use-credit-${p.slug}`}
+                      title="Apply a free 24-hour boost from your community-upload credit balance"
+                    >
+                      <Gift size={11} /> {busy === `credit:${p.slug}` ? "…" : "Use credit · Free"}
+                    </button>
+                  )}
+                  <button
+                    onClick={() => boost(p.slug)}
+                    disabled={busy === p.slug}
+                    className="px-3 py-1.5 border border-[#ff4500] text-[#ff4500] hover:bg-[#ff4500] hover:text-black font-mono text-[10px] uppercase tracking-[0.22em] font-bold transition disabled:opacity-50 inline-flex items-center gap-1.5"
+                    data-testid={`ads-boost-${p.slug}`}
+                  >
+                    <Zap size={11} /> {busy === p.slug ? "…" : `Boost $${weeks * WEEKLY_RATE}`}
+                  </button>
+                </div>
               </li>
             ))}
           </ul>

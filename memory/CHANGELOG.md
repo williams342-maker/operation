@@ -1,5 +1,56 @@
 # Crafters Market — CHANGELOG
 
+## 2026-05-06 — Community-upload boost credits ✅
+
+Reward loop closed: makers who upload a design file to the community
+in any given calendar week earn one free 24-hour promotion credit they
+can spend on a listing of their choice. Costs the platform nothing
+(it's just a `promoted_until` write), incentivizes the exact behavior
+that powers the new Trending rail, and turns the community into a
+self-sustaining content engine.
+
+### Backend
+- **`backend/routers/community.py`** — New `grant_weekly_boost_credit(maker_slug)`
+  helper, called from BOTH file upload paths (R2-direct + base64).
+  Idempotent per ISO calendar week (you can upload 50 files, you still
+  get one credit). Buyers don't earn the perk — function silently
+  no-ops when `slug` doesn't map to a `makers` row.
+- **`backend/routers/maker.py`** — Two new endpoints:
+  - `GET /api/maker/boost-credits` returns
+    `{credits, available, lifetime_earned}` — only unredeemed,
+    unexpired (30-day TTL) credits surface in `credits`.
+  - `POST /api/maker/boost-credits/{credit_id}/redeem` body
+    `{product_slug}` — bumps the listing's `promoted_until` by 24
+    hours (extends from existing end-time if already promoted), marks
+    the credit consumed. Validates ownership + published status.
+    Returns the updated `Product`.
+- New collection `community_boost_credits`:
+  `{id, maker_slug, iso_week, source, duration_hours, granted_at,
+  expires_at, consumed_at, consumed_for_product_slug}`.
+
+### Frontend
+- **`frontend/src/lib/api.js`** — `fetchMakerBoostCredits()`,
+  `redeemBoostCredit(creditId, productSlug)`.
+- **`frontend/src/pages/MakerDashboard/Marketing/AdsSection.jsx`** —
+  When `available > 0`, shows a new "Free boost credits · Community
+  reward" section above the Boost picker explaining how the credit
+  was earned and what it does. Each eligible listing row gets an
+  emerald "🎁 Use credit · Free" button alongside the paid "Boost $5"
+  button. Toast-confirms redemption.
+
+### Tests
+- **`backend/tests/test_boost_credits.py`** — 4 cases: idempotent grant
+  within an ISO week, unknown-maker silent no-op, redemption extends
+  promoted_until by ~24h + marks consumed (and re-redemption returns
+  404), unowned-listing redemption rejected. All 4 pass.
+
+### Verified
+✅ Granted Iron & Oak Studio a credit, redeemed it against
+`rustic-family-name-sign` — `promoted_until` extended by 24h from
+existing end-time. ✅ Maker dashboard screenshot — emerald "Free boost
+credits" section + 2 "Use credit · Free" buttons on eligible rows.
+
+
 ## 2026-05-06 — Trending Files rail + Secrets-rotation hero banner ✅
 
 ### 1. "Trending this week" rail on Community page
