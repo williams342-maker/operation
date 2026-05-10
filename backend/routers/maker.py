@@ -1782,3 +1782,126 @@ async def maker_update_brief(
         update["won_bid_at"] = now_iso()
     await db.custom_orders.update_one({"id": brief_id}, {"$set": update})
     return {"ok": True, "status": body.status}
+
+
+# ---------------------------------------------------------------------------
+# Maker journal authoring
+# ---------------------------------------------------------------------------
+# Lets a vetted maker publish posts directly into the public Journal feed
+# without admin gatekeeping for every entry. Keeps the editorial cadence high
+# (more content = better SEO + more reasons for buyers to come back) while
+# still recording `created_by_maker` so the admin can quickly demote bad
+# actors. Slug is auto-derived from title with a collision suffix because
+# makers shouldn't have to think about URL paths.
+class MakerJournalCreate(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    title: str
+    excerpt: str
+    body: str
+    cover: Optional[str] = None        # public image URL (R2/CDN/Unsplash); optional
+    read_min: Optional[int] = None     # auto-estimated from body if missing
+
+
+def _estimate_read_min(body: str) -> int:
+    """Rough WPM-based read time. ~225 WPM is the established
+    average for English prose; we round up so a 1-minute-and-1-word
+    post still shows "2 min read"."""
+    words = max(1, len(re.findall(r"\w+", body or "")))
+    return max(1, -(-words // 225))
+
+
+async def _unique_blog_slug(base: str) -> str:
+    """Slug-collision strategy: try the bare slug first, then append
+    -2, -3, etc. Capped at 25 attempts so a runaway title can't hammer
+    Mongo."""
+    base = _slugify(base)
+    if not await db.blog_posts.find_one({"slug": base}, {"_id": 1}):
+        return base
+    for n in range(2, 26):
+        cand = f"{base}-{n}"
+        if not await db.blog_posts.find_one({"slug": cand}, {"_id": 1}):
+            return cand
+    # Last-ditch: append a 6-char random suffix
+    return f"{base}-{uuid.uuid4().hex[:6]}"
+
+
+@router.post("/maker/journal")
+async def maker_create_journal_post(
+    payload: MakerJournalCreate,
+    slug: str = Depends(current_maker_slug),
+):
+    """Publish a journal post under the signed-in maker's brand name.
+
+    The post lands directly in the public feed (no admin queue). We
+    stamp `created_by_maker` so admins can audit/remove if needed,
+    and we cap the body at 50k chars to keep one runaway draft from
+    blowing up the API response when listing posts.
+    """
+    title = (payload.title or "").strip()
+    excerpt = (payload.excerpt or "").strip()
+    body = (payload.body or "").strip()
+    if not title or len(title) < 6:
+        raise HTTPException(422, "Title must be at least 6 characters.")
+    if not excerpt or len(excerpt) < 20:
+        raise HTTPException(422, "Excerpt must be at least 20 characters — give buyers a hook.")
+    if not body or len(body) < 100:
+        raise HTTPException(422, "Body must be at least 100 characters — share enough to make the read worthwhile.")
+    if len(body) > 50_000:
+        raise HTTPException(413, "Body too long — please keep posts under 50,000 characters.")
+    cover = (payload.cover or "").strip() or None
+    if cover and not (cover.startswith("https://") or cover.startswith("http://")):
+        raise HTTPException(422, "Cover image must be a public https:// URL.")
+
+    maker = await db.makers.find_one({"slug": slug}, {"_id": 0, "name": 1, "cover": 1})
+    if not maker:
+        raise HTTPException(404, "Maker not found")
+
+    # If no cover was provided, fall back to the maker's shop cover so
+    # the Journal feed never renders a card with a broken image slot.
+    final_cover = cover or maker.get("cover") or ""
+
+    new_slug = await _unique_blog_slug(title)
+    doc = {
+        "id": str(uuid.uuid4()),
+        "slug": new_slug,
+        "title": title,
+        "excerpt": excerpt,
+        "body": body,
+        "cover": final_cover,
+        "author": maker.get("name") or slug,
+        "read_min": payload.read_min or _estimate_read_min(body),
+        "created_at": now_iso(),
+        "created_by_maker": slug,
+    }
+    await db.blog_posts.insert_one(doc)
+    # Strip Mongo-injected `_id` before returning so the response is
+    # JSON-serializable; insert_one mutates the dict.
+    doc.pop("_id", None)
+    logger.info("[maker.journal] %s published post: %s", slug, new_slug)
+    return doc
+
+
+@router.get("/maker/journal/mine")
+async def maker_my_journal_posts(slug: str = Depends(current_maker_slug)):
+    """List posts authored by the current maker (newest first)."""
+    return await db.blog_posts.find(
+        {"created_by_maker": slug},
+        {"_id": 0},
+    ).sort("created_at", -1).to_list(50)
+
+
+@router.delete("/maker/journal/{post_slug}")
+async def maker_delete_journal_post(
+    post_slug: str,
+    slug: str = Depends(current_maker_slug),
+):
+    """Maker can delete their own posts. We only permit deletion when
+    the `created_by_maker` matches the signed-in maker — admin-seeded
+    posts are off-limits."""
+    res = await db.blog_posts.delete_one({
+        "slug": post_slug,
+        "created_by_maker": slug,
+    })
+    if res.deleted_count == 0:
+        raise HTTPException(404, "Post not found, or not authored by this maker.")
+    return {"ok": True}

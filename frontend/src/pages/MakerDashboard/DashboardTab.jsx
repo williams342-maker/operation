@@ -303,6 +303,25 @@ export default function DashboardTab({
               Tips, case studies, and beta announcements
             </div>
           </Link>
+          {/* Authoring CTA — sits directly under the read link so the
+              two journal-related actions cluster naturally. Orange accent
+              + ✏ glyph mark this as an action (vs. the read links above
+              which just navigate away). */}
+          <Link
+            to="/maker/journal/new"
+            className="block px-4 py-3 border border-[#ff4500]/40 bg-[#1a0a05] hover:border-[#ff4500] transition"
+            data-testid="ql-journal-write"
+          >
+            <div className="flex items-center justify-between">
+              <span className="font-mono text-xs text-[#ff4500] uppercase tracking-[0.18em]">
+                ✏ Write a journal post
+              </span>
+              <ArrowUpRight size={14} className="text-[#ff4500]" />
+            </div>
+            <div className="font-mono text-[10px] text-[#a3a3a3] mt-1">
+              Publish a process, technique, or shop story to /journal
+            </div>
+          </Link>
         </section>
       </div>
     </div>

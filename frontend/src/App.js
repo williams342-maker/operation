@@ -30,6 +30,7 @@ import CheckoutSuccess from "./pages/CheckoutSuccess";
 import MakerLogin from "./pages/MakerLogin";
 import MakerVerify from "./pages/MakerVerify";
 import MakerDashboard from "./pages/MakerDashboard";
+import MakerJournalEditor from "./pages/MakerJournalEditor";
 import MakerStripeReturn from "./pages/MakerStripeReturn";
 import AdminLogin from "./pages/AdminLogin";
 import AdminVerify from "./pages/AdminVerify";
@@ -168,6 +169,7 @@ function App() {
                 <Route path="/maker/login" element={<MakerLogin />} />
                 <Route path="/maker/verify" element={<MakerVerify />} />
                 <Route path="/maker/dashboard" element={<MakerDashboard />} />
+                <Route path="/maker/journal/new" element={<MakerJournalEditor />} />
                 <Route path="/maker/billing" element={<MakerBillingRedirect />} />
                 <Route path="/maker/briefs/:briefId/print" element={<MakerBriefPrintPage />} />
                 <Route path="/maker/stripe/return" element={<MakerStripeReturn />} />

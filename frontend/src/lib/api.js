@@ -535,6 +535,20 @@ export const downloadProductStoryCard = (slug) => {
   a.remove();
 };
 
+// ---------- Maker journal authoring ----------
+// Lets a vetted maker author a journal post directly. Posts land in
+// the same /api/blog feed buyers browse on /journal — no admin queue,
+// makers wear their own reputation.
+export const createMakerJournalPost = (payload) =>
+  http.post("/maker/journal", payload, { headers: authHeaders() }).then((r) => r.data);
+export const fetchMyMakerJournalPosts = () =>
+  http.get("/maker/journal/mine", { headers: authHeaders() }).then((r) => r.data);
+export const deleteMakerJournalPost = (slug) =>
+  http.delete(`/maker/journal/${encodeURIComponent(slug)}`, { headers: authHeaders() })
+    .then((r) => r.data);
+// Single live integration the admin connects through OAuth from the
+// Ads tab. Backend writes synced rows into the same `ad_spend`
+// collection that the existing tab already renders.
 // ---------- Google Ads integration ----------
 // Single live integration the admin connects through OAuth from the
 // Ads tab. Backend writes synced rows into the same `ad_spend`
