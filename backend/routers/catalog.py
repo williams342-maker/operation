@@ -225,6 +225,19 @@ async def get_post(slug: str):
     return doc
 
 
+@router.get("/makers/{maker_slug}/blog")
+async def list_maker_blog_posts(maker_slug: str, limit: int = 6):
+    """Public list of journal posts authored by a specific maker.
+    Powers the "More from this maker" section on the maker profile
+    page. Caps at 12 entries no matter what `limit` says — keeps the
+    response light for the SSR/social-card prerender path."""
+    cap = max(1, min(int(limit or 6), 12))
+    return await db.blog_posts.find(
+        {"created_by_maker": maker_slug},
+        {"_id": 0},
+    ).sort("created_at", -1).limit(cap).to_list(cap)
+
+
 @router.post("/custom-orders", response_model=CustomOrder)
 async def create_custom_order(payload: CustomOrderCreate, bg: BackgroundTasks):
     if not payload.policy_accepted:

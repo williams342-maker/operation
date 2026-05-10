@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { fetchMaker, fetchProducts } from "../lib/api";
+import { fetchMaker, fetchProducts, fetchMakerJournalPosts } from "../lib/api";
 import { useStructuredData } from "../lib/seo";
 import ProductCard from "../components/ProductCard";
 import MakerReviews from "../components/MakerReviews";
@@ -9,17 +9,21 @@ import FollowersList from "../components/FollowersList";
 import ContactMakerModal from "../components/ContactMakerModal";
 import VeteranBadge from "../components/VeteranBadge";
 import RecentShowcaseStrip from "../components/RecentShowcaseStrip";
-import { Mail, Facebook, Instagram, Twitter, Youtube, Globe } from "lucide-react";
+import { Mail, Facebook, Instagram, Twitter, Youtube, Globe, BookOpen, ArrowUpRight } from "lucide-react";
 
 export default function MakerDetail() {
   const { slug } = useParams();
   const [m, setM] = useState(null);
   const [products, setProducts] = useState([]);
+  const [posts, setPosts] = useState([]);
   const [contactOpen, setContactOpen] = useState(false);
 
   useEffect(() => {
     fetchMaker(slug).then(setM);
     fetchProducts({ maker: slug }).then(setProducts);
+    // Maker-authored posts only — falls back to empty array on 404 /
+    // network error so the rail just hides itself.
+    fetchMakerJournalPosts(slug, 3).then(setPosts).catch(() => setPosts([]));
   }, [slug]);
 
   useStructuredData(m ? {
@@ -143,6 +147,11 @@ export default function MakerDetail() {
           />
         </div>
 
+        {/* Maker-authored journal posts — appears only when the maker has
+            actually published. Self-hides for makers who haven't yet —
+            keeps profile pages clean for shops that focus on listings. */}
+        {posts.length > 0 && <MakerJournalRail maker={m} posts={posts} />}
+
         <FollowersList makerSlug={m.slug} />
         <MakerReviews makerSlug={m.slug} makerName={m.name} />
         <Link to="/makers" className="inline-block mt-12 industrial-link font-mono text-xs uppercase tracking-[0.22em]">← All makers</Link>
@@ -185,5 +194,66 @@ function SocialLinks({ maker }) {
         </a>
       ))}
     </div>
+  );
+}
+
+// Up-to-3 maker-authored journal posts surfaced as an editorial rail.
+// Doubles as social proof ("this maker has things to say about their
+// craft") and as a free SEO link from a high-authority profile page
+// to the longer-form post. Stays hidden for makers who haven't
+// published yet so brand-new shops don't render an empty card row.
+function MakerJournalRail({ maker, posts }) {
+  return (
+    <section className="mt-20 pt-10 border-t border-[#262626]" data-testid="maker-journal-rail">
+      <div className="flex items-end justify-between gap-4 mb-8 flex-wrap">
+        <div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.32em] text-[#ff4500] mb-2 flex items-center gap-2">
+            <BookOpen size={12} /> Words from {maker.name?.split(" ")[0] || "the maker"}
+          </div>
+          <h2 className="font-display text-3xl md:text-4xl uppercase">
+            From the journal
+          </h2>
+        </div>
+        <Link
+          to="/journal"
+          className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] transition"
+          data-testid="maker-journal-rail-all"
+        >
+          All journal entries <ArrowUpRight size={11} />
+        </Link>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {posts.map((p) => (
+          <Link
+            key={p.slug}
+            to={`/journal/${p.slug}`}
+            className="group block border border-[#1f1f1f] hover:border-[#ff4500] transition overflow-hidden"
+            data-testid={`maker-journal-rail-post-${p.slug}`}
+          >
+            {p.cover && (
+              <div className="aspect-[16/10] overflow-hidden bg-[#0d0d0d]">
+                <img
+                  src={p.cover}
+                  alt=""
+                  className="w-full h-full object-cover group-hover:scale-[1.03] transition duration-700"
+                  loading="lazy"
+                />
+              </div>
+            )}
+            <div className="p-4">
+              <div className="font-mono text-[9px] uppercase tracking-[0.28em] text-[#525252] mb-2">
+                {(p.created_at || "").slice(0, 10)} · {p.read_min || 4} min read
+              </div>
+              <h3 className="font-display text-lg uppercase leading-tight group-hover:text-[#ff4500] transition mb-2 line-clamp-2">
+                {p.title}
+              </h3>
+              <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed line-clamp-3">
+                {p.excerpt}
+              </p>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </section>
   );
 }

@@ -546,6 +546,13 @@ export const fetchMyMakerJournalPosts = () =>
 export const deleteMakerJournalPost = (slug) =>
   http.delete(`/maker/journal/${encodeURIComponent(slug)}`, { headers: authHeaders() })
     .then((r) => r.data);
+
+// Public list of one maker's journal posts — no auth, surfaced on
+// /makers/<slug> as a "More from this maker" rail.
+export const fetchMakerJournalPosts = (makerSlug, limit = 6) =>
+  http.get(`/makers/${encodeURIComponent(makerSlug)}/blog`,
+    { params: { limit } }
+  ).then((r) => r.data);
 // Single live integration the admin connects through OAuth from the
 // Ads tab. Backend writes synced rows into the same `ad_spend`
 // collection that the existing tab already renders.
