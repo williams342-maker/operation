@@ -566,6 +566,22 @@ async def _job_google_ads_daily_sync() -> None:
         logger.exception("[scheduler] google_ads_daily_sync failed: %s", e)
 
 
+async def _job_maker_journal_digest() -> None:
+    """Weekly Monday 14:00 UTC — for each maker who published one or
+    more journal posts in the past 7 days, send a single digest email
+    to every buyer who follows them. Idempotent: per (maker, follower)
+    we record `journal_digest_sent_at` keyed by ISO week so re-running
+    in the same week is a no-op. Re-engages buyers who bought once and
+    forgot the maker exists, without polluting inboxes — capped to one
+    email per maker per week regardless of post count."""
+    try:
+        from routers.journal_digest import run_weekly_digest
+        r = await run_weekly_digest()
+        logger.info("[scheduler] maker_journal_digest: %s", r)
+    except Exception as e:
+        logger.exception("[scheduler] maker_journal_digest failed: %s", e)
+
+
 
 
 def start_scheduler() -> AsyncIOScheduler | None:
@@ -683,6 +699,13 @@ def start_scheduler() -> AsyncIOScheduler | None:
     sched.add_job(_job_google_ads_daily_sync,
                   CronTrigger(hour=3, minute=30),
                   id="google_ads_daily_sync", replace_existing=True)
+    # Weekly maker-journal digest — Monday 14:00 UTC (≈ 9am ET / 6am PT
+    # — buyers tend to read on the train/over coffee, not 2am). Sends
+    # one email per (maker, follower) pair summarizing all of that
+    # maker's posts from the trailing 7 days. Idempotent on ISO week.
+    sched.add_job(_job_maker_journal_digest,
+                  CronTrigger(day_of_week="mon", hour=14, minute=0),
+                  id="maker_journal_digest", replace_existing=True)
     sched.start()
     _scheduler = sched
     logger.info(

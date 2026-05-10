@@ -1,5 +1,15 @@
 # Crafters Market — CHANGELOG
 
+## 2026-02 — iter140 · Weekly maker-journal digest emails ✅
+
+**Public:** Follow a maker, get a weekly email when they publish a new journal post. One digest per maker per week — never inbox spam, even if a maker publishes ten posts in a row. Re-engages buyers who bought from a maker once and forgot they exist.
+
+- Backend: `routers/journal_digest.py` — `run_weekly_digest()` worker, fan-out across `db.follows`, idempotent on `journal_digest_log` keyed `{ISO-week}:{maker}:{follower}`. Fails-soft if SMTP errors so retry next week is safe.
+- Scheduler: `_job_maker_journal_digest` runs Monday 14:00 UTC (≈9am ET), capped to 5 posts per maker per email.
+- Email template: `send_maker_journal_digest()` — editorial card layout matching the journal feed, with cover/title/excerpt/CTA per post + "Unfollow" link to the maker page.
+- Admin: `POST /api/admin/journal-digest/run?dry_run=true|false&only_maker={slug}&lookback_days={1-30}` for manual preview/trigger; `GET /api/admin/journal-digest/recent` for audit log.
+- End-to-end verified: dry-run, live send, idempotency on second run, audit log all pass.
+
 ## 2026-02 — iter139 · Drag-drop image embeds in journal posts ✅
 
 **Public:** Maker journal posts can now include photos. Drop a phone shot of your finished piece directly into the editor and it embeds inline — same workflow as Instagram, no upload-then-paste-URL dance.

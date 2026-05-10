@@ -2105,3 +2105,74 @@ async def send_coming_soon_launch_announcement(*, email: str, name: str, categor
     )
     html = _shell("It's live.", f"{category} is open. Here's your first look.", body, f"Launch · {category}")
     return await _send(email, f"[Crafters Market] {category} is live — your first look", html)
+
+
+
+# ---------------------------------------------------------------------------
+# Maker Journal Digest — sent to buyers who follow a maker that just shipped
+# new journal posts in the past week. One combined email per (maker, follower)
+# regardless of post count, capped to once per ISO week so we never re-email
+# the same follower for the same digest window.
+# ---------------------------------------------------------------------------
+async def send_maker_journal_digest(
+    follower_email: str,
+    follower_name: str,
+    maker_name: str,
+    maker_slug: str,
+    posts: list[dict],
+):
+    """One email summarizing 1+ new journal posts from a maker the buyer
+    follows. `posts` is a list of `{slug, title, excerpt, cover, read_min}`.
+    Designed to read like a curated one-from-the-shop note — not a generic
+    blast — so makers feel like the digest carries their voice."""
+    site = (os.environ.get("PUBLIC_SITE_URL") or os.environ.get("FRONTEND_URL")
+            or "https://craftersmarket.org").rstrip("/")
+    n = len(posts)
+    intro_word = "post" if n == 1 else "posts"
+    intro = (
+        f"{maker_name} just published {n} new journal {intro_word}. "
+        f"You follow their shop, so we thought you'd want first look."
+    )
+    cards = ""
+    for p in posts:
+        slug = p.get("slug") or ""
+        title = p.get("title") or "Untitled"
+        excerpt = (p.get("excerpt") or "")[:240]
+        read = p.get("read_min") or 4
+        href = f"{site}/journal/{slug}"
+        cover = p.get("cover") or ""
+        cover_block = (
+            f"<a href='{href}' style='display:block;text-decoration:none'>"
+            f"<img src='{cover}' alt='' style='display:block;width:100%;height:auto;border:1px solid #262626'/></a>"
+            if cover else ""
+        )
+        cards += (
+            "<div style='margin:0 0 24px;padding:0 0 24px;border-bottom:1px solid #262626'>"
+            f"{cover_block}"
+            "<div style='font-size:10px;color:#525252;letter-spacing:0.22em;text-transform:uppercase;margin:14px 0 6px'>"
+            f"◆ {read} min read</div>"
+            f"<a href='{href}' style='text-decoration:none;color:#e5e5e5'>"
+            f"<h2 style='font-family:Impact,Arial Black,sans-serif;font-size:24px;margin:0 0 10px;line-height:1.1;text-transform:uppercase'>{title}</h2></a>"
+            f"<p style='font-size:14px;line-height:1.6;color:#a3a3a3;margin:0 0 14px'>{excerpt}</p>"
+            f"<a href='{href}' style='display:inline-block;background:#ff4500;color:#0a0a0a;text-decoration:none;"
+            "font-weight:700;padding:10px 18px;font-size:11px;letter-spacing:0.18em;text-transform:uppercase'>Read post →</a>"
+            "</div>"
+        )
+    # Unsubscribe = unfollow the maker. We deep-link to the maker page
+    # with a `#followers` anchor where the FollowButton lives.
+    unfollow_href = f"{site}/makers/{maker_slug}"
+    cards += (
+        "<p style='font-size:11px;line-height:1.55;color:#525252;margin:24px 0 0'>"
+        f"You're getting this because you follow <strong style='color:#a3a3a3'>{maker_name}</strong>. "
+        f"<a href='{unfollow_href}' style='color:#a3a3a3;text-decoration:underline'>Unfollow</a> to stop these digests. "
+        "Capped to one digest per maker per week."
+        "</p>"
+    )
+    title = f"Words from {maker_name}"
+    html = _shell(title, intro, cards, f"Journal · {maker_name}")
+    subj = (
+        f"[Crafters Market] {maker_name} just published a new journal post"
+        if n == 1 else
+        f"[Crafters Market] {maker_name} just published {n} new journal posts"
+    )
+    return await _send(follower_email, subj, html)
