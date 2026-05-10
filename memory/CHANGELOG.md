@@ -1,6 +1,9 @@
 # Crafters Market — CHANGELOG
 
 ## 2026-02 — iter135 · Processing Profiles in DB + dashboard alert audit ✅
+
+**Public:** Your custom ship-time profiles now sync across devices. Save a "Made to order · 5-7 weeks" preset on your laptop and it's there when you open the editor on your phone — no more re-typing the same options on every device.
+
 **Cross-device sync for ship-time presets** + 2 stale-state alert bugs squashed.
 
 ### P2 — Processing Profiles synced to DB
@@ -18,6 +21,9 @@
 - (Previously fixed in iter134) `o.status` → `o.order_status` field-name mismatch on shipped-order alerts.
 
 ## 2026-02 — iter134 · Google Ads live integration scaffold ✅
+
+**Public:** Connect your Google Ads account to Crafters Market. Once linked, your daily campaign spend, clicks, and conversions flow into the admin Ads tab automatically — no spreadsheet shuffling or daily logins required.
+
 **Real off-site ad spend reporting (read-only).** Full OAuth + daily sync scaffold so the moment the user obtains their dev token + OAuth credentials, it's a 5-minute paste-and-go.
 
 - Backend router `/app/backend/routers/google_ads.py`:
@@ -38,6 +44,9 @@
 - 2026 catches encoded into the SDK config: `use_proto_plus=True` (mandatory in google-ads ≥14), hyphen-stripped `login_customer_id`, `prompt=consent` to force refresh-token issuance even on re-authorization.
 
 ## 2026-02 — iter133 · Instagram/TikTok Story template generator ✅
+
+**Public:** One-click Instagram & TikTok story templates for every listing. Download a ready-to-post 9:16 image with your hero shot, price, and a scan-to-shop QR code — buyers tap it on their phone and land straight on your product page.
+
 **One-click 9:16 share-kit for makers.** Server-rendered 1080×1920 PNG composites hero image + maker brand pill + product title + price + scan-to-shop QR code (UTM-tagged `?utm_source=story&utm_medium=qr`) using Pillow + qrcode.
 
 - `GET /api/products/{slug}/story-card.png` — public, attachment download, 1h CDN cache, 404 on unpublished/missing slug. Source: `/app/backend/routers/story_card.py`.

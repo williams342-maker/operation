@@ -119,10 +119,39 @@ def _trim_sentence(text: str) -> str:
     return cut.rstrip() + "…"
 
 
+def _public_override(body: str) -> Optional[tuple[str, str]]:
+    """Look for a `**Public:** ...` line at the top of an entry body.
+
+    The convention lets us hand-author a friendly headline + blurb that
+    bypasses the engineering-flavored heading. Format:
+        **Public:** Short headline. Optional longer sentence used as blurb.
+    First sentence (everything up to first ". " or end of line) becomes
+    the title; the rest becomes the blurb. Either part can be empty.
+    """
+    m = re.search(r"\*\*Public:?\*\*\s*(.+?)(?:\n\n|\n\*\*|$)", body, re.DOTALL)
+    if not m:
+        return None
+    text = m.group(1).strip().replace("\n", " ")
+    text = re.sub(r"\s{2,}", " ", text)
+    if not text:
+        return None
+    # Split on the first sentence boundary. If there's no period, the
+    # whole line is the title and blurb is empty.
+    parts = re.split(r"(?<=\.)\s+", text, maxsplit=1)
+    title = parts[0].rstrip(".").strip()
+    blurb = parts[1].strip() if len(parts) > 1 else ""
+    return (title, blurb)
+
+
 def _parse_changelog(raw: str, limit: int) -> List[dict]:
     """Walk the markdown and return up to `limit` entries newest-first.
 
     Each entry: {date, iter, title, blurb}.
+
+    Title/blurb resolution priority:
+      1. `**Public:** …` line in the body — full override, bypass humanize.
+      2. Heading title (run through `_humanize_title`) + first matching
+         narrative line (`**Why:**` / `**Context:**` / first prose).
     """
     matches = list(_HEADING_RE.finditer(raw))
     if not matches:
@@ -132,8 +161,16 @@ def _parse_changelog(raw: str, limit: int) -> List[dict]:
         body_start = m.end()
         body_end = matches[i + 1].start() if i + 1 < len(matches) else len(raw)
         body = raw[body_start:body_end]
-        title = _humanize_title(m.group("title"))
-        blurb = _extract_blurb(body)
+        override = _public_override(body)
+        if override:
+            title, blurb = override
+            # Fall back to the regular blurb extractor if author left the
+            # body half blank — keeps cards from looking empty.
+            if not blurb:
+                blurb = _extract_blurb(body)
+        else:
+            title = _humanize_title(m.group("title"))
+            blurb = _extract_blurb(body)
         entries.append({
             "date": m.group("date"),
             "iter": m.group("iter") or "",
