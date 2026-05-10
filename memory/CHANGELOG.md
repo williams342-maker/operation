@@ -1,5 +1,12 @@
 # Crafters Market — CHANGELOG
 
+## 2026-02 — iter138 · Maker journal rail on profile pages ✅
+
+**Public:** Each maker's profile page now shows their three most recent journal posts in an editorial rail under the showcase strip. Buyers landing on a maker's page get an instant "this maker has things to say about their craft" signal — and a free SEO link from the high-authority profile to the longer-form post.
+
+- Backend: `GET /api/makers/{slug}/blog?limit=N` (public, capped at 12).
+- Frontend: `MakerJournalRail` rendered on `/makers/<slug>` between the showcase strip and the Followers list. Self-hides for makers with zero posts so brand-new shops stay clean. Editorial card layout (cover image + date/read-time eyebrow + title + 3-line excerpt) matching the main /journal feed.
+
 ## 2026-02 — iter137 · Maker journal authoring + 6 new seed entries ✅
 
 **Public:** Makers can now publish their own stories on the Crafters Market journal. Hit "Write a journal post" from your dashboard, share a process or technique, and your post lands on /journal alongside the editorial entries — buyers find your work organically through SEO without you paying for ads.
