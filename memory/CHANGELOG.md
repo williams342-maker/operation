@@ -1,5 +1,22 @@
 # Crafters Market — CHANGELOG
 
+## 2026-02 — iter135 · Processing Profiles in DB + dashboard alert audit ✅
+**Cross-device sync for ship-time presets** + 2 stale-state alert bugs squashed.
+
+### P2 — Processing Profiles synced to DB
+- `Maker.processing_profiles: List[dict]` field on the maker model. Shape: `[{id, kind, range}]`.
+- `MakerProfileUpdate.processing_profiles` accepts the same on PATCH.
+- `ProcessingProfilePicker` now takes optional `maker` + `onMakerUpdated` props. When provided:
+  - Initial state seeded from `maker.processing_profiles` (server) instead of localStorage.
+  - Add/remove flows write through to `PATCH /api/maker/profile` while keeping a localStorage mirror for instant feedback / offline use.
+  - **One-shot migration on mount**: if server has none but localStorage has profiles, push local → server (idempotent via `migratedRef`).
+- `MakerListingEditor.jsx` wires the picker with `maker={maker} onMakerUpdated={setMaker}` so saves round-trip the loaded maker doc.
+- End-to-end verified: PATCH persists, GET returns saved array, UI custom-profile creation lands in MongoDB.
+
+### Audit — dashboard alert stale-state bugs
+- **Beta countdown alert never fired**: `DashboardTab.jsx` line 599 read `maker.maker_beta_expires_at` but the actual model field is `maker.beta_expires_at`. Fixed.
+- (Previously fixed in iter134) `o.status` → `o.order_status` field-name mismatch on shipped-order alerts.
+
 ## 2026-02 — iter134 · Google Ads live integration scaffold ✅
 **Real off-site ad spend reporting (read-only).** Full OAuth + daily sync scaffold so the moment the user obtains their dev token + OAuth credentials, it's a 5-minute paste-and-go.
 

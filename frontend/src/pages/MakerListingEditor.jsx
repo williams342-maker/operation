@@ -1008,6 +1008,8 @@ export default function MakerListingEditor() {
           <ProcessingProfilePicker
             value={form.processing_time}
             onChange={(v) => set({ processing_time: v })}
+            maker={maker}
+            onMakerUpdated={setMaker}
           />
         </Section>
 

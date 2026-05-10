@@ -217,6 +217,14 @@ class Maker(BaseModel):
     # maker's profile hero. Free / honor-system today; we may add doc upload
     # verification later (DoD DD-214 / VA proof).
     is_veteran_owned: bool = False
+    # ---- Processing profiles (saved Etsy-style ship-time presets) ----
+    # Custom turnaround presets (e.g. "Made to order · 5-7 weeks") that
+    # the maker has saved in the Listing Editor's processing-time
+    # picker. Persisted server-side so they carry over across devices
+    # and browser sessions; the legacy localStorage value is migrated
+    # on first PATCH after rollout.
+    # Shape: [{id, kind, range}] — see ProcessingProfilePicker.jsx.
+    processing_profiles: List[dict] = []
     # ---- Restock waitlist digest opt-out (iter113) ----
     # Default false → maker is opted IN to the weekly Sunday digest.
     # Toggling ON suppresses the email entirely (the cron filters them out).
@@ -543,6 +551,8 @@ class MakerProfileUpdate(BaseModel):
     is_veteran_owned: Optional[bool] = None
     restock_digest_opt_out: Optional[bool] = None
     watermark_images: Optional[bool] = None
+    # Saved processing profile presets — see Maker.processing_profiles.
+    processing_profiles: Optional[List[dict]] = None
     # Etsy-style Info & Appearance
     shop_title: Optional[str] = None
     order_receipt_banner_url: Optional[str] = None

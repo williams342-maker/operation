@@ -596,8 +596,12 @@ function TodayAlerts({ maker, orders, products, unreadMessages, onTabChange }) {
     }
 
     // --- Beta countdown ---
-    if (maker?.maker_beta_expires_at) {
-      const exp = new Date(maker.maker_beta_expires_at).getTime();
+    // Field on the Maker model is `beta_expires_at` (not
+    // `maker_beta_expires_at`) — the previous prefix typo meant this
+    // alert never fired even when a maker's Founding Seller window
+    // was about to lapse.
+    if (maker?.beta_expires_at) {
+      const exp = new Date(maker.beta_expires_at).getTime();
       const daysLeft = Math.ceil((exp - now) / dayMs);
       if (daysLeft > 0 && daysLeft <= 14) {
         out.push({

@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Check, Plus, X, Trash2 } from "lucide-react";
+import { updateMakerProfile } from "../lib/api";
 
 const STORAGE = "cm_proc_profiles_v1";
 
@@ -25,29 +26,73 @@ const profileLabel = (p) => `${p.kind} · ${p.range}`;
  * canonical value is still the `processing_time` string the parent
  * stores on the listing (e.g. "Made to order · 1-2 weeks"); we just
  * give makers a richer chooser + the ability to save reusable custom
- * profiles in localStorage.
+ * profiles.
  *
- * Why localStorage instead of server-side?
- *   - Profiles are scoped per-browser per-maker; the actual listing
- *     value is what gets persisted to the server.
- *   - Keeps the change zero-migration.
+ * Persistence: when a `maker` object is provided, custom profiles
+ * round-trip through `PATCH /api/maker/profile` so they carry across
+ * devices. On first mount we one-shot-migrate any existing
+ * localStorage profiles into the maker doc (then leave the local copy
+ * as a read-through fallback for offline/legacy use).
+ *
+ * Without a `maker` prop the component still works in a localStorage-
+ * only mode — useful for any embed where we don't have the maker doc
+ * loaded yet (rare, but keeps the contract resilient).
  */
-export default function ProcessingProfilePicker({ value, onChange }) {
-  const [custom, setCustom] = useState([]);
-  const [creating, setCreating] = useState(false);
-  const [draft, setDraft] = useState({ kind: "Made to order", range: "1-2 weeks" });
-
-  // Load custom profiles
-  useEffect(() => {
+export default function ProcessingProfilePicker({ value, onChange, maker, onMakerUpdated }) {
+  // Initial state: prefer server-side profiles when we have them; fall
+  // back to localStorage. Both are arrays of `{id, kind, range}`.
+  const [custom, setCustom] = useState(() => {
+    if (Array.isArray(maker?.processing_profiles) && maker.processing_profiles.length) {
+      return maker.processing_profiles;
+    }
     try {
       const raw = localStorage.getItem(STORAGE);
-      if (raw) setCustom(JSON.parse(raw) || []);
-    } catch { /* ignore */ }
-  }, []);
+      return raw ? (JSON.parse(raw) || []) : [];
+    } catch { return []; }
+  });
+  const [creating, setCreating] = useState(false);
+  const [draft, setDraft] = useState({ kind: "Made to order", range: "1-2 weeks" });
+  const migratedRef = useRef(false);
 
+  // Sync down whenever the maker doc changes (e.g. parent reloaded).
+  // Only when the server has ANY value — otherwise we'd clobber the
+  // pre-migration localStorage copy.
+  useEffect(() => {
+    if (Array.isArray(maker?.processing_profiles) && maker.processing_profiles.length) {
+      setCustom(maker.processing_profiles);
+    }
+  }, [maker?.processing_profiles]);
+
+  // One-shot migration: if the server has none but localStorage has
+  // some, push them up. Idempotent via `migratedRef` so a re-render
+  // doesn't spam the API.
+  useEffect(() => {
+    if (migratedRef.current) return;
+    if (!maker) return;
+    const serverProfiles = Array.isArray(maker.processing_profiles) ? maker.processing_profiles : [];
+    if (serverProfiles.length > 0) { migratedRef.current = true; return; }
+    let local = [];
+    try {
+      const raw = localStorage.getItem(STORAGE);
+      local = raw ? (JSON.parse(raw) || []) : [];
+    } catch { /* ignore */ }
+    if (local.length === 0) { migratedRef.current = true; return; }
+    migratedRef.current = true;
+    updateMakerProfile({ processing_profiles: local })
+      .then((updated) => onMakerUpdated?.(updated))
+      .catch(() => { /* graceful — keeps localStorage copy until next attempt */ });
+  }, [maker, onMakerUpdated]);
+
+  // Single source-of-truth persistence helper. Writes to local first
+  // (instant feedback even if the API is slow) then patches the maker.
   const persist = (next) => {
     setCustom(next);
     try { localStorage.setItem(STORAGE, JSON.stringify(next)); } catch { /* ignore */ }
+    if (maker) {
+      updateMakerProfile({ processing_profiles: next })
+        .then((updated) => onMakerUpdated?.(updated))
+        .catch(() => { /* user keeps their local copy; next save retries */ });
+    }
   };
 
   const profiles = useMemo(() => [...BUILT_INS, ...custom], [custom]);
