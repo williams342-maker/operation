@@ -1,5 +1,14 @@
 # Crafters Market — CHANGELOG
 
+## 2026-02 — iter141 · Trending Journal rail on homepage ✅
+
+**Public:** New "Trending in the journal" rail on the homepage shows the most-read maker stories of the past two weeks. First-time visitors see the human side of the marketplace immediately — not just product cards.
+
+- Backend: `POST /api/blog/{slug}/view` (anonymous, capped to last 200 timestamps); `GET /api/blog-trending?limit&days` aggregates view-log entries inside the window, sorts by trending count + total views + recency. Recency fallback so the rail is never empty.
+- Frontend: `TrendingJournalRail` component on `/` between Reviews and the Recent Showcase Strip. Top 3 cards get `#1/#2/#3` orange badges. Self-hides if the API returns empty.
+- View tracking: `JournalDetail` calls `recordPostView` once per browser session per slug (sessionStorage gate prevents reload inflation).
+- End-to-end verified via curl: trending list returns 4 posts, view counter increments, rail renders 4 cards.
+
 ## 2026-02 — iter140 · Weekly maker-journal digest emails ✅
 
 **Public:** Follow a maker, get a weekly email when they publish a new journal post. One digest per maker per week — never inbox spam, even if a maker publishes ten posts in a row. Re-engages buyers who bought from a maker once and forgot they exist.

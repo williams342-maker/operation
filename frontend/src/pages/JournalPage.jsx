@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { fetchPosts, fetchPost } from "../lib/api";
+import { fetchPosts, fetchPost, recordPostView } from "../lib/api";
 import { useStructuredData } from "../lib/seo";
 import JournalBody from "../components/JournalBody";
 
@@ -50,7 +50,17 @@ export function JournalPage() {
 export function JournalDetail() {
   const { slug } = useParams();
   const [p, setP] = useState(null);
-  useEffect(() => { fetchPost(slug).then(setP); }, [slug]);
+  useEffect(() => {
+    fetchPost(slug).then(setP);
+    // Best-effort view increment — capped to once per browser session
+    // per slug so reloads don't inflate the trending count. Silently
+    // no-ops if the API call fails.
+    const k = `cm_blog_view:${slug}`;
+    if (!sessionStorage.getItem(k)) {
+      sessionStorage.setItem(k, "1");
+      recordPostView(slug);
+    }
+  }, [slug]);
 
   useStructuredData({
     title: p ? `${p.title} · Crafters Market Journal` : undefined,

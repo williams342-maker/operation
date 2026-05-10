@@ -54,6 +54,14 @@ export const fetchReviews = (params) => http.get("/reviews", { params }).then((r
 export const submitReview = (payload) => http.post("/reviews", payload).then((r) => r.data);
 export const fetchPosts = () => http.get("/blog").then((r) => r.data);
 export const fetchPost = (slug) => http.get(`/blog/${slug}`).then((r) => r.data);
+// Top-clicked journal posts in the last N days. Powers the homepage
+// Trending Journal rail. Falls back to recency on a fresh deploy.
+export const fetchTrendingPosts = (limit = 4, days = 14) =>
+  http.get("/blog-trending", { params: { limit, days } }).then((r) => r.data);
+// Best-effort view counter — silenced on failure (analytics shouldn't
+// surface as a UX error).
+export const recordPostView = (slug) =>
+  http.post(`/blog/${encodeURIComponent(slug)}/view`).then((r) => r.data).catch(() => null);
 export const fetchActivity = (limit = 10) => http.get("/activity", { params: { limit } }).then((r) => r.data);
 export const fetchShopOfTheWeek = () => http.get("/shop-of-the-week").then((r) => r.data);
 export const submitCustomOrder = (payload) => http.post("/custom-orders", payload).then((r) => r.data);

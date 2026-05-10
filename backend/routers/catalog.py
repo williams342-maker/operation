@@ -238,6 +238,76 @@ async def list_maker_blog_posts(maker_slug: str, limit: int = 6):
     ).sort("created_at", -1).limit(cap).to_list(cap)
 
 
+@router.post("/blog/{slug}/view")
+async def increment_blog_view(slug: str):
+    """Lightweight click-counter — bumps `views` on a blog post.
+
+    Powers the homepage Trending Journal rail. We accept any caller
+    (no auth) because the rail is a public discovery surface and the
+    counter only drives ordering, not ranking that affects revenue.
+    Per-post timestamp window approach (not unique-IP) keeps the
+    backend cheap; bot inflation is mitigated downstream by capping
+    a single client to 1 increment per post per browser session via
+    the frontend (sessionStorage)."""
+    res = await db.blog_posts.update_one(
+        {"slug": slug},
+        {
+            "$inc": {"views": 1},
+            "$push": {
+                "view_log": {
+                    "$each": [now_iso()],
+                    "$slice": -200,  # keep last 200 timestamps
+                },
+            },
+        },
+    )
+    if res.matched_count == 0:
+        raise HTTPException(404, "Post not found")
+    return {"ok": True}
+
+
+@router.get("/blog-trending", response_model=List[BlogPost])
+async def trending_blog_posts(limit: int = 6, days: int = 14):
+    """Top-clicked journal posts in the last `days` window. Window
+    is calculated against the truncated `view_log` so a viral post
+    from 6 months ago doesn't dominate forever — only views inside
+    the window count toward the trending sort.
+
+    Falls back to recency for the "no clicks yet" case so the rail
+    is never empty on a fresh deploy.
+    """
+    days = max(1, min(int(days or 14), 60))
+    cap = max(1, min(int(limit or 6), 12))
+    since_iso = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat().replace("+00:00", "Z")
+
+    # Aggregation: count entries in `view_log` ≥ since_iso, then sort.
+    pipeline = [
+        {"$project": {
+            "_id": 0,
+            "slug": 1, "title": 1, "excerpt": 1, "body": 1, "cover": 1,
+            "author": 1, "read_min": 1, "created_at": 1, "id": 1,
+            "views": {"$ifNull": ["$views", 0]},
+            "trend_views": {
+                "$size": {
+                    "$filter": {
+                        "input": {"$ifNull": ["$view_log", []]},
+                        "as": "ts",
+                        "cond": {"$gte": ["$$ts", since_iso]},
+                    },
+                },
+            },
+        }},
+        {"$sort": {"trend_views": -1, "views": -1, "created_at": -1}},
+        {"$limit": cap},
+    ]
+    out = await db.blog_posts.aggregate(pipeline).to_list(cap)
+    # Drop the trend_views/views helpers from the response so it
+    # validates cleanly against BlogPost — they're sort keys only.
+    for p in out:
+        p.pop("trend_views", None)
+    return out
+
+
 @router.post("/custom-orders", response_model=CustomOrder)
 async def create_custom_order(payload: CustomOrderCreate, bg: BackgroundTasks):
     if not payload.policy_accepted:

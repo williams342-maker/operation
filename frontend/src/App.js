@@ -58,6 +58,7 @@ import CNCEmblem from "./components/CNCEmblem";
 import NewsletterSignup from "./components/NewsletterSignup";
 import RecentShowcaseStrip from "./components/RecentShowcaseStrip";
 import TrendingForumStrip from "./components/TrendingForumStrip";
+import TrendingJournalRail from "./components/TrendingJournalRail";
 import { Toaster } from "sonner";
 import { trackPageview, captureAttribution } from "./lib/analytics";
 import { useSiteSettings } from "./hooks/useSiteSettings";
@@ -87,6 +88,7 @@ const Home = () => {
       <ForMakers />
       <CNCEmblem />
       <Reviews />
+      <TrendingJournalRail />
       <RecentShowcaseStrip
         eyebrow="◆ From the community"
         title="Recently shared by buyers"
