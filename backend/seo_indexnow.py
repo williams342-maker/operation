@@ -22,6 +22,7 @@ from __future__ import annotations
 import os
 import secrets
 from typing import Optional
+from urllib.parse import urlparse
 
 import httpx
 
@@ -106,10 +107,40 @@ async def _collect_recent_urls(budget: int) -> list[str]:
         if b.get("slug"):
             urls.append(f"{site}/journal/{b['slug']}")
 
+    # Defensive sanitizer — IndexNow returns 422
+    # ("URLs are not related to your site verified through the keylocation")
+    # whenever ANY url's parsed host doesn't exactly match the keyLocation
+    # host. Catch that here so one weird slug doesn't fail the whole batch.
+    expected_host = site.replace("https://", "").replace("http://", "").rstrip("/").lower()
+    cleaned: list[str] = []
+    for u in urls:
+        try:
+            parsed = urlparse(u)
+        except Exception:
+            logger.warning("[indexnow] skipping unparseable url: %r", u)
+            continue
+        if parsed.scheme not in ("http", "https"):
+            logger.warning("[indexnow] skipping non-http url: %r", u)
+            continue
+        if (parsed.netloc or "").lower() != expected_host:
+            # Catches accidental `www.` prefixes, port mismatches, or
+            # slugs that contained slashes/dots that broke the URL.
+            logger.warning("[indexnow] skipping host-mismatched url: %r (expected %s)",
+                           u, expected_host)
+            continue
+        # Reject slugs that look like they contain control chars or
+        # whitespace. URL-encode if absolutely needed, but the safer
+        # route is to drop — IndexNow is allergic to anything weird.
+        path = parsed.path or "/"
+        if any(ch in path for ch in (" ", "\t", "\n", "\r", "\\")):
+            logger.warning("[indexnow] skipping path with whitespace: %r", u)
+            continue
+        cleaned.append(u)
+
     # De-dupe while preserving order; cap at 10,000 (the IndexNow per-call max).
     seen: set[str] = set()
     deduped: list[str] = []
-    for u in urls:
+    for u in cleaned:
         if u not in seen:
             seen.add(u)
             deduped.append(u)

@@ -12,6 +12,7 @@ const links = [
   { label: "Custom", href: "/custom-order", route: true },
   { label: "Community", href: "/community", route: true },
   { label: "Journal", href: "/journal", route: true },
+  { label: "What's new", href: "/updates", route: true },
   { label: "Contact", href: "/contact", route: true },
 ];
 

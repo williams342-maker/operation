@@ -26,12 +26,22 @@ router = APIRouter()
 CHANGELOG_PATH = Path("/app/memory/CHANGELOG.md")
 DEFAULT_LIMIT = 20
 
-# Heading regex — every entry starts with: "## YYYY-MM — iterNN — Title …"
+# Heading regex — every entry starts with: "## YYYY-MM[-DD] [— iterNN][ — | · ]Title"
+# Both `iter` and the date suffix are optional so we accept the multiple
+# heading formats accumulated across the project's history:
+#   "## 2026-02 — iter135 · Title …"   (iter135 with bullet separator)
+#   "## 2026-02 — iter134 — Title …"   (iter with em-dash)
+#   "## 2026-05-06 — Title …"          (legacy: no iter, full date)
+#   "## 2026-02 · Title …"             (date + bullet only)
+# The separator after iter (if present) can be em-dash, en-dash, hyphen,
+# bullet, or colon. The day-of-month chunk is captured but discarded — we
+# group entries by month on the public page.
 _HEADING_RE = re.compile(
     r"^##\s+"
-    r"(?P<date>\d{4}-\d{2})"
-    r"\s+—\s+iter(?P<iter>[\w]+)"
-    r"\s+—\s+(?P<title>.+?)\s*$",
+    r"(?P<date>\d{4}-\d{2})(?:-\d{2})?"
+    r"(?:\s*[—–\-·:]\s*iter(?P<iter>[\w]+))?"
+    r"\s*[—–\-·:]\s*"
+    r"(?P<title>.+?)\s*$",
     re.MULTILINE,
 )
 
@@ -126,7 +136,7 @@ def _parse_changelog(raw: str, limit: int) -> List[dict]:
         blurb = _extract_blurb(body)
         entries.append({
             "date": m.group("date"),
-            "iter": m.group("iter"),
+            "iter": m.group("iter") or "",
             "title": title,
             "blurb": blurb,
         })
