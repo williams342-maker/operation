@@ -50,6 +50,33 @@ export default function DashboardTab({
     () => orders.reduce((s, o) => s + (Number(o.total_cents || 0) / 100), 0),
     [orders],
   );
+  // Split the "recent orders" surface into two purposeful columns:
+  //   • Awaiting shipment — un-fulfilled paid orders, oldest-first so the
+  //     ones rotting longest land at the top. This is the maker's daily
+  //     to-do list — it should never get buried under fulfilled rows.
+  //   • Recent fulfilled — last 5 shipped orders, newest-first. Provides
+  //     dopamine + audit trail without competing for attention.
+  // Refunded/cancelled rows are excluded from both — they live in the
+  // Orders tab archive where they belong.
+  const awaitingShipment = useMemo(
+    () => orders
+      .filter((o) => {
+        const fulfilled = (o.order_status || "pending").toLowerCase() === "fulfilled";
+        const pay = (o.payment_status || "").toLowerCase();
+        return !fulfilled && pay !== "refunded" && pay !== "cancelled";
+      })
+      .sort((a, b) => (a.created_at || "").localeCompare(b.created_at || ""))
+      .slice(0, 5),
+    [orders],
+  );
+  const recentFulfilled = useMemo(
+    () => orders
+      .filter((o) => (o.order_status || "").toLowerCase() === "fulfilled")
+      .sort((a, b) => (b.shipped_at || b.created_at || "").localeCompare(a.shipped_at || a.created_at || ""))
+      .slice(0, 5),
+    [orders],
+  );
+
   const recentOrders = useMemo(
     () => [...orders]
       .sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""))
@@ -223,51 +250,32 @@ export default function DashboardTab({
         </section>
       )}
 
-      {/* RECENT ORDERS + QUICK LINKS */}
+      {/* RECENT ORDERS · split into two columns + QUICK LINKS sidebar.
+          Left column = action items (awaiting shipment, oldest-first).
+          Right column = recently fulfilled (audit trail, newest-first).
+          Quick links column hugs the right edge as before. */}
       <div className="grid lg:grid-cols-3 gap-6">
-        <section className="lg:col-span-2 border border-[#262626] p-5 md:p-6" data-testid="dashboard-recent-orders">
-          <div className="flex items-center justify-between gap-3 mb-4">
-            <div>
-              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mb-1">
-                ◆ Recent
-              </div>
-              <h2 className="font-display text-xl md:text-2xl uppercase">Orders</h2>
-            </div>
-            <button
-              onClick={() => onTabChange?.("orders")}
-              className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] transition"
-              data-testid="dashboard-orders-all"
-            >
-              View all →
-            </button>
-          </div>
-          {recentOrders.length === 0 ? (
-            <div className="font-mono text-xs text-[#525252] py-6 text-center">
-              No orders yet — once buyers start purchasing, they'll show up here.
-            </div>
-          ) : (
-            <ul className="divide-y divide-[#1f1f1f]">
-              {recentOrders.map((o, idx) => (
-                <li
-                  key={`${o.session_id || o.id || o.created_at || "order"}-${idx}`}
-                  className="py-3 flex items-center justify-between gap-3"
-                  data-testid={`dashboard-order-${o.session_id || o.id || idx}`}
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="font-mono text-xs text-[#e5e5e5] truncate">
-                      #{(o.session_id || o.id || "").slice(0, 8)} · {o.buyer_email || "—"}
-                    </div>
-                    <div className="font-mono text-[10px] text-[#a3a3a3] mt-0.5">
-                      {(o.order_status || o.status || "pending").toUpperCase()} · {(o.created_at || "").slice(0, 10)}
-                    </div>
-                  </div>
-                  <div className="font-display text-lg shrink-0">
-                    ${((o.total_cents || 0) / 100).toFixed(0)}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
+        <section className="lg:col-span-2 grid md:grid-cols-2 gap-4" data-testid="dashboard-recent-orders">
+          <OrderColumn
+            tone="orange"
+            eyebrow="◆ Action needed"
+            title="Awaiting shipment"
+            count={awaitingShipment.length}
+            orders={awaitingShipment}
+            emptyText="Nothing waiting — every paid order is shipped."
+            onTabChange={onTabChange}
+            testId="dashboard-awaiting-orders"
+          />
+          <OrderColumn
+            tone="emerald"
+            eyebrow="◆ Recent"
+            title="Fulfilled"
+            count={recentFulfilled.length}
+            orders={recentFulfilled}
+            emptyText="No fulfilled orders yet — they'll land here after you ship."
+            onTabChange={onTabChange}
+            testId="dashboard-fulfilled-orders"
+          />
         </section>
 
         <section className="space-y-3" data-testid="dashboard-quicklinks">
@@ -297,6 +305,60 @@ export default function DashboardTab({
           </Link>
         </section>
       </div>
+    </div>
+  );
+}
+
+/** Two-up "recent orders" column — same density as the old single list,
+ *  but partitioned so action items can never get buried under fulfilled
+ *  rows. Tone drives the eyebrow accent: orange for "ship now", emerald
+ *  for the audit trail. */
+function OrderColumn({ tone, eyebrow, title, count, orders, emptyText, onTabChange, testId }) {
+  const accent = tone === "emerald" ? "text-emerald-400" : "text-[#ff4500]";
+  return (
+    <div className="border border-[#262626] p-5" data-testid={testId}>
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <div className="min-w-0">
+          <div className={`font-mono text-[10px] uppercase tracking-[0.22em] ${accent} mb-1`}>
+            {eyebrow}
+          </div>
+          <h2 className="font-display text-lg uppercase">
+            {title} {count > 0 && <span className={`${accent}`}>· {count}</span>}
+          </h2>
+        </div>
+        <button
+          onClick={() => onTabChange?.("orders")}
+          className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] transition shrink-0"
+          data-testid={`${testId}-all`}
+        >
+          View all →
+        </button>
+      </div>
+      {orders.length === 0 ? (
+        <div className="font-mono text-xs text-[#525252] py-6 text-center">{emptyText}</div>
+      ) : (
+        <ul className="divide-y divide-[#1f1f1f]">
+          {orders.map((o, idx) => (
+            <li
+              key={`${o.session_id || o.id || o.created_at || "order"}-${idx}`}
+              className="py-3 flex items-center justify-between gap-3"
+              data-testid={`${testId}-row-${o.session_id || o.id || idx}`}
+            >
+              <div className="min-w-0 flex-1">
+                <div className="font-mono text-xs text-[#e5e5e5] truncate">
+                  #{(o.session_id || o.id || "").slice(0, 8)} · {o.buyer_email || "—"}
+                </div>
+                <div className="font-mono text-[10px] text-[#a3a3a3] mt-0.5">
+                  {(o.order_status || "pending").toUpperCase()} · {(o.created_at || "").slice(0, 10)}
+                </div>
+              </div>
+              <div className="font-display text-lg shrink-0">
+                ${((o.total_cents || 0) / 100).toFixed(0)}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

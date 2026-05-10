@@ -77,7 +77,7 @@ export default function Nav() {
           <div className="hidden sm:flex flex-col leading-none">
             <span className="font-display text-lg tracking-wide">Crafters Market</span>
             <span className="font-mono text-[10px] text-[#a3a3a3] tracking-[0.25em] uppercase mt-1">
-              EST · Precision Craft
+              EST · 2026 · Precision Craft
             </span>
           </div>
         </Link>
