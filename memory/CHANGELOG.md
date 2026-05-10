@@ -1,5 +1,23 @@
 # Crafters Market — CHANGELOG
 
+## 2026-02 — iter137 · Maker journal authoring + 6 new seed entries ✅
+
+**Public:** Makers can now publish their own stories on the Crafters Market journal. Hit "Write a journal post" from your dashboard, share a process or technique, and your post lands on /journal alongside the editorial entries — buyers find your work organically through SEO without you paying for ads.
+
+- Backend: `POST /api/maker/journal`, `GET /api/maker/journal/mine`, `DELETE /api/maker/journal/{slug}`. Slug auto-generated with collision suffix. `created_by_maker` stamped for audit.
+- Frontend: `/maker/journal/new` editor with title/cover/excerpt/body fields, live word count + read-time estimator, validation surface, and a "your published posts" delete-able list.
+- Maker dashboard: orange-accent "Write a journal post" CTA in QuickLinks (`ql-journal-write`).
+- Seed: extended SEED_POSTS from 3 → 9 entries (Buying Handmade 101, Founding Seller story, Outdoor Finish Survival Guide, Wood Grain primer, Custom Sign timeline, Craftsmanship philosophy). Seeder switched from `count==0` guard to per-slug upsert — new entries roll out on next deploy without touching existing posts.
+- Tested: **iter137_results.xml — 13/13 pytest pass, 100% frontend flows.** Test report `/app/test_reports/iteration_51.json`.
+
+## 2026-02 — iter136 · Public-friendly /updates page ✅
+
+**Public:** The What's New page reads like a real product update log now, not engineering jargon — every recent update has a plain-English headline and explanation written for buyers and makers, not developers.
+
+- Added `**Public:** …` line convention to `/app/memory/CHANGELOG.md`. When present, the public /updates feed uses that as the headline + blurb instead of the raw heading.
+- Backfilled iter133/134/135 with public-friendly copy.
+- Updates regex made tolerant of `—`/`·`/`-`/`:` separators and optional iter — now parses every historical entry (was 0 before).
+
 ## 2026-02 — iter135 · Processing Profiles in DB + dashboard alert audit ✅
 
 **Public:** Your custom ship-time profiles now sync across devices. Save a "Made to order · 5-7 weeks" preset on your laptop and it's there when you open the editor on your phone — no more re-typing the same options on every device.
