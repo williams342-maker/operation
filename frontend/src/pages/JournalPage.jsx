@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { fetchPosts, fetchPost } from "../lib/api";
 import { useStructuredData } from "../lib/seo";
+import JournalBody from "../components/JournalBody";
 
 export function JournalPage() {
   const [posts, setPosts] = useState([]);
@@ -79,7 +80,7 @@ export function JournalDetail() {
         <div className="aspect-[16/9] mb-10 overflow-hidden border border-[#262626]">
           <img src={p.cover} alt={p.title} className="w-full h-full object-cover" />
         </div>
-        <p className="font-mono text-base text-[#e5e5e5] leading-relaxed">{p.body}</p>
+        <JournalBody body={p.body} />
       </div>
     </article>
   );

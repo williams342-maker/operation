@@ -553,6 +553,17 @@ export const fetchMakerJournalPosts = (makerSlug, limit = 6) =>
   http.get(`/makers/${encodeURIComponent(makerSlug)}/blog`,
     { params: { limit } }
   ).then((r) => r.data);
+
+// Upload an image attached to a journal post — multipart/form-data, R2-
+// backed. Returns `{ url }`. Editor inlines the URL as a markdown
+// image tag (`![](url)`) at the cursor position.
+export const uploadMakerJournalImage = (file) => {
+  const fd = new FormData();
+  fd.append("file", file);
+  return http.post("/maker/journal/upload-image", fd, {
+    headers: { ...authHeaders(), "Content-Type": "multipart/form-data" },
+  }).then((r) => r.data);
+};
 // Single live integration the admin connects through OAuth from the
 // Ads tab. Backend writes synced rows into the same `ad_spend`
 // collection that the existing tab already renders.

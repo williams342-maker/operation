@@ -13,13 +13,13 @@
  * cadence at a glance and delete typos. No moderation queue — vetted
  * makers publish directly. Admin can audit via `created_by_maker`.
  */
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { ArrowLeft, Save, Trash2, ExternalLink, Sparkles } from "lucide-react";
+import { ArrowLeft, Save, Trash2, ExternalLink, Sparkles, ImagePlus, Loader2 } from "lucide-react";
 import {
   createMakerJournalPost, fetchMyMakerJournalPosts,
-  deleteMakerJournalPost, fetchMakerMe,
+  deleteMakerJournalPost, fetchMakerMe, uploadMakerJournalImage,
 } from "../lib/api";
 
 const MIN_TITLE = 6;
@@ -31,7 +31,11 @@ export default function MakerJournalEditor() {
   const [maker, setMaker] = useState(null);
   const [form, setForm] = useState({ title: "", cover: "", excerpt: "", body: "" });
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   const [posts, setPosts] = useState([]);
+  const bodyRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   // Auth check + initial loads. Bounce to maker login if no JWT — the
   // API would 401 anyway, but the bounce makes the UX nicer.
@@ -62,6 +66,60 @@ export default function MakerJournalEditor() {
     [form.body],
   );
   const readMin = Math.max(1, Math.ceil(wordCount / 225));
+
+  // Insert markdown image syntax at the textarea cursor, falling back
+  // to appending at end of body. Wraps in blank lines so the image
+  // renders as its own block in JournalBody (a paragraph that is just
+  // an image gets rendered as a standalone <img>).
+  const insertAtCursor = (snippet) => {
+    const ta = bodyRef.current;
+    const cur = form.body;
+    if (!ta) {
+      set({ body: cur + (cur ? "\n\n" : "") + snippet });
+      return;
+    }
+    const start = ta.selectionStart ?? cur.length;
+    const end = ta.selectionEnd ?? cur.length;
+    // Add surrounding blank lines so the embed becomes its own paragraph
+    const before = cur.slice(0, start);
+    const after = cur.slice(end);
+    const needsLeadGap = before && !before.endsWith("\n\n");
+    const needsTrailGap = after && !after.startsWith("\n\n");
+    const next = before
+      + (needsLeadGap ? "\n\n" : "")
+      + snippet
+      + (needsTrailGap ? "\n\n" : "")
+      + after;
+    set({ body: next });
+    // Restore caret right after the inserted snippet so the maker can
+    // keep typing without scrolling back.
+    requestAnimationFrame(() => {
+      const caret = next.length - after.length - (needsTrailGap ? 2 : 0);
+      ta.focus();
+      ta.setSelectionRange(caret, caret);
+    });
+  };
+
+  const handleImageFile = async (file) => {
+    if (!file?.type?.startsWith("image/")) {
+      toast.error("Only image files are supported here.");
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      toast.error("Image too large — keep under 8MB.");
+      return;
+    }
+    setUploading(true);
+    try {
+      const { url } = await uploadMakerJournalImage(file);
+      insertAtCursor(`![](${url})`);
+      toast.success("Image inserted.");
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Image upload failed.");
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const submit = async () => {
     if (issues.length > 0) {
@@ -152,16 +210,76 @@ export default function MakerJournalEditor() {
             placeholder="Why we left raw steel outside for a year and what survived."
           />
 
-          <Field
-            label="Body"
-            hint={`Full post. Blank lines = new paragraph. ${wordCount} words · ~${readMin} min read · min ${MIN_BODY} chars.`}
-            value={form.body}
-            onChange={(v) => set({ body: v })}
-            testId="journal-body"
-            multiline
-            rows={16}
-            placeholder="Open with the question your buyer is wondering, then walk through the answer like you're talking shop."
-          />
+          {/* Body field with drag-drop image upload. We intentionally
+              built this inline (not via the shared <Field>) because the
+              dropzone state / file-input wiring is too coupled to the
+              textarea ref + insertAtCursor utility to abstract cleanly. */}
+          <div className="space-y-2">
+            <div className="flex items-baseline justify-between gap-3 flex-wrap">
+              <label className="block font-mono text-[10px] uppercase tracking-[0.28em] text-[#a3a3a3]">
+                Body
+              </label>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] inline-flex items-center gap-1.5 disabled:opacity-50 transition"
+                data-testid="journal-image-button"
+              >
+                {uploading ? <Loader2 size={11} className="animate-spin" /> : <ImagePlus size={11} />}
+                {uploading ? "Uploading…" : "Insert image"}
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleImageFile(f);
+                  e.target.value = "";
+                }}
+                data-testid="journal-image-input"
+              />
+            </div>
+            <div
+              className={`relative ${dragOver ? "ring-2 ring-[#ff4500] ring-offset-2 ring-offset-[#0a0a0a]" : ""} transition`}
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragOver(false);
+                const f = Array.from(e.dataTransfer.files || []).find((x) => x.type.startsWith("image/"));
+                if (f) handleImageFile(f);
+              }}
+            >
+              <textarea
+                ref={bodyRef}
+                value={form.body}
+                onChange={(e) => set({ body: e.target.value })}
+                rows={16}
+                className="w-full bg-[#0d0d0d] border border-[#262626] focus:border-[#ff4500] outline-none px-4 py-3 font-mono text-sm text-[#e5e5e5] placeholder:text-[#525252] resize-y leading-relaxed transition"
+                placeholder="Open with the question your buyer is wondering, then walk through the answer like you're talking shop."
+                data-testid="journal-body"
+                onPaste={(e) => {
+                  // Pasted images (screenshot-from-clipboard workflow)
+                  // also flow through the same upload pipeline.
+                  const f = Array.from(e.clipboardData?.files || []).find((x) => x.type.startsWith("image/"));
+                  if (f) { e.preventDefault(); handleImageFile(f); }
+                }}
+              />
+              {dragOver && (
+                <div className="absolute inset-0 bg-[#1a0a05]/90 flex items-center justify-center pointer-events-none">
+                  <div className="font-mono text-xs uppercase tracking-[0.22em] text-[#ff4500] flex items-center gap-2">
+                    <ImagePlus size={14} /> Drop image to insert
+                  </div>
+                </div>
+              )}
+            </div>
+            <p className="font-mono text-[10px] text-[#525252]">
+              Full post. Blank lines = new paragraph. Drop or paste images to embed inline. {wordCount} words · ~{readMin} min read · min {MIN_BODY} chars.
+            </p>
+          </div>
 
           <div className="flex flex-wrap items-center gap-3 pt-2">
             <button

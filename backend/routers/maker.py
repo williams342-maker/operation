@@ -1784,9 +1784,49 @@ async def maker_update_brief(
     return {"ok": True, "status": body.status}
 
 
+@router.post("/maker/journal/upload-image")
+async def maker_journal_upload_image(
+    file: UploadFile = File(...),
+    slug: str = Depends(current_maker_slug),
+):
+    """Drag-and-drop image upload for the journal editor. Returns the
+    public R2 URL the editor inlines as a markdown image tag. Reuses
+    the same content-type allowlist + bucket pattern as listing
+    images so we get free CDN caching, content-disposition handling,
+    and parity with the rest of the upload surface."""
+    try:
+        from r2_storage import is_configured as _r2_ok, upload_bytes, ALLOWED_CONTENT_TYPES
+    except Exception:
+        raise HTTPException(503, "R2 storage is not available.")
+    if not _r2_ok():
+        raise HTTPException(503, "R2 storage is not configured.")
+
+    ct = (file.content_type or "").lower()
+    if ct not in ALLOWED_CONTENT_TYPES:
+        raise HTTPException(400, "Image must be PNG / JPG / WebP.")
+    body = await file.read()
+    if len(body) == 0:
+        raise HTTPException(400, "Empty file.")
+    # 8MB upper bound — matches the listing-photo limit so makers learn
+    # one cap not two. Anything bigger is almost always an unoptimized
+    # phone capture; toast on the frontend nudges them to compress.
+    if len(body) > 8 * 1024 * 1024:
+        raise HTTPException(413, "Image too large — keep under 8MB.")
+
+    ext = ALLOWED_CONTENT_TYPES[ct]
+    key = f"journal/{slug}/{uuid.uuid4().hex}.{ext}"
+    try:
+        url = upload_bytes(body, key, ct)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        logger.exception("journal image upload failed for maker=%s: %s", slug, e)
+        raise HTTPException(502, "Could not upload image.")
+    return {"url": url}
+
+
 # ---------------------------------------------------------------------------
 # Maker journal authoring
-# ---------------------------------------------------------------------------
 # Lets a vetted maker publish posts directly into the public Journal feed
 # without admin gatekeeping for every entry. Keeps the editorial cadence high
 # (more content = better SEO + more reasons for buyers to come back) while
