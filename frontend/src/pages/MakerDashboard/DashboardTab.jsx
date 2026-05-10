@@ -41,8 +41,9 @@ export default function DashboardTab({
     [products],
   );
   const openOrders = useMemo(
-    () => orders.filter((o) => (o.status || "").toLowerCase() !== "shipped"
-                            && (o.status || "").toLowerCase() !== "delivered"),
+    // Orders expose `order_status` (pending|fulfilled), not a flat
+    // `status` field — fulfilled = the maker has marked it shipped.
+    () => orders.filter((o) => (o.order_status || "pending").toLowerCase() !== "fulfilled"),
     [orders],
   );
   const totalRevenue = useMemo(
@@ -448,9 +449,18 @@ function TodayAlerts({ maker, orders, products, unreadMessages, onTabChange }) {
     const dayMs = 86400 * 1000;
 
     // --- Late shipments: orders pending > 3 days ---
+    // Maker orders expose `order_status` ("pending" | "fulfilled") and
+    // `payment_status` ("paid" | "unpaid" | "refunded") — there is NO
+    // flat `status` field, so the previous `o.status` lookup always
+    // returned "" and shipped orders kept showing as "awaiting
+    // shipment". Filter on the actual lifecycle fields instead.
     orders.forEach((o) => {
-      const status = (o.status || "").toLowerCase();
-      if (status === "shipped" || status === "delivered" || status === "cancelled") return;
+      const orderStatus = (o.order_status || "pending").toLowerCase();
+      const paymentStatus = (o.payment_status || "").toLowerCase();
+      // Only nudge for orders that are paid AND still pending fulfillment.
+      // Skip anything fulfilled (shipped) / refunded / cancelled.
+      if (orderStatus === "fulfilled") return;
+      if (paymentStatus === "refunded" || paymentStatus === "cancelled") return;
       const created = o.created_at ? new Date(o.created_at).getTime() : 0;
       if (!created) return;
       const ageDays = Math.floor((now - created) / dayMs);
@@ -458,10 +468,10 @@ function TodayAlerts({ maker, orders, products, unreadMessages, onTabChange }) {
         out.push({
           tone: "danger",
           icon: Clock,
-          label: `Order #${(o.id || "").slice(0, 8)} awaiting shipment`,
+          label: `Order #${(o.session_id || o.id || "").slice(0, 8)} awaiting shipment`,
           detail: `${ageDays} day${ageDays > 1 ? "s" : ""} since the buyer paid.`,
           cta: { label: "Ship now →", target: "orders" },
-          key: `late-${o.id}`,
+          key: `late-${o.session_id || o.id}`,
         });
       }
     });
