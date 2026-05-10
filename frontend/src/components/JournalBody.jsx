@@ -17,11 +17,14 @@
  */
 import React from "react";
 
-// Captures `![alt](url)` then `[label](url)` then bare URLs. Order
-// matters — image regex runs first so `![` doesn't match the link.
+// Captures `![alt](url)` then `[label](url)`. Order matters — image
+// regex runs first so `![` doesn't match the link.
+//
+// iOS 15 / older Safari does NOT support regex lookbehind, so the
+// bare-URL autolinker (in `autolink()` below) builds a non-lookbehind
+// regex inline rather than living up here as a module-level constant.
 const IMAGE_RE = /!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g;
 const LINK_RE = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
-const BARE_URL_RE = /(?<![("\w])(https?:\/\/[^\s<>")]+)/g;
 
 function renderInline(text, keyPrefix) {
   // We split by image first because they're block-ish — render an
@@ -84,27 +87,33 @@ function renderLinks(text, keyPrefix) {
 }
 
 function autolink(text, keyPrefix) {
-  // Last pass — bare https URLs. Anything else falls through as plain
-  // text (we wrap each substring in a fragment so React can key them).
+  // Last pass — bare https URLs. We use a 2-group regex so we can
+  // explicitly re-emit the leading guard character (used to be a
+  // lookbehind, but iOS 15 doesn't support those). Group 1 is the
+  // guard, group 2 is the URL. We rebuild a fresh non-stateful regex
+  // each call to avoid any global lastIndex pitfalls.
+  const re = /(^|[^("\w])(https?:\/\/[^\s<>")]+)/g;
   const out = [];
   let last = 0;
   let m;
-  BARE_URL_RE.lastIndex = 0;
   let i = 0;
-  while ((m = BARE_URL_RE.exec(text)) !== null) {
-    if (m.index > last) out.push(text.slice(last, m.index));
+  while ((m = re.exec(text)) !== null) {
+    const guard = m[1];
+    const url = m[2];
+    const urlStart = m.index + guard.length;
+    if (urlStart > last) out.push(text.slice(last, urlStart));
     out.push(
       <a
         key={`${keyPrefix}-u-${i++}`}
-        href={m[0]}
+        href={url}
         target="_blank"
         rel="noopener noreferrer nofollow"
         className="text-[#ff4500] underline underline-offset-2 hover:text-[#ff8c42] break-all"
       >
-        {m[0]}
+        {url}
       </a>,
     );
-    last = m.index + m[0].length;
+    last = urlStart + url.length;
   }
   if (last < text.length) out.push(text.slice(last));
   return out;

@@ -1,5 +1,14 @@
 # Crafters Market — CHANGELOG
 
+## 2026-02 — iter139 · Drag-drop image embeds in journal posts ✅
+
+**Public:** Maker journal posts can now include photos. Drop a phone shot of your finished piece directly into the editor and it embeds inline — same workflow as Instagram, no upload-then-paste-URL dance.
+
+- Backend: `POST /api/maker/journal/upload-image` — multipart upload, R2-backed, returns public CDN URL. Reuses the same content-type allowlist + 8MB cap as listing photos so makers learn one limit.
+- Frontend (editor): drop-zone overlay on the body textarea + paste handler + click-to-upload button (`journal-image-button`). Uploaded URL inlines as `![](url)` markdown at cursor position.
+- Frontend (public): new `JournalBody` component renders inline images, markdown links, and bare URLs in journal post bodies. iOS 15 compatible (no regex lookbehind). Whitelists http/https only — `javascript:` and `data:` schemes are dropped at parse time.
+- Tested: 8/8 backend + 4/4 frontend (`/app/test_reports/iteration_52.json`).
+
 ## 2026-02 — iter138 · Maker journal rail on profile pages ✅
 
 **Public:** Each maker's profile page now shows their three most recent journal posts in an editorial rail under the showcase strip. Buyers landing on a maker's page get an instant "this maker has things to say about their craft" signal — and a free SEO link from the high-authority profile to the longer-form post.
