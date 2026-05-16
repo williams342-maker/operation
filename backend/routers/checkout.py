@@ -693,7 +693,30 @@ async def stripe_webhook(request: Request):
     sig = request.headers.get("Stripe-Signature", "")
     host_url = public_host(request)
     webhook_url = f"{host_url}/api/webhook/stripe"
-    stripe = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
+    # Dual-secret verification (env + pending rotation override). If at
+    # least one accepts the signature, we proceed; otherwise reject.
+    # The library call below is then safe to invoke without re-checking
+    # the signature (we pass the secret that worked).
+    from stripe_webhook_secrets import get_active_webhook_secrets, verify_with_secrets
+    secrets = await get_active_webhook_secrets("main")
+    accepted_secret = None
+    if secrets:
+        try:
+            verify_with_secrets(body, sig, secrets)
+            # Find which one matched (re-try to remember the winner)
+            for sec in secrets:
+                try:
+                    import stripe as _sdk
+                    _sdk.Webhook.construct_event(body, sig, sec)
+                    accepted_secret = sec
+                    break
+                except Exception:
+                    continue
+        except Exception as e:
+            logger.warning("checkout webhook signature failed: %s", e)
+            return {"received": False, "reason": "bad-signature"}
+    stripe = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url,
+                            webhook_secret=accepted_secret)
     try:
         evt = await stripe.handle_webhook(body, sig)
     except Exception as e:

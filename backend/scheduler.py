@@ -159,18 +159,31 @@ async def _job_abandoned_cart_push() -> None:
 
 
 async def _job_secrets_rotation_nudge() -> None:
-    """Weekly sweep over tracked credentials: for every overdue secret,
-    email OPS_EMAIL once per week and write an admin_audit_log row.
+    """Daily sweep over tracked credentials with two-tier nudges:
 
-    Idempotency: don't re-nudge the same `secret_id` if a nudge row was
-    already written within the last 7 days. Prevents the weekly cron
-    from spam-pinging the same admin every Monday.
+      • OVERDUE  → high-priority alert (Email + Slack + Discord), re-nudge
+        once every 7 days until rotated.
+      • DUE_SOON → 14-day pre-warning (Email + Slack), re-nudge once every
+        14 days (less noisy than overdue).
+
+    Each row is keyed by `(secret_id, status)` so a row that flips from
+    `due_soon` → `overdue` triggers a fresh alert immediately even if the
+    last "due_soon" nudge was 3 days ago.
+
+    Idempotency relies on `db.admin_audit_log` rows of kind
+    `secret_rotation_nudge` with a `status` field. We never mutate the
+    secret itself — only inform the operator.
     """
     import os as _os
     from datetime import datetime, timezone, timedelta
     from core import db
     try:
         from routers.admin_secrets import TRACKED_SECRETS
+        from notify_webhook import notify_team
+
+        DUE_SOON_DAYS = 14
+        OVERDUE_DEDUP_DAYS = 7
+        DUE_SOON_DEDUP_DAYS = 14
 
         now = datetime.now(timezone.utc)
         rows: dict[str, dict] = {}
@@ -181,77 +194,140 @@ async def _job_secrets_rotation_nudge() -> None:
             if sid and sid not in rows:
                 rows[sid] = r
 
-        overdue: list[dict] = []
+        # Classify each tracked, configured secret by status
+        candidates: list[dict] = []
         for spec in TRACKED_SECRETS:
             is_set = any(bool(_os.environ.get(k)) for k in spec["env_keys"])
             if not is_set:
                 continue
             last = rows.get(spec["id"])
             if not last:
-                overdue.append({"id": spec["id"], "label": spec["label"],
-                                "category": spec["category"], "days_overdue": "unknown",
-                                "rotation_url": spec["rotation_url"]})
+                candidates.append({
+                    "id": spec["id"], "label": spec["label"],
+                    "category": spec["category"], "rotation_url": spec["rotation_url"],
+                    "status": "overdue",  # untracked secrets default to overdue
+                    "days_overdue": "unknown", "days_until_due": None,
+                })
                 continue
             try:
                 rotated_dt = datetime.fromisoformat(last["created_at"])
             except Exception:
                 continue
             next_due = rotated_dt + timedelta(days=spec["cadence_days"])
-            if next_due < now:
-                overdue.append({
+            delta_days = (next_due - now).days
+            if delta_days < 0:
+                candidates.append({
                     "id": spec["id"], "label": spec["label"],
-                    "category": spec["category"],
-                    "days_overdue": (now - next_due).days,
-                    "rotation_url": spec["rotation_url"],
+                    "category": spec["category"], "rotation_url": spec["rotation_url"],
+                    "status": "overdue",
+                    "days_overdue": abs(delta_days), "days_until_due": delta_days,
+                })
+            elif delta_days <= DUE_SOON_DAYS:
+                candidates.append({
+                    "id": spec["id"], "label": spec["label"],
+                    "category": spec["category"], "rotation_url": spec["rotation_url"],
+                    "status": "due_soon",
+                    "days_overdue": None, "days_until_due": delta_days,
                 })
 
-        if not overdue:
+        if not candidates:
             return
 
-        cutoff_iso = (now - timedelta(days=7)).isoformat()
-        recent_nudges = await db.admin_audit_log.find(
-            {"kind": "secret_rotation_nudge", "created_at": {"$gte": cutoff_iso}},
-            {"_id": 0, "secret_id": 1},
-        ).to_list(500)
-        already = {r.get("secret_id") for r in recent_nudges}
-        fresh = [o for o in overdue if o["id"] not in already]
+        # Per-(secret_id, status) dedup
+        overdue_cutoff = (now - timedelta(days=OVERDUE_DEDUP_DAYS)).isoformat()
+        soon_cutoff = (now - timedelta(days=DUE_SOON_DEDUP_DAYS)).isoformat()
+        recent = await db.admin_audit_log.find(
+            {"kind": "secret_rotation_nudge",
+             "created_at": {"$gte": min(overdue_cutoff, soon_cutoff)}},
+            {"_id": 0, "secret_id": 1, "status": 1, "created_at": 1},
+        ).to_list(2000)
+        already: set[tuple[str, str]] = set()
+        for r in recent:
+            sid = r.get("secret_id")
+            st = r.get("status") or "overdue"  # legacy rows had no status
+            ca = r.get("created_at") or ""
+            cutoff = overdue_cutoff if st == "overdue" else soon_cutoff
+            if sid and ca >= cutoff:
+                already.add((sid, st))
+
+        fresh = [c for c in candidates if (c["id"], c["status"]) not in already]
         if not fresh:
             return
 
+        overdue_items = [f for f in fresh if f["status"] == "overdue"]
+        soon_items = [f for f in fresh if f["status"] == "due_soon"]
+
+        # ---- Email digest (ops) ----
         ops = (_os.environ.get("OPS_EMAIL") or "").strip()
         if ops:
             try:
                 from email_service import _send
-                lines = ["The following credentials are overdue for rotation:", ""]
-                for o in fresh:
-                    lines.append(f"  - {o['label']} ({o['category']}) -- overdue by {o['days_overdue']} days")
-                    lines.append(f"    rotate at: {o['rotation_url']}")
-                lines.append("")
-                lines.append("After rotating each one, mark it complete in Admin -> Secrets.")
+                lines: list[str] = []
+                if overdue_items:
+                    lines.append("OVERDUE — rotate ASAP:")
+                    for o in overdue_items:
+                        lines.append(f"  - {o['label']} ({o['category']}) — overdue by {o['days_overdue']} days")
+                        lines.append(f"    rotate: {o['rotation_url']}")
+                    lines.append("")
+                if soon_items:
+                    lines.append(f"Due within {DUE_SOON_DAYS} days:")
+                    for s in soon_items:
+                        lines.append(f"  - {s['label']} ({s['category']}) — due in {s['days_until_due']} days")
+                        lines.append(f"    rotate: {s['rotation_url']}")
+                    lines.append("")
+                lines.append("After rotating each one, mark it complete in Admin → Secrets.")
                 html = (
                     "<pre style='font-family:ui-monospace,Menlo,Monaco,monospace;"
                     "background:#0a0a0a;color:#e5e5e5;padding:18px;line-height:1.55'>"
                     + "\n".join(lines).replace("<", "&lt;")
                     + "</pre>"
                 )
+                subj_bits = []
+                if overdue_items:
+                    subj_bits.append(f"{len(overdue_items)} overdue")
+                if soon_items:
+                    subj_bits.append(f"{len(soon_items)} due soon")
                 await _send(
                     ops,
-                    f"[Crafters Market] {len(fresh)} credential(s) overdue for rotation",
+                    f"[Crafters Market] Credentials: {' / '.join(subj_bits)}",
                     html,
                 )
             except Exception as e:
                 logger.warning("[scheduler] secrets-nudge email failed: %s", e)
 
-        for o in fresh:
+        # ---- Slack/Discord alert (overdue only — high priority) ----
+        if overdue_items:
+            try:
+                fields = [
+                    (o["label"], f"{o['category']} · overdue {o['days_overdue']}d")
+                    for o in overdue_items[:8]
+                ]
+                await notify_team(
+                    kind="outage",  # bypasses dedup window
+                    title=f"🔑 {len(overdue_items)} credential(s) overdue for rotation",
+                    summary="Open Admin → Secrets to rotate and mark complete.",
+                    fields=fields,
+                    link=None,
+                )
+            except Exception as e:
+                logger.warning("[scheduler] secrets-nudge slack/discord failed: %s", e)
+
+        # ---- Audit rows (one per fresh item) ----
+        for f in fresh:
             await db.admin_audit_log.insert_one({
                 "kind": "secret_rotation_nudge",
-                "secret_id": o["id"],
-                "label": o["label"],
-                "days_overdue": o["days_overdue"],
+                "secret_id": f["id"],
+                "label": f["label"],
+                "status": f["status"],
+                "days_overdue": f["days_overdue"],
+                "days_until_due": f["days_until_due"],
                 "actor": "scheduler",
                 "created_at": now.isoformat(),
             })
-        logger.info("[scheduler] secrets nudge: emailed %d overdue items", len(fresh))
+        logger.info(
+            "[scheduler] secrets nudge: overdue=%d due_soon=%d (sent)",
+            len(overdue_items), len(soon_items),
+        )
     except Exception as e:
         logger.exception("[scheduler] secrets rotation nudge failed: %s", e)
 
@@ -639,11 +715,12 @@ def start_scheduler() -> AsyncIOScheduler | None:
     # anonymous shoppers.
     sched.add_job(_job_abandoned_cart_push, CronTrigger(minute=42),
                   id="abandoned_cart_push", replace_existing=True)
-    # Secrets rotation nudge — every Monday 09:30 UTC. Walks the
-    # tracked credentials list, fires an email + audit-log row for
-    # any overdue secret. Idempotent within a 7-day window.
+    # Secrets rotation nudge — daily at 09:30 UTC. Two-tier:
+    #   • 14-day pre-warning (due_soon) → email + Slack
+    #   • Overdue → email + Slack + Discord (high priority)
+    # Dedup: 14d for due_soon, 7d for overdue, keyed per (secret, status).
     sched.add_job(_job_secrets_rotation_nudge,
-                  CronTrigger(day_of_week="mon", hour=9, minute=30),
+                  CronTrigger(hour=9, minute=30),
                   id="secrets_rotation_nudge", replace_existing=True)
 
 

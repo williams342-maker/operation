@@ -546,12 +546,12 @@ async def stripe_connect_webhook(request: Request):
     """
     body = await request.body()
     sig = request.headers.get("Stripe-Signature", "")
-    secret = STRIPE_CONNECT_WEBHOOK_SECRET or os.environ.get("STRIPE_WEBHOOK_SECRET", "")
-    if not secret:
+    from stripe_webhook_secrets import get_active_webhook_secrets, verify_with_secrets
+    secrets = await get_active_webhook_secrets("connect")
+    if not secrets:
         return {"received": False, "reason": "no-secret-configured"}
-    s = _stripe()
     try:
-        event = s.Webhook.construct_event(body, sig, secret)
+        event = verify_with_secrets(body, sig, secrets)
     except Exception as e:
         logger.warning("connect webhook signature failed: %s", e)
         return {"received": False, "reason": "bad-signature"}

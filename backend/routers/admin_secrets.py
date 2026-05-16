@@ -316,3 +316,316 @@ async def rotation_history(
         {"secret_id": secret_id}, {"_id": 0},
     ).sort("created_at", -1).limit(50).to_list(50)
     return {"secret_id": secret_id, "history": rows}
+
+
+# ============================================================
+# Stripe Webhook Auto-Rotation
+# ============================================================
+# The Stripe API doesn't expose a "roll secret" call, BUT it allows
+# creating multiple webhook endpoints at the same URL with the same
+# event subscriptions. We exploit that to implement real rotation:
+#
+#   1. /stripe-webhook/rotate
+#      - Creates a NEW endpoint with same URL + events.
+#      - Returns the new signing secret in the response (one-time;
+#        we never store it in a readable form again).
+#      - Persists `{new_endpoint_id, new_secret, old_endpoint_id}` to
+#        db.secret_overrides for the dual-verification window.
+#      - The runtime verifier (stripe_webhook_secrets.py) now accepts
+#        BOTH the env secret and the override.
+#
+#   2. /stripe-webhook/pending
+#      - Tells the dashboard whether a rotation is in flight + when
+#        it started + a redacted preview of the new secret.
+#
+#   3. /stripe-webhook/finalize
+#      - Admin clicks AFTER they've updated STRIPE_WEBHOOK_SECRET in
+#        env and redeployed. We delete the OLD endpoint on Stripe,
+#        write a secret_rotations audit row, and clear the override.
+#
+#   4. /stripe-webhook/cancel
+#      - Abort rotation: delete the NEW endpoint on Stripe and clear
+#        the override. Used if admin gets cold feet before redeploying.
+#
+# All four require super-admin. Every action is audit-logged.
+
+
+def _stripe_sdk():
+    """Return the stripe SDK with API key configured. Raises HTTPException
+    if no API key is set."""
+    api_key = os.environ.get("STRIPE_API_KEY") or os.environ.get("STRIPE_SECRET_KEY")
+    if not api_key:
+        raise HTTPException(503, "STRIPE_API_KEY not configured")
+    import stripe as stripe_sdk
+    stripe_sdk.api_key = api_key
+    return stripe_sdk
+
+
+def _stripe_webhook_target_url(kind: str) -> str:
+    """Build the public webhook URL that matches the existing route.
+    `kind`="main" -> /api/webhook/stripe, "connect" -> /api/webhook/stripe/connect.
+    """
+    base = (os.environ.get("PUBLIC_BACKEND_URL") or "").rstrip("/")
+    if not base:
+        raise HTTPException(503, "PUBLIC_BACKEND_URL not configured — needed to register webhooks")
+    path = "/api/webhook/stripe" if kind == "main" else "/api/webhook/stripe/connect"
+    return f"{base}{path}"
+
+
+# Event sets we re-subscribe the new endpoint to. Keep these aligned
+# with what the handlers actually process (checkout.py + stripe_connect.py).
+_STRIPE_MAIN_EVENTS = [
+    "checkout.session.completed",
+    "checkout.session.expired",
+    "payment_intent.succeeded",
+    "payment_intent.payment_failed",
+]
+_STRIPE_CONNECT_EVENTS = [
+    "account.updated",
+    "customer.subscription.created",
+    "customer.subscription.updated",
+    "customer.subscription.deleted",
+    "invoice.payment_succeeded",
+]
+
+
+def _redact_secret(s: str) -> str:
+    """Show first 7 + last 4 chars so admins can sanity-check they pasted
+    the right value into env without exposing the rest in logs."""
+    if not s or len(s) < 16:
+        return "whsec_…"
+    return f"{s[:7]}…{s[-4:]}"
+
+
+class RotateRequest(BaseModel):
+    kind: str = Field(default="main", pattern="^(main|connect)$")
+
+
+@router.post("/admin/secrets/stripe-webhook/rotate", include_in_schema=False)
+async def stripe_webhook_rotate(
+    payload: RotateRequest, claims: dict = Depends(require_super_admin()),
+):
+    """Create a NEW Stripe webhook endpoint at the same URL + events and
+    return its signing secret. The old endpoint stays live for the dual-
+    secret overlap window until the admin clicks "Finalize".
+
+    Returns: `{ok, new_endpoint_id, new_secret, new_secret_preview, rotation_url}`.
+    The full `new_secret` is returned ONLY here — store it in your env
+    immediately. We persist a copy in `secret_overrides` for runtime
+    verification only; the response is the canonical handoff.
+    """
+    kind = payload.kind
+    override_id = "stripe_webhook_pending" if kind == "main" else "stripe_connect_webhook_pending"
+
+    # Refuse to start a second rotation while one is already pending —
+    # forces the operator to finalize/cancel first instead of stacking.
+    existing = await db.secret_overrides.find_one({"_id": override_id}, {"new_endpoint_id": 1})
+    if existing:
+        raise HTTPException(409, f"A {kind} webhook rotation is already in flight. Finalize or cancel it first.")
+
+    stripe_sdk = _stripe_sdk()
+    target_url = _stripe_webhook_target_url(kind)
+    events = _STRIPE_MAIN_EVENTS if kind == "main" else _STRIPE_CONNECT_EVENTS
+
+    # Try to find the current endpoint pointing at this URL so we can
+    # delete it during finalize. Stripe returns "secret" only on
+    # creation, so we don't know the old endpoint's secret here — but
+    # we don't need to: env is the source of truth for the old one.
+    old_endpoint_id: Optional[str] = None
+    try:
+        listing = stripe_sdk.WebhookEndpoint.list(limit=100)
+        for ep in listing.get("data", []) or []:
+            if (ep.get("url") or "").rstrip("/") == target_url.rstrip("/"):
+                old_endpoint_id = ep.get("id")
+                break
+    except Exception as e:
+        logger.warning("[secrets] couldn't list webhooks: %s", e)
+
+    # Create the new endpoint. Stripe returns the secret ONCE here.
+    try:
+        new_ep = stripe_sdk.WebhookEndpoint.create(
+            url=target_url,
+            enabled_events=events,
+            description=f"Auto-created by Crafters Market secrets rotation on {now_iso()}",
+        )
+    except Exception as e:
+        logger.exception("[secrets] stripe webhook create failed: %s", e)
+        raise HTTPException(502, f"Stripe API error creating webhook: {e}")
+
+    new_secret = getattr(new_ep, "secret", None) or new_ep.get("secret")
+    new_id = getattr(new_ep, "id", None) or new_ep.get("id")
+    if not new_secret or not new_id:
+        raise HTTPException(502, "Stripe returned no secret on webhook creation")
+
+    started_at = now_iso()
+    await db.secret_overrides.update_one(
+        {"_id": override_id},
+        {"$set": {
+            "kind": kind,
+            "target_url": target_url,
+            "new_endpoint_id": new_id,
+            "new_secret": new_secret,
+            "new_secret_preview": _redact_secret(new_secret),
+            "old_endpoint_id": old_endpoint_id,
+            "started_at": started_at,
+            "started_by": (claims.get("email") or "").lower(),
+        }},
+        upsert=True,
+    )
+
+    await db.admin_audit_log.insert_one({
+        "kind": "stripe_webhook_rotation_started",
+        "webhook_kind": kind,
+        "new_endpoint_id": new_id,
+        "old_endpoint_id": old_endpoint_id,
+        "admin_email": (claims.get("email") or "").lower(),
+        "created_at": started_at,
+    })
+    logger.info(
+        "[secrets] stripe webhook rotation started: kind=%s new=%s old=%s by=%s",
+        kind, new_id, old_endpoint_id, claims.get("email"),
+    )
+
+    return {
+        "ok": True,
+        "kind": kind,
+        "new_endpoint_id": new_id,
+        "new_secret": new_secret,          # show ONCE in the UI
+        "new_secret_preview": _redact_secret(new_secret),
+        "old_endpoint_id": old_endpoint_id,
+        "env_var_to_update": "STRIPE_WEBHOOK_SECRET" if kind == "main" else "STRIPE_CONNECT_WEBHOOK_SECRET",
+        "next_steps": [
+            f"Copy `new_secret` into env var {('STRIPE_WEBHOOK_SECRET' if kind == 'main' else 'STRIPE_CONNECT_WEBHOOK_SECRET')}.",
+            "Redeploy the backend.",
+            "Send a test event from Stripe (or wait for live traffic) to confirm.",
+            "Click 'Finalize rotation' here once everything looks healthy. We'll delete the old endpoint and reset the rotation timer.",
+        ],
+    }
+
+
+@router.get("/admin/secrets/stripe-webhook/pending", include_in_schema=False)
+async def stripe_webhook_pending(_claims: dict = Depends(require_super_admin())):
+    """Return whether a Stripe webhook rotation is currently in flight
+    for either kind. Does NOT return the raw new_secret — only the
+    preview (first 7 + last 4 chars). Use this to drive the dashboard
+    badge and the finalize/cancel buttons.
+    """
+    out: dict = {}
+    for kind, oid in (("main", "stripe_webhook_pending"),
+                      ("connect", "stripe_connect_webhook_pending")):
+        row = await db.secret_overrides.find_one(
+            {"_id": oid},
+            {"_id": 0, "kind": 1, "target_url": 1, "new_endpoint_id": 1,
+             "new_secret_preview": 1, "old_endpoint_id": 1, "started_at": 1,
+             "started_by": 1},
+        )
+        out[kind] = row
+    return {"pending": out}
+
+
+@router.post("/admin/secrets/stripe-webhook/finalize", include_in_schema=False)
+async def stripe_webhook_finalize(
+    payload: RotateRequest, claims: dict = Depends(require_super_admin()),
+):
+    """Finish a pending rotation: delete the OLD Stripe webhook endpoint,
+    write a `secret_rotations` row (resets the rotation timer in the
+    main tracker), and clear the override.
+
+    Operator must have already updated env + redeployed before calling
+    this. The override's runtime acceptance was their grace period.
+    """
+    kind = payload.kind
+    override_id = "stripe_webhook_pending" if kind == "main" else "stripe_connect_webhook_pending"
+    secret_id_for_tracker = "stripe_webhook" if kind == "main" else "stripe_webhook"  # both flow under same row
+
+    row = await db.secret_overrides.find_one({"_id": override_id})
+    if not row:
+        raise HTTPException(404, f"No pending {kind} webhook rotation to finalize")
+
+    stripe_sdk = _stripe_sdk()
+    old_id = row.get("old_endpoint_id")
+    delete_err: Optional[str] = None
+    if old_id:
+        try:
+            stripe_sdk.WebhookEndpoint.delete(old_id)
+            logger.info("[secrets] deleted old stripe webhook endpoint: %s", old_id)
+        except Exception as e:
+            # If the endpoint was already deleted by hand we still want
+            # to clear the override — log + continue.
+            delete_err = str(e)
+            logger.warning("[secrets] couldn't delete old endpoint %s: %s", old_id, e)
+
+    finalized_at = now_iso()
+    admin_email = (claims.get("email") or "").lower()
+
+    # Write a secret_rotations row so the main tracker shows the timer
+    # as reset (next_due = today + cadence_days).
+    await db.secret_rotations.insert_one({
+        "secret_id": secret_id_for_tracker,
+        "label": "Stripe webhook signing secret",
+        "admin_email": admin_email,
+        "note": f"Auto-rotated via API. kind={kind} new_endpoint={row.get('new_endpoint_id')}",
+        "created_at": finalized_at,
+    })
+
+    await db.secret_overrides.delete_one({"_id": override_id})
+
+    await db.admin_audit_log.insert_one({
+        "kind": "stripe_webhook_rotation_finalized",
+        "webhook_kind": kind,
+        "new_endpoint_id": row.get("new_endpoint_id"),
+        "old_endpoint_id": old_id,
+        "old_delete_error": delete_err,
+        "admin_email": admin_email,
+        "created_at": finalized_at,
+    })
+    return {
+        "ok": True,
+        "kind": kind,
+        "old_endpoint_deleted": bool(old_id) and not delete_err,
+        "old_delete_error": delete_err,
+        "finalized_at": finalized_at,
+    }
+
+
+@router.post("/admin/secrets/stripe-webhook/cancel", include_in_schema=False)
+async def stripe_webhook_cancel(
+    payload: RotateRequest, claims: dict = Depends(require_super_admin()),
+):
+    """Abort a pending rotation: delete the NEW Stripe webhook endpoint
+    (the one we just created) and clear the override. Use this if you
+    didn't promote the new secret to env yet — we revert cleanly.
+    """
+    kind = payload.kind
+    override_id = "stripe_webhook_pending" if kind == "main" else "stripe_connect_webhook_pending"
+    row = await db.secret_overrides.find_one({"_id": override_id})
+    if not row:
+        raise HTTPException(404, f"No pending {kind} webhook rotation to cancel")
+
+    stripe_sdk = _stripe_sdk()
+    new_id = row.get("new_endpoint_id")
+    delete_err: Optional[str] = None
+    if new_id:
+        try:
+            stripe_sdk.WebhookEndpoint.delete(new_id)
+        except Exception as e:
+            delete_err = str(e)
+            logger.warning("[secrets] couldn't delete new endpoint %s: %s", new_id, e)
+
+    await db.secret_overrides.delete_one({"_id": override_id})
+    cancelled_at = now_iso()
+    await db.admin_audit_log.insert_one({
+        "kind": "stripe_webhook_rotation_cancelled",
+        "webhook_kind": kind,
+        "new_endpoint_id": new_id,
+        "new_delete_error": delete_err,
+        "admin_email": (claims.get("email") or "").lower(),
+        "created_at": cancelled_at,
+    })
+    return {
+        "ok": True,
+        "kind": kind,
+        "new_endpoint_deleted": bool(new_id) and not delete_err,
+        "new_delete_error": delete_err,
+        "cancelled_at": cancelled_at,
+    }

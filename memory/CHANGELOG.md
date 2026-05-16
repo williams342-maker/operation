@@ -1,5 +1,21 @@
 # Crafters Market — CHANGELOG
 
+
+## 2026-02 — iter142 · Secrets auto-rotation plumbing (Stripe webhooks + daily nudges) ✅
+
+**Admin:** The Secrets tab is no longer a manual-only tracker. Stripe webhook signing secrets can now be auto-rotated in one click (creates a new Stripe endpoint, returns the new secret, dual-secret overlap window so in-flight events keep verifying during the redeploy), and overdue/due-soon credentials trigger daily Slack + Discord + email alerts (was: weekly, email-only).
+
+- Backend (rotation):
+  - `POST /api/admin/secrets/stripe-webhook/rotate` — creates a new Stripe webhook endpoint at the same URL with the same events. Returns the new `whsec_…` once (shown in a one-time modal). Persists `{new_endpoint_id, new_secret, old_endpoint_id}` to `db.secret_overrides` for runtime verification.
+  - `GET /api/admin/secrets/stripe-webhook/pending` — dashboard polling endpoint; returns a redacted preview (`whsec_t…0XYZ`) plus start time/operator.
+  - `POST /api/admin/secrets/stripe-webhook/finalize` — admin confirms env updated + redeployed; we delete the old Stripe endpoint, write a `secret_rotations` audit row (resets the tracker timer), clear the override.
+  - `POST /api/admin/secrets/stripe-webhook/cancel` — abort path; deletes the newly-created endpoint, clears override.
+  - All four super-admin only; every action audit-logged to `admin_audit_log`.
+- Backend (verification): new `stripe_webhook_secrets.py` helper. Both `/webhook/stripe` and `/webhook/stripe/connect` now verify the signature against `[env secret, db override new_secret]` so in-flight events never fail during the rotation window.
+- Backend (nudge cron): `_job_secrets_rotation_nudge` rewritten — two-tier (14-day pre-warning + overdue), runs daily at 09:30 UTC (was: Mondays only), fans out to Email + Slack + Discord (was: email-only), dedups per `(secret_id, status)` so a row that flips `due_soon → overdue` triggers a fresh alert immediately. Overdue alerts bypass the `notify_team` dedup window because they're operational, not informational.
+- Frontend (`SecretsTab.jsx`): per-row "Auto-rotate" button on `stripe_webhook`, pending-rotation banner with finalize/cancel actions, one-time `RevealedSecretModal` with copy-to-clipboard for the new secret. All elements have `data-testid`s.
+- Tests: 6/6 pass in `/app/backend/tests/test_secrets_rotation.py` (mocked Stripe SDK · rotation create/finalize/cancel, 409 on double-rotate, dual-secret return order, nudge dedup).
+
 ## 2026-02 — iter141 · Trending Journal rail on homepage ✅
 
 **Public:** New "Trending in the journal" rail on the homepage shows the most-read maker stories of the past two weeks. First-time visitors see the human side of the marketplace immediately — not just product cards.
