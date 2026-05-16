@@ -1,6 +1,15 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-02 — iter144 · Meta Ads OAuth user-verified ✅
+
+**Verified end-to-end after the iter141 scaffold:**
+- OAuth connect → callback → token persistence all working (`act_302712050421799` · Mike Williams · USD · expires 2026-07-15).
+- `GET /api/admin/integrations/meta-ads/status` returns `connected: true` + ad-account metadata.
+- Manual sync (`POST /api/admin/integrations/meta-ads/sync`) pulled real campaign rows for 2026-05-09 through 05-12 (1 row/day · last 3 days returned 0 rows = no active spend).
+- Daily cron `meta_ads_daily_sync` registered for 04:00 UTC. No regressions in the auto-rotation work shipped in iter142.
+
+
 ## 2026-02 — iter143 · Capability-aware tab redirect polish ✅
 
 **Admin:** When a non-super admin clicks a deep-link to a tab they don't have capabilities for (e.g. shared Slack link to `?tab=feedback` but they're a `finance`-only admin), they used to land on a silent fallback with the URL still showing the forbidden tab — confusing if they refreshed or shared the URL. Now we sync the URL to the fallback tab, drop any stale `?open=` deep-link target, and surface a 6-second toast explaining the redirect.
