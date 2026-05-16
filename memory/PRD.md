@@ -122,7 +122,7 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - **P2** Submit sitemap to GSC + Bing per `/app/docs/seo-submission-checklist.md` (user-side, ~25 min).
 - **P2** Flip `Auto Offsite Backup` AND `Auto Recovery Drill` toggles ON in admin Settings, then verify tomorrow's 03:15 UTC backup + Apr 1 drill cron land cleanly.
 - **P2** Walk through Secrets Rotation tab and click "Mark rotated" on every credential rotated this year so timers start from the right baseline.
-- **P3** Capability-aware tab redirects: when a non-super admin clicks a deep-link to a tab they don't have caps for, redirect to the first visible tab instead of just hiding the sidebar entry.
+- **P3** ~~Capability-aware tab redirects: when a non-super admin clicks a deep-link to a tab they don't have caps for, redirect to the first visible tab instead of just hiding the sidebar entry.~~ ✅ shipped 2026-02 (iter143: URL sync + explanatory toast + stale `?open=` strip).
 - **P3** ~~Auto-rotate API keys / Stripe webhook signing keys via the new audit log we now ship — weekly Slack summary of overdue secrets.~~ ✅ shipped 2026-02 (iter142: daily Slack+Discord+email + one-click Stripe webhook auto-rotate w/ dual-secret overlap).
 
 ## Blocked (waiting on user)

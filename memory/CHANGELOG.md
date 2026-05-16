@@ -1,6 +1,17 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-02 — iter143 · Capability-aware tab redirect polish ✅
+
+**Admin:** When a non-super admin clicks a deep-link to a tab they don't have capabilities for (e.g. shared Slack link to `?tab=feedback` but they're a `finance`-only admin), they used to land on a silent fallback with the URL still showing the forbidden tab — confusing if they refreshed or shared the URL. Now we sync the URL to the fallback tab, drop any stale `?open=` deep-link target, and surface a 6-second toast explaining the redirect.
+
+- Frontend (`AdminDashboard.jsx`):
+  - Added `toast.message` import from `sonner` to surface the redirect reason inline.
+  - Auto-redirect effect rewritten to: `setTab(fallback.id)` + `history.replaceState` with `?tab=<fallback>` (and `?open` stripped) + one-time toast keyed off the forbidden tab id (StrictMode-safe via `useRef`).
+  - The toast names both the forbidden tab and the fallback so the admin can ask a super admin for the right capability if they need it.
+- No backend changes — capability filter and `visibleTabs` memo are unchanged.
+
+
 ## 2026-02 — iter142 · Secrets auto-rotation plumbing (Stripe webhooks + daily nudges) ✅
 
 **Admin:** The Secrets tab is no longer a manual-only tracker. Stripe webhook signing secrets can now be auto-rotated in one click (creates a new Stripe endpoint, returns the new secret, dual-secret overlap window so in-flight events keep verifying during the redeploy), and overdue/due-soon credentials trigger daily Slack + Discord + email alerts (was: weekly, email-only).

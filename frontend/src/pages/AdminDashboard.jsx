@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { BarChart3 } from "lucide-react";
+import { toast } from "sonner";
 import {
   fetchAdminMe,
   fetchAdminApplications,
@@ -156,11 +157,40 @@ export default function AdminDashboard() {
   // tab they CAN see, instead of showing a blank pane. Skipped while
   // `me` is loading so we don't bounce off "applications" before the
   // permissions are known.
+  //
+  // We also:
+  //   • Sync the URL (`?tab=…`) so a refresh / share lands on the
+  //     correct fallback tab, not the original forbidden one.
+  //   • Drop the `?open=` deep-link param too — the row being deep-
+  //     linked lived on a tab the admin can't see, so it'd be a 404.
+  //   • Toast once explaining why they got redirected. Keyed by the
+  //     forbidden tab id so React Strict-Mode double-mounts don't
+  //     show the toast twice in dev.
+  const lastRedirectFromRef = React.useRef(null);
   useEffect(() => {
     if (!me) return;
     if (!visibleTabs.length) return;
-    if (!visibleTabs.some((t) => t.id === tab)) {
-      setTab(visibleTabs[0].id);
+    if (visibleTabs.some((t) => t.id === tab)) return;
+
+    const forbiddenId = tab;
+    const fallback = visibleTabs[0];
+    setTab(fallback.id);
+
+    // Sync URL — strip any deep-link target that's no longer applicable.
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set("tab", fallback.id);
+      url.searchParams.delete("open");
+      window.history.replaceState({}, "", url.toString());
+    } catch {/* ignore — non-browser env in tests */}
+
+    if (lastRedirectFromRef.current !== forbiddenId) {
+      lastRedirectFromRef.current = forbiddenId;
+      const forbiddenLabel = TABS.find((t) => t.id === forbiddenId)?.label || forbiddenId;
+      toast.message(`No access to "${forbiddenLabel}"`, {
+        description: `Showing "${fallback.label}" instead. Ask a super admin if you need that capability.`,
+        duration: 6000,
+      });
     }
   }, [me, visibleTabs, tab]);
 
