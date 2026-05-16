@@ -594,6 +594,25 @@ export const triggerGoogleAdsSync = (date) =>
     { params: date ? { date } : {}, headers: adminAuthHeaders() }
   ).then((r) => r.data);
 
+// ---------- Meta Ads integration ----------
+// Same shape as Google Ads — separate provider, separate token, but
+// rows land in the same `ad_spend` ledger so the AdsTab dashboard
+// renders both side-by-side automatically.
+export const fetchMetaAdsStatus = () =>
+  http.get("/admin/integrations/meta-ads/status",
+    { headers: adminAuthHeaders() }).then((r) => r.data);
+export const startMetaAdsOauth = () =>
+  http.get("/admin/integrations/meta-ads/oauth/start",
+    { headers: adminAuthHeaders() }).then((r) => r.data);
+export const disconnectMetaAds = () =>
+  http.post("/admin/integrations/meta-ads/disconnect", {},
+    { headers: adminAuthHeaders() }).then((r) => r.data);
+export const triggerMetaAdsSync = (date) =>
+  http.post("/admin/integrations/meta-ads/sync",
+    {},
+    { params: date ? { date } : {}, headers: adminAuthHeaders() }
+  ).then((r) => r.data);
+
 // ---------- Newsletter (Kit.com) ----------
 export const subscribeNewsletter = (email, source = "homepage") =>
   http.post("/newsletter/subscribe", { email, source }).then((r) => r.data);

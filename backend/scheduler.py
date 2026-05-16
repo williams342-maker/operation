@@ -566,6 +566,18 @@ async def _job_google_ads_daily_sync() -> None:
         logger.exception("[scheduler] google_ads_daily_sync failed: %s", e)
 
 
+async def _job_meta_ads_daily_sync() -> None:
+    """Daily 04:00 UTC — same pattern as google_ads_daily_sync but for
+    the Meta Marketing API. Offset 30 min from Google so we don't
+    bottleneck the worker pool on the same minute."""
+    try:
+        from routers.meta_ads import sync_metrics
+        r = await sync_metrics()
+        logger.info("[scheduler] meta_ads_daily_sync: %s", r)
+    except Exception as e:
+        logger.exception("[scheduler] meta_ads_daily_sync failed: %s", e)
+
+
 async def _job_maker_journal_digest() -> None:
     """Weekly Monday 14:00 UTC — for each maker who published one or
     more journal posts in the past 7 days, send a single digest email
@@ -699,6 +711,12 @@ def start_scheduler() -> AsyncIOScheduler | None:
     sched.add_job(_job_google_ads_daily_sync,
                   CronTrigger(hour=3, minute=30),
                   id="google_ads_daily_sync", replace_existing=True)
+    # Meta Ads daily metrics sync — 04:00 UTC. Same pattern as Google
+    # Ads; offset 30 min so the two jobs don't squeeze the worker pool
+    # together.
+    sched.add_job(_job_meta_ads_daily_sync,
+                  CronTrigger(hour=4, minute=0),
+                  id="meta_ads_daily_sync", replace_existing=True)
     # Weekly maker-journal digest — Monday 14:00 UTC (≈ 9am ET / 6am PT
     # — buyers tend to read on the train/over coffee, not 2am). Sends
     # one email per (maker, follower) pair summarizing all of that

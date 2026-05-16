@@ -10,6 +10,7 @@ import { Stat } from "./_shared";
 import { Sparkline } from "../Charts";
 import { useConfirm } from "../../hooks/useConfirm";
 import GoogleAdsConnectionCard from "./GoogleAdsConnectionCard";
+import MetaAdsConnectionCard from "./MetaAdsConnectionCard";
 
 const PLATFORM_TONE = {
   google: "border-blue-700/50 text-blue-300",
@@ -85,6 +86,7 @@ export default function AdsTab() {
     <div data-testid="ads-tab" className="space-y-6">
       {confirmModal}
       <GoogleAdsConnectionCard />
+      <MetaAdsConnectionCard />
       <div className="border border-[#262626] p-4 md:p-5">
         <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-2">
           ◆ Off-site Ad Spend
