@@ -2176,3 +2176,96 @@ async def send_maker_journal_digest(
         f"[Crafters Market] {maker_name} just published {n} new journal posts"
     )
     return await _send(follower_email, subj, html)
+
+
+# ─────────────────────── Social Momentum Digest (iter149) ───────────────────────
+async def send_social_momentum_digest(
+    *, email: str, maker_name: str, maker_slug: str,
+    total_shares: int, top_listings: list[dict], week_label: str,
+):
+    """Send a maker their weekly "your listings got N shares" email.
+
+    `top_listings` is pre-ranked: `[{slug, title, count}, ...]`. We
+    render each as a compact card with a link back to the listing
+    edit page (where they can grab a fresh story-card or copy the
+    share URL again to fuel another wave).
+
+    Quiet on zero — caller is responsible for short-circuiting before
+    we get here, but we still bail to avoid sending an awkward
+    "0 shares" message if anything slipped through.
+    """
+    if total_shares <= 0 or not top_listings:
+        return None
+
+    dashboard_url = f"{SITE_URL}/maker/dashboard"
+    settings_url = f"{SITE_URL}/maker/settings"
+
+    # Build one card per top listing. Compact: title (linked) + count +
+    # a "copy share link again" CTA. Image-free so the email renders
+    # fast on mobile and doesn't fight Gmail's image-blocking default.
+    items_html = ""
+    for it in top_listings:
+        listing_url = f"{SITE_URL}/shop/{it['slug']}"
+        edit_url = f"{SITE_URL}/maker/listings/{it['slug']}/edit"
+        items_html += (
+            "<div style='border:1px solid #262626;padding:18px;margin:12px 0;"
+            "background:#0d0d0d'>"
+            "<div style='font-size:11px;color:#a3a3a3;text-transform:uppercase;"
+            "letter-spacing:0.22em;margin-bottom:6px'>"
+            f"{it['count']} share{'s' if it['count'] != 1 else ''} this week"
+            "</div>"
+            "<div style='font-size:18px;font-weight:600;color:#fafafa;margin:0 0 14px'>"
+            f"<a href='{listing_url}' style='color:#fafafa;text-decoration:none'>{it['title']}</a>"
+            "</div>"
+            "<div>"
+            f"<a href='{edit_url}' style='font-size:11px;color:#ff4500;"
+            "text-transform:uppercase;letter-spacing:0.22em;text-decoration:none'>"
+            "↗ Open listing</a>"
+            "</div>"
+            "</div>"
+        )
+
+    cta = (
+        "<div style='margin:28px 0;padding:20px;border:1px solid #ff4500;"
+        "background:#1a0a05;color:#fafafa'>"
+        "<div style='font-size:11px;color:#ff4500;text-transform:uppercase;"
+        "letter-spacing:0.22em;margin-bottom:8px'>◆ Keep the momentum</div>"
+        "<div style='font-size:15px;line-height:1.55'>"
+        "Grab a fresh 9:16 Story template from your dashboard and re-share "
+        "your top listing on Instagram or TikTok. Each new share shows up on "
+        "the listing page as social proof to the next buyer."
+        "</div>"
+        f"<div style='margin-top:14px'><a href='{dashboard_url}' "
+        "style='display:inline-block;padding:10px 18px;background:#ff4500;"
+        "color:#0a0a0a;text-decoration:none;font-size:11px;text-transform:"
+        "uppercase;letter-spacing:0.22em;font-weight:600'>"
+        "Open maker dashboard →</a></div>"
+        "</div>"
+    )
+
+    intro = (
+        f"Hey {maker_name}, your listings collected <strong>{total_shares} "
+        f"share{'s' if total_shares != 1 else ''}</strong> this week. "
+        "That's organic interest from people pasting your products into "
+        "Slack, iMessage, Discord, and Pinterest DMs."
+    )
+
+    footer = (
+        f"<p style='font-size:10px;line-height:1.6;color:#525252;margin-top:32px;"
+        "letter-spacing:0.22em;text-transform:uppercase'>"
+        f"◆ <a href='{settings_url}' style='color:#525252'>Mute these weekly recaps</a> "
+        f"· Week {week_label}</p>"
+    )
+
+    html = _shell(
+        f"{total_shares} share{'s' if total_shares != 1 else ''} this week.",
+        intro,
+        items_html + cta + footer,
+        f"Crafters Market · Social momentum",
+    )
+    subj = (
+        f"[Crafters Market] You got {total_shares} share"
+        f"{'s' if total_shares != 1 else ''} this week"
+    )
+    return await _send(email, subj, html)
+

@@ -670,6 +670,21 @@ async def _job_maker_journal_digest() -> None:
         logger.exception("[scheduler] maker_journal_digest failed: %s", e)
 
 
+async def _job_social_momentum_digest() -> None:
+    """Weekly Monday 14:30 UTC — for each maker whose listings collected
+    one or more public Share-button clicks in the past 7 days, send a
+    single email summarising the activity + a CTA to keep the loop
+    going. Honors `social_momentum_opt_out` on the maker doc. ISO-week
+    deduped via `social_momentum_sent_at`. Quiet on zero (no email
+    when total_shares=0 for that maker)."""
+    try:
+        from social_momentum import run_weekly_social_momentum_digest
+        r = await run_weekly_social_momentum_digest()
+        logger.info("[scheduler] social_momentum_digest: %s", r)
+    except Exception as e:
+        logger.exception("[scheduler] social_momentum_digest failed: %s", e)
+
+
 
 
 def start_scheduler() -> AsyncIOScheduler | None:
@@ -749,6 +764,13 @@ def start_scheduler() -> AsyncIOScheduler | None:
     sched.add_job(_job_maker_restock_digest,
                   CronTrigger(day_of_week="sun", hour=9, minute=0),
                   id="maker_restock_digest", replace_existing=True)
+    # Maker social-momentum digest — Mondays 14:30 UTC (30 min after the
+    # journal digest so the two emails don't land in the same delivery
+    # batch and overwhelm a maker's inbox on Monday afternoon). Quiet
+    # on zero — makers with no shares get no email. Opt-out honored.
+    sched.add_job(_job_social_momentum_digest,
+                  CronTrigger(day_of_week="mon", hour=14, minute=30),
+                  id="social_momentum_digest", replace_existing=True)
     # Auto dormant-buyer re-engagement — Tuesdays 14:00 UTC (mid-week,
     # mid-afternoon ET = good open rate window). Self-skips when the
     # `auto_dormant_reengage_enabled` toggle is OFF so flipping the

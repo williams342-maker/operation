@@ -1,6 +1,24 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-17 — iter149 · Weekly "Social Momentum" digest for makers ✅
+
+Closes the share-loop feedback: every Monday at 14:30 UTC, makers whose listings collected one or more public Share-button clicks (iter148) in the past 7 days receive ONE email — summarising total shares, top 3 listings ranked by share count, and a CTA back to the maker dashboard to grab a fresh story card and re-fuel the wave. Quiet on zero (no email if no shares), opt-out toggleable in maker Settings, ISO-week deduped.
+
+- New module: `/app/backend/social_momentum.py` — `run_weekly_social_momentum_digest()` aggregates `share_events` for the past 7 days, groups by maker via `products.maker_slug`, sorts listings desc, soft-caps at top 3 per email, writes `social_momentum_sent_at` (keyed by ISO week) to the maker doc to prevent double-sends.
+- New email template: `send_social_momentum_digest()` in `email_service.py` — uses the existing `_shell` chrome, renders a compact listing-card grid (no images = fast mobile load + Gmail-friendly), CTA card linking to maker dashboard, "Mute these recaps" footer link to settings.
+- Scheduler cron: Mondays 14:30 UTC (30 min after the journal digest so Monday afternoon doesn't get two emails landing in the same batch). Wrapped in try/except so any failure logs but doesn't crash the scheduler.
+- Model: new `social_momentum_opt_out: bool = False` on `Maker` + `Optional[bool]` on `MakerProfileUpdate` so the maker can mute it.
+- UI: new `ToggleRow` in `MakerDashboard/SettingsTab.jsx` Notifications section right under the existing Restock digest opt-out. Field name in the PATCH allow-list updated.
+- Tests: 5/5 pass in `/app/backend/tests/test_social_momentum.py`:
+  - emails makers with shares (verifies email kwargs match aggregation)
+  - quiet on zero (no email when 0 shares)
+  - honors opt-out (skips opted-out makers)
+  - idempotent within ISO week (re-run = no-op)
+  - top listings ranked desc by share count
+- Real-DB dry run with no activity returns `{makers_emailed: 0}` cleanly — no errors.
+
+
 ## 2026-05-17 — iter148 · Share-count social-proof badge (free promoted-listings signal) ✅
 
 **Buyers** now see how many people have shared each listing right next to the "Share" button — a low-noise social-proof signal that turns hesitant browsers into clickers. **Admins** get a free "most-shared this week" feed for the dashboard, which doubles as an algorithmic seed for the promoted-listings algorithm (organic interest = the cheapest signal you can buy).

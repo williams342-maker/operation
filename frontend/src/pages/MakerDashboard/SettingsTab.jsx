@@ -290,7 +290,7 @@ function AboutShop({ maker, onSaved }) {
 // Section: Options
 // ============================================================================
 function Options({ maker, onSaved }) {
-  const fields = ["vacation_mode", "vacation_message", "accepts_custom_orders", "accepts_backorders_default", "external_ads_opt_out", "restock_digest_opt_out", "appearance_mode"];
+  const fields = ["vacation_mode", "vacation_message", "accepts_custom_orders", "accepts_backorders_default", "external_ads_opt_out", "restock_digest_opt_out", "social_momentum_opt_out", "appearance_mode"];
   const { form, set, dirty, busy, submit } = useSettingsForm(maker, fields, onSaved);
   return (
     <FormShell
@@ -347,6 +347,13 @@ function Options({ maker, onSaved }) {
         value={!!form.restock_digest_opt_out}
         onChange={set("restock_digest_opt_out")}
         testId="settings-restock-digest-optout"
+      />
+      <ToggleRow
+        label="Mute the weekly Social Momentum email"
+        hint="Every Monday afternoon we email you a count of how many times each listing was shared (via the public Share button) in the past 7 days, plus a CTA to keep the momentum going. Turn this ON to silence those recaps — the share counts still display publicly on each listing as social proof either way."
+        value={!!form.social_momentum_opt_out}
+        onChange={set("social_momentum_opt_out")}
+        testId="settings-social-momentum-optout"
       />
     </FormShell>
   );
