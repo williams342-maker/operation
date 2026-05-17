@@ -118,7 +118,7 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 
 ## Outstanding Backlog
 - **P2** Deploy Cloudflare Worker from `/app/docs/cloudflare-worker-prerender.md` (user-side dashboard step) — now fully paired with iter120's SEO-rich per-slug routes.
-- **P2** Apply DNS cleanup from `/app/docs/dns-cleanup.md` (user-side, removes Brevo/Sender/Mailerlite stale records + tightens SPF).
+- **P2** Apply DNS cleanup from `/app/docs/dns-cleanup.md` (user-side, removes Brevo/Sender/Mailerlite stale records + tightens SPF). ✅ shipped 2026-05-17 (iter145: full DNS hardening + Mailgun migration · SPF/DMARC/DKIM added · stale records removed).
 - **P2** Submit sitemap to GSC + Bing per `/app/docs/seo-submission-checklist.md` (user-side, ~25 min).
 - **P2** Flip `Auto Offsite Backup` AND `Auto Recovery Drill` toggles ON in admin Settings, then verify tomorrow's 03:15 UTC backup + Apr 1 drill cron land cleanly.
 - **P2** Walk through Secrets Rotation tab and click "Mark rotated" on every credential rotated this year so timers start from the right baseline.
