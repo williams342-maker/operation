@@ -5,6 +5,7 @@ import { useCart } from "../lib/cart";
 import { useStructuredData } from "../lib/seo";
 import { ArrowLeft, ZoomIn } from "lucide-react";
 import SaveDropButton from "../components/SaveDropButton";
+import ShareLinkButton from "../components/ShareLinkButton";
 import ImageLightbox from "../components/ImageLightbox";
 import VeteranBadge from "../components/VeteranBadge";
 import BackorderRequestModal from "../components/BackorderRequestModal";
@@ -308,6 +309,7 @@ export default function ProductDetail() {
                       {added ? "Added ✓" : "Add to cart →"}
                     </button>
                     <SaveDropButton makerSlug={p.maker_slug} makerName={maker?.name || p.maker_slug} productSlug={p.slug} />
+                    <ShareLinkButton kind="product" slug={p.slug} testId="product-share-link" />
                   </div>
                 );
               }
@@ -365,6 +367,7 @@ export default function ProductDetail() {
                       ✉ Notify me
                     </button>
                     <SaveDropButton makerSlug={p.maker_slug} makerName={maker?.name || p.maker_slug} productSlug={p.slug} />
+                    <ShareLinkButton kind="product" slug={p.slug} testId="product-share-link-oos" />
                   </div>
                   {backorderPolicy?.allowed && (
                     <p className="font-mono text-[10px] text-[#525252] leading-relaxed">

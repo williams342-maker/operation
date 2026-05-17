@@ -1,6 +1,19 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-17 — iter147 · Public "⎘ Share" button on every product detail page ✅
+
+**Buyers + browsers + makers alike** can now copy a rich-unfurl share URL straight from the public product page. New `[⛓ SHARE]` pill sits next to `[♡ SAVE DROP]` in the action row, both in-stock and out-of-stock states. One click → clipboard contains `https://craftersmarket.org/api/og/product/<slug>`, which unfurls into a real card in Slack/iMessage/Facebook/Discord/Pinterest DMs and bounces humans to the canonical `/shop/<slug>` page via a 0-second meta-refresh.
+
+- New shared component: `/app/frontend/src/components/ShareLinkButton.jsx`. Reusable for `kind="product"|"maker"|"journal"` so the same pill can drop onto maker profiles and journal articles when we extend it next. Style matches `SaveDropButton` (same border / hover / font-mono / 11px tracking).
+- Public product detail page (`pages/ProductDetail.jsx`) wired into both render branches:
+  - In-stock block → next to `[Add to cart] [Save drop]`
+  - OOS block → next to `[Save drop]` and `[✉ Notify me]`
+- Maker-dashboard `ProductEditCard` pill from iter146 left unchanged (it intentionally uses the `ActionPill` look to match the rest of the maker action grid; one-off styling beats shared-component re-skinning).
+- Friendly clipboard fallback (`window.prompt`) for locked-down browsers, toast confirmation via `sonner`.
+- Linted clean; smoke-test from iter146 (`tests/test_og_share_endpoint.py`) continues to pass — pins the OG response contract this button depends on.
+
+
 ## 2026-05-17 — iter146 · Maker "⎘ Share link" button (Cloudflare Worker fallback) ✅
 
 **Maker dashboard:** New "⎘ Share link" pill in the product card action grid (next to "↗ Share social"). One click copies a share-friendly URL like `https://craftersmarket.org/api/og/product/<slug>` to the clipboard. When a maker pastes that into Slack, iMessage, Facebook DM, LinkedIn, or Discord, the link unfurls with a real card (image + title + price) because the backend `/api/og/product` route already returns full prerender HTML with og: tags + Schema.org JSON-LD. Humans who click the link get a 0-second meta-refresh to the canonical `/shop/<slug>` page, so it's transparent to buyers.
