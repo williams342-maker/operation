@@ -1078,6 +1078,11 @@ async def maker_orders(slug: str = Depends(current_maker_slug)):
                 "price": unit_price,
                 "quantity": qty,
                 "subtotal": round(unit_price * qty, 2),
+                # iter150 — surface buyer personalization to the maker so
+                # they can see WHAT to engrave on the order list AND in
+                # the detail drawer without re-checking the email.
+                "personalization_text": ci.get("personalization_text"),
+                "personalization_image_url": ci.get("personalization_image_url"),
             })
         if not my_lines:
             continue
@@ -1134,6 +1139,11 @@ async def maker_order_detail(session_id: str, slug: str = Depends(current_maker_
             "price": unit_price,
             "quantity": qty,
             "subtotal": round(unit_price * qty, 2),
+            # iter150 — buyer personalization surfaces in the order
+            # detail drawer so the maker can see what to engrave at a
+            # glance without re-reading the email.
+            "personalization_text": ci.get("personalization_text"),
+            "personalization_image_url": ci.get("personalization_image_url"),
         })
     if not lines:
         raise HTTPException(404, "Order not found.")

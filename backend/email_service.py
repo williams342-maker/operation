@@ -435,12 +435,71 @@ def _shell(title: str, intro: str, body_html: str, footer: str = "") -> str:
 
 
 def _items_table(items: list[dict]) -> str:
-    rows = "".join(
-        f"<tr><td style='padding:10px 0;border-bottom:1px solid #262626;color:#e5e5e5'>{i.get('title','')} × {i.get('quantity',1)}</td>"
-        f"<td style='padding:10px 0;border-bottom:1px solid #262626;text-align:right;color:#ff4500'>${float(i.get('price',0))*int(i.get('quantity',1)):.2f}</td></tr>"
-        for i in items
+    """Render the order line-items table. Personalization (text + image
+    URL, from iter150) is rendered as a sub-row beneath each line item
+    when present — invisible no-op when the buyer didn't personalize.
+    Used by buyer receipt, maker order alert, ops digest.
+    """
+    parts: list[str] = []
+    for i in items:
+        qty = int(i.get("quantity", 1))
+        line_total = float(i.get("price", 0)) * qty
+        parts.append(
+            "<tr>"
+            f"<td style='padding:10px 0;border-bottom:1px solid #262626;color:#e5e5e5'>"
+            f"{i.get('title', '')} × {qty}</td>"
+            f"<td style='padding:10px 0;border-bottom:1px solid #262626;text-align:right;"
+            f"color:#ff4500'>${line_total:.2f}</td>"
+            "</tr>"
+        )
+        # iter150 — personalization breakdown right under the item it
+        # belongs to. Caller (checkout.py) sets these on each line dict
+        # before passing into us.
+        pers_text = (i.get("personalization_text") or "").strip()
+        pers_img = (i.get("personalization_image_url") or "").strip()
+        if pers_text or pers_img:
+            inner_bits: list[str] = []
+            if pers_text:
+                # Escape user input — this is buyer-submitted free text
+                # and we render it in the maker's inbox. Newlines → <br>.
+                safe = (pers_text
+                        .replace("&", "&amp;")
+                        .replace("<", "&lt;")
+                        .replace(">", "&gt;")
+                        .replace("\n", "<br>"))
+                inner_bits.append(
+                    "<div style='font-size:13px;color:#e5e5e5;line-height:1.55;"
+                    "margin-bottom:8px'><span style='color:#ff4500'>◆ </span>"
+                    f"{safe}</div>"
+                )
+            if pers_img:
+                inner_bits.append(
+                    "<div style='margin-top:8px'>"
+                    f"<a href='{pers_img}' style='display:inline-block'>"
+                    f"<img src='{pers_img}' alt='Buyer reference image' "
+                    "style='max-width:260px;max-height:200px;border:1px solid #262626;"
+                    "display:block' />"
+                    f"</a><div style='margin-top:6px'><a href='{pers_img}' "
+                    "style='font-size:11px;color:#ff4500;text-transform:uppercase;"
+                    "letter-spacing:0.22em;text-decoration:none'>"
+                    "↗ Open full-size</a></div>"
+                    "</div>"
+                )
+            parts.append(
+                "<tr><td colspan='2' style='padding:4px 0 14px;"
+                "border-bottom:1px solid #262626'>"
+                "<div style='background:#1a0a05;border-left:3px solid #ff4500;"
+                "padding:14px 16px;margin-top:4px'>"
+                "<div style='font-size:10px;color:#ff4500;text-transform:uppercase;"
+                "letter-spacing:0.22em;margin-bottom:8px'>"
+                "◆ Buyer personalization</div>"
+                f"{''.join(inner_bits)}"
+                "</div></td></tr>"
+            )
+    return (
+        "<table width='100%' cellpadding='0' cellspacing='0' "
+        f"style='font-size:13px;margin:8px 0 16px'>{''.join(parts)}</table>"
     )
-    return f"<table width='100%' cellpadding='0' cellspacing='0' style='font-size:13px;margin:8px 0 16px'>{rows}</table>"
 
 
 async def send_buyer_receipt(buyer_email: str, summary: str, total: float, items: list[dict]):
@@ -2261,7 +2320,7 @@ async def send_social_momentum_digest(
         f"{total_shares} share{'s' if total_shares != 1 else ''} this week.",
         intro,
         items_html + cta + footer,
-        f"Crafters Market · Social momentum",
+        "Crafters Market · Social momentum",
     )
     subj = (
         f"[Crafters Market] You got {total_shares} share"

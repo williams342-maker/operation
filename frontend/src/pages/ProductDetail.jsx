@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
+import { toast } from "sonner";
 import { fetchProduct, fetchMaker, fetchBackorderPolicy } from "../lib/api";
 import { useCart } from "../lib/cart";
 import { useStructuredData } from "../lib/seo";
 import { ArrowLeft, ZoomIn } from "lucide-react";
 import SaveDropButton from "../components/SaveDropButton";
 import ShareLinkButton from "../components/ShareLinkButton";
+import PersonalizationPanel from "../components/PersonalizationPanel";
 import ImageLightbox from "../components/ImageLightbox";
 import VeteranBadge from "../components/VeteranBadge";
 import BackorderRequestModal from "../components/BackorderRequestModal";
@@ -22,6 +24,9 @@ export default function ProductDetail() {
   const [qty, setQty] = useState(1);
   const [added, setAdded] = useState(false);
   const [selectedVariantId, setSelectedVariantId] = useState(null);
+  // iter150 — buyer personalization captured from PersonalizationPanel
+  // and held here until "Add to cart" forwards it into cart.add().
+  const [personalization, setPersonalization] = useState(null);
   // Backorder policy is fetched lazily from the dedicated endpoint so
   // the rule (per-listing override on top of maker default) lives in
   // exactly one place — the backend. Frontend is a dumb consumer.
@@ -88,7 +93,20 @@ export default function ProductDetail() {
 
   const onAdd = () => {
     if (hasVariants && !selectedVariant) return;
-    add(p, qty, selectedVariant);
+    // iter150 — block "Add to cart" until the buyer either provided
+    // personalization or explicitly skipped it. We use a soft check:
+    // if the listing requires personalization (`personalization_enabled`
+    // = true) and neither text nor image is present, refuse to add and
+    // toast a hint instead of silently adding a blank order.
+    if (p.personalization_enabled && !personalization?.text && !personalization?.image_url) {
+      // We don't strictly require BOTH — many listings just need a name.
+      // But we DO require at least one of the two to be set.
+      toast.error("Please add your personalization message or attach a reference image first.");
+      const node = document.querySelector("[data-testid='personalization-panel']");
+      node?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    add(p, qty, selectedVariant, personalization || null);
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
   };
@@ -289,6 +307,19 @@ export default function ProductDetail() {
                   );
                 })()}
               </div>
+            )}
+
+            {/* iter150 — Buyer personalization panel. Renders only when
+                the maker has flagged this listing as personalizable. The
+                buyer can add a message and/or upload a reference image
+                BEFORE clicking Add to cart; both flow through cart →
+                checkout → order doc → maker's order email. */}
+            {p.personalization_enabled && (
+              <PersonalizationPanel
+                instructions={p.personalization_instructions}
+                onChange={setPersonalization}
+                testIdPrefix="personalization"
+              />
             )}
 
             {/* Stock & cart row — three states:

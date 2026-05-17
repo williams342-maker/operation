@@ -34,7 +34,12 @@ export default function CartPage() {
     if (!items.length) { setQuote(null); return; }
     let alive = true;
     fetchCartQuote(
-      items.map((i) => ({ product_id: i.id, quantity: i.quantity, variant_id: i.variant_id || undefined })),
+      items.map((i) => ({
+        product_id: i.id, quantity: i.quantity,
+        variant_id: i.variant_id || undefined,
+        personalization_text: i.personalization_text || undefined,
+        personalization_image_url: i.personalization_image_url || undefined,
+      })),
       appliedCode || null,
     )
       .then((q) => { if (alive) setQuote(q); })
@@ -63,7 +68,12 @@ export default function CartPage() {
     setErr(""); setLoading(true);
     try {
       const res = await createCheckout({
-        items: items.map((i) => ({ product_id: i.id, quantity: i.quantity, variant_id: i.variant_id || undefined })),
+        items: items.map((i) => ({
+          product_id: i.id, quantity: i.quantity,
+          variant_id: i.variant_id || undefined,
+          personalization_text: i.personalization_text || undefined,
+          personalization_image_url: i.personalization_image_url || undefined,
+        })),
         origin_url: window.location.origin,
         customer_email: email,
         gift_note: giftNote || undefined,
@@ -113,6 +123,38 @@ export default function CartPage() {
                       </div>
                     )}
                     <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#a3a3a3] mt-1">${i.price.toFixed(2)} ea</div>
+                    {/* iter150 — Personalization summary on the cart line
+                        so the buyer can see exactly what they're sending
+                        before paying. */}
+                    {(i.personalization_text || i.personalization_image_url) && (
+                      <div
+                        className="mt-3 border-l-2 border-[#ff4500] pl-3"
+                        data-testid={`cart-personalization-${i.slug}`}
+                      >
+                        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mb-1">
+                          ◆ Personalization
+                        </div>
+                        {i.personalization_text && (
+                          <div className="text-xs text-[#e5e5e5] leading-relaxed whitespace-pre-wrap">
+                            {i.personalization_text}
+                          </div>
+                        )}
+                        {i.personalization_image_url && (
+                          <a
+                            href={i.personalization_image_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-block mt-2"
+                          >
+                            <img
+                              src={i.personalization_image_url}
+                              alt="Reference"
+                              className="w-16 h-16 object-cover border border-[#262626]"
+                            />
+                          </a>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div className="col-span-6 sm:col-span-3 flex items-center gap-3">
                     <div className="flex items-center border border-[#262626]">

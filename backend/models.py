@@ -490,6 +490,16 @@ class CartItem(BaseModel):
     product_id: str
     quantity: int = 1
     variant_id: Optional[str] = None    # selected variant (optional)
+    # ---- Buyer personalization (iter150) ----
+    # Both optional; surfaced to the maker on the order detail page +
+    # in the order confirmation email. The image URL points at the
+    # R2-hosted file the buyer uploaded via /api/personalization/upload
+    # BEFORE adding the item to cart. We don't validate the URL here
+    # (would couple the model to R2 internals) — the upload endpoint
+    # is the only way to get a URL onto this field via the UI, so an
+    # adversarial caller can at worst poison their own order doc.
+    personalization_text: Optional[str] = Field(default=None, max_length=2000)
+    personalization_image_url: Optional[str] = Field(default=None, max_length=600)
 
 
 class CheckoutRequest(BaseModel):

@@ -143,7 +143,23 @@ async def _resolve_cart(items: list) -> list[dict]:
                 "_base_title": prod.get("title", ""),
                 "title": f"{prod.get('title', '')} — {variant.get('label', '')}",
             }
-        out.append({"product": prod, "quantity": max(1, int(qty))})
+        # Buyer personalization (iter150): text + image_url pass through so
+        # the order doc + maker email surface them. We don't validate them
+        # here — Pydantic already enforced the length caps on CartItem.
+        pers_text = (
+            ci.personalization_text if hasattr(ci, "personalization_text")
+            else (ci.get("personalization_text") if isinstance(ci, dict) else None)
+        )
+        pers_img = (
+            ci.personalization_image_url if hasattr(ci, "personalization_image_url")
+            else (ci.get("personalization_image_url") if isinstance(ci, dict) else None)
+        )
+        out.append({
+            "product": prod,
+            "quantity": max(1, int(qty)),
+            "personalization_text": (pers_text or "").strip() or None,
+            "personalization_image_url": (pers_img or "").strip() or None,
+        })
     return out
 
 
@@ -648,9 +664,24 @@ async def checkout_status(session_id: str, http_request: Request, bg: Background
                     "quantity": ci.get("quantity", 1),
                     "maker_slug": p["maker_slug"],
                     "maker_name": m_doc.get("name") or p["maker_slug"],
+                    # iter150 — buyer personalization (text + image URL).
+                    # `None` when the buyer didn't add any; the email
+                    # template short-circuits on falsy values.
+                    "personalization_text": ci.get("personalization_text"),
+                    "personalization_image_url": ci.get("personalization_image_url"),
                 }
                 email_items.append(line)
                 by_maker.setdefault(p["maker_slug"], []).append(line)
+                # iter150 — mark the personalization upload as referenced so
+                # the orphan-cleanup cron doesn't delete it after 7 days.
+                pim = (ci.get("personalization_image_url") or "").strip()
+                if pim:
+                    try:
+                        await db.personalization_uploads.update_one(
+                            {"url": pim}, {"$set": {"referenced": True}},
+                        )
+                    except Exception as e:
+                        logger.warning("[personalization] mark-referenced failed: %s", e)
             buyer = tx.get("customer_email")
             total_amount = float(tx.get("amount", 0))
             bg.add_task(send_ops_new_order, summary, total_amount, email_items, buyer)

@@ -202,12 +202,24 @@ function OrderRow({ order, onChange }) {
           {order.items.map((it) => (
             <li
               key={it.product_slug}
-              className="flex justify-between font-mono text-xs text-[#e5e5e5]"
+              className="font-mono text-xs text-[#e5e5e5]"
             >
-              <span>
-                {it.title} <span className="text-[#525252]">× {it.quantity}</span>
-              </span>
-              <span className="text-[#a3a3a3]">${it.subtotal.toFixed(2)}</span>
+              <div className="flex justify-between">
+                <span>
+                  {it.title} <span className="text-[#525252]">× {it.quantity}</span>
+                </span>
+                <span className="text-[#a3a3a3]">${it.subtotal.toFixed(2)}</span>
+              </div>
+              {/* iter150 — Inline personalization hint so the maker spots
+                  custom orders at a glance from the collapsed list. */}
+              {(it.personalization_text || it.personalization_image_url) && (
+                <div
+                  className="mt-1 ml-2 inline-flex items-center gap-1.5 px-2 py-0.5 border border-[#ff4500]/40 text-[#ff4500] text-[10px] uppercase tracking-[0.18em]"
+                  data-testid={`order-personalization-flag-${it.product_slug}`}
+                >
+                  ◆ Personalization attached
+                </div>
+              )}
             </li>
           ))}
         </ul>
@@ -336,25 +348,62 @@ function OrderRow({ order, onChange }) {
                 </div>
                 <ul className="space-y-2">
                   {detail.items.map((it) => (
-                    <li key={it.product_slug} className="flex gap-3 items-center">
-                      {it.image ? (
-                        <img
-                          src={it.image}
-                          alt=""
-                          className="w-14 h-14 object-cover border border-[#262626]"
-                        />
-                      ) : (
-                        <div className="w-14 h-14 border border-[#262626] bg-[#0a0a0a]" />
-                      )}
-                      <div className="flex-1 font-mono text-xs">
-                        <div className="text-[#e5e5e5]">{it.title}</div>
-                        <div className="text-[#525252]">
-                          ${it.price.toFixed(2)} × {it.quantity}
+                    <li key={it.product_slug} className="space-y-2">
+                      <div className="flex gap-3 items-center">
+                        {it.image ? (
+                          <img
+                            src={it.image}
+                            alt=""
+                            className="w-14 h-14 object-cover border border-[#262626]"
+                          />
+                        ) : (
+                          <div className="w-14 h-14 border border-[#262626] bg-[#0a0a0a]" />
+                        )}
+                        <div className="flex-1 font-mono text-xs">
+                          <div className="text-[#e5e5e5]">{it.title}</div>
+                          <div className="text-[#525252]">
+                            ${it.price.toFixed(2)} × {it.quantity}
+                          </div>
+                        </div>
+                        <div className="font-display text-lg text-[#ff4500]">
+                          ${it.subtotal.toFixed(2)}
                         </div>
                       </div>
-                      <div className="font-display text-lg text-[#ff4500]">
-                        ${it.subtotal.toFixed(2)}
-                      </div>
+                      {/* iter150 — full personalization detail per line.
+                          The maker sees exactly what to build, with the
+                          buyer's reference image clickable for full-size. */}
+                      {(it.personalization_text || it.personalization_image_url) && (
+                        <div
+                          className="ml-[68px] border-l-2 border-[#ff4500] pl-4 py-2"
+                          data-testid={`order-personalization-detail-${it.product_slug}`}
+                        >
+                          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mb-2">
+                            ◆ Buyer personalization
+                          </div>
+                          {it.personalization_text && (
+                            <div className="text-xs text-[#e5e5e5] leading-relaxed whitespace-pre-wrap mb-2">
+                              {it.personalization_text}
+                            </div>
+                          )}
+                          {it.personalization_image_url && (
+                            <a
+                              href={it.personalization_image_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-block"
+                            >
+                              <img
+                                src={it.personalization_image_url}
+                                alt="Buyer reference"
+                                className="max-w-[200px] max-h-[160px] border border-[#262626] object-cover"
+                              />
+                              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mt-1">
+                                ↗ Open full-size
+                              </div>
+                            </a>
+                          )}
+                        </div>
+                      )}
                     </li>
                   ))}
                 </ul>

@@ -6,7 +6,11 @@ const STORAGE = "cm_cart_v1";
 
 // Cart-row identity is product id + variant_id (so two variants of one product
 // occupy two distinct rows).
-const rowKey = (i) => `${i.id}::${i.variant_id || ""}`;
+const rowKey = (i) =>
+  // Personalization fields differentiate otherwise-identical rows so
+  // a buyer ordering two of the same product with different engravings
+  // doesn't get them merged into one quantity-2 line.
+  `${i.id}::${i.variant_id || ""}::${i.personalization_text || ""}::${i.personalization_image_url || ""}`;
 
 export function CartProvider({ children }) {
   const [items, setItems] = useState(() => {
@@ -29,7 +33,7 @@ export function CartProvider({ children }) {
     return () => clearTimeout(syncTimer.current);
   }, [items]);
 
-  const add = useCallback((p, qty = 1, variant = null) => {
+  const add = useCallback((p, qty = 1, variant = null, personalization = null) => {
     setItems((cur) => {
       const newRow = {
         id: p.id,
@@ -41,6 +45,11 @@ export function CartProvider({ children }) {
         quantity: qty,
         variant_id: variant?.id || null,
         variant_label: variant?.label || null,
+        // iter150 — buyer personalization (text + image URL). Carried
+        // through to checkout/_resolve_cart on the backend, persisted
+        // on the order doc, surfaced in the maker order email.
+        personalization_text: personalization?.text || null,
+        personalization_image_url: personalization?.image_url || null,
       };
       const ex = cur.find((i) => rowKey(i) === rowKey(newRow));
       if (ex) {

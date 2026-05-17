@@ -1,6 +1,44 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-17 — iter150 · Full buyer personalization flow (text + image) ✅
+
+**Critical gap closed.** Makers could flag listings as personalizable and write instructions like "email me an image", but there was zero buyer-facing UI to actually provide that personalization — meaning every personalized listing was leaking conversions to buyers who didn't know to email separately. This iter ships the full pipeline.
+
+- New component `/app/frontend/src/components/PersonalizationPanel.jsx`:
+  - Renders on `ProductDetail.jsx` only when `personalization_enabled` is true
+  - Shows maker instructions + text input (up to 2000 chars) + image upload
+  - File upload runs immediately to R2 via the new `/api/personalization/upload` endpoint; preview shown inline, removable
+  - Allowed: PNG/JPG/WEBP/HEIC/GIF · 5 MB cap
+- New backend router `/app/backend/routers/personalization.py`:
+  - `POST /api/personalization/upload` — public/anon endpoint (buyers aren't logged in). Accepts base64 data URL, stores in R2 under `personalization/<uuid>.<ext>`, returns CDN URL.
+  - Per-IP rate limit: 10 uploads/hour, 429 after that (SHA-256 IP hash, cf-connecting-ip aware).
+  - 5 MB body cap enforced before R2 call.
+  - Records every upload in `personalization_uploads` collection with `referenced: false` so a future orphan-cleanup cron can purge unused R2 objects after 7 days.
+- Cart pipeline:
+  - `CartItem` model (Pydantic) now carries `personalization_text` + `personalization_image_url` (both optional, max-length capped).
+  - `lib/cart.js` extended: `add(p, qty, variant, personalization)` + `rowKey` now includes personalization so two identical products with different engravings don't get merged.
+  - `CartPage.jsx` passes the fields through to `fetchCartQuote` + `createCheckout`.
+  - `_resolve_cart` in `checkout.py` propagates them onto the resolved order line dicts.
+  - Webhook handler marks `personalization_uploads.referenced = true` once an order persists each upload, blocking the orphan-cleanup from deleting it.
+- Buyer-facing UI:
+  - Add-to-cart soft-blocks when a personalizable listing has neither text nor image; scrolls panel into view + toasts a hint instead of silently adding a blank order.
+  - CartPage line items show the personalization summary (text + thumbnail).
+- Maker-facing UI:
+  - `/api/maker/orders` and `/api/maker/orders/{session_id}` now include `personalization_text` + `personalization_image_url` per line.
+  - `OrdersList.jsx` collapsed row shows a `◆ Personalization attached` pill so the maker spots custom orders at a glance.
+  - Expanded order drawer renders the full text + clickable reference image per line.
+- Email:
+  - `_items_table` (used by buyer receipt, maker order alert, ops digest) now appends a personalization callout under each line item when present. User text is HTML-escaped (XSS-safe), newlines preserved as `<br>`, image rendered as inline `<img>` + a full-size link.
+- Tests: 5/5 pass in `/app/backend/tests/test_personalization.py`:
+  - Valid PNG upload returns CDN URL
+  - PDF rejected
+  - 11th upload from same IP → 429
+  - `CartItem` model carries fields
+  - `_items_table` escapes user input + renders both text + image
+- Verified visually on preview: panel renders cleanly under the description, before the cart row, with instructions, textarea, and "↑ Attach reference image" button.
+
+
 ## 2026-05-17 — iter149 · Weekly "Social Momentum" digest for makers ✅
 
 Closes the share-loop feedback: every Monday at 14:30 UTC, makers whose listings collected one or more public Share-button clicks (iter148) in the past 7 days receive ONE email — summarising total shares, top 3 listings ranked by share count, and a CTA back to the maker dashboard to grab a fresh story card and re-fuel the wave. Quiet on zero (no email if no shares), opt-out toggleable in maker Settings, ISO-week deduped.
