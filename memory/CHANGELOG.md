@@ -1,6 +1,18 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-17 — iter146 · Maker "⎘ Share link" button (Cloudflare Worker fallback) ✅
+
+**Maker dashboard:** New "⎘ Share link" pill in the product card action grid (next to "↗ Share social"). One click copies a share-friendly URL like `https://craftersmarket.org/api/og/product/<slug>` to the clipboard. When a maker pastes that into Slack, iMessage, Facebook DM, LinkedIn, or Discord, the link unfurls with a real card (image + title + price) because the backend `/api/og/product` route already returns full prerender HTML with og: tags + Schema.org JSON-LD. Humans who click the link get a 0-second meta-refresh to the canonical `/shop/<slug>` page, so it's transparent to buyers.
+
+**Why:** The Cloudflare Worker prerender (iter145 plan) is deployed and the route is bound, but traffic to `craftersmarket.org/*` is not being routed through the Worker — Cloudflare's edge is intercepting before Workers, root cause unclear (we ruled out: bot fight mode, AI scraper block, route binding, DNS proxy, Worker code, page rules). The user is following up with Cloudflare support. Meanwhile this share-link gives makers a working unfurl path that doesn't depend on the Worker at all.
+
+- Frontend (`ProductEditCard.jsx`): added the pill next to existing share-social button, navigator.clipboard.writeText with a `window.prompt` fallback for locked-down browsers, `data-testid="product-copy-share-url-<slug>"`.
+- Backend: no changes (OG endpoints were already correct).
+- Test: new `/app/backend/tests/test_og_share_endpoint.py` (1 test, passes) — pulls the first published product from `/api/products`, hits `/api/og/product/<slug>`, asserts og:title contains "Crafters Market", og:image is absolute, meta-refresh points at `/shop/<slug>`. Prevents future regressions of the OG response contract the share button depends on.
+- Worker code left deployed in Cloudflare for when support figures out the routing — once it works, the share button becomes redundant but harmless (users can keep pasting `/shop/` URLs and the Worker will rewrite them).
+
+
 ## 2026-02 — iter145 · Email pipeline migrated to Mailgun ✅
 
 **Operational:** Postmark stopped accepting our credit card. We swapped the live sending provider to Mailgun in one move, fully verified end-to-end via real magic-link delivery, and restored email-based admin login (closes the long-standing P3 blocker).

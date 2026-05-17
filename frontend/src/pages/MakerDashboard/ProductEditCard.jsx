@@ -274,6 +274,31 @@ export default function ProductEditCard({ product, archived = false, draft = fal
                 />
               )}
               {!draft && (
+                // Copy a share-friendly URL that points at the server-side
+                // OG prerender endpoint. When pasted into Slack/Discord/
+                // iMessage/Facebook DM, the link unfurls with a real card
+                // (image + title + price) regardless of whether the
+                // Cloudflare social-crawler Worker is active. Humans who
+                // click the link get 302-redirected to the real product
+                // page, so it's transparent to buyers.
+                <ActionPill
+                  onClick={async () => {
+                    const origin = window.location.origin;
+                    const url = `${origin}/api/og/product/${p.slug}`;
+                    try {
+                      await navigator.clipboard.writeText(url);
+                      toast.success("Share link copied — paste into Slack/iMessage/Facebook for a rich preview.");
+                    } catch {
+                      // Older browsers / locked-down devices: fall back to a prompt.
+                      window.prompt("Copy this share-friendly URL:", url);
+                    }
+                  }}
+                  tone="neutral"
+                  testid={`product-copy-share-url-${p.slug}`}
+                  label="⎘ Share link"
+                />
+              )}
+              {!draft && (
                 // One-click 9:16 Instagram/TikTok Story export. Free,
                 // server-rendered, hero + QR + price baked in so the
                 // maker can just save → post.
