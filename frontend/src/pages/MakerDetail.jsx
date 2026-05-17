@@ -6,6 +6,7 @@ import ProductCard from "../components/ProductCard";
 import MakerReviews from "../components/MakerReviews";
 import FollowButton from "../components/FollowButton";
 import FollowersList from "../components/FollowersList";
+import ShareLinkButton from "../components/ShareLinkButton";
 import ContactMakerModal from "../components/ContactMakerModal";
 import VeteranBadge from "../components/VeteranBadge";
 import RecentShowcaseStrip from "../components/RecentShowcaseStrip";
@@ -88,6 +89,7 @@ export default function MakerDetail() {
           <div className="font-mono text-xs uppercase tracking-[0.22em] text-[#a3a3a3] mt-2">{m.location} · {m.listings_count} listings · ★ {m.rating}</div>
           <div className="mt-5 flex flex-wrap items-center gap-3">
             <FollowButton makerSlug={m.slug} makerName={m.name} />
+            <ShareLinkButton kind="maker" slug={m.slug} testId="maker-share-link" />
             <button
               onClick={() => setContactOpen(true)}
               className="px-4 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em] inline-flex items-center gap-2 bg-[#0a0a0a]/70 backdrop-blur"

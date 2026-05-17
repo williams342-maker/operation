@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { fetchPosts, fetchPost, recordPostView } from "../lib/api";
 import { useStructuredData } from "../lib/seo";
 import JournalBody from "../components/JournalBody";
+import ShareLinkButton from "../components/ShareLinkButton";
 
 export function JournalPage() {
   const [posts, setPosts] = useState([]);
@@ -85,7 +86,10 @@ export function JournalDetail() {
     <article className="pt-32 pb-24 grain min-h-screen" data-testid="journal-detail">
       <div className="w-full max-w-[900px] mx-auto px-4 md:px-8">
         <Link to="/journal" className="industrial-link font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] mb-6 inline-block">← All entries</Link>
-        <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#a3a3a3] mb-4">{p.author} · {p.read_min} min read</div>
+        <div className="flex justify-between items-start gap-4 flex-wrap mb-4">
+          <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#a3a3a3]">{p.author} · {p.read_min} min read</div>
+          <ShareLinkButton kind="journal" slug={p.slug} testId="journal-share-link" />
+        </div>
         <h1 className="font-display text-5xl md:text-7xl mb-8 leading-[0.92]">{p.title}</h1>
         <div className="aspect-[16/9] mb-10 overflow-hidden border border-[#262626]">
           <img src={p.cover} alt={p.title} className="w-full h-full object-cover" />

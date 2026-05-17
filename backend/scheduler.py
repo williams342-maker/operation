@@ -685,6 +685,19 @@ async def _job_social_momentum_digest() -> None:
         logger.exception("[scheduler] social_momentum_digest failed: %s", e)
 
 
+async def _job_personalization_orphan_cleanup() -> None:
+    """Daily 03:45 UTC — delete R2 personalization images uploaded by
+    buyers who never checked out (orphans older than 7 days). Without
+    this, every abandoned cart leaks a 5-MB file into R2 forever.
+    Idempotent — safe to re-run within the same hour."""
+    try:
+        from personalization_cleanup import run_personalization_orphan_cleanup
+        r = await run_personalization_orphan_cleanup()
+        logger.info("[scheduler] personalization_orphan_cleanup: %s", r)
+    except Exception as e:
+        logger.exception("[scheduler] personalization_orphan_cleanup failed: %s", e)
+
+
 
 
 def start_scheduler() -> AsyncIOScheduler | None:
@@ -771,6 +784,12 @@ def start_scheduler() -> AsyncIOScheduler | None:
     sched.add_job(_job_social_momentum_digest,
                   CronTrigger(day_of_week="mon", hour=14, minute=30),
                   id="social_momentum_digest", replace_existing=True)
+    # Daily personalization-image orphan cleanup — 03:45 UTC. Drops R2
+    # keys + DB rows for buyer uploads that never made it onto an order
+    # after 7 days. Cheap (single Mongo query + N small R2 deletes).
+    sched.add_job(_job_personalization_orphan_cleanup,
+                  CronTrigger(hour=3, minute=45),
+                  id="personalization_orphan_cleanup", replace_existing=True)
     # Auto dormant-buyer re-engagement — Tuesdays 14:00 UTC (mid-week,
     # mid-afternoon ET = good open rate window). Self-skips when the
     # `auto_dormant_reengage_enabled` toggle is OFF so flipping the

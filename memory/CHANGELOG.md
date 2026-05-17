@@ -1,6 +1,26 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-17 — iter151 · Personalization orphan-cleanup cron + Share button on maker/journal pages ✅
+
+**Production hygiene:** every personalization upload that doesn't end up on an order leaks 5 MB into R2 forever. Closed that hole with a daily cron + 7-day grace window. **Quick win on the side:** dropped the existing `ShareLinkButton` onto maker profile pages and journal article pages — both already worked on the backend, the component already supported all three `kind`s, just needed mounting.
+
+- New backend module `/app/backend/personalization_cleanup.py`:
+  - `run_personalization_orphan_cleanup()` walks `personalization_uploads` for rows where `referenced=false` AND `created_at < now - 7d`.
+  - Calls `r2_storage.delete_key(key_from_public_url(url))` per orphan; logs warnings on R2 failure and leaves the Mongo row in place for the next cycle (no silent storage leaks).
+  - External URLs (non-R2 CDN) still get DB-cleaned even if no R2 call attempted, so they don't recur forever.
+- Scheduler cron: daily 03:45 UTC (`personalization_orphan_cleanup`). Wrapped in try/except — scheduler never crashes on R2 hiccups.
+- Tests: 4/4 pass in `/app/backend/tests/test_personalization_cleanup.py`:
+  - orphan unreferenced + old → R2 delete called, DB row removed
+  - referenced row → never touched even at 90 days
+  - young orphan (< 7 days) → preserved (grace window)
+  - external URL → DB row removed, no R2 call
+- Frontend `ShareLinkButton` extension:
+  - `MakerDetail.jsx` — share pill now appears in the action row next to Follow / Message buttons (`kind="maker"`, testid `maker-share-link`).
+  - `JournalPage.jsx` — share pill sits in the header row above the article title (`kind="journal"`, testid `journal-share-link`).
+- No other changes. Component, OG endpoints, and share-counter API were already wired correctly from iter146-148.
+
+
 ## 2026-05-17 — iter150 · Full buyer personalization flow (text + image) ✅
 
 **Critical gap closed.** Makers could flag listings as personalizable and write instructions like "email me an image", but there was zero buyer-facing UI to actually provide that personalization — meaning every personalized listing was leaking conversions to buyers who didn't know to email separately. This iter ships the full pipeline.
