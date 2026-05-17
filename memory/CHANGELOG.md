@@ -1,6 +1,26 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-17 — iter148 · Share-count social-proof badge (free promoted-listings signal) ✅
+
+**Buyers** now see how many people have shared each listing right next to the "Share" button — a low-noise social-proof signal that turns hesitant browsers into clickers. **Admins** get a free "most-shared this week" feed for the dashboard, which doubles as an algorithmic seed for the promoted-listings algorithm (organic interest = the cheapest signal you can buy).
+
+- New backend router: `/app/backend/routers/share_counter.py` (mounted at `/api/share/*`).
+  - `POST /api/share/track  { kind, slug }` — records a click. IP-hash deduped within 24h, hard cap 5 clicks/IP/day/listing to prevent inflation. Returns `{count}`.
+  - `GET  /api/share/count/<kind>/<slug>` — public read-only counter (returns `{count: 0}` for new listings instead of 404 noise).
+  - `GET  /api/admin/share/top?days=7&limit=25` — aggregation feed for the future "most-shared this week" admin widget. Grouped by (kind, slug), ranked desc.
+  - Data lives in `share_events` collection (append-only, one doc per click, audit-friendly, no race conditions on counter mutation).
+  - SHA-256 IP hashing (first 24 chars) — no raw PII stored.
+  - Trusts `cf-connecting-ip` then `x-forwarded-for` then socket peer.
+- Frontend `ShareLinkButton` enhanced:
+  - On mount: GET `/api/share/count/...` → hide badge until count > 0 (no `· 0` flash).
+  - On click: optimistic local increment + POST `/api/share/track` → re-syncs to server-confirmed count.
+  - Renders `[⛓ SHARE · 47]` when count > 0; `[⛓ SHARE]` when 0/unknown.
+  - `showCount={false}` prop available so maker dashboard's `ProductEditCard` pill stays compact.
+- Maker dashboard `ProductEditCard` share pill also fires `/api/share/track` now — so makers promoting their own listing contribute to the public badge.
+- Tests: 3/3 pass in `/app/backend/tests/test_share_counter.py` (increment ladder + cap enforcement · invalid-kind 422 · admin top-shared ranking). Tests run individually due to known motor+pytest event-loop interaction; same workaround as iter142 tests.
+
+
 ## 2026-05-17 — iter147 · Public "⎘ Share" button on every product detail page ✅
 
 **Buyers + browsers + makers alike** can now copy a rich-unfurl share URL straight from the public product page. New `[⛓ SHARE]` pill sits next to `[♡ SAVE DROP]` in the action row, both in-stock and out-of-stock states. One click → clipboard contains `https://craftersmarket.org/api/og/product/<slug>`, which unfurls into a real card in Slack/iMessage/Facebook/Discord/Pinterest DMs and bounces humans to the canonical `/shop/<slug>` page via a 0-second meta-refresh.

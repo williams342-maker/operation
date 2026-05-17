@@ -281,6 +281,9 @@ export default function ProductEditCard({ product, archived = false, draft = fal
                 // Cloudflare social-crawler Worker is active. Humans who
                 // click the link get 302-redirected to the real product
                 // page, so it's transparent to buyers.
+                //
+                // Also fires `/api/share/track` so the maker's own social
+                // promo bumps the public "SHARE · N" badge on the listing.
                 <ActionPill
                   onClick={async () => {
                     const origin = window.location.origin;
@@ -292,6 +295,14 @@ export default function ProductEditCard({ product, archived = false, draft = fal
                       // Older browsers / locked-down devices: fall back to a prompt.
                       window.prompt("Copy this share-friendly URL:", url);
                     }
+                    // Fire-and-forget tracking — server enforces dedup + cap.
+                    try {
+                      await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/share/track`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ kind: "product", slug: p.slug }),
+                      });
+                    } catch {/* silent */}
                   }}
                   tone="neutral"
                   testid={`product-copy-share-url-${p.slug}`}

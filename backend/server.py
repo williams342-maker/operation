@@ -52,6 +52,7 @@ from routers.story_card import router as story_card_router
 from routers.google_ads import router as google_ads_router
 from routers.meta_ads import router as meta_ads_router
 from routers.journal_digest import router as journal_digest_router
+from routers.share_counter import router as share_counter_router
 from seed_data import seed_if_empty
 
 app = FastAPI(title="Crafters Market API")
@@ -104,6 +105,7 @@ api.include_router(story_card_router)
 api.include_router(google_ads_router)
 api.include_router(meta_ads_router)
 api.include_router(journal_digest_router)
+api.include_router(share_counter_router)
 app.include_router(api)
 
 # iter109 — Canonical-host 301 redirect middleware. When `CANONICAL_HOST`
