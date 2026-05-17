@@ -1,6 +1,21 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-02 — iter145 · Email pipeline migrated to Mailgun ✅
+
+**Operational:** Postmark stopped accepting our credit card. We swapped the live sending provider to Mailgun in one move, fully verified end-to-end via real magic-link delivery, and restored email-based admin login (closes the long-standing P3 blocker).
+
+- DNS hardening (Cloudflare):
+  - Added apex SPF: `v=spf1 include:mailgun.org ~all`
+  - Added DMARC: `v=DMARC1; p=none; rua=mailto:williams342@gmail.com; pct=100` (monitor mode for 14 days, then tighten)
+  - Added Mailgun DKIM at `k1._domainkey.mg.craftersmarket.org`
+  - Deleted stale Mailerlite TXT verification record (last lingering vendor leftover)
+- Backend env: `EMAIL_PROVIDER` flipped from `postmark` → `mailgun`. `EMAIL_FALLBACK_PROVIDER` simplified to `mailtrap` (was mailgun → now primary).
+- Mailgun API key set (was a `replace_with_real_mailgun_key` placeholder).
+- Verified live: `/v4/domains` auth probe returns 200, `mg.craftersmarket.org` state=active, smoke email sent (msg_id `<20260517134139.3f3bf1c2aec382ef@mg.craftersmarket.org>`), real `POST /api/admin/auth/request` magic-link delivered successfully (msg_id `<20260517134218.62cc5c768c70a014@mg.craftersmarket.org>`).
+- Postmark credentials kept in `.env` (still usable as fallback if Mailgun ever flakes — `EMAIL_FALLBACK_PROVIDER=postmark` would re-enable them).
+
+
 ## 2026-02 — iter144 · Meta Ads OAuth user-verified ✅
 
 **Verified end-to-end after the iter141 scaffold:**
