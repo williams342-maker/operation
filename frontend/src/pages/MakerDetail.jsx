@@ -9,6 +9,7 @@ import FollowersList from "../components/FollowersList";
 import ShareLinkButton from "../components/ShareLinkButton";
 import ContactMakerModal from "../components/ContactMakerModal";
 import VeteranBadge from "../components/VeteranBadge";
+import GoogleAdsFeaturedBadge from "../components/GoogleAdsFeaturedBadge";
 import RecentShowcaseStrip from "../components/RecentShowcaseStrip";
 import { Mail, Facebook, Instagram, Twitter, Youtube, Globe, BookOpen, ArrowUpRight } from "lucide-react";
 
@@ -76,6 +77,7 @@ export default function MakerDetail() {
             {m.is_veteran_owned && (
               <VeteranBadge testId="maker-veteran-badge" />
             )}
+            <GoogleAdsFeaturedBadge maker={m} testId="maker-google-ads-badge" />
           </div>
           <h1 className="font-display text-[64px] md:text-[120px] leading-[0.88]">{m.name}</h1>
           {m.shop_title && (
