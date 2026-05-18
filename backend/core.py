@@ -64,6 +64,15 @@ def is_super_admin_email(email: str) -> bool:
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("crafters")
 
+# Log Stripe mode at boot so we always know what mode we're in.
+# Prevents silent mistakes like deploying a test key to prod or vice versa.
+_stripe_mode = (
+    "LIVE" if STRIPE_API_KEY.startswith("sk_live_")
+    else "TEST" if STRIPE_API_KEY.startswith("sk_test_")
+    else "MISSING/UNKNOWN"
+)
+logger.warning("[stripe] mode=%s", _stripe_mode)
+
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
