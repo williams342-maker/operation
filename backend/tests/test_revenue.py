@@ -78,14 +78,33 @@ async def test_settle_no_op_when_nothing_pending():
     fake_db.makers.update_one.assert_not_called()
 
 
-def test_fee_breakdown_default_5_plus_3_percent():
-    """$100 sale → $5 commission + $3 processing → $92 to maker (free tier)."""
+def test_fee_breakdown_default_5_plus_29_plus_fixed_30():
+    """$100 sale → $5 commission + $2.90 + $0.30 processing → $91.80 to maker (free tier).
+
+    Mirrors Stripe's published "2.9% + $0.30" so we recoup their actual cost
+    instead of eating fixed-fee shortfall on cheap items.
+    """
     from routers.stripe_connect import fee_breakdown_cents
     out = fee_breakdown_cents(100.00, {"subscription_status": "free"})
     assert out["gross_cents"] == 10000
     assert out["commission_cents"] == 500
-    assert out["processing_cents"] == 300
-    assert out["net_cents"] == 9200
+    assert out["processing_cents"] == 320           # 290 pct + 30 fixed
+    assert out["processing_pct_cents"] == 290
+    assert out["processing_fixed_cents"] == 30
+    assert out["net_cents"] == 9180
+
+
+def test_fee_breakdown_tiny_order_caps_fixed_fee():
+    """$0.40 sale → fees can never exceed gross. We let % go to zero before
+    we'd ever take fixed-fee that would push net negative."""
+    from routers.stripe_connect import fee_breakdown_cents
+    out = fee_breakdown_cents(0.40, {"subscription_status": "free"})
+    assert out["gross_cents"] == 40
+    # Commission = 5% of 40 = 2. Processing pct = 2.9% of 40 = 1.
+    # Fixed would be 30 but capped to remaining = 40 - 2 - 1 = 37.
+    # So processing = 1 + min(30, 37) = 31. Net = 40 - 2 - 31 = 7.
+    assert out["net_cents"] >= 0, "maker should never owe money"
+    assert out["processing_fixed_cents"] <= 30
 
 
 def test_expiry_iso_returns_utc_ts_120_days_ahead():

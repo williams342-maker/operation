@@ -205,11 +205,25 @@ async def connect_dashboard_link(slug: str = Depends(current_maker_slug)):
 # ---------------- Payout helpers (called from checkout webhook) ---------------
 
 # Two-tier fee model (Etsy-style):
-#   - PLATFORM_FEE_BPS:   commission, retained on platform (default 5% = 500)
-#   - PROCESSING_FEE_BPS: payment-processing fee, retained on platform (default 3% = 300)
-# Total fee deducted from each maker's gross = PLATFORM_FEE_BPS + PROCESSING_FEE_BPS.
+#   - PLATFORM_FEE_BPS:          commission, retained on platform (default 5% = 500)
+#   - PROCESSING_FEE_BPS:        percentage portion of payment processing
+#                                (default 290 = 2.9% to mirror Stripe's published rate)
+#   - PROCESSING_FEE_FIXED_CENTS: flat per-maker portion of payment processing
+#                                 (default 30 = $0.30 to mirror Stripe's published rate)
+# Total fee deducted from each maker's gross =
+#   PLATFORM_FEE_BPS / 10000 * gross + PROCESSING_FEE_BPS / 10000 * gross
+#   + PROCESSING_FEE_FIXED_CENTS
+#
+# Why per-maker, not per-checkout?
+#   Stripe charges the platform $0.30 ONCE per charge regardless of how many
+#   makers are in the cart. But Stripe Connect destination charges debit that
+#   $0.30 from the platform account, so we'd be underwater on every multi-
+#   maker order if we only absorbed it once. Per-maker is the standard market
+#   practice (matches Etsy / Squarespace / Shopify Markets) — multi-maker
+#   orders are rare and the small over-collection becomes platform margin.
 PLATFORM_FEE_BPS = int(os.environ.get("PLATFORM_FEE_BPS", "500"))     # 5%
-PROCESSING_FEE_BPS = int(os.environ.get("PROCESSING_FEE_BPS", "300"))  # 3%
+PROCESSING_FEE_BPS = int(os.environ.get("PROCESSING_FEE_BPS", "290"))  # 2.9%
+PROCESSING_FEE_FIXED_CENTS = int(os.environ.get("PROCESSING_FEE_FIXED_CENTS", "30"))  # $0.30
 TOTAL_FEE_BPS = PLATFORM_FEE_BPS + PROCESSING_FEE_BPS
 
 
@@ -226,7 +240,14 @@ def fee_breakdown_cents(maker_subtotal_dollars: float, maker: dict | None = None
     gross_cents = int(round(maker_subtotal_dollars * 100))
     commission_bps = commission_bps_for(maker or {})
     commission = int(round(gross_cents * commission_bps / 10000))
-    processing = int(round(gross_cents * PROCESSING_FEE_BPS / 10000))
+    # Processing fee: percentage + per-maker fixed portion. Mirrors
+    # Stripe's published "2.9% + $0.30" so we recoup their actual cost
+    # instead of eating fixed-fee shortfall on cheap items. The fixed
+    # cents are capped at the remaining gross so makers never owe money
+    # on a $0.10 sale.
+    processing_pct = int(round(gross_cents * PROCESSING_FEE_BPS / 10000))
+    processing_fixed = min(PROCESSING_FEE_FIXED_CENTS, max(0, gross_cents - commission - processing_pct))
+    processing = processing_pct + processing_fixed
     offsite = 0
     if external_attribution and not (maker or {}).get("external_ads_opt_out", False):
         offsite = int(round(gross_cents * OFFSITE_AD_FEE_BPS / 10000))
@@ -236,6 +257,8 @@ def fee_breakdown_cents(maker_subtotal_dollars: float, maker: dict | None = None
         "commission_cents": commission,
         "commission_bps": commission_bps,
         "processing_cents": processing,
+        "processing_pct_cents": processing_pct,
+        "processing_fixed_cents": processing_fixed,
         "offsite_cents": offsite,
         "net_cents": net,
     }

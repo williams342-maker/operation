@@ -37,10 +37,13 @@ async def fee_policy():
         PROMOTION_WEEKLY_FEE_CENTS, PLUS_PLATFORM_FEE_BPS,
         PLUS_MONTHLY_LISTING_QUOTA, PLUS_PRICE_USD, OFFSITE_AD_FEE_BPS,
     )
-    from routers.stripe_connect import PLATFORM_FEE_BPS, PROCESSING_FEE_BPS
+    from routers.stripe_connect import (
+        PLATFORM_FEE_BPS, PROCESSING_FEE_BPS, PROCESSING_FEE_FIXED_CENTS,
+    )
     return {
         "platform_fee_bps": PLATFORM_FEE_BPS,
         "processing_fee_bps": PROCESSING_FEE_BPS,
+        "processing_fee_fixed_cents": PROCESSING_FEE_FIXED_CENTS,
         "plus_platform_fee_bps": PLUS_PLATFORM_FEE_BPS,
         "offsite_ad_fee_bps": OFFSITE_AD_FEE_BPS,
         "listing_fee_cents": LISTING_FEE_CENTS,

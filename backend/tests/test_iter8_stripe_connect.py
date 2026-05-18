@@ -294,8 +294,12 @@ class TestTransferDeferredPath:
         assert row is not None, "no maker_payouts row written"
         assert row["status"] == "deferred", row
         assert row["reason"] == "no-stripe-account", row
-        # 5% commission + 3% processing = 8% total → 160 * 0.92 = $147.20 = 14720 cents
-        assert row["amount_cents"] == 14720, row
+        # Fee breakdown on $160 gross:
+        #   5% commission = 800 cents
+        #   2.9% processing = 464 cents (rounds from 464.0)
+        #   $0.30 fixed   = 30 cents
+        # Net = 16000 - 800 - 464 - 30 = 14706 cents.
+        assert row["amount_cents"] == 14706, row
         assert row["platform_fee_bps"] == 500
 
 
@@ -379,7 +383,8 @@ class TestTransferGroupPairing:
             "it must match the PaymentIntent's transfer_group"
         )
         assert kwargs["destination"] == acct_id
-        assert kwargs["amount"] == 4600    # 50 * 0.92 * 100 (5% commission + 3% processing)
+        # $50 gross → 5% commission (250) + 2.9% processing (145) + $0.30 fixed (30) → 4575 cents net
+        assert kwargs["amount"] == 4575
         assert kwargs["idempotency_key"] == f"{sid}:{maker_slug}"
 
 

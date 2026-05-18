@@ -949,7 +949,9 @@ async def maker_billing(slug: str = Depends(current_maker_slug)):
         LISTING_FEE_CENTS, LISTING_FREE_QUOTA, LISTING_EXPIRY_DAYS,
         PROMOTION_WEEKLY_FEE_CENTS,
     )
-    from routers.stripe_connect import PLATFORM_FEE_BPS, PROCESSING_FEE_BPS
+    from routers.stripe_connect import (
+        PLATFORM_FEE_BPS, PROCESSING_FEE_BPS, PROCESSING_FEE_FIXED_CENTS,
+    )
     m = await db.makers.find_one({"slug": slug}, {"_id": 0})
     if not m:
         raise HTTPException(404, "Maker not found")
@@ -964,6 +966,7 @@ async def maker_billing(slug: str = Depends(current_maker_slug)):
         "policy": {
             "platform_fee_bps": PLATFORM_FEE_BPS,
             "processing_fee_bps": PROCESSING_FEE_BPS,
+            "processing_fee_fixed_cents": PROCESSING_FEE_FIXED_CENTS,
             "listing_fee_cents": LISTING_FEE_CENTS,
             "listing_expiry_days": LISTING_EXPIRY_DAYS,
             "promotion_weekly_fee_cents": PROMOTION_WEEKLY_FEE_CENTS,

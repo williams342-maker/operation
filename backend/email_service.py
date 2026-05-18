@@ -1307,7 +1307,7 @@ def render_application_decision_email(
             "<div style='font-family:JetBrains Mono,monospace;font-size:10px;letter-spacing:0.25em;"
             "text-transform:uppercase;color:#a3a3a3;margin:0 0 12px'>How payments + fees work</div>"
             "<ul style='font-size:13px;color:#e5e5e5;line-height:1.8;padding-left:20px;margin:0'>"
-            "<li><b>5% commission</b> + 3% payment processing per sale. (Crafters Plus drops commission to 4% — $12/mo.)</li>"
+            "<li><b>5% commission</b> + 2.9% + $0.30 payment processing per sale. (Crafters Plus drops commission to 4% — $12/mo.)</li>"
             "<li><b>10 free listings</b> for life · then $0.20 per publish or renewal · or buy a credit pack at 25–40% off cash rates.</li>"
             "<li><b>Listings auto-expire after 120 days</b> — one click to renew, your URL stays the same.</li>"
             "<li><b>Promote a listing for $5/week</b> to pin it to the top of search results.</li>"
