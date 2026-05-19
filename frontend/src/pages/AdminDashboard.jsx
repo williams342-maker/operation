@@ -53,6 +53,7 @@ import PushNotificationsTab from "../components/admin/PushNotificationsTab";
 import RotatePasswordModal from "../components/admin/RotatePasswordModal";
 import EmailHealthBadge from "../components/admin/EmailHealthBadge";
 import LiveNowBadge from "../components/admin/LiveNowBadge";
+import useLiveOrderToasts from "../hooks/useLiveOrderToasts";
 
 const TABS = [
   // Source-of-truth list — sorted alphabetically by label below so adding
@@ -106,6 +107,8 @@ TABS.sort((a, b) => a.label.localeCompare(b.label));
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
+  // Dopamine ticker — toast every new live order as it lands.
+  useLiveOrderToasts();
   // iter105 — Deep-link from Slack/Discord webhooks: /admin/dashboard?tab=feedback&open=<id>
   // jumps straight to the right tab + scrolls the highlighted row into view.
   // We read the query params lazily inside useState so the initial render

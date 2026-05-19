@@ -2682,3 +2682,30 @@ async def admin_seed_featured_product_images(claims: dict = Depends(current_admi
         "created_at": now_iso(),
     })
     return {"ok": True, **summary}
+
+
+
+# ---------------------------------------------------------------------------
+# Live-orders feed — admin dopamine ticker
+# ---------------------------------------------------------------------------
+# Polled every 30s by the admin dashboard. Returns "sold" activity events
+# created after `since` (ISO 8601 timestamp). The frontend pops a sonner
+# toast for each new event so admins get a real-time confirmation when
+# money lands. Limited to 25 events per poll so a long page reload never
+# floods the UI with stale orders.
+# ---------------------------------------------------------------------------
+@router.get("/admin/live-orders/recent")
+async def live_orders_recent(
+    since: Optional[str] = None,
+    claims=Depends(current_admin),
+):
+    query = {"kind": "sold"}
+    if since:
+        query["created_at"] = {"$gt": since}
+    events = await db.activity_events.find(
+        query, {"_id": 0}
+    ).sort("created_at", -1).to_list(25)
+    return {
+        "events": events,
+        "server_time": now_iso(),
+    }

@@ -668,7 +668,15 @@ async def checkout_status(session_id: str, http_request: Request, bg: Background
                 else f"{summary} sold to a buyer"
             )
             await db.activity_events.insert_one(
-                ActivityEvent(kind="sold", text=sold_text, location=buyer_city).model_dump()
+                {
+                    **ActivityEvent(kind="sold", text=sold_text, location=buyer_city).model_dump(),
+                    # Admin-only enrichment: gross amount + session id so the
+                    # admin "Live order" toast can show the dollar value and
+                    # link straight to the Stripe Dashboard receipt. Public
+                    # /api/activity strips this back out before serving.
+                    "amount": float(tx.get("amount") or 0),
+                    "session_id": session_id,
+                }
             )
             email_items = []
             by_maker: dict[str, list] = {}
