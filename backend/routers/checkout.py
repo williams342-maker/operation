@@ -678,6 +678,23 @@ async def checkout_status(session_id: str, http_request: Request, bg: Background
                     "session_id": session_id,
                 }
             )
+            # Fire-and-forget admin Web Push so operators get a 💰 ping on
+            # their phone the moment a real order lands. Wrapped so a push
+            # failure can never break the paid-order pipeline.
+            try:
+                from routers.push import notify_admins_new_order
+                amt = float(tx.get("amount") or 0)
+                push_title = (
+                    f"💰 New order — ${amt:.2f}" if amt > 0 else "💰 New order"
+                )
+                push_body = (
+                    f"{sold_text} · {buyer_city}"
+                    if buyer_city and buyer_city != "Crafters Market"
+                    else sold_text
+                )
+                await notify_admins_new_order(push_title, push_body)
+            except Exception as e:
+                logger.warning("[push] admin new-order notification skipped: %s", e)
             email_items = []
             by_maker: dict[str, list] = {}
             for ci in tx.get("items", []):

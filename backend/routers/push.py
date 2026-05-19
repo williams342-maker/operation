@@ -389,3 +389,50 @@ async def notify_buyer_push(
     if dead:
         await db.push_subscriptions.delete_many({"endpoint": {"$in": dead}})
     return {"sent": sent, "total": len(subs), "pruned": len(dead)}
+
+
+
+# ───────────────────────────────────────────────────────────────────────
+# Admin-only push helper — fires a notification to every device that
+# subscribed with role="admin". Used by the checkout flow to push a
+# "💰 New order — $X · City, ST" notification to the operator's phone
+# when a real buyer completes a paid checkout. Same fire-and-forget
+# pattern as `notify_buyer_push`: never raises, never blocks the caller.
+# ───────────────────────────────────────────────────────────────────────
+async def notify_admins_new_order(
+    title: str, body: str, url: str = "/admin/dashboard?tab=paid",
+) -> dict:
+    if not VAPID_PRIVATE_PEM or not webpush:
+        return {"sent": 0, "total": 0, "pruned": 0, "skipped": "vapid_missing"}
+
+    subs = await db.push_subscriptions.find(
+        {"role": "admin"}, {"_id": 0},
+    ).to_list(500)
+    if not subs:
+        return {"sent": 0, "total": 0, "pruned": 0, "skipped": "no_admin_subs"}
+
+    payload = {
+        "title": title,
+        "body": body,
+        "url": url or "/admin/dashboard",
+        "icon": "/downloads/cnc-garage-builders.png",
+        "badge": "/downloads/cnc-garage-builders.png",
+        "tag": "cm-admin-new-order",
+        # `renotify` makes Chrome/Edge bypass the "we already showed a
+        # notification with this tag" coalesce so consecutive orders each
+        # vibrate the phone instead of silently replacing the prior toast.
+        "renotify": True,
+        "ts": datetime.now(timezone.utc).isoformat(),
+    }
+    sent, dead = 0, []
+    for s in subs:
+        ok, err = _send_one(s, payload)
+        if ok:
+            sent += 1
+        elif err and ("WebPushException:404" in err or "WebPushException:410" in err):
+            dead.append(s["endpoint"])
+    if dead:
+        await db.push_subscriptions.delete_many({"endpoint": {"$in": dead}})
+    logger.info("[push] admin new-order broadcast: sent=%d total=%d pruned=%d",
+                sent, len(subs), len(dead))
+    return {"sent": sent, "total": len(subs), "pruned": len(dead)}

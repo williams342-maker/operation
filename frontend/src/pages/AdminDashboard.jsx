@@ -53,6 +53,7 @@ import PushNotificationsTab from "../components/admin/PushNotificationsTab";
 import RotatePasswordModal from "../components/admin/RotatePasswordModal";
 import EmailHealthBadge from "../components/admin/EmailHealthBadge";
 import LiveNowBadge from "../components/admin/LiveNowBadge";
+import EnableOrderPushButton from "../components/admin/EnableOrderPushButton";
 import useLiveOrderToasts from "../hooks/useLiveOrderToasts";
 
 const TABS = [
@@ -342,6 +343,7 @@ export default function AdminDashboard() {
           <div className="flex items-center gap-3 self-start md:self-auto shrink-0 flex-wrap">
             <EmailHealthBadge />
             <LiveNowBadge />
+            <EnableOrderPushButton />
             <Link
               to="/admin/workshop-analytics"
               className="inline-flex items-center gap-1.5 px-3 md:px-4 py-2 border border-[#ff4500]/40 text-[#ff4500] hover:bg-[#ff4500]/10 hover:border-[#ff4500] font-mono text-[10px] md:text-[11px] uppercase tracking-[0.22em] transition"
