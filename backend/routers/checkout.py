@@ -600,7 +600,18 @@ async def checkout_status(session_id: str, http_request: Request, bg: Background
             # This runs at most once per session because we only enter this
             # branch on the payment_status transition unpaid → paid.
             try:
-                meta = (sess.metadata or {}) if sess else {}
+                # In newer Stripe SDKs, sess.metadata is a StripeObject that
+                # doesn't expose .get() / .items() like a plain dict. Coerce
+                # to a real dict first so the rest of the block can use the
+                # normal dict API. Falls back to empty dict if metadata is
+                # missing or unreadable.
+                raw_meta = (sess.metadata if sess else None) or {}
+                try:
+                    meta = dict(raw_meta)
+                except Exception:
+                    meta = {k: getattr(raw_meta, k, None) for k in (
+                        "discount_code", "discount_amount", "discount_maker_slug"
+                    )}
                 used_code = (meta.get("discount_code") or "").strip()
                 used_amount = float(meta.get("discount_amount") or 0)
                 used_maker = (meta.get("discount_maker_slug") or "").strip()
