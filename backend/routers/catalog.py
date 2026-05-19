@@ -40,6 +40,7 @@ async def fee_policy():
     from routers.stripe_connect import (
         PLATFORM_FEE_BPS, PROCESSING_FEE_BPS, PROCESSING_FEE_FIXED_CENTS,
     )
+    from routers.shipping import SHIPPING_MARKUP_PCT
     return {
         "platform_fee_bps": PLATFORM_FEE_BPS,
         "processing_fee_bps": PROCESSING_FEE_BPS,
@@ -51,6 +52,7 @@ async def fee_policy():
         "plus_monthly_listing_quota": PLUS_MONTHLY_LISTING_QUOTA,
         "plus_price_usd": PLUS_PRICE_USD,
         "promotion_weekly_fee_cents": PROMOTION_WEEKLY_FEE_CENTS,
+        "shipping_markup_pct": SHIPPING_MARKUP_PCT,
     }
 
 

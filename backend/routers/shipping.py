@@ -39,10 +39,24 @@ import shippo_service
 
 router = APIRouter()
 
-# Pass-through today. When we decide to add a handling fee surcharge,
-# bump this (e.g. 0.10 for 10%) and the ledger row's `markup_cents`
-# reflects the delta. Keeps the invoice math trivially auditable.
-SHIPPING_MARKUP_PCT = 0.0
+# Platform handling-fee on every shipping label, expressed as a fraction.
+# 5% covers our Stripe invoice processing (~2.9% + 30¢) plus a small ops
+# margin on top. Applied uniformly to all makers regardless of tier; the
+# `markup_cents` field on each ledger row records the exact dollar amount
+# so the invoice math stays trivially auditable downstream.
+#
+# To change: set SHIPPING_MARKUP_PCT_OVERRIDE in env (e.g. "0.07" for 7%)
+# and restart. Falls back to 0.05 baseline if unset or malformed.
+def _resolve_markup_pct() -> float:
+    raw = (os.environ.get("SHIPPING_MARKUP_PCT_OVERRIDE") or "").strip()
+    if raw:
+        try:
+            return max(0.0, float(raw))
+        except ValueError:
+            logger.warning("[shipping] bad SHIPPING_MARKUP_PCT_OVERRIDE=%r — using default", raw)
+    return 0.05
+
+SHIPPING_MARKUP_PCT = _resolve_markup_pct()
 
 
 # ─────────────────────────── models ───────────────────────────
@@ -291,6 +305,22 @@ async def fetch_rates(session_id: str, body: RateReq, slug: str = Depends(curren
         )
     except shippo_service.ShippoError as e:
         raise HTTPException(400, str(e))
+    # Annotate each rate with the platform markup so the UI can display
+    # the all-in price the maker will be billed. Keeping the raw carrier
+    # amount alongside `billed_amount` so makers can audit the surcharge.
+    rates = result.get("rates") if isinstance(result, dict) else None
+    if isinstance(rates, list):
+        for r in rates:
+            try:
+                base = float(r.get("amount") or 0)
+            except (TypeError, ValueError):
+                base = 0.0
+            markup = round(base * SHIPPING_MARKUP_PCT, 2)
+            r["markup_amount"] = markup
+            r["markup_pct"] = SHIPPING_MARKUP_PCT
+            r["billed_amount"] = round(base + markup, 2)
+    if isinstance(result, dict):
+        result["markup_pct"] = SHIPPING_MARKUP_PCT
     return result
 
 

@@ -73,6 +73,16 @@ _stripe_mode = (
 )
 logger.warning("[stripe] mode=%s", _stripe_mode)
 
+# Log Shippo mode at boot for the same reason — a test-mode Shippo key
+# silently buys non-trackable demo labels that never reach the carrier.
+_shippo_key = os.environ.get("SHIPPO_API_KEY", "")
+_shippo_mode = (
+    "LIVE" if _shippo_key.startswith("shippo_live_")
+    else "TEST" if _shippo_key.startswith("shippo_test_")
+    else "MISSING/UNKNOWN"
+)
+logger.warning("[shippo] mode=%s", _shippo_mode)
+
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()

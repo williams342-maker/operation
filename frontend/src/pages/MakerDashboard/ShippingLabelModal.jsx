@@ -326,8 +326,19 @@ export default function ShippingLabelModal({ sessionId, onClose, onSuccess }) {
                             {r.duration_terms}
                           </div>
                         </div>
-                        <div className="font-display text-2xl text-[#ff4500] shrink-0">
-                          ${r.amount.toFixed(2)}
+                        <div className="flex flex-col items-end shrink-0">
+                          <div className="font-display text-2xl text-[#ff4500]">
+                            ${(r.billed_amount ?? r.amount).toFixed(2)}
+                          </div>
+                          {r.markup_amount > 0 && (
+                            <div
+                              className="font-mono text-[9px] text-[#525252] uppercase tracking-wider mt-0.5"
+                              title={`Carrier rate $${r.amount.toFixed(2)} + ${(r.markup_pct * 100).toFixed(1)}% platform handling`}
+                              data-testid={`rate-markup-${i}`}
+                            >
+                              ${r.amount.toFixed(2)} + {(r.markup_pct * 100).toFixed(0)}% handling
+                            </div>
+                          )}
                         </div>
                       </button>
                     ))}
