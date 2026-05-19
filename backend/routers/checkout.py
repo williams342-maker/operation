@@ -359,14 +359,25 @@ async def create_checkout(req: CheckoutRequest, http_request: Request):
     line_items = []
     for r in resolved:
         p = r["product"]
+        # Stripe Checkout requires absolute HTTPS URLs for product images.
+        # Filter out relative paths (e.g. `/seed-images/...`) which would
+        # otherwise trigger Stripe's `url_invalid` error and reject the
+        # entire session. Better to render no image than to fail checkout.
+        raw_images = p.get("images") or []
+        valid_images = [
+            u for u in raw_images
+            if isinstance(u, str) and u.startswith(("http://", "https://"))
+        ][:1]
+        product_data = {
+            "name": p["title"],
+            "description": (p.get("description") or "")[:300],
+        }
+        if valid_images:
+            product_data["images"] = valid_images
         line_items.append({
             "price_data": {
                 "currency": "usd",
-                "product_data": {
-                    "name": p["title"],
-                    "description": (p.get("description") or "")[:300],
-                    "images": p.get("images", [])[:1],
-                },
+                "product_data": product_data,
                 "unit_amount": int(round(float(p["price"]) * 100)),
             },
             "quantity": r["quantity"],
