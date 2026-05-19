@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X, ShoppingBag, User } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useCart } from "../../lib/cart";
-import { useSiteSettings } from "../../hooks/useSiteSettings";
 import ActivityTicker from "./ActivityTicker";
 
 const links = [
@@ -31,11 +30,9 @@ export default function Nav() {
   const [scrolled, setScrolled] = useState(false);
   const [signedInRole, setSignedInRole] = useState(readSignedInRole);
   const { count } = useCart() || { count: 0 };
-  // Admin-toggleable Founding Seller Beta signup switch. Default to TRUE
-  // so we don't flash-hide the button on first paint while settings fetch;
-  // the 60s polling will flip it off as soon as admin disables it.
-  const siteSettings = useSiteSettings();
-  const betaSignupEnabled = siteSettings?.beta_signup_enabled !== false;
+  // useSiteSettings used to gate the now-removed beta pill — removed in
+  // iter153 along with the pill itself. The bottom-of-home <BetaSignupCTA />
+  // owns its own settings fetch, so we don't import the hook here anymore.
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
@@ -97,30 +94,11 @@ export default function Nav() {
         </nav>
 
         <div className="flex items-center gap-3">
-          {/* Founding Seller Beta CTA — bold, always visible at top of screen.
-              Sits ahead of Sign in / Cart so it reads as the primary action
-              while we're actively recruiting the first 100 sellers. Admin
-              can hide the whole pill via Settings → Founding Seller Beta
-              Signup toggle. */}
-          {betaSignupEnabled && (
-            <>
-              <Link
-                to="/beta"
-                className="hidden sm:inline-flex items-center gap-2 px-4 py-2 bg-[#ff4500] hover:bg-[#ff5722] text-black border border-[#ff4500] font-mono text-[11px] font-bold uppercase tracking-[0.22em] transition shadow-[0_0_0_2px_rgba(255,69,0,0.15)]"
-                data-testid="nav-beta-signup-btn"
-              >
-                ◆ Beta Signup
-              </Link>
-              {/* Mobile variant — compact, same destination */}
-              <Link
-                to="/beta"
-                className="sm:hidden inline-flex items-center px-3 py-2 bg-[#ff4500] hover:bg-[#ff5722] text-black border border-[#ff4500] font-mono text-[10px] font-bold uppercase tracking-[0.2em] transition"
-                data-testid="nav-beta-signup-btn-mobile"
-              >
-                Beta
-              </Link>
-            </>
-          )}
+          {/* Founding Seller Beta CTA moved out of the top Nav (iter153)
+              — see <BetaSignupCTA /> at the bottom of the home page.
+              Keeping the global header lean reduces visual noise so
+              admins on a small laptop can fit everything on one row
+              without the orange pill jumping the layout. */}
           {/* Founding Member Login pill intentionally removed from the
               top Nav in iter61 — the maker/login page is now the single
               sign-in entry point (which welcomes both regular makers AND
@@ -195,22 +173,9 @@ export default function Nav() {
                   {signedInRole ? "Account" : "Sign in"}
                 </Link>
               </motion.li>
-              {betaSignupEnabled && (
-                <motion.li
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.05 }}
-                >
-                  <Link
-                    to="/beta"
-                    onClick={() => setOpen(false)}
-                    className="font-display text-5xl block text-[#ff4500] hover:brightness-110 transition"
-                    data-testid="mobile-nav-beta-signup"
-                  >
-                    ◆ Beta Signup
-                  </Link>
-                </motion.li>
-              )}
+              {/* Beta Signup link removed from mobile drawer (iter153) — the
+                  dedicated <BetaSignupCTA /> band at the bottom of the home
+                  page is the single funnel surface now. */}
               {links.map((l, i) => (
                 <motion.li
                   key={l.href}

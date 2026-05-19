@@ -111,6 +111,21 @@ export default function Footer() {
         <div className="border-t border-[#262626] pt-8 flex flex-col md:flex-row md:items-center justify-between gap-4 font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3]">
           <div className="flex items-center gap-3">
             <span>© {new Date().getFullYear()} Crafters Market · All rights reserved</span>
+            {/* Discreet ◆ glyph next to the copyright = admin staff entry
+                point. Painted text-[#262626] on the near-black footer so
+                it's effectively invisible to visitors but instantly
+                recognizable / clickable for the admin team who knows it's
+                here. Restored in iter153 after a brief stint as a labeled
+                "Admin" link in the bottom-row cluster. */}
+            <Link
+              to="/admin/login"
+              aria-label="Admin login"
+              title="Admin"
+              className="text-[#262626] hover:text-[#ff4500] transition-colors text-[10px] leading-none select-none"
+              data-testid="footer-admin"
+            >
+              ◆
+            </Link>
           </div>
           <div className="flex gap-6 flex-wrap">
             <button
@@ -125,13 +140,6 @@ export default function Footer() {
             <Link to="/policy" className="hover:text-[#ff4500]" data-testid="footer-privacy">Privacy</Link>
             <Link to="/policy" className="hover:text-[#ff4500]" data-testid="footer-terms">Terms</Link>
             <Link to="/contact" className="hover:text-[#ff4500]" data-testid="footer-contact">Contact</Link>
-            {/* Admin staff entry — was previously a near-invisible diamond
-                glyph next to the copyright (text-[#262626] on near-black bg).
-                Made it a labeled link in the bottom-row cluster so it's
-                tappable on mobile without forcing admins to memorize the
-                URL. Subtle styling — same row as Privacy/Terms — keeps
-                it discoverable to insiders without screaming for attention. */}
-            <Link to="/admin/login" className="hover:text-[#ff4500]" data-testid="footer-admin">Admin</Link>
           </div>
         </div>
       </div>

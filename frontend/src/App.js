@@ -15,6 +15,7 @@ import Process from "./components/sections/Process";
 import ForMakers from "./components/sections/ForMakers";
 import Reviews from "./components/sections/Reviews";
 import CustomCTA from "./components/sections/CustomCTA";
+import BetaSignupCTA from "./components/sections/BetaSignupCTA";
 import Footer from "./components/sections/Footer";
 import SupportVeteransStrip from "./components/SupportVeteransStrip";
 
@@ -97,6 +98,7 @@ const Home = () => {
       <TrendingForumStrip />
       <NewsletterSignup />
       <CustomCTA />
+      <BetaSignupCTA />
     </>
   );
 };
