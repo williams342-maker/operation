@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { submitMakerApplication } from "../lib/api";
 import { useSiteSettings } from "../hooks/useSiteSettings";
 import { useStructuredData } from "../lib/seo";
+import FounderSlotCounter from "../components/FounderSlotCounter";
 
 // Founding Seller Beta program landing page.
 // Reuses the existing /api/maker-applications endpoint so beta signups land
@@ -143,6 +144,14 @@ export default function BetaPage() {
           >
             ◆ Founding Member Login →
           </Link>
+        </div>
+
+        {/* Live inaugural-slot counter — creates urgency. Polls
+            /api/founders/slots once and renders a progress band so
+            applicants see "73 / 100 spots remaining" before they even
+            scroll. Auto-hides if the endpoint errors. */}
+        <div className="mb-10">
+          <FounderSlotCounter variant="hero" testId="founders-page-slot-counter" />
         </div>
 
         {/* Hero */}

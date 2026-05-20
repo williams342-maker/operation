@@ -217,6 +217,22 @@ class Maker(BaseModel):
     # maker's profile hero. Free / honor-system today; we may add doc upload
     # verification later (DoD DD-214 / VA proof).
     is_veteran_owned: bool = False
+    # ---- Founders Tier (iter153) ----
+    # "standard" | "founder"  — Plus is layered separately via
+    # `subscription_status`. Founders get a 3% commission, 50 free
+    # listings per month, a permanent ◆ Founding Maker badge and an
+    # optional ◆ Beta Tester sub-badge for the original cohort.
+    # `founder_status` is "inaugural" (lifetime, first 100) or "regular"
+    # (12-month window with auto-roll to standard).
+    tier: str = "standard"
+    founder_status: Optional[str] = None       # "inaugural" | "regular" | None
+    founder_started_at: Optional[str] = None
+    founder_expires_at: Optional[str] = None   # None for inaugural / lifetime
+    founder_grace_until: Optional[str] = None  # 14-day publish-or-lose
+    founder_rolled_at: Optional[str] = None
+    founder_grace_revoked_at: Optional[str] = None
+    founder_number: Optional[int] = None       # monotonic, never reused
+    is_beta_tester: bool = False
     # ---- Processing profiles (saved Etsy-style ship-time presets) ----
     # Custom turnaround presets (e.g. "Made to order · 5-7 weeks") that
     # the maker has saved in the Listing Editor's processing-time

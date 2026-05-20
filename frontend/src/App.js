@@ -159,6 +159,8 @@ function App() {
                 <Route path="/custom-order" element={<CustomOrderPage />} />
                 <Route path="/apply" element={<ApplyPage />} />
                 <Route path="/beta" element={<BetaPage />} />
+                <Route path="/founders" element={<BetaPage />} />
+                <Route path="/founder" element={<Navigate to="/founders" replace />} />
                 {/* Marketing landing page — 3 aliased routes for A/B testing
                     ad copy/URL variants. All render the same component. */}
                 <Route path="/launch" element={<LandingPage />} />

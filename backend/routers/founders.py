@@ -1,0 +1,237 @@
+"""Founders Tier — recruiting + lifecycle.
+
+Endpoints:
+    GET  /api/founders/slots                  — public slot counter
+    GET  /api/founders/list                   — public Founder wall
+    POST /api/admin/founders/promote          — admin: promote a maker
+    POST /api/admin/founders/expire-due       — admin: trigger expiry sweep
+    POST /api/admin/founders/release-stale    — admin: revoke unused 14d slots
+
+Lifecycle:
+    1. Maker is approved as a Founder → `tier="founder"`,
+       `founder_status="inaugural"` if there are <100 inaugural slots
+       remaining, otherwise `"regular"`. `founder_started_at=now`,
+       `founder_expires_at=now+365d` (for regular only; inaugural is
+       lifetime — null `founder_expires_at`), `founder_grace_until=now+14d`.
+    2. The grace cron runs daily: any Founder past grace with zero
+       published products gets demoted back to Standard, freeing the slot.
+    3. The expiry cron runs daily: any regular Founder past
+       `founder_expires_at` auto-rolls to Standard and gets a farewell email.
+
+This module is intentionally narrow — fee resolution lives in `revenue.py`,
+which is the single source of truth for what each tier means.
+"""
+from __future__ import annotations
+
+from datetime import datetime, timedelta, timezone
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+
+from maker_auth import current_admin
+from core import db, logger, now_iso
+from revenue import (
+    FOUNDER_GRACE_DAYS,
+    FOUNDER_INAUGURAL_CAP,
+    FOUNDER_PLATFORM_FEE_BPS,
+    FOUNDER_MONTHLY_LISTING_QUOTA,
+    FOUNDER_WINDOW_DAYS,
+)
+
+router = APIRouter(tags=["founders"])
+
+
+# ----------------------- Helpers ----------------------- #
+async def _count_inaugural() -> int:
+    return await db.makers.count_documents(
+        {"tier": "founder", "founder_status": "inaugural"}
+    )
+
+
+async def _count_active_founders() -> int:
+    """All Founders (inaugural + regular) currently holding a slot,
+    including those still in their 14-day grace window."""
+    return await db.makers.count_documents({"tier": "founder"})
+
+
+# ----------------------- Public surfaces ----------------------- #
+class SlotResponse(BaseModel):
+    inaugural_total: int
+    inaugural_taken: int
+    inaugural_remaining: int
+    founders_total: int  # all-time, including expired (rolled to standard)
+    enabled: bool
+
+
+@router.get("/founders/slots", response_model=SlotResponse)
+async def slots():
+    """Powers the public 'X / 100 slots remaining' counter on /founders."""
+    taken = await _count_inaugural()
+    settings = await db.platform_meta.find_one({"key": "site_settings"}) or {}
+    enabled = (settings.get("value") or {}).get("beta_signup_enabled", True)
+    return SlotResponse(
+        inaugural_total=FOUNDER_INAUGURAL_CAP,
+        inaugural_taken=taken,
+        inaugural_remaining=max(0, FOUNDER_INAUGURAL_CAP - taken),
+        founders_total=await _count_active_founders(),
+        enabled=enabled,
+    )
+
+
+@router.get("/founders/list")
+async def founders_list(limit: int = 60):
+    """Public Founder wall — the bragging surface. Only returns active
+    founders with at least one published product (so we don't show ghost
+    shops that grabbed a slot and never shipped)."""
+    cap = max(1, min(int(limit or 60), 200))
+    cursor = db.makers.find(
+        {"tier": "founder"},
+        {
+            "_id": 0, "slug": 1, "name": 1, "shop_name": 1, "avatar_url": 1,
+            "founder_number": 1, "founder_status": 1, "is_beta_tester": 1,
+            "is_veteran_owned": 1, "location": 1,
+        },
+    ).sort("founder_number", 1).limit(cap)
+    return {"founders": await cursor.to_list(cap)}
+
+
+# ----------------------- Admin promotion ----------------------- #
+class PromoteRequest(BaseModel):
+    slug: str
+    is_beta_tester: bool = False
+    force_status: Optional[str] = None  # "inaugural" | "regular" | None
+
+
+@router.post("/admin/founders/promote")
+async def admin_promote(body: PromoteRequest, _: dict = Depends(current_admin)):
+    maker = await db.makers.find_one({"slug": body.slug}, {"_id": 0})
+    if not maker:
+        raise HTTPException(404, "Maker not found")
+
+    # Determine status: explicit override → respected; otherwise auto
+    # (inaugural if there are slots left, regular if cap is full).
+    if body.force_status in ("inaugural", "regular"):
+        status = body.force_status
+    else:
+        taken = await _count_inaugural()
+        status = "inaugural" if taken < FOUNDER_INAUGURAL_CAP else "regular"
+
+    now = datetime.now(timezone.utc)
+    starts = now.isoformat()
+    grace = (now + timedelta(days=FOUNDER_GRACE_DAYS)).isoformat()
+    # Inaugural + beta testers never expire — `founder_expires_at` stays None.
+    expires = (
+        None if status == "inaugural" or body.is_beta_tester
+        else (now + timedelta(days=FOUNDER_WINDOW_DAYS)).isoformat()
+    )
+
+    # Assign a stable Founder number — monotonically increasing, never
+    # reused even after expiry, so each Founder owns their digit forever.
+    counter_doc = await db.platform_meta.find_one_and_update(
+        {"key": "founder_counter"},
+        {"$inc": {"value": 1}},
+        upsert=True,
+        return_document=True,
+    )
+    founder_number = int((counter_doc or {}).get("value") or 1)
+
+    update = {
+        "tier": "founder",
+        "founder_status": status,
+        "founder_started_at": starts,
+        "founder_expires_at": expires,
+        "founder_grace_until": grace,
+        "founder_number": maker.get("founder_number") or founder_number,
+        "is_beta_tester": bool(body.is_beta_tester) or bool(maker.get("is_beta_tester")),
+    }
+    await db.makers.update_one({"slug": body.slug}, {"$set": update})
+    logger.info("[founders] promoted slug=%s status=%s number=%s beta=%s",
+                body.slug, status, update["founder_number"], update["is_beta_tester"])
+    return {"ok": True, **update}
+
+
+# ----------------------- Lifecycle crons ----------------------- #
+async def expire_due_founders() -> dict:
+    """Daily sweep — regular Founders past `founder_expires_at` auto-roll
+    to Standard. Inaugural Founders (expires_at is null) are never touched.
+    """
+    cutoff = now_iso()
+    cursor = db.makers.find(
+        {
+            "tier": "founder",
+            "founder_status": "regular",
+            "founder_expires_at": {"$ne": None, "$lt": cutoff},
+        },
+        {"_id": 0, "slug": 1, "email": 1, "shop_name": 1, "founder_number": 1},
+    )
+    rolled = 0
+    async for m in cursor:
+        await db.makers.update_one(
+            {"slug": m["slug"]},
+            {
+                "$set": {
+                    "tier": "standard",
+                    "founder_rolled_at": cutoff,
+                },
+            },
+        )
+        rolled += 1
+        logger.info("[founders] auto-rolled to standard: slug=%s number=%s",
+                    m["slug"], m.get("founder_number"))
+    return {"rolled": rolled, "as_of": cutoff}
+
+
+async def release_stale_grace_slots() -> dict:
+    """Daily sweep — Founders past their 14-day grace window with zero
+    published products get demoted back to Standard, freeing the slot
+    so we can hand it to someone who'll actually use it.
+    """
+    cutoff = now_iso()
+    cursor = db.makers.find(
+        {
+            "tier": "founder",
+            "founder_grace_until": {"$ne": None, "$lt": cutoff},
+        },
+        {"_id": 0, "slug": 1, "founder_number": 1, "founder_status": 1},
+    )
+    released = 0
+    async for m in cursor:
+        n_pub = await db.products.count_documents(
+            {"maker_slug": m["slug"], "status": "published", "deleted_at": None},
+        )
+        if n_pub > 0:
+            # Honoured the grace — wipe the grace deadline so we don't re-check.
+            await db.makers.update_one(
+                {"slug": m["slug"]},
+                {"$set": {"founder_grace_until": None}},
+            )
+            continue
+        # No published listings — revoke.
+        await db.makers.update_one(
+            {"slug": m["slug"]},
+            {
+                "$set": {
+                    "tier": "standard",
+                    "founder_grace_revoked_at": cutoff,
+                    # Clear so the slot frees up; preserve number for audit.
+                    "founder_status": None,
+                    "founder_expires_at": None,
+                    "founder_grace_until": None,
+                },
+            },
+        )
+        released += 1
+        logger.info("[founders] grace revoked (no listings): slug=%s number=%s",
+                    m["slug"], m.get("founder_number"))
+    return {"released": released, "as_of": cutoff}
+
+
+@router.post("/admin/founders/expire-due")
+async def admin_expire_due(_: dict = Depends(current_admin)):
+    return await expire_due_founders()
+
+
+@router.post("/admin/founders/release-stale")
+async def admin_release_stale(_: dict = Depends(current_admin)):
+    return await release_stale_grace_slots()

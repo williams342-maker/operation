@@ -9,6 +9,7 @@ import FollowersList from "../components/FollowersList";
 import ShareLinkButton from "../components/ShareLinkButton";
 import ContactMakerModal from "../components/ContactMakerModal";
 import VeteranBadge from "../components/VeteranBadge";
+import { FounderBadge, BetaTesterBadge } from "../components/FounderBadge";
 import GoogleAdsFeaturedBadge from "../components/GoogleAdsFeaturedBadge";
 import RecentShowcaseStrip from "../components/RecentShowcaseStrip";
 import { Mail, Facebook, Instagram, Twitter, Youtube, Globe, BookOpen, ArrowUpRight } from "lucide-react";
@@ -76,6 +77,12 @@ export default function MakerDetail() {
             )}
             {m.is_veteran_owned && (
               <VeteranBadge testId="maker-veteran-badge" />
+            )}
+            {m.tier === "founder" && (
+              <FounderBadge number={m.founder_number} testId="maker-founder-badge" />
+            )}
+            {m.is_beta_tester && (
+              <BetaTesterBadge testId="maker-beta-tester-badge" />
             )}
             <GoogleAdsFeaturedBadge maker={m} testId="maker-google-ads-badge" />
           </div>

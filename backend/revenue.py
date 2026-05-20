@@ -28,14 +28,71 @@ PLUS_PLATFORM_FEE_BPS = int(os.environ.get("PLUS_PLATFORM_FEE_BPS", "400"))
 PLUS_PRICE_USD = int(os.environ.get("PLUS_PRICE_USD", "12"))
 OFFSITE_AD_FEE_BPS = int(os.environ.get("OFFSITE_AD_FEE_BPS", "1200"))
 
+# ───────────────────────── Founders Tier ─────────────────────────
+# Free-forever recruiting tier for the first wave of CraftersMarket
+# makers. Lower commission than both Standard and Plus, generous free
+# listing quota, with a 12-month window that auto-rolls to Standard
+# unless the maker is in the inaugural-100 cohort (which is lifetime).
+#
+# Founder fields stored on the maker doc:
+#   tier                = "standard" | "founder" | (Plus is layered on top
+#                         via the existing subscription_status field)
+#   founder_status      = "inaugural" | "regular" | None
+#   founder_started_at  = ISO datetime (when their tier was set to founder)
+#   founder_expires_at  = ISO datetime | None   (None means lifetime/inaugural)
+#   is_beta_tester      = bool — applies the dual "◆ Beta Tester" badge
+#                                  and grants lifetime inaugural status
+#   founder_grace_until = ISO datetime — 14-day publish-or-lose-slot window
+FOUNDER_PLATFORM_FEE_BPS = int(os.environ.get("FOUNDER_PLATFORM_FEE_BPS", "300"))  # 3%
+FOUNDER_MONTHLY_LISTING_QUOTA = int(os.environ.get("FOUNDER_MONTHLY_LISTING_QUOTA", "50"))
+FOUNDER_WINDOW_DAYS = int(os.environ.get("FOUNDER_WINDOW_DAYS", "365"))
+FOUNDER_GRACE_DAYS = int(os.environ.get("FOUNDER_GRACE_DAYS", "14"))
+FOUNDER_INAUGURAL_CAP = int(os.environ.get("FOUNDER_INAUGURAL_CAP", "100"))
+
+
+def is_founder(maker: dict) -> bool:
+    """True if the maker currently holds an unexpired Founder slot.
+
+    Inaugural Founders never expire. Regular Founders expire 12 months
+    after their `founder_started_at`. Once expired the maker auto-rolls
+    to Standard via the daily expiry cron, but this helper is the
+    authoritative real-time check used by fee resolution.
+    """
+    m = maker or {}
+    if m.get("tier") != "founder":
+        return False
+    if m.get("founder_status") == "inaugural":
+        return True
+    expires = m.get("founder_expires_at")
+    if not expires:
+        return True
+    try:
+        return datetime.fromisoformat(expires.replace("Z", "+00:00")) > datetime.now(timezone.utc)
+    except (ValueError, AttributeError):
+        return True  # malformed — give them the benefit of the doubt
+
+
+def is_inaugural_founder(maker: dict) -> bool:
+    """Founders #1-100 + the original beta testers — lifetime perks."""
+    return (maker or {}).get("tier") == "founder" and (
+        (maker or {}).get("founder_status") == "inaugural"
+    )
+
 
 def is_plus(maker: dict) -> bool:
     return (maker or {}).get("subscription_status") == "active"
 
 
 def commission_bps_for(maker: dict) -> int:
-    """Plus subscribers pay 4% commission; free tier pays 5% (default env value)."""
+    """Plus → 4%; Founder → 3%; everyone else → base 5%.
+
+    Founder is checked AFTER Plus so a Founder who upgrades to Plus pays
+    whichever rate is lower for them (currently identical at 300bps in
+    practice, but the resolver stays correct if rates diverge later).
+    """
     base = int(os.environ.get("PLATFORM_FEE_BPS", "500"))
+    if is_founder(maker):
+        return min(FOUNDER_PLATFORM_FEE_BPS, PLUS_PLATFORM_FEE_BPS if is_plus(maker) else base)
     return PLUS_PLATFORM_FEE_BPS if is_plus(maker) else base
 
 
@@ -71,6 +128,7 @@ async def accrue_listing_charge(maker_slug: str, product_slug: str,
                 "free_remaining": 0, "lifetime": 0, "plus": False, "monthly_used": 0}
 
     plus = is_plus(m)
+    founder = is_founder(m)
     lifetime = int(m.get("listings_used_lifetime", 0))
     new_lifetime = lifetime + 1
     month_key = current_month_key()
@@ -78,8 +136,14 @@ async def accrue_listing_charge(maker_slug: str, product_slug: str,
     monthly_used = int(by_month.get(month_key, 0))
     new_monthly = monthly_used + 1
 
+    # Tier-aware free quota. Plus wins over Founder when both apply (higher
+    # quota), but the same 20¢ overage applies past the quota regardless.
     if plus:
         free_quota = PLUS_MONTHLY_LISTING_QUOTA
+        within_free = new_monthly <= free_quota
+        free_remaining_after = max(0, free_quota - new_monthly)
+    elif founder:
+        free_quota = FOUNDER_MONTHLY_LISTING_QUOTA
         within_free = new_monthly <= free_quota
         free_remaining_after = max(0, free_quota - new_monthly)
     else:
@@ -100,6 +164,7 @@ async def accrue_listing_charge(maker_slug: str, product_slug: str,
             "charged": False, "amount_cents": 0,
             "free_remaining": free_remaining_after,
             "lifetime": new_lifetime, "plus": plus,
+            "founder": founder,
             "monthly_used": new_monthly,
         }
     # Past quota — try burning a pre-paid listing credit before accruing the fee.
@@ -124,7 +189,8 @@ async def accrue_listing_charge(maker_slug: str, product_slug: str,
         return {
             "charged": False, "amount_cents": 0,
             "free_remaining": 0, "lifetime": new_lifetime,
-            "plus": plus, "monthly_used": new_monthly,
+            "plus": plus, "founder": founder,
+            "monthly_used": new_monthly,
             "credits_burned": True, "credits_remaining": credits - 1,
         }
     # No credits — accrue cash fee.
@@ -132,7 +198,11 @@ async def accrue_listing_charge(maker_slug: str, product_slug: str,
         "kind": kind, "slug": product_slug,
         "amount_cents": LISTING_FEE_CENTS,
         "ts": now_iso(),
-        "note": f"{kind} fee" + (" (Plus quota exceeded)" if plus else ""),
+        "note": f"{kind} fee" + (
+            " (Plus quota exceeded)" if plus
+            else " (Founder quota exceeded)" if founder
+            else ""
+        ),
     }
     await db.makers.update_one(
         {"slug": maker_slug},
@@ -148,7 +218,8 @@ async def accrue_listing_charge(maker_slug: str, product_slug: str,
     return {
         "charged": True, "amount_cents": LISTING_FEE_CENTS,
         "free_remaining": 0, "lifetime": new_lifetime,
-        "plus": plus, "monthly_used": new_monthly,
+        "plus": plus, "founder": founder,
+        "monthly_used": new_monthly,
     }
 
 

@@ -47,6 +47,19 @@ async def _job_expire_listings() -> None:
         logger.exception("[scheduler] listing-expiry failed: %s", e)
 
 
+async def _job_founders_lifecycle() -> None:
+    """Daily Founder maintenance — auto-roll expired Founders to Standard
+    and revoke 14-day grace slots that never published a product."""
+    from routers.founders import expire_due_founders, release_stale_grace_slots
+    try:
+        a = await expire_due_founders()
+        b = await release_stale_grace_slots()
+        logger.info("[scheduler] founders lifecycle: rolled=%s grace_released=%s",
+                    a.get("rolled"), b.get("released"))
+    except Exception as e:
+        logger.exception("[scheduler] founders lifecycle failed: %s", e)
+
+
 async def _job_r2_orphan_sweep() -> None:
     from scripts.sweep_r2_orphans import sweep
     try:
@@ -712,6 +725,11 @@ def start_scheduler() -> AsyncIOScheduler | None:
     sched = AsyncIOScheduler(timezone="UTC")
     sched.add_job(_job_expire_listings, CronTrigger(hour=3, minute=10),
                   id="expire_listings", replace_existing=True)
+    # Founders lifecycle — runs at 03:15 UTC daily, right after listing expiry.
+    # Auto-rolls regular Founders past 12-month window to Standard, and
+    # revokes 14-day grace slots that never published anything.
+    sched.add_job(_job_founders_lifecycle, CronTrigger(hour=3, minute=15),
+                  id="founders_lifecycle", replace_existing=True)
     sched.add_job(_job_r2_orphan_sweep, CronTrigger(day_of_week="sun", hour=4, minute=0),
                   id="r2_orphan_sweep", replace_existing=True)
     sched.add_job(_job_plus_roi_digest, CronTrigger(day=1, hour=14, minute=0),
