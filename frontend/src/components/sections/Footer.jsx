@@ -140,6 +140,7 @@ export default function Footer() {
             <Link to="/policy" className="hover:text-[#ff4500]" data-testid="footer-privacy">Privacy</Link>
             <Link to="/policy" className="hover:text-[#ff4500]" data-testid="footer-terms">Terms</Link>
             <Link to="/contact" className="hover:text-[#ff4500]" data-testid="footer-contact">Contact</Link>
+            <Link to="/press" className="hover:text-[#ff4500]" data-testid="footer-press">Press</Link>
           </div>
         </div>
       </div>

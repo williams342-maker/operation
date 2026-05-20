@@ -44,6 +44,7 @@ import { CommunityLogin, CommunityVerify, CommunityAuthCallback } from "./pages/
 import BuyerMessagesPage from "./pages/BuyerMessagesPage";
 import MakerListingEditor from "./pages/MakerListingEditor";
 import BetaPage from "./pages/BetaPage";
+import PressPage from "./pages/PressPage";
 import LandingPage from "./pages/LandingPage";
 import UpdatesPage from "./pages/UpdatesPage";
 import SignInPage, { ForgotPasswordPage, ResetPasswordPage } from "./pages/SignInPage";
@@ -166,6 +167,7 @@ function App() {
                 <Route path="/beta" element={<BetaPage />} />
                 <Route path="/founders" element={<BetaPage />} />
                 <Route path="/founder" element={<Navigate to="/founders" replace />} />
+                <Route path="/press" element={<PressPage />} />
                 {/* Marketing landing page — 3 aliased routes for A/B testing
                     ad copy/URL variants. All render the same component. */}
                 <Route path="/launch" element={<LandingPage />} />

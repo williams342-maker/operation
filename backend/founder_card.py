@@ -18,7 +18,6 @@ placeholder so a transient Gemini blip doesn't break the share flow.
 """
 from __future__ import annotations
 
-import asyncio
 import base64
 import logging
 import os
@@ -28,9 +27,9 @@ from typing import Optional
 logger = logging.getLogger("crafters")
 
 
-async def _generate_via_gemini(prompt: str) -> Optional[bytes]:
-    """Call Gemini Nano Banana and return PNG bytes, or None on failure.
-    Always wrapped — never raises to callers."""
+async def _generate_via_gemini(prompt: str) -> Optional[tuple[bytes, str]]:
+    """Call Gemini Nano Banana and return (image_bytes, mime_type), or
+    None on failure. Always wrapped — never raises to callers."""
     try:
         from emergentintegrations.llm.chat import LlmChat, UserMessage
     except Exception as e:
@@ -55,11 +54,27 @@ async def _generate_via_gemini(prompt: str) -> Optional[bytes]:
         _, images = await chat.send_message_multimodal_response(msg)
         if not images:
             return None
-        # send_message_multimodal_response returns list of {data, mime_type}
-        return base64.b64decode(images[0]["data"])
+        img = images[0]
+        data = base64.b64decode(img["data"])
+        mime = img.get("mime_type") or _sniff_mime(data) or "image/png"
+        return data, mime
     except Exception as e:
         logger.warning("[founder_card] gemini call failed: %s", e)
         return None
+
+
+def _sniff_mime(data: bytes) -> Optional[str]:
+    """Detect image MIME by magic bytes. Gemini Nano Banana commonly
+    returns JPEG even when prompted for PNG, so we trust the bytes."""
+    if data[:8] == b"\x89PNG\r\n\x1a\n":
+        return "image/png"
+    if data[:3] == b"\xff\xd8\xff":
+        return "image/jpeg"
+    if data[:6] in (b"GIF87a", b"GIF89a"):
+        return "image/gif"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    return None
 
 
 def _build_prompt(maker: dict) -> str:
@@ -89,10 +104,10 @@ def _build_prompt(maker: dict) -> str:
     )
 
 
-async def get_or_render_founder_card(slug: str) -> Optional[bytes]:
-    """Returns cached card bytes or generates fresh ones. Cache is keyed
-    on (slug, founder_number) so a re-promote (different number) busts
-    the cache automatically."""
+async def get_or_render_founder_card(slug: str) -> Optional[tuple[bytes, str]]:
+    """Returns (image_bytes, mime_type) — cached or freshly generated.
+    Cache is keyed on (slug, founder_number) so a re-promote (different
+    number) busts the cache automatically. Returns None on failure."""
     from core import db
 
     maker = await db.makers.find_one(
@@ -105,26 +120,26 @@ async def get_or_render_founder_card(slug: str) -> Optional[bytes]:
 
     number = int(maker.get("founder_number") or 0)
     cache = await db.founder_cards.find_one({"slug": slug, "number": number})
-    if cache and cache.get("png_b64"):
-        return base64.b64decode(cache["png_b64"])
+    if cache and cache.get("img_b64"):
+        return base64.b64decode(cache["img_b64"]), cache.get("mime", "image/png")
 
-    png = await _generate_via_gemini(_build_prompt(maker))
-    if not png:
+    result = await _generate_via_gemini(_build_prompt(maker))
+    if not result:
         return None
+    img, mime = result
 
     # Persist for future requests. Storing as base64 inside Mongo so we
-    # don't bring R2 into a low-traffic feature; cards are ~50-150KB so
-    # well below the 16MB document cap with many orders of magnitude to
-    # spare.
+    # don't bring R2 into a low-traffic feature; cards are ~50-500KB so
+    # well below the 16MB document cap.
     try:
         await db.founder_cards.update_one(
             {"slug": slug},
             {"$set": {
-                "slug": slug, "number": number,
-                "png_b64": base64.b64encode(png).decode("utf-8"),
+                "slug": slug, "number": number, "mime": mime,
+                "img_b64": base64.b64encode(img).decode("utf-8"),
             }},
             upsert=True,
         )
     except Exception as e:
         logger.warning("[founder_card] cache write failed: %s", e)
-    return png
+    return img, mime

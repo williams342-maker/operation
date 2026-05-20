@@ -106,12 +106,13 @@ async def founder_card(slug: str):
     from fastapi.responses import Response
     from founder_card import get_or_render_founder_card
 
-    png = await get_or_render_founder_card(slug)
-    if png is None:
+    result = await get_or_render_founder_card(slug)
+    if result is None:
         raise HTTPException(404, "Founder card unavailable")
+    img, mime = result
     return Response(
-        content=png,
-        media_type="image/png",
+        content=img,
+        media_type=mime,
         headers={
             # Cards are stable per (slug, founder_number) — long-cache.
             "Cache-Control": "public, max-age=86400",
