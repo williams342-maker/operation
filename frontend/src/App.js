@@ -156,6 +156,11 @@ function App() {
                 <Route path="/shop/:slug" element={<ProductDetail />} />
                 <Route path="/makers" element={<MakersPage />} />
                 <Route path="/makers/:slug" element={<MakerDetail />} />
+                {/* Short, shareable maker URL (iter153 Phase 2). Plus
+                    subscribers can pick a custom slug; everyone else
+                    uses their auto-generated maker slug. Both forms
+                    resolve via the same MakerDetail page. */}
+                <Route path="/m/:slug" element={<MakerDetail />} />
                 <Route path="/custom-order" element={<CustomOrderPage />} />
                 <Route path="/apply" element={<ApplyPage />} />
                 <Route path="/beta" element={<BetaPage />} />

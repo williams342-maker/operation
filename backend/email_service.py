@@ -17,6 +17,7 @@ import os
 import asyncio
 import logging
 from pathlib import Path
+from typing import Optional
 
 import httpx
 import resend
@@ -1266,10 +1267,17 @@ async def send_admin_team_invite(admin_email: str, capability_labels: str, link:
 def render_application_decision_email(
     name: str, studio: str, approved: bool, note: str = "",
     sign_in_link: str = "",
+    founder_number: Optional[int] = None,
+    is_inaugural: bool = False,
 ) -> dict:
     """Pure renderer — returns `{subject, html}` without dispatching.
     Used by `send_application_decision` AND the admin preview endpoint
-    so the QA preview is bit-for-bit identical to what gets sent."""
+    so the QA preview is bit-for-bit identical to what gets sent.
+
+    When `founder_number` is supplied (every Phase-2 approval gets one),
+    we render a Founders-tier welcome panel near the top showing their
+    number, status (Inaugural lifetime vs 12-month) and the tier perks.
+    """
     title = "Welcome to the Workshop." if approved else "Application Update."
     intro = (
         f"Hi {name}, your studio {studio} is in. Here's everything you need to launch."
@@ -1279,7 +1287,33 @@ def render_application_decision_email(
     if approved:
         site = (os.environ.get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
         link = sign_in_link or f"{site}/maker/login"
+        # Founder tier banner (iter153) — every approved maker is now a
+        # Founder. Render a numbered card with status so they immediately
+        # understand what they're getting.
+        founder_banner = ""
+        if founder_number:
+            badge_class = "Inaugural Founder" if is_inaugural else "Founder · 12-month"
+            status_blurb = (
+                "Lifetime perks. Your rate never changes."
+                if is_inaugural
+                else "12 months at this rate, then auto-rolls to Standard. We'll email you before that happens."
+            )
+            founder_banner = (
+                "<div style='background:#0a0a0a;border:1px solid #ff4500;padding:18px 20px;margin:0 0 24px'>"
+                "<div style='font-family:JetBrains Mono,monospace;font-size:10px;letter-spacing:0.3em;"
+                "text-transform:uppercase;color:#ff4500;margin:0 0 6px'>◆ You're a Founder.</div>"
+                f"<div style='font-family:Impact,Arial Black,sans-serif;font-size:32px;line-height:1;"
+                f"color:#fafafa;margin:0 0 8px'>{badge_class} #{founder_number:03d}</div>"
+                f"<div style='font-size:12px;color:#a3a3a3;line-height:1.55'>{status_blurb}</div>"
+                "<ul style='font-size:12px;color:#e5e5e5;line-height:1.7;padding-left:18px;margin:12px 0 0'>"
+                "<li><b>3% platform commission</b> (Standard pays 5%)</li>"
+                "<li><b>50 free listings every month</b> (Standard gets 10 lifetime)</li>"
+                "<li><b>$0 subscription</b> — no monthly fee</li>"
+                "<li><b>◆ Founding Maker badge</b> on every product card and shop page</li>"
+                "</ul></div>"
+            )
         body = (
+            founder_banner +
             "<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 24px'>"
             "Your application's been approved. You now have access to the maker portal — your "
             "shop, listings, payouts, and analytics all live there."
@@ -1307,10 +1341,10 @@ def render_application_decision_email(
             "<div style='font-family:JetBrains Mono,monospace;font-size:10px;letter-spacing:0.25em;"
             "text-transform:uppercase;color:#a3a3a3;margin:0 0 12px'>How payments + fees work</div>"
             "<ul style='font-size:13px;color:#e5e5e5;line-height:1.8;padding-left:20px;margin:0'>"
-            "<li><b>5% commission</b> + 2.9% + $0.30 payment processing per sale. (Crafters Plus drops commission to 4% — $12/mo.)</li>"
-            "<li><b>10 free listings</b> for life · then $0.20 per publish or renewal · or buy a credit pack at 25–40% off cash rates.</li>"
+            "<li><b>Commission:</b> 3% for Founders (5% Standard, 4% Plus) + 2.9% + $0.30 payment processing per sale.</li>"
+            "<li><b>Listings:</b> 50 free every month as a Founder (10 lifetime for Standard) · then $0.20 per publish or renewal · Plus pays $0.10.</li>"
             "<li><b>Listings auto-expire after 120 days</b> — one click to renew, your URL stays the same.</li>"
-            "<li><b>Promote a listing for $5/week</b> to pin it to the top of search results.</li>"
+            "<li><b>Promote a listing for $5/week</b> to pin it to the top of search results. Veteran-owned makers get $10/mo in free boost credit.</li>"
             "<li><b>Payouts</b> route directly to your bank via Stripe Connect — no waiting on us to cut checks.</li>"
             "</ul>"
             "</div>"
@@ -1352,12 +1386,15 @@ def render_application_decision_email(
 
 async def send_application_decision(applicant_email: str, name: str, studio: str,
                                     approved: bool, note: str = "",
-                                    sign_in_link: str = ""):
+                                    sign_in_link: str = "",
+                                    founder_number: Optional[int] = None,
+                                    is_inaugural: bool = False):
     """Approval path emits a comprehensive welcome packet: sign-in link, first
     steps checklist, fee breakdown, support resources. Decline path stays
     short + kind."""
     rendered = render_application_decision_email(
         name, studio, approved, note=note, sign_in_link=sign_in_link,
+        founder_number=founder_number, is_inaugural=is_inaugural,
     )
     return await _send(applicant_email, rendered["subject"], rendered["html"])
 

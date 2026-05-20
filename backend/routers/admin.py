@@ -1136,6 +1136,51 @@ async def admin_decide_application(
             await db.makers.insert_one(new_maker.model_dump())
             logger.info("auto-created maker on approval: slug=%s email=%s beta=%s",
                         slug, appn["email"], is_beta)
+            # Founder tier auto-promotion (iter153): every approved maker is
+            # now promoted to the Founders Tier. If we still have Inaugural
+            # slots left (cap 100), they get lifetime Inaugural status; once
+            # the cap fills, new approvals become regular 12-month Founders.
+            # `is_beta_tester` is reserved for the original pre-launch cohort
+            # — new applicants don't get that flag even if they applied via
+            # /founders. Idempotent: re-running the migration is a no-op for
+            # already-promoted makers.
+            try:
+                from routers.founders import _count_inaugural
+                from revenue import FOUNDER_INAUGURAL_CAP, FOUNDER_WINDOW_DAYS, FOUNDER_GRACE_DAYS
+                now_dt = datetime.now(timezone.utc)
+                inaug_used = await _count_inaugural()
+                status = "inaugural" if inaug_used < FOUNDER_INAUGURAL_CAP else "regular"
+                expires = (
+                    None if status == "inaugural"
+                    else (now_dt + timedelta(days=FOUNDER_WINDOW_DAYS)).isoformat()
+                )
+                grace = (now_dt + timedelta(days=FOUNDER_GRACE_DAYS)).isoformat()
+                counter = await db.platform_meta.find_one_and_update(
+                    {"key": "founder_counter"},
+                    {"$inc": {"value": 1}},
+                    upsert=True,
+                    return_document=True,
+                )
+                number = int((counter or {}).get("value") or 1)
+                await db.makers.update_one(
+                    {"slug": slug},
+                    {"$set": {
+                        "tier": "founder",
+                        "founder_status": status,
+                        "founder_started_at": now_dt.isoformat(),
+                        "founder_expires_at": expires,
+                        "founder_grace_until": grace,
+                        "founder_number": number,
+                    }},
+                )
+                logger.info("auto-promoted to founder: slug=%s number=%s status=%s",
+                            slug, number, status)
+            except Exception as e:
+                # Promotion failure must NOT block the approval — the maker
+                # is still successfully created, an admin can manually
+                # promote later via the Founders admin endpoint.
+                logger.warning("[founders] auto-promotion failed for slug=%s: %s",
+                               slug, e)
         elif appn.get("is_beta") and not existing.get("is_beta"):
             # Maker already exists (they previously applied as a non-beta
             # maker and now re-applied through /beta) — stamp the beta
@@ -1157,10 +1202,25 @@ async def admin_decide_application(
         token = issue_magic_token(appn["email"])
         sign_in_link = f"{site.rstrip('/')}/maker/verify?token={token}"
 
+    # Pull the freshly-stamped founder number + status so the welcome
+    # email can render the numbered Founder card. Defaults to (None, False)
+    # when the maker doc doesn't exist (rejection path, or pre-existing
+    # maker who didn't get promoted in this approval cycle).
+    founder_number = None
+    is_inaugural = False
+    if body.approved:
+        m_doc = await db.makers.find_one(
+            {"email": appn["email"]},
+            {"_id": 0, "founder_number": 1, "founder_status": 1},
+        )
+        if m_doc:
+            founder_number = m_doc.get("founder_number")
+            is_inaugural = m_doc.get("founder_status") == "inaugural"
+
     bg.add_task(
         send_application_decision,
         appn["email"], appn["name"], appn["studio_name"], body.approved, body.note or "",
-        sign_in_link,
+        sign_in_link, founder_number, is_inaugural,
     )
     appn["status"] = new_status
     appn["note"] = body.note

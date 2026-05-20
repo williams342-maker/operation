@@ -49,6 +49,19 @@ FOUNDER_WINDOW_DAYS = int(os.environ.get("FOUNDER_WINDOW_DAYS", "365"))
 FOUNDER_GRACE_DAYS = int(os.environ.get("FOUNDER_GRACE_DAYS", "14"))
 FOUNDER_INAUGURAL_CAP = int(os.environ.get("FOUNDER_INAUGURAL_CAP", "100"))
 
+# Veteran-owned bonus (iter153): every veteran-owned maker gets $10/mo
+# in boosted-listing credit, auto-replenished by the daily scheduler at
+# the start of each calendar month. Unused credit DOES NOT roll over.
+# Credit is burned BEFORE the cash promotion fee accrues, so a veteran
+# can boost 2 listings free per month at the current $5/week price.
+VETERAN_MONTHLY_BOOST_CREDIT_CENTS = int(
+    os.environ.get("VETERAN_MONTHLY_BOOST_CREDIT_CENTS", "1000")
+)
+
+# Plus subscribers pay half the per-listing overage past their quota.
+# Standard / Founder pay LISTING_FEE_CENTS; Plus pays this amount instead.
+PLUS_LISTING_FEE_CENTS = int(os.environ.get("PLUS_LISTING_FEE_CENTS", "10"))
+
 
 def is_founder(maker: dict) -> bool:
     """True if the maker currently holds an unexpired Founder slot.
@@ -193,13 +206,14 @@ async def accrue_listing_charge(maker_slug: str, product_slug: str,
             "monthly_used": new_monthly,
             "credits_burned": True, "credits_remaining": credits - 1,
         }
-    # No credits — accrue cash fee.
+    # No credits — accrue cash fee. Plus subscribers get half-price overage.
+    fee_cents = PLUS_LISTING_FEE_CENTS if plus else LISTING_FEE_CENTS
     entry = {
         "kind": kind, "slug": product_slug,
-        "amount_cents": LISTING_FEE_CENTS,
+        "amount_cents": fee_cents,
         "ts": now_iso(),
         "note": f"{kind} fee" + (
-            " (Plus quota exceeded)" if plus
+            f" ({fee_cents}c — Plus quota exceeded, half-price)" if plus
             else " (Founder quota exceeded)" if founder
             else ""
         ),
@@ -209,14 +223,14 @@ async def accrue_listing_charge(maker_slug: str, product_slug: str,
         {
             "$inc": {
                 "listings_used_lifetime": 1,
-                "pending_charges_cents": LISTING_FEE_CENTS,
+                "pending_charges_cents": fee_cents,
             },
             "$set": {"listings_by_month": by_month},
             "$push": {"charge_history": entry},
         },
     )
     return {
-        "charged": True, "amount_cents": LISTING_FEE_CENTS,
+        "charged": True, "amount_cents": fee_cents,
         "free_remaining": 0, "lifetime": new_lifetime,
         "plus": plus, "founder": founder,
         "monthly_used": new_monthly,
@@ -225,21 +239,73 @@ async def accrue_listing_charge(maker_slug: str, product_slug: str,
 
 async def accrue_promotion_charge(maker_slug: str, product_slug: str,
                                   weeks: int = 1) -> dict:
-    """Charge the flat promotion fee per week."""
+    """Charge the flat promotion fee per week. Veteran-owned makers burn
+    their monthly $10 boost credit first; only the remainder accrues as
+    a cash charge. Unused credit does not roll over."""
     amount = PROMOTION_WEEKLY_FEE_CENTS * max(1, int(weeks))
-    entry = {
-        "kind": "promotion", "slug": product_slug,
-        "amount_cents": amount, "ts": now_iso(),
-        "note": f"{weeks} week(s) promoted listing",
-    }
-    await db.makers.update_one(
+    m = await db.makers.find_one(
         {"slug": maker_slug},
-        {
-            "$inc": {"pending_charges_cents": amount},
-            "$push": {"charge_history": entry},
-        },
+        {"_id": 0, "is_veteran_owned": 1, "veteran_boost_credit_cents": 1},
+    ) or {}
+    # Veteran credit burn — applies before the cash charge accrues. The
+    # monthly cron tops `veteran_boost_credit_cents` back up to
+    # VETERAN_MONTHLY_BOOST_CREDIT_CENTS at the start of each calendar month.
+    credit_used = 0
+    if m.get("is_veteran_owned"):
+        credit = int(m.get("veteran_boost_credit_cents") or 0)
+        credit_used = min(credit, amount)
+        if credit_used > 0:
+            await db.makers.update_one(
+                {"slug": maker_slug},
+                {
+                    "$inc": {"veteran_boost_credit_cents": -credit_used},
+                    "$push": {"charge_history": {
+                        "kind": "veteran_boost_credit", "slug": product_slug,
+                        "amount_cents": -credit_used, "ts": now_iso(),
+                        "note": f"Veteran boost credit applied (-{credit_used}c)",
+                    }},
+                },
+            )
+    cash_due = amount - credit_used
+    if cash_due > 0:
+        entry = {
+            "kind": "promotion", "slug": product_slug,
+            "amount_cents": cash_due, "ts": now_iso(),
+            "note": (
+                f"{weeks} week(s) promoted listing"
+                + (f" (after -{credit_used}c veteran credit)" if credit_used else "")
+            ),
+        }
+        await db.makers.update_one(
+            {"slug": maker_slug},
+            {
+                "$inc": {"pending_charges_cents": cash_due},
+                "$push": {"charge_history": entry},
+            },
+        )
+    return {
+        "amount_cents": amount,
+        "credit_used_cents": credit_used,
+        "cash_accrued_cents": cash_due,
+        "weeks": weeks,
+    }
+
+
+async def replenish_veteran_boost_credits() -> dict:
+    """Monthly job — reset every veteran-owned maker's boost credit to
+    `VETERAN_MONTHLY_BOOST_CREDIT_CENTS` at the start of the calendar
+    month. Unused credit does NOT roll over. Idempotent: safe to call
+    multiple times in the same month; the field is set, not incremented.
+    """
+    res = await db.makers.update_many(
+        {"is_veteran_owned": True},
+        {"$set": {
+            "veteran_boost_credit_cents": VETERAN_MONTHLY_BOOST_CREDIT_CENTS,
+            "veteran_boost_credit_replenished_at": now_iso(),
+        }},
     )
-    return {"amount_cents": amount, "weeks": weeks}
+    return {"replenished": res.modified_count,
+            "credit_cents": VETERAN_MONTHLY_BOOST_CREDIT_CENTS}
 
 
 async def settle_pending_charges(maker_slug: str, gross_cents: int) -> dict:

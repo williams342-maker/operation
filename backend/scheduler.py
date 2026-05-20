@@ -60,6 +60,18 @@ async def _job_founders_lifecycle() -> None:
         logger.exception("[scheduler] founders lifecycle failed: %s", e)
 
 
+async def _job_veteran_boost_credit() -> None:
+    """Monthly cron — top up every veteran-owned maker's $10 boost credit
+    on the 1st of each month at 00:05 UTC. Unused credit does not carry
+    over; this is a hard reset."""
+    from revenue import replenish_veteran_boost_credits
+    try:
+        r = await replenish_veteran_boost_credits()
+        logger.info("[scheduler] veteran boost credit replenish: %s", r)
+    except Exception as e:
+        logger.exception("[scheduler] veteran boost credit failed: %s", e)
+
+
 async def _job_r2_orphan_sweep() -> None:
     from scripts.sweep_r2_orphans import sweep
     try:
@@ -730,6 +742,10 @@ def start_scheduler() -> AsyncIOScheduler | None:
     # revokes 14-day grace slots that never published anything.
     sched.add_job(_job_founders_lifecycle, CronTrigger(hour=3, minute=15),
                   id="founders_lifecycle", replace_existing=True)
+    # Veteran-owned boost credit replenish — fires at 00:05 UTC on the 1st
+    # of each month so the credit lands before any boost activations.
+    sched.add_job(_job_veteran_boost_credit, CronTrigger(day=1, hour=0, minute=5),
+                  id="veteran_boost_credit", replace_existing=True)
     sched.add_job(_job_r2_orphan_sweep, CronTrigger(day_of_week="sun", hour=4, minute=0),
                   id="r2_orphan_sweep", replace_existing=True)
     sched.add_job(_job_plus_roi_digest, CronTrigger(day=1, hour=14, minute=0),

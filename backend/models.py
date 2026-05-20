@@ -233,6 +233,10 @@ class Maker(BaseModel):
     founder_grace_revoked_at: Optional[str] = None
     founder_number: Optional[int] = None       # monotonic, never reused
     is_beta_tester: bool = False
+    # Veteran $10/mo boost credit ledger. Replenished monthly by the
+    # `veteran_boost_credit` cron; burned ahead of cash promotion fees.
+    veteran_boost_credit_cents: int = 0
+    veteran_boost_credit_replenished_at: Optional[str] = None
     # ---- Processing profiles (saved Etsy-style ship-time presets) ----
     # Custom turnaround presets (e.g. "Made to order · 5-7 weeks") that
     # the maker has saved in the Listing Editor's processing-time
