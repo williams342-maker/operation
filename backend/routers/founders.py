@@ -97,6 +97,28 @@ async def founders_list(limit: int = 60):
     return {"founders": await cursor.to_list(cap)}
 
 
+@router.get("/founders/card/{slug}")
+async def founder_card(slug: str):
+    """Returns the Founder's shareable card as a PNG. Generated on first
+    request and cached. Returns 404 if the maker isn't a Founder or 503
+    if Gemini is unreachable / EMERGENT_LLM_KEY missing — frontend can
+    fall back to a static placeholder image."""
+    from fastapi.responses import Response
+    from founder_card import get_or_render_founder_card
+
+    png = await get_or_render_founder_card(slug)
+    if png is None:
+        raise HTTPException(404, "Founder card unavailable")
+    return Response(
+        content=png,
+        media_type="image/png",
+        headers={
+            # Cards are stable per (slug, founder_number) — long-cache.
+            "Cache-Control": "public, max-age=86400",
+        },
+    )
+
+
 # ----------------------- Admin promotion ----------------------- #
 class PromoteRequest(BaseModel):
     slug: str

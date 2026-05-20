@@ -4,6 +4,8 @@ import { submitMakerApplication } from "../lib/api";
 import { useSiteSettings } from "../hooks/useSiteSettings";
 import { useStructuredData } from "../lib/seo";
 import FounderSlotCounter from "../components/FounderSlotCounter";
+import EtsyComparisonTable from "../components/EtsyComparisonTable";
+import FoundersWall from "../components/FoundersWall";
 
 // Founding Seller Beta program landing page.
 // Reuses the existing /api/maker-applications endpoint so beta signups land
@@ -153,6 +155,16 @@ export default function BetaPage() {
         <div className="mb-10">
           <FounderSlotCounter variant="hero" testId="founders-page-slot-counter" />
         </div>
+
+        {/* The killer recruiting math — Etsy fee comparison at 3 GMV
+            tiers. Pulls live CraftersMarket fee data so a future fee
+            change automatically propagates without us having to edit
+            marketing copy. */}
+        <EtsyComparisonTable testId="founders-etsy-comparison" />
+
+        {/* Social proof — every current Founder linked to their shop.
+            Empty-state fallback (zero Founders) hides the section. */}
+        <FoundersWall testId="founders-wall" />
 
         {/* Hero */}
         <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-4">
