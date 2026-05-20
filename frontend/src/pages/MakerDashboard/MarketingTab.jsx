@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from "react";
 import {
   ChevronDown, Megaphone, Tag, Share2, Gift, Camera, FileText, Hash,
-  TrendingUp, DollarSign, Copy, Download,
+  TrendingUp, DollarSign, Copy, Download, Award,
 } from "lucide-react";
 import { toast } from "sonner";
-import { fetchMakerProducts, makerShareListingToBuffer, downloadProductStoryCard } from "../../lib/api";
+import { fetchMakerProducts, makerShareListingToBuffer, downloadProductStoryCard, fetchMakerMe } from "../../lib/api";
 import Section from "./Marketing/Section";
 import AdsSection from "./Marketing/AdsSection";
 import AICopyTools from "./Marketing/AICopyTools";
 import DiscountCodes from "./Marketing/DiscountCodes";
+import FounderCardSection from "./Marketing/FounderCardSection";
 
 /**
  * Etsy-parity Marketing hub.
@@ -33,7 +34,7 @@ import DiscountCodes from "./Marketing/DiscountCodes";
  * ~150 lines and now only owns the shell + the small Social/Share
  * panels + Marketing tips.
  */
-const SECTIONS = [
+const SECTIONS_BASE = [
   { id: "ads",      label: "Crafters Market Ads", icon: Megaphone },
   { id: "sales",    label: "Sales and discounts", icon: Tag },
   { id: "social",   label: "Social media",        icon: Share2 },
@@ -41,9 +42,21 @@ const SECTIONS = [
   { id: "share",    label: "Share & Save",        icon: Gift },
 ];
 
+// Founder-only section is appended dynamically once we know the maker's tier.
+const FOUNDER_SECTION = { id: "founder", label: "Founder card", icon: Award };
+
 export default function MarketingTab() {
-  const [section, setSection] = useState(SECTIONS[0].id);
+  const [section, setSection] = useState(SECTIONS_BASE[0].id);
   const [open, setOpen] = useState(true);
+  const [isFounder, setIsFounder] = useState(false);
+
+  useEffect(() => {
+    fetchMakerMe()
+      .then((m) => setIsFounder(m?.tier === "founder"))
+      .catch(() => setIsFounder(false));
+  }, []);
+
+  const sections = isFounder ? [...SECTIONS_BASE, FOUNDER_SECTION] : SECTIONS_BASE;
 
   return (
     <div className="space-y-8" data-testid="marketing-tab">
@@ -60,7 +73,7 @@ export default function MarketingTab() {
       </div>
 
       <div className="grid lg:grid-cols-[280px_1fr] gap-6">
-        <SubNav sections={SECTIONS} activeId={section} onPick={setSection}
+        <SubNav sections={sections} activeId={section} onPick={setSection}
           open={open} onToggleOpen={() => setOpen((v) => !v)} />
 
         <div className="min-w-0" data-testid={`marketing-section-${section}`}>
@@ -69,6 +82,7 @@ export default function MarketingTab() {
           {section === "social"  && <SocialMedia />}
           {section === "stories" && <StoryTemplates />}
           {section === "share"   && <ShareAndSave />}
+          {section === "founder" && <FounderCardSection />}
         </div>
       </div>
     </div>

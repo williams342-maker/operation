@@ -25,7 +25,8 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - Admin: `/admin/login|verify|dashboard`
 
 ## What's Implemented (cumulative)
-- ✅ **Founder Marketing Kit (2026-02, this iter):** Recruiting toolkit for the first 100 inaugural Founders.
+- ✅ **Founder Card share kit on maker dashboard (2026-02, this iter):** Marketing → Founder card sub-nav. Founder-only (double-gated: sub-nav entry + section render both check `tier === "founder"`). Shows the Gemini-generated card with one-click X/Twitter, Facebook, LinkedIn share buttons plus Download card (PNG/JPEG sniffed) + Copy text. Pre-composed tweet pitches the maker's number + 3% vs 6.5% recruiting hook with `/founders` CTA. File: `/app/frontend/src/pages/MakerDashboard/Marketing/FounderCardSection.jsx`.
+- ✅ **Founder Marketing Kit (2026-02):** Recruiting toolkit for the first 100 inaugural Founders.
   - `EtsyComparisonTable` (`/founders`): side-by-side fee math at $5K / $25K / $75K GMV bands → "You save" callouts ($432 · $1,919 · $5,613/yr).
   - `FoundersWall` (`/founders`): live grid of approved Founders with veteran (yellow dot) + beta-tester (emerald dot) markers; numbered chips link to maker shop pages.
   - `/api/founders/card/{slug}`: shareable social card generated via Gemini Nano Banana (`gemini-3.1-flash-image-preview`), cached in `db.founder_cards` keyed on (slug, founder_number) so re-promotes auto-bust the cache. Mime-type now sniffed from magic bytes (Gemini returns JPEG, not PNG — fixed in this iter).
