@@ -38,7 +38,7 @@ export default function PlusMembersTab() {
     setReplenishBusy(true);
     setReplenishResult(null);
     try {
-      const token = localStorage.getItem("admin_token");
+      const token = localStorage.getItem("cm_admin_jwt");
       const res = await fetch(`${API}/api/admin/founders/replenish-credits`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },

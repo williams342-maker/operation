@@ -34,7 +34,7 @@ export default function useLiveOrderToasts() {
     let cancelled = false;
     let timer = null;
 
-    const token = localStorage.getItem("admin_token");
+    const token = localStorage.getItem("cm_admin_jwt");
     if (!token) return; // not logged in — silent no-op
 
     const poll = async () => {
