@@ -58,6 +58,14 @@ VETERAN_MONTHLY_BOOST_CREDIT_CENTS = int(
     os.environ.get("VETERAN_MONTHLY_BOOST_CREDIT_CENTS", "1000")
 )
 
+# Plus subscribers get 3 boosted listings per month included with their
+# $12/mo subscription — that's $15 of credit worth more than the
+# subscription itself, so the Plus tier visibly pays for itself before
+# any of the other perks kick in.
+PLUS_MONTHLY_BOOST_CREDIT_CENTS = int(
+    os.environ.get("PLUS_MONTHLY_BOOST_CREDIT_CENTS", "1500")
+)
+
 # Plus subscribers pay half the per-listing overage past their quota.
 # Standard / Founder pay LISTING_FEE_CENTS; Plus pays this amount instead.
 PLUS_LISTING_FEE_CENTS = int(os.environ.get("PLUS_LISTING_FEE_CENTS", "10"))
@@ -239,42 +247,74 @@ async def accrue_listing_charge(maker_slug: str, product_slug: str,
 
 async def accrue_promotion_charge(maker_slug: str, product_slug: str,
                                   weeks: int = 1) -> dict:
-    """Charge the flat promotion fee per week. Veteran-owned makers burn
-    their monthly $10 boost credit first; only the remainder accrues as
-    a cash charge. Unused credit does not roll over."""
+    """Charge the flat promotion fee per week. Two credit pools can offset
+    the cash charge before it accrues:
+      1. Plus boost credit ($15/mo, auto-replenished on the 1st)
+      2. Veteran-owned boost credit ($10/mo, auto-replenished on the 1st)
+    Plus credit is burned FIRST (it's a Plus benefit so should be visibly
+    used), then veteran credit, then cash. Unused credit does not roll over.
+    """
     amount = PROMOTION_WEEKLY_FEE_CENTS * max(1, int(weeks))
     m = await db.makers.find_one(
         {"slug": maker_slug},
-        {"_id": 0, "is_veteran_owned": 1, "veteran_boost_credit_cents": 1},
+        {"_id": 0,
+         "is_veteran_owned": 1, "veteran_boost_credit_cents": 1,
+         "subscription_status": 1, "plus_boost_credit_cents": 1},
     ) or {}
-    # Veteran credit burn — applies before the cash charge accrues. The
-    # monthly cron tops `veteran_boost_credit_cents` back up to
-    # VETERAN_MONTHLY_BOOST_CREDIT_CENTS at the start of each calendar month.
-    credit_used = 0
-    if m.get("is_veteran_owned"):
-        credit = int(m.get("veteran_boost_credit_cents") or 0)
-        credit_used = min(credit, amount)
-        if credit_used > 0:
+
+    remaining = amount
+    plus_used = 0
+    veteran_used = 0
+
+    # 1. Burn Plus credit first.
+    if is_plus(m):
+        plus_credit = int(m.get("plus_boost_credit_cents") or 0)
+        plus_used = min(plus_credit, remaining)
+        if plus_used > 0:
             await db.makers.update_one(
                 {"slug": maker_slug},
                 {
-                    "$inc": {"veteran_boost_credit_cents": -credit_used},
+                    "$inc": {"plus_boost_credit_cents": -plus_used},
                     "$push": {"charge_history": {
-                        "kind": "veteran_boost_credit", "slug": product_slug,
-                        "amount_cents": -credit_used, "ts": now_iso(),
-                        "note": f"Veteran boost credit applied (-{credit_used}c)",
+                        "kind": "plus_boost_credit", "slug": product_slug,
+                        "amount_cents": -plus_used, "ts": now_iso(),
+                        "note": f"Plus boost credit applied (-{plus_used}c)",
                     }},
                 },
             )
-    cash_due = amount - credit_used
+            remaining -= plus_used
+
+    # 2. Then veteran credit.
+    if remaining > 0 and m.get("is_veteran_owned"):
+        vet_credit = int(m.get("veteran_boost_credit_cents") or 0)
+        veteran_used = min(vet_credit, remaining)
+        if veteran_used > 0:
+            await db.makers.update_one(
+                {"slug": maker_slug},
+                {
+                    "$inc": {"veteran_boost_credit_cents": -veteran_used},
+                    "$push": {"charge_history": {
+                        "kind": "veteran_boost_credit", "slug": product_slug,
+                        "amount_cents": -veteran_used, "ts": now_iso(),
+                        "note": f"Veteran boost credit applied (-{veteran_used}c)",
+                    }},
+                },
+            )
+            remaining -= veteran_used
+
+    # 3. Anything left over hits cash.
+    cash_due = remaining
     if cash_due > 0:
+        offsets = []
+        if plus_used:
+            offsets.append(f"-{plus_used}c plus")
+        if veteran_used:
+            offsets.append(f"-{veteran_used}c vet")
+        offset_note = f" (after {', '.join(offsets)} credit)" if offsets else ""
         entry = {
             "kind": "promotion", "slug": product_slug,
             "amount_cents": cash_due, "ts": now_iso(),
-            "note": (
-                f"{weeks} week(s) promoted listing"
-                + (f" (after -{credit_used}c veteran credit)" if credit_used else "")
-            ),
+            "note": f"{weeks} week(s) promoted listing{offset_note}",
         }
         await db.makers.update_one(
             {"slug": maker_slug},
@@ -285,7 +325,9 @@ async def accrue_promotion_charge(maker_slug: str, product_slug: str,
         )
     return {
         "amount_cents": amount,
-        "credit_used_cents": credit_used,
+        "plus_credit_used_cents": plus_used,
+        "veteran_credit_used_cents": veteran_used,
+        "credit_used_cents": plus_used + veteran_used,
         "cash_accrued_cents": cash_due,
         "weeks": weeks,
     }
@@ -294,9 +336,7 @@ async def accrue_promotion_charge(maker_slug: str, product_slug: str,
 async def replenish_veteran_boost_credits() -> dict:
     """Monthly job — reset every veteran-owned maker's boost credit to
     `VETERAN_MONTHLY_BOOST_CREDIT_CENTS` at the start of the calendar
-    month. Unused credit does NOT roll over. Idempotent: safe to call
-    multiple times in the same month; the field is set, not incremented.
-    """
+    month. Unused credit does NOT roll over."""
     res = await db.makers.update_many(
         {"is_veteran_owned": True},
         {"$set": {
@@ -306,6 +346,22 @@ async def replenish_veteran_boost_credits() -> dict:
     )
     return {"replenished": res.modified_count,
             "credit_cents": VETERAN_MONTHLY_BOOST_CREDIT_CENTS}
+
+
+async def replenish_plus_boost_credits() -> dict:
+    """Monthly job — reset every active-Plus maker's boost credit to
+    `PLUS_MONTHLY_BOOST_CREDIT_CENTS`. Plus subscription itself is the
+    gate (not the credit), so canceled subscribers stop accruing here
+    once their status flips off."""
+    res = await db.makers.update_many(
+        {"subscription_status": "active"},
+        {"$set": {
+            "plus_boost_credit_cents": PLUS_MONTHLY_BOOST_CREDIT_CENTS,
+            "plus_boost_credit_replenished_at": now_iso(),
+        }},
+    )
+    return {"replenished": res.modified_count,
+            "credit_cents": PLUS_MONTHLY_BOOST_CREDIT_CENTS}
 
 
 async def settle_pending_charges(maker_slug: str, gross_cents: int) -> dict:

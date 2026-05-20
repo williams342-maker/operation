@@ -23,6 +23,7 @@ which is the single source of truth for what each tier means.
 """
 from __future__ import annotations
 
+import os
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -136,50 +137,151 @@ async def admin_promote(body: PromoteRequest, _: dict = Depends(current_admin)):
     )
     founder_number = int((counter_doc or {}).get("value") or 1)
 
+    # Re-use any pre-existing founder_number on this maker so re-promoting
+    # someone (e.g. demote/re-promote during admin testing) doesn't burn
+    # through the monotonic counter and inflate the apparent applicant count.
+    final_number = maker.get("founder_number") or founder_number
     update = {
         "tier": "founder",
         "founder_status": status,
         "founder_started_at": starts,
         "founder_expires_at": expires,
         "founder_grace_until": grace,
-        "founder_number": maker.get("founder_number") or founder_number,
+        "founder_number": final_number,
         "is_beta_tester": bool(body.is_beta_tester) or bool(maker.get("is_beta_tester")),
     }
     await db.makers.update_one({"slug": body.slug}, {"$set": update})
+
+    # Send the welcome email — only when promoting a maker who isn't
+    # already a Founder (avoid re-spamming on a re-promote). Idempotent
+    # check via tier transition.
+    if maker.get("tier") != "founder":
+        try:
+            from email_service import send_application_decision
+            from maker_auth import issue_magic_token
+            site = (os.environ.get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
+            token = issue_magic_token(maker["email"])
+            sign_in_link = f"{site}/maker/verify?token={token}"
+            await send_application_decision(
+                maker["email"],
+                maker.get("name") or maker.get("shop_name") or "there",
+                maker.get("shop_name") or "your studio",
+                True, "", sign_in_link,
+                founder_number=final_number,
+                is_inaugural=(status == "inaugural"),
+            )
+        except Exception as e:
+            logger.warning("[founders] welcome email failed for %s: %s", body.slug, e)
+
+    # Surface in the public activity ticker — "Mike Williams just became
+    # Founder #003" — same psychology as the homepage 'just bought X' feed.
+    try:
+        await db.activity_events.insert_one({
+            "kind": "founder_joined",
+            "text": f"{maker.get('name') or maker.get('shop_name') or 'A new maker'} just became Founder #{final_number:03d}",
+            "location": maker.get("location") or "",
+            "amount": None,
+            "session_id": None,
+            "created_at": starts,
+            "id": f"founder-{body.slug}-{final_number}",
+        })
+    except Exception as e:
+        logger.warning("[founders] activity event insert failed: %s", e)
+
     logger.info("[founders] promoted slug=%s status=%s number=%s beta=%s",
-                body.slug, status, update["founder_number"], update["is_beta_tester"])
+                body.slug, status, final_number, update["is_beta_tester"])
     return {"ok": True, **update}
 
 
 # ----------------------- Lifecycle crons ----------------------- #
 async def expire_due_founders() -> dict:
-    """Daily sweep — regular Founders past `founder_expires_at` auto-roll
-    to Standard. Inaugural Founders (expires_at is null) are never touched.
+    """Daily sweep — three things at once:
+       1. Send month-10 warning emails (~60 days remaining)
+       2. Send month-11.5 warning emails (~14 days remaining)
+       3. Roll regular Founders past `founder_expires_at` to Standard
+          and email them a farewell.
+       Inaugural Founders (expires_at is null) are never touched.
     """
-    cutoff = now_iso()
+    cutoff = datetime.now(timezone.utc)
+    cutoff_iso = cutoff.isoformat()
+
+    # Per-stage day windows. Each warning is gated by a `founder_warning_60d_sent`
+    # / `founder_warning_14d_sent` flag so the daily cron doesn't re-spam.
+    warn_60_low = (cutoff + timedelta(days=58)).isoformat()
+    warn_60_high = (cutoff + timedelta(days=62)).isoformat()
+    warn_14_low = (cutoff + timedelta(days=12)).isoformat()
+    warn_14_high = (cutoff + timedelta(days=16)).isoformat()
+
+    # Lazy import to avoid circular dependency at module load.
+    from email_service import send_founder_expiry_warning, send_founder_farewell
+
+    # -- Stage 1: 60-day warning --
+    warned_60 = 0
+    cursor60 = db.makers.find(
+        {
+            "tier": "founder", "founder_status": "regular",
+            "founder_warning_60d_sent": {"$ne": True},
+            "founder_expires_at": {"$gte": warn_60_low, "$lte": warn_60_high},
+        },
+        {"_id": 0, "slug": 1, "email": 1, "name": 1, "founder_number": 1},
+    )
+    async for m in cursor60:
+        try:
+            await send_founder_expiry_warning(m["email"], m.get("name") or "there",
+                                               int(m.get("founder_number") or 0), 60)
+            await db.makers.update_one({"slug": m["slug"]},
+                                        {"$set": {"founder_warning_60d_sent": True}})
+            warned_60 += 1
+        except Exception as e:
+            logger.warning("[founders] 60d warning failed for %s: %s", m["slug"], e)
+
+    # -- Stage 2: 14-day warning --
+    warned_14 = 0
+    cursor14 = db.makers.find(
+        {
+            "tier": "founder", "founder_status": "regular",
+            "founder_warning_14d_sent": {"$ne": True},
+            "founder_expires_at": {"$gte": warn_14_low, "$lte": warn_14_high},
+        },
+        {"_id": 0, "slug": 1, "email": 1, "name": 1, "founder_number": 1},
+    )
+    async for m in cursor14:
+        try:
+            await send_founder_expiry_warning(m["email"], m.get("name") or "there",
+                                               int(m.get("founder_number") or 0), 14)
+            await db.makers.update_one({"slug": m["slug"]},
+                                        {"$set": {"founder_warning_14d_sent": True}})
+            warned_14 += 1
+        except Exception as e:
+            logger.warning("[founders] 14d warning failed for %s: %s", m["slug"], e)
+
+    # -- Stage 3: auto-roll the truly expired --
     cursor = db.makers.find(
         {
-            "tier": "founder",
-            "founder_status": "regular",
-            "founder_expires_at": {"$ne": None, "$lt": cutoff},
+            "tier": "founder", "founder_status": "regular",
+            "founder_expires_at": {"$ne": None, "$lt": cutoff_iso},
         },
-        {"_id": 0, "slug": 1, "email": 1, "shop_name": 1, "founder_number": 1},
+        {"_id": 0, "slug": 1, "email": 1, "name": 1, "founder_number": 1},
     )
     rolled = 0
     async for m in cursor:
         await db.makers.update_one(
             {"slug": m["slug"]},
-            {
-                "$set": {
-                    "tier": "standard",
-                    "founder_rolled_at": cutoff,
-                },
-            },
+            {"$set": {"tier": "standard", "founder_rolled_at": cutoff_iso}},
         )
         rolled += 1
+        try:
+            await send_founder_farewell(m["email"], m.get("name") or "there",
+                                         int(m.get("founder_number") or 0))
+        except Exception as e:
+            logger.warning("[founders] farewell email failed for %s: %s", m["slug"], e)
         logger.info("[founders] auto-rolled to standard: slug=%s number=%s",
                     m["slug"], m.get("founder_number"))
-    return {"rolled": rolled, "as_of": cutoff}
+
+    return {
+        "warned_60d": warned_60, "warned_14d": warned_14,
+        "rolled": rolled, "as_of": cutoff_iso,
+    }
 
 
 async def release_stale_grace_slots() -> dict:

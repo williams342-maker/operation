@@ -1399,6 +1399,85 @@ async def send_application_decision(applicant_email: str, name: str, studio: str
     return await _send(applicant_email, rendered["subject"], rendered["html"])
 
 
+async def send_founder_expiry_warning(maker_email: str, name: str,
+                                       founder_number: int, days_remaining: int):
+    """Pre-expiry nudge sent at ~60 days out (month-10 mark) and ~14 days
+    out (month-11.5 mark). Gives the maker time to upgrade to Plus
+    before their rate jumps from 3% → 5% on auto-roll."""
+    site = (os.environ.get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
+    subj = f"Your Founder rate ends in {days_remaining} days — Crafters Market"
+    body = (
+        "<div style='background:#0a0a0a;border:1px solid #ff4500;padding:18px 20px;margin:0 0 24px'>"
+        "<div style='font-family:JetBrains Mono,monospace;font-size:10px;letter-spacing:0.3em;"
+        "text-transform:uppercase;color:#ff4500;margin:0 0 6px'>◆ Heads up, Founder.</div>"
+        f"<div style='font-family:Impact,Arial Black,sans-serif;font-size:32px;line-height:1;"
+        f"color:#fafafa;margin:0 0 8px'>{days_remaining} days remaining</div>"
+        f"<div style='font-size:12px;color:#a3a3a3;line-height:1.55'>"
+        f"Your 12-month Founder window (#{founder_number:03d}) is winding down. "
+        f"After it ends, your commission rate goes from <b style='color:#fafafa'>3%</b> to "
+        f"<b style='color:#fafafa'>5%</b> (Standard) unless you upgrade to Crafters Plus.</div>"
+        "</div>"
+        "<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 16px'>"
+        f"Hey {name}, you've been part of the founding 100 for nearly a year now. "
+        "We wanted to give you a heads up before your rate changes so there are no surprises."
+        "</p>"
+        "<ul style='font-size:13px;color:#e5e5e5;line-height:1.8;padding-left:20px;margin:0 0 16px'>"
+        "<li><b>Stay free at Standard tier</b> — 5% commission, 10 free listings. No action needed.</li>"
+        "<li><b>Upgrade to Crafters Plus</b> — 4% commission, 100 free listings/mo, $15/mo boost credit, 24h support SLA. $12/mo.</li>"
+        "</ul>"
+        f"<p style='text-align:center;margin:24px 0'>"
+        f"<a href='{site}/maker/dashboard?tab=subscription' style='display:inline-block;padding:14px 28px;"
+        f"background:#ff4500;color:#000;font-family:JetBrains Mono,monospace;font-size:11px;"
+        f"letter-spacing:0.22em;font-weight:bold;text-transform:uppercase;text-decoration:none'>"
+        f"Upgrade to Plus &rarr;</a>"
+        "</p>"
+        "<p style='font-size:12px;color:#a3a3a3;line-height:1.6;margin:0'>"
+        "No matter which path you take, your &#9670; Founding Maker badge and number are yours forever. "
+        "Thank you for helping us launch Crafters Market."
+        "</p>"
+    )
+    return await _send(maker_email, subj, body)
+
+
+async def send_founder_farewell(maker_email: str, name: str, founder_number: int):
+    """Sent the morning after a regular Founder auto-rolls to Standard.
+    Tone: warm, grateful, never punitive. The Founder badge persists — only
+    the commission rate changes."""
+    site = (os.environ.get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
+    subj = "Thank you for being a Founder — Crafters Market"
+    body = (
+        "<div style='background:#0a0a0a;border:1px solid #262626;padding:18px 20px;margin:0 0 24px'>"
+        "<div style='font-family:JetBrains Mono,monospace;font-size:10px;letter-spacing:0.3em;"
+        f"text-transform:uppercase;color:#a3a3a3;margin:0 0 6px'>&#9670; Founder #{founder_number:03d}</div>"
+        "<div style='font-family:Impact,Arial Black,sans-serif;font-size:32px;line-height:1;"
+        "color:#fafafa;margin:0 0 8px'>A year of building together.</div>"
+        "<div style='font-size:12px;color:#a3a3a3;line-height:1.55'>"
+        "Your Founder window has ended. You're now on Standard &mdash; but your badge stays.</div>"
+        "</div>"
+        f"<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 16px'>"
+        f"Hey {name}, we wanted to take a moment to say thank you. You shipped your first listings, "
+        f"took your first orders, and helped us learn what Crafters Market should be. Your "
+        "&#9670; Founding Maker badge is permanent &mdash; every product card you've ever published wears it forever."
+        "</p>"
+        "<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 16px'>"
+        "Here's what changes today: your commission goes from <b>3%</b> to <b>5%</b>, and your free listing "
+        "quota changes from 50/month to 10 lifetime. If you'd rather keep growing without rate friction, "
+        "Crafters Plus drops you back to 4% with 100 free listings/month for $12."
+        "</p>"
+        f"<p style='text-align:center;margin:24px 0'>"
+        f"<a href='{site}/maker/dashboard?tab=subscription' style='display:inline-block;padding:14px 28px;"
+        f"background:#ff4500;color:#000;font-family:JetBrains Mono,monospace;font-size:11px;"
+        f"letter-spacing:0.22em;font-weight:bold;text-transform:uppercase;text-decoration:none'>"
+        f"Explore Plus &rarr;</a>"
+        "</p>"
+        "<p style='font-size:12px;color:#a3a3a3;line-height:1.6;margin:0'>"
+        "Whatever you choose, we're grateful you bet on us early."
+        "</p>"
+    )
+    return await _send(maker_email, subj, body)
+
+
+
 async def send_custom_order_quote(buyer_email: str, name: str, project_type: str,
                                   quote: float, message: str = ""):
     body = (

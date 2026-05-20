@@ -23,7 +23,7 @@ export default function ActivityTicker() {
   const e = events[idx];
   const colors = {
     sold: "#ff4500", shipped: "#4ade80", listed: "#60a5fa",
-    applied: "#facc15", drop: "#ff4500",
+    applied: "#facc15", drop: "#ff4500", founder_joined: "#ff4500",
   };
   const isDrop = e.kind === "drop";
 

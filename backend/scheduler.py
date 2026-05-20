@@ -64,12 +64,15 @@ async def _job_veteran_boost_credit() -> None:
     """Monthly cron — top up every veteran-owned maker's $10 boost credit
     on the 1st of each month at 00:05 UTC. Unused credit does not carry
     over; this is a hard reset."""
-    from revenue import replenish_veteran_boost_credits
+    from revenue import replenish_veteran_boost_credits, replenish_plus_boost_credits
     try:
         r = await replenish_veteran_boost_credits()
         logger.info("[scheduler] veteran boost credit replenish: %s", r)
+        # Same monthly window — top up Plus subscribers' $15 boost credit too.
+        p = await replenish_plus_boost_credits()
+        logger.info("[scheduler] plus boost credit replenish: %s", p)
     except Exception as e:
-        logger.exception("[scheduler] veteran boost credit failed: %s", e)
+        logger.exception("[scheduler] boost credit replenish failed: %s", e)
 
 
 async def _job_r2_orphan_sweep() -> None:

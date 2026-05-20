@@ -1173,6 +1173,21 @@ async def admin_decide_application(
                         "founder_number": number,
                     }},
                 )
+                # Surface as a public activity event so the live ticker
+                # picks it up — same recruiting psychology as the
+                # homepage 'just bought X' feed.
+                try:
+                    await db.activity_events.insert_one({
+                        "kind": "founder_joined",
+                        "text": f"{appn.get('name') or 'A new maker'} just became Founder #{number:03d}",
+                        "location": appn.get("location") or "",
+                        "amount": None,
+                        "session_id": None,
+                        "created_at": now_dt.isoformat(),
+                        "id": f"founder-{slug}-{number}",
+                    })
+                except Exception:
+                    pass
                 logger.info("auto-promoted to founder: slug=%s number=%s status=%s",
                             slug, number, status)
             except Exception as e:

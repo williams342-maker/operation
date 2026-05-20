@@ -237,6 +237,10 @@ class Maker(BaseModel):
     # `veteran_boost_credit` cron; burned ahead of cash promotion fees.
     veteran_boost_credit_cents: int = 0
     veteran_boost_credit_replenished_at: Optional[str] = None
+    # Plus subscribers also get a $15/mo boost credit (3 boosted listings).
+    # Replenished by the same monthly cron at 00:05 UTC on the 1st.
+    plus_boost_credit_cents: int = 0
+    plus_boost_credit_replenished_at: Optional[str] = None
     # ---- Processing profiles (saved Etsy-style ship-time presets) ----
     # Custom turnaround presets (e.g. "Made to order · 5-7 weeks") that
     # the maker has saved in the Listing Editor's processing-time
