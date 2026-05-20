@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { fetchAdminPlusMembers } from "../../lib/api";
 import { formatDate } from "./_shared";
+
+const API = process.env.REACT_APP_BACKEND_URL;
 
 // Directory of Crafters Plus subscribers ($12/mo). Shows Stripe subscription
 // metadata + 30d ROI so the admin can spot churn-risk / high-value shops.
@@ -8,6 +11,8 @@ export default function PlusMembersTab() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
+  const [replenishBusy, setReplenishBusy] = useState(false);
+  const [replenishResult, setReplenishResult] = useState(null);
 
   useEffect(() => {
     (async () => {
@@ -23,6 +28,36 @@ export default function PlusMembersTab() {
     })();
   }, []);
 
+  /**
+   * One-click "seed boost credits now" button. Skips waiting for the
+   * monthly cron on the 1st by hitting the admin replenish endpoint
+   * directly. Idempotent — repeating it the same day just keeps both
+   * pools at their per-month cap, so the admin can mash this safely.
+   */
+  const handleReplenish = async () => {
+    setReplenishBusy(true);
+    setReplenishResult(null);
+    try {
+      const token = localStorage.getItem("admin_token");
+      const res = await fetch(`${API}/api/admin/founders/replenish-credits`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setReplenishResult(data);
+      const plusN = data?.plus?.replenished ?? 0;
+      const vetN = data?.veteran?.replenished ?? 0;
+      toast.success("Boost credits replenished", {
+        description: `${plusN} Plus subscriber${plusN === 1 ? "" : "s"} · ${vetN} veteran${vetN === 1 ? "" : "s"}`,
+      });
+    } catch (e) {
+      toast.error("Replenish failed", { description: e?.message || "Try again in a moment." });
+    } finally {
+      setReplenishBusy(false);
+    }
+  };
+
   const mrr = rows.length * 12;
   const totalGmv30 = rows.reduce((s, r) => s + (r.gmv_30d || 0), 0);
 
@@ -31,6 +66,39 @@ export default function PlusMembersTab() {
       <div>
         <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-400">◆ Paid Members</div>
         <h2 className="font-display text-3xl md:text-4xl mt-1">Crafters Plus Subscribers</h2>
+      </div>
+
+      {/* Maintenance — manual boost credit replenish.
+          Normally fired by the monthly cron at 00:05 UTC on the 1st.
+          This button gives the admin an "I want it NOW" lever during
+          launch / testing or after a config change. */}
+      <div
+        className="border border-[#262626] bg-[#0a0a0a] p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3"
+        data-testid="plus-replenish-card"
+      >
+        <div className="min-w-0">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+            ◆ Maintenance · Boost Credit Replenish
+          </div>
+          <div className="text-xs text-[#e5e5e5] mt-1.5 leading-relaxed">
+            Tops every Plus subscriber to <span className="text-emerald-400">$15</span> and every veteran-owned maker to <span className="text-[#ff4500]">$10</span> in boost credit.
+            Auto-runs monthly on the 1st at 00:05 UTC.
+          </div>
+          {replenishResult && (
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-400 mt-2">
+              ✓ Replenished: {replenishResult.plus?.replenished ?? 0} Plus · {replenishResult.veteran?.replenished ?? 0} Veterans
+            </div>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={handleReplenish}
+          disabled={replenishBusy}
+          data-testid="plus-replenish-btn"
+          className="shrink-0 inline-flex items-center justify-center px-4 py-2.5 bg-[#ff4500] hover:bg-[#ff5722] disabled:opacity-50 text-black font-mono text-[11px] uppercase tracking-[0.22em] font-bold transition"
+        >
+          {replenishBusy ? "Replenishing…" : "Replenish now"}
+        </button>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

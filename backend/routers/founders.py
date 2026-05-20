@@ -337,3 +337,25 @@ async def admin_expire_due(_: dict = Depends(current_admin)):
 @router.post("/admin/founders/release-stale")
 async def admin_release_stale(_: dict = Depends(current_admin)):
     return await release_stale_grace_slots()
+
+
+@router.post("/admin/founders/replenish-credits")
+async def admin_replenish_credits(_: dict = Depends(current_admin)):
+    """One-click button on the admin dashboard. Bumps every Plus
+    subscriber's boost credit to $15 and every veteran-owned maker's to
+    $10 immediately, without waiting for the monthly cron on the 1st.
+
+    Idempotent — repeated calls in the same month just keep resetting to
+    the same value, since `replenish_*_boost_credits` sets (not
+    increments) the field. Safe to wire to a public-on-click admin
+    button.
+    """
+    from revenue import (
+        replenish_plus_boost_credits, replenish_veteran_boost_credits,
+    )
+    plus = await replenish_plus_boost_credits()
+    vet = await replenish_veteran_boost_credits()
+    logger.info("[founders] admin-triggered credit replenish: plus=%s vet=%s",
+                plus, vet)
+    return {"plus": plus, "veteran": vet}
+
