@@ -1286,6 +1286,79 @@ async def send_maker_listing_expiring_soon(
     return await _send(maker_email, f"Expires in 7 days · {product_title}", html)
 
 
+async def send_maker_renewal_digest(
+    maker_email: str, maker_name: str, listings: list[dict],
+):
+    """One-per-day digest of all manual-renewal listings expiring inside
+    the reminder window for this maker. Replaces the older per-listing
+    "expires in 7 days" email blast — quieter inbox, more actionable.
+
+    `listings` is the already-sorted (soonest-first) list of expiring
+    items: each row needs `slug`, `title`, `expires_at` (ISO).
+    """
+    if not maker_email or not listings:
+        return None
+    base = os.environ.get("PUBLIC_APP_URL") or "https://craftersmarket.org"
+    renewals_url = f"{base}/maker/dashboard?tab=renewals"
+
+    def _fmt(iso: str) -> str:
+        try:
+            from datetime import datetime as _dt
+            return _dt.fromisoformat(iso.replace("Z", "+00:00")).strftime("%b %d")
+        except Exception:
+            return iso
+
+    rows = "".join(
+        "<tr>"
+        f"<td style='padding:10px 14px;border-bottom:1px solid #1a1a1a;font-size:13px;color:#e5e5e5'>"
+        f"<a href='{base}/maker/listings/{li['slug']}/edit' style='color:#e5e5e5;text-decoration:none'>"
+        f"{li.get('title') or li['slug']}</a></td>"
+        f"<td style='padding:10px 14px;border-bottom:1px solid #1a1a1a;font-size:12px;color:#ff4500;text-align:right;font-family:monospace'>"
+        f"{_fmt(li.get('expires_at') or '')}</td>"
+        "</tr>"
+        for li in listings
+    )
+    n = len(listings)
+    plural = "" if n == 1 else "s"
+    body = (
+        "<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 16px'>"
+        f"Hi {maker_name}, "
+        f"<strong style='color:#ff4500'>{n} manual-renewal listing{plural}</strong> "
+        f"expire{'s' if n == 1 else ''} in the next week. After that they auto-flip "
+        "to draft and stop showing up in search.</p>"
+        "<table style='width:100%;border-collapse:collapse;margin:18px 0;background:#0d0d0d;border:1px solid #262626'>"
+        f"<thead><tr>"
+        "<th style='padding:10px 14px;text-align:left;border-bottom:1px solid #262626;"
+        "font-family:monospace;font-size:10px;letter-spacing:0.22em;text-transform:uppercase;color:#a3a3a3'>Listing</th>"
+        "<th style='padding:10px 14px;text-align:right;border-bottom:1px solid #262626;"
+        "font-family:monospace;font-size:10px;letter-spacing:0.22em;text-transform:uppercase;color:#a3a3a3'>Expires</th>"
+        f"</tr></thead><tbody>{rows}</tbody></table>"
+        "<p style='font-size:13px;color:#e5e5e5;line-height:1.6;margin:18px 0 12px'>"
+        "Two quick options:</p>"
+        "<ol style='font-size:13px;color:#e5e5e5;line-height:1.7;padding-left:18px;margin:0 0 18px'>"
+        "<li>Open the <strong>Renewals tab</strong> to bulk-renew, bulk-pause, or "
+        "flip everything to automatic renewal.</li>"
+        "<li>Pick a listing above and refresh it before the deadline.</li>"
+        "</ol>"
+        f"<a href='{renewals_url}' style='display:inline-block;background:#ff4500;color:#0a0a0a;"
+        "padding:14px 26px;font-family:Impact,Arial Black,sans-serif;font-size:13px;letter-spacing:0.18em;"
+        "text-transform:uppercase;text-decoration:none;border:1px solid #ff4500'>Open renewals →</a>"
+        "<p style='font-size:12px;color:#525252;margin-top:24px;line-height:1.6'>"
+        "You're receiving this digest because at least one of your listings has "
+        "renewal mode set to manual. Switch any listing to automatic in the editor "
+        "and it will stop appearing here.</p>"
+    )
+    html = _shell(
+        f"{n} listing{plural} expiring soon.",
+        "Bulk-renew, switch to auto, or pause from the Renewals tab.",
+        body, "Maker · renewal digest",
+    )
+    return await _send(
+        maker_email, f"Renewals digest · {n} listing{plural} expiring soon", html,
+    )
+
+
+
 async def send_maker_smart_paused(
     maker_email: str, maker_name: str, paused_count: int,
     threshold_days: int, samples: list[dict] | None = None,

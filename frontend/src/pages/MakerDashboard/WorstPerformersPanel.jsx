@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { TrendingDown, Sparkles, ExternalLink, RefreshCw, Rocket } from "lucide-react";
+import { TrendingDown, Sparkles, ExternalLink, RefreshCw, Rocket, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   fetchMakerProductsStats, fetchMakerProducts,
-  aiSeoTags, updateMakerProduct, publishMakerProduct,
+  aiSeoTags, aiListingCopy, updateMakerProduct, publishMakerProduct,
 } from "../../lib/api";
+import { useConfirm } from "./useConfirm";
 
 /**
  * Worst Performers panel — surfaces the 5 published listings with the
@@ -22,6 +23,7 @@ export default function WorstPerformersPanel() {
   const [rows, setRows] = useState(null);   // null = loading, [] = no data
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState({});     // {slug: bool}
+  const [confirm, confirmModal] = useConfirm();
 
   const load = async () => {
     setErr("");
@@ -103,6 +105,77 @@ export default function WorstPerformersPanel() {
     }
   };
 
+  /**
+   * Full AI refresh — regenerates title + description + tags via Claude
+   * and shows a side-by-side preview before committing. The maker can
+   * apply all changes or cancel; partial application isn't offered to
+   * keep the action atomic (the AI generates a coherent set, not three
+   * independent suggestions).
+   */
+  const fullRefresh = async (p) => {
+    setBusy((b) => ({ ...b, [p.slug]: true }));
+    try {
+      // Use the existing description as the "bullets" prompt so the AI
+      // has the maker's voice + materials/process context to riff from.
+      const bulletInput = (
+        p.description?.trim() ||
+        `${p.title} — ${p.category} listing made with ${p.technique}.`
+      ).slice(0, 1800);
+      const out = await aiListingCopy({
+        bullets: bulletInput,
+        target_price: p.price,
+        category: p.category,
+      });
+      if (!out?.title) {
+        toast.error("AI couldn't generate a refresh — try again in a few seconds.");
+        return;
+      }
+      const newTitle = out.title;
+      const newDesc = out.description || p.description;
+      const newTags = (out.tags || []).slice(0, 13);
+
+      const ok = await confirm({
+        title: "Apply AI refresh?",
+        confirmLabel: "Apply all",
+        cancelLabel: "Discard",
+        tone: "primary",
+        testId: `confirm-full-refresh-${p.slug}`,
+        body: (
+          <div className="space-y-4">
+            <DiffBlock label="Title"
+              before={p.title}
+              after={newTitle}
+              testid={`refresh-diff-title-${p.slug}`} />
+            <DiffBlock label="Description"
+              before={(p.description || "").slice(0, 240) + ((p.description || "").length > 240 ? "…" : "")}
+              after={newDesc.slice(0, 240) + (newDesc.length > 240 ? "…" : "")}
+              testid={`refresh-diff-desc-${p.slug}`} />
+            <DiffBlock label={`Tags (${newTags.length}/13)`}
+              before={(p.seo_tags || []).join(", ") || "—"}
+              after={newTags.join(", ")}
+              testid={`refresh-diff-tags-${p.slug}`} />
+            <p className="text-[#525252]">
+              Applying replaces title, description, and tags atomically. Open the
+              editor afterward to fine-tune anything you want to keep human.
+            </p>
+          </div>
+        ),
+      });
+      if (!ok) return;
+      await updateMakerProduct(p.slug, {
+        title: newTitle,
+        description: newDesc,
+        seo_tags: newTags,
+      });
+      toast.success(`Full AI refresh applied to "${newTitle}".`);
+      load();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Full refresh failed — try again.");
+    } finally {
+      setBusy((b) => ({ ...b, [p.slug]: false }));
+    }
+  };
+
   if (rows === null) {
     return <SkeletonCard testId="worst-performers-skeleton" rows={3} />;
   }
@@ -112,6 +185,7 @@ export default function WorstPerformersPanel() {
 
   return (
     <div className="border border-[#262626] bg-[#0d0d0d] p-5" data-testid="worst-performers">
+      {confirmModal}
       <div className="flex items-start justify-between mb-4 gap-3">
         <div>
           <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#ff4500] flex items-center gap-2">
@@ -187,16 +261,28 @@ export default function WorstPerformersPanel() {
                   {busy[p.slug] ? "Publishing…" : "Publish now"}
                 </button>
               ) : (
-                <button
-                  onClick={() => refreshWithAI(p)}
-                  disabled={busy[p.slug]}
-                  className="inline-flex items-center gap-1.5 border border-[#ff4500] bg-[#ff4500]/10 hover:bg-[#ff4500]/20 text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] px-3 py-1.5 disabled:opacity-50 transition"
-                  data-testid={`worst-ai-refresh-${p.slug}`}
-                  title="Generate fresh SEO tags via Claude and merge them in"
-                >
-                  <Sparkles size={12} />
-                  {busy[p.slug] ? "Refreshing…" : "Refresh with AI"}
-                </button>
+                <>
+                  <button
+                    onClick={() => refreshWithAI(p)}
+                    disabled={busy[p.slug]}
+                    className="inline-flex items-center gap-1.5 border border-[#ff4500]/40 bg-[#ff4500]/5 hover:bg-[#ff4500]/20 text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] px-3 py-1.5 disabled:opacity-50 transition"
+                    data-testid={`worst-ai-refresh-${p.slug}`}
+                    title="Regenerate SEO tags only — fastest fix, merged into existing tags."
+                  >
+                    <Sparkles size={12} />
+                    {busy[p.slug] ? "…" : "Tags"}
+                  </button>
+                  <button
+                    onClick={() => fullRefresh(p)}
+                    disabled={busy[p.slug]}
+                    className="inline-flex items-center gap-1.5 border border-[#ff4500] bg-[#ff4500]/10 hover:bg-[#ff4500]/30 text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] px-3 py-1.5 disabled:opacity-50 transition"
+                    data-testid={`worst-full-refresh-${p.slug}`}
+                    title="Regenerate title, description, AND tags. Side-by-side preview before applying."
+                  >
+                    <Wand2 size={12} />
+                    {busy[p.slug] ? "Refreshing…" : "Full refresh"}
+                  </button>
+                </>
               )}
               {p.cohort !== "draft" && (
                 <Link
@@ -240,6 +326,37 @@ export function SkeletonCard({ rows = 3, testId = "skeleton-card" }) {
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+
+
+/**
+ * DiffBlock — stacked Before/After display for the Full AI Refresh
+ * confirm modal. Kept small + presentation-only so the parent owns
+ * all data and the modal can render JSX bodies via useConfirm.
+ */
+function DiffBlock({ label, before, after, testid }) {
+  return (
+    <div data-testid={testid}>
+      <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#ff4500] mb-1.5">
+        ◆ {label}
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+        <div className="border border-[#262626] bg-[#0a0a0a] p-2.5">
+          <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252] mb-1">Before</div>
+          <div className="font-mono text-[11px] text-[#a3a3a3] leading-relaxed break-words">
+            {before || <em className="text-[#525252]">— empty —</em>}
+          </div>
+        </div>
+        <div className="border border-[#ff4500]/40 bg-[#ff4500]/5 p-2.5">
+          <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#ff4500] mb-1">After</div>
+          <div className="font-mono text-[11px] text-[#e5e5e5] leading-relaxed break-words">
+            {after}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

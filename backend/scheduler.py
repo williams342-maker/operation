@@ -68,6 +68,17 @@ async def _job_smart_pause_idle_listings() -> None:
         logger.exception("[scheduler] smart-pause sweep failed: %s", e)
 
 
+async def _job_refresh_gsc_indexing() -> None:
+    """Daily: refresh GSC index-status data for stale published listings.
+    No-ops gracefully when GSC isn't configured."""
+    from revenue import refresh_gsc_indexing_status
+    try:
+        r = await refresh_gsc_indexing_status(limit=1500)
+        logger.info("[scheduler] gsc-indexing refresh: %s", r)
+    except Exception as e:
+        logger.exception("[scheduler] gsc-indexing refresh failed: %s", e)
+
+
 async def _job_founders_lifecycle() -> None:
     """Daily Founder maintenance — auto-roll expired Founders to Standard
     and revoke 14-day grace slots that never published a product."""
@@ -771,6 +782,9 @@ def start_scheduler() -> AsyncIOScheduler | None:
     # opted-in makers. No-op for makers with smart_pause_enabled=false.
     sched.add_job(_job_smart_pause_idle_listings, CronTrigger(hour=4, minute=15),
                   id="smart_pause_idle_listings", replace_existing=True)
+    # GSC index-status refresh — daily 05:30 UTC. No-ops without GSC creds.
+    sched.add_job(_job_refresh_gsc_indexing, CronTrigger(hour=5, minute=30),
+                  id="refresh_gsc_indexing", replace_existing=True)
     # Founders lifecycle — runs at 03:15 UTC daily, right after listing expiry.
     # Auto-rolls regular Founders past 12-month window to Standard, and
     # revokes 14-day grace slots that never published anything.

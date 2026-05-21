@@ -534,20 +534,23 @@ async def auto_renew_due_promotions(window_hours: int = 6) -> dict:
 
 
 async def send_listing_expiry_reminders(days_before: int = 7) -> dict:
-    """Daily sweep: email makers whose **manual**-renewal listings expire in
-    the next `days_before` days. Auto-renewing listings skip this reminder
-    — they're handled silently by `expire_due_listings`.
+    """Daily sweep: email each maker ONE digest covering all manual-renewal
+    listings expiring in the next `days_before` days. Replaces the old
+    per-listing email blast (one email per listing per day) with a single
+    consolidated nudge — quieter inbox, more actionable.
 
-    Idempotent per listing: `renewal_reminder_sent_at` is stamped on send
-    so re-runs of the same day don't re-email. The stamp clears on the
-    next renewal cycle (set to None when `expire_due_listings` extends
-    expiry, or when a maker manually renews/publishes).
+    Idempotent: per-listing `renewal_reminder_sent_at` is still stamped so
+    a listing only joins ONE digest per renewal cycle. The stamp clears
+    on the next renewal (`expire_due_listings` extends expiry → resets)
+    or when the maker manually renews.
 
-    Returns {emails_sent, skipped_auto, errors, now}.
+    Returns {digests_sent, listings_covered, errors, now}.
     """
     now = datetime.now(timezone.utc)
     horizon = (now + timedelta(days=days_before)).isoformat()
     nowiso = now.isoformat()
+
+    # Group all eligible listings by maker_slug in one query.
     cursor = db.products.find(
         {
             "status": "published",
@@ -561,35 +564,48 @@ async def send_listing_expiry_reminders(days_before: int = 7) -> dict:
         },
         {"_id": 0, "slug": 1, "maker_slug": 1, "title": 1, "expires_at": 1},
     )
-    sent = errors = 0
+    by_maker: dict[str, list[dict]] = {}
     async for p in cursor:
+        by_maker.setdefault(p["maker_slug"], []).append(p)
+
+    digests_sent = listings_covered = errors = 0
+    for maker_slug, listings in by_maker.items():
         try:
             maker = await db.makers.find_one(
-                {"slug": p["maker_slug"]}, {"_id": 0, "name": 1, "email": 1},
+                {"slug": maker_slug},
+                {"_id": 0, "name": 1, "email": 1},
             )
+            slugs = [p["slug"] for p in listings]
             if not maker or not maker.get("email"):
-                # Still stamp so we don't re-evaluate every day.
-                await db.products.update_one(
-                    {"slug": p["slug"]},
+                # Stamp anyway so we don't re-evaluate every day.
+                await db.products.update_many(
+                    {"slug": {"$in": slugs}},
                     {"$set": {"renewal_reminder_sent_at": nowiso}},
                 )
                 continue
-            from email_service import send_maker_listing_expiring_soon
-            await send_maker_listing_expiring_soon(
+            # Sort soonest-first inside the digest so the urgency reads
+            # top-down naturally.
+            listings.sort(key=lambda x: x.get("expires_at") or "")
+            from email_service import send_maker_renewal_digest
+            await send_maker_renewal_digest(
                 maker_email=maker["email"],
-                maker_name=maker.get("name") or p["maker_slug"],
-                product_title=p.get("title") or p["slug"],
-                product_slug=p["slug"],
-                expires_at_iso=p["expires_at"],
+                maker_name=maker.get("name") or maker_slug,
+                listings=listings,
             )
-            await db.products.update_one(
-                {"slug": p["slug"]},
+            await db.products.update_many(
+                {"slug": {"$in": slugs}},
                 {"$set": {"renewal_reminder_sent_at": nowiso}},
             )
-            sent += 1
+            digests_sent += 1
+            listings_covered += len(listings)
         except Exception:
             errors += 1
-    return {"emails_sent": sent, "errors": errors, "now": nowiso}
+    return {
+        "digests_sent": digests_sent,
+        "listings_covered": listings_covered,
+        "errors": errors,
+        "now": nowiso,
+    }
 
 
 
@@ -685,3 +701,74 @@ async def smart_pause_idle_listings() -> dict:
         "errors": errors,
         "now": nowiso,
     }
+
+
+
+async def refresh_gsc_indexing_status(limit: int = 1500) -> dict:
+    """Daily sweep: ask Google Search Console for the real indexing
+    verdict on listings whose `gsc_checked_at` is missing or stale
+    (>=7 days). Quota-aware — caps at `limit` URLs per run (default
+    1500 to stay well below GSC's 2000/day/site ceiling).
+
+    No-ops cleanly when GSC isn't configured (returns {skipped: True}).
+
+    Persists `gsc_tier`, `gsc_coverage`, `gsc_checked_at` per product.
+    The existing `indexing-status` endpoint then prefers these fresh
+    fields over the sitemap-membership heuristic when they're <=14 days
+    old. The endpoint stays backwards-compatible — no UI changes needed.
+
+    Returns {checked, ok, errors, now} or {skipped: True}.
+    """
+    from gsc_client import is_gsc_enabled, inspect_url, map_to_tier
+    if not is_gsc_enabled():
+        return {"skipped": True, "reason": "gsc-not-configured"}
+
+    site_root = (os.environ.get("PUBLIC_APP_URL") or "https://craftersmarket.org").rstrip("/")
+    now = datetime.now(timezone.utc)
+    nowiso = now.isoformat()
+    stale_cutoff = (now - timedelta(days=7)).isoformat()
+
+    # Eligible: published + non-deleted + (never checked OR checked >7d ago).
+    cursor = db.products.find(
+        {
+            "status": "published",
+            "deleted_at": None,
+            "$or": [
+                {"gsc_checked_at": None},
+                {"gsc_checked_at": {"$exists": False}},
+                {"gsc_checked_at": {"$lt": stale_cutoff}},
+            ],
+        },
+        {"_id": 0, "slug": 1},
+    ).limit(limit)
+
+    checked = ok = errors = 0
+    async for p in cursor:
+        slug = p["slug"]
+        try:
+            inspection_url = f"{site_root}/shop/{slug}"
+            result = inspect_url(inspection_url)
+            checked += 1
+            if not result:
+                errors += 1
+                # Still stamp so we don't retry every run when GSC consistently
+                # returns nothing for this URL.
+                await db.products.update_one(
+                    {"slug": slug},
+                    {"$set": {"gsc_checked_at": nowiso}},
+                )
+                continue
+            tier = map_to_tier(result)
+            coverage = ((result.get("indexStatusResult") or {}).get("coverageState")) or ""
+            await db.products.update_one(
+                {"slug": slug},
+                {"$set": {
+                    "gsc_tier": tier,
+                    "gsc_coverage": coverage,
+                    "gsc_checked_at": nowiso,
+                }},
+            )
+            ok += 1
+        except Exception:
+            errors += 1
+    return {"checked": checked, "ok": ok, "errors": errors, "now": nowiso}

@@ -435,7 +435,10 @@ async def maker_products_indexing_status(slug: str = Depends(current_maker_slug)
 
     products = await db.products.find(
         {"maker_slug": slug},
-        {"_id": 0, "slug": 1, "status": 1, "deleted_at": 1, "created_at": 1},
+        {
+            "_id": 0, "slug": 1, "status": 1, "deleted_at": 1, "created_at": 1,
+            "gsc_tier": 1, "gsc_checked_at": 1, "gsc_coverage": 1,
+        },
     ).to_list(500)
 
     out: dict[str, dict] = {}
@@ -463,10 +466,25 @@ async def maker_products_indexing_status(slug: str = Depends(current_maker_slug)
                 tier = "established" if created_dt < cutoff_7d else "submitted"
             except Exception:
                 tier = "submitted"  # conservative when timestamps are missing
+        # Prefer real GSC data when we have a recent inspection (<=14 days).
+        gsc_tier = p.get("gsc_tier")
+        gsc_at_iso = p.get("gsc_checked_at") or ""
+        gsc_fresh = False
+        if gsc_tier and gsc_at_iso:
+            try:
+                gsc_at = datetime.fromisoformat(gsc_at_iso.replace("Z", "+00:00"))
+                gsc_fresh = (now - gsc_at).days <= 14
+            except Exception:
+                gsc_fresh = False
         out[s] = {
-            "tier": tier,
+            "tier": gsc_tier if gsc_fresh else tier,
             "in_sitemap": in_sitemap,
             "days_in_sitemap": days_in_sitemap,
+            # Surface the source so the UI can show "verified by Google"
+            # vs "heuristic" if we ever want to differentiate.
+            "source": "gsc" if gsc_fresh else "sitemap",
+            "gsc_coverage": p.get("gsc_coverage") if gsc_fresh else None,
+            "gsc_checked_at": gsc_at_iso if gsc_fresh else None,
         }
     return out
 

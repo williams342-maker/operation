@@ -1,6 +1,62 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-21 — iter168 · GSC URL-Inspection integration (opt-in) ✅
+
+Wired the **Google Search Console URL-Inspection API** behind a clean opt-in toggle. When configured, listings get a real Google index verdict (PASS / FAIL / PARTIAL → mapped to our existing `established`/`submitted`/`not_in_sitemap` tiers). When NOT configured, the existing sitemap-membership heuristic continues to work unchanged. Zero-risk ship.
+
+### Backend
+
+- New `gsc_client.py` — service-account-authenticated wrapper. Three knobs:
+  - `is_gsc_enabled()` — returns True only when `GSC_ENABLED=1` + `GSC_SERVICE_ACCOUNT_JSON` + `GSC_SITE_URL` env vars are all set.
+  - `inspect_url(url)` — single URL-Inspection call; returns the raw `inspectionResult` dict or None on failure (errors logged + swallowed).
+  - `map_to_tier(result)` — distils Google's verdict + coverage_state into our 3-tier schema.
+- New `revenue.refresh_gsc_indexing_status(limit=1500)` — daily sweep. Quota-aware (caps at 1500/day, well below GSC's 2000/site/day ceiling). Eligible: published listings whose `gsc_checked_at` is missing or >7 days old. Persists `gsc_tier`, `gsc_coverage`, `gsc_checked_at` on the product doc.
+- New scheduler job `refresh_gsc_indexing@cron[hour=5, minute=30]`. No-ops gracefully when GSC isn't configured.
+- `GET /api/maker/products/indexing-status` now prefers real GSC data when present (and ≤14 days fresh) — falls back to sitemap heuristic otherwise. Response shape extended with `source` ("gsc" | "sitemap"), `gsc_coverage`, `gsc_checked_at` so the UI can later differentiate "verified by Google" vs heuristic if desired.
+
+### How to enable (user-side, ~10 min)
+
+1. Go to https://console.cloud.google.com, create a project (or pick an existing one).
+2. Enable the **Search Console API** in the project's API library.
+3. Create a **Service Account** (IAM → Service Accounts → Create). Copy its email — something like `gsc-inspector@<project>.iam.gserviceaccount.com`.
+4. Under Keys → Add key → JSON. Download the JSON file.
+5. In Google Search Console, open the verified `craftersmarket.org` property → Settings → Users and permissions → Add user → paste the service-account email → **Full** access.
+6. In production env vars, set:
+   - `GSC_ENABLED=1`
+   - `GSC_SITE_URL=https://craftersmarket.org/` (or your domain-property identifier)
+   - `GSC_SERVICE_ACCOUNT_JSON=<full JSON key as one line>`
+7. Restart the backend. The 05:30 UTC daily job will start populating `gsc_tier` for the first ~1500 listings.
+
+Until step 6 is done, listings continue to render with the sitemap-heuristic tiers — no degraded behaviour.
+
+
+
+
+Two backlog items shipped together — both touch the listing-recovery loop.
+
+### 1. Renewal digest (replaces per-listing reminder blast)
+
+`send_listing_expiry_reminders` was refactored from a per-listing email blast (one email per listing per day for makers with multiple expiring items) into a **single daily digest** per maker. Quieter inbox, more actionable.
+
+- Same scheduler job (`listing_renewal_reminders@cron[hour=9, minute=30]`), same idempotency contract — `renewal_reminder_sent_at` is still stamped per listing so each listing only joins ONE digest per renewal cycle.
+- New email helper `send_maker_renewal_digest()` in `email_service.py` — sortable table layout with title + expiry date columns, soonest-first inside the digest, "Open renewals →" CTA deep-linking to `/maker/dashboard?tab=renewals`.
+- Return shape changed: `{emails_sent}` → `{digests_sent, listings_covered}`. Callers in scheduler.py + tests updated.
+- Tests: `/app/backend/tests/test_renewal_digest.py` — 2/2 passing (digest groups per maker + idempotent across runs).
+
+### 2. Full AI Refresh combo button
+
+The Recovery Queue panel's published-row action grew from one button to two:
+
+- **✨ Tags** — fast, SEO-tag-only refresh via `aiSeoTags` (existing behaviour, renamed/compacted).
+- **🪄 Full refresh** — NEW. Calls `aiListingCopy` to regenerate **title + description + tags**, then shows a side-by-side Before/After preview modal (using `useConfirm` with a JSX body and the new `DiffBlock` component). Maker confirms "Apply all" or "Discard" — applies atomically via `updateMakerProduct` since the AI generates a coherent set, not three independent suggestions.
+
+Modal preview shows truncated descriptions (240 chars + ellipsis) so the diff stays scannable even on long listings. Closed orange-on-black design language consistent with the rest of the Shop Manager.
+
+No new backend endpoint required — both existing `/maker/ai/listing-copy` and `/maker/ai/seo-tags` already in production via the `ai_marketing` router.
+
+
+
 ## 2026-05-21 — iter166 · Recovery Queue (was Worst Performers) ✅
 
 **Public:** The dashboard's "Worst Performers" panel got a meaningful upgrade and a new name: **"Recovery queue"** with the headline *"Low traffic + forgotten drafts"*.
