@@ -867,6 +867,15 @@ export const adminShowcaseModStats = () =>
   http.get("/admin/community/showcase/mod-stats", {
     headers: adminAuthHeaders(),
   }).then((r) => r.data);
+// ---- GSC OAuth admin connection ----
+export const adminGscStatus = () =>
+  http.get("/admin/gsc/status", { headers: adminAuthHeaders() }).then((r) => r.data);
+export const adminGscOauthStart = () =>
+  http.get("/admin/gsc/oauth-start", { headers: adminAuthHeaders() }).then((r) => r.data);
+export const adminGscDisconnect = () =>
+  http.post("/admin/gsc/disconnect", {}, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const adminGscTestInspect = (slug = "") =>
+  http.post("/admin/gsc/test-inspect", { slug }, { headers: adminAuthHeaders() }).then((r) => r.data);
 
 // Maker-only — upload a ≤50MB / ≤60s video clip to attach to a showcase post.
 export const uploadShowcaseVideo = (file, opts = {}) => {

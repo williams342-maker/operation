@@ -26,6 +26,7 @@ from routers.settings import router as settings_router
 from routers.shipping import router as shipping_router
 from routers.admin_shipping import router as admin_shipping_router
 from routers.admin_backup import router as admin_backup_router
+from routers.gsc_admin import router as gsc_admin_router
 from routers.admin_secrets import router as admin_secrets_router
 from routers.follows import router as follows_router
 from routers.ad_spend import router as ad_spend_router
@@ -70,6 +71,7 @@ api.include_router(subscriptions_router)
 api.include_router(credits_router)
 api.include_router(analytics_router)
 api.include_router(admin_router)
+api.include_router(gsc_admin_router)
 api.include_router(ai_router)
 api.include_router(community_router)
 api.include_router(community_chat_router)

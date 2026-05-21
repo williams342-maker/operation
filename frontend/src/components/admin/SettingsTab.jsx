@@ -8,6 +8,10 @@ import {
   fetchAdminFeedback,
   adminResolveFeedback,
   replyToFeedback,
+  adminGscStatus,
+  adminGscOauthStart,
+  adminGscDisconnect,
+  adminGscTestInspect,
 } from "../../lib/api";
 import { refreshSiteSettings } from "../../hooks/useSiteSettings";
 import { RowsSkeleton } from "../Skeleton";
@@ -916,6 +920,219 @@ function SearchEnginePingCard() {
 }
 
 
+
+/**
+ * GscConnectionCard — admin-side "Connect GSC via OAuth" panel.
+ *
+ * Shows current connection status (OAuth + service-account) and lets
+ * the admin either connect a Google account that already has GSC
+ * property access, or disconnect / test an existing connection.
+ *
+ * Two-step flow:
+ *   1. Click "Connect" → backend returns Google's authorization URL.
+ *   2. Frontend opens that URL in a popup. Google redirects to
+ *      /api/admin/gsc/oauth-callback which stores the refresh-token
+ *      then posts a message back to the opener.
+ *   3. Status auto-refreshes on the postMessage signal.
+ *
+ * Idempotent disconnect — never destructive (only removes the stored
+ * refresh-token; doesn't touch GSC-side permissions).
+ */
+function GscConnectionCard() {
+  const [status, setStatus] = useState(null);
+  const [busy, setBusy] = useState("");
+  const [testResult, setTestResult] = useState(null);
+  const [err, setErr] = useState("");
+
+  const load = async () => {
+    try {
+      const s = await adminGscStatus();
+      setStatus(s);
+      setErr("");
+    } catch (e) {
+      setErr(e?.response?.data?.detail || "Couldn't load GSC status.");
+    }
+  };
+
+  useEffect(() => {
+    load();
+    // Listen for the popup's postMessage so we auto-refresh after consent
+    const onMsg = (e) => {
+      if (e?.data?.type === "gsc-oauth") {
+        if (e.data.success) {
+          toast.success("GSC connected.");
+        } else {
+          toast.error("GSC connection failed — see popup details.");
+        }
+        load();
+      }
+    };
+    window.addEventListener("message", onMsg);
+    return () => window.removeEventListener("message", onMsg);
+  }, []);
+
+  const connect = async () => {
+    setBusy("connect");
+    try {
+      const { authorization_url } = await adminGscOauthStart();
+      // Open in a popup; the callback page posts back via window.opener
+      const w = window.open(authorization_url, "gsc-connect", "width=520,height=720");
+      if (!w) {
+        toast.error("Popup blocked — allow popups for this site and retry.");
+      }
+    } catch (e) {
+      const msg = e?.response?.data?.detail || "Couldn't start OAuth flow.";
+      toast.error(msg);
+      setErr(msg);
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const disconnect = async () => {
+    if (!window.confirm("Disconnect the stored Google account? GSC inspections will pause until you reconnect (or until the service-account fallback is used).")) return;
+    setBusy("disconnect");
+    try {
+      await adminGscDisconnect();
+      toast.success("GSC disconnected.");
+      setTestResult(null);
+      load();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Couldn't disconnect.");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const runTest = async () => {
+    setBusy("test");
+    setTestResult(null);
+    try {
+      const r = await adminGscTestInspect("");
+      setTestResult(r);
+      if (r.ok) toast.success(`Inspection OK → ${r.tier}`);
+      else toast.error(`Inspection failed: ${r.reason}`);
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Inspection failed.");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  if (!status) return null;
+
+  const oauthAvailable = status.oauth_configured;
+  const isConnected = status.connected;
+
+  return (
+    <div className="border border-[#262626] p-4 md:p-5" data-testid="gsc-connection-card">
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <div>
+          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-1">
+            ◆ Search Console
+          </div>
+          <h3 className="font-display text-2xl uppercase">GSC connection</h3>
+          <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-2xl leading-relaxed">
+            Powers the "Verified by Google" pill + the real index-status tier on listing cards. Connect a Google account that already has GSC access for{" "}
+            <code className="text-[#e5e5e5]">{status.site_url || "your GSC property"}</code> and the daily 05:30 UTC sweep starts pulling real verdicts.
+          </p>
+        </div>
+        <ConnectionPill connected={isConnected} email={status.connection?.connected_email} />
+      </div>
+
+      {err && <p className="font-mono text-xs text-red-400 mb-3">{err}</p>}
+
+      {!oauthAvailable && !status.service_account_configured && (
+        <div className="border border-amber-500/40 bg-amber-500/5 p-3 mb-4 font-mono text-xs text-amber-200">
+          ⚠️ OAuth is not configured. Set <code>GSC_OAUTH_CLIENT_ID</code>, <code>GSC_OAUTH_CLIENT_SECRET</code>, and{" "}
+          <code>GSC_OAUTH_REDIRECT_URI</code> env vars in production, then reload this page.
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-2">
+        {oauthAvailable && !isConnected && (
+          <button
+            onClick={connect}
+            disabled={!!busy}
+            className="inline-flex items-center gap-1.5 bg-[#ff4500] hover:bg-[#ff5f1f] text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] px-4 py-2 disabled:opacity-50"
+            data-testid="gsc-connect-btn"
+          >
+            {busy === "connect" ? "Opening…" : "Connect Google account"}
+          </button>
+        )}
+        {isConnected && (
+          <>
+            <button
+              onClick={runTest}
+              disabled={!!busy}
+              className="inline-flex items-center gap-1.5 border border-[#ff4500] text-[#ff4500] hover:bg-[#ff4500]/10 font-mono text-[10px] uppercase tracking-[0.22em] px-4 py-2 disabled:opacity-50"
+              data-testid="gsc-test-btn"
+            >
+              {busy === "test" ? "Inspecting…" : "Run test inspection"}
+            </button>
+            <button
+              onClick={disconnect}
+              disabled={!!busy}
+              className="inline-flex items-center gap-1.5 border border-red-500/40 text-red-400 hover:bg-red-500/10 font-mono text-[10px] uppercase tracking-[0.22em] px-4 py-2 disabled:opacity-50"
+              data-testid="gsc-disconnect-btn"
+            >
+              {busy === "disconnect" ? "Disconnecting…" : "Disconnect"}
+            </button>
+          </>
+        )}
+      </div>
+
+      {testResult && (
+        <div
+          className={`mt-4 border p-3 font-mono text-xs ${
+            testResult.ok ? "border-emerald-500/40 bg-emerald-500/5 text-emerald-300" : "border-red-500/40 bg-red-500/5 text-red-300"
+          }`}
+          data-testid="gsc-test-result"
+        >
+          <div className="text-[10px] uppercase tracking-[0.22em] opacity-70 mb-1">
+            ◆ Test result · {testResult.url}
+          </div>
+          {testResult.ok ? (
+            <div className="space-y-1">
+              <div>Verdict: <span className="text-[#e5e5e5]">{testResult.verdict || "—"}</span></div>
+              <div>Coverage: <span className="text-[#e5e5e5]">{testResult.coverage || "—"}</span></div>
+              <div>Last crawl: <span className="text-[#e5e5e5]">{testResult.last_crawl || "—"}</span></div>
+              <div>Tier: <span className="text-[#ff4500] font-bold">{testResult.tier}</span></div>
+            </div>
+          ) : (
+            <div>Reason: {testResult.reason}</div>
+          )}
+        </div>
+      )}
+
+      {isConnected && status.connection?.connected_at && (
+        <p className="font-mono text-[10px] text-[#525252] mt-3">
+          Connected {new Date(status.connection.connected_at).toLocaleString()}
+          {status.connection.connected_email && ` · ${status.connection.connected_email}`}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function ConnectionPill({ connected, email }) {
+  return (
+    <div
+      className={`inline-flex items-center gap-1.5 border px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.22em] shrink-0 ${
+        connected
+          ? "border-emerald-500/50 bg-emerald-500/5 text-emerald-400"
+          : "border-[#262626] bg-[#0a0a0a] text-[#a3a3a3]"
+      }`}
+      data-testid="gsc-connection-pill"
+    >
+      <span className={`w-1.5 h-1.5 rounded-full ${connected ? "bg-emerald-400" : "bg-[#525252]"}`} />
+      {connected ? (email ? `Connected · ${email}` : "Connected") : "Not connected"}
+    </div>
+  );
+}
+
+
+
 export default function SettingsTab() {
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -1026,6 +1243,8 @@ export default function SettingsTab() {
       <SeoDiagCard />
 
       <SearchEnginePingCard />
+
+      <GscConnectionCard />
 
       <div className="grid md:grid-cols-2 gap-3">
         <IdleClearNowCard />

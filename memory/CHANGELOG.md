@@ -1,6 +1,47 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-21 — iter170 · GSC OAuth admin flow ✅
+
+**Public:** Bypasses the "Failed to add user / email not found" error that some GSC properties throw when adding a service-account email. New Admin → Settings → **"GSC connection"** card lets the admin sign in with their personal Google account (which already has GSC access) via a 1-click OAuth popup. Server stores the returned refresh-token in `db.gsc_oauth` and uses it for every URL Inspection call.
+
+The service-account path remains available as a fallback — the resolved order is OAuth-refresh-token-from-DB → service-account-JSON-from-env → disabled.
+
+### Backend
+
+- New `routers/gsc_admin.py` (mounted in `server.py`):
+  - `GET  /api/admin/gsc/status` — connection state for the UI panel
+  - `GET  /api/admin/gsc/oauth-start` — returns Google authorization URL
+  - `GET  /api/admin/gsc/oauth-callback` — handles Google redirect, exchanges code → refresh_token, stores in `db.gsc_oauth`, shows a self-closing HTML page that postMessages the result back to the opener
+  - `POST /api/admin/gsc/disconnect` — clears stored refresh-token
+  - `POST /api/admin/gsc/test-inspect` — runs one URL Inspection now (verdict + coverage + last_crawl + mapped tier) so the admin can verify the connection works
+- `gsc_client.py` refactor: `_client()` is now async, tries OAuth refresh-token in DB first then service-account JSON env. CSRF state for the OAuth flow uses a 10-min in-memory dict.
+- `inspect_url()` runs the sync Google client call inside `loop.run_in_executor` to avoid blocking the scheduler's event loop during the 1500-URL daily sweep.
+
+### Frontend
+
+- `lib/api.js`: 4 new admin wrappers (`adminGscStatus`, `adminGscOauthStart`, `adminGscDisconnect`, `adminGscTestInspect`).
+- `components/admin/SettingsTab.jsx`: new `<GscConnectionCard />` mounted between `SearchEnginePingCard` and the Danger Zone. Listens for `postMessage` events from the OAuth popup so the panel auto-refreshes after consent. Includes a "Run test inspection" button that hits `/shop/` and surfaces the raw GSC verdict + coverage + last-crawl time + our 3-tier mapping for debugging.
+
+### How to activate (production-side setup, ~5 min)
+
+1. **Cloud Console → APIs & Services → Credentials** → **+ Create Credentials → OAuth client ID**.
+2. Pick **Web application**, name `crafters-gsc-oauth`.
+3. **Authorized redirect URI**: `https://craftersmarket.org/api/admin/gsc/oauth-callback` (exact match required).
+4. Save. Copy the **Client ID** + **Client secret** that pop up.
+5. **Cloud Console → OAuth consent screen**: if the screen says "External" and "Testing", add your Google account to "Test users" so consent doesn't fail.
+6. In production env vars, add:
+   - `GSC_ENABLED=1`
+   - `GSC_SITE_URL=https://craftersmarket.org/`
+   - `GSC_OAUTH_CLIENT_ID=<paste>`
+   - `GSC_OAUTH_CLIENT_SECRET=<paste>`
+   - `GSC_OAUTH_REDIRECT_URI=https://craftersmarket.org/api/admin/gsc/oauth-callback`
+7. Redeploy. Open Admin → Settings → "GSC connection" → **Connect Google account** → sign in with the Google account that owns the GSC property → grant permission. The "Not connected" pill flips to ✅ Connected within a second.
+
+No service-account / "user not found" headaches required.
+
+
+
 ## 2026-05-21 — iter169 · Recovery Queue → Stats tab + "Verified by Google" pill ✅
 
 **Two requested cleanups:**

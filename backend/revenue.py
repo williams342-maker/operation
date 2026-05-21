@@ -747,7 +747,7 @@ async def refresh_gsc_indexing_status(limit: int = 1500) -> dict:
         slug = p["slug"]
         try:
             inspection_url = f"{site_root}/shop/{slug}"
-            result = inspect_url(inspection_url)
+            result = await inspect_url(inspection_url)
             checked += 1
             if not result:
                 errors += 1
