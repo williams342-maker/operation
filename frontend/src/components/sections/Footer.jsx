@@ -31,6 +31,20 @@ const cols = [
       { label: "Contact", href: "mailto:team@craftersmarket.org" },
     ],
   },
+  // SEO landing-page links — buried in the footer specifically for
+  // search-engine discovery / link-equity flow. Keep human-readable
+  // labels but link directly to the keyword-targeted slugs.
+  {
+    title: "Explore",
+    links: [
+      { label: "CNC Metal Art", href: "/cnc-metal-art" },
+      { label: "CNC Laser Art", href: "/cnc-laser-art" },
+      { label: "CNC Manufacturing", href: "/cnc-manufacturing" },
+      { label: "CNC USA", href: "/cnc-usa" },
+      { label: "Artisan Marketplace", href: "/artisan-marketplace" },
+      { label: "Custom Handmade Goods", href: "/custom-handmade-goods" },
+    ],
+  },
 ];
 
 export default function Footer() {
@@ -67,7 +81,7 @@ export default function Footer() {
             </ul>
           </div>
 
-          <div className="md:col-span-7 grid grid-cols-3 gap-8">
+          <div className="md:col-span-7 grid grid-cols-2 md:grid-cols-4 gap-8">
             {cols.map((c) => (
               <div key={c.title}>
                 <h4 className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-5">

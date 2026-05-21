@@ -45,6 +45,8 @@ import BuyerMessagesPage from "./pages/BuyerMessagesPage";
 import MakerListingEditor from "./pages/MakerListingEditor";
 import BetaPage from "./pages/BetaPage";
 import PressPage from "./pages/PressPage";
+import SEOLandingPage from "./pages/SEOLandingPage";
+import { SEO_LANDING_PAGES } from "./pages/seoLandingConfig";
 import LandingPage from "./pages/LandingPage";
 import UpdatesPage from "./pages/UpdatesPage";
 import SignInPage, { ForgotPasswordPage, ResetPasswordPage } from "./pages/SignInPage";
@@ -168,6 +170,13 @@ function App() {
                 <Route path="/founders" element={<BetaPage />} />
                 <Route path="/founder" element={<Navigate to="/founders" replace />} />
                 <Route path="/press" element={<PressPage />} />
+
+                {/* SEO landing pages — keyword-targeted, single source of
+                    truth in seoLandingConfig.js so we don't duplicate
+                    route declarations per slug. */}
+                {Object.entries(SEO_LANDING_PAGES).map(([slug, cfg]) => (
+                  <Route key={slug} path={`/${slug}`} element={<SEOLandingPage config={cfg} />} />
+                ))}
                 {/* Marketing landing page — 3 aliased routes for A/B testing
                     ad copy/URL variants. All render the same component. */}
                 <Route path="/launch" element={<LandingPage />} />

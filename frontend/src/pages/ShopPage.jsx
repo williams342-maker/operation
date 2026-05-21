@@ -29,11 +29,23 @@ export default function ShopPage() {
     if (urlC) setCat(urlC);
   }, [params]);
 
+  // Rich, category-specific schema. Generic `/shop` gets a marketplace
+  // shell; `?category=…` and `?technique=…` filtered views each get
+  // their own keyword-weighted description + ItemList of the top
+  // visible products so each filtered view can rank as its own page.
+  const _catLabel = cat !== "All" ? cat : tech !== "All" ? tech : null;
+  const _pageDesc = _catLabel
+    ? `Shop ${_catLabel} on Crafters Market — handcrafted CNC metal art, laser-cut originals, and custom signs by vetted American artisans. Browse live listings, see real workshop photos, and order direct from the maker.`
+    : `Artisan marketplace for CNC metal art, CNC laser art, plasma-cut signs, and custom handmade goods — precision crafting by vetted CNC manufacturing shops across the USA.`;
+  const _topItemUrls = (products || [])
+    .filter((p) => (cat === "All" || p.category === cat) && (tech === "All" || p.technique === tech))
+    .slice(0, 12)
+    .map((p) => `https://craftersmarket.org/shop/${p.slug}`);
   useStructuredData({
     title: cat !== "All"
       ? `${cat} · Shop · Crafters Market`
-      : "Shop · Precision CNC Art & Handcrafted Goods · Crafters Market",
-    description: `Browse hand-built CNC metal & wood art, custom signs, and made-to-order pieces from approved independent makers.${cat !== "All" ? ` Filtered by ${cat}.` : ""}`,
+      : "Shop · Artisan Marketplace · Crafters Market",
+    description: _pageDesc,
     url: `https://craftersmarket.org/shop${cat !== "All" ? `?category=${encodeURIComponent(cat)}` : ""}`,
     image: "https://craftersmarket.org/downloads/cnc-garage-builders.png",
     imageAlt: cat !== "All" ? `${cat} on Crafters Market` : "Crafters Market shop",
@@ -41,9 +53,26 @@ export default function ShopPage() {
     jsonLd: {
       "@context": "https://schema.org",
       "@type": "CollectionPage",
-      name: cat !== "All" ? `${cat} · Crafters Market` : "Crafters Market Shop",
-      url: "https://craftersmarket.org/shop",
+      name: _catLabel ? `${_catLabel} · Crafters Market` : "Crafters Market Shop",
+      description: _pageDesc,
+      url: `https://craftersmarket.org/shop${cat !== "All" ? `?category=${encodeURIComponent(cat)}` : ""}`,
       isPartOf: { "@type": "WebSite", "@id": "https://craftersmarket.org/#website" },
+      breadcrumb: {
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: "Home", item: "https://craftersmarket.org/" },
+          { "@type": "ListItem", position: 2, name: "Shop", item: "https://craftersmarket.org/shop" },
+          ...(_catLabel ? [{ "@type": "ListItem", position: 3, name: _catLabel,
+              item: `https://craftersmarket.org/shop?category=${encodeURIComponent(_catLabel)}` }] : []),
+        ],
+      },
+      mainEntity: _topItemUrls.length ? {
+        "@type": "ItemList",
+        numberOfItems: _topItemUrls.length,
+        itemListElement: _topItemUrls.map((url, i) => ({
+          "@type": "ListItem", position: i + 1, url,
+        })),
+      } : undefined,
     },
   });
 

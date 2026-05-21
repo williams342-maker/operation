@@ -1,6 +1,20 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-21 — iter154 · SEO landing pages + rich CollectionPage schema ✅
+
+**Public:** Launched six dedicated landing pages targeting our highest-intent keyword searches — `/cnc-metal-art`, `/cnc-laser-art`, `/cnc-manufacturing`, `/cnc-usa`, `/artisan-marketplace`, and `/custom-handmade-goods`. Each has its own keyword-exact H1, long-form copy, and a live product/maker grid filtered to the topic so search engines see real, relevant inventory.
+
+- **New reusable `SEOLandingPage.jsx`** + **`seoLandingConfig.js`** (single-source registry of slugs, H1s, intros, body paragraphs, and predicate filters). One component, six pages, zero duplication.
+- **Routes** added under the registry in `App.js` — adding a 7th page is now one config-entry plus one sitemap line, no new route handler needed.
+- **Per-page JSON-LD** `CollectionPage` schema with breadcrumb + `ItemList` of up to 12 visible products/makers, plus an `isPartOf` link back to the site WebSite entity for Knowledge Graph consolidation.
+- **`/cnc-usa` runs in "makers" mode** — shows the maker grid instead of products, perfect for ranking on "CNC USA makers" queries.
+- **Footer "Explore" column** wires all six slugs into the global footer so every page on the site passes link-equity downward.
+- **Sitemap updated** — `backend/routers/seo.py` lists the six new slugs with `weekly` changefreq and `0.80–0.85` priority so Google + Bing crawl them often.
+- **ShopPage CollectionPage schema upgraded** — `/shop?category=…` and `/shop?technique=…` filtered views now emit a per-filter `name`, `description`, `breadcrumb` (3-level: Home → Shop → {Category}), and `mainEntity` ItemList of up to 12 matching products. Each filtered view can rank as its own page in SERP.
+- Coverage of the 8 target keywords is now: page title · meta description · `<meta keywords>` · OG/Twitter cards · JSON-LD Organization `knowsAbout` · 6 dedicated landing-page URLs · Per-page `<h1>` · Body copy · Footer link text · Sitemap entry.
+
+
 ## 2026-05-21 — iter153 · SEO keyword expansion: artisan marketplace · CNC USA · CNC laser art ✅
 
 **Public:** Homepage now leads with the categories buyers actually search for — "artisan marketplace", "CNC metal art", "CNC laser art", "custom handmade goods", and "precision crafting" — woven into the page title, hero copy, and search-engine schema so we rank for the right intent on Google + Bing.

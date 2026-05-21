@@ -62,6 +62,15 @@ async def sitemap_xml(http_request: Request):
         ("/",              "daily",   "1.0"),
         ("/shop",          "daily",   "0.9"),
         ("/makers",        "daily",   "0.9"),
+        # SEO landing pages — keyword-targeted, mirror the slugs declared in
+        # frontend/src/pages/seoLandingConfig.js (SEO_LANDING_SLUGS). Bumped
+        # priority because these are designed to convert organic traffic.
+        ("/cnc-metal-art",         "weekly", "0.85"),
+        ("/cnc-laser-art",         "weekly", "0.85"),
+        ("/cnc-manufacturing",     "weekly", "0.80"),
+        ("/cnc-usa",               "weekly", "0.80"),
+        ("/artisan-marketplace",   "weekly", "0.80"),
+        ("/custom-handmade-goods", "weekly", "0.80"),
         ("/journal",       "weekly",  "0.7"),
         ("/updates",       "weekly",  "0.6"),
         ("/custom-order",  "monthly", "0.6"),
