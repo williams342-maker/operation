@@ -1,6 +1,37 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-21 — iter152 · Maker video clips on Community Showcase ✅
+
+**Public:** Makers can now post short video clips to the Community Showcase. Hit "+ New post" in the Showcase tab and you'll see a new "Add video clip" picker right under the photo uploader — up to 50 MB and ~60 seconds, MP4 / WebM / MOV. Clips play inline right in the feed and get a "◆ Video" badge so they stand out on the homepage strip too.
+
+- New backend endpoint `POST /api/community/showcase/upload-video` (maker-only role gate via `current_any_user`):
+  - 50 MB cap, allowed extensions: `.mp4` / `.webm` / `.mov` / `.m4v`
+  - Sniffs + normalizes content-type so R2 serves it with the right MIME for HTML5 `<video>` codec detection
+  - Stored under `showcase/videos/{maker_slug}/{uuid}.{ext}` so the maker's clips are namespaced
+- Showcase model extended: `ShowcasePost.video_url` field (Optional[str])
+- `POST /api/community/showcase` dependency switched from `current_buyer` → `current_any_user`. Buyers and makers can both post; the user-attribution fields (`user_email/name/picture`, `user_role`) get filled from `community_users` for buyers and `makers` for makers automatically. Maker posts auto-tag `maker_slug=<their slug>` so they appear on their own profile strip.
+- Video-only posts (no images) are explicitly allowed for makers — letting a process clip stand on its own without forcing a redundant still. Buyers still must attach at least one image (same as before).
+- Defense-in-depth: even though only makers can hit the upload endpoint, `create_showcase` rejects buyer attempts to submit a `video_url` directly.
+- Frontend (`/app/frontend/src/pages/CommunityPage.jsx` + `RecentShowcaseStrip.jsx`):
+  - Showcase form picks up the maker JWT from localStorage and reveals the video-clip picker — buyers see the form unchanged.
+  - Per-file size + extension validated client-side before upload so makers see the error fast (vs waiting for a 50 MB POST to round-trip).
+  - Upload uses a 120 s axios timeout + progress meter ("Uploading… 73%").
+  - Showcase cards render an HTML5 `<video controls poster=…>` for video posts; image cover (when present) doubles as the poster frame. The orange "◆ Video" badge in the top-left flags video posts in both the main Showcase grid and the homepage / product-page "Recently shared" strips.
+- Backend regression: `/app/backend/tests/test_showcase_video.py` 3/3 passing — buyer rejection (401/403), full maker upload → post → appears-in-recent-feed round-trip with R2 + Mongo cleanup, bad-extension rejection.
+- No third-party dependency added — sticks to R2 + the browser's native `<video>` tag. No transcoding pipeline yet; the 50 MB cap is the backstop against multi-minute uploads.
+
+
+## 2026-05-21 — iter151b · Listing editor image cap consistency fix 🐛
+
+**Public:** Fixed a small UX inconsistency on the maker listing editor — it said "Add up to 10 photos" but the picker only allowed 8. Bumped the cap to 10 so the copy matches reality.
+
+- `/app/frontend/src/pages/MakerListingEditor/constants.js` — `MAX_IMAGES` changed from `8` → `10`.
+- All consumers reference the single constant (counter display, +Add button gate, upload room-check), so the bump propagates everywhere automatically.
+- `backend/routers/csv_import.py` already capped CSV imports at 10 images per product, so this fix brings the manual editor in line with the bulk-import path.
+- No backend change needed — `Product.images` has no server-side cap.
+
+
 ## 2026-05-17 — iter151 · Personalization orphan-cleanup cron + Share button on maker/journal pages ✅
 
 **Production hygiene:** every personalization upload that doesn't end up on an order leaks 5 MB into R2 forever. Closed that hole with a daily cron + 7-day grace window. **Quick win on the side:** dropped the existing `ShareLinkButton` onto maker profile pages and journal article pages — both already worked on the backend, the component already supported all three `kind`s, just needed mounting.
