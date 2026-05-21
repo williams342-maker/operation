@@ -18,7 +18,7 @@ from typing import List, Optional
 
 import httpx
 from fastapi import (
-    APIRouter, Body, Depends, File, HTTPException, Request, UploadFile,
+    APIRouter, Body, Depends, File, HTTPException, Query, Request, UploadFile,
 )
 from pydantic import BaseModel
 
@@ -45,6 +45,33 @@ class ShowcasePost(BaseModel):
     video_url: Optional[str] = None
     product_slug: Optional[str] = None
     maker_slug: Optional[str] = None
+
+
+class ShowcaseEdit(BaseModel):
+    """Subset of `ShowcasePost` allowed for owner/admin edits.
+    None means "leave unchanged" — empty string clears a field."""
+    title: Optional[str] = None
+    description: Optional[str] = None
+    image_urls: Optional[List[str]] = None
+    video_url: Optional[str] = None
+    product_slug: Optional[str] = None
+    maker_slug: Optional[str] = None
+
+
+# ===================== OWNERSHIP HELPERS =====================
+def _showcase_owner_id(claims: dict) -> str:
+    """Translate the JWT claims into the `user_id` field stamped on the
+    showcase doc at creation time. Buyers keep their `user_<uuid>` id;
+    makers get the `maker:<slug>` prefix (matches `create_showcase`)."""
+    role = claims.get("role")
+    sub = claims.get("sub", "")
+    return f"maker:{sub}" if role == "maker" else sub
+
+
+def _is_showcase_owner(doc: dict, claims: dict) -> bool:
+    if not doc or not claims:
+        return False
+    return doc.get("user_id") == _showcase_owner_id(claims)
 
 
 # ===================== LISTING =====================
@@ -176,6 +203,198 @@ async def like_showcase(post_id: str, claims: dict = Depends(current_buyer)):
     if r.matched_count == 0:
         raise HTTPException(404, "Post not found")
     return {"ok": True}
+
+
+# ===================== OWNER/ADMIN EDIT + DELETE =====================
+def _apply_showcase_edit(doc: dict, payload: ShowcaseEdit, *, is_admin: bool) -> dict:
+    """Build the Mongo `$set` update from the patch payload. Validates
+    sizes + the maker-only video constraint. Returns the dict to persist."""
+    updates: dict = {}
+    if payload.title is not None:
+        title = payload.title.strip()
+        if not title or len(title) > 200:
+            raise HTTPException(400, "Title is required (max 200 chars).")
+        updates["title"] = title
+    if payload.description is not None:
+        desc = payload.description.strip()
+        if not desc:
+            raise HTTPException(400, "Description is required.")
+        updates["description"] = desc[:2000]
+    if payload.image_urls is not None:
+        urls = [u for u in (payload.image_urls or []) if u][:8]
+        # Must end with at least one image OR a video — same rule as create.
+        ending_video = payload.video_url if payload.video_url is not None else doc.get("video_url")
+        if not urls and not ending_video:
+            raise HTTPException(400, "Keep at least one image or a video clip.")
+        updates["image_urls"] = urls
+        updates["image_url"] = urls[0] if urls else None
+    if payload.video_url is not None:
+        # Only the original maker (or admin) may attach/edit a video.
+        if payload.video_url and doc.get("user_role") != "maker" and not is_admin:
+            raise HTTPException(403, "Video clips are a maker-only feature.")
+        ending_urls = updates.get("image_urls", doc.get("image_urls") or [])
+        if not payload.video_url and not ending_urls:
+            raise HTTPException(400, "Keep at least one image or a video clip.")
+        updates["video_url"] = payload.video_url or None
+    if payload.product_slug is not None:
+        updates["product_slug"] = payload.product_slug or None
+    if payload.maker_slug is not None:
+        updates["maker_slug"] = payload.maker_slug or None
+    if updates:
+        updates["edited_at"] = now_iso()
+    return updates
+
+
+@router.patch("/community/showcase/{post_id}")
+async def edit_showcase(
+    post_id: str, payload: ShowcaseEdit,
+    claims: dict = Depends(current_any_user),
+):
+    """Owner-only edit (admin path lives at /admin/community/showcase/{id}).
+    The owner check uses the same `user_id` we stamp at creation, so a
+    maker can only edit their own posts and a buyer can only edit theirs.
+    """
+    doc = await db.showcase_posts.find_one({"id": post_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Post not found.")
+    if not _is_showcase_owner(doc, claims):
+        raise HTTPException(403, "You can only edit your own posts.")
+    updates = _apply_showcase_edit(doc, payload, is_admin=False)
+    if updates:
+        await db.showcase_posts.update_one({"id": post_id}, {"$set": updates})
+    fresh = await db.showcase_posts.find_one({"id": post_id}, {"_id": 0})
+    return fresh or {}
+
+
+@router.delete("/community/showcase/{post_id}")
+async def delete_showcase(
+    post_id: str, claims: dict = Depends(current_any_user),
+):
+    """Owner-only delete. Admins use the parallel /admin/ route below so
+    deletions are audit-logged separately."""
+    doc = await db.showcase_posts.find_one({"id": post_id}, {"_id": 0, "user_id": 1})
+    if not doc:
+        raise HTTPException(404, "Post not found.")
+    if not _is_showcase_owner(doc, claims):
+        raise HTTPException(403, "You can only delete your own posts.")
+    await db.showcase_posts.delete_one({"id": post_id})
+    # Also reap any analytics rows so they don't dangle.
+    await db.showcase_events.delete_many({"post_id": post_id})
+    return {"ok": True, "deleted": post_id}
+
+
+# ===================== ADMIN MODERATION =====================
+@router.get("/admin/community/showcase")
+async def admin_list_showcase(
+    status: str = Query("all", regex="^(all|pending|approved|featured)$"),
+    limit: int = 50, skip: int = 0,
+    _: dict = Depends(current_admin),
+):
+    """Paged showcase queue for admin moderation. `status=pending` filters
+    to posts that haven't been explicitly approved or featured yet — useful
+    when reviewing the most recent submissions."""
+    q: dict = {}
+    if status == "pending":
+        q = {"mod_status": {"$in": [None, "pending"]}}
+    elif status in ("approved", "featured"):
+        q = {"mod_status": status}
+    n = max(1, min(int(limit), 200))
+    skip = max(0, int(skip))
+    total = await db.showcase_posts.count_documents(q)
+    rows = await db.showcase_posts.find(q, {"_id": 0}).sort("created_at", -1).skip(skip).limit(n).to_list(n)
+    return {"total": total, "rows": rows, "skip": skip, "limit": n}
+
+
+@router.patch("/admin/community/showcase/{post_id}")
+async def admin_edit_showcase(
+    post_id: str, payload: ShowcaseEdit,
+    claims: dict = Depends(current_admin),
+):
+    """Admin override — edit any showcase post. Stamps an audit entry so
+    the maker can see who touched their content."""
+    doc = await db.showcase_posts.find_one({"id": post_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Post not found.")
+    updates = _apply_showcase_edit(doc, payload, is_admin=True)
+    if updates:
+        diff = {k: {"before": doc.get(k), "after": v} for k, v in updates.items()
+                if k not in ("edited_at",) and doc.get(k) != v}
+        updates.setdefault("mod_history", doc.get("mod_history") or [])
+        updates["mod_history"] = (doc.get("mod_history") or []) + [{
+            "ts": now_iso(),
+            "by": claims.get("sub"),
+            "action": "edit",
+            "diff": diff,
+        }]
+        await db.showcase_posts.update_one({"id": post_id}, {"$set": updates})
+    fresh = await db.showcase_posts.find_one({"id": post_id}, {"_id": 0})
+    return fresh or {}
+
+
+@router.post("/admin/community/showcase/{post_id}/approve")
+async def admin_approve_showcase(
+    post_id: str,
+    body: dict = Body(default={}),
+    claims: dict = Depends(current_admin),
+):
+    """Mark a showcase post as moderator-approved. Pass `featured=true`
+    to additionally promote it (frontends can boost featured posts to
+    the top of recent feeds). Idempotent — calling twice with the same
+    flags is a no-op aside from the audit timestamp."""
+    doc = await db.showcase_posts.find_one({"id": post_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Post not found.")
+    featured = bool(body.get("featured"))
+    status = "featured" if featured else "approved"
+    history_entry = {
+        "ts": now_iso(),
+        "by": claims.get("sub"),
+        "action": status,
+    }
+    await db.showcase_posts.update_one(
+        {"id": post_id},
+        {
+            "$set": {
+                "mod_status": status,
+                "mod_approved_at": now_iso(),
+                "mod_approved_by": claims.get("sub"),
+            },
+            "$push": {"mod_history": history_entry},
+        },
+    )
+    fresh = await db.showcase_posts.find_one({"id": post_id}, {"_id": 0})
+    return fresh or {}
+
+
+@router.delete("/admin/community/showcase/{post_id}")
+async def admin_delete_showcase(
+    post_id: str, claims: dict = Depends(current_admin),
+):
+    """Admin hard-delete + audit-log row in `admin_moderation_actions`.
+    Keeps a copy of the deleted doc so we can answer 'who deleted my post?'
+    questions from makers without ambiguity."""
+    doc = await db.showcase_posts.find_one({"id": post_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Post not found.")
+    await db.admin_moderation_actions.insert_one({
+        "id": str(uuid.uuid4()),
+        "kind": "showcase_delete",
+        "target_id": post_id,
+        "by": claims.get("sub"),
+        "ts": now_iso(),
+        "snapshot": {
+            "title": doc.get("title"),
+            "user_id": doc.get("user_id"),
+            "user_email": doc.get("user_email"),
+            "user_name": doc.get("user_name"),
+            "created_at": doc.get("created_at"),
+            "image_url": doc.get("image_url"),
+            "video_url": doc.get("video_url"),
+        },
+    })
+    await db.showcase_posts.delete_one({"id": post_id})
+    await db.showcase_events.delete_many({"post_id": post_id})
+    return {"ok": True, "deleted": post_id}
 
 
 # ============================================================

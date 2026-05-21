@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Heart, Download, Send, Plus, Lock, Flag, Sparkles, Trophy, Pencil, X as XIcon, TrendingUp } from "lucide-react";
+import { Heart, Download, Send, Plus, Lock, Flag, Sparkles, Trophy, Pencil, Trash2, X as XIcon, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
 import {
   fetchShowcase, createShowcase, likeShowcase,
+  editShowcase, deleteShowcase,
   fetchDesignFiles, fetchDesignFilesLeaderboard, fetchTrendingDesignFiles, downloadDesignFile, unlockDownloadsCheckout, uploadDesignFile, uploadDesignFileDirect,
   addDesignFileVariants, deleteDesignFileVariant, updateDesignFile,
   reportDesignFile, convertDxfToSvg, renderStlThumbnail,
@@ -243,7 +244,12 @@ function ShowcaseTab({ me }) {
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6" data-testid="showcase-grid">
           {posts.map((p) => (
-            <ShowcaseCard key={p.id} post={p} onLike={refresh} canLike={!!me} />
+            <ShowcaseCard
+              key={p.id} post={p}
+              onLike={refresh} canLike={!!me}
+              me={me}
+              onChanged={refresh}
+            />
           ))}
         </div>
       )}
@@ -622,19 +628,77 @@ function ShowcaseForm({ onSaved }) {
   );
 }
 
-function ShowcaseCard({ post, onLike, canLike }) {
+function ShowcaseCard({ post, onLike, canLike, me, onChanged }) {
   const [liked, setLiked] = useState(false);
-  // iter114 — multi-image showcase posts: render the cover + badge the
-  // gallery size when there's more than one photo. Falls back to the
-  // legacy `image_url` for posts created before iter114.
-  // this iter — when the post has a `video_url`, render an HTML5 <video>
-  // in place of the static image. Buyers can still tap "play" inline.
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState({
+    title: post.title || "",
+    description: post.description || "",
+  });
+  const [busy, setBusy] = useState(false);
+  const [editErr, setEditErr] = useState("");
+
+  // Owner detection — mirrors the backend `_is_showcase_owner` rule.
+  // Maker posts are stamped with `user_id = "maker:<slug>"`; buyer
+  // posts use the community `user_id` directly. We compare against the
+  // currently-signed-in identity (maker JWT preferred — a maker on
+  // both JWTs is "the maker" for their own posts).
+  const isOwner = (() => {
+    if (post.user_role === "maker" && typeof window !== "undefined") {
+      const makerJwt = localStorage.getItem("cm_maker_jwt");
+      if (makerJwt) {
+        try {
+          const payload = JSON.parse(atob(makerJwt.split(".")[1]));
+          if (payload.role === "maker" && `maker:${payload.sub}` === post.user_id) {
+            return true;
+          }
+        } catch (_) { /* ignore */ }
+      }
+      return false;
+    }
+    return !!me && me.user_id === post.user_id;
+  })();
+
   const imageUrls = (post.image_urls && post.image_urls.length > 0)
     ? post.image_urls
     : (post.image_url ? [post.image_url] : []);
   const cover = imageUrls[0];
   const extraCount = Math.max(0, imageUrls.length - 1);
   const hasVideo = !!post.video_url;
+
+  const saveEdit = async () => {
+    setEditErr("");
+    const title = draft.title.trim();
+    const description = draft.description.trim();
+    if (!title) { setEditErr("Title is required."); return; }
+    if (!description) { setEditErr("Description is required."); return; }
+    setBusy(true);
+    try {
+      await editShowcase(post.id, { title, description });
+      setEditing(false);
+      onChanged && onChanged();
+      toast.success("Post updated.");
+    } catch (e) {
+      setEditErr(e?.response?.data?.detail || "Couldn't save changes.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm("Delete this post? This can't be undone.")) return;
+    setBusy(true);
+    try {
+      await deleteShowcase(post.id);
+      onChanged && onChanged();
+      toast.success("Post deleted.");
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Couldn't delete.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="border border-[#262626] hover:border-[#ff4500] transition group" data-testid={`showcase-${post.id}`}>
       <div className="aspect-[4/3] overflow-hidden bg-[#121212] relative">
@@ -669,35 +733,106 @@ function ShowcaseCard({ post, onLike, canLike }) {
             +{extraCount} more
           </span>
         )}
+        {/* Featured badge for admin-promoted posts */}
+        {post.mod_status === "featured" && (
+          <span
+            className="absolute top-2 right-2 bg-yellow-500 text-[#0a0a0a] font-mono text-[9px] uppercase tracking-[0.18em] px-2 py-1 font-bold pointer-events-none"
+            data-testid={`showcase-${post.id}-featured`}
+          >
+            ★ Featured
+          </span>
+        )}
       </div>
       <div className="p-4">
-        <div className="font-display text-xl mb-1">{post.title}</div>
-        <p className="font-mono text-[11px] text-[#a3a3a3] leading-relaxed mb-3">{post.description}</p>
-        {(post.product_slug || post.maker_slug) && (
-          <div className="flex flex-wrap gap-2 mb-3" data-testid={`showcase-tags-${post.id}`}>
-            {post.product_slug && (
-              <Link to={`/shop/${post.product_slug}`} className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] border border-[#ff4500]/40 px-2 py-1 hover:bg-[#ff4500]/10">
-                ◆ {post.product_slug}
-              </Link>
+        {editing ? (
+          <div className="space-y-2" data-testid={`showcase-${post.id}-edit`}>
+            <input
+              value={draft.title}
+              onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+              className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+              data-testid={`showcase-${post.id}-edit-title`}
+            />
+            <textarea
+              value={draft.description}
+              onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+              rows={3}
+              className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs resize-y"
+              data-testid={`showcase-${post.id}-edit-description`}
+            />
+            {editErr && (
+              <p className="font-mono text-[10px] text-red-400" data-testid={`showcase-${post.id}-edit-error`}>
+                {editErr}
+              </p>
             )}
-            {post.maker_slug && (
-              <Link to={`/makers/${post.maker_slug}`} className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] border border-[#262626] px-2 py-1 hover:border-[#ff4500] hover:text-[#ff4500]">
-                @ {post.maker_slug}
-              </Link>
-            )}
+            <div className="flex gap-2">
+              <button
+                onClick={saveEdit}
+                disabled={busy}
+                className="btn-industrial btn-primary text-[10px] px-3 py-2 disabled:opacity-50"
+                data-testid={`showcase-${post.id}-edit-save`}
+              >
+                {busy ? "Saving…" : "Save"}
+              </button>
+              <button
+                onClick={() => { setEditing(false); setDraft({ title: post.title, description: post.description }); }}
+                disabled={busy}
+                className="btn-industrial btn-secondary text-[10px] px-3 py-2 disabled:opacity-50"
+                data-testid={`showcase-${post.id}-edit-cancel`}
+              >
+                Cancel
+              </button>
+            </div>
           </div>
+        ) : (
+          <>
+            <div className="font-display text-xl mb-1">{post.title}</div>
+            <p className="font-mono text-[11px] text-[#a3a3a3] leading-relaxed mb-3">{post.description}</p>
+            {(post.product_slug || post.maker_slug) && (
+              <div className="flex flex-wrap gap-2 mb-3" data-testid={`showcase-tags-${post.id}`}>
+                {post.product_slug && (
+                  <Link to={`/shop/${post.product_slug}`} className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] border border-[#ff4500]/40 px-2 py-1 hover:bg-[#ff4500]/10">
+                    ◆ {post.product_slug}
+                  </Link>
+                )}
+                {post.maker_slug && (
+                  <Link to={`/makers/${post.maker_slug}`} className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] border border-[#262626] px-2 py-1 hover:border-[#ff4500] hover:text-[#ff4500]">
+                    @ {post.maker_slug}
+                  </Link>
+                )}
+              </div>
+            )}
+            <div className="flex justify-between items-center text-[10px] font-mono uppercase tracking-[0.22em] text-[#525252]">
+              <span>{post.user_name || post.user_email}</span>
+              <button
+                onClick={async () => { if (canLike && !liked) { await likeShowcase(post.id); setLiked(true); onLike(); } }}
+                disabled={!canLike}
+                className={`flex items-center gap-1 ${liked ? "text-[#ff4500]" : "hover:text-[#ff4500]"} disabled:opacity-50`}
+                data-testid={`showcase-like-${post.id}`}
+              >
+                <Heart size={12} fill={liked ? "currentColor" : "none"} /> {post.likes + (liked ? 1 : 0)}
+              </button>
+            </div>
+            {isOwner && (
+              <div className="flex gap-3 mt-3 pt-3 border-t border-[#262626]" data-testid={`showcase-${post.id}-owner-controls`}>
+                <button
+                  onClick={() => setEditing(true)}
+                  className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] flex items-center gap-1"
+                  data-testid={`showcase-${post.id}-edit-btn`}
+                >
+                  <Pencil size={11} /> Edit
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={busy}
+                  className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-red-400 flex items-center gap-1 disabled:opacity-50"
+                  data-testid={`showcase-${post.id}-delete-btn`}
+                >
+                  <Trash2 size={11} /> Delete
+                </button>
+              </div>
+            )}
+          </>
         )}
-        <div className="flex justify-between items-center text-[10px] font-mono uppercase tracking-[0.22em] text-[#525252]">
-          <span>{post.user_name || post.user_email}</span>
-          <button
-            onClick={async () => { if (canLike && !liked) { await likeShowcase(post.id); setLiked(true); onLike(); } }}
-            disabled={!canLike}
-            className={`flex items-center gap-1 ${liked ? "text-[#ff4500]" : "hover:text-[#ff4500]"} disabled:opacity-50`}
-            data-testid={`showcase-like-${post.id}`}
-          >
-            <Heart size={12} fill={liked ? "currentColor" : "none"} /> {post.likes + (liked ? 1 : 0)}
-          </button>
-        </div>
       </div>
     </div>
   );

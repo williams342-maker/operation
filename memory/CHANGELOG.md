@@ -1,6 +1,31 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-21 — iter156 · Showcase moderation: owner edit/delete + admin queue ✅
+
+**Public:** Makers and buyers can now edit or delete their own showcase posts (photos AND video clips) — handy when you fat-finger a title or want to swap a description after the fact. Admins get a dedicated Showcase Mod queue to approve, feature, edit, or remove any post on the platform.
+
+- **Owner controls on showcase cards** (`/community → Showcase`):
+  - "Edit" reveals inline title + description editors with Save/Cancel; saves stamp `edited_at`.
+  - "Delete" runs a confirm dialog, hard-deletes the post + reaps any analytics rows.
+  - Visible only when the signed-in user matches the post's creator (maker JWT for maker posts, buyer JWT for buyer posts). Buttons render nowhere else — no chance of leaking edit/delete to strangers.
+- **Backend endpoints** (`/app/backend/routers/community_showcase.py`):
+  - `PATCH /community/showcase/{id}` — owner-only, validates title/description/media constraints (must keep at least one image or video; only the maker who originally posted may attach/edit a video).
+  - `DELETE /community/showcase/{id}` — owner-only, hard delete + analytics cleanup.
+  - `GET /admin/community/showcase?status=all|pending|approved|featured&limit=&skip=` — paginated mod queue.
+  - `PATCH /admin/community/showcase/{id}` — admin override edit, appends a diff to `mod_history`.
+  - `POST /admin/community/showcase/{id}/approve` — `{featured: bool}` flips `mod_status` to `approved` or `featured`. Idempotent.
+  - `DELETE /admin/community/showcase/{id}` — hard delete + `admin_moderation_actions` audit row with a snapshot of the deleted doc so we can answer "who deleted my post?".
+- **New "Showcase Mod" tab** in the Admin Dashboard (between Showcase Analytics and Audit):
+  - Filter chips: All · Pending · Approved · Featured.
+  - Card grid with cover image / inline `<video>` for video posts.
+  - Per-card action row: ✓ Approve · ★ Feature · ✏ Edit · 🗑 Delete.
+  - "★ Featured" badge surfaces on community cards + recent strips so promoted work stands out.
+  - Pagination (24 per page) for large queues.
+- **Maker-first JWT preference** carried over from the previous fix: when both buyer + maker JWTs are present, the edit/delete calls use the maker JWT — so the same maker who posted with their maker session can edit it later, even if they also signed into the community via Google.
+- **Regression:** `/app/backend/tests/test_showcase_moderation.py` — 3/3 passing (owner-flow happy path + non-owner 403s · full admin lifecycle: list / approve / edit / delete with audit snapshot · unauthenticated admin endpoint denied).
+
+
 ## 2026-05-21 — iter155 · Community routers refactor: 1 file → 5 ✅
 
 **Public:** Internal cleanup. Split `routers/community.py` (~2000 lines, everything from sign-in to forum to design-file paywall) into focused domain modules so future community work is faster and less risky.

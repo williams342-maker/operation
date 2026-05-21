@@ -1,0 +1,285 @@
+import React, { useEffect, useState, useCallback } from "react";
+import { Check, Star, Pencil, Trash2, Filter } from "lucide-react";
+import { toast } from "sonner";
+import {
+  adminListShowcase, adminEditShowcase, adminApproveShowcase, adminDeleteShowcase,
+} from "../../lib/api";
+
+/**
+ * AdminShowcaseModTab
+ * -------------------
+ * Per-post moderation queue for community showcase posts.
+ *
+ * Surfaces:
+ *   • Filter chips: All · Pending · Approved · Featured
+ *   • Card grid showing cover image OR video clip + title/description/poster
+ *   • Inline actions per card:
+ *       - Approve (idempotent flag, sets mod_status=approved)
+ *       - Feature (promotes to mod_status=featured — surfaces in feeds)
+ *       - Edit title / description
+ *       - Delete (snapshot kept in admin_moderation_actions audit log)
+ *
+ * Backend endpoints:
+ *   GET    /admin/community/showcase?status=…&limit=…&skip=…
+ *   PATCH  /admin/community/showcase/{id}
+ *   POST   /admin/community/showcase/{id}/approve   (body: {featured: bool})
+ *   DELETE /admin/community/showcase/{id}
+ */
+const STATUS_OPTIONS = [
+  { id: "all",       label: "All" },
+  { id: "pending",   label: "Pending" },
+  { id: "approved",  label: "Approved" },
+  { id: "featured",  label: "Featured" },
+];
+
+const PAGE_SIZE = 24;
+
+export default function AdminShowcaseModTab() {
+  const [filter, setFilter] = useState("all");
+  const [rows, setRows] = useState(null);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
+
+  const refresh = useCallback(async () => {
+    setRows(null);
+    try {
+      const r = await adminListShowcase({
+        status: filter,
+        limit: PAGE_SIZE,
+        skip: page * PAGE_SIZE,
+      });
+      setRows(r.rows || []);
+      setTotal(r.total || 0);
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Couldn't load showcase posts.");
+      setRows([]);
+    }
+  }, [filter, page]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  return (
+    <div className="space-y-6" data-testid="admin-showcase-mod-tab">
+      <div>
+        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-2">
+          ◆ Community moderation
+        </div>
+        <h1 className="font-display text-3xl md:text-5xl uppercase leading-none">Showcase</h1>
+        <p className="font-mono text-sm text-[#a3a3a3] mt-2">
+          Approve, feature, edit, or remove community showcase posts. Featured posts surface higher in the homepage + product strip feeds.
+        </p>
+      </div>
+
+      {/* Filter chips */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Filter size={14} className="text-[#525252]" />
+        {STATUS_OPTIONS.map((s) => (
+          <button
+            key={s.id}
+            onClick={() => { setFilter(s.id); setPage(0); }}
+            className={`font-mono text-[10px] uppercase tracking-[0.22em] px-3 py-1.5 border transition ${
+              filter === s.id
+                ? "border-[#ff4500] text-[#ff4500] bg-[#ff4500]/10"
+                : "border-[#262626] text-[#a3a3a3] hover:border-[#ff4500] hover:text-[#ff4500]"
+            }`}
+            data-testid={`admin-showcase-filter-${s.id}`}
+          >
+            {s.label}
+          </button>
+        ))}
+        <span className="font-mono text-[10px] text-[#525252] ml-2" data-testid="admin-showcase-total">
+          {total} total
+        </span>
+      </div>
+
+      {/* Grid */}
+      {rows === null ? (
+        <p className="font-mono text-sm text-[#a3a3a3]">Loading…</p>
+      ) : rows.length === 0 ? (
+        <p className="font-mono text-sm text-[#a3a3a3]" data-testid="admin-showcase-empty">
+          No posts match this filter.
+        </p>
+      ) : (
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6" data-testid="admin-showcase-grid">
+          {rows.map((p) => (
+            <AdminShowcaseCard key={p.id} post={p} onChanged={refresh} />
+          ))}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {total > PAGE_SIZE && (
+        <div className="flex justify-between items-center pt-4 border-t border-[#262626]">
+          <button
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+            disabled={page === 0}
+            className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] disabled:opacity-30"
+            data-testid="admin-showcase-prev"
+          >
+            ← Prev
+          </button>
+          <span className="font-mono text-[10px] text-[#525252]">
+            Page {page + 1} / {Math.ceil(total / PAGE_SIZE)}
+          </span>
+          <button
+            onClick={() => setPage((p) => p + 1)}
+            disabled={(page + 1) * PAGE_SIZE >= total}
+            className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] disabled:opacity-30"
+            data-testid="admin-showcase-next"
+          >
+            Next →
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+function AdminShowcaseCard({ post, onChanged }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState({ title: post.title || "", description: post.description || "" });
+  const [busy, setBusy] = useState(false);
+
+  const cover = (post.image_urls && post.image_urls[0]) || post.image_url;
+  const hasVideo = !!post.video_url;
+  const status = post.mod_status || "pending";
+
+  const doAction = async (label, fn) => {
+    setBusy(true);
+    try {
+      await fn();
+      toast.success(`${label}.`);
+      onChanged && onChanged();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || `Couldn't ${label.toLowerCase()}.`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleSave = async () => {
+    const title = draft.title.trim();
+    const description = draft.description.trim();
+    if (!title || !description) {
+      toast.error("Title and description are required.");
+      return;
+    }
+    await doAction("Saved", () => adminEditShowcase(post.id, { title, description }));
+    setEditing(false);
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm("Permanently delete this post? A snapshot is kept in the moderation audit log.")) return;
+    await doAction("Deleted", () => adminDeleteShowcase(post.id));
+  };
+
+  return (
+    <div className="border border-[#262626] overflow-hidden" data-testid={`admin-showcase-card-${post.id}`}>
+      <div className="aspect-[4/3] bg-[#121212] relative">
+        {hasVideo ? (
+          <video src={post.video_url} poster={cover || undefined} controls playsInline preload="metadata" className="w-full h-full object-cover bg-black" />
+        ) : cover ? (
+          <img src={cover} alt={post.title} className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full grid place-items-center font-mono text-xs text-[#525252]">no media</div>
+        )}
+        {hasVideo && (
+          <span className="absolute top-2 left-2 bg-[#ff4500] text-[#0a0a0a] font-mono text-[9px] uppercase tracking-[0.18em] px-2 py-1 font-bold">◆ Video</span>
+        )}
+        <span
+          className={`absolute top-2 right-2 font-mono text-[9px] uppercase tracking-[0.18em] px-2 py-1 font-bold ${
+            status === "featured" ? "bg-yellow-500 text-[#0a0a0a]"
+            : status === "approved" ? "bg-emerald-500 text-[#0a0a0a]"
+            : "bg-[#0a0a0a]/85 text-[#a3a3a3] border border-[#262626]"
+          }`}
+          data-testid={`admin-showcase-status-${post.id}`}
+        >
+          {status}
+        </span>
+      </div>
+      <div className="p-4 space-y-3">
+        {editing ? (
+          <>
+            <input
+              value={draft.title}
+              onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+              className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+              data-testid={`admin-showcase-${post.id}-edit-title`}
+            />
+            <textarea
+              value={draft.description}
+              onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+              rows={3}
+              className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs resize-y"
+              data-testid={`admin-showcase-${post.id}-edit-description`}
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={handleSave} disabled={busy}
+                className="btn-industrial btn-primary text-[10px] px-3 py-2 disabled:opacity-50"
+                data-testid={`admin-showcase-${post.id}-edit-save`}
+              >
+                {busy ? "Saving…" : "Save"}
+              </button>
+              <button
+                onClick={() => { setEditing(false); setDraft({ title: post.title, description: post.description }); }}
+                disabled={busy}
+                className="btn-industrial btn-secondary text-[10px] px-3 py-2 disabled:opacity-50"
+                data-testid={`admin-showcase-${post.id}-edit-cancel`}
+              >
+                Cancel
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="font-display text-lg leading-tight">{post.title}</div>
+            <p className="font-mono text-[11px] text-[#a3a3a3] leading-relaxed line-clamp-3">{post.description}</p>
+            <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#525252]">
+              <div>By: {post.user_name || post.user_email}</div>
+              <div className="mt-1">Role: {post.user_role || "buyer"} · {new Date(post.created_at).toLocaleDateString()}</div>
+              {post.maker_slug && <div className="mt-1">Maker: @{post.maker_slug}</div>}
+            </div>
+
+            {/* Action row */}
+            <div className="flex flex-wrap gap-1.5 pt-2 border-t border-[#262626]">
+              <button
+                onClick={() => doAction("Approved", () => adminApproveShowcase(post.id))}
+                disabled={busy}
+                className="font-mono text-[10px] uppercase tracking-[0.22em] border border-emerald-500 text-emerald-400 hover:bg-emerald-500/10 px-2 py-1 flex items-center gap-1 disabled:opacity-50"
+                data-testid={`admin-showcase-${post.id}-approve`}
+              >
+                <Check size={11} /> Approve
+              </button>
+              <button
+                onClick={() => doAction("Featured", () => adminApproveShowcase(post.id, { featured: true }))}
+                disabled={busy}
+                className="font-mono text-[10px] uppercase tracking-[0.22em] border border-yellow-500 text-yellow-400 hover:bg-yellow-500/10 px-2 py-1 flex items-center gap-1 disabled:opacity-50"
+                data-testid={`admin-showcase-${post.id}-feature`}
+              >
+                <Star size={11} /> Feature
+              </button>
+              <button
+                onClick={() => setEditing(true)}
+                disabled={busy}
+                className="font-mono text-[10px] uppercase tracking-[0.22em] border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] px-2 py-1 flex items-center gap-1 disabled:opacity-50"
+                data-testid={`admin-showcase-${post.id}-edit`}
+              >
+                <Pencil size={11} /> Edit
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={busy}
+                className="font-mono text-[10px] uppercase tracking-[0.22em] border border-red-500/60 text-red-400 hover:bg-red-500/10 px-2 py-1 flex items-center gap-1 disabled:opacity-50"
+                data-testid={`admin-showcase-${post.id}-delete`}
+              >
+                <Trash2 size={11} /> Delete
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}

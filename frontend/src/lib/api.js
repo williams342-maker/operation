@@ -814,6 +814,36 @@ export const createShowcase = (payload) =>
 export const likeShowcase = (id) =>
   http.post(`/community/showcase/${id}/like`, {}, { headers: buyerAuthHeaders() }).then((r) => r.data);
 
+// Owner-only edit (patch) and delete. Maker JWT preferred when the
+// caller is a maker — same logic as createShowcase.
+export const editShowcase = (id, patch) =>
+  http.patch(`/community/showcase/${id}`, patch, {
+    headers: communityMakerFirstHeaders(),
+  }).then((r) => r.data);
+
+export const deleteShowcase = (id) =>
+  http.delete(`/community/showcase/${id}`, {
+    headers: communityMakerFirstHeaders(),
+  }).then((r) => r.data);
+
+// ---- Admin showcase moderation ----
+export const adminListShowcase = (params = {}) =>
+  http.get("/admin/community/showcase", {
+    params, headers: adminAuthHeaders(),
+  }).then((r) => r.data);
+export const adminEditShowcase = (id, patch) =>
+  http.patch(`/admin/community/showcase/${id}`, patch, {
+    headers: adminAuthHeaders(),
+  }).then((r) => r.data);
+export const adminApproveShowcase = (id, { featured = false } = {}) =>
+  http.post(`/admin/community/showcase/${id}/approve`, { featured }, {
+    headers: adminAuthHeaders(),
+  }).then((r) => r.data);
+export const adminDeleteShowcase = (id) =>
+  http.delete(`/admin/community/showcase/${id}`, {
+    headers: adminAuthHeaders(),
+  }).then((r) => r.data);
+
 // Maker-only — upload a ≤50MB / ≤60s video clip to attach to a showcase post.
 export const uploadShowcaseVideo = (file, opts = {}) => {
   const fd = new FormData();

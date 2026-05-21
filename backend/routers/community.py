@@ -54,18 +54,20 @@ from .community_common import (  # noqa: F401
 
 # showcase
 from .community_showcase import (  # noqa: F401
-    ShowcasePost, _ShowcaseAiBody, _ShowcaseEventBody,
+    ShowcaseEdit, ShowcasePost, _ShowcaseAiBody, _ShowcaseEventBody,
     SHOWCASE_ALLOWED_IMG_EXT, SHOWCASE_ALLOWED_VIDEO_EXT,
     SHOWCASE_ALLOWED_VIDEO_MIME, SHOWCASE_AI_VISION_MAX_BYTES,
     SHOWCASE_AI_VISION_MAX_IMAGES, SHOWCASE_MAX_IMAGE_BYTES,
     SHOWCASE_MAX_VIDEO_BYTES,
-    ai_describe_showcase, admin_showcase_analytics,
-    create_showcase, like_showcase, list_recent_showcase,
-    list_showcase,
+    admin_approve_showcase, admin_delete_showcase, admin_edit_showcase,
+    admin_list_showcase, admin_showcase_analytics,
+    ai_describe_showcase,
+    create_showcase, delete_showcase, edit_showcase, like_showcase,
+    list_recent_showcase, list_showcase,
     record_showcase_click, record_showcase_view,
     upload_showcase_image, upload_showcase_video,
     _claude_vision_describe, _fetch_image_for_vision,
-    _record_showcase_event,
+    _is_showcase_owner, _record_showcase_event, _showcase_owner_id,
 )
 
 # files

@@ -37,6 +37,7 @@ import DigestsTab from "../components/admin/DigestsTab";
 import FeedbackTab from "../components/admin/FeedbackTab";
 import ComingSoonTab from "../components/admin/ComingSoonTab";
 import ShowcaseAnalyticsTab from "../components/admin/ShowcaseAnalyticsTab";
+import AdminShowcaseModTab from "./AdminDashboard/AdminShowcaseModTab";
 import ContactInboxTab from "../components/admin/ContactInboxTab";
 import SettingsTab from "../components/admin/SettingsTab";
 import AuditTab from "../components/admin/AuditTab";
@@ -95,6 +96,7 @@ const TABS = [
   { id: "secrets", label: "Secrets", superOnly: true },
   { id: "settings", label: "Settings" },
   { id: "showcase-analytics", label: "Showcase Analytics", caps: ["content"] },
+  { id: "showcase-mod", label: "Showcase Mod", caps: ["moderation", "content"] },
   { id: "shipping-ledger", label: "Shipping Ledger", caps: ["finance"] },
   { id: "buffer", label: "Social", caps: ["content"] },
   { id: "team", label: "Team", superOnly: true },
@@ -484,6 +486,7 @@ export default function AdminDashboard() {
             {tab === "secrets" && me?.is_super_admin && <SecretsTab />}
             {tab === "settings" && <SettingsTab />}
             {tab === "showcase-analytics" && <ShowcaseAnalyticsTab />}
+            {tab === "showcase-mod" && <AdminShowcaseModTab />}
             </AdminTabBoundary>
           </div>
         </div>
