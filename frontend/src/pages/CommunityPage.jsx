@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import {
   fetchShowcase, createShowcase, likeShowcase,
   editShowcase, deleteShowcase,
+  fetchShowcaseReportReasons, reportShowcase,
   fetchDesignFiles, fetchDesignFilesLeaderboard, fetchTrendingDesignFiles, downloadDesignFile, unlockDownloadsCheckout, uploadDesignFile, uploadDesignFileDirect,
   addDesignFileVariants, deleteDesignFileVariant, updateDesignFile,
   reportDesignFile, convertDxfToSvg, renderStlThumbnail,
@@ -637,6 +638,7 @@ function ShowcaseCard({ post, onLike, canLike, me, onChanged }) {
   });
   const [busy, setBusy] = useState(false);
   const [editErr, setEditErr] = useState("");
+  const [reportOpen, setReportOpen] = useState(false);
 
   // Owner detection — mirrors the backend `_is_showcase_owner` rule.
   // Maker posts are stamped with `user_id = "maker:<slug>"`; buyer
@@ -803,14 +805,26 @@ function ShowcaseCard({ post, onLike, canLike, me, onChanged }) {
             )}
             <div className="flex justify-between items-center text-[10px] font-mono uppercase tracking-[0.22em] text-[#525252]">
               <span>{post.user_name || post.user_email}</span>
-              <button
-                onClick={async () => { if (canLike && !liked) { await likeShowcase(post.id); setLiked(true); onLike(); } }}
-                disabled={!canLike}
-                className={`flex items-center gap-1 ${liked ? "text-[#ff4500]" : "hover:text-[#ff4500]"} disabled:opacity-50`}
-                data-testid={`showcase-like-${post.id}`}
-              >
-                <Heart size={12} fill={liked ? "currentColor" : "none"} /> {post.likes + (liked ? 1 : 0)}
-              </button>
+              <div className="flex items-center gap-3">
+                {!isOwner && (canLike || (typeof window !== "undefined" && localStorage.getItem("cm_maker_jwt"))) && (
+                  <button
+                    onClick={() => setReportOpen(true)}
+                    className="flex items-center gap-1 text-[#525252] hover:text-red-400"
+                    title="Report this post"
+                    data-testid={`showcase-${post.id}-report-btn`}
+                  >
+                    <Flag size={11} /> Report
+                  </button>
+                )}
+                <button
+                  onClick={async () => { if (canLike && !liked) { await likeShowcase(post.id); setLiked(true); onLike(); } }}
+                  disabled={!canLike}
+                  className={`flex items-center gap-1 ${liked ? "text-[#ff4500]" : "hover:text-[#ff4500]"} disabled:opacity-50`}
+                  data-testid={`showcase-like-${post.id}`}
+                >
+                  <Heart size={12} fill={liked ? "currentColor" : "none"} /> {post.likes + (liked ? 1 : 0)}
+                </button>
+              </div>
             </div>
             {isOwner && (
               <div className="flex gap-3 mt-3 pt-3 border-t border-[#262626]" data-testid={`showcase-${post.id}-owner-controls`}>
@@ -833,6 +847,134 @@ function ShowcaseCard({ post, onLike, canLike, me, onChanged }) {
             )}
           </>
         )}
+      </div>
+      {reportOpen && (
+        <ShowcaseReportDialog
+          post={post}
+          onClose={() => setReportOpen(false)}
+          onSubmitted={() => { setReportOpen(false); onChanged && onChanged(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+
+/** Modal dialog for reporting a showcase post. Loads the reason list
+ *  from the backend once on open so we don't hard-code labels. */
+function ShowcaseReportDialog({ post, onClose, onSubmitted }) {
+  const [reasons, setReasons] = useState([]);
+  const [reason, setReason] = useState("");
+  const [details, setDetails] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  useEffect(() => {
+    fetchShowcaseReportReasons()
+      .then((d) => setReasons(d.reasons || []))
+      .catch(() => setReasons([
+        // Network fail-safe fallback. Backend remains source of truth.
+        { id: "spam", label: "Spam or self-promotion abuse" },
+        { id: "harassment", label: "Harassment or hate speech" },
+        { id: "ip", label: "IP / copyright infringement" },
+        { id: "misleading", label: "Misleading or fraudulent" },
+        { id: "other", label: "Other concern" },
+      ]));
+  }, []);
+
+  const submit = async () => {
+    setErr("");
+    if (!reason) { setErr("Pick a reason."); return; }
+    setBusy(true);
+    try {
+      await reportShowcase(post.id, { reason, details });
+      toast.success("Thanks — a moderator will review it.");
+      onSubmitted && onSubmitted();
+    } catch (e) {
+      setErr(e?.response?.data?.detail || "Couldn't submit the report.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+      onClick={onClose}
+      data-testid={`showcase-report-dialog-${post.id}`}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-[#0a0a0a] border border-[#262626] w-full max-w-md p-6 space-y-4"
+      >
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#ff4500] mb-1">
+              ◆ Report post
+            </div>
+            <div className="font-display text-lg">{post.title}</div>
+          </div>
+          <button
+            onClick={onClose}
+            className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500]"
+            data-testid={`showcase-report-close-${post.id}`}
+          >
+            Cancel
+          </button>
+        </div>
+
+        <div className="space-y-2">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252]">Reason</div>
+          <div className="space-y-1.5">
+            {reasons.map((r) => (
+              <label
+                key={r.id}
+                className={`flex items-start gap-3 border px-3 py-2 cursor-pointer transition ${
+                  reason === r.id
+                    ? "border-[#ff4500] bg-[#ff4500]/5"
+                    : "border-[#262626] hover:border-[#525252]"
+                }`}
+                data-testid={`showcase-report-reason-${r.id}`}
+              >
+                <input
+                  type="radio" name="reason" value={r.id}
+                  checked={reason === r.id}
+                  onChange={() => setReason(r.id)}
+                  className="mt-0.5 accent-[#ff4500]"
+                />
+                <span className="font-mono text-xs text-[#e5e5e5]">{r.label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <textarea
+          value={details}
+          onChange={(e) => setDetails(e.target.value)}
+          placeholder="Optional — extra context that helps the moderator (max 1000 chars)."
+          rows={3}
+          maxLength={1000}
+          className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs resize-y"
+          data-testid={`showcase-report-details-${post.id}`}
+        />
+
+        {err && (
+          <p className="font-mono text-[10px] text-red-400" data-testid={`showcase-report-error-${post.id}`}>
+            {err}
+          </p>
+        )}
+
+        <button
+          onClick={submit}
+          disabled={busy || !reason}
+          className="btn-industrial btn-primary w-full disabled:opacity-50"
+          data-testid={`showcase-report-submit-${post.id}`}
+        >
+          {busy ? "Sending…" : "Submit report"}
+        </button>
+        <p className="font-mono text-[10px] text-[#525252] leading-relaxed">
+          Reports are private. The poster is not notified. Submitting false reports may result in your account being restricted.
+        </p>
       </div>
     </div>
   );

@@ -1,6 +1,23 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-21 — iter157 · Report this post: community-level abuse flagging ✅
+
+**Public:** Spot something off in the Showcase? Tap "Report" on any post (other than your own) and tell us what's wrong. Reports are private, the poster isn't notified, and moderators see the most-flagged posts first.
+
+- **"Report" button** on every Showcase card — visible to any signed-in community user except the post's own creator. Buyers and makers can both report.
+- **Report dialog** (modal): radio-button list of 7 reasons (Spam / Harassment / Adult / IP infringement / Misleading / Off-topic / Other) + optional free-text details box (≤1000 chars) + a transparency note ("Reports are private. The poster is not notified. Submitting false reports may result in your account being restricted.").
+- **Backend** (`/app/backend/routers/community_showcase.py`):
+  - `POST /community/showcase/{id}/report` — open or dedupe a report row. Same reporter + same post + still-open report = idempotent (no double-counter on impatient clicks).
+  - `GET /community/showcase/report-reasons` — public, drives the dialog's option list so labels stay server-controlled.
+  - Stamps `mod_status = "reported"` on the post + increments `open_reports`. Self-reports rejected with friendly 400.
+- **Admin queue** picks up the new state:
+  - `?status=reported` filter sorts posts by report count (most-flagged first), then created_at — the worst offenders sit at the top when an admin opens the tab.
+  - "Reported" filter chip added to the Showcase Mod tab; ⚠ "N reports" red badge on every card with `open_reports > 0`.
+  - **Approve** and **Delete** both close the related report rows: approve marks them `dismissed`, delete marks them `upheld`. Approve also resets `open_reports` to 0. Reports stay in the DB for analytics — never hard-deleted.
+- **Regression:** `/app/backend/tests/test_showcase_moderation.py` expanded from 3 → 5 tests covering full report lifecycle + invalid-reason rejection. All 5/5 green.
+
+
 ## 2026-05-21 — iter156 · Showcase moderation: owner edit/delete + admin queue ✅
 
 **Public:** Makers and buyers can now edit or delete their own showcase posts (photos AND video clips) — handy when you fat-finger a title or want to swap a description after the fact. Admins get a dedicated Showcase Mod queue to approve, feature, edit, or remove any post on the platform.

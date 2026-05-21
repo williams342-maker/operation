@@ -27,6 +27,7 @@ import {
  */
 const STATUS_OPTIONS = [
   { id: "all",       label: "All" },
+  { id: "reported",  label: "Reported" },
   { id: "pending",   label: "Pending" },
   { id: "approved",  label: "Approved" },
   { id: "featured",  label: "Featured" },
@@ -186,6 +187,14 @@ function AdminShowcaseCard({ post, onChanged }) {
         )}
         {hasVideo && (
           <span className="absolute top-2 left-2 bg-[#ff4500] text-[#0a0a0a] font-mono text-[9px] uppercase tracking-[0.18em] px-2 py-1 font-bold">◆ Video</span>
+        )}
+        {post.open_reports > 0 && (
+          <span
+            className="absolute bottom-2 left-2 bg-red-500 text-white font-mono text-[9px] uppercase tracking-[0.18em] px-2 py-1 font-bold flex items-center gap-1"
+            data-testid={`admin-showcase-${post.id}-reports`}
+          >
+            ⚠ {post.open_reports} report{post.open_reports === 1 ? "" : "s"}
+          </span>
         )}
         <span
           className={`absolute top-2 right-2 font-mono text-[9px] uppercase tracking-[0.18em] px-2 py-1 font-bold ${

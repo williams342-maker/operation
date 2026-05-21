@@ -205,6 +205,96 @@ async def like_showcase(post_id: str, claims: dict = Depends(current_buyer)):
     return {"ok": True}
 
 
+# ===================== POST REPORTING (community abuse flagging) =====================
+SHOWCASE_REPORT_REASONS = {
+    "spam":         "Spam or self-promotion abuse",
+    "harassment":   "Harassment or hate speech",
+    "nudity":       "Adult / explicit content",
+    "ip":           "IP / copyright infringement",
+    "misleading":   "Misleading or fraudulent",
+    "off-topic":    "Off-topic for the community",
+    "other":        "Other concern",
+}
+
+
+class _ShowcaseReportBody(BaseModel):
+    reason: str
+    details: Optional[str] = None
+
+
+@router.post("/community/showcase/{post_id}/report")
+async def report_showcase(
+    post_id: str,
+    body: _ShowcaseReportBody,
+    claims: dict = Depends(current_any_user),
+):
+    """Open a moderation flag against a showcase post. Both buyers and
+    makers can report; the post's own creator gets a friendly 400 so
+    they don't report themselves by accident.
+
+    Each (reporter, post) pair is deduped while a previous report is
+    still `open`, so spamming the button doesn't multiply the counter.
+    """
+    reason = (body.reason or "").strip()
+    if reason not in SHOWCASE_REPORT_REASONS:
+        raise HTTPException(400, "Invalid reason.")
+    details = (body.details or "").strip()[:1000]
+
+    post = await db.showcase_posts.find_one(
+        {"id": post_id},
+        {"_id": 0, "id": 1, "title": 1, "user_id": 1, "user_email": 1, "user_name": 1},
+    )
+    if not post:
+        raise HTTPException(404, "Post not found.")
+
+    reporter_id = _showcase_owner_id(claims)
+    if reporter_id == post.get("user_id"):
+        raise HTTPException(400, "You can't report your own post — delete it instead.")
+
+    # Dedup while a previous report from this user is still open.
+    existing = await db.showcase_reports.find_one(
+        {"post_id": post_id, "reported_by": reporter_id, "status": "open"},
+        {"_id": 0, "id": 1},
+    )
+    if existing:
+        return {"ok": True, "duplicate": True, "id": existing["id"]}
+
+    doc = {
+        "id": str(uuid.uuid4()),
+        "post_id": post_id,
+        "post_title": post.get("title"),
+        "post_user_id": post.get("user_id"),
+        "post_user_email": post.get("user_email"),
+        "post_user_name": post.get("user_name"),
+        "reported_by": reporter_id,
+        "reporter_role": claims.get("role"),
+        "reason": reason,
+        "reason_label": SHOWCASE_REPORT_REASONS[reason],
+        "details": details,
+        "status": "open",
+        "created_at": now_iso(),
+        "resolved_at": None,
+        "resolver": None,
+    }
+    await db.showcase_reports.insert_one(doc)
+    await db.showcase_posts.update_one(
+        {"id": post_id},
+        {
+            "$inc": {"open_reports": 1},
+            "$set": {"mod_status": "reported"},
+        },
+    )
+    return {"ok": True, "duplicate": False, "id": doc["id"]}
+
+
+@router.get("/community/showcase/report-reasons")
+async def list_showcase_report_reasons():
+    """Public — used by the report dialog to render reason options."""
+    return {"reasons": [
+        {"id": k, "label": v} for k, v in SHOWCASE_REPORT_REASONS.items()
+    ]}
+
+
 # ===================== OWNER/ADMIN EDIT + DELETE =====================
 def _apply_showcase_edit(doc: dict, payload: ShowcaseEdit, *, is_admin: bool) -> dict:
     """Build the Mongo `$set` update from the patch payload. Validates
@@ -286,20 +376,34 @@ async def delete_showcase(
 # ===================== ADMIN MODERATION =====================
 @router.get("/admin/community/showcase")
 async def admin_list_showcase(
-    status: str = Query("all", regex="^(all|pending|approved|featured)$"),
+    status: str = Query("all", regex="^(all|pending|approved|featured|reported)$"),
     limit: int = 50, skip: int = 0,
     _: dict = Depends(current_admin),
 ):
-    """Paged showcase queue for admin moderation. `status=pending` filters
-    to posts that haven't been explicitly approved or featured yet — useful
-    when reviewing the most recent submissions."""
+    """Paged showcase queue for admin moderation.
+
+    Status filters:
+      • `all`       — every post, newest first.
+      • `pending`   — posts that haven't been explicitly approved / featured / reported.
+      • `approved`  / `featured` — exact mod_status match.
+      • `reported`  — posts with at least one open report. Sorted by
+        report count (most-flagged first), then by created_at, so the
+        worst offenders surface immediately when an admin opens the tab.
+    """
     q: dict = {}
+    n = max(1, min(int(limit), 200))
+    skip = max(0, int(skip))
     if status == "pending":
         q = {"mod_status": {"$in": [None, "pending"]}}
     elif status in ("approved", "featured"):
         q = {"mod_status": status}
-    n = max(1, min(int(limit), 200))
-    skip = max(0, int(skip))
+    elif status == "reported":
+        q = {"open_reports": {"$gt": 0}}
+        total = await db.showcase_posts.count_documents(q)
+        rows = await db.showcase_posts.find(q, {"_id": 0}).sort(
+            [("open_reports", -1), ("created_at", -1)],
+        ).skip(skip).limit(n).to_list(n)
+        return {"total": total, "rows": rows, "skip": skip, "limit": n}
     total = await db.showcase_posts.count_documents(q)
     rows = await db.showcase_posts.find(q, {"_id": 0}).sort("created_at", -1).skip(skip).limit(n).to_list(n)
     return {"total": total, "rows": rows, "skip": skip, "limit": n}
@@ -358,9 +462,22 @@ async def admin_approve_showcase(
                 "mod_status": status,
                 "mod_approved_at": now_iso(),
                 "mod_approved_by": claims.get("sub"),
+                # Approval clears the open-report counter — the admin's
+                # explicit "this is fine" closes any outstanding flags.
+                "open_reports": 0,
             },
             "$push": {"mod_history": history_entry},
         },
+    )
+    # Close all open reports on this post, attributing the resolution
+    # to the admin. Preserves report history for analytics.
+    await db.showcase_reports.update_many(
+        {"post_id": post_id, "status": "open"},
+        {"$set": {
+            "status": "dismissed",
+            "resolved_at": now_iso(),
+            "resolver": claims.get("sub"),
+        }},
     )
     fresh = await db.showcase_posts.find_one({"id": post_id}, {"_id": 0})
     return fresh or {}
@@ -394,6 +511,15 @@ async def admin_delete_showcase(
     })
     await db.showcase_posts.delete_one({"id": post_id})
     await db.showcase_events.delete_many({"post_id": post_id})
+    # Mark any open reports as upheld (post was removed for cause).
+    await db.showcase_reports.update_many(
+        {"post_id": post_id, "status": "open"},
+        {"$set": {
+            "status": "upheld",
+            "resolved_at": now_iso(),
+            "resolver": claims.get("sub"),
+        }},
+    )
     return {"ok": True, "deleted": post_id}
 
 

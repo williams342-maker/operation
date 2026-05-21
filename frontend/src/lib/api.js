@@ -826,6 +826,14 @@ export const deleteShowcase = (id) =>
     headers: communityMakerFirstHeaders(),
   }).then((r) => r.data);
 
+// Open a community abuse-report on a showcase post.
+export const fetchShowcaseReportReasons = () =>
+  http.get("/community/showcase/report-reasons").then((r) => r.data);
+export const reportShowcase = (id, { reason, details = "" }) =>
+  http.post(`/community/showcase/${id}/report`, { reason, details }, {
+    headers: communityMakerFirstHeaders(),
+  }).then((r) => r.data);
+
 // ---- Admin showcase moderation ----
 export const adminListShowcase = (params = {}) =>
   http.get("/admin/community/showcase", {

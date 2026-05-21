@@ -183,3 +183,133 @@ async def test_unauthenticated_cannot_list_admin_showcase():
     async with httpx.AsyncClient(timeout=10) as c:
         r = await c.get(f"{API}/api/admin/community/showcase")
         assert r.status_code in (401, 403), r.text
+
+
+@pytest.mark.asyncio
+async def test_showcase_reporting_full_flow():
+    """Buyer reports a maker post → counter increments → duplicate
+    dedupes → self-report blocked → admin sees in `reported` filter →
+    approval closes the report."""
+    async with httpx.AsyncClient(timeout=30) as c:
+        # Reasons endpoint is public
+        reasons = await c.get(f"{API}/api/community/showcase/report-reasons")
+        assert reasons.status_code == 200
+        assert len(reasons.json()["reasons"]) >= 5
+
+        maker = await _maker_jwt(c)
+        admin = await _admin_jwt(c)
+        reporter = await _buyer_jwt(c, "test-shc-reporter@craftersmarket.org")
+
+        # Maker posts
+        post = (await c.post(
+            f"{API}/api/community/showcase",
+            headers={"Authorization": f"Bearer {maker}",
+                     "Content-Type": "application/json"},
+            json={"title": "__pytest_report_target__",
+                  "description": "Report me.",
+                  "image_urls": ["https://example.com/x.jpg"]},
+        )).json()
+        post_id = post["id"]
+
+        # First report — succeeds
+        r1 = await c.post(
+            f"{API}/api/community/showcase/{post_id}/report",
+            headers={"Authorization": f"Bearer {reporter}",
+                     "Content-Type": "application/json"},
+            json={"reason": "spam", "details": "promotional"},
+        )
+        assert r1.status_code == 200, r1.text
+        assert r1.json()["duplicate"] is False
+
+        # Duplicate from same user — same id, no second row
+        r2 = await c.post(
+            f"{API}/api/community/showcase/{post_id}/report",
+            headers={"Authorization": f"Bearer {reporter}",
+                     "Content-Type": "application/json"},
+            json={"reason": "spam"},
+        )
+        assert r2.status_code == 200
+        assert r2.json()["duplicate"] is True
+        assert r2.json()["id"] == r1.json()["id"]
+
+        # Self-report → 400
+        r3 = await c.post(
+            f"{API}/api/community/showcase/{post_id}/report",
+            headers={"Authorization": f"Bearer {maker}",
+                     "Content-Type": "application/json"},
+            json={"reason": "spam"},
+        )
+        assert r3.status_code == 400, r3.text
+        assert "own post" in r3.text.lower()
+
+        # Admin sees the post in the reported queue
+        q = await c.get(
+            f"{API}/api/admin/community/showcase?status=reported",
+            headers={"Authorization": f"Bearer {admin}"},
+        )
+        assert q.status_code == 200
+        ids = [row["id"] for row in q.json()["rows"]]
+        assert post_id in ids
+        target = next(r for r in q.json()["rows"] if r["id"] == post_id)
+        assert target["open_reports"] >= 1
+        assert target["mod_status"] == "reported"
+
+        # Admin approval clears the report counter
+        appr = await c.post(
+            f"{API}/api/admin/community/showcase/{post_id}/approve",
+            headers={"Authorization": f"Bearer {admin}",
+                     "Content-Type": "application/json"},
+            json={},
+        )
+        body = appr.json()
+        assert body["mod_status"] == "approved"
+        assert body["open_reports"] == 0
+
+        # Report row marked dismissed by approval
+        from motor.motor_asyncio import AsyncIOMotorClient
+        client = AsyncIOMotorClient(os.environ["MONGO_URL"])
+        db = client[os.environ["DB_NAME"]]
+        rep_doc = await db.showcase_reports.find_one(
+            {"id": r1.json()["id"]}, {"_id": 0},
+        )
+        assert rep_doc and rep_doc["status"] == "dismissed"
+        assert rep_doc["resolver"]
+
+        # Cleanup
+        await c.delete(
+            f"{API}/api/admin/community/showcase/{post_id}",
+            headers={"Authorization": f"Bearer {admin}"},
+        )
+        await db.showcase_reports.delete_one({"id": r1.json()["id"]})
+        await db.admin_moderation_actions.delete_one(
+            {"kind": "showcase_delete", "target_id": post_id},
+        )
+
+
+@pytest.mark.asyncio
+async def test_showcase_report_rejects_invalid_reason():
+    async with httpx.AsyncClient(timeout=30) as c:
+        maker = await _maker_jwt(c)
+        reporter = await _buyer_jwt(c, "test-shc-bad-reason@craftersmarket.org")
+        post = (await c.post(
+            f"{API}/api/community/showcase",
+            headers={"Authorization": f"Bearer {maker}",
+                     "Content-Type": "application/json"},
+            json={"title": "__pytest_invalid_reason__",
+                  "description": "x",
+                  "image_urls": ["https://example.com/x.jpg"]},
+        )).json()
+        try:
+            r = await c.post(
+                f"{API}/api/community/showcase/{post['id']}/report",
+                headers={"Authorization": f"Bearer {reporter}",
+                         "Content-Type": "application/json"},
+                json={"reason": "not-a-real-reason"},
+            )
+            assert r.status_code == 400, r.text
+        finally:
+            # Owner cleanup
+            await c.delete(
+                f"{API}/api/community/showcase/{post['id']}",
+                headers={"Authorization": f"Bearer {maker}"},
+            )
