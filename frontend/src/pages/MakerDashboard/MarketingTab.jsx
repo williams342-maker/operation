@@ -10,6 +10,7 @@ import AdsSection from "./Marketing/AdsSection";
 import AICopyTools from "./Marketing/AICopyTools";
 import DiscountCodes from "./Marketing/DiscountCodes";
 import FounderCardSection from "./Marketing/FounderCardSection";
+import FounderEmailSignature from "./Marketing/FounderEmailSignature";
 
 /**
  * Etsy-parity Marketing hub.
@@ -82,7 +83,12 @@ export default function MarketingTab() {
           {section === "social"  && <SocialMedia />}
           {section === "stories" && <StoryTemplates />}
           {section === "share"   && <ShareAndSave />}
-          {section === "founder" && <FounderCardSection />}
+          {section === "founder" && (
+            <div className="space-y-6">
+              <FounderCardSection />
+              <FounderEmailSignature />
+            </div>
+          )}
         </div>
       </div>
     </div>
