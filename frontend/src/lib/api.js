@@ -263,6 +263,16 @@ export const setMakerPushOnShipOptout = (optout) =>
   http.post("/maker/push/on-ship", { optout }, { headers: authHeaders() }).then((r) => r.data);
 export const renewMakerProduct = (slug) =>
   http.post(`/maker/products/${slug}/renew`, {}, { headers: authHeaders() }).then((r) => r.data);
+export const fetchMakerProductsStats = () =>
+  http.get("/maker/products/stats", { headers: authHeaders() }).then((r) => r.data);
+export const fetchMakerRenewalsSummary = () =>
+  http.get("/maker/renewals/summary", { headers: authHeaders() }).then((r) => r.data);
+export const bulkRenewMakerProducts = (slugs) =>
+  http.post("/maker/products/bulk-renew", { slugs }, { headers: authHeaders() }).then((r) => r.data);
+export const bulkSetRenewalOption = (slugs, renewal_option) =>
+  http.post("/maker/products/bulk-renewal-option", { slugs, renewal_option }, { headers: authHeaders() }).then((r) => r.data);
+export const bulkPauseMakerProducts = (slugs) =>
+  http.post("/maker/products/bulk-pause", { slugs }, { headers: authHeaders() }).then((r) => r.data);
 export const fetchMakerBilling = () =>
   http.get("/maker/billing", { headers: authHeaders() }).then((r) => r.data);
 export const fetchMakerPlusRoi = () =>

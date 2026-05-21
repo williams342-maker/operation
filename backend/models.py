@@ -57,6 +57,13 @@ class Product(BaseModel):
     # ISO ts of the most recent 7-day expiry reminder email sent for this
     # listing — gates the scheduler so we don't double-send across runs.
     renewal_reminder_sent_at: Optional[str] = None
+    # Lifetime count of times this listing was renewed (manual or auto).
+    # Drives the "9 renewals" line in the Etsy-style stats panel.
+    renewals_count: int = 0
+    # ISO ts of the last Smart-Pause auto-flip. Used so the scheduler can
+    # avoid re-pausing the same listing on consecutive runs and so the UI
+    # can surface "paused on X because no views since Y" context.
+    smart_paused_at: Optional[str] = None
     promoted_until: Optional[str] = None  # ISO ts; if in the future, listing pinned
     auto_renew_promotion: bool = False  # if true, scheduler extends weekly
     deleted_at: Optional[str] = None  # soft-delete marker; hides from public views
@@ -351,6 +358,14 @@ class Maker(BaseModel):
     auto_boost_max_per_run: int = 3
     auto_boost_last_run_at: Optional[str] = None
     auto_boost_total_spent_usd: float = 0.0
+    # ---- Smart Pause ----
+    # Opt-in: when ON, the daily scheduler auto-flips published listings with
+    # zero pageviews in the last `smart_pause_threshold_days` window to draft
+    # and emails the maker with optimisation tips. OFF by default — explicit
+    # opt-in only since this can hide stale-but-not-bad listings.
+    smart_pause_enabled: bool = False
+    smart_pause_threshold_days: int = 30
+    smart_pause_last_run_at: Optional[str] = None
     created_at: str = Field(default_factory=now_iso)
 
 
@@ -622,6 +637,9 @@ class MakerProfileUpdate(BaseModel):
     auto_boost_enabled: Optional[bool] = None
     auto_boost_min_orders_30d: Optional[int] = None
     auto_boost_max_per_run: Optional[int] = None
+    # Smart Pause preferences
+    smart_pause_enabled: Optional[bool] = None
+    smart_pause_threshold_days: Optional[int] = None
 
 
 # ---- Admin ----

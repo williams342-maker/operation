@@ -1,11 +1,15 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Hammer, Check, Mail } from "lucide-react";
+import { Hammer, Check, Mail, BarChart3 } from "lucide-react";
 import { toast } from "sonner";
 import ProductEditCard from "./ProductEditCard";
+import RenewalSummary from "./RenewalSummary";
 import EmptyState from "../../components/EmptyState";
 import { useConfirm } from "./useConfirm";
-import { restoreMakerProduct, purgeMakerProduct, fetchMakerRestockWaitlist } from "../../lib/api";
+import {
+  restoreMakerProduct, purgeMakerProduct, fetchMakerRestockWaitlist,
+  fetchMakerProductsStats,
+} from "../../lib/api";
 
 /**
  * Listings hub for makers, with three top-level views:
@@ -39,6 +43,27 @@ export default function ProductsList({ products, onChanged, onRefresh }) {
   // Slugs the maker has selected in the Archived view. Reset on view switch
   // and on every refresh so we don't keep ghost slugs that no longer exist.
   const [selected, setSelected] = useState(new Set());
+  // Etsy-style: toggle the per-card stats overlay (visits/sales/renewals).
+  // Persisted in localStorage so the preference survives reloads.
+  const [showStats, setShowStats] = useState(() => {
+    try { return localStorage.getItem("cm_listing_stats_on") === "1"; } catch { return false; }
+  });
+  const [statsMap, setStatsMap] = useState({});
+  useEffect(() => {
+    if (!showStats) return;
+    let cancelled = false;
+    fetchMakerProductsStats()
+      .then((d) => { if (!cancelled) setStatsMap(d || {}); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [showStats, products.length]);
+  const toggleStats = () => {
+    setShowStats((v) => {
+      const next = !v;
+      try { localStorage.setItem("cm_listing_stats_on", next ? "1" : "0"); } catch {}
+      return next;
+    });
+  };
 
   const live = products.filter((p) => !p.deleted_at && p.status !== "draft");
   const drafts = products.filter((p) => !p.deleted_at && p.status === "draft");
@@ -103,7 +128,23 @@ export default function ProductsList({ products, onChanged, onRefresh }) {
           {counts.drafts > 0 && ` · ${counts.drafts} draft${counts.drafts > 1 ? "s" : ""}`}
           {counts.archived > 0 && ` · ${counts.archived} archived`}
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-3">
+          {/* Stats toggle — mirrors Etsy's "Stats" switch on the listings
+              table. When ON, every card overlays its 30-day visits, all-time
+              sales, revenue, and lifetime renewals. */}
+          <button
+            type="button"
+            onClick={toggleStats}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 border font-mono text-[10px] uppercase tracking-[0.22em] transition ${
+              showStats
+                ? "border-[#ff4500] bg-[#ff4500] text-[#0a0a0a]"
+                : "border-[#262626] text-[#a3a3a3] hover:border-[#ff4500] hover:text-[#ff4500]"
+            }`}
+            data-testid="products-stats-toggle"
+            aria-pressed={showStats}
+          >
+            <BarChart3 size={12} /> Stats {showStats ? "ON" : "OFF"}
+          </button>
           <button
             onClick={goNew}
             className="btn-industrial btn-primary"
@@ -113,6 +154,12 @@ export default function ProductsList({ products, onChanged, onRefresh }) {
           </button>
         </div>
       </div>
+
+      {/* Renewal Summary + Calendar widgets — only render once the maker has at
+          least one published listing with expiry data. Mounted above the view
+          switcher so the renewal calendar is the first thing the maker sees
+          when they're managing listings. */}
+      <RenewalSummary />
 
       {totalAll === 0 ? (
         <EmptyState
@@ -136,6 +183,8 @@ export default function ProductsList({ products, onChanged, onRefresh }) {
                 </p>
               }
               onChanged={refresh}
+              showStats={showStats}
+              statsMap={statsMap}
             />
           )}
           {view === "drafts" && (
@@ -149,6 +198,8 @@ export default function ProductsList({ products, onChanged, onRefresh }) {
               }
               onChanged={refresh}
               cardProps={{ draft: true }}
+              showStats={showStats}
+              statsMap={statsMap}
             />
           )}
           {view === "archived" && (
@@ -196,7 +247,7 @@ function ViewSwitcher({ view, setView, counts }) {
   );
 }
 
-function Bucket({ items, testId, empty, onChanged, cardProps = {}, banner = null }) {
+function Bucket({ items, testId, empty, onChanged, cardProps = {}, banner = null, showStats = false, statsMap = {} }) {
   if (items.length === 0) {
     return (
       <section data-testid={testId} className="border border-dashed border-[#262626] p-8">
@@ -209,7 +260,13 @@ function Bucket({ items, testId, empty, onChanged, cardProps = {}, banner = null
       {banner}
       <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {items.map((p) => (
-          <ProductEditCard key={p.id} product={p} onChanged={onChanged} {...cardProps} />
+          <ProductEditCard
+            key={p.id}
+            product={p}
+            onChanged={onChanged}
+            stats={showStats ? (statsMap[p.slug] || null) : null}
+            {...cardProps}
+          />
         ))}
       </div>
     </section>

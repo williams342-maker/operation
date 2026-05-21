@@ -9,7 +9,7 @@ import {
 import { useConfirm } from "./useConfirm";
 import { toast } from "sonner";
 
-export default function ProductEditCard({ product, archived = false, draft = false, onChanged }) {
+export default function ProductEditCard({ product, archived = false, draft = false, onChanged, stats = null }) {
   const [confirm, confirmModal] = useConfirm();
   const [p, setP] = useState(product);
   const [open, setOpen] = useState(false);
@@ -211,7 +211,30 @@ export default function ProductEditCard({ product, archived = false, draft = fal
         </div>
         {p.expires_at && !archived && (
           <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-[#525252] mt-1" data-testid={`product-expires-${p.slug}`}>
-            Expires {new Date(p.expires_at).toLocaleDateString()}
+            {p.renewal_option === "automatic" ? "Auto-renews" : "Expires"} {new Date(p.expires_at).toLocaleDateString()}
+          </div>
+        )}
+
+        {stats && !archived && (
+          <div
+            className="mt-2 border-t border-[#1a1a1a] pt-2 space-y-1.5"
+            data-testid={`product-stats-${p.slug}`}
+          >
+            <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+              ◆ Last 30 days
+            </div>
+            <div className="font-mono text-[11px] text-[#e5e5e5]">
+              {stats.visits_30d} {stats.visits_30d === 1 ? "visit" : "visits"}
+            </div>
+            <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#a3a3a3] pt-1">
+              ◆ All time
+            </div>
+            <div className="font-mono text-[11px] text-[#e5e5e5]">
+              {stats.sales_all} {stats.sales_all === 1 ? "sale" : "sales"} · ${stats.revenue_all.toFixed(0)} revenue
+            </div>
+            <div className="font-mono text-[10px] text-[#525252]">
+              {stats.renewals} {stats.renewals === 1 ? "renewal" : "renewals"}
+            </div>
           </div>
         )}
 

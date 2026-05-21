@@ -1286,6 +1286,72 @@ async def send_maker_listing_expiring_soon(
     return await _send(maker_email, f"Expires in 7 days · {product_title}", html)
 
 
+async def send_maker_smart_paused(
+    maker_email: str, maker_name: str, paused_count: int,
+    threshold_days: int, samples: list[dict] | None = None,
+):
+    """Sent after the Smart-Pause scheduler hides listings with zero
+    pageviews in the last `threshold_days` window. Includes optimisation
+    tips and links to re-publish so makers can act in one click.
+
+    `samples` is a small list of {title, slug} we paused, capped at 5,
+    rendered as a quick-glance list.
+    """
+    if not maker_email or paused_count <= 0:
+        return None
+    base = os.environ.get("PUBLIC_APP_URL") or "https://craftersmarket.org"
+    dash_url = f"{base}/maker/dashboard#listings"
+    sample_rows = ""
+    if samples:
+        items = "".join(
+            f"<li style='font-size:13px;color:#e5e5e5;margin:6px 0'>"
+            f"<a href='{base}/maker/listings/{s['slug']}/edit' style='color:#ff4500'>"
+            f"{s.get('title') or s['slug']}</a></li>"
+            for s in samples[:5]
+        )
+        sample_rows = f"<ul style='padding-left:18px;margin:14px 0 18px'>{items}</ul>"
+    body = (
+        "<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 18px'>"
+        f"Hi {maker_name}, Smart Pause kicked in: "
+        f"<strong style='color:#ff4500'>{paused_count} listing"
+        f"{'' if paused_count == 1 else 's'}</strong> with zero pageviews in "
+        f"the last {threshold_days} days "
+        "were quietly moved to draft. Nothing is gone — they're waiting for "
+        "you in the editor.</p>"
+        f"{sample_rows}"
+        "<div style='border-left:3px solid #ff4500;padding:14px 18px;background:#0d0d0d;margin:18px 0'>"
+        "<div style='font-size:11px;color:#a3a3a3;text-transform:uppercase;letter-spacing:0.22em;margin-bottom:8px'>"
+        "Why this happened</div>"
+        "<p style='font-size:13px;color:#e5e5e5;line-height:1.6;margin:0'>"
+        "You opted into Smart Pause to stop quietly-stale listings from "
+        "dragging down your shop's search ranking. We only paused listings "
+        "that had zero visitors in the entire window — they're not the "
+        "problem, they're being missed.</p></div>"
+        "<p style='font-size:13px;color:#e5e5e5;line-height:1.6;margin:18px 0 12px'>"
+        "Two quick wins before you republish:</p>"
+        "<ol style='font-size:13px;color:#e5e5e5;line-height:1.7;padding-left:18px;margin:0 0 18px'>"
+        "<li><strong>Rephotograph the hero image.</strong> Listings with a "
+        "lifestyle shot (not a white background) get 2-3× the click-through.</li>"
+        "<li><strong>Refresh the SEO tags.</strong> The editor has an AI tag "
+        "suggester — usually finds 3-4 tags you wouldn't have thought of.</li>"
+        "</ol>"
+        f"<a href='{dash_url}' style='display:inline-block;background:#ff4500;color:#0a0a0a;"
+        "padding:14px 26px;font-family:Impact,Arial Black,sans-serif;font-size:13px;letter-spacing:0.18em;"
+        "text-transform:uppercase;text-decoration:none;border:1px solid #ff4500'>Review drafts →</a>"
+        "<p style='font-size:12px;color:#525252;margin-top:24px;line-height:1.6'>"
+        "Want to turn Smart Pause off? Maker dashboard → Settings → Smart Pause.</p>"
+    )
+    html = _shell(
+        "Smart Pause.", "Hiding stale listings so your strong ones stand out.",
+        body, "Maker · smart pause",
+    )
+    return await _send(
+        maker_email,
+        f"Smart Pause · {paused_count} listing{'' if paused_count == 1 else 's'} moved to draft",
+        html,
+    )
+
+
 
 async def send_maker_magic_link(maker_email: str, maker_name: str, link: str):
     if not maker_email:

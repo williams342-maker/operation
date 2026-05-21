@@ -321,13 +321,279 @@ async def maker_renew_product(product_slug: str, slug: str = Depends(current_mak
     await accrue_listing_charge(slug, product_slug, kind="listing_renew")
     await db.products.update_one(
         {"slug": product_slug},
-        {"$set": {
-            "status": "published",
-            "expires_at": expiry_iso_from_now(),
-            "renewal_reminder_sent_at": None,
-        }},
+        {
+            "$set": {
+                "status": "published",
+                "expires_at": expiry_iso_from_now(),
+                "renewal_reminder_sent_at": None,
+            },
+            "$inc": {"renewals_count": 1},
+        },
     )
     return await db.products.find_one({"slug": product_slug}, {"_id": 0})
+
+
+
+# ────────────────────────────────────────────────────────────────────
+# Per-listing stats panel (Etsy-style) + Renewals dashboard
+# ────────────────────────────────────────────────────────────────────
+@router.get("/maker/products/stats")
+async def maker_products_stats(slug: str = Depends(current_maker_slug)):
+    """Return Etsy-style per-listing stats keyed by product slug:
+
+        { <slug>: {
+            visits_30d:   int,
+            sales_all:    int,
+            revenue_all:  float,
+            renewals:     int,
+            expires_at:   ISO | None,
+            renewal_mode: "automatic" | "manual",
+            smart_paused_at: ISO | None,
+        }, ... }
+
+    All numbers come from collections we already maintain — no new
+    instrumentation. Visits use `pageview_events.path` startsWith
+    /shop/<slug>; sales/revenue come from `transactions.items`."""
+    from datetime import timedelta
+    cutoff_30d = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat().replace("+00:00", "Z")
+
+    products = await db.products.find(
+        {"maker_slug": slug},
+        {
+            "_id": 0, "slug": 1, "expires_at": 1,
+            "renewal_option": 1, "renewals_count": 1,
+            "smart_paused_at": 1,
+        },
+    ).to_list(500)
+    out: dict[str, dict] = {}
+    for p in products:
+        out[p["slug"]] = {
+            "visits_30d": 0,
+            "sales_all": 0,
+            "revenue_all": 0.0,
+            "renewals": int(p.get("renewals_count") or 0),
+            "expires_at": p.get("expires_at"),
+            "renewal_mode": p.get("renewal_option") or "automatic",
+            "smart_paused_at": p.get("smart_paused_at"),
+        }
+    if not out:
+        return out
+
+    # Visits — single aggregation over pageview_events for all slugs.
+    slugs = list(out.keys())
+    paths = [f"/shop/{s}" for s in slugs]
+    pipe = [
+        {"$match": {"ts": {"$gte": cutoff_30d}, "path": {"$in": paths}}},
+        {"$group": {"_id": "$path", "n": {"$sum": 1}}},
+    ]
+    async for row in db.pageview_events.aggregate(pipe):
+        s = (row.get("_id") or "").rsplit("/", 1)[-1]
+        if s in out:
+            out[s]["visits_30d"] = int(row.get("n") or 0)
+
+    # Sales + revenue — pulled from paid transactions. Iterate once.
+    orders = await db.transactions.find(
+        {"items.maker_slug": slug, "payment_status": "paid"},
+        {"_id": 0, "items": 1},
+    ).to_list(5000)
+    for o in orders:
+        for line in o.get("items", []) or []:
+            s = line.get("slug") or line.get("product_slug")
+            if s and s in out and line.get("maker_slug") == slug:
+                qty = int(line.get("quantity") or 1)
+                price = float(line.get("price") or 0)
+                out[s]["sales_all"] += qty
+                out[s]["revenue_all"] += price * qty
+
+    for s in out:
+        out[s]["revenue_all"] = round(out[s]["revenue_all"], 2)
+    return out
+
+
+@router.get("/maker/renewals/summary")
+async def maker_renewals_summary(slug: str = Depends(current_maker_slug)):
+    """Renewal dashboard widget data + calendar grid for the next 30 days.
+
+    Response shape:
+        {
+          counts: {next_7d, next_14d, next_30d, total_auto, total_manual},
+          listings: [{slug, title, image, expires_at, renewal_mode, days_left}],
+          calendar: [{date, count, listings: [{slug, title}]}],   # 30 entries
+        }
+    """
+    now = datetime.now(timezone.utc)
+    h7 = (now + timedelta(days=7)).isoformat()
+    h14 = (now + timedelta(days=14)).isoformat()
+    h30 = (now + timedelta(days=30)).isoformat()
+    nowiso = now.isoformat()
+
+    base_match = {
+        "maker_slug": slug,
+        "deleted_at": None,
+        "status": "published",
+        "expires_at": {"$ne": None},
+    }
+
+    cursor = db.products.find(
+        base_match,
+        {
+            "_id": 0, "slug": 1, "title": 1, "images": 1,
+            "expires_at": 1, "renewal_option": 1,
+        },
+    ).sort("expires_at", 1)
+    products = await cursor.to_list(500)
+
+    listings: list[dict] = []
+    next_7d = next_14d = next_30d = 0
+    total_auto = total_manual = 0
+    for p in products:
+        exp = p.get("expires_at") or ""
+        mode = p.get("renewal_option") or "automatic"
+        if mode == "manual":
+            total_manual += 1
+        else:
+            total_auto += 1
+        if exp >= nowiso and exp <= h7:
+            next_7d += 1
+        if exp >= nowiso and exp <= h14:
+            next_14d += 1
+        if exp >= nowiso and exp <= h30:
+            next_30d += 1
+        try:
+            d = datetime.fromisoformat(exp.replace("Z", "+00:00"))
+            days_left = max(0, int((d - now).total_seconds() // 86400))
+        except Exception:
+            days_left = None
+        listings.append({
+            "slug": p["slug"],
+            "title": p.get("title") or p["slug"],
+            "image": (p.get("images") or [None])[0],
+            "expires_at": exp,
+            "renewal_mode": mode,
+            "days_left": days_left,
+        })
+
+    # Calendar — 30-day grid starting today, with listings expiring on each day.
+    cal: list[dict] = []
+    for i in range(30):
+        day = (now + timedelta(days=i)).date().isoformat()
+        cal.append({"date": day, "count": 0, "listings": []})
+    by_date = {row["date"]: row for row in cal}
+    for li in listings:
+        try:
+            d = datetime.fromisoformat(li["expires_at"].replace("Z", "+00:00")).date().isoformat()
+        except Exception:
+            continue
+        row = by_date.get(d)
+        if row is not None:
+            row["count"] += 1
+            if len(row["listings"]) < 4:
+                row["listings"].append({"slug": li["slug"], "title": li["title"]})
+    return {
+        "counts": {
+            "next_7d": next_7d,
+            "next_14d": next_14d,
+            "next_30d": next_30d,
+            "total_auto": total_auto,
+            "total_manual": total_manual,
+        },
+        "listings": listings,
+        "calendar": cal,
+    }
+
+
+# ────────────────────────────────────────────────────────────────────
+# Bulk renewal actions
+# ────────────────────────────────────────────────────────────────────
+class BulkSlugs(BaseModel):
+    """Payload for bulk-mutation endpoints — list of product slugs owned
+    by the caller. Validation is per-row server-side; unknown slugs are
+    silently skipped so a stale UI list doesn't blow up the whole call."""
+    model_config = ConfigDict(extra="ignore")
+    slugs: List[str]
+
+
+class BulkRenewalOption(BulkSlugs):
+    renewal_option: str  # "automatic" | "manual"
+
+
+@router.post("/maker/products/bulk-renew")
+async def maker_bulk_renew(
+    payload: BulkSlugs, slug: str = Depends(current_maker_slug),
+):
+    """Renew every owned listing in `slugs` (accrues the standard fee for
+    each, just like the per-listing /renew endpoint). Returns per-slug
+    outcomes so the UI can surface partial failures."""
+    from revenue import accrue_listing_charge, expiry_iso_from_now
+    if not payload.slugs:
+        return {"renewed": [], "skipped": [], "errors": []}
+    renewed: list[str] = []
+    skipped: list[dict] = []
+    errors: list[dict] = []
+    for s in payload.slugs[:200]:
+        try:
+            prod = await db.products.find_one(
+                {"slug": s, "maker_slug": slug, "deleted_at": None},
+                {"_id": 0, "slug": 1},
+            )
+            if not prod:
+                skipped.append({"slug": s, "reason": "not_found_or_not_owned"})
+                continue
+            await accrue_listing_charge(slug, s, kind="listing_bulk_renew")
+            await db.products.update_one(
+                {"slug": s},
+                {
+                    "$set": {
+                        "status": "published",
+                        "expires_at": expiry_iso_from_now(),
+                        "renewal_reminder_sent_at": None,
+                    },
+                    "$inc": {"renewals_count": 1},
+                },
+            )
+            renewed.append(s)
+        except Exception as e:
+            errors.append({"slug": s, "error": str(e)[:200]})
+    return {"renewed": renewed, "skipped": skipped, "errors": errors}
+
+
+@router.post("/maker/products/bulk-renewal-option")
+async def maker_bulk_renewal_option(
+    payload: BulkRenewalOption, slug: str = Depends(current_maker_slug),
+):
+    """Flip the renewal mode for every owned listing in `slugs`. Cheap —
+    no fees, no expiry mutation."""
+    if payload.renewal_option not in ("automatic", "manual"):
+        raise HTTPException(400, "renewal_option must be 'automatic' or 'manual'.")
+    if not payload.slugs:
+        return {"updated": 0}
+    res = await db.products.update_many(
+        {"slug": {"$in": payload.slugs[:500]}, "maker_slug": slug, "deleted_at": None},
+        {"$set": {"renewal_option": payload.renewal_option}},
+    )
+    return {"updated": int(res.modified_count or 0)}
+
+
+@router.post("/maker/products/bulk-pause")
+async def maker_bulk_pause(
+    payload: BulkSlugs, slug: str = Depends(current_maker_slug),
+):
+    """Bulk-flip published listings to draft. Maker-initiated 'pause' —
+    listing stops showing in search until they republish."""
+    if not payload.slugs:
+        return {"paused": 0}
+    res = await db.products.update_many(
+        {
+            "slug": {"$in": payload.slugs[:500]},
+            "maker_slug": slug,
+            "deleted_at": None,
+            "status": "published",
+        },
+        {"$set": {"status": "draft"}},
+    )
+    return {"paused": int(res.modified_count or 0)}
+
+
 
 
 @router.post("/maker/products/{product_slug}/duplicate", response_model=Product)

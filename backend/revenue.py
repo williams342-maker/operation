@@ -424,10 +424,13 @@ async def expire_due_listings() -> dict:
                 new_expiry = expiry_iso_from_now()
                 await db.products.update_one(
                     {"slug": p["slug"]},
-                    {"$set": {
-                        "expires_at": new_expiry,
-                        "renewal_reminder_sent_at": None,  # reset reminder gate
-                    }},
+                    {
+                        "$set": {
+                            "expires_at": new_expiry,
+                            "renewal_reminder_sent_at": None,  # reset reminder gate
+                        },
+                        "$inc": {"renewals_count": 1},
+                    },
                 )
                 await accrue_listing_charge(
                     p["maker_slug"], p["slug"], kind="listing_auto_renew",
@@ -587,3 +590,98 @@ async def send_listing_expiry_reminders(days_before: int = 7) -> dict:
         except Exception:
             errors += 1
     return {"emails_sent": sent, "errors": errors, "now": nowiso}
+
+
+
+async def smart_pause_idle_listings() -> dict:
+    """Daily sweep — for makers who opted into Smart Pause, find published
+    listings with **zero** pageviews in the last `smart_pause_threshold_days`
+    window and flip them to draft. Best-effort email per maker with the
+    pause summary + optimisation tips.
+
+    Idempotent per listing: a listing already paused by Smart Pause is
+    skipped (avoids re-pausing on every scheduler run if the maker
+    immediately republishes it before optimising — they get one chance
+    per window to fix it before we pause again).
+
+    Returns {makers_processed, listings_paused, errors, now}.
+    """
+    now = datetime.now(timezone.utc)
+    nowiso = now.isoformat()
+    cur = db.makers.find(
+        {"smart_pause_enabled": True, "deletion_requested_at": {"$in": [None, ""]}},
+        {
+            "_id": 0, "slug": 1, "name": 1, "email": 1,
+            "smart_pause_threshold_days": 1,
+        },
+    )
+    processed = paused_total = errors = 0
+    async for m in cur:
+        processed += 1
+        try:
+            threshold_days = int(m.get("smart_pause_threshold_days") or 30)
+            cutoff_iso = (now - timedelta(days=threshold_days)).isoformat().replace("+00:00", "Z")
+            # All published, non-deleted listings for this maker.
+            prods = await db.products.find(
+                {
+                    "maker_slug": m["slug"],
+                    "status": "published",
+                    "deleted_at": None,
+                },
+                {"_id": 0, "slug": 1, "title": 1},
+            ).to_list(500)
+            if not prods:
+                continue
+            slug_set = {p["slug"] for p in prods}
+            # Listings with at least one view in the window — these are safe.
+            pipe = [
+                {"$match": {
+                    "ts": {"$gte": cutoff_iso},
+                    "path": {"$in": [f"/shop/{s}" for s in slug_set]},
+                }},
+                {"$group": {"_id": "$path"}},
+            ]
+            seen: set[str] = set()
+            async for row in db.pageview_events.aggregate(pipe):
+                p = row.get("_id") or ""
+                seen.add(p.rsplit("/", 1)[-1])
+            stale = [p for p in prods if p["slug"] not in seen]
+            if not stale:
+                continue
+            stale_slugs = [p["slug"] for p in stale]
+            res = await db.products.update_many(
+                {
+                    "slug": {"$in": stale_slugs},
+                    "maker_slug": m["slug"],
+                    "status": "published",
+                    "deleted_at": None,
+                },
+                {"$set": {"status": "draft", "smart_paused_at": nowiso}},
+            )
+            n = int(res.modified_count or 0)
+            paused_total += n
+            if n > 0 and m.get("email"):
+                try:
+                    from email_service import send_maker_smart_paused
+                    await send_maker_smart_paused(
+                        maker_email=m["email"],
+                        maker_name=m.get("name") or m["slug"],
+                        paused_count=n,
+                        threshold_days=threshold_days,
+                        samples=stale[:5],
+                    )
+                except Exception:
+                    pass
+        except Exception:
+            errors += 1
+
+    await db.makers.update_many(
+        {"smart_pause_enabled": True},
+        {"$set": {"smart_pause_last_run_at": nowiso}},
+    )
+    return {
+        "makers_processed": processed,
+        "listings_paused": paused_total,
+        "errors": errors,
+        "now": nowiso,
+    }

@@ -57,6 +57,17 @@ async def _job_listing_renewal_reminders() -> None:
         logger.exception("[scheduler] listing-renewal reminders failed: %s", e)
 
 
+async def _job_smart_pause_idle_listings() -> None:
+    """Daily: auto-pause published listings with zero pageviews in the
+    window for makers who opted into Smart Pause."""
+    from revenue import smart_pause_idle_listings
+    try:
+        r = await smart_pause_idle_listings()
+        logger.info("[scheduler] smart-pause sweep: %s", r)
+    except Exception as e:
+        logger.exception("[scheduler] smart-pause sweep failed: %s", e)
+
+
 async def _job_founders_lifecycle() -> None:
     """Daily Founder maintenance — auto-roll expired Founders to Standard
     and revoke 14-day grace slots that never published a product."""
@@ -755,6 +766,11 @@ def start_scheduler() -> AsyncIOScheduler | None:
     # skip this nudge (they're handled silently by expire_listings).
     sched.add_job(_job_listing_renewal_reminders, CronTrigger(hour=9, minute=30),
                   id="listing_renewal_reminders", replace_existing=True)
+    # Smart Pause — runs daily at 04:15 UTC (after listing expiry sweep).
+    # Auto-flips listings with zero pageviews in the window to draft for
+    # opted-in makers. No-op for makers with smart_pause_enabled=false.
+    sched.add_job(_job_smart_pause_idle_listings, CronTrigger(hour=4, minute=15),
+                  id="smart_pause_idle_listings", replace_existing=True)
     # Founders lifecycle — runs at 03:15 UTC daily, right after listing expiry.
     # Auto-rolls regular Founders past 12-month window to Standard, and
     # revokes 14-day grace slots that never published anything.

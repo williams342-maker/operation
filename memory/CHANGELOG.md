@@ -1,6 +1,46 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-21 — iter162 · Etsy-style listing stats + Renewal dashboard suite ✅
+
+**Public:** Five interlocking upgrades for managing listings at scale.
+
+1. **Per-listing Stats overlay (Etsy parity).** A "Stats ON/OFF" toggle on the listings page surfaces the same data Etsy shows: 30-day visits, all-time sales + revenue, lifetime renewals, and the current auto-renew/expiry date. Preference is persisted in `localStorage`.
+2. **Renewal Dashboard widget.** Above the listings grid: "Next 7d / 14d / 30d" counts + auto-vs-manual breakdown + "Manage →" deep-link to the bulk manager.
+3. **Renewal Calendar widget.** 30-day grid (heatmap intensity scales with count). Click any day to open the listings expiring on that date.
+4. **Bulk Renewal Manager** at `/maker/renewals` — table view with checkboxes, filter pills (7d/14d/30d/all), sticky action bar: Renew, Pause, Set Auto, Set Manual. Per-action confirm dialog with consequences spelled out.
+5. **Smart Pause.** Opt-in toggle in Settings → Account. When ON, a daily 04:15 UTC scheduler job auto-flips published listings with **zero pageviews** in the trailing `smart_pause_threshold_days` window (default 30) to draft, and sends the maker an email with the list + optimisation tips (rephotograph + refresh SEO tags).
+
+### Backend
+
+- `Product`: new fields `renewals_count: int = 0`, `smart_paused_at: Optional[str]`. `renewals_count` increments on every auto-renew sweep AND every manual `/maker/products/{slug}/renew` call.
+- `Maker`: new fields `smart_pause_enabled: bool = False`, `smart_pause_threshold_days: int = 30`, `smart_pause_last_run_at`. `MakerProfileUpdate` whitelists both setting fields so the PATCH /maker/profile round-trip persists them.
+- New endpoints in `routers/maker.py`:
+  - `GET  /api/maker/products/stats` — returns `{slug: {visits_30d, sales_all, revenue_all, renewals, expires_at, renewal_mode, smart_paused_at}}`. Visits via single `pageview_events` aggregation; sales/revenue scanned once over paid transactions.
+  - `GET  /api/maker/renewals/summary` — `{counts: {next_7d, next_14d, next_30d, total_auto, total_manual}, listings: […], calendar: [{date, count, listings}] × 30}`.
+  - `POST /api/maker/products/bulk-renew` — owner-only, per-slug outcome (`renewed[]`, `skipped[]`, `errors[]`), accrues the standard listing fee per renewed item.
+  - `POST /api/maker/products/bulk-renewal-option` — flips `renewal_option` for many slugs at once; validates value.
+  - `POST /api/maker/products/bulk-pause` — flips `status: published → draft` for owned published listings.
+- New `revenue.smart_pause_idle_listings()` + scheduler job `smart_pause_idle_listings@cron[hour=4, minute=15]`. Best-effort email per maker via `email_service.send_maker_smart_paused` (branded shell + sample list + optimisation tips).
+- Regression: `/app/backend/tests/test_listing_stats_and_renewal_tools.py` (6/6 passing isolated — same known Motor multi-test-event-loop ignorable issue when run as a batch).
+
+### Frontend
+
+- `frontend/src/lib/api.js`: 5 new wrappers — `fetchMakerProductsStats`, `fetchMakerRenewalsSummary`, `bulkRenewMakerProducts`, `bulkSetRenewalOption`, `bulkPauseMakerProducts`.
+- `pages/MakerDashboard/ProductsList.jsx`: Stats toggle pill (`products-stats-toggle`), bulk-fetches the stats map when ON, threads it to each `ProductEditCard`. Mounts the `RenewalSummary` widget above the view switcher.
+- `pages/MakerDashboard/RenewalSummary.jsx` (NEW): single fetch drives both Summary card + Calendar widget. Renders nothing when the maker has no published listings (no noise on a brand-new shop). Calendar heatmap intensity = `count / max`. Click a day for the listings expiring that day.
+- `pages/MakerDashboard/ProductEditCard.jsx`: accepts a `stats` prop; when present, renders an Etsy-style stats block below the expiry line (30-day visits + all-time sales/revenue + renewals). Expiry line also gains the "Auto-renews"/"Expires" prefix based on `renewal_option`.
+- `pages/MakerRenewalsPage.jsx` (NEW) at `/maker/renewals`: filter pills, table with checkboxes, sticky bulk action bar, confirm dialogs.
+- `pages/MakerDashboard/Settings/AccountPanel.jsx`: new Smart Pause section between "Close shop" and "Danger zone" with toggle + tier-aware copy and threshold display.
+
+### Trade-offs / Notes
+
+- **Favorites stat skipped** — no wishlist/favorites collection exists yet. Stats panel ships with 4 numbers (visits / sales / revenue / renewals); favorites will plug in once a wishlist feature lands. Flagged in P2 backlog.
+- **No new instrumentation** — visits use the existing `pageview_events` collection. Zero cost to enable Stats for any existing listing.
+- **Idempotent renewals** — bulk-renew goes through the same `accrue_listing_charge` path as the per-listing renew, so Founders/Plus monthly free quota is respected automatically; no double-charge risk.
+
+
+
 ## 2026-05-21 — iter161 · Etsy-style listing renewal options ✅
 
 **Public:** Listings now let you choose how they renew. Pick **Automatic** and we'll keep your shop moving for another 4 months without any action from you. Pick **Manual** and we'll email you 7 days before expiry so you can decide. Default is automatic — same behaviour buyers and your shop's velocity expect.

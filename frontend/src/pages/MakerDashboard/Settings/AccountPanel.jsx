@@ -5,7 +5,7 @@ import { AlertTriangle } from "lucide-react";
 import {
   makerCloseShop, makerReopenShop,
   makerRequestDeletion, makerCancelDeletion, cancelMakerSubscription,
-  fetchMakerMe,
+  fetchMakerMe, updateMakerProfile,
 } from "../../../lib/api";
 import { useConfirm } from "../useConfirm";
 
@@ -228,6 +228,49 @@ export default function AccountPanel({ maker, onSaved }) {
               {busy === "close" ? "…" : "Close shop"}
             </button>
           )}
+        </div>
+      </section>
+
+      {/* Smart Pause — auto-hide listings with zero pageviews after N days */}
+      <section className="border border-[#262626] p-5" data-testid="account-smart-pause">
+        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+          <div className="flex-1">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Smart Pause</div>
+            <div className="font-display text-2xl mt-1">
+              {maker?.smart_pause_enabled ? (
+                <span className="text-emerald-400">◆ ON · auto-pauses stale listings</span>
+              ) : (
+                <span className="text-[#a3a3a3]">◇ OFF</span>
+              )}
+            </div>
+            <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-xl leading-relaxed">
+              When ON, listings with <b className="text-[#e5e5e5]">zero pageviews</b> in the last {maker?.smart_pause_threshold_days || 30} days are quietly moved to draft. You'll get an email with the list + tips to optimise before republishing. Healthy listings are never touched.
+            </p>
+          </div>
+          <button
+            onClick={async () => {
+              setBusy("smart-pause");
+              try {
+                const next = !maker?.smart_pause_enabled;
+                const updated = await updateMakerProfile({ smart_pause_enabled: next });
+                onSaved?.(updated);
+                toast.success(next ? "Smart Pause is now ON." : "Smart Pause is now OFF.");
+              } catch (e) {
+                toast.error(e?.response?.data?.detail || "Couldn't update Smart Pause.");
+              } finally {
+                setBusy("");
+              }
+            }}
+            disabled={!!busy}
+            className={`px-4 py-2 border font-mono text-[10px] uppercase tracking-[0.22em] font-bold transition disabled:opacity-50 ${
+              maker?.smart_pause_enabled
+                ? "border-amber-600 text-amber-400 hover:bg-amber-600 hover:text-black"
+                : "border-emerald-600 text-emerald-400 hover:bg-emerald-600 hover:text-white"
+            }`}
+            data-testid="account-smart-pause-toggle"
+          >
+            {busy === "smart-pause" ? "…" : maker?.smart_pause_enabled ? "Turn off" : "Turn on"}
+          </button>
         </div>
       </section>
 
