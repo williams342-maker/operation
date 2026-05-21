@@ -17,7 +17,18 @@ export default function StatsTab() {
   }, []);
 
   if (err) return <p className="font-mono text-sm text-red-400" data-testid="stats-error">{err}</p>;
-  if (!stats) return <StatsSkeleton />;
+
+  // PlusAnalytics owns its own fetch and gating — render it even while
+  // the basic stats are still loading so the cold-load doesn't hide
+  // the upsell card / Plus metrics behind a skeleton.
+  if (!stats) {
+    return (
+      <div className="space-y-8" data-testid="stats-tab">
+        <PlusAnalytics />
+        <StatsSkeleton />
+      </div>
+    );
+  }
 
   // Net revenue after platform + processing fees (visible best-estimate)
   const platformBps = (policy?.platform_fee_bps || 500) + (policy?.processing_fee_bps || 300);
