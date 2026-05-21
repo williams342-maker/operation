@@ -532,6 +532,10 @@ async def admin_approve_showcase(
     doc = await db.showcase_posts.find_one({"id": post_id}, {"_id": 0})
     if not doc:
         raise HTTPException(404, "Post not found.")
+    # Capture the pre-approval state so we can decide whether to send
+    # the "restored" courtesy email. Only fire when the approval
+    # actually flips a quarantined post — not on every routine approve.
+    was_quarantined = doc.get("mod_status") == "quarantined"
     featured = bool(body.get("featured"))
     status = "featured" if featured else "approved"
     history_entry = {
@@ -563,6 +567,24 @@ async def admin_approve_showcase(
             "resolver": claims.get("sub"),
         }},
     )
+    # Restored-from-quarantine courtesy email — fail-soft so the API
+    # never errors over a Mailgun blip. Sends only on the transition
+    # OUT of quarantine, so routine approvals don't spam makers.
+    if was_quarantined:
+        poster_email = (doc.get("user_email") or "").strip().lower()
+        if poster_email:
+            try:
+                from email_service import send_showcase_restored_notice
+                await send_showcase_restored_notice(
+                    email=poster_email,
+                    name=doc.get("user_name") or "",
+                    post_title=doc.get("title") or "",
+                )
+            except Exception as e:
+                logger.warning(
+                    "[showcase_restore] notice email failed for %s: %s",
+                    poster_email, e,
+                )
     fresh = await db.showcase_posts.find_one({"id": post_id}, {"_id": 0})
     return fresh or {}
 

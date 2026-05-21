@@ -446,3 +446,44 @@ async def test_quarantine_notice_email_skips_blank_address():
         email="", name="", post_title="", report_count=3,
     )
     assert result is None
+
+
+@pytest.mark.asyncio
+async def test_restored_notice_email_sends_with_correct_tone():
+    """In-process unit test for the restored-post courtesy email.
+    Verifies warm/factual tone and a CTA back to the community page."""
+    from unittest.mock import patch, AsyncMock
+    from email_service import send_showcase_restored_notice
+
+    captured: dict = {}
+
+    async def _fake_send(to, subject, html):
+        captured["to"] = to
+        captured["subject"] = subject
+        captured["html"] = html
+
+    with patch("email_service._send", new=AsyncMock(side_effect=_fake_send)):
+        await send_showcase_restored_notice(
+            email="iron-and-oak@craftersmarket.org",
+            name="Iron & Oak",
+            post_title="My Walnut Console",
+        )
+
+    assert captured["to"] == "iron-and-oak@craftersmarket.org"
+    assert "back live" in captured["subject"].lower()
+    html_compact = " ".join(captured["html"].split())
+    # Reassuring tone — explicitly says it's been restored
+    assert "restored it to the community feed" in html_compact
+    # Acknowledges the inconvenience without over-apologising
+    assert "Thanks for your patience" in html_compact
+    # The CTA target
+    assert "/community" in captured["html"]
+
+
+@pytest.mark.asyncio
+async def test_restored_notice_email_skips_blank_address():
+    from email_service import send_showcase_restored_notice
+    result = await send_showcase_restored_notice(
+        email="", name="", post_title="",
+    )
+    assert result is None

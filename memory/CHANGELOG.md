@@ -1,6 +1,19 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-21 — iter160 · "Post restored" email closes the moderation trust loop ✅
+
+**Public:** Got an "under review" email earlier and your post came back? You'll now get an "all clear" follow-up too — a warm note from us saying a moderator looked at it and put it back. Closes the loop so you don't have to wonder.
+
+- New email helper `send_showcase_restored_notice(email, name, post_title)` in `email_service.py`. Subject: *"[Crafters Market] Your showcase post is back live"*.
+- Body wording reassures + signals trust: *"a moderator reviewed your post and restored it to the community feed. The earlier flags have been cleared. Thanks for your patience…"* — acknowledges the inconvenience without over-apologising, frames auto-quarantine as conservative-by-design (not punitive).
+- Fires from `admin_approve_showcase` ONLY when the approval transitions a post OUT of quarantine — routine approvals on never-quarantined posts don't email (no maker spam).
+- Best-effort: wrapped in try/except so Mailgun blips never block the approval API.
+- Skips blank-email posts (legacy data) as a no-op — same defensive pattern as the quarantine-notice helper.
+- Regression: `tests/test_showcase_moderation.py` expanded 8 → 10 tests with two new unit tests for the restored-notice helper (subject + tone assertions; blank-email no-op). All 10/10 green.
+- **Trust-cycle closed:** post posted → auto-quarantined ("we're reviewing") → moderator approves ("you're back, here's why") with no manual moderator effort.
+
+
 ## 2026-05-21 — iter159 · Maker notification email on auto-quarantine ✅
 
 **Public:** When your showcase post gets auto-quarantined (3+ reports in 24h), you now get a courtesy email letting you know it's temporarily under review. Factual, non-accusatory tone — "this is automatic, not a judgement, you don't need to do anything right now."

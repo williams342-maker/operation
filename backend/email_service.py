@@ -2491,3 +2491,43 @@ async def send_showcase_quarantine_notice(
     html = _shell("Post under review.", intro, body, "Crafters Market · Community Moderation")
     subject = "[Crafters Market] Your showcase post is under review"
     return await _send(email, subject, html)
+
+
+async def send_showcase_restored_notice(
+    *, email: str, name: str, post_title: str,
+):
+    """Email the poster when a moderator restores their previously
+    quarantined showcase post. Closes the loop on the anxiety from the
+    earlier 'under review' notice — short, warm, signals trust.
+    """
+    if not email:
+        return
+    name_safe = name or "there"
+    title_safe = (post_title or "your post").strip()[:120]
+    intro = "Your showcase post is back live."
+    body = f"""
+        <p style="font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 16px">
+          Hi {name_safe},
+        </p>
+        <p style="font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 16px">
+          Good news — a moderator reviewed your post <b>"{title_safe}"</b>
+          and <b>restored it to the community feed</b>. The earlier flags
+          have been cleared.
+        </p>
+        <p style="font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 16px">
+          Thanks for your patience while we took a look. Auto-quarantine
+          is conservative by design — it errs on the side of pausing
+          posts so reviews happen fast, even when most flags turn out
+          to be off-base.
+        </p>
+        <a href="https://craftersmarket.org/community"
+           style="display:inline-block;background:#ff4500;color:#0a0a0a;
+                  padding:14px 24px;font-family:Impact,Arial Black,sans-serif;
+                  font-size:13px;letter-spacing:0.18em;text-transform:uppercase;
+                  text-decoration:none;margin-top:8px">
+          View your post →
+        </a>
+    """
+    html = _shell("All clear.", intro, body, "Crafters Market · Community Moderation")
+    subject = "[Crafters Market] Your showcase post is back live"
+    return await _send(email, subject, html)
