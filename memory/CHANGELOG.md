@@ -1,6 +1,26 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-21 — iter158 · Auto-quarantine: 3 reports in 24h = instant hide ✅
+
+**Public:** When a showcase post racks up 3 or more reports inside 24 hours, it now disappears from public feeds automatically and shoots to the top of the admin moderation queue with an "⚠ AUTO" badge. Cuts moderator response time on real abuse spikes from hours to seconds.
+
+- **Trigger logic** lives inside `POST /community/showcase/{id}/report` — fires from the same request that pushed the post over the line, so there's no cron lag. Real-time and idempotent (running the check again on an already-quarantined post is a no-op).
+- **Thresholds** centralised in `community_showcase.py` for easy tuning:
+  - `AUTO_QUARANTINE_THRESHOLD = 3` (open reports needed)
+  - `AUTO_QUARANTINE_WINDOW_HOURS = 24` (rolling)
+- **Public feeds now filter `mod_status != "quarantined"`** — applied to:
+  - `GET /community/showcase`
+  - `GET /community/showcase/recent` (homepage + product-page strips)
+- **Moderator-approved posts stay visible** even if old open reports linger. Admin approval is the explicit "this is fine" signal — clears `open_reports` to 0 and dismisses the report rows.
+- **Admin queue** picks up a new state:
+  - "Quarantined" filter chip in the Showcase Mod tab.
+  - "All" view now surfaces quarantined posts at the very top (sorted: auto-quarantined first, then by report count, then newest).
+  - "⚠ AUTO" red badge on every auto-quarantined card so admins can tell auto- from manually-quarantined at a glance.
+- **Audit trail:** every auto-quarantine event appends a `mod_history` row with `by: "system:auto-quarantine"` and the report count + window that triggered it.
+- **Regression:** `tests/test_showcase_moderation.py` expanded from 5 → 6 tests covering the full auto-quarantine lifecycle (3 reports → quarantine → hide from public feeds → admin approval clears + restores to feed). All 6/6 green.
+
+
 ## 2026-05-21 — iter157 · Report this post: community-level abuse flagging ✅
 
 **Public:** Spot something off in the Showcase? Tap "Report" on any post (other than your own) and tell us what's wrong. Reports are private, the poster isn't notified, and moderators see the most-flagged posts first.

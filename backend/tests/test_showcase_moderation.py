@@ -313,3 +313,85 @@ async def test_showcase_report_rejects_invalid_reason():
                 f"{API}/api/community/showcase/{post['id']}",
                 headers={"Authorization": f"Bearer {maker}"},
             )
+
+
+@pytest.mark.asyncio
+async def test_auto_quarantine_triggers_at_threshold_and_hides_from_public_feeds():
+    """3 reports from 3 different reporters in 24h → post auto-quarantines,
+    drops out of public feeds, surfaces in admin ?status=quarantined."""
+    async with httpx.AsyncClient(timeout=60) as c:
+        maker = await _maker_jwt(c)
+        admin = await _admin_jwt(c)
+
+        post = (await c.post(
+            f"{API}/api/community/showcase",
+            headers={"Authorization": f"Bearer {maker}",
+                     "Content-Type": "application/json"},
+            json={"title": "__pytest_autoq_target__",
+                  "description": "Will get auto-quarantined.",
+                  "image_urls": ["https://example.com/x.jpg"]},
+        )).json()
+        post_id = post["id"]
+
+        # 3 separate reporters file 1 report each
+        for i in range(1, 4):
+            buyer = await _buyer_jwt(c, f"test-autoq-r{i}@craftersmarket.org")
+            r = await c.post(
+                f"{API}/api/community/showcase/{post_id}/report",
+                headers={"Authorization": f"Bearer {buyer}",
+                         "Content-Type": "application/json"},
+                json={"reason": "spam"},
+            )
+            assert r.status_code == 200, r.text
+
+        # Post should be quarantined now
+        q = await c.get(
+            f"{API}/api/admin/community/showcase?status=quarantined",
+            headers={"Authorization": f"Bearer {admin}"},
+        )
+        rows = [row for row in q.json()["rows"] if row["id"] == post_id]
+        assert rows, "post not in quarantined queue"
+        target = rows[0]
+        assert target["mod_status"] == "quarantined"
+        assert target["auto_quarantined"] is True
+        assert target["open_reports"] >= 3
+
+        # Public feed must hide it
+        public = await c.get(f"{API}/api/community/showcase?limit=100")
+        public_ids = {p["id"] for p in public.json()}
+        assert post_id not in public_ids, "quarantined post leaked to public feed"
+
+        # Recent strip must hide it too
+        recent = await c.get(f"{API}/api/community/showcase/recent?limit=100")
+        recent_ids = {p["id"] for p in recent.json()["items"]}
+        assert post_id not in recent_ids, "quarantined post leaked to recent strip"
+
+        # Admin approval clears quarantine
+        appr = await c.post(
+            f"{API}/api/admin/community/showcase/{post_id}/approve",
+            headers={"Authorization": f"Bearer {admin}",
+                     "Content-Type": "application/json"},
+            json={},
+        )
+        body = appr.json()
+        assert body["mod_status"] == "approved"
+        assert body["open_reports"] == 0
+
+        # Post returns to the public feed after un-quarantine
+        public2 = await c.get(f"{API}/api/community/showcase?limit=100")
+        public2_ids = {p["id"] for p in public2.json()}
+        assert post_id in public2_ids, "post didn't return after approval"
+
+        # Cleanup
+        await c.delete(
+            f"{API}/api/admin/community/showcase/{post_id}",
+            headers={"Authorization": f"Bearer {admin}"},
+        )
+        # Reap the orphan rows
+        from motor.motor_asyncio import AsyncIOMotorClient
+        client = AsyncIOMotorClient(os.environ["MONGO_URL"])
+        db = client[os.environ["DB_NAME"]]
+        await db.showcase_reports.delete_many({"post_id": post_id})
+        await db.admin_moderation_actions.delete_one(
+            {"kind": "showcase_delete", "target_id": post_id},
+        )

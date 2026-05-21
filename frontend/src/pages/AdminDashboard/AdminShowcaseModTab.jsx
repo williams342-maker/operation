@@ -26,11 +26,12 @@ import {
  *   DELETE /admin/community/showcase/{id}
  */
 const STATUS_OPTIONS = [
-  { id: "all",       label: "All" },
-  { id: "reported",  label: "Reported" },
-  { id: "pending",   label: "Pending" },
-  { id: "approved",  label: "Approved" },
-  { id: "featured",  label: "Featured" },
+  { id: "all",          label: "All" },
+  { id: "quarantined",  label: "Quarantined" },
+  { id: "reported",     label: "Reported" },
+  { id: "pending",      label: "Pending" },
+  { id: "approved",     label: "Approved" },
+  { id: "featured",     label: "Featured" },
 ];
 
 const PAGE_SIZE = 24;
@@ -200,11 +201,13 @@ function AdminShowcaseCard({ post, onChanged }) {
           className={`absolute top-2 right-2 font-mono text-[9px] uppercase tracking-[0.18em] px-2 py-1 font-bold ${
             status === "featured" ? "bg-yellow-500 text-[#0a0a0a]"
             : status === "approved" ? "bg-emerald-500 text-[#0a0a0a]"
+            : status === "quarantined" ? "bg-red-600 text-white"
+            : status === "reported" ? "bg-orange-500 text-[#0a0a0a]"
             : "bg-[#0a0a0a]/85 text-[#a3a3a3] border border-[#262626]"
           }`}
           data-testid={`admin-showcase-status-${post.id}`}
         >
-          {status}
+          {post.auto_quarantined && status === "quarantined" ? "⚠ AUTO" : status}
         </span>
       </div>
       <div className="p-4 space-y-3">

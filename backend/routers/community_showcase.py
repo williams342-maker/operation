@@ -74,10 +74,17 @@ def _is_showcase_owner(doc: dict, claims: dict) -> bool:
     return doc.get("user_id") == _showcase_owner_id(claims)
 
 
+# Public feeds exclude quarantined posts so abusive content doesn't reach
+# buyers/makers while moderators decide. Moderator-approved posts stay
+# visible even with stale open_reports — the approval is the explicit
+# "this is fine" signal.
+_PUBLIC_FEED_FILTER = {"mod_status": {"$ne": "quarantined"}}
+
+
 # ===================== LISTING =====================
 @router.get("/community/showcase")
 async def list_showcase(limit: int = 50):
-    return await db.showcase_posts.find({}, {"_id": 0}).sort("created_at", -1).to_list(limit)
+    return await db.showcase_posts.find(_PUBLIC_FEED_FILTER, {"_id": 0}).sort("created_at", -1).to_list(limit)
 
 
 @router.get("/community/showcase/recent")
@@ -110,7 +117,9 @@ async def list_recent_showcase(
     }
 
     async def _query(filt: dict, n: int) -> list[dict]:
-        return await db.showcase_posts.find(filt, proj).sort("created_at", -1).limit(n).to_list(n)
+        # Always exclude quarantined posts from the public recent feed.
+        merged = {**filt, **_PUBLIC_FEED_FILTER}
+        return await db.showcase_posts.find(merged, proj).sort("created_at", -1).limit(n).to_list(n)
 
     rows: list[dict] = []
     seen_ids: set[str] = set()
@@ -206,6 +215,13 @@ async def like_showcase(post_id: str, claims: dict = Depends(current_buyer)):
 
 
 # ===================== POST REPORTING (community abuse flagging) =====================
+# Auto-quarantine: when a post hits this many open reports inside the
+# rolling window, it disappears from public feeds and shoots to the top
+# of the admin queue. Tuned for a small community — 3 is enough to
+# catch a coordinated flag-bomb without ever firing on legit posts.
+AUTO_QUARANTINE_THRESHOLD = 3
+AUTO_QUARANTINE_WINDOW_HOURS = 24
+
 SHOWCASE_REPORT_REASONS = {
     "spam":         "Spam or self-promotion abuse",
     "harassment":   "Harassment or hate speech",
@@ -284,6 +300,46 @@ async def report_showcase(
             "$set": {"mod_status": "reported"},
         },
     )
+
+    # ─── Auto-quarantine ────────────────────────────────────────────
+    # If the post has racked up ≥ AUTO_QUARANTINE_THRESHOLD reports
+    # within AUTO_QUARANTINE_WINDOW_HOURS, hide it from public feeds
+    # immediately and flag it for top-of-queue moderator review.
+    # Real-time check (no cron needed) — fires from the same request
+    # that pushed the post over the line. Idempotent: re-running the
+    # check on an already-quarantined post is a no-op aside from one
+    # extra mod_history audit row, which is fine for accountability.
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=AUTO_QUARANTINE_WINDOW_HOURS)).isoformat()
+    recent_reports = await db.showcase_reports.count_documents({
+        "post_id": post_id, "status": "open",
+        "created_at": {"$gte": cutoff},
+    })
+    if recent_reports >= AUTO_QUARANTINE_THRESHOLD:
+        fresh = await db.showcase_posts.find_one(
+            {"id": post_id}, {"_id": 0, "mod_status": 1},
+        )
+        if fresh and fresh.get("mod_status") != "quarantined":
+            await db.showcase_posts.update_one(
+                {"id": post_id},
+                {
+                    "$set": {
+                        "mod_status": "quarantined",
+                        "quarantined_at": now_iso(),
+                        "auto_quarantined": True,
+                    },
+                    "$push": {"mod_history": {
+                        "ts": now_iso(),
+                        "by": "system:auto-quarantine",
+                        "action": "quarantine",
+                        "reason": f"{recent_reports} reports in {AUTO_QUARANTINE_WINDOW_HOURS}h",
+                    }},
+                },
+            )
+            logger.info(
+                "[auto_quarantine] post=%s reports=%d window_h=%d",
+                post_id, recent_reports, AUTO_QUARANTINE_WINDOW_HOURS,
+            )
+
     return {"ok": True, "duplicate": False, "id": doc["id"]}
 
 
@@ -376,19 +432,19 @@ async def delete_showcase(
 # ===================== ADMIN MODERATION =====================
 @router.get("/admin/community/showcase")
 async def admin_list_showcase(
-    status: str = Query("all", regex="^(all|pending|approved|featured|reported)$"),
+    status: str = Query("all", regex="^(all|pending|approved|featured|reported|quarantined)$"),
     limit: int = 50, skip: int = 0,
     _: dict = Depends(current_admin),
 ):
     """Paged showcase queue for admin moderation.
 
     Status filters:
-      • `all`       — every post, newest first.
-      • `pending`   — posts that haven't been explicitly approved / featured / reported.
-      • `approved`  / `featured` — exact mod_status match.
-      • `reported`  — posts with at least one open report. Sorted by
-        report count (most-flagged first), then by created_at, so the
-        worst offenders surface immediately when an admin opens the tab.
+      • `all`         — every post, quarantined first then newest-first.
+      • `pending`     — posts that haven't been explicitly approved / featured / reported / quarantined.
+      • `approved` / `featured` — exact mod_status match.
+      • `reported`    — posts with at least one open report. Sorted by
+        report count (most-flagged first), then by created_at.
+      • `quarantined` — auto- or manually-quarantined posts only.
     """
     q: dict = {}
     n = max(1, min(int(limit), 200))
@@ -398,14 +454,26 @@ async def admin_list_showcase(
     elif status in ("approved", "featured"):
         q = {"mod_status": status}
     elif status == "reported":
-        q = {"open_reports": {"$gt": 0}}
+        q = {"open_reports": {"$gt": 0}, "mod_status": {"$ne": "quarantined"}}
         total = await db.showcase_posts.count_documents(q)
         rows = await db.showcase_posts.find(q, {"_id": 0}).sort(
             [("open_reports", -1), ("created_at", -1)],
         ).skip(skip).limit(n).to_list(n)
         return {"total": total, "rows": rows, "skip": skip, "limit": n}
+    elif status == "quarantined":
+        q = {"mod_status": "quarantined"}
     total = await db.showcase_posts.count_documents(q)
-    rows = await db.showcase_posts.find(q, {"_id": 0}).sort("created_at", -1).skip(skip).limit(n).to_list(n)
+    # In the "all" view, surface quarantined posts at the top — they're
+    # the ones that need an admin's attention first. Other filters keep
+    # their natural newest-first ordering.
+    if status == "all":
+        cursor = db.showcase_posts.find(q, {"_id": 0}).sort([
+            # Boolean sort: quarantined posts win because True > False.
+            ("auto_quarantined", -1), ("open_reports", -1), ("created_at", -1),
+        ])
+    else:
+        cursor = db.showcase_posts.find(q, {"_id": 0}).sort("created_at", -1)
+    rows = await cursor.skip(skip).limit(n).to_list(n)
     return {"total": total, "rows": rows, "skip": skip, "limit": n}
 
 
