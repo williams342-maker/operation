@@ -1,6 +1,20 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-21 — iter153 · SEO keyword expansion: artisan marketplace · CNC USA · CNC laser art ✅
+
+**Public:** Homepage now leads with the categories buyers actually search for — "artisan marketplace", "CNC metal art", "CNC laser art", "custom handmade goods", and "precision crafting" — woven into the page title, hero copy, and search-engine schema so we rank for the right intent on Google + Bing.
+
+- Updated `<title>` from "Precision CNC Art & Handcrafted Goods" → **"Artisan Marketplace · CNC Metal Art, Laser Art & Custom Handmade Goods USA"**.
+- Rewrote `<meta name="description">` (160-char SERP snippet) and `<meta name="keywords">` with all eight target terms: `cnc manufacturing`, `artisan shopping`, `cnc usa`, `cnc metal art`, `cnc laser art`, `precision crafting`, `custom handmade goods`, `artisan marketplace`.
+- Synced both static (`/index.html`) AND runtime-injected (`useStructuredData` hook in `App.js`) description tags so Lighthouse + Google see one consistent string.
+- Open Graph + Twitter card titles/descriptions rewritten to the same vocabulary — every social share now leads with the right keywords.
+- JSON-LD `Organization.description`, `.slogan`, and `.knowsAbout[]` entity terms expanded from 6 → 13 covering all target topics. Powers the Knowledge Graph brand panel + sitelinks.
+- **Hero copy** (most impactful SEO surface — visible body content) now reads: *"An **artisan marketplace** for **CNC metal art**, **CNC laser art**, and **custom handmade goods** — precision crafting from vetted CNC USA artisans."* Bold spans give crawlers extra weight on each phrase.
+- Indexed in: `frontend/public/index.html` · `frontend/src/App.js` · `frontend/src/components/sections/Hero.jsx`.
+- After deploy, submit a fresh sitemap to GSC + Bing so they re-index with the new keywords.
+
+
 ## 2026-05-21 — iter152 · Maker video clips on Community Showcase ✅
 
 **Public:** Makers can now post short video clips to the Community Showcase. Hit "+ New post" in the Showcase tab and you'll see a new "Add video clip" picker right under the photo uploader — up to 50 MB and ~60 seconds, MP4 / WebM / MOV. Clips play inline right in the feed and get a "◆ Video" badge so they stand out on the homepage strip too.

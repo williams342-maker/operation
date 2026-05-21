@@ -68,8 +68,8 @@ import { useStructuredData } from "./lib/seo";
 
 const Home = () => {
   useStructuredData({
-    title: "Crafters Market — Precision CNC Art & Handcrafted Goods",
-    description: "Shop hand-built metal & wood CNC art, custom signs, and made-to-order pieces from approved independent makers. Stripe-secured checkout, direct-to-maker payouts.",
+    title: "Crafters Market — Artisan Marketplace · CNC Metal Art, Laser Art & Custom Handmade Goods USA",
+    description: "Artisan marketplace for CNC metal art, CNC laser art, plasma-cut signs, and custom handmade goods — precision crafting by vetted CNC manufacturing shops across the USA. Shop direct, made-to-order, fair maker payouts.",
     url: "https://craftersmarket.org/",
     image: "https://craftersmarket.org/downloads/cnc-garage-builders.png",
   });

@@ -73,7 +73,11 @@ export default function Hero() {
           transition={{ delay: 0.25, duration: 0.7 }}
           className="font-mono text-sm md:text-base text-[#a3a3a3] max-w-xl mx-auto mt-6"
         >
-          Hand-finished metal & wood pieces from approved CNC artisans. Built to order. Shipped nationwide.
+          An <strong className="text-[#e5e5e5] font-normal">artisan marketplace</strong> for
+          {" "}<strong className="text-[#e5e5e5] font-normal">CNC metal art</strong>,
+          {" "}<strong className="text-[#e5e5e5] font-normal">CNC laser art</strong>, and
+          {" "}<strong className="text-[#e5e5e5] font-normal">custom handmade goods</strong>{" "}
+          — precision crafting from vetted CNC USA artisans. Built to order. Shipped nationwide.
         </motion.p>
 
         <motion.form
