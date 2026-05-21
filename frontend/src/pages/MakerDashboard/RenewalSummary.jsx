@@ -29,8 +29,27 @@ export default function RenewalSummary() {
 
   if (loading) {
     return (
-      <div className="border border-[#262626] bg-[#0d0d0d] p-5" data-testid="renewal-summary-loading">
-        <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#525252]">◆ Renewals · loading…</div>
+      <div className="grid lg:grid-cols-[1fr_1.4fr] gap-4" data-testid="renewal-summary-loading">
+        <div className="border border-[#262626] bg-[#0d0d0d] p-5 animate-pulse">
+          <div className="h-3 w-24 bg-[#1a1a1a] mb-2" />
+          <div className="h-6 w-32 bg-[#1a1a1a] mb-4" />
+          <div className="grid grid-cols-3 gap-3">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="border border-[#262626] bg-[#0a0a0a] p-3">
+                <div className="h-7 w-8 mx-auto bg-[#1a1a1a] mb-2" />
+                <div className="h-2 w-12 mx-auto bg-[#1a1a1a]" />
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="border border-[#262626] bg-[#0d0d0d] p-5 animate-pulse">
+          <div className="h-3 w-24 bg-[#1a1a1a] mb-4" />
+          <div className="grid grid-cols-7 gap-1.5">
+            {Array.from({ length: 21 }).map((_, i) => (
+              <div key={i} className="aspect-square bg-[#1a1a1a]" />
+            ))}
+          </div>
+        </div>
       </div>
     );
   }

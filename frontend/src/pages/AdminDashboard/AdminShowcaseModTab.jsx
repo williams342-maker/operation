@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { Check, Star, Pencil, Trash2, Filter } from "lucide-react";
+import { Check, Star, Pencil, Trash2, Filter, AlertTriangle, ShieldCheck, ShieldOff, Clock } from "lucide-react";
 import { toast } from "sonner";
 import {
   adminListShowcase, adminEditShowcase, adminApproveShowcase, adminDeleteShowcase,
+  adminShowcaseModStats,
 } from "../../lib/api";
 
 /**
@@ -71,6 +72,8 @@ export default function AdminShowcaseModTab() {
           Approve, feature, edit, or remove community showcase posts. Featured posts surface higher in the homepage + product strip feeds.
         </p>
       </div>
+
+      <ModStatsBlock onFilter={(k) => { setFilter(k); setPage(0); }} />
 
       {/* Filter chips */}
       <div className="flex flex-wrap items-center gap-2">
@@ -292,6 +295,107 @@ function AdminShowcaseCard({ post, onChanged }) {
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+
+
+/**
+ * ModStatsBlock — at-a-glance moderation health card.
+ *
+ * Six metrics in a responsive grid:
+ *   • Pending review / Reported (open flags) / Quarantined  — actionable
+ *   • Approved 24h / Removed 24h / Auto-quarantined 24h     — activity
+ *
+ * Each "actionable" card is also a button — clicking it sets the parent
+ * filter so the operator can jump straight from the metric to the queue.
+ */
+function ModStatsBlock({ onFilter }) {
+  const [stats, setStats] = useState(null);
+  const [err, setErr] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    adminShowcaseModStats()
+      .then((d) => { if (!cancelled) setStats(d); })
+      .catch((e) => { if (!cancelled) setErr(e?.response?.data?.detail || "Couldn't load mod stats."); });
+    return () => { cancelled = true; };
+  }, []);
+
+  if (err) {
+    return (
+      <div className="border border-amber-500/40 bg-amber-500/5 p-3 font-mono text-xs text-amber-200" data-testid="mod-stats-error">
+        {err}
+      </div>
+    );
+  }
+  if (!stats) {
+    return (
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2" data-testid="mod-stats-loading">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="border border-[#262626] bg-[#0d0d0d] p-3 animate-pulse">
+            <div className="h-2 w-16 bg-[#1a1a1a] mb-2" />
+            <div className="h-6 w-10 bg-[#1a1a1a]" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  const cells = [
+    { k: "pending_review", label: "Pending", icon: Clock, tone: "amber",
+      filter: "pending", testid: "mod-stat-pending" },
+    { k: "reported", label: "Reported", icon: AlertTriangle, tone: stats.reported > 0 ? "red" : "neutral",
+      filter: "reported", testid: "mod-stat-reported" },
+    { k: "quarantined", label: "Quarantined", icon: ShieldOff, tone: stats.quarantined > 0 ? "red" : "neutral",
+      filter: "quarantined", testid: "mod-stat-quarantined" },
+    { k: "approved_24h", label: "Approved · 24h", icon: ShieldCheck, tone: "emerald",
+      testid: "mod-stat-approved-24h" },
+    { k: "removed_24h", label: "Removed · 24h", icon: Trash2, tone: "neutral",
+      testid: "mod-stat-removed-24h" },
+    { k: "auto_quarantined_24h", label: "Auto-quar · 24h", icon: ShieldOff, tone: "neutral",
+      testid: "mod-stat-auto-quarantined-24h" },
+  ];
+
+  const toneClasses = {
+    amber: "text-amber-400 border-amber-500/40",
+    red: "text-red-400 border-red-500/50",
+    emerald: "text-emerald-400 border-emerald-500/30",
+    neutral: "text-[#a3a3a3] border-[#262626]",
+  };
+
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2" data-testid="mod-stats-block">
+      {cells.map(({ k, label, icon: Icon, tone, filter, testid }) => {
+        const n = stats[k] ?? 0;
+        const clickable = !!filter;
+        const cls = `border bg-[#0d0d0d] p-3 transition ${toneClasses[tone] || toneClasses.neutral} ${
+          clickable ? "hover:bg-[#ff4500]/5 hover:border-[#ff4500] cursor-pointer" : ""
+        }`;
+        const inner = (
+          <>
+            <div className="flex items-center gap-1.5 mb-1">
+              <Icon size={11} />
+              <span className="font-mono text-[9px] uppercase tracking-[0.22em]">{label}</span>
+            </div>
+            <div className="font-display text-2xl text-[#e5e5e5]">{n}</div>
+          </>
+        );
+        return clickable ? (
+          <button
+            key={k}
+            type="button"
+            className={cls + " text-left"}
+            onClick={() => onFilter(filter)}
+            data-testid={testid}
+          >
+            {inner}
+          </button>
+        ) : (
+          <div key={k} className={cls} data-testid={testid}>{inner}</div>
+        );
+      })}
     </div>
   );
 }

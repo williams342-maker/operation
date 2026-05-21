@@ -681,6 +681,53 @@ async def record_showcase_click(post_id: str, request: Request,
     return {"ok": ok}
 
 
+@router.get("/admin/community/showcase/mod-stats")
+async def admin_showcase_mod_stats(_: dict = Depends(current_admin)):
+    """Lightweight moderation health card for the admin dashboard:
+
+    Returns counts of every state that needs (or needed) attention:
+      • pending_review  — unapproved posts still in the queue (mod_status pending/null)
+      • reported        — posts with one or more open reports, not yet quarantined
+      • quarantined     — auto- OR manually-quarantined, awaiting admin decision
+      • approved_24h    — moderator-approved within the last 24 hours
+      • removed_24h     — admin-deleted within the last 24 hours
+      • auto_quarantined_24h — auto-quarantined by the 3-report threshold in 24h
+
+    Designed to load in <50ms via cheap count_documents queries against
+    indexed fields. No aggregation pipelines — one count per metric."""
+    now = datetime.now(timezone.utc)
+    cutoff_24h = (now - timedelta(hours=24)).isoformat()
+
+    pending = await db.showcase_posts.count_documents(
+        {"mod_status": {"$in": [None, "pending"]}},
+    )
+    reported = await db.showcase_posts.count_documents(
+        {"open_reports": {"$gt": 0}, "mod_status": {"$ne": "quarantined"}},
+    )
+    quarantined = await db.showcase_posts.count_documents(
+        {"mod_status": "quarantined"},
+    )
+    approved_24h = await db.showcase_posts.count_documents(
+        {"mod_status": {"$in": ["approved", "featured"]},
+         "approved_at": {"$gte": cutoff_24h}},
+    )
+    removed_24h = await db.admin_moderation_actions.count_documents(
+        {"kind": "showcase_delete", "ts": {"$gte": cutoff_24h}},
+    )
+    auto_quarantined_24h = await db.showcase_posts.count_documents(
+        {"auto_quarantined": True, "quarantined_at": {"$gte": cutoff_24h}},
+    )
+    return {
+        "pending_review": pending,
+        "reported": reported,
+        "quarantined": quarantined,
+        "approved_24h": approved_24h,
+        "removed_24h": removed_24h,
+        "auto_quarantined_24h": auto_quarantined_24h,
+        "now": now.isoformat(),
+    }
+
+
 @router.get("/admin/community/showcase/analytics")
 async def admin_showcase_analytics(
     days: int = 7,

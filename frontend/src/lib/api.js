@@ -861,6 +861,10 @@ export const adminDeleteShowcase = (id) =>
   http.delete(`/admin/community/showcase/${id}`, {
     headers: adminAuthHeaders(),
   }).then((r) => r.data);
+export const adminShowcaseModStats = () =>
+  http.get("/admin/community/showcase/mod-stats", {
+    headers: adminAuthHeaders(),
+  }).then((r) => r.data);
 
 // Maker-only — upload a ≤50MB / ≤60s video clip to attach to a showcase post.
 export const uploadShowcaseVideo = (file, opts = {}) => {

@@ -194,7 +194,19 @@ export default function MakerRenewalsPage() {
         )}
 
         {loading ? (
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252]">Loading…</div>
+          <div className="space-y-2" data-testid="renewals-skeleton">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="border border-[#262626] p-3 flex items-center gap-3 animate-pulse">
+                <div className="w-5 h-5 bg-[#1a1a1a]" />
+                <div className="w-10 h-10 bg-[#1a1a1a] shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3 w-1/3 bg-[#1a1a1a]" />
+                  <div className="h-2 w-1/4 bg-[#1a1a1a]" />
+                </div>
+                <div className="h-3 w-16 bg-[#1a1a1a]" />
+              </div>
+            ))}
+          </div>
         ) : filtered.length === 0 ? (
           <div className="border border-dashed border-[#262626] p-10 text-center">
             <div className="font-mono text-xs text-[#a3a3a3]">

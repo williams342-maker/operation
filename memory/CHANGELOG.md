@@ -1,6 +1,26 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-21 — iter163 · Worst Performers + Admin mod stats + mobile bar + skeletons ✅
+
+**Public:** Four UX/insight upgrades that close the loop on listing health and admin moderation.
+
+1. **Worst Performers panel** (Maker dashboard → Listings). Surfaces the 5 published listings with the lowest 30-day pageviews. Per-row **"✨ Refresh with AI"** button regenerates SEO tags via Claude (`/api/maker/ai/seo-tags`), merges them with existing tags (capped at 13), and saves in place — no editor round-trip. Hidden when the shop has <3 published listings.
+2. **Admin Showcase Moderation Stats block** (Admin → Showcase Mod). Six at-a-glance metrics: Pending / Reported / Quarantined / Approved 24h / Removed 24h / Auto-quarantined 24h. The actionable cells (Pending, Reported, Quarantined) are clickable — they set the filter to jump directly into that queue. Backed by new `GET /api/admin/community/showcase/mod-stats` — six indexed `count_documents` calls, no aggregation pipelines.
+3. **Mobile Admin Tab Bar** — fixed bottom 5-button thumb nav (`Apps · Orders · Mod · Listings · More`) for screens <lg. Capability-aware: if any preferred tab is hidden, falls back to the next visible tab so the bar always shows 5 reachable destinations. "More" smooth-scrolls + pulses the full top tab rail.
+4. **Loading skeletons** for the Bulk Renewal Manager table, RenewalSummary + Calendar widgets, and the Worst Performers panel. No more bare "Loading…" strings — perceived-perf upgrade.
+
+### Trade-offs
+
+- Worst Performers reuses the existing `aiSeoTags` endpoint (no new backend wiring). Future enhancement: a single "Regenerate copy + tags + hero image" combo button. Tracked in P3 backlog.
+- Mobile tab bar's "More" jumps the user to the existing horizontal scroll nav rather than opening a custom drawer — keeps the implementation tight and the full tab list accessible without a duplicate surface.
+
+### Tests
+
+- `tests/test_admin_showcase_mod_stats.py` — 3/3 passing: shape, auth required, count reflects seeded quarantined post.
+
+
+
 ## 2026-05-21 — iter162 · Etsy-style listing stats + Renewal dashboard suite ✅
 
 **Public:** Five interlocking upgrades for managing listings at scale.

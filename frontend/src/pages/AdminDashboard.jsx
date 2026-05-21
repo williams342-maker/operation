@@ -21,6 +21,7 @@ import BroadcastTab from "../components/admin/BroadcastTab";
 import DesignFileReportsTab from "../components/admin/DesignFileReportsTab";
 import DesignFilesTab from "../components/admin/DesignFilesTab";
 import AdminCommandPalette from "../components/admin/AdminCommandPalette";
+import MobileAdminTabBar from "../components/admin/MobileAdminTabBar";
 import ReviewDisputesTab from "../components/admin/ReviewDisputesTab";
 import ProdHealthTab from "../components/admin/ProdHealthTab";
 import ProdHealthBanner from "../components/admin/ProdHealthBanner";
@@ -326,7 +327,7 @@ export default function AdminDashboard() {
   const pendingCustom = custom.filter((c) => c.status !== "quoted").length;
 
   return (
-    <div className="pt-32 pb-24 min-h-screen grain" data-testid="admin-dashboard">
+    <div className="pt-32 pb-32 lg:pb-24 min-h-screen grain" data-testid="admin-dashboard">
       <div className="max-w-[1400px] mx-auto px-4 md:px-8">
         <motion.div
           initial={{ opacity: 0, y: 12 }}
@@ -521,6 +522,15 @@ export default function AdminDashboard() {
         onPickTab={(id) => setTab(id)}
         currentTab={tab}
         logout={logout}
+      />
+
+      {/* Mobile-only bottom tab bar — gives the 4 highest-frequency admin
+          tabs thumb-reachable buttons + a "More" jumper to the full top
+          nav. Hidden on lg+ where the desktop sidebar is always visible. */}
+      <MobileAdminTabBar
+        visibleTabs={visibleTabs}
+        current={tab}
+        onPick={(id) => setTab(id)}
       />
     </div>
   );
