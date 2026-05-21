@@ -575,6 +575,7 @@ function OverflowMenu({ onModel, modelLabel, onDelete, deleteLabel, deleteDisabl
 function IndexingBadge({ indexing, slug }) {
   const tier = indexing.tier;
   const days = indexing.days_in_sitemap;
+  const source = indexing.source || "sitemap";
 
   const tiers = {
     established: {
@@ -597,16 +598,35 @@ function IndexingBadge({ indexing, slug }) {
     },
   };
   const cfg = tiers[tier] || tiers.not_in_sitemap;
+  // Override the tooltip + label with the real GSC coverage state when
+  // the row is sourced from the Search Console API.
+  const gscVerified = source === "gsc";
+  const tooltip = gscVerified
+    ? `Verified by Google Search Console${indexing.gsc_coverage ? ` · ${indexing.gsc_coverage}` : ""}`
+    : cfg.title;
 
   return (
     <div
       className="flex items-center gap-1.5 mt-1.5 font-mono text-[9px] uppercase tracking-[0.2em]"
-      title={cfg.title}
+      title={tooltip}
       data-testid={`indexing-badge-${slug}`}
       data-tier={tier}
+      data-source={source}
     >
       <span className={`inline-block w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
       <span className={cfg.text}>{cfg.label}</span>
+      {gscVerified && (
+        <span
+          className="inline-flex items-center gap-1 border border-emerald-500/40 bg-emerald-500/5 px-1.5 py-0.5 text-emerald-400 text-[8px] tracking-[0.18em]"
+          data-testid={`gsc-verified-${slug}`}
+          title="Index status returned directly from Google Search Console."
+        >
+          <svg viewBox="0 0 24 24" width="8" height="8" fill="currentColor" aria-hidden>
+            <path d="M12 0L8.4 8.4 0 12l8.4 3.6L12 24l3.6-8.4L24 12l-8.4-3.6L12 0z" />
+          </svg>
+          Google
+        </span>
+      )}
     </div>
   );
 }

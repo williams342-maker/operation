@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { Hammer, Check, Mail, BarChart3 } from "lucide-react";
 import { toast } from "sonner";
 import ProductEditCard from "./ProductEditCard";
-import WorstPerformersPanel from "./WorstPerformersPanel";
 import EmptyState from "../../components/EmptyState";
 import { useConfirm } from "./useConfirm";
 import {
@@ -166,13 +165,6 @@ export default function ProductsList({ products, onChanged, onRefresh }) {
           </button>
         </div>
       </div>
-
-      {/* Worst Performers — surfaces the 5 listings with the lowest 30-day
-          views, plus a one-click "✨ Refresh with AI" button that regenerates
-          SEO tags via Claude. Closes the loop with Smart Pause (which kicks
-          stale listings to draft) by giving makers a recovery path BEFORE
-          a listing goes stale enough to trigger auto-pause. */}
-      <WorstPerformersPanel />
 
       {totalAll === 0 ? (
         <EmptyState

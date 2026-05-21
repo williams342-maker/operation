@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { fetchMakerStats, fetchFeePolicy } from "../../lib/api";
 import { StatsSkeleton } from "../../components/Skeleton";
+import WorstPerformersPanel from "./WorstPerformersPanel";
 
 /** Stats tab — read-only dashboard surfacing aggregates already in the DB. */
 export default function StatsTab() {
@@ -58,6 +59,11 @@ export default function StatsTab() {
           Plus subscribers keep more — see Upgrade tab.
         </p>
       </div>
+
+      {/* Recovery Queue — surfaces underperforming listings + forgotten drafts
+          with one-click AI refresh / publish actions. Lives in Stats (not
+          Listings) so the Listings tab stays clean for browsing/editing. */}
+      <WorstPerformersPanel />
     </div>
   );
 }

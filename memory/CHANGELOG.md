@@ -1,6 +1,30 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-21 — iter169 · Recovery Queue → Stats tab + "Verified by Google" pill ✅
+
+**Two requested cleanups:**
+
+1. **Listings tab decluttered.** Removed the Recovery Queue from `ProductsList.jsx`. The Listings tab now shows just the view switcher (Live/Drafts/Archived) + Stats toggle + "+ New Listing" button + the listings grid. Pure browsing/editing — no insights mixed in.
+2. **Recovery Queue → Stats tab.** Mounted `<WorstPerformersPanel />` at the bottom of `StatsTab.jsx`, right under "Estimated take-home". Stats is now the single home for shop-health insights; Listings is the single home for listing CRUD. Clear separation of concerns.
+
+### Verified by Google pill
+
+The `IndexingBadge` now reads the new `source` field from the indexing endpoint:
+
+- When `source === "gsc"` (real GSC URL-Inspection data, ≤14 days fresh): a small emerald **"⬥ Google"** pill renders next to the tier label, with a Google-spark icon. Tooltip reads "Verified by Google Search Console · <coverage state>".
+- When `source === "sitemap"` (heuristic fallback): just the standard tier label.
+
+Subtle trust signal that lights up automatically once you set `GSC_ENABLED=1` + drop in the service-account JSON (see iter168). No code path changes needed to "activate" it — the pill simply appears.
+
+### Frontend
+
+- `pages/MakerDashboard/ProductsList.jsx`: removed `<WorstPerformersPanel />` import + render.
+- `pages/MakerDashboard/StatsTab.jsx`: imported + mounted `<WorstPerformersPanel />`.
+- `pages/MakerDashboard/ProductEditCard.jsx`: `IndexingBadge` reads `indexing.source`, conditionally renders the Google pill with `data-testid={gsc-verified-${slug}}` for testing.
+
+
+
 ## 2026-05-21 — iter168 · GSC URL-Inspection integration (opt-in) ✅
 
 Wired the **Google Search Console URL-Inspection API** behind a clean opt-in toggle. When configured, listings get a real Google index verdict (PASS / FAIL / PARTIAL → mapped to our existing `established`/`submitted`/`not_in_sitemap` tiers). When NOT configured, the existing sitemap-membership heuristic continues to work unchanged. Zero-risk ship.
