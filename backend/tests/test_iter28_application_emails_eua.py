@@ -88,9 +88,11 @@ async def test_welcome_packet_includes_launch_checklist_and_link():
     # Launch checklist content
     assert "Connect Stripe" in html
     assert "first 3 listings" in html.lower()
-    # Fee breakdown
-    assert "5% commission" in html
-    assert "10 free listings" in html.lower()
+    # Fee breakdown — always present (Founders banner is conditional on
+    # founder_number; the comparison line below always renders).
+    assert "3% for Founders" in html
+    assert "5% Standard" in html
+    assert "50 free every month" in html
     # Personalised note included as a quote block
     assert "Loved your work." in html
 
