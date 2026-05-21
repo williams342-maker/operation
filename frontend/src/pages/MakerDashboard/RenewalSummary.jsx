@@ -110,13 +110,17 @@ function SummaryCard({ counts }) {
           <span className="mx-2 text-[#262626]">·</span>
           <span className="text-amber-400">●</span> {counts.total_manual} manual
         </span>
-        <Link
-          to="/maker/renewals"
+        <button
+          type="button"
+          onClick={() => {
+            const el = document.querySelector('[data-testid="renewals-filter"]');
+            if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+          }}
           className="text-[#ff4500] hover:underline"
           data-testid="renewal-manage-link"
         >
-          Manage →
-        </Link>
+          Jump to bulk actions →
+        </button>
       </div>
     </div>
   );

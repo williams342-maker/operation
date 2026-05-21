@@ -410,6 +410,68 @@ async def maker_products_stats(slug: str = Depends(current_maker_slug)):
     return out
 
 
+
+@router.get("/maker/products/indexing-status")
+async def maker_products_indexing_status(slug: str = Depends(current_maker_slug)):
+    """Per-listing sitemap inclusion status (proxy for Google indexing).
+
+    We can't query Google's actual index without GSC OAuth — but we CAN
+    tell the maker exactly what state our sitemap is in for their listings.
+    That's enough to drive a useful 3-tier badge:
+
+      • "established"     — in sitemap AND created >7 days ago.
+                             Google has had a full crawl cycle to find it.
+      • "submitted"       — in sitemap AND created within last 7 days.
+                             Submitted but Googlebot may not have visited yet.
+      • "not_in_sitemap"  — listing is draft, deleted, or filtered as a
+                             test slug. Won't surface in organic search.
+
+    A listing is in our sitemap iff status != "draft" AND deleted_at is None
+    AND its slug isn't a test/seed artifact (see _is_test_slug in seo.py).
+    """
+    from routers.seo import _is_test_slug  # share the test-slug heuristic
+    now = datetime.now(timezone.utc)
+    cutoff_7d = now - timedelta(days=7)
+
+    products = await db.products.find(
+        {"maker_slug": slug},
+        {"_id": 0, "slug": 1, "status": 1, "deleted_at": 1, "created_at": 1},
+    ).to_list(500)
+
+    out: dict[str, dict] = {}
+    for p in products:
+        s = p["slug"]
+        in_sitemap = (
+            p.get("status") != "draft"
+            and not p.get("deleted_at")
+            and not _is_test_slug(s)
+        )
+        days_in_sitemap = None
+        tier = "not_in_sitemap"
+        if in_sitemap:
+            try:
+                created = datetime.fromisoformat(
+                    (p.get("created_at") or "").replace("Z", "+00:00"),
+                )
+                days_in_sitemap = max(0, int((now - created).total_seconds() // 86400))
+            except Exception:
+                days_in_sitemap = 0
+            try:
+                created_dt = datetime.fromisoformat(
+                    (p.get("created_at") or "").replace("Z", "+00:00"),
+                )
+                tier = "established" if created_dt < cutoff_7d else "submitted"
+            except Exception:
+                tier = "submitted"  # conservative when timestamps are missing
+        out[s] = {
+            "tier": tier,
+            "in_sitemap": in_sitemap,
+            "days_in_sitemap": days_in_sitemap,
+        }
+    return out
+
+
+
 @router.get("/maker/renewals/summary")
 async def maker_renewals_summary(slug: str = Depends(current_maker_slug)):
     """Renewal dashboard widget data + calendar grid for the next 30 days.

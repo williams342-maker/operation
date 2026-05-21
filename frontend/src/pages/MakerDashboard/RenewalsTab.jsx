@@ -1,22 +1,26 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { ArrowLeft, RefreshCw, Pause, Check } from "lucide-react";
+import { RefreshCw, Pause, Check } from "lucide-react";
 import {
   fetchMakerRenewalsSummary, bulkRenewMakerProducts,
   bulkSetRenewalOption, bulkPauseMakerProducts,
-} from "../lib/api";
-import { useConfirm } from "../hooks/useConfirm";
+} from "../../lib/api";
+import { useConfirm } from "../../hooks/useConfirm";
+import RenewalSummary from "./RenewalSummary";
 
 /**
- * Bulk Renewal Manager — table view of every published listing with
- * expiry/renewal-mode columns, multi-select checkboxes, and a sticky
- * bulk action bar. Designed for the "I have 60 expiring next week"
- * use case where per-listing actions get tedious.
+ * Renewals tab — combines the Renewal Summary + Calendar widgets
+ * (re-used as `<RenewalSummary />`) with the Bulk Renewal Manager
+ * table view in a single dashboard tab.
  *
- * Data source: `/api/maker/renewals/summary` (single round-trip — same
- * payload that powers the dashboard widget). Refetches after every
- * bulk mutation so the UI never drifts from server state.
+ * Replaces the standalone `/maker/renewals` page (which now redirects
+ * here). One tab, one source of truth.
+ *
+ * Data source: `/api/maker/renewals/summary` for the table. The
+ * `RenewalSummary` widget makes its OWN fetch — duplicate request is
+ * fine (both cached at HTTP layer; the redundancy keeps each widget
+ * standalone and easier to lift back out if we ever revert).
  */
 const FILTERS = [
   { key: "7d", label: "Next 7d", max: 7 },
@@ -25,7 +29,7 @@ const FILTERS = [
   { key: "all", label: "All", max: 999 },
 ];
 
-export default function MakerRenewalsPage() {
+export default function RenewalsTab() {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -137,31 +141,30 @@ export default function MakerRenewalsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-[#e5e5e5]" data-testid="maker-renewals-page">
+    <div data-testid="maker-renewals-tab">
       {confirmModal}
-      <div className="max-w-6xl mx-auto px-4 md:px-8 py-10">
-        <div className="flex items-center justify-between mb-8">
-          <Link
-            to="/maker/dashboard#listings"
-            className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500]"
-            data-testid="renewals-back"
-          >
-            <ArrowLeft size={14} /> Back to dashboard
-          </Link>
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252]">
-            ◆ Bulk Renewal Manager
-          </div>
-        </div>
 
-        <div className="mb-6">
-          <h1 className="font-display text-4xl md:text-5xl uppercase">Renewals</h1>
-          <p className="font-mono text-xs text-[#a3a3a3] mt-3 max-w-2xl leading-relaxed">
-            Manage every listing that's coming up for renewal. Filter by window, multi-select, then renew, pause, or flip the renewal mode in one click.
-          </p>
+      <div className="mb-6">
+        <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#ff4500] mb-3">
+          ◆ Lifecycle
         </div>
+        <h1 className="font-display text-4xl md:text-5xl uppercase">Renewals</h1>
+        <p className="font-mono text-xs text-[#a3a3a3] mt-3 max-w-2xl leading-relaxed">
+          Manage every listing's renewal lifecycle. The widgets below summarise what's coming up; the table lets you renew, pause, or flip modes in bulk.
+        </p>
+      </div>
 
-        {/* Filter pills */}
-        <div className="flex items-center gap-2 mb-6 flex-wrap" data-testid="renewals-filter">
+      {/* Summary card + calendar — re-used unchanged */}
+      <div className="mb-8">
+        <RenewalSummary />
+      </div>
+
+      {/* Filter pills + bulk manager */}
+      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-3">
+        ◆ Bulk manager
+      </div>
+
+      <div className="flex items-center gap-2 mb-6 flex-wrap" data-testid="renewals-filter">
           {FILTERS.map((f) => (
             <button
               key={f.key}
@@ -221,7 +224,6 @@ export default function MakerRenewalsPage() {
             toggleAll={toggleAll}
           />
         )}
-      </div>
 
       {/* Sticky bulk action bar */}
       {selected.size > 0 && (

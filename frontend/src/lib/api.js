@@ -265,6 +265,8 @@ export const renewMakerProduct = (slug) =>
   http.post(`/maker/products/${slug}/renew`, {}, { headers: authHeaders() }).then((r) => r.data);
 export const fetchMakerProductsStats = () =>
   http.get("/maker/products/stats", { headers: authHeaders() }).then((r) => r.data);
+export const fetchMakerProductsIndexingStatus = () =>
+  http.get("/maker/products/indexing-status", { headers: authHeaders() }).then((r) => r.data);
 export const fetchMakerRenewalsSummary = () =>
   http.get("/maker/renewals/summary", { headers: authHeaders() }).then((r) => r.data);
 export const bulkRenewMakerProducts = (slugs) =>

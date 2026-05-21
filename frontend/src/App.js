@@ -43,7 +43,6 @@ import CommunityPage from "./pages/CommunityPage";
 import { CommunityLogin, CommunityVerify, CommunityAuthCallback } from "./pages/CommunityAuth";
 import BuyerMessagesPage from "./pages/BuyerMessagesPage";
 import MakerListingEditor from "./pages/MakerListingEditor";
-import MakerRenewalsPage from "./pages/MakerRenewalsPage";
 import BetaPage from "./pages/BetaPage";
 import PressPage from "./pages/PressPage";
 import SEOLandingPage from "./pages/SEOLandingPage";
@@ -216,7 +215,7 @@ function App() {
                 <Route path="/messages" element={<BuyerMessagesPage />} />
                 <Route path="/maker/listings/new" element={<MakerListingEditor />} />
                 <Route path="/maker/listings/:slug/edit" element={<MakerListingEditor />} />
-                <Route path="/maker/renewals" element={<MakerRenewalsPage />} />
+                <Route path="/maker/renewals" element={<Navigate to="/maker/dashboard?tab=renewals" replace />} />
               </Routes>
             </main>
             <Footer />

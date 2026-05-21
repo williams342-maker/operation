@@ -11,6 +11,7 @@ import ShopManagerLayout from "./MakerDashboard/ShopManagerLayout";
 import DashboardTab from "./MakerDashboard/DashboardTab";
 import SettingsTab from "./MakerDashboard/SettingsTab";
 import ProductsList from "./MakerDashboard/ProductsList";
+import RenewalsTab from "./MakerDashboard/RenewalsTab";
 import OrdersList from "./MakerDashboard/OrdersList";
 import BackordersList from "./MakerDashboard/BackordersList";
 import StatsTab from "./MakerDashboard/StatsTab";
@@ -34,7 +35,7 @@ function normalizeTab(id) {
 // Valid top-level tab ids. Used to guard against `?tab=<anything>` junk
 // (e.g. rewriter-mangled links) — unknown ids fall back to "dashboard".
 const KNOWN_TABS = new Set([
-  "dashboard", "listings", "orders", "messages", "briefs", "reviews", "stats",
+  "dashboard", "listings", "renewals", "orders", "messages", "briefs", "reviews", "stats",
   "violations", "marketing", "financials", "help", "settings",
 ]);
 
@@ -377,11 +378,12 @@ export default function MakerDashboard() {
           />
         )}
         {tab === "listings"   && <ProductsList products={products} onRefresh={refreshProducts} />}
+        {tab === "renewals"   && <RenewalsTab />}
         {tab === "orders"     && <OrdersTabWrapper
             orders={orders}
             reload={() => fetchMakerOrders().then(setOrders).catch(() => {})}
             onBackordersChange={(list) => setPendingBackorders(list.filter((b) => b.status === "pending").length)}
-          />}}
+          />}
         {tab === "messages"   && <MessagesTab maker={maker} />}
         {tab === "briefs"     && <BriefsTab />}
         {tab === "reviews"    && <ReviewsTab />}

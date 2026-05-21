@@ -3,13 +3,12 @@ import { useNavigate } from "react-router-dom";
 import { Hammer, Check, Mail, BarChart3 } from "lucide-react";
 import { toast } from "sonner";
 import ProductEditCard from "./ProductEditCard";
-import RenewalSummary from "./RenewalSummary";
 import WorstPerformersPanel from "./WorstPerformersPanel";
 import EmptyState from "../../components/EmptyState";
 import { useConfirm } from "./useConfirm";
 import {
   restoreMakerProduct, purgeMakerProduct, fetchMakerRestockWaitlist,
-  fetchMakerProductsStats,
+  fetchMakerProductsStats, fetchMakerProductsIndexingStatus,
 } from "../../lib/api";
 
 /**
@@ -58,6 +57,18 @@ export default function ProductsList({ products, onChanged, onRefresh }) {
       .catch(() => {});
     return () => { cancelled = true; };
   }, [showStats, products.length]);
+
+  // Indexing status — always fetched (cheap, single call). Drives the small
+  // sitemap-status badge on each card so makers can see at a glance which
+  // listings have been submitted to search engines vs are stuck in drafts.
+  const [indexingMap, setIndexingMap] = useState({});
+  useEffect(() => {
+    let cancelled = false;
+    fetchMakerProductsIndexingStatus()
+      .then((d) => { if (!cancelled) setIndexingMap(d || {}); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [products.length]);
   const toggleStats = () => {
     setShowStats((v) => {
       const next = !v;
@@ -156,12 +167,6 @@ export default function ProductsList({ products, onChanged, onRefresh }) {
         </div>
       </div>
 
-      {/* Renewal Summary + Calendar widgets — only render once the maker has at
-          least one published listing with expiry data. Mounted above the view
-          switcher so the renewal calendar is the first thing the maker sees
-          when they're managing listings. */}
-      <RenewalSummary />
-
       {/* Worst Performers — surfaces the 5 listings with the lowest 30-day
           views, plus a one-click "✨ Refresh with AI" button that regenerates
           SEO tags via Claude. Closes the loop with Smart Pause (which kicks
@@ -193,6 +198,7 @@ export default function ProductsList({ products, onChanged, onRefresh }) {
               onChanged={refresh}
               showStats={showStats}
               statsMap={statsMap}
+              indexingMap={indexingMap}
             />
           )}
           {view === "drafts" && (
@@ -208,6 +214,7 @@ export default function ProductsList({ products, onChanged, onRefresh }) {
               cardProps={{ draft: true }}
               showStats={showStats}
               statsMap={statsMap}
+              indexingMap={indexingMap}
             />
           )}
           {view === "archived" && (
@@ -255,7 +262,7 @@ function ViewSwitcher({ view, setView, counts }) {
   );
 }
 
-function Bucket({ items, testId, empty, onChanged, cardProps = {}, banner = null, showStats = false, statsMap = {} }) {
+function Bucket({ items, testId, empty, onChanged, cardProps = {}, banner = null, showStats = false, statsMap = {}, indexingMap = {} }) {
   if (items.length === 0) {
     return (
       <section data-testid={testId} className="border border-dashed border-[#262626] p-8">
@@ -273,6 +280,7 @@ function Bucket({ items, testId, empty, onChanged, cardProps = {}, banner = null
             product={p}
             onChanged={onChanged}
             stats={showStats ? (statsMap[p.slug] || null) : null}
+            indexing={indexingMap[p.slug] || null}
             {...cardProps}
           />
         ))}

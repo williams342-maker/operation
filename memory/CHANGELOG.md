@@ -1,6 +1,55 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-21 — iter165 · Sitemap-indexing status badge ✅
+
+**Public:** Every listing card in the Shop Manager → Listings tab now shows a small **sitemap status badge** under the category line, with three tiers:
+
+- 🟢 **Indexed** — listing has been in our sitemap for >7 days. Google's had a full crawl cycle to find it.
+- 🟡 **Submitted** — recently added to the sitemap (≤7 days). Search engines may not have crawled it yet.
+- ⚪ **Not in sitemap** — draft / archived / test-pattern slug. Won't surface in organic search until you publish.
+
+Hover the badge for a tooltip explaining what each tier means + what sitemap inclusion implies for discoverability.
+
+### Why heuristic, not GSC API
+
+A true Google Search Console URL-Inspection integration would require OAuth + service account + GSC verification of the service account email — meaningful operational overhead. The sitemap-membership heuristic is honest about what we actually control + know, ships in <100 lines, and the tier logic mirrors how Google's crawler actually behaves (sitemap submission → crawl within 1-2 weeks for new sites). If/when GSC API is wired up, the same `tier` field can be backed by real index-status data without changing the UI contract.
+
+### Backend
+
+- New endpoint `GET /api/maker/products/indexing-status` — per-listing dict keyed by slug, returns `{tier, in_sitemap, days_in_sitemap}`. Shares the `_is_test_slug` heuristic from `routers/seo.py` so the tier matches the sitemap's actual contents exactly.
+- Tests: `/app/backend/tests/test_indexing_status.py` — 2/2 passing. Covers endpoint shape + tier logic against seeded fixtures (draft, recent-published, old-published, test-pattern slug).
+
+### Frontend
+
+- `lib/api.js`: new `fetchMakerProductsIndexingStatus` wrapper.
+- `pages/MakerDashboard/ProductsList.jsx`: always fetches the indexing map (single cheap call, no toggle), threads it to each `ProductEditCard` via the `indexingMap` prop.
+- `pages/MakerDashboard/ProductEditCard.jsx`: new `IndexingBadge` component (40 lines), rendered between the category line and the title. Color-coded dot + label + tooltip.
+
+
+
+## 2026-05-21 — iter164 · Sitemap submitted · Renewals → dedicated dashboard tab ✅
+
+**SEO milestone:** Sitemap submitted to Google Search Console + Bing Webmaster Tools. 34 URLs indexed (home, shop, makers, 7 SEO landing pages, journal entries, changelog). Drops `P3 - Submit sitemap to GSC/Bing` from backlog.
+
+**Public:** Renewals + Calendar widgets and the Bulk Renewal Manager are now a single dedicated **"Renewals"** tab in the Shop Manager (between Listings and Orders). Previously the Summary + Calendar lived above the Listings grid, and the Bulk Manager was a standalone `/maker/renewals` page. One tab, one source of truth.
+
+### Frontend
+
+- **Renamed + moved** `pages/MakerRenewalsPage.jsx` → `pages/MakerDashboard/RenewalsTab.jsx`. Component renamed `MakerRenewalsPage` → `RenewalsTab`. Page chrome (min-h-screen wrapper, back-link, max-w container) dropped — the layout is now provided by `ShopManagerLayout`.
+- Embedded `<RenewalSummary />` at the top of `RenewalsTab` so the Summary card + 30-day Calendar render above the bulk manager filters/table in the new dedicated tab.
+- `ShopManagerLayout.jsx` NAV: new entry `{ id: "renewals", label: "Renewals", icon: CalendarClock }` between Listings and Orders.
+- `MakerDashboard.jsx`: added `"renewals"` to `KNOWN_TABS`, imported `RenewalsTab`, wired `{tab === "renewals" && <RenewalsTab />}` into the render branch.
+- `ProductsList.jsx`: removed the now-redundant `<RenewalSummary />` mount above the listings grid — the widgets live exclusively under the Renewals tab.
+- `RenewalSummary.jsx`: "Manage →" link → "Jump to bulk actions →" smooth-scrolling to the filter pills inside the same tab.
+- `App.js`: `/maker/renewals` route → `<Navigate to="/maker/dashboard?tab=renewals" replace />` so any existing email/external link still lands in the right place.
+
+### Bug fix (drive-by)
+
+- Removed a stray extra `}` on line 386 of `MakerDashboard.jsx` (`/>}}` → `/>}`) — a pre-existing JSX bug in the orders tab render branch that surfaced as a literal `}` text node on every non-orders tab. Found while smoke-testing the new Renewals tab. Caught by visual inspection (no lint rule catches it).
+
+
+
 ## 2026-05-21 — iter163 · Worst Performers + Admin mod stats + mobile bar + skeletons ✅
 
 **Public:** Four UX/insight upgrades that close the loop on listing health and admin moderation.

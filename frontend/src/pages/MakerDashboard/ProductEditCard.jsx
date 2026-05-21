@@ -9,7 +9,7 @@ import {
 import { useConfirm } from "./useConfirm";
 import { toast } from "sonner";
 
-export default function ProductEditCard({ product, archived = false, draft = false, onChanged, stats = null }) {
+export default function ProductEditCard({ product, archived = false, draft = false, onChanged, stats = null, indexing = null }) {
   const [confirm, confirmModal] = useConfirm();
   const [p, setP] = useState(product);
   const [open, setOpen] = useState(false);
@@ -202,6 +202,7 @@ export default function ProductEditCard({ product, archived = false, draft = fal
             <span className="text-emerald-400 ml-1.5" data-testid={`product-promoted-${p.slug}`}>· Promoted</span>
           )}
         </div>
+        {indexing && <IndexingBadge indexing={indexing} slug={p.slug} />}
         <div className="font-display text-base mt-1.5 leading-tight line-clamp-2 min-h-[2.4em]">{p.title}</div>
         <div className="flex items-center justify-between mt-2">
           <span className="font-display text-lg text-[#ff4500]">${p.price.toFixed(0)}</span>
@@ -550,6 +551,62 @@ function OverflowMenu({ onModel, modelLabel, onDelete, deleteLabel, deleteDisabl
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+
+
+/**
+ * IndexingBadge — small sitemap-status pill rendered under the category
+ * line on each listing card. Hides the absence-of-data case (renders nothing
+ * when `indexing` is null so cards stay tidy while the bulk fetch is in
+ * flight).
+ *
+ * Three tiers (see `/api/maker/products/indexing-status`):
+ *   • established    — in sitemap, >7 days old. Green dot.
+ *   • submitted      — in sitemap, <=7 days old. Amber dot.
+ *   • not_in_sitemap — draft / deleted / test slug. Gray dot.
+ *
+ * Tooltip explains what the tier means + what sitemap inclusion implies
+ * for Google/Bing discoverability (no API-call to confirm actual indexing
+ * since GSC OAuth isn't wired — see iter164 changelog).
+ */
+function IndexingBadge({ indexing, slug }) {
+  const tier = indexing.tier;
+  const days = indexing.days_in_sitemap;
+
+  const tiers = {
+    established: {
+      dot: "bg-emerald-400",
+      label: "Indexed",
+      text: "text-emerald-400",
+      title: `In sitemap for ${days ?? 0}d — Google has had time to crawl and index.`,
+    },
+    submitted: {
+      dot: "bg-amber-400",
+      label: "Submitted",
+      text: "text-amber-400",
+      title: `Recently added to the sitemap (${days ?? 0}d). Search engines may not have crawled it yet — usually within 7 days.`,
+    },
+    not_in_sitemap: {
+      dot: "bg-[#525252]",
+      label: "Not in sitemap",
+      text: "text-[#a3a3a3]",
+      title: "Draft / archived / test listing — won't surface in search until published.",
+    },
+  };
+  const cfg = tiers[tier] || tiers.not_in_sitemap;
+
+  return (
+    <div
+      className="flex items-center gap-1.5 mt-1.5 font-mono text-[9px] uppercase tracking-[0.2em]"
+      title={cfg.title}
+      data-testid={`indexing-badge-${slug}`}
+      data-tier={tier}
+    >
+      <span className={`inline-block w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+      <span className={cfg.text}>{cfg.label}</span>
     </div>
   );
 }
