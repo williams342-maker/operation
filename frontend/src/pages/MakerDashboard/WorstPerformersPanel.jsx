@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { TrendingDown, Sparkles, Check, ExternalLink, RefreshCw } from "lucide-react";
+import { TrendingDown, Sparkles, ExternalLink, RefreshCw, Rocket } from "lucide-react";
 import { toast } from "sonner";
 import {
   fetchMakerProductsStats, fetchMakerProducts,
-  aiSeoTags, updateMakerProduct,
+  aiSeoTags, updateMakerProduct, publishMakerProduct,
 } from "../../lib/api";
 
 /**
@@ -30,22 +30,33 @@ export default function WorstPerformersPanel() {
         fetchMakerProductsStats(),
         fetchMakerProducts(),
       ]);
-      const byId = Object.fromEntries(products.map((p) => [p.slug, p]));
-      // Only consider published, non-deleted listings.
-      const eligible = products
+      // Two recovery cohorts merged into a single ranked list:
+      //   • Published listings sorted by lowest 30-day visits, then sales (asc)
+      //   • Drafts (skip soft-deleted) — every draft is a recovery candidate;
+      //     surface them because they're effectively invisible to buyers and a
+      //     one-click publish converts them from "wasted work" to "indexable".
+      // Drafts are placed AFTER underperforming published listings since fixing
+      // an active stale listing is usually higher leverage than waking a draft.
+      const published = products
         .filter((p) => p.status === "published" && !p.deleted_at)
         .map((p) => ({
           ...p,
           v30: stats[p.slug]?.visits_30d ?? 0,
           sales: stats[p.slug]?.sales_all ?? 0,
+          cohort: "published",
         }))
         .sort((a, b) => {
-          // Sort by visits asc, then by sales asc — break ties with stale items
           if (a.v30 !== b.v30) return a.v30 - b.v30;
           return a.sales - b.sales;
-        })
-        .slice(0, 5);
-      setRows(eligible);
+        });
+      const drafts = products
+        .filter((p) => p.status === "draft" && !p.deleted_at)
+        .map((p) => ({
+          ...p, v30: 0, sales: 0, cohort: "draft",
+        }))
+        .sort((a, b) => (a.created_at || "").localeCompare(b.created_at || ""));
+      const merged = [...published, ...drafts].slice(0, 6);
+      setRows(merged);
     } catch (e) {
       setErr(e?.response?.data?.detail || "Couldn't load worst performers.");
       setRows([]);
@@ -78,21 +89,37 @@ export default function WorstPerformersPanel() {
     }
   };
 
+  const publishNow = async (p) => {
+    setBusy((b) => ({ ...b, [p.slug]: true }));
+    try {
+      await publishMakerProduct(p.slug);
+      toast.success(`"${p.title}" is now live and in the sitemap.`);
+      load();
+    } catch (e) {
+      const msg = e?.response?.data?.detail || "Couldn't publish — open the editor to fix any missing fields.";
+      toast.error(msg);
+    } finally {
+      setBusy((b) => ({ ...b, [p.slug]: false }));
+    }
+  };
+
   if (rows === null) {
     return <SkeletonCard testId="worst-performers-skeleton" rows={3} />;
   }
-  if (rows.length < 3) return null;  // hide when shop is too small to be meaningful
+  // Hide if total recovery candidates < 3 — too small a shop for a meaningful
+  // ranking. Counts both underperforming published + drafts.
+  if (rows.length < 3) return null;
 
   return (
     <div className="border border-[#262626] bg-[#0d0d0d] p-5" data-testid="worst-performers">
       <div className="flex items-start justify-between mb-4 gap-3">
         <div>
           <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#ff4500] flex items-center gap-2">
-            <TrendingDown size={12} /> ◆ Low traffic · last 30 days
+            <TrendingDown size={12} /> ◆ Recovery queue
           </div>
-          <h3 className="font-display text-xl uppercase mt-1">Worst performers</h3>
+          <h3 className="font-display text-xl uppercase mt-1">Low traffic + forgotten drafts</h3>
           <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-xl leading-relaxed">
-            These published listings got the fewest visits in the last month. Refresh their SEO tags with AI in one click, or open the editor to rephotograph + rewrite copy.
+            These listings are dragging the shop's discoverability. Underperforming live listings can be refreshed with AI; forgotten drafts can be published in one click.
           </p>
         </div>
         <button
@@ -123,44 +150,73 @@ export default function WorstPerformersPanel() {
               />
             )}
             <div className="min-w-0 flex-1">
-              <Link
-                to={`/maker/listings/${p.slug}/edit`}
-                className="font-display text-base block truncate hover:text-[#ff4500]"
-              >
-                {p.title}
-              </Link>
+              <div className="flex items-center gap-2">
+                <Link
+                  to={`/maker/listings/${p.slug}/edit`}
+                  className="font-display text-base truncate hover:text-[#ff4500]"
+                >
+                  {p.title}
+                </Link>
+                {p.cohort === "draft" && (
+                  <span
+                    className="font-mono text-[9px] uppercase tracking-[0.22em] border border-amber-500/40 text-amber-400 px-1.5 py-0.5 shrink-0"
+                    data-testid={`worst-draft-tag-${p.slug}`}
+                  >
+                    Draft
+                  </span>
+                )}
+              </div>
               <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mt-0.5">
-                {p.v30} visits · {p.sales} sales · {(p.seo_tags || []).length}/13 tags
+                {p.cohort === "draft" ? (
+                  <>Not in sitemap · {(p.seo_tags || []).length}/13 tags{p.created_at ? ` · saved ${new Date(p.created_at).toLocaleDateString()}` : ""}</>
+                ) : (
+                  <>{p.v30} visits · {p.sales} sales · {(p.seo_tags || []).length}/13 tags</>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <button
-                onClick={() => refreshWithAI(p)}
-                disabled={busy[p.slug]}
-                className="inline-flex items-center gap-1.5 border border-[#ff4500] bg-[#ff4500]/10 hover:bg-[#ff4500]/20 text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] px-3 py-1.5 disabled:opacity-50 transition"
-                data-testid={`worst-ai-refresh-${p.slug}`}
-                title="Generate fresh SEO tags via Claude and merge them in"
-              >
-                <Sparkles size={12} />
-                {busy[p.slug] ? "Refreshing…" : "Refresh with AI"}
-              </button>
-              <Link
-                to={`/shop/${p.slug}`}
-                target="_blank"
-                rel="noopener"
-                className="inline-flex items-center gap-1 px-2 py-1.5 border border-[#262626] hover:border-[#ff4500] text-[#a3a3a3] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em]"
-                data-testid={`worst-view-${p.slug}`}
-                title="Preview the public listing"
-              >
-                <ExternalLink size={12} />
-              </Link>
+              {p.cohort === "draft" ? (
+                <button
+                  onClick={() => publishNow(p)}
+                  disabled={busy[p.slug]}
+                  className="inline-flex items-center gap-1.5 border border-emerald-500 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 font-mono text-[10px] uppercase tracking-[0.22em] px-3 py-1.5 disabled:opacity-50 transition"
+                  data-testid={`worst-publish-${p.slug}`}
+                  title="Flip this draft to published — instantly enters the sitemap so Google can find it"
+                >
+                  <Rocket size={12} />
+                  {busy[p.slug] ? "Publishing…" : "Publish now"}
+                </button>
+              ) : (
+                <button
+                  onClick={() => refreshWithAI(p)}
+                  disabled={busy[p.slug]}
+                  className="inline-flex items-center gap-1.5 border border-[#ff4500] bg-[#ff4500]/10 hover:bg-[#ff4500]/20 text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] px-3 py-1.5 disabled:opacity-50 transition"
+                  data-testid={`worst-ai-refresh-${p.slug}`}
+                  title="Generate fresh SEO tags via Claude and merge them in"
+                >
+                  <Sparkles size={12} />
+                  {busy[p.slug] ? "Refreshing…" : "Refresh with AI"}
+                </button>
+              )}
+              {p.cohort !== "draft" && (
+                <Link
+                  to={`/shop/${p.slug}`}
+                  target="_blank"
+                  rel="noopener"
+                  className="inline-flex items-center gap-1 px-2 py-1.5 border border-[#262626] hover:border-[#ff4500] text-[#a3a3a3] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em]"
+                  data-testid={`worst-view-${p.slug}`}
+                  title="Preview the public listing"
+                >
+                  <ExternalLink size={12} />
+                </Link>
+              )}
             </div>
           </li>
         ))}
       </ul>
 
       <p className="font-mono text-[10px] text-[#525252] mt-4 leading-relaxed">
-        <span className="text-[#ff4500]">✨</span> "Refresh with AI" uses Claude to generate up to 13 new high-intent search tags from your title, category, and description — merged with your existing tags (never overwrites). Fast, free, and one-click reversible from the editor's SEO section.
+        <span className="text-[#ff4500]">✨</span> "Refresh with AI" uses Claude to generate up to 13 new high-intent search tags from your title, category, and description — merged with your existing tags (never overwrites). For drafts, "Publish now" flips them live and adds them to the sitemap immediately.
       </p>
     </div>
   );

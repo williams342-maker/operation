@@ -1,6 +1,35 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-21 — iter166 · Recovery Queue (was Worst Performers) ✅
+
+**Public:** The dashboard's "Worst Performers" panel got a meaningful upgrade and a new name: **"Recovery queue"** with the headline *"Low traffic + forgotten drafts"*.
+
+Two cohorts now share one ranked list:
+
+1. **Underperforming live listings** — published items sorted by lowest 30-day visits (existing behaviour). Per-row action: **✨ Refresh with AI** regenerates SEO tags.
+2. **Forgotten drafts** — drafts surface with an amber "DRAFT" tag + "Not in sitemap" meta line + a bright emerald **🚀 Publish now** button that flips the listing to published in one click (calls existing `/maker/products/{slug}/publish`). Sorted by oldest-first so the most-forgotten get top billing.
+
+The panel renders both cohorts in a single list, capped at 6 rows total. Drafts are placed after the underperforming published cohort since fixing an active stale listing is usually higher-leverage than waking a draft.
+
+### Why this matters
+
+Pairs naturally with iter165's indexing badge: when a maker sees ⚪ "Not in sitemap" on a listing card, the same listing now ALSO appears in the recovery queue with a one-click fix. Turns the discoverability signal into a directly-actionable nudge.
+
+### Frontend
+
+- `pages/MakerDashboard/WorstPerformersPanel.jsx`:
+  - Eligibility merged: published (sorted by visits asc) + drafts (sorted by created_at asc).
+  - Per-row branch: `cohort: "published"` → AI refresh button; `cohort: "draft"` → Publish-now button.
+  - Draft tag pill + "Not in sitemap · saved <date>" meta line.
+  - "Preview listing" external-link button only shown for published rows (drafts don't have a public URL).
+
+### Tests
+
+- `/app/backend/tests/test_recovery_queue_publish.py` — 1/1 passing. Seeds a draft, verifies `indexing-status` reports `not_in_sitemap`, publishes via the same endpoint the panel's button calls, verifies the tier flips to `submitted` + `in_sitemap: true` (closes the loop end-to-end).
+
+
+
 ## 2026-05-21 — iter165 · Sitemap-indexing status badge ✅
 
 **Public:** Every listing card in the Shop Manager → Listings tab now shows a small **sitemap status badge** under the category line, with three tiers:
