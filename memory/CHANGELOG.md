@@ -1,6 +1,24 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-21 — iter161 · Etsy-style listing renewal options ✅
+
+**Public:** Listings now let you choose how they renew. Pick **Automatic** and we'll keep your shop moving for another 4 months without any action from you. Pick **Manual** and we'll email you 7 days before expiry so you can decide. Default is automatic — same behaviour buyers and your shop's velocity expect.
+
+- New `renewal_option: "automatic" | "manual"` field on `Product` + `MakerProductCreate` (defaults to `"automatic"`). Whitelisted on PATCH; rejects unknown values with HTTP 400.
+- `revenue.expire_due_listings()` now branches on the field:
+  - **automatic** → extends `expires_at` by another `LISTING_EXPIRY_DAYS` window, accrues the standard listing fee via the existing tier-aware `accrue_listing_charge` (Founders/Plus stay within their monthly free quota; everyone else gets $0.20), resets `renewal_reminder_sent_at`, and fires a confirmation email.
+  - **manual** → legacy behaviour: flip to draft.
+- New `revenue.send_listing_expiry_reminders(days_before=7)`: emails makers of **manual**-renewal listings expiring inside the window, stamps `renewal_reminder_sent_at` to keep the sweep idempotent across runs. Auto-renew listings are skipped entirely.
+- New scheduler job `listing_renewal_reminders@cron[hour=9, minute=30]` daily.
+- Two new email helpers in `email_service.py` (`send_maker_listing_renewed`, `send_maker_listing_expiring_soon`) — branded shell, deep-links to listing/edit, both render with `_shell`.
+- UI: new "Renewal Options" Section in the Listing Editor (`MakerListingEditor.jsx`) — large radio cards styled to match the existing industrial dark theme, with description copy explaining tier-aware pricing. `data-testid="editor-renewal-options"` + `editor-renewal-automatic|manual`. Hydrated from existing listings (defaults to `"automatic"` for legacy rows without the field).
+- Manual publish / renew endpoints now also reset `renewal_reminder_sent_at` so a maker who hits renew never gets a stale 7-day-out reminder.
+- Regression: `/app/backend/tests/test_listing_renewal_options.py` (5/5 green) — create with field, default-to-automatic, PATCH invalid-value 400, sweep branches manual vs automatic, reminder sweep window + idempotent stamp.
+
+
+
+
 ## 2026-05-21 — iter160 · "Post restored" email closes the moderation trust loop ✅
 
 **Public:** Got an "under review" email earlier and your post came back? You'll now get an "all clear" follow-up too — a warm note from us saying a moderator looked at it and put it back. Closes the loop so you don't have to wonder.

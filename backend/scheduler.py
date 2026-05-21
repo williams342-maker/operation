@@ -47,6 +47,16 @@ async def _job_expire_listings() -> None:
         logger.exception("[scheduler] listing-expiry failed: %s", e)
 
 
+async def _job_listing_renewal_reminders() -> None:
+    """Daily: email makers whose manual-renewal listings expire in 7 days."""
+    from revenue import send_listing_expiry_reminders
+    try:
+        r = await send_listing_expiry_reminders(days_before=7)
+        logger.info("[scheduler] listing-renewal reminders: %s", r)
+    except Exception as e:
+        logger.exception("[scheduler] listing-renewal reminders failed: %s", e)
+
+
 async def _job_founders_lifecycle() -> None:
     """Daily Founder maintenance — auto-roll expired Founders to Standard
     and revoke 14-day grace slots that never published a product."""
@@ -740,6 +750,11 @@ def start_scheduler() -> AsyncIOScheduler | None:
     sched = AsyncIOScheduler(timezone="UTC")
     sched.add_job(_job_expire_listings, CronTrigger(hour=3, minute=10),
                   id="expire_listings", replace_existing=True)
+    # Listing renewal reminders — runs 09:30 UTC daily, emails makers
+    # whose manual-renewal listings expire in 7 days. Auto-renew listings
+    # skip this nudge (they're handled silently by expire_listings).
+    sched.add_job(_job_listing_renewal_reminders, CronTrigger(hour=9, minute=30),
+                  id="listing_renewal_reminders", replace_existing=True)
     # Founders lifecycle — runs at 03:15 UTC daily, right after listing expiry.
     # Auto-rolls regular Founders past 12-month window to Standard, and
     # revokes 14-day grace slots that never published anything.

@@ -169,6 +169,7 @@ class MakerProductUpdate(BaseModel):
     contact_email: Optional[str] = None
     accepts_backorders: Optional[bool] = None
     backorder_lead_weeks: Optional[int] = None
+    renewal_option: Optional[str] = None  # "automatic" | "manual"
 
 
 class ProductVariantInput(BaseModel):
@@ -201,6 +202,8 @@ async def maker_update_product(
         raise HTTPException(400, "status must be 'draft' or 'published'.")
     if payload.seo_tags is not None and len(payload.seo_tags) > 13:
         raise HTTPException(400, "Maximum 13 SEO tags per listing.")
+    if payload.renewal_option is not None and payload.renewal_option not in ("automatic", "manual"):
+        raise HTTPException(400, "renewal_option must be 'automatic' or 'manual'.")
     if payload.variants is not None:
         for v in payload.variants:
             if not v.label.strip():
@@ -283,7 +286,11 @@ async def maker_publish_product(
         await accrue_listing_charge(slug, product_slug, kind="listing_publish")
     await db.products.update_one(
         {"slug": product_slug},
-        {"$set": {"status": "published", "expires_at": expiry_iso_from_now()}},
+        {"$set": {
+            "status": "published",
+            "expires_at": expiry_iso_from_now(),
+            "renewal_reminder_sent_at": None,
+        }},
     )
     updated = await db.products.find_one({"slug": product_slug}, {"_id": 0})
     # Fire notifications in the background — keeps the API response snappy
@@ -314,7 +321,11 @@ async def maker_renew_product(product_slug: str, slug: str = Depends(current_mak
     await accrue_listing_charge(slug, product_slug, kind="listing_renew")
     await db.products.update_one(
         {"slug": product_slug},
-        {"$set": {"status": "published", "expires_at": expiry_iso_from_now()}},
+        {"$set": {
+            "status": "published",
+            "expires_at": expiry_iso_from_now(),
+            "renewal_reminder_sent_at": None,
+        }},
     )
     return await db.products.find_one({"slug": product_slug}, {"_id": 0})
 
@@ -533,6 +544,8 @@ async def maker_create_product(
         raise HTTPException(400, "status must be 'draft' or 'published'.")
     if len(payload.seo_tags or []) > 13:
         raise HTTPException(400, "Maximum 13 SEO tags per listing.")
+    if payload.renewal_option not in ("automatic", "manual"):
+        raise HTTPException(400, "renewal_option must be 'automatic' or 'manual'.")
     # Validate variants — labels are required and stock must be non-negative
     for v in payload.variants or []:
         if not v.label.strip():
@@ -633,6 +646,7 @@ async def maker_create_product(
         accept_exchanges=bool(payload.accept_exchanges),
         seo_tags=(payload.seo_tags or [])[:13],
         contact_email=payload.contact_email,
+        renewal_option=payload.renewal_option,
         # Auto-set expiry only on publish; drafts have no expiry until published.
         expires_at=(
             __import__("revenue").expiry_iso_from_now()

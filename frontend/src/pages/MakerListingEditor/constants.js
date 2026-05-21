@@ -85,5 +85,9 @@ export const emptyForm = () => ({
   // Backorders — `null` means inherit from maker.accepts_backorders_default
   accepts_backorders: null,
   backorder_lead_weeks: null,
+  // Etsy-style listing renewal: "automatic" (scheduler keeps it live) vs
+  // "manual" (flips to draft on expiry). Default to automatic so the
+  // listing keeps earning unless the maker deliberately opts out.
+  renewal_option: "automatic",
   status: "draft",
 });

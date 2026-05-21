@@ -1197,6 +1197,96 @@ async def send_maker_low_stock(maker_email: str, maker_name: str,
     return await _send(maker_email, f"Low stock · {len(items)} listing{'s' if len(items) > 1 else ''} · {maker_name}", html)
 
 
+async def send_maker_listing_renewed(
+    maker_email: str, maker_name: str, product_title: str,
+    product_slug: str, new_expiry_iso: str,
+):
+    """Sent after the scheduler auto-renews a listing on the maker's behalf.
+    The maker opted into automatic renewal — this is a confirmation, not an
+    action request."""
+    if not maker_email:
+        return None
+    try:
+        from datetime import datetime as _dt
+        nice_date = _dt.fromisoformat(
+            new_expiry_iso.replace("Z", "+00:00"),
+        ).strftime("%b %d, %Y")
+    except Exception:
+        nice_date = new_expiry_iso
+    base = os.environ.get("PUBLIC_APP_URL") or "https://craftersmarket.org"
+    listing_url = f"{base}/shop/{product_slug}"
+    body = (
+        "<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 18px'>"
+        f"Hi {maker_name}, your listing <strong style='color:#ff4500'>{product_title}</strong> "
+        "just auto-renewed for another 4 months — buyers can keep finding it without "
+        "any action from you.</p>"
+        "<div style='border-left:3px solid #ff4500;padding:14px 18px;background:#0d0d0d;margin:18px 0'>"
+        "<div style='font-size:11px;color:#a3a3a3;text-transform:uppercase;letter-spacing:0.22em;margin-bottom:6px'>"
+        "Renewed through</div>"
+        f"<div style='font-size:16px;color:#ff4500;font-weight:bold'>{nice_date}</div>"
+        "</div>"
+        f"<a href='{listing_url}' style='display:inline-block;background:#ff4500;color:#0a0a0a;"
+        "padding:14px 26px;font-family:Impact,Arial Black,sans-serif;font-size:13px;letter-spacing:0.18em;"
+        "text-transform:uppercase;text-decoration:none;border:1px solid #ff4500'>View listing →</a>"
+        "<p style='font-size:12px;color:#525252;margin-top:24px;line-height:1.6'>"
+        "Want to stop auto-renewing? Edit this listing → Renewal options → Manual.</p>"
+    )
+    html = _shell(
+        "Listing renewed.", "Your shop kept moving — no action needed.",
+        body, "Maker · auto-renew",
+    )
+    return await _send(maker_email, f"Auto-renewed · {product_title}", html)
+
+
+async def send_maker_listing_expiring_soon(
+    maker_email: str, maker_name: str, product_title: str,
+    product_slug: str, expires_at_iso: str,
+):
+    """Sent ~7 days before a manual-renewal listing expires. Nudges the
+    maker to either flip renewal to automatic or hit the renew button."""
+    if not maker_email:
+        return None
+    try:
+        from datetime import datetime as _dt
+        nice_date = _dt.fromisoformat(
+            expires_at_iso.replace("Z", "+00:00"),
+        ).strftime("%b %d, %Y")
+    except Exception:
+        nice_date = expires_at_iso
+    base = os.environ.get("PUBLIC_APP_URL") or "https://craftersmarket.org"
+    edit_url = f"{base}/maker/listings/{product_slug}/edit"
+    body = (
+        "<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 18px'>"
+        f"Hi {maker_name}, your listing <strong style='color:#ff4500'>{product_title}</strong> "
+        "is set to manual renewal and will expire in about a week. Once it expires, "
+        "it auto-flips to draft and stops showing up in search.</p>"
+        "<div style='border-left:3px solid #ff4500;padding:14px 18px;background:#0d0d0d;margin:18px 0'>"
+        "<div style='font-size:11px;color:#a3a3a3;text-transform:uppercase;letter-spacing:0.22em;margin-bottom:6px'>"
+        "Expires</div>"
+        f"<div style='font-size:16px;color:#ff4500;font-weight:bold'>{nice_date}</div>"
+        "</div>"
+        "<p style='font-size:13px;color:#e5e5e5;line-height:1.6;margin:18px 0 12px'>"
+        "Two quick options:</p>"
+        "<ol style='font-size:13px;color:#e5e5e5;line-height:1.7;padding-left:18px;margin:0 0 18px'>"
+        "<li>Switch this listing to <strong>Automatic</strong> renewal — we'll keep it live "
+        "without any pings.</li>"
+        "<li>Open the editor and hit the renew button when you're ready.</li>"
+        "</ol>"
+        f"<a href='{edit_url}' style='display:inline-block;background:#ff4500;color:#0a0a0a;"
+        "padding:14px 26px;font-family:Impact,Arial Black,sans-serif;font-size:13px;letter-spacing:0.18em;"
+        "text-transform:uppercase;text-decoration:none;border:1px solid #ff4500'>Open editor →</a>"
+        "<p style='font-size:12px;color:#525252;margin-top:24px;line-height:1.6'>"
+        "You're receiving this because the listing's renewal mode is set to manual. "
+        "You can change it any time inside the editor.</p>"
+    )
+    html = _shell(
+        "Expires soon.", "One click away from another 4 months live.",
+        body, "Maker · expiry reminder",
+    )
+    return await _send(maker_email, f"Expires in 7 days · {product_title}", html)
+
+
+
 async def send_maker_magic_link(maker_email: str, maker_name: str, link: str):
     if not maker_email:
         return None

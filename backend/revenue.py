@@ -394,19 +394,76 @@ async def settle_pending_charges(maker_slug: str, gross_cents: int) -> dict:
 
 
 async def expire_due_listings() -> dict:
-    """Background sweep: any published listing past its `expires_at` flips to
-    draft. Returns count. Call from scheduled task or admin endpoint.
+    """Background sweep: walk published listings past their `expires_at`.
+
+    Behavior is per-listing based on `renewal_option`:
+      • "automatic" (default) — extend `expires_at` by another
+        LISTING_EXPIRY_DAYS window and accrue the standard listing fee
+        via `accrue_listing_charge` (Founders / Plus stay within their
+        monthly free quota; everyone else is charged $0.20). Maker is
+        emailed a confirmation in the background.
+      • "manual" — flip the listing to draft so the maker can decide
+        whether to renew (legacy behaviour, unchanged).
+
+    Returns {expired_to_draft, auto_renewed, errors, now}.
     """
     now = now_iso()
-    res = await db.products.update_many(
+    cursor = db.products.find(
         {
             "status": "published",
             "deleted_at": None,
             "expires_at": {"$ne": None, "$lt": now},
         },
-        {"$set": {"status": "draft"}},
+        {"_id": 0, "slug": 1, "maker_slug": 1, "renewal_option": 1, "title": 1},
     )
-    return {"expired": int(res.modified_count or 0), "now": now}
+    expired_to_draft = auto_renewed = errors = 0
+    async for p in cursor:
+        try:
+            mode = (p.get("renewal_option") or "automatic").lower()
+            if mode == "automatic":
+                new_expiry = expiry_iso_from_now()
+                await db.products.update_one(
+                    {"slug": p["slug"]},
+                    {"$set": {
+                        "expires_at": new_expiry,
+                        "renewal_reminder_sent_at": None,  # reset reminder gate
+                    }},
+                )
+                await accrue_listing_charge(
+                    p["maker_slug"], p["slug"], kind="listing_auto_renew",
+                )
+                auto_renewed += 1
+                # Email confirmation (best-effort — never fails the sweep).
+                try:
+                    from email_service import send_maker_listing_renewed
+                    maker = await db.makers.find_one(
+                        {"slug": p["maker_slug"]},
+                        {"_id": 0, "name": 1, "email": 1},
+                    )
+                    if maker and maker.get("email"):
+                        await send_maker_listing_renewed(
+                            maker_email=maker["email"],
+                            maker_name=maker.get("name") or p["maker_slug"],
+                            product_title=p.get("title") or p["slug"],
+                            product_slug=p["slug"],
+                            new_expiry_iso=new_expiry,
+                        )
+                except Exception:
+                    pass
+            else:
+                await db.products.update_one(
+                    {"slug": p["slug"]},
+                    {"$set": {"status": "draft"}},
+                )
+                expired_to_draft += 1
+        except Exception:
+            errors += 1
+    return {
+        "expired_to_draft": expired_to_draft,
+        "auto_renewed": auto_renewed,
+        "errors": errors,
+        "now": now,
+    }
 
 
 async def auto_renew_due_promotions(window_hours: int = 6) -> dict:
@@ -470,3 +527,63 @@ async def auto_renew_due_promotions(window_hours: int = 6) -> dict:
         "renewed": renewed, "charged_makers": charged,
         "free_renewals": free, "errors": errors,
     }
+
+
+
+async def send_listing_expiry_reminders(days_before: int = 7) -> dict:
+    """Daily sweep: email makers whose **manual**-renewal listings expire in
+    the next `days_before` days. Auto-renewing listings skip this reminder
+    — they're handled silently by `expire_due_listings`.
+
+    Idempotent per listing: `renewal_reminder_sent_at` is stamped on send
+    so re-runs of the same day don't re-email. The stamp clears on the
+    next renewal cycle (set to None when `expire_due_listings` extends
+    expiry, or when a maker manually renews/publishes).
+
+    Returns {emails_sent, skipped_auto, errors, now}.
+    """
+    now = datetime.now(timezone.utc)
+    horizon = (now + timedelta(days=days_before)).isoformat()
+    nowiso = now.isoformat()
+    cursor = db.products.find(
+        {
+            "status": "published",
+            "deleted_at": None,
+            "renewal_option": "manual",
+            "expires_at": {"$ne": None, "$gte": nowiso, "$lte": horizon},
+            "$or": [
+                {"renewal_reminder_sent_at": None},
+                {"renewal_reminder_sent_at": {"$exists": False}},
+            ],
+        },
+        {"_id": 0, "slug": 1, "maker_slug": 1, "title": 1, "expires_at": 1},
+    )
+    sent = errors = 0
+    async for p in cursor:
+        try:
+            maker = await db.makers.find_one(
+                {"slug": p["maker_slug"]}, {"_id": 0, "name": 1, "email": 1},
+            )
+            if not maker or not maker.get("email"):
+                # Still stamp so we don't re-evaluate every day.
+                await db.products.update_one(
+                    {"slug": p["slug"]},
+                    {"$set": {"renewal_reminder_sent_at": nowiso}},
+                )
+                continue
+            from email_service import send_maker_listing_expiring_soon
+            await send_maker_listing_expiring_soon(
+                maker_email=maker["email"],
+                maker_name=maker.get("name") or p["maker_slug"],
+                product_title=p.get("title") or p["slug"],
+                product_slug=p["slug"],
+                expires_at_iso=p["expires_at"],
+            )
+            await db.products.update_one(
+                {"slug": p["slug"]},
+                {"$set": {"renewal_reminder_sent_at": nowiso}},
+            )
+            sent += 1
+        except Exception:
+            errors += 1
+    return {"emails_sent": sent, "errors": errors, "now": nowiso}

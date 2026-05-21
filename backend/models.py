@@ -48,6 +48,15 @@ class Product(BaseModel):
     # Listings expire 4 months after publish; on expiry, status auto-flips to
     # "draft" and the maker can renew for `listing_fee_cents`.
     expires_at: Optional[str] = None
+    # Etsy-style listing renewal mode. "automatic" → scheduler extends
+    # `expires_at` by another LISTING_EXPIRY_DAYS window when the listing
+    # lapses (accrues the standard listing fee via the existing tier-aware
+    # quota — free for Founders/Plus within quota). "manual" → listing flips
+    # to draft on expiry and the maker decides whether to renew.
+    renewal_option: str = "automatic"
+    # ISO ts of the most recent 7-day expiry reminder email sent for this
+    # listing — gates the scheduler so we don't double-send across runs.
+    renewal_reminder_sent_at: Optional[str] = None
     promoted_until: Optional[str] = None  # ISO ts; if in the future, listing pinned
     auto_renew_promotion: bool = False  # if true, scheduler extends weekly
     deleted_at: Optional[str] = None  # soft-delete marker; hides from public views
@@ -152,6 +161,8 @@ class MakerProductCreate(BaseModel):
     # Backorder gating (see Product class for semantics)
     accepts_backorders: Optional[bool] = None
     backorder_lead_weeks: Optional[int] = None
+    # Etsy-style renewal mode: "automatic" (default) or "manual".
+    renewal_option: str = "automatic"
 
 
 class Maker(BaseModel):

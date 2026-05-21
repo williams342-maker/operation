@@ -133,6 +133,10 @@ export default function MakerListingEditor() {
             // distinct from explicit `false` (override off)
             accepts_backorders: found.accepts_backorders ?? null,
             backorder_lead_weeks: found.backorder_lead_weeks ?? null,
+            // Etsy-style renewal mode — default to "automatic" for legacy
+            // listings that don't have the field set yet so the toggle
+            // reflects the backend's default behaviour.
+            renewal_option: found.renewal_option || "automatic",
           });
           setLoaded(true);
         }
@@ -494,6 +498,7 @@ export default function MakerListingEditor() {
     contact_email: form.contact_email || null,
     accepts_backorders: form.accepts_backorders,
     backorder_lead_weeks: form.backorder_lead_weeks ?? null,
+    renewal_option: form.renewal_option || "automatic",
   });
 
   const submit = async (statusOverride) => {
@@ -1046,6 +1051,64 @@ export default function MakerListingEditor() {
                   ].filter(Boolean).join(" and ")}.`
                 : "This seller does not accept returns or exchanges."}
             </p>
+          </div>
+        </Section>
+
+        {/* ---------- Renewal Options ---------- */}
+        <Section
+          eyebrow="◆ Lifecycle"
+          title="Renewal Options"
+          subtitle="Listings live for 4 months after publish. Choose what happens when this listing reaches the end of that window."
+        >
+          <div className="space-y-3" data-testid="editor-renewal-options">
+            {[
+              {
+                value: "automatic",
+                label: "Automatic",
+                hint: "We'll keep your listing live without any pings. Free for Founders and Plus members within their monthly listing quota; standard $0.20 renewal fee otherwise.",
+              },
+              {
+                value: "manual",
+                label: "Manual",
+                hint: "Your listing flips to draft when it expires. We'll email you 7 days before so you can decide whether to renew.",
+              },
+            ].map((opt) => {
+              const active = (form.renewal_option || "automatic") === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => set({ renewal_option: opt.value })}
+                  className={`w-full text-left border p-4 flex gap-3 items-start transition-colors ${
+                    active
+                      ? "border-[#ff4500] bg-[#ff4500]/5"
+                      : "border-[#262626] bg-[#0d0d0d] hover:border-[#404040]"
+                  }`}
+                  data-testid={`editor-renewal-${opt.value}`}
+                  aria-pressed={active}
+                >
+                  <span
+                    className={`mt-1 inline-block w-4 h-4 rounded-full border-2 flex-shrink-0 ${
+                      active ? "border-[#ff4500]" : "border-[#525252]"
+                    }`}
+                  >
+                    {active && (
+                      <span className="block w-1.5 h-1.5 rounded-full bg-[#ff4500] m-[3px]" />
+                    )}
+                  </span>
+                  <span className="flex-1">
+                    <span className={`block font-display uppercase text-base tracking-wide ${
+                      active ? "text-[#ff4500]" : "text-[#e5e5e5]"
+                    }`}>
+                      {opt.label}
+                    </span>
+                    <span className="block font-mono text-xs text-[#a3a3a3] mt-1 leading-relaxed">
+                      {opt.hint}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </Section>
 
