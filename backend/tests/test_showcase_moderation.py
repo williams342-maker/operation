@@ -318,7 +318,12 @@ async def test_showcase_report_rejects_invalid_reason():
 @pytest.mark.asyncio
 async def test_auto_quarantine_triggers_at_threshold_and_hides_from_public_feeds():
     """3 reports from 3 different reporters in 24h → post auto-quarantines,
-    drops out of public feeds, surfaces in admin ?status=quarantined."""
+    drops out of public feeds, surfaces in admin ?status=quarantined.
+
+    Note: the maker-notification email is exercised separately by
+    `test_quarantine_notice_email_sends_with_correct_subject` since the
+    integration backend runs in a different process and can't be patched
+    from the test process."""
     async with httpx.AsyncClient(timeout=60) as c:
         maker = await _maker_jwt(c)
         admin = await _admin_jwt(c)
@@ -387,7 +392,6 @@ async def test_auto_quarantine_triggers_at_threshold_and_hides_from_public_feeds
             f"{API}/api/admin/community/showcase/{post_id}",
             headers={"Authorization": f"Bearer {admin}"},
         )
-        # Reap the orphan rows
         from motor.motor_asyncio import AsyncIOMotorClient
         client = AsyncIOMotorClient(os.environ["MONGO_URL"])
         db = client[os.environ["DB_NAME"]]
@@ -395,3 +399,50 @@ async def test_auto_quarantine_triggers_at_threshold_and_hides_from_public_feeds
         await db.admin_moderation_actions.delete_one(
             {"kind": "showcase_delete", "target_id": post_id},
         )
+
+
+@pytest.mark.asyncio
+async def test_quarantine_notice_email_sends_with_correct_subject():
+    """In-process unit test for the maker-notification email itself.
+    Patches `email_service._send` so we capture the rendered subject +
+    HTML without hitting Mailgun. Verifies wording so the email stays
+    factual, not accusatory."""
+    from unittest.mock import patch, AsyncMock
+    from email_service import send_showcase_quarantine_notice
+
+    captured: dict = {}
+
+    async def _fake_send(to, subject, html):
+        captured["to"] = to
+        captured["subject"] = subject
+        captured["html"] = html
+
+    with patch("email_service._send", new=AsyncMock(side_effect=_fake_send)):
+        await send_showcase_quarantine_notice(
+            email="iron-and-oak@craftersmarket.org",
+            name="Iron & Oak",
+            post_title="My Walnut Console",
+            report_count=4,
+        )
+
+    assert captured["to"] == "iron-and-oak@craftersmarket.org"
+    assert "under review" in captured["subject"].lower()
+    # Factual, not accusatory:
+    assert "not a judgement" in captured["html"]
+    # HTML wraps whitespace — use a tolerant check
+    html_compact = " ".join(captured["html"].split())
+    assert "4 community members" in html_compact
+    assert "My Walnut Console" in captured["html"]
+    # No-action wording so they don't panic and reply to ops
+    assert "You don't need to do anything right now" in html_compact
+
+
+@pytest.mark.asyncio
+async def test_quarantine_notice_email_skips_blank_address():
+    """Edge case — if the post has no `user_email` stamped (legacy data),
+    the helper should be a no-op, not raise."""
+    from email_service import send_showcase_quarantine_notice
+    result = await send_showcase_quarantine_notice(
+        email="", name="", post_title="", report_count=3,
+    )
+    assert result is None

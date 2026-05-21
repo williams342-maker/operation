@@ -1,6 +1,17 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-21 — iter159 · Maker notification email on auto-quarantine ✅
+
+**Public:** When your showcase post gets auto-quarantined (3+ reports in 24h), you now get a courtesy email letting you know it's temporarily under review. Factual, non-accusatory tone — "this is automatic, not a judgement, you don't need to do anything right now."
+
+- `send_showcase_quarantine_notice(email, name, post_title, report_count)` in `email_service.py` — reuses the existing branded shell template. Subject: *"[Crafters Market] Your showcase post is under review"*.
+- Body explicitly says **not a judgement**, gives the report count + 24h window, sets expectations ("Most reviews conclude within 24 hours. If the post was flagged in error, it will return to the feed unchanged."), and includes a no-action footer ("We'll email again only if the moderator decision requires your attention.") so the poster doesn't panic-reply to ops.
+- Fires from the auto-quarantine block inside `POST /community/showcase/{id}/report` — best-effort, never blocks the quarantine itself. Reaches buyers + makers via the `user_email` stamped on the post at creation. Empty-email posts (legacy data) are a no-op.
+- Idempotent w/ the existing quarantine logic: only fires on the *transition* into quarantine, not on every report that lands on an already-quarantined post.
+- Regression: `tests/test_showcase_moderation.py` expanded 6 → 8 tests with two new unit tests for the email helper (correct subject + tone assertions + blank-email no-op). All 8/8 green.
+
+
 ## 2026-05-21 — iter158 · Auto-quarantine: 3 reports in 24h = instant hide ✅
 
 **Public:** When a showcase post racks up 3 or more reports inside 24 hours, it now disappears from public feeds automatically and shoots to the top of the admin moderation queue with an "⚠ AUTO" badge. Cuts moderator response time on real abuse spikes from hours to seconds.

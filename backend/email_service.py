@@ -2444,3 +2444,50 @@ async def send_social_momentum_digest(
     )
     return await _send(email, subj, html)
 
+
+
+async def send_showcase_quarantine_notice(
+    *, email: str, name: str, post_title: str, report_count: int,
+):
+    """Email the poster when their showcase post is auto-quarantined.
+
+    Tone goal: factual, non-accusatory, gives them a clear next step.
+    Auto-quarantine ≠ guilt — it just buys a moderator review window.
+    Reaches both buyer and maker posters via the email stamped on the
+    post at creation time.
+    """
+    if not email:
+        return
+    name_safe = name or "there"
+    title_safe = (post_title or "your post").strip()[:120]
+    intro = "Your community showcase post is temporarily under review."
+    body = f"""
+        <p style="font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 16px">
+          Hi {name_safe},
+        </p>
+        <p style="font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 16px">
+          Your post <b>"{title_safe}"</b> was flagged by {report_count}
+          community members in the last 24 hours. While our moderators take a
+          look, the post has been hidden from public feeds.
+        </p>
+        <p style="font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 16px">
+          This is an automatic step — <b>not a judgement</b>. Most reviews
+          conclude within 24 hours. If the post was flagged in error, it
+          will return to the feed unchanged. If a moderator finds an issue,
+          they may edit or remove the post and reach out separately.
+        </p>
+        <p style="font-size:13px;color:#a3a3a3;line-height:1.5;margin:24px 0 8px">
+          You don't need to do anything right now. We'll email again only
+          if the moderator decision requires your attention.
+        </p>
+        <a href="https://craftersmarket.org/community"
+           style="display:inline-block;background:#ff4500;color:#0a0a0a;
+                  padding:14px 24px;font-family:Impact,Arial Black,sans-serif;
+                  font-size:13px;letter-spacing:0.18em;text-transform:uppercase;
+                  text-decoration:none;margin-top:8px">
+          Open Community →
+        </a>
+    """
+    html = _shell("Post under review.", intro, body, "Crafters Market · Community Moderation")
+    subject = "[Crafters Market] Your showcase post is under review"
+    return await _send(email, subject, html)

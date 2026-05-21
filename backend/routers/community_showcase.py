@@ -316,7 +316,7 @@ async def report_showcase(
     })
     if recent_reports >= AUTO_QUARANTINE_THRESHOLD:
         fresh = await db.showcase_posts.find_one(
-            {"id": post_id}, {"_id": 0, "mod_status": 1},
+            {"id": post_id}, {"_id": 0, "mod_status": 1, "user_email": 1, "user_name": 1, "title": 1},
         )
         if fresh and fresh.get("mod_status") != "quarantined":
             await db.showcase_posts.update_one(
@@ -339,6 +339,22 @@ async def report_showcase(
                 "[auto_quarantine] post=%s reports=%d window_h=%d",
                 post_id, recent_reports, AUTO_QUARANTINE_WINDOW_HOURS,
             )
+            # Notify the poster — best-effort, never blocks the quarantine.
+            poster_email = (fresh.get("user_email") or "").strip().lower()
+            if poster_email:
+                try:
+                    from email_service import send_showcase_quarantine_notice
+                    await send_showcase_quarantine_notice(
+                        email=poster_email,
+                        name=fresh.get("user_name") or "",
+                        post_title=fresh.get("title") or "",
+                        report_count=recent_reports,
+                    )
+                except Exception as e:
+                    logger.warning(
+                        "[auto_quarantine] notice email failed for %s: %s",
+                        poster_email, e,
+                    )
 
     return {"ok": True, "duplicate": False, "id": doc["id"]}
 
