@@ -593,9 +593,22 @@ function ShowcaseForm({ onSaved }) {
       </div>
 
       {err && (
-        <p className="md:col-span-2 font-mono text-xs text-red-400" data-testid="showcase-form-error">
-          {err}
-        </p>
+        <div
+          ref={(node) => {
+            // Scroll the error into view so users on long forms aren't
+            // left wondering why their click did nothing. Soft scroll
+            // (no jump) and only when freshly rendered.
+            if (node) node.scrollIntoView({ behavior: "smooth", block: "center" });
+          }}
+          className="md:col-span-2 border border-red-500/60 bg-red-500/10 px-4 py-3"
+          role="alert"
+          data-testid="showcase-form-error"
+        >
+          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-red-400 mb-1">
+            ◆ Couldn't post
+          </p>
+          <p className="font-mono text-xs text-red-200 leading-relaxed">{err}</p>
+        </div>
       )}
 
       <button

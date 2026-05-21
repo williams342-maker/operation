@@ -753,6 +753,15 @@ const communityAnyAuthHeaders = () => {
   const t = localStorage.getItem("cm_buyer_jwt") || localStorage.getItem("cm_maker_jwt");
   return t ? { Authorization: `Bearer ${t}` } : {};
 };
+// Same surface, but prefers the MAKER JWT first — used by maker-only
+// endpoints (video upload) and by showcase posts that include a video
+// clip. Without this preference, a maker who also has a stale buyer JWT
+// in localStorage from a prior Google sign-in would hit a confusing
+// 403 because the buyer token would be sent to a maker-only endpoint.
+const communityMakerFirstHeaders = () => {
+  const t = localStorage.getItem("cm_maker_jwt") || localStorage.getItem("cm_buyer_jwt");
+  return t ? { Authorization: `Bearer ${t}` } : {};
+};
 export const communityGoogleExchange = (session_id, eua_version = "") =>
   http.post("/community/auth/google",
             { session_id, accept_eua: !!eua_version, eua_version }).then((r) => r.data);
@@ -795,7 +804,13 @@ export const uploadAvatar = (file) => {
 
 export const fetchShowcase = () => http.get("/community/showcase").then((r) => r.data);
 export const createShowcase = (payload) =>
-  http.post("/community/showcase", payload, { headers: communityAnyAuthHeaders() }).then((r) => r.data);
+  // If the post includes a video, route auth through the maker-first
+  // helper so we don't accidentally send a stale buyer JWT to what is
+  // effectively a maker-only post. Photo-only posts keep buyer-first
+  // so existing buyer flows are untouched.
+  http.post("/community/showcase", payload, {
+    headers: payload?.video_url ? communityMakerFirstHeaders() : communityAnyAuthHeaders(),
+  }).then((r) => r.data);
 export const likeShowcase = (id) =>
   http.post(`/community/showcase/${id}/like`, {}, { headers: buyerAuthHeaders() }).then((r) => r.data);
 
@@ -805,7 +820,10 @@ export const uploadShowcaseVideo = (file, opts = {}) => {
   fd.append("file", file);
   return http
     .post("/community/showcase/upload-video", fd, {
-      headers: { ...communityAnyAuthHeaders(), "Content-Type": "multipart/form-data" },
+      // Always prefer the maker JWT — this endpoint is maker-gated and
+      // sending a buyer JWT here would return 403 with no useful
+      // recovery path for the user.
+      headers: { ...communityMakerFirstHeaders(), "Content-Type": "multipart/form-data" },
       // Videos are larger than the default — give the upload plenty of time.
       timeout: 120000,
       onUploadProgress: opts.onProgress
