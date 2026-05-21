@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="4" time="0.830" timestamp="2026-05-21T23:24:18.956440+00:00" hostname="agent-env-da415db6-4cc4-4a72-a064-87776e08c06a"><testcase classname="tests.test_plus_trial" name="test_trial_eligible_before_first_subscribe" time="0.623" /><testcase classname="tests.test_plus_trial" name="test_trialing_status_sets_is_in_trial_and_locks_trial_used" time="0.001"><failure message="RuntimeError: Event loop is closed">tests/test_plus_trial.py:74: in test_trialing_status_sets_is_in_trial_and_locks_trial_used
+    await _reset_trial_state()
+tests/test_plus_trial.py:45: in _reset_trial_state
+    await db.makers.update_one(
+/root/.venv/lib/python3.11/site-packages/motor/metaprogramming.py:74: in method
+    return framework.run_on_executor(
+/root/.venv/lib/python3.11/site-packages/motor/frameworks/asyncio/__init__.py:85: in run_on_executor
+    return loop.run_in_executor(_EXECUTOR, functools.partial(fn, *args, **kwargs))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/asyncio/base_events.py:817: in run_in_executor
+    self._check_closed()
+/usr/local/lib/python3.11/asyncio/base_events.py:520: in _check_closed
+    raise RuntimeError('Event loop is closed')
+E   RuntimeError: Event loop is closed</failure></testcase><testcase classname="tests.test_plus_trial" name="test_active_after_trial_keeps_trial_used_locked" time="0.001"><failure message="RuntimeError: Event loop is closed">tests/test_plus_trial.py:109: in test_active_after_trial_keeps_trial_used_locked
+    await _reset_trial_state()
+tests/test_plus_trial.py:45: in _reset_trial_state
+    await db.makers.update_one(
+/root/.venv/lib/python3.11/site-packages/motor/metaprogramming.py:74: in method
+    return framework.run_on_executor(
+/root/.venv/lib/python3.11/site-packages/motor/frameworks/asyncio/__init__.py:85: in run_on_executor
+    return loop.run_in_executor(_EXECUTOR, functools.partial(fn, *args, **kwargs))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/asyncio/base_events.py:817: in run_in_executor
+    self._check_closed()
+/usr/local/lib/python3.11/asyncio/base_events.py:520: in _check_closed
+    raise RuntimeError('Event loop is closed')
+E   RuntimeError: Event loop is closed</failure></testcase><testcase classname="tests.test_plus_trial" name="test_get_subscription_exposes_trial_days_remaining_clamped" time="0.001"><failure message="RuntimeError: Event loop is closed">tests/test_plus_trial.py:143: in test_get_subscription_exposes_trial_days_remaining_clamped
+    await _reset_trial_state()
+tests/test_plus_trial.py:45: in _reset_trial_state
+    await db.makers.update_one(
+/root/.venv/lib/python3.11/site-packages/motor/metaprogramming.py:74: in method
+    return framework.run_on_executor(
+/root/.venv/lib/python3.11/site-packages/motor/frameworks/asyncio/__init__.py:85: in run_on_executor
+    return loop.run_in_executor(_EXECUTOR, functools.partial(fn, *args, **kwargs))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/asyncio/base_events.py:817: in run_in_executor
+    self._check_closed()
+/usr/local/lib/python3.11/asyncio/base_events.py:520: in _check_closed
+    raise RuntimeError('Event loop is closed')
+E   RuntimeError: Event loop is closed</failure></testcase></testsuite></testsuites>

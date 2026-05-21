@@ -1833,6 +1833,156 @@ async def maker_stats(slug: str = Depends(current_maker_slug)):
     }
 
 
+@router.get("/maker/analytics/plus")
+async def maker_analytics_plus(slug: str = Depends(current_maker_slug)):
+    """Crafters Plus advanced analytics — Plus subscribers only (active
+    OR trialing). Returns the four Plus-exclusive dashboard cards:
+
+      1. conversion_rate:    paid orders ÷ unique sessions visiting any
+                             /shop/<my-slug> page in the last 30 days
+      2. repeat_buyer_pct:   share of buyers (by email) who have made
+                             ≥2 paid orders from this maker, all-time
+      3. revenue_trend:      daily revenue buckets for last 30 + 90 days
+                             (powers the sparkline / trend chart)
+      4. traffic_sources:    pageview-event 'medium' breakdown for the
+                             maker's listing pages over last 30 days
+
+    Free-tier makers get 403 with `code: plus_required` so the frontend
+    can render a clean upgrade prompt.
+
+    All numbers derived from existing collections (`pageview_events`,
+    `transactions`, `makers`) — no new instrumentation.
+    """
+    m = await db.makers.find_one({"slug": slug}, {"_id": 0, "subscription_status": 1})
+    if not m:
+        raise HTTPException(404, "Maker not found.")
+    # `subscription_status` is 'active' for both active and trialing
+    # subs (see _sync_sub_to_maker). Free / canceled / past_due are
+    # locked out.
+    if (m.get("subscription_status") or "free") != "active":
+        raise HTTPException(403, {
+            "code": "plus_required",
+            "message": "Advanced analytics is a Crafters Plus benefit.",
+        })
+
+    from datetime import timedelta
+    now = datetime.now(timezone.utc)
+    cutoff_30d_iso = (now - timedelta(days=30)).isoformat().replace("+00:00", "Z")
+    cutoff_90d_iso = (now - timedelta(days=90)).isoformat().replace("+00:00", "Z")
+
+    # ---------- 1. Conversion rate (last 30 days) ----------
+    slugs = [
+        p["slug"] for p in await db.products.find(
+            {"maker_slug": slug}, {"_id": 0, "slug": 1},
+        ).to_list(2000)
+    ]
+    paths = [f"/shop/{s}" for s in slugs]
+
+    unique_sessions_30d = 0
+    if paths:
+        pipe = [
+            {"$match": {"ts": {"$gte": cutoff_30d_iso}, "path": {"$in": paths}}},
+            {"$group": {"_id": "$session_id"}},
+            {"$count": "n"},
+        ]
+        async for row in db.pageview_events.aggregate(pipe):
+            unique_sessions_30d = int(row.get("n") or 0)
+
+    paid_orders_30d_cursor = db.transactions.find(
+        {
+            "items.maker_slug": slug,
+            "payment_status": "paid",
+            "created_at": {"$gte": cutoff_30d_iso},
+        },
+        {"_id": 0, "buyer_email": 1, "items": 1, "created_at": 1},
+    )
+    paid_orders_30d = await paid_orders_30d_cursor.to_list(5000)
+    paid_count_30d = len(paid_orders_30d)
+    conversion_rate = (
+        round((paid_count_30d / unique_sessions_30d) * 100, 2)
+        if unique_sessions_30d > 0 else 0.0
+    )
+
+    # ---------- 2. Repeat-buyer % (all-time) ----------
+    all_orders = await db.transactions.find(
+        {"items.maker_slug": slug, "payment_status": "paid"},
+        {"_id": 0, "buyer_email": 1, "items": 1, "created_at": 1},
+    ).to_list(20000)
+    # Buckets buyer_email → order count
+    by_buyer: dict[str, int] = {}
+    for o in all_orders:
+        email = (o.get("buyer_email") or "").lower().strip()
+        if not email:
+            continue
+        by_buyer[email] = by_buyer.get(email, 0) + 1
+    total_buyers = len(by_buyer)
+    repeat_buyers = sum(1 for n in by_buyer.values() if n >= 2)
+    repeat_buyer_pct = (
+        round((repeat_buyers / total_buyers) * 100, 1)
+        if total_buyers > 0 else 0.0
+    )
+
+    # ---------- 3. Revenue trend (daily buckets, 30d + 90d) ----------
+    def _maker_subtotal(order: dict) -> float:
+        return sum(
+            (float(line.get("price", 0)) * int(line.get("quantity", 1)))
+            for line in (order.get("items") or [])
+            if line.get("maker_slug") == slug
+        )
+
+    trend_90d: dict[str, float] = {}
+    for o in all_orders:
+        created = o.get("created_at") or ""
+        if created < cutoff_90d_iso:
+            continue
+        day = created[:10]  # YYYY-MM-DD
+        trend_90d[day] = round(trend_90d.get(day, 0.0) + _maker_subtotal(o), 2)
+
+    # Fill in zero-revenue days so the chart has a continuous line.
+    series_30d: list[dict] = []
+    series_90d: list[dict] = []
+    for d in range(89, -1, -1):
+        day_dt = (now - timedelta(days=d)).date()
+        day_key = day_dt.isoformat()
+        rev = trend_90d.get(day_key, 0.0)
+        point = {"date": day_key, "revenue": rev}
+        series_90d.append(point)
+        if d < 30:
+            series_30d.append(point)
+
+    # ---------- 4. Traffic source breakdown (30d) ----------
+    traffic: list[dict] = []
+    if paths:
+        pipe = [
+            {"$match": {"ts": {"$gte": cutoff_30d_iso}, "path": {"$in": paths}}},
+            {"$group": {"_id": "$medium", "count": {"$sum": 1}}},
+            {"$sort": {"count": -1}},
+        ]
+        async for row in db.pageview_events.aggregate(pipe):
+            medium = (row.get("_id") or "direct").lower()
+            traffic.append({"medium": medium, "count": int(row.get("count") or 0)})
+
+    return {
+        "as_of": now.isoformat(),
+        "conversion": {
+            "rate_pct": conversion_rate,
+            "paid_orders_30d": paid_count_30d,
+            "unique_sessions_30d": unique_sessions_30d,
+        },
+        "repeat_buyer": {
+            "pct": repeat_buyer_pct,
+            "repeat_buyers": repeat_buyers,
+            "total_buyers": total_buyers,
+        },
+        "revenue_trend": {
+            "series_30d": series_30d,
+            "series_90d": series_90d,
+        },
+        "traffic_sources": traffic,
+    }
+
+
+
 @router.get("/maker/violations")
 async def maker_violations(slug: str = Depends(current_maker_slug)):
     """Violations tab — pulls from the audit_log (chat moderation, listing

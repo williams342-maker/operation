@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Sparkles, Check, ArrowRight } from "lucide-react";
-import { fetchFeePolicy } from "../../lib/api";
+import { fetchFeePolicy, fetchMakerSubscription } from "../../lib/api";
 
 /**
  * Compact Crafters Plus upgrade nudge for the Dashboard tab.
@@ -21,11 +21,19 @@ import { fetchFeePolicy } from "../../lib/api";
  */
 export default function PlusUpgradeNudge({ maker, orders = [], onUpgrade }) {
   const [policy, setPolicy] = useState(null);
+  const [sub, setSub] = useState(null);
 
-  useEffect(() => { fetchFeePolicy().then(setPolicy).catch(() => {}); }, []);
+  useEffect(() => {
+    fetchFeePolicy().then(setPolicy).catch(() => {});
+    fetchMakerSubscription().then(setSub).catch(() => {});
+  }, []);
 
   // Hide for active subscribers. We want to nudge, not nag the already-converted.
   if ((maker?.subscription_status || "") === "active") return null;
+
+  // Trial-eligible by default — first-time signups. Re-subscribers
+  // (sub.trial_eligible=false) shouldn't see the "3 months free" badge.
+  const trialEligible = sub ? !!sub.trial_eligible : true;
 
   const platformFreeBps = policy?.platform_fee_bps ?? 500;     // 5%
   const platformPlusBps = policy?.plus_platform_fee_bps ?? 400; // 4%
@@ -73,7 +81,7 @@ export default function PlusUpgradeNudge({ maker, orders = [], onUpgrade }) {
             <Sparkles size={12} />
             <span>Crafters Plus · ${plusPrice}/mo</span>
             <span className="px-1.5 py-0.5 bg-[#ff4500] text-black font-bold text-[8px] tracking-[0.18em] ml-1">
-              MOST POPULAR
+              {trialEligible ? "3 MONTHS FREE" : "MOST POPULAR"}
             </span>
           </div>
           <h3 className="font-display text-2xl md:text-3xl uppercase leading-[1.05]" data-testid="plus-nudge-headline">
@@ -100,7 +108,7 @@ export default function PlusUpgradeNudge({ maker, orders = [], onUpgrade }) {
             className="btn-industrial btn-primary inline-flex items-center justify-center gap-2"
             data-testid="plus-nudge-cta"
           >
-            Upgrade to Plus
+            {trialEligible ? "Start free trial" : "Upgrade to Plus"}
             <ArrowRight size={14} />
           </Link>
           <button

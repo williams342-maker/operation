@@ -8,6 +8,7 @@ import {
   fetchMakerMe, updateMakerProfile,
 } from "../../../lib/api";
 import { useConfirm } from "../useConfirm";
+import CustomUrlPicker from "./CustomUrlPicker";
 
 /**
  * "Account & Plan" settings panel — downgrade Plus, close/reopen the
@@ -192,6 +193,10 @@ export default function AccountPanel({ maker, onSaved }) {
           )}
         </div>
       </section>
+
+      {/* Plus-only custom shop URL picker. Self-renders an upsell card
+          for non-Plus makers. */}
+      <CustomUrlPicker />
 
       {/* Close / reopen shop */}
       <section className="border border-[#262626] p-5">

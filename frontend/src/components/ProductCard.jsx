@@ -56,6 +56,15 @@ export default function ProductCard({ p, i = 0 }) {
               testId={`product-card-veteran-${p.slug}`}
             />
           )}
+          {p.maker_is_plus && (
+            <span
+              className="tag absolute top-12 left-4 text-[#ff4500] border-[#ff4500] bg-black/70 inline-flex items-center gap-1 text-[9px]"
+              data-testid={`product-card-plus-${p.slug}`}
+              title="Crafters Plus maker"
+            >
+              ◆ PLUS
+            </span>
+          )}
           {p.promoted_until && new Date(p.promoted_until) > new Date() && (
             <PromotedBadge until={p.promoted_until} slug={p.slug} />
           )}

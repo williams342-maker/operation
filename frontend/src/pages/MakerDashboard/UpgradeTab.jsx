@@ -1,13 +1,23 @@
 import React, { useEffect, useState } from "react";
 import { Sparkles, Check } from "lucide-react";
-import { fetchFeePolicy } from "../../lib/api";
+import { fetchFeePolicy, fetchMakerSubscription } from "../../lib/api";
 
-/** Upgrade tab — promotes Crafters Plus ($12/mo) with a clear fee comparison. */
+/** Upgrade tab — promotes Crafters Plus ($12/mo) with a clear fee comparison.
+ *  Shows the 3-month free trial badge prominently to first-time signups
+ *  (server-driven via `trial_eligible`). Re-subscribers don't see the
+ *  trial badge — they go straight to paid. */
 export default function UpgradeTab({ maker }) {
   const [policy, setPolicy] = useState(null);
+  const [sub, setSub] = useState(null);
   const isPlus = (maker?.subscription_status || "") === "active";
+  const isInTrial = !!sub?.is_in_trial;
+  const trialEligible = !!sub?.trial_eligible;
+  const trialDays = sub?.trial_days || 90;
 
-  useEffect(() => { fetchFeePolicy().then(setPolicy).catch(() => {}); }, []);
+  useEffect(() => {
+    fetchFeePolicy().then(setPolicy).catch(() => {});
+    fetchMakerSubscription().then(setSub).catch(() => {});
+  }, []);
 
   const free = {
     listings: policy?.listing_free_quota || 10,
@@ -21,6 +31,7 @@ export default function UpgradeTab({ maker }) {
     total: (((policy?.plus_platform_fee_bps || 400) + (policy?.processing_fee_bps || 300)) / 100).toFixed(0),
     price: policy?.plus_price_usd || 12,
   };
+  const trialMonths = Math.round(trialDays / 30);
 
   return (
     <div className="space-y-8" data-testid="upgrade-tab">
@@ -50,15 +61,33 @@ export default function UpgradeTab({ maker }) {
         {/* Plus tier */}
         <div className="border-2 border-[#ff4500] bg-[#ff4500]/5 p-6 relative" data-testid="upgrade-plus">
           <div className="absolute top-0 right-4 -translate-y-1/2 bg-[#ff4500] text-[#0a0a0a] px-3 py-1 font-mono text-[10px] uppercase tracking-[0.22em]">
-            ◆ Most popular
+            {trialEligible && !isPlus ? `◆ ${trialMonths} months free` : "◆ Most popular"}
           </div>
           <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mb-2">
-            {isPlus ? "Active subscription" : "Recommended for active sellers"}
+            {isInTrial
+              ? "Trial active"
+              : isPlus
+              ? "Active subscription"
+              : "Recommended for active sellers"}
           </div>
           <h3 className="font-display text-3xl uppercase mb-1 flex items-center gap-2">
             <Sparkles size={22} className="text-[#ff4500]" /> Crafters Plus
           </h3>
-          <div className="font-mono text-sm text-[#e5e5e5] mb-6">${plus.price} / month</div>
+          <div className="font-mono text-sm text-[#e5e5e5] mb-2">
+            ${plus.price} / month
+            {trialEligible && !isPlus && (
+              <span className="ml-2 text-[#ff4500]">· {trialMonths}-month free trial</span>
+            )}
+          </div>
+          {trialEligible && !isPlus && (
+            <div
+              className="font-mono text-[10px] text-[#a3a3a3] mb-4 leading-relaxed"
+              data-testid="upgrade-trial-explainer"
+            >
+              No charge for {trialDays} days. Cancel anytime before it ends and
+              pay nothing. Card on file required to start.
+            </div>
+          )}
           <ul className="space-y-2.5 font-mono text-xs text-[#e5e5e5]">
             <li className="flex gap-2"><Check size={14} className="text-[#ff4500] shrink-0 mt-0.5" /> {plus.listings} new listings every month, free</li>
             <li className="flex gap-2"><Check size={14} className="text-[#ff4500] shrink-0 mt-0.5" /> {plus.commission}% commission (vs {free.commission}%) + {free.processing}% processing = <b className="text-[#ff4500]">{plus.total}% deducted per sale</b></li>
@@ -70,7 +99,7 @@ export default function UpgradeTab({ maker }) {
           <div className="mt-6 pt-6 border-t border-[#ff4500]/30">
             {isPlus ? (
               <div className="text-center font-mono text-[11px] uppercase tracking-[0.22em] text-emerald-300" data-testid="upgrade-active-status">
-                ✓ You're a Plus subscriber
+                {isInTrial ? "✓ Trial active — Plus benefits unlocked" : "✓ You're a Plus subscriber"}
               </div>
             ) : (
               <a
@@ -78,7 +107,7 @@ export default function UpgradeTab({ maker }) {
                 className="block w-full text-center btn-industrial btn-primary"
                 data-testid="upgrade-cta"
               >
-                Upgrade to Plus →
+                {trialEligible ? `Start ${trialMonths}-month free trial →` : "Upgrade to Plus →"}
               </a>
             )}
           </div>

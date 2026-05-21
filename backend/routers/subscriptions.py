@@ -41,6 +41,11 @@ def _stripe():
 PLUS_PRICE_ID_CACHE: Optional[str] = None
 PLUS_PRODUCT_ID_CACHE: Optional[str] = None
 
+# Crafters Plus introductory trial — every brand-new Plus signup gets
+# this many free days before Stripe begins billing. Tracked on the
+# maker (`plus_trial_used`) so cancel/re-subscribe can't double-dip.
+PLUS_TRIAL_DAYS = 90
+
 
 async def _get_or_create_plus_price() -> str:
     """Find or create the recurring Stripe Price for Crafters Plus.
@@ -132,14 +137,33 @@ async def start_subscription(request: Request, slug: str = Depends(current_maker
     success_url = f"{host}/maker/dashboard?plus=success"
     cancel_url = f"{host}/maker/dashboard?plus=canceled"
 
+    # New makers (never used the trial before) get a 3-month free trial.
+    # Stripe still collects a card so it can auto-convert when the trial
+    # ends. If the maker already used their trial (re-subscribing after
+    # cancel), they go straight to paid.
+    trial_eligible = not bool(m.get("plus_trial_used"))
+    sub_data: dict = {"metadata": {"maker_slug": slug}}
+    if trial_eligible:
+        sub_data["trial_period_days"] = PLUS_TRIAL_DAYS
+        # If a card fails or the maker abandons mid-trial, cancel the
+        # subscription rather than leave it past_due. Plus benefits drop
+        # cleanly back to free.
+        sub_data["trial_settings"] = {
+            "end_behavior": {"missing_payment_method": "cancel"},
+        }
+
     session = s.checkout.Session.create(
         mode="subscription",
         customer=customer_id,
         line_items=[{"price": price_id, "quantity": 1}],
         success_url=success_url,
         cancel_url=cancel_url,
-        metadata={"maker_slug": slug, "kind": "plus_subscription"},
-        subscription_data={"metadata": {"maker_slug": slug}},
+        metadata={
+            "maker_slug": slug,
+            "kind": "plus_subscription",
+            "trial_eligible": "true" if trial_eligible else "false",
+        },
+        subscription_data=sub_data,
     )
     return {"checkout_url": session.url}
 
@@ -206,11 +230,30 @@ async def get_subscription(slug: str = Depends(current_maker_slug)):
     m = await db.makers.find_one({"slug": slug}, {"_id": 0})
     if not m:
         raise HTTPException(404, "Maker not found.")
+    is_in_trial = bool(m.get("is_in_trial"))
+    # Days remaining in the trial (clamped to >=0). Helps the UI show
+    # "Trial ends in 47 days" without recomputing on the frontend.
+    trial_days_remaining = None
+    trial_end_at = m.get("trial_end_at")
+    if is_in_trial and trial_end_at:
+        try:
+            from datetime import datetime, timezone
+            end_dt = datetime.fromisoformat(trial_end_at.replace("Z", "+00:00"))
+            now_dt = datetime.now(tz=timezone.utc)
+            secs = max(0, int((end_dt - now_dt).total_seconds()))
+            trial_days_remaining = secs // 86400
+        except Exception:
+            trial_days_remaining = None
     return {
         "status": m.get("subscription_status", "free"),
         "renews_at": m.get("subscription_renews_at"),
         "started_at": m.get("subscription_started_at"),
         "stripe_subscription_id": m.get("stripe_subscription_id"),
+        "is_in_trial": is_in_trial,
+        "trial_end_at": trial_end_at,
+        "trial_days_remaining": trial_days_remaining,
+        "trial_eligible": not bool(m.get("plus_trial_used")),
+        "trial_days": PLUS_TRIAL_DAYS,
         "plan": {
             "name": "Crafters Plus",
             "price_usd": PLUS_PRICE_USD,
@@ -418,6 +461,12 @@ async def handle_subscription_event(event_type: str, obj: dict) -> bool:
     if event_type == "customer.subscription.deleted":
         await _on_sub_deleted(obj)
         return True
+    if event_type == "customer.subscription.trial_will_end":
+        # Stripe fires this ~3 days before the trial converts. We send a
+        # heads-up email so the maker can either confirm their card or
+        # cancel before being charged.
+        await _on_trial_will_end(obj)
+        return True
     if event_type == "invoice.payment_succeeded":
         # Charge-clearing invoices stamp metadata.kind = "charge_clearing".
         # We zero the ledger inside `clear_plus_ledger_balances` already,
@@ -470,24 +519,64 @@ async def _sync_sub_to_maker(obj: dict) -> None:
     persisted_status = "active" if status in ("active", "trialing") else status
     period_end = obj.get("current_period_end")
     period_start = obj.get("current_period_start") or obj.get("start_date")
+    trial_start_ts = obj.get("trial_start")
+    trial_end_ts = obj.get("trial_end")
     from datetime import datetime, timezone
-    await db.makers.update_one(
-        {"slug": slug},
-        {"$set": {
-            "subscription_status": persisted_status,
-            "stripe_subscription_id": obj.get("id"),
-            "subscription_renews_at": (
-                datetime.fromtimestamp(period_end, tz=timezone.utc).isoformat()
-                if period_end else None
-            ),
-            "subscription_started_at": (
-                datetime.fromtimestamp(period_start, tz=timezone.utc).isoformat()
-                if period_start else None
-            ),
-        }},
+
+    def _iso(ts):
+        return (
+            datetime.fromtimestamp(ts, tz=timezone.utc).isoformat()
+            if ts else None
+        )
+
+    update: dict = {
+        "subscription_status": persisted_status,
+        "stripe_subscription_id": obj.get("id"),
+        "subscription_renews_at": _iso(period_end),
+        "subscription_started_at": _iso(period_start),
+        "is_in_trial": status == "trialing",
+        "trial_start_at": _iso(trial_start_ts),
+        "trial_end_at": _iso(trial_end_ts),
+    }
+    # First time we see a subscription with a trial attached, lock the
+    # maker out of future trials. Idempotent: $set is fine even if it
+    # was already true.
+    if trial_end_ts:
+        update["plus_trial_used"] = True
+
+    await db.makers.update_one({"slug": slug}, {"$set": update})
+    logger.info(
+        "plus subscription synced for maker=%s status=%s trialing=%s trial_end=%s",
+        slug, persisted_status, status == "trialing", _iso(trial_end_ts),
     )
-    logger.info("plus subscription synced for maker=%s status=%s",
-                slug, persisted_status)
+
+
+async def _on_trial_will_end(obj: dict) -> None:
+    """Send the maker a 'trial ends in 3 days' email so they aren't
+    surprised by the conversion charge."""
+    slug = _maker_slug_from_sub(obj)
+    if not slug:
+        customer_id = obj.get("customer")
+        if customer_id:
+            m = await db.makers.find_one({"stripe_customer_id": customer_id}, {"_id": 0})
+            if m:
+                slug = m["slug"]
+    if not slug:
+        return
+    m = await db.makers.find_one({"slug": slug}, {"_id": 0})
+    if not m or not m.get("email"):
+        return
+    trial_end_ts = obj.get("trial_end")
+    try:
+        from email_service import send_maker_trial_ending_soon
+        await send_maker_trial_ending_soon(
+            maker_email=m["email"],
+            maker_name=m.get("name") or m["slug"],
+            trial_end_ts=trial_end_ts,
+        )
+        logger.info("plus trial_will_end email sent maker=%s", slug)
+    except Exception as e:
+        logger.exception("plus trial_will_end email failed maker=%s: %s", slug, e)
 
 
 async def _on_sub_deleted(obj: dict) -> None:
@@ -500,6 +589,7 @@ async def _on_sub_deleted(obj: dict) -> None:
             "subscription_status": "canceled",
             "stripe_subscription_id": None,
             "subscription_renews_at": None,
+            "is_in_trial": False,
         }},
     )
     logger.info("plus subscription canceled for maker=%s", slug)

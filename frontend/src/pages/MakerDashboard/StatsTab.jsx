@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { fetchMakerStats, fetchFeePolicy } from "../../lib/api";
 import { StatsSkeleton } from "../../components/Skeleton";
 import WorstPerformersPanel from "./WorstPerformersPanel";
+import PlusAnalytics from "./PlusAnalytics";
 
 /** Stats tab — read-only dashboard surfacing aggregates already in the DB. */
 export default function StatsTab() {
@@ -59,6 +60,10 @@ export default function StatsTab() {
           Plus subscribers keep more — see Upgrade tab.
         </p>
       </div>
+
+      {/* Crafters Plus advanced analytics — gated server-side. Free
+          makers get a polished upsell card here. */}
+      <PlusAnalytics />
 
       {/* Recovery Queue — surfaces underperforming listings + forgotten drafts
           with one-click AI refresh / publish actions. Lives in Stats (not

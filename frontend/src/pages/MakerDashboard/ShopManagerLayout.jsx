@@ -5,6 +5,7 @@ import {
   Megaphone, DollarSign, HelpCircle, Settings, ArrowLeft,
   LayoutDashboard, SlidersHorizontal, Inbox, Star, CalendarClock,
 } from "lucide-react";
+import TrialBanner from "./TrialBanner";
 
 const NAV = [
   { id: "dashboard",   label: "Dashboard",   icon: LayoutDashboard },
@@ -137,6 +138,7 @@ export default function ShopManagerLayout({
 
         {/* CONTENT */}
         <main className="px-4 md:px-0 min-w-0" data-testid="shop-content">
+          <TrialBanner />
           {children}
         </main>
       </div>

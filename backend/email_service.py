@@ -1425,6 +1425,62 @@ async def send_maker_smart_paused(
     )
 
 
+async def send_maker_trial_ending_soon(
+    maker_email: str, maker_name: str, trial_end_ts: int | None,
+):
+    """Stripe `customer.subscription.trial_will_end` notification — fires
+    ~3 days before the 3-month Plus trial converts to paid. Lets the
+    maker either confirm their card or cancel before the first charge."""
+    if not maker_email:
+        return None
+    base = os.environ.get("PUBLIC_APP_URL") or "https://craftersmarket.org"
+    billing_url = f"{base}/maker/dashboard#settings"
+    end_str = "in 3 days"
+    if trial_end_ts:
+        try:
+            from datetime import datetime as _dt, timezone as _tz
+            end_str = "on " + _dt.fromtimestamp(
+                int(trial_end_ts), tz=_tz.utc
+            ).strftime("%b %d, %Y")
+        except Exception:
+            pass
+    body = (
+        f"<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 18px'>"
+        f"Hi {maker_name}, heads-up — your <strong style='color:#ff4500'>3-month "
+        f"Crafters Plus trial</strong> ends {end_str}. After that, your card on "
+        "file will be charged $12/month and Plus continues automatically.</p>"
+        "<div style='border-left:3px solid #ff4500;padding:14px 18px;background:#0d0d0d;margin:18px 0'>"
+        "<div style='font-size:11px;color:#a3a3a3;text-transform:uppercase;letter-spacing:0.22em;margin-bottom:8px'>"
+        "What you keep with Plus</div>"
+        "<ul style='font-size:13px;color:#e5e5e5;line-height:1.7;padding-left:18px;margin:0'>"
+        "<li>15 free listings every month</li>"
+        "<li>4% commission instead of 5%</li>"
+        "<li>Priority placement in homepage rotations</li>"
+        "<li>Custom shop banner image</li>"
+        "</ul></div>"
+        "<p style='font-size:13px;color:#e5e5e5;line-height:1.6;margin:18px 0 12px'>"
+        "Nothing to do if you're happy — Plus continues automatically. "
+        "Need to cancel or update your card? Use Manage billing below.</p>"
+        f"<a href='{billing_url}' style='display:inline-block;background:#ff4500;color:#0a0a0a;"
+        "padding:14px 26px;font-family:Impact,Arial Black,sans-serif;font-size:13px;letter-spacing:0.18em;"
+        "text-transform:uppercase;text-decoration:none;border:1px solid #ff4500'>Manage billing →</a>"
+        "<p style='font-size:12px;color:#525252;margin-top:24px;line-height:1.6'>"
+        "Cancellation before the trial ends costs nothing — you keep Plus through "
+        f"{end_str.replace('on ', '').replace('in 3 days', 'the trial end date')}.</p>"
+    )
+    html = _shell(
+        "Trial ending soon.",
+        "Your free Crafters Plus trial converts to paid in a few days.",
+        body, "Plus · trial reminder",
+    )
+    return await _send(
+        maker_email,
+        "Your Crafters Plus trial ends soon",
+        html,
+    )
+
+
+
 
 async def send_maker_magic_link(maker_email: str, maker_name: str, link: str):
     if not maker_email:

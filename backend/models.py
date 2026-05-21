@@ -118,6 +118,10 @@ class Product(BaseModel):
     # Lets ProductCard render the US-flag "Veteran-Owned" badge without a
     # second round-trip to /api/makers.
     maker_is_veteran: bool = False
+    # Denormalized — true when the maker is on Crafters Plus (active or
+    # trialing). Drives the Plus badge on ProductCard and powers the
+    # 3-tier catalog ranking boost. Never stored on the product doc.
+    maker_is_plus: bool = False
     created_at: str = Field(default_factory=now_iso)
 
 
@@ -202,6 +206,14 @@ class Maker(BaseModel):
     listings_by_month: dict = Field(default_factory=dict)
     # Plus-only: custom shop banner image (R2 URL)
     banner_image_url: Optional[str] = None
+    # Plus-only: vanity shop URL slug. When set, the maker is reachable
+    # at `/makers/<custom_url>` in addition to the canonical
+    # `/makers/<slug>`. Lowercase, 3-30 chars, [a-z0-9-], must pass the
+    # reserved-word blocklist (admin, api, shop, etc.). Cleared when the
+    # subscription lapses so a former Plus maker can't keep camping on
+    # a vanity URL.
+    custom_url: Optional[str] = None
+    custom_url_changed_at: Optional[str] = None
     # ---- Off-site ads attribution ----
     # When false (default), buyer orders that arrived via `?utm_source=external` get
     # an extra 12% off-site fee deducted from this maker's payout. Opt-out turns

@@ -287,6 +287,18 @@ export const finalizeMakerCreditPurchase = (sessionId) =>
   http.post(`/maker/credits/finalize?session_id=${encodeURIComponent(sessionId)}`, null, { headers: authHeaders() }).then((r) => r.data);
 export const fetchMakerSubscription = () =>
   http.get("/maker/subscription", { headers: authHeaders() }).then((r) => r.data);
+export const fetchMakerPlusAnalytics = () =>
+  http.get("/maker/analytics/plus", { headers: authHeaders() }).then((r) => r.data);
+export const fetchMakerCustomUrl = () =>
+  http.get("/maker/custom-url", { headers: authHeaders() }).then((r) => r.data);
+export const checkMakerCustomUrl = (candidate) =>
+  http
+    .get(`/maker/custom-url/check/${encodeURIComponent(candidate)}`, { headers: authHeaders() })
+    .then((r) => r.data);
+export const claimMakerCustomUrl = (custom_url) =>
+  http
+    .post("/maker/custom-url", { custom_url }, { headers: authHeaders() })
+    .then((r) => r.data);
 export const startMakerSubscription = () =>
   http.post("/maker/subscription/start", {}, { headers: authHeaders() }).then((r) => r.data);
 export const cancelMakerSubscription = () =>

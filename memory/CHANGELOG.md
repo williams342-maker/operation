@@ -1,6 +1,52 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-21 — iter171 · Founder Tier Phase 4 (Plus benefits expansion) ✅
+
+**Public:** Brand-new Crafters Plus signups get a **3-month free trial** (Stripe `trial_period_days=90` on first signup; never granted twice). The Maker Dashboard now sports a persistent **trial banner** (days remaining + 1-click "Manage billing"), a **Plus-only advanced analytics** section in the Stats tab (conversion rate, repeat-buyer %, 30d/90d revenue trend sparkline, traffic source breakdown), a **subtle catalog ranking boost** for Plus listings (paid promotions → Plus → everyone else), and a **vanity shop URL picker** (`/makers/<custom-name>`) in Settings → Account.
+
+### Backend
+
+- `routers/subscriptions.py`:
+  - `PLUS_TRIAL_DAYS=90` const; `start_subscription` passes `trial_period_days=90` + `trial_settings.end_behavior.missing_payment_method=cancel` only when `maker.plus_trial_used` is falsy
+  - `_sync_sub_to_maker` now persists `is_in_trial`, `trial_start_at`, `trial_end_at` and flips `plus_trial_used=True` the first time a trial appears — prevents re-trial after cancel
+  - New webhook case `customer.subscription.trial_will_end` → sends a "trial ends in 3 days" email
+  - `GET /api/maker/subscription` returns `is_in_trial`, `trial_end_at`, `trial_days_remaining` (clamped ≥0), `trial_eligible`, `trial_days=90`
+- New endpoint `GET /api/maker/analytics/plus` — 4 cards: conversion rate (paid orders / unique sessions, 30d), repeat-buyer % (≥2 orders all-time), revenue trend (continuous daily series for 30d + 90d), traffic source breakdown (medium aggregation). Server-side gates with 403 `{code: plus_required}` for non-Plus makers.
+- `routers/catalog.py`:
+  - List products now annotates `maker_is_plus` alongside `maker_is_veteran` (one bulk fetch each)
+  - 3-tier stable sort: promoted → plus → rest (each sub-sorted by `created_at` desc)
+  - `GET /api/makers/{slug}` falls back to `custom_url` resolution when the canonical slug isn't found (only while the maker is on active Plus)
+- New `routers/custom_url.py`:
+  - `GET /api/maker/custom-url`, `GET /api/maker/custom-url/check/{candidate}`, `POST /api/maker/custom-url` (Plus-gated)
+  - `GET /api/makers/resolve/{name}` — public resolver returning canonical slug + `matched_via` ("slug" | "custom_url")
+  - Validation: lowercase `[a-z0-9-]{3,30}`, no leading/trailing hyphen, reserved-word blocklist (system routes, marketplace structure, brand impersonation, taxonomy keywords)
+- `models.py`:
+  - `Product.maker_is_plus: bool = False` (denormalized, never stored)
+  - `Maker.custom_url`, `Maker.custom_url_changed_at`
+- `email_service.py`: new `send_maker_trial_ending_soon()` template (3-day reminder email)
+- `server.py`: mounts the new `custom_url_router`
+
+### Frontend
+
+- New `pages/MakerDashboard/TrialBanner.jsx` — sticky banner mounted in `ShopManagerLayout`. Days remaining, "Manage billing" CTA, session-scoped dismiss
+- New `pages/MakerDashboard/PlusAnalytics.jsx` — 3 metric cards + pure-SVG revenue sparkline + traffic-source bar list. Renders an upsell lock card for non-Plus makers. Mounted at top of `StatsTab`
+- New `pages/MakerDashboard/Settings/CustomUrlPicker.jsx` — vanity URL picker with 300ms debounced availability check, copy-to-clipboard, reserved-word handling via server. Mounted in `AccountPanel` below the subscription block
+- `components/ProductCard.jsx` — subtle `◆ PLUS` badge top-left when `maker_is_plus`
+- `UpgradeTab.jsx` + `PlusUpgradeNudge.jsx` — when `trial_eligible`, CTAs read "Start 3-month free trial →" and the badge flips to "3 MONTHS FREE"
+
+### DB schema
+
+- `Maker.is_in_trial`, `trial_start_at`, `trial_end_at`, `plus_trial_used`, `custom_url`, `custom_url_changed_at`
+
+### Tests added
+
+- `tests/test_plus_trial.py` — 4 cases: free maker trial-eligible, trialing flips `plus_trial_used`, active-after-trial keeps lock, `trial_days_remaining` clamps to 0
+- `tests/test_plus_boost.py` — 3 cases: `maker_is_plus` annotated, plus listings rank above non-plus in `/api/products`, no boost on free tier
+- `tests/test_custom_url.py` — 4 cases: free-tier 403, reserved-word + short + own-slug rejection, claim+resolve roundtrip, vanity URL stops resolving when Plus lapses
+
+
+
 ## 2026-05-21 — iter170 · GSC OAuth admin flow ✅
 
 **Public:** Bypasses the "Failed to add user / email not found" error that some GSC properties throw when adding a service-account email. New Admin → Settings → **"GSC connection"** card lets the admin sign in with their personal Google account (which already has GSC access) via a 1-click OAuth popup. Server stores the returned refresh-token in `db.gsc_oauth` and uses it for every URL Inspection call.

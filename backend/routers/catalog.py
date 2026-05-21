@@ -85,38 +85,52 @@ async def list_products(category: Optional[str] = None, technique: Optional[str]
             {"description": {"$regex": q, "$options": "i"}},
         ]
     # Promoted listings (those with promoted_until in the future) bubble to
-    # the top. Sort key: is_promoted desc, then created_at desc.
+    # the top. Sort key: is_promoted desc, then is_plus_maker desc, then
+    # created_at desc. Crafters Plus subscribers get a stable rank boost
+    # — they sit above the rest of the catalog but below paid promotions.
     from core import now_iso
     products = await db.products.find(query, {"_id": 0}).to_list(400)
     nowiso = now_iso()
 
-    # Denormalize the veteran-owned flag from each maker so ProductCard can
-    # render the US-flag badge without a second round-trip. One bulk fetch
-    # of just the veteran-owned slugs keeps this O(veteran_count).
+    # Denormalize the veteran-owned + plus-subscriber flags from each
+    # maker so ProductCard can render the right badges without a second
+    # round-trip. Two bulk fetches keep this O(badged_count).
     vet_slugs = {
         m["slug"] async for m in db.makers.find(
             {"is_veteran_owned": True}, {"_id": 0, "slug": 1},
         )
     }
+    # `subscription_status == "active"` covers both `active` and
+    # `trialing` Stripe states (see _sync_sub_to_maker).
+    plus_slugs = {
+        m["slug"] async for m in db.makers.find(
+            {"subscription_status": "active"}, {"_id": 0, "slug": 1},
+        )
+    }
     for p in products:
         p["maker_is_veteran"] = p.get("maker_slug") in vet_slugs
+        p["maker_is_plus"] = p.get("maker_slug") in plus_slugs
 
     def _sort_key(p):
         promo = p.get("promoted_until")
         is_promoted = bool(promo and promo > nowiso)
         return (0 if is_promoted else 1, -(p.get("created_at") or "").__hash__())
-    # Stable sort: promoted first, then most-recent.
-    products.sort(key=lambda p: (
-        0 if (p.get("promoted_until") and p["promoted_until"] > nowiso) else 1,
-        p.get("created_at") or "",
-    ), reverse=False)
-    # The reverse-sort trick: tuple (group, created) — group ascending puts
-    # promoted first; we then re-sort within each group by created_at desc.
-    promoted = [p for p in products if p.get("promoted_until") and p["promoted_until"] > nowiso]
-    rest = [p for p in products if not (p.get("promoted_until") and p["promoted_until"] > nowiso)]
+    # 3-tier stable sort: promoted → plus → everyone else, each tier
+    # sub-sorted by created_at desc.
+    promoted = [
+        p for p in products
+        if p.get("promoted_until") and p["promoted_until"] > nowiso
+    ]
+    non_promoted = [
+        p for p in products
+        if not (p.get("promoted_until") and p["promoted_until"] > nowiso)
+    ]
+    plus = [p for p in non_promoted if p.get("maker_is_plus")]
+    rest = [p for p in non_promoted if not p.get("maker_is_plus")]
     promoted.sort(key=lambda p: p.get("created_at") or "", reverse=True)
+    plus.sort(key=lambda p: p.get("created_at") or "", reverse=True)
     rest.sort(key=lambda p: p.get("created_at") or "", reverse=True)
-    return (promoted + rest)[:200]
+    return (promoted + plus + rest)[:200]
 
 
 @router.get("/products/{slug}", response_model=Product)
@@ -126,11 +140,16 @@ async def get_product(slug: str):
     )
     if not doc:
         raise HTTPException(404, "Product not found")
-    # Denormalize veteran-owned flag from the maker (see list_products note).
+    # Denormalize veteran-owned + Plus subscription from the maker so
+    # the product page can render both badges (see list_products note).
     maker = await db.makers.find_one(
-        {"slug": doc.get("maker_slug")}, {"_id": 0, "is_veteran_owned": 1},
+        {"slug": doc.get("maker_slug")},
+        {"_id": 0, "is_veteran_owned": 1, "subscription_status": 1},
     )
     doc["maker_is_veteran"] = bool(maker and maker.get("is_veteran_owned"))
+    doc["maker_is_plus"] = bool(
+        maker and (maker.get("subscription_status") or "free") == "active"
+    )
     return doc
 
 
@@ -150,7 +169,16 @@ async def list_makers():
 
 @router.get("/makers/{slug}", response_model=Maker)
 async def get_maker(slug: str):
-    doc = await db.makers.find_one({"slug": slug}, {"_id": 0})
+    """Resolves by canonical slug first, then by Plus `custom_url` so
+    vanity URLs (`/makers/<vanity>`) work without a second round-trip.
+    Vanity URLs only resolve while the maker is still on Plus —
+    otherwise the URL is taken-but-inactive (returns 404)."""
+    norm = (slug or "").strip().lower()
+    doc = await db.makers.find_one({"slug": norm}, {"_id": 0})
+    if not doc:
+        doc = await db.makers.find_one({"custom_url": norm}, {"_id": 0})
+        if doc and (doc.get("subscription_status") or "free") != "active":
+            doc = None
     if not doc:
         raise HTTPException(404, "Maker not found")
     return doc
