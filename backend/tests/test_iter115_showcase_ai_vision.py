@@ -143,8 +143,8 @@ async def test_ai_describe_with_vision_passes_image_contents_to_claude():
     async def fake_fetch(url):
         return fake_b64  # always succeed for this test
 
-    with patch("routers.community._claude_vision_describe", new=fake_describe), \
-         patch("routers.community._fetch_image_for_vision", new=fake_fetch):
+    with patch("routers.community_showcase._claude_vision_describe", new=fake_describe), \
+         patch("routers.community_showcase._fetch_image_for_vision", new=fake_fetch):
         async with await _client() as c:
             r = await c.post(
                 "/api/community/showcase/ai-describe",
@@ -182,8 +182,8 @@ async def test_ai_describe_caps_at_max_vision_images():
     async def fake_describe(*, system, user_text, image_b64s):
         return {"description": "ok"}
 
-    with patch("routers.community._claude_vision_describe", new=fake_describe), \
-         patch("routers.community._fetch_image_for_vision", new=fake_fetch):
+    with patch("routers.community_showcase._claude_vision_describe", new=fake_describe), \
+         patch("routers.community_showcase._fetch_image_for_vision", new=fake_fetch):
         async with await _client() as c:
             r = await c.post(
                 "/api/community/showcase/ai-describe",
@@ -216,8 +216,8 @@ async def test_ai_describe_falls_back_when_every_image_fetch_fails():
         assert "no photos were attached" in user_text
         return {"description": "Text-only fallback worked."}
 
-    with patch("routers.community._claude_vision_describe", new=fake_describe), \
-         patch("routers.community._fetch_image_for_vision", new=fake_fetch):
+    with patch("routers.community_showcase._claude_vision_describe", new=fake_describe), \
+         patch("routers.community_showcase._fetch_image_for_vision", new=fake_fetch):
         async with await _client() as c:
             r = await c.post(
                 "/api/community/showcase/ai-describe",
@@ -250,8 +250,8 @@ async def test_ai_describe_no_images_provided_uses_text_only_prompt_branch():
         assert image_b64s == []
         return {"description": "From the title alone."}
 
-    with patch("routers.community._claude_vision_describe", new=fake_describe), \
-         patch("routers.community._fetch_image_for_vision", new=fake_fetch):
+    with patch("routers.community_showcase._claude_vision_describe", new=fake_describe), \
+         patch("routers.community_showcase._fetch_image_for_vision", new=fake_fetch):
         async with await _client() as c:
             r = await c.post(
                 "/api/community/showcase/ai-describe",

@@ -123,7 +123,7 @@ async def test_list_endpoint_includes_quality_field():
             to_list=AsyncMock(return_value=rows),
         )),
     ))
-    with patch("routers.community.db", fake_db):
+    with patch("routers.community_files.db", fake_db):
         out = await list_design_files(limit=10)
     assert len(out) == 1
     assert "quality" in out[0]

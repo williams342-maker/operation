@@ -169,7 +169,7 @@ async def test_eua_gate_blocks_first_time_signin_without_acceptance():
     fake_db = MagicMock()
     fake_db.community_users.find_one = AsyncMock(return_value=None)
     bg = BackgroundTasks()
-    with patch("routers.community.db", fake_db):
+    with patch("routers.community_auth.db", fake_db):
         with pytest.raises(HTTPException) as exc:
             await community_auth_magic_request(
                 MagicRequest(email="new@x.com", origin_url="https://x.com"),
@@ -187,7 +187,7 @@ async def test_eua_gate_blocks_when_version_mismatches():
     fake_db = MagicMock()
     fake_db.community_users.find_one = AsyncMock(return_value=None)
     bg = BackgroundTasks()
-    with patch("routers.community.db", fake_db):
+    with patch("routers.community_auth.db", fake_db):
         with pytest.raises(HTTPException) as exc:
             await community_auth_magic_request(
                 MagicRequest(
@@ -211,7 +211,7 @@ async def test_eua_grandfathered_for_returning_user():
         "email": "returning@x.com", "eua_version": CURRENT_EUA_VERSION,
     })
     bg = BackgroundTasks()
-    with patch("routers.community.db", fake_db):
+    with patch("routers.community_auth.db", fake_db):
         r = await community_auth_magic_request(
             MagicRequest(email="returning@x.com", origin_url="https://x.com"),
             bg,
@@ -240,7 +240,7 @@ async def test_eua_acceptance_stamps_user_record():
     fake_db.community_users.insert_one = AsyncMock(side_effect=lambda doc: inserted.append(doc))
 
     bg = BackgroundTasks()
-    with patch("routers.community.db", fake_db):
+    with patch("routers.community_auth.db", fake_db):
         await community_auth_magic_request(
             MagicRequest(
                 email="first@x.com", origin_url="https://x.com",

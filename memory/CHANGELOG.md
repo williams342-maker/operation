@@ -1,6 +1,22 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-21 — iter155 · Community routers refactor: 1 file → 5 ✅
+
+**Public:** Internal cleanup. Split `routers/community.py` (~2000 lines, everything from sign-in to forum to design-file paywall) into focused domain modules so future community work is faster and less risky.
+
+- New modules under `/app/backend/routers/`:
+  - `community_auth.py` (215 lines) — Google OAuth + magic-link sign-in, EUA gate, `/me`, avatar upload.
+  - `community_showcase.py` (536 lines) — showcase CRUD, analytics events, AI vision-assisted describe, image + video uploads.
+  - `community_files.py` (897 lines) — design-file upload (URL + direct), variants, DXF→SVG + STL→PNG conversions, paywalled downloads, abuse reports, quality score.
+  - `community_forum.py` (245 lines) — categories, threads, replies, attachments, auto-moderation hookup.
+  - `community_common.py` (43 lines) — shared `CURRENT_EUA_VERSION` + `_ensure_user_can_post` ban check.
+- `community.py` reduced from 2076 → 96 lines as a thin barrel: combines all four sub-routers into a single exported `router` (so `server.py` is untouched) and re-exports every symbol that legacy tests + other modules already imported via `routers.community`.
+- Updated test patches in 4 test files to point at canonical module homes (`patch("routers.community_auth.db")` etc.) so `unittest.mock` patches flow to the actual handler functions.
+- Behavior is byte-identical: same routes, same paths, same signatures, same response shapes. Verified via curl on `/community/eua`, `/showcase/recent`, `/files`, `/forum/categories`, and `/forum/trending` — all return identical payloads post-split.
+- All 6 community-related test suites pass: iter28 EUA (10/10 community tests), iter76 bundle quality (9/9), iter114 multi-image showcase (12/12), iter115 showcase AI vision (9/9), showcase video clips (3/3), Founder marketing kit (3/3). One pre-existing email-template assertion failure (`5% commission` copy mismatch) is unrelated to this refactor and was failing before.
+
+
 ## 2026-05-21 — iter154 · SEO landing pages + rich CollectionPage schema ✅
 
 **Public:** Launched six dedicated landing pages targeting our highest-intent keyword searches — `/cnc-metal-art`, `/cnc-laser-art`, `/cnc-manufacturing`, `/cnc-usa`, `/artisan-marketplace`, and `/custom-handmade-goods`. Each has its own keyword-exact H1, long-form copy, and a live product/maker grid filtered to the topic so search engines see real, relevant inventory.

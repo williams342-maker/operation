@@ -190,7 +190,7 @@ async def test_ai_describe_requires_title():
 async def test_ai_describe_returns_description_from_claude():
     headers = await _seed_buyer()
     fake_reply = {"description": "Looks incredible above the workbench. Crisp cuts, beefy steel."}
-    with patch("routers.community._claude_vision_describe",
+    with patch("routers.community_showcase._claude_vision_describe",
                new=AsyncMock(return_value=fake_reply)):
         async with await _client() as c:
             r = await c.post(
@@ -209,7 +209,7 @@ async def test_ai_describe_fails_open_with_empty_description():
     `{description: ""}` so the UI can prompt the buyer to write their own
     instead of throwing a 500."""
     headers = await _seed_buyer()
-    with patch("routers.community._claude_vision_describe",
+    with patch("routers.community_showcase._claude_vision_describe",
                new=AsyncMock(return_value=None)):
         async with await _client() as c:
             r = await c.post(
@@ -246,7 +246,7 @@ async def test_ai_describe_includes_product_context_in_prompt():
         captured["user_text"] = user_text
         return {"description": "fake"}
 
-    with patch("routers.community._claude_vision_describe", new=fake_vision):
+    with patch("routers.community_showcase._claude_vision_describe", new=fake_vision):
         async with await _client() as c:
             await c.post(
                 "/api/community/showcase/ai-describe",
