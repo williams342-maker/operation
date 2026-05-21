@@ -167,6 +167,14 @@ export default function RecentShowcaseStrip({
                 </p>
               </div>
 
+              {post.video_url && (
+                <span
+                  className="absolute top-2 left-2 bg-[#ff4500] text-[#0a0a0a] font-mono text-[8px] uppercase tracking-[0.18em] px-1.5 py-0.5 font-bold"
+                  data-testid={`${testId}-video-${post.id}`}
+                >
+                  ◆ Video
+                </span>
+              )}
               {extra > 0 && (
                 <span className="absolute top-2 right-2 bg-[#0a0a0a]/85 border border-[#262626] text-[#e5e5e5] font-mono text-[9px] uppercase tracking-[0.18em] px-1.5 py-0.5">
                   +{extra}

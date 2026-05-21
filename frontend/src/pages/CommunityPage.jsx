@@ -10,13 +10,14 @@ import {
   reportDesignFile, convertDxfToSvg, renderStlThumbnail,
   fetchForumThreads, fetchForumThread, fetchForumCategories,
   createForumThread, replyForumThread, uploadForumAttachment,
-  uploadShowcaseImage, aiDescribeShowcase,
+  uploadShowcaseImage, uploadShowcaseVideo, aiDescribeShowcase,
   deleteChatMessage, deleteForumThread, deleteForumReply,
   fetchChatHistory, wsChatUrl,
   communityMe, uploadAvatar,
   fetchProducts, fetchMakers,
 } from "../lib/api";
 import { useSiteSettings } from "../hooks/useSiteSettings";
+import { Film } from "lucide-react";
 import QualityBadge from "../components/QualityBadge";
 import { useConfirm } from "../hooks/useConfirm";
 
@@ -258,21 +259,35 @@ function ShowcaseTab({ me }) {
 //     description from the title + tagged product/maker context.
 const SHOWCASE_MAX_IMAGES = 8;
 const SHOWCASE_MAX_BYTES_PER_FILE = 8 * 1024 * 1024;
+// Maker-only video clips on showcase (this iter).
+const SHOWCASE_MAX_VIDEO_BYTES = 50 * 1024 * 1024;
+const SHOWCASE_ALLOWED_VIDEO_TYPES = [
+  "video/mp4", "video/webm", "video/quicktime", "video/x-m4v",
+];
 
 function ShowcaseForm({ onSaved }) {
   const [form, setForm] = useState({ title: "", description: "", product_slug: "", maker_slug: "" });
   const [images, setImages] = useState([]); // [{url, name}]
+  const [video, setVideo] = useState(null); // {url, name, size, mime} | null
   const [uploading, setUploading] = useState(false);
+  const [videoUploading, setVideoUploading] = useState(false);
+  const [videoProgress, setVideoProgress] = useState(0);
   const [products, setProducts] = useState([]);
   const [makers, setMakers] = useState([]);
   const [busy, setBusy] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
+  // Maker mode unlocks the video uploader. We detect via the maker JWT in
+  // localStorage — the same key the maker dashboard uses. Buyers see the
+  // form unchanged.
+  const isMaker = typeof window !== "undefined"
+    && !!localStorage.getItem("cm_maker_jwt");
   // iter115 — surface whether the AI actually looked at the photos so
   // buyers see the difference between "described from title alone" and
   // "described from your actual uploads."
   const [aiVisionMeta, setAiVisionMeta] = useState(null);
   const [err, setErr] = useState("");
   const inputRef = React.useRef(null);
+  const videoInputRef = React.useRef(null);
 
   useEffect(() => {
     Promise.all([fetchProducts(), fetchMakers()]).then(([p, m]) => {
@@ -322,6 +337,34 @@ function ShowcaseForm({ onSaved }) {
 
   const removeImage = (i) => setImages((cur) => cur.filter((_, idx) => idx !== i));
 
+  const onPickVideo = async (e) => {
+    setErr("");
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!SHOWCASE_ALLOWED_VIDEO_TYPES.includes(file.type) && !/\.(mp4|webm|mov|m4v)$/i.test(file.name)) {
+      setErr(`'${file.name}' isn't a supported clip — use MP4, WebM, or MOV.`);
+      e.target.value = "";
+      return;
+    }
+    if (file.size > SHOWCASE_MAX_VIDEO_BYTES) {
+      setErr(`Clip is ${(file.size / 1024 / 1024).toFixed(1)}MB — must be ≤ 50MB. Trim it in CapCut / Premiere Rush first.`);
+      e.target.value = "";
+      return;
+    }
+    setVideoUploading(true);
+    setVideoProgress(0);
+    try {
+      const r = await uploadShowcaseVideo(file, { onProgress: setVideoProgress });
+      setVideo({ url: r.url, name: r.filename || file.name, size: r.size, mime: r.mime });
+    } catch (uploadErr) {
+      setErr(uploadErr?.response?.data?.detail || "Video upload failed.");
+    } finally {
+      setVideoUploading(false);
+      e.target.value = "";
+    }
+  };
+  const removeVideo = () => { setVideo(null); setVideoProgress(0); };
+
   const runAiDescribe = async () => {
     if (!form.title.trim()) {
       setErr("Add a title first — the AI uses it to write the description.");
@@ -353,8 +396,10 @@ function ShowcaseForm({ onSaved }) {
   const submit = async (e) => {
     e.preventDefault();
     setErr("");
-    if (!images.length) {
-      setErr("Upload at least one photo of the piece.");
+    if (!images.length && !video) {
+      setErr(isMaker
+        ? "Upload at least one photo or a video clip of the piece."
+        : "Upload at least one photo of the piece.");
       return;
     }
     setBusy(true);
@@ -364,7 +409,8 @@ function ShowcaseForm({ onSaved }) {
         title: form.title,
         description: form.description,
         image_urls: images.map((i) => i.url),
-        image_url: images[0].url, // primary, for backwards-compat card UI
+        image_url: images[0]?.url || null,
+        video_url: video?.url || null,
         product_slug: form.product_slug || null,
         maker_slug: form.maker_slug || (picked ? picked.maker_slug : null),
       };
@@ -440,6 +486,59 @@ function ShowcaseForm({ onSaved }) {
         )}
       </div>
 
+      {/* Maker-only video picker (this iter) */}
+      {isMaker && (
+        <div className="md:col-span-2 border border-dashed border-[#262626] p-4" data-testid="showcase-video-picker">
+          <div className="flex flex-wrap items-center gap-3 mb-3">
+            <button
+              type="button"
+              onClick={() => videoInputRef.current?.click()}
+              disabled={videoUploading || !!video}
+              className="btn-industrial btn-secondary inline-flex items-center gap-2 disabled:opacity-50"
+              data-testid="showcase-video-add"
+            >
+              <Film size={14} />
+              {video ? "Clip attached" : "Add video clip"}
+            </button>
+            <p className="font-mono text-[10px] text-[#525252]">
+              MP4 / WebM / MOV · ≤ 50MB · ~60s. Maker-only feature.
+            </p>
+            <input
+              ref={videoInputRef} type="file" accept="video/mp4,video/webm,video/quicktime,video/x-m4v"
+              onChange={onPickVideo} className="hidden" data-testid="showcase-video-input"
+            />
+          </div>
+          {videoUploading && (
+            <p className="font-mono text-[10px] text-[#ff4500] mb-2" data-testid="showcase-video-uploading">
+              Uploading… {videoProgress}%
+            </p>
+          )}
+          {video && !videoUploading && (
+            <div className="relative border border-[#262626] bg-black" data-testid="showcase-video-preview">
+              <video
+                src={video.url}
+                controls
+                preload="metadata"
+                className="w-full max-h-72 object-contain"
+              />
+              <div className="flex items-center justify-between px-3 py-2 border-t border-[#262626]">
+                <span className="font-mono text-[10px] text-[#a3a3a3] truncate">
+                  ◆ {video.name} · {(video.size / 1024 / 1024).toFixed(1)}MB
+                </span>
+                <button
+                  type="button"
+                  onClick={removeVideo}
+                  className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#a3a3a3] hover:text-red-400"
+                  data-testid="showcase-video-remove"
+                >
+                  Remove
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       <select
         value={form.product_slug} onChange={(e) => setForm({ ...form, product_slug: e.target.value })}
         className="bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
@@ -500,7 +599,7 @@ function ShowcaseForm({ onSaved }) {
       )}
 
       <button
-        type="submit" disabled={busy || uploading || images.length === 0}
+        type="submit" disabled={busy || uploading || videoUploading || (images.length === 0 && !video)}
         className="btn-industrial btn-primary md:col-span-2 disabled:opacity-50"
         data-testid="showcase-submit"
       >
@@ -515,18 +614,41 @@ function ShowcaseCard({ post, onLike, canLike }) {
   // iter114 — multi-image showcase posts: render the cover + badge the
   // gallery size when there's more than one photo. Falls back to the
   // legacy `image_url` for posts created before iter114.
+  // this iter — when the post has a `video_url`, render an HTML5 <video>
+  // in place of the static image. Buyers can still tap "play" inline.
   const imageUrls = (post.image_urls && post.image_urls.length > 0)
     ? post.image_urls
     : (post.image_url ? [post.image_url] : []);
   const cover = imageUrls[0];
   const extraCount = Math.max(0, imageUrls.length - 1);
+  const hasVideo = !!post.video_url;
   return (
     <div className="border border-[#262626] hover:border-[#ff4500] transition group" data-testid={`showcase-${post.id}`}>
       <div className="aspect-[4/3] overflow-hidden bg-[#121212] relative">
-        {cover && (
-          <img src={cover} alt={post.title} className="w-full h-full object-cover group-hover:scale-105 transition duration-700" />
+        {hasVideo ? (
+          <video
+            src={post.video_url}
+            poster={cover || undefined}
+            controls
+            playsInline
+            preload="metadata"
+            className="w-full h-full object-cover bg-black"
+            data-testid={`showcase-${post.id}-video`}
+          />
+        ) : (
+          cover && (
+            <img src={cover} alt={post.title} className="w-full h-full object-cover group-hover:scale-105 transition duration-700" />
+          )
         )}
-        {extraCount > 0 && (
+        {hasVideo && (
+          <span
+            className="absolute top-2 left-2 bg-[#ff4500] text-[#0a0a0a] font-mono text-[9px] uppercase tracking-[0.18em] px-2 py-1 font-bold pointer-events-none"
+            data-testid={`showcase-${post.id}-video-badge`}
+          >
+            ◆ Video
+          </span>
+        )}
+        {!hasVideo && extraCount > 0 && (
           <span
             className="absolute bottom-2 right-2 bg-[#0a0a0a]/85 border border-[#262626] text-[#e5e5e5] font-mono text-[10px] uppercase tracking-[0.18em] px-2 py-1"
             data-testid={`showcase-${post.id}-image-count`}

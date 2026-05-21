@@ -745,6 +745,14 @@ const buyerAuthHeaders = () => {
   const t = localStorage.getItem("cm_buyer_jwt");
   return t ? { Authorization: `Bearer ${t}` } : {};
 };
+// Either-role headers for the community surface — used by endpoints that
+// accept both buyer and maker JWTs (showcase create + video upload).
+// Prefers the buyer JWT so existing buyer flows keep working untouched;
+// makers logged in only via the maker portal still get authed.
+const communityAnyAuthHeaders = () => {
+  const t = localStorage.getItem("cm_buyer_jwt") || localStorage.getItem("cm_maker_jwt");
+  return t ? { Authorization: `Bearer ${t}` } : {};
+};
 export const communityGoogleExchange = (session_id, eua_version = "") =>
   http.post("/community/auth/google",
             { session_id, accept_eua: !!eua_version, eua_version }).then((r) => r.data);
@@ -787,9 +795,25 @@ export const uploadAvatar = (file) => {
 
 export const fetchShowcase = () => http.get("/community/showcase").then((r) => r.data);
 export const createShowcase = (payload) =>
-  http.post("/community/showcase", payload, { headers: buyerAuthHeaders() }).then((r) => r.data);
+  http.post("/community/showcase", payload, { headers: communityAnyAuthHeaders() }).then((r) => r.data);
 export const likeShowcase = (id) =>
   http.post(`/community/showcase/${id}/like`, {}, { headers: buyerAuthHeaders() }).then((r) => r.data);
+
+// Maker-only — upload a ≤50MB / ≤60s video clip to attach to a showcase post.
+export const uploadShowcaseVideo = (file, opts = {}) => {
+  const fd = new FormData();
+  fd.append("file", file);
+  return http
+    .post("/community/showcase/upload-video", fd, {
+      headers: { ...communityAnyAuthHeaders(), "Content-Type": "multipart/form-data" },
+      // Videos are larger than the default — give the upload plenty of time.
+      timeout: 120000,
+      onUploadProgress: opts.onProgress
+        ? (e) => opts.onProgress(e.total ? Math.round((e.loaded / e.total) * 100) : 0)
+        : undefined,
+    })
+    .then((r) => r.data);
+};
 
 export const fetchDesignFiles = () => http.get("/community/files").then((r) => r.data);
 export const fetchTrendingDesignFiles = (days = 7, limit = 6) =>

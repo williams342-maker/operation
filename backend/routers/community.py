@@ -224,6 +224,10 @@ class ShowcasePost(BaseModel):
     # (it always holds image_urls[0] when present).
     image_url: Optional[str] = None
     image_urls: List[str] = []
+    # this iter — optional maker-uploaded video clip (≤50 MB, ≤60 s).
+    # When set, showcase cards render a <video> element in place of the
+    # image carousel. The first image (if any) is used as the poster.
+    video_url: Optional[str] = None
     product_slug: Optional[str] = None
     maker_slug: Optional[str] = None
 
@@ -266,9 +270,9 @@ async def list_recent_showcase(
     limit = max(1, min(n, 12))
     proj = {
         "_id": 0, "id": 1, "title": 1,
-        "image_url": 1, "image_urls": 1,
+        "image_url": 1, "image_urls": 1, "video_url": 1,
         "product_slug": 1, "maker_slug": 1,
-        "user_name": 1, "user_picture": 1,
+        "user_name": 1, "user_picture": 1, "user_role": 1,
         "likes": 1, "created_at": 1,
     }
 
@@ -298,29 +302,63 @@ async def list_recent_showcase(
 
 
 @router.post("/community/showcase")
-async def create_showcase(post: ShowcasePost, claims: dict = Depends(current_buyer)):
-    user = await db.community_users.find_one({"user_id": claims["sub"]}, {"_id": 0})
-    if not user:
-        raise HTTPException(404, "User not found")
+async def create_showcase(post: ShowcasePost, claims: dict = Depends(current_any_user)):
+    """Create a showcase post. Accepts buyer OR maker JWTs.
+    Buyers post photos of items they bought (original surface).
+    Makers post photos + optional video clips of work in their shop.
+
+    The user-attribution fields (`user_email/name/picture`) are sourced
+    from `community_users` for buyers and from `makers` for makers so
+    the card renders identically regardless of who posted."""
+    role = claims.get("role")
+    if role == "maker":
+        maker = await db.makers.find_one(
+            {"slug": claims["sub"]},
+            {"_id": 0, "email": 1, "name": 1, "shop_name": 1, "portrait": 1, "slug": 1},
+        )
+        if not maker:
+            raise HTTPException(404, "Maker not found.")
+        user_email = maker.get("email", "")
+        user_name = maker.get("shop_name") or maker.get("name", "")
+        user_picture = maker.get("portrait", "")
+        user_id_for_doc = f"maker:{maker['slug']}"
+        # Auto-tag the post to the maker so the maker-page strip surfaces it.
+        if not post.maker_slug:
+            post.maker_slug = maker["slug"]
+    else:
+        user = await db.community_users.find_one({"user_id": claims["sub"]}, {"_id": 0})
+        if not user:
+            raise HTTPException(404, "User not found")
+        user_email = user["email"]
+        user_name = user.get("name", "")
+        user_picture = user.get("picture", "")
+        user_id_for_doc = claims["sub"]
+
     # Normalize image fields — accept either shape from the client and
     # land both populated in the DB so old + new card renderers both work.
     payload = post.model_dump()
     urls = list(payload.get("image_urls") or [])
     if payload.get("image_url") and payload["image_url"] not in urls:
         urls.insert(0, payload["image_url"])
-    if not urls:
-        raise HTTPException(400, "At least one image is required.")
+    has_video = bool(payload.get("video_url"))
+    if not urls and not has_video:
+        raise HTTPException(400, "Add at least one image — or a video clip.")
+    if has_video and role != "maker":
+        # Defence in depth — only makers can attach videos via upload-video,
+        # but reject any buyer attempt to post a `video_url` directly.
+        raise HTTPException(403, "Video clips are a maker-only feature for now.")
     # Soft cap matches the frontend picker — 8 photos per showcase post.
     urls = urls[:8]
     payload["image_urls"] = urls
-    payload["image_url"] = urls[0]
+    payload["image_url"] = urls[0] if urls else None
 
     doc = {
         "id": str(uuid.uuid4()),
-        "user_id": claims["sub"],
-        "user_email": user["email"],
-        "user_name": user.get("name", ""),
-        "user_picture": user.get("picture", ""),
+        "user_id": user_id_for_doc,
+        "user_email": user_email,
+        "user_name": user_name,
+        "user_picture": user_picture,
+        "user_role": role,
         **payload,
         "likes": 0,
         "created_at": now_iso(),
@@ -505,6 +543,18 @@ async def admin_showcase_analytics(
 SHOWCASE_MAX_IMAGE_BYTES = 8 * 1024 * 1024          # per-file, matches forum
 SHOWCASE_ALLOWED_IMG_EXT = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
 
+# ===================== SHOWCASE — maker video clip (this iter) =====================
+# Native R2-hosted video clips on showcase posts. Maker-only — buyers
+# post photos (same as today), makers can post short shop clips.
+# 50 MB cap roughly matches a 60-second 1080p H.264 export from Premiere
+# Rush / CapCut / mobile camera — long enough to show a CNC pass or a
+# finished piece spin, short enough to keep R2 egress in check.
+SHOWCASE_MAX_VIDEO_BYTES = 50 * 1024 * 1024
+SHOWCASE_ALLOWED_VIDEO_EXT = {".mp4", ".webm", ".mov", ".m4v"}
+SHOWCASE_ALLOWED_VIDEO_MIME = {
+    "video/mp4", "video/webm", "video/quicktime", "video/x-m4v",
+}
+
 
 @router.post("/community/showcase/upload")
 async def upload_showcase_image(
@@ -529,6 +579,50 @@ async def upload_showcase_image(
     key = f"showcase/{claims['sub']}/{uuid.uuid4().hex}{ext}"
     url = upload_bytes(data=raw, key=key, content_type=mime)
     return {"url": url, "filename": name[:120], "size": size}
+
+
+@router.post("/community/showcase/upload-video")
+async def upload_showcase_video(
+    file: UploadFile = File(...), claims: dict = Depends(current_any_user),
+):
+    """Maker-only video clip uploader for the showcase form. One clip per
+    showcase post — the returned URL is stored in `ShowcasePost.video_url`.
+
+    50 MB cap. Allowed: .mp4, .webm, .mov, .m4v. We don't transcode and we
+    don't enforce duration server-side — the size cap is a hard backstop
+    against multi-minute uploads. The client trims to 60s before upload
+    when supported by the browser/media-recorder API."""
+    if claims.get("role") != "maker":
+        raise HTTPException(403, "Maker access required for video uploads.")
+    from r2_storage import is_configured as r2_ok, upload_bytes
+    if not r2_ok():
+        raise HTTPException(503, "File uploads are not configured.")
+    raw = await file.read()
+    size = len(raw)
+    mime = (file.content_type or "").lower()
+    name = file.filename or "upload"
+    ext = ("." + name.rsplit(".", 1)[-1].lower()) if "." in name else ""
+    if ext not in SHOWCASE_ALLOWED_VIDEO_EXT:
+        raise HTTPException(400, f"Allowed formats: mp4, webm, mov, m4v — got '{name}'.")
+    if mime and mime not in SHOWCASE_ALLOWED_VIDEO_MIME:
+        # Some browsers report empty/octet-stream for .mov — ext check above is the source of truth.
+        if not mime.startswith("video/") and mime != "application/octet-stream":
+            raise HTTPException(400, f"Video files only — got '{mime}'.")
+    if size > SHOWCASE_MAX_VIDEO_BYTES:
+        raise HTTPException(400, f"Clip must be ≤ {SHOWCASE_MAX_VIDEO_BYTES // (1024 * 1024)}MB.")
+    # Normalise content type — R2 will serve this with the same header,
+    # which the <video> tag in the browser needs to pick the right codec.
+    served_mime = (
+        mime if mime in SHOWCASE_ALLOWED_VIDEO_MIME
+        else {"mp4": "video/mp4", "m4v": "video/x-m4v", "webm": "video/webm",
+              "mov": "video/quicktime"}.get(ext.lstrip("."), "video/mp4")
+    )
+    key = f"showcase/videos/{claims['sub']}/{uuid.uuid4().hex}{ext}"
+    url = upload_bytes(
+        data=raw, key=key, content_type=served_mime,
+        max_bytes=SHOWCASE_MAX_VIDEO_BYTES,
+    )
+    return {"url": url, "filename": name[:120], "size": size, "mime": served_mime}
 
 
 # ===================== SHOWCASE — AI description help (iter114) =====================

@@ -25,7 +25,14 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - Admin: `/admin/login|verify|dashboard`
 
 ## What's Implemented (cumulative)
-- ✅ **Founder email signature kit (2026-02, this iter):** New tile under `Marketing → Founder card`. Live HTML preview with the maker's Gemini card thumbnail + name + Founder badge + UTM-tagged shop link + "/founders" recruiting link. Four export paths: **Copy for Gmail/Apple Mail** (rich `ClipboardItem` text/html + text/plain, falls back to raw HTML), **Copy raw HTML**, **Copy plain text**, **Download .htm** (for Outlook desktop signature import). Table-based markup so Outlook renders correctly. Includes paste-location cheatsheet for all 4 major clients. Founder-only gating.
+- ✅ **Community Showcase — maker video clips (2026-02, this iter):** Makers can upload short video clips alongside (or instead of) photos. Native R2 hosting + HTML5 `<video controls>` playback — no third-party dependencies.
+  - New endpoint `POST /api/community/showcase/upload-video` (maker-only role gate). 50 MB / ≈60 s cap. Allowed: mp4 / webm / mov / m4v.
+  - `ShowcasePost` extended with `video_url`; `create_showcase` now accepts buyer OR maker JWTs (extends the surface for makers; buyer photo flow unchanged).
+  - Showcase cards render the video player with the poster image as fallback + "◆ Video" badge in the top-left. `RecentShowcaseStrip` (home + product pages) also tags video posts.
+  - Video-only posts allowed for makers (no images required); buyers still must attach at least one image.
+  - Frontend: maker-detection via `cm_maker_jwt` reveals the picker UI; size/format validated client-side + progress meter.
+  - Regression: `/app/backend/tests/test_showcase_video.py` (3/3 passing — role gate, full round-trip with cleanup, bad-extension rejection).
+- ✅ **Founder email signature kit (2026-02):** New tile under `Marketing → Founder card`. Live HTML preview with the maker's Gemini card thumbnail + name + Founder badge + UTM-tagged shop link + "/founders" recruiting link. Four export paths: **Copy for Gmail/Apple Mail** (rich `ClipboardItem` text/html + text/plain, falls back to raw HTML), **Copy raw HTML**, **Copy plain text**, **Download .htm** (for Outlook desktop signature import). Table-based markup so Outlook renders correctly. Includes paste-location cheatsheet for all 4 major clients. Founder-only gating.
 - ✅ **Founder Card share kit on maker dashboard (2026-02):** Marketing → Founder card sub-nav. Founder-only (double-gated). Live preview + one-click X/Facebook/LinkedIn share buttons with pre-composed pitch + Download card + Copy text. File: `/app/frontend/src/pages/MakerDashboard/Marketing/FounderCardSection.jsx`.
 - ✅ **Founder Marketing Kit (2026-02):** Recruiting toolkit for the first 100 inaugural Founders.
   - `EtsyComparisonTable` (`/founders`): side-by-side fee math at $5K / $25K / $75K GMV bands → "You save" callouts ($432 · $1,919 · $5,613/yr).
