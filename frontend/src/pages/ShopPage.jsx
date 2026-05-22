@@ -106,8 +106,12 @@ export default function ShopPage() {
           onReset={() => { setCat("All"); setTech("All"); setQ(""); }}
         />
 
-        <div className="font-mono text-xs uppercase tracking-[0.22em] text-[#a3a3a3] mb-6">
-          {products === null ? "Loading…" : `${filtered.length} piece${filtered.length === 1 ? "" : "s"}`}
+        <div className="font-mono text-xs uppercase tracking-[0.22em] text-[#a3a3a3] mb-6 min-h-[1.25rem]" data-testid="shop-count">
+          {products === null ? (
+            <span className="inline-block h-3 w-32 bg-[#1a1a1a] animate-pulse" aria-label="Loading count" />
+          ) : (
+            `${filtered.length} piece${filtered.length === 1 ? "" : "s"}`
+          )}
         </div>
 
         {products === null ? (

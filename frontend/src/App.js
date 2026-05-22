@@ -61,6 +61,7 @@ import BetaBanner from "./components/BetaBanner";
 import CNCEmblem from "./components/CNCEmblem";
 import NewsletterSignup from "./components/NewsletterSignup";
 import RecentShowcaseStrip from "./components/RecentShowcaseStrip";
+import TopShowcaseStrip from "./components/TopShowcaseStrip";
 import TrendingForumStrip from "./components/TrendingForumStrip";
 import TrendingJournalRail from "./components/TrendingJournalRail";
 import { Toaster } from "sonner";
@@ -93,6 +94,7 @@ const Home = () => {
       <CNCEmblem />
       <Reviews />
       <TrendingJournalRail />
+      <TopShowcaseStrip testId="home-top-showcase" />
       <RecentShowcaseStrip
         eyebrow="◆ From the community"
         title="Recently shared by buyers"

@@ -93,6 +93,92 @@ async def list_showcase(limit: int = 50):
     return await db.showcase_posts.find(_PUBLIC_FEED_FILTER, {"_id": 0}).sort("created_at", -1).to_list(limit)
 
 
+@router.get("/community/showcase/top-week")
+async def list_top_week_showcase(limit: int = 6):
+    """Most-viewed showcase pieces over the last 7 days.
+
+    Returns posts sorted by their view-event count inside the rolling
+    7-day window (NOT lifetime `views`), so freshly-popular work
+    surfaces above older posts that just have a tall historical total.
+
+    Used by the homepage "Trending in the community" strip. Self-hides
+    on the frontend when fewer than 2 posts qualify, so quiet weeks
+    don't render a half-empty section.
+    """
+    try:
+        n = int(limit) if limit is not None else 6
+    except (TypeError, ValueError):
+        n = 6
+    n = max(2, min(n, 12))
+
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+
+    # Aggregate the recent view-event collection (`showcase_views`) to
+    # get a (post_id → recent_view_count) map. Avoids leaning on the
+    # lifetime `views` field, which would tilt the leaderboard toward
+    # ancient posts.
+    pipe = [
+        {"$match": {"ts": {"$gte": cutoff}}},
+        {"$group": {"_id": "$post_id", "recent_views": {"$sum": 1}}},
+        {"$sort": {"recent_views": -1}},
+        {"$limit": n * 3},  # pull extras in case some posts are quarantined
+    ]
+    top_rows = []
+    async for row in db.showcase_views.aggregate(pipe):
+        top_rows.append((row["_id"], int(row.get("recent_views") or 0)))
+
+    seen_ids = {pid for pid, _ in top_rows}
+
+    # Top-up fallback — when recent activity is sparse (early launch, low
+    # traffic week), pad the list with posts ranked by their *lifetime*
+    # view count so the homepage strip never renders half-empty. These
+    # fallback rows return `views_this_week=0` so the UI can decide
+    # whether to badge them differently.
+    if len(top_rows) < n:
+        fallback = await db.showcase_posts.find(
+            {
+                **_PUBLIC_FEED_FILTER,
+                "id": {"$nin": list(seen_ids)},
+                "views": {"$gt": 0},
+            },
+            {"_id": 0, "id": 1, "views": 1},
+        ).sort("views", -1).limit(n - len(top_rows)).to_list(n)
+        for p in fallback:
+            top_rows.append((p["id"], 0))
+
+    if not top_rows:
+        return {"items": []}
+
+    post_ids = [pid for pid, _ in top_rows]
+    proj = {
+        "_id": 0, "id": 1, "title": 1, "description": 1,
+        "image_url": 1, "image_urls": 1, "video_url": 1,
+        "product_slug": 1, "maker_slug": 1,
+        "user_name": 1, "user_picture": 1, "user_role": 1,
+        "likes": 1, "views": 1, "created_at": 1,
+    }
+    posts = await db.showcase_posts.find(
+        {"id": {"$in": post_ids}, **_PUBLIC_FEED_FILTER},
+        proj,
+    ).to_list(len(post_ids))
+    by_id = {p["id"]: p for p in posts}
+
+    # Re-sort to the aggregation order + decorate each post with the
+    # 7-day count (lets the frontend show "🔥 24 this week" if it wants).
+    items: list[dict] = []
+    for pid, cnt in top_rows:
+        p = by_id.get(pid)
+        if not p:
+            continue
+        p["views_this_week"] = cnt
+        items.append(p)
+        if len(items) >= n:
+            break
+    return {"items": items}
+
+
+
+
 @router.get("/community/showcase/recent")
 async def list_recent_showcase(
     limit: int = 4,

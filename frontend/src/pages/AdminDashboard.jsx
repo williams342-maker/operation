@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { BarChart3 } from "lucide-react";
@@ -133,6 +133,18 @@ export default function AdminDashboard() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
+  // Ref to the active tab pill in the horizontal nav. When the tab
+  // changes (especially via the bottom mobile tab bar), we smooth-scroll
+  // the active pill into view so the maker always sees which section
+  // they landed on. No-op on desktop where the sidebar is fully visible.
+  const activeTabBtnRef = useRef(null);
+  useEffect(() => {
+    const btn = activeTabBtnRef.current;
+    if (!btn) return;
+    // Only matters on mobile where the rail is horizontally scrollable.
+    if (window.matchMedia("(min-width: 1024px)").matches) return;
+    btn.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+  }, [tab]);
   // `voluntaryRotate` = admin clicked "Rotate now" from the pre-expiry
   // banner. Opens the same RotatePasswordModal in dismissible mode.
   const [voluntaryRotate, setVoluntaryRotate] = useState(false);
@@ -435,6 +447,7 @@ export default function AdminDashboard() {
                 <button
                   key={t.id}
                   onClick={() => setTab(t.id)}
+                  ref={active ? activeTabBtnRef : null}
                   className={`
                     font-mono text-[10px] md:text-[11px] uppercase tracking-[0.18em] md:tracking-[0.22em] whitespace-nowrap transition
                     px-3 md:px-5 py-3 shrink-0 border-b-2 lg:border-b-0 lg:border-l-2 lg:w-full lg:text-left lg:px-3 lg:py-2.5

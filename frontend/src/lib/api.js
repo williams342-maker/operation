@@ -848,6 +848,13 @@ export const likeShowcase = (id) =>
 export const markShowcaseViewed = (id, clientId) =>
   http.post(`/community/showcase/${id}/view`, { client_id: clientId }).then((r) => r.data);
 
+// Top-viewed showcase pieces over the last 7 days. Powers the homepage
+// "Trending in the community" strip. Same `items` shape as
+// /community/showcase/recent so we can pass it through the existing
+// RecentShowcaseStrip-style renderer.
+export const fetchTopWeekShowcase = (limit = 6) =>
+  http.get(`/community/showcase/top-week?limit=${limit}`).then((r) => r.data);
+
 // Owner-only edit (patch) and delete. Maker JWT preferred when the
 // caller is a maker — same logic as createShowcase.
 export const editShowcase = (id, patch) =>

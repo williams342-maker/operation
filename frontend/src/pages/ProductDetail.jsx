@@ -13,6 +13,7 @@ import VeteranBadge from "../components/VeteranBadge";
 import BackorderRequestModal from "../components/BackorderRequestModal";
 import RestockWaitlistModal from "../components/RestockWaitlistModal";
 import RecentShowcaseStrip from "../components/RecentShowcaseStrip";
+import { DetailSkeleton } from "../components/Skeleton";
 
 export default function ProductDetail() {
   const { slug } = useParams();
@@ -80,7 +81,7 @@ export default function ProductDetail() {
     },
   } : { jsonLd: null });
 
-  if (!p) return <div className="pt-40 text-center font-mono text-sm text-[#a3a3a3]">Loading…</div>;
+  if (!p) return <DetailSkeleton />;
 
   const hasVariants = (p.variants || []).length > 0;
   const selectedVariant = hasVariants

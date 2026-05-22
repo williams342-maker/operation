@@ -16,11 +16,12 @@
  */
 import React, { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Star, ShieldAlert, MessageCircle, Check, Loader2 } from "lucide-react";
+import { Star, ShieldAlert, MessageCircle, Check } from "lucide-react";
 import {
   fetchMakerReviews, postMakerReviewResponse, createReviewDispute,
 } from "../../lib/api";
 import EmptyState from "../../components/EmptyState";
+import { RowsSkeleton, StatsSkeleton } from "../../components/Skeleton";
 import { timeAgo } from "../../lib/timeAgo";
 
 const REASONS = [
@@ -81,9 +82,10 @@ export default function ReviewsTab() {
       )}
 
       {loading ? (
-        <div className="flex items-center gap-2 text-[#a3a3a3] font-mono text-xs">
-          <Loader2 size={14} className="animate-spin" /> Loading…
-        </div>
+        <>
+          <StatsSkeleton count={4} />
+          <RowsSkeleton count={5} />
+        </>
       ) : !items.length ? (
         <EmptyState
           title="No reviews yet."

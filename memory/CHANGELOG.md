@@ -1,6 +1,40 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-22 — iter175 · Homepage Top-Viewed strip + UX polish ✅
+
+### Public — Homepage "Trending This Week"
+
+- New homepage section "**Trending this week**" — mosaic of 6 most-viewed showcase pieces in the last 7 days, with `#1`/`#2`/etc rank chips and `👁 N` weekly-view chips
+- Self-hides when fewer than 2 posts qualify (quiet-week guard) and skeleton-renders during first paint so the homepage doesn't jump
+- Top-up fallback — if recent activity is sparse, pads the list with lifetime-popular posts so the strip is never half-empty during early launch / quiet weeks
+- Every tile deep-links to `/community#showcase-<id>`; landing scrolls + pulse-highlights the target card (powered by iter174's hash listener)
+
+### Backend
+
+- New `GET /api/community/showcase/top-week?limit=N` — primary sort by 7-day view-event aggregation against `db.showcase_views`, secondary sort by lifetime `views`. Excludes quarantined posts. `limit` clamped to [2, 12] to guard against `?limit=99999`.
+- Returns `items[]` with `views_this_week` decorated per row (0 on lifetime-fallback rows)
+
+### Frontend
+
+- New `components/TopShowcaseStrip.jsx` (~140 lines) — 6-tile grid + rank chip + weekly-views chip + hover-reveal title + skeleton state
+- `App.js::Home` mounts `<TopShowcaseStrip>` above the existing `<RecentShowcaseStrip>`
+- `lib/api.js::fetchTopWeekShowcase(limit=6)` helper
+
+### UX polish (sweep across loading states + mobile admin)
+
+- `pages/ProductDetail.jsx` — "Loading…" text replaced with shimmer `DetailSkeleton` for the cold-load on product pages
+- `pages/MakerDashboard/ReviewsTab.jsx` — Loader2 spinner replaced with `StatsSkeleton` + `RowsSkeleton` shapes
+- `pages/MakerDashboard/FinancialsTab.jsx` — "Loading ledger…" replaced with `StatsSkeleton` + `RowsSkeleton`
+- `pages/ShopPage.jsx` — "Loading…" count text replaced with a width-stable shimmer bar (prevents layout jump when count arrives)
+- `pages/AdminDashboard.jsx` — mobile admin tab rail now smooth-scrolls the active pill into view when the tab changes (especially after a bottom-bar `MobileAdminTabBar` tap). Guarded by `matchMedia` so desktop is unaffected.
+
+### Tests added
+
+- `tests/test_showcase_top_week.py` — 3 cases: items decorated with `views_this_week`, quarantined posts excluded, `limit` clamped to [2, 12]
+
+
+
 ## 2026-05-22 — iter174 · Showcase view counter + social share buttons ✅
 
 **Public:** Every community showcase card now shows a live **👁 N view counter** and a **Share** button next to the heart. Views are counted via IntersectionObserver — only when the card is actually ≥40% visible for ≥1s — and deduped server-side per visitor per 24 hours (so refreshes don't inflate). The share button opens a modal with **X · Facebook · Pinterest · Reddit · Email + Copy link + native OS share sheet** on mobile, each pre-filled with a deep link to that specific post.

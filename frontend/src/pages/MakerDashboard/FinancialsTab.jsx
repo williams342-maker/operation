@@ -14,7 +14,7 @@ import {
   fetchMakerPayoutSchedule, fetchMakerBilling, fetchMakerSubscription,
   settleMakerLedgerNow, openMakerSubscriptionPortal,
 } from "../../lib/api";
-import { StatsSkeleton } from "../../components/Skeleton";
+import { StatsSkeleton, RowsSkeleton } from "../../components/Skeleton";
 
 /**
  * Etsy-parity Financials hub.
@@ -1006,7 +1006,10 @@ function ShippingPanel({ query }) {
       )}
 
       {loading && !data && (
-        <div className="font-mono text-xs text-[#737373] py-6">Loading ledger…</div>
+        <div className="space-y-5" data-testid="financials-loading">
+          <StatsSkeleton count={4} />
+          <RowsSkeleton count={4} />
+        </div>
       )}
 
       {data && (
