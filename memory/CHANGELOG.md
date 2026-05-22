@@ -1,6 +1,30 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-22 — iter178 · P1 growth: Per-landing-page analytics ✅
+
+Closes the P1 Growth Plan track. Admins can now see exactly which of the 19 SEO buyer-intent landing pages are pulling organic traffic and where it's coming from.
+
+### Backend
+- `routers/seo.py` — extracted `SEO_LANDING_SLUGS` (+`SEO_LANDING_PATHS`) module-level constants so analytics + sitemap share one source of truth on the Python side.
+- `routers/analytics.py` — new admin endpoint `GET /api/admin/analytics/seo-landing?days=N` (window clamped 1..365, default 30). Returns:
+  - `totals: { pages, total_views, total_visitors, total_sessions, window_days }`
+  - `pages: [{ slug, path, views, unique_visitors, sessions, avg_dwell_s, top_referrer, top_referrer_count }]` — one row per configured slug (zero-traffic pages included so dormant slugs surface), sorted by views desc.
+  - Top external referrer per page (medium != direct/internal).
+
+### Frontend
+- `lib/api.js` — added `fetchAdminSeoLandingAnalytics(days)`.
+- `components/admin/WebAnalyticsTab.jsx` — new `<SeoLandingPanel/>` mounted above the privacy footer:
+  - 7d / 30d / 90d window toggle (re-fetches on change).
+  - Totals strip: pages tracked, SEO views, visitors, sessions.
+  - Top-performers table: keyword label (from `seoLandingConfig.js`), path, views, visitors, sessions, avg dwell, top referrer.
+  - Collapsible "N pages with zero traffic" `<details>` for dormant slugs.
+
+### Tests
+- `/app/backend/tests/test_seo_landing_analytics.py` — 3/3 PASS (admin gate, slug coverage, aggregation correctness).
+- Testing agent iteration_54: 100% pass on both backend (3/3 pytest + 5/5 direct API) and frontend (10/10 new testids + 7/7 regression testids).
+
+
 ## 2026-05-22 — iter177 · P0 growth foundation: Hero rewrite + 12 SEO landing pages + Velocity Proof strip ✅
 
 Three-part homepage / SEO overhaul implementing the buyer-intent growth plan.
