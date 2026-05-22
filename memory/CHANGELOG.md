@@ -1,6 +1,29 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-22 — iter181 · Pinterest Rich Pins + Email funnel (post-checkout + per-maker drops) ✅
+
+Two P2 wins in one batch.
+
+### Pinterest Rich Pin compliance — `routers/og_prerender.py`
+
+Added the OG tags Pinterest's Rich Pin validator looks for, alongside the existing Facebook/Twitter coverage:
+
+- `og:locale = "en_US"`, `og:image:width = "1200"`, `og:image:height = "1200"`, `og:image:secure_url` — base `_render_og_html` so every prerendered page (product / maker / journal / file / showcase) gets them.
+- Product page only: `og:price:amount`, `og:price:currency`, `og:availability` (Pinterest reads the `og:*` flavor, not just `product:*`), `product:availability`, `product:condition = "new"`, `product:brand` (falls back to `maker_slug` when the denormalized `maker_name` is missing).
+- Availability value matches Pinterest's accepted enum: `"in stock"` when `in_stock=True`, else `"available for order"`.
+- Removed a dead duplicate `return HTMLResponse(content=html)` line (cleanup spotted by testing agent).
+
+### Email funnel — post-checkout + per-maker drops
+
+- **MakerDetail page** (`/makers/{slug}`): new "Stay in the loop — Get notified when {maker} drops a new piece" card mounting the existing `SaveDropButton`. Backend was already wired (`POST /api/save-drop` → Kit tag `interested-in-{slug}` + `listing_notify.notify_listing_published` broadcasts to followers on new publish), this is the missing UI surface.
+- **CheckoutSuccess page** (`/checkout/success`): new `PostCheckoutNewsletterCard` component below the existing `PushOptInCard`. Renders only when `payment_status === "paid"`, pre-fills the buyer's email from the Stripe session (without overwriting in-progress edits), posts to `/api/newsletter/subscribe` with `source="checkout_success"`. Highest-intent newsletter funnel on the site.
+
+### Tests
+- `/app/backend/tests/test_pinterest_og.py` — 2/2 PASS (all required tags present, brand fallback works).
+- Testing agent iteration_55: 100% pass on backend (2/2 pytest + 3/3 direct API) and frontend (8/8 testids across MakerDetail + CheckoutSuccess).
+
+
 ## 2026-05-22 — iter180 · Auto-submit sitemap to Google Search Console ✅
 
 Closes the search-engine notification loop: alongside IndexNow (Bing/Yandex/Naver/Seznam/Yep), Google now also gets nudged whenever content publishes.

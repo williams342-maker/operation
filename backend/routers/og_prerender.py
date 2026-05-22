@@ -326,9 +326,6 @@ async def og_product(slug: str, http_request: Request):
     return HTMLResponse(content=html)
 
 
-    return HTMLResponse(content=html)
-
-
 # ============================================================
 # Community design file (shareable link target)
 # ============================================================
