@@ -1,6 +1,40 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-22 — iter176 · Maker of the Week spotlight ✅
+
+**Public:** New homepage section "Maker of the Week" — automatically surfaces whichever maker's showcase pieces accumulated the most view events in the rolling 7-day window. Pairs the maker's portrait + name + technique tags + bio + "Visit shop" CTA with their 3 most-viewed contributing pieces.
+
+Quiet weeks fall back to the all-time most-viewed maker (mode: `lifetime`) so the spotlight is never empty. Self-hides entirely when no qualifying maker exists.
+
+### Backend
+
+- New `GET /api/community/maker-of-the-week` (public, no auth):
+  - Aggregates `showcase_views` over the last 7 days, groups by `post.maker_slug`, picks the leader
+  - Falls back to `db.showcase_posts` aggregate sorted by lifetime `views` when the window is empty
+  - Excludes quarantined posts from both pipelines
+  - Returns `{maker, top_posts, weekly_views, mode}` — `top_posts` is up to 3 contributing pieces, each decorated with `views` + `weekly_views`
+
+### Frontend
+
+- New `components/MakerOfTheWeekSpotlight.jsx` (~180 lines):
+  - Skeleton state during first paint (matches loaded width to prevent layout jump)
+  - Veteran badge + PLUS badge + technique tags rendered alongside the portrait
+  - "Visit shop" CTA links to vanity URL when the maker has one (Plus perk) → falls back to canonical slug
+  - 3 contributing-piece thumbnails deep-link into `/community#showcase-<id>` with hover-zoom + lifetime view chip
+  - `🔥 N views this week` mention only when `mode == "trending"` (silent on lifetime fallback)
+- `App.js::Home` — mounts `<MakerOfTheWeekSpotlight>` between `<TopShowcaseStrip>` and `<RecentShowcaseStrip>`
+- `lib/api.js::fetchMakerOfTheWeek()` helper
+
+### Tests added
+
+- `tests/test_maker_of_the_week.py` — 3 cases:
+  1. Returns valid `maker` + `top_posts` shape
+  2. Mode flips to `lifetime` when 7-day view events are empty
+  3. Quarantining the winner's top post pulls it out of the response
+
+
+
 ## 2026-05-22 — iter175 · Homepage Top-Viewed strip + UX polish ✅
 
 ### Public — Homepage "Trending This Week"

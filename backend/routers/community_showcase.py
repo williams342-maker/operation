@@ -93,6 +93,121 @@ async def list_showcase(limit: int = 50):
     return await db.showcase_posts.find(_PUBLIC_FEED_FILTER, {"_id": 0}).sort("created_at", -1).to_list(limit)
 
 
+
+@router.get("/community/maker-of-the-week")
+async def get_maker_of_the_week():
+    """Hottest maker over the last 7 days.
+
+    Algorithm:
+      1. Aggregate `showcase_views` for the rolling 7-day window
+      2. Join each post to its `maker_slug`, sum the view-events
+      3. Return the maker with the highest weekly view count along with
+         the top 3 contributing pieces
+
+    Falls back to the maker with the most lifetime showcase `views`
+    when nothing happened in the last 7 days (so the homepage spotlight
+    is never empty on quiet weeks).
+
+    Returns `{maker, top_posts, weekly_views, mode}` where
+    `mode` ∈ {"trending", "lifetime"}. Frontend self-hides the
+    spotlight when `maker` is null.
+    """
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+
+    # ----- Trending mode (7-day events) -----
+    # 1. Get top posts in the window
+    pipe = [
+        {"$match": {"ts": {"$gte": cutoff}}},
+        {"$group": {"_id": "$post_id", "n": {"$sum": 1}}},
+        {"$sort": {"n": -1}},
+        {"$limit": 50},
+    ]
+    weekly_by_post: dict[str, int] = {}
+    async for row in db.showcase_views.aggregate(pipe):
+        weekly_by_post[row["_id"]] = int(row["n"])
+
+    maker_slug: Optional[str] = None
+    weekly_views = 0
+    mode = "trending"
+    top_posts: list[dict] = []
+
+    if weekly_by_post:
+        # 2. Pull just the maker_slug for those post ids, then sum per
+        #    maker. Posts with NO maker_slug (buyer-only posts) don't
+        #    qualify — the spotlight is a maker recognition feature.
+        post_meta = await db.showcase_posts.find(
+            {
+                "id": {"$in": list(weekly_by_post.keys())},
+                "maker_slug": {"$ne": None, "$nin": ["", None]},
+                **_PUBLIC_FEED_FILTER,
+            },
+            {"_id": 0, "id": 1, "maker_slug": 1},
+        ).to_list(100)
+        per_maker: dict[str, int] = {}
+        for p in post_meta:
+            ms = p.get("maker_slug")
+            if not ms:
+                continue
+            per_maker[ms] = per_maker.get(ms, 0) + weekly_by_post.get(p["id"], 0)
+        if per_maker:
+            maker_slug, weekly_views = max(per_maker.items(), key=lambda kv: kv[1])
+
+    # ----- Lifetime fallback -----
+    if not maker_slug:
+        # Pick the maker whose published showcase posts have the
+        # highest *lifetime* view sum. Equivalent to "all-time most
+        # viewed maker".
+        pipe = [
+            {"$match": {
+                "maker_slug": {"$ne": None, "$nin": ["", None]},
+                "mod_status": {"$ne": "quarantined"},
+            }},
+            {"$group": {"_id": "$maker_slug", "v": {"$sum": "$views"}}},
+            {"$match": {"v": {"$gt": 0}}},
+            {"$sort": {"v": -1}},
+            {"$limit": 1},
+        ]
+        async for row in db.showcase_posts.aggregate(pipe):
+            maker_slug = row["_id"]
+            mode = "lifetime"
+            weekly_views = 0  # explicitly 0 — UI hides the "this week" badge
+            break
+
+    if not maker_slug:
+        return {"maker": None, "top_posts": [], "weekly_views": 0, "mode": mode}
+
+    # Fetch the maker doc (slim projection)
+    maker = await db.makers.find_one(
+        {"slug": maker_slug},
+        {"_id": 0, "slug": 1, "name": 1, "initials": 1, "location": 1,
+         "bio": 1, "techniques": 1, "portrait": 1, "cover": 1,
+         "banner_image_url": 1, "subscription_status": 1,
+         "is_veteran_owned": 1, "custom_url": 1},
+    )
+    if not maker:
+        return {"maker": None, "top_posts": [], "weekly_views": 0, "mode": mode}
+
+    # Top 3 contributing posts from this maker — sort by weekly views
+    # (when trending) or by lifetime views (when lifetime fallback).
+    sort_field = "weekly_views" if mode == "trending" else "views"
+    contributing = await db.showcase_posts.find(
+        {"maker_slug": maker_slug, **_PUBLIC_FEED_FILTER},
+        {"_id": 0, "id": 1, "title": 1, "image_url": 1, "image_urls": 1,
+         "views": 1, "likes": 1},
+    ).to_list(50)
+    for p in contributing:
+        p["weekly_views"] = weekly_by_post.get(p["id"], 0)
+    contributing.sort(key=lambda p: p.get(sort_field) or 0, reverse=True)
+    top_posts = contributing[:3]
+
+    return {
+        "maker": maker,
+        "top_posts": top_posts,
+        "weekly_views": weekly_views,
+        "mode": mode,
+    }
+
+
 @router.get("/community/showcase/top-week")
 async def list_top_week_showcase(limit: int = 6):
     """Most-viewed showcase pieces over the last 7 days.

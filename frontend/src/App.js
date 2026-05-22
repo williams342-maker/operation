@@ -62,6 +62,7 @@ import CNCEmblem from "./components/CNCEmblem";
 import NewsletterSignup from "./components/NewsletterSignup";
 import RecentShowcaseStrip from "./components/RecentShowcaseStrip";
 import TopShowcaseStrip from "./components/TopShowcaseStrip";
+import MakerOfTheWeekSpotlight from "./components/MakerOfTheWeekSpotlight";
 import TrendingForumStrip from "./components/TrendingForumStrip";
 import TrendingJournalRail from "./components/TrendingJournalRail";
 import { Toaster } from "sonner";
@@ -95,6 +96,7 @@ const Home = () => {
       <Reviews />
       <TrendingJournalRail />
       <TopShowcaseStrip testId="home-top-showcase" />
+      <MakerOfTheWeekSpotlight testId="home-maker-of-week" />
       <RecentShowcaseStrip
         eyebrow="◆ From the community"
         title="Recently shared by buyers"

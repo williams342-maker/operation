@@ -855,6 +855,11 @@ export const markShowcaseViewed = (id, clientId) =>
 export const fetchTopWeekShowcase = (limit = 6) =>
   http.get(`/community/showcase/top-week?limit=${limit}`).then((r) => r.data);
 
+// Hottest maker over the last 7 days (lifetime fallback when quiet).
+// Powers the "Maker of the Week" spotlight on the homepage.
+export const fetchMakerOfTheWeek = () =>
+  http.get("/community/maker-of-the-week").then((r) => r.data);
+
 // Owner-only edit (patch) and delete. Maker JWT preferred when the
 // caller is a maker — same logic as createShowcase.
 export const editShowcase = (id, patch) =>
