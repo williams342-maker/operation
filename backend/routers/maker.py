@@ -323,6 +323,7 @@ async def maker_publish_product(
     # is idempotent so re-publishes won't re-broadcast.
     from listing_notify import notify_listing_published
     bg.add_task(_safe_notify_listing_published, product_slug)
+    bg.add_task(_safe_indexnow_ping_product, product_slug)
     return updated
 
 
@@ -336,8 +337,21 @@ async def _safe_notify_listing_published(product_slug: str) -> None:
         logger.exception("[bg/notify] listing-publish notify failed: %s", e)
 
 
+async def _safe_indexnow_ping_product(product_slug: str) -> None:
+    """Fire IndexNow on the product URL so Bing/Yandex/etc. re-crawl it
+    within minutes instead of waiting for the next sitemap sweep."""
+    try:
+        from seo_indexnow import submit_urls, url_for_product
+        await submit_urls([url_for_product(product_slug)], reason="product_publish")
+    except Exception as e:
+        logger.exception("[bg/indexnow] product publish ping failed: %s", e)
+
+
 @router.post("/maker/products/{product_slug}/renew", response_model=Product)
-async def maker_renew_product(product_slug: str, slug: str = Depends(current_maker_slug)):
+async def maker_renew_product(
+    product_slug: str, bg: BackgroundTasks,
+    slug: str = Depends(current_maker_slug),
+):
     """Renew an expired listing (or extend a live one). Same $0.20 listing fee."""
     from revenue import accrue_listing_charge, expiry_iso_from_now
     prod = await db.products.find_one({"slug": product_slug}, {"_id": 0})
@@ -355,6 +369,7 @@ async def maker_renew_product(product_slug: str, slug: str = Depends(current_mak
             "$inc": {"renewals_count": 1},
         },
     )
+    bg.add_task(_safe_indexnow_ping_product, product_slug)
     return await db.products.find_one({"slug": product_slug}, {"_id": 0})
 
 
@@ -2416,6 +2431,7 @@ async def _unique_blog_slug(base: str) -> str:
 @router.post("/maker/journal")
 async def maker_create_journal_post(
     payload: MakerJournalCreate,
+    bg: BackgroundTasks,
     slug: str = Depends(current_maker_slug),
 ):
     """Publish a journal post under the signed-in maker's brand name.
@@ -2466,7 +2482,24 @@ async def maker_create_journal_post(
     # JSON-serializable; insert_one mutates the dict.
     doc.pop("_id", None)
     logger.info("[maker.journal] %s published post: %s", slug, new_slug)
+    # Ping IndexNow with both the new journal URL and the maker's profile
+    # so Bing/Yandex pick up the new entry within minutes.
+    bg.add_task(_safe_indexnow_ping_journal, new_slug, slug)
     return doc
+
+
+async def _safe_indexnow_ping_journal(post_slug: str, maker_slug: str) -> None:
+    """Best-effort IndexNow ping for a newly-published journal post."""
+    try:
+        from seo_indexnow import submit_urls, url_for_journal, url_for_maker, _site_root
+        urls = [
+            url_for_journal(post_slug),
+            f"{_site_root()}/journal",          # index page lists newest first
+            url_for_maker(maker_slug),          # author bio updates too
+        ]
+        await submit_urls(urls, reason="journal_publish")
+    except Exception as e:
+        logger.exception("[bg/indexnow] journal publish ping failed: %s", e)
 
 
 @router.get("/maker/journal/mine")

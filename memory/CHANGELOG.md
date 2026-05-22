@@ -1,6 +1,24 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-22 — iter179 · IndexNow auto-ping on publish ✅
+
+The manual `/admin/seo/ping` button has been here since iter104; this iter wires it to **fire automatically** the moment a maker publishes content, so Bing / Yandex / Naver / Seznam / Yep re-crawl in minutes instead of waiting for the weekly sitemap sweep.
+
+### Backend
+- `seo_indexnow.submit_urls(urls, reason)` — new fire-and-forget helper backed by a 30-min per-URL throttle (`db.indexnow_url_log`) so republishing the same listing doesn't burn quota.
+- Helpers `url_for_product / url_for_maker / url_for_journal` build canonical apex URLs.
+- Hooks (all via `BackgroundTasks`, never blocks the response):
+  - `POST /maker/products/{slug}/publish` → pings `/shop/{slug}`
+  - `POST /maker/products/{slug}/renew`   → pings `/shop/{slug}`
+  - `POST /maker/journal`                  → pings the new journal post, `/journal` index, and the author's maker profile
+- Manual admin endpoint `/admin/seo/ping` + key file `/api/indexnow-key.txt` unchanged (still the operator's escape hatch + verification target for IndexNow).
+- Google note: Google deprecated `ping?sitemap=` in June 2023; IndexNow doesn't reach them. The `/admin/seo/ping` response already surfaces a deep-link into Search Console for the operator to nudge Google manually.
+
+### Tests
+- `/app/backend/tests/test_indexnow_autoping.py` — 3/3 PASS (throttle dedup, empty input, canonical URL helpers).
+
+
 ## 2026-05-22 — iter178 · P1 growth: Per-landing-page analytics ✅
 
 Closes the P1 Growth Plan track. Admins can now see exactly which of the 19 SEO buyer-intent landing pages are pulling organic traffic and where it's coming from.

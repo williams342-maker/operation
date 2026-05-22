@@ -245,3 +245,66 @@ async def status() -> dict:
         "last_ping_ok": doc.get("last_ping_ok"),
         "last_ping_error": doc.get("last_ping_error"),
     }
+
+
+# ============================================================================
+# Auto-ping hooks — fire-and-forget. Called from BackgroundTasks on content
+# publish events (product publish/renew, blog post create, maker join).
+# Throttled per URL via `indexnow_url_log` so spammy republishing doesn't
+# burn through IndexNow's per-day quota.
+# ============================================================================
+
+AUTO_PING_THROTTLE_MIN = 30  # don't re-ping the same URL more than once / 30 min
+
+
+async def submit_urls(urls: list[str], reason: str = "auto") -> dict | None:
+    """Fire-and-forget IndexNow ping for a small set of URLs (1-20). Skips
+    URLs pinged within the last AUTO_PING_THROTTLE_MIN minutes.
+
+    Returns the ping result, or None when nothing was pinged after
+    throttling. Never raises — safe to call from BackgroundTasks."""
+    from datetime import datetime, timedelta, timezone
+    try:
+        if not urls:
+            return None
+        # Throttle: skip URLs we've pinged recently.
+        cutoff_iso = (datetime.now(timezone.utc)
+                      - timedelta(minutes=AUTO_PING_THROTTLE_MIN)).isoformat()
+        recent = await db.indexnow_url_log.find(
+            {"url": {"$in": list(urls)}, "ts": {"$gte": cutoff_iso}},
+            {"_id": 0, "url": 1},
+        ).to_list(len(urls))
+        recent_set = {r["url"] for r in recent}
+        fresh = [u for u in urls if u not in recent_set]
+        if not fresh:
+            logger.info("[indexnow/auto] all %d urls throttled (reason=%s)",
+                        len(urls), reason)
+            return None
+
+        result = await ping(urls=fresh)
+        # Log every URL we actually submitted (independent of IndexNow's
+        # accept status — throttling is "did we try", not "did it land").
+        ts = now_iso()
+        await db.indexnow_url_log.insert_many(
+            [{"url": u, "ts": ts, "reason": reason,
+              "status": result.get("status"), "ok": result.get("ok")}
+             for u in fresh],
+        )
+        logger.info("[indexnow/auto] pinged %d url(s) (reason=%s, status=%s)",
+                    len(fresh), reason, result.get("status"))
+        return result
+    except Exception as e:
+        logger.exception("[indexnow/auto] submit_urls failed: %s", e)
+        return None
+
+
+def url_for_product(slug: str) -> str:
+    return f"{_site_root()}/shop/{slug}"
+
+
+def url_for_maker(slug: str) -> str:
+    return f"{_site_root()}/makers/{slug}"
+
+
+def url_for_journal(slug: str) -> str:
+    return f"{_site_root()}/journal/{slug}"
