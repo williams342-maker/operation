@@ -71,6 +71,22 @@ async def sitemap_xml(http_request: Request):
         ("/cnc-usa",               "weekly", "0.80"),
         ("/artisan-marketplace",   "weekly", "0.80"),
         ("/custom-handmade-goods", "weekly", "0.80"),
+        # Buyer-intent landing pages (iter177) — high-converting search
+        # phrases. Higher priority because each has direct purchase
+        # intent (vs the maker-focused phrases above).
+        ("/custom-metal-signs",    "weekly", "0.85"),
+        ("/personalized-gifts",    "weekly", "0.85"),
+        ("/farmhouse-decor",       "weekly", "0.80"),
+        ("/garage-decor",          "weekly", "0.80"),
+        ("/rustic-cabin-decor",    "weekly", "0.80"),
+        ("/wedding-gifts",         "weekly", "0.85"),
+        ("/memorial-pieces",       "weekly", "0.75"),
+        ("/outdoor-metal-decor",   "weekly", "0.80"),
+        ("/business-signs",        "weekly", "0.80"),
+        ("/patriotic-decor",       "weekly", "0.80"),
+        ("/custom-ranch-signs",    "weekly", "0.75"),
+        ("/cnc-metal-wall-art",    "weekly", "0.85"),
+        ("/handmade-gifts-for-dad", "weekly", "0.75"),
         ("/journal",       "weekly",  "0.7"),
         ("/updates",       "weekly",  "0.6"),
         ("/custom-order",  "monthly", "0.6"),

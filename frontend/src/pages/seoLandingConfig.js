@@ -117,6 +117,223 @@ export const SEO_LANDING_PAGES = {
     ctaLabel: "Start a custom order",
     ctaHref: "/custom-order",
   },
+
+  // ============================================================
+  // Buyer-intent landing pages (iter177).
+  // Each targets a high-volume buyer search phrase. H1 + meta-title
+  // match the phrase verbatim; `match` filters live inventory so each
+  // page surfaces real products (no keyword-stuffed empty shells).
+  // ============================================================
+
+  "custom-metal-signs": {
+    slug: "custom-metal-signs",
+    keyword: "Custom Metal Signs",
+    eyebrow: "Marketplace · Custom Metal Signs",
+    h1: "Custom Metal Signs, Cut to Order in American Shops.",
+    intro:
+      "Personalized metal signs for your home, ranch, garage, business, or wedding — plasma-cut and laser-cut steel, aluminum, and copper by vetted American makers. Every sign is built to your specs, never warehoused, and ships straight from the artisan's workshop.",
+    paragraphs: [
+      "Address numbers, family monograms, ranch entry signs, garage wall art, business storefront pieces — our makers run real plasma and fiber-laser tables and can quote anything from a 12-inch house number to a 6-foot custom entry sign. Tell us your size, material, and finish; we'll route the brief to the right maker.",
+      "All metal signs come with weatherproof powder-coat or clear-coat options. Most pieces ship in 2-4 weeks; rush availability varies by maker. Pay direct through Stripe — funds only release once the sign ships.",
+    ],
+    match: (p) => /sign|address|monogram|name plate|metal art/i.test(`${p.title} ${p.description}`)
+      || ["PLASMA", "LASER"].includes(p.technique),
+    ctaLabel: "Browse custom metal signs",
+    ctaHref: "/shop?category=Custom%20Signs",
+  },
+
+  "personalized-gifts": {
+    slug: "personalized-gifts",
+    keyword: "Personalized Gifts",
+    eyebrow: "Made-to-Order · Personalized Gifts",
+    h1: "Personalized Gifts, Made by Real Makers.",
+    intro:
+      "Engraved cutting boards, monogrammed wall art, custom wedding signs, anniversary keepsakes, baby-name plaques, and one-of-a-kind retirement gifts — every piece personalized to order by an American artisan in their own workshop.",
+    paragraphs: [
+      "Stop hunting through factory-printed novelties on the big retailers. Crafters Market connects you directly with skilled woodworkers, metal artists, and laser-engravers who can cut, etch, and finish your name, date, or message into the material itself — not just slap a sticker on a mug.",
+      "Need it for a specific date? Use the rush-order filter on the maker's product page or message the artisan directly. Most pieces ship within 2-4 weeks; rush options usually halve that.",
+    ],
+    match: (p) => /personalized|monogram|custom|engrav|gift|wedding|anniversary|memorial/i.test(`${p.title} ${p.description}`),
+    ctaLabel: "Start a personalized gift",
+    ctaHref: "/custom-order",
+  },
+
+  "farmhouse-decor": {
+    slug: "farmhouse-decor",
+    keyword: "Farmhouse Decor",
+    eyebrow: "Curated · Farmhouse Decor",
+    h1: "Handmade Farmhouse Decor.",
+    intro:
+      "Rustic farmhouse signs, reclaimed-wood wall art, family-name plaques, and farmhouse-style metal pieces — handmade by American artisans for kitchens, dining rooms, and farmhouse-style entryways.",
+    paragraphs: [
+      "Farmhouse decor on the big sites is dominated by drop-shipped imports stamped with cliché phrases. Our makers carve the wood, weld the brackets, and finish each piece in their own studio — every grain pattern is real, every weld is theirs.",
+      "Looking for a specific feel? Filter by material (oak, walnut, reclaimed barn wood, raw steel), by finish (whitewash, dark stain, natural patina), or by size. Need a custom kitchen sign with your last name? Submit a brief and a wood-shop maker will quote it in days.",
+    ],
+    match: (p) => /farmhouse|rustic|barn|reclaimed|wood sign|family name/i.test(`${p.title} ${p.description}`),
+    ctaLabel: "Shop farmhouse decor",
+    ctaHref: "/shop",
+  },
+
+  "garage-decor": {
+    slug: "garage-decor",
+    keyword: "Garage Decor",
+    eyebrow: "Marketplace · Garage Decor",
+    h1: "Garage Signs & Workshop Decor.",
+    intro:
+      "Plasma-cut garage signs, vintage-style shop logos, custom toolbox medallions, and metal wall art for car guys, woodworkers, and shop owners. Built in real workshops by makers who actually use the spaces they design for.",
+    paragraphs: [
+      "Most 'garage decor' online is mass-produced printed tin junk. Our makers cut real steel, weld real brackets, and finish in real workshops. Want a sign with your shop's name, your car's badge, or your dad's old tool brand? The makers here can build it.",
+      "Sizes from 12-inch toolbox medallions up to 6-foot shop entry signs. Powder-coat or raw-steel finish. Most pieces ship in 2-4 weeks.",
+    ],
+    match: (p) => /garage|workshop|shop|tool|man cave|car|automotive|motorcycle/i.test(`${p.title} ${p.description}`),
+    ctaLabel: "Browse garage decor",
+    ctaHref: "/shop",
+  },
+
+  "rustic-cabin-decor": {
+    slug: "rustic-cabin-decor",
+    keyword: "Rustic Cabin Decor",
+    eyebrow: "Curated · Rustic Cabin Decor",
+    h1: "Rustic Cabin & Lodge Decor.",
+    intro:
+      "Handmade cabin signs, antler-style metal art, lodge wall pieces, and wood-burned wildlife portraits — built by American artisans for cabins, lodges, and outdoor retreats.",
+    paragraphs: [
+      "Cabins deserve decor with the same handmade authenticity as the structures themselves. Crafters Market makers work with reclaimed barn wood, weathered steel, and live-edge slabs to build pieces that age the way your cabin does — not the way a glossy import does.",
+      "Looking for a family cabin name sign, a custom address plaque for the driveway, or a 4-foot mountain silhouette over the fireplace? Filter the catalog or commission custom.",
+    ],
+    match: (p) => /cabin|lodge|rustic|wildlife|antler|mountain|deer|elk|moose|bear/i.test(`${p.title} ${p.description}`),
+    ctaLabel: "Browse cabin decor",
+    ctaHref: "/shop",
+  },
+
+  "wedding-gifts": {
+    slug: "wedding-gifts",
+    keyword: "Wedding Gifts",
+    eyebrow: "Made-to-Order · Wedding Gifts",
+    h1: "Handmade Wedding & Anniversary Gifts.",
+    intro:
+      "Custom wedding signs, monogrammed cutting boards, engraved memory boxes, last-name family wall art, and one-of-a-kind anniversary keepsakes — built by American makers and personalized to order.",
+    paragraphs: [
+      "Wedding gifts that get displayed instead of stashed in a closet are usually handmade and personalized. Our makers engrave, plasma-cut, and hand-finish wedding pieces with the couple's names, the date, and details from the venue or ceremony itself.",
+      "Need it before a specific date? Most makers offer rush options for wedding-timed orders. Message any maker before booking and they'll confirm your timeline.",
+    ],
+    match: (p) => /wedding|anniversary|monogram|family|memory box|engrav/i.test(`${p.title} ${p.description}`),
+    ctaLabel: "Commission a wedding gift",
+    ctaHref: "/custom-order",
+  },
+
+  "memorial-pieces": {
+    slug: "memorial-pieces",
+    keyword: "Memorial Pieces",
+    eyebrow: "Made-to-Order · Memorial Pieces",
+    h1: "Custom Memorial Wall Art & Plaques.",
+    intro:
+      "Personalized memorial pieces — name plaques, engraved portraits, plasma-cut tribute signs, and military-service memorials — handmade by American artisans in their own workshops.",
+    paragraphs: [
+      "Memorial pieces are deeply personal. Our makers work directly with you to engrave names, dates, military branches, or hand-drawn portraits into wood, steel, or stone — at the size, finish, and material you need. Many of our makers are veteran-owned and specialize in service memorials specifically.",
+      "Submit a custom-order brief with the names, dates, and any specific imagery you'd like. We'll route it to a maker who can quote your piece and walk you through the finishing options.",
+    ],
+    match: (p) => /memorial|tribute|in loving memory|service|veteran|fallen/i.test(`${p.title} ${p.description}`),
+    ctaLabel: "Commission a memorial piece",
+    ctaHref: "/custom-order",
+  },
+
+  "outdoor-metal-decor": {
+    slug: "outdoor-metal-decor",
+    keyword: "Outdoor Metal Decor",
+    eyebrow: "Marketplace · Outdoor Metal Decor",
+    h1: "Weatherproof Outdoor Metal Decor.",
+    intro:
+      "Plasma-cut yard art, custom address signs, garden silhouettes, ranch entry pieces, and outdoor metal sculptures — every piece finished for the elements by American metal artists.",
+    paragraphs: [
+      "Outdoor metal pieces need real powder-coat or marine-grade clear-coat to survive year-round weather. Our makers finish every outdoor piece to spec — you tell them the climate (coastal, desert, snowbelt) and they'll match the coating system.",
+      "Mounting hardware ships with every piece. Most outdoor signs install with two anchors and a level. Need professional install? Many makers can recommend local fabricators.",
+    ],
+    match: (p) => /outdoor|garden|yard|address|silhouette|entry|porch|patio/i.test(`${p.title} ${p.description}`),
+    ctaLabel: "Shop outdoor metal decor",
+    ctaHref: "/shop",
+  },
+
+  "business-signs": {
+    slug: "business-signs",
+    keyword: "Custom Business Signs",
+    eyebrow: "Made-to-Order · Custom Business Signs",
+    h1: "Custom Business Signs, Built by American Makers.",
+    intro:
+      "Storefront signs, retail logo plaques, restaurant entry pieces, brewery taproom signage, office wall art, and custom branding signage — every piece fabricated to your spec by vetted American metal and wood artisans.",
+    paragraphs: [
+      "Off-the-shelf signs scream cookie-cutter. Custom-fabricated signage tells your customers you took your space seriously. Our makers cut, weld, and finish business signage in steel, aluminum, hardwood, or acrylic with installation hardware included.",
+      "Most business signs ship in 3-6 weeks depending on size and finish. For grand openings or renovations on a deadline, message the maker first to confirm your timeline.",
+    ],
+    match: (p) => /business|brewery|restaurant|storefront|logo|brand|retail|office|tap room/i.test(`${p.title} ${p.description}`),
+    ctaLabel: "Commission a business sign",
+    ctaHref: "/custom-order",
+  },
+
+  "patriotic-decor": {
+    slug: "patriotic-decor",
+    keyword: "Patriotic Decor",
+    eyebrow: "Made in America · Patriotic Decor",
+    h1: "American-Made Patriotic Decor.",
+    intro:
+      "American flags in steel, military-branch wall art, veteran tributes, eagle silhouettes, Pledge of Allegiance plaques — every patriotic piece built in the USA by vetted American makers, many of them veteran-owned shops.",
+    paragraphs: [
+      "Patriotic decor mass-produced overseas is, frankly, a contradiction. Our entire marketplace is built around US-based craftsmen, with a dedicated 'veteran-owned' badge for makers who served. Browse by maker if you want to specifically support veteran-owned shops.",
+      "Plasma-cut flags, engraved memorials, branch-specific service plaques, and custom retirement pieces are all in our makers' wheelhouse. Submit a brief with the branch, dates, and names — we'll route it.",
+    ],
+    match: (p) => /flag|patriot|america|military|veteran|eagle|liberty|service|branch/i.test(`${p.title} ${p.description}`),
+    ctaLabel: "Shop patriotic decor",
+    ctaHref: "/shop",
+  },
+
+  "custom-ranch-signs": {
+    slug: "custom-ranch-signs",
+    keyword: "Custom Ranch Signs",
+    eyebrow: "Made-to-Order · Custom Ranch Signs",
+    h1: "Custom Ranch & Property Signs.",
+    intro:
+      "Plasma-cut ranch entry signs, family-name property markers, livestock-brand plaques, and large-format driveway signage — built to your ranch name, brand, and material spec by American metal artists.",
+    paragraphs: [
+      "Ranch signs aren't just decoration — they're the first thing visitors see and the first impression of your property. Our makers cut signs from 1/4-inch plate steel for serious weather durability, with options for raw-steel patina, powder-coat color matching, and integrated lighting.",
+      "Sizes from 2-foot panel signs up to 8-foot driveway entry signs with structural posts. Submit your ranch name, brand graphic, and rough sketch — most makers quote inside 48 hours.",
+    ],
+    match: (p) => /ranch|farm|property|livestock|brand|driveway|entry|estate/i.test(`${p.title} ${p.description}`),
+    ctaLabel: "Commission a ranch sign",
+    ctaHref: "/custom-order",
+  },
+
+  "cnc-metal-wall-art": {
+    slug: "cnc-metal-wall-art",
+    keyword: "CNC Metal Wall Art",
+    eyebrow: "Curated · CNC Metal Wall Art",
+    h1: "CNC Metal Wall Art for Real Spaces.",
+    intro:
+      "Plasma-cut and laser-cut steel wall art — abstract sculptures, geometric panels, custom family monograms, and statement pieces from American CNC artists. Every piece is hand-finished after the cut.",
+    paragraphs: [
+      "Mass-produced 'metal wall art' on the big retailers is stamped and shipped flat from a factory. Our pieces are cut from real plate steel by independent makers, then hand-sanded, patina'd, powder-coated, or clear-coated in their workshop — the texture and depth you can see in the photos is real.",
+      "Sizes range from 18-inch accent panels to 6-foot statement walls. Filter by technique (plasma vs. laser vs. router) or by maker. Want a one-off custom design? Submit a brief.",
+    ],
+    match: (p) => /wall art|panel|sculpture|monogram|geometric|abstract/i.test(`${p.title} ${p.description}`)
+      || p.category === "Wall Art",
+    ctaLabel: "Browse CNC metal wall art",
+    ctaHref: "/shop?category=Wall%20Art",
+  },
+
+  "handmade-gifts-for-dad": {
+    slug: "handmade-gifts-for-dad",
+    keyword: "Handmade Gifts for Dad",
+    eyebrow: "Made-to-Order · Handmade Gifts for Dad",
+    h1: "Handmade Gifts for Dad — Built, Not Bought.",
+    intro:
+      "Engraved tool boxes, monogrammed cutting boards, custom garage signs, branded toolbox medallions, plasma-cut family-name pieces — every dad-gift here is built by an American maker, not stamped in a factory.",
+    paragraphs: [
+      "The good dad-gift problem isn't selection — it's that everything online is the same printed-mug factory garbage. Our makers cut, weld, engrave, and finish real materials your dad will actually display: solid hardwood boards, raw steel signs, leather portfolios, hand-burned plaques.",
+      "Most pieces ship in 2-3 weeks with rush options for Father's Day, birthdays, and retirements. Filter by under-$50, under-$100, or commission a one-of-a-kind for the dad who has everything.",
+    ],
+    match: (p) => /dad|father|toolbox|garage|whiskey|bourbon|tool|workshop/i.test(`${p.title} ${p.description}`),
+    ctaLabel: "Shop gifts for dad",
+    ctaHref: "/shop",
+  },
 };
 
 /** Slug list for sitemap consumers — keep in sync with the keys above. */

@@ -1,6 +1,61 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-22 — iter177 · P0 growth foundation: Hero rewrite + 12 SEO landing pages + Velocity Proof strip ✅
+
+Three-part homepage / SEO overhaul implementing the buyer-intent growth plan.
+
+### Part 1 — Hero rewrite (`components/sections/Hero.jsx`)
+
+- Eyebrow: `◆ Handmade in America · Built to order`
+- New H1: **"Find Something Built By Hand"** (preserves brand voice)
+- New subhead: "Custom metal art, handmade decor, and one-of-a-kind creations — built by real American makers in real workshops. No mass production. No drop-shipping. Backed by the maker who built it."
+- **Reduced from 4 CTAs → 2 clear paths**: `Shop handmade →` (primary, ready-to-ship) + `Start a custom order →` (secondary, highest-margin moat). Search form retained below as tertiary discovery.
+
+### Part 2 — 12 buyer-intent SEO landing pages
+
+Templated through the existing `SEOLandingPage` + `SEO_LANDING_PAGES` config. Each page has H1 keyword match, real product filtering (no empty keyword-stuffed shells), maker context, and 3 CTAs (Browse · Commission · Meet the Makers):
+
+1. `/custom-metal-signs` — top-of-funnel buyer intent
+2. `/personalized-gifts`
+3. `/farmhouse-decor`
+4. `/garage-decor`
+5. `/rustic-cabin-decor`
+6. `/wedding-gifts`
+7. `/memorial-pieces`
+8. `/outdoor-metal-decor`
+9. `/business-signs`
+10. `/patriotic-decor`
+11. `/custom-ranch-signs`
+12. `/cnc-metal-wall-art`
+13. `/handmade-gifts-for-dad` (bonus 13th)
+
+All 13 registered in `backend/routers/seo.py::sitemap_xml` with `weekly` changefreq and 0.75-0.85 priority (higher than maker-focused pages because of direct purchase intent).
+
+### Part 3 — Velocity Proof strip (`components/VelocityProofStrip.jsx`)
+
+New homepage section mounted between `<Hero />` and `<ShopOfTheWeek />`. Four live tiles, each with `live` pulse-dot:
+
+- 📦 **N orders this week** (paid transactions, 7d)
+- 🛠 **N makers active this week** (shipped or created a product, 7d) — sub-line shows total approved makers
+- 🚚 **N days avg ship time** (rolling-30d median, mean would be skewed by 60-day custom commissions)
+- ✨ **N custom orders this month** (status ∈ {accepted, in_progress, completed, shipped}, 30d)
+
+Tiles individually self-hide when their number is 0 (better than a "0 orders" tile on a quiet week). Strip entirely self-hides when ALL four are empty (genuinely empty environment).
+
+### Backend
+
+- New `routers/site_velocity.py::GET /api/site/velocity` (public, no auth)
+- Aggregates over `transactions`, `products`, `custom_orders`, `makers` — no new instrumentation
+- 2/2 pytest cases pass (`test_site_velocity.py`)
+
+### Frontend
+
+- `App.js::Home` adds `<VelocityProofStrip>` under `<Hero>`
+- `lib/api.js::fetchSiteVelocity()` helper
+
+
+
 ## 2026-05-22 — iter176 · Maker of the Week spotlight ✅
 
 **Public:** New homepage section "Maker of the Week" — automatically surfaces whichever maker's showcase pieces accumulated the most view events in the rolling 7-day window. Pairs the maker's portrait + name + technique tags + bio + "Visit shop" CTA with their 3 most-viewed contributing pieces.

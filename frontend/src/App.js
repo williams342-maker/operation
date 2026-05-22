@@ -63,6 +63,7 @@ import NewsletterSignup from "./components/NewsletterSignup";
 import RecentShowcaseStrip from "./components/RecentShowcaseStrip";
 import TopShowcaseStrip from "./components/TopShowcaseStrip";
 import MakerOfTheWeekSpotlight from "./components/MakerOfTheWeekSpotlight";
+import VelocityProofStrip from "./components/VelocityProofStrip";
 import TrendingForumStrip from "./components/TrendingForumStrip";
 import TrendingJournalRail from "./components/TrendingJournalRail";
 import { Toaster } from "sonner";
@@ -81,6 +82,7 @@ const Home = () => {
     <>
       <SupportVeteransStrip />
       <Hero />
+      <VelocityProofStrip testId="home-velocity" />
       <ShopOfTheWeek />
       <CategoryStrip />
       <ProductRail title="Editor's Picks" eyebrow="◆ Featured" featured testId="rail-featured" />

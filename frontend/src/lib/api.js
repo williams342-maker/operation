@@ -860,6 +860,11 @@ export const fetchTopWeekShowcase = (limit = 6) =>
 export const fetchMakerOfTheWeek = () =>
   http.get("/community/maker-of-the-week").then((r) => r.data);
 
+// Marketplace velocity stats — powers the homepage "is this place alive?"
+// proof strip. Public, cached at the edge.
+export const fetchSiteVelocity = () =>
+  http.get("/site/velocity").then((r) => r.data);
+
 // Owner-only edit (patch) and delete. Maker JWT preferred when the
 // caller is a maker — same logic as createShowcase.
 export const editShowcase = (id, patch) =>

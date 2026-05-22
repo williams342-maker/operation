@@ -37,6 +37,7 @@ from routers.stripe_connect import router as stripe_connect_router
 from routers.subscriptions import router as subscriptions_router
 from routers.custom_url import router as custom_url_router
 from routers.referrals import router as referrals_router
+from routers.site_velocity import router as site_velocity_router
 from routers.analytics import router as analytics_router
 from routers.workshop_analytics import router as workshop_analytics_router
 from routers.backorder import router as backorder_router
@@ -72,6 +73,7 @@ api.include_router(stripe_connect_router)
 api.include_router(subscriptions_router)
 api.include_router(custom_url_router)
 api.include_router(referrals_router)
+api.include_router(site_velocity_router)
 api.include_router(credits_router)
 api.include_router(analytics_router)
 api.include_router(admin_router)

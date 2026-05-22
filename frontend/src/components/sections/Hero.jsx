@@ -1,7 +1,7 @@
 import React, { useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { motion, useScroll, useTransform, useReducedMotion } from "framer-motion";
-import { Search, ArrowDown } from "lucide-react";
+import { Search, ArrowDown, ArrowRight, Wrench } from "lucide-react";
 
 const HERO_BG =
   "https://images.unsplash.com/photo-1745448797900-35d08e85e9db?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1NzZ8MHwxfHNlYXJjaHwxfHx3ZWxkaW5nJTIwc3BhcmtzJTIwZGFyayUyMGluZHVzdHJpYWx8ZW58MHx8fHwxNzc3MTU0OTg0fDA&ixlib=rb-4.1.0&q=85";
@@ -56,7 +56,7 @@ export default function Hero() {
           transition={{ duration: 0.7 }}
           className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-6"
         >
-          ◆ A marketplace for precision craft
+          ◆ Handmade in America · Built to order
         </motion.div>
 
         <motion.h1
@@ -71,19 +71,43 @@ export default function Hero() {
         <motion.p
           initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.25, duration: 0.7 }}
-          className="font-mono text-sm md:text-base text-[#a3a3a3] max-w-xl mx-auto mt-6"
+          className="font-mono text-sm md:text-base text-[#a3a3a3] max-w-2xl mx-auto mt-6 leading-relaxed"
         >
-          An <strong className="text-[#e5e5e5] font-normal">artisan marketplace</strong> for
-          {" "}<strong className="text-[#e5e5e5] font-normal">CNC metal art</strong>,
-          {" "}<strong className="text-[#e5e5e5] font-normal">CNC laser art</strong>, and
-          {" "}<strong className="text-[#e5e5e5] font-normal">custom handmade goods</strong>{" "}
-          — precision crafting from vetted CNC USA artisans. Built to order. Shipped nationwide.
+          Custom <strong className="text-[#e5e5e5] font-normal">metal art</strong>, handmade
+          {" "}<strong className="text-[#e5e5e5] font-normal">decor</strong>, and one-of-a-kind
+          {" "}<strong className="text-[#e5e5e5] font-normal">creations</strong>{" "}
+          — built by real American makers in real workshops. No mass production. No drop-shipping.
+          Backed by the maker who built it.
         </motion.p>
+
+        {/* PRIMARY + SECONDARY CTAs — replaces the 4-button stack with two
+            clear paths: ready-to-ship vs. commission a custom piece. */}
+        <motion.div
+          initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.38, duration: 0.7 }}
+          className="mt-9 flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3"
+          data-testid="hero-ctas"
+        >
+          <Link
+            to="/shop"
+            className="btn-industrial btn-primary inline-flex items-center justify-center gap-2 text-sm px-7 py-3.5"
+            data-testid="hero-cta-shop"
+          >
+            Shop handmade <ArrowRight size={16} />
+          </Link>
+          <Link
+            to="/custom-order"
+            className="inline-flex items-center justify-center gap-2 px-7 py-3.5 border border-[#525252] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-xs uppercase tracking-[0.22em] text-[#e5e5e5] transition"
+            data-testid="hero-cta-custom"
+          >
+            <Wrench size={14} /> Start a custom order
+          </Link>
+        </motion.div>
 
         <motion.form
           onSubmit={onSearch}
           initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4, duration: 0.7 }}
+          transition={{ delay: 0.5, duration: 0.7 }}
           className="mt-10 max-w-2xl mx-auto flex items-stretch border border-[#262626] bg-black/60 backdrop-blur-md focus-within:border-[#ff4500] transition"
           data-testid="hero-search-form"
         >
