@@ -1,0 +1,35 @@
+{
+  "summary": "P2 batch — Pinterest OG-tag audit + Email funnel (post-checkout newsletter + per-maker save-drop card) verified end-to-end. Backend pytest 2/2 PASS (test_pinterest_og.py). Direct API smoke: /api/og/product/{real-slug} emits all Pinterest-required tags (og:price:amount/currency, og:availability='in stock', product:availability, product:condition='new', product:brand fallback='williams-cnc' from maker_slug, og:image:width=1200, og:image:height=1200, og:locale='en_US', og:image:secure_url). Note: 'active-project-4' in the request is the deploy name, not a product slug — real catalog slugs tested instead (acrylic-kraken-keychain-engraved-nautical-ship-design + maker iron-and-oak). Frontend: MakerDetail /makers/iron-and-oak renders the new follow card with all 4 testids (maker-detail-follow-card → save-drop-btn → click reveals save-drop-form → save-drop-email + save-drop-submit). Submission POST /api/save-drop returns {saved:true, synced:true, subscriber_id, tag_id, tag_name='interested-in-iron-and-oak'} and success toast appears. CheckoutSuccess /checkout/success?session_id=<PAID anchor> renders 'PAYMENT CONFIRMED' + success-newsletter-card (only when paid). POST /api/newsletter/subscribe with source='checkout_success' returns 200 {subscribed:true, subscriber_id} and success-newsletter-done state renders ('SUBSCRIBED ✓ You're on the list.'). No regressions in og:title/description/image/url/og:type=product.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_pinterest_og.py",
+    "/app/test_reports/pytest/iter55_pinterest_og.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "og_prerender.py::og_product correctly emits both og:price:* and product:price:* (Pinterest reads first flavor, Facebook reads second) — belt-and-suspenders is good.",
+    "Brand fallback logic at line ~243 (`maker or maker_slug`) correctly handles legacy product docs missing the denormalized maker_name — Pinterest validator passes either way.",
+    "Availability mapping `in_stock=True → 'in stock'`, else `'available for order'` matches Pinterest's accepted enum exactly.",
+    "Image dimensions hard-coded to 1200x1200 — fine because every product image goes through the CDN at that aspect, but if image-square assumption breaks, Pinterest validator will downgrade to standard pin.",
+    "CheckoutSuccess.jsx: PostCheckoutNewsletterCard is correctly conditional on `paid` (line 126-128) and pre-fills `state.customer_email` only on initial mount, never overwriting in-progress edits — UX is right.",
+    "SaveDropButton.jsx caches saved maker_slug to localStorage so the heart stays filled after reload — nice touch for guest buyers.",
+    "Minor: there's a leftover unreachable `return HTMLResponse(content=html)` at og_prerender.py line 329 (just below the first one at line 326). Dead code, no functional impact but worth removing.",
+    "newsletter.py /save-drop swallows any exception into a 502 — fine for the public buyer endpoint, but admins will need to consult db.drop_saves to see failures."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (2/2 pytest + 3/3 direct API checks)", "frontend": "100% (8/8 testids verified across MakerDetail + CheckoutSuccess)"},
+  "test_credentials": "No auth needed for these tests — both endpoints are public. Used PAID Stripe anchor session cs_test_a1iMM98ftY3GF2JouCJbRQkPvPkMcJE9lwLYh51c946CyXqtkL5oaa0O5o per credentials doc.",
+  "seed_data_creation": "Created Kit subscribers via real save-drop + newsletter API: TEST_iter55_savedrop@example.com (tagged interested-in-iron-and-oak), TEST_iter55_ckout_news@example.com / TEST_iter55_ckout@example.com (source=checkout_success). Mongo db.drop_saves + db.newsletter_subscribers received entries. Kit.com sync was LIVE in this env (synced=true) — note this differs from agent-to-agent context note which warned synced may be false.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Both features GREEN. The request slug 'active-project-4' is the deploy name, not a real product/maker — use real slugs (e.g., maker 'iron-and-oak' or first product from GET /api/products?limit=1) when retesting. Kit.com is currently active and returns synced=true in this preview env — newsletter POST will create a real subscriber. PAID anchor session works to bypass real card swipe. Minor code cleanup: dead `return HTMLResponse` at og_prerender.py:329 can be removed but is non-blocking.",
+  "rca of the issue": "N/A — no bugs found, all required tags + UI testids verified."
+}

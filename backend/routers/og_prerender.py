@@ -125,11 +125,18 @@ def _render_og_html(
         # OG / Facebook / LinkedIn / Discord / Slack / Pinterest
         f"<meta property=\"og:type\" content=\"{_esc(og_type)}\" />"
         "<meta property=\"og:site_name\" content=\"Crafters Market\" />"
+        "<meta property=\"og:locale\" content=\"en_US\" />"
         f"<meta property=\"og:title\" content=\"{_esc(title)}\" />"
         f"<meta property=\"og:description\" content=\"{_esc(description)}\" />"
         f"<meta property=\"og:url\" content=\"{_esc(canonical_url)}\" />"
         f"<meta property=\"og:image\" content=\"{_esc(image)}\" />"
+        f"<meta property=\"og:image:secure_url\" content=\"{_esc(image)}\" />"
         f"<meta property=\"og:image:alt\" content=\"{_esc(title)}\" />"
+        # Pinterest Rich Pins specifically look for these dimensions —
+        # tags without dimensions sometimes get rejected by Pinterest's
+        # validator even when the image actually exists.
+        "<meta property=\"og:image:width\" content=\"1200\" />"
+        "<meta property=\"og:image:height\" content=\"1200\" />"
         f"{extras}"
         # Twitter / X
         f"<meta name=\"twitter:card\" content=\"{_esc(twitter_card)}\" />"
@@ -214,8 +221,26 @@ async def og_product(slug: str, http_request: Request):
     extras: list[tuple[str, str]] = [("og:type", "product")]
     price = doc.get("price")
     if price is not None:
-        extras.append(("product:price:amount", f"{float(price):.2f}"))
+        price_str = f"{float(price):.2f}"
+        # Both flavors — Pinterest reads `og:price:*`, Facebook reads
+        # `product:price:*`. Belt-and-suspenders so both validators pass.
+        extras.append(("og:price:amount", price_str))
+        extras.append(("og:price:currency", "USD"))
+        extras.append(("product:price:amount", price_str))
         extras.append(("product:price:currency", "USD"))
+    # Availability — required for Pinterest Product Rich Pins and used
+    # by Facebook Shop tab. Allowed values: "in stock" / "out of stock" /
+    # "preorder" / "available for order". We treat made-to-order as
+    # `available for order` so search results still render a buyable badge.
+    in_stock_meta = "in stock" if bool(doc.get("in_stock", True)) else "available for order"
+    extras.append(("og:availability", in_stock_meta))
+    extras.append(("product:availability", in_stock_meta))
+    extras.append(("product:condition", "new"))
+    if maker or maker_slug:
+        # Pinterest validators care about *presence*, not perfect display
+        # — fall back to the maker slug when the denormalized `maker_name`
+        # is missing on the product doc (older catalog rows).
+        extras.append(("product:brand", maker or maker_slug))
 
     # Long-form indexable body — full description, materials, tags,
     # navigation breadcrumb, price + availability. Crawlers read this

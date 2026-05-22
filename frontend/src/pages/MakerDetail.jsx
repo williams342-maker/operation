@@ -14,6 +14,7 @@ import PlusSlaBadge from "../components/PlusSlaBadge";
 import GoogleAdsFeaturedBadge from "../components/GoogleAdsFeaturedBadge";
 import RecentShowcaseStrip from "../components/RecentShowcaseStrip";
 import CustomOrderCTA from "../components/CustomOrderCTA";
+import SaveDropButton from "../components/SaveDropButton";
 import { Mail, Facebook, Instagram, Twitter, Youtube, Globe, BookOpen, ArrowUpRight } from "lucide-react";
 
 export default function MakerDetail() {
@@ -184,6 +185,30 @@ export default function MakerDetail() {
           </div>
         </div>
         <SocialLinks maker={m} />
+
+        {/* iter181 — Email funnel: "Get notified when this maker drops a
+            new piece." Subscribes the buyer to the maker-specific Kit
+            segment; new product publishes auto-broadcast to followers. */}
+        <div
+          className="mb-16 border border-[#262626] p-6 md:p-7 flex flex-col md:flex-row md:items-center md:justify-between gap-4"
+          data-testid="maker-detail-follow-card"
+        >
+          <div>
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">
+              ◆ Stay in the loop
+            </div>
+            <h3 className="font-display text-xl md:text-2xl text-[#e5e5e5] mt-1">
+              Get notified when {m.name?.split(" ")[0] || "this maker"} drops a new piece.
+            </h3>
+            <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-lg">
+              One email per new listing — no spam, no algorithm. Unsubscribe with a click.
+            </p>
+          </div>
+          <div className="shrink-0">
+            <SaveDropButton makerSlug={m.slug} makerName={m.name} />
+          </div>
+        </div>
+
         <h2 className="font-display text-4xl md:text-6xl mb-8">From the workshop</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {products.map((p, i) => <ProductCard key={p.id} p={p} i={i} />)}

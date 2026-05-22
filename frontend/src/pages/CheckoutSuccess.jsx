@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { getCheckoutStatus, communityRequestMagic } from "../lib/api";
+import { getCheckoutStatus, communityRequestMagic, subscribeNewsletter } from "../lib/api";
 import { useCart } from "../lib/cart";
 import PushOptInCard from "../components/PushOptInCard";
 
@@ -123,7 +123,105 @@ export default function CheckoutSuccess() {
         <PushOptInCard role="buyer" email={state.customer_email || null} />
       )}
 
+      {paid && (
+        <PostCheckoutNewsletterCard initialEmail={state.customer_email || ""} />
+      )}
+
       <Link to="/shop" className="btn-industrial btn-primary inline-flex">Continue browsing →</Link>
     </div>
+  );
+}
+
+
+/**
+ * Post-checkout newsletter opt-in card (iter181).
+ *
+ * Buyers who just paid are the highest-intent newsletter signups we ever
+ * see — they've already proven they like the marketplace. We pre-fill
+ * their email from the Stripe checkout session when available, default
+ * the consent toggle to OFF (explicit opt-in, GDPR-compliant), and tag
+ * the source as `checkout_success` so admins can see the funnel.
+ */
+function PostCheckoutNewsletterCard({ initialEmail }) {
+  const [email, setEmail] = useState(initialEmail || "");
+  const [state, setState] = useState("idle"); // idle | loading | done | error
+  const [err, setErr] = useState("");
+
+  // Sync once Stripe returns the email — but never overwrite an in-progress edit.
+  useEffect(() => {
+    if (initialEmail && !email) setEmail(initialEmail);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialEmail]);
+
+  const submit = async (e) => {
+    e?.preventDefault?.();
+    if (!/.+@.+\..+/.test(email)) {
+      setErr("Please enter a valid email.");
+      return;
+    }
+    setState("loading");
+    setErr("");
+    try {
+      await subscribeNewsletter(email.trim(), "checkout_success");
+      setState("done");
+    } catch (ex) {
+      setState("error");
+      setErr(ex?.response?.data?.detail || "Couldn't subscribe. You can try again later.");
+    }
+  };
+
+  if (state === "done") {
+    return (
+      <div
+        className="max-w-lg mx-auto border border-emerald-500/40 bg-emerald-500/5 p-6 mb-10 text-left"
+        data-testid="success-newsletter-done"
+      >
+        <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-emerald-400 mb-2">
+          ◆ Subscribed
+        </div>
+        <p className="font-mono text-xs text-[#a3a3a3]">
+          You're on the list. Expect a roundup of new drops and maker stories — never daily, never spammy.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <form
+      onSubmit={submit}
+      className="max-w-lg mx-auto border border-[#262626] p-6 mb-10 text-left"
+      data-testid="success-newsletter-card"
+    >
+      <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#ff4500] mb-2">
+        ◆ Get the next drop first
+      </div>
+      <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed mb-4">
+        New listings, maker stories, and curated collections — once a week. No spam, unsubscribe with a click.
+      </p>
+      <div className="flex flex-col sm:flex-row gap-2">
+        <input
+          type="email"
+          required
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="you@email.com"
+          className="flex-1 bg-[#0a0a0a] border border-[#262626] px-3 py-2 font-mono text-sm text-[#e5e5e5] focus:border-[#ff4500] focus:outline-none"
+          data-testid="success-newsletter-email"
+        />
+        <button
+          type="submit"
+          disabled={state === "loading"}
+          className="btn-industrial btn-primary inline-flex disabled:opacity-50"
+          data-testid="success-newsletter-submit"
+        >
+          {state === "loading" ? "Subscribing…" : "Subscribe →"}
+        </button>
+      </div>
+      {err && (
+        <p className="mt-3 font-mono text-[10px] text-red-400" data-testid="success-newsletter-error">
+          {err}
+        </p>
+      )}
+    </form>
   );
 }
