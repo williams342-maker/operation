@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Heart, Download, Send, Plus, Lock, Flag, Sparkles, Trophy, Pencil, Trash2, X as XIcon, TrendingUp } from "lucide-react";
+import { Heart, Download, Send, Plus, Lock, Flag, Sparkles, Trophy, Pencil, Trash2, X as XIcon, TrendingUp, Eye, Share2, Copy } from "lucide-react";
 import { toast } from "sonner";
 import {
   fetchShowcase, createShowcase, likeShowcase,
@@ -227,6 +227,25 @@ function ShowcaseTab({ me }) {
   const [showForm, setShowForm] = useState(false);
   const refresh = () => fetchShowcase().then(setPosts);
   useEffect(() => { refresh(); }, []);
+
+  // Deep-link to a specific showcase via `#showcase-<id>` (used by share
+  // links). Scrolls to + highlights the target card once posts arrive.
+  useEffect(() => {
+    if (!posts.length) return;
+    const hash = window.location.hash;
+    const match = hash.match(/^#showcase-([0-9a-f-]{8,})/i);
+    if (!match) return;
+    const targetId = `showcase-${match[1]}`;
+    // Defer to next tick so the DOM has the new cards mounted.
+    setTimeout(() => {
+      const el = document.getElementById(targetId);
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      // Pulse-highlight so the visitor sees which card the link landed on
+      el.classList.add("ring-2", "ring-[#ff4500]");
+      setTimeout(() => el.classList.remove("ring-2", "ring-[#ff4500]"), 2400);
+    }, 100);
+  }, [posts]);
   return (
     <div data-testid="showcase-tab">
       {me && (
@@ -639,6 +658,62 @@ function ShowcaseCard({ post, onLike, canLike, me, onChanged }) {
   const [busy, setBusy] = useState(false);
   const [editErr, setEditErr] = useState("");
   const [reportOpen, setReportOpen] = useState(false);
+  // Local view counter — starts from the server number and only bumps
+  // when the visitor's own view actually counted (avoids visual lies).
+  const [views, setViews] = useState(post.views || 0);
+  const [shareOpen, setShareOpen] = useState(false);
+  const cardRef = useRef(null);
+
+  // ---- View tracking ----
+  // Fire one view-mark per (post, visitor session). Uses
+  // IntersectionObserver so cards count only when the user actually
+  // looks at them (≥40% visible for ≥1s) — not when they scroll past.
+  useEffect(() => {
+    const sessionKey = `cm_showcase_view_${post.id}`;
+    if (typeof window === "undefined") return;
+    if (sessionStorage.getItem(sessionKey)) return;
+    const node = cardRef.current;
+    if (!node || !("IntersectionObserver" in window)) return;
+
+    // Stable anonymous client id — persists across page loads but is
+    // distinct per browser. Matches the server-side dedupe key.
+    let clientId = localStorage.getItem("cm_anon_id");
+    if (!clientId) {
+      clientId = (crypto?.randomUUID?.() || `anon-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`);
+      localStorage.setItem("cm_anon_id", clientId);
+    }
+
+    let dwellTimer = null;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.4) {
+            if (dwellTimer) return;
+            dwellTimer = setTimeout(async () => {
+              try {
+                const r = await markShowcaseViewed(post.id, clientId);
+                sessionStorage.setItem(sessionKey, "1");
+                if (r?.counted) setViews(r.views);
+                obs.disconnect();
+              } catch {
+                // Network errors are not retried — view counts are nice
+                // to have, not essential. Avoid log spam.
+              }
+            }, 1000);
+          } else if (dwellTimer) {
+            clearTimeout(dwellTimer);
+            dwellTimer = null;
+          }
+        });
+      },
+      { threshold: [0, 0.4, 0.8] },
+    );
+    obs.observe(node);
+    return () => {
+      if (dwellTimer) clearTimeout(dwellTimer);
+      obs.disconnect();
+    };
+  }, [post.id]);
 
   // Owner detection — mirrors the backend `_is_showcase_owner` rule.
   // Maker posts are stamped with `user_id = "maker:<slug>"`; buyer
@@ -702,7 +777,12 @@ function ShowcaseCard({ post, onLike, canLike, me, onChanged }) {
   };
 
   return (
-    <div className="border border-[#262626] hover:border-[#ff4500] transition group" data-testid={`showcase-${post.id}`}>
+    <div
+      ref={cardRef}
+      id={`showcase-${post.id}`}
+      className="border border-[#262626] hover:border-[#ff4500] transition group"
+      data-testid={`showcase-${post.id}`}
+    >
       <div className="aspect-[4/3] overflow-hidden bg-[#121212] relative">
         {hasVideo ? (
           <video
@@ -806,6 +886,21 @@ function ShowcaseCard({ post, onLike, canLike, me, onChanged }) {
             <div className="flex justify-between items-center text-[10px] font-mono uppercase tracking-[0.22em] text-[#525252]">
               <span>{post.user_name || post.user_email}</span>
               <div className="flex items-center gap-3">
+                <span
+                  className="flex items-center gap-1 text-[#737373]"
+                  title={`${views} ${views === 1 ? "view" : "views"} in the last 24h window`}
+                  data-testid={`showcase-${post.id}-views`}
+                >
+                  <Eye size={12} /> {views}
+                </span>
+                <button
+                  onClick={() => setShareOpen(true)}
+                  className="flex items-center gap-1 text-[#525252] hover:text-[#ff4500] transition"
+                  title="Share this piece"
+                  data-testid={`showcase-${post.id}-share-btn`}
+                >
+                  <Share2 size={11} /> Share
+                </button>
                 {!isOwner && (canLike || (typeof window !== "undefined" && localStorage.getItem("cm_maker_jwt"))) && (
                   <button
                     onClick={() => setReportOpen(true)}
@@ -855,13 +950,154 @@ function ShowcaseCard({ post, onLike, canLike, me, onChanged }) {
           onSubmitted={() => { setReportOpen(false); onChanged && onChanged(); }}
         />
       )}
+      {shareOpen && (
+        <ShowcaseShareDialog post={post} onClose={() => setShareOpen(false)} />
+      )}
     </div>
   );
 }
 
 
-/** Modal dialog for reporting a showcase post. Loads the reason list
- *  from the backend once on open so we don't hard-code labels. */
+/** Social-share modal for a showcase post. Pre-fills each platform's
+ *  composer with a deep-link to the post (`/community#showcase-<id>`),
+ *  the title, and a short value-prop line. Uses native share sheet on
+ *  mobile when available. */
+function ShowcaseShareDialog({ post, onClose }) {
+  const [copied, setCopied] = useState(false);
+  const url = `${window.location.origin}/community#showcase-${post.id}`;
+  // Prefer a richer message when the post is product-linked. Falls
+  // back to maker-tagged or generic copy.
+  const baseText = post.product_slug
+    ? `Check out "${post.title}" — made by a Crafters Market maker. Buy it: ${window.location.origin}/shop/${post.product_slug}`
+    : `Check out "${post.title}" on Crafters Market.`;
+  const encodedUrl = encodeURIComponent(url);
+  const encodedText = encodeURIComponent(baseText);
+  const pinImage = encodeURIComponent(
+    post.image_urls?.[0] || post.image_url || "",
+  );
+  const pinDesc = encodeURIComponent(
+    `${post.title} — ${post.description?.slice(0, 220) || "From the Crafters Market community."}`,
+  );
+
+  const links = [
+    {
+      key: "x",
+      label: "X / Twitter",
+      href: `https://twitter.com/intent/tweet?text=${encodedText}&url=${encodedUrl}`,
+    },
+    {
+      key: "facebook",
+      label: "Facebook",
+      href: `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}&quote=${encodedText}`,
+    },
+    {
+      key: "pinterest",
+      label: "Pinterest",
+      href: pinImage
+        ? `https://pinterest.com/pin/create/button/?url=${encodedUrl}&media=${pinImage}&description=${pinDesc}`
+        : `https://pinterest.com/pin/create/button/?url=${encodedUrl}&description=${pinDesc}`,
+    },
+    {
+      key: "reddit",
+      label: "Reddit",
+      href: `https://www.reddit.com/submit?url=${encodedUrl}&title=${encodeURIComponent(post.title)}`,
+    },
+    {
+      key: "email",
+      label: "Email",
+      href: `mailto:?subject=${encodeURIComponent(post.title)}&body=${encodedText}%20${encodedUrl}`,
+    },
+  ];
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      toast.success("Link copied.");
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Couldn't copy — long-press to copy manually.");
+    }
+  };
+
+  const tryNative = async () => {
+    if (!navigator.share) return;
+    try {
+      await navigator.share({ title: post.title, text: baseText, url });
+      onClose();
+    } catch {/* user canceled or blocked */}
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+      onClick={onClose}
+      data-testid={`showcase-share-dialog-${post.id}`}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-[#0a0a0a] border border-[#262626] w-full max-w-md p-6 space-y-4"
+      >
+        <div className="flex items-center justify-between">
+          <h3 className="font-display text-xl uppercase">Share this piece.</h3>
+          <button
+            onClick={onClose}
+            className="text-[#737373] hover:text-[#e5e5e5]"
+            data-testid={`showcase-share-close-${post.id}`}
+            aria-label="Close share dialog"
+          >
+            <XIcon size={18} />
+          </button>
+        </div>
+
+        {/* URL preview + copy */}
+        <div className="bg-[#0d0d0d] border border-[#1f1f1f] p-3 flex items-center gap-2">
+          <div className="flex-1 font-mono text-[11px] text-[#e5e5e5] break-all">{url}</div>
+          <button
+            onClick={handleCopy}
+            className="px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition inline-flex items-center gap-1.5"
+            data-testid={`showcase-share-copy-${post.id}`}
+          >
+            <Copy size={11} /> {copied ? "Copied" : "Copy"}
+          </button>
+        </div>
+
+        {/* Native share sheet (mobile) */}
+        {typeof navigator !== "undefined" && "share" in navigator && (
+          <button
+            onClick={tryNative}
+            className="w-full btn-industrial btn-primary text-xs"
+            data-testid={`showcase-share-native-${post.id}`}
+          >
+            ↗ Use device share sheet
+          </button>
+        )}
+
+        {/* Per-platform links */}
+        <div className="grid grid-cols-2 gap-2">
+          {links.map((l) => (
+            <a
+              key={l.key}
+              href={l.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3 py-2 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] text-center transition"
+              data-testid={`showcase-share-${l.key}-${post.id}`}
+            >
+              {l.label}
+            </a>
+          ))}
+        </div>
+
+        <p className="font-mono text-[10px] text-[#525252] leading-relaxed">
+          {post.product_slug
+            ? "Pinterest pins and X posts will preview the linked product."
+            : "Add a product tag when posting to make shares link buyers straight to the shop."}
+        </p>
+      </div>
+    </div>
+  );
+}
 function ShowcaseReportDialog({ post, onClose, onSubmitted }) {
   const [reasons, setReasons] = useState([]);
   const [reason, setReason] = useState("");

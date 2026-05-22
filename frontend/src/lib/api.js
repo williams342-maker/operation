@@ -842,6 +842,12 @@ export const createShowcase = (payload) =>
 export const likeShowcase = (id) =>
   http.post(`/community/showcase/${id}/like`, {}, { headers: buyerAuthHeaders() }).then((r) => r.data);
 
+// Public view-tracker — anyone can hit it, deduped server-side by
+// (post_id, visitor_id) within 24h. The `client_id` is a stable random
+// uuid kept in localStorage so refreshing the page doesn't inflate views.
+export const markShowcaseViewed = (id, clientId) =>
+  http.post(`/community/showcase/${id}/view`, { client_id: clientId }).then((r) => r.data);
+
 // Owner-only edit (patch) and delete. Maker JWT preferred when the
 // caller is a maker — same logic as createShowcase.
 export const editShowcase = (id, patch) =>

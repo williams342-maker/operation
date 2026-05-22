@@ -1,6 +1,55 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-22 — iter174 · Showcase view counter + social share buttons ✅
+
+**Public:** Every community showcase card now shows a live **👁 N view counter** and a **Share** button next to the heart. Views are counted via IntersectionObserver — only when the card is actually ≥40% visible for ≥1s — and deduped server-side per visitor per 24 hours (so refreshes don't inflate). The share button opens a modal with **X · Facebook · Pinterest · Reddit · Email + Copy link + native OS share sheet** on mobile, each pre-filled with a deep link to that specific post.
+
+Showcases linked to a product (existing `product_slug` field) get richer share copy that points buyers straight to the shop. Pinterest pins use the post's hero image as pin media.
+
+Deep-linked URLs (`/community#showcase-<id>`) auto-scroll to + pulse-highlight the target card on landing.
+
+### Backend
+
+- `models / ShowcasePost.views: int = 0` (new field)
+- New `POST /api/community/showcase/{id}/view`:
+  - Public, no auth required
+  - Accepts optional `client_id` (frontend-generated UUID stored in localStorage)
+  - Falls back to (IP, User-Agent) hash when client_id is missing
+  - Deduped via `db.showcase_views` collection within a 24h rolling window
+  - Returns `{counted: bool, views: int}` so the UI updates without a refetch
+- `routers/community_showcase.py` imports `ReturnDocument` from pymongo for atomic post-increment fetch
+
+### Frontend
+
+- `pages/CommunityPage.jsx::ShowcaseCard`:
+  - IntersectionObserver hook fires `markShowcaseViewed` once per (post, browser session) when card hits 40% visibility for 1s
+  - Stable anonymous `cm_anon_id` UUID minted in localStorage on first view (server-side dedupe key)
+  - `<Eye size={12} /> {views}` rendered between the share/like cluster
+  - `<Share2 size={11} /> Share` button opens `<ShowcaseShareDialog />`
+- New `<ShowcaseShareDialog />` — modal with URL preview + copy, native share button (mobile), 5 platform shortcuts (X / Facebook / Pinterest / Reddit / Email). Pre-fills product-shop link when the post is product-tagged.
+- `pages/CommunityPage.jsx::ShowcaseTab` — `#showcase-<id>` hash listener scrolls + highlights the target card on landing (powers shared URLs).
+- `lib/api.js` — new `markShowcaseViewed(id, clientId)` helper
+
+### DB schema
+
+- `ShowcasePost.views` (int, default 0)
+- `showcase_views` collection: `{post_id, visitor, ts}` (per-visit dedupe log)
+
+### Tests added
+
+- `tests/test_showcase_views.py` — 3 cases:
+  1. POST increments + same visitor deduplicates + new visitor re-counts
+  2. 404 for unknown post id
+  3. IP+UA fingerprint fallback still deduplicates when `client_id` is absent
+
+### Smoke test
+
+- View counter and share buttons both render on existing seed posts at /community
+- Share modal opens with all 5 channels + copy link + product-aware hint
+
+
+
 ## 2026-05-22 — iter173 · Referral social share buttons ✅
 
 **Public:** ReferralCard now sports a "Share in one tap" row directly under the copy/rotate controls. Tapping a network opens that platform's compose dialog with the maker's invite link + a pre-written value-prop message already filled in.

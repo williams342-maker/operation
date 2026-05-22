@@ -21,6 +21,7 @@ from fastapi import (
     APIRouter, Body, Depends, File, HTTPException, Query, Request, UploadFile,
 )
 from pydantic import BaseModel
+from pymongo import ReturnDocument
 
 from core import db, logger, now_iso
 from maker_auth import current_admin, current_any_user, current_buyer
@@ -45,6 +46,11 @@ class ShowcasePost(BaseModel):
     video_url: Optional[str] = None
     product_slug: Optional[str] = None
     maker_slug: Optional[str] = None
+    # iter174 — public view counter. Incremented at most once per
+    # (post_id, visitor_id) per 24h window via the public
+    # POST /community/showcase/{id}/view endpoint. Surfaces as
+    # an "👁 N" badge on every card so makers can gauge organic reach.
+    views: int = 0
 
 
 class ShowcaseEdit(BaseModel):
@@ -212,6 +218,65 @@ async def like_showcase(post_id: str, claims: dict = Depends(current_buyer)):
     if r.matched_count == 0:
         raise HTTPException(404, "Post not found")
     return {"ok": True}
+
+
+# iter174 — public view counter. Anyone (signed-in or anon) can mark a
+# showcase post as viewed. We dedupe by (post_id, visitor_id) within a
+# rolling 24-hour window so a single browser tab refresh doesn't inflate
+# the counter, and so makers see roughly "unique viewers per day".
+VIEW_DEDUPE_WINDOW_HOURS = 24
+
+
+def _visitor_fingerprint(request: Request, client_id: Optional[str]) -> str:
+    """Composite visitor id: prefer the client-supplied UUID stored in
+    localStorage (`cm_anon_id`), fall back to (IP, UA) hash. Both modes
+    give us enough granularity to throttle without storing PII."""
+    if client_id and len(client_id) >= 8 and len(client_id) <= 64:
+        return f"cid:{client_id}"
+    ip = (request.client.host if request.client else "0") or "0"
+    ua = request.headers.get("user-agent", "")[:200]
+    h = hashlib.sha256(f"{ip}|{ua}".encode("utf-8")).hexdigest()[:24]
+    return f"ipua:{h}"
+
+
+@router.post("/community/showcase/{post_id}/view")
+async def mark_showcase_viewed(
+    post_id: str,
+    request: Request,
+    client_id: Optional[str] = Body(default=None, embed=True),
+):
+    """Idempotent per (post_id, visitor) within VIEW_DEDUPE_WINDOW_HOURS.
+    Returns `{counted: bool, views: int}` so the frontend can render the
+    fresh number without a separate fetch."""
+    post = await db.showcase_posts.find_one({"id": post_id}, {"_id": 0, "views": 1})
+    if not post:
+        raise HTTPException(404, "Post not found")
+    visitor = _visitor_fingerprint(request, client_id)
+    cutoff = (
+        datetime.now(timezone.utc) - timedelta(hours=VIEW_DEDUPE_WINDOW_HOURS)
+    ).isoformat()
+    # Try to claim a fresh view-event row. If one already exists for
+    # this visitor within the window, modified_count==0 and we no-op.
+    existing = await db.showcase_views.find_one(
+        {"post_id": post_id, "visitor": visitor, "ts": {"$gte": cutoff}},
+        {"_id": 1},
+    )
+    if existing:
+        return {"counted": False, "views": int(post.get("views") or 0)}
+    await db.showcase_views.insert_one({
+        "post_id": post_id,
+        "visitor": visitor,
+        "ts": now_iso(),
+    })
+    r = await db.showcase_posts.find_one_and_update(
+        {"id": post_id},
+        {"$inc": {"views": 1}},
+        projection={"_id": 0, "views": 1},
+        return_document=ReturnDocument.AFTER,
+    ) or {}
+    return {"counted": True, "views": int(r.get("views") or 0)}
+
+
 
 
 # ===================== POST REPORTING (community abuse flagging) =====================
