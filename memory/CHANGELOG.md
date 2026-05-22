@@ -1,6 +1,46 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-22 — iter172 · Plus trial referral program ✅
+
+**Public:** Every maker now has a unique invite link (`/beta?ref=<code>`) on their dashboard. Refer 3 makers who reach Crafters Plus and your trial automatically extends by **+30 days** (Stripe `subscription.modify(trial_end=…)` — applied instantly when the referrer is currently trialing, or stamped as a pending credit when they aren't).
+
+### Backend
+
+- New `routers/referrals.py`:
+  - `GET /api/maker/referrals` — lazily mints an 8-char base32 code (no ambiguous chars), returns share link, progress (`completed_count / threshold`), bonus state
+  - `POST /api/maker/referrals/regenerate` — rotates the code for makers who leaked theirs
+  - Internal `credit_referrer_on_subscribe(referred_slug)` — called from `_sync_sub_to_maker` when a maker reaches active/trialing. Idempotent via per-referred-maker `referral_credited_at` guard. Stops self-referrals. Stamps `referral_bonus_applied_at` on threshold + extends Stripe `trial_end` by 30 days when referrer is in trial.
+- `routers/subscriptions.py::_sync_sub_to_maker` — now invokes the referral credit hook whenever `persisted_status == "active"`
+- `routers/admin.py::admin_decide_application` — when approving an application, copies `referred_by_code` from the application doc onto the new maker row so the credit hook can attribute later
+- `models.py`:
+  - `Maker.referral_code`, `referrals_completed_count`, `referral_bonus_applied_at`, `referred_by_code`
+  - `MakerApplication.referred_by_code` + `MakerApplicationCreate.referred_by_code`
+
+### Frontend
+
+- New `pages/MakerDashboard/ReferralCard.jsx` — share-link + copy + rotate, progress bar (1/3, 2/3, awarded ✓), session-stable mount. Open to ALL makers (free-tier bank invites that apply on their own trial start). Mounted in `DashboardTab` right under `PlusUpgradeNudge`.
+- `pages/BetaPage.jsx` + `pages/ApplyPage.jsx` — both capture `?ref=<code>` from URL once on mount and forward to the application API
+- `lib/api.js` — `fetchMakerReferrals`, `regenerateMakerReferralCode`
+
+### DB schema
+
+- `Maker.referral_code`, `referrals_completed_count`, `referral_bonus_applied_at`, `referral_bonus_history[]`, `referred_by_code`, `referral_credited_at`
+- `MakerApplication.referred_by_code`
+
+### Tests added
+
+- `tests/test_referrals.py` — 4 cases: lazy code mint + stability, single-credit idempotency (replays same referred-maker call), 3-referral threshold stamps bonus + pending_credit entry in history, self-referral rejected
+
+### Mechanics summary
+
+- **Threshold:** 3 successful Plus signups
+- **Bonus:** +30 days trial extension via Stripe (instant) OR pending credit (when no active trial)
+- **One-time:** `referral_bonus_applied_at` ensures the bonus awards exactly once
+- **Anti-gaming:** self-referrals ignored; per-referred-maker idempotency guard
+
+
+
 ## 2026-05-21 — iter171 · Founder Tier Phase 4 (Plus benefits expansion) ✅
 
 **Public:** Brand-new Crafters Plus signups get a **3-month free trial** (Stripe `trial_period_days=90` on first signup; never granted twice). The Maker Dashboard now sports a persistent **trial banner** (days remaining + 1-click "Manage billing"), a **Plus-only advanced analytics** section in the Stats tab (conversion rate, repeat-buyer %, 30d/90d revenue trend sparkline, traffic source breakdown), a **subtle catalog ranking boost** for Plus listings (paid promotions → Plus → everyone else), and a **vanity shop URL picker** (`/makers/<custom-name>`) in Settings → Account.

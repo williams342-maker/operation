@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { submitMakerApplication } from "../lib/api";
 import { useSiteSettings } from "../hooks/useSiteSettings";
 import { useStructuredData } from "../lib/seo";
@@ -25,6 +25,16 @@ export default function ApplyPage() {
   const [f, setF] = useState({ name: "", email: "", studio_name: "", location: "", techniques: [], portfolio_url: "", about: "" });
   const [state, setState] = useState("idle");
   const [errMsg, setErrMsg] = useState("");
+  // Referral attribution — picks up `?ref=<code>` once on mount, same
+  // mechanism as BetaPage so both maker entry points credit invites.
+  const [refCode, setRefCode] = useState("");
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const r = (params.get("ref") || "").trim().toLowerCase();
+      if (r && /^[a-z0-9]{4,40}$/.test(r)) setRefCode(r);
+    } catch {/* search params unavailable in some preview contexts */}
+  }, []);
   // Functional updater + per-call snapshot of the new value. Fixes the
   // "typing in email bounces back to name" stale-closure bug: the old
   // form `const set = (k) => (e) => setF({ ...f, [k]: v })` captured a
@@ -41,7 +51,7 @@ export default function ApplyPage() {
     e.preventDefault();
     setState("sending");
     setErrMsg("");
-    try { await submitMakerApplication(f); setState("done"); }
+    try { await submitMakerApplication({ ...f, referred_by_code: refCode || undefined }); setState("done"); }
     catch (e2) {
       const d = e2?.response?.data?.detail;
       setErrMsg(typeof d === "string" ? d : "Something went wrong. Try again.");

@@ -291,6 +291,10 @@ export const fetchMakerPlusAnalytics = () =>
   http.get("/maker/analytics/plus", { headers: authHeaders() }).then((r) => r.data);
 export const fetchMakerCustomUrl = () =>
   http.get("/maker/custom-url", { headers: authHeaders() }).then((r) => r.data);
+export const fetchMakerReferrals = () =>
+  http.get("/maker/referrals", { headers: authHeaders() }).then((r) => r.data);
+export const regenerateMakerReferralCode = () =>
+  http.post("/maker/referrals/regenerate", {}, { headers: authHeaders() }).then((r) => r.data);
 export const checkMakerCustomUrl = (candidate) =>
   http
     .get(`/maker/custom-url/check/${encodeURIComponent(candidate)}`, { headers: authHeaders() })

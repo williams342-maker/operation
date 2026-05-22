@@ -5,6 +5,7 @@ _Prioritized backlog: P0 > P1 > P2. Blocked items flag the gating credential/dec
 ## P0 (next up)
 
 - ~~**Founder Tier Phase 4** (Plus benefits expansion)~~ → SHIPPED in iter171 (3-month Stripe trial, advanced analytics, priority placement boost, custom shop URL picker).
+- ~~**Plus trial referral program** (+30 days for 3 referrals)~~ → SHIPPED in iter172.
 - **Smart auto-Stripe-Customer at first label purchase** · UNBLOCKS Phase 2B for every maker (not just Plus). IMPLEMENTED in iter63 (see CHANGELOG).
 - **Monthly shipping-spend cap** · maker-configurable safety guard. IMPLEMENTED in iter63.
 - **Pre-flight address validation** · catches typos before Shippo rate lookup. IMPLEMENTED in iter63.

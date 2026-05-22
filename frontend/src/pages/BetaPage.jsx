@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { submitMakerApplication } from "../lib/api";
 import { useSiteSettings } from "../hooks/useSiteSettings";
@@ -44,6 +44,18 @@ export default function BetaPage() {
   });
   const [state, setState] = useState("idle");
   const [errMsg, setErrMsg] = useState("");
+
+  // Referral attribution — picks up `?ref=<code>` from the URL once on
+  // mount and stashes it for submission. Survives field edits because
+  // it lives in its own state slot.
+  const [refCode, setRefCode] = useState("");
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const r = (params.get("ref") || "").trim().toLowerCase();
+      if (r && /^[a-z0-9]{4,40}$/.test(r)) setRefCode(r);
+    } catch {/* search params unavailable in some preview contexts */}
+  }, []);
   // Functional updater — fixes the stale-closure bug where typing fast
   // in one field could overwrite another field's value with an old
   // snapshot of `f`. Each keystroke now reads the latest state.
@@ -67,6 +79,7 @@ export default function BetaPage() {
       await submitMakerApplication({
         ...f,
         about: `[FOUNDING SELLER BETA] ${f.about}`,
+        referred_by_code: refCode || undefined,
       });
       setState("done");
       window.scrollTo(0, 0);

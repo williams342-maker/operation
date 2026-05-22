@@ -188,6 +188,10 @@ export default function DashboardTab({
         }}
       />
 
+      {/* Plus trial referral program — open to all makers (free-tier
+          can also bank invites, applied once they start their own trial). */}
+      <ReferralCard />
+
       {/* GET STARTED CHECKLIST — collapses to a "✓ Setup complete" badge once done */}
       {remaining.length > 0 ? (
         <section

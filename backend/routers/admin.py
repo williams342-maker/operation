@@ -1132,6 +1132,10 @@ async def admin_decide_application(
                 is_beta=is_beta,
                 beta_approved_at=beta_approved_at,
                 beta_expires_at=beta_expires_at,
+                # Trial referral attribution — captured at application
+                # time via `/beta?ref=<code>`, surfaces here so the
+                # subscription-start hook can credit the referrer.
+                referred_by_code=appn.get("referred_by_code"),
             )
             await db.makers.insert_one(new_maker.model_dump())
             logger.info("auto-created maker on approval: slug=%s email=%s beta=%s",

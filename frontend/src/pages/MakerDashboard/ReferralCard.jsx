@@ -1,0 +1,149 @@
+import React, { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { Sparkles, Copy, RefreshCw, Gift, Check } from "lucide-react";
+import {
+  fetchMakerReferrals, regenerateMakerReferralCode,
+} from "../../lib/api";
+
+/**
+ * Plus referral program card. Lives on the dashboard's main tab (and
+ * inside the Trial banner narrative). Surfaces:
+ *   - Maker's unique share link (`/beta?ref=<code>`)
+ *   - Progress to the next bonus (e.g. 1 / 3)
+ *   - Whether the +30 day trial extension has already been awarded
+ *   - "Rotate code" affordance for makers who leaked the link
+ *
+ * Open to ALL makers — even non-Plus ones. A free maker who refers 3
+ * future Plus subscribers earns a credit that activates the moment
+ * they start their own Plus trial.
+ */
+export default function ReferralCard() {
+  const [data, setData] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!localStorage.getItem("cm_maker_jwt")) return;
+    fetchMakerReferrals().then(setData).catch(() => {});
+  }, []);
+
+  if (!data) return null;
+
+  const pct = Math.min(100, (data.completed_count / data.threshold) * 100);
+  const remaining = Math.max(0, data.threshold - data.completed_count);
+  const awarded = !!data.bonus_applied_at;
+
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(data.share_link);
+      setCopied(true);
+      toast.success("Invite link copied.");
+      setTimeout(() => setCopied(false), 2000);
+    } catch {/* clipboard blocked — fall back silently */}
+  };
+
+  const rotate = async () => {
+    if (!confirm(
+      "Generate a brand-new invite code? Any links you've already shared with the old code will stop counting new signups."
+    )) return;
+    setBusy(true);
+    try {
+      const r = await regenerateMakerReferralCode();
+      setData(r);
+      toast.success("New invite code generated.");
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Couldn't rotate the code.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section
+      className="border border-[#ff4500]/30 bg-gradient-to-br from-[#ff4500]/5 via-[#0a0a0a] to-[#0a0a0a] p-5 md:p-6"
+      data-testid="referral-card"
+    >
+      <div className="flex items-start gap-3 mb-4">
+        <Gift size={18} className="text-[#ff4500] mt-1 shrink-0" />
+        <div className="flex-1">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">
+            ◆ Refer a maker · earn {data.bonus_days} free trial days
+          </div>
+          <h3 className="font-display text-xl md:text-2xl uppercase mt-1">
+            Invite {data.threshold} makers, get {data.bonus_days} days free.
+          </h3>
+          <p className="font-mono text-xs text-[#a3a3a3] mt-2 leading-relaxed max-w-lg">
+            When {data.threshold} makers sign up via your link and reach
+            Crafters Plus, we add {data.bonus_days} days to your current
+            trial.{" "}
+            {!awarded
+              ? "Already in trial? The extension applies instantly via Stripe."
+              : "Bonus already applied — thanks for spreading the word."}
+          </p>
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      <div className="space-y-2 mb-5" data-testid="referral-progress">
+        <div className="flex items-baseline justify-between font-mono text-[10px] uppercase tracking-[0.22em]">
+          <span className="text-[#a3a3a3]">Progress</span>
+          <span className="text-[#e5e5e5]">
+            <span className={awarded ? "text-emerald-400" : "text-[#ff4500]"}>
+              {data.completed_count}
+            </span>
+            <span className="text-[#525252]"> / {data.threshold}</span>
+            {awarded && <span className="text-emerald-400 ml-2">· awarded ✓</span>}
+          </span>
+        </div>
+        <div className="h-2 bg-[#1a1a1a] border border-[#262626] relative overflow-hidden">
+          <div
+            className={`h-full transition-all duration-700 ${
+              awarded ? "bg-emerald-500" : "bg-[#ff4500]"
+            }`}
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+        {!awarded && remaining > 0 && (
+          <p className="font-mono text-[10px] text-[#737373]">
+            {remaining} more {remaining === 1 ? "signup" : "signups"} until your{" "}
+            {data.bonus_days}-day extension unlocks.
+          </p>
+        )}
+      </div>
+
+      {/* Share link */}
+      <div
+        className="bg-[#0d0d0d] border border-[#1f1f1f] p-3 flex items-center gap-2 flex-wrap"
+        data-testid="referral-share-link"
+      >
+        <div className="flex-1 min-w-[180px] font-mono text-[11px] text-[#e5e5e5] break-all">
+          {data.share_link}
+        </div>
+        <button
+          onClick={copyLink}
+          className="px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition inline-flex items-center gap-1.5"
+          data-testid="referral-copy-btn"
+        >
+          {copied ? <Check size={11} /> : <Copy size={11} />}
+          {copied ? "Copied" : "Copy"}
+        </button>
+        <button
+          onClick={rotate}
+          disabled={busy}
+          className="px-3 py-1.5 border border-[#262626] hover:border-[#525252] font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#e5e5e5] transition inline-flex items-center gap-1.5 disabled:opacity-50"
+          data-testid="referral-rotate-btn"
+          title="Rotate to a fresh code"
+        >
+          <RefreshCw size={11} className={busy ? "animate-spin" : ""} />
+          {busy ? "…" : "Rotate"}
+        </button>
+      </div>
+
+      <p className="font-mono text-[10px] text-[#525252] mt-3 leading-relaxed">
+        Your code: <span className="text-[#a3a3a3]">{data.code}</span>. Anyone
+        who applies via your link is auto-credited once they're approved and
+        subscribe to Plus.
+      </p>
+    </section>
+  );
+}

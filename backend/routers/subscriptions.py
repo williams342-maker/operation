@@ -550,6 +550,18 @@ async def _sync_sub_to_maker(obj: dict) -> None:
         slug, persisted_status, status == "trialing", _iso(trial_end_ts),
     )
 
+    # Trial referral attribution — credit the referrer when this maker
+    # reaches Plus (active or trialing). Idempotent: the helper guards
+    # against double-counting via `maker.referral_credited_at`.
+    if persisted_status == "active":
+        try:
+            from routers.referrals import credit_referrer_on_subscribe
+            await credit_referrer_on_subscribe(slug)
+        except Exception as e:
+            logger.exception(
+                "plus referral credit hook failed maker=%s: %s", slug, e,
+            )
+
 
 async def _on_trial_will_end(obj: dict) -> None:
     """Send the maker a 'trial ends in 3 days' email so they aren't

@@ -214,6 +214,20 @@ class Maker(BaseModel):
     # a vanity URL.
     custom_url: Optional[str] = None
     custom_url_changed_at: Optional[str] = None
+    # ---- Plus trial referral program (iter172) ----
+    # Maker's unique invite code — minted lazily on first /referrals call.
+    # Shareable as `/beta?ref=<code>` to attract new makers.
+    referral_code: Optional[str] = None
+    # Count of REFERRED makers who reached `subscription_status=active`
+    # (including trialing). Threshold of 3 triggers the +30-day trial
+    # extension bonus exactly once per referrer (idempotent via
+    # `referral_bonus_applied_at`).
+    referrals_completed_count: int = 0
+    referral_bonus_applied_at: Optional[str] = None
+    # Code captured at application time — the new maker was referred by
+    # the maker whose `referral_code` matches this value. Copied from
+    # `maker_applications.referred_by_code` when the maker is created.
+    referred_by_code: Optional[str] = None
     # ---- Off-site ads attribution ----
     # When false (default), buyer orders that arrived via `?utm_source=external` get
     # an extra 12% off-site fee deducted from this maker's payout. Opt-out turns
@@ -535,6 +549,11 @@ class MakerApplication(BaseModel):
     # True when the application came through the /beta Founding Seller page
     # (detected server-side via the `[FOUNDING SELLER BETA]` marker).
     is_beta: bool = False
+    # Referral attribution — populated when the applicant arrived via
+    # `/beta?ref=<code>`. On approval, copied to `maker.referred_by_code`
+    # so the trial-extension hook can credit the referrer when this
+    # maker subscribes to Plus.
+    referred_by_code: Optional[str] = None
     created_at: str = Field(default_factory=now_iso)
 
 
@@ -546,6 +565,7 @@ class MakerApplicationCreate(BaseModel):
     techniques: List[str] = []
     portfolio_url: Optional[str] = None
     about: str
+    referred_by_code: Optional[str] = None
 
 
 class CartItem(BaseModel):
