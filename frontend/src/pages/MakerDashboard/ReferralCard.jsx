@@ -5,6 +5,24 @@ import {
   fetchMakerReferrals, regenerateMakerReferralCode,
 } from "../../lib/api";
 
+// Pre-filled invite copy reused across every share channel. Short
+// enough for X's 280-char limit, descriptive enough that the maker
+// landing on /beta knows what they're getting into.
+const INVITE_TEXT = (
+  "Sell your CNC / laser / woodwork on Crafters Market — 5% commission, " +
+  "no monthly fees, Stripe-direct payouts. I'm on it and the founding-" +
+  "seller perks are real. Apply with my link:"
+);
+const INVITE_TEXT_SHORT = (
+  "Founding seller on Crafters Market — vetted CNC / laser / wood " +
+  "marketplace. Apply with my link:"
+);
+const PINTEREST_DESC = (
+  "Crafters Market — vetted CNC, laser & woodworking marketplace. " +
+  "Founding seller program: 5% commission, no monthly fees, Stripe " +
+  "payouts. Apply with this invite link."
+);
+
 /**
  * Plus referral program card. Lives on the dashboard's main tab (and
  * inside the Trial banner narrative). Surfaces:
@@ -144,6 +162,102 @@ export default function ReferralCard() {
         who applies via your link is auto-credited once they're approved and
         subscribe to Plus.
       </p>
+
+      {/* One-tap share buttons — open the platform's compose dialog in a
+          new tab with the maker's link pre-filled. Falls back to the
+          OS share sheet on mobile when available. */}
+      <ShareRow shareLink={data.share_link} />
     </section>
+  );
+}
+
+function ShareRow({ shareLink }) {
+  const encodedUrl = encodeURIComponent(shareLink);
+  const encodedText = encodeURIComponent(`${INVITE_TEXT_SHORT} ${shareLink}`);
+  const pinImage = encodeURIComponent(
+    "https://craftersmarket.org/downloads/cnc-garage-builders.png",
+  );
+  const pinDesc = encodeURIComponent(PINTEREST_DESC);
+
+  const targets = [
+    {
+      key: "x",
+      label: "X",
+      href: `https://twitter.com/intent/tweet?text=${encodeURIComponent(INVITE_TEXT_SHORT)}&url=${encodedUrl}`,
+    },
+    {
+      key: "facebook",
+      label: "Facebook",
+      href: `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}&quote=${encodeURIComponent(INVITE_TEXT)}`,
+    },
+    {
+      key: "pinterest",
+      label: "Pinterest",
+      href: `https://pinterest.com/pin/create/button/?url=${encodedUrl}&media=${pinImage}&description=${pinDesc}`,
+    },
+    {
+      key: "email",
+      label: "Email",
+      href: `mailto:?subject=${encodeURIComponent("Join me on Crafters Market")}&body=${encodedText}`,
+    },
+    {
+      key: "sms",
+      label: "SMS",
+      href: `sms:?&body=${encodedText}`,
+    },
+  ];
+
+  const tryNativeShare = async () => {
+    if (!navigator.share) return false;
+    try {
+      await navigator.share({
+        title: "Crafters Market — founding seller invite",
+        text: INVITE_TEXT_SHORT,
+        url: shareLink,
+      });
+      return true;
+    } catch {
+      // User canceled or device blocked — fall back silently.
+      return false;
+    }
+  };
+
+  return (
+    <div className="mt-4 pt-4 border-t border-[#1f1f1f]" data-testid="referral-share-row">
+      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2.5">
+        ◆ Share in one tap
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {/* Native OS share sheet (mobile Safari, Chrome Android, etc.) —
+            no-op on desktop. Lives first so phone users hit it before
+            scanning the per-platform list. */}
+        {typeof navigator !== "undefined" && "share" in navigator && (
+          <button
+            onClick={tryNativeShare}
+            className="px-3 py-1.5 border border-[#ff4500] bg-[#ff4500]/10 hover:bg-[#ff4500]/20 text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition"
+            data-testid="referral-share-native"
+            title="Open native share sheet"
+          >
+            ↗ Share…
+          </button>
+        )}
+        {targets.map((t) => (
+          <a
+            key={t.key}
+            href={t.href}
+            target={t.key === "email" || t.key === "sms" ? undefined : "_blank"}
+            rel="noopener noreferrer"
+            className="px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] transition"
+            data-testid={`referral-share-${t.key}`}
+          >
+            {t.label}
+          </a>
+        ))}
+      </div>
+      <p className="font-mono text-[9px] text-[#525252] mt-2 leading-relaxed">
+        Each click opens that platform's composer with your link pre-filled.
+        Pinterest pins use the Crafters Market brand image.
+      </p>
+    </div>
   );
 }

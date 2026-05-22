@@ -1,6 +1,25 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-22 — iter173 · Referral social share buttons ✅
+
+**Public:** ReferralCard now sports a "Share in one tap" row directly under the copy/rotate controls. Tapping a network opens that platform's compose dialog with the maker's invite link + a pre-written value-prop message already filled in.
+
+Channels: **X** (Twitter `intent/tweet`), **Facebook** (`sharer.php`), **Pinterest** (`pin/create/button` with brand image media + description), **Email** (`mailto:` with subject + body), **SMS** (`sms:` with body). On mobile Safari / Chrome Android a sixth "↗ Share…" button calls `navigator.share()` for the native OS share sheet first.
+
+Pre-filled invite copy is short enough to fit X's 280-char limit but descriptive enough that a maker landing on `/beta?ref=<code>` knows it's a vetted CNC / laser / wood marketplace with founding-seller perks.
+
+### Frontend
+
+- `pages/MakerDashboard/ReferralCard.jsx` — new `<ShareRow />` subcomponent
+  - Network buttons: `data-testid=referral-share-{x,facebook,pinterest,email,sms,native}`
+  - Native share sheet rendered only when `navigator.share` is available
+  - Pinterest pin uses `https://craftersmarket.org/downloads/cnc-garage-builders.png` as the pin media
+
+### No backend changes
+
+
+
 ## 2026-05-22 — iter172 · Plus trial referral program ✅
 
 **Public:** Every maker now has a unique invite link (`/beta?ref=<code>`) on their dashboard. Refer 3 makers who reach Crafters Plus and your trial automatically extends by **+30 days** (Stripe `subscription.modify(trial_end=…)` — applied instantly when the referrer is currently trialing, or stamped as a pending credit when they aren't).
