@@ -332,3 +332,22 @@ async def admin_seo_ping_status(_: dict = Depends(current_admin)):
     the operator last pinged + whether it landed."""
     from seo_indexnow import status as ping_status
     return await ping_status()
+
+
+@router.post("/admin/seo/gsc-submit-sitemap")
+async def admin_seo_gsc_submit_sitemap(_: dict = Depends(current_admin)):
+    """Manually re-submit the sitemap to Google Search Console.
+    Throttled to once per hour (Google rate-limits anyway). Auto-fires on
+    product publish / renew / journal post — this endpoint is the operator's
+    escape hatch for cases like a 'lost' sitemap or a fresh deploy."""
+    from gsc_client import submit_sitemap, is_gsc_enabled
+    if not is_gsc_enabled():
+        return {"ok": False, "error": "GSC not enabled (set GSC_ENABLED=1 in backend env)"}
+    return await submit_sitemap()
+
+
+@router.get("/admin/seo/gsc-submit-sitemap/status")
+async def admin_seo_gsc_submit_sitemap_status(_: dict = Depends(current_admin)):
+    """Latest GSC sitemap-submit audit row."""
+    from gsc_client import sitemap_status
+    return await sitemap_status()

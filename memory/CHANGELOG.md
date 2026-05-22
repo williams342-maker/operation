@@ -1,6 +1,34 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-22 — iter180 · Auto-submit sitemap to Google Search Console ✅
+
+Closes the search-engine notification loop: alongside IndexNow (Bing/Yandex/Naver/Seznam/Yep), Google now also gets nudged whenever content publishes.
+
+### Backend
+- `gsc_client.GSC_SCOPES` bumped `webmasters.readonly` → `webmasters` (write) so the same OAuth refresh-token can both inspect AND submit sitemaps. **Note:** existing connected admins must disconnect + reconnect once to grant the new scope.
+- `gsc_client.submit_sitemap(url=None)` — new helper:
+  - Defaults to `${GSC_SITE_URL}sitemap.xml`.
+  - Calls the official `searchconsole.sitemaps.submit` API (synchronous Google client run in a thread executor so it doesn't block the asyncio loop).
+  - **60-min per-sitemap throttle** via `db.gsc_sitemap_log` so a burst of product publishes coalesces into one Google nudge.
+  - Best-effort: never raises. Returns `{ok, throttled, sitemap, status, error}`.
+  - Detects 401/403 and surfaces a clear "reconnect for write scope" message.
+- `gsc_client.sitemap_status()` — latest audit row.
+- Hooked into product publish, product renew, and journal-post-create background tasks so a single user action fires BOTH IndexNow + GSC submit.
+- New admin endpoints:
+  - `POST /api/admin/seo/gsc-submit-sitemap` — manual trigger.
+  - `GET  /api/admin/seo/gsc-submit-sitemap/status` — last audit row.
+
+### Frontend
+- `SearchEnginePingCard` (Admin → Settings → SEO ping):
+  - "Ping now" button now fires BOTH IndexNow AND GSC sitemap submit in one click.
+  - New result row "Google sitemap re-submit" with emerald-ok / amber-error / throttled state and a fallback "Open Search Console manually" link when GSC isn't connected.
+  - Copy updated to describe the new dual-engine behavior.
+
+### Tests
+- `/app/backend/tests/test_gsc_submit_sitemap.py` — 3/3 PASS (env short-circuit, full submit + throttle, no-client graceful failure). Mocks the Google discovery client to keep CI hermetic.
+
+
 ## 2026-05-22 — iter179 · IndexNow auto-ping on publish ✅
 
 The manual `/admin/seo/ping` button has been here since iter104; this iter wires it to **fire automatically** the moment a maker publishes content, so Bing / Yandex / Naver / Seznam / Yep re-crawl in minutes instead of waiting for the weekly sitemap sweep.

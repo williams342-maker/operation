@@ -42,7 +42,7 @@ from typing import Optional
 
 logger = logging.getLogger("crafters.gsc")
 
-GSC_SCOPES = ["https://www.googleapis.com/auth/webmasters.readonly"]
+GSC_SCOPES = ["https://www.googleapis.com/auth/webmasters"]
 
 
 def is_gsc_enabled() -> bool:
@@ -183,3 +183,106 @@ def map_to_tier(inspection_result: dict) -> str:
     if verdict == "FAIL" or "blocked" in coverage or "noindex" in coverage:
         return "not_in_sitemap"
     return "submitted"
+
+
+
+# ============================================================================
+# Sitemap submission — Google's officially-supported "re-crawl me" hook.
+# Throttled per-sitemap to stay polite (Google rate-limits anyway).
+# ============================================================================
+
+SITEMAP_SUBMIT_THROTTLE_MIN = 60  # don't re-submit more than once per hour
+
+
+async def submit_sitemap(sitemap_url: str | None = None) -> dict:
+    """Submit `sitemap_url` (default: `<GSC_SITE_URL>sitemap.xml`) to Google
+    Search Console. Returns `{ok, status, throttled, error, sitemap}`.
+
+    Best-effort + throttled — never raises. The Search Console API accepts
+    the submission and Google schedules a sitemap re-fetch (usually within
+    a few hours). Actual crawling of newly-discovered URLs follows on
+    Google's normal schedule.
+
+    Requires the OAuth refresh-token (or service account) to have the
+    `webmasters` write scope. If only `webmasters.readonly` was granted
+    (pre-iter180 connections), the API returns 403 and we surface a clear
+    reconnect message.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    from core import db, now_iso
+
+    site_url = (os.environ.get("GSC_SITE_URL") or "").strip()
+    if not site_url:
+        return {"ok": False, "throttled": False, "sitemap": "",
+                "error": "GSC_SITE_URL not configured"}
+    target = sitemap_url or f"{site_url.rstrip('/')}/sitemap.xml"
+
+    # Short-circuit before touching Mongo: if there's no GSC client (not
+    # connected yet or scope-revoked), there's nothing to ping.
+    svc = await _client()
+    if not svc:
+        return {"ok": False, "throttled": False, "sitemap": target,
+                "error": "GSC client unavailable (not connected)"}
+
+    # Throttle: skip if we successfully submitted the same sitemap recently.
+    cutoff_iso = (datetime.now(timezone.utc)
+                  - timedelta(minutes=SITEMAP_SUBMIT_THROTTLE_MIN)).isoformat()
+    recent = await db.gsc_sitemap_log.find_one(
+        {"sitemap": target, "ts": {"$gte": cutoff_iso}, "ok": True},
+        {"_id": 0, "ts": 1},
+    )
+    if recent:
+        return {"ok": True, "throttled": True, "sitemap": target,
+                "last_submit_at": recent["ts"]}
+
+    error = ""
+    status = 0
+    try:
+        import asyncio as _aio
+        loop = _aio.get_running_loop()
+        # Search Console API: sitemaps.submit(siteUrl=..., feedpath=...).
+        # Returns empty body on success (HTTP 200).
+        await loop.run_in_executor(
+            None,
+            lambda: svc.sitemaps().submit(siteUrl=site_url, feedpath=target).execute(),
+        )
+        status = 200
+    except Exception as e:
+        error = f"{type(e).__name__}: {e}"
+        try:
+            from googleapiclient.errors import HttpError
+            if isinstance(e, HttpError):
+                status = int(e.resp.status)  # type: ignore[attr-defined]
+                if status in (401, 403):
+                    error = (f"{error} — likely insufficient scope "
+                             "(needs `webmasters` write, not readonly). "
+                             "Disconnect + reconnect GSC in admin.")
+        except Exception:
+            pass
+        logger.warning("[gsc] sitemap submit failed (%s): %s", target, e)
+
+    ok = 200 <= status < 300
+    await db.gsc_sitemap_log.insert_one({
+        "sitemap": target,
+        "ts": now_iso(),
+        "status": status,
+        "ok": ok,
+        "error": error or None,
+    })
+    return {
+        "ok": ok,
+        "throttled": False,
+        "sitemap": target,
+        "status": status,
+        "error": error or None,
+    }
+
+
+async def sitemap_status() -> dict:
+    """Latest sitemap-submit audit row for the admin dashboard."""
+    from core import db
+    doc = await db.gsc_sitemap_log.find_one(
+        {}, {"_id": 0}, sort=[("ts", -1)],
+    )
+    return doc or {}

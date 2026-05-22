@@ -339,12 +339,19 @@ async def _safe_notify_listing_published(product_slug: str) -> None:
 
 async def _safe_indexnow_ping_product(product_slug: str) -> None:
     """Fire IndexNow on the product URL so Bing/Yandex/etc. re-crawl it
-    within minutes instead of waiting for the next sitemap sweep."""
+    within minutes instead of waiting for the next sitemap sweep.
+    Also nudges Google by re-submitting the sitemap to Search Console."""
     try:
         from seo_indexnow import submit_urls, url_for_product
         await submit_urls([url_for_product(product_slug)], reason="product_publish")
     except Exception as e:
         logger.exception("[bg/indexnow] product publish ping failed: %s", e)
+    try:
+        from gsc_client import submit_sitemap, is_gsc_enabled
+        if is_gsc_enabled():
+            await submit_sitemap()
+    except Exception as e:
+        logger.exception("[bg/gsc] sitemap submit failed: %s", e)
 
 
 @router.post("/maker/products/{product_slug}/renew", response_model=Product)
@@ -2489,7 +2496,8 @@ async def maker_create_journal_post(
 
 
 async def _safe_indexnow_ping_journal(post_slug: str, maker_slug: str) -> None:
-    """Best-effort IndexNow ping for a newly-published journal post."""
+    """Best-effort IndexNow ping for a newly-published journal post.
+    Also nudges Google via Search Console sitemap re-submit."""
     try:
         from seo_indexnow import submit_urls, url_for_journal, url_for_maker, _site_root
         urls = [
@@ -2500,6 +2508,12 @@ async def _safe_indexnow_ping_journal(post_slug: str, maker_slug: str) -> None:
         await submit_urls(urls, reason="journal_publish")
     except Exception as e:
         logger.exception("[bg/indexnow] journal publish ping failed: %s", e)
+    try:
+        from gsc_client import submit_sitemap, is_gsc_enabled
+        if is_gsc_enabled():
+            await submit_sitemap()
+    except Exception as e:
+        logger.exception("[bg/gsc] sitemap submit failed: %s", e)
 
 
 @router.get("/maker/journal/mine")

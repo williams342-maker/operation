@@ -791,6 +791,18 @@ function SearchEnginePingCard() {
         body: JSON.stringify({ budget: 50 }),
       });
       const body = await r.json();
+      // Fire-and-forget Google nudge alongside the IndexNow push. We
+      // surface the result inside the same card so the operator sees
+      // both engines' status in one place.
+      try {
+        const gr = await fetch(`${API}/api/admin/seo/gsc-submit-sitemap`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        body._gsc = await gr.json();
+      } catch (gerr) {
+        body._gsc = { ok: false, error: gerr.message || "GSC submit failed" };
+      }
       setResult(body);
       await refresh();
     } catch (e) {
@@ -813,9 +825,10 @@ function SearchEnginePingCard() {
           <h3 className="font-display text-xl mt-1 text-[#e5e5e5]">Notify search engines</h3>
           <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-xl">
             Pushes the homepage + ~50 most-recent product / maker / journal
-            URLs to <b className="text-[#e5e5e5]">Bing, Yandex, Naver, Seznam, and Yep</b> via IndexNow.
-            They&rsquo;ll re-crawl within hours instead of days. Google doesn&rsquo;t
-            support IndexNow &mdash; use the Search Console link below for that one.
+            URLs to <b className="text-[#e5e5e5]">Bing, Yandex, Naver, Seznam, and Yep</b> via IndexNow
+            <b className="text-[#e5e5e5]"> and re-submits the sitemap to Google</b> Search Console (when GSC is connected).
+            All search engines re-crawl within hours instead of days. Also fires
+            automatically on every product publish, renew, and journal post.
           </p>
         </div>
         <button
@@ -898,20 +911,39 @@ function SearchEnginePingCard() {
             </details>
           )}
 
-          {/* Google fallback link — IndexNow doesn't reach Google. */}
+          {/* Google sitemap-submit result (auto-fired alongside IndexNow). */}
           <div className="border-t border-[#262626] pt-3">
             <p className="font-mono text-[11px] text-[#a3a3a3] mb-2">
-              Google&rsquo;s turn:
+              Google sitemap re-submit:
             </p>
-            <a
-              href={result.google_search_console_url}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-block px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition"
-              data-testid="seo-ping-gsc-link"
-            >
-              → Open Search Console &rarr;
-            </a>
+            {result._gsc?.ok ? (
+              <div
+                className="inline-block px-3 py-1.5 border border-emerald-500/60 text-emerald-400 bg-emerald-500/5 font-mono text-[10px] uppercase tracking-[0.22em] font-bold"
+                data-testid="seo-ping-gsc-result"
+              >
+                {result._gsc.throttled
+                  ? `⏱ Throttled · last submitted ${result._gsc.last_submit_at?.slice(0, 16) || "recently"}`
+                  : `✓ Submitted · status ${result._gsc.status}`}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div
+                  className="inline-block px-3 py-1.5 border border-amber-500/60 text-amber-400 bg-amber-500/5 font-mono text-[10px] uppercase tracking-[0.22em] font-bold"
+                  data-testid="seo-ping-gsc-result"
+                >
+                  ✕ {result._gsc?.error?.slice(0, 80) || "GSC not configured"}
+                </div>
+                <a
+                  href={result.google_search_console_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-block px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition"
+                  data-testid="seo-ping-gsc-link"
+                >
+                  → Open Search Console manually
+                </a>
+              </div>
+            )}
           </div>
         </div>
       )}
