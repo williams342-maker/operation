@@ -1,6 +1,37 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-22 — iter182 · Email-provider audit + Google Ads activation checklist ✅
+
+Both items addressed the user's two Roadmap backlog selections (Google Ads dev token + DNS cleanup of unused Brevo/Sender/MailerLite records).
+
+### Email-provider audit (`GET /api/admin/email-providers/audit`)
+
+- New admin endpoint enumerates every email provider whose API key is still set in the environment.
+- For each provider returns: `role` (`primary` / `fallback` / `fallback_2` / `unused`), `key_configured`, `safe_to_remove` flag, and the **exact Cloudflare DNS records (SPF + DKIM)** to delete when removing.
+- Sort order: active chain first (operator's load-bearing config), then safe-to-remove (operator's TODO list), then unused-unconfigured (noise).
+- Frontend: new `EmailProviderAuditCard` mounted in Admin → Settings (between SEO ping card and GSC connection card). Each removable provider shows an amber pill + an expandable details pane with the Cloudflare record cheat-sheet pre-substituted with the operator's apex domain.
+- Latent bug fix: `/admin/email-health` provider→key-env map was missing `mailgun` (current PRIMARY) and `brevo`. Filled in.
+
+### Production audit (snapshot 2026-05-22)
+
+For `craftersmarket.org` the audit currently flags **5 providers safe to remove**:
+- **Brevo** (BREVO_API_KEY): SPF `v=spf1 include:spf.sendinblue.com ~all` + `mail._domainkey` DKIM
+- **MailerSend** (MAILERSEND_API_KEY): SPF `v=spf1 include:_spf.mailersend.net ~all` + `mlsend._domainkey` DKIM
+- **Postmark** (POSTMARK_API_KEY): SPF `v=spf1 include:spf.mtasv.net ~all` + DKIM + optional return-path CNAME
+- **Resend** (RESEND_API_KEY): `send.<apex>` MX + SPF + `resend._domainkey` DKIM
+- **Sender.net** (SENDER_API_KEY): SPF `v=spf1 include:_spf.sender.net ~all` + DKIM
+
+Active chain remains: **Mailgun (primary) → Mailtrap (fallback) → Mailtrap (fallback_2)**.
+
+### Google Ads activation
+- Code (routers + UI) is already complete; only blocker is the user-supplied Developer Token from Google.
+- New deployment doc `/app/memory/GOOGLE_ADS_SETUP.md` lists the 5 env vars needed, where to obtain them, the activation sequence, and the 2026 gotchas already handled in the code.
+
+### Tests
+- `/app/backend/tests/test_email_provider_audit.py` — 3/3 PASS (admin gate, schema + classification, apex fallback).
+
+
 ## 2026-05-22 — iter181 · Pinterest Rich Pins + Email funnel (post-checkout + per-maker drops) ✅
 
 Two P2 wins in one batch.

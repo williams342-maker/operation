@@ -402,6 +402,8 @@ async def admin_email_health(_: dict = Depends(current_admin)):
         "sender": "SENDER_API_KEY",
         "mailersend": "MAILERSEND_API_KEY",
         "resend": "RESEND_API_KEY",
+        "brevo": "BREVO_API_KEY",
+        "mailgun": "MAILGUN_API_KEY",
     }.get(provider.lower(), "")
     primary_configured = bool(
         provider and (not primary_key_env or os.environ.get(primary_key_env))
@@ -459,6 +461,130 @@ async def admin_email_health(_: dict = Depends(current_admin)):
         "failed_24h": failed_24h,
         "hint": hint,
     }
+
+
+# ============================================================
+#  Email provider audit (iter182) — surfaces every provider with an API
+#  key still hanging around in the environment and flags the ones that
+#  are NOT in the active fallback chain (i.e. safe to remove, both the
+#  env var AND the SPF/DKIM records in Cloudflare).
+# ============================================================
+
+# DNS records each provider needs. Used to generate a precise "delete
+# these in Cloudflare" checklist for unused providers. Keep the hostname
+# tokens generic (we don't know each operator's apex) — the UI substitutes
+# `<apex>` with the configured `PUBLIC_SITE_URL` hostname at render time.
+_PROVIDER_DNS_HINTS: dict[str, list[str]] = {
+    "mailgun":  [
+        "mg.<apex>            TXT   v=spf1 include:mailgun.org ~all",
+        "k1._domainkey.mg.<apex>  TXT  (DKIM from Mailgun dashboard)",
+    ],
+    "postmark": [
+        "<apex>               TXT   v=spf1 include:spf.mtasv.net ~all",
+        "<selector>._domainkey.<apex>  TXT  (DKIM from Postmark dashboard)",
+        "(optional) postmark-return._<apex>  CNAME  pm.mtasv.net",
+    ],
+    "sender":   [
+        "<apex>               TXT   v=spf1 include:_spf.sender.net ~all",
+        "<selector>._domainkey.<apex>  TXT  (DKIM from Sender.net dashboard)",
+    ],
+    "mailersend": [
+        "<apex>               TXT   v=spf1 include:_spf.mailersend.net ~all",
+        "mlsend._domainkey.<apex>  TXT  (DKIM from MailerSend dashboard)",
+    ],
+    "resend": [
+        "send.<apex>          MX     feedback-smtp.us-east-1.amazonses.com",
+        "send.<apex>          TXT    v=spf1 include:amazonses.com ~all",
+        "resend._domainkey.<apex>  TXT  (DKIM from Resend dashboard)",
+    ],
+    "brevo": [
+        "<apex>               TXT   v=spf1 include:spf.sendinblue.com ~all",
+        "mail._domainkey.<apex>  TXT  (DKIM from Brevo dashboard)",
+    ],
+    "mailerlite": [
+        "<apex>               TXT   v=spf1 include:_spf.mailerlite.com ~all",
+        "ml._domainkey.<apex>  TXT  (DKIM from MailerLite dashboard)",
+    ],
+    "mailtrap": [],   # sandbox/testing — no DNS needed
+}
+
+_PROVIDER_KEY_ENV: dict[str, str] = {
+    "mailgun":   "MAILGUN_API_KEY",
+    "postmark":  "POSTMARK_API_KEY",
+    "sender":    "SENDER_API_KEY",
+    "mailersend": "MAILERSEND_API_KEY",
+    "resend":    "RESEND_API_KEY",
+    "brevo":     "BREVO_API_KEY",
+    "mailerlite": "MAILERLITE_API_KEY",
+    "mailtrap":  "MAILTRAP_API_KEY",
+}
+
+
+@router.get("/admin/email-providers/audit")
+async def admin_email_provider_audit(_: dict = Depends(current_admin)):
+    """Audit every email provider's configuration vs. the active chain.
+
+    Returns one row per provider with:
+      * `key_env`             — env var name
+      * `key_configured`      — bool, is the API key set in this env?
+      * `role`                — "primary" | "fallback" | "fallback_2" | "unused"
+      * `safe_to_remove`      — True iff key_configured AND role == "unused"
+      * `dns_records`         — Cloudflare records to delete (only when
+                                safe_to_remove == True; otherwise empty)
+
+    The operator uses this card to decide what's still earning its keep
+    and what's dead weight cluttering DNS + env vars.
+    """
+    chain = [
+        os.environ.get("EMAIL_PROVIDER", "").lower().strip(),
+        os.environ.get("EMAIL_FALLBACK_PROVIDER", "").lower().strip(),
+        os.environ.get("EMAIL_FALLBACK_PROVIDER_2", "").lower().strip(),
+    ]
+    roles = ["primary", "fallback", "fallback_2"]
+    # Map provider -> role (first occurrence wins so duplicates show up as primary).
+    provider_role: dict[str, str] = {}
+    for name, role in zip(chain, roles):
+        if name and name not in provider_role:
+            provider_role[name] = role
+
+    # Derive apex from PUBLIC_SITE_URL for DNS hint substitution.
+    public_site = (os.environ.get("PUBLIC_SITE_URL") or "").strip()
+    apex = public_site.replace("https://", "").replace("http://", "").rstrip("/")
+    apex = apex or "craftersmarket.org"
+
+    rows: list[dict] = []
+    for name, key_env in _PROVIDER_KEY_ENV.items():
+        key_configured = bool((os.environ.get(key_env) or "").strip())
+        role = provider_role.get(name, "unused")
+        safe_to_remove = key_configured and role == "unused"
+        dns_records: list[str] = []
+        if safe_to_remove:
+            dns_records = [r.replace("<apex>", apex) for r in _PROVIDER_DNS_HINTS.get(name, [])]
+        rows.append({
+            "provider": name,
+            "key_env": key_env,
+            "key_configured": key_configured,
+            "role": role,
+            "safe_to_remove": safe_to_remove,
+            "dns_records": dns_records,
+        })
+
+    # Sort: active chain first (primary -> fallback -> fallback_2), then
+    # safe-to-remove (the operator's TODO list), then unused-unconfigured.
+    role_order = {"primary": 0, "fallback": 1, "fallback_2": 2, "unused": 3}
+    rows.sort(key=lambda r: (role_order[r["role"]], not r["safe_to_remove"], r["provider"]))
+
+    return {
+        "apex": apex,
+        "chain": [{"role": r, "provider": p or None} for p, r in zip(chain, roles)],
+        "providers": rows,
+        "summary": {
+            "configured_keys": sum(1 for r in rows if r["key_configured"]),
+            "in_active_chain": sum(1 for r in rows if r["role"] != "unused"),
+            "safe_to_remove": sum(1 for r in rows if r["safe_to_remove"]),
+        },
+    }
+
 
 
 class TestEmailIn(BaseModel):

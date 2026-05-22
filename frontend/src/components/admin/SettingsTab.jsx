@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { Stat } from "./_shared";
 import {
   fetchAdminSettings,
   patchAdminSettings,
@@ -1164,6 +1165,155 @@ function ConnectionPill({ connected, email }) {
 }
 
 
+// ─────────────────────────────────────────────────────────────────────────────
+// iter182 — Email provider audit card. Lists every email provider with an
+// API key still set in the environment and flags the ones NOT in the active
+// fallback chain (= safe to remove). For each removable provider it surfaces
+// the precise Cloudflare DNS records (SPF + DKIM) that can be deleted, so
+// the operator can clean up without guessing.
+// ─────────────────────────────────────────────────────────────────────────────
+function EmailProviderAuditCard() {
+  const [data, setData] = React.useState(null);
+  const [err, setErr] = React.useState("");
+  const [loading, setLoading] = React.useState(true);
+
+  const load = async () => {
+    setErr("");
+    setLoading(true);
+    try {
+      const API = process.env.REACT_APP_BACKEND_URL;
+      const token = localStorage.getItem("cm_admin_jwt") || "";
+      const r = await fetch(`${API}/api/admin/email-providers/audit`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      setData(await r.json());
+    } catch (e) {
+      setErr(e.message || "Failed to load");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  React.useEffect(() => { load(); }, []);
+
+  const roleClass = (role) => ({
+    primary:    "border-emerald-500/60 text-emerald-400 bg-emerald-500/5",
+    fallback:   "border-blue-500/60 text-blue-400 bg-blue-500/5",
+    fallback_2: "border-blue-500/40 text-blue-400 bg-blue-500/5",
+    unused:     "border-[#262626] text-[#737373] bg-[#0d0d0d]",
+  }[role] || "border-[#262626] text-[#737373]");
+
+  return (
+    <section
+      className="border border-[#262626] p-4 md:p-5"
+      data-testid="email-provider-audit-card"
+    >
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+            Email · provider audit
+          </div>
+          <h3 className="font-display text-xl mt-1 text-[#e5e5e5]">
+            Clean up unused email providers
+          </h3>
+          <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-2xl leading-relaxed">
+            Lists every provider with an API key still in the environment.
+            Providers not in the active{" "}
+            <code className="text-[#e5e5e5]">EMAIL_PROVIDER → EMAIL_FALLBACK_PROVIDER → EMAIL_FALLBACK_PROVIDER_2</code>{" "}
+            chain are dead weight — safe to remove from both env vars and Cloudflare DNS.
+          </p>
+        </div>
+        <button
+          onClick={load}
+          disabled={loading}
+          className="shrink-0 px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+          data-testid="email-audit-refresh"
+        >
+          {loading ? "Loading…" : "↻ Refresh"}
+        </button>
+      </div>
+
+      {err && (
+        <div className="mt-4 font-mono text-xs text-red-400" data-testid="email-audit-error">
+          {err}
+        </div>
+      )}
+
+      {!loading && !err && data && (
+        <>
+          <div className="mt-4 grid grid-cols-3 gap-3 font-mono text-xs">
+            <Stat label="Keys configured" value={data.summary.configured_keys} testId="email-audit-configured-count" />
+            <Stat label="Active in chain" value={data.summary.in_active_chain} testId="email-audit-active-count" />
+            <Stat label="Safe to remove" value={data.summary.safe_to_remove} testId="email-audit-removable-count" />
+          </div>
+
+          <div className="mt-5 border border-[#262626] divide-y divide-[#262626]" data-testid="email-audit-rows">
+            {data.providers.map((p) => (
+              <div key={p.provider} className="p-3 md:p-4" data-testid={`email-audit-row-${p.provider}`}>
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="font-display text-base text-[#e5e5e5] uppercase tracking-[0.04em]">
+                      {p.provider}
+                    </span>
+                    <span
+                      className={`px-2 py-0.5 border font-mono text-[10px] uppercase tracking-[0.22em] font-bold ${roleClass(p.role)}`}
+                    >
+                      {p.role}
+                    </span>
+                    {p.key_configured ? (
+                      <span className="font-mono text-[10px] text-[#737373]">
+                        <code className="text-[#a3a3a3]">{p.key_env}</code> · set
+                      </span>
+                    ) : (
+                      <span className="font-mono text-[10px] text-[#525252]">
+                        <code>{p.key_env}</code> · unset
+                      </span>
+                    )}
+                  </div>
+                  {p.safe_to_remove && (
+                    <span
+                      className="px-2 py-0.5 border border-amber-500/60 text-amber-400 bg-amber-500/5 font-mono text-[10px] uppercase tracking-[0.22em] font-bold"
+                      data-testid={`email-audit-removable-${p.provider}`}
+                    >
+                      ⚠ Safe to remove
+                    </span>
+                  )}
+                </div>
+
+                {p.safe_to_remove && p.dns_records.length > 0 && (
+                  <details className="mt-3 font-mono text-[11px] text-[#a3a3a3]">
+                    <summary
+                      className="cursor-pointer hover:text-[#ff4500]"
+                      data-testid={`email-audit-dns-toggle-${p.provider}`}
+                    >
+                      ↓ Cloudflare records to delete ({p.dns_records.length})
+                    </summary>
+                    <pre className="mt-2 p-3 bg-[#0a0a0a] border border-[#1a1a1a] overflow-x-auto text-[10.5px] text-[#a3a3a3] leading-relaxed whitespace-pre">
+{p.dns_records.join("\n")}
+                    </pre>
+                    <p className="mt-2 text-[10px] text-[#525252]">
+                      Verify in Cloudflare dashboard first — some operators share SPF includes across multiple providers.
+                    </p>
+                  </details>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {data.summary.safe_to_remove === 0 && (
+            <p className="mt-4 font-mono text-[11px] text-emerald-400" data-testid="email-audit-clean">
+              ✓ Nothing to clean up — every configured key is earning its keep.
+            </p>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
+
+
 
 export default function SettingsTab() {
   const [settings, setSettings] = useState(null);
@@ -1275,6 +1425,8 @@ export default function SettingsTab() {
       <SeoDiagCard />
 
       <SearchEnginePingCard />
+
+      <EmailProviderAuditCard />
 
       <GscConnectionCard />
 
