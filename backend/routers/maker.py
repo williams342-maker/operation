@@ -110,6 +110,31 @@ async def maker_update_profile(
     slug: str = Depends(current_maker_slug),
 ):
     updates = {k: v for k, v in payload.model_dump(exclude_none=True).items()}
+    # Clamp years_crafting to a sane range — buyers should not see
+    # "75 years" or "-2 years" on a maker page (likely typo / hostile input).
+    if "years_crafting" in updates:
+        try:
+            yc = int(updates["years_crafting"])
+            updates["years_crafting"] = max(0, min(yc, 60))
+        except (TypeError, ValueError):
+            updates.pop("years_crafting", None)
+    # Normalize machinery — strip whitespace, dedupe (case-insensitive),
+    # cap list length so a maker can't paste a wall of text.
+    if "machinery" in updates and isinstance(updates["machinery"], list):
+        seen: set[str] = set()
+        clean: list[str] = []
+        for m in updates["machinery"]:
+            s = (m or "").strip()
+            if not s or len(s) > 60:
+                continue
+            key = s.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            clean.append(s)
+            if len(clean) >= 12:
+                break
+        updates["machinery"] = clean
     if updates:
         await db.makers.update_one({"slug": slug}, {"$set": updates})
     maker = await db.makers.find_one({"slug": slug}, {"_id": 0})

@@ -185,6 +185,15 @@ class Maker(BaseModel):
     location: str
     bio: str
     techniques: List[str] = []
+    # "Meet the Makers" upgrade (iter178) — story-building fields that
+    # buyers use to vet a maker before committing to a custom order.
+    # `years_crafting` is a self-reported integer (capped at 60 for sanity).
+    # `machinery` is a freeform tag list ("Plasma CNC", "Fiber Laser",
+    # "8-Axis Mill", "Cherry Lathe"…) — distinct from techniques because
+    # buyers searching for "plasma-cut signs" want makers with plasma
+    # tables specifically, not just the technique.
+    years_crafting: Optional[int] = None
+    machinery: List[str] = []
     portrait: str
     cover: str
     email: Optional[EmailStr] = None
@@ -622,6 +631,9 @@ class MakerProfileUpdate(BaseModel):
     bio: Optional[str] = None
     location: Optional[str] = None
     techniques: Optional[List[str]] = None
+    # iter178 — Meet-the-Makers fields
+    years_crafting: Optional[int] = None
+    machinery: Optional[List[str]] = None
     portrait: Optional[str] = None
     cover: Optional[str] = None
     email: Optional[EmailStr] = None

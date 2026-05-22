@@ -326,6 +326,11 @@ async def list_recent_showcase(
     async def _query(filt: dict, n: int) -> list[dict]:
         # Always exclude quarantined posts from the public recent feed.
         merged = {**filt, **_PUBLIC_FEED_FILTER}
+        # `only_makers=true` restricts to maker-authored posts (used by
+        # the homepage "Built in Real Workshops" workshop-imagery
+        # mosaic — buyer posts go elsewhere).
+        if only_makers:
+            merged["user_role"] = "maker"
         return await db.showcase_posts.find(merged, proj).sort("created_at", -1).limit(n).to_list(n)
 
     rows: list[dict] = []

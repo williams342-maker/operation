@@ -19,6 +19,7 @@ from pydantic import BaseModel
 
 from core import db, logger, now_iso
 from maker_auth import current_admin
+from routers.seo import SEO_LANDING_PATHS, SEO_LANDING_SLUGS
 
 router = APIRouter()
 
@@ -380,6 +381,85 @@ async def admin_web_analytics(_: dict = Depends(current_admin)):
         "top_referrers": await _top("source", cutoff_30, 10,
                                     extra_match={"medium": {"$nin": ["direct", "internal"]}}),
     }
+
+
+# ----------------- SEO landing-page analytics --------------------------------
+
+@router.get("/admin/analytics/seo-landing")
+async def admin_seo_landing_analytics(days: int = 30, _: dict = Depends(current_admin)):
+    """Per-landing-page analytics for the buyer-intent SEO pages defined in
+    routers/seo.py::SEO_LANDING_SLUGS. Returns one row per slug with views,
+    unique visitors, sessions, avg dwell, and top external referrer."""
+    days = max(1, min(int(days or 30), 365))
+    cutoff_iso = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+
+    pipe = [
+        {"$match": {"ts": {"$gte": cutoff_iso}, "path": {"$in": list(SEO_LANDING_PATHS)}}},
+        {"$group": {
+            "_id": "$path",
+            "views": {"$sum": 1},
+            "visitors": {"$addToSet": "$visitor_id"},
+            "sessions": {"$addToSet": "$session_id"},
+            "avg_dwell_ms": {"$avg": "$dwell_ms"},
+        }},
+        {"$project": {
+            "_id": 0,
+            "path": "$_id",
+            "views": 1,
+            "unique_visitors": {"$size": "$visitors"},
+            "sessions_count": {"$size": "$sessions"},
+            "avg_dwell_ms": 1,
+        }},
+    ]
+    rows = await db.pageview_events.aggregate(pipe).to_list(100)
+
+    by_path = {r["path"]: r for r in rows}
+
+    # Top external referrer per landing page (medium != direct/internal).
+    ref_pipe = [
+        {"$match": {
+            "ts": {"$gte": cutoff_iso},
+            "path": {"$in": list(SEO_LANDING_PATHS)},
+            "medium": {"$nin": ["direct", "internal"]},
+        }},
+        {"$group": {"_id": {"path": "$path", "source": "$source"}, "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+    ]
+    ref_rows = await db.pageview_events.aggregate(ref_pipe).to_list(2000)
+    top_ref: dict[str, dict] = {}
+    for r in ref_rows:
+        p = r["_id"]["path"]
+        if p not in top_ref:
+            top_ref[p] = {"source": r["_id"]["source"] or "—", "count": int(r["count"])}
+
+    # Emit one row per configured slug so the UI always shows the full grid
+    # (even if a page has zero traffic yet).
+    out: list[dict] = []
+    for slug in SEO_LANDING_SLUGS:
+        path = f"/{slug}"
+        r = by_path.get(path, {})
+        avg_ms = r.get("avg_dwell_ms") or 0
+        ref = top_ref.get(path, {"source": "—", "count": 0})
+        out.append({
+            "slug": slug,
+            "path": path,
+            "views": int(r.get("views", 0)),
+            "unique_visitors": int(r.get("unique_visitors", 0)),
+            "sessions": int(r.get("sessions_count", 0)),
+            "avg_dwell_s": round(float(avg_ms) / 1000.0, 1),
+            "top_referrer": ref["source"],
+            "top_referrer_count": ref["count"],
+        })
+
+    out.sort(key=lambda x: x["views"], reverse=True)
+    totals = {
+        "total_views": sum(r["views"] for r in out),
+        "total_visitors": sum(r["unique_visitors"] for r in out),
+        "total_sessions": sum(r["sessions"] for r in out),
+        "pages": len(out),
+        "window_days": days,
+    }
+    return {"totals": totals, "pages": out}
 
 
 # ----------------- Live now (distinct visitors last 5 min) ------------------

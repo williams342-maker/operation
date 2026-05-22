@@ -13,6 +13,7 @@ import VeteranBadge from "../components/VeteranBadge";
 import BackorderRequestModal from "../components/BackorderRequestModal";
 import RestockWaitlistModal from "../components/RestockWaitlistModal";
 import RecentShowcaseStrip from "../components/RecentShowcaseStrip";
+import CustomOrderCTA from "../components/CustomOrderCTA";
 import { DetailSkeleton } from "../components/Skeleton";
 
 export default function ProductDetail() {
@@ -460,6 +461,15 @@ export default function ProductDetail() {
         title="Buyers who own this"
         testId="product-recent-showcase"
       />
+
+      {/* Custom-order CTA — scoped to this maker so the brief lands
+          straight on their inbox. Highest-margin funnel. */}
+      <div className="max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12 py-8">
+        <CustomOrderCTA
+          makerSlug={p.maker_slug}
+          testId="product-custom-cta"
+        />
+      </div>
     </div>
   );
 }

@@ -8,6 +8,8 @@ export default function ProfileForm({ maker, onSaved }) {
     bio: maker.bio || "",
     location: maker.location || "",
     techniques: (maker.techniques || []).join(", "),
+    years_crafting: maker.years_crafting ?? "",
+    machinery: (maker.machinery || []).join(", "),
     portrait: maker.portrait || "",
     cover: maker.cover || "",
     email: maker.email || "",
@@ -51,6 +53,16 @@ export default function ProfileForm({ maker, onSaved }) {
           .split(",")
           .map((t) => t.trim().toUpperCase())
           .filter(Boolean),
+        // Meet-the-Makers — same comma-list pattern as techniques, but
+        // we preserve the maker's casing because machinery is brand-name
+        // ("Hypertherm Powermax 85") not category ("PLASMA").
+        machinery: form.machinery
+          .split(",")
+          .map((m) => m.trim())
+          .filter(Boolean),
+        // Years crafting: cast to int, drop the field if empty so we
+        // don't accidentally clear an existing value with 0.
+        years_crafting: form.years_crafting === "" ? undefined : Number(form.years_crafting),
       };
       const updated = await updateMakerProfile(payload);
       onSaved(updated);
@@ -85,6 +97,20 @@ export default function ProfileForm({ maker, onSaved }) {
         value={form.techniques}
         onChange={change("techniques")}
         testId="profile-techniques"
+      />
+      <Field
+        label="Years crafting"
+        value={form.years_crafting}
+        onChange={change("years_crafting")}
+        type="number"
+        testId="profile-years-crafting"
+      />
+      <Field
+        label="Workshop machinery (comma-separated)"
+        value={form.machinery}
+        onChange={change("machinery")}
+        testId="profile-machinery"
+        wide
       />
       <Field
         label="Portrait image URL"

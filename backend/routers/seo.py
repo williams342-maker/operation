@@ -17,6 +17,22 @@ from maker_auth import current_admin
 router = APIRouter()
 
 
+# SEO buyer-intent landing pages — mirror the slugs declared in
+# frontend/src/pages/seoLandingConfig.js. Kept here so analytics &
+# sitemap can reuse a single source of truth (Python side).
+SEO_LANDING_SLUGS: tuple[str, ...] = (
+    "cnc-metal-art", "cnc-laser-art", "cnc-manufacturing", "cnc-usa",
+    "artisan-marketplace", "custom-handmade-goods",
+    # Buyer-intent landing pages (iter177)
+    "custom-metal-signs", "personalized-gifts", "farmhouse-decor",
+    "garage-decor", "rustic-cabin-decor", "wedding-gifts",
+    "memorial-pieces", "outdoor-metal-decor", "business-signs",
+    "patriotic-decor", "custom-ranch-signs", "cnc-metal-wall-art",
+    "handmade-gifts-for-dad",
+)
+SEO_LANDING_PATHS: tuple[str, ...] = tuple(f"/{s}" for s in SEO_LANDING_SLUGS)
+
+
 # Any slug matching one of these patterns is considered a test/seed
 # artifact and stripped from the sitemap. Google won't crawl it and
 # we won't get dinged for low-quality content in Search Console.

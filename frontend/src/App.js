@@ -64,6 +64,8 @@ import RecentShowcaseStrip from "./components/RecentShowcaseStrip";
 import TopShowcaseStrip from "./components/TopShowcaseStrip";
 import MakerOfTheWeekSpotlight from "./components/MakerOfTheWeekSpotlight";
 import VelocityProofStrip from "./components/VelocityProofStrip";
+import WhyWeExist from "./components/sections/WhyWeExist";
+import BuiltInRealWorkshops from "./components/sections/BuiltInRealWorkshops";
 import TrendingForumStrip from "./components/TrendingForumStrip";
 import TrendingJournalRail from "./components/TrendingJournalRail";
 import { Toaster } from "sonner";
@@ -83,6 +85,7 @@ const Home = () => {
       <SupportVeteransStrip />
       <Hero />
       <VelocityProofStrip testId="home-velocity" />
+      <WhyWeExist testId="home-why-we-exist" />
       <ShopOfTheWeek />
       <CategoryStrip />
       <ProductRail title="Editor's Picks" eyebrow="◆ Featured" featured testId="rail-featured" />
@@ -99,6 +102,7 @@ const Home = () => {
       <TrendingJournalRail />
       <TopShowcaseStrip testId="home-top-showcase" />
       <MakerOfTheWeekSpotlight testId="home-maker-of-week" />
+      <BuiltInRealWorkshops testId="home-real-workshops" />
       <RecentShowcaseStrip
         eyebrow="◆ From the community"
         title="Recently shared by buyers"

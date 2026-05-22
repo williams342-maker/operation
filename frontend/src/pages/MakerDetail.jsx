@@ -13,6 +13,7 @@ import { FounderBadge, BetaTesterBadge } from "../components/FounderBadge";
 import PlusSlaBadge from "../components/PlusSlaBadge";
 import GoogleAdsFeaturedBadge from "../components/GoogleAdsFeaturedBadge";
 import RecentShowcaseStrip from "../components/RecentShowcaseStrip";
+import CustomOrderCTA from "../components/CustomOrderCTA";
 import { Mail, Facebook, Instagram, Twitter, Youtube, Globe, BookOpen, ArrowUpRight } from "lucide-react";
 
 export default function MakerDetail() {
@@ -138,7 +139,46 @@ export default function MakerDetail() {
           </div>
         )}
         <div className="grid md:grid-cols-12 gap-8 mb-16">
-          <p className="md:col-span-7 font-mono text-base text-[#e5e5e5] leading-relaxed">{m.bio}</p>
+          <div className="md:col-span-7">
+            <p className="font-mono text-base text-[#e5e5e5] leading-relaxed">{m.bio}</p>
+            {/* iter178 — Meet-the-Makers credentials row. Renders only the
+                facts the maker actually filled in (never shows placeholder
+                "—" labels for unknown values). */}
+            {(m.years_crafting || (m.machinery && m.machinery.length > 0)) && (
+              <dl
+                className="mt-6 grid grid-cols-2 gap-x-6 gap-y-3 text-xs font-mono"
+                data-testid="maker-credentials"
+              >
+                {m.years_crafting ? (
+                  <div className="col-span-1">
+                    <dt className="text-[#525252] uppercase tracking-[0.22em] text-[10px] mb-1">
+                      Years crafting
+                    </dt>
+                    <dd className="text-[#e5e5e5] text-lg font-display" data-testid="maker-years-crafting">
+                      {m.years_crafting}+
+                    </dd>
+                  </div>
+                ) : null}
+                {m.machinery && m.machinery.length > 0 ? (
+                  <div className="col-span-2 md:col-span-1">
+                    <dt className="text-[#525252] uppercase tracking-[0.22em] text-[10px] mb-1.5">
+                      Workshop machinery
+                    </dt>
+                    <dd className="flex flex-wrap gap-1.5" data-testid="maker-machinery">
+                      {m.machinery.map((mch) => (
+                        <span
+                          key={mch}
+                          className="tag text-[10px] text-[#a3a3a3] border-[#262626]"
+                        >
+                          {mch}
+                        </span>
+                      ))}
+                    </dd>
+                  </div>
+                ) : null}
+              </dl>
+            )}
+          </div>
           <div className="md:col-span-4 md:col-start-9 flex flex-wrap gap-2 self-start">
             {m.techniques.map((t) => <span key={t} className="tag text-[#ff4500] border-[#ff4500]">{t}</span>)}
           </div>
@@ -169,6 +209,18 @@ export default function MakerDetail() {
 
         <FollowersList makerSlug={m.slug} />
         <MakerReviews makerSlug={m.slug} makerName={m.name} />
+
+        {/* Custom-order CTA — preselects this maker on the brief form so
+            commissions land directly in their inbox. Mounted late so it
+            comes after the reviews trust signal. */}
+        <div className="mt-12">
+          <CustomOrderCTA
+            makerSlug={m.slug}
+            headline={`Want something custom from ${m.name}?`}
+            testId="maker-custom-cta"
+          />
+        </div>
+
         <Link to="/makers" className="inline-block mt-12 industrial-link font-mono text-xs uppercase tracking-[0.22em]">← All makers</Link>
       </div>
       {contactOpen && <ContactMakerModal maker={m} onClose={() => setContactOpen(false)} />}
