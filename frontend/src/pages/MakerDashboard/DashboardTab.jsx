@@ -5,6 +5,7 @@ import {
   ArrowUpRight, Sparkles, Clock, Package, ChevronDown, Hourglass,
 } from "lucide-react";
 import PlusUpgradeNudge from "./PlusUpgradeNudge";
+import ReferralCard from "./ReferralCard";
 
 /**
  * Maker Dashboard "home" view — at-a-glance overview of the shop.
