@@ -60,7 +60,11 @@ export default function VelocityProofStrip({ testId = "velocity-proof" }) {
       key: "makers",
       icon: <Hammer size={14} />,
       value: data.makers_active_this_week,
-      visible: (data.makers_active_this_week || 0) > 0,
+      // Hidden 2026-05-22 — a "1 maker active this week" card reads
+      // underwhelming on the homepage. Flip back to the original
+      // `(data.makers_active_this_week || 0) > 0` to revive once the
+      // weekly-active count is consistently in double digits.
+      visible: false,
       label: `maker${data.makers_active_this_week === 1 ? "" : "s"} active this week`,
       sub: data.total_makers
         ? `of ${data.total_makers} vetted American makers`
