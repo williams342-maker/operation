@@ -12,7 +12,7 @@
  */
 import React, { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Upload, FileText, Trash2, EyeOff, Eye, RefreshCw, AlertCircle } from "lucide-react";
+import { Upload, FileText, Trash2, EyeOff, Eye, RefreshCw, AlertCircle, ExternalLink } from "lucide-react";
 import {
   importMakerReviewsCsv,
   listMakerReviewImports,
@@ -143,20 +143,8 @@ export default function ReviewImportCard({ onImported }) {
 
       {open && (
         <div className="border-t border-[#262626] p-4 md:p-5 space-y-6" data-testid="review-import-body">
-          {/* Step-by-step help */}
-          <div className="bg-[#0d0d0d] border border-[#1a1a1a] p-4 font-mono text-xs text-[#a3a3a3] space-y-2">
-            <p className="text-[#e5e5e5] uppercase tracking-[0.22em] text-[10px] mb-1">How to export</p>
-            <p>
-              <b className="text-[#e5e5e5]">Etsy</b> — Shop Manager → Stats → Reviews →
-              <i> Download CSV</i> (top-right).
-            </p>
-            <p>
-              <b className="text-[#e5e5e5]">Shopify</b> — open your reviews app (Judge.me, Yotpo, Stamped, Loox…) → Settings → Export → CSV.
-            </p>
-            <p className="text-[#525252]">
-              Required columns: <code>date</code>, <code>name</code>, <code>rating</code>, <code>text</code>. Optional: <code>product</code>. Header names are case-insensitive — synonyms like <code>buyer_username</code>, <code>review_body</code>, <code>stars</code> are auto-mapped.
-            </p>
-          </div>
+          {/* Walkthrough — tabbed Etsy/Shopify exports */}
+          <ExportWalkthrough />
 
           {/* Upload form */}
           <form onSubmit={submit} className="space-y-4" data-testid="review-import-form">
@@ -400,5 +388,182 @@ export default function ReviewImportCard({ onImported }) {
         </div>
       )}
     </section>
+  );
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ExportWalkthrough — interactive, tabbed step-by-step instructions for
+// exporting reviews from Etsy or Shopify. Replaces the previous one-line
+// hint block. Each step has a number, a clear instruction, optional "pro
+// tip" note, and the platform tab links to the official help-doc article
+// (open in new tab so the maker doesn't lose their import-in-progress).
+// ─────────────────────────────────────────────────────────────────────────────
+
+const WALKTHROUGHS = {
+  etsy: {
+    label: "Etsy",
+    docLink: "https://help.etsy.com/hc/en-us/articles/360000343068",
+    docLabel: "Etsy Help · Reviewing your shop stats",
+    estimateMin: 2,
+    steps: [
+      {
+        title: "Open Shop Manager → Stats",
+        body: "From your Etsy dashboard, click your shop avatar (top-right) → Shop Manager. In the left navigation, click Stats.",
+      },
+      {
+        title: "Click \"Reviews\" in the side panel",
+        body: "Inside Stats, the left sidebar has a Reviews link. Click it to see the full list of reviews across all your listings.",
+      },
+      {
+        title: "Pick the date range",
+        body: "Top-right of the Reviews page, click the date selector → choose \"All time\" so you get every review since shop launch.",
+        tip: "If you've been on Etsy for years, also export year-by-year in case the full export times out.",
+      },
+      {
+        title: "Click \"Download CSV\"",
+        body: "Top-right corner has a Download CSV button. Save the file to your computer — it's typically named \"reviews-<shop-name>.csv\".",
+      },
+      {
+        title: "Upload it below",
+        body: "Drag the .csv file into the dropzone on this page, leave the source set to Etsy, and click Import. Done.",
+      },
+    ],
+  },
+  shopify: {
+    label: "Shopify",
+    docLink: "https://judge.me/help/articles/import-export-reviews",
+    docLabel: "Judge.me Help · Import/Export reviews",
+    estimateMin: 3,
+    steps: [
+      {
+        title: "Open your reviews app",
+        body: "From Shopify admin → Apps. Click whichever reviews app you use: Judge.me, Yotpo, Stamped.io, Loox, Reviews.io, or Shopify's native Product Reviews.",
+      },
+      {
+        title: "Navigate to Settings → Manage Reviews",
+        body: "Most reviews apps put export under Settings → Reviews (or General → Import/Export). The exact path varies by app — search for \"export\" if you can't find it.",
+        tip: "Judge.me: Settings → General → Export reviews. Yotpo: Moderate → Manage Reviews → Export.",
+      },
+      {
+        title: "Choose CSV format",
+        body: "When asked for a format, pick CSV (not XML, JSON, or PDF). Some apps default to their own format — make sure CSV is selected.",
+      },
+      {
+        title: "Download the file",
+        body: "Click Export → the file either downloads instantly or arrives by email in 5-10 minutes (large stores get the email version).",
+      },
+      {
+        title: "Upload it below",
+        body: "Drag the .csv into the dropzone, select Shopify as the source, and click Import. Header columns are auto-mapped — no manual cleanup needed.",
+      },
+    ],
+  },
+};
+
+
+function ExportWalkthrough() {
+  const [platform, setPlatform] = useState("etsy");
+  const wt = WALKTHROUGHS[platform];
+
+  return (
+    <div
+      className="border border-[#262626] bg-[#0a0a0a]"
+      data-testid="export-walkthrough"
+    >
+      {/* Header + tabs */}
+      <div className="px-4 md:px-5 pt-4 pb-3 border-b border-[#262626]">
+        <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+            Walkthrough · How to export reviews
+          </div>
+          <span className="font-mono text-[10px] text-[#525252]">
+            ~{wt.estimateMin} min
+          </span>
+        </div>
+        <div className="flex gap-2" role="tablist">
+          {Object.entries(WALKTHROUGHS).map(([key, w]) => (
+            <button
+              key={key}
+              role="tab"
+              type="button"
+              aria-selected={platform === key}
+              onClick={() => setPlatform(key)}
+              className={`px-3 py-2 border font-mono text-xs uppercase tracking-[0.18em] transition ${
+                platform === key
+                  ? "border-[#ff4500] text-[#ff4500] bg-[#ff4500]/5"
+                  : "border-[#262626] text-[#a3a3a3] hover:border-[#525252]"
+              }`}
+              data-testid={`walkthrough-tab-${key}`}
+            >
+              {w.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Numbered steps */}
+      <ol
+        className="px-4 md:px-5 py-4 space-y-4"
+        data-testid={`walkthrough-steps-${platform}`}
+      >
+        {wt.steps.map((step, i) => (
+          <li
+            key={i}
+            className="flex gap-3 md:gap-4"
+            data-testid={`walkthrough-step-${platform}-${i + 1}`}
+          >
+            <span
+              className="shrink-0 w-7 h-7 border border-[#ff4500] text-[#ff4500] flex items-center justify-center font-mono text-sm font-bold"
+              aria-hidden="true"
+            >
+              {i + 1}
+            </span>
+            <div className="min-w-0 pt-0.5">
+              <p className="font-mono text-sm text-[#e5e5e5] leading-relaxed">
+                {step.title}
+              </p>
+              <p className="font-mono text-xs text-[#a3a3a3] mt-1 leading-relaxed">
+                {step.body}
+              </p>
+              {step.tip && (
+                <p className="font-mono text-[11px] text-[#737373] mt-1.5 italic leading-relaxed">
+                  Pro tip · {step.tip}
+                </p>
+              )}
+            </div>
+          </li>
+        ))}
+      </ol>
+
+      {/* Help-doc deep link */}
+      <div className="px-4 md:px-5 pb-4 pt-1">
+        <a
+          href={wt.docLink}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 font-mono text-[11px] text-[#a3a3a3] hover:text-[#ff4500] transition"
+          data-testid={`walkthrough-doclink-${platform}`}
+        >
+          <ExternalLink size={11} />
+          <span className="underline-offset-2 hover:underline">{wt.docLabel}</span>
+        </a>
+      </div>
+
+      {/* CSV format reminder — universal across both tabs */}
+      <div className="px-4 md:px-5 py-3 border-t border-[#262626] bg-[#080808]">
+        <p className="font-mono text-[10px] text-[#525252] leading-relaxed">
+          <span className="text-[#737373] uppercase tracking-[0.22em]">Required columns</span>
+          {" "}<code className="text-[#a3a3a3]">date</code>{", "}
+          <code className="text-[#a3a3a3]">name</code>{", "}
+          <code className="text-[#a3a3a3]">rating</code>{", "}
+          <code className="text-[#a3a3a3]">text</code>
+          {". Optional: "}<code className="text-[#a3a3a3]">product</code>
+          {". Synonyms like "}<code className="text-[#a3a3a3]">buyer_username</code>{", "}
+          <code className="text-[#a3a3a3]">review_body</code>{", "}
+          <code className="text-[#a3a3a3]">stars</code>{" "}are auto-mapped.
+        </p>
+      </div>
+    </div>
   );
 }

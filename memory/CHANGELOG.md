@@ -1,6 +1,21 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-23 — iter184 · Etsy/Shopify export walkthrough inside import card ✅
+
+Replaced the one-line "How to export" hint inside `ReviewImportCard.jsx` with an interactive tabbed walkthrough.
+
+### `pages/MakerDashboard/ReviewImportCard.jsx`
+- New `<ExportWalkthrough/>` component mounted at the top of the expanded import body.
+- Tabs: **Etsy** (5 steps, ~2 min) and **Shopify** (5 steps, ~3 min). Source-of-truth content lives in a `WALKTHROUGHS` map so adding a future platform is one object literal.
+- Each step has: numbered badge, bold instruction, descriptive body, optional "Pro tip" line.
+- Deep-link to official help doc per platform (Etsy Help · Shop stats / Judge.me Help · Import-Export). Opens in new tab so the maker doesn't lose import progress.
+- Time estimate badge top-right.
+- Universal CSV-format reminder at the bottom (required columns + accepted synonyms) so makers don't need to scroll back up.
+
+Pure markup change — no backend, no API, no test impact. Lint clean. Smoke screenshots confirm both Etsy and Shopify tabs render correctly with all 5 steps + tab-switching.
+
+
 ## 2026-05-23 — iter183 · Maker CSV review import (Etsy + Shopify) ✅
 
 Makers can now bring their full reputation across from Etsy / Shopify so buyers see their real track record on day-one — not the empty "0 reviews" screen of a freshly-onboarded shop.
