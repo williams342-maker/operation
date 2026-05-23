@@ -474,6 +474,15 @@ export const importMakerReviewsCsv = (file, { source = "csv", publishedPublicly 
     })
     .then((r) => r.data);
 };
+export const previewMakerReviewsImport = (file) => {
+  const fd = new FormData();
+  fd.append("file", file);
+  return http
+    .post("/maker/reviews/import/preview", fd, {
+      headers: { ...authHeaders(), "Content-Type": "multipart/form-data" },
+    })
+    .then((r) => r.data);
+};
 export const listMakerReviewImports = () =>
   http.get("/maker/reviews/imports", { headers: authHeaders() }).then((r) => r.data);
 export const patchMakerReviewImport = (batchId, publishedPublicly) =>

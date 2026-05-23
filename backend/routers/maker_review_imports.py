@@ -231,6 +231,104 @@ def _detect_and_parse(raw: bytes, filename: str) -> tuple[list[dict], str]:
     return rows, "csv"
 
 
+# ---------------- Preview endpoint (iter188) -----------------------------
+
+PREVIEW_SAMPLE_SIZE = 5
+
+
+@router.post("/maker/reviews/import/preview")
+async def maker_review_import_preview(
+    file: UploadFile = File(...),
+    slug: str = Depends(current_maker_slug),
+):
+    """Dry-run parse — same pipeline as the real import endpoint, but
+    nothing lands in Mongo. Lets the maker eyeball the first 5 rows
+    (parsed + mapped) before committing 900+ entries under the wrong
+    source tag. Returns:
+
+      {
+        format: "json" | "csv",
+        total_rows: <count of rows in the file>,
+        would_insert: <count of rows that would land>,
+        would_skip_duplicate: <count of dedupe hits against existing imports>,
+        error_count, errors: [{line, error}],
+        sample: [{name, rating, text, date, product, was_starred_placeholder}]
+      }
+    """
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(400, "Empty file.")
+    if len(raw) > _MAX_BYTES:
+        raise HTTPException(413, f"File too large (cap {_MAX_BYTES // 1024 // 1024} MB).")
+
+    parsed_rows, kind = _detect_and_parse(raw, file.filename or "")
+
+    # Same dedupe pre-load as the real import endpoint so the preview
+    # warns about already-imported batches before the maker clicks go.
+    existing_hashes = {
+        r.get("dedupe_hash")
+        for r in await db.reviews.find(
+            {"maker_slug": slug, "dedupe_hash": {"$exists": True}},
+            {"_id": 0, "dedupe_hash": 1},
+        ).to_list(50_000)
+        if r.get("dedupe_hash")
+    }
+
+    sample: list[dict] = []
+    would_insert = 0
+    would_skip_dup = 0
+    errors: list[dict] = []
+    batch_hashes: set[str] = set()
+
+    for line_no, row in enumerate(parsed_rows, start=2):
+        if line_no - 1 > _MAX_ROWS:
+            errors.append({"line": line_no,
+                           "error": f"Row cap {_MAX_ROWS} exceeded — extra rows skipped."})
+            break
+
+        name = (row.get("name") or "").strip()[:80]
+        rating = _parse_rating(row.get("rating"))
+        text_val = (row.get("text") or "").strip()[:1500]
+        was_placeholder = False
+        if name and rating and not text_val:
+            text_val = f"★ {rating}-star review (no comment left)"
+            was_placeholder = True
+        if not name or not rating:
+            errors.append({"line": line_no, "error": "missing name or rating"})
+            continue
+
+        date_iso = _parse_date(row.get("date", ""))
+        product_slug = (row.get("product") or "").strip()[:120] or None
+        dedupe = _row_dedupe_hash(date_iso, name, text_val)
+        if dedupe in existing_hashes or dedupe in batch_hashes:
+            would_skip_dup += 1
+            continue
+        batch_hashes.add(dedupe)
+        would_insert += 1
+
+        if len(sample) < PREVIEW_SAMPLE_SIZE:
+            sample.append({
+                "line": line_no,
+                "name": name,
+                "rating": rating,
+                "text": text_val[:240] + ("…" if len(text_val) > 240 else ""),
+                "date": date_iso[:10] if date_iso else "",
+                "product": product_slug,
+                "was_starred_placeholder": was_placeholder,
+            })
+
+    return {
+        "format": kind,
+        "total_rows": len(parsed_rows),
+        "would_insert": would_insert,
+        "would_skip_duplicate": would_skip_dup,
+        "error_count": len(errors),
+        "errors": errors[:20],
+        "sample": sample,
+        "sample_size": len(sample),
+    }
+
+
 # ---------------- Upload endpoint ----------------------------------------
 
 @router.post("/maker/reviews/import")

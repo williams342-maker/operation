@@ -12,9 +12,10 @@
  */
 import React, { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Upload, FileText, Trash2, EyeOff, Eye, RefreshCw, AlertCircle, ExternalLink, LifeBuoy } from "lucide-react";
+import { Upload, FileText, Trash2, EyeOff, Eye, RefreshCw, AlertCircle, ExternalLink, LifeBuoy, Search, CheckCircle2 } from "lucide-react";
 import {
   importMakerReviewsCsv,
+  previewMakerReviewsImport,
   listMakerReviewImports,
   patchMakerReviewImport,
   deleteMakerReviewImport,
@@ -29,6 +30,8 @@ export default function ReviewImportCard({ onImported }) {
   const [publishedPublicly, setPublishedPublicly] = useState(true);
   const [file, setFile] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [previewBusy, setPreviewBusy] = useState(false);
+  const [preview, setPreview] = useState(null);   // dry-run result
   const [result, setResult] = useState(null);
   const [err, setErr] = useState("");
   const [imports, setImports] = useState([]);
@@ -60,6 +63,26 @@ export default function ReviewImportCard({ onImported }) {
     setFile(f);
     setErr("");
     setResult(null);
+    setPreview(null);   // new file = stale preview, clear it
+  };
+
+  const doPreview = async () => {
+    if (!file) {
+      setErr("Choose a file first.");
+      return;
+    }
+    setPreviewBusy(true);
+    setErr("");
+    setResult(null);
+    try {
+      const r = await previewMakerReviewsImport(file);
+      setPreview(r);
+    } catch (ex) {
+      const detail = ex?.response?.data?.detail || ex.message || "Preview failed.";
+      setErr(typeof detail === "string" ? detail : "Preview failed.");
+    } finally {
+      setPreviewBusy(false);
+    }
   };
 
   const submit = async (e) => {
@@ -79,6 +102,7 @@ export default function ReviewImportCard({ onImported }) {
         (r.skipped_duplicates ? ` · skipped ${r.skipped_duplicates} duplicate${r.skipped_duplicates === 1 ? "" : "s"}` : ""),
       );
       setFile(null);
+      setPreview(null);
       if (fileRef.current) fileRef.current.value = "";
       await refreshImports();
       if (onImported) onImported();
@@ -259,14 +283,32 @@ export default function ReviewImportCard({ onImported }) {
               </div>
             )}
 
-            <button
-              type="submit"
-              disabled={!file || busy}
-              className="btn-industrial btn-primary disabled:opacity-50"
-              data-testid="review-import-submit"
-            >
-              {busy ? "Importing…" : "Import reviews →"}
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={doPreview}
+                disabled={!file || previewBusy || busy}
+                className="btn-industrial inline-flex items-center gap-2 disabled:opacity-50"
+                data-testid="review-import-preview-btn"
+                title="Parse the file without saving — see the first 5 rows + totals before committing"
+              >
+                <Search size={13} />
+                {previewBusy ? "Parsing…" : "Test parse"}
+              </button>
+              <button
+                type="submit"
+                disabled={!file || busy}
+                className="btn-industrial btn-primary disabled:opacity-50"
+                data-testid="review-import-submit"
+              >
+                {busy ? "Importing…" : preview ? "Looks good — import all →" : "Import reviews →"}
+              </button>
+            </div>
+
+            {/* Test-parse result panel — appears between buttons and result */}
+            {preview && !result && (
+              <PreviewPanel preview={preview} />
+            )}
           </form>
 
           {/* Result panel */}
@@ -584,6 +626,136 @@ function ExportWalkthrough() {
 // column layout, fragmented files, etc.). Uploads the raw file to the
 // support inbox along with a freeform note; support handles the import
 // manually. Turns "I give up" moments into a 5-min human touch.
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PreviewPanel — renders the dry-run output from POST /maker/reviews/import/preview.
+// Shows the 5-row sample so the maker can verify the parser mapped their
+// platform's field names correctly before importing 900+ rows.
+// ─────────────────────────────────────────────────────────────────────────────
+function PreviewPanel({ preview }) {
+  const { format, total_rows, would_insert, would_skip_duplicate, error_count, errors, sample } = preview;
+
+  return (
+    <div
+      className="border border-blue-500/40 bg-blue-500/5 p-4 space-y-4"
+      data-testid="review-import-preview-panel"
+    >
+      <div className="flex items-center gap-2">
+        <CheckCircle2 size={14} className="text-blue-400 shrink-0" />
+        <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-blue-400">
+          Test parse complete · nothing saved yet
+        </p>
+      </div>
+
+      {/* Summary numbers */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 font-mono text-xs">
+        <PreviewStat label="Format detected" value={format.toUpperCase()} />
+        <PreviewStat label="Total rows" value={total_rows.toLocaleString()} />
+        <PreviewStat label="Would insert" value={would_insert.toLocaleString()} accent="emerald" />
+        <PreviewStat
+          label="Already imported (skip)"
+          value={would_skip_duplicate.toLocaleString()}
+          accent={would_skip_duplicate > 0 ? "amber" : null}
+        />
+      </div>
+
+      {/* 5-row sample table */}
+      {sample.length > 0 ? (
+        <div>
+          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">
+            First {sample.length} parsed rows (preview only)
+          </p>
+          <div className="border border-[#262626] overflow-x-auto" data-testid="review-import-preview-table">
+            <table className="w-full font-mono text-[11px]">
+              <thead>
+                <tr className="text-[9px] uppercase tracking-[0.22em] text-[#525252] border-b border-[#262626]">
+                  <th className="text-left py-1.5 px-2 w-8">#</th>
+                  <th className="text-left py-1.5 px-2">Name</th>
+                  <th className="text-left py-1.5 px-2 w-12">★</th>
+                  <th className="text-left py-1.5 px-2 w-24">Date</th>
+                  <th className="text-left py-1.5 px-2">Review</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sample.map((row, i) => (
+                  <tr
+                    key={i}
+                    className="border-b border-[#1a1a1a] last:border-b-0 align-top"
+                    data-testid={`review-import-preview-row-${i}`}
+                  >
+                    <td className="py-2 px-2 text-[#525252]">{i + 1}</td>
+                    <td className="py-2 px-2 text-[#e5e5e5]">{row.name}</td>
+                    <td className="py-2 px-2">
+                      <span className="text-amber-400">{"★".repeat(row.rating)}</span>
+                      <span className="text-[#262626]">{"★".repeat(5 - row.rating)}</span>
+                    </td>
+                    <td className="py-2 px-2 text-[#a3a3a3]">{row.date || "—"}</td>
+                    <td className="py-2 px-2 text-[#a3a3a3] leading-snug">
+                      {row.was_starred_placeholder ? (
+                        <span className="italic text-[#737373]">{row.text}</span>
+                      ) : (
+                        row.text
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+        <p className="font-mono text-xs text-amber-400" data-testid="review-import-preview-no-sample">
+          ⚠ The file parsed but zero rows would be imported.{" "}
+          {would_skip_duplicate > 0
+            ? "Every row in this file was already imported earlier."
+            : "Check that the required columns (name, rating, text) are present."}
+        </p>
+      )}
+
+      {/* Errors callout */}
+      {error_count > 0 && (
+        <details className="font-mono text-[11px]">
+          <summary className="cursor-pointer text-amber-400 hover:text-amber-300">
+            ⚠ {error_count} row{error_count === 1 ? "" : "s"} would be skipped due to parse errors
+          </summary>
+          <ul className="mt-2 space-y-1 text-[10px] text-[#a3a3a3]">
+            {errors.slice(0, 10).map((e, i) => (
+              <li key={i}>Line {e.line}: {e.error}</li>
+            ))}
+            {error_count > 10 && (
+              <li className="text-[#525252] italic">…and {error_count - 10} more</li>
+            )}
+          </ul>
+        </details>
+      )}
+
+      <p className="font-mono text-[10px] text-[#525252] leading-relaxed">
+        Numbers look right? Click <b className="text-[#e5e5e5]">Looks good — import all</b> below.
+        Wrong source platform or weird mapping? Adjust above and re-test, or use{" "}
+        <b className="text-[#e5e5e5]">Stuck? Send your CSV to support</b> at the bottom.
+      </p>
+    </div>
+  );
+}
+
+
+function PreviewStat({ label, value, accent }) {
+  const colorMap = {
+    emerald: "text-emerald-400",
+    amber: "text-amber-400",
+  };
+  return (
+    <div className="border border-[#262626] bg-[#0a0a0a] p-2">
+      <div className="text-[9px] uppercase tracking-[0.22em] text-[#525252]">{label}</div>
+      <div className={`text-base font-display mt-0.5 ${accent ? colorMap[accent] : "text-[#e5e5e5]"}`}>
+        {value}
+      </div>
+    </div>
+  );
+}
+
+
+
 // ─────────────────────────────────────────────────────────────────────────────
 function SupportFallback() {
   const [open, setOpen] = useState(false);

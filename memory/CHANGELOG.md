@@ -1,6 +1,33 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-23 — iter188 · "Test parse" preview mode for review imports ✅
+
+De-risks the bulk-import flow. Maker can run a dry-parse on their file, see the first 5 rows + summary numbers + dedupe warnings, then confirm or adjust before committing 900+ entries.
+
+### Backend `routers/maker_review_imports.py`
+- New `POST /api/maker/reviews/import/preview` (maker-JWT gated). Shares 95% of the import endpoint's pipeline but **never writes to Mongo**. Returns:
+  - `format` ("json" or "csv")
+  - `total_rows` (total parsed from the file)
+  - `would_insert` (count that would land)
+  - `would_skip_duplicate` (existing-hash + in-batch hits combined)
+  - `error_count` + `errors[≤20]` (first 20 row-level errors)
+  - `sample[≤5]` — first 5 valid rows with name, rating, text (trimmed to 240 chars), date (`YYYY-MM-DD`), product, and `was_starred_placeholder` flag
+
+### Frontend `pages/MakerDashboard/ReviewImportCard.jsx`
+- New **Test parse** button next to the existing **Import** button.
+- New `<PreviewPanel/>` renders between the form and the result panel:
+  - Blue summary callout ("Test parse complete · nothing saved yet")
+  - 4-stat grid: format / total / would-insert (emerald) / already-imported (amber when > 0)
+  - First-5-row table with visual star rendering (`★★★★☆`), parsed dates, placeholder rows styled italic
+  - Collapsible errors `<details>` (max 10 visible + "and N more")
+- The main submit button label changes from **"Import reviews →"** to **"Looks good — import all →"** once a preview has run, signaling commit intent.
+- Selecting a new file clears any stale preview so the maker never imports against an out-of-date dry-run.
+
+### Tests
+- `/app/backend/tests/test_review_import_preview.py` — 4/4 PASS: auth gate, returns expected schema + writes nothing, detects JSON via content-sniff (when extension is `.txt`), and counts existing-batch duplicates correctly.
+
+
 ## 2026-05-23 — iter187 · Native Etsy JSON support for review imports ✅
 
 User feedback: "Etsy exports review in json format it can be converted but the import csv doesn't like the format". Etsy's actual export is a JSON array — not CSV — and the field names (`reviewer`, `date_reviewed`, `star_rating`, `message`, `order_id`) weren't in our header synonym map. Both issues fixed.
