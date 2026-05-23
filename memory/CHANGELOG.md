@@ -1,6 +1,40 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-23 — iter183 · Maker CSV review import (Etsy + Shopify) ✅
+
+Makers can now bring their full reputation across from Etsy / Shopify so buyers see their real track record on day-one — not the empty "0 reviews" screen of a freshly-onboarded shop.
+
+### Backend
+- New router `/app/backend/routers/maker_review_imports.py` exposing four endpoints (all gated on maker JWT):
+  - `POST /api/maker/reviews/import` — multipart CSV upload + form fields (`source`, `published_publicly`)
+  - `GET  /api/maker/reviews/imports`
+  - `PATCH /api/maker/reviews/imports/{batch_id}` — toggle public visibility
+  - `DELETE /api/maker/reviews/imports/{batch_id}` — undo a batch
+- `models.py::Review` extended with: `source`, `imported_at`, `imported_batch_id`, `published_publicly`.
+- `catalog.py::list_reviews` now filters out hidden imports (native rows with no `source` field are always returned).
+- Hard caps: 5 MB / 5000 rows per upload.
+- Header-tolerant CSV parser: case-insensitive, accepts common synonyms (`Buyer Username` → name, `Review`/`Body` → text, `Stars` → rating, `Item` → product). Rating cells like "5 stars" or "4/5" parse correctly. Dates parse ISO + common Etsy/Shopify formats.
+- Dedupe via `dedupe_hash = sha256(day + reviewer + first50chars(text))[:32]` — re-uploading the same CSV inserts 0 rows.
+- Batch-level "soft delete" via PATCH + hard delete via DELETE; native reviews never touched even if a query accidentally targets one.
+
+### Frontend
+- New `pages/MakerDashboard/ReviewImportCard.jsx` mounted at the top of the Reviews tab — collapsible header (closed by default), expands to reveal:
+  - Step-by-step export instructions for Etsy + Shopify (Judge.me / Yotpo / Stamped / Loox)
+  - Source platform picker (Etsy / Shopify / Other)
+  - "Show publicly with badge" toggle (default ON)
+  - Drag-drop CSV zone with file picker fallback
+  - Result panel after import (insert count, dup count, per-row errors)
+  - Past-imports table with Hide / Show / Undo per batch
+- `ReviewsTab.jsx` — each imported review row now carries a blue "from etsy" / "from shopify" badge (or a grayscale "imported · hidden" when the maker has it off).
+- `components/MakerReviews.jsx` — public maker shop page renders the same "from etsy" badge alongside the review date, so buyers see the provenance.
+- `lib/api.js` — `importMakerReviewsCsv` / `listMakerReviewImports` / `patchMakerReviewImport` / `deleteMakerReviewImport` helpers.
+
+### Tests
+- `/app/backend/tests/test_review_csv_import.py` — 3/3 PASS (full lifecycle upload→dedupe→hide→delete, missing-columns 422, no-auth 401).
+- Testing agent iteration_56: 100% pass on backend + frontend end-to-end (Playwright walked the entire flow including public badge rendering on `/makers/williams-cnc`).
+
+
 ## 2026-05-22 — iter182 · Email-provider audit + Google Ads activation checklist ✅
 
 Both items addressed the user's two Roadmap backlog selections (Google Ads dev token + DNS cleanup of unused Brevo/Sender/MailerLite records).
