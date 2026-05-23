@@ -43,8 +43,17 @@ function ReviewCard({ r }) {
       </div>
       <p className="font-mono text-sm text-[#e5e5e5] leading-relaxed">{r.text}</p>
       {date && (
-        <div className="font-mono text-[10px] text-[#525252] uppercase tracking-[0.22em]">
-          ◆ {date}
+        <div className="font-mono text-[10px] text-[#525252] uppercase tracking-[0.22em] flex items-center gap-2 flex-wrap">
+          <span>◆ {date}</span>
+          {r.source && (
+            <span
+              className="px-1.5 py-0.5 border border-blue-500/40 text-blue-400 bg-blue-500/5 tracking-[0.22em]"
+              data-testid={`review-imported-badge-${r.id}`}
+              title={`Imported from ${r.source}`}
+            >
+              from {r.source}
+            </span>
+          )}
         </div>
       )}
     </article>

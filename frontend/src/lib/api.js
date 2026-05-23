@@ -462,6 +462,29 @@ export const postMakerReviewResponse = (reviewId, response) =>
 export const createReviewDispute = (reviewId, payload) =>
   http.post(`/maker/reviews/${reviewId}/dispute`, payload, { headers: authHeaders() }).then((r) => r.data);
 
+// ---------- Maker review CSV imports (iter183) ----------
+export const importMakerReviewsCsv = (file, { source = "csv", publishedPublicly = true } = {}) => {
+  const fd = new FormData();
+  fd.append("file", file);
+  fd.append("source", source);
+  fd.append("published_publicly", publishedPublicly ? "true" : "false");
+  return http
+    .post("/maker/reviews/import", fd, {
+      headers: { ...authHeaders(), "Content-Type": "multipart/form-data" },
+    })
+    .then((r) => r.data);
+};
+export const listMakerReviewImports = () =>
+  http.get("/maker/reviews/imports", { headers: authHeaders() }).then((r) => r.data);
+export const patchMakerReviewImport = (batchId, publishedPublicly) =>
+  http
+    .patch(`/maker/reviews/imports/${batchId}`, { published_publicly: publishedPublicly }, { headers: authHeaders() })
+    .then((r) => r.data);
+export const deleteMakerReviewImport = (batchId) =>
+  http
+    .delete(`/maker/reviews/imports/${batchId}`, { headers: authHeaders() })
+    .then((r) => r.data);
+
 // ---------- Admin review disputes ----------
 export const fetchAdminReviewDisputes = (status) =>
   http.get("/admin/review-disputes", {

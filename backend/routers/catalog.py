@@ -190,8 +190,23 @@ async def list_reviews(
     maker_slug: Optional[str] = None,
     product_slug: Optional[str] = None,
 ):
-    """Returns recent reviews. Optional filters by maker or product slug."""
-    q: Dict = {}
+    """Returns recent reviews. Optional filters by maker or product slug.
+
+    Imported reviews from Etsy/Shopify (source != None) are filtered
+    out when the maker has toggled them to unpublished. Native reviews
+    (source is None) are always public — never set published_publicly
+    on those, the filter intentionally only kicks in when source exists.
+    """
+    q: Dict = {
+        # `source` field is missing on legacy native reviews → "$exists: false"
+        # matches them naturally. Imports always have source set, so when
+        # published_publicly is False they get filtered here.
+        "$or": [
+            {"source": {"$exists": False}},
+            {"source": None},
+            {"published_publicly": {"$ne": False}},
+        ],
+    }
     if maker_slug:
         q["maker_slug"] = maker_slug
     if product_slug:

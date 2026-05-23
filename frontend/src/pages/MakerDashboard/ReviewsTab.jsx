@@ -23,6 +23,7 @@ import {
 import EmptyState from "../../components/EmptyState";
 import { RowsSkeleton, StatsSkeleton } from "../../components/Skeleton";
 import { timeAgo } from "../../lib/timeAgo";
+import ReviewImportCard from "./ReviewImportCard";
 
 const REASONS = [
   { id: "not_a_buyer", label: "Reviewer never purchased" },
@@ -71,6 +72,8 @@ export default function ReviewsTab() {
           response for context, or dispute a review you believe is unfair.
         </p>
       </header>
+
+      <ReviewImportCard onImported={refresh} />
 
       {stats && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3" data-testid="reviews-kpis">
@@ -157,6 +160,23 @@ function ReviewRow({ rev, composerOpen, disputeOpen, onToggleComposer, onToggleD
             {rev.dispute_status === "denied" && (
               <span className="px-2 py-0.5 border border-[#525252]/50 text-[#a3a3a3] font-mono text-[9px] uppercase tracking-[0.22em]">
                 Dispute denied
+              </span>
+            )}
+            {rev.source && (
+              <span
+                className={`px-2 py-0.5 border font-mono text-[9px] uppercase tracking-[0.22em] ${
+                  rev.published_publicly === false
+                    ? "border-[#525252]/50 text-[#737373]"
+                    : "border-blue-500/40 text-blue-400 bg-blue-500/5"
+                }`}
+                data-testid={`review-source-badge-${rev.id}`}
+                title={
+                  rev.published_publicly === false
+                    ? "Imported but hidden from buyers"
+                    : `Imported from ${rev.source}`
+                }
+              >
+                {rev.published_publicly === false ? "imported · hidden" : `from ${rev.source}`}
               </span>
             )}
             {rev.product_slug && (

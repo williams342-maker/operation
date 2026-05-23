@@ -425,6 +425,14 @@ class Review(BaseModel):
     # to join across collections to render the maker dashboard.
     dispute_status: Optional[str] = None  # None | "open" | "upheld" | "denied"
     dispute_id: Optional[str] = None
+    # Imported-review provenance (iter183). `source` is None for native
+    # Crafters Market reviews and "etsy" / "shopify" / "csv" when the
+    # maker uploaded a CSV from another platform. Imports default to
+    # publicly visible but can be hidden per-batch via the dashboard.
+    source: Optional[str] = None
+    imported_at: Optional[str] = None
+    imported_batch_id: Optional[str] = None
+    published_publicly: bool = True
 
 
 class ReviewCreate(BaseModel):
