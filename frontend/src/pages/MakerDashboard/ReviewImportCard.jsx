@@ -12,12 +12,13 @@
  */
 import React, { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Upload, FileText, Trash2, EyeOff, Eye, RefreshCw, AlertCircle, ExternalLink } from "lucide-react";
+import { Upload, FileText, Trash2, EyeOff, Eye, RefreshCw, AlertCircle, ExternalLink, LifeBuoy } from "lucide-react";
 import {
   importMakerReviewsCsv,
   listMakerReviewImports,
   patchMakerReviewImport,
   deleteMakerReviewImport,
+  sendReviewCsvToSupport,
 } from "../../lib/api";
 
 const SOURCE_LABELS = { etsy: "Etsy", shopify: "Shopify", csv: "Other / CSV" };
@@ -385,6 +386,9 @@ export default function ReviewImportCard({ onImported }) {
               </div>
             )}
           </div>
+
+          {/* Support fallback — last resort when the auto-import won't budge */}
+          <SupportFallback />
         </div>
       )}
     </section>
@@ -564,6 +568,202 @@ function ExportWalkthrough() {
           <code className="text-[#a3a3a3]">stars</code>{" "}are auto-mapped.
         </p>
       </div>
+    </div>
+  );
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SupportFallback — collapsible "Send my CSV to support" panel. Last
+// resort for makers whose CSV won't parse (broken Etsy export, weird
+// column layout, fragmented files, etc.). Uploads the raw file to the
+// support inbox along with a freeform note; support handles the import
+// manually. Turns "I give up" moments into a 5-min human touch.
+// ─────────────────────────────────────────────────────────────────────────────
+function SupportFallback() {
+  const [open, setOpen] = useState(false);
+  const [file, setFile] = useState(null);
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [err, setErr] = useState("");
+  const fileRef = useRef(null);
+
+  const handleFile = (f) => {
+    if (!f) return;
+    setFile(f);
+    setErr("");
+    setSent(false);
+  };
+
+  const submit = async (e) => {
+    e?.preventDefault?.();
+    if (!file) {
+      setErr("Attach the CSV you've been trying to import.");
+      return;
+    }
+    setBusy(true);
+    setErr("");
+    try {
+      await sendReviewCsvToSupport(file, note);
+      setSent(true);
+      setFile(null);
+      setNote("");
+      if (fileRef.current) fileRef.current.value = "";
+      toast.success("Sent to support — we'll reply within one business day.");
+    } catch (ex) {
+      setErr(ex?.response?.data?.detail || "Couldn't reach support. Try again in a minute.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div
+      className="border border-[#262626] bg-[#0a0a0a]"
+      data-testid="review-import-support-fallback"
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full px-4 py-3 flex items-center justify-between gap-3 text-left hover:bg-[#0d0d0d] transition"
+        data-testid="support-fallback-toggle"
+        aria-expanded={open}
+      >
+        <div className="flex items-center gap-2.5 min-w-0">
+          <LifeBuoy size={14} className="text-[#a3a3a3] shrink-0" />
+          <div className="min-w-0">
+            <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#e5e5e5]">
+              Stuck? Send your CSV to support
+            </div>
+            <p className="font-mono text-[10px] text-[#737373] mt-0.5 truncate">
+              We'll import it manually and reply within one business day.
+            </p>
+          </div>
+        </div>
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#737373] shrink-0">
+          {open ? "Close ▴" : "Open ▾"}
+        </span>
+      </button>
+
+      {open && (
+        <form
+          onSubmit={submit}
+          className="border-t border-[#262626] p-4 space-y-4"
+          data-testid="support-fallback-body"
+        >
+          {sent ? (
+            <div
+              className="border border-emerald-500/40 bg-emerald-500/5 p-4 font-mono text-xs"
+              data-testid="support-fallback-sent"
+            >
+              <p className="text-emerald-400 uppercase tracking-[0.22em] text-[10px] mb-2">
+                ◆ Sent to support
+              </p>
+              <p className="text-[#e5e5e5] leading-relaxed">
+                Our team has your file. We'll reply to you by email within one
+                business day with either your imported reviews or a request for
+                more info. Thanks for the patience.
+              </p>
+              <button
+                type="button"
+                onClick={() => setSent(false)}
+                className="mt-3 font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500]"
+              >
+                ← Send another file
+              </button>
+            </div>
+          ) : (
+            <>
+              <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed">
+                Attach the CSV (or anything close — XLS, partial export, even
+                a screenshot) and write a quick note about what's going wrong.
+                We'll do the conversion + import on our side.
+              </p>
+
+              {/* File picker */}
+              <div className="border border-dashed border-[#262626] hover:border-[#a3a3a3]/50 p-4 transition">
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept=".csv,.xls,.xlsx,.txt,.tsv,text/csv,image/*"
+                  onChange={(e) => handleFile(e.target.files?.[0])}
+                  className="hidden"
+                  data-testid="support-fallback-file-input"
+                />
+                {file ? (
+                  <div className="flex items-center gap-3">
+                    <FileText size={18} className="text-[#a3a3a3] shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-mono text-xs text-[#e5e5e5] truncate">{file.name}</p>
+                      <p className="font-mono text-[10px] text-[#525252]">
+                        {(file.size / 1024).toFixed(1)} KB
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFile(null);
+                        if (fileRef.current) fileRef.current.value = "";
+                      }}
+                      className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500]"
+                    >
+                      × Remove
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => fileRef.current?.click()}
+                    className="font-mono text-xs uppercase tracking-[0.18em] text-[#a3a3a3] hover:text-[#ff4500] transition"
+                    data-testid="support-fallback-browse-btn"
+                  >
+                    + Attach file
+                  </button>
+                )}
+              </div>
+
+              {/* Note */}
+              <div>
+                <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] block mb-2">
+                  What's not working? (optional)
+                </label>
+                <textarea
+                  value={note}
+                  onChange={(e) => setNote(e.target.value.slice(0, 2000))}
+                  rows={3}
+                  placeholder="e.g. Etsy gave me a weird format with merged columns, or Judge.me's export is missing dates…"
+                  className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5] resize-y"
+                  data-testid="support-fallback-note"
+                />
+                <p className="font-mono text-[10px] text-[#525252] mt-1 text-right">
+                  {note.length} / 2000
+                </p>
+              </div>
+
+              {err && (
+                <div
+                  className="flex items-start gap-2 p-3 border border-red-500/40 bg-red-500/5 text-red-400 font-mono text-xs"
+                  data-testid="support-fallback-error"
+                >
+                  <AlertCircle size={14} className="shrink-0 mt-0.5" />
+                  <span className="leading-relaxed">{err}</span>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={!file || busy}
+                className="btn-industrial inline-flex items-center gap-2 disabled:opacity-50"
+                data-testid="support-fallback-submit"
+              >
+                <LifeBuoy size={13} />
+                {busy ? "Sending…" : "Send to support →"}
+              </button>
+            </>
+          )}
+        </form>
+      )}
     </div>
   );
 }

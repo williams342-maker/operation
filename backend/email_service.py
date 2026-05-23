@@ -130,6 +130,56 @@ async def _send_mailgun(to: str, subject: str, html: str):
     return {"message_id": msg_id, "status": r.status_code}
 
 
+async def send_mailgun_with_attachment(
+    to: str,
+    subject: str,
+    html: str,
+    attachment_bytes: bytes,
+    attachment_filename: str,
+    attachment_mime: str = "text/csv",
+    reply_to: str | None = None,
+) -> dict:
+    """Send a Mailgun message with a single file attachment.
+
+    Standalone helper (not part of the fallback chain) because attachments
+    only matter for niche flows like "support fallback CSV forward" where
+    we don't need provider redundancy — if Mailgun is down the maker can
+    just retry in a minute. Returns `{ok, message_id, status, error}`.
+    """
+    if not (MAILGUN_API_KEY and MAILGUN_DOMAIN):
+        return {"ok": False, "status": 0, "error": "Mailgun not configured"}
+    base = "https://api.eu.mailgun.net" if MAILGUN_REGION == "eu" else "https://api.mailgun.net"
+    url = f"{base}/v3/{MAILGUN_DOMAIN}/messages"
+    data = {
+        "from": f"{SENDER_NAME} <{SENDER_EMAIL}>",
+        "to": to,
+        "subject": subject,
+        "html": html,
+        "o:tag": "support-csv-forward",
+        "o:tracking": "no",
+    }
+    if reply_to:
+        data["h:Reply-To"] = reply_to
+    files = {
+        "attachment": (attachment_filename, attachment_bytes, attachment_mime),
+    }
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            r = await client.post(url, auth=("api", MAILGUN_API_KEY),
+                                  data=data, files=files)
+    except httpx.RequestError as e:
+        logger.warning("mailgun (attachment) transport error: %s", e)
+        return {"ok": False, "status": 0, "error": f"transport: {e}"[:300]}
+    if r.status_code >= 400:
+        logger.warning("mailgun (attachment) error %d: %s", r.status_code, r.text[:300])
+        return {"ok": False, "status": r.status_code, "error": r.text[:300]}
+    body = r.json() if r.content else {}
+    msg_id = body.get("id")
+    logger.info("mailgun (attachment) sent → %s · id=%s · file=%s",
+                to, msg_id, attachment_filename)
+    return {"ok": True, "message_id": msg_id, "status": r.status_code}
+
+
 async def _send_mailtrap(to: str, subject: str, html: str):
     """Send via Mailtrap Sending API.
     https://docs.mailtrap.io/developers/email-sending/transactional

@@ -346,3 +346,94 @@ async def maker_review_import_delete(
     })
     await db.review_import_batches.delete_one({"batch_id": batch_id, "maker_slug": slug})
     return {"ok": True, "batch_id": batch_id, "deleted": result.deleted_count}
+
+
+
+# ============================================================================
+# Support-fallback CSV forward (iter185)
+# ----------------------------------------------------------------------------
+# When a maker can't get the regular CSV upload working (busted Etsy
+# export, weird headers, fragmented data across multiple files, etc.),
+# they tap this button to ship the file straight to the support inbox
+# along with a freeform note. Support handles the import manually and
+# replies via email. Turns "I give up" moments into a 5-minute touch.
+# ============================================================================
+
+SUPPORT_INBOX = "team@craftersmarket.org"
+
+
+@router.post("/maker/reviews/import/send-to-support")
+async def maker_review_import_send_to_support(
+    file: UploadFile = File(...),
+    note: str = Form(""),
+    slug: str = Depends(current_maker_slug),
+):
+    """Forward a CSV file to the support inbox with a note from the maker.
+    Used as a fallback when the auto-import flow can't parse the file."""
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(400, "Empty file.")
+    if len(raw) > _MAX_BYTES:
+        raise HTTPException(413, f"File too large (cap {_MAX_BYTES // 1024 // 1024} MB).")
+
+    # Pull a friendly maker name + email so support can reply directly.
+    maker = await db.makers.find_one(
+        {"slug": slug}, {"_id": 0, "name": 1, "email": 1, "contact_email": 1},
+    ) or {}
+    maker_name = maker.get("name") or slug
+    reply_to = (maker.get("contact_email") or maker.get("email") or "").strip() or None
+
+    note_clean = (note or "").strip()[:2000]
+    filename = file.filename or "reviews.csv"
+
+    subject = f"[Review CSV] {maker_name} ({slug}) needs import help"
+    html = (
+        f"<p><b>Maker:</b> {maker_name} (<code>{slug}</code>)</p>"
+        f"<p><b>File:</b> {filename} · {len(raw)} bytes</p>"
+        f"<p><b>Reply-to:</b> {reply_to or '— not on file —'}</p>"
+        f"<p><b>Maker note:</b></p>"
+        f"<pre style='white-space:pre-wrap;font-family:ui-monospace,monospace;background:#f6f6f6;padding:12px;border:1px solid #ddd'>{(note_clean or '(no note provided)')}</pre>"
+        f"<hr/>"
+        f"<p style='font-size:11px;color:#888'>Forwarded from the maker dashboard "
+        f"Review-Import fallback. Reply directly to this email to reach the maker.</p>"
+    )
+
+    from email_service import send_mailgun_with_attachment
+    result = await send_mailgun_with_attachment(
+        to=SUPPORT_INBOX,
+        subject=subject,
+        html=html,
+        attachment_bytes=raw,
+        attachment_filename=filename,
+        attachment_mime=file.content_type or "text/csv",
+        reply_to=reply_to,
+    )
+
+    # Audit log — even on failure, so support knows the maker tried.
+    await db.review_import_support_requests.insert_one({
+        "maker_slug": slug,
+        "filename": filename,
+        "size_bytes": len(raw),
+        "note": note_clean,
+        "reply_to": reply_to,
+        "created_at": now_iso(),
+        "ok": bool(result.get("ok")),
+        "message_id": result.get("message_id"),
+        "error": result.get("error"),
+    })
+
+    if not result.get("ok"):
+        logger.warning("[review_import.support] send failed maker=%s: %s",
+                       slug, result.get("error"))
+        # Surface a generic message — the maker shouldn't need to know
+        # whether Mailgun is misconfigured, just that we'll retry.
+        raise HTTPException(
+            502,
+            "Couldn't reach our support inbox right now. Email "
+            f"{SUPPORT_INBOX} directly with your CSV attached and we'll handle it.",
+        )
+
+    logger.info("[review_import.support] forwarded CSV to %s for maker=%s file=%s",
+                SUPPORT_INBOX, slug, filename)
+    return {"ok": True, "support_email": SUPPORT_INBOX,
+            "message_id": result.get("message_id")}

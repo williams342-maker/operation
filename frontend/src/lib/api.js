@@ -484,6 +484,16 @@ export const deleteMakerReviewImport = (batchId) =>
   http
     .delete(`/maker/reviews/imports/${batchId}`, { headers: authHeaders() })
     .then((r) => r.data);
+export const sendReviewCsvToSupport = (file, note = "") => {
+  const fd = new FormData();
+  fd.append("file", file);
+  fd.append("note", note || "");
+  return http
+    .post("/maker/reviews/import/send-to-support", fd, {
+      headers: { ...authHeaders(), "Content-Type": "multipart/form-data" },
+    })
+    .then((r) => r.data);
+};
 
 // ---------- Admin review disputes ----------
 export const fetchAdminReviewDisputes = (status) =>

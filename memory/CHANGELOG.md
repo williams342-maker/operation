@@ -1,6 +1,34 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-23 — iter185 · "Send my CSV to support" fallback button ✅
+
+Catches the makers who can't get the auto-import to work (busted Etsy exports, weird column layouts, fragmented files) and routes them to a human in one click.
+
+### Backend
+- `email_service.send_mailgun_with_attachment()` — new standalone helper using Mailgun's multipart `files=` upload. Not part of the fallback chain because attachments are niche to this flow.
+- `routers/maker_review_imports.py::POST /api/maker/reviews/import/send-to-support`:
+  - Multipart upload (file + optional note up to 2000 chars).
+  - Resolves maker name + contact email for Reply-To.
+  - Emails `team@craftersmarket.org` with the CSV attached, maker note in the body, and Reply-To set so support can respond directly.
+  - Audit log row in `db.review_import_support_requests` on every attempt (success or failure).
+  - 5 MB / no-empty-file guards; Mailgun failure surfaces a 502 with a polite fallback message including the support email address.
+
+### Frontend `pages/MakerDashboard/ReviewImportCard.jsx`
+- New `<SupportFallback/>` panel mounted below the past-imports list.
+- Collapsible header with `LifeBuoy` icon + "Stuck? Send your CSV to support".
+- Accepts CSV / XLS / XLSX / TSV / TXT / images (in case the maker can only screenshot their reviews).
+- Freeform note textarea with 2000-char limit + live counter.
+- Success state: emerald success card with "+ Send another file" reset button.
+- Toast notification confirms delivery.
+
+### Tests
+- `/app/backend/tests/test_review_csv_support_fallback.py` — 3/3 PASS (auth gate, empty-file 400, oversize 413). Mailgun is NOT mocked because monkeypatch can't cross the test→backend process boundary; happy-path was verified by 2 real test emails landing in team@craftersmarket.org during development.
+
+### Operator note
+The audit collection `db.review_import_support_requests` will accumulate one row per support request. No retention policy yet — if volume becomes meaningful, consider a TTL index on `created_at` or surface a count badge on the admin dashboard.
+
+
 ## 2026-05-23 — iter184 · Etsy/Shopify export walkthrough inside import card ✅
 
 Replaced the one-line "How to export" hint inside `ReviewImportCard.jsx` with an interactive tabbed walkthrough.
