@@ -53,8 +53,8 @@ export default function ReviewImportCard({ onImported }) {
 
   const handleFile = (f) => {
     if (!f) return;
-    if (!/\.csv$/i.test(f.name)) {
-      setErr("Please upload a .csv file.");
+    if (!/\.(csv|json)$/i.test(f.name)) {
+      setErr("Please upload a .csv or .json file (Etsy exports as .json).");
       return;
     }
     setFile(f);
@@ -133,7 +133,7 @@ export default function ReviewImportCard({ onImported }) {
               ◆ Import reviews from another platform
             </div>
             <p className="font-mono text-xs text-[#a3a3a3] mt-1 truncate">
-              Bring over your Etsy or Shopify reviews so buyers see your full track record.
+              Bring over your Etsy or Shopify reviews — we read both CSV and Etsy's native JSON export.
             </p>
           </div>
         </div>
@@ -208,7 +208,7 @@ export default function ReviewImportCard({ onImported }) {
               <input
                 ref={fileRef}
                 type="file"
-                accept=".csv,text/csv"
+                accept=".csv,.json,text/csv,application/json"
                 onChange={(e) => handleFile(e.target.files?.[0])}
                 className="hidden"
                 data-testid="review-import-file-input"
@@ -240,10 +240,10 @@ export default function ReviewImportCard({ onImported }) {
                     className="font-mono text-xs uppercase tracking-[0.18em] text-[#ff4500] hover:underline"
                     data-testid="review-import-browse-btn"
                   >
-                    Browse for CSV
+                    Browse for CSV or JSON
                   </button>
                   <p className="font-mono text-[10px] text-[#525252] mt-2">
-                    or drop the file here · max 5 MB / 5000 rows
+                    or drop the file here · Etsy ships JSON · max 5 MB / 5000 rows
                   </p>
                 </>
               )}
@@ -425,12 +425,13 @@ const WALKTHROUGHS = {
         tip: "If you've been on Etsy for years, also export year-by-year in case the full export times out.",
       },
       {
-        title: "Click \"Download CSV\"",
-        body: "Top-right corner has a Download CSV button. Save the file to your computer — it's typically named \"reviews-<shop-name>.csv\".",
+        title: "Click \"Download\" — Etsy gives you a .json file",
+        body: "Top-right corner has a Download button. The file Etsy hands you is a .json file (NOT a .csv) — that's totally fine, just save it as-is.",
+        tip: "If you previously converted Etsy's JSON to CSV by hand, you don't need to anymore — we read JSON natively.",
       },
       {
-        title: "Upload it below",
-        body: "Drag the .csv file into the dropzone on this page, leave the source set to Etsy, and click Import. Done.",
+        title: "Upload the .json file below",
+        body: "Drag the file into the dropzone, leave the source set to Etsy, and click Import. We'll auto-map `reviewer`, `star_rating`, `message`, and `date_reviewed` — no header tweaks needed.",
       },
     ],
   },
@@ -554,18 +555,22 @@ function ExportWalkthrough() {
         </a>
       </div>
 
-      {/* CSV format reminder — universal across both tabs */}
+      {/* CSV/JSON format reminder — universal across both tabs */}
       <div className="px-4 md:px-5 py-3 border-t border-[#262626] bg-[#080808]">
         <p className="font-mono text-[10px] text-[#525252] leading-relaxed">
-          <span className="text-[#737373] uppercase tracking-[0.22em]">Required columns</span>
-          {" "}<code className="text-[#a3a3a3]">date</code>{", "}
+          <span className="text-[#737373] uppercase tracking-[0.22em]">Accepted</span>
+          {" "}<b className="text-[#a3a3a3]">.csv</b>{" or "}
+          <b className="text-[#a3a3a3]">.json</b>{". Required fields: "}
+          <code className="text-[#a3a3a3]">date</code>{", "}
           <code className="text-[#a3a3a3]">name</code>{", "}
           <code className="text-[#a3a3a3]">rating</code>{", "}
           <code className="text-[#a3a3a3]">text</code>
-          {". Optional: "}<code className="text-[#a3a3a3]">product</code>
-          {". Synonyms like "}<code className="text-[#a3a3a3]">buyer_username</code>{", "}
-          <code className="text-[#a3a3a3]">review_body</code>{", "}
-          <code className="text-[#a3a3a3]">stars</code>{" "}are auto-mapped.
+          {". Etsy field names ("}
+          <code className="text-[#a3a3a3]">reviewer</code>{", "}
+          <code className="text-[#a3a3a3]">star_rating</code>{", "}
+          <code className="text-[#a3a3a3]">message</code>{", "}
+          <code className="text-[#a3a3a3]">date_reviewed</code>
+          {") and Shopify synonyms are auto-mapped — no manual conversion needed."}
         </p>
       </div>
     </div>

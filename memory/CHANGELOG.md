@@ -1,6 +1,38 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-23 — iter187 · Native Etsy JSON support for review imports ✅
+
+User feedback: "Etsy exports review in json format it can be converted but the import csv doesn't like the format". Etsy's actual export is a JSON array — not CSV — and the field names (`reviewer`, `date_reviewed`, `star_rating`, `message`, `order_id`) weren't in our header synonym map. Both issues fixed.
+
+### Backend `routers/maker_review_imports.py`
+- New `_detect_and_parse(raw, filename)` splits the upload pipeline into JSON and CSV branches. Detection priority: filename extension first, then content sniff (first non-whitespace char `[` or `{`).
+- JSON path:
+  - Accepts a flat array `[ {…}, … ]` (Etsy's shape) or a wrapped object `{"reviews": [...]}` / `{"data": [...]}` / `{"items": [...]}` / `{"results": [...]}` (other platforms).
+  - 400 with line/column on parse error.
+  - Each object normalized through the same synonym map as CSV columns so downstream logic is identical.
+- Header synonyms extended: `date_reviewed → date`, `reviewer → name`, `star_rating → rating`, `message → text`, `order_id → product`.
+- Star-only reviews (rating + name but no text) are common on Etsy — buyers tap 5 stars and skip writing. Previously these were treated as errors; now they auto-fill `★ N-star review (no comment left)` so they import cleanly. Native CM reviews still require text via the public `POST /api/reviews` validator — this exception is only for imports.
+
+### Real-world verification with the user-supplied Etsy JSON
+- 925 reviews in the file → **905 inserted, 20 in-file dedupes caught, 0 errors**.
+- Re-uploading the same file → 0 inserted, 925 dedup'd. ✓
+- Uploading the user's manually-converted CSV after the JSON import → 0 inserted, 925 dedup'd. ✓ (cross-format dedupe works)
+
+### Frontend `pages/MakerDashboard/ReviewImportCard.jsx`
+- Dropzone now accepts `.json` alongside `.csv` (`accept=".csv,.json,text/csv,application/json"`).
+- Header copy: "we read both CSV and Etsy's native JSON export".
+- Helper text below "Browse for CSV or JSON" mentions "Etsy ships JSON".
+- Etsy walkthrough rewritten — old step "Click Download CSV" replaced with "Click Download — Etsy gives you a .json file" + a pro tip that no manual conversion is needed.
+- Universal accepted-format reminder updated to list Etsy field names explicitly (`reviewer`, `star_rating`, `message`, `date_reviewed`).
+
+### Tests
+- `tests/test_review_csv_import.py`:
+  - Extended the existing CSV lifecycle test to include a star-only row that imports as a placeholder.
+  - 3 new JSON-specific tests: native Etsy array shape (with empty-message handling), wrapped object `{"reviews": [...]}`, malformed-JSON 400.
+- All 6 tests PASS in isolation (1 documented motor cross-test event-loop quirk on full-file run, fixes itself per-file).
+
+
 ## 2026-05-23 — iter186 · Maker workshop videos ✅
 
 Closes the last open P3. Makers can now paste up to 6 YouTube / Vimeo URLs and the videos render as a grid at the top of their public maker profile under a new "From the workshop floor" heading.

@@ -31,6 +31,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import io
+import json
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
@@ -48,14 +49,15 @@ router = APIRouter()
 # ---------------- CSV header normalization ---------------------------------
 
 _HEADER_SYNONYMS: dict[str, set[str]] = {
-    "date":    {"date", "created_at", "time", "review_date", "review date", "timestamp"},
+    "date":    {"date", "created_at", "time", "review_date", "review date",
+                "timestamp", "date_reviewed"},
     "name":    {"name", "reviewer_name", "reviewer", "buyer", "buyer_username",
                 "buyer username", "customer", "customer_name", "author"},
-    "rating":  {"rating", "stars", "score", "review_rating"},
+    "rating":  {"rating", "stars", "score", "review_rating", "star_rating"},
     "text":    {"text", "review", "body", "comment", "content", "message",
                 "review_body", "review_text"},
     "product": {"product", "product_slug", "product_handle", "item", "listing",
-                "item_title", "product_name", "item title"},
+                "item_title", "product_name", "item title", "order_id"},
 }
 
 _MAX_ROWS = 5000          # upload cap — refuse files bigger than this
@@ -132,6 +134,103 @@ def _row_dedupe_hash(date_iso: str, name: str, text: str) -> str:
     return hashlib.sha256(f"{day}|{name_n}|{text_n}".encode()).hexdigest()[:32]
 
 
+# ---------------- Row normalization (JSON or CSV → uniform dicts) -----------
+
+def _normalize_one_obj(obj: dict) -> dict:
+    """Pull a `{name, rating, text, date, product}` row out of an arbitrary
+    JSON object using the same header-synonym map we apply to CSV columns.
+    Etsy uses `reviewer / star_rating / message / date_reviewed / order_id`."""
+    if not isinstance(obj, dict):
+        return {}
+    keys_lower = {(k or "").strip().lower().replace("-", "_").replace(" ", "_"): k
+                  for k in obj.keys()}
+    out: dict[str, str] = {}
+    for canonical, syns in _HEADER_SYNONYMS.items():
+        for k_lower, orig in keys_lower.items():
+            if k_lower in syns or k_lower == canonical:
+                v = obj.get(orig)
+                if v is not None:
+                    out[canonical] = str(v)
+                    break
+    return out
+
+
+def _detect_and_parse(raw: bytes, filename: str) -> tuple[list[dict], str]:
+    """Return `(rows, content_kind)` where rows is a list of canonical-keyed
+    dicts and content_kind is "csv" | "json". Caller still validates each row.
+    Raises HTTPException with a helpful message for malformed input."""
+    # Decode
+    try:
+        text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        try:
+            text = raw.decode("latin-1")
+        except Exception:
+            raise HTTPException(400, "Couldn't decode the file — save it as UTF-8 and try again.")
+
+    # JSON detection — by extension or by first non-whitespace char.
+    looks_json = filename.lower().endswith(".json")
+    if not looks_json:
+        stripped = text.lstrip()
+        if stripped.startswith(("[", "{")):
+            looks_json = True
+
+    if looks_json:
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError as e:
+            raise HTTPException(
+                400,
+                f"JSON parse error: {e.msg} (line {e.lineno}, col {e.colno}). "
+                "Make sure you downloaded the file directly from Etsy without editing it.",
+            )
+        # Etsy ships a flat array `[ {…}, {…} ]`. Some platforms wrap it:
+        # `{"reviews": [...]}` or `{"data": [...]}`. Try the common keys.
+        if isinstance(data, dict):
+            for key in ("reviews", "data", "items", "results"):
+                if isinstance(data.get(key), list):
+                    data = data[key]
+                    break
+        if not isinstance(data, list):
+            raise HTTPException(
+                400,
+                "JSON file must contain an array of review objects "
+                "(or an object with a `reviews` array).",
+            )
+        return [_normalize_one_obj(o) for o in data], "json"
+
+    # CSV path
+    reader = csv.reader(io.StringIO(text))
+    try:
+        header = next(reader)
+    except StopIteration:
+        raise HTTPException(400, "CSV has no rows.")
+    col_map: dict[str, int] = {}
+    for i, h in enumerate(header):
+        canonical = _normalize_header(h)
+        if canonical and canonical not in col_map:
+            col_map[canonical] = i
+    missing = [c for c in ("name", "rating", "text") if c not in col_map]
+    if missing:
+        raise HTTPException(
+            422,
+            f"CSV is missing required columns: {', '.join(missing)}. "
+            f"At minimum the file needs columns for reviewer name, rating, "
+            f"and review text. Accepted header synonyms include: "
+            f"{', '.join(sorted(_HEADER_SYNONYMS['name'] | _HEADER_SYNONYMS['rating'] | _HEADER_SYNONYMS['text']))}",
+        )
+    rows: list[dict] = []
+    for row in reader:
+        if not row or not any((c or "").strip() for c in row):
+            continue
+        normalized: dict[str, str] = {}
+        for canonical, idx in col_map.items():
+            if idx < len(row):
+                normalized[canonical] = (row[idx] or "").strip()
+        rows.append(normalized)
+    return rows, "csv"
+
+
 # ---------------- Upload endpoint ----------------------------------------
 
 @router.post("/maker/reviews/import")
@@ -141,8 +240,13 @@ async def maker_review_import(
     published_publicly: bool = Form(True),
     slug: str = Depends(current_maker_slug),
 ):
-    """Upload a CSV export of reviews from Etsy / Shopify / any platform
-    and import them under the signed-in maker."""
+    """Upload a CSV **or JSON** export of reviews from Etsy / Shopify / any
+    platform and import them under the signed-in maker.
+
+    Etsy actually exports reviews in JSON (not CSV) — `[ {reviewer,
+    date_reviewed, star_rating, message, order_id}, ... ]`. We detect the
+    format from the filename extension and content sniff, then normalize
+    both shapes into the same row pipeline."""
     source = (source or "csv").strip().lower()
     if source not in _ALLOWED_SOURCES:
         raise HTTPException(400, f"source must be one of {sorted(_ALLOWED_SOURCES)}")
@@ -153,36 +257,7 @@ async def maker_review_import(
     if len(raw) > _MAX_BYTES:
         raise HTTPException(413, f"File too large (cap {_MAX_BYTES // 1024 // 1024} MB).")
 
-    try:
-        text = raw.decode("utf-8-sig")
-    except UnicodeDecodeError:
-        try:
-            text = raw.decode("latin-1")
-        except Exception:
-            raise HTTPException(400, "Couldn't decode CSV — save as UTF-8 and try again.")
-
-    reader = csv.reader(io.StringIO(text))
-    try:
-        header = next(reader)
-    except StopIteration:
-        raise HTTPException(400, "CSV has no rows.")
-
-    # Map header positions to canonical column names.
-    col_map: dict[str, int] = {}
-    for i, h in enumerate(header):
-        canonical = _normalize_header(h)
-        if canonical and canonical not in col_map:
-            col_map[canonical] = i
-
-    missing = [c for c in ("name", "rating", "text") if c not in col_map]
-    if missing:
-        raise HTTPException(
-            422,
-            f"CSV is missing required columns: {', '.join(missing)}. "
-            f"At minimum the file needs columns for reviewer name, rating, "
-            f"and review text. Accepted header synonyms: "
-            f"{', '.join(sorted(_HEADER_SYNONYMS['name'] | _HEADER_SYNONYMS['rating'] | _HEADER_SYNONYMS['text']))}",
-        )
+    parsed_rows, _kind = _detect_and_parse(raw, file.filename or "")
 
     batch_id = str(uuid.uuid4())
     imported_at = now_iso()
@@ -204,31 +279,31 @@ async def maker_review_import(
     docs_to_insert: list[dict] = []
     batch_hashes: set[str] = set()  # also de-dupe within the same upload
 
-    for line_no, row in enumerate(reader, start=2):  # header was line 1
+    for line_no, row in enumerate(parsed_rows, start=2):  # header was line 1
         if line_no - 1 > _MAX_ROWS:
             errors.append({"line": line_no, "error": f"Row cap {_MAX_ROWS} exceeded — extra rows skipped."})
             break
-        if not row or not any((c or "").strip() for c in row):
-            continue   # blank line
 
-        def _cell(col: str) -> str:
-            i = col_map.get(col)
-            if i is None or i >= len(row):
-                return ""
-            return (row[i] or "").strip()
-
-        name = _cell("name")[:80]
-        rating = _parse_rating(_cell("rating"))
-        text_val = _cell("text")[:1500]
-        if not name or not rating or not text_val:
+        name = (row.get("name") or "").strip()[:80]
+        rating = _parse_rating(row.get("rating"))
+        text_val = (row.get("text") or "").strip()[:1500]
+        # Star-only reviews (rating without text) are common on Etsy —
+        # buyers tap 5 stars and skip writing. Auto-fill a neutral
+        # placeholder so they import cleanly instead of cluttering the
+        # error list. Native reviews still require text via the public
+        # POST /api/reviews validator — this exception is only for
+        # imports.
+        if name and rating and not text_val:
+            text_val = f"★ {rating}-star review (no comment left)"
+        if not name or not rating:
             errors.append({
                 "line": line_no,
-                "error": "missing name, rating, or text",
+                "error": "missing name or rating",
             })
             continue
 
-        date_iso = _parse_date(_cell("date"))
-        product_slug = _cell("product")[:120] or None
+        date_iso = _parse_date(row.get("date", ""))
+        product_slug = (row.get("product") or "").strip()[:120] or None
 
         dedupe = _row_dedupe_hash(date_iso, name, text_val)
         if dedupe in existing_hashes or dedupe in batch_hashes:
