@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import {
   Image as ImageIcon, BookOpen, SlidersHorizontal, Truck, Shield,
   Users, Megaphone, Languages, Sparkles, Facebook, ChevronRight,
-  Share2, AlertTriangle, Bell,
+  Share2, AlertTriangle, Bell, Video,
 } from "lucide-react";
 import UpgradeTab from "./UpgradeTab";
 import { FormShell, Field, ToggleRow, useSettingsForm, inputCls } from "./Settings/_shared";
@@ -11,6 +11,7 @@ import PolicyPanel from "./Settings/PolicyPanel";
 import AccountPanel from "./Settings/AccountPanel";
 import NotificationsPanel from "./Settings/NotificationsPanel";
 import ChannelsPanel from "./Settings/ChannelsPanel";
+import WorkshopVideosPanel from "./Settings/WorkshopVideosPanel";
 
 /**
  * Etsy-parity Settings tab for the Maker Shop Manager.
@@ -27,6 +28,7 @@ import ChannelsPanel from "./Settings/ChannelsPanel";
  */
 const SECTIONS = [
   { id: "info",       label: "Info & Appearance", icon: ImageIcon, kind: "form" },
+  { id: "videos",     label: "Workshop videos",   icon: Video,     kind: "embed" },
   { id: "about",      label: "About your shop",   icon: BookOpen,  kind: "form" },
   { id: "social",     label: "Social media",      icon: Share2,    kind: "form" },
   { id: "options",    label: "Options",           icon: SlidersHorizontal, kind: "form" },
@@ -115,6 +117,9 @@ export default function SettingsTab({ maker = {}, onMakerUpdated, onTabChange, i
           )}
           {active.kind === "embed" && active.id === "subscription" && (
             <UpgradeTab maker={maker} />
+          )}
+          {active.kind === "embed" && active.id === "videos" && (
+            <WorkshopVideosPanel />
           )}
         </div>
       </div>

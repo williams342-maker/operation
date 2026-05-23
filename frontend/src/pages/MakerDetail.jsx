@@ -15,6 +15,7 @@ import GoogleAdsFeaturedBadge from "../components/GoogleAdsFeaturedBadge";
 import RecentShowcaseStrip from "../components/RecentShowcaseStrip";
 import CustomOrderCTA from "../components/CustomOrderCTA";
 import SaveDropButton from "../components/SaveDropButton";
+import WorkshopVideoGrid from "../components/WorkshopVideoGrid";
 import { Mail, Facebook, Instagram, Twitter, Youtube, Globe, BookOpen, ArrowUpRight } from "lucide-react";
 
 export default function MakerDetail() {
@@ -185,6 +186,9 @@ export default function MakerDetail() {
           </div>
         </div>
         <SocialLinks maker={m} />
+
+        {/* iter186 — Workshop video grid (auto-hides when empty) */}
+        <WorkshopVideoGrid videos={m.workshop_videos || []} />
 
         {/* iter181 — Email funnel: "Get notified when this maker drops a
             new piece." Subscribes the buyer to the maker-specific Kit

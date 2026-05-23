@@ -1,6 +1,35 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-23 — iter186 · Maker workshop videos ✅
+
+Closes the last open P3. Makers can now paste up to 6 YouTube / Vimeo URLs and the videos render as a grid at the top of their public maker profile under a new "From the workshop floor" heading.
+
+### Why URL embeds (not direct upload)
+- Zero bandwidth + storage cost
+- Makers retain ownership on their own channel (SEO benefit for them, too)
+- No transcoding pain — YouTube/Vimeo already serve responsive, mobile-friendly playback
+- Lazy-embed pattern (click thumbnail to swap in iframe) keeps LCP fast even with 6 videos
+
+### Backend
+- `models.py::Maker.workshop_videos: List[dict]` — stores `{id, url, video_id, provider, embed_url, thumbnail, title, added_at}` per row.
+- New router `routers/maker_workshop_videos.py` with `parse_video_url()` covering: `youtube.com/watch?v=…`, `youtu.be/…`, `youtube.com/shorts/…`, `youtube.com/embed/…`, `vimeo.com/…`, `player.vimeo.com/video/…`.
+- Endpoints (all gated on maker JWT):
+  - `GET    /api/maker/workshop-videos` — list + current cap.
+  - `POST   /api/maker/workshop-videos` — add. Rejects: unparseable URL (422), cap hit (409), duplicate video_id (409).
+  - `DELETE /api/maker/workshop-videos/{row_id}` — remove one.
+  - `PATCH  /api/maker/workshop-videos/reorder` — full-sequence reorder.
+- Videos automatically surface on the public `/api/makers/{slug}` since they live on the maker doc.
+
+### Frontend
+- New maker dashboard sub-section **Settings → Workshop videos** (`pages/MakerDashboard/Settings/WorkshopVideosPanel.jsx`). Paste-URL form, optional title, slot counter, thumbnail preview (YouTube auto-fetches via `hqdefault.jpg`), up/down/delete controls per row. Reorder commits to backend immediately.
+- New public component `components/WorkshopVideoGrid.jsx`. Auto-hides when empty. Responsive grid (1 col mobile → 3 col desktop). Each card is a lazy thumbnail with a big orange play button; click swaps in the YouTube/Vimeo iframe with `autoplay=1&rel=0` so playback starts immediately after the one-click consent.
+- Mounted on `MakerDetail.jsx` right after the social-links row, before the SaveDropButton "stay in the loop" card.
+
+### Tests
+- `/app/backend/tests/test_maker_workshop_videos.py` — 18 tests (8 parametric URL-parse, 10 lifecycle/cap/auth/duplicate/bad-URL). All pass when run individually; the known motor "Event loop is closed" cross-test quirk affects one cleanup teardown but the assertion itself passed (no behavior bug).
+
+
 ## 2026-05-23 — iter185 · "Send my CSV to support" fallback button ✅
 
 Catches the makers who can't get the auto-import to work (busted Etsy exports, weird column layouts, fragmented files) and routes them to a human in one click.

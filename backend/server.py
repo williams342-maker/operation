@@ -46,6 +46,7 @@ from routers.restock_waitlist import router as restock_waitlist_router
 from routers.contact_messages import router as contact_messages_router
 from routers.review_disputes import router as review_disputes_router
 from routers.maker_review_imports import router as maker_review_imports_router
+from routers.maker_workshop_videos import router as maker_workshop_videos_router
 from routers.prod_health import router as prod_health_router
 from routers.updates import router as updates_router
 from routers.coming_soon import router as coming_soon_router
@@ -104,6 +105,7 @@ api.include_router(restock_waitlist_router)
 api.include_router(contact_messages_router)
 api.include_router(review_disputes_router)
 api.include_router(maker_review_imports_router)
+api.include_router(maker_workshop_videos_router)
 api.include_router(prod_health_router)
 api.include_router(updates_router)
 api.include_router(coming_soon_router)

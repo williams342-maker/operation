@@ -194,6 +194,11 @@ class Maker(BaseModel):
     # tables specifically, not just the technique.
     years_crafting: Optional[int] = None
     machinery: List[str] = []
+    # Maker workshop videos (iter186). Up to 6 embeds (YouTube / Vimeo URL).
+    # Each row: {url, video_id, provider, title?, thumbnail?, added_at}.
+    # Provider+id are extracted from the URL at insert time so the frontend
+    # can build the embed without re-parsing.
+    workshop_videos: List[dict] = Field(default_factory=list)
     portrait: str
     cover: str
     email: Optional[EmailStr] = None

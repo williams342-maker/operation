@@ -495,6 +495,22 @@ export const sendReviewCsvToSupport = (file, note = "") => {
     .then((r) => r.data);
 };
 
+// ---------- Maker workshop videos (iter186) ----------
+export const fetchMakerWorkshopVideos = () =>
+  http.get("/maker/workshop-videos", { headers: authHeaders() }).then((r) => r.data);
+export const addMakerWorkshopVideo = (url, title = "") =>
+  http
+    .post("/maker/workshop-videos", { url, title: title || null }, { headers: authHeaders() })
+    .then((r) => r.data);
+export const deleteMakerWorkshopVideo = (videoRowId) =>
+  http
+    .delete(`/maker/workshop-videos/${videoRowId}`, { headers: authHeaders() })
+    .then((r) => r.data);
+export const reorderMakerWorkshopVideos = (videoIds) =>
+  http
+    .patch("/maker/workshop-videos/reorder", { video_ids: videoIds }, { headers: authHeaders() })
+    .then((r) => r.data);
+
 // ---------- Admin review disputes ----------
 export const fetchAdminReviewDisputes = (status) =>
   http.get("/admin/review-disputes", {
