@@ -1,6 +1,36 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-24 — iter190 · Eager R2 upload for listing photos (fix slow / failing saves) ✅
+
+**P0 production bug.** Maker on craftersmarket.org reported listing saves were buffering for minutes and intermittently failing. Root cause: cropped photos were stored as base64 data URLs in form state and shipped *inside* the product create/update JSON. A 7-image listing meant a ~20MB payload, with the backend then synchronously uploading every photo to R2 (plus watermarking) inside the same request — easily exceeding the production ingress timeout. Autosave (every 1.5s after a keystroke) racing the manual Publish made it worse.
+
+### Backend `routers/maker.py`
+- New `POST /api/maker/uploads/listing-image` (maker-JWT gated). Multipart upload of a single photo, validates content-type + 10MB cap, runs the existing `image_watermark.watermark_image_bytes` pipeline when the maker has `watermark_images=true`, writes to R2 under `products/<slug>/<uuid>.<ext>`, returns `{ url, size }`.
+- Legacy inline base64 path on `POST /api/maker/products` + `PATCH /api/maker/products/{slug}` is intentionally kept as a safety net so in-progress drafts that already contain data URLs still save.
+
+### Frontend `pages/MakerListingEditor.jsx`
+- New helper `_uploadOneListingImage` — converts the cropped data URL to a typed Blob and POSTs it to the new endpoint. On success the data URL in `form.images` is swapped for the R2 URL by string match (works even after drag-reorder).
+- `onCropConfirm` now fires the background upload immediately after the crop is committed. The data URL stays in `form.images` until the upload resolves so the maker keeps seeing an instant preview.
+- New `imageUploads` counter blocks both manual submit (`submit()` early-returns with a toast) and the autosave debounce, so we never ship an unresolved `data:` URL on the wire.
+- Average save payload drops from ~20MB → ~2KB; publish flow returns in under a second instead of timing out.
+
+### Frontend `pages/MakerListingEditor/FormControls.jsx`
+- `ActionButtons` accepts a new `uploadingPhotos` prop. While > 0 both Save Draft and Publish are disabled and labelled `Uploading N photo(s)…`.
+
+### Frontend `pages/MakerListingEditor/MediaSection.jsx`
+- Per-tile spinner overlay (`Loader2` + "Uploading…" label, `data-testid="editor-image-uploading-{i}"`) shown on any tile whose `src` is still a data URL while uploads are pending.
+
+### Frontend `lib/api.js`
+- New `uploadMakerListingImage(blob, onProgress)` — multipart wrapper around the new endpoint with a 60s timeout to cover watermarking of large photos.
+
+### Tests
+- `/app/backend/tests/test_listing_image_upload.py` — **3/3 PASS**: unauth → 401, authed upload returns `{ url, size }` with URL under `/products/`, 11MB upload rejected with 400.
+
+### Deployment
+- Preview verified. Production fix requires a redeploy from craftersmarket.org's deploy panel.
+
+
 ## 2026-05-23 — iter188 · "Test parse" preview mode for review imports ✅
 
 De-risks the bulk-import flow. Maker can run a dry-parse on their file, see the first 5 rows + summary numbers + dedupe warnings, then confirm or adjust before committing 900+ entries.

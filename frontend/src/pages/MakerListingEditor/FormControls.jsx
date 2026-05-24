@@ -117,7 +117,7 @@ export function ToggleRow({ label, hint, on, onChange, testid }) {
   );
 }
 
-export function ActionButtons({ isEdit, saving, canPublish, errors, autoStatus, lastSavedAt, agoTick, onClone, onPreview, onSaveDraft, onPublish }) {
+export function ActionButtons({ isEdit, saving, canPublish, errors, autoStatus, lastSavedAt, agoTick, onClone, onPreview, onSaveDraft, onPublish, uploadingPhotos = 0 }) {
   // Build a short "what's missing" hint shown next to a disabled Publish
   // button so the maker isn't left wondering why the orange CTA is greyed
   // out. We only show it when there are actual validation issues; the hint
@@ -126,6 +126,14 @@ export function ActionButtons({ isEdit, saving, canPublish, errors, autoStatus, 
   const missingHint = missingFields.length > 0
     ? `Add ${missingFields.slice(0, 3).join(", ")}${missingFields.length > 3 ? "…" : ""} to publish`
     : "";
+  // While photos are still streaming up to R2 we want both Save Draft and
+  // Publish disabled. We piggy-back on the existing `saving` styling so the
+  // visual treatment matches, but show a distinct label so the maker knows
+  // why the button is locked out.
+  const photoBusy = uploadingPhotos > 0;
+  const photoLabel = photoBusy
+    ? `Uploading ${uploadingPhotos} photo${uploadingPhotos === 1 ? "" : "s"}…`
+    : null;
 
   return (
     <div className="flex items-center gap-2">
@@ -151,20 +159,21 @@ export function ActionButtons({ isEdit, saving, canPublish, errors, autoStatus, 
           left border accent) so it never gets lost next to the orange
           Publish CTA. */}
       <button
-        type="button" onClick={onSaveDraft} disabled={saving}
+        type="button" onClick={onSaveDraft} disabled={saving || photoBusy}
         className="px-4 py-1.5 border-2 border-emerald-500/70 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 hover:border-emerald-400 font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-2 disabled:opacity-50 transition"
         data-testid="editor-save-draft-btn"
+        title={photoLabel || undefined}
       >
-        <Save size={12} /> {saving ? "Saving…" : "Save Draft"}
+        <Save size={12} /> {photoBusy ? photoLabel : (saving ? "Saving…" : "Save Draft")}
       </button>
       <div className="flex flex-col items-end gap-1">
         <button
-          type="button" onClick={onPublish} disabled={saving || !canPublish}
+          type="button" onClick={onPublish} disabled={saving || !canPublish || photoBusy}
           className="btn-industrial btn-primary inline-flex items-center gap-2 disabled:opacity-50 px-4 py-1.5"
           data-testid="editor-publish-btn"
-          title={!canPublish && missingHint ? missingHint : undefined}
+          title={photoLabel || (!canPublish && missingHint ? missingHint : undefined)}
         >
-          <Send size={12} /> {saving ? "Publishing…" : "Publish Listing"}
+          <Send size={12} /> {photoBusy ? photoLabel : (saving ? "Publishing…" : "Publish Listing")}
         </button>
         {!canPublish && missingHint && (
           <span

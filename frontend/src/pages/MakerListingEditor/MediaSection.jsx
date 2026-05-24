@@ -1,5 +1,5 @@
 import React from "react";
-import { Trash2, Upload, Crop } from "lucide-react";
+import { Trash2, Upload, Crop, Loader2 } from "lucide-react";
 import { Section, Label, FieldError } from "./FormControls";
 import { MAX_IMAGES } from "./constants";
 
@@ -19,6 +19,11 @@ export default function MediaSection({
   dragSrc, dragOver, onDragStart, onDragOver, onDragLeaveTile, onDrop, onDragEnd,
   // Video
   videoFileRef, onPickVideo, videoUploading, videoErr, removeVideo, set,
+  // Per-tile upload status — count of photos still streaming to R2.
+  // A tile whose src starts with "data:" while there are pending uploads
+  // gets a small spinner overlay so the maker knows it isn't safe to
+  // publish yet.
+  uploadingPhotos = 0,
 }) {
   return (
     <Section
@@ -31,6 +36,7 @@ export default function MediaSection({
         {form.images.map((src, i) => {
           const isDragging = dragSrc === i;
           const isOver = dragOver === i && dragSrc != null && dragSrc !== i;
+          const isUploading = uploadingPhotos > 0 && typeof src === "string" && src.startsWith("data:");
           return (
             <div
               key={i}
@@ -54,6 +60,17 @@ export default function MediaSection({
                 <span className="absolute top-1 left-1 bg-[#ff4500] text-[#0a0a0a] text-[9px] font-mono px-1.5 py-0.5 uppercase tracking-[0.18em]">
                   ◆ Cover
                 </span>
+              )}
+              {isUploading && (
+                <div
+                  className="absolute inset-0 bg-black/55 flex flex-col items-center justify-center gap-2 pointer-events-none"
+                  data-testid={`editor-image-uploading-${i}`}
+                >
+                  <Loader2 size={18} className="text-[#ff4500] animate-spin" />
+                  <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#ff4500]">
+                    Uploading…
+                  </span>
+                </div>
               )}
               <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-2">
                 {i !== 0 && (

@@ -7,7 +7,7 @@ import {
 import {
   fetchMakerMe, fetchMakerProducts, createMakerProduct,
   updateMakerProduct, aiListingCopy, aiSeoTags,
-  duplicateMakerProduct, uploadMakerVideo,
+  duplicateMakerProduct, uploadMakerVideo, uploadMakerListingImage,
   downloadProductStoryCard,
 } from "../lib/api";
 import ImageCropModal from "../components/ImageCropModal";
@@ -164,6 +164,51 @@ export default function MakerListingEditor() {
   // Lets the maker un-check filler tags so the 13-slot budget isn't wasted
   // on weak suggestions.
   const [aiTagReview, setAiTagReview] = useState([]);
+  // Number of photo uploads currently in flight to R2. Save / autosave are
+  // blocked while this is > 0 so we never ship an unresolved data: URL to
+  // the product create/update payload (which is what used to time out on
+  // production with large multi-photo listings).
+  const [imageUploads, setImageUploads] = useState(0);
+
+  // Convert a data: URL to a typed Blob for multipart upload. JPEG by
+  // default — the cropper outputs JPEG anyway. Returns null if the input
+  // isn't a recognisable data URL.
+  const _dataUrlToBlob = (dataUrl) => {
+    const m = /^data:([^;]+);base64,(.+)$/.exec(dataUrl || "");
+    if (!m) return null;
+    const ct = m[1];
+    const bin = atob(m[2]);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i);
+    return new Blob([bytes], { type: ct });
+  };
+
+  // Eagerly push a cropped data URL to R2 and swap the placeholder data
+  // URL in form.images for the resulting CDN URL. Keeps the placeholder
+  // (so the maker keeps seeing the preview) on failure, and surfaces a
+  // toast so they know to retry.
+  const _uploadOneListingImage = async (dataUrl) => {
+    const blob = _dataUrlToBlob(dataUrl);
+    if (!blob) return;
+    setImageUploads((n) => n + 1);
+    try {
+      const { url } = await uploadMakerListingImage(blob);
+      if (!url) return;
+      setForm((f) => ({
+        ...f,
+        images: f.images.map((s) => (s === dataUrl ? url : s)),
+      }));
+    } catch (e) {
+      // Leave the placeholder data URL in form.images so the maker can
+      // either retry (re-crop the same tile) or remove and re-add. The
+      // legacy in-line upload path on the backend is still wired up as a
+      // safety net for the save call itself.
+      const msg = e?.response?.data?.detail || "Photo upload failed — retry, or use Save Draft to retry on save.";
+      toast.error(msg);
+    } finally {
+      setImageUploads((n) => Math.max(0, n - 1));
+    }
+  };
 
   const onPickPhotos = async (e) => {
     const files = Array.from(e.target.files || []);
@@ -206,6 +251,10 @@ export default function MakerListingEditor() {
     });
     setCropTargetIdx(null);
     setCropQueue((q) => q.slice(1));
+    // Fire-and-forget background upload — swaps the data URL for the R2
+    // URL once done so save/autosave ship only small URL strings instead
+    // of 10MB of base64. Blocks save while in flight.
+    _uploadOneListingImage(croppedDataUrl);
   };
   const onCropCancel = () => {
     setCropTargetIdx(null);
@@ -506,6 +555,10 @@ export default function MakerListingEditor() {
       toast.error(Object.values(errors)[0]);
       return;
     }
+    if (imageUploads > 0) {
+      toast.info(`Hang tight — ${imageUploads} photo${imageUploads === 1 ? "" : "s"} still uploading. Try again in a sec.`);
+      return;
+    }
     setSaving(true);
     try {
       const payload = buildPayload(statusOverride);
@@ -581,6 +634,7 @@ export default function MakerListingEditor() {
   useEffect(() => {
     if (!loaded) return;
     if (saving) return;
+    if (imageUploads > 0) return;
     if (!effectiveSlug && !form.title.trim()) return;
     const t = setTimeout(async () => {
       try {
@@ -602,7 +656,7 @@ export default function MakerListingEditor() {
     }, 1500);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form, loaded, saving, effectiveSlug]);
+  }, [form, loaded, saving, effectiveSlug, imageUploads]);
 
   // Tick every 30s so the "Saved 3s ago" relative time updates without
   // redrawing the whole tree on every keystroke.
@@ -652,6 +706,7 @@ export default function MakerListingEditor() {
             onPreview={previewListing}
             onSaveDraft={() => submit("draft")}
             onPublish={() => submit("published")}
+            uploadingPhotos={imageUploads}
           />
         </div>
       </header>
@@ -667,6 +722,7 @@ export default function MakerListingEditor() {
           onDragLeaveTile={onDragLeaveTile} onDrop={onDrop} onDragEnd={onDragEnd}
           videoFileRef={videoFileRef} onPickVideo={onPickVideo}
           videoUploading={videoUploading} videoErr={videoErr} removeVideo={removeVideo}
+          uploadingPhotos={imageUploads}
         />
 
         <AiAssistantSection
@@ -1323,6 +1379,7 @@ export default function MakerListingEditor() {
             onPreview={previewListing}
             onSaveDraft={() => submit("draft")}
             onPublish={() => submit("published")}
+            uploadingPhotos={imageUploads}
           />
         </div>
       </div>

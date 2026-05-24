@@ -1283,6 +1283,68 @@ async def maker_upload_banner(
     return {"url": url, "size": len(body)}
 
 
+@router.post("/maker/uploads/listing-image")
+async def maker_upload_listing_image(
+    file: UploadFile = File(...),
+    slug: str = Depends(current_maker_slug),
+):
+    """Upload a single listing photo to R2 and return its public URL.
+
+    Used by the listing editor's photo grid so we never ship 10MB of base64
+    bytes inside the product create/update JSON (which used to time out on
+    production ingress when a listing had several large images). Watermark
+    pipeline is applied here when the maker has `watermark_images` enabled,
+    matching the legacy in-line upload behaviour.
+    """
+    try:
+        from r2_storage import (
+            ALLOWED_CONTENT_TYPES,
+            is_configured as _r2_ok,
+            upload_bytes,
+        )
+    except Exception:
+        raise HTTPException(503, "R2 storage is not available.")
+    if not _r2_ok():
+        raise HTTPException(503, "R2 storage is not configured.")
+
+    ct = (file.content_type or "").lower()
+    if ct not in ALLOWED_CONTENT_TYPES:
+        raise HTTPException(400, "Photo must be a PNG / JPG / WebP image.")
+    body = await file.read()
+    if len(body) == 0:
+        raise HTTPException(400, "Empty file.")
+    # 10MB hard cap — matches the legacy 8MB base64 cap once decoded.
+    if len(body) > 10 * 1024 * 1024:
+        raise HTTPException(400, "Photo must be 10 MB or smaller.")
+
+    # Watermark if the maker opted in (same logic as the inline create path).
+    maker_doc = await db.makers.find_one(
+        {"slug": slug}, {"_id": 0, "watermark_images": 1, "name": 1},
+    )
+    if maker_doc and maker_doc.get("watermark_images"):
+        try:
+            from image_watermark import watermark_image_bytes
+            shop_name = maker_doc.get("name") or slug
+            body = watermark_image_bytes(body, shop_name)
+            ct = "image/jpeg"
+        except Exception as e:
+            logger.exception("watermark failed maker=%s: %s", slug, e)
+            # Fall back to the original bytes — better to ship un-watermarked
+            # than to fail the whole upload.
+
+    ext = ALLOWED_CONTENT_TYPES[ct]
+    key = f"products/{slug}/{uuid.uuid4().hex}.{ext}"
+    try:
+        url = upload_bytes(body, key, ct)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        logger.exception("listing-image upload failed maker=%s: %s", slug, e)
+        raise HTTPException(502, "Could not upload photo to storage.")
+
+    return {"url": url, "size": len(body)}
+
+
 @router.post("/maker/uploads/portrait")
 async def maker_upload_portrait(
     file: UploadFile = File(...),

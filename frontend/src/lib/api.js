@@ -771,6 +771,21 @@ export const uploadMakerVideo = (file, onProgress) => {
   }).then((r) => r.data);
 };
 
+// Listing photo upload (R2) — eager upload so listing save/publish payloads
+// stay small. Returns { url, size }. Accepts a Blob OR File.
+export const uploadMakerListingImage = (blob, onProgress) => {
+  const fd = new FormData();
+  // R2 endpoint reads `file.content_type`; FormData uses the Blob's `type`
+  // for that, so callers must pass a typed Blob (image/jpeg, image/png, …).
+  fd.append("file", blob, blob?.name || "photo.jpg");
+  return http.post("/maker/uploads/listing-image", fd, {
+    headers: { ...authHeaders(), "Content-Type": "multipart/form-data" },
+    onUploadProgress: onProgress,
+    // Generous timeout — watermarking large photos can take a few seconds.
+    timeout: 60_000,
+  }).then((r) => r.data);
+};
+
 // Clone listing
 export const duplicateMakerProduct = (slug) =>
   http.post(`/maker/products/${slug}/duplicate`, null, { headers: authHeaders() }).then((r) => r.data);
