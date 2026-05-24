@@ -1,5 +1,5 @@
 import React from "react";
-import { Trash2, Upload, Crop, Loader2 } from "lucide-react";
+import { Trash2, Upload, Crop, Loader2, RotateCw } from "lucide-react";
 import { Section, Label, FieldError } from "./FormControls";
 import { MAX_IMAGES } from "./constants";
 
@@ -24,6 +24,11 @@ export default function MediaSection({
   // gets a small spinner overlay so the maker knows it isn't safe to
   // publish yet.
   uploadingPhotos = 0,
+  // Per-tile detailed state: { [src]: "uploading" | "error" }. Lets us
+  // render a retry CTA on tiles whose initial upload failed, without
+  // forcing the maker to remove + re-crop the photo.
+  uploadStatus = {},
+  retryImageUpload,
 }) {
   return (
     <Section
@@ -36,7 +41,9 @@ export default function MediaSection({
         {form.images.map((src, i) => {
           const isDragging = dragSrc === i;
           const isOver = dragOver === i && dragSrc != null && dragSrc !== i;
-          const isUploading = uploadingPhotos > 0 && typeof src === "string" && src.startsWith("data:");
+          const tileStatus = uploadStatus?.[src];
+          const isUploading = tileStatus === "uploading";
+          const isError = tileStatus === "error";
           return (
             <div
               key={i}
@@ -47,11 +54,13 @@ export default function MediaSection({
               onDrop={onDrop(i)}
               onDragEnd={onDragEnd}
               className={`relative aspect-square border group overflow-hidden cursor-grab active:cursor-grabbing transition ${
-                isOver
-                  ? "border-[#ff4500] border-2 ring-2 ring-[#ff4500]/40"
-                  : i === 0
-                    ? "border-[#ff4500]"
-                    : "border-[#262626]"
+                isError
+                  ? "border-red-500 border-2 ring-2 ring-red-500/40"
+                  : isOver
+                    ? "border-[#ff4500] border-2 ring-2 ring-[#ff4500]/40"
+                    : i === 0
+                      ? "border-[#ff4500]"
+                      : "border-[#262626]"
               } ${isDragging ? "opacity-40" : ""}`}
               data-testid={`editor-image-${i}`}
             >
@@ -70,6 +79,24 @@ export default function MediaSection({
                   <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#ff4500]">
                     Uploading…
                   </span>
+                </div>
+              )}
+              {isError && !isUploading && (
+                <div
+                  className="absolute inset-0 bg-red-950/85 flex flex-col items-center justify-center gap-2 px-2"
+                  data-testid={`editor-image-error-${i}`}
+                >
+                  <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-red-300 text-center leading-tight">
+                    Upload failed
+                  </span>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); retryImageUpload?.(i); }}
+                    className="px-2 py-1 border border-red-400 text-red-200 hover:bg-red-500/20 font-mono text-[9px] uppercase tracking-[0.22em] inline-flex items-center gap-1"
+                    data-testid={`editor-image-retry-${i}`}
+                  >
+                    <RotateCw size={10} /> Retry
+                  </button>
                 </div>
               )}
               <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-2">

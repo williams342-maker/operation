@@ -1,6 +1,26 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-24 — iter191 · Per-tile photo retry button ✅
+
+Follow-up to iter190's eager-upload fix. If a single photo upload to R2 fails (spotty connection, watermark glitch, whatever), the maker can now click **Retry** directly on the failed tile instead of removing and re-cropping the whole photo.
+
+### Frontend `pages/MakerListingEditor.jsx`
+- Replaced the simple `imageUploads` counter with a `uploadStatus` map keyed by the photo's data URL (`{ [src]: "uploading" | "error" }`). `imageUploads` is now a `useMemo`-derived count of `"uploading"` entries — same gate semantics as before.
+- New `retryImageUpload(i)` handler re-runs `_uploadOneListingImage` on the tile's current data URL. No-op for tiles that already hold an R2 URL.
+- On upload failure the tile gets tagged `"error"` instead of just toasting and disappearing; on retry it flips to `"uploading"` and back to clean state on success.
+
+### Frontend `pages/MakerListingEditor/MediaSection.jsx`
+- New error overlay rendered when `uploadStatus[src] === "error"`: red-tinted background, "Upload failed" label, and a **Retry** button (`data-testid="editor-image-retry-{i}"`). Failed tiles also get a red 2px ring so they're impossible to miss in the grid.
+- Existing "Uploading…" spinner still shown for `"uploading"` tiles.
+
+### Tests
+- Existing `/app/backend/tests/test_listing_image_upload.py` still **3/3 PASS** — endpoint unchanged.
+
+### Deployment
+- Preview verified, lint clean. Requires production redeploy to take effect on craftersmarket.org.
+
+
 ## 2026-05-24 — iter190 · Eager R2 upload for listing photos (fix slow / failing saves) ✅
 
 **P0 production bug.** Maker on craftersmarket.org reported listing saves were buffering for minutes and intermittently failing. Root cause: cropped photos were stored as base64 data URLs in form state and shipped *inside* the product create/update JSON. A 7-image listing meant a ~20MB payload, with the backend then synchronously uploading every photo to R2 (plus watermarking) inside the same request — easily exceeding the production ingress timeout. Autosave (every 1.5s after a keystroke) racing the manual Publish made it worse.

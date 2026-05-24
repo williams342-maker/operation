@@ -164,11 +164,20 @@ export default function MakerListingEditor() {
   // Lets the maker un-check filler tags so the 13-slot budget isn't wasted
   // on weak suggestions.
   const [aiTagReview, setAiTagReview] = useState([]);
-  // Number of photo uploads currently in flight to R2. Save / autosave are
-  // blocked while this is > 0 so we never ship an unresolved data: URL to
-  // the product create/update payload (which is what used to time out on
-  // production with large multi-photo listings).
-  const [imageUploads, setImageUploads] = useState(0);
+  // Per-photo upload state keyed by the photo's `src` string. Tracks
+  // `"uploading"` while a data URL is streaming to R2, and `"error"` when
+  // the upload failed so we can surface a per-tile Retry button. Once a
+  // photo's data URL is swapped for the resulting R2 URL the entry is
+  // discarded — the keys go stale and we just drop them.
+  //
+  // Derived: `imageUploads` (the count of values === "uploading") is the
+  // gate for blocking Save / Publish / autosave so we never ship an
+  // unresolved data URL on the wire.
+  const [uploadStatus, setUploadStatus] = useState({});       // { [src]: "uploading" | "error" }
+  const imageUploads = useMemo(
+    () => Object.values(uploadStatus).filter((v) => v === "uploading").length,
+    [uploadStatus],
+  );
 
   // Convert a data: URL to a typed Blob for multipart upload. JPEG by
   // default — the cropper outputs JPEG anyway. Returns null if the input
@@ -185,29 +194,43 @@ export default function MakerListingEditor() {
 
   // Eagerly push a cropped data URL to R2 and swap the placeholder data
   // URL in form.images for the resulting CDN URL. Keeps the placeholder
-  // (so the maker keeps seeing the preview) on failure, and surfaces a
-  // toast so they know to retry.
+  // (so the maker keeps seeing the preview) on failure, surfaces a toast,
+  // and tags the tile as `"error"` so a per-tile Retry button appears.
   const _uploadOneListingImage = async (dataUrl) => {
     const blob = _dataUrlToBlob(dataUrl);
     if (!blob) return;
-    setImageUploads((n) => n + 1);
+    setUploadStatus((s) => ({ ...s, [dataUrl]: "uploading" }));
     try {
       const { url } = await uploadMakerListingImage(blob);
-      if (!url) return;
+      if (!url) {
+        setUploadStatus((s) => {
+          const { [dataUrl]: _, ...rest } = s; return rest;
+        });
+        return;
+      }
       setForm((f) => ({
         ...f,
         images: f.images.map((s) => (s === dataUrl ? url : s)),
       }));
+      setUploadStatus((s) => {
+        const { [dataUrl]: _, ...rest } = s; return rest;
+      });
     } catch (e) {
       // Leave the placeholder data URL in form.images so the maker can
-      // either retry (re-crop the same tile) or remove and re-add. The
-      // legacy in-line upload path on the backend is still wired up as a
-      // safety net for the save call itself.
-      const msg = e?.response?.data?.detail || "Photo upload failed — retry, or use Save Draft to retry on save.";
+      // retry the tile directly. The legacy in-line upload path on the
+      // backend is still wired up as a safety net for the save call.
+      const msg = e?.response?.data?.detail || "Photo upload failed — tap retry, or remove and re-add.";
       toast.error(msg);
-    } finally {
-      setImageUploads((n) => Math.max(0, n - 1));
+      setUploadStatus((s) => ({ ...s, [dataUrl]: "error" }));
     }
+  };
+
+  // Per-tile Retry handler. Re-uploads `form.images[i]` if it's still a
+  // data URL (i.e. never reached R2). No-op for already-uploaded URLs.
+  const retryImageUpload = (i) => {
+    const src = form.images[i];
+    if (!src || !src.startsWith("data:")) return;
+    _uploadOneListingImage(src);
   };
 
   const onPickPhotos = async (e) => {
@@ -723,6 +746,8 @@ export default function MakerListingEditor() {
           videoFileRef={videoFileRef} onPickVideo={onPickVideo}
           videoUploading={videoUploading} videoErr={videoErr} removeVideo={removeVideo}
           uploadingPhotos={imageUploads}
+          uploadStatus={uploadStatus}
+          retryImageUpload={retryImageUpload}
         />
 
         <AiAssistantSection
