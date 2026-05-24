@@ -1,6 +1,21 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-24 — iter192 · "Retry all failed" photo upload button ✅
+
+Tiny follow-up to iter191's per-tile retry. When several photos fail in the same batch (think: craft-fair tethered upload), a single banner above the photo grid lets the maker recover the whole batch in one click.
+
+### Frontend `pages/MakerListingEditor.jsx`
+- New `retryAllFailedUploads` handler — iterates `form.images` and kicks off a fresh `_uploadOneListingImage` for every tile currently tagged `"error"`. Safe to call repeatedly; skips tiles that already succeeded or are mid-upload.
+
+### Frontend `pages/MakerListingEditor/MediaSection.jsx`
+- New banner rendered above the photo grid only when `failedCount > 0`: red-tinted strip with `"◆ N photos failed to upload"` on the left and a **Retry all** button on the right (`data-testid="editor-retry-all-failed-photos"`).
+- Per-tile Retry button shipped in iter191 still works for one-at-a-time recovery.
+
+### Deployment
+- Lint clean, smoke verified in preview. Requires production redeploy.
+
+
 ## 2026-05-24 — iter191 · Per-tile photo retry button ✅
 
 Follow-up to iter190's eager-upload fix. If a single photo upload to R2 fails (spotty connection, watermark glitch, whatever), the maker can now click **Retry** directly on the failed tile instead of removing and re-cropping the whole photo.

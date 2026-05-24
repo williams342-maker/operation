@@ -233,6 +233,18 @@ export default function MakerListingEditor() {
     _uploadOneListingImage(src);
   };
 
+  // Bulk retry — kicks off a fresh upload for every tile currently tagged
+  // as "error". Skips tiles that already succeeded or are mid-upload, so
+  // it's safe to call repeatedly. Used by the "Retry all failed" button in
+  // MediaSection (helps craft-fair makers recover from a flaky-wifi batch
+  // upload in one click).
+  const retryAllFailedUploads = () => {
+    const failures = form.images.filter(
+      (src) => src && src.startsWith("data:") && uploadStatus[src] === "error",
+    );
+    failures.forEach((src) => _uploadOneListingImage(src));
+  };
+
   const onPickPhotos = async (e) => {
     const files = Array.from(e.target.files || []);
     e.target.value = "";
@@ -748,6 +760,7 @@ export default function MakerListingEditor() {
           uploadingPhotos={imageUploads}
           uploadStatus={uploadStatus}
           retryImageUpload={retryImageUpload}
+          retryAllFailedUploads={retryAllFailedUploads}
         />
 
         <AiAssistantSection

@@ -29,7 +29,15 @@ export default function MediaSection({
   // forcing the maker to remove + re-crop the photo.
   uploadStatus = {},
   retryImageUpload,
+  retryAllFailedUploads,
 }) {
+  // Count of tiles whose initial upload failed — drives the "Retry all
+  // failed" banner above the grid. We only render the banner when this
+  // is > 0, so happy-path listings never see it.
+  const failedCount = form.images.reduce(
+    (n, src) => (uploadStatus?.[src] === "error" ? n + 1 : n),
+    0,
+  );
   return (
     <Section
       eyebrow="◆ Media"
@@ -37,6 +45,24 @@ export default function MediaSection({
       subtitle="Add up to 10 photos. The first image is your cover photo. Drag any photo to reorder, or click 'Set as cover' to promote it."
       counter={`${form.images.length}/${MAX_IMAGES} photos · ${form.video_url ? "1/1" : "0/1"} video`}
     >
+      {failedCount > 0 && (
+        <div
+          className="mb-3 px-3 py-2 border border-red-500/60 bg-red-950/40 flex items-center justify-between gap-3"
+          data-testid="editor-photo-batch-error"
+        >
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-red-300">
+            ◆ {failedCount} photo{failedCount === 1 ? "" : "s"} failed to upload
+          </span>
+          <button
+            type="button"
+            onClick={retryAllFailedUploads}
+            className="px-3 py-1 border border-red-400 text-red-200 hover:bg-red-500/20 font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-2"
+            data-testid="editor-retry-all-failed-photos"
+          >
+            <RotateCw size={11} /> Retry all
+          </button>
+        </div>
+      )}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3" data-testid="editor-photo-grid">
         {form.images.map((src, i) => {
           const isDragging = dragSrc === i;
