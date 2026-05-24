@@ -1,6 +1,27 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-24 — iter194 · "Photo tips" inline card in the listing editor ✅
+
+Lifts first-listing conversion + photo quality. Six concrete CNC-marketplace-specific tips render in a 3×2 grid above the photo grid in the editor. The card is collapsible (chevron) AND dismissable (×) — dismissal persists in localStorage under `cm_editor_photo_tips_dismissed_v1`, so seasoned makers only see it the first time. When dismissed, a small "◇ Show photo tips" pill replaces it so the card can always be reopened.
+
+### Tips shipped (ordered by impact)
+1. **Cover photo wins the click** — clean background, centered, full frame.
+2. **Shoot in daylight** — near a window, overcast preferred, avoid harsh overhead shadows.
+3. **Show scale** — coin / hand / coffee mug for size context.
+4. **Capture the craft** — close-ups of cut edges, engraving depth, wood grain.
+5. **Show it in context** — one styled shot (wall, desk, mantel).
+6. **Square frames sell** — cropper outputs 1:1, compose for it.
+
+### Frontend `pages/MakerListingEditor/MediaSection.jsx`
+- New internal `<PhotoTipsCard/>` component with collapse + dismiss state.
+- Dismissal/reopen persisted via `localStorage` with try/catch fallback for private-browsing mode.
+- Tip cards have `data-testid="editor-photo-tip-{0..5}"`; container is `editor-photo-tips-card`; dismiss button is `editor-photo-tips-dismiss`; reopen pill is `editor-photo-tips-reopen`.
+
+### Verified
+- Smoke screenshots captured in preview with maker JWT injected — card renders, all 6 tips visible, dismiss → pill swap works, lint clean.
+
+
 ## 2026-05-24 — iter193 · Silent auto-retry for listing photo uploads ✅
 
 Wraps `_uploadOneListingImage` in a 3-attempt retry loop with exponential backoff (1s, 2s). Most transient upload blips (brief network hiccup, R2 read-after-write race, intermittent 502) now resolve silently — the maker never sees a failure. The Retry / Retry-all UI from iter191–192 only appears for genuine, persistent errors.

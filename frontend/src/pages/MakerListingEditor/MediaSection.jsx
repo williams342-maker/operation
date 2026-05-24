@@ -1,7 +1,118 @@
-import React from "react";
-import { Trash2, Upload, Crop, Loader2, RotateCw } from "lucide-react";
+import React, { useState } from "react";
+import { Trash2, Upload, Crop, Loader2, RotateCw, Lightbulb, X, ChevronDown } from "lucide-react";
 import { Section, Label, FieldError } from "./FormControls";
 import { MAX_IMAGES } from "./constants";
+
+const PHOTO_TIPS_DISMISS_KEY = "cm_editor_photo_tips_dismissed_v1";
+
+// Six concrete, CNC-marketplace-specific tips. Ordered by impact on
+// conversion: cover photo first, then lighting, then the things that make
+// a listing feel trustworthy (scale + multiple angles + context).
+const PHOTO_TIPS = [
+  { title: "Cover photo wins the click", body: "Center the product, full frame, clean background. This is the only image buyers see in search results." },
+  { title: "Shoot in daylight", body: "Near a window on an overcast day is the gold standard. Avoid harsh shadows from overhead bulbs." },
+  { title: "Show scale", body: "Add a coin, hand, or coffee mug in one shot so buyers immediately understand the size." },
+  { title: "Capture the craft", body: "Close-ups of cut edges, engraving depth, or wood grain prove your quality — buyers are paying for the craftsmanship." },
+  { title: "Show it in context", body: "One styled photo (on a wall, desk, mantel) helps buyers picture it in their own space." },
+  { title: "Square frames sell", body: "The cropper outputs 1:1 — your cover photo will be square everywhere on the site, so compose for it." },
+];
+
+/**
+ * "Photo tips" inline card — collapsible accordion that shows six concrete
+ * shoot-better-photos tips. Dismissal persists in localStorage so seasoned
+ * makers only see it on their first listing, but it always re-opens with
+ * a click on the small "Show photo tips" pill underneath.
+ */
+function PhotoTipsCard() {
+  const [dismissed, setDismissed] = useState(() => {
+    try {
+      return localStorage.getItem(PHOTO_TIPS_DISMISS_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const [open, setOpen] = useState(true);
+  const dismiss = () => {
+    try { localStorage.setItem(PHOTO_TIPS_DISMISS_KEY, "1"); } catch { /* private mode */ }
+    setDismissed(true);
+  };
+  const reopen = () => {
+    try { localStorage.removeItem(PHOTO_TIPS_DISMISS_KEY); } catch { /* private mode */ }
+    setDismissed(false);
+    setOpen(true);
+  };
+
+  if (dismissed) {
+    return (
+      <div className="mb-4">
+        <button
+          type="button"
+          onClick={reopen}
+          className="inline-flex items-center gap-2 px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] text-[#737373] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition"
+          data-testid="editor-photo-tips-reopen"
+        >
+          <Lightbulb size={11} /> Show photo tips
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="mb-4 border border-[#262626] bg-gradient-to-br from-[#1a1208] to-[#0f0a05]"
+      data-testid="editor-photo-tips-card"
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between gap-3 px-4 py-3 hover:bg-[#ff4500]/[0.04] transition"
+        data-testid="editor-photo-tips-toggle"
+      >
+        <span className="inline-flex items-center gap-2">
+          <Lightbulb size={14} className="text-[#ff4500]" />
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">
+            ◆ Photo tips — shoot listings that sell
+          </span>
+        </span>
+        <span className="inline-flex items-center gap-2">
+          <ChevronDown
+            size={14}
+            className={`text-[#737373] transition-transform ${open ? "rotate-180" : ""}`}
+          />
+          <span
+            role="button"
+            tabIndex={0}
+            onClick={(e) => { e.stopPropagation(); dismiss(); }}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); dismiss(); } }}
+            className="text-[#525252] hover:text-red-400 transition cursor-pointer"
+            aria-label="Dismiss photo tips"
+            data-testid="editor-photo-tips-dismiss"
+          >
+            <X size={13} />
+          </span>
+        </span>
+      </button>
+      {open && (
+        <div className="px-4 pb-4 grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {PHOTO_TIPS.map((tip, idx) => (
+            <div
+              key={tip.title}
+              className="border border-[#262626] bg-[#0a0a0a]/60 p-3"
+              data-testid={`editor-photo-tip-${idx}`}
+            >
+              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#ff4500] mb-1.5">
+                ◇ {tip.title}
+              </p>
+              <p className="text-[12px] text-[#a3a3a3] leading-relaxed">
+                {tip.body}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 /**
  * Photos & Video section — 10-photo grid w/ drag-to-reorder + cover badge,
@@ -45,6 +156,7 @@ export default function MediaSection({
       subtitle="Add up to 10 photos. The first image is your cover photo. Drag any photo to reorder, or click 'Set as cover' to promote it."
       counter={`${form.images.length}/${MAX_IMAGES} photos · ${form.video_url ? "1/1" : "0/1"} video`}
     >
+      <PhotoTipsCard />
       {failedCount > 0 && (
         <div
           className="mb-3 px-3 py-2 border border-red-500/60 bg-red-950/40 flex items-center justify-between gap-3"
