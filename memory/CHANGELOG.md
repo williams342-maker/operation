@@ -1,6 +1,19 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-24 — iter193 · Silent auto-retry for listing photo uploads ✅
+
+Wraps `_uploadOneListingImage` in a 3-attempt retry loop with exponential backoff (1s, 2s). Most transient upload blips (brief network hiccup, R2 read-after-write race, intermittent 502) now resolve silently — the maker never sees a failure. The Retry / Retry-all UI from iter191–192 only appears for genuine, persistent errors.
+
+### Frontend `pages/MakerListingEditor.jsx`
+- `_uploadOneListingImage` now loops up to 3 attempts. Between attempts: `await new Promise((res) => setTimeout(res, attempt * 1000))` (1s after attempt 1, 2s after attempt 2).
+- Smart bail-out on non-retriable errors: any 4xx **except** 408 (request timeout) and 429 (rate limit) bypasses the retry loop, so makers get the actionable error toast immediately (e.g. "Photo must be 10 MB or smaller") instead of staring at "Uploading…" for 3 extra seconds.
+- The `"uploading"` status stays set across all attempts — the maker sees a single continuous spinner, not three flickering ones.
+
+### Deployment
+- Lint clean, smoke verified in preview. Requires production redeploy.
+
+
 ## 2026-05-24 — iter192 · "Retry all failed" photo upload button ✅
 
 Tiny follow-up to iter191's per-tile retry. When several photos fail in the same batch (think: craft-fair tethered upload), a single banner above the photo grid lets the maker recover the whole batch in one click.

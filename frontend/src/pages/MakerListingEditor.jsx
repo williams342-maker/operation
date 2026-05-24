@@ -196,33 +196,51 @@ export default function MakerListingEditor() {
   // URL in form.images for the resulting CDN URL. Keeps the placeholder
   // (so the maker keeps seeing the preview) on failure, surfaces a toast,
   // and tags the tile as `"error"` so a per-tile Retry button appears.
+  //
+  // Auto-retry: up to 3 attempts with exponential backoff (1s, 2s) for
+  // transient errors (network blips / 5xx). 4xx errors (oversized, bad
+  // content type, auth) bail immediately since retrying won't help.
   const _uploadOneListingImage = async (dataUrl) => {
     const blob = _dataUrlToBlob(dataUrl);
     if (!blob) return;
     setUploadStatus((s) => ({ ...s, [dataUrl]: "uploading" }));
-    try {
-      const { url } = await uploadMakerListingImage(blob);
-      if (!url) {
+    const MAX_ATTEMPTS = 3;
+    let lastErr = null;
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+      try {
+        const { url } = await uploadMakerListingImage(blob);
+        if (!url) {
+          setUploadStatus((s) => {
+            const { [dataUrl]: _, ...rest } = s; return rest;
+          });
+          return;
+        }
+        setForm((f) => ({
+          ...f,
+          images: f.images.map((s) => (s === dataUrl ? url : s)),
+        }));
         setUploadStatus((s) => {
           const { [dataUrl]: _, ...rest } = s; return rest;
         });
         return;
+      } catch (e) {
+        lastErr = e;
+        const status = e?.response?.status;
+        // 4xx (except 408/429) won't succeed on retry — bail fast so the
+        // maker sees the actionable error message right away instead of
+        // staring at "Uploading…" for 3 seconds before failing anyway.
+        const retriable = !status || status >= 500 || status === 408 || status === 429;
+        if (!retriable || attempt === MAX_ATTEMPTS) break;
+        // Backoff: 1s after attempt 1, 2s after attempt 2.
+        await new Promise((res) => setTimeout(res, attempt * 1000));
       }
-      setForm((f) => ({
-        ...f,
-        images: f.images.map((s) => (s === dataUrl ? url : s)),
-      }));
-      setUploadStatus((s) => {
-        const { [dataUrl]: _, ...rest } = s; return rest;
-      });
-    } catch (e) {
-      // Leave the placeholder data URL in form.images so the maker can
-      // retry the tile directly. The legacy in-line upload path on the
-      // backend is still wired up as a safety net for the save call.
-      const msg = e?.response?.data?.detail || "Photo upload failed — tap retry, or remove and re-add.";
-      toast.error(msg);
-      setUploadStatus((s) => ({ ...s, [dataUrl]: "error" }));
     }
+    // All attempts exhausted — leave the data URL in form.images so the
+    // maker can retry manually. The legacy in-line upload path on the
+    // backend is still wired up as a safety net for the save call.
+    const msg = lastErr?.response?.data?.detail || "Photo upload failed — tap retry, or remove and re-add.";
+    toast.error(msg);
+    setUploadStatus((s) => ({ ...s, [dataUrl]: "error" }));
   };
 
   // Per-tile Retry handler. Re-uploads `form.images[i]` if it's still a
