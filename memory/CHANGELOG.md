@@ -1,6 +1,25 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-25 — iter209 · Daily design cron + Generate-5 batch + Maker Marketing skeletons + Plus EmptyState ✅
+
+### Backend
+- **`_job_daily_design_file` cron** in `scheduler.py` — runs every day at 08:00 UTC, picks the least-used parametric template (round-robin), and adds 1 fresh SVG + DXF + Nano-Banana JPG to the public `design_files` library. Kill-switch via `SCHEDULER_DAILY_DESIGNS=false` env. Verified live: one manual run produced `industrial-custom-steel-garage-plaque` (`garage_sign` template).
+- **`POST /api/admin/seed/community-designs/generate-batch?count=N`** (1–10, default 5) — fires N sequential generate calls; collects successes + per-index errors so the admin sees exactly what landed. Verified with count=2 (2/2 succeeded).
+
+### Frontend
+- **Admin `CommunityDesignsSeedCard`**: now shows two generate buttons side-by-side — `generate-one-community-design-btn` (single shot) and `generate-batch-community-designs-btn` (5 at once). Status copy under them advertises the daily cron at 08:00 UTC.
+- **`PlusMembersTab` empty state**: replaced the plain "No Crafters Plus subscribers yet." block with a proper `EmptyState` component (Crown icon, '◆ Crafters Plus' eyebrow, "No subscribers yet." title, value-prop body, `plus-empty-pricing-cta` → `/pricing`). Loading state now uses `RowsSkeleton count={5}` (testid `plus-loading`).
+- **MakerDashboard skeleton replacements** — replaced "Loading…" plain text with `RowsSkeleton` in:
+  - `Marketing/DiscountCodes.jsx` (`discount-loading`)
+  - `Marketing/AdsSection.jsx` (`ads-active-loading`, `ads-eligible-loading`, `auto-boost-loading`)
+  - `MarketingTab.jsx` (`social-share-loading`, `story-templates-loading`)
+
+### QA
+- testing_agent_v3 (iter_59): all deliverables verified — batch=2 endpoint returns `{succeeded:2}`, scheduler boot-log shows `daily_design_file@cron[hour='8', minute='0']` registered, source review confirms all skeleton + EmptyState refactors compile and render correctly. Zero bugs.
+
+
+
 ## 2026-05-25 — iter208 · 4 new design templates + UX polish (skeletons + mobile admin nav) ✅
 
 ### Backend — 4 new parametric design templates added to `design_file_seeder.py`
