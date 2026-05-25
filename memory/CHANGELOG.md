@@ -1,6 +1,37 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-25 — iter224 · P0 Production outage fix: selective env override ✅
+
+**User report:** Admin sign-in on craftersmarket.org fails with "Could not send the link." (screenshot attached).
+
+### Root cause
+Direct curl to the deployed origin returned **Cloudflare Error 520** ("Web server is returning an unknown error") — the FastAPI backend on production was failing to boot. Deployment agent traced it to iter222's fix: `load_dotenv(ROOT_DIR / ".env", override=True)` in `core.py` was clobbering Kubernetes-injected production env vars (MONGO_URL, DB_NAME, SECRET, etc.) with the developer-preview values in `.env`. The deployed Mongo cluster URL was being replaced by the local one → backend couldn't connect → container crash → 520.
+
+Symptomatic chain: user clicks "Send Sign-In Link" → frontend POSTs to `/api/admin/auth/request` → Cloudflare returns 520 (origin dead) → axios throws → frontend renders "Could not send the link." (the generic fallback in AdminLogin.jsx). Mailgun was never even reached.
+
+### Fix · `backend/core.py` + `backend/email_service.py`
+Replaced global `override=True` with a **selective override**: `.env` is loaded with `override=False` (so real K8s prod env vars keep winning), then for each key whose OS value contains the `****` placeholder mask (Emergent pod's dummy marker, e.g. `STRIPE_API_KEY=sk_test_****gent`), the OS value is replaced from `.env`. Net effect:
+- **Preview pod** (dummies present): `****`-masked vars get overridden → preview testing with real keys still works.
+- **Production deployment** (no `****` masks): all K8s vars preserved → backend boots cleanly.
+
+### Regression · `tests/test_iter224_selective_env_override.py` — **6/6 PASS**
+1. `****` placeholder in OS env is replaced by .env value.
+2. Real-looking OS env value (no `****`) is preserved — .env loses.
+3. Missing OS env key gets filled from .env.
+4. Empty .env value doesn't clobber a real OS env value.
+5. `core.py` has no `override=True` in any `load_dotenv(...)` call.
+6. `email_service.py` has no `override=True` in any `load_dotenv(...)` call.
+
+Plus iter222's existing 6 Stripe tests still pass (selective override still wins over the `****gent` placeholder for STRIPE_API_KEY in preview).
+
+### Deployment status
+- Deployment agent re-scan returned **DEPLOYMENT-READY** (no blockers).
+- **User must trigger a redeploy** on craftersmarket.org to publish the fix. The preview pod is already healthy.
+- Recovery alternative while redeploying: set `ADMIN_RECOVERY_SECRET=<random>` in the prod env and visit `/api/admin/auth/recovery?secret=<random>` for an emergency sign-in (built-in path in `routers/admin.py`).
+
+
+
 ## 2026-05-25 — iter222 · Stripe Connect "Could not start onboarding" fix ✅
 
 User reported `/maker/.../shop/manage` Financials → Stripe Connect onboarding rendering "Could not start onboarding." User attributed it to LLM budget (those systems are unrelated — Stripe ≠ Universal LLM Key).
