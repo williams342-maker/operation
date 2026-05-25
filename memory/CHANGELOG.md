@@ -1,6 +1,29 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-25 — iter207 · "Generate fresh design file" admin button (parametric AI seeder) ✅
+
+Mirrors the existing "Seed fresh thread now" pattern but for the Community → Design files library. One click adds a new SVG + DXF + Nano-Banana preview JPG, picked from a parametric template bank.
+
+### Backend `/app/backend/design_file_seeder.py`
+- 5 parametric templates: **welcome_arch** (top arch + bottom mountain/tree/heart silhouette), **family_est** (bordered "THE [NAME] FAMILY · EST. [YEAR]" plaque), **garage_sign** (crossed-wrenches workshop sign), **heart_quote** (heart outline + 2-line quote), **star_ornament** (parametric N-point star + optional monogram).
+- Round-robin picker — counts existing rows per `ai_template_id` and picks the least-used template so the library stays diverse.
+- Gemini Flash (`gemini-3-flash-preview`) fills in only the *copy* (title, description, tags, template params like banner_text/last_name/year) — never raw vector data. Geometry stays deterministic so plasma/laser shops can trust every output.
+- Nano-Banana (`gemini-3.1-flash-image-preview`) generates the lifestyle preview JPG. Best-effort: if it fails, the design still lands in the library (preview falls back to the SVG itself).
+- Inserts into `design_files` with `is_seed: true`, `ai_generated: true`, `ai_template_id: <picked>`, `quarantined_at: null`.
+
+### Backend endpoint
+- `POST /api/admin/seed/community-designs/generate-one` — admin-gated. Returns `{status:"ok", design:{slug,title,template_id,preview_url,svg_url,dxf_url}}`.
+
+### Frontend
+- New "◇ AI fresh design · Run now" block inside `CommunityDesignsSeedCard` (Admin → Settings) with `generate-one-community-design-btn` and result row showing the new slug + template + file paths.
+- API helper `generateOneCommunityDesign()` in `/app/frontend/src/lib/api.js` (120s timeout to accommodate Nano-Banana latency).
+
+### Verified live
+- 2 fresh designs created via the HTTP endpoint mid-session: "Rustic Modern Anniversary Heart Plaque" (heart_quote) + "Modern Celestial Twelve Point Star" (star_ornament). Both surfaced at the top of `/community?tab=files` with full SVG+DXF chips, AI-generated tag chips, Workshop Team byline, and 80/100 quality scores. Static `/seed-designs/<slug>/{design.svg,design.dxf,preview.jpg}` all return 200.
+
+
+
 ## 2026-05-25 — iter206 · Community Design Library seed (Workshop Team · DXF + SVG + JPG) ✅
 
 10 AI-generated, royalty-free CNC/laser/plasma design bundles seeded into the existing `design_files` collection (the one already powering Community → Design files). Each bundle = real hand-crafted SVG + real DXF (via ezdxf) + Nano-Banana lifestyle JPG preview. All source files ship with the frontend deploy artifact under `/app/frontend/public/seed-designs/<slug>/` — no R2 round-trips, no cold-cache misses.

@@ -785,6 +785,8 @@ export const installCommunityDesignsSeed = () =>
   http.post("/admin/seed/community-designs/install-fixture", null, { headers: adminAuthHeaders() }).then((r) => r.data);
 export const purgeCommunityDesignsSeed = () =>
   http.post("/admin/seed/community-designs/purge", null, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const generateOneCommunityDesign = () =>
+  http.post("/admin/seed/community-designs/generate-one", null, { headers: adminAuthHeaders(), timeout: 120000 }).then((r) => r.data);
 
 // AI Discovery — "describe what you want" natural-language search.
 // Returns matched products w/ a per-result `match_reason`. Public

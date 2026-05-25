@@ -219,6 +219,21 @@ async def purge_community_designs_seed(_: dict = Depends(current_admin)):
     }
 
 
+@router.post("/admin/seed/community-designs/generate-one")
+async def generate_one_community_design(_: dict = Depends(current_admin)):
+    """Generate ONE fresh AI-driven design file and insert it into the
+    public `design_files` library. Picks the least-used parametric
+    template, has Gemini Flash fill in the creative copy + parameters,
+    then composes a real SVG + DXF + Nano-Banana preview JPG.
+
+    Mirrors the "Seed fresh thread now" pattern — same admin gating,
+    same return shape, designed to be hit on demand whenever the library
+    needs another piece of variety.
+    """
+    from design_file_seeder import generate_one_design
+    return await generate_one_design()
+
+
 @router.post("/admin/seed/featured-content/purge")
 async def purge_featured_seed(_: dict = Depends(current_admin)):
     """Hard-delete every doc tagged `featured_example: true`. Intentionally

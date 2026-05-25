@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 920" width="1000" height="920">
+  <path fill="none" stroke="#0a0a0a" stroke-width="10" d="M 500 880 C 80 660 80 280 320 200 C 460 140 500 280 500 360 C 500 280 540 140 680 200 C 920 280 920 660 500 880 Z"/>
+  <text x="500" y="470" text-anchor="middle" font-family="Anton, Impact, sans-serif" font-size="70" font-weight="900" fill="#0a0a0a" letter-spacing="4">EVER AFTER</text>
+  <text x="500" y="580" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="50" font-weight="700" fill="#0a0a0a" letter-spacing="8">EST. 2012</text>
+</svg>

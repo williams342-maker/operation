@@ -21,6 +21,7 @@ import {
   fetchCommunityDesignsSeedStatus,
   installCommunityDesignsSeed,
   purgeCommunityDesignsSeed,
+  generateOneCommunityDesign,
 } from "../../lib/api";
 import { refreshSiteSettings } from "../../hooks/useSiteSettings";
 import { RowsSkeleton } from "../Skeleton";
@@ -195,6 +196,10 @@ function CommunityDesignsSeedCard() {
   const [status, setStatus] = useState(null);
   const [installBusy, setInstallBusy] = useState(false);
   const [installResult, setInstallResult] = useState(null);
+  // Generate-one AI button — separate state so it doesn't fight the
+  // install/purge confirm flows above.
+  const [genBusy, setGenBusy] = useState(false);
+  const [genResult, setGenResult] = useState(null);
   const [purgeStep, setPurgeStep] = useState(0);
   const [purgeBusy, setPurgeBusy] = useState(false);
   const [purgeResult, setPurgeResult] = useState(null);
@@ -236,6 +241,24 @@ function CommunityDesignsSeedCard() {
       toast.error(e?.response?.data?.detail || "Purge failed.");
     } finally {
       setPurgeBusy(false);
+    }
+  };
+
+  const runGenerate = async () => {
+    setGenBusy(true);
+    try {
+      const r = await generateOneCommunityDesign();
+      setGenResult(r);
+      if (r.status === "ok") {
+        toast.success(`Generated "${r.design.title}" (${r.design.template_id}).`);
+        refresh();
+      } else {
+        toast.error(r.reason || "Generation failed.");
+      }
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Generation failed.");
+    } finally {
+      setGenBusy(false);
     }
   };
 
@@ -296,6 +319,43 @@ function CommunityDesignsSeedCard() {
             data-testid="install-community-designs-seed-result"
           >
             ◆ Installed {installResult.installed} designs · total seeded now: {installResult.totals_now.seeded_designs}
+          </div>
+        )}
+      </div>
+
+      {/* AI generate-one button — mirrors the "Seed fresh thread now"
+          pattern. Picks the least-used parametric template (welcome
+          arch / family est / garage sign / heart quote / star ornament),
+          has Gemini Flash fill in copy + params, then composes a real
+          SVG + DXF + Nano Banana preview. Hit it whenever the library
+          needs more variety. */}
+      <div className="mb-4 pb-4 border-b border-amber-900/40">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-amber-300 mb-1">
+          ◇ AI fresh design · Run now
+        </div>
+        <p className="font-mono text-[11px] text-[#a3a3a3] mb-2 leading-relaxed max-w-2xl">
+          Adds <span className="text-amber-300">1 new design file</span> picked from the parametric
+          template bank (Welcome arch, Family EST plaque, Garage sign, Heart quote, Star ornament).
+          Gemini Flash picks copy + theme, then we generate real <code className="text-emerald-300">SVG + DXF</code> and a
+          Nano-Banana lifestyle preview JPG. Takes ~15–25s.
+        </p>
+        <button
+          onClick={runGenerate}
+          disabled={genBusy}
+          className="px-3 py-1.5 border border-amber-700 text-amber-200 hover:bg-amber-900/30 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
+          data-testid="generate-one-community-design-btn"
+        >
+          {genBusy ? "Generating…" : "Generate fresh design file"}
+        </button>
+        {genResult?.status === "ok" && (
+          <div
+            className="mt-2 font-mono text-[11px] text-emerald-300"
+            data-testid="generate-one-community-design-result"
+          >
+            ◆ &quot;{genResult.design.title}&quot; · template: {genResult.design.template_id} · slug: {genResult.design.slug}
+            <div className="text-[#737373] mt-1 break-all">
+              svg: {genResult.design.svg_url} · dxf: {genResult.design.dxf_url}
+            </div>
           </div>
         )}
       </div>
