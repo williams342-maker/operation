@@ -1,9 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { Archive } from "lucide-react";
 import { deleteMakerApplication, fetchAdminRejectedApplications } from "../../lib/api";
 import { formatDate } from "./_shared";
 import AdminEmailModal from "./AdminEmailModal";
 import { useConfirm } from "../../hooks/useConfirm";
+import { RowsSkeleton } from "../Skeleton";
+import EmptyState from "../EmptyState";
 
 // Standalone list of rejected maker applications. Split out from the
 // main Applications tab so the daily review queue stays actionable.
@@ -60,12 +63,16 @@ export default function RejectedAppsTab() {
         </p>
       </div>
 
-      {loading && <div className="font-mono text-xs text-[#a3a3a3] py-6">Loading…</div>}
+      {loading && <div data-testid="rejected-loading" className="py-2"><RowsSkeleton count={4} /></div>}
       {err && <div className="font-mono text-xs text-red-400 py-6">{err}</div>}
       {!loading && items.length === 0 && (
-        <div className="font-mono text-xs text-[#a3a3a3] py-6" data-testid="rejected-empty">
-          No rejected applications — nothing archived.
-        </div>
+        <EmptyState
+          icon={Archive}
+          eyebrow="◆ Decline Archive"
+          title="Nothing archived."
+          body="Applications you reject will be filed here so you can reach back out later or clean up audit rows."
+          testId="rejected-empty"
+        />
       )}
 
       <div className="space-y-3">

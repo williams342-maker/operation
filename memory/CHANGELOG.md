@@ -1,6 +1,21 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-25 — iter210 · More skeletons + EmptyStates across admin queues ✅
+
+### Frontend
+- **`DesignFileReportsTab`** — replaced plain "Loading…" with `RowsSkeleton count={4}` (testid `file-reports-loading`); replaced static "No open reports — the community is behaving." block with a proper `EmptyState` (ShieldCheck icon, "All clear" eyebrow, value-prop body about live moderation latency).
+- **`RejectedAppsTab`** — replaced plain "Loading…" with `RowsSkeleton count={4}` (testid `rejected-loading`); replaced the static empty div with an `EmptyState` (Archive icon, "Decline Archive" eyebrow, body explaining the decision audit trail).
+- **`ShippingLedgerTab`** — replaced `<div>Loading…</div>` inside the ledger table with `RowsSkeleton count={5}` (testid `shipping-ledger-loading`).
+- **`RefundApprovalsTab`** — replaced the orange spinning "◆ Loading…" block with `RowsSkeleton count={4}` (testid `refund-approvals-loading`); replaced the dashed-border ShieldAlert-icon empty state with the canonical `EmptyState` component using either ShieldCheck (pending) or ShieldAlert (other filters) and a context-aware body that tells the admin what to do next.
+
+Note: `MakerProductsTab.jsx` referenced in the prior next-actions doesn't exist — `ProductsList.jsx` (its actual name) was already migrated to `EmptyState` in a previous iteration. `MakerDashboard/FinancialsTab.jsx:1307` "Loading…" was inspected and left as-is — it's an inline subtitle next to a metric count, not a content block, so a skeleton would degrade UX.
+
+### QA
+- ESLint pass across all 4 touched files. No backend changes — no scheduler / endpoint impact. Existing testids preserved (`file-reports-empty`, `rejected-empty`, `approvals-empty`) so any downstream selectors keep working.
+
+
+
 ## 2026-05-25 — iter209 · Daily design cron + Generate-5 batch + Maker Marketing skeletons + Plus EmptyState ✅
 
 ### Backend

@@ -1,11 +1,14 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { ShieldCheck } from "lucide-react";
 import {
   fetchAdminDesignFileReports,
   resolveDesignFileReport,
   unquarantineDesignFile,
 } from "../../lib/api";
 import { formatDate } from "./_shared";
+import { RowsSkeleton } from "../Skeleton";
+import EmptyState from "../EmptyState";
 
 // Moderation queue for design-file reports. When a community user clicks
 // ⚑ Report on a file card, a row lands here. Admin can:
@@ -78,12 +81,20 @@ export default function DesignFileReportsTab() {
         })}
       </div>
 
-      {loading && <div className="font-mono text-xs text-[#a3a3a3] py-6">Loading…</div>}
+      {loading && <div data-testid="file-reports-loading" className="py-2"><RowsSkeleton count={4} /></div>}
       {err && <div className="font-mono text-xs text-red-400 py-6">{err}</div>}
       {!loading && rows.length === 0 && (
-        <div className="font-mono text-xs text-[#a3a3a3] py-10 border border-dashed border-[#262626] text-center" data-testid="file-reports-empty">
-          {status === "open" ? "No open reports — the community is behaving." : `No ${status} reports.`}
-        </div>
+        <EmptyState
+          icon={ShieldCheck}
+          eyebrow={status === "open" ? "◆ All clear" : "◆ Archive"}
+          title={status === "open" ? "No open reports." : `No ${status} reports.`}
+          body={
+            status === "open"
+              ? "Community moderation is quiet. New flags from users will appear here within seconds of being filed."
+              : `Switch back to "Open" to triage active reports.`
+          }
+          testId="file-reports-empty"
+        />
       )}
 
       <div className="space-y-3">

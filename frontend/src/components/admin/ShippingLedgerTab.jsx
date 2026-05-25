@@ -7,6 +7,7 @@ import {
   adminShippingLedgerCsvUrl,
 } from "../../lib/api";
 import { useConfirm } from "../../hooks/useConfirm";
+import { RowsSkeleton } from "../Skeleton";
 
 /**
  * Admin Shipping Ledger (Phase 2D).
@@ -239,7 +240,7 @@ export default function ShippingLedgerTab() {
           <span>Status</span>
           <span>Actions</span>
         </div>
-        {loading && <div className="p-5 font-mono text-xs text-[#737373]">Loading…</div>}
+        {loading && <div data-testid="shipping-ledger-loading" className="p-3"><RowsSkeleton count={5} /></div>}
         {!loading && rows.length === 0 && (
           <div className="p-5 font-mono text-xs text-[#737373]">No rows match.</div>
         )}
