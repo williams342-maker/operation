@@ -9,9 +9,10 @@
  */
 import React, { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { ShieldAlert, Check, X, Loader2 } from "lucide-react";
+import { ShieldAlert, Check, X } from "lucide-react";
 import { fetchAdminReviewDisputes, adminResolveReviewDispute } from "../../lib/api";
 import EmptyState from "../EmptyState";
+import { RowsSkeleton } from "../Skeleton";
 import { timeAgo } from "../../lib/timeAgo";
 
 const FILTERS = [
@@ -86,9 +87,7 @@ export default function ReviewDisputesTab() {
       </div>
 
       {loading ? (
-        <div className="flex items-center gap-2 text-[#a3a3a3] font-mono text-xs">
-          <Loader2 size={14} className="animate-spin" /> Loading…
-        </div>
+        <div data-testid="disputes-loading"><RowsSkeleton count={4} /></div>
       ) : !items.length ? (
         <EmptyState
           title={filter === "open" ? "Nothing waiting on you." : "No disputes match this filter."}

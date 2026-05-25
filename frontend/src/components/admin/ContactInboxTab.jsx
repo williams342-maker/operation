@@ -8,13 +8,14 @@
  */
 import React, { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Mail, Check, MessageSquare, Loader2, ExternalLink, Phone } from "lucide-react";
+import { Mail, Check, MessageSquare, ExternalLink, Phone } from "lucide-react";
 import {
   fetchAdminContactMessages,
   adminResolveContactMessage,
   adminReplyContactMessage,
 } from "../../lib/api";
 import EmptyState from "../EmptyState";
+import { RowsSkeleton } from "../Skeleton";
 import { timeAgo } from "../../lib/timeAgo";
 
 const FILTERS = [
@@ -139,9 +140,7 @@ export default function ContactInboxTab() {
       </div>
 
       {loading ? (
-        <div className="flex items-center gap-2 text-[#a3a3a3] font-mono text-xs">
-          <Loader2 size={14} className="animate-spin" /> Loading…
-        </div>
+        <div data-testid="contact-inbox-loading"><RowsSkeleton count={4} /></div>
       ) : !items.length ? (
         <EmptyState
           title={filter === "pending" ? "Nothing waiting on you." : "No messages yet."}

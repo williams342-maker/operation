@@ -14,9 +14,10 @@
  */
 import React, { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Mail, Check, MessageSquare, Loader2, ExternalLink } from "lucide-react";
+import { Mail, Check, MessageSquare, ExternalLink } from "lucide-react";
 import { fetchAdminFeedback, adminResolveFeedback, replyToFeedback } from "../../lib/api";
 import EmptyState from "../EmptyState";
+import { RowsSkeleton } from "../Skeleton";
 import { timeAgo } from "../../lib/timeAgo";
 
 const FILTERS = [
@@ -97,9 +98,7 @@ export default function FeedbackTab() {
       </header>
 
       {loading ? (
-        <div className="flex items-center gap-2 text-[#a3a3a3] font-mono text-xs">
-          <Loader2 size={14} className="animate-spin" /> Loading…
-        </div>
+        <div data-testid="feedback-loading"><RowsSkeleton count={4} /></div>
       ) : !items.length ? (
         <EmptyState
           title={filter === "pending" ? "Nothing waiting on you." : "No feedback yet."}
