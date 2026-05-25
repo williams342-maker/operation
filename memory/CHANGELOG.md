@@ -1,6 +1,30 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-25 — iter208 · 4 new design templates + UX polish (skeletons + mobile admin nav) ✅
+
+### Backend — 4 new parametric design templates added to `design_file_seeder.py`
+- **motorcycle_silhouette** — vintage chopper-style side view with optional curved banner. Aimed at the biker / Americana / gearhead audience. 16×7.2 in.
+- **cabin_lake_sign** — bordered cabin/lake-house sign with pine-tree flanks + wave line at the base. 18×8 in.
+- **pet_name_plate** — pet silhouette (dog or cat) with curved name banner for nameplates, urns, feeding stations. 10×9 in.
+- **address_arrow** — tall vertical address plaque (number + street) with chevron arrow on the right edge for driveway signage. 6×18 in.
+- Round-robin picker auto-rotates through all 9 templates (5 original + 4 new) for max library diversity. testing_agent_v3 ran one of each through the live endpoint — all 11 ai_generated rows now in DB, every slug has full SVG+DXF+JPG triple on disk.
+
+### Frontend — UX polish backlog (P3 from `/app/memory/ROADMAP.md`)
+- **Loading skeletons** replacing "Loading…" plain text in 6 admin tabs:
+  - `UsersTab` → `RowsSkeleton count={6}`
+  - `AuditTab` (Moderation + AI Mod log) → `RowsSkeleton`
+  - `MakerAnalyticsTab` → `StatsSkeleton + RowsSkeleton`
+  - `WebAnalyticsTab` → `StatsSkeleton×2 + RowsSkeleton`
+  - `ShowcaseAnalyticsTab` → `StatsSkeleton + RowsSkeleton`
+  - `ComingSoonTab` → `RowsSkeleton`
+- **Admin tab nav mobile polish** — wrapped the existing horizontally-scrollable tab bar in a positioned container with two gradient overlay divs (`bg-gradient-to-r from-[#0a0a0a]` left + `bg-gradient-to-l from-[#0a0a0a]` right, each 32px wide, `pointer-events:none`, `lg:hidden`). Visitors now get a clear visual affordance that there's more tabs to scroll on phones, without the gradients blocking taps. Desktop sidebar layout unchanged.
+
+### QA
+- testing_agent_v3 (iter_58): all deliverables verified — backend template generation end-to-end, public list returns the new designs at top with full SVG+DXF chips and Workshop Team byline, skeleton replacements + mobile gradient overlay rendered on a 390×844 viewport. Zero bugs.
+
+
+
 ## 2026-05-25 — iter207 · "Generate fresh design file" admin button (parametric AI seeder) ✅
 
 Mirrors the existing "Seed fresh thread now" pattern but for the Community → Design files library. One click adds a new SVG + DXF + Nano-Banana preview JPG, picked from a parametric template bank.
