@@ -6,6 +6,7 @@ import {
   fetchMakerBoostCredits, redeemBoostCredit,
   promoteMakerProduct, setAutoRenewPromotion, updateAutoBoost,
 } from "../../../lib/api";
+import { RowsSkeleton } from "../../../components/Skeleton";
 import Section from "./Section";
 
 /**
@@ -141,7 +142,7 @@ export default function AdsSection() {
       {/* Active promotions */}
       <Section title={`Active promotions · ${activePromos.length}`} testId="ads-active">
         {products === null ? (
-          <p className="font-mono text-xs text-[#525252]">Loading…</p>
+          <div data-testid="ads-active-loading"><RowsSkeleton count={3} /></div>
         ) : activePromos.length === 0 ? (
           <p className="font-mono text-xs text-[#737373] py-3">
             No promoted listings right now. Boost one below to pin it to the top of search.
@@ -217,7 +218,7 @@ export default function AdsSection() {
           ))}
         </div>
         {products === null ? (
-          <p className="font-mono text-xs text-[#525252]">Loading eligible listings…</p>
+          <div data-testid="ads-eligible-loading"><RowsSkeleton count={4} /></div>
         ) : eligible.length === 0 ? (
           <p className="font-mono text-xs text-[#737373] py-3">
             No eligible listings — every published listing is already promoted, or you haven't published yet.
@@ -303,7 +304,7 @@ function AutoBoostPanel() {
   };
 
   if (!data) {
-    return <Section title="Auto-boost best-sellers" testId="ads-auto-boost"><p className="font-mono text-xs text-[#525252]">Loading…</p></Section>;
+    return <Section title="Auto-boost best-sellers" testId="ads-auto-boost"><div data-testid="auto-boost-loading"><RowsSkeleton count={3} /></div></Section>;
   }
 
   const candidates = data.next_candidates || [];

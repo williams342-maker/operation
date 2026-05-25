@@ -1,7 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { Crown } from "lucide-react";
 import { fetchAdminPlusMembers } from "../../lib/api";
 import { formatDate } from "./_shared";
+import { RowsSkeleton } from "../Skeleton";
+import EmptyState from "../EmptyState";
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -120,12 +123,21 @@ export default function PlusMembersTab() {
         </div>
       </div>
 
-      {loading && <div className="font-mono text-xs text-[#a3a3a3] py-6">Loading…</div>}
+      {loading && <div data-testid="plus-loading" className="py-2"><RowsSkeleton count={5} /></div>}
       {err && <div className="font-mono text-xs text-red-400 py-6">{err}</div>}
       {!loading && rows.length === 0 && (
-        <div className="font-mono text-xs text-[#a3a3a3] py-6 border border-dashed border-[#262626] text-center" data-testid="plus-empty">
-          No Crafters Plus subscribers yet.
-        </div>
+        <EmptyState
+          icon={Crown}
+          eyebrow="◆ Crafters Plus"
+          title="No subscribers yet."
+          body="When makers upgrade to Crafters Plus ($12/mo), their subscription metadata and 30-day ROI will appear here so you can spot churn risk early."
+          cta={{
+            label: "Open Pricing page",
+            href: "/pricing",
+            testId: "plus-empty-pricing-cta",
+          }}
+          testId="plus-empty"
+        />
       )}
 
       {!loading && rows.length > 0 && (

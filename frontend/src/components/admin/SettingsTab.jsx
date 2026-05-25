@@ -22,6 +22,7 @@ import {
   installCommunityDesignsSeed,
   purgeCommunityDesignsSeed,
   generateOneCommunityDesign,
+  generateBatchCommunityDesigns,
 } from "../../lib/api";
 import { refreshSiteSettings } from "../../hooks/useSiteSettings";
 import { RowsSkeleton } from "../Skeleton";
@@ -200,6 +201,8 @@ function CommunityDesignsSeedCard() {
   // install/purge confirm flows above.
   const [genBusy, setGenBusy] = useState(false);
   const [genResult, setGenResult] = useState(null);
+  const [batchBusy, setBatchBusy] = useState(false);
+  const [batchResult, setBatchResult] = useState(null);
   const [purgeStep, setPurgeStep] = useState(0);
   const [purgeBusy, setPurgeBusy] = useState(false);
   const [purgeResult, setPurgeResult] = useState(null);
@@ -259,6 +262,20 @@ function CommunityDesignsSeedCard() {
       toast.error(e?.response?.data?.detail || "Generation failed.");
     } finally {
       setGenBusy(false);
+    }
+  };
+
+  const runBatch = async () => {
+    setBatchBusy(true);
+    try {
+      const r = await generateBatchCommunityDesigns(5);
+      setBatchResult(r);
+      toast.success(`Generated ${r.succeeded}/${r.requested} designs.${r.failed ? ` ${r.failed} failed.` : ""}`);
+      refresh();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Batch generation failed.");
+    } finally {
+      setBatchBusy(false);
     }
   };
 
@@ -341,12 +358,25 @@ function CommunityDesignsSeedCard() {
         </p>
         <button
           onClick={runGenerate}
-          disabled={genBusy}
+          disabled={genBusy || batchBusy}
           className="px-3 py-1.5 border border-amber-700 text-amber-200 hover:bg-amber-900/30 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
           data-testid="generate-one-community-design-btn"
         >
           {genBusy ? "Generating…" : "Generate fresh design file"}
         </button>
+        <button
+          onClick={runBatch}
+          disabled={genBusy || batchBusy}
+          className="ml-2 px-3 py-1.5 border border-amber-700 text-amber-200 hover:bg-amber-900/30 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
+          data-testid="generate-batch-community-designs-btn"
+          title="Generate 5 designs back-to-back (round-robin across templates). Takes 60-120s."
+        >
+          {batchBusy ? "Generating 5…" : "Generate 5 at once"}
+        </button>
+        <p className="font-mono text-[10px] text-[#525252] mt-2 leading-relaxed max-w-2xl">
+          ◇ Cron <code className="text-emerald-300">daily_design_file</code> adds 1 fresh design every day at
+          08:00 UTC (toggle via <code>SCHEDULER_DAILY_DESIGNS</code> env). The buttons above are for on-demand top-ups.
+        </p>
         {genResult?.status === "ok" && (
           <div
             className="mt-2 font-mono text-[11px] text-emerald-300"
@@ -356,6 +386,20 @@ function CommunityDesignsSeedCard() {
             <div className="text-[#737373] mt-1 break-all">
               svg: {genResult.design.svg_url} · dxf: {genResult.design.dxf_url}
             </div>
+          </div>
+        )}
+        {batchResult && (
+          <div
+            className="mt-2 font-mono text-[11px] text-emerald-300"
+            data-testid="generate-batch-community-designs-result"
+          >
+            ◆ Batch: {batchResult.succeeded}/{batchResult.requested} succeeded
+            {batchResult.failed > 0 && <span className="text-red-400"> · {batchResult.failed} failed</span>}
+            <ul className="mt-1 text-[#737373] space-y-0.5">
+              {(batchResult.designs || []).slice(0, 5).map((d) => (
+                <li key={d.slug}>· {d.template_id} → {d.title}</li>
+              ))}
+            </ul>
           </div>
         )}
       </div>

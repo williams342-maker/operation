@@ -774,6 +774,31 @@ async def _job_weekly_forum_thread():
         logger.exception("[scheduler] weekly_forum_thread failed: %s", e)
 
 
+async def _job_daily_design_file():
+    """Adds 1 fresh AI-generated community design file every morning.
+
+    Round-robin picks the least-used parametric template (9 in the
+    bank), has Gemini Flash fill in creative copy + params, then writes
+    a real SVG + DXF + Nano Banana preview JPG and inserts into the
+    `design_files` collection flagged `is_seed=true, ai_generated=true`.
+
+    Slow daily drip means the public Community → Design files library
+    keeps compounding without anyone clicking. Safe if Nano Banana is
+    temporarily down — the design still lands (preview falls back to
+    the SVG itself). Disable per env: SCHEDULER_DAILY_DESIGNS=false.
+    """
+    if os.environ.get("SCHEDULER_DAILY_DESIGNS", "true").lower() in ("false", "0", "no"):
+        logger.info("[scheduler] daily_design_file disabled via env")
+        return
+    try:
+        from design_file_seeder import generate_one_design
+        r = await generate_one_design()
+        logger.info("[scheduler] daily_design_file ok: %s · %s",
+                    r["design"]["template_id"], r["design"]["slug"])
+    except Exception as e:
+        logger.exception("[scheduler] daily_design_file failed: %s", e)
+
+
 
 
 def start_scheduler() -> AsyncIOScheduler | None:
@@ -847,6 +872,11 @@ def start_scheduler() -> AsyncIOScheduler | None:
     # cultivated without spamming the board (1 new thread/week max).
     sched.add_job(_job_weekly_forum_thread, CronTrigger(day_of_week="tue", hour=14, minute=0),
                   id="weekly_forum_thread", replace_existing=True)
+    # Daily community design — runs every day at 08:00 UTC. Adds 1 new
+    # AI-generated SVG/DXF/JPG bundle to the public design files library
+    # so it keeps compounding. Disable per-env via SCHEDULER_DAILY_DESIGNS=false.
+    sched.add_job(_job_daily_design_file, CronTrigger(hour=8, minute=0),
+                  id="daily_design_file", replace_existing=True)
     # Secrets rotation nudge — daily at 09:30 UTC. Two-tier:
     #   • 14-day pre-warning (due_soon) → email + Slack
     #   • Overdue → email + Slack + Discord (high priority)

@@ -5,6 +5,7 @@ import {
   fetchDiscountCodes, createDiscountCode, toggleDiscountCode, deleteDiscountCode,
 } from "../../../lib/api";
 import { useConfirm } from "../useConfirm";
+import { RowsSkeleton } from "../../../components/Skeleton";
 import Section from "./Section";
 
 /**
@@ -102,7 +103,7 @@ export default function DiscountCodes() {
         </form>
       )}
       {codes === null ? (
-        <p className="font-mono text-xs text-[#737373] py-4">Loading…</p>
+        <div data-testid="discount-loading" className="py-2"><RowsSkeleton count={3} /></div>
       ) : codes.length === 0 ? (
         <p className="font-mono text-xs text-[#737373] py-4">No codes yet — create your first promo above.</p>
       ) : (

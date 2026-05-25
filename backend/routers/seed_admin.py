@@ -234,6 +234,36 @@ async def generate_one_community_design(_: dict = Depends(current_admin)):
     return await generate_one_design()
 
 
+@router.post("/admin/seed/community-designs/generate-batch")
+async def generate_batch_community_designs(
+    count: int = 5,
+    _: dict = Depends(current_admin),
+):
+    """Generate N (default 5, max 10) fresh AI designs back-to-back.
+
+    Useful for fresh-deploy populates when the admin wants the library
+    to feel lived-in immediately. Runs sequentially (not parallel) so
+    the round-robin picker stays balanced — each call sees the rows
+    written by the previous one and picks the next least-used template.
+
+    Failures of a single design don't abort the batch — we collect
+    successes + errors and return them all so the admin sees exactly
+    what landed.
+    """
+    from design_file_seeder import generate_one_design
+    n = max(1, min(int(count or 5), 10))
+    successes: list = []
+    errors: list = []
+    for i in range(n):
+        try:
+            r = await generate_one_design()
+            successes.append(r["design"])
+        except Exception as e:
+            errors.append({"index": i, "error": str(e)})
+    return {"status": "ok", "requested": n, "succeeded": len(successes),
+            "failed": len(errors), "designs": successes, "errors": errors}
+
+
 @router.post("/admin/seed/featured-content/purge")
 async def purge_featured_seed(_: dict = Depends(current_admin)):
     """Hard-delete every doc tagged `featured_example: true`. Intentionally

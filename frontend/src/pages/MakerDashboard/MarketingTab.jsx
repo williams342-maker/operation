@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { fetchMakerProducts, makerShareListingToBuffer, downloadProductStoryCard, fetchMakerMe } from "../../lib/api";
+import { RowsSkeleton } from "../../components/Skeleton";
 import Section from "./Marketing/Section";
 import AdsSection from "./Marketing/AdsSection";
 import AICopyTools from "./Marketing/AICopyTools";
@@ -184,7 +185,7 @@ function SocialMedia() {
       </p>
 
       {products === null ? (
-        <p className="font-mono text-xs text-[#525252]">Loading…</p>
+        <div data-testid="social-share-loading"><RowsSkeleton count={3} /></div>
       ) : products.length === 0 ? (
         <p className="font-mono text-xs text-[#525252]">Publish a listing first — drafts can't be shared.</p>
       ) : (
@@ -241,7 +242,7 @@ function StoryTemplates() {
       </p>
 
       {products === null ? (
-        <p className="font-mono text-xs text-[#525252]">Loading…</p>
+        <div data-testid="story-templates-loading"><RowsSkeleton count={4} /></div>
       ) : products.length === 0 ? (
         <p className="font-mono text-xs text-[#525252]">Publish a listing first — story templates only generate for live products.</p>
       ) : (
