@@ -1,94 +1,104 @@
 {
   "theme": "dark",
-  "archetype": "Archetype 4: Swiss Brutalist / Industrial Dark",
-  "colors": {
-    "background": "#0a0a0a",
-    "foreground": "#e5e5e5",
-    "primary": "#ff4500",
-    "primary_foreground": "#ffffff",
-    "secondary": "#1a1a1a",
-    "secondary_foreground": "#e5e5e5",
-    "accent": "#ff4500",
-    "accent_foreground": "#ffffff",
-    "border": "#262626",
-    "muted": "#171717",
-    "muted_foreground": "#a3a3a3",
-    "card": "#121212",
-    "card_foreground": "#e5e5e5"
+  "archetype": "5 (Luxury) + Industrial Forge",
+  "mood_board": "The cinematic identity of Crafters Market is raw, precise, and emotionally charged. We are replacing flat SaaS gradients with 'Industrial Luxury' — deep charcoal environments pierced by molten copper light, amber sparks, and technical blueprint grids. Every section should feel like stepping into a premium workshop, focusing on the machinery, raw textures, and the hands that build.",
+  "color_palette": {
+    "background_base": "#0a0a0a",
+    "background_surface": "#121212",
+    "accent_primary": "#f97316",
+    "accent_secondary": "#f59e0b",
+    "copper_glow": "rgba(217, 119, 6, 0.15)",
+    "text_primary": "#ffffff",
+    "text_secondary": "#a1a1aa",
+    "border_industrial": "rgba(255, 255, 255, 0.1)"
   },
   "typography": {
-    "headings": {
-      "fontFamily": "'Anton', sans-serif",
-      "weights": ["400"],
-      "tracking": "tracking-normal",
-      "textTransform": "uppercase",
-      "import_url": "https://fonts.googleapis.com/css2?family=Anton&display=swap"
-    },
-    "body": {
-      "fontFamily": "'JetBrains Mono', monospace",
-      "weights": ["400", "500"],
-      "import_url": "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap"
+    "strategy": "Retain existing font stack. Focus on dramatic scale contrast. H1s should be tight and massive (tracking-tighter), while subheadings should be spaced and technical (tracking-widest).",
+    "classes": {
+      "hero_headline": "text-5xl md:text-6xl font-black tracking-tighter text-white drop-shadow-md",
+      "overline": "text-xs md:text-sm font-semibold tracking-[0.2em] text-orange-500 uppercase",
+      "body": "text-base md:text-lg text-zinc-400 leading-relaxed"
     }
   },
-  "layout_and_spacing": {
-    "grid_system": "Bento 'Tetris' Grid (Mode A) - Asymmetric. Use col-span-full md:col-span-8 row-span-2 for heroes, col-span-4 for supporting content.",
-    "padding": "Generous spacing: p-8, p-12, py-24, py-32 for sections to give breathing room.",
-    "container": "w-full max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12",
-    "alignment": "Never center by default. Use strong left or right alignments, creating tension."
+  "reusable_elements": {
+    "cinematic_frame": "border border-white/10 bg-black/40 backdrop-blur-md overflow-hidden",
+    "copper_glow_utility": "absolute pointer-events-none rounded-full blur-[100px] opacity-40 bg-amber-600/30",
+    "grain_overlay": "absolute inset-0 pointer-events-none opacity-[0.03] bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjZmZmIiBmaWxsLW9wYWNpdHk9IjAuMSIvPgo8L3N2Zz4=')]",
+    "button_primary": "bg-orange-600 hover:bg-orange-500 text-white font-medium px-6 py-3 rounded-none transition-colors duration-200 shadow-[0_0_15px_rgba(249,115,22,0.3)] hover:shadow-[0_0_25px_rgba(249,115,22,0.5)]"
   },
-  "components_and_surfaces": {
-    "cards": "Brutalist. Flat background (bg-[#121212]), sharp 1px solid border (border-[#262626]), rounded-none. No drop shadows. Hover: -translate-y-1, border-[#ff4500].",
-    "buttons": "Industrial aesthetic. Sharp corners, primary bg or transparent with 1px border. Hover: invert colors or slide-up text animation.",
-    "navigation": "Sticky header (z-50) with glassmorphism (bg-black/80 backdrop-blur-xl) or solid black with bottom border. Logo left, massive links, NO hamburger menu on desktop.",
-    "marquee": "Kinetic Texture style using react-fast-marquee. Massive outline text (text-8xl+) running in the background for high-energy sections like 'CRAFTED WITH PRECISION'."
-  },
-  "motion_and_interactions": {
-    "scroll_reveal": "Framer Motion: fade-up and slight scale-in for images, staggered text-reveal for massive headings.",
-    "parallax": "Use Framer Motion useScroll/useTransform for subtle parallax on hero backgrounds.",
-    "hover_states": "Images convert from grayscale/low-contrast to full color/high-contrast on hover.",
-    "libraries_required": ["framer-motion", "lucide-react", "react-fast-marquee"]
-  },
-  "media": {
-    "hero_background": {
-      "url": "https://images.unsplash.com/photo-1745448797900-35d08e85e9db?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1NzZ8MHwxfHNlYXJjaHwxfHx3ZWxkaW5nJTIwc3BhcmtzJTIwZGFyayUyMGluZHVzdHJpYWx8ZW58MHx8fHwxNzc3MTU0OTg0fDA&ixlib=rb-4.1.0&q=85",
-      "description": "Welding sparks illuminate the darkness, used as a cinematic textured background for the hero. Keep overlay dark (bg-black/60) to let text pop."
-    },
-    "maker_process": {
-      "url": "https://images.unsplash.com/photo-1689960253768-72a12bc8320f?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDF8MHwxfHNlYXJjaHw0fHxjbmMlMjBwbGFzbWElMjBjdXR0aW5nJTIwbWV0YWwlMjB3b3JrZXJ8ZW58MHx8fHwxNzc3MTU0OTc2fDA&ixlib=rb-4.1.0&q=85",
-      "description": "CNC Machine cutting metal with sparks. Use in the Maker Showcase or 'Crafted with Precision' section."
-    },
-    "maker_portrait": {
-      "url": "https://images.unsplash.com/photo-1764115424737-25aca6f47835?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDF8MHwxfHNlYXJjaHwxfHxjbmMlMjBwbGFzbWElMjBjdXR0aW5nJTIwbWV0YWwlMjB3b3JrZXJ8ZW58MHx8fHwxNzc3MTU0OTc2fDA&ixlib=rb-4.1.0&q=85",
-      "description": "Maker standing in cluttered industrial workshop. Use for the 'For Makers' callout."
-    },
-    "product_wood_sign": {
-      "url": "https://images.unsplash.com/photo-1776142519609-a4858781a01a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MDV8MHwxfHNlYXJjaHw0fHxjdXN0b20lMjB3b29kJTIwY2FydmVkJTIwd2FsbCUyMHNpZ258ZW58MHx8fHwxNzc3MTU0OTc2fDA&ixlib=rb-4.1.0&q=85",
-      "description": "Custom wood carved wall sign. Use in product showcase."
-    },
-    "product_metal_sign": {
-      "url": "https://images.unsplash.com/photo-1705661902771-28a65b16ea98?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2MzR8MHwxfHNlYXJjaHwzfHxtb2Rlcm4lMjBtZXRhbCUyMHdhbGwlMjBhcnQlMjBzaWdufGVufDB8fHx8MTc3NzE1NDk4NHww&ixlib=rb-4.1.0&q=85",
-      "description": "Modern metal wall art sign. Use in product showcase."
-    },
-    "cnc_closeup": {
-      "url": "https://images.pexels.com/photos/17180807/pexels-photo-17180807.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
-      "description": "Close-up of plasma cutting machine. Use in 'Browse by Category' or Process section."
-    },
-    "texture_overlay": {
-      "url": "https://images.unsplash.com/photo-1654972097680-9b4b93c0684d?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MDV8MHwxfHNlYXJjaHwyfHxjdXN0b20lMjB3b29kJTIwY2FydmVkJTIwd2FsbCUyMHNpZ258ZW58MHx8fHwxNzc3MTU0OTc2fDA&ixlib=rb-4.1.0&q=85",
-      "description": "Grain/Texture background pattern. Use as a low-opacity overlay (mix-blend-overlay or opacity-10) on solid dark sections."
+  "motion_specs": {
+    "guardrails": "All framer-motion animations must include `viewport={{ once: true }}` and respect `prefers-reduced-motion: reduce`. Use CSS media queries or framer-motion's useReducedMotion hook to disable video autoplay, particle motion, and intense parallax on mobile devices and for users who prefer reduced motion.",
+    "effects": {
+      "drift": "Slow, subtle Y-axis translations (e.g., y: [0, -10, 0]) over 10-15s for background elements. Must pause if reduced motion.",
+      "fade_up": "initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}",
+      "sparks": "Particle effect using framer-motion for subtle rising glowing dots, fading out at the top. Disable entirely on reduced motion and mobile cellular."
     }
   },
-  "instructions_to_main_agent": [
-    "Inject the Google Fonts for Anton and JetBrains Mono in index.html or global CSS.",
-    "Yarn install 'framer-motion' and 'react-fast-marquee' before running.",
-    "Create a cinematic Hero Section: Full height, massive 'Anton' typography (text-6xl md:text-8xl+), raw steel/welding spark background with a heavy dark overlay.",
-    "Implement an Asymmetric Maker Showcase: Break out of generic flex/grid wrappers. Use overlapping elements (e.g., negative margins) and absolute positioning for Maker tags (Plasma, Laser, Router).",
-    "'For Makers' Callout: Design this like an editorial poster. One large image of a maker taking up 60% width, strong typography taking up 40%.",
-    "Browse by Category (Wall Art, Custom Signs, Outdoor Art): Use massive numbered editorial blocks (01, 02, 03) that expand or shift on hover. No standard uniform cards.",
-    "Process Section ('Crafted with Precision'): Use a kinetic marquee text in the background (text-9xl text-transparent outline text). Stagger the CAD -> CNC -> Finish steps.",
-    "Use data-testid on all buttons and actionable elements.",
-    "CRITICAL: Do not use 'Inter' font. Use 'Anton' for headings and 'JetBrains Mono' for body/labels/tags.",
-    "CRITICAL: No generic purple/teal gradients. Stick to the raw #0a0a0a, #e5e5e5, and #ff4500 (safety orange/plasma spark) palette.",
-    "Avoid Shadcn 'Card' components if they force rounded borders. Build custom raw HTML/Tailwind divs with sharp borders for the industrial brutalist feel."
+  "sections": [
+    {
+      "name": "Hero",
+      "path": "/app/frontend/src/components/Hero.js",
+      "status": "REDESIGN",
+      "composition": "Layer 1: Deep black bg. Layer 2: Workshop photo (opacity 30-40%). Layer 3: Blueprint texture overlay (mix-blend-overlay or screen, opacity 20%). Layer 4: Ambient copper glowing orb (blur-3xl). Layer 5: Content layer.",
+      "copy": {
+        "headline": "Raw Materials. Radical Craft.",
+        "subheading": "The premier marketplace for CNC, plasma, and custom fabrication. Commission real makers in real workshops.",
+        "cta_primary": "Explore Builds",
+        "cta_secondary": "Join the Forge"
+      },
+      "media_urls": {
+        "workshop_hero_photo": "https://images.unsplash.com/photo-1707064892275-a3088e8240be?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODd8MHwxfHNlYXJjaHwxfHx3ZWxkaW5nJTIwc3BhcmtzJTIwZGFyayUyMHdvcmtzaG9wfGVufDB8fHx8MTc3OTczODg0MHww&ixlib=rb-4.1.0&q=85",
+        "blueprint_texture": "https://static.prod-images.emergentagent.com/jobs/ad0439ad-da94-4caf-a818-28a88417ad46/images/344eca9b73395e94723b39743e9202d29f0af82735b033abd426045535e48436.png"
+      },
+      "instructions_to_main_agent": "Implement a multi-layered cinematic hero. Do NOT use an opaque blanket overlay. Blend the AI blueprint texture with the workshop photo. Add a framer-motion glowing orb in the background that slowly drifts. Ensure text contrast is accessible. MUST include data-testid='hero-cta-explore' and data-testid='hero-cta-join'."
+    },
+    {
+      "name": "FeaturedBuildsRail",
+      "status": "REDESIGN",
+      "design_concept": "Framed gallery prints. Replace standard border-radius with sharp corners or 2px micro-rounding. Add a subtle inner border (white/10). On hover, scale image inside overflow-hidden, and make 'Commission' CTA glow.",
+      "instructions_to_main_agent": "Refactor card visuals. Add `.cinematic-frame` class to cards. The '✦ EXAMPLE' pill should use amber-500 bg with black text for intense contrast. Ensure all interactive elements have data-testids."
+    },
+    {
+      "name": "AiDiscoverySearch",
+      "status": "PRESERVE LAYOUT, RESKIN VISUALS",
+      "instructions_to_main_agent": "Do NOT break layout or remove any testids. Retain all functionality. Update background to `bg-[#0a0a0a]`. Change input borders to `border-white/10 focus:border-orange-500`. Enhance placeholder chips to align with the new Forge palette."
+    },
+    {
+      "name": "CinematicMomentsStrip",
+      "status": "NEW SECTION",
+      "design_concept": "A low-profile horizontal strip of 3 short looping videos that bring the workshop to life. Placed immediately after the Featured Builds section.",
+      "layout": "Grid of 3 panels (`grid-cols-1 md:grid-cols-3`). Use `.cinematic-frame` for each video container. Add section header with 'Watch on /clips \u2192' CTA.",
+      "media_urls": [
+        "/seed-clips/plasma-cut/clip.mp4",
+        "/seed-clips/welding/clip.mp4",
+        "/seed-clips/laser/clip.mp4"
+      ],
+      "instructions_to_main_agent": "Build this new section in the homepage. Video must use `<video muted autoplay playsinline loop>`. For performance/mobile, ensure videos are lazy-loaded and do not auto-play on reduced-data modes if detectable, or simply hide them on small viewports if performance dictates. Add data-testids to the section and CTA."
+    },
+    {
+      "name": "MeetTheMakers",
+      "status": "REDESIGN",
+      "design_concept": "Real people in real workshops. Portraits are treated with a grayscale/duotone filter that blooms into full color upon card hover. Hard, industrial container borders.",
+      "media_urls": {
+        "maker_1": "https://images.unsplash.com/photo-1542909192-2f2241a99c9d?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxNzV8MHwxfHNlYXJjaHwyfHxjcmFmdHNtYW4lMjBwb3J0cmFpdHxlbnwwfHx8fDE3Nzk3Mzg4NDB8MA&ixlib=rb-4.1.0&q=85",
+        "maker_2": "https://images.unsplash.com/photo-1660796334912-8ce8e9c2cff0?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxNzV8MHwxfHNlYXJjaHw0fHxjcmFmdHNtYW4lMjBwb3J0cmFpdHxlbnwwfHx8fDE3Nzk3Mzg4NDB8MA&ixlib=rb-4.1.0&q=85"
+      },
+      "instructions_to_main_agent": "Refactor Maker cards with `.cinematic-frame`. Implement CSS grayscale transition on hover. Stack the portrait image cleanly. Add a subtle amber `.copper_glow_utility` behind the card on hover. Add data-testids for Maker profile links."
+    },
+    {
+      "name": "WhyWeExist",
+      "status": "REDESIGN",
+      "design_concept": "The emotional anchor. Features oversized, tightly tracked typography. A massive copper glow and blueprint texture reveal themselves behind the text as the user scrolls.",
+      "instructions_to_main_agent": "Use framer-motion `useScroll` and `useTransform` to increase the opacity and scale of a background copper glow as the component enters the viewport. Typography should be `text-4xl md:text-5xl lg:text-6xl` with `tracking-tighter`. Respect reduced-motion (fallback to static glow)."
+    }
+  ],
+  "implementation_priority": [
+    "1. Hero (Highest ROI, sets the cinematic mood)",
+    "2. Reusable CSS/Utilities (grain, cinematic-frame)",
+    "3. FeaturedBuildsRail (Core product focus)",
+    "4. CinematicMomentsStrip (New dynamic visual hook)",
+    "5. MeetTheMakers (Humanizing the craft)",
+    "6. WhyWeExist (Emotional branding)",
+    "7. AiDiscoverySearch (Quick visual reskin)"
   ]
 }
