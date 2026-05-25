@@ -1,6 +1,37 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-25 — iter201 · Forum threads filled to 7-8 replies each ✅
+
+Eliminates the "dead forum" look — every thread now has 7–8 replies instead of 4. Threads stay educational, on-topic, and SEO-friendly. **Zero fake drama, zero "this community is amazing" filler, zero invented identities** per platform direction.
+
+### Approach
+- **Generic maker usernames** (`SteelCraftFab`, `PlasmaForge`, `CNCGarage`, `LaserBuilt`, `WorkshopNorth`, `BitsAndBytes`, `ShopFloor47`, `MidwestMaker`, `ChipBreaker`, `GarageCNC`, `BackshedBuilds`, `TabsAndBridges`) — not personas with fake backstories, just normal forum handles.
+- Workshop Team replies (amber-labelled) keep the curated, opinionated tone they had. Community replies (generic-username, plain styling) add variety in voice.
+
+### Reply angles per thread (covered across 3–4 new replies)
+- Practical answer with a specific technique or setting
+- Different experience or alternative approach
+- Helpful follow-up question
+- Tool / supplier / feeds-and-speeds recommendation
+- Honest beginner perspective that admits a knowledge gap
+
+### Backend `seed_forum_replies.py` (new)
+- Idempotent — skips threads that already have ≥5 replies.
+- One Gemini Flash (`gemini-3-flash-preview`) call per thread, asking for 3–4 short replies as strict JSON. Output cleaned of any ` ```json ` fences.
+- Each new reply gets `is_seed: true`, `seed_order: 100+`, randomized timestamp 8–72 hours after the previous reply so the timeline reads naturally.
+- Thread's `last_activity_at` + `reply_count` updated to match.
+
+### Results
+- 22 threads processed, 72 new replies added.
+- Distribution: min 7, max 8, mean 7.3 replies/thread.
+- Total `forum_replies`: 88 → 160.
+- Verified live: opened the CAM Software Tier List thread and confirmed the visible mix — 4 Workshop Team replies followed by ChipBreaker / PlasmaForge / LaserBuilt providing high-volume / multi-axis / beginner perspectives respectively. Reads like a real working CNC forum.
+
+### Long-term plan (per user)
+After seeding, the role becomes "community gardener": post 1–2 real threads daily, answer unanswered questions quickly, highlight maker projects. Eventually Google indexes the seeded threads, real users find them, and the forum gains organic SEO traffic.
+
+
 ## 2026-05-25 — iter200 · "Meet the Makers" homepage section ✅
 
 People trust people more than platforms. New homepage section humanises the marketplace with a 4-card "Meet the Makers" grid placed strategically after the philosophy section (`WhyWeExist`) and before the product rails — turns the abstract trust messaging into faces, locations, and crafts.
