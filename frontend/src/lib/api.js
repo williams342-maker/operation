@@ -770,6 +770,8 @@ export const purgeFeaturedSeed = () =>
   http.post("/admin/seed/featured-content/purge", null, { headers: adminAuthHeaders() }).then((r) => r.data);
 export const attributeWorkshopTeam = () =>
   http.post("/admin/seed/featured-content/attribute-workshop-team", null, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const runWeeklyForumThread = () =>
+  http.post("/admin/seed/featured-content/run-weekly-thread", null, { headers: adminAuthHeaders() }).then((r) => r.data);
 
 // Video upload (R2)
 export const uploadMakerVideo = (file, onProgress) => {

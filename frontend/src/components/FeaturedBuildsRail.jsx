@@ -161,6 +161,20 @@ export default function FeaturedBuildsRail({ testId = "home-featured-builds" }) 
                   </div>
                 </div>
               </Link>
+              {/* Lead-gen CTA — turns the visual example into a commission
+                  funnel. Sits OUTSIDE the main <Link> so a click here
+                  routes straight to the custom-order form pre-loaded with
+                  this listing's slug as a reference rather than bouncing
+                  to the example product page. */}
+              <Link
+                to={`/custom-order?ref=${encodeURIComponent(p.slug)}`}
+                onClick={(e) => e.stopPropagation()}
+                className="block border-t border-amber-900/40 px-4 py-3 font-mono text-[10px] uppercase tracking-[0.22em] text-amber-300 hover:bg-amber-900/25 transition-colors inline-flex items-center justify-between w-full"
+                data-testid={`featured-build-commission-${p.slug}`}
+              >
+                <span>◆ Inspired? Commission a real maker</span>
+                <ArrowUpRight size={12} />
+              </Link>
             </motion.article>
           ))}
         </div>

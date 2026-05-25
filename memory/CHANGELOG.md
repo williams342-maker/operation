@@ -1,6 +1,37 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-25 — iter202 · "Commission a real maker" CTA + weekly forum auto-seed ✅
+
+Two improvements that turn the seeded marketplace from a passive showcase into an active lead-gen + community engine.
+
+### A — Lead-gen CTA on every Featured Builds card
+- New amber **"◆ Inspired? Commission a real maker"** strip at the bottom of every card in the homepage `FeaturedBuildsRail`. Sits *outside* the main image `<Link>` so a click here routes to the custom-order form instead of bouncing to the example product page.
+- Links to `/custom-order?ref={slug}`. The custom-order page now:
+  - Reads the `?ref=` query param via `useSearchParams`.
+  - **Skips Step 1** straight to Step 2 (description) since the visitor has already declared intent.
+  - Pre-fills the description with the reference URL: *"I'm interested in something inspired by this featured example: …"* plus a hint to specify size/finish/customizations.
+  - Sanitizes the slug (`[a-z0-9-]` only, 80-char cap) so a hostile `?ref=` can't render HTML/JS into the textarea.
+- Lifts the otherwise idle "look at the gorgeous photos" rail into a measurable conversion funnel — high-ticket items like the $1850 river table become a maker-lead pipeline.
+
+### B — Weekly forum-thread auto-seeder
+- New `backend/weekly_forum_seeder.py` module — picks one topic at random from a 24-item curated bank (CNC, plasma, laser, finishing, business, workshop setup, maker showcase), asks Gemini Flash (`gemini-3-flash-preview`) to expand it into a full thread starter + 1-2 starter replies, writes them to Mongo with `is_seed: true`, `seed_order: 200+`.
+- Reply attribution uses the same generic-username pool as iter201 (SteelCraftFab, PlasmaForge, etc.) so new content blends with the existing community voice.
+- Idempotent: skips topics already on the board (case-insensitive title match, both at pick time and after generation in case the LLM rephrases close to an existing title).
+- Wrapped in try/except so a single LLM hiccup never kills the scheduler.
+- `_job_weekly_forum_thread` registered as `weekly_forum_thread@cron[day_of_week='tue', hour='14', minute='0']` — one fresh thread per week, slow drip, never spammy.
+
+### Admin "Run now" button
+- New `POST /api/admin/seed/featured-content/run-weekly-thread` — same code path as the cron job, exposed for on-demand triggering.
+- Wired into the `PurgeFeaturedSeedCard` in Admin → Settings as a third safe-action block alongside Workshop Team attribution. Shows the generated title + channel + reply count on success.
+
+### Verified live
+- Manual trigger produced: *"Pushing the limits of 0.5mm end mills in brass for watch dials"* (Maker Showcase channel, 1 starter reply). Niche, technical, real-maker voice — exactly the long-tail SEO content we want.
+- Scheduler boot log confirms `weekly_forum_thread` registered alongside the existing 30 jobs.
+- Homepage screenshot confirms the amber Commission CTA renders cleanly under every card with the right divider treatment.
+- Lint clean across all touched files.
+
+
 ## 2026-05-25 — iter201 · Forum threads filled to 7-8 replies each ✅
 
 Eliminates the "dead forum" look — every thread now has 7–8 replies instead of 4. Threads stay educational, on-topic, and SEO-friendly. **Zero fake drama, zero "this community is amazing" filler, zero invented identities** per platform direction.

@@ -16,6 +16,7 @@ import {
   fetchFeaturedSeedStatus,
   purgeFeaturedSeed,
   attributeWorkshopTeam,
+  runWeeklyForumThread,
 } from "../../lib/api";
 import { refreshSiteSettings } from "../../hooks/useSiteSettings";
 import { RowsSkeleton } from "../Skeleton";
@@ -193,6 +194,10 @@ function PurgeFeaturedSeedCard() {
   // confirm-flow above.
   const [attrBusy, setAttrBusy] = useState(false);
   const [attrResult, setAttrResult] = useState(null);
+  // Weekly forum thread manual trigger — same handler shape as
+  // attribution so the two "safe action" blocks share styling.
+  const [weeklyBusy, setWeeklyBusy] = useState(false);
+  const [weeklyResult, setWeeklyResult] = useState(null);
 
   const refresh = async () => {
     try {
@@ -233,6 +238,25 @@ function PurgeFeaturedSeedCard() {
       toast.error(e?.response?.data?.detail || "Attribution failed.");
     } finally {
       setAttrBusy(false);
+    }
+  };
+
+  const runWeekly = async () => {
+    setWeeklyBusy(true);
+    try {
+      const r = await runWeeklyForumThread();
+      setWeeklyResult(r);
+      if (r.status === "ok") {
+        toast.success(`Seeded new thread: "${r.title}" (${r.replies} starter ${r.replies === 1 ? "reply" : "replies"}).`);
+      } else if (r.status === "skip") {
+        toast.message(r.reason === "topics_exhausted"
+          ? "Topic bank exhausted — refill required."
+          : "Skipped — see card for details.");
+      }
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Weekly thread seed failed.");
+    } finally {
+      setWeeklyBusy(false);
     }
   };
 
@@ -301,6 +325,43 @@ function PurgeFeaturedSeedCard() {
             <span className="text-[#737373] ml-2">
               (total seeded: {attrResult.totals?.forum_threads_tagged}/{attrResult.totals?.forum_replies_tagged}/{attrResult.totals?.showcase_posts_tagged})
             </span>
+          </div>
+        )}
+      </div>
+
+      {/* Weekly forum thread seeder — auto-runs Tuesdays 14:00 UTC via
+          scheduler; this button is the manual override. Adds 1 fresh
+          thread + 1-2 starter replies, picked from a curated topic bank
+          and expanded by Gemini Flash. */}
+      <div className="mb-4 pb-4 border-b border-amber-900/40">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-amber-300 mb-1">
+          ◇ Weekly thread seed · Run now
+        </div>
+        <p className="font-mono text-[11px] text-[#a3a3a3] mb-2 leading-relaxed max-w-2xl">
+          Adds <span className="text-amber-300">1 fresh forum thread</span> picked from the curated CNC/maker topic bank,
+          plus 1-2 starter replies from generic maker usernames. Auto-runs every Tuesday at 14:00 UTC —
+          use this button to trigger one on-demand (e.g., during a slow week or pre-launch).
+        </p>
+        <button
+          onClick={runWeekly}
+          disabled={weeklyBusy}
+          className="px-3 py-1.5 border border-amber-700 text-amber-200 hover:bg-amber-900/30 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
+          data-testid="run-weekly-thread-btn"
+        >
+          {weeklyBusy ? "Generating…" : "Seed one fresh thread now"}
+        </button>
+        {weeklyResult && (
+          <div
+            className="mt-2 font-mono text-[11px]"
+            data-testid="run-weekly-thread-result"
+          >
+            {weeklyResult.status === "ok" ? (
+              <span className="text-emerald-300">
+                ◆ &quot;{weeklyResult.title}&quot; · {weeklyResult.channel} · {weeklyResult.replies} starter {weeklyResult.replies === 1 ? "reply" : "replies"}
+              </span>
+            ) : (
+              <span className="text-[#a3a3a3]">◇ Skipped: {weeklyResult.reason}</span>
+            )}
           </div>
         )}
       </div>

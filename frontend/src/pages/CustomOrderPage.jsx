@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
   Layers, FileText, Flame, Zap, Star, Package, Box,
@@ -595,10 +596,20 @@ export default function CustomOrderPage() {
   });
 
   const consent = usePolicyConsent();
-  const [step, setStep] = useState(1);
+  const [searchParams] = useSearchParams();
+  // `?ref={slug}` deep-link from the homepage Featured Builds rail.
+  // Lands on Step 2 with the description pre-seeded with a reference
+  // link so the maker brief starts in motion the moment the visitor
+  // arrives — minimum friction between "I want one of those" and the
+  // form. Slug is sanitized before being woven into the textarea so a
+  // malicious ?ref= can't render HTML/JS.
+  const refSlug = (searchParams.get("ref") || "").replace(/[^a-z0-9-]/gi, "").slice(0, 80);
+  const [step, setStep] = useState(refSlug ? 2 : 1);
   const [form, setForm] = useState({
-    project_type: "",
-    description: "",
+    project_type: refSlug ? "Wall Art" : "",
+    description: refSlug
+      ? `I'm interested in something inspired by this featured example: https://craftersmarket.org/shop/${refSlug}\n\nPlease tell us the size, finish, customizations, and any deadline.`
+      : "",
     material: "",
     size: "",
     quantity: "1",

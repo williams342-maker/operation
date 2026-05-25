@@ -760,6 +760,22 @@ async def _job_personalization_orphan_cleanup() -> None:
 
 
 
+async def _job_weekly_forum_thread():
+    """Seeds 1 fresh forum thread + 1-2 starter replies every Tuesday.
+    Slow drip (one new topic per week) keeps the forum looking
+    actively cultivated without ever spamming the board. Topics pull
+    long-tail organic SEO traffic over time. Idempotent — bails if
+    the topic bank is exhausted or the LLM call fails."""
+    try:
+        from weekly_forum_seeder import seed_weekly_thread
+        r = await seed_weekly_thread()
+        logger.info("[scheduler] weekly_forum_thread: %s", r)
+    except Exception as e:
+        logger.exception("[scheduler] weekly_forum_thread failed: %s", e)
+
+
+
+
 def start_scheduler() -> AsyncIOScheduler | None:
     """Boot the scheduler if SCHEDULER_ENABLED isn't 'false'."""
     global _scheduler
@@ -825,6 +841,12 @@ def start_scheduler() -> AsyncIOScheduler | None:
     # anonymous shoppers.
     sched.add_job(_job_abandoned_cart_push, CronTrigger(minute=42),
                   id="abandoned_cart_push", replace_existing=True)
+    # Weekly forum thread auto-seeder — Tuesdays 14:00 UTC. Picks one
+    # topic from the curated bank, expands it via Gemini Flash into a
+    # full thread + 1-2 starter replies. Keeps the forum looking
+    # cultivated without spamming the board (1 new thread/week max).
+    sched.add_job(_job_weekly_forum_thread, CronTrigger(day_of_week="tue", hour=14, minute=0),
+                  id="weekly_forum_thread", replace_existing=True)
     # Secrets rotation nudge — daily at 09:30 UTC. Two-tier:
     #   • 14-day pre-warning (due_soon) → email + Slack
     #   • Overdue → email + Slack + Discord (high priority)

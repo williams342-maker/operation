@@ -65,6 +65,16 @@ async def attribute_workshop_team(_: dict = Depends(current_admin)):
     }
 
 
+@router.post("/admin/seed/featured-content/run-weekly-thread")
+async def run_weekly_forum_thread(_: dict = Depends(current_admin)):
+    """Manual trigger for the weekly forum-thread seeder. Same code path
+    as the Tuesday 14:00 UTC cron job, exposed here so admins can pull
+    a fresh thread on demand (e.g., during a slow news week, or to
+    pre-seed before launching a marketing push)."""
+    from weekly_forum_seeder import seed_weekly_thread
+    return await seed_weekly_thread()
+
+
 @router.post("/admin/seed/featured-content/purge")
 async def purge_featured_seed(_: dict = Depends(current_admin)):
     """Hard-delete every doc tagged `featured_example: true`. Intentionally
