@@ -16,7 +16,55 @@ Note: `MakerProductsTab.jsx` referenced in the prior next-actions doesn't exist 
 
 
 
+## 2026-05-25 — iter212 · Short-form Clip Feed ("TikTok for Makers") ✅
+
+
+A full-screen vertical swipe feed for workshop clips. 6 filterable categories (workshop · cuts · welding · powder-coat · engraving · before-after) + like/save/share + Shop-this-maker CTA. URL embeds for fast onboarding (YouTube/Vimeo); Sora 2 seeding via admin button.
+
+### Backend
+- **New router** `/app/backend/routers/clips.py` registered at `/api/clips/*` + `/api/maker/clips/*`. Endpoints: `GET /clips/categories`, `GET /clips/feed` (cursor-paginated, optional `category` filter, optionally annotates `i_liked`/`i_saved` from the Bearer JWT), `GET /clips/{slug}`, `POST /clips/{id}/view` (anon counter), `POST /clips/{id}/share` (anon counter), `POST /clips/{id}/like` (auth toggle), `POST /clips/{id}/save` (auth toggle), `GET /clips/me/saved`, `POST /maker/clips` (URL embed create — reuses the workshop-videos `parse_video_url` helper), `GET /maker/clips/mine`, `DELETE /maker/clips/{id}`.
+- **New collections**: `clips` (denormalized counters + creator metadata) and `clip_engagement` (per-user toggles for O(1) "did I like this?" lookups). Maker-created rows dedupe by `(maker_slug, source_type, source_id)`.
+- **AI seeder** `/app/backend/clip_seeder.py` — Sora 2 (`sora-2` / `sora-2-pro`) renders 8s vertical 1024×1792 clips. Round-robin picker across 6 categories × 2-3 prompts each. Best-effort poster frame via ffmpeg. Files land in `/app/frontend/public/seed-clips/<slug>/clip.mp4` + `poster.jpg`.
+- **Admin endpoints** in `seed_admin.py`: `GET /admin/seed/clips/status`, `POST /admin/seed/clips/generate-one?model=sora-2` (~2-5 min sync call), `POST /admin/seed/clips/purge` (deletes only `is_seed:true` clips + scrubs their engagement rows).
+
+### Frontend
+- **Public `/clips` route** (`ClipFeedPage.jsx`) — full-bleed 9:16 player with `snap-y snap-mandatory` scroll, IntersectionObserver-driven autoplay (one clip at a time), bottom-sentinel infinite scroll, sticky CategoryRail with 7 tabs (For-you + 6 categories), share sheet (copy link + Pinterest/X/Facebook/WhatsApp). Right rail has Like/Save/Share counters and an optional Shop-this-maker (or Shop-this-listing) CTA.
+- **Maker dashboard** Settings → "Workshop clips (feed)" sub-section (`ClipsPanel.jsx`) — URL embed form with category dropdown, optional product-slug link, tag list. Posted clips render with view/like/save counts + per-row Delete and "Open in feed" buttons.
+- **Admin** SettingsTab has a new `ClipsSeedCard` mirroring the design-seed card (model picker, generate-one button with 2-5 min warning, 2-step purge confirm).
+- **Nav** now includes `CLIPS` between Makers and Custom.
+
+### QA
+- testing_agent_v3 (iter_60): 21/21 pytest passed (categories, feed paging, invalid filters, dedupe, auth gating, anon view/share, toggling like/save, saved-list, admin status/purge with non-seed protection). Frontend mobile-viewport pass: empty-state + populated-state both rendered correctly, 7-tab category rail visible, YouTube embed mounted, engagement stack functional. Sora `generate-one` endpoint was source-reviewed but not invoked (paid + slow). Zero bugs.
+
+
+
+## 2026-05-25 — iter211 · Spinner→skeleton standardisation ✅
+- Replaced `Loader2`+text loading patterns with `RowsSkeleton` in `ContactInboxTab`, `FeedbackTab`, `ReviewDisputesTab`. Removed orphaned imports. ESLint clean.
+
 ## 2026-05-25 — iter209 · Daily design cron + Generate-5 batch + Maker Marketing skeletons + Plus EmptyState ✅
+- `_job_daily_design_file` cron (08:00 UTC, kill-switch `SCHEDULER_DAILY_DESIGNS=false`).
+- `POST /api/admin/seed/community-designs/generate-batch?count=N` (1–10, default 5).
+- Admin SettingsTab card now has both generate-one + generate-5 buttons + daily-cron status copy.
+- `PlusMembersTab` empty state upgraded to proper EmptyState. Marketing tab skeletons added to DiscountCodes, AdsSection (×3), MarketingTab (×2).
+- testing_agent_v3 (iter_59) verified end-to-end. Zero bugs.
+
+
+### Backend
+- **New router** `/app/backend/routers/clips.py` registered at `/api/clips/*` + `/api/maker/clips/*`. Endpoints: `GET /clips/categories`, `GET /clips/feed` (cursor-paginated, optional `category` filter, optionally annotates `i_liked`/`i_saved` from the Bearer JWT), `GET /clips/{slug}`, `POST /clips/{id}/view` (anon counter), `POST /clips/{id}/share` (anon counter), `POST /clips/{id}/like` (auth toggle), `POST /clips/{id}/save` (auth toggle), `GET /clips/me/saved`, `POST /maker/clips` (URL embed create — reuses the workshop-videos `parse_video_url` helper), `GET /maker/clips/mine`, `DELETE /maker/clips/{id}`.
+- **New collections**: `clips` (denormalized counters + creator metadata) and `clip_engagement` (per-user toggles for O(1) "did I like this?" lookups). Maker-created rows dedupe by `(maker_slug, source_type, source_id)`.
+- **AI seeder** `/app/backend/clip_seeder.py` — Sora 2 (`sora-2` / `sora-2-pro`) renders 8s vertical 1024×1792 clips. Round-robin picker across 6 categories × 2-3 prompts each. Best-effort poster frame via ffmpeg. Files land in `/app/frontend/public/seed-clips/<slug>/clip.mp4` + `poster.jpg`.
+- **Admin endpoints** in `seed_admin.py`: `GET /admin/seed/clips/status`, `POST /admin/seed/clips/generate-one?model=sora-2` (~2-5 min sync call), `POST /admin/seed/clips/purge` (deletes only `is_seed:true` clips + scrubs their engagement rows).
+
+### Frontend
+- **Public `/clips` route** (`ClipFeedPage.jsx`) — full-bleed 9:16 player with `snap-y snap-mandatory` scroll, IntersectionObserver-driven autoplay (one clip at a time), bottom-sentinel infinite scroll, sticky CategoryRail with 7 tabs (For-you + 6 categories), share sheet (copy link + Pinterest/X/Facebook/WhatsApp). Right rail has Like/Save/Share counters and an optional Shop-this-maker (or Shop-this-listing) CTA.
+- **Maker dashboard** Settings → "Workshop clips (feed)" sub-section (`ClipsPanel.jsx`) — URL embed form with category dropdown, optional product-slug link, tag list. Posted clips render with view/like/save counts + per-row Delete and "Open in feed" buttons.
+- **Admin** SettingsTab has a new `ClipsSeedCard` mirroring the design-seed card (model picker, generate-one button with 2-5 min warning, 2-step purge confirm).
+- **Nav** now includes `CLIPS` between Makers and Custom (`nav-link-clips`).
+
+### QA
+- testing_agent_v3 (iter_60): 21/21 pytest passed (categories, feed paging, invalid filters, dedupe, auth gating, anon view/share, toggling like/save, saved-list, admin status/purge with non-seed protection). Frontend mobile-viewport pass: empty-state + populated-state both rendered correctly, 7-tab category rail visible, YouTube embed mounted, engagement stack functional. Sora `generate-one` endpoint was source-reviewed but not invoked (paid + slow). Zero bugs.
+
+
 
 ### Backend
 - **`_job_daily_design_file` cron** in `scheduler.py` — runs every day at 08:00 UTC, picks the least-used parametric template (round-robin), and adds 1 fresh SVG + DXF + Nano-Banana JPG to the public `design_files` library. Kill-switch via `SCHEDULER_DAILY_DESIGNS=false` env. Verified live: one manual run produced `industrial-custom-steel-garage-plaque` (`garage_sign` template).
