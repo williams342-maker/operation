@@ -16,6 +16,27 @@ Note: `MakerProductsTab.jsx` referenced in the prior next-actions doesn't exist 
 
 
 
+## 2026-05-25 — iter214 · Founding-50 Featured Clip incentive ✅
+
+The first **50 organic clip uploads** to `/clips` automatically earn a permanent **★ Featured** star badge — designed to incentivise real maker workshop footage to populate the feed without relying on paid Sora seeds.
+
+### Backend
+- `GET /api/clips/incentive-status` (public) returns `{slots_total, slots_used, slots_remaining, organic_clips_total, claimed}`. Used by the empty-state banner + maker upload panel.
+- Both `POST /api/maker/clips` (URL embed) and `POST /api/maker/clips/upload` (R2 native) now auto-flag `featured: true` on the inserted doc whenever `_featured_clip_count() < FOUNDING_FEATURED_CAP` (50). Response includes `featured: bool` so the frontend can fire a celebratory toast.
+- AI-seeded (`is_seed: true`) and quarantined rows are excluded from both counts. Feed sort stays pure chronological — the star is purely cosmetic prestige.
+
+### Frontend
+- New reusable `ClipsIncentiveBanner` (`/app/frontend/src/components/ClipsIncentiveBanner.jsx`) — renders the live "N of 50 Featured slots left" panel with two copy variants (`feed` for /clips empty-state, `maker` for the dashboard upload card). Switches to a green "all slots claimed" success state once full.
+- `/clips` empty-state now mounts the banner under the "Share a clip →" CTA.
+- Maker Dashboard → Settings → Workshop clips panel mounts the banner directly under the header, above the upload form.
+- `ClipPlayer` overlay now shows an amber ★ FEATURED chip next to the category eyebrow when the clip has `featured: true` (testid `clip-featured-<slug>`).
+- Both maker submit paths fire a 6-second celebratory toast `★ Featured slot claimed!` when the response says `featured: true`, vs the regular post-success toast otherwise.
+
+### QA
+- testing_agent_v3 (iter_62): 7/7 pytest in `test_iter214_clips_incentive.py` — endpoint shape, first-organic auto-flag, seed exclusion, cap stress test (padded 50 fake organic rows; 51st upload flipped to `featured=false`, `claimed:true`), feed-sort regression, /clips/categories regression. Frontend empty-state banner + maker-dashboard banner both rendered correctly. Zero bugs.
+
+
+
 ## 2026-05-25 — iter213 · Clip Feed follow-up · R2 native upload + opt-in daily cron + Sora budget finding ✅
 
 ### Track 1 — Fire one Sora-2 clip (validation)
@@ -37,6 +58,8 @@ Note: `MakerProductsTab.jsx` referenced in the prior next-actions doesn't exist 
 
 
 
+
+## 2026-05-25 — iter212 · Short-form Clip Feed ("TikTok for Makers") ✅
 
 A full-screen vertical swipe feed for workshop clips. 6 filterable categories (workshop · cuts · welding · powder-coat · engraving · before-after) + like/save/share + Shop-this-maker CTA. URL embeds for fast onboarding (YouTube/Vimeo); Sora 2 seeding via admin button.
 
