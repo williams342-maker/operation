@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { fetchTrendingForumThreads } from "../lib/api";
+import AuthorLabel from "./AuthorLabel";
 
 // "Trending in the forum" homepage strip.
 // Funnels new shoppers toward open conversations so the seeded
@@ -71,7 +72,7 @@ export default function TrendingForumStrip({
                 {t.title}
               </div>
               <div className="mt-auto flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.18em] text-[#525252]">
-                <span>{t.user_name || "Anon"}</span>
+                <span><AuthorLabel name={t.user_name} email="Anon" /></span>
                 <span>
                   {t.reply_count > 0
                     ? `${t.reply_count} ${t.reply_count === 1 ? "reply" : "replies"}`

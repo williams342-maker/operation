@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Flame, Eye } from "lucide-react";
 import { fetchTopWeekShowcase, recordShowcaseClick } from "../lib/api";
+import AuthorLabel from "./AuthorLabel";
 
 /**
  * "Trending in the community" homepage strip — the 6 most-viewed
@@ -134,7 +135,7 @@ export default function TopShowcaseStrip({ testId = "top-showcase-strip" }) {
               {/* Reveal-on-hover meta */}
               <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-[#0a0a0a]/95 via-[#0a0a0a]/55 to-transparent opacity-0 group-hover:opacity-100 transition duration-300">
                 <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#ff4500] mb-0.5 truncate">
-                  {post.user_name || "buyer"}
+                  <AuthorLabel name={post.user_name} email="buyer" />
                 </p>
                 <p className="font-display text-base text-[#e5e5e5] leading-tight line-clamp-2">
                   {post.title}

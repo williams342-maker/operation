@@ -21,6 +21,7 @@ import {
 import { useSiteSettings } from "../hooks/useSiteSettings";
 import { Film } from "lucide-react";
 import QualityBadge from "../components/QualityBadge";
+import AuthorLabel from "../components/AuthorLabel";
 import { useConfirm } from "../hooks/useConfirm";
 
 const TABS = [
@@ -884,7 +885,7 @@ function ShowcaseCard({ post, onLike, canLike, me, onChanged }) {
               </div>
             )}
             <div className="flex justify-between items-center text-[10px] font-mono uppercase tracking-[0.22em] text-[#525252]">
-              <span>{post.user_name || post.user_email}</span>
+              <span><AuthorLabel name={post.user_name} email={post.user_email} /></span>
               <div className="flex items-center gap-3">
                 <span
                   className="flex items-center gap-1 text-[#737373]"
@@ -3143,7 +3144,7 @@ function ThreadDetail({ id, me, onBack }) {
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
-              ◆ {thread.tag || "general"} · started by {thread.user_name || thread.user_email}
+              ◆ {thread.tag || "general"} · started by <AuthorLabel name={thread.user_name} email={thread.user_email} />
             </div>
             <h2 className="font-display text-3xl mt-2">{thread.title}</h2>
           </div>
@@ -3166,7 +3167,7 @@ function ThreadDetail({ id, me, onBack }) {
                data-testid={mentioned ? "forum-reply-mentioned" : `reply-${r.id}`}>
             <div className="flex items-center justify-between gap-2">
               <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
-                {r.user_name || r.user_email}
+                <AuthorLabel name={r.user_name} email={r.user_email} />
               </div>
               {isMod && (
                 <button onClick={() => delReply(r.id)} className="font-mono text-[10px] uppercase tracking-[0.22em] text-red-400 hover:text-red-200" data-testid={`reply-mod-delete-${r.id}`}>

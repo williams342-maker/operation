@@ -1,6 +1,30 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-25 — iter196 · Workshop Team attribution on seeded community content ✅
+
+Closes the loop on the marketplace seeding work — community posts now wear the same transparency as the listings + maker profiles. Every seeded forum thread, reply, and showcase post is authored by **"✦ Crafters Market Workshop Team"** with a distinctive amber treatment, so visitors can tell first-party curated content from organic posts at a glance.
+
+### Backend (DB backfill, no schema change — `is_seed` already existed)
+- 22 forum threads, 88 forum replies, 8 showcase posts → `user_name = "Crafters Market Workshop Team"`, `user_email = "workshop@craftersmarket.org"`. Scoped to `is_seed: true` so organic posts are never touched.
+
+### Frontend — new `components/AuthorLabel.jsx`
+- Tiny shared helper that special-cases the magic Workshop Team name → renders an amber **"✦ Crafters Market Workshop Team"** label with a tooltip explaining "first-party content while the community grows". Falls through to the plain author name for every other author.
+- Wired into 6 surfaces:
+  - `pages/CommunityPage.jsx` — showcase tile byline, thread list "started by", thread detail header, reply list (4 spots total)
+  - `components/TopShowcaseStrip.jsx` — homepage top-week showcase tile
+  - `components/TrendingForumStrip.jsx` — homepage trending threads tile
+
+### Pending verification cleared
+- **Admin Reviews tab "Disputed" badge / filter** verified in preview at `/admin/dashboard?tab=reviews`:
+  - ◇ "1 open dispute waiting" callout banner renders with "Open Review Disputes tab →" link.
+  - "7 of 7 reviews · 1 disputed" counter shown.
+  - "ALL | DISPUTED ONLY | 5★ | ≤3★" filter row functional.
+
+### Deployment
+- Lint clean. No new dependencies. Requires production redeploy to push the UI badge to craftersmarket.org; the DB backfill is already live in preview and will need a one-time rerun on prod after deploy.
+
+
 ## 2026-05-25 — iter195 · Marketplace populated with transparent "Featured Example" content ✅
 
 Solves the empty-marketplace trust problem without resorting to fake reviews, fake purchases, or fake user activity. Every seeded item carries a visible badge so visitors are never misled about what they're seeing.
