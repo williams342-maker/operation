@@ -300,6 +300,7 @@ async def list_recent_showcase(
     product_slug: Optional[str] = None,
     maker_slug: Optional[str] = None,
     strict: bool = False,
+    only_makers: bool = False,
 ):
     """Public, no-auth, lightweight feed for the homepage + product-page
     'Recently shared by buyers' strip (iter116). Prefers posts tagged with
@@ -309,6 +310,10 @@ async def list_recent_showcase(
 
     `strict=true` disables the newest-first fallback — used by maker
     profile pages where showing another maker's work would be confusing.
+
+    `only_makers=true` restricts the results to maker-authored posts —
+    used by the homepage "Built in Real Workshops" workshop-imagery
+    mosaic so it doesn't accidentally surface buyer photos.
     """
     try:
         n = int(limit) if limit is not None else 4

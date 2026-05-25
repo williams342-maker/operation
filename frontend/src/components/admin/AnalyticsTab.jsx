@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { fetchAdminAnalytics } from "../../lib/api";
 import { Sparkline } from "../Charts";
 import { Stat } from "./_shared";
+import { StatsSkeleton, RowsSkeleton } from "../Skeleton";
 
 // ===================== ANALYTICS =====================
 export default function AnalyticsTab() {
@@ -10,7 +11,15 @@ export default function AnalyticsTab() {
     fetchAdminAnalytics().then(setData).catch(() => setData(null));
   }, []);
   if (!data) {
-    return <p className="font-mono text-sm text-[#a3a3a3]" data-testid="analytics-loading">Loading…</p>;
+    return (
+      <div className="space-y-8" data-testid="analytics-loading">
+        <StatsSkeleton count={8} />
+        <div className="grid md:grid-cols-2 gap-6">
+          <RowsSkeleton count={5} />
+          <RowsSkeleton count={5} />
+        </div>
+      </div>
+    );
   }
   return (
     <div className="space-y-8" data-testid="analytics-tab">
@@ -29,7 +38,15 @@ export default function AnalyticsTab() {
         <div>
           <h3 className="font-display text-2xl mb-4">Top Products</h3>
           {!data.top_products.length ? (
-            <p className="font-mono text-xs text-[#a3a3a3]">No paid orders yet.</p>
+            <div
+              className="border border-[#262626] bg-[#0a0a0a] p-6 text-center"
+              data-testid="an-top-products-empty"
+            >
+              <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#525252] mb-2">◇ No revenue yet</div>
+              <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed">
+                Once paid orders land, the top-grossing listings will rank here.
+              </p>
+            </div>
           ) : (
             <ul className="space-y-2" data-testid="an-top-products">
               {data.top_products.map((p) => (
@@ -52,7 +69,15 @@ export default function AnalyticsTab() {
         <div>
           <h3 className="font-display text-2xl mb-4">Top Makers</h3>
           {!data.top_makers.length ? (
-            <p className="font-mono text-xs text-[#a3a3a3]">No paid orders yet.</p>
+            <div
+              className="border border-[#262626] bg-[#0a0a0a] p-6 text-center"
+              data-testid="an-top-makers-empty"
+            >
+              <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#525252] mb-2">◇ No revenue yet</div>
+              <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed">
+                Once paid orders land, the highest-grossing makers will surface here.
+              </p>
+            </div>
           ) : (
             <ul className="space-y-2" data-testid="an-top-makers">
               {data.top_makers.map((m) => (

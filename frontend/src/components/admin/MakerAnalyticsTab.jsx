@@ -115,7 +115,15 @@ export default function MakerAnalyticsTab() {
               ◆ Top Products
             </div>
             {data.top_products.length === 0 ? (
-              <p className="font-mono text-xs text-[#525252]">No paid orders for this maker yet.</p>
+              <div
+                className="bg-[#0a0a0a] border border-[#1a1a1a] p-4 text-center"
+                data-testid="man-top-products-empty"
+              >
+                <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#525252] mb-1">◇ Nothing yet</div>
+                <p className="font-mono text-[11px] text-[#a3a3a3]">
+                  Once paid orders land for this maker, their best-selling listings will rank here.
+                </p>
+              </div>
             ) : (
               <ul className="divide-y divide-[#262626]" data-testid="man-top-products">
                 {data.top_products.map((p) => (

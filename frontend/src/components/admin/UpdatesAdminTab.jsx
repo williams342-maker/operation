@@ -4,6 +4,7 @@ import {
   fetchAdminUpdatesPreview,
   adminUpdatesDispatch,
 } from "../../lib/api";
+import { StatsSkeleton, RowsSkeleton } from "../Skeleton";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -68,7 +69,16 @@ export default function UpdatesAdminTab() {
   };
 
   if (loading) {
-    return <div className="font-mono text-xs text-[#525252] p-4" data-testid="updates-admin-loading">Loading…</div>;
+    return (
+      <div className="space-y-6" data-testid="updates-admin-loading">
+        <div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#ff4500] mb-2">◆ Updates Digest</div>
+          <h2 className="font-display text-2xl md:text-3xl uppercase leading-none mb-2">Dispatch.</h2>
+        </div>
+        <StatsSkeleton count={4} />
+        <RowsSkeleton count={3} />
+      </div>
+    );
   }
 
   const queued = snap?.queued_entries || [];

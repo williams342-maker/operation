@@ -183,7 +183,15 @@ export default function ShippingLedgerTab() {
               </tbody>
             </table>
           ) : (
-            <p className="font-mono text-xs text-[#525252] py-4">No makers with shipping activity yet.</p>
+            <div
+              className="border border-[#1a1a1a] bg-[#0a0a0a] p-6 text-center"
+              data-testid="admin-shipping-summary-empty"
+            >
+              <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#525252] mb-2">◇ No shipping activity</div>
+              <p className="font-mono text-[11px] text-[#a3a3a3] leading-relaxed max-w-[42ch] mx-auto">
+                Once makers buy a shipping label through the platform, their unbilled balances and reimbursement history will surface here.
+              </p>
+            </div>
           )}
         </div>
       )}

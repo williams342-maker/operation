@@ -1,6 +1,33 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-25 — iter219 · Showcase 500 fix + admin empty-state polish ✅
+
+### Fix · `/api/community/showcase/recent` was returning 500 on every call
+Pre-fix, `_query()` referenced `only_makers` from enclosing scope but the parameter was never declared on the FastAPI endpoint signature → `NameError` → 500 every request. The homepage's RecentShowcaseStrip was failing silently (graceful fallback), but the console error count was non-zero on every page load.
+
+**Fix**: added `only_makers: bool = False` to `list_recent_showcase()` signature in `routers/community_showcase.py`. All four query shapes now return 200:
+- `/recent` (default, homepage strip)
+- `/recent?only_makers=true` (workshop imagery mosaic)
+- `/recent?strict=true&maker_slug=…` (maker profile)
+- `/recent?product_slug=…&limit=8` (product page)
+
+**Regression**: `tests/test_iter219_showcase_recent_fix.py` — 5/5 PASS. Locks in 200 status across all four shapes + verifies `only_makers=true` actually filters to maker-authored posts (no buyer-photo leakage).
+
+### Polish · Admin empty-states + skeletons
+The original P3 backlog item named non-existent components (`CouponAuditTab/AbusiveBidsTab/RetentionPlaybookTab`). Actual candidates with plain "Loading…" or generic "No X yet." text were:
+
+- **AnalyticsTab** — replaced "Loading…" with `<StatsSkeleton count={8}/>` + dual `<RowsSkeleton count={5}/>`. Top Products + Top Makers each get a proper bordered empty-state card ("◇ No revenue yet — Once paid orders land, …") instead of bare gray text.
+- **UpdatesAdminTab** — loading state now renders the section header + skeleton stats + skeleton rows (preserves layout, no jarring text-only flash).
+- **MakerAnalyticsTab** — Top Products empty state upgraded to a bordered card with eyebrow + body copy ("◇ Nothing yet — Once paid orders land for this maker, …").
+- **ShippingLedgerTab** — Maker summary empty state upgraded similarly ("◇ No shipping activity — Once makers buy a label through the platform, …").
+
+### Verified
+- Homepage smoke test: **0 console errors** post-fix (RecentShowcaseStrip 500 cleared).
+- Lint: 100% pass across all 5 modified files.
+
+
+
 ## 2026-05-25 — iter218 · Orphan-seed guard on /clips · production black-screen fix ✅
 
 ### The bug (production craftersmarket.org)
