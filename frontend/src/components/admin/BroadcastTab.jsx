@@ -20,6 +20,24 @@ const TEMPLATES = [
   { id: "outage",   label: "Outage / Issue",    headline: "Service Update.",     subject: "Service update" },
   { id: "launch",   label: "New Feature",       headline: "Launch Day.",         subject: "New on Crafters Market" },
   { id: "event",    label: "Upcoming Event",    headline: "Mark Your Calendar.", subject: "Upcoming event" },
+  {
+    id: "clips_incentive",
+    label: "★ Founding-50 Clips",
+    headline: "Claim your free Featured slot.",
+    subject: "★ First 50 makers — claim a free Featured Clip slot",
+    body:
+`We just launched a new short-form video feed at /clips (think TikTok for makers — workshop cuts, weld pulls, powder-coat sweeps, before/afters).
+
+To kick it off, the FIRST 50 organic uploads automatically earn a permanent ★ Featured star badge on every viewer's screen — for life.
+
+→ Post your first clip from your dashboard: maker portal → Settings → Workshop clips (feed)
+→ YouTube Shorts / Vimeo URLs work, or drag-drop a 9:16 MP4 up to 50 MB
+→ Optional: link a listing so viewers can shop the piece in one tap
+
+Slots are claimed in posting order — once they're gone, they're gone. Be one of the founding 50 and your work stays at the top of the feed every time someone opens /clips.
+
+— Crafters Market team`,
+  },
   { id: "custom",   label: "Custom",            headline: "Announcement.",       subject: "" },
 ];
 
@@ -42,6 +60,13 @@ export default function BroadcastTab() {
     if (t && id !== "custom") {
       setHeadline(t.headline);
       if (!subject) setSubject(t.subject);
+      // Some templates (e.g. clips_incentive) ship a full ready-to-send
+      // body. Only auto-fill if the composer is empty so we never trample
+      // an admin's draft.
+      if (t.body && !message.trim()) setMessage(t.body);
+      // For curated templates we also pre-select the maker audience —
+      // the admin can override before hitting send.
+      if (id === "clips_incentive") setAudience("all_makers");
     }
   };
 

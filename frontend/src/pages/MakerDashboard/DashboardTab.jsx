@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import PlusUpgradeNudge from "./PlusUpgradeNudge";
 import ReferralCard from "./ReferralCard";
+import ClipsIncentiveCard from "./ClipsIncentiveCard";
 
 /**
  * Maker Dashboard "home" view — at-a-glance overview of the shop.
@@ -173,6 +174,12 @@ export default function DashboardTab({
         unreadMessages={unreadMessages}
         onTabChange={onTabChange}
       />
+
+      {/* FOUNDING-50 CLIPS — promotes the new Clip Feed incentive to every
+          approved maker. Self-hides once the cap is hit or the maker
+          dismisses it (localStorage). Sits above the Plus nudge so it
+          gets visible-without-scroll real estate during launch. */}
+      <ClipsIncentiveCard />
 
       {/* CRAFTERS PLUS UPGRADE NUDGE — always visible for Free makers, never
           dismissible (per spec: surfacing is the point). Hidden for Plus

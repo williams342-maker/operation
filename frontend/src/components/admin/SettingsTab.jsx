@@ -613,6 +613,219 @@ function ClipsSeedCard() {
   );
 }
 
+function OperatorOpsChecklistCard() {
+  // Consolidated post-deploy / weekly-ops checklist. Each row is one
+  // operator concern with a live status probe + a "Run check" button and
+  // a deep-link to the existing tab that handles deeper actions. The
+  // backing diagnostic endpoints are all unchanged — this is purely a
+  // single-pane-of-glass surface so nothing gets forgotten on deploy day.
+  const API = process.env.REACT_APP_BACKEND_URL;
+  const [seoDiag, setSeoDiag] = useState(null);
+  const [seoBusy, setSeoBusy] = useState(false);
+  const [seoErr, setSeoErr] = useState("");
+  const [prerenderResult, setPrerenderResult] = useState(null);
+  const [prerenderBusy, setPrerenderBusy] = useState(false);
+  const [indexnowBusy, setIndexnowBusy] = useState(false);
+  const [indexnowResult, setIndexnowResult] = useState(null);
+
+  // ── SEO diag (sitemap host + total indexable count) ─────────────────────
+  const runSeoDiag = async () => {
+    setSeoBusy(true); setSeoErr("");
+    try {
+      const r = await fetch(`${API}/api/seo/diag`);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      setSeoDiag(await r.json());
+    } catch (e) {
+      setSeoErr(e.message || "Failed");
+    } finally { setSeoBusy(false); }
+  };
+  useEffect(() => { runSeoDiag(); /* eslint-disable-next-line */ }, []);
+
+  // ── Cloudflare-Worker prerender probe: hit any OG endpoint directly to
+  //    confirm FastAPI returns a complete <meta og:title>. Doesn't talk to
+  //    Cloudflare itself (no zone API token here) — we just sanity-check
+  //    the origin endpoint that the Worker forwards to. If this is broken,
+  //    Cloudflare can't possibly serve a good unfurl. ────────────────────
+  const runPrerenderProbe = async () => {
+    setPrerenderBusy(true); setPrerenderResult(null);
+    try {
+      const r = await fetch(`${API}/api/og/diag`);
+      const ok = r.ok && (await r.headers.get("content-type"))?.includes("application/json");
+      const body = ok ? await r.json() : null;
+      setPrerenderResult({ ok: !!body, status: r.status, body });
+    } catch (e) {
+      setPrerenderResult({ ok: false, error: e.message });
+    } finally { setPrerenderBusy(false); }
+  };
+
+  // ── IndexNow ping — handled by an existing admin endpoint. Just calls it
+  //    so the operator gets a one-click "tell Bing/Yandex about every URL"
+  //    affordance from this checklist. ─────────────────────────────────
+  const runIndexNow = async () => {
+    setIndexnowBusy(true); setIndexnowResult(null);
+    try {
+      const r = await fetch(`${API}/api/admin/seo/ping`, {
+        method: "POST", headers: adminAuthHeaders(),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      setIndexnowResult(await r.json());
+      toast.success("IndexNow ping submitted.");
+    } catch (e) {
+      toast.error(e?.message || "Ping failed.");
+      setIndexnowResult({ ok: false, error: e.message });
+    } finally { setIndexnowBusy(false); }
+  };
+
+  const seoLeaked = seoDiag?.preview_domain_leakage;
+  const seoHealthy = seoDiag && !seoLeaked && seoDiag.resolved_site_root?.endsWith(".org");
+  const prerenderHealthy = !!prerenderResult?.ok;
+
+  return (
+    <section
+      className="border border-cyan-900/60 bg-cyan-950/15 p-4 md:p-5"
+      data-testid="operator-ops-checklist"
+    >
+      <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-cyan-400 mb-2">
+        ◆ Operator ops checklist
+      </div>
+      <div className="font-display text-lg uppercase">Post-deploy 5-minute sweep</div>
+      <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed mt-1 mb-4 max-w-2xl">
+        One-stop verification panel. Hit each row's button after every prod
+        deploy and weekly thereafter. Backing docs live in{" "}
+        <code className="text-emerald-300">/app/docs/</code> (Cloudflare
+        Worker · SEO submission · Mongo backup).
+      </p>
+
+      <div className="space-y-3">
+        {/* 1 — Cloudflare prerender Worker ----------------------------- */}
+        <OpsRow
+          step="1"
+          title="Cloudflare prerender Worker"
+          subtitle="Origin OG endpoint should return JSON · the Worker routes social-bot UAs here. Doc: /app/docs/cloudflare-worker-prerender.md"
+          status={prerenderResult == null ? "idle" : prerenderHealthy ? "ok" : "fail"}
+          statusLabel={
+            prerenderResult == null
+              ? "Not checked yet"
+              : prerenderHealthy
+                ? "Origin OG diag · 200 OK"
+                : `Failed (HTTP ${prerenderResult.status || "?"})`
+          }
+          onRun={runPrerenderProbe}
+          busy={prerenderBusy}
+          testIdPrefix="ops-prerender"
+        />
+
+        {/* 2 — GSC / Bing sitemap submission ---------------------------- */}
+        <OpsRow
+          step="2"
+          title="Sitemap & search-engine submission"
+          subtitle={
+            seoDiag
+              ? `Resolved: ${seoDiag.resolved_site_root} · ${seoDiag.total_indexable_urls} URLs in sitemap`
+              : "Confirms PUBLIC_SITE_URL is wired correctly · no preview-domain leakage"
+          }
+          status={!seoDiag ? "idle" : seoHealthy ? "ok" : "fail"}
+          statusLabel={
+            !seoDiag
+              ? "Loading…"
+              : seoLeaked
+                ? "⚠ Preview-domain leakage — fix PUBLIC_SITE_URL"
+                : seoHealthy
+                  ? "Clean"
+                  : "Check resolved host"
+          }
+          onRun={runSeoDiag}
+          busy={seoBusy}
+          err={seoErr}
+          testIdPrefix="ops-sitemap"
+          actions={
+            <button
+              onClick={runIndexNow}
+              disabled={indexnowBusy}
+              data-testid="ops-indexnow-ping"
+              className="px-2.5 py-1 border border-cyan-700 text-cyan-200 hover:bg-cyan-900/30 font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50"
+            >
+              {indexnowBusy ? "Pinging…" : "Ping IndexNow"}
+            </button>
+          }
+        />
+        {indexnowResult?.count > 0 && (
+          <div
+            className="font-mono text-[10px] text-emerald-300 ml-12 -mt-1"
+            data-testid="ops-indexnow-result"
+          >
+            ◆ Submitted {indexnowResult.count} URLs to api.indexnow.org · Bing/Yandex/Naver will see new content within hours.
+          </div>
+        )}
+
+        {/* 3 — Backup toggle verification ------------------------------- */}
+        <OpsRow
+          step="3"
+          title="Backup & recovery toggle"
+          subtitle={
+            <>
+              Verify <code className="text-emerald-300">auto_offsite_backup_enabled</code> + <code className="text-emerald-300">auto_recovery_drill_enabled</code> are ON
+              (Settings → top of this tab). Doc: /app/docs/mongodb-backup.md
+            </>
+          }
+          status="idle"
+          statusLabel="Open the Backup tab to run a manual drill"
+          onRun={() => {
+            window.dispatchEvent(new CustomEvent("cm:open-admin-tab", { detail: { tab: "backup" } }));
+            toast.message("Switch to the Backup tab to run a drill or download an archive.");
+          }}
+          busy={false}
+          runLabel="Open Backup tab"
+          testIdPrefix="ops-backup"
+        />
+      </div>
+    </section>
+  );
+}
+
+function OpsRow({
+  step, title, subtitle, status, statusLabel, onRun, busy, err,
+  runLabel = "Run check", actions, testIdPrefix,
+}) {
+  // status ∈ idle | ok | fail · drives the left dot color so an operator
+  // can scan the column in a glance.
+  const dot =
+    status === "ok"   ? "bg-emerald-400 text-emerald-400"
+    : status === "fail" ? "bg-red-400 text-red-400"
+                        : "bg-[#525252] text-[#525252]";
+  return (
+    <div
+      className="border border-[#262626] bg-[#0a0a0a]/40 p-3 flex items-start gap-3"
+      data-testid={`${testIdPrefix}-row`}
+    >
+      <div className="flex flex-col items-center gap-1 pt-1 shrink-0 w-8">
+        <span className={`w-2.5 h-2.5 rounded-full ${dot.split(" ")[0]}`} aria-hidden="true" />
+        <span className="font-mono text-[10px] text-[#525252]">{step}</span>
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="font-display text-sm text-[#e5e5e5]">{title}</div>
+        <div className="font-mono text-[10px] text-[#a3a3a3] mt-0.5 leading-relaxed">
+          {subtitle}
+        </div>
+        <div className={`font-mono text-[10px] mt-1 ${dot.split(" ")[1]}`} data-testid={`${testIdPrefix}-status`}>
+          {statusLabel}{err && ` · ${err}`}
+        </div>
+      </div>
+      <div className="flex flex-col gap-1.5 shrink-0">
+        <button
+          onClick={onRun}
+          disabled={busy}
+          data-testid={`${testIdPrefix}-run`}
+          className="px-2.5 py-1 border border-[#262626] hover:border-cyan-500 hover:text-cyan-300 font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50"
+        >
+          {busy ? "…" : runLabel}
+        </button>
+        {actions}
+      </div>
+    </div>
+  );
+}
+
 function PurgeFeaturedSeedCard() {
   const [status, setStatus] = useState(null);   // {featured_makers, featured_products, ...}
   const [step, setStep] = useState(0);          // 0 idle · 1 first confirm · 2 second confirm
@@ -2161,6 +2374,8 @@ export default function SettingsTab() {
       <CommunityDesignsSeedCard />
 
       <ClipsSeedCard />
+
+      <OperatorOpsChecklistCard />
 
       <div className="grid md:grid-cols-2 gap-3">
         <IdleClearNowCard />
