@@ -92,6 +92,15 @@ export default function MakerDetail() {
               <PlusSlaBadge testId="maker-plus-sla-badge" />
             )}
             <GoogleAdsFeaturedBadge maker={m} testId="maker-google-ads-badge" />
+            {m.featured_example && (
+              <span
+                className="tag text-amber-300 border-amber-400/70 bg-black/80 text-[9px]"
+                data-testid="maker-featured-example-badge"
+                title="Founding Maker · Platform Showcase — curated by Crafters Market"
+              >
+                ✦ FOUNDING MAKER · PLATFORM SHOWCASE
+              </span>
+            )}
           </div>
           <h1 className="font-display text-[64px] md:text-[120px] leading-[0.88]">{m.name}</h1>
           {m.shop_title && (

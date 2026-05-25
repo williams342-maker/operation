@@ -13,6 +13,8 @@ import {
   adminGscOauthStart,
   adminGscDisconnect,
   adminGscTestInspect,
+  fetchFeaturedSeedStatus,
+  purgeFeaturedSeed,
 } from "../../lib/api";
 import { refreshSiteSettings } from "../../hooks/useSiteSettings";
 import { RowsSkeleton } from "../Skeleton";
@@ -174,6 +176,123 @@ function ToggleRow({ row, settings, onPatch, busy }) {
             data-testid={`setting-num-${row.numericKey}`}
           />
         </label>
+      )}
+    </div>
+  );
+}
+
+function PurgeFeaturedSeedCard() {
+  const [status, setStatus] = useState(null);   // {featured_makers, featured_products, ...}
+  const [step, setStep] = useState(0);          // 0 idle · 1 first confirm · 2 second confirm
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null);
+  const [err, setErr] = useState("");
+
+  const refresh = async () => {
+    try {
+      const s = await fetchFeaturedSeedStatus();
+      setStatus(s);
+    } catch (_e) { /* gated to admins; ignore failures silently */ }
+  };
+  useEffect(() => { refresh(); }, []);
+
+  const fire = async () => {
+    setBusy(true);
+    setErr("");
+    try {
+      const r = await purgeFeaturedSeed();
+      setResult(r);
+      setStep(0);
+      toast.success(`Purged ${r.deleted_products} products + ${r.deleted_makers} makers.`);
+      refresh();
+    } catch (e) {
+      const msg = e?.response?.data?.detail || "Purge failed.";
+      setErr(msg);
+      toast.error(msg);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const total = (status?.featured_makers || 0) + (status?.featured_products || 0);
+
+  return (
+    <div className="border border-amber-900/60 bg-amber-950/15 p-4 md:p-5" data-testid="purge-featured-seed-card">
+      <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-amber-400 mb-2">
+        ◆ Platform seed content
+      </div>
+      <div className="font-display text-lg uppercase">Purge featured-example content</div>
+      <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed mt-1 mb-3">
+        Hard-removes every product tagged "✦ Featured Example" and every maker tagged
+        "✦ Founding Maker · Platform Showcase". Use once organic listings fill the
+        catalogue. Organic listings (no flag) are <span className="text-emerald-300">not touched</span>.
+      </p>
+      {status && (
+        <div className="font-mono text-[11px] text-[#a3a3a3] mb-4 grid grid-cols-3 gap-3 max-w-md" data-testid="purge-featured-seed-counts">
+          <div className="border border-[#262626] px-2 py-1.5">
+            <div className="text-[#525252] uppercase tracking-[0.2em] text-[9px]">Makers</div>
+            <div className="text-amber-300 text-base">{status.featured_makers}</div>
+          </div>
+          <div className="border border-[#262626] px-2 py-1.5">
+            <div className="text-[#525252] uppercase tracking-[0.2em] text-[9px]">Products</div>
+            <div className="text-amber-300 text-base">{status.featured_products}</div>
+          </div>
+          <div className="border border-[#262626] px-2 py-1.5">
+            <div className="text-[#525252] uppercase tracking-[0.2em] text-[9px]">Published</div>
+            <div className="text-amber-300 text-base">{status.published_featured_products}</div>
+          </div>
+        </div>
+      )}
+      {result && (
+        <p className="font-mono text-xs text-emerald-300 mb-3" data-testid="purge-featured-seed-result">
+          ◆ Deleted {result.deleted_products} products + {result.deleted_makers} makers.
+        </p>
+      )}
+      {err && <p className="font-mono text-xs text-red-400 mb-3">{err}</p>}
+      {step === 0 && (
+        <button
+          onClick={() => setStep(1)}
+          disabled={total === 0}
+          className="px-4 py-2 border border-amber-700 text-amber-300 hover:bg-amber-900/30 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-40 disabled:cursor-not-allowed"
+          data-testid="purge-featured-seed-btn"
+        >
+          {total === 0 ? "Nothing to purge" : `Purge ${total} seeded item${total === 1 ? "" : "s"}`}
+        </button>
+      )}
+      {step === 1 && (
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setStep(2)}
+            className="px-4 py-2 border border-amber-700 bg-amber-900/30 text-amber-200 font-mono text-[11px] uppercase tracking-[0.22em]"
+            data-testid="purge-featured-seed-confirm-1"
+          >
+            I understand · continue
+          </button>
+          <button
+            onClick={() => setStep(0)}
+            className="px-4 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em]"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+      {step === 2 && (
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={fire}
+            disabled={busy}
+            className="px-4 py-2 bg-amber-700 hover:bg-amber-600 text-white border border-amber-700 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
+            data-testid="purge-featured-seed-confirm-2"
+          >
+            {busy ? "Purging…" : "Yes — remove all seeded content"}
+          </button>
+          <button
+            onClick={() => setStep(0)}
+            className="px-4 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em]"
+          >
+            Cancel
+          </button>
+        </div>
       )}
     </div>
   );
@@ -1429,6 +1548,8 @@ export default function SettingsTab() {
       <EmailProviderAuditCard />
 
       <GscConnectionCard />
+
+      <PurgeFeaturedSeedCard />
 
       <div className="grid md:grid-cols-2 gap-3">
         <IdleClearNowCard />

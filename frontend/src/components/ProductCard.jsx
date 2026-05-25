@@ -68,6 +68,15 @@ export default function ProductCard({ p, i = 0 }) {
           {p.promoted_until && new Date(p.promoted_until) > new Date() && (
             <PromotedBadge until={p.promoted_until} slug={p.slug} />
           )}
+          {p.featured_example && (
+            <span
+              className="tag absolute bottom-4 left-4 text-amber-300 border-amber-400/70 bg-black/80 text-[9px]"
+              data-testid={`product-card-featured-example-${p.slug}`}
+              title="Platform showcase — example listing curated by Crafters Market"
+            >
+              ✦ FEATURED EXAMPLE
+            </span>
+          )}
           <div className="absolute bottom-4 right-4 flex items-end justify-end gap-3">
             <div className="font-display text-3xl text-white drop-shadow-md">${p.price}</div>
             <div className="w-10 h-10 border border-white/40 group-hover:bg-[#ff4500] group-hover:border-[#ff4500] transition flex items-center justify-center">

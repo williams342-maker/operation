@@ -122,6 +122,13 @@ class Product(BaseModel):
     # trialing). Drives the Plus badge on ProductCard and powers the
     # 3-tier catalog ranking boost. Never stored on the product doc.
     maker_is_plus: bool = False
+    # Transparent platform-seed marker. When True, this product was seeded by
+    # the platform team as a "Featured Example" so the marketplace doesn't
+    # feel empty pre-launch — ProductCard renders an explicit
+    # "✦ FEATURED EXAMPLE" pill so visitors aren't misled into thinking it's
+    # a real listing for sale. Admins can purge all seeded examples in one
+    # click once organic listings fill the catalog.
+    featured_example: bool = False
     created_at: str = Field(default_factory=now_iso)
 
 
@@ -406,6 +413,12 @@ class Maker(BaseModel):
     smart_pause_enabled: bool = False
     smart_pause_threshold_days: int = 30
     smart_pause_last_run_at: Optional[str] = None
+    # Transparent platform-seed marker. When True, this maker profile was
+    # seeded by the platform team as a "Founding Maker · Platform Showcase"
+    # to populate the directory before organic makers onboard. The shop
+    # page renders a visible badge so visitors aren't misled into thinking
+    # it's a fully transacting maker. Purged via the admin one-click tool.
+    featured_example: bool = False
     created_at: str = Field(default_factory=now_iso)
 
 

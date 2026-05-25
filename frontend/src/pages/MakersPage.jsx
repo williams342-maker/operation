@@ -114,6 +114,15 @@ export default function MakersPage() {
                     testId={`maker-card-veteran-${m.slug}`}
                   />
                 )}
+                {m.featured_example && (
+                  <span
+                    className="tag absolute top-4 left-4 text-amber-300 border-amber-400/70 bg-black/80 text-[9px]"
+                    data-testid={`maker-card-featured-example-${m.slug}`}
+                    title="Founding maker · curated by Crafters Market to showcase the platform"
+                  >
+                    ✦ FOUNDING MAKER
+                  </span>
+                )}
                 <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between">
                   <div>
                     <div className="font-display text-3xl text-white">{m.name}</div>

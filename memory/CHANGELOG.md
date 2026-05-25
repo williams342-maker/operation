@@ -1,6 +1,49 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-25 — iter195 · Marketplace populated with transparent "Featured Example" content ✅
+
+Solves the empty-marketplace trust problem without resorting to fake reviews, fake purchases, or fake user activity. Every seeded item carries a visible badge so visitors are never misled about what they're seeing.
+
+### Backend
+- `models.py` — added `featured_example: bool = False` to both `Product` and `Maker`. Default False so organic listings never accidentally get tagged.
+- `routers/seed_admin.py` (new) — admin-gated:
+  - `GET /api/admin/seed/featured-content/status` — counts of seeded makers, products, and published-featured-products.
+  - `POST /api/admin/seed/featured-content/purge` — hard-deletes every doc tagged `featured_example: true`. Organic listings (no flag) are untouched.
+- `seed_featured_examples.py` (new, standalone script) — idempotent seed runner:
+  - Generates ~30 cohesive product/maker images via **Nano Banana** (`gemini-3.1-flash-image-preview`) through the Emergent LLM key.
+  - Images saved to `/app/frontend/public/seed-images/featured/` so they ship in the deploy artifact (no R2 round-trips).
+  - Skips image gen for files that already exist on disk → safe to rerun.
+  - Upserts 3 new "Founding Maker" demos: Hidehouse Craft (leather), River & Resin (epoxy/live-edge), Anvil Row Forge (blacksmith).
+  - Upserts 26 "Featured Example" products distributed across **all 14 categories** (Wall Art, Custom Signs, Outdoor Art, Home Decor, Wedding Gifts, Address Numbers, Lighting & Lamps, Garden & Yard Art, Memorial & Tribute, Furniture, Kitchen & Bar, Sculpture, Jewelry, Holiday & Seasonal). Realistic pricing, materials, dimensions, personalization rules, SEO tags.
+  - Backfills `featured_example: true` on the existing 5 makers + 4 published demo products.
+
+### Frontend — transparent badging everywhere visitors land
+- `components/ProductCard.jsx` — new orange/amber pill **"✦ FEATURED EXAMPLE"** at bottom-left of every seeded card. Title attribute explains it's a curated example, not a real listing for sale.
+- `pages/MakersPage.jsx` — pill **"✦ FOUNDING MAKER"** on the maker tile.
+- `pages/MakerDetail.jsx` — full badge **"✦ FOUNDING MAKER · PLATFORM SHOWCASE"** in the maker hero badges row.
+- `pages/ProductDetail.jsx` — explicit callout **"✦ Featured Example · Curated by Crafters Market to showcase the platform"** under the product title.
+
+### Frontend — Admin cleanup UI
+- `components/admin/SettingsTab.jsx` — new `PurgeFeaturedSeedCard` rendered under the platform-settings group. Shows live counts (makers / products / published) plus a two-step confirm "Purge N seeded items" button. Idempotent — disabled when there's nothing left to purge.
+- `lib/api.js` — `fetchFeaturedSeedStatus`, `purgeFeaturedSeed`.
+
+### Catalog state after seeding
+- 34 published products across **14 categories** (was 11 across 4).
+- 8 makers (was 5).
+- All 42 seeded entities flagged for one-click cleanup. Test artifacts (`renewal-*`, `listing-*`) explicitly un-tagged so they won't get swept by the purge.
+
+### Ethics / trust guardrails (per user direction)
+- **No fake reviews** (FTC sensitive).
+- **No fake purchases / order counts / "live activity" feed entries**.
+- **No fake testimonials**.
+- Every seeded entity is **explicitly labelled** so a visitor can tell platform-curated examples from organic maker listings at a glance.
+
+### Deployment
+- Lint clean (Python + JS). Backend restarted, admin endpoint verified (`featured_makers: 8, featured_products: 34, published_featured_products: 34`).
+- Requires production redeploy to push the seed to craftersmarket.org. Seed images live in `/app/frontend/public/seed-images/featured/` and ship in the standard React build.
+
+
 ## 2026-05-24 — iter194 · "Photo tips" inline card in the listing editor ✅
 
 Lifts first-listing conversion + photo quality. Six concrete CNC-marketplace-specific tips render in a 3×2 grid above the photo grid in the editor. The card is collapsible (chevron) AND dismissable (×) — dismissal persists in localStorage under `cm_editor_photo_tips_dismissed_v1`, so seasoned makers only see it the first time. When dismissed, a small "◇ Show photo tips" pill replaces it so the card can always be reopened.

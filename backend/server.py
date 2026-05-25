@@ -113,6 +113,8 @@ api.include_router(growth_stats_router)
 api.include_router(og_prerender_router)
 api.include_router(admin_backup_router)
 api.include_router(admin_secrets_router)
+from routers.seed_admin import router as seed_admin_router
+api.include_router(seed_admin_router)
 api.include_router(push_router)
 api.include_router(abandoned_cart_router)
 api.include_router(feeds_router)
