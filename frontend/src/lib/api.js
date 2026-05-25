@@ -848,6 +848,28 @@ export const purgeClipsSeed = () =>
 export const purgeOrphanClipsSeed = () =>
   http.post("/admin/seed/clips/purge-orphans", null, { headers: adminAuthHeaders() }).then((r) => r.data);
 
+// iter220 — Rotating hero headlines.
+export const fetchHeroHeadlines = () => http.get("/hero/headlines").then((r) => r.data);
+export const adminListHeroHeadlines = () =>
+  http.get("/admin/hero/headlines/list", { headers: adminAuthHeaders() }).then((r) => r.data);
+export const adminRefreshHeroHeadlines = () =>
+  http.post("/admin/hero/headlines/refresh", null, {
+    headers: adminAuthHeaders(),
+    timeout: 60000,
+  }).then((r) => r.data);
+export const adminPinHeroHeadline = (id) =>
+  http.post(`/admin/hero/headlines/pin/${id}`, null, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const adminUnpinHeroHeadlines = () =>
+  http.post("/admin/hero/headlines/unpin", null, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const adminArchiveHeroHeadline = (id) =>
+  http.post(`/admin/hero/headlines/archive/${id}`, null, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const adminRestoreHeroHeadline = (id) =>
+  http.post(`/admin/hero/headlines/restore/${id}`, null, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const adminCreateHeroHeadline = (body) =>
+  http.post("/admin/hero/headlines/create", body, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const adminDeleteHeroHeadline = (id) =>
+  http.delete(`/admin/hero/headlines/${id}`, { headers: adminAuthHeaders() }).then((r) => r.data);
+
 // Operator ops checklist helpers
 export const fetchOgDiag = () => http.get("/og/diag").then((r) => r.data);
 export const fetchSeoDiag = () => http.get("/seo/diag").then((r) => r.data);

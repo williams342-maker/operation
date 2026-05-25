@@ -89,11 +89,16 @@ const Home = () => {
     <>
       <SupportVeteransStrip />
       <Hero />
+      <div className="cm-glow-divider" aria-hidden="true" />
       <FeaturedBuildsRail testId="home-featured-builds" />
+      <div className="cm-glow-divider" aria-hidden="true" />
       <CinematicMomentsStrip testId="home-cinematic-moments" />
+      <div className="cm-glow-divider" aria-hidden="true" />
       <AiDiscoverySearch testId="home-ai-discovery" />
       <VelocityProofStrip testId="home-velocity" />
+      <div className="cm-glow-divider" aria-hidden="true" />
       <WhyWeExist testId="home-why-we-exist" />
+      <div className="cm-glow-divider" aria-hidden="true" />
       <MeetTheMakers testId="home-meet-makers" />
       <ShopOfTheWeek />
       <CategoryStrip />

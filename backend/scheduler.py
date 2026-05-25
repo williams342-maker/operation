@@ -865,6 +865,29 @@ async def _job_weekly_seo_ping():
 
 
 
+async def _job_hero_headlines_refresh():
+    """Daily refresh of the rotating hero headline pool (iter220). Calls
+    Gemini once via `hero_headlines.refresh_pool()` to draft 5 fresh
+    variants, dedupes against the existing pool, auto-archives the
+    oldest AI variants beyond the target size so the pool never balloons.
+
+    Kill-switch: `SCHEDULER_HERO_HEADLINES=false` (default ON). Best-effort
+    — any LLM failure logs and the pool stays unchanged so the hero never
+    breaks.
+    """
+    if os.environ.get("SCHEDULER_HERO_HEADLINES", "true").lower() in ("false", "0", "no"):
+        logger.info("[scheduler] hero_headlines_refresh disabled via env")
+        return
+    try:
+        from hero_headlines import refresh_pool
+        stats = await refresh_pool()
+        logger.info("[scheduler] hero_headlines_refresh · %s", stats)
+    except Exception as e:
+        logger.exception("[scheduler] hero_headlines_refresh failed: %s", e)
+
+
+
+
 def start_scheduler() -> AsyncIOScheduler | None:
     """Boot the scheduler if SCHEDULER_ENABLED isn't 'false'."""
     global _scheduler
@@ -952,6 +975,9 @@ def start_scheduler() -> AsyncIOScheduler | None:
     # hours, so this is the highest-leverage cron we run.
     sched.add_job(_job_weekly_seo_ping, CronTrigger(day_of_week="mon", hour=6, minute=0),
                   id="weekly_seo_ping", replace_existing=True)
+    # iter220 — Daily hero headline pool refresh (Gemini drafts via universal LLM key).
+    sched.add_job(_job_hero_headlines_refresh, CronTrigger(hour=9, minute=15),
+                  id="hero_headlines_refresh", replace_existing=True)
     # Secrets rotation nudge — daily at 09:30 UTC. Two-tier:
     #   • 14-day pre-warning (due_soon) → email + Slack
     #   • Overdue → email + Slack + Discord (high priority)

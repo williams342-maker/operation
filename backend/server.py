@@ -128,6 +128,8 @@ api.include_router(meta_ads_router)
 api.include_router(journal_digest_router)
 api.include_router(share_counter_router)
 api.include_router(personalization_router)
+from routers.hero_headlines_api import router as hero_headlines_router
+api.include_router(hero_headlines_router)
 app.include_router(api)
 
 # iter109 — Canonical-host 301 redirect middleware. When `CANONICAL_HOST`
@@ -153,6 +155,15 @@ app.add_middleware(
 @app.on_event("startup")
 async def on_startup():
     await seed_if_empty()
+    # iter220 — Idempotent seed of hero headline pool baseline. Cheap
+    # (8 find-then-insert ops) and ensures /api/hero/headlines never
+    # returns an empty list, even on a fresh deploy before the daily
+    # cron has fired.
+    try:
+        from hero_headlines import ensure_seed_pool
+        await ensure_seed_pool()
+    except Exception:
+        logger.exception("[hero_headlines] seed bootstrap failed (non-fatal)")
     from scheduler import start_scheduler
     start_scheduler()
     # Register the Shippo tracking webhook idempotently. PUBLIC_BACKEND_URL

@@ -284,7 +284,92 @@ body {
 /* Disable expensive cinematic effects for reduced-motion users. */
 @media (prefers-reduced-motion: reduce) {
     .copper-drift,
-    .copper-shimmer { animation: none !important; }
+    .copper-shimmer,
+    .ember-rise { animation: none !important; }
+}
+
+/* ============================================================================
+ * Ember field (iter220) — soft drifting sparks for the Hero. Pure CSS.
+ * ============================================================================ */
+@keyframes ember-rise {
+    0% {
+        transform: translate3d(0, 0, 0) scale(0.4);
+        opacity: 0;
+    }
+    8% {
+        transform: translate3d(2px, -8vh, 0) scale(1);
+        opacity: 1;
+    }
+    60% {
+        transform: translate3d(-6px, -55vh, 0) scale(0.85);
+        opacity: 0.7;
+    }
+    100% {
+        transform: translate3d(8px, -92vh, 0) scale(0.2);
+        opacity: 0;
+    }
+}
+.ember-rise {
+    animation-name: ember-rise;
+    animation-timing-function: ease-out;
+    animation-iteration-count: infinite;
+    animation-fill-mode: both;
+    will-change: transform, opacity;
+}
+
+/* ============================================================================
+ * Section dividers (iter220) — glow rule + texture transition between
+ * the cinematic homepage rails. Drop `<div class="cm-glow-divider"/>`
+ * BETWEEN two sections to add a copper-glow seam.
+ * ============================================================================ */
+.cm-glow-divider {
+    position: relative;
+    height: 1px;
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(245, 158, 11, 0.15) 20%,
+        rgba(255, 69, 0, 0.6) 50%,
+        rgba(245, 158, 11, 0.15) 80%,
+        transparent 100%
+    );
+    margin: 0;
+}
+.cm-glow-divider::before,
+.cm-glow-divider::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 80%;
+    max-width: 800px;
+    height: 24px;
+    pointer-events: none;
+}
+.cm-glow-divider::before {
+    top: -24px;
+    background: radial-gradient(ellipse at center, rgba(255, 69, 0, 0.18) 0%, transparent 70%);
+}
+.cm-glow-divider::after {
+    bottom: -24px;
+    background: radial-gradient(ellipse at center, rgba(255, 69, 0, 0.12) 0%, transparent 70%);
+}
+
+/* Alternating section tone — drop `.cm-section-shade` on every other
+ * homepage section so adjacent rails get a subtle background contrast
+ * shift, reinforcing hierarchy without needing borders or dividers. */
+.cm-section-shade {
+    background: #050505;
+}
+
+/* Workshop texture overlay — adds a faint matte-steel grain to any
+ * section. Drop as a decorative absolute child. */
+.cm-steel-texture {
+    background-image:
+        radial-gradient(circle at 15% 20%, rgba(255, 255, 255, 0.02) 0%, transparent 35%),
+        radial-gradient(circle at 85% 80%, rgba(255, 255, 255, 0.018) 0%, transparent 30%);
+    background-size: 100% 100%;
+    pointer-events: none;
 }
 
 /* Hide scrollbars on horizontal product rails (Etsy-style) */

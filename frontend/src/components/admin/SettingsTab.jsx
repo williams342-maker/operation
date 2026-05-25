@@ -30,6 +30,15 @@ import {
   fetchOgDiag,
   fetchSeoDiag,
   adminPingIndexNow,
+  // iter220 — Rotating hero headlines pool
+  adminListHeroHeadlines,
+  adminRefreshHeroHeadlines,
+  adminPinHeroHeadline,
+  adminUnpinHeroHeadlines,
+  adminArchiveHeroHeadline,
+  adminRestoreHeroHeadline,
+  adminCreateHeroHeadline,
+  adminDeleteHeroHeadline,
 } from "../../lib/api";
 import { refreshSiteSettings } from "../../hooks/useSiteSettings";
 import { RowsSkeleton } from "../Skeleton";
@@ -664,6 +673,194 @@ function ClipsSeedCard() {
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+function HeroHeadlinesCard() {
+  const [data, setData] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [form, setForm] = useState({ statement: "", accent: "", closer: "" });
+
+  const refresh = async () => {
+    try { setData(await adminListHeroHeadlines()); }
+    catch (e) { toast.error(e?.response?.data?.detail || "Load failed."); }
+  };
+  useEffect(() => { refresh(); }, []);
+
+  const onRefreshFromAI = async () => {
+    setRefreshing(true);
+    try {
+      const r = await adminRefreshHeroHeadlines();
+      toast.success(`AI drafted ${r.drafted_by_ai} · inserted ${r.inserted} · skipped ${r.skipped_dup} dup · archived ${r.archived_old}`);
+      await refresh();
+    } catch (e) { toast.error(e?.response?.data?.detail || "Refresh failed."); }
+    finally { setRefreshing(false); }
+  };
+
+  const onPin = async (id) => {
+    setBusy(true);
+    try { await adminPinHeroHeadline(id); toast.success("Pinned — this headline now overrides rotation."); await refresh(); }
+    catch (e) { toast.error(e?.response?.data?.detail || "Pin failed."); }
+    finally { setBusy(false); }
+  };
+  const onUnpin = async () => {
+    setBusy(true);
+    try { await adminUnpinHeroHeadlines(); toast.success("Rotation re-enabled."); await refresh(); }
+    catch (e) { toast.error(e?.response?.data?.detail || "Unpin failed."); }
+    finally { setBusy(false); }
+  };
+  const onArchive = async (id) => {
+    setBusy(true);
+    try { await adminArchiveHeroHeadline(id); await refresh(); } catch (e) { toast.error(e?.response?.data?.detail || "Archive failed."); }
+    finally { setBusy(false); }
+  };
+  const onRestore = async (id) => {
+    setBusy(true);
+    try { await adminRestoreHeroHeadline(id); await refresh(); } catch (e) { toast.error(e?.response?.data?.detail || "Restore failed."); }
+    finally { setBusy(false); }
+  };
+  const onDelete = async (id) => {
+    if (!window.confirm("Delete this headline permanently?")) return;
+    setBusy(true);
+    try { await adminDeleteHeroHeadline(id); await refresh(); } catch (e) { toast.error(e?.response?.data?.detail || "Delete failed."); }
+    finally { setBusy(false); }
+  };
+  const onCreate = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await adminCreateHeroHeadline(form);
+      setForm({ statement: "", accent: "", closer: "" });
+      toast.success("Headline added.");
+      await refresh();
+    } catch (err) { toast.error(err?.response?.data?.detail || "Create failed."); }
+    finally { setBusy(false); }
+  };
+
+  if (!data) return (
+    <div className="border border-amber-700/30 bg-[#0a0805] p-5">
+      <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-amber-400 mb-3">◆ Hero Headlines · Rotating Pool</div>
+      <RowsSkeleton count={4} />
+    </div>
+  );
+
+  const live = data.items.filter((i) => i.status === "live");
+  const archived = data.items.filter((i) => i.status === "archived");
+
+  return (
+    <div className="border border-amber-700/30 bg-[#0a0805] p-5 space-y-4" data-testid="hero-headlines-card">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-amber-400 mb-1">◆ Hero Headlines · Rotating Pool</div>
+          <h3 className="font-display text-xl text-amber-200">Rotating Headlines</h3>
+          <p className="font-mono text-[11px] text-[#a3a3a3] mt-1 max-w-[60ch] leading-relaxed">
+            Live pool rotates on the homepage hero every 7s. Daily Gemini cron drafts 5 fresh variants at 09:15 UTC. Pin one to override rotation for a campaign window.
+          </p>
+        </div>
+        <button
+          onClick={onRefreshFromAI}
+          disabled={refreshing}
+          className="btn-industrial inline-flex items-center justify-center gap-2 text-xs disabled:opacity-50"
+          data-testid="hero-headlines-refresh-ai-btn"
+        >
+          {refreshing ? "Drafting…" : "✦ Generate 5 with AI"}
+        </button>
+      </div>
+
+      {/* Counts strip */}
+      <div className="font-mono text-[11px] grid grid-cols-3 md:grid-cols-6 gap-2" data-testid="hero-headlines-counts">
+        <CountTile label="Live" value={data.counts.live} />
+        <CountTile label="AI" value={data.counts.ai} />
+        <CountTile label="Seed" value={data.counts.seed} />
+        <CountTile label="Manual" value={data.counts.manual} />
+        <CountTile label="Archived" value={data.counts.archived} />
+        <CountTile label="Pinned" value={data.counts.pinned} highlight={data.counts.pinned > 0} />
+      </div>
+
+      {data.counts.pinned > 0 && (
+        <div className="border border-amber-500/60 bg-amber-950/30 px-4 py-2.5 font-mono text-[11px] text-amber-200 flex items-center justify-between" data-testid="hero-headlines-pinned-banner">
+          <span>◆ A headline is pinned — rotation is paused.</span>
+          <button onClick={onUnpin} disabled={busy} className="underline hover:no-underline text-amber-100 text-[11px]" data-testid="hero-headlines-unpin-btn">Resume rotation →</button>
+        </div>
+      )}
+
+      {/* Live list */}
+      <div className="space-y-1.5 max-h-[420px] overflow-y-auto pr-1" data-testid="hero-headlines-live-list">
+        {live.map((h) => (
+          <HeadlineRow key={h.id} h={h} busy={busy} onPin={onPin} onArchive={onArchive} onDelete={onDelete} />
+        ))}
+      </div>
+
+      {/* Manual add */}
+      <form onSubmit={onCreate} className="border-t border-amber-900/40 pt-4 space-y-2" data-testid="hero-headlines-create-form">
+        <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-amber-300">◆ Add manual variant</div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+          <input value={form.statement} onChange={(e) => setForm({ ...form, statement: e.target.value })} placeholder="Statement (≤28)" maxLength={32} required className="bg-[#0a0a0a] border border-[#262626] focus:border-amber-400 px-3 py-2 font-mono text-xs text-zinc-100 outline-none" data-testid="hh-create-statement" />
+          <input value={form.accent} onChange={(e) => setForm({ ...form, accent: e.target.value })} placeholder="Accent word (≤12, 1 word)" maxLength={16} required className="bg-[#0a0a0a] border border-[#262626] focus:border-amber-400 px-3 py-2 font-mono text-xs text-amber-300 outline-none" data-testid="hh-create-accent" />
+          <input value={form.closer} onChange={(e) => setForm({ ...form, closer: e.target.value })} placeholder="Closer (≤16)" maxLength={20} required className="bg-[#0a0a0a] border border-[#262626] focus:border-amber-400 px-3 py-2 font-mono text-xs text-zinc-100 outline-none" data-testid="hh-create-closer" />
+        </div>
+        <div className="flex items-center justify-between">
+          <div className="font-mono text-[11px] text-[#525252]">
+            Preview: <span className="text-zinc-200">{form.statement || "—"}.</span>{" "}
+            <span className="text-[#ff4500]">{form.accent || "—"}</span>{" "}
+            <span className="text-zinc-200">{form.closer || "—"}.</span>
+          </div>
+          <button type="submit" disabled={busy} className="btn-industrial btn-primary text-xs disabled:opacity-50" data-testid="hh-create-submit">Add</button>
+        </div>
+      </form>
+
+      {archived.length > 0 && (
+        <details className="border-t border-amber-900/40 pt-4">
+          <summary className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#737373] cursor-pointer">◇ Archived ({archived.length})</summary>
+          <div className="space-y-1.5 mt-3 max-h-[260px] overflow-y-auto pr-1">
+            {archived.map((h) => (
+              <div key={h.id} className="flex items-center justify-between gap-3 border border-[#1a1a1a] bg-[#0a0a0a] px-3 py-2" data-testid={`hh-archived-${h.id}`}>
+                <div className="font-mono text-[11px] text-[#525252] truncate">
+                  {h.statement}. <span className="text-amber-700">{h.accent}</span> {h.closer}.
+                </div>
+                <div className="flex gap-1.5">
+                  <button onClick={() => onRestore(h.id)} disabled={busy} className="font-mono text-[10px] text-amber-300 hover:text-amber-100">Restore</button>
+                  <button onClick={() => onDelete(h.id)} disabled={busy} className="font-mono text-[10px] text-red-300 hover:text-red-100">Delete</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+    </div>
+  );
+}
+
+function HeadlineRow({ h, busy, onPin, onArchive, onDelete }) {
+  return (
+    <div className={`flex items-center justify-between gap-3 border ${h.pinned ? "border-amber-500/60 bg-amber-950/20" : "border-[#1a1a1a] bg-[#0a0a0a]"} px-3 py-2`} data-testid={`hh-row-${h.id}`}>
+      <div className="font-mono text-[12px] text-zinc-200 truncate flex-1">
+        {h.pinned && <span className="text-amber-400 mr-1.5">◆</span>}
+        <span className="text-zinc-100">{h.statement}.</span>{" "}
+        <span className="text-[#ff4500]">{h.accent}</span>{" "}
+        <span className="text-zinc-300">{h.closer}.</span>
+        <span className="ml-2 text-[10px] uppercase tracking-[0.22em] text-[#525252]">{h.source}</span>
+      </div>
+      <div className="flex gap-1.5 shrink-0">
+        {!h.pinned && (
+          <button onClick={() => onPin(h.id)} disabled={busy} className="font-mono text-[10px] text-amber-300 hover:text-amber-100 px-2 py-1 border border-amber-700/50 hover:border-amber-400" data-testid={`hh-pin-${h.id}`}>Pin</button>
+        )}
+        <button onClick={() => onArchive(h.id)} disabled={busy} className="font-mono text-[10px] text-[#a3a3a3] hover:text-zinc-100 px-2 py-1 border border-[#262626] hover:border-zinc-500" data-testid={`hh-archive-${h.id}`}>Archive</button>
+        {h.source !== "seed" && (
+          <button onClick={() => onDelete(h.id)} disabled={busy} className="font-mono text-[10px] text-red-300 hover:text-red-100 px-2 py-1 border border-red-900/50 hover:border-red-500" data-testid={`hh-delete-${h.id}`}>×</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CountTile({ label, value, highlight }) {
+  return (
+    <div className={`border px-2 py-1.5 ${highlight ? "border-amber-500 bg-amber-950/30" : "border-[#262626] bg-[#0a0a0a]"}`}>
+      <div className={`uppercase tracking-[0.22em] text-[9px] ${highlight ? "text-amber-300" : "text-[#525252]"}`}>{label}</div>
+      <div className={`text-base ${highlight ? "text-amber-200" : "text-zinc-200"}`}>{value}</div>
     </div>
   );
 }
@@ -2421,6 +2618,8 @@ export default function SettingsTab() {
       <CommunityDesignsSeedCard />
 
       <ClipsSeedCard />
+
+      <HeroHeadlinesCard />
 
       <OperatorOpsChecklistCard />
 

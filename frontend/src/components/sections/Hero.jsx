@@ -1,8 +1,10 @@
 import React, { useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion, useScroll, useTransform, useReducedMotion } from "framer-motion";
-import { Search, ArrowDown, ArrowRight, Wrench } from "lucide-react";
+import { Search, ArrowDown, Users, Hammer } from "lucide-react";
 import CopperGlowOrb from "../CopperGlowOrb";
+import RotatingHeadline from "../RotatingHeadline";
+import EmberField from "../EmberField";
 
 /**
  * Cinematic Hero (iter217 redesign).
@@ -75,6 +77,11 @@ export default function Hero() {
       {/* 6 — Copper-shimmer (filmic lighting) */}
       <div className="absolute inset-0 copper-shimmer pointer-events-none opacity-70" aria-hidden="true" />
 
+      {/* 6b — Soft animated embers · CSS-only particle field, drifting up
+         like sparks rising from a forge. Pure decorative — pointer-events
+         none, aria-hidden, auto-stops on prefers-reduced-motion. */}
+      <EmberField count={24} className="absolute inset-0" />
+
       {/* 7 — Content */}
       <div className="relative z-10 w-full max-w-[1400px] mx-auto px-4 md:px-8 pt-36 md:pt-44 pb-12 text-center">
         <motion.div
@@ -88,17 +95,21 @@ export default function Hero() {
           <span className="inline-block w-8 h-px bg-amber-400" />
         </motion.div>
 
-        <motion.h1
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1, duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
-          className="font-display text-[56px] sm:text-[80px] md:text-[120px] lg:text-[148px] leading-[0.9] tracking-tighter drop-shadow-[0_8px_32px_rgba(0,0,0,0.7)]"
+        {/* Rotating cinematic headline. The motion wrapper is required —
+            it creates a fresh stacking context so the giant type paints
+            cleanly above the workshop-photo bg layer. Animation is
+            opacity-only so a stalled framer-motion frame can't ever
+            orphan the headline at opacity:0 (had that bug pre-iter220
+            when I removed this wrapper). */}
+        <motion.div
+          initial={false}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.6 }}
+          style={{ willChange: "opacity" }}
+          data-testid="hero-headline-wrap"
         >
-          Raw materials.
-          <br />
-          <span className="text-[#ff4500]">Radical</span>{" "}
-          <span className="text-outline">craft.</span>
-        </motion.h1>
+          <RotatingHeadline />
+        </motion.div>
 
         <motion.p
           initial={{ opacity: 0, y: 20 }}
@@ -121,19 +132,23 @@ export default function Hero() {
           className="mt-9 flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3"
           data-testid="hero-ctas"
         >
+          {/* Primary CTA — Browse Makers (the "discover real workshops"
+              promise the entire site is built around). Routes to /makers
+              instead of /shop because makers-first is the brand position. */}
           <Link
-            to="/shop"
+            to="/makers"
             className="btn-industrial btn-primary inline-flex items-center justify-center gap-2 text-sm px-7 py-3.5 shadow-[0_0_24px_-4px_rgba(255,69,0,0.55)] hover:shadow-[0_0_40px_-4px_rgba(255,69,0,0.85)] transition-shadow"
-            data-testid="hero-cta-shop"
+            data-testid="hero-cta-browse-makers"
           >
-            Explore builds <ArrowRight size={16} />
+            <Users size={16} /> Browse Makers
           </Link>
+          {/* Secondary CTA — Sell Your Work (maker application funnel) */}
           <Link
-            to="/custom-order"
+            to="/apply"
             className="inline-flex items-center justify-center gap-2 px-7 py-3.5 border border-amber-500/40 hover:border-amber-400 hover:text-amber-300 backdrop-blur-md bg-black/30 font-mono text-xs uppercase tracking-[0.22em] text-zinc-200 transition-colors"
-            data-testid="hero-cta-custom"
+            data-testid="hero-cta-sell"
           >
-            <Wrench size={14} /> Commission a maker
+            <Hammer size={14} /> Sell Your Work
           </Link>
         </motion.div>
 
