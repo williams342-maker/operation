@@ -785,6 +785,9 @@ export const installCommunityDesignsSeed = () =>
   http.post("/admin/seed/community-designs/install-fixture", null, { headers: adminAuthHeaders() }).then((r) => r.data);
 export const purgeCommunityDesignsSeed = () =>
   http.post("/admin/seed/community-designs/purge", null, { headers: adminAuthHeaders() }).then((r) => r.data);
+// iter221 — orphan-only cleanup (preserves verified seeds + organic uploads).
+export const purgeOrphanCommunityDesignsSeed = () =>
+  http.post("/admin/seed/community-designs/purge-orphans", null, { headers: adminAuthHeaders() }).then((r) => r.data);
 
 // ─── Clip Feed (TikTok-for-makers) ──────────────────────────────────────
 // Public feed + engagement helpers. Auth headers attach the buyer/maker

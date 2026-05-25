@@ -21,6 +21,7 @@ import {
   fetchCommunityDesignsSeedStatus,
   installCommunityDesignsSeed,
   purgeCommunityDesignsSeed,
+  purgeOrphanCommunityDesignsSeed,
   generateOneCommunityDesign,
   generateBatchCommunityDesigns,
   fetchClipsSeedStatus,
@@ -263,6 +264,25 @@ function CommunityDesignsSeedCard() {
     }
   };
 
+  // iter221 — Targeted orphan cleanup: nukes only is_seed=true rows whose
+  // local `/seed-designs/<slug>/preview.jpg` was never saved to disk
+  // (broken-image cards on /community Design Files in production).
+  const [orphanBusy, setOrphanBusy] = useState(false);
+  const runOrphanPurge = async () => {
+    setOrphanBusy(true);
+    try {
+      const r = await purgeOrphanCommunityDesignsSeed();
+      if (r.deleted > 0) {
+        toast.success(`Cleared ${r.deleted} orphan design${r.deleted === 1 ? "" : "s"}: ${r.slugs.join(", ")}`);
+      } else {
+        toast.success("No orphan designs found — feed is clean.");
+      }
+      refresh();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Orphan purge failed.");
+    } finally { setOrphanBusy(false); }
+  };
+
   const runGenerate = async () => {
     setGenBusy(true);
     try {
@@ -315,7 +335,7 @@ function CommunityDesignsSeedCard() {
 
       {status && (
         <div
-          className="font-mono text-[11px] text-[#a3a3a3] mb-4 grid grid-cols-2 gap-3 max-w-md"
+          className="font-mono text-[11px] text-[#a3a3a3] mb-4 grid grid-cols-3 gap-3 max-w-md"
           data-testid="community-designs-seed-counts"
         >
           <div className="border border-[#262626] px-2 py-1.5">
@@ -326,6 +346,34 @@ function CommunityDesignsSeedCard() {
             <div className="text-[#525252] uppercase tracking-[0.2em] text-[9px]">All design files</div>
             <div className="text-amber-300 text-base">{status.total_designs}</div>
           </div>
+          <div className={`border px-2 py-1.5 ${status.orphan_seeds > 0 ? "border-red-700/60 bg-red-950/15" : "border-[#262626]"}`}>
+            <div className={`uppercase tracking-[0.2em] text-[9px] ${status.orphan_seeds > 0 ? "text-red-400" : "text-[#525252]"}`}>Orphans</div>
+            <div className={`text-base ${status.orphan_seeds > 0 ? "text-red-300" : "text-amber-300"}`}>{status.orphan_seeds ?? 0}</div>
+          </div>
+        </div>
+      )}
+
+      {status?.orphan_seeds > 0 && (
+        <div
+          className="border border-red-900/60 bg-red-950/20 p-3 mb-4"
+          data-testid="community-designs-orphan-warning"
+        >
+          <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-red-300 mb-1">
+            ◆ {status.orphan_seeds} orphan design{status.orphan_seeds === 1 ? "" : "s"} detected
+          </div>
+          <p className="font-mono text-[11px] text-red-200/80 leading-relaxed mb-3">
+            These seed rows point to <code>/seed-designs/…</code> preview files that never made it into the
+            deploy artifact — they render as broken-image cards on the public Design Files tab. Safe to clear;
+            preserves any working seeds.
+          </p>
+          <button
+            onClick={runOrphanPurge}
+            disabled={orphanBusy}
+            className="px-3 py-1.5 border border-red-600 bg-red-900/30 text-red-100 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
+            data-testid="purge-orphan-designs-btn"
+          >
+            {orphanBusy ? "Clearing…" : `Clear ${status.orphan_seeds} orphan${status.orphan_seeds === 1 ? "" : "s"}`}
+          </button>
         </div>
       )}
 
@@ -497,17 +545,38 @@ function ClipsSeedCard() {
 
   const runGenerate = async () => {
     setGenBusy(true);
+    setGenResult(null);
+    // 2-3min render — keep the user oriented during the wait.
+    toast.info(`Drafting clip via ${model}… typically 2–3 min. You can leave this tab; the toast will follow.`);
     try {
       const r = await generateOneClipSeed(model);
       setGenResult(r);
       if (r.status === "ok") {
-        toast.success(`Generated "${r.clip.title}" (${r.clip.category}).`);
+        toast.success(`✓ Generated "${r.clip.title}" (${r.clip.category}).`);
         refresh();
       } else {
-        toast.error(r.reason || "Sora generation failed.");
+        // Map common backend failure reasons to actionable operator copy.
+        const reason = (r.reason || "").toLowerCase();
+        let pretty = r.reason || "Sora generation failed.";
+        if (reason.includes("budget") || reason.includes("quota") || reason.includes("402") || reason.includes("balance")) {
+          pretty = "Universal LLM Key budget exhausted. Sora-2-pro renders cost ~$3.40 each. Top up at Profile → Universal Key → Add Balance, then retry.";
+        } else if (reason.includes("video file missing") || reason.includes("download")) {
+          pretty = "Sora returned but the MP4 download didn't complete (likely a transient upstream timeout). Safe to retry — no DB row was created.";
+        } else if (reason.includes("rate") || reason.includes("429")) {
+          pretty = "Sora is rate-limiting us — wait 60s and retry.";
+        }
+        toast.error(pretty, { duration: 12000 });
       }
     } catch (e) {
-      toast.error(e?.response?.data?.detail || "Generation failed.");
+      const detail = e?.response?.data?.detail;
+      const status = e?.response?.status;
+      let pretty = detail || e?.message || "Generation failed.";
+      if (status === 402 || (typeof detail === "string" && /budget|quota|balance/i.test(detail))) {
+        pretty = "Universal LLM Key budget exhausted. Sora-2-pro renders cost ~$3.40 each. Top up at Profile → Universal Key → Add Balance.";
+      } else if (status === 504 || /timeout/i.test(pretty)) {
+        pretty = "Sora call timed out (>3 min). Retry — and if it keeps failing, switch to gemini-3-flash-video or wait for Sora capacity.";
+      }
+      toast.error(pretty, { duration: 12000 });
     } finally { setGenBusy(false); }
   };
 

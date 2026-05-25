@@ -22,6 +22,7 @@ import { useSiteSettings } from "../hooks/useSiteSettings";
 import { Film } from "lucide-react";
 import QualityBadge from "../components/QualityBadge";
 import AuthorLabel from "../components/AuthorLabel";
+import SectionErrorBoundary from "../components/SectionErrorBoundary";
 import { useConfirm } from "../hooks/useConfirm";
 
 const TABS = [
@@ -1440,7 +1441,14 @@ function FilesTab({ me }) {
           </button>
         )}
       </div>
-      {showUpload && <FileUploadForm onSaved={() => { setShowUpload(false); refresh(); }} />}
+      {showUpload && (
+        <SectionErrorBoundary
+          testId="files-upload-error-boundary"
+          fallback="The upload form hit an unexpected error. Click Try again, or refresh — your other community content is unaffected."
+        >
+          <FileUploadForm onSaved={() => { setShowUpload(false); refresh(); }} />
+        </SectionErrorBoundary>
+      )}
       <TrendingFilesRail me={me} onRefresh={refresh} />
       <ContributorLeaderboard />
       {!files.length ? (

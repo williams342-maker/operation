@@ -43,6 +43,49 @@ SEED_DIR.mkdir(parents=True, exist_ok=True)
 WORKSHOP_NAME = "Crafters Market Workshop Team"
 
 
+async def backfill_file_verified() -> dict:
+    """iter221 — Idempotent migration. Walk every `is_seed=true` design
+    that lacks `file_verified`, check disk for design.svg + design.dxf
+    + preview.jpg, and flip `file_verified=true` only when ALL three
+    exist with non-zero size. Rows whose files are missing stay
+    unflipped — the new orphan guard hides them from the public feed
+    until an admin runs purge-orphans.
+
+    Called once on server startup so prod deploys with existing seed
+    libraries don't suddenly lose every working card just because the
+    pre-iter221 inserts didn't carry the flag yet.
+    """
+    flipped = 0
+    missing = 0
+    async for d in db.design_files.find(
+        {"is_seed": True, "file_verified": {"$ne": True}},
+        {"_id": 0, "id": 1, "slug": 1, "thumbnail_url": 1},
+    ):
+        thumb = d.get("thumbnail_url") or ""
+        # External thumbnails (https://...) need no disk check — they're
+        # already safe under the orphan guard. Skip them, don't flip.
+        if thumb.startswith("http://") or thumb.startswith("https://"):
+            continue
+        slug = d.get("slug")
+        if not slug:
+            continue
+        folder = SEED_DIR / slug
+        try:
+            svg_ok = (folder / "design.svg").exists() and (folder / "design.svg").stat().st_size > 64
+            dxf_ok = (folder / "design.dxf").exists() and (folder / "design.dxf").stat().st_size > 64
+            jpg_ok = (folder / "preview.jpg").exists() and (folder / "preview.jpg").stat().st_size > 1024
+        except Exception:
+            svg_ok = dxf_ok = jpg_ok = False
+        if svg_ok and dxf_ok and jpg_ok:
+            await db.design_files.update_one({"id": d["id"]}, {"$set": {"file_verified": True}})
+            flipped += 1
+        else:
+            missing += 1
+    if flipped or missing:
+        logger.info("[design_seeder] backfill_file_verified: flipped=%d, still_missing=%d", flipped, missing)
+    return {"flipped": flipped, "still_missing": missing}
+
+
 # ---------------------------------------------------------------------------
 # SVG / DXF templates
 #
@@ -560,6 +603,21 @@ async def generate_one_design() -> dict[str, Any]:
     seo_tags = extract_seo_tags(picked["title"], picked["description"], file_types=file_type_codes)
     seo_description = build_seo_description(picked["title"], picked["description"])
 
+    # iter221 — verify all 3 local files (svg + dxf + preview.jpg) actually
+    # landed on disk with non-zero size before flipping `file_verified` on.
+    # Same gate as iter218 used for clip orphans — prevents a half-saved
+    # AI generation from leaving a broken card on craftersmarket.org that
+    # renders alt-text-only because the preview.jpg 404s from the deploy
+    # artifact.
+    try:
+        svg_ok = (SEED_DIR / slug / "design.svg").exists() and (SEED_DIR / slug / "design.svg").stat().st_size > 64
+        dxf_ok = (SEED_DIR / slug / "design.dxf").exists() and (SEED_DIR / slug / "design.dxf").stat().st_size > 64
+        preview_path = SEED_DIR / slug / "preview.jpg"
+        preview_ok = preview_path.exists() and preview_path.stat().st_size > 1024
+    except Exception:
+        svg_ok = dxf_ok = preview_ok = False
+    file_verified = bool(svg_ok and dxf_ok and preview_ok)
+
     doc = {
         "id": str(uuid.uuid4()),
         "slug": slug,
@@ -592,6 +650,7 @@ async def generate_one_design() -> dict[str, Any]:
         "is_seed": True,
         "ai_generated": True,
         "ai_template_id": picked["template_id"],
+        "file_verified": file_verified,
         "quarantined_at": None,
     }
     await db.design_files.insert_one(doc)

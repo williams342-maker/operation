@@ -180,11 +180,34 @@ async def grant_weekly_boost_credit(maker_slug: str, source: str = "file_upload"
     return credit
 
 
+# iter221 — Orphan-seed guard for design files (mirrors iter218 clips fix).
+# An AI-generated design row is "live" only when (1) it has a remote
+# `download_url` (https — files hosted on R2 / Drive / Dropbox, no local
+# dependency), OR (2) it explicitly carries `file_verified: True` (the new
+# seeder sets this only after svg + dxf + preview.jpg are all confirmed on
+# disk). Any other seed row is an orphan — typically a Nano Banana preview
+# generation that half-failed before the deploy artifact was captured —
+# and is hidden from the public listing so production never renders a
+# broken-image card again.
+def _design_orphan_guard() -> dict:
+    return {
+        "$or": [
+            # Non-seed (organic maker uploads) — never gated.
+            {"is_seed": {"$ne": True}},
+            # Verified seed (post-iter221 generator always sets this).
+            {"is_seed": True, "file_verified": True},
+            # Legacy seed pointing at an external CDN URL — no local file
+            # dependency, can never be an orphan.
+            {"is_seed": True, "thumbnail_url": {"$regex": "^https?://"}},
+        ]
+    }
+
+
 # ===================== LISTING =====================
 @router.get("/community/files")
 async def list_design_files(limit: int = 50):
     rows = await db.design_files.find(
-        {"quarantined_at": None},
+        {"quarantined_at": None, **_design_orphan_guard()},
         {"_id": 0},
     ).sort("created_at", -1).to_list(limit)
     return [_with_quality(r) for r in rows]

@@ -151,9 +151,19 @@ async def run_weekly_forum_thread(_: dict = Depends(current_admin)):
 @router.get("/admin/seed/community-designs/status")
 async def community_designs_seed_status(_: dict = Depends(current_admin)):
     """Counts so the admin UI can preview impact before install/purge."""
+    orphan_q = {
+        "is_seed": True,
+        "file_verified": {"$ne": True},
+        "$or": [
+            {"thumbnail_url": {"$regex": "^/seed-designs/"}},
+            {"thumbnail_url": None},
+            {"thumbnail_url": ""},
+        ],
+    }
     return {
         "seeded_designs": await db.design_files.count_documents({"is_seed": True}),
         "total_designs": await db.design_files.count_documents({"quarantined_at": None}),
+        "orphan_seeds": await db.design_files.count_documents(orphan_q),
     }
 
 
@@ -343,6 +353,42 @@ async def purge_orphan_clips_seed(_: dict = Depends(current_admin)):
     if ids:
         await db.clip_engagement.delete_many({"clip_id": {"$in": ids}})
     res = await db.clips.delete_many(orphan_query)
+    return {
+        "ok": True,
+        "deleted": res.deleted_count,
+        "slugs": [o.get("slug") for o in orphans],
+    }
+
+
+@router.post("/admin/seed/community-designs/purge-orphans")
+async def purge_orphan_design_seed(_: dict = Depends(current_admin)):
+    """iter221 — targeted cleanup for community design files. Hard-deletes
+    seed rows (is_seed=true) whose `thumbnail_url` points to a local
+    `/seed-designs/` path AND lack `file_verified=true`. These are
+    leftover from earlier Nano Banana preview generations that half-failed
+    or whose files never reached the production deploy artifact — they
+    render as broken-image cards on /community Design Files tab.
+
+    Preserves: verified seeds (file_verified=true), externally-hosted
+    seeds (https thumbnails), and ALL organic uploads.
+    """
+    orphan_query = {
+        "is_seed": True,
+        "file_verified": {"$ne": True},
+        "$or": [
+            {"thumbnail_url": {"$regex": "^/seed-designs/"}},
+            {"thumbnail_url": None},
+            {"thumbnail_url": ""},
+        ],
+    }
+    orphans: list[dict] = []
+    async for d in db.design_files.find(orphan_query, {"_id": 0, "id": 1, "slug": 1, "title": 1}):
+        orphans.append(d)
+    ids = [o["id"] for o in orphans]
+    if ids:
+        # Wipe associated download logs so download-count rebuilds cleanly.
+        await db.download_logs.delete_many({"file_id": {"$in": ids}})
+    res = await db.design_files.delete_many(orphan_query)
     return {
         "ok": True,
         "deleted": res.deleted_count,

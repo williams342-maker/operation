@@ -164,6 +164,14 @@ async def on_startup():
         await ensure_seed_pool()
     except Exception:
         logger.exception("[hero_headlines] seed bootstrap failed (non-fatal)")
+    # iter221 — Backfill `file_verified` for pre-existing seeded design
+    # rows so the new orphan guard doesn't hide working cards on
+    # production. Reads disk only; never inserts. Idempotent.
+    try:
+        from design_file_seeder import backfill_file_verified
+        await backfill_file_verified()
+    except Exception:
+        logger.exception("[design_seeder] file_verified backfill failed (non-fatal)")
     from scheduler import start_scheduler
     start_scheduler()
     # Register the Shippo tracking webhook idempotently. PUBLIC_BACKEND_URL

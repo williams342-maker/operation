@@ -1,6 +1,55 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-25 — iter221 · Production triage: design orphans, blank-screen guard, clip-gen error UX ✅
+
+User reported 3 issues on the deployed environment (craftersmarket.org):
+1. Broken-image card on `/community` Design Files tab (alt-text-only render)
+2. Blank screen when clicking "+ Upload a file" on Design Files tab
+3. Sora-2 admin clip generation fails after 2-3 min with a cryptic notification
+
+### Fix 1 · Design-file orphan guard (`routers/community_files.py`, `routers/seed_admin.py`, `design_file_seeder.py`, `server.py`)
+Same defense pattern as iter218 (clips):
+- `_design_orphan_guard()` Mongo `$or` clause on the public `GET /community/files` listing — lets a seed row through only when it has `file_verified: True` OR an external `https://…` thumbnail. Organic uploads (no `is_seed`) bypass the guard entirely.
+- Design seeder now flips `file_verified: true` ONLY after svg + dxf + preview.jpg all confirmed on disk with non-zero size.
+- New idempotent startup migration `backfill_file_verified()` walks every existing `is_seed=true` row and flips the flag for rows whose disk files DO exist — protects pre-iter221 working seeds from being hidden by the new guard on the next deploy.
+- New `POST /admin/seed/community-designs/purge-orphans` — targeted cleanup that nukes only broken seed rows (orphan flag + local thumbnail), preserves verified seeds + organic uploads. Returns the deleted slugs.
+- `GET /admin/seed/community-designs/status` now reports `orphan_seeds: int`.
+
+### Fix 2 · `<SectionErrorBoundary/>` wrapping `FileUploadForm`
+- New `/app/frontend/src/components/SectionErrorBoundary.jsx` — section-level error boundary that catches any render crash from a sub-tree and surfaces a readable error card (with "Try again" + "Reload page" buttons) instead of blanking the whole page.
+- Wrapped `<FileUploadForm/>` on `/community` Design Files tab with the boundary. Now if a prod-build-only edge case crashes the form, the user sees an actionable error + retry instead of a white screen.
+
+### Fix 3 · Sora clip-gen error UX (`SettingsTab.jsx`)
+- Replaced the generic `toast.error(r.reason || "Sora generation failed.")` with a smart error-message mapper that translates upstream failures into operator-actionable copy:
+  - Universal LLM Key budget exhaustion → "Universal LLM Key budget exhausted. Sora-2-pro renders cost ~$3.40 each. Top up at Profile → Universal Key → Add Balance, then retry."
+  - "video file missing on disk" → "Sora returned but the MP4 download didn't complete (likely a transient upstream timeout). Safe to retry — no DB row was created."
+  - 429 / rate-limit → "Sora is rate-limiting us — wait 60s and retry."
+  - 504 / timeout → "Sora call timed out (>3 min). Retry — and if it keeps failing, switch to gemini-3-flash-video or wait for Sora capacity."
+- Added an `info` toast at click-time so the operator knows the 2-3 min wait is expected ("typically 2–3 min. You can leave this tab; the toast will follow").
+
+### Admin UI · Community designs seed card
+- New 3rd count tile in the status grid: **Orphans** (red-tinted when > 0).
+- New red-tinted callout panel + **"Clear N orphan(s)"** button appears only when orphans are detected (testid `purge-orphan-designs-btn`).
+
+### Frontend `lib/api.js`
+- New helper `purgeOrphanCommunityDesignsSeed()`.
+
+### Regression coverage — `tests/test_iter221_design_orphan_guard.py` · 6/6 PASS
+1. Orphan hidden from public feed
+2. `file_verified: true` seed visible
+3. External-URL seed visible without `file_verified`
+4. Organic upload unaffected by guard
+5. `purge-orphans` deletes only orphans, preserves verified + organic
+6. Status endpoint reports `orphan_seeds`
+
+### Production rollout
+1. Redeploy from craftersmarket.org's deploy panel.
+2. On startup, `backfill_file_verified()` auto-flips the flag for all working seeds — no manual action needed.
+3. (Optional) Admin → Settings → Community Designs Seed → "Clear N orphans" to physically remove broken DB rows. The guard already hides them either way.
+
+
+
 ## 2026-05-25 — iter220 · Rotating AI hero headlines + cinematic hierarchy upgrade ✅
 
 User direction: "The Hero Section Needs a Complete Identity Upgrade … this style should be in rotation with ai created rotation" — plus visual hierarchy + glow dividers + section separation across the homepage.
