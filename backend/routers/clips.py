@@ -383,3 +383,117 @@ async def maker_delete_clip(clip_id: str, slug: str = Depends(current_maker_slug
     # re-used (shouldn't happen — uuids — but defensive).
     await db.clip_engagement.delete_many({"clip_id": clip_id})
     return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# Maker native upload — drag-drop MP4/WebM/MOV → R2.
+#
+# We keep the file size cap modest (matches existing video uploader: 50 MB)
+# so 60-second 9:16 clips fit comfortably without us standing up Cloudflare
+# Stream. Poster frame is best-effort via ffmpeg — if it fails we fall back
+# to the maker's avatar or null.
+# ---------------------------------------------------------------------------
+from fastapi import File, Form, UploadFile  # noqa: E402
+
+import r2_storage  # noqa: E402
+
+
+@router.post("/maker/clips/upload")
+async def maker_upload_clip(
+    file: UploadFile = File(...),
+    title: str = Form(...),
+    description: str = Form(""),
+    category: str = Form("workshop"),
+    tags: str = Form(""),
+    product_slug: str = Form(""),
+    slug: str = Depends(current_maker_slug),
+):
+    """Upload a native MP4/WebM/MOV (≤50 MB). Extracts a poster JPG via
+    ffmpeg and inserts a `clips` row pointing at the R2 public URL.
+
+    Form-encoded so the browser can stream multipart without us needing
+    a separate chunked-upload protocol. For files larger than 50 MB the
+    maker should keep using the YouTube/Vimeo URL embed flow.
+    """
+    if not r2_storage.is_configured():
+        raise HTTPException(503, "Video storage isn't configured. Use a YouTube/Vimeo URL for now.")
+    if category not in VALID_CATEGORIES:
+        raise HTTPException(422, f"Pick a category from: {sorted(VALID_CATEGORIES)}")
+    title = (title or "").strip()
+    if not (3 <= len(title) <= MAX_TITLE):
+        raise HTTPException(422, f"Title must be 3–{MAX_TITLE} chars.")
+
+    data = await file.read()
+    ct = (file.content_type or "").lower() or "video/mp4"
+    fname = file.filename or "clip.mp4"
+    try:
+        video_url = r2_storage.upload_video_bytes(
+            data, key_prefix=f"maker-clips/{slug}",
+            filename=fname, content_type=ct,
+        )
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    except Exception as e:
+        logger.exception("[clips] R2 upload failed: %s", e)
+        raise HTTPException(502, "Upload failed — try again or use a YouTube/Vimeo URL.")
+
+    # ── Best-effort poster frame via ffmpeg. Skip if ffmpeg missing or fails.
+    poster_url: Optional[str] = None
+    try:
+        import subprocess
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as src_f, \
+             tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as out_f:
+            src_f.write(data)
+            src_f.flush()
+            subprocess.run(
+                ["ffmpeg", "-y", "-i", src_f.name, "-vframes", "1", "-q:v", "3", out_f.name],
+                check=True, capture_output=True, timeout=20,
+            )
+            with open(out_f.name, "rb") as fh:
+                poster_bytes = fh.read()
+        if poster_bytes:
+            poster_url = r2_storage.upload_bytes(
+                poster_bytes,
+                key=f"maker-clips/{slug}/posters/{uuid.uuid4().hex}.jpg",
+                content_type="image/jpeg",
+            )
+    except Exception as e:
+        logger.warning("[clips] poster frame failed for %s: %s", slug, e)
+
+    maker = await db.makers.find_one({"slug": slug}, {"_id": 0, "name": 1, "studio_name": 1})
+    maker_name = (maker or {}).get("studio_name") or (maker or {}).get("name") or slug
+
+    title_slug = await _unique_slug(_slugify(title))
+    tags_list = [t.strip().lower() for t in (tags or "").split(",") if t.strip()][:10]
+
+    doc = {
+        "id": str(uuid.uuid4()),
+        "slug": title_slug,
+        "maker_slug": slug,
+        "maker_name": maker_name,
+        "uploader_email": None,
+        "title": title,
+        "description": (description or "").strip()[:MAX_DESC],
+        "category": category,
+        "tags": tags_list,
+        "source_type": "r2",
+        "source_id": None,
+        "video_url": video_url,
+        "poster_url": poster_url,
+        "duration_seconds": 0,
+        "product_slug": (product_slug or "").strip() or None,
+        "views": 0,
+        "likes": 0,
+        "saves": 0,
+        "shares": 0,
+        "is_seed": False,
+        "ai_generated": False,
+        "ai_model": None,
+        "quarantined_at": None,
+        "created_at": now_iso(),
+    }
+    await db.clips.insert_one(doc)
+    logger.info("[clips] maker %s uploaded native clip %s (%d KB)",
+                slug, title_slug, len(data) // 1024)
+    return {"ok": True, "clip": _public_row(doc)}

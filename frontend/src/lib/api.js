@@ -818,6 +818,19 @@ export const fetchMyClips = () =>
   http.get("/maker/clips/mine", { headers: _makerAuth() }).then((r) => r.data);
 export const createClipFromUrl = (payload) =>
   http.post("/maker/clips", payload, { headers: _makerAuth() }).then((r) => r.data);
+export const uploadClipFile = (file, fields, onUploadProgress) => {
+  // Native file upload to R2 via the backend. `fields` =
+  // { title, description, category, tags, product_slug }. Backend handles
+  // the multipart body + extracts a poster frame with ffmpeg.
+  const fd = new FormData();
+  fd.append("file", file);
+  Object.entries(fields || {}).forEach(([k, v]) => fd.append(k, v ?? ""));
+  return http.post("/maker/clips/upload", fd, {
+    headers: { ..._makerAuth(), "Content-Type": "multipart/form-data" },
+    timeout: 300000,
+    onUploadProgress,
+  }).then((r) => r.data);
+};
 export const deleteMyClip = (clipId) =>
   http.delete(`/maker/clips/${clipId}`, { headers: _makerAuth() }).then((r) => r.data);
 // Admin seed

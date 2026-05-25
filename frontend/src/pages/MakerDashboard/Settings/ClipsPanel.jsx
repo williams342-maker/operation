@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from "react";
-import { Plus, Trash2, ExternalLink, Film } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import { Plus, Trash2, ExternalLink, Film, Upload, Link as LinkIcon } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import {
   fetchMyClips, createClipFromUrl, deleteMyClip, fetchClipCategories,
+  uploadClipFile,
 } from "../../../lib/api";
 import { useConfirm } from "../useConfirm";
 import EmptyState from "../../../components/EmptyState";
@@ -32,10 +33,17 @@ export default function ClipsPanel() {
   const [confirm, confirmModal] = useConfirm();
   const [items, setItems] = useState(null);
   const [cats, setCats] = useState(FALLBACK_CATS);
+  // `mode = 'url'` = paste a YouTube/Vimeo link; `'file'` = drag-drop MP4.
+  const [mode, setMode] = useState("url");
   const [form, setForm] = useState({
     url: "", title: "", description: "", category: "workshop", tags: "", product_slug: "",
   });
   const [busy, setBusy] = useState(false);
+  // R2 upload state — separate from form so the progress bar can update
+  // without re-rendering the URL form.
+  const fileInputRef = useRef(null);
+  const [pickedFile, setPickedFile] = useState(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   const refresh = async () => {
     try {
@@ -56,28 +64,67 @@ export default function ClipsPanel() {
 
   const onAdd = async (e) => {
     e.preventDefault();
-    if (!form.url.trim() || !form.title.trim()) {
-      toast.error("URL and title are required.");
+    if (!form.title.trim()) {
+      toast.error("Title is required.");
+      return;
+    }
+    if (mode === "url" && !form.url.trim()) {
+      toast.error("URL is required.");
+      return;
+    }
+    if (mode === "file" && !pickedFile) {
+      toast.error("Pick a video file first.");
       return;
     }
     setBusy(true);
     try {
-      const payload = {
-        url: form.url.trim(),
-        title: form.title.trim(),
-        description: form.description.trim(),
-        category: form.category,
-        // Send tags as an array — backend lowercases + dedupes.
-        tags: form.tags.split(",").map((t) => t.trim()).filter(Boolean),
-        product_slug: form.product_slug.trim() || null,
-      };
-      const r = await createClipFromUrl(payload);
-      toast.success(`Posted to /clips — "${r.clip.title}"`);
+      if (mode === "url") {
+        const payload = {
+          url: form.url.trim(),
+          title: form.title.trim(),
+          description: form.description.trim(),
+          category: form.category,
+          tags: form.tags.split(",").map((t) => t.trim()).filter(Boolean),
+          product_slug: form.product_slug.trim() || null,
+        };
+        const r = await createClipFromUrl(payload);
+        toast.success(`Posted to /clips — "${r.clip.title}"`);
+      } else {
+        const r = await uploadClipFile(pickedFile, {
+          title: form.title.trim(),
+          description: form.description.trim(),
+          category: form.category,
+          tags: form.tags.trim(),
+          product_slug: form.product_slug.trim(),
+        }, (e) => {
+          if (e?.total) setUploadProgress(Math.round((e.loaded / e.total) * 100));
+        });
+        toast.success(`Uploaded — "${r.clip.title}"`);
+        setPickedFile(null);
+        setUploadProgress(0);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+      }
       setForm({ url: "", title: "", description: "", category: "workshop", tags: "", product_slug: "" });
       await refresh();
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Couldn't add clip.");
-    } finally { setBusy(false); }
+    } finally {
+      setBusy(false);
+      setUploadProgress(0);
+    }
+  };
+
+  const onFilePick = (f) => {
+    if (!f) { setPickedFile(null); return; }
+    if (!/^video\//.test(f.type)) {
+      toast.error("Please pick a video file (MP4/WebM/MOV).");
+      return;
+    }
+    if (f.size > 50 * 1024 * 1024) {
+      toast.error("Video is over 50 MB — try a shorter clip or use a YouTube URL.");
+      return;
+    }
+    setPickedFile(f);
   };
 
   const onDelete = async (c) => {
@@ -119,33 +166,128 @@ export default function ClipsPanel() {
         className="border border-[#262626] p-4 md:p-5 space-y-3"
         data-testid="clips-add-form"
       >
-        <div className="grid md:grid-cols-2 gap-3">
-          <label className="block">
-            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">YouTube / Vimeo URL *</span>
-            <input
-              type="url"
-              value={form.url}
-              onChange={(e) => setForm({ ...form, url: e.target.value })}
-              placeholder="https://youtube.com/shorts/…"
-              className="mt-1 w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
-              required
-              data-testid="clips-add-url"
-            />
-          </label>
-          <label className="block">
-            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Title *</span>
-            <input
-              type="text"
-              value={form.title}
-              onChange={(e) => setForm({ ...form, title: e.target.value })}
-              maxLength={120}
-              placeholder="Plasma cutting a mountain sign"
-              className="mt-1 w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
-              required
-              data-testid="clips-add-title"
-            />
-          </label>
+        {/* Mode picker — URL embed (fast) vs native upload (R2). */}
+        <div className="flex gap-2 -mt-1 mb-3" data-testid="clips-mode-tabs">
+          <button
+            type="button"
+            onClick={() => setMode("url")}
+            className={`px-3 py-1.5 border font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5 ${
+              mode === "url"
+                ? "border-[#ff4500] text-[#ff4500] bg-[#ff4500]/10"
+                : "border-[#262626] text-[#a3a3a3] hover:border-[#525252]"
+            }`}
+            data-testid="clips-mode-url"
+          >
+            <LinkIcon size={11} /> Paste URL
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("file")}
+            className={`px-3 py-1.5 border font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5 ${
+              mode === "file"
+                ? "border-[#ff4500] text-[#ff4500] bg-[#ff4500]/10"
+                : "border-[#262626] text-[#a3a3a3] hover:border-[#525252]"
+            }`}
+            data-testid="clips-mode-file"
+          >
+            <Upload size={11} /> Upload MP4 (≤50 MB)
+          </button>
         </div>
+
+        {mode === "url" ? (
+          <div className="grid md:grid-cols-2 gap-3">
+            <label className="block">
+              <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">YouTube / Vimeo URL *</span>
+              <input
+                type="url"
+                value={form.url}
+                onChange={(e) => setForm({ ...form, url: e.target.value })}
+                placeholder="https://youtube.com/shorts/…"
+                className="mt-1 w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+                data-testid="clips-add-url"
+              />
+            </label>
+            <label className="block">
+              <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Title *</span>
+              <input
+                type="text"
+                value={form.title}
+                onChange={(e) => setForm({ ...form, title: e.target.value })}
+                maxLength={120}
+                placeholder="Plasma cutting a mountain sign"
+                className="mt-1 w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+                required
+                data-testid="clips-add-title"
+              />
+            </label>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <label
+              htmlFor="clip-file-input"
+              className={`block border-2 border-dashed p-6 text-center cursor-pointer transition ${
+                pickedFile ? "border-[#ff4500] bg-[#ff4500]/5" : "border-[#262626] hover:border-[#525252]"
+              }`}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => { e.preventDefault(); onFilePick(e.dataTransfer.files?.[0]); }}
+              data-testid="clips-file-drop"
+            >
+              <Upload size={28} className="mx-auto text-[#525252] mb-2" />
+              {pickedFile ? (
+                <>
+                  <div className="font-mono text-xs text-[#e5e5e5] break-all">{pickedFile.name}</div>
+                  <div className="font-mono text-[10px] text-[#737373] mt-1">
+                    {(pickedFile.size / 1024 / 1024).toFixed(1)} MB · {pickedFile.type || "video"}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="font-mono text-xs text-[#a3a3a3]">
+                    Drag a vertical MP4 / WebM / MOV here, or click to pick
+                  </div>
+                  <div className="font-mono text-[10px] text-[#525252] mt-1">
+                    Max 50 MB · ideal 9:16 · ≤60 seconds
+                  </div>
+                </>
+              )}
+              <input
+                ref={fileInputRef}
+                id="clip-file-input"
+                type="file"
+                accept="video/mp4,video/webm,video/quicktime"
+                className="hidden"
+                onChange={(e) => onFilePick(e.target.files?.[0])}
+                data-testid="clips-add-file"
+              />
+            </label>
+            <label className="block">
+              <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Title *</span>
+              <input
+                type="text"
+                value={form.title}
+                onChange={(e) => setForm({ ...form, title: e.target.value })}
+                maxLength={120}
+                placeholder="Plasma cutting a mountain sign"
+                className="mt-1 w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+                required
+                data-testid="clips-add-title"
+              />
+            </label>
+            {busy && uploadProgress > 0 && (
+              <div data-testid="clips-upload-progress" className="space-y-1">
+                <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+                  Uploading… {uploadProgress}%
+                </div>
+                <div className="h-1.5 bg-[#1f1f1f] overflow-hidden">
+                  <div
+                    className="h-full bg-[#ff4500] transition-[width] duration-200"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
         <div className="grid md:grid-cols-2 gap-3">
           <label className="block">
             <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Category</span>

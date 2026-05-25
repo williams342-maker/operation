@@ -114,17 +114,30 @@ async def _pick_next() -> dict:
     return {"category": cat, "prompt_index": idx, "prompt": PROMPTS[cat][idx]}
 
 
-def _generate_video_blocking(prompt: str, out_path: str, model: str = "sora-2") -> bool:
+def _generate_video_blocking(prompt: str, out_path: str, model: str = "sora-2-pro") -> bool:
     """Synchronous Sora 2 call. Wrapped in a thread by the caller — this
-    function blocks for the full 2-5 minutes of generation."""
+    function blocks for the full 2-5 minutes of generation.
+
+    Note on sizing: the emergentintegrations wrapper only accepts the
+    legacy OpenAI sizes (1280×720, 1792×1024, 1024×1792, 1024×1024). The
+    upstream Sora 2 API additionally rejects 1024×1792 for *base*
+    `sora-2` (it wants 720×1280 vertical) — so the only intersection is
+    `sora-2-pro` with 1024×1792 for vertical, OR `sora-2` with 1280×720
+    horizontal. Pick accordingly.
+    """
     from emergentintegrations.llm.openai.video_generation import OpenAIVideoGeneration
+
+    if model == "sora-2-pro":
+        size = "1024x1792"
+    else:  # sora-2 (base) — must be horizontal through the wrapper
+        size = "1280x720"
 
     video_gen = OpenAIVideoGeneration(api_key=os.environ["EMERGENT_LLM_KEY"])
     video_bytes = video_gen.text_to_video(
         prompt=prompt,
         model=model,
-        size="1024x1792",  # vertical, 9:16-ish
-        duration=8,         # 4 / 8 / 12 — 8 gives a satisfying clip without ballooning cost
+        size=size,
+        duration=8,        # 4 / 8 / 12 — 8 gives a satisfying clip without ballooning cost
         max_wait_time=600,
     )
     if not video_bytes:
@@ -133,7 +146,7 @@ def _generate_video_blocking(prompt: str, out_path: str, model: str = "sora-2") 
     return True
 
 
-async def generate_one_clip(model: str = "sora-2") -> dict[str, Any]:
+async def generate_one_clip(model: str = "sora-2-pro") -> dict[str, Any]:
     """Pick the next category, render via Sora 2, insert into Mongo.
 
     Returns a structured status dict that mirrors the design seeder so

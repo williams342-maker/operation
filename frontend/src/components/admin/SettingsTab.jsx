@@ -475,7 +475,7 @@ function ClipsSeedCard() {
   const [genResult, setGenResult] = useState(null);
   const [purgeStep, setPurgeStep] = useState(0);
   const [purgeBusy, setPurgeBusy] = useState(false);
-  const [model, setModel] = useState("sora-2");
+  const [model, setModel] = useState("sora-2-pro");
 
   const refresh = async () => {
     try { setStatus(await fetchClipsSeedStatus()); } catch (_e) { /* admin-gated */ }
@@ -553,8 +553,8 @@ function ClipsSeedCard() {
             className="ml-2 bg-[#0a0a0a] border border-[#262626] px-2 py-1 font-mono text-xs"
             data-testid="clips-seed-model"
           >
-            <option value="sora-2">sora-2 (fast)</option>
-            <option value="sora-2-pro">sora-2-pro (high quality, slower)</option>
+            <option value="sora-2-pro">sora-2-pro · 1024×1792 (recommended)</option>
+            <option value="sora-2">sora-2 · 1280×720 horizontal (cheaper)</option>
           </select>
         </label>
         <div>

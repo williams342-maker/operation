@@ -799,6 +799,34 @@ async def _job_daily_design_file():
         logger.exception("[scheduler] daily_design_file failed: %s", e)
 
 
+async def _job_daily_clip_seed():
+    """Adds 1 fresh Sora-2 generated clip to the public clip feed.
+
+    Mirrors `_job_daily_design_file` but for short-form video. Sora is
+    meaningfully slower (~2-5 min per render) and burns more LLM
+    budget, so this cron is OPT-IN — disabled by default. Flip
+    `SCHEDULER_DAILY_CLIPS=true` to turn it on in production.
+
+    Picks the least-used (category × prompt) combo across 6 categories,
+    renders an 8-second vertical 1024×1792 clip, extracts a poster
+    frame, then inserts a `clips` row flagged `is_seed=true,
+    ai_generated=true`.
+    """
+    if os.environ.get("SCHEDULER_DAILY_CLIPS", "false").lower() not in ("true", "1", "yes"):
+        logger.info("[scheduler] daily_clip_seed disabled (SCHEDULER_DAILY_CLIPS=true to opt in)")
+        return
+    try:
+        from clip_seeder import generate_one_clip
+        r = await generate_one_clip(model=os.environ.get("SCHEDULER_DAILY_CLIPS_MODEL", "sora-2"))
+        if r.get("status") == "ok":
+            logger.info("[scheduler] daily_clip_seed ok: %s · %s",
+                        r["clip"]["category"], r["clip"]["slug"])
+        else:
+            logger.warning("[scheduler] daily_clip_seed soft-fail: %s", r)
+    except Exception as e:
+        logger.exception("[scheduler] daily_clip_seed failed: %s", e)
+
+
 
 
 def start_scheduler() -> AsyncIOScheduler | None:
@@ -877,6 +905,11 @@ def start_scheduler() -> AsyncIOScheduler | None:
     # so it keeps compounding. Disable per-env via SCHEDULER_DAILY_DESIGNS=false.
     sched.add_job(_job_daily_design_file, CronTrigger(hour=8, minute=0),
                   id="daily_design_file", replace_existing=True)
+    # Daily clip seed — opt-in (Sora is paid + slow). Set
+    # SCHEDULER_DAILY_CLIPS=true to enable; runs every day at 09:00 UTC,
+    # one render off-peak so it doesn't clash with the design cron.
+    sched.add_job(_job_daily_clip_seed, CronTrigger(hour=9, minute=0),
+                  id="daily_clip_seed", replace_existing=True)
     # Secrets rotation nudge — daily at 09:30 UTC. Two-tier:
     #   • 14-day pre-warning (due_soon) → email + Slack
     #   • Overdue → email + Slack + Discord (high priority)

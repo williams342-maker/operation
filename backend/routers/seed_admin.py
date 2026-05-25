@@ -278,7 +278,7 @@ async def clips_seed_status(_: dict = Depends(current_admin)):
 
 @router.post("/admin/seed/clips/generate-one")
 async def generate_one_clip(
-    model: str = "sora-2",
+    model: str = "sora-2-pro",
     _: dict = Depends(current_admin),
 ):
     """Render ONE fresh Sora-2 seed clip. Vertical 9:16, 8s. Blocks for
