@@ -16,6 +16,26 @@ Note: `MakerProductsTab.jsx` referenced in the prior next-actions doesn't exist 
 
 
 
+## 2026-05-25 — iter215 · Promote Founding-50 + Operator ops checklist ✅
+
+### Track 1 — Promote the Founding-50 Featured Clip incentive
+- **Email broadcast template** — Added a 4th preset `★ Founding-50 Clips` to `/app/frontend/src/components/admin/BroadcastTab.jsx` TEMPLATES list. Pre-fills subject, headline, a full ready-to-send 8-line body, AND auto-selects `audience=all_makers`. Body is only auto-filled if the composer is empty so an admin draft never gets overwritten.
+- **Maker dashboard announcement card** — New `/app/frontend/src/pages/MakerDashboard/ClipsIncentiveCard.jsx` mounted in `DashboardTab.jsx` between `TodayAlerts` and `PlusUpgradeNudge`. Pulls live `/api/clips/incentive-status`, auto-hides when slots are claimed or the maker dismisses it (localStorage `cm:clips-incentive-dismissed=1`), CTA deep-links to the Settings → Workshop clips section.
+
+### Track 2 — Operator ops checklist
+- New `OperatorOpsChecklistCard` on Admin Settings (`operator-ops-checklist` testid) with a 3-step post-deploy sweep:
+  1. **Cloudflare prerender Worker** — pings `/api/og/diag`; flips green when the FastAPI OG endpoint returns JSON (which the Cloudflare Worker then forwards on for crawler UAs).
+  2. **Sitemap & search-engine submission** — pings `/api/seo/diag` to surface `resolved_site_root`, total indexable URL count, and any preview-domain leakage. Bundled `Ping IndexNow` button that POSTs `/api/admin/seo/ping` and reports `Submitted N URLs to api.indexnow.org`.
+  3. **Backup & recovery toggle** — dispatches a `cm:open-admin-tab` event to switch the admin to the Backup tab so the operator can run a manual drill.
+- Each row has a colored status dot (idle gray / ok green / fail red) and ties back to the existing docs in `/app/docs/` (cloudflare-worker-prerender.md, seo-submission-checklist.md, mongodb-backup.md).
+
+### QA
+- testing_agent_v3 (iter_63): 6/7 pass on first run, found 1 CRITICAL bug — `adminAuthHeaders` ReferenceError on IndexNow click (private helper from lib/api.js wasn't exported).
+- Fix: exposed 3 new public helpers from `/app/frontend/src/lib/api.js` (`fetchOgDiag`, `fetchSeoDiag`, `adminPingIndexNow`) and refactored OpsChecklist to use them.
+- testing_agent_v3 (iter_64) re-test: all 3 OpsChecklist flows green. IndexNow submitted 38 URLs successfully. Zero bugs, no retest needed.
+
+
+
 ## 2026-05-25 — iter214 · Founding-50 Featured Clip incentive ✅
 
 The first **50 organic clip uploads** to `/clips` automatically earn a permanent **★ Featured** star badge — designed to incentivise real maker workshop footage to populate the feed without relying on paid Sora seeds.
