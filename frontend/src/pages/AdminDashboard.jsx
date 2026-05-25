@@ -25,6 +25,7 @@ import MobileAdminTabBar from "../components/admin/MobileAdminTabBar";
 import ReviewDisputesTab from "../components/admin/ReviewDisputesTab";
 import ProdHealthTab from "../components/admin/ProdHealthTab";
 import ProdHealthBanner from "../components/admin/ProdHealthBanner";
+import DeployHealthPill from "../components/admin/DeployHealthPill";
 import SecretsRotationBanner from "../components/admin/SecretsRotationBanner";
 import UpdatesAdminTab from "../components/admin/UpdatesAdminTab";
 import AdminTabBoundary from "../components/admin/AdminTabBoundary";
@@ -356,6 +357,7 @@ export default function AdminDashboard() {
             </h1>
           </div>
           <div className="flex items-center gap-3 self-start md:self-auto shrink-0 flex-wrap">
+            <DeployHealthPill onJumpToTab={setTab} />
             <EmailHealthBadge />
             <LiveNowBadge />
             <EnableOrderPushButton />
