@@ -1,6 +1,36 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-25 — iter200 · "Meet the Makers" homepage section ✅
+
+People trust people more than platforms. New homepage section humanises the marketplace with a 4-card "Meet the Makers" grid placed strategically after the philosophy section (`WhyWeExist`) and before the product rails — turns the abstract trust messaging into faces, locations, and crafts.
+
+### Frontend `components/MeetTheMakers.jsx` (new)
+Each maker card surfaces, in this order:
+- **Workshop cover image** (full-width 5:3 top frame)
+- **Portrait** (80×80 square photo overlapping the cover via negative margin so the face anchors visually into the workshop)
+- **Name + location** (with `MapPin` icon, orange accent)
+- **Specialty pills** (technique labels + "{N}+ yrs" experience pill)
+- **Bio** (first 220 chars, line-clamped to 4 lines)
+- **Listings count + "Visit shop" CTA**
+- Inherits **✦ FOUNDING MAKER** + **◆ VETERAN** pills automatically when applicable
+
+Curated by `CURATED_SLUGS` allow-list so the 4-card lineup always shows craft diversity at a glance: blacksmith (Anvil Row Forge) → wood+epoxy (River & Resin) → CNC plasma (Iron & Oak) → leather (Hidehouse Craft). Tail of remaining makers fills in if any curated entry is missing.
+
+### Resilient image loading
+- Three-step portrait fallback: portrait → cover → initials avatar (gradient block with maker initials).
+- `onError` covers network failures.
+- `onLoad` also checks `naturalWidth < 60 || naturalHeight < 60` to catch the common case of a stale CDN URL returning a 200 + tiny stub PNG (e.g. Iron & Oak's legacy portrait was a 67-byte 1×1 transparent placeholder).
+- Self-hides when fewer than 3 cards qualify (one or two makers alone looks worse than nothing).
+
+### Frontend `App.js`
+- Mounted `<MeetTheMakers />` directly between `<WhyWeExist />` and `<ShopOfTheWeek />` so the homepage narrative reads: hero → look at the work → proof of activity → why we exist → **meet the people** → individual maker spotlight → categories → product rails.
+
+### Verified live in preview
+- Homepage screenshot confirms all 4 curated cards render with distinct workshop imagery, portraits (with graceful fallback for Iron & Oak), location, technique pills, years-crafting badge, bio blurb, and the VETERAN pill on Iron & Oak.
+- Lint clean.
+
+
 ## 2026-05-25 — iter199 · Homepage "Featured Builds" hero rail ✅
 
 Converts the gorgeous Nano Banana seed imagery from a static catalog into a high-conversion hero moment. New rail sits directly under `<Hero/>` — the second thing every visitor sees below the fold — and lets the strongest 6 curated builds carry the "this marketplace is alive" message without any fake activity.

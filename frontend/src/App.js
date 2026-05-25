@@ -69,6 +69,7 @@ import BuiltInRealWorkshops from "./components/sections/BuiltInRealWorkshops";
 import TrendingForumStrip from "./components/TrendingForumStrip";
 import TrendingJournalRail from "./components/TrendingJournalRail";
 import FeaturedBuildsRail from "./components/FeaturedBuildsRail";
+import MeetTheMakers from "./components/MeetTheMakers";
 import { Toaster } from "sonner";
 import { trackPageview, captureAttribution } from "./lib/analytics";
 import { useSiteSettings } from "./hooks/useSiteSettings";
@@ -88,6 +89,7 @@ const Home = () => {
       <FeaturedBuildsRail testId="home-featured-builds" />
       <VelocityProofStrip testId="home-velocity" />
       <WhyWeExist testId="home-why-we-exist" />
+      <MeetTheMakers testId="home-meet-makers" />
       <ShopOfTheWeek />
       <CategoryStrip />
       <ProductRail title="Editor's Picks" eyebrow="◆ Featured" featured testId="rail-featured" />
