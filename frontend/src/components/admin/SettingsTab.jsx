@@ -18,6 +18,9 @@ import {
   attributeWorkshopTeam,
   runWeeklyForumThread,
   installFeaturedSeedFixture,
+  fetchCommunityDesignsSeedStatus,
+  installCommunityDesignsSeed,
+  purgeCommunityDesignsSeed,
 } from "../../lib/api";
 import { refreshSiteSettings } from "../../hooks/useSiteSettings";
 import { RowsSkeleton } from "../Skeleton";
@@ -179,6 +182,177 @@ function ToggleRow({ row, settings, onPatch, busy }) {
             data-testid={`setting-num-${row.numericKey}`}
           />
         </label>
+      )}
+    </div>
+  );
+}
+
+function CommunityDesignsSeedCard() {
+  // Mirror of PurgeFeaturedSeedCard but scoped to the AI-generated
+  // Workshop Team design library (`design_files` rows tagged
+  // `is_seed: true`). Two safe actions (status refresh + install) and
+  // one destructive one (purge) guarded by a 2-step confirm.
+  const [status, setStatus] = useState(null);
+  const [installBusy, setInstallBusy] = useState(false);
+  const [installResult, setInstallResult] = useState(null);
+  const [purgeStep, setPurgeStep] = useState(0);
+  const [purgeBusy, setPurgeBusy] = useState(false);
+  const [purgeResult, setPurgeResult] = useState(null);
+
+  const refresh = async () => {
+    try {
+      setStatus(await fetchCommunityDesignsSeedStatus());
+    } catch (_e) { /* admin-gated; ignore */ }
+  };
+  useEffect(() => { refresh(); }, []);
+
+  const runInstall = async () => {
+    setInstallBusy(true);
+    try {
+      const r = await installCommunityDesignsSeed();
+      setInstallResult(r);
+      if (r.ok) {
+        toast.success(`Installed ${r.installed} community designs.`);
+        refresh();
+      } else {
+        toast.error(r.error || "Install failed.");
+      }
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Install failed.");
+    } finally {
+      setInstallBusy(false);
+    }
+  };
+
+  const runPurge = async () => {
+    setPurgeBusy(true);
+    try {
+      const r = await purgeCommunityDesignsSeed();
+      setPurgeResult(r);
+      setPurgeStep(0);
+      toast.success(`Purged ${r.deleted} seeded designs.`);
+      refresh();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Purge failed.");
+    } finally {
+      setPurgeBusy(false);
+    }
+  };
+
+  const seeded = status?.seeded_designs ?? 0;
+
+  return (
+    <div
+      className="border border-amber-900/60 bg-amber-950/15 p-4 md:p-5"
+      data-testid="community-designs-seed-card"
+    >
+      <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-amber-400 mb-2">
+        ◆ Community design library seed
+      </div>
+      <div className="font-display text-lg uppercase">Workshop Team design files</div>
+      <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed mt-1 mb-3">
+        10 AI-generated, royalty-free CNC / laser / plasma design bundles (SVG + DXF + JPG preview)
+        attributed to <span className="text-amber-300">"Crafters Market Workshop Team"</span>.
+        Source files ship with the frontend deploy under <code className="text-emerald-300">/seed-designs/</code> —
+        this card just writes the Mongo rows. Organic uploads are untouched (no <code>is_seed</code> flag).
+      </p>
+
+      {status && (
+        <div
+          className="font-mono text-[11px] text-[#a3a3a3] mb-4 grid grid-cols-2 gap-3 max-w-md"
+          data-testid="community-designs-seed-counts"
+        >
+          <div className="border border-[#262626] px-2 py-1.5">
+            <div className="text-[#525252] uppercase tracking-[0.2em] text-[9px]">Seeded</div>
+            <div className="text-amber-300 text-base">{status.seeded_designs}</div>
+          </div>
+          <div className="border border-[#262626] px-2 py-1.5">
+            <div className="text-[#525252] uppercase tracking-[0.2em] text-[9px]">All design files</div>
+            <div className="text-amber-300 text-base">{status.total_designs}</div>
+          </div>
+        </div>
+      )}
+
+      <div className="mb-4 pb-4 border-b border-amber-900/40">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-300 mb-1">
+          ◆ Install community design seed (one-click · idempotent)
+        </div>
+        <p className="font-mono text-[11px] text-[#a3a3a3] mb-2 leading-relaxed max-w-2xl">
+          Populates the <code className="text-emerald-300">design_files</code> collection with the
+          curated 10-design Workshop Team library committed to the repo. Existing download counts
+          are preserved on re-install. Use after fresh deploys.
+        </p>
+        <button
+          onClick={runInstall}
+          disabled={installBusy}
+          className="px-3 py-1.5 border border-emerald-600 text-emerald-300 hover:bg-emerald-900/30 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
+          data-testid="install-community-designs-seed-btn"
+        >
+          {installBusy ? "Installing…" : "Install community design seed"}
+        </button>
+        {installResult?.ok && (
+          <div
+            className="mt-2 font-mono text-[11px] text-emerald-300"
+            data-testid="install-community-designs-seed-result"
+          >
+            ◆ Installed {installResult.installed} designs · total seeded now: {installResult.totals_now.seeded_designs}
+          </div>
+        )}
+      </div>
+
+      {purgeResult && (
+        <p
+          className="font-mono text-xs text-emerald-300 mb-3"
+          data-testid="purge-community-designs-result"
+        >
+          ◆ Deleted {purgeResult.deleted} seeded designs.
+        </p>
+      )}
+
+      {purgeStep === 0 && (
+        <button
+          onClick={() => setPurgeStep(1)}
+          disabled={seeded === 0}
+          className="px-4 py-2 border border-amber-700 text-amber-300 hover:bg-amber-900/30 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-40 disabled:cursor-not-allowed"
+          data-testid="purge-community-designs-btn"
+        >
+          {seeded === 0 ? "Nothing to purge" : `Purge ${seeded} seeded design${seeded === 1 ? "" : "s"}`}
+        </button>
+      )}
+      {purgeStep === 1 && (
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setPurgeStep(2)}
+            className="px-4 py-2 border border-amber-700 bg-amber-900/30 text-amber-200 font-mono text-[11px] uppercase tracking-[0.22em]"
+            data-testid="purge-community-designs-confirm-1"
+          >
+            I understand · continue
+          </button>
+          <button
+            onClick={() => setPurgeStep(0)}
+            className="px-4 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em]"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+      {purgeStep === 2 && (
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={runPurge}
+            disabled={purgeBusy}
+            className="px-4 py-2 border border-red-600 bg-red-900/30 text-red-200 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
+            data-testid="purge-community-designs-confirm-2"
+          >
+            {purgeBusy ? "Purging…" : `Yes — hard-delete ${seeded}`}
+          </button>
+          <button
+            onClick={() => setPurgeStep(0)}
+            className="px-4 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em]"
+          >
+            Cancel
+          </button>
+        </div>
       )}
     </div>
   );
@@ -1728,6 +1902,8 @@ export default function SettingsTab() {
       <GscConnectionCard />
 
       <PurgeFeaturedSeedCard />
+
+      <CommunityDesignsSeedCard />
 
       <div className="grid md:grid-cols-2 gap-3">
         <IdleClearNowCard />

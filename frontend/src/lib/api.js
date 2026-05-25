@@ -775,6 +775,17 @@ export const runWeeklyForumThread = () =>
 export const installFeaturedSeedFixture = () =>
   http.post("/admin/seed/featured-content/install-fixture", null, { headers: adminAuthHeaders() }).then((r) => r.data);
 
+// Community-design seed (the AI-generated Workshop Team design library
+// that lands in the existing `design_files` collection). Mirrors the
+// featured-content seed APIs so the admin UI can offer a one-click
+// install / status / purge flow.
+export const fetchCommunityDesignsSeedStatus = () =>
+  http.get("/admin/seed/community-designs/status", { headers: adminAuthHeaders() }).then((r) => r.data);
+export const installCommunityDesignsSeed = () =>
+  http.post("/admin/seed/community-designs/install-fixture", null, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const purgeCommunityDesignsSeed = () =>
+  http.post("/admin/seed/community-designs/purge", null, { headers: adminAuthHeaders() }).then((r) => r.data);
+
 // AI Discovery — "describe what you want" natural-language search.
 // Returns matched products w/ a per-result `match_reason`. Public
 // endpoint — no auth headers needed.

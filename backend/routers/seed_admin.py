@@ -145,6 +145,80 @@ async def run_weekly_forum_thread(_: dict = Depends(current_admin)):
     return await seed_weekly_thread()
 
 
+# ===========================================================================
+# Community design-file seed (the AI-generated Workshop Team design library)
+# ===========================================================================
+@router.get("/admin/seed/community-designs/status")
+async def community_designs_seed_status(_: dict = Depends(current_admin)):
+    """Counts so the admin UI can preview impact before install/purge."""
+    return {
+        "seeded_designs": await db.design_files.count_documents({"is_seed": True}),
+        "total_designs": await db.design_files.count_documents({"quarantined_at": None}),
+    }
+
+
+@router.post("/admin/seed/community-designs/install-fixture")
+async def install_community_designs_seed(_: dict = Depends(current_admin)):
+    """One-click install of the curated Workshop Team design library
+    from `/app/backend/data/community_designs_seed.json`. Upserts by
+    `slug` (a seed-only field) so re-running is idempotent — existing
+    download counts are preserved by the fixture builder.
+
+    The SVG / DXF / preview JPG that each row references all ship with
+    the frontend deploy artifact under `/seed-designs/<slug>/`, so this
+    endpoint touches MongoDB only — no R2 uploads, no LLM calls.
+    """
+    import json
+    from pathlib import Path
+
+    fixture_path = Path("/app/backend/data/community_designs_seed.json")
+    if not fixture_path.exists():
+        return {"ok": False, "error": "fixture file missing from deploy artifact"}
+
+    fixture = json.loads(fixture_path.read_text())
+    rows = fixture.get("design_files", [])
+    installed = 0
+    for d in rows:
+        # Preserve existing `downloads` count on re-install so the
+        # leaderboard / trending rail doesn't reset to zero on every
+        # redeploy.
+        existing = await db.design_files.find_one(
+            {"slug": d["slug"], "is_seed": True},
+            {"_id": 0, "downloads": 1, "created_at": 1, "id": 1},
+        )
+        doc = dict(d)
+        if existing:
+            doc["downloads"] = existing.get("downloads", doc.get("downloads", 0))
+            doc["created_at"] = existing.get("created_at", doc.get("created_at"))
+            doc["id"] = existing.get("id", doc["id"])
+        await db.design_files.update_one({"slug": d["slug"]}, {"$set": doc}, upsert=True)
+        installed += 1
+
+    return {
+        "ok": True,
+        "installed": installed,
+        "totals_now": {
+            "seeded_designs": await db.design_files.count_documents({"is_seed": True}),
+            "total_designs": await db.design_files.count_documents({"quarantined_at": None}),
+        },
+    }
+
+
+@router.post("/admin/seed/community-designs/purge")
+async def purge_community_designs_seed(_: dict = Depends(current_admin)):
+    """Hard-delete every seeded community design (`is_seed: true` on
+    `design_files`). Organic uploads have no `is_seed` flag so they
+    stay untouched.
+    """
+    pre = await db.design_files.count_documents({"is_seed": True})
+    res = await db.design_files.delete_many({"is_seed": True})
+    return {
+        "ok": True,
+        "deleted": res.deleted_count,
+        "pre_purge_count": pre,
+    }
+
+
 @router.post("/admin/seed/featured-content/purge")
 async def purge_featured_seed(_: dict = Depends(current_admin)):
     """Hard-delete every doc tagged `featured_example: true`. Intentionally
