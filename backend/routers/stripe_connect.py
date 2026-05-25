@@ -35,6 +35,48 @@ def _stripe():
     return stripe_sdk
 
 
+@router.get("/admin/stripe/diag")
+async def stripe_diag(_: dict = Depends(__import__("maker_auth", fromlist=["current_admin"]).current_admin)):
+    """iter222 — Admin-only one-shot health check. Verifies the Stripe API
+    key is real (calls Account.retrieve on the platform account itself)
+    and reports current mode (test/live). Lets the operator confirm in
+    one click that Stripe is wired correctly BEFORE asking makers to
+    onboard.
+    """
+    key = STRIPE_API_KEY or ""
+    if not key:
+        return {"ok": False, "reason": "STRIPE_API_KEY missing", "mode": None}
+    if "*" in key or len(key) < 20:
+        # Placeholder value (e.g. sk_test_****gent) — invalid by design.
+        return {
+            "ok": False,
+            "reason": "STRIPE_API_KEY is a placeholder (contains '*' or too short). Set a real Stripe Secret Key in /app/backend/.env and restart the backend.",
+            "mode": "placeholder",
+            "key_prefix": key[:8],
+        }
+    mode = "live" if key.startswith("sk_live_") else ("test" if key.startswith("sk_test_") else "unknown")
+    s = _stripe()
+    try:
+        # Cheapest possible auth probe — retrieve the platform account.
+        acct = s.Account.retrieve()
+        return {
+            "ok": True,
+            "mode": mode,
+            "key_prefix": key[:8],
+            "platform_account_id": getattr(acct, "id", None),
+            "country": getattr(acct, "country", None),
+            "charges_enabled": bool(getattr(acct, "charges_enabled", False)),
+            "details_submitted": bool(getattr(acct, "details_submitted", False)),
+        }
+    except Exception as e:
+        return {
+            "ok": False,
+            "mode": mode,
+            "key_prefix": key[:8],
+            "reason": _stripe_friendly_error(e),
+        }
+
+
 async def _refresh_status(slug: str, account_id: str) -> dict:
     """Pull latest status from Stripe and persist to the maker record."""
     s = _stripe()
@@ -102,7 +144,7 @@ async def connect_onboard(payload: OnboardRequest, slug: str = Depends(current_m
             )
         except Exception as e:
             logger.exception("Stripe account.create failed for maker=%s: %s", slug, e)
-            raise HTTPException(502, "Could not create Stripe Connect account.")
+            raise HTTPException(502, _stripe_friendly_error(e))
 
     refresh = payload.origin_url.rstrip("/") + "/maker/stripe/return?refresh=1"
     ret = payload.origin_url.rstrip("/") + "/maker/stripe/return"
@@ -114,10 +156,47 @@ async def connect_onboard(payload: OnboardRequest, slug: str = Depends(current_m
             type="account_onboarding",
         )
     except Exception as e:
-        logger.exception("Stripe AccountLink.create failed: %s", e)
-        raise HTTPException(502, "Could not start onboarding.")
+        # iter222 — Surface the real Stripe error to the operator instead
+        # of a generic "Could not start onboarding." Most common failures
+        # here are (a) wrong API mode (sk_test vs sk_live mismatch with
+        # account_id), (b) Connect platform not enabled on the Stripe
+        # dashboard, or (c) the maker's stale stripe_account_id no longer
+        # exists in Stripe. The frontend renders `detail` directly so the
+        # maker sees what to fix.
+        logger.exception("Stripe AccountLink.create failed for maker=%s account=%s: %s", slug, account_id, e)
+        pretty = _stripe_friendly_error(e)
+        raise HTTPException(502, pretty)
 
     return {"url": link.url, "account_id": account_id, "expires_at": link.expires_at}
+
+
+def _stripe_friendly_error(e: Exception) -> str:
+    """Translate a raw stripe.error.* into operator-actionable copy."""
+    msg = str(e)
+    klass = type(e).__name__
+    low = msg.lower()
+    if "authenticationerror" in klass.lower() or "invalid api key" in low or "no such api key" in low:
+        return (
+            "Stripe authentication failed — the STRIPE_API_KEY on the server "
+            "is invalid or a test/live mode mismatch. Check /app/backend/.env "
+            "and redeploy."
+        )
+    if "no such account" in low:
+        return (
+            "Stripe says this maker's connected account no longer exists. "
+            "Reset the maker's stripe_account_id and retry onboarding."
+        )
+    if "connect" in low and ("not enabled" in low or "platform" in low):
+        return (
+            "Stripe Connect isn't enabled on this Stripe account. Enable it at "
+            "https://dashboard.stripe.com/connect, then retry."
+        )
+    if "permission" in low or "you cannot" in low:
+        return f"Stripe permission error: {msg[:240]}"
+    if "rate limit" in low:
+        return "Stripe is rate-limiting us — wait 30 seconds and retry."
+    # Final fallback — still safer than the old opaque message.
+    return f"Stripe rejected the onboarding link: {msg[:240]}"
 
 
 @router.get("/maker/stripe/connect/status")

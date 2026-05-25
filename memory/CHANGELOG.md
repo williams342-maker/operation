@@ -1,6 +1,45 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-25 — iter222 · Stripe Connect "Could not start onboarding" fix ✅
+
+User reported `/maker/.../shop/manage` Financials → Stripe Connect onboarding rendering "Could not start onboarding." User attributed it to LLM budget (those systems are unrelated — Stripe ≠ Universal LLM Key).
+
+### Root cause
+The pod default OS environment ships with a literal placeholder string `STRIPE_API_KEY=sk_test_****gent` (asterisks, not a valid key). `core.py`'s `load_dotenv(ROOT_DIR / ".env")` was called **without `override=True`**, so the pod placeholder silently beat the real `sk_live_...` value the user had set in `/app/backend/.env`. Stripe rejected the placeholder with `AuthenticationError: Invalid API Key`, which the backend masked as the generic "Could not start onboarding." string. **Net effect: every Stripe call was authenticating against a fake key while the user's real key sat ignored in .env.**
+
+### Fix · `backend/core.py`
+- `load_dotenv(ROOT_DIR / ".env", override=True)` — `.env` is the documented source of truth for this codebase, so it must always win over the pod default. Confirmed via `[stripe] mode=LIVE / [shippo] mode=LIVE` boot log + admin diag returning `ok: true, mode: live, charges_enabled: true`.
+
+### Fix · `backend/routers/stripe_connect.py`
+- New `_stripe_friendly_error(e)` helper translates raw Stripe exceptions into operator-actionable copy:
+  - `AuthenticationError` / "invalid api key" → "Stripe authentication failed — the STRIPE_API_KEY on the server is invalid or a test/live mode mismatch. Check /app/backend/.env and redeploy."
+  - "no such account" → "Stripe says this maker's connected account no longer exists. Reset the maker's stripe_account_id and retry onboarding."
+  - "connect not enabled" → "Stripe Connect isn't enabled on this Stripe account. Enable it at https://dashboard.stripe.com/connect, then retry."
+  - "rate limit" → "Stripe is rate-limiting us — wait 30 seconds and retry."
+- Both `Account.create` and `AccountLink.create` error paths now surface this translated message via `HTTPException(502, ...)` instead of a hardcoded string. The frontend already renders `detail` directly, so the maker sees the real reason.
+
+### New admin diagnostic · `GET /api/admin/stripe/diag`
+- One-shot health probe. Calls `stripe.Account.retrieve()` against the platform account. Returns `{ok, mode (live/test/placeholder), key_prefix, platform_account_id, country, charges_enabled, details_submitted, reason?}`.
+- Lets the operator confirm Stripe is wired BEFORE asking makers to onboard.
+
+### Admin UI · `StripeDiagCard` in Settings
+- Mounted between ClipsSeedCard and HeroHeadlinesCard. Green when reachable, red when broken. 4-tile breakdown (Mode · Key prefix · Platform acct · Charges). Surfaces the friendly error reason inline when the probe fails. Manual "↻ Re-check" button.
+
+### Regression · `tests/test_iter222_stripe_env_fix.py` — **6/6 PASS**
+1. `.env` Stripe key prefix matches the running backend's key (override=True is wired).
+2. `/admin/stripe/diag` endpoint responds with shape `{ok, mode, ...}`.
+3. Diag requires admin auth (401/403 anonymously).
+4. Friendly-error helper translates AuthenticationError correctly.
+5. Friendly-error helper translates "no such account".
+6. Friendly-error helper translates rate-limit.
+
+### Production rollout
+1. Redeploy from craftersmarket.org's deploy panel — the override=True fix applies immediately on the next backend boot.
+2. After redeploy, open Admin → Settings → **Stripe Connect · Health** card. Should show green "Reachable" with `mode: live`. If not, the friendly error tells you exactly what to fix.
+
+
+
 ## 2026-05-25 — iter221 · Production triage: design orphans, blank-screen guard, clip-gen error UX ✅
 
 User reported 3 issues on the deployed environment (craftersmarket.org):

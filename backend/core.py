@@ -8,7 +8,16 @@ from fastapi import Request
 from motor.motor_asyncio import AsyncIOMotorClient
 
 ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / ".env")
+# iter222 — Use override=True so the values written in `.env` always win
+# over whatever the pod/supervisor may have pre-set in the OS env. The
+# Emergent pod default ships with placeholder Stripe / LLM strings that
+# look like real values (e.g. STRIPE_API_KEY=sk_test_****gent) but are
+# invalid — without override=True they silently beat the user's real
+# credentials and the only visible symptom is generic "Could not start
+# onboarding" / "Stripe authentication" errors. `.env` is the documented
+# source of truth for secrets in this codebase (see system prompt), so
+# letting it win is correct.
+load_dotenv(ROOT_DIR / ".env", override=True)
 
 # Policy version stamped on every order acceptance. Bump when policy text
 # changes substantially so the audit trail can prove which version a buyer

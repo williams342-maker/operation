@@ -789,6 +789,10 @@ export const purgeCommunityDesignsSeed = () =>
 export const purgeOrphanCommunityDesignsSeed = () =>
   http.post("/admin/seed/community-designs/purge-orphans", null, { headers: adminAuthHeaders() }).then((r) => r.data);
 
+// iter222 — Stripe Connect health probe.
+export const fetchStripeDiag = () =>
+  http.get("/admin/stripe/diag", { headers: adminAuthHeaders() }).then((r) => r.data);
+
 // ─── Clip Feed (TikTok-for-makers) ──────────────────────────────────────
 // Public feed + engagement helpers. Auth headers attach the buyer/maker
 // JWT when present so the i_liked / i_saved flags resolve correctly.

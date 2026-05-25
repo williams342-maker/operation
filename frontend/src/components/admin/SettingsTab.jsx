@@ -22,6 +22,7 @@ import {
   installCommunityDesignsSeed,
   purgeCommunityDesignsSeed,
   purgeOrphanCommunityDesignsSeed,
+  fetchStripeDiag,
   generateOneCommunityDesign,
   generateBatchCommunityDesigns,
   fetchClipsSeedStatus,
@@ -742,6 +743,81 @@ function ClipsSeedCard() {
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+function StripeDiagCard() {
+  const [data, setData] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const refresh = async () => {
+    setBusy(true);
+    try { setData(await fetchStripeDiag()); }
+    catch (e) { toast.error(e?.response?.data?.detail || "Stripe diag failed."); }
+    finally { setBusy(false); }
+  };
+  useEffect(() => { refresh(); }, []);
+
+  const ok = data?.ok;
+  const mode = data?.mode;
+  return (
+    <div
+      className={`border ${ok ? "border-emerald-700/40 bg-emerald-950/15" : "border-red-700/40 bg-red-950/15"} p-5`}
+      data-testid="stripe-diag-card"
+    >
+      <div className="flex items-start justify-between gap-3 mb-3 flex-wrap">
+        <div>
+          <div className={`font-mono text-[10px] uppercase tracking-[0.28em] mb-1 ${ok ? "text-emerald-300" : "text-red-300"}`}>
+            ◆ Stripe Connect · Health
+          </div>
+          <h3 className={`font-display text-xl ${ok ? "text-emerald-200" : "text-red-200"}`}>
+            {ok ? "Reachable" : "Unreachable"}
+          </h3>
+          <p className="font-mono text-[11px] text-[#a3a3a3] mt-1 max-w-[60ch] leading-relaxed">
+            Probes <code>/api/admin/stripe/diag</code>. If this says Unreachable, makers can't onboard for payouts — usually a STRIPE_API_KEY mismatch or Connect not enabled on the Stripe dashboard.
+          </p>
+        </div>
+        <button
+          onClick={refresh}
+          disabled={busy}
+          className="px-3 py-1.5 border border-amber-700/60 hover:border-amber-400 hover:text-amber-300 font-mono text-[11px] uppercase tracking-[0.22em] text-amber-300 disabled:opacity-50"
+          data-testid="stripe-diag-refresh"
+        >
+          {busy ? "Checking…" : "↻ Re-check"}
+        </button>
+      </div>
+
+      {data && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 font-mono text-[11px]" data-testid="stripe-diag-tiles">
+          <DiagTile label="Mode" value={mode || "—"} highlight={mode === "live"} />
+          <DiagTile label="Key prefix" value={data.key_prefix || "—"} />
+          <DiagTile
+            label="Platform acct"
+            value={data.platform_account_id ? data.platform_account_id.slice(-8) : "—"}
+          />
+          <DiagTile
+            label="Charges"
+            value={data.charges_enabled ? "ON" : "off"}
+            highlight={data.charges_enabled}
+          />
+        </div>
+      )}
+
+      {!ok && data?.reason && (
+        <div className="mt-3 font-mono text-[11px] text-red-200 bg-black/30 border border-red-900/60 p-3 leading-relaxed" data-testid="stripe-diag-reason">
+          <strong className="text-red-300">Reason:</strong> {data.reason}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DiagTile({ label, value, highlight }) {
+  return (
+    <div className={`border px-2 py-1.5 ${highlight ? "border-emerald-500/50 bg-emerald-950/30" : "border-[#262626] bg-[#0a0a0a]"}`}>
+      <div className={`uppercase tracking-[0.22em] text-[9px] ${highlight ? "text-emerald-300" : "text-[#525252]"}`}>{label}</div>
+      <div className={`text-base ${highlight ? "text-emerald-200" : "text-zinc-200"}`}>{value}</div>
     </div>
   );
 }
@@ -2687,6 +2763,8 @@ export default function SettingsTab() {
       <CommunityDesignsSeedCard />
 
       <ClipsSeedCard />
+
+      <StripeDiagCard />
 
       <HeroHeadlinesCard />
 
