@@ -1,6 +1,36 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-25 — iter206 · Community Design Library seed (Workshop Team · DXF + SVG + JPG) ✅
+
+10 AI-generated, royalty-free CNC/laser/plasma design bundles seeded into the existing `design_files` collection (the one already powering Community → Design files). Each bundle = real hand-crafted SVG + real DXF (via ezdxf) + Nano-Banana lifestyle JPG preview. All source files ship with the frontend deploy artifact under `/app/frontend/public/seed-designs/<slug>/` — no R2 round-trips, no cold-cache misses.
+
+### Builder · `/app/backend/build_design_files_seed.py`
+- 10 curated designs: Mountain Range Silhouette, Heart Monogram Blank, Welcome Arrow Sign, Pine Tree Trio, Vertical Address Plaque, 8-Petal Mandala, Classic Snowflake Ornament, Topographic Contour Circles, 8-Point Compass Rose, Heart with Vine Leaves.
+- Writes SVG (hand-crafted XML) + DXF (`ezdxf` LWPOLYLINE closed paths) + JPG (Nano-Banana `gemini-3.1-flash-image-preview`) per slug to `/app/frontend/public/seed-designs/<slug>/`.
+- Emits a static fixture at `/app/backend/data/community_designs_seed.json` that the admin install button replays.
+- Idempotent: re-running upserts by slug and preserves existing download counts.
+
+### Backend · `routers/seed_admin.py` (3 new endpoints)
+- `GET /api/admin/seed/community-designs/status` — `{seeded_designs, total_designs}`.
+- `POST /api/admin/seed/community-designs/install-fixture` — replays the JSON fixture into Mongo. Idempotent. No LLM/R2 calls.
+- `POST /api/admin/seed/community-designs/purge` — hard-deletes only rows tagged `is_seed: true` on `design_files` (organic uploads untouched).
+
+### Frontend · Admin Settings → `CommunityDesignsSeedCard`
+- New card under Settings tab. Surfaces live counts (Seeded / All design files), one-click `install-community-designs-seed-btn`, and a 2-step `purge-community-designs-btn` confirm flow that mirrors the existing featured-seed pattern.
+- New API helpers in `/app/frontend/src/lib/api.js`: `fetchCommunityDesignsSeedStatus`, `installCommunityDesignsSeed`, `purgeCommunityDesignsSeed`.
+
+### Public surface
+- Community page `/community?tab=files` now renders the 10 seeded designs as FileCards alongside any organic uploads: SVG + DXF format chips, JPG preview, "BY CRAFTERS MARKET WORKSHOP TEAM" byline, auto-extracted SEO tag chips, Pinterest/X/Facebook share row, "Sign in to download" gate for guests, full download metering for signed-in users.
+
+### Cleanup
+- Removed the parallel `/api/community/designs` router scaffold the previous session started (`routers/community_designs.py` + `build_community_designs_seed.py`) — the existing `design_files` system already covers everything the user wanted, with zero schema churn.
+
+### QA
+- testing_agent_v3 (iter_57): 36 pytest tests passed (admin status/install/purge, public list, 30 static-asset HEAD checks across 10 slugs × 3 formats, purge→re-install round-trip preserving organic uploads, featured-seed regression). Frontend admin UI + public Community Files tab verified end-to-end. Zero bugs, no retest needed.
+
+
+
 ## 2026-05-25 — iter205 · AI Discovery · Phase 2 (maker matching + similar products + Shop search) ✅
 
 Completes the AI Discovery story shipped in iter203. Three new surfaces, all powered by Gemini Flash with the same 1-hour in-memory cache + graceful fallback pattern as the homepage search.
