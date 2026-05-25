@@ -264,6 +264,45 @@ async def generate_batch_community_designs(
             "failed": len(errors), "designs": successes, "errors": errors}
 
 
+# ===========================================================================
+# Clip Feed seed — Sora 2 generated short-form workshop videos.
+# ===========================================================================
+@router.get("/admin/seed/clips/status")
+async def clips_seed_status(_: dict = Depends(current_admin)):
+    return {
+        "seeded_clips": await db.clips.count_documents({"is_seed": True}),
+        "ai_clips": await db.clips.count_documents({"ai_generated": True}),
+        "total_clips": await db.clips.count_documents({"quarantined_at": None}),
+    }
+
+
+@router.post("/admin/seed/clips/generate-one")
+async def generate_one_clip(
+    model: str = "sora-2",
+    _: dict = Depends(current_admin),
+):
+    """Render ONE fresh Sora-2 seed clip. Vertical 9:16, 8s. Blocks for
+    2-5 minutes — admin UI should use a long timeout. Picks the
+    least-used (category, prompt) combo so the feed stays diverse."""
+    from clip_seeder import generate_one_clip as _go
+    if model not in ("sora-2", "sora-2-pro"):
+        raise HTTPException(422, "Model must be sora-2 or sora-2-pro.")
+    return await _go(model=model)
+
+
+@router.post("/admin/seed/clips/purge")
+async def purge_clips_seed(_: dict = Depends(current_admin)):
+    """Hard-delete every seeded clip + its engagement rows. Organic
+    maker uploads (no `is_seed` flag) stay untouched."""
+    ids: list[str] = []
+    async for d in db.clips.find({"is_seed": True}, {"_id": 0, "id": 1}):
+        ids.append(d["id"])
+    if ids:
+        await db.clip_engagement.delete_many({"clip_id": {"$in": ids}})
+    res = await db.clips.delete_many({"is_seed": True})
+    return {"ok": True, "deleted": res.deleted_count}
+
+
 @router.post("/admin/seed/featured-content/purge")
 async def purge_featured_seed(_: dict = Depends(current_admin)):
     """Hard-delete every doc tagged `featured_example: true`. Intentionally

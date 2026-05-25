@@ -8,6 +8,7 @@ import ActivityTicker from "./ActivityTicker";
 const links = [
   { label: "Shop", href: "/shop", route: true },
   { label: "Makers", href: "/makers", route: true },
+  { label: "Clips", href: "/clips", route: true },
   { label: "Custom", href: "/custom-order", route: true },
   { label: "Community", href: "/community", route: true },
   { label: "Journal", href: "/journal", route: true },

@@ -117,6 +117,8 @@ from routers.seed_admin import router as seed_admin_router
 api.include_router(seed_admin_router)
 from routers.ai_discovery import router as ai_discovery_router
 api.include_router(ai_discovery_router)
+from routers.clips import router as clips_router
+api.include_router(clips_router)
 api.include_router(push_router)
 api.include_router(abandoned_cart_router)
 api.include_router(feeds_router)

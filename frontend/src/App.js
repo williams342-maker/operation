@@ -23,6 +23,7 @@ import ShopPage from "./pages/ShopPage";
 import ProductDetail from "./pages/ProductDetail";
 import MakersPage from "./pages/MakersPage";
 import MakerDetail from "./pages/MakerDetail";
+import ClipFeedPage from "./pages/ClipFeedPage";
 import CustomOrderPage from "./pages/CustomOrderPage";
 import ApplyPage from "./pages/ApplyPage";
 import { JournalPage, JournalDetail } from "./pages/JournalPage";
@@ -175,6 +176,8 @@ function App() {
                 <Route path="/shop/:slug" element={<ProductDetail />} />
                 <Route path="/makers" element={<MakersPage />} />
                 <Route path="/makers/:slug" element={<MakerDetail />} />
+                <Route path="/clips" element={<ClipFeedPage />} />
+                <Route path="/clips/:slug" element={<ClipFeedPage />} />
                 {/* Short, shareable maker URL (iter153 Phase 2). Plus
                     subscribers can pick a custom slug; everyone else
                     uses their auto-generated maker slug. Both forms

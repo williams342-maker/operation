@@ -1,0 +1,213 @@
+"""
+AI-driven Sora 2 seed generator for the Clip Feed.
+
+Mirrors the design_file_seeder pattern: each run picks a category +
+preset prompt, calls Sora 2 to render a vertical 9:16 clip (~6s), saves
+to /app/frontend/public/seed-clips/<slug>/clip.mp4 + poster.jpg, then
+inserts a `clips` row flagged `is_seed=true, ai_generated=true`.
+
+Sora 2 is slow (~2-5 min per clip) — call this from an admin button or
+the daily cron. The endpoint generates ONE clip per invocation so we
+don't time out the HTTP request.
+"""
+from __future__ import annotations
+
+import asyncio
+import logging
+import os
+import random
+import re
+import uuid
+from pathlib import Path
+from typing import Any
+
+from core import db, now_iso
+
+logger = logging.getLogger("crafters.clip_seeder")
+
+SEED_DIR = Path("/app/frontend/public/seed-clips")
+SEED_DIR.mkdir(parents=True, exist_ok=True)
+WORKSHOP_NAME = "Crafters Market Workshop Team"
+
+# 2-3 prompts per category — round-robin picks the least-used (category,
+# prompt) combo so the seed library stays varied even on long runs.
+PROMPTS: dict[str, list[dict]] = {
+    "workshop": [
+        {"title": "CNC Plasma Cuts a Steel Mountain",
+         "prompt": "Cinematic close-up of a CNC plasma cutter slicing a mountain silhouette out of 1/4 inch steel plate inside a dim industrial workshop, slow-motion sparks arcing off the cut path, vertical 9:16, photoreal, no text."},
+        {"title": "Router Carving Walnut",
+         "prompt": "Top-down close-up of a CNC router bit carving an intricate pattern into walnut wood, sawdust flying in golden lamp light, vertical 9:16, satisfying slow-motion, no text."},
+        {"title": "Hands at the Bench",
+         "prompt": "Maker's hands wearing leather gloves placing freshly cut metal pieces on a wooden workbench under a single warm shop lamp, vertical 9:16, cinematic, no text."},
+    ],
+    "cuts": [
+        {"title": "Plasma Through Quarter Inch",
+         "prompt": "Hyper-detailed slow-motion close-up of a plasma cutter blasting through 1/4 inch mild steel, blue-white arc, molten metal droplets, vertical 9:16, no text."},
+        {"title": "Laser Engraver Slicing Acrylic",
+         "prompt": "Top-down view of a CO2 laser cutter slicing a heart shape from black acrylic, faint blue glow, smoke curling up, vertical 9:16, satisfying, no text."},
+        {"title": "Bandsaw Through Aluminum",
+         "prompt": "Tight close-up of a vertical bandsaw blade cutting a clean line through a thick aluminum bar, blue cutting fluid pooling, vertical 9:16, photoreal, no text."},
+    ],
+    "welding": [
+        {"title": "MIG Welder Hot Bead",
+         "prompt": "Cinematic macro of a MIG welder laying a fresh bead between two steel plates inside a dark welding booth, brilliant arc light, sparks cascading down, vertical 9:16, photoreal, no text."},
+        {"title": "TIG Welding Stainless",
+         "prompt": "Top-down close-up of a TIG welder fusing two stainless steel sheets, blue-white arc, tungsten electrode steady in a gloved hand, vertical 9:16, slow-motion, no text."},
+    ],
+    "powder-coat": [
+        {"title": "Matte Black Powder Coat",
+         "prompt": "Close-up of a powder-coat spray gun coating a steel mountain wall art piece in matte black, fine powder cloud catching backlight, vertical 9:16, photoreal industrial setting, no text."},
+        {"title": "Color Change Spray",
+         "prompt": "Spray-gun applying bright copper powder coat to a custom address plaque hanging on a rack in a powder coat booth, vertical 9:16, photoreal, no text."},
+    ],
+    "engraving": [
+        {"title": "Diamond Drag on Brass",
+         "prompt": "Top-down close-up of a diamond drag engraver cutting fine cursive script into a brass plate, vertical 9:16, photoreal, soft warm light, no text overlay just the engraved letters appearing as the tool moves.",
+         },
+        {"title": "Laser Engraving Walnut",
+         "prompt": "Cinematic close-up of a CO2 laser engraver burning a mountain logo into a walnut plaque, faint smoke wisp, vertical 9:16, photoreal, no text overlay."},
+    ],
+    "before-after": [
+        {"title": "Raw Steel to Finished Sign",
+         "prompt": "Time-lapse split showing a raw rusted steel sheet on the left and a finished matte black welcome sign with mountain silhouette on the right, vertical 9:16, photoreal, no text."},
+        {"title": "Bare Wood to Engraved Plaque",
+         "prompt": "Time-lapse split showing a blank walnut blank on the left and a finished laser-engraved family monogram plaque on the right, vertical 9:16, photoreal warm lighting, no text overlay."},
+    ],
+}
+
+
+def _slugify(title: str) -> str:
+    s = re.sub(r"[^a-z0-9]+", "-", (title or "").lower()).strip("-")[:80]
+    return s or f"clip-{uuid.uuid4().hex[:8]}"
+
+
+async def _unique_slug(base: str) -> str:
+    c = base
+    n = 1
+    while await db.clips.find_one({"slug": c}, {"_id": 0, "slug": 1}):
+        n += 1
+        c = f"{base}-{n}"
+    return c
+
+
+async def _pick_next() -> dict:
+    """Round-robin: pick the (category, prompt_index) combo with the
+    fewest existing rows so the seed library stays diverse."""
+    counts: dict[tuple, int] = {}
+    pipeline = [
+        {"$match": {"is_seed": True, "ai_generated": True}},
+        {"$group": {"_id": {"c": "$category", "p": "$ai_prompt_index"}, "n": {"$sum": 1}}},
+    ]
+    async for row in db.clips.aggregate(pipeline):
+        counts[(row["_id"]["c"], row["_id"]["p"])] = row["n"]
+    best_n = 10**9
+    candidates: list[tuple] = []
+    for cat, prompts in PROMPTS.items():
+        for i, _ in enumerate(prompts):
+            n = counts.get((cat, i), 0)
+            if n < best_n:
+                best_n = n
+                candidates = [(cat, i)]
+            elif n == best_n:
+                candidates.append((cat, i))
+    cat, idx = random.choice(candidates) if candidates else ("workshop", 0)
+    return {"category": cat, "prompt_index": idx, "prompt": PROMPTS[cat][idx]}
+
+
+def _generate_video_blocking(prompt: str, out_path: str, model: str = "sora-2") -> bool:
+    """Synchronous Sora 2 call. Wrapped in a thread by the caller — this
+    function blocks for the full 2-5 minutes of generation."""
+    from emergentintegrations.llm.openai.video_generation import OpenAIVideoGeneration
+
+    video_gen = OpenAIVideoGeneration(api_key=os.environ["EMERGENT_LLM_KEY"])
+    video_bytes = video_gen.text_to_video(
+        prompt=prompt,
+        model=model,
+        size="1024x1792",  # vertical, 9:16-ish
+        duration=8,         # 4 / 8 / 12 — 8 gives a satisfying clip without ballooning cost
+        max_wait_time=600,
+    )
+    if not video_bytes:
+        return False
+    video_gen.save_video(video_bytes, out_path)
+    return True
+
+
+async def generate_one_clip(model: str = "sora-2") -> dict[str, Any]:
+    """Pick the next category, render via Sora 2, insert into Mongo.
+
+    Returns a structured status dict that mirrors the design seeder so
+    the admin UI can render a toast.
+    """
+    pick = await _pick_next()
+    prompt_def = pick["prompt"]
+    title = prompt_def["title"]
+    prompt = prompt_def["prompt"]
+
+    slug = await _unique_slug(_slugify(title))
+    folder = SEED_DIR / slug
+    folder.mkdir(parents=True, exist_ok=True)
+    out_path = folder / "clip.mp4"
+
+    # Sora is blocking — run it in a thread so the FastAPI event loop
+    # stays free.
+    ok = await asyncio.to_thread(_generate_video_blocking, prompt, str(out_path), model)
+    if not ok:
+        return {"status": "error", "reason": "video generation failed"}
+
+    public_video_url = f"/seed-clips/{slug}/clip.mp4"
+    # Best-effort poster: pull the first frame with ffmpeg if available.
+    poster_url: str | None = None
+    poster_path = folder / "poster.jpg"
+    try:
+        import subprocess
+        subprocess.run(
+            ["ffmpeg", "-y", "-i", str(out_path), "-vframes", "1",
+             "-q:v", "3", str(poster_path)],
+            check=True, capture_output=True, timeout=30,
+        )
+        if poster_path.exists():
+            poster_url = f"/seed-clips/{slug}/poster.jpg"
+    except Exception as e:
+        logger.warning("[clip_seeder] poster extraction failed for %s: %s", slug, e)
+
+    doc = {
+        "id": str(uuid.uuid4()),
+        "slug": slug,
+        "maker_slug": None,
+        "maker_name": WORKSHOP_NAME,
+        "uploader_email": None,
+        "title": title,
+        "description": prompt[:280],
+        "category": pick["category"],
+        "tags": [pick["category"], "ai-generated", "workshop"],
+        "source_type": "r2",          # served as a static mp4 from the deploy artifact
+        "source_id": None,
+        "video_url": public_video_url,
+        "poster_url": poster_url,
+        "duration_seconds": 8,
+        "product_slug": None,
+        "views": 0,
+        "likes": 0,
+        "saves": 0,
+        "shares": 0,
+        "is_seed": True,
+        "ai_generated": True,
+        "ai_model": model,
+        "ai_prompt_index": pick["prompt_index"],
+        "quarantined_at": None,
+        "created_at": now_iso(),
+    }
+    await db.clips.insert_one(doc)
+    doc.pop("_id", None)
+    return {
+        "status": "ok",
+        "clip": {
+            "id": doc["id"],
+            "slug": slug,
+            "title": title,
+            "category": pick["category"],
+            "video_url": public_video_url,
+            "poster_url": poster_url,
+        },
+    }

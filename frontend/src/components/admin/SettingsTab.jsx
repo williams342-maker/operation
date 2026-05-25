@@ -23,6 +23,9 @@ import {
   purgeCommunityDesignsSeed,
   generateOneCommunityDesign,
   generateBatchCommunityDesigns,
+  fetchClipsSeedStatus,
+  generateOneClipSeed,
+  purgeClipsSeed,
 } from "../../lib/api";
 import { refreshSiteSettings } from "../../hooks/useSiteSettings";
 import { RowsSkeleton } from "../Skeleton";
@@ -449,6 +452,154 @@ function CommunityDesignsSeedCard() {
             data-testid="purge-community-designs-confirm-2"
           >
             {purgeBusy ? "Purging…" : `Yes — hard-delete ${seeded}`}
+          </button>
+          <button
+            onClick={() => setPurgeStep(0)}
+            className="px-4 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em]"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ClipsSeedCard() {
+  // Sora-2 seeded clip feed. Each click renders one fresh vertical 9:16
+  // video (~2-5 min). Mirrors the design-seed card but with a stronger
+  // "this is slow" warning since Sora is meaningfully slower than Nano
+  // Banana.
+  const [status, setStatus] = useState(null);
+  const [genBusy, setGenBusy] = useState(false);
+  const [genResult, setGenResult] = useState(null);
+  const [purgeStep, setPurgeStep] = useState(0);
+  const [purgeBusy, setPurgeBusy] = useState(false);
+  const [model, setModel] = useState("sora-2");
+
+  const refresh = async () => {
+    try { setStatus(await fetchClipsSeedStatus()); } catch (_e) { /* admin-gated */ }
+  };
+  useEffect(() => { refresh(); }, []);
+
+  const runGenerate = async () => {
+    setGenBusy(true);
+    try {
+      const r = await generateOneClipSeed(model);
+      setGenResult(r);
+      if (r.status === "ok") {
+        toast.success(`Generated "${r.clip.title}" (${r.clip.category}).`);
+        refresh();
+      } else {
+        toast.error(r.reason || "Sora generation failed.");
+      }
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Generation failed.");
+    } finally { setGenBusy(false); }
+  };
+
+  const runPurge = async () => {
+    setPurgeBusy(true);
+    try {
+      const r = await purgeClipsSeed();
+      toast.success(`Purged ${r.deleted} seeded clips.`);
+      setPurgeStep(0);
+      refresh();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Purge failed.");
+    } finally { setPurgeBusy(false); }
+  };
+
+  return (
+    <div
+      className="border border-purple-900/60 bg-purple-950/15 p-4 md:p-5"
+      data-testid="clips-seed-card"
+    >
+      <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-purple-400 mb-2">
+        ◆ Workshop Clip Feed seed (Sora 2)
+      </div>
+      <div className="font-display text-lg uppercase">Short-form video seed</div>
+      <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed mt-1 mb-3">
+        Generates one Sora-2 rendered vertical clip (9:16, 8s) per click, picked from the least-used
+        (category × prompt) combo across 6 categories (workshop · cuts · welding · powder-coat ·
+        engraving · before-after). Files land in <code className="text-emerald-300">/seed-clips/&lt;slug&gt;/</code>
+        and are attributed to the <span className="text-purple-300">Workshop Team</span>.
+        ⚠ Each render takes <strong>2–5 minutes</strong> — keep the tab open.
+      </p>
+
+      {status && (
+        <div className="font-mono text-[11px] text-[#a3a3a3] mb-4 grid grid-cols-3 gap-2 max-w-md" data-testid="clips-seed-counts">
+          <div className="border border-[#262626] px-2 py-1.5">
+            <div className="text-[#525252] uppercase tracking-[0.2em] text-[9px]">Seeded</div>
+            <div className="text-purple-300 text-base">{status.seeded_clips}</div>
+          </div>
+          <div className="border border-[#262626] px-2 py-1.5">
+            <div className="text-[#525252] uppercase tracking-[0.2em] text-[9px]">AI</div>
+            <div className="text-purple-300 text-base">{status.ai_clips}</div>
+          </div>
+          <div className="border border-[#262626] px-2 py-1.5">
+            <div className="text-[#525252] uppercase tracking-[0.2em] text-[9px]">All clips</div>
+            <div className="text-purple-300 text-base">{status.total_clips}</div>
+          </div>
+        </div>
+      )}
+
+      <div className="mb-4 pb-4 border-b border-purple-900/40 space-y-2">
+        <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+          Model
+          <select
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            className="ml-2 bg-[#0a0a0a] border border-[#262626] px-2 py-1 font-mono text-xs"
+            data-testid="clips-seed-model"
+          >
+            <option value="sora-2">sora-2 (fast)</option>
+            <option value="sora-2-pro">sora-2-pro (high quality, slower)</option>
+          </select>
+        </label>
+        <div>
+          <button
+            onClick={runGenerate}
+            disabled={genBusy}
+            className="px-3 py-1.5 border border-purple-600 text-purple-200 hover:bg-purple-900/30 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
+            data-testid="generate-one-clip-btn"
+          >
+            {genBusy ? "Rendering clip… (2–5 min)" : "Generate fresh clip"}
+          </button>
+        </div>
+        {genResult?.status === "ok" && (
+          <div className="font-mono text-[11px] text-emerald-300" data-testid="generate-one-clip-result">
+            ◆ &quot;{genResult.clip.title}&quot; · {genResult.clip.category} · slug: {genResult.clip.slug}
+          </div>
+        )}
+        {genResult?.status === "error" && (
+          <div className="font-mono text-[11px] text-red-400" data-testid="generate-one-clip-error">
+            ✕ {genResult.reason}
+          </div>
+        )}
+      </div>
+
+      {purgeStep === 0 && (
+        <button
+          onClick={() => setPurgeStep(1)}
+          disabled={!(status?.seeded_clips > 0)}
+          className="px-4 py-2 border border-purple-700 text-purple-300 hover:bg-purple-900/30 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-40 disabled:cursor-not-allowed"
+          data-testid="purge-clips-seed-btn"
+        >
+          {status?.seeded_clips > 0
+            ? `Purge ${status.seeded_clips} seeded clip${status.seeded_clips === 1 ? "" : "s"}`
+            : "Nothing to purge"}
+        </button>
+      )}
+      {purgeStep === 1 && (
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={runPurge}
+            disabled={purgeBusy}
+            className="px-4 py-2 border border-red-600 bg-red-900/30 text-red-200 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
+            data-testid="purge-clips-confirm"
+          >
+            {purgeBusy ? "Purging…" : "Yes — purge"}
           </button>
           <button
             onClick={() => setPurgeStep(0)}
@@ -2008,6 +2159,8 @@ export default function SettingsTab() {
       <PurgeFeaturedSeedCard />
 
       <CommunityDesignsSeedCard />
+
+      <ClipsSeedCard />
 
       <div className="grid md:grid-cols-2 gap-3">
         <IdleClearNowCard />

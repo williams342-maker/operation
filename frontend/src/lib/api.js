@@ -785,6 +785,51 @@ export const installCommunityDesignsSeed = () =>
   http.post("/admin/seed/community-designs/install-fixture", null, { headers: adminAuthHeaders() }).then((r) => r.data);
 export const purgeCommunityDesignsSeed = () =>
   http.post("/admin/seed/community-designs/purge", null, { headers: adminAuthHeaders() }).then((r) => r.data);
+
+// ─── Clip Feed (TikTok-for-makers) ──────────────────────────────────────
+// Public feed + engagement helpers. Auth headers attach the buyer/maker
+// JWT when present so the i_liked / i_saved flags resolve correctly.
+const _anyAuth = () => {
+  const t = localStorage.getItem("cm_buyer_jwt")
+    || localStorage.getItem("cm_maker_jwt")
+    || localStorage.getItem("cm_admin_jwt");
+  return t ? { Authorization: `Bearer ${t}` } : {};
+};
+export const fetchClipCategories = () =>
+  http.get("/clips/categories").then((r) => r.data);
+export const fetchClipFeed = ({ category, cursor, limit = 12 } = {}) =>
+  http.get("/clips/feed", {
+    params: { category, cursor, limit },
+    headers: _anyAuth(),
+  }).then((r) => r.data);
+export const recordClipView = (clipId) =>
+  http.post(`/clips/${clipId}/view`).then((r) => r.data);
+export const recordClipShare = (clipId) =>
+  http.post(`/clips/${clipId}/share`).then((r) => r.data);
+export const toggleClipLike = (clipId) =>
+  http.post(`/clips/${clipId}/like`, null, { headers: _anyAuth() }).then((r) => r.data);
+export const toggleClipSave = (clipId) =>
+  http.post(`/clips/${clipId}/save`, null, { headers: _anyAuth() }).then((r) => r.data);
+export const fetchMySavedClips = () =>
+  http.get("/clips/me/saved", { headers: _anyAuth() }).then((r) => r.data);
+// Maker side
+const _makerAuth = () => ({ Authorization: `Bearer ${localStorage.getItem("cm_maker_jwt") || ""}` });
+export const fetchMyClips = () =>
+  http.get("/maker/clips/mine", { headers: _makerAuth() }).then((r) => r.data);
+export const createClipFromUrl = (payload) =>
+  http.post("/maker/clips", payload, { headers: _makerAuth() }).then((r) => r.data);
+export const deleteMyClip = (clipId) =>
+  http.delete(`/maker/clips/${clipId}`, { headers: _makerAuth() }).then((r) => r.data);
+// Admin seed
+export const fetchClipsSeedStatus = () =>
+  http.get("/admin/seed/clips/status", { headers: adminAuthHeaders() }).then((r) => r.data);
+export const generateOneClipSeed = (model = "sora-2") =>
+  http.post(`/admin/seed/clips/generate-one?model=${encodeURIComponent(model)}`, null, {
+    headers: adminAuthHeaders(),
+    timeout: 900000,
+  }).then((r) => r.data);
+export const purgeClipsSeed = () =>
+  http.post("/admin/seed/clips/purge", null, { headers: adminAuthHeaders() }).then((r) => r.data);
 export const generateOneCommunityDesign = () =>
   http.post("/admin/seed/community-designs/generate-one", null, { headers: adminAuthHeaders(), timeout: 120000 }).then((r) => r.data);
 export const generateBatchCommunityDesigns = (count = 5) =>
