@@ -5,7 +5,7 @@ import os
 from fastapi import APIRouter, FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
-from core import client, logger
+from core import client, db, logger
 from routers.admin import router as admin_router
 from routers.ai import router as ai_router
 from routers.ai_marketing import router as ai_marketing_router
@@ -162,6 +162,22 @@ async def on_startup():
             logger.info("[shippo] webhook registration: %s", res)
     except Exception:
         logger.exception("[shippo] webhook bootstrap failed (non-fatal)")
+    # Idempotent backfill of the "Crafters Market Workshop Team" author on
+    # every seeded (`is_seed: true`) community doc. Re-runs on every boot —
+    # cheap (3 update_many's that match nothing once attribution exists)
+    # and ensures fresh production deploys never ship un-attributed seed
+    # posts. Scoped strictly to is_seed:true rows so organic content from
+    # real members is never touched.
+    try:
+        WS = "Crafters Market Workshop Team"
+        WSE = "workshop@craftersmarket.org"
+        for coll in (db.forum_threads, db.forum_replies, db.showcase_posts):
+            await coll.update_many(
+                {"is_seed": True, "$or": [{"user_name": {"$ne": WS}}, {"user_name": {"$exists": False}}]},
+                {"$set": {"user_name": WS, "user_email": WSE}},
+            )
+    except Exception:
+        logger.exception("[seed] workshop-team attribution bootstrap failed (non-fatal)")
     logger.info("Crafters Market API ready (seed checked).")
 
 

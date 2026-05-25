@@ -1,6 +1,25 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-25 — iter198 · Auto-attribution on backend startup ✅
+
+Removes the manual button-click step from the Workshop Team flow. Fresh production deploys now self-heal — the attribution runs silently on every backend boot so seed posts always carry the right author, no admin action required.
+
+### Backend `server.py`
+- Added a small block to the existing `@app.on_event("startup")` hook. After Shippo bootstrap, three idempotent `update_many` calls patch any `is_seed: true` doc whose `user_name` is missing or not yet the Workshop Team value. Once attributed, every call matches zero docs → effectively free.
+- Wrapped in try/except `non-fatal` — boot never fails if the DB hiccups during this step.
+- `db` added to the existing `from core import client, logger` line.
+
+### Why both this AND the admin button?
+- **Startup hook** = zero-touch happy path (covers 99% of cases on every deploy).
+- **Admin button** = explicit "run now" if you ever need to fix attribution without restarting (e.g., after a manual DB import or partial backfill).
+- Same idempotent logic in both; safe to mix freely.
+
+### Verified
+- Smoke test: un-attributed one seeded forum thread, restarted backend, queried DB → all 22 threads re-attributed to "Crafters Market Workshop Team", zero misses. Boot completes in normal time (~3s end-to-end including hook).
+- Lint clean.
+
+
 ## 2026-05-25 — iter197 · Admin one-click Workshop Team attribution backfill ✅
 
 Ships the post-deploy migration as a button instead of a shell script — production users don't need DB access or SSH to run it. The endpoint is fully idempotent (re-running is a no-op) and scoped strictly to `is_seed: true` so organic community posts can never be touched, no matter how many times the button is clicked.
