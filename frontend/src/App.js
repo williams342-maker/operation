@@ -68,6 +68,7 @@ import WhyWeExist from "./components/sections/WhyWeExist";
 import BuiltInRealWorkshops from "./components/sections/BuiltInRealWorkshops";
 import TrendingForumStrip from "./components/TrendingForumStrip";
 import TrendingJournalRail from "./components/TrendingJournalRail";
+import FeaturedBuildsRail from "./components/FeaturedBuildsRail";
 import { Toaster } from "sonner";
 import { trackPageview, captureAttribution } from "./lib/analytics";
 import { useSiteSettings } from "./hooks/useSiteSettings";
@@ -84,6 +85,7 @@ const Home = () => {
     <>
       <SupportVeteransStrip />
       <Hero />
+      <FeaturedBuildsRail testId="home-featured-builds" />
       <VelocityProofStrip testId="home-velocity" />
       <WhyWeExist testId="home-why-we-exist" />
       <ShopOfTheWeek />

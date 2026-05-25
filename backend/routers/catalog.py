@@ -64,6 +64,7 @@ async def root():
 @router.get("/products", response_model=List[Product])
 async def list_products(category: Optional[str] = None, technique: Optional[str] = None,
                         q: Optional[str] = None, featured: Optional[bool] = None,
+                        featured_example: Optional[bool] = None,
                         maker: Optional[str] = None):
     # Exclude soft-deleted listings AND drafts. In Mongo, `field: None` matches
     # both missing-field AND explicit-null docs — covers Pydantic's habit of
@@ -77,6 +78,11 @@ async def list_products(category: Optional[str] = None, technique: Optional[str]
         query["technique"] = technique.upper()
     if featured is not None:
         query["featured"] = featured
+    # `featured_example=true` filters down to platform-seeded "Featured
+    # Example" listings — used by the homepage Featured Builds rail and the
+    # /shop?featured=examples view-all destination.
+    if featured_example is not None:
+        query["featured_example"] = featured_example
     if maker:
         query["maker_slug"] = maker
     if q:

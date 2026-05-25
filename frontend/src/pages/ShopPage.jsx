@@ -21,6 +21,11 @@ export default function ShopPage() {
   const [cat, setCat] = useState(params.get("category") || "All");
   const [tech, setTech] = useState("All");
   const [q, setQ] = useState(params.get("q") || "");
+  // ?featured=examples — "View all examples" CTA destination from the
+  // homepage Featured Builds rail. Filters the grid down to platform-
+  // seeded "Featured Example" listings only so visitors who clicked the
+  // CTA see exactly what they expected.
+  const onlyExamples = params.get("featured") === "examples";
 
   useEffect(() => { fetchProducts().then(setProducts).catch(() => setProducts([])); }, []);
   useEffect(() => {
@@ -80,8 +85,9 @@ export default function ShopPage() {
     if (cat !== "All" && p.category !== cat) return false;
     if (tech !== "All" && p.technique !== tech) return false;
     if (q && !(p.title.toLowerCase().includes(q.toLowerCase()) || p.description.toLowerCase().includes(q.toLowerCase()))) return false;
+    if (onlyExamples && !p.featured_example) return false;
     return true;
-  }), [products, cat, tech, q]);
+  }), [products, cat, tech, q, onlyExamples]);
 
   return (
     <div className="pb-24 grain min-h-screen" data-testid="shop-page">
@@ -91,6 +97,22 @@ export default function ShopPage() {
         <h1 className="font-display text-[64px] md:text-[140px] leading-[0.88] mb-12">
           The <span className="text-outline">Marketplace</span>
         </h1>
+
+        {onlyExamples && (
+          <div
+            className="mb-8 border border-amber-900/50 bg-amber-950/15 p-4 md:p-5 max-w-3xl"
+            data-testid="shop-featured-examples-banner"
+          >
+            <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-amber-300 mb-2">
+              ✦ Featured Examples · Platform Showcase
+            </div>
+            <p className="font-mono text-[12px] text-[#a3a3a3] leading-relaxed">
+              These are <span className="text-amber-300">curated reference builds</span> staged by the Crafters
+              Market workshop team — not for sale. We use them to show what's possible while our
+              maker catalog grows. Real listings from approved makers populate the rest of the marketplace.
+            </p>
+          </div>
+        )}
 
         {/* Filters — stacked rows to give all 16 category pills + 5
             technique pills proper room. Was previously a 12-col grid

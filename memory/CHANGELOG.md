@@ -1,6 +1,32 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-25 — iter199 · Homepage "Featured Builds" hero rail ✅
+
+Converts the gorgeous Nano Banana seed imagery from a static catalog into a high-conversion hero moment. New rail sits directly under `<Hero/>` — the second thing every visitor sees below the fold — and lets the strongest 6 curated builds carry the "this marketplace is alive" message without any fake activity.
+
+### Backend `routers/catalog.py`
+- `/api/products` accepts a new optional query param `featured_example: bool`. Filters the catalog query down to platform-seeded examples only when set.
+
+### Frontend `components/FeaturedBuildsRail.jsx` (new)
+- Amber-themed product rail with `Sparkles` icon eyebrow, a single inline transparency disclosure ("Curated examples while our maker catalog grows…"), and per-card ✦ EXAMPLE pill on each visual.
+- Hard-coded `CURATED_SLUGS` allow-list leads the rail with the strongest 6 builds (live-edge river table, Cor-Ten fire pit, Veteran's shadow box, Edison pipe lamp, end-grain butcher block, copper weather vane). Rest of the seeded catalog tails after — capped at 8 total.
+- "REFERENCE PRICE" instead of "+ ship" so the not-for-sale framing carries all the way through the price line.
+- Self-hides when fewer than 3 results — production with no seeded content (e.g. after a purge) renders nothing.
+- Smooth horizontal scroller with snap + arrow buttons matching the existing `ProductRail` pattern.
+
+### Frontend `pages/ShopPage.jsx`
+- New `?featured=examples` query mode: filters the grid to `featured_example: true` rows only and renders an amber disclosure banner at the top ("These are curated reference builds … not for sale"). Used as the "View all examples →" CTA destination from the rail.
+
+### Frontend `App.js`
+- Mounted `<FeaturedBuildsRail />` right after `<Hero />` so it's the first surface visitors hit below the fold.
+
+### Verified live in preview
+- Homepage screenshot confirms the rail renders the curated 6 in order: $1850 river table → $485 fire pit → $245 shadow box → $165 Edison lamp → $285 butcher block → (etc).
+- `/shop?featured=examples` screenshot confirms the amber disclosure banner + 34-piece grid + per-card ✦ FEATURED EXAMPLE pill.
+- Lint clean (Python + JS). Backend restarted, `/api/products?featured_example=true` returns 34.
+
+
 ## 2026-05-25 — iter198 · Auto-attribution on backend startup ✅
 
 Removes the manual button-click step from the Workshop Team flow. Fresh production deploys now self-heal — the attribution runs silently on every backend boot so seed posts always carry the right author, no admin action required.
