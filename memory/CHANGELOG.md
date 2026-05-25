@@ -1,6 +1,32 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-25 — iter197 · Admin one-click Workshop Team attribution backfill ✅
+
+Ships the post-deploy migration as a button instead of a shell script — production users don't need DB access or SSH to run it. The endpoint is fully idempotent (re-running is a no-op) and scoped strictly to `is_seed: true` so organic community posts can never be touched, no matter how many times the button is clicked.
+
+### Backend `routers/seed_admin.py`
+- New `POST /api/admin/seed/featured-content/attribute-workshop-team` (admin-gated). Sets `user_name = "Crafters Market Workshop Team"` and `user_email = "workshop@craftersmarket.org"` on every `is_seed: true` doc across `forum_threads`, `forum_replies`, and `showcase_posts`. Returns:
+  - `threads_updated`, `replies_updated`, `showcase_updated` — how many rows actually changed on this call (0 if already attributed)
+  - `totals.*` — total seeded docs in each collection, so the admin sees the full scope at a glance
+
+### Frontend `components/admin/SettingsTab.jsx`
+- Extended the existing `PurgeFeaturedSeedCard` with a safe-action block above the destructive purge controls. Visual separation (border + spacing) prevents fat-fingering between the two flows.
+- One click runs the backfill, shows `Threads: N · Replies: N · Showcase: N` updated counts + totals tagged. Re-running is encouraged — it's a no-op when nothing's changed.
+
+### Frontend `lib/api.js`
+- `attributeWorkshopTeam()` helper alongside the existing `purgeFeaturedSeed()` and `fetchFeaturedSeedStatus()`.
+
+### Verified live
+- Preview test: first call returned `{threads_updated:0, replies_updated:0, showcase_updated:0, totals:{22/88/8}}` confirming the idempotent behaviour (preview already ran the backfill manually yesterday).
+- Lint clean across all touched files.
+
+### Production rollout
+1. Redeploy → new code lands on craftersmarket.org.
+2. Open Admin → Settings → "Platform seed content" card.
+3. Click **"Attribute Workshop Team posts"**. Done.
+
+
 ## 2026-05-25 — iter196 · Workshop Team attribution on seeded community content ✅
 
 Closes the loop on the marketplace seeding work — community posts now wear the same transparency as the listings + maker profiles. Every seeded forum thread, reply, and showcase post is authored by **"✦ Crafters Market Workshop Team"** with a distinctive amber treatment, so visitors can tell first-party curated content from organic posts at a glance.

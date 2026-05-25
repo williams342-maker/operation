@@ -15,6 +15,7 @@ import {
   adminGscTestInspect,
   fetchFeaturedSeedStatus,
   purgeFeaturedSeed,
+  attributeWorkshopTeam,
 } from "../../lib/api";
 import { refreshSiteSettings } from "../../hooks/useSiteSettings";
 import { RowsSkeleton } from "../Skeleton";
@@ -187,6 +188,11 @@ function PurgeFeaturedSeedCard() {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
   const [err, setErr] = useState("");
+  // Separate state for the (much safer) Workshop Team attribution action
+  // so the user can run it without interfering with the destructive purge
+  // confirm-flow above.
+  const [attrBusy, setAttrBusy] = useState(false);
+  const [attrResult, setAttrResult] = useState(null);
 
   const refresh = async () => {
     try {
@@ -211,6 +217,22 @@ function PurgeFeaturedSeedCard() {
       toast.error(msg);
     } finally {
       setBusy(false);
+    }
+  };
+
+  const runAttribution = async () => {
+    setAttrBusy(true);
+    try {
+      const r = await attributeWorkshopTeam();
+      setAttrResult(r);
+      const total = r.threads_updated + r.replies_updated + r.showcase_updated;
+      toast.success(total === 0
+        ? "Already attributed — nothing to update."
+        : `Attributed ${total} seeded posts to Workshop Team.`);
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Attribution failed.");
+    } finally {
+      setAttrBusy(false);
     }
   };
 
@@ -249,6 +271,40 @@ function PurgeFeaturedSeedCard() {
         </p>
       )}
       {err && <p className="font-mono text-xs text-red-400 mb-3">{err}</p>}
+
+      {/* Safe, idempotent backfill — keeps its own action row above the
+          destructive purge so the user can't fat-finger them together.
+          Use this on production right after a redeploy. */}
+      <div className="mb-4 pb-4 border-b border-amber-900/40">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-amber-300 mb-1">
+          ◇ Workshop Team attribution (safe · idempotent)
+        </div>
+        <p className="font-mono text-[11px] text-[#a3a3a3] mb-2 leading-relaxed max-w-2xl">
+          Backfills <span className="text-amber-300">"Crafters Market Workshop Team"</span> as the
+          author on every seeded forum thread / reply / showcase post (scoped to <code className="text-emerald-300">is_seed: true</code>).
+          Run this once on production after each fresh deploy of the seed data — re-running is a no-op.
+        </p>
+        <button
+          onClick={runAttribution}
+          disabled={attrBusy}
+          className="px-3 py-1.5 border border-amber-700 text-amber-200 hover:bg-amber-900/30 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
+          data-testid="attribute-workshop-team-btn"
+        >
+          {attrBusy ? "Running…" : "Attribute Workshop Team posts"}
+        </button>
+        {attrResult && (
+          <div
+            className="mt-2 font-mono text-[11px] text-emerald-300"
+            data-testid="attribute-workshop-team-result"
+          >
+            ◆ Threads: {attrResult.threads_updated} · Replies: {attrResult.replies_updated} · Showcase: {attrResult.showcase_updated}
+            <span className="text-[#737373] ml-2">
+              (total seeded: {attrResult.totals?.forum_threads_tagged}/{attrResult.totals?.forum_replies_tagged}/{attrResult.totals?.showcase_posts_tagged})
+            </span>
+          </div>
+        )}
+      </div>
+
       {step === 0 && (
         <button
           onClick={() => setStep(1)}

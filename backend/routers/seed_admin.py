@@ -6,7 +6,7 @@ the UI so visitors are never misled. Once organic listings fill the
 catalogue, the admin can purge every seeded row in a single call —
 nothing organic is touched because the query is gated on the flag.
 """
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from maker_auth import current_admin
 from core import db
 
@@ -23,6 +23,45 @@ async def featured_seed_status(_: dict = Depends(current_admin)):
         "published_featured_products": await db.products.count_documents(
             {"featured_example": True, "status": "published", "deleted_at": None},
         ),
+    }
+
+
+@router.post("/admin/seed/featured-content/attribute-workshop-team")
+async def attribute_workshop_team(_: dict = Depends(current_admin)):
+    """Backfill `user_name = "Crafters Market Workshop Team"` on every
+    seeded community doc (`is_seed: true`). Idempotent — re-running is a
+    no-op once everything is attributed. Use this on production after a
+    redeploy so the amber Workshop Team byline appears on every curated
+    forum thread, reply, and showcase post.
+
+    Scoped strictly to `is_seed: true` rows so organic posts authored by
+    real members are never touched, no matter how many times this runs.
+    """
+    WORKSHOP_NAME = "Crafters Market Workshop Team"
+    WORKSHOP_EMAIL = "workshop@craftersmarket.org"
+
+    threads = await db.forum_threads.update_many(
+        {"is_seed": True},
+        {"$set": {"user_name": WORKSHOP_NAME, "user_email": WORKSHOP_EMAIL}},
+    )
+    replies = await db.forum_replies.update_many(
+        {"is_seed": True},
+        {"$set": {"user_name": WORKSHOP_NAME, "user_email": WORKSHOP_EMAIL}},
+    )
+    showcase = await db.showcase_posts.update_many(
+        {"is_seed": True},
+        {"$set": {"user_name": WORKSHOP_NAME, "user_email": WORKSHOP_EMAIL}},
+    )
+    return {
+        "ok": True,
+        "threads_updated": threads.modified_count,
+        "replies_updated": replies.modified_count,
+        "showcase_updated": showcase.modified_count,
+        "totals": {
+            "forum_threads_tagged": await db.forum_threads.count_documents({"is_seed": True}),
+            "forum_replies_tagged": await db.forum_replies.count_documents({"is_seed": True}),
+            "showcase_posts_tagged": await db.showcase_posts.count_documents({"is_seed": True}),
+        },
     }
 
 
