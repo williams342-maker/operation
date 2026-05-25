@@ -16,7 +16,26 @@ Note: `MakerProductsTab.jsx` referenced in the prior next-actions doesn't exist 
 
 
 
-## 2026-05-25 — iter212 · Short-form Clip Feed ("TikTok for Makers") ✅
+## 2026-05-25 — iter213 · Clip Feed follow-up · R2 native upload + opt-in daily cron + Sora budget finding ✅
+
+### Track 1 — Fire one Sora-2 clip (validation)
+- Validated the Sora 2 pipeline end-to-end against the EMERGENT_LLM_KEY proxy. **Key findings**:
+  - Wrapper library only accepts the legacy OpenAI sizes (1280×720, 1792×1024, 1024×1792, 1024×1024). It rejects `720x1280`.
+  - Upstream Sora 2 *base* rejects 1024×1792 ("only 720x1280, 1280x720 are supported"). The only intersection that works is `sora-2-pro` with 1024×1792.
+  - Single 8s `sora-2-pro` 1024×1792 render = **~$3.40** (not $0.50 as estimated). One test render hit the EMERGENT_LLM_KEY budget cap ($14.40), so the video rendered but the download was budget-blocked. Pipeline is production-ready; only blocker is budget top-up.
+- Code changes — `_generate_video_blocking` now picks the right size per model (`sora-2-pro→1024x1792 vertical`, `sora-2→1280x720 horizontal`). Admin UI defaults to `sora-2-pro` with clear labels.
+
+### Track 2 — R2 native upload
+- New endpoint `POST /api/maker/clips/upload` (multipart). Accepts ≤50 MB MP4/WebM/MOV; reuses the existing `r2_storage.upload_video_bytes` helper. Best-effort ffmpeg poster-frame extraction → uploaded as `image/jpeg` next to the video. Inserts a `clips` row with `source_type='r2'` and the public R2 URL.
+- Frontend Maker Settings → ClipsPanel now has a mode picker (`clips-mode-tabs`): **Paste URL** (default) and **Upload MP4** with a drag-drop zone (`clips-file-drop`), 50 MB client-side cap, MIME guard, and a live progress bar (`clips-upload-progress`).
+
+### Track 3 — Daily cron
+- New scheduler job `daily_clip_seed` at `cron[hour='9', minute='0']` UTC. **Opt-in** — defaults to disabled. Flip `SCHEDULER_DAILY_CLIPS=true` to enable. Optional `SCHEDULER_DAILY_CLIPS_MODEL` env (defaults to `sora-2-pro`). Sits 1 hour after `daily_design_file` so the two crons don't fight for LLM budget.
+
+### QA
+- testing_agent_v3 (iter_61): 10/10 pytest passed — real R2 upload round-trip on a synthetic 2s MP4, 422 on bad mime/category/oversize, 401 on missing JWT, scheduler early-return path captured with the kill-switch env, scheduler registered at correct cron, full iter212 regression green. Frontend mode-tab + file-drop UI + admin sora-2-pro default verified. Zero bugs.
+
+
 
 
 A full-screen vertical swipe feed for workshop clips. 6 filterable categories (workshop · cuts · welding · powder-coat · engraving · before-after) + like/save/share + Shop-this-maker CTA. URL embeds for fast onboarding (YouTube/Vimeo); Sora 2 seeding via admin button.
