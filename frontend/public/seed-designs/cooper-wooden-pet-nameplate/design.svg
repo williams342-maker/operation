@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 900" width="1000" height="900">
+  <path fill="none" stroke="#0a0a0a" stroke-width="8" d="M 100 200 Q 500 80 900 200"/>
+  <text x="500" y="180" text-anchor="middle" font-family="Anton, Impact, sans-serif" font-size="130" font-weight="900" fill="#0a0a0a" letter-spacing="8">COOPER</text>
+  <g transform="translate(40 0)" fill="#0a0a0a">
+    <path d="M 240 700 L 240 540 L 200 480 L 220 380 L 280 360 L 320 280 L 360 280 L 380 320 L 420 320 L 440 280 L 500 280 L 560 380 L 620 380 L 660 440 L 700 460 L 720 540 L 700 620 L 660 660 L 660 700 L 600 700 L 580 660 L 480 660 L 460 700 L 400 700 L 380 660 L 320 660 L 300 700 Z"/>
+  </g>
+</svg>

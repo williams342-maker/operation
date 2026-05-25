@@ -3,6 +3,7 @@ import { fetchAdminWebAnalytics, fetchAdminSeoLandingAnalytics } from "../../lib
 import { SEO_LANDING_PAGES } from "../../pages/seoLandingConfig";
 import { DeltaBadge } from "../Charts";
 import { Stat } from "./_shared";
+import { StatsSkeleton, RowsSkeleton } from "../Skeleton";
 
 // ===================== WEB ANALYTICS (pageviews, visitors, geo, sources) =====
 export default function WebAnalyticsTab() {
@@ -18,7 +19,13 @@ export default function WebAnalyticsTab() {
   }, []);
 
   if (loading) {
-    return <p className="font-mono text-xs text-[#a3a3a3]" data-testid="web-analytics-loading">Loading…</p>;
+    return (
+      <div className="space-y-6" data-testid="web-analytics-loading">
+        <StatsSkeleton count={4} />
+        <StatsSkeleton count={3} />
+        <RowsSkeleton count={4} />
+      </div>
+    );
   }
   if (err || !data) {
     return <p className="font-mono text-xs text-red-400" data-testid="web-analytics-error">{err || "No data."}</p>;

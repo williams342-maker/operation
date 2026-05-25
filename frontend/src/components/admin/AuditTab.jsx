@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { fetchAdminAuditLog, fetchAdminAIModLog } from "../../lib/api";
 import { formatDate } from "./_shared";
+import { RowsSkeleton } from "../Skeleton";
 
 const ACTION_TONE = {
   banned: "bg-red-900/40 text-red-300 border-red-800",
@@ -100,7 +101,7 @@ function AIModLog() {
       </div>
 
       {loading ? (
-        <p className="font-mono text-sm text-[#a3a3a3]" data-testid="ai-mod-loading">Loading…</p>
+        <div data-testid="ai-mod-loading"><RowsSkeleton count={5} /></div>
       ) : !visible.length ? (
         <p className="font-mono text-sm text-[#a3a3a3]" data-testid="ai-mod-empty">
           {items.length === 0
@@ -230,7 +231,7 @@ function ModerationLog() {
       {err && <p className="font-mono text-xs text-red-400" data-testid="audit-error">{err}</p>}
 
       {loading ? (
-        <p className="font-mono text-sm text-[#a3a3a3]" data-testid="audit-loading">Loading…</p>
+        <div data-testid="audit-loading"><RowsSkeleton count={6} /></div>
       ) : !visible.length ? (
         <p className="font-mono text-sm text-[#a3a3a3]" data-testid="audit-empty">
           {items.length === 0

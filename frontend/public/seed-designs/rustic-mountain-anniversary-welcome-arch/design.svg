@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1800 700" width="1800" height="700">
+  <path fill="#0a0a0a" stroke="none" d="M 0 600 L 0 480 L 280 220 L 460 380 L 620 180 L 860 460 L 1060 280 L 1300 480 L 1460 300 L 1660 440 L 1800 360 L 1800 600 Z"/>
+  <path fill="none" stroke="#0a0a0a" stroke-width="10" d="M 180 180 A 720 140 0 0 1 1620 180"/>
+  <text x="900" y="170" text-anchor="middle" font-family="Anton, Impact, sans-serif"
+        font-size="120" font-weight="900" fill="#0a0a0a" letter-spacing="6">EST 1988</text>
+</svg>

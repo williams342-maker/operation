@@ -175,6 +175,118 @@ def template_star_ornament(p: dict) -> tuple[str, list, float, float]:
     return svg, [dxf_pts], 10.0, 10.0
 
 
+def template_motorcycle_silhouette(p: dict) -> tuple[str, list, float, float]:
+    """Vintage chopper / bagger silhouette with optional curved 'RIDE'
+    banner above. Aimed at the biker / Americana / gearhead buyer."""
+    banner_text = (p.get("banner_text") or "RIDE FREE").upper()[:14]
+    show_banner = bool(p.get("show_banner", True))
+    # Path = stylized side-view of a chopper. Wheels are filled circles
+    # with annular cut-outs for spokes. Frame + tank + handlebars use
+    # straight-edged shapes for clean plasma cutting.
+    bike = (
+        "M 240 480 m -180 0 a 180 180 0 1 0 360 0 a 180 180 0 1 0 -360 0 "
+        "M 240 480 m -90 0 a 90 90 0 1 1 180 0 a 90 90 0 1 1 -180 0 "
+        "M 1320 480 m -180 0 a 180 180 0 1 0 360 0 a 180 180 0 1 0 -360 0 "
+        "M 1320 480 m -90 0 a 90 90 0 1 1 180 0 a 90 90 0 1 1 -180 0 "
+        # Frame: rear strut from rear wheel up to seat, seat, tank, fork.
+        "M 240 480 L 700 420 L 800 280 L 1000 280 L 1080 380 L 1240 380 L 1320 480 Z "
+        "M 1080 380 L 1180 200 L 1300 200 L 1300 240 L 1200 240 L 1120 380 "
+    )
+    banner = ""
+    if show_banner:
+        banner = (
+            '<path fill="none" stroke="#0a0a0a" stroke-width="8" '
+            'd="M 200 140 Q 800 40 1400 140"/>'
+            f'<text x="800" y="120" text-anchor="middle" font-family="Anton, Impact, sans-serif" '
+            f'font-size="90" font-weight="900" fill="#0a0a0a" letter-spacing="6">{banner_text}</text>'
+        )
+    svg = f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 720" width="1600" height="720">
+  {banner}
+  <path fill="#0a0a0a" stroke="none" d="{bike}"/>
+</svg>'''
+    # DXF: 16 × 7.2 nominal sign with a single bounding plate. Detailed
+    # bike geometry would require dozens of arc/circle entities — most
+    # CAM software re-traces the SVG anyway, so we emit a clean bounding
+    # rectangle and let the SVG carry the cut detail.
+    plate = [(0, 0), (16.0, 0), (16.0, 7.2), (0, 7.2), (0, 0)]
+    return svg, [plate], 16.0, 7.2
+
+
+def template_cabin_lake_sign(p: dict) -> tuple[str, list, float, float]:
+    """Cabin / lake-house sign — `[NAME] LAKE HOUSE · EST. [YEAR]` with
+    pine-tree silhouette flanks + wave line at the bottom."""
+    name = (p.get("name") or "Birch Hollow").strip()[:18].upper()
+    year = re.sub(r"\D", "", str(p.get("year") or "2014"))[:4] or "2014"
+    label = (p.get("label") or "LAKE HOUSE").upper()[:16]
+    svg = f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1800 800" width="1800" height="800">
+  <rect x="40" y="40" width="1720" height="720" rx="20" fill="none" stroke="#0a0a0a" stroke-width="10"/>
+  <!-- pine trees flanking -->
+  <path fill="#0a0a0a" d="M 140 580 L 100 580 L 180 460 L 140 460 L 220 320 L 180 320 L 240 200 L 280 200 L 340 320 L 300 320 L 380 460 L 340 460 L 420 580 L 380 580 L 380 640 L 180 640 Z"/>
+  <path fill="#0a0a0a" d="M 1660 580 L 1620 580 L 1700 460 L 1660 460 L 1740 320 L 1700 320 L 1500 200 m 0 0 L 1540 200 M 1500 200 L 1460 320 L 1420 320 L 1500 460 L 1460 460 L 1540 580 L 1420 580 L 1420 640 L 1620 640 Z" transform="scale(-1,1) translate(-3200,0)"/>
+  <!-- wave at base -->
+  <path fill="none" stroke="#0a0a0a" stroke-width="8" d="M 80 720 Q 300 680 520 720 T 1020 720 T 1520 720 T 1760 720"/>
+  <text x="900" y="280" text-anchor="middle" font-family="Anton, Impact, sans-serif" font-size="120" font-weight="900" fill="#0a0a0a" letter-spacing="6">{name}</text>
+  <text x="900" y="440" text-anchor="middle" font-family="Anton, Impact, sans-serif" font-size="110" font-weight="900" fill="#0a0a0a" letter-spacing="10">{label}</text>
+  <text x="900" y="580" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="70" font-weight="700" fill="#0a0a0a" letter-spacing="14">EST. {year}</text>
+</svg>'''
+    outer = [(0.4, 0.4), (17.6, 0.4), (17.6, 7.6), (0.4, 7.6), (0.4, 0.4)]
+    return svg, [outer], 18.0, 8.0
+
+
+def template_pet_name_plate(p: dict) -> tuple[str, list, float, float]:
+    """Pet silhouette + curved name banner — for nameplates, urns,
+    feeding-station signage."""
+    pet_name = (p.get("pet_name") or "Maple").strip()[:14].upper()
+    species = (p.get("species") or "dog").lower()
+    # Two species options, each a single closed silhouette path.
+    if species == "cat":
+        sil = (
+            "M 350 600 L 240 320 L 350 380 L 370 280 L 420 360 L 460 280 L 480 380 "
+            "L 600 320 L 540 480 L 660 540 L 640 620 L 540 640 L 580 720 L 320 720 "
+            "L 360 640 L 240 620 Z"
+        )
+    else:  # dog (default)
+        sil = (
+            "M 240 700 L 240 540 L 200 480 L 220 380 L 280 360 L 320 280 L 360 280 "
+            "L 380 320 L 420 320 L 440 280 L 500 280 L 560 380 L 620 380 L 660 440 "
+            "L 700 460 L 720 540 L 700 620 L 660 660 L 660 700 L 600 700 L 580 660 "
+            "L 480 660 L 460 700 L 400 700 L 380 660 L 320 660 L 300 700 Z"
+        )
+    svg = f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 900" width="1000" height="900">
+  <path fill="none" stroke="#0a0a0a" stroke-width="8" d="M 100 200 Q 500 80 900 200"/>
+  <text x="500" y="180" text-anchor="middle" font-family="Anton, Impact, sans-serif" font-size="130" font-weight="900" fill="#0a0a0a" letter-spacing="8">{pet_name}</text>
+  <g transform="translate(40 0)" fill="#0a0a0a">
+    <path d="{sil}"/>
+  </g>
+</svg>'''
+    plate = [(0.2, 0.2), (9.8, 0.2), (9.8, 8.8), (0.2, 8.8), (0.2, 0.2)]
+    return svg, [plate], 10.0, 9.0
+
+
+def template_address_arrow(p: dict) -> tuple[str, list, float, float]:
+    """Tall vertical address plaque with chevron arrow on the right edge
+    pointing toward the house. Sized 6 × 18 — fits the standard 4-digit
+    street number stack."""
+    number = re.sub(r"\D", "", str(p.get("number") or "1942"))[:5] or "1942"
+    street = (p.get("street") or "Hollow Lane").strip()[:22].upper()
+    direction = (p.get("direction") or "right").lower()
+    # Mirror the chevron for left-facing variants without rewriting the
+    # whole path.
+    flip = ' transform="scale(-1,1) translate(-600,0)"' if direction == "left" else ""
+    svg = f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 1800" width="600" height="1800">
+  <g{flip}>
+    <path fill="#0a0a0a" d="M 0 80 L 380 80 L 480 200 L 600 200 L 600 1600 L 480 1600 L 380 1720 L 0 1720 Z"/>
+  </g>
+  <text x="300" y="600" text-anchor="middle" font-family="Anton, Impact, sans-serif" font-size="320" font-weight="900" fill="#0a0a0a" letter-spacing="14">{number}</text>
+  <line x1="80" y1="780" x2="520" y2="780" stroke="#ffffff" stroke-width="14"/>
+  <text x="300" y="980" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="90" font-weight="700" fill="#ffffff" letter-spacing="10">{street}</text>
+</svg>'''
+    # DXF — single closed plate matching the SVG outline.
+    plate = [(0, 0.8), (3.8, 0.8), (4.8, 2.0), (6.0, 2.0), (6.0, 16.0),
+             (4.8, 16.0), (3.8, 17.2), (0, 17.2), (0, 0.8)]
+    return svg, [plate], 6.0, 18.0
+
+
 TEMPLATES: dict[str, dict] = {
     "welcome_arch": {
         "fn": template_welcome_arch,
@@ -230,6 +342,52 @@ TEMPLATES: dict[str, dict] = {
             "center_text": "Optional 1-6 char monogram (leave blank for clean star)",
         },
         "image_prompt": "Geometric metal star wall ornament mounted on a white plaster wall above a wooden console table, soft daylight, magazine quality",
+    },
+    "motorcycle_silhouette": {
+        "fn": template_motorcycle_silhouette,
+        "category": "Garage & Workshop",
+        "description_lead": "Vintage chopper-style motorcycle silhouette with optional curved banner — built for the biker / gearhead crowd. 16×7.2 inches.",
+        "default_tags": ["motorcycle", "chopper", "biker", "garage", "plasma"],
+        "params_schema": {
+            "banner_text": "Short banner text, 1-14 chars (default RIDE FREE)",
+            "show_banner": "true | false",
+        },
+        "image_prompt": "Matte black plasma-cut motorcycle silhouette sign mounted above a workshop bench beside vintage tools and a leather jacket, dramatic side lighting, biker garage aesthetic",
+    },
+    "cabin_lake_sign": {
+        "fn": template_cabin_lake_sign,
+        "category": "Outdoor / Wall Art",
+        "description_lead": "Bordered cabin / lake-house sign flanked by pine trees and a wave line at the base — for second homes, Airbnbs, and lake retreats. 18×8.",
+        "default_tags": ["cabin", "lake", "lakehouse", "rustic", "plasma"],
+        "params_schema": {
+            "name": "Property nickname, 2-18 chars (e.g. 'Birch Hollow')",
+            "label": "Sign label, default 'LAKE HOUSE' (max 16 chars)",
+            "year": "4-digit year, 1900-2099",
+        },
+        "image_prompt": "Rustic plasma-cut steel lake-house sign with pine trees and wave motif, mounted on a cedar-shake cabin wall by a lakeside, golden hour light, vacation-home photography",
+    },
+    "pet_name_plate": {
+        "fn": template_pet_name_plate,
+        "category": "Pet & Animal",
+        "description_lead": "Pet silhouette (dog or cat) with a curved name banner above — for nameplates, feeding stations, urns, and personalized gifts. 10×9.",
+        "default_tags": ["pet", "dog", "cat", "personalize", "laser"],
+        "params_schema": {
+            "pet_name": "Pet name, 1-14 chars",
+            "species": "one of: dog | cat",
+        },
+        "image_prompt": "Wooden laser-cut pet silhouette nameplate hung on a kitchen wall above a food bowl, soft warm light, lifestyle pet-owner photography",
+    },
+    "address_arrow": {
+        "fn": template_address_arrow,
+        "category": "Signs",
+        "description_lead": "Vertical address plaque with chevron arrow on the right edge — perfect for directional driveway signage. 6×18 inches.",
+        "default_tags": ["address", "arrow", "driveway", "house", "plasma"],
+        "params_schema": {
+            "number": "House number, 1-5 digits",
+            "street": "Street name, 2-22 chars",
+            "direction": "one of: left | right (arrow direction)",
+        },
+        "image_prompt": "Tall matte black steel address plaque with chevron arrow mounted on a driveway post beside a stone mailbox, evening golden hour light, architectural photography",
     },
 }
 

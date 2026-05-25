@@ -8,6 +8,7 @@ import {
   adminForceSignout,
 } from "../../lib/api";
 import useModalA11y from "../../hooks/useModalA11y";
+import { RowsSkeleton } from "../Skeleton";
 
 export default function UsersTab() {
   const [users, setUsers] = useState([]);
@@ -122,7 +123,7 @@ export default function UsersTab() {
       )}
 
       {loading ? (
-        <p className="font-mono text-sm text-[#a3a3a3]" data-testid="users-loading">Loading…</p>
+        <div data-testid="users-loading"><RowsSkeleton count={6} /></div>
       ) : !users.length ? (
         <p className="font-mono text-sm text-[#a3a3a3]" data-testid="users-empty">
           No matching users.

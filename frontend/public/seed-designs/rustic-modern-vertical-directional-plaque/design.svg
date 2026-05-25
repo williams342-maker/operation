@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 1800" width="600" height="1800">
+  <g>
+    <path fill="#0a0a0a" d="M 0 80 L 380 80 L 480 200 L 600 200 L 600 1600 L 480 1600 L 380 1720 L 0 1720 Z"/>
+  </g>
+  <text x="300" y="600" text-anchor="middle" font-family="Anton, Impact, sans-serif" font-size="320" font-weight="900" fill="#0a0a0a" letter-spacing="14">1408</text>
+  <line x1="80" y1="780" x2="520" y2="780" stroke="#ffffff" stroke-width="14"/>
+  <text x="300" y="980" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="90" font-weight="700" fill="#ffffff" letter-spacing="10">IRONWOOD CANYON</text>
+</svg>

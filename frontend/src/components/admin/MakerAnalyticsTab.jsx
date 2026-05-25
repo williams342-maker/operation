@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { fetchMakers, fetchAdminMakerAnalytics } from "../../lib/api";
 import { Sparkline } from "../Charts";
 import { Stat } from "./_shared";
+import { StatsSkeleton, RowsSkeleton } from "../Skeleton";
 
 // ===================== MAKER ANALYTICS (per-maker drill-in) =====================
 export default function MakerAnalyticsTab() {
@@ -48,7 +49,12 @@ export default function MakerAnalyticsTab() {
         </select>
       </div>
 
-      {loading && <p className="font-mono text-xs text-[#a3a3a3]">Loading…</p>}
+      {loading && (
+        <div className="space-y-6" data-testid="maker-analytics-loading">
+          <StatsSkeleton count={4} />
+          <RowsSkeleton count={4} />
+        </div>
+      )}
       {err && <p className="font-mono text-xs text-red-400">{err}</p>}
 
       {data && !loading && (

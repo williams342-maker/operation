@@ -1,6 +1,7 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import React, { useEffect, useState } from "react";
 import { fetchShowcaseAnalytics } from "../../lib/api";
+import { StatsSkeleton, RowsSkeleton } from "../Skeleton";
 
 // iter117 — Showcase analytics tab.
 // Shows top-N showcase posts by views in a configurable rolling window
@@ -62,7 +63,12 @@ export default function ShowcaseAnalyticsTab() {
       </header>
 
       {err && <div className="font-mono text-sm text-red-400" data-testid="showcase-analytics-err">{err}</div>}
-      {!err && !data && <div className="font-mono text-xs text-[#525252]">Loading…</div>}
+      {!err && !data && (
+        <div className="space-y-4" data-testid="showcase-analytics-loading">
+          <StatsSkeleton count={3} />
+          <RowsSkeleton count={5} />
+        </div>
+      )}
 
       {data && (
         <>

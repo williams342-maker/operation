@@ -1,6 +1,7 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import React, { useEffect, useState, useCallback } from "react";
 import { useConfirm } from "../../hooks/useConfirm";
+import { RowsSkeleton } from "../Skeleton";
 
 // iter112 — Coming-Soon waitlist admin tab.
 // Lists every category we collect waitlist signups for (Neon & Light,
@@ -87,7 +88,7 @@ export default function ComingSoonTab() {
   };
 
   if (err) return <div className="font-mono text-sm text-red-400" data-testid="coming-soon-err">{err}</div>;
-  if (!data) return <div className="font-mono text-xs text-[#525252]">Loading…</div>;
+  if (!data) return <div data-testid="coming-soon-loading"><RowsSkeleton count={4} /></div>;
 
   const cats = data.categories || [];
   const stats = data.by_category || {};

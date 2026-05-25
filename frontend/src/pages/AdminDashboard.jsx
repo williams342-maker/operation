@@ -436,33 +436,51 @@ export default function AdminDashboard() {
             bar on mobile/tablet. The sidebar is sticky so long pages keep
             the tab rail visible as you scroll through content. */}
         <div className="lg:grid lg:grid-cols-[220px_1fr] lg:gap-8">
-          <nav
-            className="-mx-4 lg:mx-0 px-4 lg:px-0 mb-6 lg:mb-0 flex lg:flex-col lg:sticky lg:top-6 lg:self-start lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto border-b lg:border-b-0 lg:border-r border-[#262626] lg:pr-4 overflow-x-auto lg:overflow-x-visible scrollbar-thin bg-[#0a0a0a] lg:bg-transparent sticky top-[64px] lg:top-6 z-20"
-            data-testid="admin-tabs"
-            aria-label="Admin sections"
+          {/* Mobile/tablet: wrap the horizontal nav in a container with
+              fade-out gradients on both edges so users see there's more
+              tabs to scroll past the visible viewport. Hidden on lg+
+              where the nav becomes a vertical sidebar. */}
+          <div
+            className="relative -mx-4 lg:mx-0 mb-6 lg:mb-0 lg:contents sticky top-[64px] lg:top-auto z-20 bg-[#0a0a0a] lg:bg-transparent"
           >
-            {visibleTabs.map((t) => {
-              const active = tab === t.id;
-              return (
-                <button
-                  key={t.id}
-                  onClick={() => setTab(t.id)}
-                  ref={active ? activeTabBtnRef : null}
-                  className={`
-                    font-mono text-[10px] md:text-[11px] uppercase tracking-[0.18em] md:tracking-[0.22em] whitespace-nowrap transition
-                    px-3 md:px-5 py-3 shrink-0 border-b-2 lg:border-b-0 lg:border-l-2 lg:w-full lg:text-left lg:px-3 lg:py-2.5
-                    ${active
-                      ? "border-[#ff4500] text-[#ff4500] lg:bg-[#ff4500]/5"
-                      : "border-transparent text-[#a3a3a3] hover:text-[#e5e5e5] lg:hover:bg-[#121212]"}
-                  `}
-                  data-testid={`admin-tab-${t.id}`}
-                  aria-current={active ? "page" : undefined}
-                >
-                  {t.label}
-                </button>
-              );
-            })}
-          </nav>
+            <nav
+              className="px-4 lg:px-0 flex lg:flex-col lg:sticky lg:top-6 lg:self-start lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto border-b lg:border-b-0 lg:border-r border-[#262626] lg:pr-4 overflow-x-auto lg:overflow-x-visible scrollbar-thin"
+              data-testid="admin-tabs"
+              aria-label="Admin sections"
+            >
+              {visibleTabs.map((t) => {
+                const active = tab === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => setTab(t.id)}
+                    ref={active ? activeTabBtnRef : null}
+                    className={`
+                      font-mono text-[10px] md:text-[11px] uppercase tracking-[0.18em] md:tracking-[0.22em] whitespace-nowrap transition
+                      px-3 md:px-5 py-3 shrink-0 border-b-2 lg:border-b-0 lg:border-l-2 lg:w-full lg:text-left lg:px-3 lg:py-2.5
+                      ${active
+                        ? "border-[#ff4500] text-[#ff4500] lg:bg-[#ff4500]/5"
+                        : "border-transparent text-[#a3a3a3] hover:text-[#e5e5e5] lg:hover:bg-[#121212]"}
+                    `}
+                    data-testid={`admin-tab-${t.id}`}
+                    aria-current={active ? "page" : undefined}
+                  >
+                    {t.label}
+                  </button>
+                );
+              })}
+            </nav>
+            {/* Scroll affordance — fade edges visible only on mobile.
+                Pointer-events disabled so they never block tab clicks. */}
+            <div
+              aria-hidden="true"
+              className="lg:hidden absolute top-0 left-0 bottom-0 w-8 pointer-events-none bg-gradient-to-r from-[#0a0a0a] to-transparent"
+            />
+            <div
+              aria-hidden="true"
+              className="lg:hidden absolute top-0 right-0 bottom-0 w-8 pointer-events-none bg-gradient-to-l from-[#0a0a0a] to-transparent"
+            />
+          </div>
 
           <div className="min-w-0">
             <AdminTabBoundary tabId={tab} key={tab}>
