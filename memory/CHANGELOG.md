@@ -1,6 +1,44 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-25 — iter225 · Black-clip on /clips fix (ephemeral FS → R2 migration) ✅
+
+**User report:** Screenshot of `craftersmarket.org/clips` showing the "Bandsaw Through Aluminum" clip rendering as a black `<video>` panel — title, hashtags, byline all present, but the video itself doesn't play.
+
+### Root cause
+The DB row had `video_url: "/seed-clips/bandsaw-through-aluminum/clip.mp4"` — a local path served by the static frontend bundle. But the actual MP4 file had been wiped from `/app/frontend/public/seed-clips/` during a pod restart (ephemeral filesystem). Both preview and prod pods had `file_verified: True` cached on the row from seed-time, so the iter218 orphan-guard kept letting it through. Browser hit the static URL → 404 → `<video>` element fell back to its empty black state.
+
+The iter218 design's flaw was treating `file_verified` as durable when it was actually only a snapshot of seeder-pod-local state. The Sora-generated MP4 lived nowhere durable.
+
+### Fix · `clip_seeder.py`
+After Sora renders the MP4 locally (still needed as scratch for ffmpeg poster extraction), upload both the video and the poster JPEG to R2 with deterministic keys (`seed-clips/<slug>/clip.mp4`, `seed-clips/<slug>/poster.jpg`). The DB row's `video_url` + `poster_url` now hold R2 CDN absolute URLs (`https://cdn.craftersmarket.org/...`) that survive any pod lifecycle. Poster failures stay non-fatal — clip plays even without a thumbnail.
+
+### Fix · `routers/clips.py` — `_orphan_guard()` hardening
+Old policy: seed clips passed when `file_verified: True` OR `video_url` started with `http(s)://`. New policy: seed clips MUST have an `https://` URL — `file_verified` no longer matters (it's a snapshot, not a guarantee). Maker/organic uploads (`is_seed != True`) remain ungated. Net effect: any DB row still pointing at `/seed-clips/...` is silently hidden from `/api/clips/feed` and `/api/clips/<slug>` regardless of any cached verification flag.
+
+### Fix · `routers/seed_admin.py` — `purge-orphans` widened
+Old criterion required `file_verified=False` AND local path. New criterion also catches local-path rows that still claim `file_verified=True` (the exact stale-flag bug pattern). Status counter `orphan_seeds` updated to match. Admin can now click "Purge orphans" once after deploy and the bandsaw row disappears.
+
+### Cleanup
+- Preview DB: purged 1 leftover orphan row (`iter218-demo-orphan` from prior regression test). `/api/clips/feed` returns `items: []` on preview.
+- Prod DB: bandsaw row stays in DB until the user redeploys and clicks "Purge orphans" — but the hardened orphan-guard hides it from the feed immediately on redeploy, so end-users stop seeing the black box.
+
+### Regression · `tests/test_iter225_clip_r2_orphan_guard.py` — **6/6 PASS**
+1. Orphan-guard rejects local-path seed even when `file_verified=True` (the bug).
+2. Orphan-guard accepts R2 https seed (the new happy path).
+3. Orphan-guard never gates organic maker uploads.
+4. End-to-end: insert stale-flag orphan row → /clips/feed → confirm row absent.
+5. End-to-end: insert stale-flag orphan row → purge-orphans → confirm deleted.
+6. Static import check: seeder still calls `r2_storage.upload_bytes` with the deterministic `seed-clips/{slug}/clip.mp4` key.
+
+### Deployment status
+Code changes are in preview only. **User must redeploy craftersmarket.org** to publish iter225. After redeploy:
+1. The bandsaw black box disappears from `/clips` immediately (orphan-guard hides it).
+2. Admin → Settings → Seed Clips → "Purge orphans" cleans the stale DB row.
+3. Next daily Sora cron generates a fresh clip that lands in R2 — durable across pod lifecycle.
+
+
+
 ## 2026-05-25 — iter224 · P0 Production outage fix: selective env override ✅
 
 **User report:** Admin sign-in on craftersmarket.org fails with "Could not send the link." (screenshot attached).

@@ -279,13 +279,15 @@ async def generate_batch_community_designs(
 # ===========================================================================
 @router.get("/admin/seed/clips/status")
 async def clips_seed_status(_: dict = Depends(current_admin)):
+    # iter225 — orphan = local `/seed-clips/...` path (file is ephemeral
+    # and almost certainly gone post-restart) OR null/empty video_url
+    # without file_verified. Matches the purge-orphans endpoint logic.
     orphan_q = {
         "is_seed": True,
-        "file_verified": {"$ne": True},
         "$or": [
+            {"file_verified": {"$ne": True}, "video_url": None},
+            {"file_verified": {"$ne": True}, "video_url": ""},
             {"video_url": {"$regex": "^/seed-clips/"}},
-            {"video_url": None},
-            {"video_url": ""},
         ],
     }
     return {
@@ -325,25 +327,35 @@ async def purge_clips_seed(_: dict = Depends(current_admin)):
 
 @router.post("/admin/seed/clips/purge-orphans")
 async def purge_orphan_clips_seed(_: dict = Depends(current_admin)):
-    """iter218 — targeted cleanup: hard-delete ONLY orphan seed rows
-    (is_seed=true rows that lack `file_verified=true` AND have a local
-    `/seed-clips/` `video_url`). These are leftover DB rows from prior
-    Sora generations whose MP4 file never made it to the deploy artifact
-    — they render as black-screen panels on /clips. Keeps any future
-    seed rows that explicitly carry `file_verified=true` (the new
-    seeder always sets this) so admins don't accidentally nuke a working
-    library while clearing the broken ones.
+    """iter218 + iter225 — targeted cleanup: hard-delete seed rows that
+    can't render in production.
+
+    Original iter218 criterion: `is_seed=True` AND missing `file_verified`
+    AND has a local `/seed-clips/` (or empty) `video_url`.
+
+    iter225 hardening: ALSO purge seed rows whose `video_url` is a local
+    `/seed-clips/...` path *regardless* of `file_verified`. The flag is
+    set at seed-time but the pod's filesystem is ephemeral — a redeploy
+    or restart loses the MP4 while leaving the DB row claiming verified.
+    Result on prod: clip card renders with a black `<video>` element
+    (404 on the static path). The hardened orphan-guard in
+    routers/clips.py now hides these from the feed at query time; this
+    endpoint deletes them permanently so the orphan_seeds counter on
+    the admin status card clears.
 
     Returns the deleted slugs so the operator can confirm what was
     cleared in a single glance.
     """
     orphan_query = {
         "is_seed": True,
-        "file_verified": {"$ne": True},
         "$or": [
+            # Original case: local path AND not verified
+            {"file_verified": {"$ne": True}, "video_url": {"$regex": "^/seed-clips/"}},
+            # Original case: null/empty video_url
+            {"file_verified": {"$ne": True}, "video_url": None},
+            {"file_verified": {"$ne": True}, "video_url": ""},
+            # iter225: local path EVEN IF verified — ephemeral FS killed it.
             {"video_url": {"$regex": "^/seed-clips/"}},
-            {"video_url": None},
-            {"video_url": ""},
         ],
     }
     orphans: list[dict] = []

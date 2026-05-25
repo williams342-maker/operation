@@ -147,10 +147,20 @@ def _generate_video_blocking(prompt: str, out_path: str, model: str = "sora-2-pr
 
 
 async def generate_one_clip(model: str = "sora-2-pro") -> dict[str, Any]:
-    """Pick the next category, render via Sora 2, insert into Mongo.
+    """Pick the next category, render via Sora 2, upload to R2, insert into Mongo.
 
     Returns a structured status dict that mirrors the design seeder so
     the admin UI can render a toast.
+
+    iter225 — Storage moved from the local `/app/frontend/public/seed-clips/`
+    folder (ephemeral, lost on pod restart) to R2 (`seed-clips/<slug>/...`).
+    The local folder is still used as a scratch directory for the ffmpeg
+    poster extraction (R2 doesn't transcode), then both files are uploaded
+    to R2 and the local copies stay only as a dev convenience. `video_url`
+    + `poster_url` now hold absolute R2 CDN URLs that survive any pod
+    lifecycle. The hardened `_orphan_guard` in routers/clips.py refuses
+    local-path seeds — so dropping back to filesystem-only would silently
+    hide the clip on the public feed.
     """
     pick = await _pick_next()
     prompt_def = pick["prompt"]
@@ -168,21 +178,38 @@ async def generate_one_clip(model: str = "sora-2-pro") -> dict[str, Any]:
     if not ok:
         return {"status": "error", "reason": "video generation failed"}
 
-    public_video_url = f"/seed-clips/{slug}/clip.mp4"
-    # Verify the file actually landed on disk with non-zero size. This
-    # `file_verified` flag is what the feed query uses to skip orphan
-    # rows on production where the MP4 never made it into the deploy
-    # artifact (e.g. a Sora download truncated by an LLM-budget hit). No
-    # flag → row stays out of /api/clips/feed forever, even if `is_seed`
-    # is true. Belt + suspenders against the iter217-debug black-clip bug.
+    # Verify the file actually landed on disk with non-zero size before
+    # we try to upload it. Keeps a failed Sora download from creating a
+    # zero-byte R2 object.
     try:
-        file_verified = out_path.exists() and out_path.stat().st_size > 1024
+        local_ok = out_path.exists() and out_path.stat().st_size > 1024
     except Exception:
-        file_verified = False
-    if not file_verified:
+        local_ok = False
+    if not local_ok:
         return {"status": "error", "reason": "video file missing on disk after save"}
 
-    # Best-effort poster: pull the first frame with ffmpeg if available.
+    # ────── Upload to R2 ──────
+    # Without this step, the clip URL points at the ephemeral
+    # `/app/frontend/public/seed-clips/...` path which the production
+    # static bundle has no knowledge of — buyers see a black `<video>`.
+    try:
+        import r2_storage
+        video_bytes = out_path.read_bytes()
+        # Use a deterministic key (slug-based) instead of the random hex
+        # `upload_video_bytes` would generate — makes re-uploads idempotent
+        # and easier to debug from the R2 dashboard.
+        video_key = f"seed-clips/{slug}/clip.mp4"
+        public_video_url = r2_storage.upload_bytes(
+            video_bytes, video_key, "video/mp4",
+            cache_control="public, max-age=86400",
+            max_bytes=r2_storage.MAX_VIDEO_BYTES,
+        )
+    except Exception as e:
+        logger.exception("[clip_seeder] R2 upload failed for %s", slug)
+        return {"status": "error", "reason": f"R2 upload failed: {e}"}
+
+    # Best-effort poster: pull the first frame with ffmpeg if available,
+    # then upload that to R2 too.
     poster_url: str | None = None
     poster_path = folder / "poster.jpg"
     try:
@@ -192,8 +219,19 @@ async def generate_one_clip(model: str = "sora-2-pro") -> dict[str, Any]:
              "-q:v", "3", str(poster_path)],
             check=True, capture_output=True, timeout=30,
         )
-        if poster_path.exists():
-            poster_url = f"/seed-clips/{slug}/poster.jpg"
+        if poster_path.exists() and poster_path.stat().st_size > 256:
+            try:
+                import r2_storage
+                poster_url = r2_storage.upload_bytes(
+                    poster_path.read_bytes(),
+                    f"seed-clips/{slug}/poster.jpg",
+                    "image/jpeg",
+                )
+            except Exception as e:
+                # Poster failures are non-fatal — clip still plays
+                # without a poster (player just shows black until
+                # buffered).
+                logger.warning("[clip_seeder] R2 poster upload failed for %s: %s", slug, e)
     except Exception as e:
         logger.warning("[clip_seeder] poster extraction failed for %s: %s", slug, e)
 
@@ -207,7 +245,7 @@ async def generate_one_clip(model: str = "sora-2-pro") -> dict[str, Any]:
         "description": prompt[:280],
         "category": pick["category"],
         "tags": [pick["category"], "ai-generated", "workshop"],
-        "source_type": "r2",          # served as a static mp4 from the deploy artifact
+        "source_type": "r2",
         "source_id": None,
         "video_url": public_video_url,
         "poster_url": poster_url,
@@ -221,7 +259,7 @@ async def generate_one_clip(model: str = "sora-2-pro") -> dict[str, Any]:
         "ai_generated": True,
         "ai_model": model,
         "ai_prompt_index": pick["prompt_index"],
-        "file_verified": True,        # iter218: gate against orphan rows
+        "file_verified": True,        # iter218 — kept for backwards-compat with old purge logic
         "quarantined_at": None,
         "created_at": now_iso(),
     }

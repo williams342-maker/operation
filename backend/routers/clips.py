@@ -85,23 +85,34 @@ async def _featured_clip_count() -> int:
     })
 
 
-# iter218 — Orphan-seed guard. A seed clip is "live" only when it carries
+# iter218 + iter225 — Orphan-seed guard.
+#
+# Original iter218 design: a seed clip is "live" only when it carries
 # `file_verified: True` (set by clip_seeder.generate_one_clip after the
 # MP4 has actually landed on disk with non-zero size) OR points to an
-# external `http(s)://` URL (no local file dependency). Any other seed
-# row is treated as an orphan — typically left behind when an earlier
-# Sora render half-failed before the file was saved (or before this
-# build deployed). Apply via `{**_orphan_guard(), **other_filters}` on
-# any clips query that serves the public.
+# external `http(s)://` URL (no local file dependency).
+#
+# iter225 hardening: `file_verified` was set at *seed time* against the
+# local pod's filesystem — but the pod's `/app/frontend/public/seed-clips/`
+# is ephemeral. A restart, redeploy, or pod migration wipes the MP4
+# while the DB row still claims `file_verified: True`. Result: clip
+# appears in the feed but the browser hits 404 on `/seed-clips/.../clip.mp4`
+# → black video panel on craftersmarket.org (user-reported, 2026-05-25).
+#
+# Hardened policy: seed clips MUST point at an `http(s)://` URL (R2 CDN
+# or external embed) to clear the guard. Local `/seed-clips/...` paths
+# are treated as orphans — even if `file_verified=True`. The new
+# clip_seeder uploads to R2 so this is the steady state going forward.
+# Legacy local-path rows get caught by the purge-orphans endpoint.
 def _orphan_guard() -> dict:
     return {
         "$or": [
             # Organic maker uploads (no seed flag) — never gated.
             {"is_seed": {"$ne": True}},
-            # Seeds with explicit file_verified=True.
-            {"is_seed": True, "file_verified": True},
-            # Legacy seeds that point at an external embed URL (YouTube,
-            # Vimeo) — those don't depend on local /seed-clips/ files.
+            # Seeds whose video_url is an absolute http(s) URL — these
+            # include R2-uploaded seed clips and YouTube/Vimeo embeds.
+            # `file_verified` no longer matters once we've left the
+            # ephemeral local filesystem behind.
             {"is_seed": True, "video_url": {"$regex": "^https?://"}},
         ]
     }
