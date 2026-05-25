@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Heart, Bookmark, Share2, ShoppingBag, Volume2, VolumeX, Play, Pause, ExternalLink, X } from "lucide-react";
+import { Heart, Bookmark, Share2, ShoppingBag, Volume2, VolumeX, Play, Pause, ExternalLink, X, Star } from "lucide-react";
 import { toast } from "sonner";
 import {
   fetchClipCategories, fetchClipFeed,
   recordClipView, recordClipShare, toggleClipLike, toggleClipSave,
 } from "../lib/api";
+import IncentiveBanner from "../components/ClipsIncentiveBanner";
 
 const CATEGORY_FALLBACK = [
   { id: null,           label: "For you",        emoji: "✦" },
@@ -152,6 +153,9 @@ export default function ClipFeedPage() {
               >
                 Share a clip →
               </Link>
+              <div className="mt-8 max-w-md mx-auto">
+                <IncentiveBanner variant="feed" />
+              </div>
             </div>
           </div>
         )}
@@ -401,8 +405,19 @@ function ClipPlayer({ clip, muted, onMuteToggle, onEngagementUpdate }) {
 
         {/* Bottom-left caption */}
         <div className="absolute left-4 right-20 bottom-6 z-10">
-          <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#ff4500]">
-            ◆ {clip.category}
+          <div className="flex items-center gap-2">
+            <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#ff4500]">
+              ◆ {clip.category}
+            </div>
+            {clip.featured && (
+              <span
+                className="inline-flex items-center gap-1 font-mono text-[9px] uppercase tracking-[0.22em] text-amber-300 border border-amber-400/60 bg-amber-400/10 px-1.5 py-0.5"
+                data-testid={`clip-featured-${clip.slug}`}
+                title="Founding Featured Clip — among the first 50 organic uploads"
+              >
+                <Star size={9} className="fill-amber-300" /> Featured
+              </span>
+            )}
           </div>
           <h2 className="font-display text-2xl md:text-3xl uppercase mt-1 leading-tight line-clamp-2">
             {clip.title}

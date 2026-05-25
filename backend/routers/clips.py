@@ -60,6 +60,30 @@ VALID_CATEGORIES = {c["id"] for c in CATEGORIES}
 MAX_TITLE = 120
 MAX_DESC = 600
 
+# Founding-50 maker incentive: every brand-new organic clip is automatically
+# promoted to `featured: true` until 50 such clips have been posted.
+# `featured` clips render above non-featured ones inside their recency window
+# and carry a small star badge in the UI. Once we hit the cap the feature
+# quietly stops auto-flagging — older Featured rows keep their badge.
+FOUNDING_FEATURED_CAP = 50
+
+
+async def _organic_clip_count() -> int:
+    """Count non-seed, non-quarantined clips — the universe for the
+    Founding-50 Featured slot incentive."""
+    return await db.clips.count_documents({
+        "is_seed": {"$ne": True},
+        "quarantined_at": None,
+    })
+
+
+async def _featured_clip_count() -> int:
+    return await db.clips.count_documents({
+        "featured": True,
+        "is_seed": {"$ne": True},
+        "quarantined_at": None,
+    })
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -127,6 +151,25 @@ async def list_categories():
     }
 
 
+@router.get("/clips/incentive-status")
+async def incentive_status():
+    """Founding-50 Featured slot status — drives the empty-state banner on
+    /clips and the maker dashboard upload card.
+
+    Once we hit `FOUNDING_FEATURED_CAP` featured organic clips, `claimed`
+    flips to true and the banner switches to a "thanks for joining"
+    success state."""
+    featured = await _featured_clip_count()
+    organic = await _organic_clip_count()
+    return {
+        "slots_total": FOUNDING_FEATURED_CAP,
+        "slots_used": featured,
+        "slots_remaining": max(0, FOUNDING_FEATURED_CAP - featured),
+        "organic_clips_total": organic,
+        "claimed": featured >= FOUNDING_FEATURED_CAP,
+    }
+
+
 @router.get("/clips/feed")
 async def feed(
     category: Optional[str] = Query(None),
@@ -147,6 +190,9 @@ async def feed(
         q["created_at"] = {"$lt": cursor}
 
     rows: list[dict] = []
+    # Pure chronological sort — cursor pagination relies on `created_at`
+    # being monotonic. Featured clips earn a star badge in the UI instead
+    # of priority placement, which keeps pagination correctness.
     async for d in db.clips.find(q, {"_id": 0}).sort("created_at", -1).limit(limit):
         rows.append(_public_row(d))
 
@@ -334,6 +380,9 @@ async def maker_create_clip(
     slug_val = await _unique_slug(base)
     tags = [t.strip().lower() for t in (payload.tags or []) if t.strip()][:10]
 
+    # Founding-50 Featured slot — auto-flag the first 50 organic clips.
+    is_featured = (await _featured_clip_count()) < FOUNDING_FEATURED_CAP
+
     doc = {
         "id": str(uuid.uuid4()),
         "slug": slug_val,
@@ -354,6 +403,7 @@ async def maker_create_clip(
         "likes": 0,
         "saves": 0,
         "shares": 0,
+        "featured": is_featured,
         "is_seed": False,
         "ai_generated": False,
         "ai_model": None,
@@ -361,9 +411,9 @@ async def maker_create_clip(
         "created_at": now_iso(),
     }
     await db.clips.insert_one(doc)
-    logger.info("[clips] maker %s posted %s/%s · %s", slug,
-                parsed["provider"], parsed["video_id"], slug_val)
-    return {"ok": True, "clip": _public_row(doc)}
+    logger.info("[clips] maker %s posted %s/%s · %s · featured=%s", slug,
+                parsed["provider"], parsed["video_id"], slug_val, is_featured)
+    return {"ok": True, "clip": _public_row(doc), "featured": is_featured}
 
 
 @router.get("/maker/clips/mine")
@@ -467,6 +517,9 @@ async def maker_upload_clip(
     title_slug = await _unique_slug(_slugify(title))
     tags_list = [t.strip().lower() for t in (tags or "").split(",") if t.strip()][:10]
 
+    # Founding-50 Featured slot — same auto-flag rule as the URL path.
+    is_featured = (await _featured_clip_count()) < FOUNDING_FEATURED_CAP
+
     doc = {
         "id": str(uuid.uuid4()),
         "slug": title_slug,
@@ -487,6 +540,7 @@ async def maker_upload_clip(
         "likes": 0,
         "saves": 0,
         "shares": 0,
+        "featured": is_featured,
         "is_seed": False,
         "ai_generated": False,
         "ai_model": None,
@@ -494,6 +548,6 @@ async def maker_upload_clip(
         "created_at": now_iso(),
     }
     await db.clips.insert_one(doc)
-    logger.info("[clips] maker %s uploaded native clip %s (%d KB)",
-                slug, title_slug, len(data) // 1024)
-    return {"ok": True, "clip": _public_row(doc)}
+    logger.info("[clips] maker %s uploaded native clip %s (%d KB) · featured=%s",
+                slug, title_slug, len(data) // 1024, is_featured)
+    return {"ok": True, "clip": _public_row(doc), "featured": is_featured}

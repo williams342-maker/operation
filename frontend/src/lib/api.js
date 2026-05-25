@@ -797,6 +797,8 @@ const _anyAuth = () => {
 };
 export const fetchClipCategories = () =>
   http.get("/clips/categories").then((r) => r.data);
+export const fetchClipsIncentiveStatus = () =>
+  http.get("/clips/incentive-status").then((r) => r.data);
 export const fetchClipFeed = ({ category, cursor, limit = 12 } = {}) =>
   http.get("/clips/feed", {
     params: { category, cursor, limit },

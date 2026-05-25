@@ -9,6 +9,7 @@ import {
 import { useConfirm } from "../useConfirm";
 import EmptyState from "../../../components/EmptyState";
 import { RowsSkeleton } from "../../../components/Skeleton";
+import IncentiveBanner from "../../../components/ClipsIncentiveBanner";
 
 const FALLBACK_CATS = [
   { id: "workshop",     label: "Workshop clips",  emoji: "◆" },
@@ -88,7 +89,11 @@ export default function ClipsPanel() {
           product_slug: form.product_slug.trim() || null,
         };
         const r = await createClipFromUrl(payload);
-        toast.success(`Posted to /clips — "${r.clip.title}"`);
+        if (r.featured) {
+          toast.success(`★ Featured slot claimed! "${r.clip.title}" is now live.`, { duration: 6000 });
+        } else {
+          toast.success(`Posted to /clips — "${r.clip.title}"`);
+        }
       } else {
         const r = await uploadClipFile(pickedFile, {
           title: form.title.trim(),
@@ -99,7 +104,11 @@ export default function ClipsPanel() {
         }, (e) => {
           if (e?.total) setUploadProgress(Math.round((e.loaded / e.total) * 100));
         });
-        toast.success(`Uploaded — "${r.clip.title}"`);
+        if (r.featured) {
+          toast.success(`★ Featured slot claimed! "${r.clip.title}" uploaded.`, { duration: 6000 });
+        } else {
+          toast.success(`Uploaded — "${r.clip.title}"`);
+        }
         setPickedFile(null);
         setUploadProgress(0);
         if (fileInputRef.current) fileInputRef.current.value = "";
@@ -160,6 +169,8 @@ export default function ClipsPanel() {
           sprays, or finished-piece reveals. Optional: link a listing so viewers can "Shop this".
         </p>
       </header>
+
+      <IncentiveBanner variant="maker" />
 
       <form
         onSubmit={onAdd}
