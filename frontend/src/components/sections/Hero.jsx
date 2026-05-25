@@ -2,15 +2,26 @@ import React, { useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion, useScroll, useTransform, useReducedMotion } from "framer-motion";
 import { Search, ArrowDown, ArrowRight, Wrench } from "lucide-react";
+import CopperGlowOrb from "../CopperGlowOrb";
 
+/**
+ * Cinematic Hero (iter217 redesign).
+ *
+ * Layered composition — every layer is purposeful:
+ *   1. Workshop photo (welding-sparks dark frame, .workshop-tone treatment)
+ *   2. Black gradient veil (top→bottom) for legibility
+ *   3. Faint blueprint grid overlay (mask-radial so it fades at edges)
+ *   4. Two ambient copper-glow orbs (slow drift, .copper-drift)
+ *   5. Vignette ring (radial darken so the type pops)
+ *   6. Copper-shimmer scanline (cinematic lighting, 8s loop)
+ *   7. Content (overline + headline + sub + CTAs + search + pills)
+ *
+ * All motion respects `prefers-reduced-motion` — parallax + orb drift +
+ * shimmer all auto-disable, leaving a clean static hero.
+ */
 const HERO_BG =
   "https://images.unsplash.com/photo-1745448797900-35d08e85e9db?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1NzZ8MHwxfHNlYXJjaHwxfHx3ZWxkaW5nJTIwc3BhcmtzJTIwZGFyayUyMGluZHVzdHJpYWx8ZW58MHx8fHwxNzc3MTU0OTg0fDA&ixlib=rb-4.1.0&q=85";
 
-// Curated "popular" pills for the home page hero. Keep this list short
-// (3-4 items) so the row stays clean and scannable on every breakpoint —
-// the full 16-category list is exposed on /shop and inside the maker
-// listing editor, not here. Adding pills here is a deliberate marketing
-// decision, not a passthrough of the full taxonomy.
 const PILLS = ["Wall Art", "Custom Signs", "Outdoor Art"];
 
 export default function Hero() {
@@ -21,127 +32,165 @@ export default function Hero() {
     nav(q.trim() ? `/shop?q=${encodeURIComponent(q.trim())}` : "/shop");
   };
 
-  // Subtle parallax — the background image drifts up ~12% of the section
-  // height as the user scrolls past, the gradient + radial overlay drift
-  // half as much (so the lighting "follows" but doesn't unstick from the
-  // image). Honors prefers-reduced-motion: when the OS asks for less
-  // motion, we pin both layers and skip the transform entirely.
   const sectionRef = useRef(null);
   const reduced = useReducedMotion();
   const { scrollYProgress } = useScroll({
     target: sectionRef,
     offset: ["start start", "end start"],
   });
-  const bgY = useTransform(scrollYProgress, [0, 1], reduced ? ["0%", "0%"] : ["0%", "12%"]);
-  const overlayY = useTransform(scrollYProgress, [0, 1], reduced ? ["0%", "0%"] : ["0%", "6%"]);
+  const bgY = useTransform(scrollYProgress, [0, 1], reduced ? ["0%", "0%"] : ["0%", "14%"]);
+  const overlayY = useTransform(scrollYProgress, [0, 1], reduced ? ["0%", "0%"] : ["0%", "7%"]);
 
   return (
     <section
       ref={sectionRef}
       id="top"
-      className="relative w-full min-h-[72svh] overflow-hidden"
+      className="relative w-full min-h-[78svh] md:min-h-[82svh] overflow-hidden"
       data-testid="hero-section"
     >
+      {/* 1 — Workshop photo (parallax) */}
       <motion.div className="absolute inset-0" style={{ y: bgY }} aria-hidden="true">
-        <img src={HERO_BG} alt="" className="absolute inset-0 w-full h-full object-cover scale-110" />
-      </motion.div>
-      <motion.div className="absolute inset-0" style={{ y: overlayY }} aria-hidden="true">
-        <div className="absolute inset-0 bg-gradient-to-b from-black/85 via-black/65 to-[#0a0a0a]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_30%,rgba(255,69,0,0.18),transparent_55%)]" />
+        <img
+          src={HERO_BG}
+          alt=""
+          className="absolute inset-0 w-full h-full object-cover scale-110 workshop-tone"
+        />
       </motion.div>
 
-      <div className="relative z-10 w-full max-w-[1400px] mx-auto px-4 md:px-8 pt-36 md:pt-44 pb-10 text-center">
+      {/* 2 — Gradient veil (parallax, slower) */}
+      <motion.div className="absolute inset-0" style={{ y: overlayY }} aria-hidden="true">
+        <div className="absolute inset-0 bg-gradient-to-b from-black/85 via-black/55 to-[#0a0a0a]" />
+      </motion.div>
+
+      {/* 3 — Faint blueprint grid */}
+      <div className="absolute inset-0 blueprint-grid opacity-60 pointer-events-none" aria-hidden="true" />
+
+      {/* 4 — Ambient copper orbs (2 staggered) */}
+      <CopperGlowOrb size={700} x="78%" y="32%" intensity={0.65} />
+      <CopperGlowOrb size={520} x="14%" y="78%" intensity={0.4} warm delay={4} />
+
+      {/* 5 — Vignette ring */}
+      <div className="absolute inset-0 cinematic-vignette pointer-events-none" aria-hidden="true" />
+
+      {/* 6 — Copper-shimmer (filmic lighting) */}
+      <div className="absolute inset-0 copper-shimmer pointer-events-none opacity-70" aria-hidden="true" />
+
+      {/* 7 — Content */}
+      <div className="relative z-10 w-full max-w-[1400px] mx-auto px-4 md:px-8 pt-36 md:pt-44 pb-12 text-center">
         <motion.div
-          initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7 }}
-          className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-6"
+          className="font-mono text-[11px] uppercase tracking-[0.32em] text-amber-400 mb-6 inline-flex items-center gap-3 justify-center"
         >
-          ◆ Handmade in America · Built to order
+          <span className="inline-block w-8 h-px bg-amber-400" />
+          Handmade in America · Built to order
+          <span className="inline-block w-8 h-px bg-amber-400" />
         </motion.div>
 
         <motion.h1
-          initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1, duration: 0.9 }}
-          className="font-display text-[56px] sm:text-[80px] md:text-[120px] lg:text-[148px] leading-[0.92]"
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1, duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
+          className="font-display text-[56px] sm:text-[80px] md:text-[120px] lg:text-[148px] leading-[0.9] tracking-tighter drop-shadow-[0_8px_32px_rgba(0,0,0,0.7)]"
         >
-          Find Something <span className="text-[#ff4500]">Built</span>
-          <br /><span className="text-outline">By Hand.</span>
+          Raw materials.
+          <br />
+          <span className="text-[#ff4500]">Radical</span>{" "}
+          <span className="text-outline">craft.</span>
         </motion.h1>
 
         <motion.p
-          initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.25, duration: 0.7 }}
-          className="font-mono text-sm md:text-base text-[#a3a3a3] max-w-2xl mx-auto mt-6 leading-relaxed"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.28, duration: 0.7 }}
+          className="font-mono text-sm md:text-base text-zinc-300 max-w-2xl mx-auto mt-6 leading-relaxed"
         >
-          Custom <strong className="text-[#e5e5e5] font-normal">metal art</strong>, handmade
-          {" "}<strong className="text-[#e5e5e5] font-normal">decor</strong>, and one-of-a-kind
-          {" "}<strong className="text-[#e5e5e5] font-normal">creations</strong>{" "}
-          — built by real American makers in real workshops. No mass production. No drop-shipping.
-          Backed by the maker who built it.
+          The marketplace for{" "}
+          <strong className="text-white font-normal">CNC</strong>,{" "}
+          <strong className="text-white font-normal">plasma</strong>, and{" "}
+          <strong className="text-white font-normal">custom fabrication</strong>.
+          Commission real makers in real workshops — no mass production, no drop-shipping,
+          backed by the hands that built it.
         </motion.p>
 
-        {/* PRIMARY + SECONDARY CTAs — replaces the 4-button stack with two
-            clear paths: ready-to-ship vs. commission a custom piece. */}
         <motion.div
-          initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.38, duration: 0.7 }}
+          initial={{ opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4, duration: 0.7 }}
           className="mt-9 flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3"
           data-testid="hero-ctas"
         >
           <Link
             to="/shop"
-            className="btn-industrial btn-primary inline-flex items-center justify-center gap-2 text-sm px-7 py-3.5"
+            className="btn-industrial btn-primary inline-flex items-center justify-center gap-2 text-sm px-7 py-3.5 shadow-[0_0_24px_-4px_rgba(255,69,0,0.55)] hover:shadow-[0_0_40px_-4px_rgba(255,69,0,0.85)] transition-shadow"
             data-testid="hero-cta-shop"
           >
-            Shop handmade <ArrowRight size={16} />
+            Explore builds <ArrowRight size={16} />
           </Link>
           <Link
             to="/custom-order"
-            className="inline-flex items-center justify-center gap-2 px-7 py-3.5 border border-[#525252] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-xs uppercase tracking-[0.22em] text-[#e5e5e5] transition"
+            className="inline-flex items-center justify-center gap-2 px-7 py-3.5 border border-amber-500/40 hover:border-amber-400 hover:text-amber-300 backdrop-blur-md bg-black/30 font-mono text-xs uppercase tracking-[0.22em] text-zinc-200 transition-colors"
             data-testid="hero-cta-custom"
           >
-            <Wrench size={14} /> Start a custom order
+            <Wrench size={14} /> Commission a maker
           </Link>
         </motion.div>
 
         <motion.form
           onSubmit={onSearch}
-          initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5, duration: 0.7 }}
-          className="mt-10 max-w-2xl mx-auto flex items-stretch border border-[#262626] bg-black/60 backdrop-blur-md focus-within:border-[#ff4500] transition"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.52, duration: 0.7 }}
+          className="mt-10 max-w-2xl mx-auto flex items-stretch border border-amber-500/30 bg-black/70 backdrop-blur-md focus-within:border-amber-400 transition-colors"
           data-testid="hero-search-form"
         >
-          <Search size={16} className="ml-4 self-center text-[#a3a3a3]" />
+          <Search size={16} className="ml-4 self-center text-amber-400" />
           <input
-            value={q} onChange={(e) => setQ(e.target.value)}
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
             placeholder="Search wall art, custom signs, address numbers…"
             data-testid="hero-search-input"
-            className="flex-1 bg-transparent px-4 py-4 font-mono text-sm outline-none placeholder:text-[#525252]"
+            className="flex-1 bg-transparent px-4 py-4 font-mono text-sm outline-none placeholder:text-zinc-500"
           />
-          <button type="submit" data-testid="hero-search-btn" className="px-6 md:px-8 bg-[#ff4500] text-white font-mono text-xs uppercase tracking-[0.22em] hover:bg-[#cc3700] transition">
+          <button
+            type="submit"
+            data-testid="hero-search-btn"
+            className="px-6 md:px-8 bg-[#ff4500] text-white font-mono text-xs uppercase tracking-[0.22em] hover:bg-[#cc3700] transition-colors"
+          >
             Search →
           </button>
         </motion.form>
 
         <motion.div
-          initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-          transition={{ delay: 0.6, duration: 0.6 }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.62, duration: 0.6 }}
           className="mt-6 flex flex-wrap items-center justify-center gap-2"
           data-testid="hero-pills"
         >
-          <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#525252] mr-2">Popular →</span>
+          <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500 mr-2">
+            Popular →
+          </span>
           {PILLS.map((p) => (
             <button
-              key={p} onClick={() => nav(`/shop?q=${encodeURIComponent(p)}`)}
-              className="px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] transition"
-            >{p}</button>
+              key={p}
+              onClick={() => nav(`/shop?q=${encodeURIComponent(p)}`)}
+              className="px-3 py-1.5 border border-amber-500/20 hover:border-amber-400 hover:text-amber-300 font-mono text-[10px] uppercase tracking-[0.22em] text-zinc-300 transition bg-black/30 backdrop-blur-sm"
+            >
+              {p}
+            </button>
           ))}
         </motion.div>
 
-        <div className="mt-8 flex items-center justify-center gap-8 font-mono text-[10px] uppercase tracking-[0.25em] text-[#525252]">
-          <span className="flex items-center gap-2"><span className="w-1.5 h-1.5 bg-[#ff4500] animate-pulse" /> 12 makers · live now</span>
-          <span className="hidden md:inline">Plasma · Laser · Router</span>
-          <span className="hidden md:flex items-center gap-2"><ArrowDown size={12} /> Scroll</span>
+        <div className="mt-8 flex items-center justify-center gap-8 font-mono text-[10px] uppercase tracking-[0.28em] text-zinc-500">
+          <span className="flex items-center gap-2">
+            <span className="w-1.5 h-1.5 bg-amber-400 animate-pulse" /> 12 makers · live now
+          </span>
+          <span className="hidden md:inline text-amber-500/60">Plasma · Laser · Router</span>
+          <span className="hidden md:flex items-center gap-2">
+            <ArrowDown size={12} /> Scroll
+          </span>
         </div>
       </div>
     </section>

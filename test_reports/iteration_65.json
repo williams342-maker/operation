@@ -1,0 +1,87 @@
+{
+  "summary": "iter217 cinematic homepage reskin validated end-to-end. Hero, FeaturedBuildsRail, NEW CinematicMomentsStrip, AiDiscoverySearch, MeetTheMakers, and WhyWeExist all render correctly on desktop (1920x1080) and mobile (375x812). All requested testids present, all CTAs route correctly (/clips, /custom-order, /shop), no React/JS console errors, no horizontal overflow on mobile, prefers-reduced-motion respected (no errors). Workshop-tone, copper-glow, cinematic-frame, and blueprint-grid CSS treatments are present in DOM at expected counts. The /seed-clips/*/clip.mp4 sources 404 as expected and the onError fallback hides the <video> element — poster + cinematic-frame + copper-shimmer carry the panel filmic feel correctly. Zero new bugs introduced by this redesign iteration.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/community/showcase/recent", "issue": "Returns 500 (both strict=false and only_makers=true variants). PRE-EXISTING — unrelated to iter217 frontend reskin. Surfaces only in console as a failed fetch; UI gracefully shows empty/fallback state and page render is not blocked."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_results_detail": {
+    "hero": {
+      "hero-section": "PASS",
+      "hero-cta-shop": "PASS",
+      "hero-cta-custom": "PASS",
+      "hero-search-form": "PASS",
+      "hero-pills": "PASS",
+      "headline_text_correct": "PASS ('Raw materials. Radical craft.')",
+      "blueprint-grid_present": "PASS (5 instances on page)",
+      "copper-glow_present": "PASS (11 instances on page)",
+      "workshop-tone_present": "PASS (16 instances on page)"
+    },
+    "featured_builds": {
+      "home-featured-builds": "PASS",
+      "cinematic-frame_treatment": "PASS (18 .cinematic-frame elements page-wide)"
+    },
+    "cinematic_moments_strip": {
+      "home-cinematic-moments": "PASS (mounted between FeaturedBuildsRail and AiDiscoverySearch as expected)",
+      "panels_plasma_welding_laser": "PASS (all 3 testids present)",
+      "panel_labels": "PASS (home-cinematic-moments-plasma-label etc.)",
+      "panel_links": "PASS (home-cinematic-moments-plasma-link etc.)",
+      "clips-cta_navigates_to_/clips": "PASS (verified click → URL becomes /clips)",
+      "lazy_video_behavior": "EXPECTED FALLBACK — <video> mounts via IntersectionObserver, onError fires on 404, element is unmounted (videoFailed=true), poster image remains visible. Per spec this is intended preview behavior.",
+      "single_column_stack_on_mobile": "PASS (375px viewport, no horizontal overflow)"
+    },
+    "ai_discovery_search": {
+      "home-ai-discovery": "PASS (testid unchanged, palette-only update)"
+    },
+    "meet_the_makers": {
+      "home-meet-makers": "PASS",
+      "cards_rendered": "PASS (4 cinematic-frame cards visible in screenshot — Anvil Row Forge, River & Resin, Iron & Oak Studio, Hidehouse Craft)",
+      "founding_maker_amber_pill": "PASS (visible in screenshot)"
+    },
+    "why_we_exist": {
+      "home-why-we-exist": "PASS",
+      "headline_text": "PASS ('Big marketplaces broke handmade. We're rebuilding it.' — confirmed visible in screenshot)",
+      "three_pillars_with_index_numbers": "PASS (01 Vetted American Makers / 02 Built to Order / 03 Made in Real Shops Across America)",
+      "about_link_testid": "PASS (home-why-we-exist-about-link — NOTE: request mentioned 'why-we-exist-about-link' but actual implementation uses scoped parent prefix, which is correct testid pattern)",
+      "apply_link_testid": "PASS (home-why-we-exist-apply-link)"
+    },
+    "accessibility_motion": {
+      "prefers-reduced-motion_respect": "PASS — page renders without errors when reduced_motion='reduce' is set; no console errors related to motion."
+    },
+    "responsive_mobile": {
+      "viewport_375x812": "PASS",
+      "horizontal_overflow": "NONE (scrollWidth === clientWidth === 375)",
+      "all_5_redesigned_sections_render": "PASS"
+    },
+    "console_health": {
+      "react_errors": 0,
+      "undefined_property_errors": 0,
+      "blocking_image_404s": 0,
+      "incidental_500s_on_community_showcase_endpoint": "Pre-existing backend issue, see backend_issues.minor"
+    }
+  },
+  "test_report_links": [],
+  "action_items": [
+    "(Optional, backend) Investigate pre-existing 500 on /api/community/showcase/recent — unrelated to iter217 but spamming the console.",
+    "(Cosmetic, optional) Consider documenting in the request spec that WhyWeExist link testids are scoped under the parent: home-why-we-exist-about-link / home-why-we-exist-apply-link (request mentioned the un-prefixed form). The implementation is correct; only the request text was slightly off."
+  ],
+  "critical_code_review_comments": [
+    "CinematicMomentsStrip.jsx is well-structured: lazy IntersectionObserver mount, graceful onError fallback to poster, prefers-reduced-motion skips video entirely. No fixes needed.",
+    "Hero.jsx uses scrollYProgress + useReducedMotion correctly to disable parallax — clean motion-respecting pattern.",
+    "All new components ship with explicit data-testids on every interactive element. Good test hygiene."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (frontend-only iter; pre-existing /community/showcase/recent 500 noted)", "frontend": "100% (all features in scope pass)"},
+  "test_credentials": "N/A (no auth required for this iter)",
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "iter217 cinematic homepage reskin is fully verified — hero/featured-builds/cinematic-moments/ai-discovery/meet-makers/why-we-exist all green. The only console noise is a pre-existing backend 500 on /api/community/showcase/recent (RecentShowcaseStrip component — far below the fold). Cinematic Moments video lazy mount + onError fallback is working as designed; the missing /seed-clips/*/clip.mp4 assets are expected and gracefully degrade to poster-only. Reduced-motion respected. Mobile 375px stacks cleanly. Use this as regression baseline.",
+  "rca of the issue": "N/A — no functional regressions found."
+}

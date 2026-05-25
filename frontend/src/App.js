@@ -70,6 +70,7 @@ import BuiltInRealWorkshops from "./components/sections/BuiltInRealWorkshops";
 import TrendingForumStrip from "./components/TrendingForumStrip";
 import TrendingJournalRail from "./components/TrendingJournalRail";
 import FeaturedBuildsRail from "./components/FeaturedBuildsRail";
+import CinematicMomentsStrip from "./components/CinematicMomentsStrip";
 import MeetTheMakers from "./components/MeetTheMakers";
 import AiDiscoverySearch from "./components/AiDiscoverySearch";
 import { Toaster } from "sonner";
@@ -89,6 +90,7 @@ const Home = () => {
       <SupportVeteransStrip />
       <Hero />
       <FeaturedBuildsRail testId="home-featured-builds" />
+      <CinematicMomentsStrip testId="home-cinematic-moments" />
       <AiDiscoverySearch testId="home-ai-discovery" />
       <VelocityProofStrip testId="home-velocity" />
       <WhyWeExist testId="home-why-we-exist" />

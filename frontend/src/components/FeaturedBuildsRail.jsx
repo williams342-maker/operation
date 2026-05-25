@@ -70,46 +70,54 @@ export default function FeaturedBuildsRail({ testId = "home-featured-builds" }) 
   if (ordered.length < 3) return null;
   return (
     <section
-      className="w-full py-14 md:py-16 bg-gradient-to-br from-[#1a1208] via-[#0f0a05] to-[#0a0a0a] border-b border-amber-900/30"
+      className="relative w-full py-16 md:py-20 overflow-hidden bg-[#0a0705] border-b border-amber-900/30"
       data-testid={testId}
     >
-      <div className="w-full max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12">
+      {/* Ambient stage lighting — one warm orb top-right, one cool amber bottom-left */}
+      <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
+        <div className="absolute top-[15%] right-[5%] w-[600px] h-[600px] copper-glow opacity-50" />
+        <div className="absolute bottom-[10%] left-[8%] w-[400px] h-[400px] copper-glow copper-glow-warm opacity-30" />
+      </div>
+      <div className="absolute inset-0 blueprint-grid opacity-40 pointer-events-none" aria-hidden="true" />
+
+      <div className="relative z-10 w-full max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12">
         <div className="flex items-end justify-between mb-3 gap-4 flex-wrap">
           <div>
-            <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-amber-400 mb-2 inline-flex items-center gap-2">
+            <div className="font-mono text-[11px] uppercase tracking-[0.32em] text-amber-400 mb-3 inline-flex items-center gap-2">
+              <span className="inline-block w-6 h-px bg-amber-400" />
               <Sparkles size={12} className="text-amber-400" />
-              ◆ Featured Builds · Platform Showcase
+              Featured Builds · Platform Showcase
             </div>
-            <h2 className="font-display text-3xl md:text-5xl lg:text-6xl">
-              Built to set the bar
+            <h2 className="font-display text-4xl md:text-5xl lg:text-6xl tracking-tighter">
+              Built to set the bar.
             </h2>
           </div>
           <div className="flex items-center gap-3">
             <button
               onClick={() => scroll(-1)} aria-label="Scroll left"
               data-testid={`${testId}-scroll-left`}
-              className="hidden md:inline-flex w-10 h-10 border border-amber-900/60 hover:border-amber-400 hover:text-amber-300 items-center justify-center transition"
+              className="hidden md:inline-flex w-10 h-10 border border-amber-700/60 hover:border-amber-400 hover:text-amber-300 hover:bg-amber-500/10 items-center justify-center transition-colors"
             >
               <ChevronLeft size={18} />
             </button>
             <button
               onClick={() => scroll(1)} aria-label="Scroll right"
               data-testid={`${testId}-scroll-right`}
-              className="hidden md:inline-flex w-10 h-10 border border-amber-900/60 hover:border-amber-400 hover:text-amber-300 items-center justify-center transition"
+              className="hidden md:inline-flex w-10 h-10 border border-amber-700/60 hover:border-amber-400 hover:text-amber-300 hover:bg-amber-500/10 items-center justify-center transition-colors"
             >
               <ChevronRight size={18} />
             </button>
             <Link
               to="/shop?featured=examples"
               data-testid={`${testId}-view-all`}
-              className="industrial-link font-mono text-[11px] uppercase tracking-[0.22em] text-amber-300 hover:text-amber-200 whitespace-nowrap"
+              className="industrial-link font-mono text-[11px] uppercase tracking-[0.22em] text-amber-300 hover:text-amber-100 whitespace-nowrap"
             >
               View all examples →
             </Link>
           </div>
         </div>
 
-        <p className="font-mono text-[11px] text-[#a3a3a3] mb-7 max-w-2xl leading-relaxed">
+        <p className="font-mono text-[11px] text-zinc-400 mb-8 max-w-2xl leading-relaxed">
           ✦ Curated examples while our maker catalog grows. Every build here
           is staged by the Crafters Market workshop team — not for sale yet,
           just to show what's possible. Listings from real makers fill the
@@ -126,8 +134,8 @@ export default function FeaturedBuildsRail({ testId = "home-featured-builds" }) 
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.1 }}
-              transition={{ delay: (i % 4) * 0.06, duration: 0.55 }}
-              className="snap-start flex-shrink-0 w-[280px] md:w-[340px] bg-[#0e0a06] border border-amber-900/30 hover:border-amber-400/70 transition-colors duration-500"
+              transition={{ delay: (i % 4) * 0.08, duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
+              className="cinematic-frame snap-start flex-shrink-0 w-[280px] md:w-[340px] group"
               data-testid={`featured-build-${p.slug}`}
             >
               <Link to={`/shop/${p.slug}`} className="block">
@@ -135,41 +143,38 @@ export default function FeaturedBuildsRail({ testId = "home-featured-builds" }) 
                   <img
                     src={p.images?.[0]}
                     alt={p.title}
-                    className="absolute inset-0 w-full h-full object-cover media-img hover:scale-105 transition duration-700"
+                    className="absolute inset-0 w-full h-full object-cover workshop-tone group-hover:scale-[1.06] group-hover:filter-none transition-all duration-[900ms] ease-out"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-                  <span className="tag absolute top-3 left-3 text-amber-300 border-amber-400/70 bg-black/60 text-[9px]">
-                    ✦ EXAMPLE
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" />
+                  <div className="absolute inset-0 cinematic-vignette pointer-events-none opacity-60" />
+                  <span className="absolute top-3 left-3 px-2 py-1 bg-amber-500 text-black font-mono text-[9px] uppercase tracking-[0.28em] font-bold">
+                    ✦ Example
                   </span>
-                  <span className="tag absolute top-3 right-3 text-[#ff4500] border-[#ff4500] bg-black/60 text-[9px]">
+                  <span className="absolute top-3 right-3 px-2 py-1 bg-black/70 backdrop-blur-sm border border-[#ff4500]/60 text-[#ff4500] font-mono text-[9px] uppercase tracking-[0.22em]">
                     {p.technique}
                   </span>
-                  <div className="absolute bottom-3 right-3 w-9 h-9 border border-amber-300/50 hover:bg-amber-500 hover:border-amber-500 transition flex items-center justify-center">
+                  <div className="absolute bottom-3 right-3 w-10 h-10 border border-amber-300/60 bg-black/40 backdrop-blur-sm group-hover:bg-amber-500 group-hover:border-amber-500 transition-colors flex items-center justify-center">
                     <ArrowUpRight size={16} className="text-white" />
                   </div>
                 </div>
-                <div className="p-4">
-                  <div className="font-display text-xl mb-1 line-clamp-2 min-h-[3rem]">{p.title}</div>
-                  <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-3 line-clamp-1">
+                <div className="relative z-10 p-5">
+                  <div className="font-display text-xl md:text-2xl mb-1 line-clamp-2 min-h-[3rem] tracking-tight">{p.title}</div>
+                  <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-zinc-500 mb-3 line-clamp-1">
                     {p.category}
                   </div>
                   <div className="flex items-end justify-between">
-                    <div className="font-display text-2xl text-amber-300">${p.price.toFixed(0)}</div>
-                    <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#737373]">
+                    <div className="font-display text-2xl text-amber-300 tracking-tight">${p.price.toFixed(0)}</div>
+                    <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-zinc-600">
                       reference price
                     </div>
                   </div>
                 </div>
               </Link>
-              {/* Lead-gen CTA — turns the visual example into a commission
-                  funnel. Sits OUTSIDE the main <Link> so a click here
-                  routes straight to the custom-order form pre-loaded with
-                  this listing's slug as a reference rather than bouncing
-                  to the example product page. */}
+              {/* Lead-gen CTA — turns the visual example into a commission funnel. */}
               <Link
                 to={`/custom-order?ref=${encodeURIComponent(p.slug)}`}
                 onClick={(e) => e.stopPropagation()}
-                className="block border-t border-amber-900/40 px-4 py-3 font-mono text-[10px] uppercase tracking-[0.22em] text-amber-300 hover:bg-amber-900/25 transition-colors inline-flex items-center justify-between w-full"
+                className="relative z-10 block border-t border-amber-900/50 px-5 py-3 font-mono text-[10px] uppercase tracking-[0.22em] text-amber-300 hover:bg-amber-500/15 hover:text-amber-100 transition-colors inline-flex items-center justify-between w-full"
                 data-testid={`featured-build-commission-${p.slug}`}
               >
                 <span>◆ Inspired? Commission a real maker</span>

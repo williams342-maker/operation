@@ -1,6 +1,57 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-25 — iter217 · Cinematic homepage identity · Hero + key rails reskin ✅
+
+User direction: "Your homepage needs a more cinematic identity. Right now the design is functional and clean, but emotionally flat." Replaced generic dark gradients with a layered Industrial Luxury treatment (charcoal + molten copper + warm orange sparks) across the hero and 5 key rails. **Hybrid implementation** per user choice — static cinematic posters with optional looping video sources, zero new Sora budget spend.
+
+### New reusable foundation (`/app/frontend/src/index.css`)
+- `.cinematic-frame` — sharp-edged framed surface with inset shadow + amber-glow hover. Used on Featured Builds cards, Meet the Makers cards, Cinematic Moments panels, Why We Exist pillars.
+- `.copper-glow` / `.copper-glow-warm` — radial ambient orb. Pair with the new `<CopperGlowOrb/>` component for framer-motion-driven slow drift.
+- `.copper-drift` — 16s ease-in-out keyframe drift; respects `prefers-reduced-motion`.
+- `.blueprint-grid` — faint amber gridline mask-radial overlay (workshop blueprint vibe).
+- `.copper-shimmer` — 8s linear scanline shimmer; gives panels a "film projector" feel even without video.
+- `.cinematic-vignette` — radial darken for legibility.
+- `.workshop-tone` / `.portrait-duotone` — desaturate/warm-tint treatments that bloom into full color on hover.
+
+### New components
+- **`<CopperGlowOrb/>`** — reusable framer-motion ambient glow. Drifts slowly when motion allowed; pins on `useReducedMotion`. Configurable size/position/intensity/warm-vs-cool/delay.
+- **`<CinematicMomentsStrip/>`** — NEW homepage section between Featured Builds and AI Discovery. 3 filmic panels (Plasma · Welding · Laser) with cinematic-frame treatment, copper-shimmer scanline, ambient glow orbs, blueprint backdrop. Each panel has a lazy-mounted `<video autoplay muted loop playsinline>` with `IntersectionObserver` gate (200px rootMargin) — only mounts when scrolled near viewport, never on reduced-motion. Graceful `onError` fallback to poster-only when no real maker clip exists yet at `/seed-clips/*/clip.mp4`. CTA strip links to `/clips`.
+
+### Hero redesign (`Hero.jsx`)
+- New copy: **"Raw materials. Radical craft."** with outline-stroke treatment on "craft."
+- 7-layer composition: workshop photo (parallax) → black gradient veil (slower parallax) → blueprint grid → 2 copper-glow orbs (one warm) → vignette → copper-shimmer → content.
+- Tracked-tighter typography, copper-bordered search input, amber-glow primary CTA shadow.
+- All scroll transforms + orb drift + shimmer auto-disable on `prefers-reduced-motion`.
+
+### FeaturedBuildsRail reskin
+- Section now overflow-hidden with 2 ambient copper orbs + blueprint backdrop. Cards adopt `.cinematic-frame` (sharp edges, inset shadow, amber-glow hover). ✦ EXAMPLE pill flipped to high-contrast amber-on-black for stronger gallery-print feel. Hover: image desats clear (`group-hover:filter-none`) and scales 6%. Commission CTA strip restyled with brighter amber hover.
+
+### MeetTheMakers reskin
+- Section now overflow-hidden with 2 copper orbs + blueprint backdrop. Headline uses `text-outline-orange` accent. Cards adopt `.cinematic-frame`. Workshop covers use `.workshop-tone` desat/warm-tint with a clean filter on hover (group-hover:filter-none). Portrait wrapper gets an amber ring on hover. FOUNDING MAKER pill flipped to high-contrast amber-on-black.
+
+### NEW: `<WhyWeExist/>` cinematic overhaul
+- Replaced flat grid with **oversized typographic anchor** (`text-5xl md:text-7xl lg:text-8xl tracking-tighter`). Headline: "Big marketplaces broke handmade. We're rebuilding it." with `[#ff4500]` accent + amber drop-shadow.
+- **Scroll-driven copper glow** — central 900px ambient orb whose opacity + scale are driven by `useScroll`/`useTransform`. Brightens as the section enters viewport (0.15 → 0.85 → 0.95 → 0.3), fades as it exits. `useReducedMotion` pins to a static 0.5.
+- Pillar cards now read as workshop signage: oversized 5xl/6xl number index, framed icon chip, amber rule divider, monospace body. Adopts `.cinematic-frame`.
+- CTAs restyled with amber bordered buttons.
+
+### AiDiscoverySearch palette reskin (no layout change)
+- Replaced the purple+orange dual-glow with a Forge-palette amber+orange copper-only setup so the section reads cohesively with Hero/Featured Builds. Section bg dropped the navy gradient → flat `#0a0a0a`. Border swapped to `amber-900/20`. No testid changes, no functional changes.
+
+### App.js
+- Mounted `<CinematicMomentsStrip/>` between `<FeaturedBuildsRail/>` and `<AiDiscoverySearch/>` so the homepage narrative now reads: hero → curated builds → cinematic workshop moments → describe what you want → proof → why we exist → meet the people → product rails.
+
+### Out of scope (untouched as briefed)
+ShopOfTheWeek, TopShowcaseStrip, TrendingForumStrip, category grid, product rails, footer, nav. AiDiscoverySearch functionality (testids, search logic) preserved exactly.
+
+### Mobile + accessibility guardrails
+- All `<video>` elements use `playsInline muted autoplay loop preload="none"` with lazy IntersectionObserver mount.
+- `prefers-reduced-motion: reduce` → kills copper drift, shimmer, scroll-driven glow scale, and skips video mounts entirely (poster-only path).
+- No font swap (kept JetBrains Mono + Anton). No layout-breaking changes.
+
+
+
 ## 2026-05-25 — iter216 · Weekly SEO ping cron (IndexNow + GSC) ✅
 
 ### Backend `/app/backend/scheduler.py`

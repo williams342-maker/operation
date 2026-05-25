@@ -75,15 +75,15 @@ export default function AiDiscoverySearch({ testId = "home-ai-discovery", compac
 
   return (
     <section
-      className={`w-full ${compact ? "py-8 md:py-10" : "py-14 md:py-20"} bg-gradient-to-b from-[#0a0a0a] via-[#0e0a14] to-[#0a0a0a] ${compact ? "" : "border-b border-[#262626]"} relative overflow-hidden`}
+      className={`w-full ${compact ? "py-8 md:py-10" : "py-14 md:py-20"} bg-[#0a0a0a] ${compact ? "" : "border-b border-amber-900/20"} relative overflow-hidden`}
       data-testid={testId}
     >
-      {/* Soft purple/orange glow behind the search box — signals
-          this is the "smart" surface and pulls the eye down from the
-          hero into the section. */}
+      {/* Soft copper/orange ambient glow — signals the "smart" surface
+          and pulls the eye into the section. Replaced the purple +
+          orange dual-glow with a Forge-palette copper-only setup. */}
       <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[80%] h-[60%] bg-[#ff4500] opacity-[0.04] blur-[120px] rounded-full" />
-        <div className="absolute top-1/3 left-1/4 w-[40%] h-[40%] bg-purple-500 opacity-[0.05] blur-[100px] rounded-full" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[70%] h-[60%] bg-amber-500 opacity-[0.05] blur-[120px] rounded-full" />
+        <div className="absolute top-1/3 left-1/4 w-[35%] h-[40%] bg-[#ff4500] opacity-[0.06] blur-[100px] rounded-full" />
       </div>
 
       <div className={`w-full ${compact ? "max-w-[1100px]" : "max-w-[1100px]"} mx-auto px-4 md:px-8 relative z-10`}>
