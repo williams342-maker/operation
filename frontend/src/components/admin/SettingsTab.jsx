@@ -26,6 +26,9 @@ import {
   fetchClipsSeedStatus,
   generateOneClipSeed,
   purgeClipsSeed,
+  fetchOgDiag,
+  fetchSeoDiag,
+  adminPingIndexNow,
 } from "../../lib/api";
 import { refreshSiteSettings } from "../../hooks/useSiteSettings";
 import { RowsSkeleton } from "../Skeleton";
@@ -619,7 +622,6 @@ function OperatorOpsChecklistCard() {
   // a deep-link to the existing tab that handles deeper actions. The
   // backing diagnostic endpoints are all unchanged — this is purely a
   // single-pane-of-glass surface so nothing gets forgotten on deploy day.
-  const API = process.env.REACT_APP_BACKEND_URL;
   const [seoDiag, setSeoDiag] = useState(null);
   const [seoBusy, setSeoBusy] = useState(false);
   const [seoErr, setSeoErr] = useState("");
@@ -632,11 +634,9 @@ function OperatorOpsChecklistCard() {
   const runSeoDiag = async () => {
     setSeoBusy(true); setSeoErr("");
     try {
-      const r = await fetch(`${API}/api/seo/diag`);
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      setSeoDiag(await r.json());
+      setSeoDiag(await fetchSeoDiag());
     } catch (e) {
-      setSeoErr(e.message || "Failed");
+      setSeoErr(e?.message || "Failed");
     } finally { setSeoBusy(false); }
   };
   useEffect(() => { runSeoDiag(); /* eslint-disable-next-line */ }, []);
@@ -649,12 +649,10 @@ function OperatorOpsChecklistCard() {
   const runPrerenderProbe = async () => {
     setPrerenderBusy(true); setPrerenderResult(null);
     try {
-      const r = await fetch(`${API}/api/og/diag`);
-      const ok = r.ok && (await r.headers.get("content-type"))?.includes("application/json");
-      const body = ok ? await r.json() : null;
-      setPrerenderResult({ ok: !!body, status: r.status, body });
+      const body = await fetchOgDiag();
+      setPrerenderResult({ ok: !!body, body });
     } catch (e) {
-      setPrerenderResult({ ok: false, error: e.message });
+      setPrerenderResult({ ok: false, error: e?.message, status: e?.response?.status });
     } finally { setPrerenderBusy(false); }
   };
 
@@ -664,15 +662,12 @@ function OperatorOpsChecklistCard() {
   const runIndexNow = async () => {
     setIndexnowBusy(true); setIndexnowResult(null);
     try {
-      const r = await fetch(`${API}/api/admin/seo/ping`, {
-        method: "POST", headers: adminAuthHeaders(),
-      });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      setIndexnowResult(await r.json());
+      const r = await adminPingIndexNow();
+      setIndexnowResult(r);
       toast.success("IndexNow ping submitted.");
     } catch (e) {
-      toast.error(e?.message || "Ping failed.");
-      setIndexnowResult({ ok: false, error: e.message });
+      toast.error(e?.response?.data?.detail || e?.message || "Ping failed.");
+      setIndexnowResult({ ok: false, error: e?.message });
     } finally { setIndexnowBusy(false); }
   };
 

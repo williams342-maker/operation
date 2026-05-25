@@ -845,6 +845,12 @@ export const generateOneClipSeed = (model = "sora-2") =>
   }).then((r) => r.data);
 export const purgeClipsSeed = () =>
   http.post("/admin/seed/clips/purge", null, { headers: adminAuthHeaders() }).then((r) => r.data);
+
+// Operator ops checklist helpers
+export const fetchOgDiag = () => http.get("/og/diag").then((r) => r.data);
+export const fetchSeoDiag = () => http.get("/seo/diag").then((r) => r.data);
+export const adminPingIndexNow = () =>
+  http.post("/admin/seo/ping", null, { headers: adminAuthHeaders() }).then((r) => r.data);
 export const generateOneCommunityDesign = () =>
   http.post("/admin/seed/community-designs/generate-one", null, { headers: adminAuthHeaders(), timeout: 120000 }).then((r) => r.data);
 export const generateBatchCommunityDesigns = (count = 5) =>
