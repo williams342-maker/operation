@@ -13,6 +13,7 @@ import VeteranBadge from "../components/VeteranBadge";
 import BackorderRequestModal from "../components/BackorderRequestModal";
 import RestockWaitlistModal from "../components/RestockWaitlistModal";
 import RecentShowcaseStrip from "../components/RecentShowcaseStrip";
+import SimilarProductsRail from "../components/SimilarProductsRail";
 import CustomOrderCTA from "../components/CustomOrderCTA";
 import { DetailSkeleton } from "../components/Skeleton";
 
@@ -470,6 +471,11 @@ export default function ProductDetail() {
         title="Buyers who own this"
         testId="product-recent-showcase"
       />
+
+      {/* AI-ranked similar products. Self-hides on LLM failure or
+          empty result so a fresh product page never shows an empty
+          stub rail. */}
+      <SimilarProductsRail slug={p.slug} testId={`product-similar-${p.slug}`} />
 
       {/* Custom-order CTA — scoped to this maker so the brief lands
           straight on their inbox. Highest-margin funnel. */}

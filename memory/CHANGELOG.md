@@ -1,6 +1,39 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-25 — iter205 · AI Discovery · Phase 2 (maker matching + similar products + Shop search) ✅
+
+Completes the AI Discovery story shipped in iter203. Three new surfaces, all powered by Gemini Flash with the same 1-hour in-memory cache + graceful fallback pattern as the homepage search.
+
+### Backend `routers/ai_discovery.py`
+- `POST /api/ai/discovery/match-makers` — accepts a custom-order brief (description + optional project_type + material), ranks the directory by technique/machinery/years/bio fit, returns up to 3 makers with a one-sentence "why this fit" per pick. Validates 20–4000 char brief length.
+- `GET /api/ai/discovery/similar-products/{slug}` — accepts a product slug, returns up to 4 similar products with reasoning ranked by category/material/technique/aesthetic similarity. The seed product is automatically excluded from candidates.
+- Shared cache: similar-products keys as `similar:{slug}`, maker-match keys as `match-makers:{hash(desc+type+material)}`. Both hit the existing 1-hour TTL store.
+
+### Frontend — AI maker matching on `/custom-order`
+- `pages/CustomOrderPage.jsx` → `StepMaker` now accepts `description` + `projectType` props. When the brief is ≥30 chars, auto-fires `aiMatchMakers` once on entering Step 3.
+- Renders a dedicated orange-themed `"◆ AI-suggested makers for your brief"` strip above the rest of the maker directory. Each suggestion is a clickable card with portrait, name, location, and the per-pick reasoning pull-quote.
+- Selected suggestion gets a CheckCircle indicator + filled border (matches existing maker-tile selection state).
+- Tested live: brief "hand-forged iron fire poker with brass handle ring" → matches **Anvil Row Forge** with reasoning *"Direct match for hand-forged fire pokers using coal forge and traditional blacksmithing techniques mentioned in bio."*
+
+### Frontend — "More like this" rail on product pages
+- New `components/SimilarProductsRail.jsx` mounted below `<RecentShowcaseStrip/>` in `pages/ProductDetail.jsx`.
+- Section eyebrow: **"◆ More like this · AI-ranked"** → headline **"You might also love"**. 4-card responsive grid (2/4 column).
+- Each card shows the cover, technique pill, ✦ EXAMPLE pill where applicable, title, price, and an orange-bordered italic reasoning pull-quote.
+- Self-hides on LLM failure or empty result → never shows an empty stub rail.
+- Tested live for `fe-walnut-epoxy-river-table` → returned River-Pour Resin Coaster Set, Industrial Pipe + Oak Bookshelf, Walnut Floating Shelf Trio, End-Grain Butcher Block with sharp materials-driven reasoning.
+
+### Frontend — Compact AI Discovery search on `/shop`
+- `components/AiDiscoverySearch.jsx` now accepts a `compact` prop. When true: reduced vertical padding, smaller headline ("Or describe what you're looking for"), no body-text intro paragraph.
+- Mounted directly under the page title in `pages/ShopPage.jsx` — visitors who land on category pages from search engines can fall back to natural-language search without fiddling with category chips.
+- Same search engine, same caching, same chip examples.
+
+### Verified
+- Both new endpoints tested live with curl; sharp reasoning on both flows.
+- `SimilarProductsRail` screenshot confirms the visual matches the design language of the rest of the AI Discovery surfaces.
+- Lint clean (Python + JS) across all touched files.
+
+
 ## 2026-05-25 — iter204 · One-click seed-content installer for fresh deploys ✅
 
 Solves the "redeployed but the marketplace looks empty" problem permanently. Production databases are independent of preview, so all the seeded content (8 makers, 34 featured products, 23 forum threads, 161 replies, 8 showcase posts) lives only in preview until explicitly replayed. This ships the replay tool as a single admin button.

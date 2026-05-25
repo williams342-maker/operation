@@ -28,7 +28,7 @@ const EXAMPLE_QUERIES = [
   "Memorial plaque with tree of life motif",
 ];
 
-export default function AiDiscoverySearch({ testId = "home-ai-discovery" }) {
+export default function AiDiscoverySearch({ testId = "home-ai-discovery", compact = false }) {
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
   const [results, setResults] = useState(null);   // null = no search yet · [] = no matches
@@ -75,7 +75,7 @@ export default function AiDiscoverySearch({ testId = "home-ai-discovery" }) {
 
   return (
     <section
-      className="w-full py-14 md:py-20 bg-gradient-to-b from-[#0a0a0a] via-[#0e0a14] to-[#0a0a0a] border-b border-[#262626] relative overflow-hidden"
+      className={`w-full ${compact ? "py-8 md:py-10" : "py-14 md:py-20"} bg-gradient-to-b from-[#0a0a0a] via-[#0e0a14] to-[#0a0a0a] ${compact ? "" : "border-b border-[#262626]"} relative overflow-hidden`}
       data-testid={testId}
     >
       {/* Soft purple/orange glow behind the search box — signals
@@ -86,19 +86,28 @@ export default function AiDiscoverySearch({ testId = "home-ai-discovery" }) {
         <div className="absolute top-1/3 left-1/4 w-[40%] h-[40%] bg-purple-500 opacity-[0.05] blur-[100px] rounded-full" />
       </div>
 
-      <div className="w-full max-w-[1100px] mx-auto px-4 md:px-8 relative z-10">
-        <div className="text-center mb-6">
-          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-3 inline-flex items-center gap-2 justify-center">
+      <div className={`w-full ${compact ? "max-w-[1100px]" : "max-w-[1100px]"} mx-auto px-4 md:px-8 relative z-10`}>
+        <div className={`text-center ${compact ? "mb-4" : "mb-6"}`}>
+          <div className={`font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] ${compact ? "mb-1" : "mb-3"} inline-flex items-center gap-2 justify-center`}>
             <Sparkles size={12} className="text-[#ff4500]" />
             ◆ AI Discovery · Beta
           </div>
-          <h2 className="font-display text-3xl md:text-5xl lg:text-6xl mb-3">
-            Describe what you want.
-          </h2>
-          <p className="font-mono text-[12px] text-[#a3a3a3] max-w-xl mx-auto">
-            Plain language. No filters to click. Tell us the piece you have in your head —
-            our AI scans the catalog and surfaces the closest matches with a one-line reason for each.
-          </p>
+          {!compact && (
+            <>
+              <h2 className="font-display text-3xl md:text-5xl lg:text-6xl mb-3">
+                Describe what you want.
+              </h2>
+              <p className="font-mono text-[12px] text-[#a3a3a3] max-w-xl mx-auto">
+                Plain language. No filters to click. Tell us the piece you have in your head —
+                our AI scans the catalog and surfaces the closest matches with a one-line reason for each.
+              </p>
+            </>
+          )}
+          {compact && (
+            <h2 className="font-display text-xl md:text-2xl mb-1">
+              Or describe what you're looking for
+            </h2>
+          )}
         </div>
 
         <form onSubmit={handleSubmit} className="relative mb-4" data-testid={`${testId}-form`}>

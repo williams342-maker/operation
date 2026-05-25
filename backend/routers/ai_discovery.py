@@ -217,3 +217,243 @@ async def ai_discovery_search(body: DiscoveryQuery):
     payload = {"query": q, "results": hydrated, "count": len(hydrated)}
     _cache_set(cache_key, payload)
     return payload
+
+
+# ============================================================================
+# AI Maker Matching — pairs a custom-order brief with the best-fit makers.
+# ============================================================================
+
+class MakerMatchQuery(BaseModel):
+    description: str
+    project_type: Optional[str] = None
+    material: Optional[str] = None
+
+
+async def _load_maker_snippet():
+    """Compact makers view for the LLM. Tagging-friendly: name, slug,
+    location, techniques, machinery, years_crafting, first 240 chars of
+    bio. We omit subscription + finance fields — irrelevant for match
+    quality and they'd inflate the prompt."""
+    cursor = db.makers.find(
+        {"deleted_at": {"$ne": True}},
+        {
+            "_id": 0,
+            "slug": 1, "name": 1, "location": 1, "techniques": 1,
+            "machinery": 1, "years_crafting": 1, "bio": 1, "rating": 1,
+            "is_veteran_owned": 1, "featured_example": 1, "portrait": 1,
+            "cover": 1,
+        },
+    )
+    return await cursor.to_list(200)
+
+
+def _build_maker_blob(items: list) -> str:
+    """Render the maker directory as a numbered compact list for the LLM."""
+    lines = []
+    for i, m in enumerate(items):
+        bio = (m.get("bio") or "").replace("\n", " ")[:240]
+        techs = ", ".join(m.get("techniques") or [])
+        machinery = ", ".join((m.get("machinery") or [])[:5])
+        yc = m.get("years_crafting") or 0
+        vet = " · VETERAN-OWNED" if m.get("is_veteran_owned") else ""
+        lines.append(
+            f"{i+1}. SLUG={m['slug']} | {m['name']} | location={m.get('location','')} | "
+            f"techniques={techs} | machinery={machinery} | years={yc}{vet} | bio={bio}"
+        )
+    return "\n".join(lines)
+
+
+@router.post("/ai/discovery/match-makers")
+async def ai_match_makers(body: MakerMatchQuery):
+    """Given a custom-order brief (description + optional project type
+    and material), rank the top 3 makers most likely to deliver well.
+    Used by the `/custom-order` form right after the visitor fills in
+    the description — nudges briefs to the right person."""
+    desc = (body.description or "").strip()
+    if len(desc) < 20:
+        raise HTTPException(400, "Description must be at least 20 characters.")
+    if len(desc) > 4000:
+        raise HTTPException(400, "Description too long (max 4000 chars).")
+
+    cache_key = "match-makers:" + hashlib.md5(
+        (_normalize_query(desc) + "|" + (body.project_type or "") + "|" + (body.material or "")).encode(),
+    ).hexdigest()
+    cached = _cache_get(cache_key)
+    if cached:
+        return {**cached, "cached": True}
+
+    makers = await _load_maker_snippet()
+    if not makers:
+        return {"matches": [], "fallback": "empty_directory"}
+
+    blob = _build_maker_blob(makers)
+    payload_meta = f"\nProject type: {body.project_type or '(unspecified)'}\nMaterial preference: {body.material or '(unspecified)'}"
+
+    prompt = f"""You're routing a custom-order brief to the best-fit maker on an artisan CNC/maker marketplace. Match by techniques + machinery + experience + bio signals — not by personality or location.
+
+BUYER BRIEF:
+{desc[:2000]}
+{payload_meta}
+
+MAKER DIRECTORY (use SLUG to identify each):
+{blob}
+
+RULES:
+- Return up to 3 makers, ordered best-fit-first. Drop any that aren't a strong match — don't pad.
+- For each pick, write a 1-sentence reason (max 22 words) naming the specific match signal (technique, machinery, years, bio detail).
+- NO marketing language. Plain factual reasoning.
+
+Return ONLY valid JSON. Schema:
+{{"matches": [{{"slug": "...", "reason": "..."}}, ...]}}"""
+
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+    except Exception:
+        return {"matches": [], "fallback": "llm_unavailable"}
+
+    api_key = os.getenv("EMERGENT_LLM_KEY")
+    if not api_key:
+        return {"matches": [], "fallback": "no_api_key"}
+
+    chat = (
+        LlmChat(
+            api_key=api_key,
+            session_id=f"match-makers-{hashlib.md5(desc.encode()).hexdigest()[:8]}",
+            system_message="You match custom-order briefs to artisan makers. Output strict JSON only.",
+        ).with_model("gemini", "gemini-3-flash-preview")
+    )
+
+    try:
+        text = await asyncio.wait_for(chat.send_message(UserMessage(text=prompt)), timeout=20)
+    except Exception as e:
+        logger.warning("match-makers LLM failed: %s", e)
+        return {"matches": [], "fallback": "llm_error"}
+
+    cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip(), flags=re.MULTILINE)
+    try:
+        data = json.loads(cleaned)
+    except Exception:
+        m = re.search(r"\{.*\}", cleaned, re.DOTALL)
+        if not m:
+            return {"matches": [], "fallback": "parse_error"}
+        try:
+            data = json.loads(m.group(0))
+        except Exception:
+            return {"matches": [], "fallback": "parse_error"}
+
+    raw_matches = (data.get("matches") or [])[:3]
+    by_slug = {m["slug"]: m for m in makers}
+    hydrated = []
+    for rm in raw_matches:
+        m = by_slug.get(rm.get("slug"))
+        if not m:
+            continue
+        hydrated.append({**m, "match_reason": rm.get("reason", "")})
+
+    response = {"matches": hydrated, "count": len(hydrated)}
+    _cache_set(cache_key, response)
+    return response
+
+
+# ============================================================================
+# Similar Products — "More like this" on product detail pages.
+# ============================================================================
+
+@router.get("/ai/discovery/similar-products/{slug}")
+async def ai_similar_products(slug: str):
+    """Returns up to 4 products similar to the given product. Used by
+    the ProductDetail page's "More like this" rail. The LLM gets the
+    seed product's attributes + the full catalog blob, ranks by
+    category/material/technique/aesthetic similarity, and returns 4
+    slugs with a one-sentence reason each."""
+    cache_key = f"similar:{slug}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return {**cached, "cached": True}
+
+    seed = await db.products.find_one(
+        {"slug": slug, "deleted_at": None},
+        {
+            "_id": 0, "slug": 1, "title": 1, "category": 1, "technique": 1,
+            "materials": 1, "description": 1, "seo_tags": 1, "colors": 1,
+        },
+    )
+    if not seed:
+        raise HTTPException(404, "Product not found.")
+
+    catalog = await _load_catalog_snippet()
+    # Exclude the seed itself.
+    catalog = [p for p in catalog if p["slug"] != slug]
+    if not catalog:
+        return {"similar": [], "count": 0}
+
+    catalog_blob = _build_catalog_blob(catalog)
+    seed_blob = (
+        f"SEED PRODUCT: {seed['title']} | category={seed['category']} | "
+        f"technique={seed['technique']} | materials={', '.join(seed.get('materials') or [])} | "
+        f"tags={', '.join(seed.get('seo_tags') or [])} | "
+        f"description={(seed.get('description') or '')[:250]}"
+    )
+
+    prompt = f"""You're surfacing "more like this" recommendations on an artisan marketplace product page.
+
+{seed_blob}
+
+CATALOG (use SLUG to identify each):
+{catalog_blob}
+
+RULES:
+- Return up to 4 products that share material, technique, category, or aesthetic with the seed.
+- Order by closest match first. Drop weak matches — don't pad.
+- For each pick, 1-sentence reason (max 18 words) naming the shared signal.
+
+Return ONLY valid JSON. Schema:
+{{"similar": [{{"slug": "...", "reason": "..."}}, ...]}}"""
+
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+    except Exception:
+        return {"similar": [], "fallback": "llm_unavailable"}
+    api_key = os.getenv("EMERGENT_LLM_KEY")
+    if not api_key:
+        return {"similar": [], "fallback": "no_api_key"}
+
+    chat = (
+        LlmChat(
+            api_key=api_key,
+            session_id=f"similar-{slug}",
+            system_message="You rank artisan-marketplace listings by similarity. Output strict JSON only.",
+        ).with_model("gemini", "gemini-3-flash-preview")
+    )
+
+    try:
+        text = await asyncio.wait_for(chat.send_message(UserMessage(text=prompt)), timeout=20)
+    except Exception as e:
+        logger.warning("similar-products LLM failed for %s: %s", slug, e)
+        return {"similar": [], "fallback": "llm_error"}
+
+    cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip(), flags=re.MULTILINE)
+    try:
+        data = json.loads(cleaned)
+    except Exception:
+        m = re.search(r"\{.*\}", cleaned, re.DOTALL)
+        if not m:
+            return {"similar": [], "fallback": "parse_error"}
+        try:
+            data = json.loads(m.group(0))
+        except Exception:
+            return {"similar": [], "fallback": "parse_error"}
+
+    raw = (data.get("similar") or [])[:4]
+    by_slug = {p["slug"]: p for p in catalog}
+    hydrated = []
+    for rs in raw:
+        p = by_slug.get(rs.get("slug"))
+        if not p:
+            continue
+        hydrated.append({**p, "match_reason": rs.get("reason", "")})
+
+    payload = {"similar": hydrated, "count": len(hydrated)}
+    _cache_set(cache_key, payload)
+    return payload
+

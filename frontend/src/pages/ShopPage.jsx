@@ -8,6 +8,7 @@ import { Search, Wrench } from "lucide-react";
 import { useStructuredData } from "../lib/seo";
 import { CATEGORIES } from "./MakerListingEditor/constants";
 import SupportVeteransStrip from "../components/SupportVeteransStrip";
+import AiDiscoverySearch from "../components/AiDiscoverySearch";
 
 // Buyer-facing filter strip. "All" pinned to the front; the rest mirrors
 // the CATEGORIES list makers see in the editor so anything they publish
@@ -113,6 +114,14 @@ export default function ShopPage() {
             </p>
           </div>
         )}
+
+        {/* Compact AI Discovery surface — sits between the title and
+            the category filters so natural-language searchers don't
+            have to fiddle with chips. Auto-hides results into its own
+            block. */}
+        <div className="mb-10 -mx-4 md:-mx-8">
+          <AiDiscoverySearch testId="shop-ai-discovery" compact />
+        </div>
 
         {/* Filters — stacked rows to give all 16 category pills + 5
             technique pills proper room. Was previously a 12-col grid

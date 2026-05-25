@@ -780,6 +780,14 @@ export const installFeaturedSeedFixture = () =>
 // endpoint — no auth headers needed.
 export const aiDiscoverySearch = (q) =>
   http.post("/ai/discovery/search", { q }).then((r) => r.data);
+// AI Maker Matching — given a custom-order brief, returns the top 3
+// makers most likely to deliver well. Used on /custom-order step 2.
+export const aiMatchMakers = (payload) =>
+  http.post("/ai/discovery/match-makers", payload).then((r) => r.data);
+// AI Similar Products — drives the "More like this" rail on product
+// detail pages.
+export const aiSimilarProducts = (slug) =>
+  http.get(`/ai/discovery/similar-products/${encodeURIComponent(slug)}`).then((r) => r.data);
 
 // Video upload (R2)
 export const uploadMakerVideo = (file, onProgress) => {

@@ -6,7 +6,7 @@ import {
   Search, CheckCircle2, Upload as UploadIcon, ArrowLeft, ArrowRight,
 } from "lucide-react";
 import {
-  fetchMakers, submitCustomOrder, uploadCustomOrderDesign,
+  fetchMakers, submitCustomOrder, uploadCustomOrderDesign, aiMatchMakers,
 } from "../lib/api";
 import { useStructuredData } from "../lib/seo";
 import PolicyConsent, { usePolicyConsent } from "../components/PolicyConsent";
@@ -257,14 +257,30 @@ function StepDescribe({ category, form, setForm }) {
 // ============================================================
 //  Step 3 — Choose a maker (or skip = "any maker")
 // ============================================================
-function StepMaker({ value, onPick }) {
+function StepMaker({ value, onPick, description, projectType }) {
   const [makers, setMakers] = useState([]);
   const [q, setQ] = useState("");
   const [specialty, setSpecialty] = useState("");
+  // AI maker matching. Auto-fires once when the visitor lands on Step 3
+  // with a sufficiently detailed brief — surfaces the top 3 picks
+  // before they scroll through the full directory.
+  const [aiMatches, setAiMatches] = useState(null);  // null = not loaded · [] = loaded but empty
+  const [aiBusy, setAiBusy] = useState(false);
 
   useEffect(() => {
     fetchMakers().then(setMakers).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    const desc = (description || "").trim();
+    if (desc.length < 30 || aiMatches !== null) return;
+    setAiBusy(true);
+    aiMatchMakers({ description: desc, project_type: projectType || null })
+      .then((r) => setAiMatches(Array.isArray(r.matches) ? r.matches : []))
+      .catch(() => setAiMatches([]))
+      .finally(() => setAiBusy(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [description, projectType]);
 
   const specialties = useMemo(() => {
     const set = new Set();
@@ -311,6 +327,66 @@ function StepMaker({ value, onPick }) {
           {specialties.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
       </div>
+
+      {/* AI-suggested matches — auto-fires once the brief is detailed
+          enough. Stays above the "any maker" CTA so the recommended
+          picks are the first faces the visitor sees. */}
+      {(aiBusy || (aiMatches && aiMatches.length > 0)) && (
+        <div
+          className="border border-[#ff4500]/40 bg-[#1a0a05]/40 p-5 mb-6"
+          data-testid="co-ai-maker-suggestions"
+        >
+          <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#ff4500] mb-3 inline-flex items-center gap-2">
+            ◆ AI-suggested makers for your brief
+          </div>
+          {aiBusy && (
+            <div className="font-mono text-[11px] text-[#a3a3a3]">Reading your brief…</div>
+          )}
+          {!aiBusy && aiMatches?.length > 0 && (
+            <div className="grid md:grid-cols-3 gap-3">
+              {aiMatches.map((m) => {
+                const picked = value === m.slug;
+                return (
+                  <button
+                    type="button"
+                    key={m.slug}
+                    onClick={() => onPick(m.slug)}
+                    className={`text-left border p-4 transition ${
+                      picked
+                        ? "border-[#ff4500] bg-[#1a0a05]"
+                        : "border-[#262626] hover:border-[#ff4500] bg-[#0a0a0a]"
+                    }`}
+                    data-testid={`co-ai-suggested-${m.slug}`}
+                  >
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="w-12 h-12 bg-[#1a1a1a] overflow-hidden flex-shrink-0">
+                        {m.portrait
+                          ? <img src={m.portrait} alt="" className="w-full h-full object-cover" />
+                          : <div className="w-full h-full bg-gradient-to-br from-[#ff4500] to-[#cc3700] flex items-center justify-center text-white font-display">{(m.name || "").slice(0, 2).toUpperCase()}</div>}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-display text-base leading-tight line-clamp-1">{m.name}</div>
+                        <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#a3a3a3] line-clamp-1">
+                          {m.location || ""}
+                        </div>
+                      </div>
+                      {picked && <CheckCircle2 size={18} className="text-[#ff4500] ml-auto flex-shrink-0" />}
+                    </div>
+                    {m.match_reason && (
+                      <div
+                        className="border-l-2 border-[#ff4500] pl-2 text-[11px] text-[#a3a3a3] leading-snug italic"
+                        data-testid={`co-ai-suggested-${m.slug}-reason`}
+                      >
+                        {m.match_reason}
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Let Any Maker Respond — featured */}
       <button
@@ -716,6 +792,8 @@ export default function CustomOrderPage() {
           <StepMaker
             value={form.preferred_maker_slug}
             onPick={(slug) => setForm({ ...form, preferred_maker_slug: slug })}
+            description={form.description}
+            projectType={form.project_type}
           />
         )}
         {step === 4 && (
