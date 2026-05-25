@@ -44,6 +44,7 @@ import {
 } from "../../lib/api";
 import { refreshSiteSettings } from "../../hooks/useSiteSettings";
 import { RowsSkeleton } from "../Skeleton";
+import { ShippoDiagCard, MailgunDiagCard, R2DiagCard } from "./IntegrationDiagCards";
 
 const SWITCHES = [
   {
@@ -2765,6 +2766,11 @@ export default function SettingsTab() {
       <ClipsSeedCard />
 
       <StripeDiagCard />
+
+      {/* iter226 — Same friendly-error pattern, three more integrations. */}
+      <ShippoDiagCard />
+      <MailgunDiagCard />
+      <R2DiagCard />
 
       <HeroHeadlinesCard />
 

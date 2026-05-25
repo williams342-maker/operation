@@ -1,6 +1,59 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-25 — iter226 · Shippo/Mailgun/R2 diag cards + GA4 Live Analytics ✅
+
+Two P0 deliverables shipped together. Both follow the iter222 Stripe-diag pattern: backend endpoints surface friendly-error strings, frontend renders colored pills + tiles + actionable next-step copy.
+
+### Shippo / Mailgun / R2 diagnostic widgets
+- New router `backend/routers/integration_diag.py` with three admin-only probes:
+  - `GET /api/admin/shippo/diag` — `GET /carrier_accounts` against api.goshippo.com, surfaces test/live mode + key prefix + carrier count + first carrier.
+  - `GET /api/admin/mailgun/diag` — `GET /v3/domains/{MAILGUN_DOMAIN}` with HTTP Basic, surfaces region (us/eu) + domain state + verified bool. Catches the #1 silent failure: wrong-region 404 ("flip MAILGUN_REGION").
+  - `GET /api/admin/r2/diag` — `head_bucket` + `list_objects_v2` MaxKeys=1 via boto3, surfaces bucket name + public CDN host + sample object count. Distinguishes 403 (bad key) from 404 (bucket missing).
+- New `IntegrationDiagCards.jsx` exports `ShippoDiagCard`, `MailgunDiagCard`, `R2DiagCard` using a shared `DiagShell` so a 4th integration is one component away. Mounted in SettingsTab.jsx directly below `StripeDiagCard`.
+- All three diags surface the **friendly reason** inline (e.g. "Mailgun 404 on domain X — flip MAILGUN_REGION to us") and detect Emergent pod `****`-masked placeholders before ever touching the wire.
+
+### GA4 Live Analytics on `/admin/dashboard?tab=analytics`
+- New router `backend/routers/ga4_analytics.py` with five endpoints:
+  - `GET /api/admin/ga4/diag` — service account JSON load + `runReport` probe → returns `client_email`, `project_id`, `sample_active_users_24h` (or `reason`).
+  - `GET /api/admin/ga4/realtime` — `runRealtimeReport` → `{ active_users }` (last 30 min).
+  - `GET /api/admin/ga4/summary-7d` — `runReport` totalUsers + sessions + screenPageViews over 7daysAgo→today.
+  - `GET /api/admin/ga4/top-pages-7d?limit=N` — pagePathPlusQueryString × screenPageViews, descending.
+  - `GET /api/admin/ga4/top-sources-7d?limit=N` — sessionSourceMedium × sessions, descending.
+- All blocking gRPC calls pushed through `fastapi.concurrency.run_in_threadpool` so the event loop stays free.
+- Service account JSON: stored at `/app/backend/secrets/ga4_service_account.json` (chmod 600), gitignored via `/app/.gitignore` `backend/secrets/`.
+- Friendly errors: `_friendly_ga4_error()` translates the three failure modes (API not enabled on GCP project, service account not a Viewer on property, quota exhausted) into one-line operator copy with the actionable URL embedded.
+- New `GA4LiveCard.jsx` mounted at the top of `AnalyticsTab.jsx`. Renders either:
+  - Happy path: realtime pulse card (animated emerald dot, polled every 20s) + 7d KPI tiles + top pages/sources tables.
+  - Setup-needed: amber panel with the friendly reason; the enable-API URL is auto-detected and rendered as a clickable link in emerald.
+
+### Notable behavior in preview right now
+- Shippo / Mailgun / R2 / Stripe: all 4 cards say **REACHABLE** (emerald) ✅.
+- GA4: shows **NOT CONNECTED · setup needed** with a clickable enable link. **One click in your GCP console** will turn this card green:  https://console.developers.google.com/apis/api/analyticsdata.googleapis.com/overview?project=239405833611
+
+### Regression · `tests/test_iter226_integration_diags_ga4.py` — **11/11 PASS**
+- Shape locks for all 4 diag endpoints (ok bool present, reason present when not ok).
+- Admin-only auth gate verified on all 4.
+- GA4 friendly-error translator unit-tested for the 3 failure modes (API-not-enabled, PermissionDenied, ResourceExhausted).
+
+### Files touched
+- `backend/routers/integration_diag.py` (new)
+- `backend/routers/ga4_analytics.py` (new)
+- `backend/secrets/ga4_service_account.json` (new, chmod 600, gitignored)
+- `backend/server.py` (mount 2 new routers)
+- `frontend/src/components/admin/IntegrationDiagCards.jsx` (new)
+- `frontend/src/components/admin/GA4LiveCard.jsx` (new)
+- `frontend/src/components/admin/SettingsTab.jsx` (mount Shippo/Mailgun/R2 cards under Stripe)
+- `frontend/src/components/admin/AnalyticsTab.jsx` (mount GA4LiveCard above the existing GMV grid)
+- `frontend/src/lib/api.js` (8 new helpers)
+- `/app/.gitignore` (`backend/secrets/`)
+- `backend/tests/test_iter226_integration_diags_ga4.py` (11 tests)
+
+### Deployment note
+Code is in preview. Once you redeploy craftersmarket.org AND click the GA4 enable link, the production Analytics tab will show live Google Analytics data alongside marketplace metrics.
+
+
+
 ## 2026-05-25 — iter225 · Black-clip on /clips fix (ephemeral FS → R2 migration) ✅
 
 **User report:** Screenshot of `craftersmarket.org/clips` showing the "Bandsaw Through Aluminum" clip rendering as a black `<video>` panel — title, hashtags, byline all present, but the video itself doesn't play.

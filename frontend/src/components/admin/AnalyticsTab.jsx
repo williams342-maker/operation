@@ -3,6 +3,7 @@ import { fetchAdminAnalytics } from "../../lib/api";
 import { Sparkline } from "../Charts";
 import { Stat } from "./_shared";
 import { StatsSkeleton, RowsSkeleton } from "../Skeleton";
+import GA4LiveCard from "./GA4LiveCard";
 
 // ===================== ANALYTICS =====================
 export default function AnalyticsTab() {
@@ -23,6 +24,11 @@ export default function AnalyticsTab() {
   }
   return (
     <div className="space-y-8" data-testid="analytics-tab">
+      {/* iter226 — GA4 live traffic widget. Renders at the top so it's the
+          first thing the admin sees when opening the Analytics tab. Falls
+          back to a friendly setup card if GA4 isn't wired yet. */}
+      <GA4LiveCard />
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Stat label="GMV (all-time)" value={`$${data.gmv.toFixed(0)}`} testId="an-gmv" />
         <Stat label="GMV · 30d" value={`$${data.gmv_30d.toFixed(0)}`} testId="an-gmv-30" />

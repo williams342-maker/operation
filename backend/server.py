@@ -130,6 +130,11 @@ api.include_router(share_counter_router)
 api.include_router(personalization_router)
 from routers.hero_headlines_api import router as hero_headlines_router
 api.include_router(hero_headlines_router)
+# iter226 — Integration diagnostics (Shippo/Mailgun/R2) + GA4 live analytics
+from routers.integration_diag import router as integration_diag_router
+api.include_router(integration_diag_router)
+from routers.ga4_analytics import router as ga4_analytics_router
+api.include_router(ga4_analytics_router)
 app.include_router(api)
 
 # iter109 — Canonical-host 301 redirect middleware. When `CANONICAL_HOST`

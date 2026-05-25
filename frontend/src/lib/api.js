@@ -793,6 +793,29 @@ export const purgeOrphanCommunityDesignsSeed = () =>
 export const fetchStripeDiag = () =>
   http.get("/admin/stripe/diag", { headers: adminAuthHeaders() }).then((r) => r.data);
 
+// iter226 — Integration diagnostics (Shippo / Mailgun / R2 — same friendly-error pattern).
+export const fetchShippoDiag = () =>
+  http.get("/admin/shippo/diag", { headers: adminAuthHeaders() }).then((r) => r.data);
+export const fetchMailgunDiag = () =>
+  http.get("/admin/mailgun/diag", { headers: adminAuthHeaders() }).then((r) => r.data);
+export const fetchR2Diag = () =>
+  http.get("/admin/r2/diag", { headers: adminAuthHeaders() }).then((r) => r.data);
+
+// iter226 — GA4 Live Analytics. All endpoints are admin-only, push the
+// gRPC GA4 client through a threadpool on the backend. The frontend
+// polls realtime on a short interval; summary/top-* are refreshed on
+// an explicit "↻" click since GA4 quota is shared per-property.
+export const fetchGa4Diag = () =>
+  http.get("/admin/ga4/diag", { headers: adminAuthHeaders() }).then((r) => r.data);
+export const fetchGa4Realtime = () =>
+  http.get("/admin/ga4/realtime", { headers: adminAuthHeaders() }).then((r) => r.data);
+export const fetchGa4Summary7d = () =>
+  http.get("/admin/ga4/summary-7d", { headers: adminAuthHeaders() }).then((r) => r.data);
+export const fetchGa4TopPages7d = (limit = 10) =>
+  http.get("/admin/ga4/top-pages-7d", { params: { limit }, headers: adminAuthHeaders() }).then((r) => r.data);
+export const fetchGa4TopSources7d = (limit = 10) =>
+  http.get("/admin/ga4/top-sources-7d", { params: { limit }, headers: adminAuthHeaders() }).then((r) => r.data);
+
 // ─── Clip Feed (TikTok-for-makers) ──────────────────────────────────────
 // Public feed + engagement helpers. Auth headers attach the buyer/maker
 // JWT when present so the i_liked / i_saved flags resolve correctly.
