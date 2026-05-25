@@ -169,6 +169,19 @@ async def generate_one_clip(model: str = "sora-2-pro") -> dict[str, Any]:
         return {"status": "error", "reason": "video generation failed"}
 
     public_video_url = f"/seed-clips/{slug}/clip.mp4"
+    # Verify the file actually landed on disk with non-zero size. This
+    # `file_verified` flag is what the feed query uses to skip orphan
+    # rows on production where the MP4 never made it into the deploy
+    # artifact (e.g. a Sora download truncated by an LLM-budget hit). No
+    # flag → row stays out of /api/clips/feed forever, even if `is_seed`
+    # is true. Belt + suspenders against the iter217-debug black-clip bug.
+    try:
+        file_verified = out_path.exists() and out_path.stat().st_size > 1024
+    except Exception:
+        file_verified = False
+    if not file_verified:
+        return {"status": "error", "reason": "video file missing on disk after save"}
+
     # Best-effort poster: pull the first frame with ffmpeg if available.
     poster_url: str | None = None
     poster_path = folder / "poster.jpg"
@@ -208,6 +221,7 @@ async def generate_one_clip(model: str = "sora-2-pro") -> dict[str, Any]:
         "ai_generated": True,
         "ai_model": model,
         "ai_prompt_index": pick["prompt_index"],
+        "file_verified": True,        # iter218: gate against orphan rows
         "quarantined_at": None,
         "created_at": now_iso(),
     }

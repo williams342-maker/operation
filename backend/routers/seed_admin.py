@@ -6,7 +6,7 @@ the UI so visitors are never misled. Once organic listings fill the
 catalogue, the admin can purge every seeded row in a single call —
 nothing organic is touched because the query is gated on the flag.
 """
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from maker_auth import current_admin
 from core import db
 
@@ -269,10 +269,20 @@ async def generate_batch_community_designs(
 # ===========================================================================
 @router.get("/admin/seed/clips/status")
 async def clips_seed_status(_: dict = Depends(current_admin)):
+    orphan_q = {
+        "is_seed": True,
+        "file_verified": {"$ne": True},
+        "$or": [
+            {"video_url": {"$regex": "^/seed-clips/"}},
+            {"video_url": None},
+            {"video_url": ""},
+        ],
+    }
     return {
         "seeded_clips": await db.clips.count_documents({"is_seed": True}),
         "ai_clips": await db.clips.count_documents({"ai_generated": True}),
         "total_clips": await db.clips.count_documents({"quarantined_at": None}),
+        "orphan_seeds": await db.clips.count_documents(orphan_q),
     }
 
 
@@ -301,6 +311,43 @@ async def purge_clips_seed(_: dict = Depends(current_admin)):
         await db.clip_engagement.delete_many({"clip_id": {"$in": ids}})
     res = await db.clips.delete_many({"is_seed": True})
     return {"ok": True, "deleted": res.deleted_count}
+
+
+@router.post("/admin/seed/clips/purge-orphans")
+async def purge_orphan_clips_seed(_: dict = Depends(current_admin)):
+    """iter218 — targeted cleanup: hard-delete ONLY orphan seed rows
+    (is_seed=true rows that lack `file_verified=true` AND have a local
+    `/seed-clips/` `video_url`). These are leftover DB rows from prior
+    Sora generations whose MP4 file never made it to the deploy artifact
+    — they render as black-screen panels on /clips. Keeps any future
+    seed rows that explicitly carry `file_verified=true` (the new
+    seeder always sets this) so admins don't accidentally nuke a working
+    library while clearing the broken ones.
+
+    Returns the deleted slugs so the operator can confirm what was
+    cleared in a single glance.
+    """
+    orphan_query = {
+        "is_seed": True,
+        "file_verified": {"$ne": True},
+        "$or": [
+            {"video_url": {"$regex": "^/seed-clips/"}},
+            {"video_url": None},
+            {"video_url": ""},
+        ],
+    }
+    orphans: list[dict] = []
+    async for d in db.clips.find(orphan_query, {"_id": 0, "id": 1, "slug": 1, "title": 1}):
+        orphans.append(d)
+    ids = [o["id"] for o in orphans]
+    if ids:
+        await db.clip_engagement.delete_many({"clip_id": {"$in": ids}})
+    res = await db.clips.delete_many(orphan_query)
+    return {
+        "ok": True,
+        "deleted": res.deleted_count,
+        "slugs": [o.get("slug") for o in orphans],
+    }
 
 
 @router.post("/admin/seed/featured-content/purge")

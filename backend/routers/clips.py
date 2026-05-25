@@ -85,6 +85,28 @@ async def _featured_clip_count() -> int:
     })
 
 
+# iter218 — Orphan-seed guard. A seed clip is "live" only when it carries
+# `file_verified: True` (set by clip_seeder.generate_one_clip after the
+# MP4 has actually landed on disk with non-zero size) OR points to an
+# external `http(s)://` URL (no local file dependency). Any other seed
+# row is treated as an orphan — typically left behind when an earlier
+# Sora render half-failed before the file was saved (or before this
+# build deployed). Apply via `{**_orphan_guard(), **other_filters}` on
+# any clips query that serves the public.
+def _orphan_guard() -> dict:
+    return {
+        "$or": [
+            # Organic maker uploads (no seed flag) — never gated.
+            {"is_seed": {"$ne": True}},
+            # Seeds with explicit file_verified=True.
+            {"is_seed": True, "file_verified": True},
+            # Legacy seeds that point at an external embed URL (YouTube,
+            # Vimeo) — those don't depend on local /seed-clips/ files.
+            {"is_seed": True, "video_url": {"$regex": "^https?://"}},
+        ]
+    }
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -139,7 +161,7 @@ async def list_categories():
     """Static category list with live counts. Counts skip quarantined rows."""
     counts: dict[str, int] = {}
     pipeline = [
-        {"$match": {"quarantined_at": None}},
+        {"$match": {"quarantined_at": None, **_orphan_guard()}},
         {"$group": {"_id": "$category", "n": {"$sum": 1}}},
     ]
     async for row in db.clips.aggregate(pipeline):
@@ -181,7 +203,7 @@ async def feed(
     oldest clip in the previous page. No auth required, but if a JWT is
     present we annotate `i_liked` / `i_saved` so the UI renders the
     correct heart state immediately."""
-    q: dict = {"quarantined_at": None}
+    q: dict = {"quarantined_at": None, **_orphan_guard()}
     if category:
         if category not in VALID_CATEGORIES:
             raise HTTPException(400, f"Unknown category {category}")
@@ -214,7 +236,7 @@ async def feed(
 @router.get("/clips/{slug}")
 async def get_clip(slug: str, authorization: Optional[str] = None):
     doc = await db.clips.find_one(
-        {"slug": slug, "quarantined_at": None},
+        {"slug": slug, "quarantined_at": None, **_orphan_guard()},
         {"_id": 0},
     )
     if not doc:

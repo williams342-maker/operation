@@ -1,6 +1,48 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-25 — iter218 · Orphan-seed guard on /clips · production black-screen fix ✅
+
+### The bug (production craftersmarket.org)
+User reported `/clips` rendering a black-screen panel with metadata visible ("RAW STEEL TO FINISHED SIGN · BY CRAFTERS MARKET WORKSHOP TEAM · #BEFORE-AFTER #AI-GENERATED #WORKSHOP") but the video/poster area completely blank. Root cause: an earlier Sora-2 generation (iter213 era) inserted the DB row with `video_url=/seed-clips/raw-steel-to-finished-sign/clip.mp4` BUT the actual MP4 was never saved to disk (Universal Key budget hit truncated the download). The DB row survived; the file did not. Requests for the missing MP4 return the SPA index HTML (`text/html, 23KB`) → browser tries to play HTML as video → black screen.
+
+### Fix · Backend `routers/clips.py`
+- New `_orphan_guard()` helper returns a Mongo `$or` clause that lets a row through ONLY when:
+  1. it's a non-seed (organic) clip, OR
+  2. it's a seed with `file_verified: true`, OR
+  3. it's a seed pointing at an external `https?://` URL (legacy YouTube embeds — no local file dependency).
+- Applied to `/clips/feed`, `/clips/categories`, and `GET /clips/{slug}`. Any orphan seed becomes invisible to public clients — no rebuild needed once redeployed.
+
+### Fix · Backend `clip_seeder.py`
+- After Sora returns, the generator now asserts the MP4 actually exists on disk with `>1KB` size and ONLY then sets `file_verified: true` on the inserted doc. A future Sora half-failure leaves the flag absent → the orphan guard hides the row automatically. Belt + suspenders against recurrence.
+
+### Fix · Backend `routers/seed_admin.py`
+- New `POST /api/admin/seed/clips/purge-orphans` (admin-gated) hard-deletes orphan seed rows + their engagement rows. Preserves working seeds (`file_verified=true`) and organic uploads.
+- Existing `GET /api/admin/seed/clips/status` now returns `orphan_seeds: int` alongside `seeded_clips/ai_clips/total_clips`.
+- Also patched a pre-existing missing `HTTPException` import that the new code surfaced.
+
+### Frontend `components/admin/SettingsTab.jsx` (ClipsSeedCard)
+- 4th stat tile shows orphan count in red when > 0.
+- New red-tinted callout panel + **"Clear N orphan(s)"** button (testid `purge-orphan-clips-btn`) appears only when orphans are detected. Safer than the existing "Purge all seeded clips" button — preserves working seed library.
+- New helper `purgeOrphanClipsSeed()` in `lib/api.js`.
+
+### QA · pytest regression suite
+- New `/app/backend/tests/test_iter218_clip_orphan_guard.py` — **7/7 PASS**:
+  1. Orphan seed hidden from `/clips/feed`
+  2. Orphan seed returns 404 on direct `/clips/{slug}` fetch
+  3. `file_verified: true` seed visible in feed
+  4. External `https://` URL seed visible without file_verified
+  5. Organic clip unaffected by the guard
+  6. `purge-orphans` deletes only orphans, preserves verified + organic
+  7. Status endpoint reports `orphan_seeds` count
+- Fixture uses sync pymongo to dodge the recurring motor "event loop closed" pytest artifact.
+
+### Production rollout (what the user does)
+1. Redeploy from craftersmarket.org's deploy panel — the orphan guard takes effect immediately on next request; the broken "raw-steel-to-finished-sign" clip disappears from `/clips` automatically (no admin action required).
+2. (Optional) Open Admin → Settings → Workshop Clip Feed seed → click **"Clear 1 orphan"** to physically remove the DB row.
+
+
+
 ## 2026-05-25 — iter217 · Cinematic homepage identity · Hero + key rails reskin ✅
 
 User direction: "Your homepage needs a more cinematic identity. Right now the design is functional and clean, but emotionally flat." Replaced generic dark gradients with a layered Industrial Luxury treatment (charcoal + molten copper + warm orange sparks) across the hero and 5 key rails. **Hybrid implementation** per user choice — static cinematic posters with optional looping video sources, zero new Sora budget spend.

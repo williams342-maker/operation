@@ -845,6 +845,8 @@ export const generateOneClipSeed = (model = "sora-2") =>
   }).then((r) => r.data);
 export const purgeClipsSeed = () =>
   http.post("/admin/seed/clips/purge", null, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const purgeOrphanClipsSeed = () =>
+  http.post("/admin/seed/clips/purge-orphans", null, { headers: adminAuthHeaders() }).then((r) => r.data);
 
 // Operator ops checklist helpers
 export const fetchOgDiag = () => http.get("/og/diag").then((r) => r.data);

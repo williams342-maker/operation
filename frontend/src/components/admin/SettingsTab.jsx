@@ -26,6 +26,7 @@ import {
   fetchClipsSeedStatus,
   generateOneClipSeed,
   purgeClipsSeed,
+  purgeOrphanClipsSeed,
   fetchOgDiag,
   fetchSeoDiag,
   adminPingIndexNow,
@@ -513,6 +514,25 @@ function ClipsSeedCard() {
     } finally { setPurgeBusy(false); }
   };
 
+  // iter218 — Targeted orphan cleanup: nukes ONLY broken seed rows
+  // (is_seed=true + file_verified missing + local /seed-clips/ url).
+  // Working seed clips with file_verified=true are preserved.
+  const [orphanBusy, setOrphanBusy] = useState(false);
+  const runOrphanPurge = async () => {
+    setOrphanBusy(true);
+    try {
+      const r = await purgeOrphanClipsSeed();
+      if (r.deleted > 0) {
+        toast.success(`Cleared ${r.deleted} orphan clip${r.deleted === 1 ? "" : "s"}: ${r.slugs.join(", ")}`);
+      } else {
+        toast.success("No orphan clips found — feed is clean.");
+      }
+      refresh();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Orphan purge failed.");
+    } finally { setOrphanBusy(false); }
+  };
+
   return (
     <div
       className="border border-purple-900/60 bg-purple-950/15 p-4 md:p-5"
@@ -531,7 +551,7 @@ function ClipsSeedCard() {
       </p>
 
       {status && (
-        <div className="font-mono text-[11px] text-[#a3a3a3] mb-4 grid grid-cols-3 gap-2 max-w-md" data-testid="clips-seed-counts">
+        <div className="font-mono text-[11px] text-[#a3a3a3] mb-4 grid grid-cols-4 gap-2 max-w-md" data-testid="clips-seed-counts">
           <div className="border border-[#262626] px-2 py-1.5">
             <div className="text-[#525252] uppercase tracking-[0.2em] text-[9px]">Seeded</div>
             <div className="text-purple-300 text-base">{status.seeded_clips}</div>
@@ -544,6 +564,38 @@ function ClipsSeedCard() {
             <div className="text-[#525252] uppercase tracking-[0.2em] text-[9px]">All clips</div>
             <div className="text-purple-300 text-base">{status.total_clips}</div>
           </div>
+          <div className={`border px-2 py-1.5 ${status.orphan_seeds > 0 ? "border-red-700/60 bg-red-950/15" : "border-[#262626]"}`}>
+            <div className={`uppercase tracking-[0.2em] text-[9px] ${status.orphan_seeds > 0 ? "text-red-400" : "text-[#525252]"}`}>Orphans</div>
+            <div className={`text-base ${status.orphan_seeds > 0 ? "text-red-300" : "text-purple-300"}`}>{status.orphan_seeds ?? 0}</div>
+          </div>
+        </div>
+      )}
+
+      {/* iter218 — Orphan-only cleanup. Surfaces in red when there are
+          broken seed rows on production whose MP4 never reached the
+          deploy artifact (renders as black-screen panels on /clips).
+          Safer than the full "Purge all seeds" button below since it
+          preserves any working seed clips with file_verified=true. */}
+      {status?.orphan_seeds > 0 && (
+        <div
+          className="border border-red-900/60 bg-red-950/20 p-3 mb-4"
+          data-testid="clips-orphan-warning"
+        >
+          <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-red-300 mb-1">
+            ◆ {status.orphan_seeds} orphan clip{status.orphan_seeds === 1 ? "" : "s"} detected
+          </div>
+          <p className="font-mono text-[11px] text-red-200/80 leading-relaxed mb-3">
+            These seed rows point to <code>/seed-clips/…</code> files that never made it into the deploy artifact —
+            they render as black-screen panels on <code>/clips</code>. Safe to clear; preserves any working seeds.
+          </p>
+          <button
+            onClick={runOrphanPurge}
+            disabled={orphanBusy}
+            className="px-3 py-1.5 border border-red-600 bg-red-900/30 text-red-100 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
+            data-testid="purge-orphan-clips-btn"
+          >
+            {orphanBusy ? "Clearing…" : `Clear ${status.orphan_seeds} orphan${status.orphan_seeds === 1 ? "" : "s"}`}
+          </button>
         </div>
       )}
 
