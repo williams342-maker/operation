@@ -21,9 +21,22 @@ from typing import Optional
 
 import httpx
 import resend
-from dotenv import load_dotenv
+from dotenv import load_dotenv, dotenv_values
 
-load_dotenv(Path(__file__).parent / ".env")
+# iter224 — Selective override mirrors core.py: load .env without globally
+# overriding the OS env (so production K8s vars keep winning), then for
+# email-integration keys, replace any OS value that looks like an Emergent
+# pod placeholder (`****` mask). Keeps preview workable with real keys
+# while leaving production untouched.
+_ENV_PATH = Path(__file__).parent / ".env"
+if _ENV_PATH.exists():
+    load_dotenv(_ENV_PATH, override=False)
+    for _k, _v in dotenv_values(_ENV_PATH).items():
+        if not _v:
+            continue
+        _cur = os.environ.get(_k, "")
+        if _cur and "****" in _cur:
+            os.environ[_k] = _v
 
 logger = logging.getLogger("crafters.email")
 logger.setLevel(logging.INFO)

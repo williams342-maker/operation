@@ -8,16 +8,41 @@ from fastapi import Request
 from motor.motor_asyncio import AsyncIOMotorClient
 
 ROOT_DIR = Path(__file__).parent
-# iter222 — Use override=True so the values written in `.env` always win
-# over whatever the pod/supervisor may have pre-set in the OS env. The
-# Emergent pod default ships with placeholder Stripe / LLM strings that
-# look like real values (e.g. STRIPE_API_KEY=sk_test_****gent) but are
-# invalid — without override=True they silently beat the user's real
-# credentials and the only visible symptom is generic "Could not start
-# onboarding" / "Stripe authentication" errors. `.env` is the documented
-# source of truth for secrets in this codebase (see system prompt), so
-# letting it win is correct.
-load_dotenv(ROOT_DIR / ".env", override=True)
+# iter224 — Selective override: load `.env` WITHOUT global override (so real
+# Kubernetes deployment env vars on craftersmarket.org keep winning — critical
+# for MONGO_URL, DB_NAME, SECRET, JWT_SECRET that prod sets differently than
+# the preview .env). THEN, for any key that exists in `.env`, if the OS env
+# currently holds an Emergent-pod placeholder (contains the `****` mask
+# pattern Emergent uses for dummy values, e.g. STRIPE_API_KEY=sk_test_****gent),
+# we overwrite it from `.env` so preview testing works with real keys.
+#
+# Why this matters:
+#   - Previous fix used `override=True` globally → preview Stripe worked
+#     BUT production crashed with Cloudflare 520 because .env's MONGO_URL
+#     replaced the production cluster URL.
+#   - This selective approach: preview gets real keys (dummies replaced),
+#     production keeps its real K8s-injected vars (no `****` mask, so no
+#     override). Best of both worlds, no manual env edits required.
+def _selective_env_override(env_path: Path) -> None:
+    """Override OS env from .env ONLY for keys whose OS value is an Emergent
+    pod placeholder (contains `****`). Returns silently if .env is missing."""
+    from dotenv import dotenv_values
+    if not env_path.exists():
+        return
+    # First, fill in keys MISSING from OS env (standard load_dotenv behavior
+    # with override=False — we want the same default fill-in).
+    load_dotenv(env_path, override=False)
+    # Then, for keys present in BOTH .env and OS env, replace OS value only
+    # if OS value looks like a dummy. The `****` mask is unique to Emergent
+    # pod placeholders — real API keys never contain four consecutive stars.
+    for key, env_val in dotenv_values(env_path).items():
+        if not env_val:
+            continue
+        os_val = os.environ.get(key, "")
+        if os_val and "****" in os_val:
+            os.environ[key] = env_val
+
+_selective_env_override(ROOT_DIR / ".env")
 
 # Policy version stamped on every order acceptance. Bump when policy text
 # changes substantially so the audit trail can prove which version a buyer

@@ -1,14 +1,14 @@
 """iter222 regression — env precedence + Stripe diag + friendlier errors.
 
-Pre-fix bug: load_dotenv(ROOT_DIR / '.env') was called without override=True,
+Pre-fix bug: load_dotenv(ROOT_DIR / '.env') was called without any override,
 so an OS-level placeholder like STRIPE_API_KEY=sk_test_****gent (set by
 the pod's default env) silently overrode the user's real key in .env.
 Makers hit "Could not start onboarding." with no hint at the real cause.
 
-This suite locks the invariant: .env values must always win for the
-secrets we care about, and the new admin diag endpoint must surface the
-real Stripe key mode (test/live) + a friendly-translated error when the
-upstream call fails.
+iter224 follow-up: switched to a SELECTIVE override — we only replace OS
+env values that look like Emergent pod placeholders (contain `****`).
+This keeps preview workable AND avoids clobbering production K8s vars
+(MONGO_URL, DB_NAME, etc.) which the previous override=True caused.
 """
 import os
 
@@ -47,7 +47,8 @@ def test_dotenv_override_wins_over_pod_placeholder():
     body = r.json()
     assert body["key_prefix"] == env_val[:8], (
         f"Backend is using a different STRIPE_API_KEY ({body.get('key_prefix')}) "
-        f"than /app/backend/.env ({env_val[:8]}) — load_dotenv override=True must be set."
+        f"than /app/backend/.env ({env_val[:8]}) — selective env override should "
+        f"have replaced the `****`-masked pod placeholder with the .env value."
     )
 
 
