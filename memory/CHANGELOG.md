@@ -1,6 +1,20 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-25 — iter216 · Weekly SEO ping cron (IndexNow + GSC) ✅
+
+### Backend `/app/backend/scheduler.py`
+- New `_job_weekly_seo_ping` registered as `weekly_seo_ping@cron[day_of_week='mon', hour='6', minute='0']` UTC. Submits the full sitemap to **IndexNow** (Bing/Yandex/Naver/Seznam, budget=200 URLs) and re-submits it to **Google Search Console** in the same run.
+- Monday 06:00 UTC is intentional: weekly content drops (forum threads, daily design seeds, new featured builds) have all landed over the weekend, so this is the highest-leverage moment to ping crawlers.
+- Both halves are best-effort: an IndexNow 4xx or GSC failure logs and moves on so a transient upstream issue can't take the cron down.
+- Kill-switch via `SCHEDULER_WEEKLY_SEO=false` (defaults ON). GSC half additionally requires `GSC_ENABLED=1` and an OAuth refresh token — quietly skips when missing (matches `refresh_gsc_indexing` cron behavior).
+
+### Verified
+- Scheduler boot log shows the cron registered alongside the existing 33 jobs (`weekly_seo_ping@cron[day_of_week='mon', hour='6', minute='0']`).
+- Manual `asyncio.run(_job_weekly_seo_ping())` round-trip in preview: IndexNow submitted 57 URLs (422 from api.indexnow.org expected on preview domain — needs verified host file on prod); GSC half logged the configured skip. Zero exceptions.
+
+
+
 ## 2026-05-25 — iter210 · More skeletons + EmptyStates across admin queues ✅
 
 ### Frontend

@@ -827,6 +827,42 @@ async def _job_daily_clip_seed():
         logger.exception("[scheduler] daily_clip_seed failed: %s", e)
 
 
+async def _job_weekly_seo_ping():
+    """Submit the whole sitemap to IndexNow (Bing/Yandex/Naver) AND
+    re-submit it to Google Search Console every Monday 06:00 UTC.
+
+    Monday morning UTC is intentional: weekly content drops (forum
+    threads, daily design seeds, new featured builds) have all landed
+    over the weekend, so this is the highest-leverage moment to ping
+    crawlers. Both calls are best-effort — failures log + move on.
+
+    Kill-switch: `SCHEDULER_WEEKLY_SEO=false` (default ON). GSC half
+    additionally requires `GSC_ENABLED=1` and an OAuth refresh token —
+    if either is missing the function quietly skips that half.
+    """
+    if os.environ.get("SCHEDULER_WEEKLY_SEO", "true").lower() in ("false", "0", "no"):
+        logger.info("[scheduler] weekly_seo_ping disabled via env")
+        return
+    # ── IndexNow (Bing / Yandex / Naver / Seznam) ─────────────────────
+    try:
+        from seo_indexnow import ping as indexnow_ping
+        r = await indexnow_ping(urls=None, budget=200)
+        logger.info("[scheduler] weekly_seo_ping · indexnow: ok=%s submitted=%s",
+                    r.get("ok"), r.get("count") or r.get("submitted"))
+    except Exception as e:
+        logger.exception("[scheduler] weekly_seo_ping · indexnow failed: %s", e)
+    # ── Google Search Console sitemap submission ──────────────────────
+    try:
+        from gsc_client import is_gsc_enabled, submit_sitemap
+        if not is_gsc_enabled():
+            logger.info("[scheduler] weekly_seo_ping · gsc skipped (GSC_ENABLED not set)")
+        else:
+            r = await submit_sitemap()
+            logger.info("[scheduler] weekly_seo_ping · gsc: %s", r)
+    except Exception as e:
+        logger.exception("[scheduler] weekly_seo_ping · gsc failed: %s", e)
+
+
 
 
 def start_scheduler() -> AsyncIOScheduler | None:
@@ -910,6 +946,12 @@ def start_scheduler() -> AsyncIOScheduler | None:
     # one render off-peak so it doesn't clash with the design cron.
     sched.add_job(_job_daily_clip_seed, CronTrigger(hour=9, minute=0),
                   id="daily_clip_seed", replace_existing=True)
+    # Weekly SEO ping — every Monday 06:00 UTC fires IndexNow + GSC
+    # sitemap submission. Kill-switch SCHEDULER_WEEKLY_SEO=false (defaults
+    # to true). Bing/Yandex/Naver tend to crawl freshly-pinged URLs within
+    # hours, so this is the highest-leverage cron we run.
+    sched.add_job(_job_weekly_seo_ping, CronTrigger(day_of_week="mon", hour=6, minute=0),
+                  id="weekly_seo_ping", replace_existing=True)
     # Secrets rotation nudge — daily at 09:30 UTC. Two-tier:
     #   • 14-day pre-warning (due_soon) → email + Slack
     #   • Overdue → email + Slack + Discord (high priority)
