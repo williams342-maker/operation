@@ -772,6 +772,8 @@ export const attributeWorkshopTeam = () =>
   http.post("/admin/seed/featured-content/attribute-workshop-team", null, { headers: adminAuthHeaders() }).then((r) => r.data);
 export const runWeeklyForumThread = () =>
   http.post("/admin/seed/featured-content/run-weekly-thread", null, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const installFeaturedSeedFixture = () =>
+  http.post("/admin/seed/featured-content/install-fixture", null, { headers: adminAuthHeaders() }).then((r) => r.data);
 
 // AI Discovery — "describe what you want" natural-language search.
 // Returns matched products w/ a per-result `match_reason`. Public

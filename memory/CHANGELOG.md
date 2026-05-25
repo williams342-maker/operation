@@ -1,6 +1,37 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-25 — iter204 · One-click seed-content installer for fresh deploys ✅
+
+Solves the "redeployed but the marketplace looks empty" problem permanently. Production databases are independent of preview, so all the seeded content (8 makers, 34 featured products, 23 forum threads, 161 replies, 8 showcase posts) lives only in preview until explicitly replayed. This ships the replay tool as a single admin button.
+
+### Approach
+- **Fixture-based**, not LLM-based — exported preview's complete seed graph to a static JSON file at `/app/backend/data/featured_seed_fixture.json` (194 KB). Image URLs in the fixture point at `/seed-images/featured/*.jpg`, which already ship with the frontend build, so no R2 or image-gen calls are needed at install time.
+- **Idempotent** — makers and products upsert by `slug`, forum docs upsert by `id`. Re-running just refreshes any stale fields (e.g. tweaked bios).
+- **Fast** — ~3 seconds to install all 234 docs because nothing hits the LLM.
+
+### Backend `routers/seed_admin.py`
+- New `POST /api/admin/seed/featured-content/install-fixture` (admin-gated). Reads the static fixture and upserts every doc into Mongo. Returns `{installed: {makers, products, threads, replies, showcase}, totals_now: {...}}` so the admin sees exact before/after impact.
+- After insert, recomputes `listings_count` on every seeded maker so shop tiles render the right number immediately.
+
+### Frontend `components/admin/SettingsTab.jsx`
+- New emerald **"Install seed content"** action block at the top of the `PurgeFeaturedSeedCard` — the single most important action on a freshly-deployed production database, so it sits first. Distinct emerald treatment vs. the amber attribution/weekly-thread blocks vs. the red destructive purge at the bottom.
+- Result line shows `Installed 8 makers · 34 products · 23 threads · 161 replies · 8 showcase` plus a totals-now footer.
+
+### Frontend `lib/api.js`
+- `installFeaturedSeedFixture()` helper.
+
+### Verified live
+- Endpoint test: `{"ok":true,"installed":{"makers":8,"products":34,"threads":23,"replies":161,"showcase":8},"totals_now":{...}}`
+- Admin Settings screenshot confirms the 4-block layout (Install / Attribute / Weekly seed / Purge) renders correctly with the install block leading in emerald.
+- Lint clean.
+
+### Production rollout
+1. Redeploy (the fixture file + seed images now ship in the build artifact)
+2. Admin → Settings → **"Install seed content"** → click once
+3. craftersmarket.org goes from empty to fully-populated showcase in ~3 seconds
+
+
 ## 2026-05-25 — iter203 · AI Discovery search · "Describe what you want" ✅
 
 Brand-new natural-language search experience between the Featured Builds rail and the Velocity Proof strip. Visitor types `"rustic mountain themed metal sign"` → Gemini Flash scans the catalog → returns the 6 best matches with a one-sentence "why this matches" per result, rendered inline as conversational cards.

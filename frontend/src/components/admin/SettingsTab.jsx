@@ -17,6 +17,7 @@ import {
   purgeFeaturedSeed,
   attributeWorkshopTeam,
   runWeeklyForumThread,
+  installFeaturedSeedFixture,
 } from "../../lib/api";
 import { refreshSiteSettings } from "../../hooks/useSiteSettings";
 import { RowsSkeleton } from "../Skeleton";
@@ -198,6 +199,10 @@ function PurgeFeaturedSeedCard() {
   // attribution so the two "safe action" blocks share styling.
   const [weeklyBusy, setWeeklyBusy] = useState(false);
   const [weeklyResult, setWeeklyResult] = useState(null);
+  // One-shot "install everything" — used to populate an empty production
+  // DB from the curated seed fixture committed to the repo.
+  const [installBusy, setInstallBusy] = useState(false);
+  const [installResult, setInstallResult] = useState(null);
 
   const refresh = async () => {
     try {
@@ -260,6 +265,25 @@ function PurgeFeaturedSeedCard() {
     }
   };
 
+  const runInstall = async () => {
+    setInstallBusy(true);
+    try {
+      const r = await installFeaturedSeedFixture();
+      setInstallResult(r);
+      if (r.ok) {
+        const t = r.installed;
+        toast.success(`Installed ${t.makers} makers · ${t.products} products · ${t.threads} threads · ${t.replies} replies.`);
+        refresh();
+      } else {
+        toast.error(r.error || "Install failed.");
+      }
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Install failed.");
+    } finally {
+      setInstallBusy(false);
+    }
+  };
+
   const total = (status?.featured_makers || 0) + (status?.featured_products || 0);
 
   return (
@@ -295,6 +319,43 @@ function PurgeFeaturedSeedCard() {
         </p>
       )}
       {err && <p className="font-mono text-xs text-red-400 mb-3">{err}</p>}
+
+      {/* Install-everything button — the single most important action
+          on a freshly-deployed production database. Replays the curated
+          seed fixture so all 8 makers + 34 products + 22 threads + 160
+          replies + 8 showcase posts land in one shot. Idempotent so the
+          admin can click it any time without fear. */}
+      <div className="mb-4 pb-4 border-b border-amber-900/40">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-300 mb-1">
+          ◆ Install seed content (one-click · for fresh deploys)
+        </div>
+        <p className="font-mono text-[11px] text-[#a3a3a3] mb-2 leading-relaxed max-w-2xl">
+          Populates the database from the curated seed fixture committed to the repo —
+          <span className="text-emerald-300"> 8 founding makers, 34 featured-example products,
+          22 forum threads, 160 replies, 8 showcase posts</span>. Idempotent. Use this on
+          production immediately after a fresh deploy. Images (`/seed-images/featured/*.jpg`)
+          ship with the frontend build, so no R2 / image-gen calls are made.
+        </p>
+        <button
+          onClick={runInstall}
+          disabled={installBusy}
+          className="px-3 py-1.5 border border-emerald-600 text-emerald-300 hover:bg-emerald-900/30 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
+          data-testid="install-featured-seed-btn"
+        >
+          {installBusy ? "Installing…" : "Install seed content"}
+        </button>
+        {installResult?.ok && (
+          <div
+            className="mt-2 font-mono text-[11px] text-emerald-300"
+            data-testid="install-featured-seed-result"
+          >
+            ◆ Installed {installResult.installed.makers} makers · {installResult.installed.products} products · {installResult.installed.threads} threads · {installResult.installed.replies} replies · {installResult.installed.showcase} showcase
+            <div className="text-[#737373] mt-1">
+              now: {installResult.totals_now.featured_makers}/{installResult.totals_now.featured_products}/{installResult.totals_now.seeded_threads}/{installResult.totals_now.seeded_replies}/{installResult.totals_now.seeded_showcase}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Safe, idempotent backfill — keeps its own action row above the
           destructive purge so the user can't fat-finger them together.
