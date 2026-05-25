@@ -1,6 +1,36 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-25 — iter203 · AI Discovery search · "Describe what you want" ✅
+
+Brand-new natural-language search experience between the Featured Builds rail and the Velocity Proof strip. Visitor types `"rustic mountain themed metal sign"` → Gemini Flash scans the catalog → returns the 6 best matches with a one-sentence "why this matches" per result, rendered inline as conversational cards.
+
+### Backend `routers/ai_discovery.py` (new)
+- `POST /api/ai/discovery/search` — public endpoint, accepts `{q: "..."}` (3–300 chars).
+- Loads the published catalog with a compact field projection (slug, title, category, technique, materials, colors, description, seo_tags), builds a one-line-per-product blob (~10KB at 34 products) and asks `gemini-3-flash-preview` to rank up to 6 listings as strict JSON with reasoning.
+- 1-hour in-memory cache keyed by normalized-query hash (lowercase, punctuation-stripped, whitespace-collapsed) — repeat searches return instantly with `cached: true`.
+- Three-layer resilience: (1) LLM call wrapped in a 20s `asyncio.wait_for` timeout, (2) JSON cleaning strips ```` ```json ```` fences and falls back to first `{...}` regex match if parse fails, (3) substring-match fallback returns relevant slugs when the LLM is unreachable so the visitor never sees a blank result screen.
+
+### Frontend `components/AiDiscoverySearch.jsx` (new)
+- Hero-scale search box with `Sparkles` icon, soft purple/orange backdrop glow, and a rotating placeholder that cycles through 6 example queries every 3.5s (pauses once the visitor starts typing).
+- Example-query chips appear below the box until the first search runs.
+- Results render in a responsive 1/2/3-column grid; each `ResultCard` shows the cover image, technique pill, featured-example pill where applicable, title, category/price, and a pull-quote styled **"◆ Why this matches"** box with the AI reasoning.
+- Empty-state shows a helpful re-phrase prompt ("Try a different angle — material, use case, or style word").
+- Framer Motion: subtle fade-in on each card with a 60ms cascade, plus a smooth fade-in/out on the results section itself.
+
+### Frontend `App.js`
+- Mounted `<AiDiscoverySearch />` between `<FeaturedBuildsRail />` and `<VelocityProofStrip />`. Homepage narrative now: hero → look at the work → describe what YOU want → proof of activity → why we exist → meet the people → spotlight → categories → product rails.
+
+### Verified live
+- `POST /api/ai/discovery/search` with `q="rustic mountain themed metal sign"` returns 6 results in <2s:
+  - `mountain-range-silhouette` — *"Large plasma-cut steel mountain scene with a raw finish matches the metal and rustic mountain theme."*
+  - `fe-copper-mountain-pendant` — *"Features a laser-cut mountain range silhouette in antiqued copper, fitting the specific theme and material."*
+  - `topo-mountains` — *"CNC-routed mountain wall art matches the rustic mountain theme, though material is stained wood rather than metal."* (honest qualifier)
+  - + 3 more with cleanly worded reasoning
+- Screenshots confirm both idle and results states render perfectly with the glow + chips + reasoning pull-quotes.
+- Lint clean (Python + JS).
+
+
 ## 2026-05-25 — iter202 · "Commission a real maker" CTA + weekly forum auto-seed ✅
 
 Two improvements that turn the seeded marketplace from a passive showcase into an active lead-gen + community engine.

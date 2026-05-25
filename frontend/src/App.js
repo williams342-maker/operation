@@ -70,6 +70,7 @@ import TrendingForumStrip from "./components/TrendingForumStrip";
 import TrendingJournalRail from "./components/TrendingJournalRail";
 import FeaturedBuildsRail from "./components/FeaturedBuildsRail";
 import MeetTheMakers from "./components/MeetTheMakers";
+import AiDiscoverySearch from "./components/AiDiscoverySearch";
 import { Toaster } from "sonner";
 import { trackPageview, captureAttribution } from "./lib/analytics";
 import { useSiteSettings } from "./hooks/useSiteSettings";
@@ -87,6 +88,7 @@ const Home = () => {
       <SupportVeteransStrip />
       <Hero />
       <FeaturedBuildsRail testId="home-featured-builds" />
+      <AiDiscoverySearch testId="home-ai-discovery" />
       <VelocityProofStrip testId="home-velocity" />
       <WhyWeExist testId="home-why-we-exist" />
       <MeetTheMakers testId="home-meet-makers" />

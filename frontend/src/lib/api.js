@@ -773,6 +773,12 @@ export const attributeWorkshopTeam = () =>
 export const runWeeklyForumThread = () =>
   http.post("/admin/seed/featured-content/run-weekly-thread", null, { headers: adminAuthHeaders() }).then((r) => r.data);
 
+// AI Discovery — "describe what you want" natural-language search.
+// Returns matched products w/ a per-result `match_reason`. Public
+// endpoint — no auth headers needed.
+export const aiDiscoverySearch = (q) =>
+  http.post("/ai/discovery/search", { q }).then((r) => r.data);
+
 // Video upload (R2)
 export const uploadMakerVideo = (file, onProgress) => {
   const fd = new FormData();
