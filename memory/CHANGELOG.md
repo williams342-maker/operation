@@ -1,6 +1,47 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-25 — iter220 · Rotating AI hero headlines + cinematic hierarchy upgrade ✅
+
+User direction: "The Hero Section Needs a Complete Identity Upgrade … this style should be in rotation with ai created rotation" — plus visual hierarchy + glow dividers + section separation across the homepage.
+
+### Backend — new rotating hero headline pool
+- `hero_headlines.py` — Gemini-powered headline draft engine via Universal LLM Key. Hard structural validator (`statement ≤28`, single-word `accent ≤12`, `closer ≤16`) so a malformed AI response can never ship to the 148px display layer. 8 user-curated **seed** variants (incl. all 4 of the user's explicit examples — "Built by Real Makers", "Custom Work / Independent Workshops", "Precision Craftsmanship / Modern Marketplace", "Fabricators · Artists / Makers Sell Here") plus AI-drafted variants.
+- `routers/hero_headlines_api.py` — Public `GET /api/hero/headlines` (returns full live pool OR collapses to 1 when a headline is pinned). Admin: list, refresh (Gemini), pin/unpin, archive/restore, manual create, delete.
+- `scheduler.py` — Daily cron `hero_headlines_refresh@cron[hour='9', minute='15']` UTC drafts 5 fresh variants. Kill-switch `SCHEDULER_HERO_HEADLINES=false`. Best-effort — any LLM failure logs and the pool stays unchanged.
+- `server.py` — Idempotent `ensure_seed_pool()` runs on every startup so a fresh deploy is never blank.
+- **Regression**: `tests/test_iter220_hero_headlines.py` — **10/10 PASS**: public endpoint shape, validator caps, dedupe, pin/unpin collapse, archive/restore round-trip, admin counts.
+
+### Frontend — `<RotatingHeadline/>` component
+- Fetches the live pool once on mount (native fetch, bypasses the global axios 422-detail interceptor).
+- AnimatePresence cross-fade between variants every **7s** (`mode="wait"`, opacity + y micro-shift).
+- Shuffles the pool on mount so two adjacent visits don't start on the same variant.
+- When the API returns `pinned: true` (single item) → rotation auto-disables.
+- `prefers-reduced-motion: reduce` → rotation disabled, transitions collapse to 0ms, static first-variant render.
+- On fetch fail / empty pool → renders the hardcoded FALLBACK "Raw Materials. / Radical Craft." — hero is NEVER blank.
+
+### Frontend — Hero polish (per user brief)
+- New copy on initial-paint: "Raw materials. Radical craft." → swaps to rotating pool after fetch.
+- **CTA labels swapped** to user's specified labels: Primary "**Browse Makers**" (→ `/makers`) + Secondary "**Sell Your Work**" (→ `/apply`). Old `hero-cta-shop` / `hero-cta-custom` testids removed entirely.
+- **New `<EmberField/>` component** — CSS-only animated particle drift. 24 copper/warm-orange sparks rising up the hero like a forge exhaust. Zero JS RAF loop, near-zero perf cost. Returns null on `prefers-reduced-motion`.
+- **Hero composition** now layers (8 total): workshop photo (parallax) → gradient veil (slower parallax) → blueprint grid → 2 copper-glow orbs → vignette → copper-shimmer scanline → **embers** (new) → content.
+
+### Frontend — Visual hierarchy across the homepage
+- **`.cm-glow-divider`** utility (index.css) — copper-glow horizontal rule with radial-gradient bleed above + below. Dropped between Hero/FeaturedBuilds, FeaturedBuilds/CinematicMoments, CinematicMoments/AiDiscovery, VelocityProof/WhyWeExist, WhyWeExist/MeetTheMakers. **5 dividers** confirmed in DOM.
+- **`.cm-section-shade`** utility — alternating near-black `#050505` background for adjacent-section contrast.
+- **`.cm-steel-texture`** utility — faint matte-steel radial gradient overlay for any section's industrial vibe.
+- Typography: ember rise + glow divider keyframes wired into the global `prefers-reduced-motion` kill-list so nothing animates when the user has reduced-motion on.
+
+### Frontend — Admin
+- New `HeroHeadlinesCard` in Admin → Settings (between ClipsSeedCard and OperatorOpsChecklistCard). Counts grid (live / ai / seed / manual / archived / pinned). "Generate 5 with AI" button (real Gemini call). Live list with per-row Pin / Archive / Delete. Manual create form with live preview. Archived collapsible drawer with Restore / Delete. Pinned banner with one-click "Resume rotation" CTA.
+- New `lib/api.js` helpers: `fetchHeroHeadlines`, `adminListHeroHeadlines`, `adminRefreshHeroHeadlines`, `adminPinHeroHeadline`, `adminUnpinHeroHeadlines`, `adminArchiveHeroHeadline`, `adminRestoreHeroHeadline`, `adminCreateHeroHeadline`, `adminDeleteHeroHeadline`.
+
+### Verified by testing agent (iter_66.json) — 100% pass both stacks
+- Backend: 10/10 pytest pass on all endpoint + validator + lifecycle paths.
+- Frontend: rotation DID cycle in headless (initial "Raw Materials. / Radical Craft." → 12s later "Hands · Tools · Sparks. / Built to Order." — different `data-headline-id`). EmberField correctly null-renders under reduced-motion. All testids wired. Old CTAs removed. 5 glow dividers present. Admin card shows live counts. Zero new console errors.
+
+
+
 ## 2026-05-25 — iter219 · Showcase 500 fix + admin empty-state polish ✅
 
 ### Fix · `/api/community/showcase/recent` was returning 500 on every call
