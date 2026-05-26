@@ -349,29 +349,47 @@ function DesktopNav() {
 
 // ─────────────────────────────────────────────────────────────────────
 // MegaMenuHotPreview — right column of the Community dropdown.
-// Pulls live data from two endpoints (trending forum thread + recent
-// showcase post) and renders them as two compact preview cards.
+// Fetches top 3 trending forum threads + top 3 recent showcase posts,
+// then auto-rotates each card slot every 5 seconds (paused on hover).
+// Tiny dot progress indicator at the bottom shows rotation position.
 // Both fetches fail-silent so the menu always renders even if backend
 // is down.
 // ─────────────────────────────────────────────────────────────────────
 function MegaMenuHotPreview() {
-  const [thread, setThread] = useState(null);
-  const [showcase, setShowcase] = useState(null);
+  const [threads, setThreads] = useState([]);
+  const [showcases, setShowcases] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [idx, setIdx] = useState(0);
+  const [paused, setPaused] = useState(false);
 
   useEffect(() => {
     let alive = true;
     Promise.allSettled([
-      http.get("/community/forum/trending", { params: { days: 30, limit: 1 } }).then((r) => r.data),
-      http.get("/community/showcase/recent", { params: { limit: 1 } }).then((r) => r.data),
+      http.get("/community/forum/trending", { params: { days: 30, limit: 3 } }).then((r) => r.data),
+      http.get("/community/showcase/recent", { params: { limit: 3 } }).then((r) => r.data),
     ]).then((results) => {
       if (!alive) return;
-      if (results[0].status === "fulfilled") setThread(results[0].value?.threads?.[0] || null);
-      if (results[1].status === "fulfilled") setShowcase(results[1].value?.items?.[0] || null);
+      if (results[0].status === "fulfilled") setThreads(results[0].value?.threads || []);
+      if (results[1].status === "fulfilled") setShowcases(results[1].value?.items || []);
       setLoading(false);
     });
     return () => { alive = false; };
   }, []);
+
+  // Slots auto-rotate together so the panel reads as one cycling billboard.
+  // Step = max(threads.length, showcases.length, 1) — caps the rotation
+  // to the longest list so we never show an undefined slot.
+  const cycleLen = Math.max(threads.length, showcases.length, 1);
+  useEffect(() => {
+    if (loading || paused || cycleLen <= 1) return;
+    const timer = setInterval(() => {
+      setIdx((i) => (i + 1) % cycleLen);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [loading, paused, cycleLen]);
+
+  const thread = threads.length ? threads[idx % threads.length] : null;
+  const showcase = showcases.length ? showcases[idx % showcases.length] : null;
 
   if (loading) {
     return (
@@ -383,66 +401,110 @@ function MegaMenuHotPreview() {
   }
 
   return (
-    <div className="space-y-2">
-      {/* Hot forum thread */}
-      {thread ? (
-        <Link
-          to={`/community?tab=forum&open=${thread.id}`}
-          className="block p-3 hover:bg-[#171717] transition group border border-transparent hover:border-[#262626]"
-          data-testid="megamenu-hot-thread"
-        >
-          <div className="flex items-center gap-2 mb-1">
-            <MessageSquare size={12} className="text-[#ff4500]" aria-hidden="true" />
-            <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#ff4500]">
-              Forum · {thread.reply_count} repl{thread.reply_count === 1 ? "y" : "ies"}
-            </span>
-          </div>
-          <div className="font-mono text-[11px] text-[#e5e5e5] group-hover:text-white leading-snug line-clamp-2">
-            {thread.title}
-          </div>
-          <div className="font-mono text-[9px] text-[#737373] mt-1 uppercase tracking-[0.18em]">
-            {thread.category || "general"}
-          </div>
-        </Link>
-      ) : null}
+    <div
+      className="space-y-2"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      data-testid="megamenu-hot-wrapper"
+    >
+      {/* Hot forum thread — fades on rotation */}
+      <AnimatePresence mode="wait">
+        {thread ? (
+          <motion.div
+            key={`thread-${thread.id}`}
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.25, ease: [0.22, 0.61, 0.36, 1] }}
+          >
+            <Link
+              to={`/community?tab=forum&open=${thread.id}`}
+              className="block p-3 hover:bg-[#171717] transition group border border-transparent hover:border-[#262626]"
+              data-testid="megamenu-hot-thread"
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <MessageSquare size={12} className="text-[#ff4500]" aria-hidden="true" />
+                <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#ff4500]">
+                  Forum · {thread.reply_count} repl{thread.reply_count === 1 ? "y" : "ies"}
+                </span>
+              </div>
+              <div className="font-mono text-[11px] text-[#e5e5e5] group-hover:text-white leading-snug line-clamp-2">
+                {thread.title}
+              </div>
+              <div className="font-mono text-[9px] text-[#737373] mt-1 uppercase tracking-[0.18em]">
+                {thread.category || "general"}
+              </div>
+            </Link>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
 
-      {/* Recent showcase post (acts as the "clip" placeholder until real clips ship) */}
-      {showcase ? (
-        <Link
-          to={`/community?tab=showcase&open=${showcase.id}`}
-          className="flex gap-3 p-3 hover:bg-[#171717] transition group border border-transparent hover:border-[#262626]"
-          data-testid="megamenu-hot-showcase"
-        >
-          {showcase.image_url ? (
-            <div className="w-14 h-14 shrink-0 overflow-hidden border border-[#262626] bg-[#0a0a0a]">
-              <img
-                src={showcase.image_url}
-                alt=""
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                loading="lazy"
-              />
-            </div>
-          ) : (
-            <div className="w-14 h-14 shrink-0 border border-[#262626] bg-[#171717] flex items-center justify-center">
-              <Camera size={16} className="text-[#525252]" aria-hidden="true" />
-            </div>
-          )}
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 mb-1">
-              <Camera size={12} className="text-[#00ffff]" aria-hidden="true" />
-              <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#00ffff]">
-                Showcase
-              </span>
-            </div>
-            <div className="font-mono text-[11px] text-[#e5e5e5] group-hover:text-white leading-snug line-clamp-2">
-              {showcase.title || "Untitled post"}
-            </div>
-            <div className="font-mono text-[9px] text-[#737373] mt-1 uppercase tracking-[0.18em] truncate">
-              {showcase.maker_slug ? `by ${showcase.maker_slug}` : (showcase.user_name || "Member")}
-            </div>
-          </div>
-        </Link>
-      ) : null}
+      {/* Showcase card — fades on rotation */}
+      <AnimatePresence mode="wait">
+        {showcase ? (
+          <motion.div
+            key={`showcase-${showcase.id}`}
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.25, ease: [0.22, 0.61, 0.36, 1] }}
+          >
+            <Link
+              to={`/community?tab=showcase&open=${showcase.id}`}
+              className="flex gap-3 p-3 hover:bg-[#171717] transition group border border-transparent hover:border-[#262626]"
+              data-testid="megamenu-hot-showcase"
+            >
+              {showcase.image_url ? (
+                <div className="w-14 h-14 shrink-0 overflow-hidden border border-[#262626] bg-[#0a0a0a]">
+                  <img
+                    src={showcase.image_url}
+                    alt=""
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    loading="lazy"
+                  />
+                </div>
+              ) : (
+                <div className="w-14 h-14 shrink-0 border border-[#262626] bg-[#171717] flex items-center justify-center">
+                  <Camera size={16} className="text-[#525252]" aria-hidden="true" />
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <Camera size={12} className="text-[#00ffff]" aria-hidden="true" />
+                  <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#00ffff]">
+                    Showcase
+                  </span>
+                </div>
+                <div className="font-mono text-[11px] text-[#e5e5e5] group-hover:text-white leading-snug line-clamp-2">
+                  {showcase.title || "Untitled post"}
+                </div>
+                <div className="font-mono text-[9px] text-[#737373] mt-1 uppercase tracking-[0.18em] truncate">
+                  {showcase.maker_slug ? `by ${showcase.maker_slug}` : (showcase.user_name || "Member")}
+                </div>
+              </div>
+            </Link>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
+      {/* Rotation indicator — only shown when there are multiple items to
+          cycle through. Tiny dots, click to jump to that slot. */}
+      {cycleLen > 1 && (
+        <div className="flex items-center justify-center gap-1.5 pt-1" data-testid="megamenu-hot-dots">
+          {Array.from({ length: cycleLen }).map((_, i) => (
+            <button
+              key={i}
+              type="button"
+              aria-label={`Show preview ${i + 1} of ${cycleLen}`}
+              onClick={() => setIdx(i)}
+              className={`h-1 transition-all duration-300 ${
+                i === idx ? "w-5 bg-[#ff4500]" : "w-2 bg-[#262626] hover:bg-[#525252]"
+              }`}
+              data-testid={`megamenu-hot-dot-${i}`}
+            />
+          ))}
+        </div>
+      )}
 
       {!thread && !showcase && (
         <div className="px-3 py-4 font-mono text-[10px] text-[#525252] italic">
