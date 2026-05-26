@@ -1,6 +1,56 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-26 — iter227 · Starter Pack — 4 makers × 5 products = 20 listings ✅
+
+User-spec'd seed pass to manufacture perceived marketplace activity density. The brief called out specific items, maker attribution voice, workshop context language, process imagery (not just product shots), material tags, and the "small imperfection psychology" technique.
+
+### What ships
+- **4 new founding makers** with distinct regional identities (founder numbers #06–#09):
+  - **Cascade Iron Works** · Hood River, OR · Eli & Sam Reeves · plasma + powder coat at the base of Mt Hood
+  - **Hill Country Forge** · Fredericksburg, TX · 4×4 fiber laser + hand-rubbed patina
+  - **Appalachian Steel & Slab** · Asheville, NC · hybrid wood+steel+epoxy in a converted barn
+  - **Great Lakes Fabworks** · Marquette, MI · industrial-strength functional fab (brackets, machine guards, tool walls)
+- **20 products** mapped to the user's exact spec, 5 per maker, distributed by maker specialty:
+  - Cascade gets the mountain/forest/fire pit / industrial gear / walnut relief items.
+  - Hill Country gets the family-name / business-logo / address / quote signs.
+  - Appalachian gets the state-outline / shop-nameplate / epoxy-river / cutting-board / bench-top hybrid items.
+  - Great Lakes gets the functional fab: brackets, tool wall, cable routing, machine guards, map engraving.
+- **48 Gemini Nano Banana images** generated: 4 portraits + 4 covers + 20 hero shots + 20 process shots (sparks/CNC-in-progress/raw cut stages). Stored at `/app/frontend/public/seed-images/starter-pack/` so they bake into the deploy artifact and survive pod restarts (the iter225 ephemeral-FS lesson).
+- All 20 products carry `is_seed: True` AND `featured_example: True` so:
+  - The existing "✦ FEATURED EXAMPLE · CURATED BY CRAFTERS MARKET TO SHOWCASE THE PLATFORM" badge renders on every card (honest transparency — visitors aren't misled).
+  - The existing `POST /api/admin/seed/featured-content/purge` endpoint can sweep them in one click when real makers ramp up.
+- All 4 makers carry `tier=founder` + `founder_status=inaugural` + a unique `founder_number` allocated off the platform counter so they slot onto `/founders` Wall naturally.
+
+### Realism techniques baked in (per the user's brief)
+1. **Maker attribution** — every product card and detail page surfaces the founding-maker name + region.
+2. **Workshop context language** — descriptions include "Cut and finished in a small fabrication workshop at the base of Mt Hood", regional anchors, machinery names.
+3. **Process imagery** — each product carries a process shot (plasma sparks, CNC mid-carve, fiber laser kerf, epoxy pour, hand-rubbing) in addition to its hero shot.
+4. **Material tags** — every product lists materials (14ga steel, walnut slab, anodized aluminum, pigmented epoxy, OSHA safety yellow powder coat, etc).
+5. **Small-imperfection psychology** — "hand-finished edges", "slight variation in grain pattern", "each piece is individually cut", "no two are alike" sprinkled through descriptions to defeat the AI-catalog feel.
+
+### Verified live (preview)
+- `/shop` now shows **54 pieces** (was 34) — all 4 spec'd hero items render.
+- Product detail screenshot of `Mountain Range Steel Wall Panel` rendered the layered-mountain hero on concrete wall, process thumbnail with sparks, full spec table, and Cascade Iron Works · Hood River OR maker card. Image quality is documentary-grade — not the "AI slop" aesthetic.
+- 10/10 regression tests pass (`tests/test_iter227_starter_pack_seed.py`):
+  - 4 makers seeded, 20 products seeded, 5-per-maker distribution locked.
+  - Every product has exactly 2 images (hero + process) under `/seed-images/starter-pack/`.
+  - Every maker is `tier=founder` + `inaugural` + has a unique `founder_number`.
+  - Every product is `status=published`, `is_seed=true`, `featured_example=true`.
+  - Realism blurbs (workshop-context phrases) present on ≥ 7/20 products.
+  - Purge endpoint compatibility verified.
+
+### Deployment status
+Images are baked into the frontend `public/` directory — they'll ship to production with the next deploy. After `craftersmarket.org` redeploy, `/shop` jumps from 34 → 54 listings, `/founders` Wall gains 4 new cards, every product gets the transparent featured-example badge.
+
+### Files touched
+- `backend/seed_starter_products.py` (new — 600+ lines incl. 4 maker stories + 20 product descriptions + 24 image prompts)
+- `frontend/public/seed-images/starter-pack/` (48 new JPGs, ~36 MB total)
+- `backend/tests/test_iter227_starter_pack_seed.py` (10 tests locking seed integrity)
+- MongoDB: 4 docs upserted into `makers`, 20 docs upserted into `products`
+
+
+
 ## 2026-05-25 — iter226 · Shippo/Mailgun/R2 diag cards + GA4 Live Analytics ✅
 
 Two P0 deliverables shipped together. Both follow the iter222 Stripe-diag pattern: backend endpoints surface friendly-error strings, frontend renders colored pills + tiles + actionable next-step copy.
