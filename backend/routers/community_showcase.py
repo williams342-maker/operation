@@ -365,6 +365,9 @@ async def list_recent_showcase(
         "product_slug": 1, "maker_slug": 1,
         "user_name": 1, "user_picture": 1, "user_role": 1,
         "likes": 1, "created_at": 1,
+        # iter237 — surface AI provenance so the showcase carousel can
+        # render a small "◆ AI · Studio" badge on AI-published designs.
+        "source": 1, "design_file_id": 1, "ai_generated": 1,
     }
 
     async def _query(filt: dict, n: int) -> list[dict]:

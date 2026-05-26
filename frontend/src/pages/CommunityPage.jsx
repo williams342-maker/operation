@@ -2296,6 +2296,19 @@ function FileCard({ file, canDownload, me, onRefresh }) {
           )}
         </div>
       </div>
+      {/* iter237 — Remix entry point. Surfaces ONLY on AI-generated Studio
+          files. Routes to /studio?remix=<id> which prefills the prompt +
+          design so the user can tweak and regenerate. Drives the viral
+          remix loop discussed during Phase 3 planning. */}
+      {file.source === "maker_studio_ai" && (
+        <Link
+          to={`/studio?remix=${file.id}`}
+          className="inline-flex items-center justify-center gap-2 px-3 py-2 border border-[#00ffff]/60 text-[#00ffff] hover:bg-[#00ffff]/10 font-mono text-[10px] uppercase tracking-[0.22em] transition"
+          data-testid={`file-remix-${file.id}`}
+        >
+          <Sparkles size={12} /> Remix in Studio
+        </Link>
+      )}
       {status?.kind === "locked" ? (
         <button onClick={unlock} className="btn-industrial btn-primary inline-flex items-center justify-center gap-2" data-testid={`file-unlock-${file.id}`}>
           <Lock size={14} /> Unlock $5 — 6 mo unlimited
@@ -2307,8 +2320,7 @@ function FileCard({ file, canDownload, me, onRefresh }) {
                 data-testid={`file-download-${file.id}`}>
           <Download size={14} /> {canDownload ? "Download" : "Sign in to download"}
         </button>
-      ) : (
-        // Multi-format bundles get a dropdown so the user picks the format
+      ) : (        // Multi-format bundles get a dropdown so the user picks the format
         // they actually want. Each click hits the same metered endpoint
         // so quotas stay accurate.
         <div className="relative" data-testid={`file-download-bundle-${file.id}`}>

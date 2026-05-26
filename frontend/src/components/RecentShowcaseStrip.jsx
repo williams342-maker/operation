@@ -175,6 +175,16 @@ export default function RecentShowcaseStrip({
                   ◆ Video
                 </span>
               )}
+              {/* iter237 — AI provenance badge on Maker-Studio designs.
+                  Cyan to match the /studio nav accent. */}
+              {post.source === "maker_studio_ai" && (
+                <span
+                  className="absolute top-2 left-2 bg-[#00ffff] text-[#0a0a0a] font-mono text-[8px] uppercase tracking-[0.18em] px-1.5 py-0.5 font-bold"
+                  data-testid={`${testId}-ai-${post.id}`}
+                >
+                  ◆ AI · Studio
+                </span>
+              )}
               {extra > 0 && (
                 <span className="absolute top-2 right-2 bg-[#0a0a0a]/85 border border-[#262626] text-[#e5e5e5] font-mono text-[9px] uppercase tracking-[0.18em] px-1.5 py-0.5">
                   +{extra}

@@ -10,9 +10,9 @@
  * aesthetic to match the rest of the marketplace.
  */
 import React, { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Sparkles, Download, Share2, Loader2, Lock, FileDown } from "lucide-react";
+import { Sparkles, Download, Share2, Loader2, Lock, FileDown, RotateCw } from "lucide-react";
 import { http } from "../lib/api";
 import { toast } from "sonner";
 import { useStructuredData } from "../lib/seo";
@@ -67,6 +67,31 @@ export default function MakerStudio() {
       .then((r) => setTemplates(r.data?.templates || []))
       .catch(() => {});
   }, []);
+
+  // iter237 — Remix support. If the URL contains `?remix=<file_id>`, fetch
+  // the original prompt + design and pre-fill the studio. Requires auth.
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const remixId = searchParams.get("remix");
+    if (!remixId || !signedIn) return;
+    http.get(`/studio/remix/${remixId}`, { headers: authHeaders() })
+      .then((r) => {
+        const data = r.data;
+        if (data?.design) {
+          setDesign(data.design);
+          setWidth(data.design.width || 14);
+          setHeight(data.design.height || 6);
+          setEngraveOnly(!!data.design.engrave_only);
+          setPrompt(data.prompt ? `Edit this: ${data.prompt}` : prompt);
+          toast.success(`Remixing — “${data.title || "design"}” · tweak the prompt and regenerate`);
+        }
+        // Clear the param so refreshes don't re-fire
+        searchParams.delete("remix");
+        setSearchParams(searchParams, { replace: true });
+      })
+      .catch(() => toast.error("Could not load remix source"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signedIn]);
 
   useEffect(() => {
     if (!signedIn) return;
@@ -168,10 +193,11 @@ export default function MakerStudio() {
             height: Number(height),
             engrave_only: engraveOnly,
           },
+          prompt: prompt.trim(),
         },
         { headers: authHeaders() },
       );
-      toast.success(`Published to community — “${r.data?.file?.title}”`);
+      toast.success(`Published — “${r.data?.file?.title}” · in the community feed`);
     } catch (e) {
       toast.error("Publish failed");
     } finally {

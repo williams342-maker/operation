@@ -450,6 +450,8 @@ class PublishBody(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
     visibility: str = "public"  # public | unlisted
+    prompt: Optional[str] = None  # the original prompt the user typed
+    also_post_to_showcase: bool = True
 
 
 @router.post("/studio/publish")
@@ -460,6 +462,7 @@ async def studio_publish(body: PublishBody, user: dict = Depends(_current_studio
     summary = design_summary(design)
     title = (body.title or summary["title"] or "AI design").strip()[:80]
     description = (body.description or f"Generated in Maker Studio · {summary['size']} in.").strip()[:400]
+    prompt_text = (body.prompt or "").strip()[:400]
 
     file_id = str(uuid.uuid4())
     safe = re.sub(r"[^a-zA-Z0-9_-]+", "_", title.lower())[:32] or "design"
@@ -483,32 +486,106 @@ async def studio_publish(body: PublishBody, user: dict = Depends(_current_studio
         else:
             raise RuntimeError("r2 not configured")
     except Exception:
-        # Fallback: serve via inline data URL for SVG, skip DXF upload
         import base64
         svg_url = "data:image/svg+xml;base64," + base64.b64encode(svg.encode("utf-8")).decode("ascii")
         dxf_url = ""
 
-    # Drop a row into the community design files feed so it surfaces on the
-    # community page like any other design.
+    # Maker attribution for the design_files feed. Buyer-published designs
+    # are tagged with the synthetic 'community-studio' slug so the feed UI
+    # can render a buyer badge instead of a maker portrait.
+    maker_slug = user["sub"] if user["role"] == "maker" else "community-studio"
+    maker_name = "Studio Member"
+    if user["role"] == "maker":
+        m = await db.makers.find_one({"slug": user["sub"]}, {"_id": 0, "name": 1, "shop_name": 1})
+        if m:
+            maker_name = m.get("shop_name") or m.get("name") or user["sub"]
+
+    # Write to `design_files` — the canonical community files collection
+    # that powers /community?tab=files. The earlier prototype wrote to
+    # `community_files` which the feed UI does NOT read; iter237 fixes this.
     doc = {
         "id": file_id,
+        "file_id": file_id,
         "title": title,
         "description": description,
         "thumbnail_url": svg_url,
         "primary_url": svg_url,
+        "file_type": "svg",
+        "file_size_kb": max(1, len(svg.encode("utf-8")) // 1024),
         "variants": [
             {"format": "svg", "url": svg_url, "size": len(svg.encode("utf-8"))},
         ] + ([{"format": "dxf", "url": dxf_url, "size": len(dxf_bytes)}] if dxf_url else []),
+        "maker_slug": maker_slug,
+        "maker_name": maker_name,
         "owner_id": user["sub"],
         "owner_role": user["role"],
         "visibility": body.visibility if body.visibility in ("public", "unlisted") else "public",
         "source": "maker_studio_ai",
         "design_intent": design,
+        "ai_prompt": prompt_text,
         "downloads": 0,
         "created_at": now_iso(),
         "file_verified": True,
         "ai_generated": True,
+        "quarantined_at": None,
     }
-    await db.community_files.insert_one(doc)
+    await db.design_files.insert_one(doc)
+
+    # iter237 — Surface AI designs in the community showcase carousel too.
+    # Public-only; unlisted designs stay in the files feed only. Use the
+    # same SVG as the showcase image_url so it renders inline alongside
+    # buyer + maker photos.
+    showcase_post_id: Optional[str] = None
+    if doc["visibility"] == "public" and body.also_post_to_showcase:
+        try:
+            showcase_post_id = str(uuid.uuid4())
+            await db.showcase_posts.insert_one({
+                "id": showcase_post_id,
+                "user_id": (f"maker:{user['sub']}" if user["role"] == "maker" else user["sub"]),
+                "user_email": user["claims"].get("email", ""),
+                "user_name": maker_name if user["role"] == "maker" else "Studio Member",
+                "user_picture": "",
+                "user_role": user["role"],
+                "maker_slug": maker_slug if user["role"] == "maker" else None,
+                "title": title,
+                "caption": prompt_text or f"AI-generated · {summary['size']} in.",
+                "image_url": svg_url,
+                "image_urls": [svg_url],
+                "tags": ["ai-design", "maker-studio"] + [s for s in summary["shapes"][:2] if s],
+                "likes": 0,
+                "created_at": now_iso(),
+                "source": "maker_studio_ai",
+                "design_file_id": file_id,
+                "ai_generated": True,
+            })
+        except Exception:
+            logger.exception("[studio] showcase mirror insert failed (non-fatal)")
+            showcase_post_id = None
+
     doc.pop("_id", None)
-    return {"file": doc}
+    return {"file": doc, "showcase_post_id": showcase_post_id}
+
+
+# ── Remix — pre-load an existing AI design as the starting point ───────────
+@router.get("/studio/remix/{file_id}")
+async def studio_remix(file_id: str, user: dict = Depends(_current_studio_user)):
+    """Fetch the original prompt + sanitized design for a previously-published
+    Studio file so the frontend can pre-fill the prompt box and preview.
+    Public designs are visible to everyone signed in; unlisted designs are
+    only visible to their owner."""
+    f = await db.design_files.find_one(
+        {"id": file_id, "source": "maker_studio_ai"},
+        {"_id": 0},
+    )
+    if not f:
+        raise HTTPException(404, "Design not found or not remixable")
+    if f.get("visibility") == "unlisted" and f.get("owner_id") != user["sub"]:
+        raise HTTPException(403, "This design is unlisted")
+    intent = f.get("design_intent") or {}
+    return {
+        "id": f["id"],
+        "title": f.get("title", ""),
+        "prompt": f.get("ai_prompt", ""),
+        "design": _sanitize_design(intent, intent.get("width", 12), intent.get("height", 6)),
+        "maker_name": f.get("maker_name"),
+    }
