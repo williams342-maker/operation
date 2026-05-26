@@ -383,6 +383,18 @@ BORDER_STYLES = {
 # ─────────────────────────────────────────────────────────────────────────────
 
 
+# Material library — drives default border thickness and DXF metadata.
+# Depth values are sane defaults; the user can override via the depth select.
+MATERIALS: dict[str, dict] = {
+    "wood":     {"label": "Wood",     "depths": [0.25, 0.5, 0.75, 1.0],  "border_default": 0.20},
+    "plywood":  {"label": "Plywood",  "depths": [0.125, 0.25, 0.375, 0.5], "border_default": 0.16},
+    "steel":    {"label": "Steel",    "depths": [0.0625, 0.125, 0.1875, 0.25], "border_default": 0.18},
+    "aluminum": {"label": "Aluminum", "depths": [0.0625, 0.125, 0.1875, 0.25], "border_default": 0.18},
+    "acrylic":  {"label": "Acrylic",  "depths": [0.125, 0.1875, 0.25, 0.375], "border_default": 0.14},
+}
+
+UNITS = {"inches", "mm"}
+
 # Output canvas (pixels). 100px = 1 inch keeps math simple end-to-end.
 PX_PER_INCH = 100
 
@@ -395,6 +407,14 @@ def render_svg(design: dict[str, Any]) -> str:
     """Convert a design-intent JSON into a clean black-on-white SVG string."""
     width_in  = float(design.get("width",  12))
     height_in = float(design.get("height", 6))
+    # iter238 — parametric metadata (Phase 4). Material + units + depth are
+    # surfaced as data-* attributes on the root <svg> so downstream tooling
+    # (and the SVG file when downloaded) carries the maker's intent. We
+    # render in pixels regardless of declared unit; PX_PER_INCH stays the
+    # canvas ratio. The DXF exporter converts to real units.
+    material = design.get("material") if design.get("material") in MATERIALS else "wood"
+    units = design.get("units") if design.get("units") in UNITS else "inches"
+    depth = float(design.get("material_depth", MATERIALS[material]["depths"][0]))
     W = width_in * PX_PER_INCH
     H = height_in * PX_PER_INCH
 
@@ -502,7 +522,9 @@ def render_svg(design: dict[str, Any]) -> str:
         f'<svg xmlns="http://www.w3.org/2000/svg" '
         f'viewBox="0 0 {W:.2f} {H:.2f}" width="{W:.2f}" height="{H:.2f}" '
         f'shape-rendering="geometricPrecision" '
-        f'data-units="inches" data-design-w="{width_in}" data-design-h="{height_in}">'
+        f'data-units="{units}" data-design-w="{width_in}" data-design-h="{height_in}" '
+        f'data-material="{material}" data-material-depth="{depth}" '
+        f'data-engrave-only="{str(engrave_only).lower()}">'
         f'<rect x="0" y="0" width="{W:.2f}" height="{H:.2f}" fill="#fff" />'
         + "".join(body_parts) +
         '</svg>'
@@ -522,11 +544,18 @@ def design_summary(design: dict[str, Any]) -> dict[str, Any]:
     text_ops = [op for op in design.get("operations", []) or [] if op.get("kind") == "text"]
     shape_ops = [op for op in design.get("operations", []) or [] if op.get("kind") == "shape"]
     title = (text_ops[0].get("content") if text_ops else "design").strip()
+    units = design.get("units") if design.get("units") in UNITS else "inches"
+    unit_suffix = "in" if units == "inches" else "mm"
+    material = design.get("material") if design.get("material") in MATERIALS else "wood"
     return {
         "title": title or "design",
-        "size": f"{design.get('width', 12)}x{design.get('height', 6)}",
+        "size": f"{design.get('width', 12)}x{design.get('height', 6)} {unit_suffix}",
         "shapes": [op.get("primitive") for op in shape_ops if op.get("primitive")],
         "text_count": len(text_ops),
         "border": design.get("border", "none"),
         "holes": int((design.get("holes") or {}).get("count", 0)),
+        "material": material,
+        "units": units,
+        "material_depth": float(design.get("material_depth", MATERIALS[material]["depths"][0])),
+        "engrave_only": bool(design.get("engrave_only", False)),
     }

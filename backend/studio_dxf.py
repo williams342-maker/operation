@@ -298,7 +298,16 @@ def render_dxf(design: dict[str, Any]) -> bytes:
     doc.layers.add(name="CUT",     color=1)
     doc.layers.add(name="ENGRAVE", color=2)
     doc.layers.add(name="HOLES",   color=3)
-    doc.header["$INSUNITS"] = 1 if design.get("units", "inches") == "inches" else 4
+    doc.layers.add(name="NOTES",   color=8)
+    # iter238 — declared units come from the design intent. INSUNITS:
+    # 1=Inches, 4=Millimeters (per AutoCAD spec).
+    declared_units = design.get("units", "inches")
+    doc.header["$INSUNITS"] = 1 if declared_units == "inches" else 4
+    # Material + depth metadata — surfaced both as $TITLE/$SUBJECT header
+    # fields AND as a human-readable NOTES-layer TEXT entity at the
+    # bottom-right corner so CAM operators can read it at a glance.
+    material = (design.get("material") or "wood").lower()
+    material_depth = float(design.get("material_depth", 0.25))
     msp = doc.modelspace()
 
     border = design.get("border", "none")
@@ -391,6 +400,19 @@ def render_dxf(design: dict[str, Any]) -> bytes:
             coords = [(W / 2, H - margin)]
         for cx, cy in coords[:h_count]:
             msp.add_circle((cx, cy), diameter/2, dxfattribs={"layer": "HOLES"})
+
+    # iter238 — Parametric NOTES — surface material + depth + dimensions
+    # so the CAM operator sees machine setup intent inside the DXF.
+    unit_label = "in" if declared_units == "inches" else "mm"
+    note_text = f"MATERIAL: {material.upper()} {material_depth:.3f}{unit_label}  |  SIZE: {width_in:g}x{height_in:g}{unit_label}  |  MODE: {'ENGRAVE' if engrave_only else 'CUT+ENGRAVE'}"
+    note = msp.add_text(
+        note_text,
+        dxfattribs={"layer": "NOTES", "height": min(W, H) * 0.025, "style": "Standard"},
+    )
+    note.set_placement(
+        (W * 0.02, H * 0.02),
+        align=ezdxf.enums.TextEntityAlignment.LEFT,
+    )
 
     # Stream DXF to bytes
     buf = io.StringIO()

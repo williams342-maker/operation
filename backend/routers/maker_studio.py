@@ -31,7 +31,7 @@ from core import db, logger, now_iso
 from maker_auth import optional_buyer, decode_session_jwt
 from fastapi import Header
 
-from studio_geometry import PRIMITIVES, FONTS, BORDER_STYLES, render_svg, design_summary
+from studio_geometry import PRIMITIVES, FONTS, BORDER_STYLES, MATERIALS, UNITS, render_svg, design_summary
 from studio_dxf import render_dxf
 
 router = APIRouter(tags=["studio"])
@@ -170,6 +170,10 @@ def _sanitize_design(d: Any, fallback_w: float, fallback_h: float) -> dict:
         "border": d.get("border") if d.get("border") in BORDER_STYLES else "rounded",
         "border_thickness": float(d.get("border_thickness", 0.2)),
         "engrave_only": bool(d.get("engrave_only", False)),
+        # iter238 — parametric machining metadata
+        "material": d.get("material") if d.get("material") in MATERIALS else "wood",
+        "units": d.get("units") if d.get("units") in UNITS else "inches",
+        "material_depth": float(d.get("material_depth", 0.25)) if isinstance(d.get("material_depth", 0.25), (int, float)) else 0.25,
     }
     ops_in = d.get("operations") or []
     ops_out: list[dict] = []
@@ -416,6 +420,79 @@ STUDIO_TEMPLATES: list[dict] = [
 async def studio_templates():
     """Public catalog of curated starter templates — anonymous OK."""
     return {"templates": STUDIO_TEMPLATES}
+
+
+@router.get("/studio/materials")
+async def studio_materials():
+    """Public catalog of materials + depth presets + unit options."""
+    return {
+        "materials": [
+            {"key": k, "label": v["label"], "depths": v["depths"], "border_default": v["border_default"]}
+            for k, v in MATERIALS.items()
+        ],
+        "units": sorted(list(UNITS)),
+    }
+
+
+# ── Refine — AI tweak on existing design (counts as 1 prompt) ──────────────
+class RefineBody(BaseModel):
+    design: dict
+    instruction: str = Field(..., min_length=3, max_length=200)
+
+
+_REFINE_SYSTEM = """You are the Maker Studio refine assistant. The user has an existing design and wants a small tweak. Output a NEW design JSON object that mirrors the input, applying ONLY the requested change. Use the SAME schema and allowed values as the generator. NEVER drop existing operations unless explicitly told to. Never exceed 4 operations. OUTPUT ONLY THE JSON. No prose."""
+
+
+@router.post("/studio/refine")
+async def studio_refine(body: RefineBody, user: dict = Depends(_current_studio_user)):
+    """Apply a small natural-language tweak to an existing design.
+    Counts as 1 prompt against the daily quota.
+    Example instructions: 'make the heart bigger', 'change the text to Lakeside',
+    'switch border to circle', 'add 2 mounting holes at the top'."""
+    q = await _user_daily_quota(user)
+    if q["remaining"] <= 0:
+        raise HTTPException(429, f"Daily quota of {q['cap']} reached. Comes back tomorrow.")
+
+    api_key = os.environ.get("EMERGENT_LLM_KEY")
+    if not api_key:
+        raise HTTPException(503, "AI temporarily unavailable")
+
+    base = _sanitize_design(body.design, body.design.get("width", 12), body.design.get("height", 6))
+
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        chat = LlmChat(
+            api_key=api_key,
+            session_id=f"studio-refine-{user['sub'][:8]}-{uuid.uuid4().hex[:6]}",
+            system_message=_REFINE_SYSTEM + "\n\n" + _AI_SYSTEM.split("SCHEMA")[0],
+        ).with_model("gemini", "gemini-3-flash-preview")
+        user_text = (
+            f"CURRENT DESIGN JSON:\n{json.dumps(base)}\n\n"
+            f"USER INSTRUCTION: {body.instruction}\n\n"
+            "Return the FULL updated design JSON only."
+        )
+        raw = await chat.send_message(UserMessage(text=user_text))
+    except Exception as e:
+        logger.exception("[studio/refine] AI call failed: %s", e)
+        raise HTTPException(503, "AI refine failed")
+
+    parsed = _extract_json(raw or "")
+    refined = _sanitize_design(parsed, base["width"], base["height"])
+
+    # Quota accounting (counts as a prompt)
+    today_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    await db.studio_prompts.insert_one({
+        "id": str(uuid.uuid4()),
+        "user_id": user["sub"],
+        "role": user["role"],
+        "prompt": f"[refine] {body.instruction[:200]}",
+        "design": refined,
+        "day": today_utc,
+        "created_at": now_iso(),
+        "kind": "refine",
+    })
+    new_q = await _user_daily_quota(user)
+    return {"design": refined, "quota": new_q}
 
 
 @router.post("/studio/export-svg")

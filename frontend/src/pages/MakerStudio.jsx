@@ -51,20 +51,30 @@ export default function MakerStudio() {
 
   const signedIn = !!jwt();
   const [prompt, setPrompt] = useState(EXAMPLE_PROMPTS[0]);
+  const [refinePrompt, setRefinePrompt] = useState("");
   const [width, setWidth] = useState(14);
   const [height, setHeight] = useState(6);
   const [design, setDesign] = useState(null);
   const [svg, setSvg] = useState("");
   const [quota, setQuota] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [refining, setRefining] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [templates, setTemplates] = useState([]);
   const [engraveOnly, setEngraveOnly] = useState(false);
+  // iter238 — parametric machining controls
+  const [materials, setMaterials] = useState([]);
+  const [material, setMaterial] = useState("wood");
+  const [units, setUnits] = useState("inches");
+  const [materialDepth, setMaterialDepth] = useState(0.25);
 
   // Templates are PUBLIC — load even when signed-out so visitors can browse.
   useEffect(() => {
     http.get("/studio/templates")
       .then((r) => setTemplates(r.data?.templates || []))
+      .catch(() => {});
+    http.get("/studio/materials")
+      .then((r) => setMaterials(r.data?.materials || []))
       .catch(() => {});
   }, []);
 
@@ -109,11 +119,14 @@ export default function MakerStudio() {
       width: Number(width),
       height: Number(height),
       engrave_only: engraveOnly,
+      material,
+      units,
+      material_depth: Number(materialDepth),
     };
     http.post("/studio/render", { design: payload }, { headers: authHeaders() })
       .then((r) => setSvg(r.data?.svg || ""))
       .catch(() => {});
-  }, [design, width, height, engraveOnly]);
+  }, [design, width, height, engraveOnly, material, units, materialDepth]);
 
   const useTemplate = (tpl) => {
     setDesign(tpl.design);
@@ -121,7 +134,46 @@ export default function MakerStudio() {
     setWidth(tpl.design.width);
     setHeight(tpl.design.height);
     setEngraveOnly(!!tpl.design.engrave_only);
+    if (tpl.design.material) setMaterial(tpl.design.material);
+    if (tpl.design.units) setUnits(tpl.design.units);
+    if (tpl.design.material_depth) setMaterialDepth(tpl.design.material_depth);
     toast.success(`Loaded template — “${tpl.name}”`);
+  };
+
+  // Compose the design payload sent to publish/export endpoints — keeps the
+  // material/units/depth params in lockstep across all 4 actions.
+  const designPayload = () => ({
+    ...design,
+    width: Number(width),
+    height: Number(height),
+    engrave_only: engraveOnly,
+    material,
+    units,
+    material_depth: Number(materialDepth),
+  });
+
+  const refine = async () => {
+    if (!design) return;
+    if (refinePrompt.trim().length < 3) {
+      toast.error("Tweak instruction is too short");
+      return;
+    }
+    setRefining(true);
+    try {
+      const r = await http.post(
+        "/studio/refine",
+        { design: designPayload(), instruction: refinePrompt.trim() },
+        { headers: authHeaders() },
+      );
+      setDesign(r.data.design);
+      setQuota(r.data.quota);
+      setRefinePrompt("");
+      toast.success("Design refined");
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Refine failed");
+    } finally {
+      setRefining(false);
+    }
   };
 
   const generate = async () => {
@@ -154,14 +206,7 @@ export default function MakerStudio() {
 
   const downloadFile = async (kind) => {
     if (!design) return;
-    const payload = {
-      design: {
-        ...design,
-        width: Number(width),
-        height: Number(height),
-        engrave_only: engraveOnly,
-      },
-    };
+    const payload = { design: designPayload() };
     try {
       const r = await http.post(`/studio/export-${kind}`, payload, {
         headers: authHeaders(),
@@ -186,15 +231,7 @@ export default function MakerStudio() {
     try {
       const r = await http.post(
         "/studio/publish",
-        {
-          design: {
-            ...design,
-            width: Number(width),
-            height: Number(height),
-            engrave_only: engraveOnly,
-          },
-          prompt: prompt.trim(),
-        },
+        { design: designPayload(), prompt: prompt.trim() },
         { headers: authHeaders() },
       );
       toast.success(`Published — “${r.data?.file?.title}” · in the community feed`);
@@ -370,6 +407,50 @@ export default function MakerStudio() {
                     data-testid="studio-engrave-checkbox"
                   />
                 </label>
+
+                {/* iter238 — Parametric machining controls (material, depth, units).
+                    These are stamped onto the SVG as data-* attributes and into the
+                    DXF as a NOTES-layer text entity so CAM operators see machine
+                    setup intent inside the file. */}
+                <ParametricControls
+                  materials={materials}
+                  material={material} setMaterial={setMaterial}
+                  units={units} setUnits={setUnits}
+                  materialDepth={materialDepth} setMaterialDepth={setMaterialDepth}
+                />
+
+                {/* iter238 — Refine-with-AI box. Apply a small tweak to the
+                    existing design without re-prompting from scratch. Costs 1
+                    daily-quota prompt. */}
+                <div data-testid="studio-refine">
+                  <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] block mb-2">
+                    ◆ Refine with AI
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={refinePrompt}
+                      onChange={(e) => setRefinePrompt(e.target.value)}
+                      placeholder="e.g. make the heart bigger"
+                      className="flex-1 min-w-0 bg-[#0a0a0a] border border-[#262626] focus:border-[#00ffff] outline-none px-2.5 py-2 font-mono text-xs text-[#e5e5e5]"
+                      maxLength={200}
+                      data-testid="studio-refine-input"
+                    />
+                    <button
+                      type="button"
+                      onClick={refine}
+                      disabled={refining || !refinePrompt.trim()}
+                      className="px-3 py-2 border border-[#00ffff] text-[#00ffff] hover:bg-[#00ffff]/10 disabled:opacity-40 font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5"
+                      data-testid="studio-refine-btn"
+                    >
+                      {refining ? <Loader2 size={12} className="animate-spin" /> : <RotateCw size={12} />}
+                      Refine
+                    </button>
+                  </div>
+                  <div className="font-mono text-[9px] text-[#525252] mt-1">
+                    Uses 1 prompt · keeps the rest of your design intact
+                  </div>
+                </div>
               </div>
             )}
 
@@ -496,17 +577,14 @@ function ShapeLegend() {
         <span className="px-2 py-1 border border-[#00ffff]/60 font-mono text-[10px] text-[#00ffff] uppercase tracking-[0.18em]">
           + engrave-only mode
         </span>
+        <span className="px-2 py-1 border border-[#00ffff]/60 font-mono text-[10px] text-[#00ffff] uppercase tracking-[0.18em]">
+          + 5 materials · units · depth
+        </span>
       </div>
     </div>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// TemplateGallery — horizontally-scrollable strip of curated quick-start
-// designs. Clicking a card pre-fills the prompt + design without spending an
-// AI prompt from the user's daily quota. This is the path most first-time
-// visitors will take.
-// ─────────────────────────────────────────────────────────────────────────────
 function TemplateGallery({ templates, onPick }) {
   return (
     <div className="mb-10" data-testid="studio-template-gallery">
@@ -536,6 +614,75 @@ function TemplateGallery({ templates, onPick }) {
             </div>
           </button>
         ))}
+      </div>
+    </div>
+  );
+}
+
+// iter238 — Parametric machining controls. Material chips + units toggle +
+// depth presets driven by the selected material's depth list. Selections are
+// threaded into render, generate, refine, download, publish payloads.
+function ParametricControls({ materials, material, setMaterial, units, setUnits, materialDepth, setMaterialDepth }) {
+  const current = materials.find((m) => m.key === material);
+  const depths = current?.depths || [0.25, 0.5];
+  return (
+    <div className="space-y-3" data-testid="studio-parametric">
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">◆ Material</span>
+          <button
+            type="button"
+            onClick={() => setUnits(units === "inches" ? "mm" : "inches")}
+            className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252] hover:text-[#00ffff] border border-[#262626] hover:border-[#00ffff] px-2 py-0.5"
+            data-testid="studio-units-toggle"
+          >
+            {units === "inches" ? "in" : "mm"} ↻
+          </button>
+        </div>
+        <div className="grid grid-cols-3 gap-1.5">
+          {materials.map((m) => (
+            <button
+              key={m.key}
+              type="button"
+              onClick={() => {
+                setMaterial(m.key);
+                if (!m.depths.includes(materialDepth)) setMaterialDepth(m.depths[0]);
+              }}
+              className={`px-2 py-1.5 border font-mono text-[10px] uppercase tracking-[0.18em] ${
+                material === m.key ? "border-[#00ffff] text-[#00ffff] bg-[#00ffff]/5"
+                  : "border-[#262626] text-[#a3a3a3] hover:border-[#525252]"
+              }`}
+              data-testid={`studio-material-${m.key}`}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">◆ Depth</span>
+          <span className="font-mono text-[10px] text-[#e5e5e5]">
+            {materialDepth}{units === "inches" ? "″" : "mm"}
+          </span>
+        </div>
+        <div className="grid grid-cols-4 gap-1.5">
+          {depths.map((d) => (
+            <button
+              key={d}
+              type="button"
+              onClick={() => setMaterialDepth(d)}
+              className={`px-2 py-1.5 border font-mono text-[10px] ${
+                Math.abs(materialDepth - d) < 0.001
+                  ? "border-[#ff4500] text-[#ff4500] bg-[#ff4500]/5"
+                  : "border-[#262626] text-[#a3a3a3] hover:border-[#525252]"
+              }`}
+              data-testid={`studio-depth-${d}`}
+            >
+              {d}
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );
