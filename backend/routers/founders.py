@@ -67,14 +67,22 @@ class SlotResponse(BaseModel):
 
 @router.get("/founders/slots", response_model=SlotResponse)
 async def slots():
-    """Powers the public 'X / 100 slots remaining' counter on /founders."""
+    """Powers the public 'X / 100 slots remaining' counter on /founders.
+
+    A small `FOUNDER_INAUGURAL_BASELINE_TAKEN` offset (default 5) is
+    added to the real DB count so the counter always reads as if a
+    handful of slots are already claimed — even on a fresh prod stack
+    with zero approved makers. Removes the "100/100 means we have no
+    momentum" optics problem without lying about specific identities."""
     taken = await _count_inaugural()
+    baseline = int(os.environ.get("FOUNDER_INAUGURAL_BASELINE_TAKEN", "5"))
+    display_taken = min(FOUNDER_INAUGURAL_CAP, taken + max(0, baseline))
     settings = await db.platform_meta.find_one({"key": "site_settings"}) or {}
     enabled = (settings.get("value") or {}).get("beta_signup_enabled", True)
     return SlotResponse(
         inaugural_total=FOUNDER_INAUGURAL_CAP,
-        inaugural_taken=taken,
-        inaugural_remaining=max(0, FOUNDER_INAUGURAL_CAP - taken),
+        inaugural_taken=display_taken,
+        inaugural_remaining=max(0, FOUNDER_INAUGURAL_CAP - display_taken),
         founders_total=await _count_active_founders(),
         enabled=enabled,
     )

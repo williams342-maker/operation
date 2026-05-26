@@ -212,6 +212,15 @@ async def on_startup():
             )
     except Exception:
         logger.exception("[seed] workshop-team attribution bootstrap failed (non-fatal)")
+    # iter233 — Idempotent seed of 2 Crafters Market Workshop Team
+    # replies on every forum thread with zero replies so a fresh deploy
+    # never looks like a dead forum. Safe to re-run; only touches
+    # reply-empty threads.
+    try:
+        from forum_team_replies_bootstrap import bootstrap_team_replies
+        await bootstrap_team_replies()
+    except Exception:
+        logger.exception("[forum_team_replies] bootstrap failed (non-fatal)")
     logger.info("Crafters Market API ready (seed checked).")
 
 
