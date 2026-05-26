@@ -49,6 +49,7 @@ import PressPage from "./pages/PressPage";
 import SEOLandingPage from "./pages/SEOLandingPage";
 import { SEO_LANDING_PAGES } from "./pages/seoLandingConfig";
 import LandingPage from "./pages/LandingPage";
+import GrowWithUs from "./pages/GrowWithUs";
 import UpdatesPage from "./pages/UpdatesPage";
 import SignInPage, { ForgotPasswordPage, ResetPasswordPage } from "./pages/SignInPage";
 import TrackBriefPage from "./pages/TrackBriefPage";
@@ -208,6 +209,7 @@ function App() {
                 <Route path="/launch" element={<LandingPage />} />
                 <Route path="/makers-beta" element={<LandingPage />} />
                 <Route path="/for-makers" element={<LandingPage />} />
+                <Route path="/grow" element={<GrowWithUs />} />
                 <Route path="/updates" element={<UpdatesPage />} />
                 <Route path="/whats-new" element={<UpdatesPage />} />
                 <Route path="/journal" element={<JournalPage />} />

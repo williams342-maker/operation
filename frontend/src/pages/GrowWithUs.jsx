@@ -13,7 +13,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion, useInView, useScroll, useTransform, animate } from "framer-motion";
-import http from "../lib/api";
+import { http } from "../lib/api";
 
 // ─────────────────────────────────────────────────────────────────────
 // Animated count-up — fires once when the element scrolls into view.
