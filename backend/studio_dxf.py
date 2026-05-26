@@ -152,6 +152,131 @@ def _shape_polylines(slug: str, w: float, h: float, ox: float, oy: float):
             y2 = cy + outer * math.sin(a)
             add([(x1, y1), (x2, y2)])
 
+    elif slug == "eagle":
+        pts = [
+            (0.50, 0.05), (0.55, 0.10), (0.60, 0.10), (0.62, 0.18),
+            (0.58, 0.22), (0.55, 0.28),
+            (0.85, 0.20), (0.95, 0.25), (0.92, 0.32), (0.78, 0.40),
+            (0.95, 0.45), (0.86, 0.55), (0.72, 0.50),
+            (0.62, 0.55), (0.62, 0.75), (0.70, 0.85), (0.58, 0.80),
+            (0.50, 0.95), (0.42, 0.80), (0.30, 0.85), (0.38, 0.75),
+            (0.38, 0.55),
+            (0.28, 0.50), (0.14, 0.55), (0.05, 0.45),
+            (0.22, 0.40), (0.08, 0.32), (0.05, 0.25), (0.15, 0.20),
+            (0.42, 0.28), (0.45, 0.22), (0.42, 0.18),
+            (0.44, 0.10), (0.49, 0.10), (0.50, 0.05),
+        ]
+        add([(p[0]*w, p[1]*h) for p in pts])
+
+    elif slug == "antlers":
+        for side in (+1, -1):
+            cx = w / 2
+            path_pts = [
+                (cx, h),
+                (cx + side * 0.05*w, 0.75*h),
+                (cx + side * 0.12*w, 0.55*h),
+                (cx + side * 0.20*w, 0.40*h),
+                (cx + side * 0.30*w, 0.28*h),
+                (cx + side * 0.42*w, 0.20*h),
+                (cx + side * 0.38*w, 0.12*h),
+                (cx + side * 0.30*w, 0.18*h),
+                (cx + side * 0.22*w, 0.10*h),
+                (cx + side * 0.15*w, 0.16*h),
+                (cx + side * 0.08*w, 0.06*h),
+                (cx + side * 0.02*w, 0.20*h),
+                (cx, 0.50*h),
+                (cx, h),
+            ]
+            add(path_pts)
+
+    elif slug == "rooster":
+        pts = [
+            (0.05, 0.55), (0.12, 0.30), (0.18, 0.28), (0.20, 0.18),
+            (0.25, 0.22), (0.28, 0.12), (0.32, 0.20), (0.36, 0.30),
+            (0.40, 0.25),
+            (0.42, 0.34), (0.50, 0.36), (0.50, 0.40), (0.46, 0.44),
+            (0.50, 0.46),
+            (0.58, 0.50), (0.72, 0.55), (0.80, 0.42),
+            (0.92, 0.30), (0.95, 0.20), (0.93, 0.35),
+            (0.88, 0.42), (0.95, 0.55), (0.85, 0.60),
+            (0.92, 0.72), (0.78, 0.68),
+            (0.70, 0.78), (0.60, 0.85), (0.55, 0.82),
+            (0.50, 0.92), (0.44, 0.92), (0.48, 0.82),
+            (0.42, 0.92), (0.36, 0.92), (0.40, 0.80),
+            (0.30, 0.72), (0.18, 0.66), (0.08, 0.60),
+            (0.05, 0.55),
+        ]
+        add([(p[0]*w, p[1]*h) for p in pts])
+
+    elif slug == "anchor":
+        # Just emit the outer shank+stock+arms as separate polygons.
+        cx = w / 2
+        ring_r = min(w, h) * 0.08
+        shank_w = min(w, h) * 0.06
+        top_y = ring_r * 2.4
+        bot_y = h * 0.78
+        # Shank rect
+        add([
+            (cx - shank_w/2, top_y), (cx + shank_w/2, top_y),
+            (cx + shank_w/2, bot_y), (cx - shank_w/2, bot_y),
+            (cx - shank_w/2, top_y),
+        ])
+        sb_y = top_y + (bot_y - top_y) * 0.18
+        sb_w = w * 0.34
+        sb_h = min(w, h) * 0.05
+        add([
+            (cx - sb_w/2, sb_y), (cx + sb_w/2, sb_y),
+            (cx + sb_w/2, sb_y + sb_h), (cx - sb_w/2, sb_y + sb_h),
+            (cx - sb_w/2, sb_y),
+        ])
+        arm_radius = w * 0.30
+        arm_left = [
+            (cx - shank_w/2, bot_y - sb_h),
+            (cx - arm_radius, bot_y),
+            (cx - arm_radius * 1.05, bot_y + sb_h * 1.4),
+            (cx - arm_radius * 0.55, bot_y + sb_h * 0.4),
+            (cx - shank_w/2, bot_y - sb_h * 0.2),
+            (cx - shank_w/2, bot_y - sb_h),
+        ]
+        add(arm_left)
+        add([(w - p[0], p[1]) for p in arm_left])
+
+    elif slug == "compass_rose":
+        cx, cy = w / 2, h / 2
+        long_r = min(w, h) * 0.48
+        short_r = min(w, h) * 0.30
+        side_r = min(w, h) * 0.08
+        for ang in (0, 90, 180, 270):
+            a = math.radians(ang - 90)
+            tx = cx + long_r * math.cos(a); ty = cy + long_r * math.sin(a)
+            bx1 = cx + side_r * math.cos(a + math.pi/2); by1 = cy + side_r * math.sin(a + math.pi/2)
+            bx2 = cx + side_r * math.cos(a - math.pi/2); by2 = cy + side_r * math.sin(a - math.pi/2)
+            add([(tx, ty), (bx1, by1), (bx2, by2), (tx, ty)])
+        for ang in (45, 135, 225, 315):
+            a = math.radians(ang - 90)
+            tx = cx + short_r * math.cos(a); ty = cy + short_r * math.sin(a)
+            bx1 = cx + side_r*0.6 * math.cos(a + math.pi/2); by1 = cy + side_r*0.6 * math.sin(a + math.pi/2)
+            bx2 = cx + side_r*0.6 * math.cos(a - math.pi/2); by2 = cy + side_r*0.6 * math.sin(a - math.pi/2)
+            add([(tx, ty), (bx1, by1), (bx2, by2), (tx, ty)])
+
+    elif slug == "treble_clef":
+        # Sample cubic curve from SVG as ~40 points along the path
+        # Coarse approximation built from 4 cubic segments.
+        segments = [
+            ((0.55, 0.05), (0.20, 0.30), (0.20, 0.60), (0.60, 0.55)),
+            ((0.60, 0.55), (0.85, 0.50), (0.85, 0.20), (0.45, 0.30)),
+            ((0.45, 0.30), (0.20, 0.40), (0.25, 0.85), (0.60, 0.85)),
+            ((0.60, 0.85), (0.85, 0.85), (0.85, 0.65), (0.60, 0.65)),
+        ]
+        pts = []
+        for seg in segments:
+            for i in range(20):
+                t = i / 19
+                px = _cubic(t, seg[0][0]*w, seg[1][0]*w, seg[2][0]*w, seg[3][0]*w)
+                py = _cubic(t, seg[0][1]*h, seg[1][1]*h, seg[2][1]*h, seg[3][1]*h)
+                pts.append((px, py))
+        add(pts)
+
     return out
 
 
@@ -178,27 +303,29 @@ def render_dxf(design: dict[str, Any]) -> bytes:
 
     border = design.get("border", "none")
     border_thick = float(design.get("border_thickness", 0.25)) * PX_PER_INCH
+    engrave_only = bool(design.get("engrave_only", False))
+    SHAPE_LAYER = "ENGRAVE" if engrave_only else "CUT"
 
-    # ── Border ──────────────────────────────────────────────────────────────
-    if border in ("rectangle", "rounded"):
-        msp.add_lwpolyline(
-            [(0, 0), (W, 0), (W, H), (0, H)],
-            close=True,
-            dxfattribs={"layer": "CUT"},
-        )
-    elif border == "circle":
-        r = min(W, H) / 2 - border_thick / 2
-        msp.add_circle((W/2, H/2), r, dxfattribs={"layer": "CUT"})
-    elif border == "oval":
-        # Ellipses in DXF need major + ratio
-        rx = W/2 - border_thick/2
-        ry = H/2 - border_thick/2
-        msp.add_ellipse(
-            (W/2, H/2),
-            major_axis=(rx, 0),
-            ratio=ry/rx if rx else 1,
-            dxfattribs={"layer": "CUT"},
-        )
+    # ── Border (skipped entirely in engrave-only mode) ──────────────────────
+    if not engrave_only:
+        if border in ("rectangle", "rounded"):
+            msp.add_lwpolyline(
+                [(0, 0), (W, 0), (W, H), (0, H)],
+                close=True,
+                dxfattribs={"layer": "CUT"},
+            )
+        elif border == "circle":
+            r = min(W, H) / 2 - border_thick / 2
+            msp.add_circle((W/2, H/2), r, dxfattribs={"layer": "CUT"})
+        elif border == "oval":
+            rx = W/2 - border_thick/2
+            ry = H/2 - border_thick/2
+            msp.add_ellipse(
+                (W/2, H/2),
+                major_axis=(rx, 0),
+                ratio=ry/rx if rx else 1,
+                dxfattribs={"layer": "CUT"},
+            )
 
     # ── Operations ──────────────────────────────────────────────────────────
     for op in design.get("operations", []) or []:
@@ -219,7 +346,7 @@ def render_dxf(design: dict[str, Any]) -> bytes:
                 msp.add_lwpolyline(
                     [(p[0], p[1]) for p in poly],
                     close=(poly[0] == poly[-1]) if len(poly) > 2 else False,
-                    dxfattribs={"layer": "CUT"},
+                    dxfattribs={"layer": SHAPE_LAYER},
                 )
 
         elif kind == "text":

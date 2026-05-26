@@ -113,13 +113,14 @@ async def test_studio_full_pipeline():
 
 
 def test_geometry_emits_all_primitives():
-    """Direct unit test on the geometry engine — no auth, no DB."""
+    """Direct unit test on the geometry engine — no auth, no DB.
+    Checks that the 8 Phase-1 primitives are still present; full inventory
+    test (14 primitives after Phase 2) lives in test_iter236."""
     from studio_geometry import PRIMITIVES, render_svg
 
-    assert set(PRIMITIVES.keys()) == {
-        "mountains", "pine_trees", "deer", "heart",
-        "star", "flag", "cross", "sun_rays",
-    }
+    phase1 = {"mountains", "pine_trees", "deer", "heart",
+              "star", "flag", "cross", "sun_rays"}
+    assert phase1.issubset(set(PRIMITIVES.keys()))
     # Render a 12x6 canvas with each primitive in turn
     for slug in PRIMITIVES.keys():
         design = {

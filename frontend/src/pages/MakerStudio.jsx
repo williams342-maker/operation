@@ -27,6 +27,11 @@ const EXAMPLE_PROMPTS = [
   "Memorial cross with name John Doe in western font",
 ];
 
+const SHAPE_VOCAB = [
+  "mountains", "pine_trees", "deer", "heart", "star", "flag", "cross",
+  "sun_rays", "eagle", "antlers", "rooster", "anchor", "compass_rose", "treble_clef",
+];
+
 function jwt() {
   if (typeof window === "undefined") return null;
   return localStorage.getItem("cm_maker_jwt") || localStorage.getItem("cm_buyer_jwt") || null;
@@ -53,6 +58,15 @@ export default function MakerStudio() {
   const [quota, setQuota] = useState(null);
   const [busy, setBusy] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [templates, setTemplates] = useState([]);
+  const [engraveOnly, setEngraveOnly] = useState(false);
+
+  // Templates are PUBLIC — load even when signed-out so visitors can browse.
+  useEffect(() => {
+    http.get("/studio/templates")
+      .then((r) => setTemplates(r.data?.templates || []))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!signedIn) return;
@@ -65,11 +79,25 @@ export default function MakerStudio() {
   // simple effect — backend handles the sanitization).
   useEffect(() => {
     if (!design) return;
-    const payload = { ...design, width: Number(width), height: Number(height) };
+    const payload = {
+      ...design,
+      width: Number(width),
+      height: Number(height),
+      engrave_only: engraveOnly,
+    };
     http.post("/studio/render", { design: payload }, { headers: authHeaders() })
       .then((r) => setSvg(r.data?.svg || ""))
       .catch(() => {});
-  }, [design, width, height]);
+  }, [design, width, height, engraveOnly]);
+
+  const useTemplate = (tpl) => {
+    setDesign(tpl.design);
+    setPrompt(tpl.prompt);
+    setWidth(tpl.design.width);
+    setHeight(tpl.design.height);
+    setEngraveOnly(!!tpl.design.engrave_only);
+    toast.success(`Loaded template — “${tpl.name}”`);
+  };
 
   const generate = async () => {
     if (!signedIn) {
@@ -87,7 +115,8 @@ export default function MakerStudio() {
         { prompt: prompt.trim(), width, height },
         { headers: authHeaders() },
       );
-      setDesign(r.data.design);
+      const generated = { ...r.data.design, engrave_only: engraveOnly };
+      setDesign(generated);
       setQuota(r.data.quota);
       toast.success("Design generated");
     } catch (e) {
@@ -100,7 +129,14 @@ export default function MakerStudio() {
 
   const downloadFile = async (kind) => {
     if (!design) return;
-    const payload = { design: { ...design, width: Number(width), height: Number(height) } };
+    const payload = {
+      design: {
+        ...design,
+        width: Number(width),
+        height: Number(height),
+        engrave_only: engraveOnly,
+      },
+    };
     try {
       const r = await http.post(`/studio/export-${kind}`, payload, {
         headers: authHeaders(),
@@ -125,7 +161,14 @@ export default function MakerStudio() {
     try {
       const r = await http.post(
         "/studio/publish",
-        { design: { ...design, width: Number(width), height: Number(height) } },
+        {
+          design: {
+            ...design,
+            width: Number(width),
+            height: Number(height),
+            engrave_only: engraveOnly,
+          },
+        },
         { headers: authHeaders() },
       );
       toast.success(`Published to community — “${r.data?.file?.title}”`);
@@ -154,6 +197,11 @@ export default function MakerStudio() {
             straight into the community design files feed.
           </p>
         </div>
+
+        {/* Template gallery — quick-start curated designs */}
+        {templates.length > 0 && (
+          <TemplateGallery templates={templates} onPick={useTemplate} />
+        )}
 
         {/* Two-column workshop */}
         <div className="grid lg:grid-cols-[400px_1fr] gap-6 lg:gap-10">
@@ -241,7 +289,7 @@ export default function MakerStudio() {
               {busy ? "Generating…" : "Generate design"}
             </button>
 
-            {/* Size sliders (only useful once a design exists) */}
+            {/* Size sliders + engrave-only toggle (only useful once a design exists) */}
             {design && (
               <div className="space-y-4 border-t border-[#262626] pt-5">
                 <div>
@@ -270,6 +318,32 @@ export default function MakerStudio() {
                     data-testid="studio-height-slider"
                   />
                 </div>
+
+                {/* Engrave-only toggle — when ON, DXF routes all shapes to the
+                    ENGRAVE layer (no outer cut). Preview shows the border as
+                    a dashed grey guide so the user can tell the difference. */}
+                <label
+                  className={`flex items-center justify-between cursor-pointer select-none border px-3 py-2.5 transition ${
+                    engraveOnly ? "border-[#00ffff] bg-[#00ffff]/5" : "border-[#262626] hover:border-[#525252]"
+                  }`}
+                  data-testid="studio-engrave-toggle"
+                >
+                  <div>
+                    <div className={`font-mono text-[10px] uppercase tracking-[0.22em] ${engraveOnly ? "text-[#00ffff]" : "text-[#e5e5e5]"}`}>
+                      ◆ Engrave-only mode
+                    </div>
+                    <div className="font-mono text-[9px] text-[#737373] mt-0.5">
+                      Skip outer cut · ENGRAVE layer only
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={engraveOnly}
+                    onChange={(e) => setEngraveOnly(e.target.checked)}
+                    className="accent-[#00ffff] w-4 h-4"
+                    data-testid="studio-engrave-checkbox"
+                  />
+                </label>
               </div>
             )}
 
@@ -376,17 +450,13 @@ function SummaryItem({ label, value, truncate }) {
 }
 
 function ShapeLegend() {
-  const SHAPES = [
-    "mountains", "pine_trees", "deer", "heart",
-    "star", "flag", "cross", "sun_rays",
-  ];
   return (
     <div className="border border-[#262626] bg-[#0a0a0a] p-4" data-testid="studio-shape-legend">
       <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] mb-3">
-        ◆ Shape vocabulary the AI can compose
+        ◆ Shape vocabulary the AI can compose ({SHAPE_VOCAB.length})
       </div>
       <div className="flex flex-wrap gap-2">
-        {SHAPES.map((s) => (
+        {SHAPE_VOCAB.map((s) => (
           <span key={s} className="px-2 py-1 border border-[#262626] font-mono text-[10px] text-[#a3a3a3] uppercase tracking-[0.18em]">
             {s.replace(/_/g, " ")}
           </span>
@@ -397,7 +467,90 @@ function ShapeLegend() {
         <span className="px-2 py-1 border border-[#262626] font-mono text-[10px] text-[#a3a3a3] uppercase tracking-[0.18em]">
           + 5 border styles
         </span>
+        <span className="px-2 py-1 border border-[#00ffff]/60 font-mono text-[10px] text-[#00ffff] uppercase tracking-[0.18em]">
+          + engrave-only mode
+        </span>
       </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TemplateGallery — horizontally-scrollable strip of curated quick-start
+// designs. Clicking a card pre-fills the prompt + design without spending an
+// AI prompt from the user's daily quota. This is the path most first-time
+// visitors will take.
+// ─────────────────────────────────────────────────────────────────────────────
+function TemplateGallery({ templates, onPick }) {
+  return (
+    <div className="mb-10" data-testid="studio-template-gallery">
+      <div className="flex items-baseline justify-between mb-3">
+        <div className="font-mono text-[10px] uppercase tracking-[0.32em] text-[#a3a3a3]">
+          ◆ Start from a template <span className="text-[#525252]">· {templates.length} curated</span>
+        </div>
+        <span className="font-mono text-[10px] text-[#525252]">No prompt used · free</span>
+      </div>
+      <div className="flex gap-3 overflow-x-auto pb-3 -mx-4 px-4 snap-x snap-mandatory">
+        {templates.map((tpl) => (
+          <button
+            key={tpl.id}
+            type="button"
+            onClick={() => onPick(tpl)}
+            className="shrink-0 w-[200px] text-left border border-[#262626] hover:border-[#ff4500] bg-[#0a0a0a] p-3 transition group snap-start"
+            data-testid={`studio-template-${tpl.id}`}
+          >
+            <TemplateThumb design={tpl.design} />
+            <div className="mt-2.5 space-y-1">
+              <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252]">
+                {tpl.category}
+              </div>
+              <div className="font-mono text-[11px] text-[#e5e5e5] group-hover:text-[#ff4500] line-clamp-1">
+                {tpl.name}
+              </div>
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Tiny inline SVG thumbnail rendered from a small subset of the design intent
+// so the gallery looks alive without hitting the backend for each card.
+function TemplateThumb({ design }) {
+  const w = 200;
+  const h = 100;
+  const dW = design.width || 12;
+  const dH = design.height || 6;
+  const aspect = dW / dH;
+  const fitH = Math.min(h, w / aspect);
+  const fitW = fitH * aspect;
+  // Build a quick SVG with just the first shape + text using inline fragments.
+  const shape = (design.operations || []).find((o) => o.kind === "shape");
+  const text = (design.operations || []).find((o) => o.kind === "text");
+  return (
+    <div className="bg-white aspect-[2/1] flex items-center justify-center overflow-hidden border border-[#171717]">
+      <svg viewBox={`0 0 ${fitW} ${fitH}`} width={fitW} height={fitH} className="w-full h-full">
+        {design.border && design.border !== "none" && (
+          <rect x="4" y="4" width={fitW - 8} height={fitH - 8} rx={design.border === "rounded" ? 8 : 0}
+                fill="none" stroke="#000" strokeWidth="3" />
+        )}
+        {shape && (
+          <text x={fitW / 2} y={fitH * 0.45} textAnchor="middle"
+                fontFamily="Anton, Impact, sans-serif"
+                fontSize={fitH * 0.18} fill="#000">
+            ◇ {shape.primitive.replace(/_/g, " ")}
+          </text>
+        )}
+        {text && (
+          <text x={fitW / 2} y={fitH * 0.78} textAnchor="middle"
+                fontFamily="Anton, Impact, sans-serif"
+                fontWeight="900"
+                fontSize={fitH * 0.20} fill="#000">
+            {text.content}
+          </text>
+        )}
+      </svg>
     </div>
   );
 }

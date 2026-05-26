@@ -102,7 +102,7 @@ class GenerateBody(BaseModel):
 _AI_SYSTEM = """You are the Maker Studio AI for an artisan CNC marketplace. Convert a user prompt into ONE strict JSON object describing a clean black-on-white silhouette design ready for plasma/laser cutting. Output ONLY the JSON object — no prose, no markdown, no code fences.
 
 ALLOWED VALUES:
-- primitive (shapes): mountains | pine_trees | deer | heart | star | flag | cross | sun_rays
+- primitive (shapes): mountains | pine_trees | deer | heart | star | flag | cross | sun_rays | eagle | antlers | rooster | anchor | compass_rose | treble_clef
 - font: bold_serif | script | western | sans
 - border: none | rectangle | rounded | circle | oval
 - holes.placement: top_corners | bottom_corners | four_corners | top_center
@@ -113,6 +113,7 @@ SCHEMA (return EXACTLY this shape):
   "height": <number, inches, copy from input>,
   "border": "rounded",
   "border_thickness": 0.2,
+  "engrave_only": false,
   "operations": [
     { "kind": "shape", "primitive": "mountains", "x": 0.5, "y": 0.40, "w": 0.85, "h": 0.55 },
     { "kind": "text",  "content": "Lake House", "font": "bold_serif", "size": 0.30, "x": 0.5, "y": 0.78 }
@@ -125,11 +126,15 @@ CONSTRAINTS:
 - text size is a fraction of canvas HEIGHT (0.05 to 0.5).
 - Aim for 1-2 shapes and 1-2 text lines. Never more than 4 total operations.
 - If the user says "cabin / mountains / lake" → mountains + pine_trees.
-- If "patriotic / vet / military" → flag + bold_serif text.
+- If "patriotic / vet / military" → flag + bold_serif text, or eagle for military.
 - If "religious / faith / memorial" → cross.
-- If "ranch / hunting / wildlife" → deer + pine_trees.
+- If "ranch / hunting / wildlife" → deer or antlers + pine_trees.
 - If "love / wedding / family" → heart + script font.
 - If "sunshine / kids" → sun_rays.
+- If "nautical / boat / sea" → anchor or compass_rose.
+- If "rooster / farm / country" → rooster.
+- If "music / band / song" → treble_clef.
+- If user mentions "engrave only / surface burn / no cut" → set engrave_only: true.
 - Default to 2 top-corner mounting holes for hanging signs.
 - Text should be the literal phrase the user requested. If user gave no text, use ONE plain noun.
 
@@ -164,6 +169,7 @@ def _sanitize_design(d: Any, fallback_w: float, fallback_h: float) -> dict:
         "height": float(d.get("height", fallback_h)) if isinstance(d.get("height", fallback_h), (int, float)) else fallback_h,
         "border": d.get("border") if d.get("border") in BORDER_STYLES else "rounded",
         "border_thickness": float(d.get("border_thickness", 0.2)),
+        "engrave_only": bool(d.get("engrave_only", False)),
     }
     ops_in = d.get("operations") or []
     ops_out: list[dict] = []
@@ -260,6 +266,156 @@ async def studio_render(body: DesignBody, user: dict = Depends(_current_studio_u
     design = _sanitize_design(body.design, body.design.get("width", 12), body.design.get("height", 6))
     svg = render_svg(design)
     return {"svg": svg, "summary": design_summary(design)}
+
+
+# ── Template library — curated quick-start designs ─────────────────────────
+# Public (no auth) so guests can browse and get nudged to sign in. The actual
+# design generation/render still requires a JWT.
+STUDIO_TEMPLATES: list[dict] = [
+    {
+        "id": "lake-house",
+        "name": "Lake House Cabin Sign",
+        "category": "Cabin & Outdoor",
+        "tag": "mountains",
+        "prompt": "Rustic cabin sign with mountains and pine trees that says Lake House",
+        "design": {
+            "width": 14, "height": 6, "border": "rounded", "border_thickness": 0.2,
+            "operations": [
+                {"kind": "shape", "primitive": "mountains", "x": 0.5, "y": 0.40, "w": 0.85, "h": 0.55},
+                {"kind": "shape", "primitive": "pine_trees", "x": 0.20, "y": 0.55, "w": 0.30, "h": 0.40},
+                {"kind": "text", "content": "Lake House", "font": "bold_serif", "size": 0.30, "x": 0.5, "y": 0.80},
+            ],
+            "holes": {"count": 2, "diameter": 0.25, "placement": "top_corners"},
+        },
+    },
+    {
+        "id": "patriotic-veteran",
+        "name": "Veteran Flag Plaque",
+        "category": "Patriotic",
+        "tag": "flag",
+        "prompt": "American flag with bold text Land Of The Free for a veteran's home",
+        "design": {
+            "width": 16, "height": 8, "border": "rectangle", "border_thickness": 0.18,
+            "operations": [
+                {"kind": "shape", "primitive": "flag", "x": 0.5, "y": 0.35, "w": 0.7, "h": 0.50},
+                {"kind": "text", "content": "Land Of The Free", "font": "bold_serif", "size": 0.18, "x": 0.5, "y": 0.85},
+            ],
+            "holes": {"count": 2, "diameter": 0.30, "placement": "top_corners"},
+        },
+    },
+    {
+        "id": "wedding-heart",
+        "name": "Wedding Heart Sign",
+        "category": "Wedding & Family",
+        "tag": "heart",
+        "prompt": "Wedding heart sign with the names A & M in script font",
+        "design": {
+            "width": 12, "height": 12, "border": "circle", "border_thickness": 0.15,
+            "operations": [
+                {"kind": "shape", "primitive": "heart", "x": 0.5, "y": 0.40, "w": 0.6, "h": 0.55},
+                {"kind": "text", "content": "A & M", "font": "script", "size": 0.20, "x": 0.5, "y": 0.80},
+            ],
+            "holes": {"count": 0, "diameter": 0.25, "placement": "top_corners"},
+        },
+    },
+    {
+        "id": "hunting-cabin",
+        "name": "Hunting Cabin Antlers",
+        "category": "Hunting & Country",
+        "tag": "antlers",
+        "prompt": "Hunting cabin sign with antlers above and pine trees below — text The Lodge",
+        "design": {
+            "width": 18, "height": 10, "border": "rounded", "border_thickness": 0.18,
+            "operations": [
+                {"kind": "shape", "primitive": "antlers", "x": 0.5, "y": 0.32, "w": 0.55, "h": 0.42},
+                {"kind": "text", "content": "The Lodge", "font": "western", "size": 0.22, "x": 0.5, "y": 0.80},
+            ],
+            "holes": {"count": 2, "diameter": 0.30, "placement": "top_corners"},
+        },
+    },
+    {
+        "id": "memorial-cross",
+        "name": "Memorial Cross",
+        "category": "Memorial & Faith",
+        "tag": "cross",
+        "prompt": "Memorial cross with name John Doe and dates in western font",
+        "design": {
+            "width": 10, "height": 14, "border": "none", "border_thickness": 0,
+            "operations": [
+                {"kind": "shape", "primitive": "cross", "x": 0.5, "y": 0.40, "w": 0.6, "h": 0.65},
+                {"kind": "text", "content": "John Doe", "font": "western", "size": 0.10, "x": 0.5, "y": 0.85},
+            ],
+            "holes": {"count": 1, "diameter": 0.25, "placement": "top_center"},
+        },
+    },
+    {
+        "id": "nautical-anchor",
+        "name": "Nautical Anchor",
+        "category": "Nautical",
+        "tag": "anchor",
+        "prompt": "Nautical anchor sign for a beach house — text Ahoy",
+        "design": {
+            "width": 12, "height": 14, "border": "rounded", "border_thickness": 0.16,
+            "operations": [
+                {"kind": "shape", "primitive": "anchor", "x": 0.5, "y": 0.40, "w": 0.55, "h": 0.55},
+                {"kind": "text", "content": "Ahoy", "font": "bold_serif", "size": 0.18, "x": 0.5, "y": 0.85},
+            ],
+            "holes": {"count": 2, "diameter": 0.25, "placement": "top_corners"},
+        },
+    },
+    {
+        "id": "compass-explorer",
+        "name": "Compass Adventure",
+        "category": "Adventure",
+        "tag": "compass_rose",
+        "prompt": "Compass rose with the text Wander Often Wander Far",
+        "design": {
+            "width": 14, "height": 14, "border": "circle", "border_thickness": 0.15,
+            "operations": [
+                {"kind": "shape", "primitive": "compass_rose", "x": 0.5, "y": 0.45, "w": 0.65, "h": 0.65},
+                {"kind": "text", "content": "Wander Often", "font": "bold_serif", "size": 0.10, "x": 0.5, "y": 0.88},
+            ],
+            "holes": {"count": 0, "diameter": 0.25, "placement": "top_corners"},
+        },
+    },
+    {
+        "id": "rooster-farm",
+        "name": "Country Rooster",
+        "category": "Farmhouse",
+        "tag": "rooster",
+        "prompt": "Country rooster farmhouse sign — text Farm Fresh",
+        "design": {
+            "width": 16, "height": 8, "border": "rounded", "border_thickness": 0.18,
+            "operations": [
+                {"kind": "shape", "primitive": "rooster", "x": 0.32, "y": 0.50, "w": 0.45, "h": 0.80},
+                {"kind": "text", "content": "Farm Fresh", "font": "western", "size": 0.24, "x": 0.70, "y": 0.55},
+            ],
+            "holes": {"count": 2, "diameter": 0.25, "placement": "top_corners"},
+        },
+    },
+    {
+        "id": "music-treble",
+        "name": "Music Studio Engraving",
+        "category": "Music",
+        "tag": "treble_clef",
+        "prompt": "Music studio name plate with treble clef — engrave only",
+        "design": {
+            "width": 12, "height": 6, "border": "rounded", "border_thickness": 0.15,
+            "engrave_only": True,
+            "operations": [
+                {"kind": "shape", "primitive": "treble_clef", "x": 0.20, "y": 0.50, "w": 0.20, "h": 0.80},
+                {"kind": "text", "content": "Studio 8", "font": "sans", "size": 0.28, "x": 0.62, "y": 0.55},
+            ],
+            "holes": {"count": 0, "diameter": 0.25, "placement": "top_corners"},
+        },
+    },
+]
+
+
+@router.get("/studio/templates")
+async def studio_templates():
+    """Public catalog of curated starter templates — anonymous OK."""
+    return {"templates": STUDIO_TEMPLATES}
 
 
 @router.post("/studio/export-svg")

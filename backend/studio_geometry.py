@@ -173,15 +173,178 @@ def _sun_rays(w: float, h: float) -> str:
     return disc + "".join(rays)
 
 
+def _eagle(w: float, h: float) -> str:
+    """Stylized eagle silhouette — wings spread, body, head."""
+    pts = [
+        (0.50, 0.05), (0.55, 0.10), (0.60, 0.10), (0.62, 0.18),  # head + beak
+        (0.58, 0.22), (0.55, 0.28),
+        (0.85, 0.20), (0.95, 0.25), (0.92, 0.32), (0.78, 0.40),  # right wing top
+        (0.95, 0.45), (0.86, 0.55), (0.72, 0.50),                # right wing tips
+        (0.62, 0.55), (0.62, 0.75), (0.70, 0.85), (0.58, 0.80),  # body right + tail
+        (0.50, 0.95), (0.42, 0.80), (0.30, 0.85), (0.38, 0.75),
+        (0.38, 0.55),                                            # body left
+        (0.28, 0.50), (0.14, 0.55), (0.05, 0.45),                # left wing
+        (0.22, 0.40), (0.08, 0.32), (0.05, 0.25), (0.15, 0.20),
+        (0.42, 0.28), (0.45, 0.22), (0.42, 0.18),                # left wing root
+        (0.44, 0.10), (0.49, 0.10),
+    ]
+    pts_str = " ".join(f"{p[0]*w:.2f},{p[1]*h:.2f}" for p in pts)
+    return f'<polygon points="{pts_str}" fill="#000" />'
+
+
+def _antlers(w: float, h: float) -> str:
+    """Buck antlers — symmetric branched silhouette, no skull."""
+    # Build one side then mirror.
+    def half(side: int):
+        # side = +1 (right) or -1 (left)
+        cx = w / 2
+        out = []
+        # Main shaft from center to outer-top
+        path_pts = [
+            (cx, h),                                # base
+            (cx + side * 0.05*w, 0.75*h),
+            (cx + side * 0.12*w, 0.55*h),
+            (cx + side * 0.20*w, 0.40*h),
+            (cx + side * 0.30*w, 0.28*h),
+            (cx + side * 0.42*w, 0.20*h),           # outer tip
+            (cx + side * 0.38*w, 0.12*h),
+            (cx + side * 0.30*w, 0.18*h),
+            (cx + side * 0.22*w, 0.10*h),           # second tine
+            (cx + side * 0.15*w, 0.16*h),
+            (cx + side * 0.08*w, 0.06*h),           # inner tine
+            (cx + side * 0.02*w, 0.20*h),
+            (cx, 0.50*h),
+        ]
+        out.append('<polygon points="' + " ".join(f"{p[0]:.2f},{p[1]:.2f}" for p in path_pts) + '" fill="#000" />')
+        return "".join(out)
+    return half(1) + half(-1)
+
+
+def _rooster(w: float, h: float) -> str:
+    """Rooster silhouette — side profile with comb + tail feathers."""
+    pts = [
+        (0.05, 0.55), (0.12, 0.30), (0.18, 0.28), (0.20, 0.18),  # comb crest
+        (0.25, 0.22), (0.28, 0.12), (0.32, 0.20), (0.36, 0.30),  # comb top
+        (0.40, 0.25),
+        (0.42, 0.34), (0.50, 0.36), (0.50, 0.40), (0.46, 0.44),  # beak
+        (0.50, 0.46),
+        (0.58, 0.50), (0.72, 0.55), (0.80, 0.42),                # back
+        (0.92, 0.30), (0.95, 0.20), (0.93, 0.35),                # tail top
+        (0.88, 0.42), (0.95, 0.55), (0.85, 0.60),                # tail mid
+        (0.92, 0.72), (0.78, 0.68),                              # tail bottom
+        (0.70, 0.78), (0.60, 0.85), (0.55, 0.82),                # body bottom
+        (0.50, 0.92), (0.44, 0.92), (0.48, 0.82),                # leg 1
+        (0.42, 0.92), (0.36, 0.92), (0.40, 0.80),                # leg 2
+        (0.30, 0.72), (0.18, 0.66), (0.08, 0.60),                # chest
+    ]
+    pts_str = " ".join(f"{p[0]*w:.2f},{p[1]*h:.2f}" for p in pts)
+    return f'<polygon points="{pts_str}" fill="#000" />'
+
+
+def _anchor(w: float, h: float) -> str:
+    """Classic anchor — shank, crown, arms, ring."""
+    import math
+    cx = w / 2
+    ring_r = min(w, h) * 0.08
+    parts = []
+    # Ring (donut: outer + inner circle by using even-odd would need path; simpler
+    # render solid ring as outer disc with white inner)
+    parts.append(f'<circle cx="{cx:.2f}" cy="{ring_r*1.4:.2f}" r="{ring_r:.2f}" fill="none" stroke="#000" stroke-width="{ring_r*0.4:.2f}" />')
+    # Shank — vertical bar from ring to crown
+    shank_w = min(w, h) * 0.06
+    top_y = ring_r * 2.4
+    bot_y = h * 0.78
+    parts.append(f'<rect x="{cx - shank_w/2:.2f}" y="{top_y:.2f}" width="{shank_w:.2f}" height="{bot_y - top_y:.2f}" fill="#000" />')
+    # Stock — horizontal crossbar
+    sb_y = top_y + (bot_y - top_y) * 0.18
+    sb_w = w * 0.34
+    sb_h = min(w, h) * 0.05
+    parts.append(f'<rect x="{cx - sb_w/2:.2f}" y="{sb_y:.2f}" width="{sb_w:.2f}" height="{sb_h:.2f}" fill="#000" />')
+    # Curved arms ending in flukes — built as two arcs
+    arm_radius = w * 0.30
+    arm_pts_left = [
+        (cx - shank_w/2, bot_y - sb_h),
+        (cx - arm_radius, bot_y),
+        (cx - arm_radius * 1.05, bot_y + sb_h * 1.4),
+        (cx - arm_radius * 0.55, bot_y + sb_h * 0.4),
+        (cx - shank_w/2, bot_y - sb_h * 0.2),
+    ]
+    arm_pts_right = [(w - p[0], p[1]) for p in arm_pts_left]
+    parts.append('<polygon points="' + " ".join(f"{p[0]:.2f},{p[1]:.2f}" for p in arm_pts_left) + '" fill="#000" />')
+    parts.append('<polygon points="' + " ".join(f"{p[0]:.2f},{p[1]:.2f}" for p in arm_pts_right) + '" fill="#000" />')
+    return "".join(parts)
+
+
+def _compass_rose(w: float, h: float) -> str:
+    """8-point compass rose — alternating long/short rays + center disc."""
+    import math
+    cx, cy = w / 2, h / 2
+    long_r = min(w, h) * 0.48
+    short_r = min(w, h) * 0.30
+    side_r = min(w, h) * 0.08
+    parts = []
+    # 4 long cardinal rays (N E S W) as triangles
+    for i, ang in enumerate([0, 90, 180, 270]):
+        a = math.radians(ang - 90)
+        tx = cx + long_r * math.cos(a)
+        ty = cy + long_r * math.sin(a)
+        # Perpendicular base points
+        bx1 = cx + side_r * math.cos(a + math.pi/2)
+        by1 = cy + side_r * math.sin(a + math.pi/2)
+        bx2 = cx + side_r * math.cos(a - math.pi/2)
+        by2 = cy + side_r * math.sin(a - math.pi/2)
+        parts.append(
+            f'<polygon points="{tx:.2f},{ty:.2f} {bx1:.2f},{by1:.2f} '
+            f'{bx2:.2f},{by2:.2f}" fill="#000" />'
+        )
+    # 4 short diagonal rays (NE SE SW NW)
+    for ang in [45, 135, 225, 315]:
+        a = math.radians(ang - 90)
+        tx = cx + short_r * math.cos(a)
+        ty = cy + short_r * math.sin(a)
+        bx1 = cx + side_r * 0.6 * math.cos(a + math.pi/2)
+        by1 = cy + side_r * 0.6 * math.sin(a + math.pi/2)
+        bx2 = cx + side_r * 0.6 * math.cos(a - math.pi/2)
+        by2 = cy + side_r * 0.6 * math.sin(a - math.pi/2)
+        parts.append(
+            f'<polygon points="{tx:.2f},{ty:.2f} {bx1:.2f},{by1:.2f} '
+            f'{bx2:.2f},{by2:.2f}" fill="#000" />'
+        )
+    # Center disc
+    parts.append(f'<circle cx="{cx:.2f}" cy="{cy:.2f}" r="{side_r * 0.5:.2f}" fill="#000" />')
+    return "".join(parts)
+
+
+def _treble_clef(w: float, h: float) -> str:
+    """Stylised treble clef — built from arcs as a single thick stroke path."""
+    # Approximation: a curvy 'S' with a circular bottom + top dot
+    return (
+        f'<path d="M {w*0.55:.2f} {0.05*h:.2f} '
+        f'C {w*0.20:.2f} {0.30*h:.2f}, {w*0.20:.2f} {0.60*h:.2f}, {w*0.60:.2f} {0.55*h:.2f} '
+        f'C {w*0.85:.2f} {0.50*h:.2f}, {w*0.85:.2f} {0.20*h:.2f}, {w*0.45:.2f} {0.30*h:.2f} '
+        f'C {w*0.20:.2f} {0.40*h:.2f}, {w*0.25:.2f} {0.85*h:.2f}, {w*0.60:.2f} {0.85*h:.2f} '
+        f'C {w*0.85:.2f} {0.85*h:.2f}, {w*0.85:.2f} {0.65*h:.2f}, {w*0.60:.2f} {0.65*h:.2f}" '
+        f'fill="none" stroke="#000" stroke-width="{min(w, h) * 0.08:.2f}" stroke-linecap="round" />'
+        # Bottom dot
+        f'<circle cx="{w*0.60:.2f}" cy="{0.95*h:.2f}" r="{min(w, h)*0.05:.2f}" fill="#000" />'
+    )
+
+
 PRIMITIVES: dict[str, Callable[[float, float], str]] = {
-    "mountains":   _mountains,
-    "pine_trees":  _pine_trees,
-    "deer":        _deer,
-    "heart":       _heart,
-    "star":        _star,
-    "flag":        _flag,
-    "cross":       _cross,
-    "sun_rays":    _sun_rays,
+    "mountains":    _mountains,
+    "pine_trees":   _pine_trees,
+    "deer":         _deer,
+    "heart":        _heart,
+    "star":         _star,
+    "flag":         _flag,
+    "cross":        _cross,
+    "sun_rays":     _sun_rays,
+    "eagle":        _eagle,
+    "antlers":      _antlers,
+    "rooster":      _rooster,
+    "anchor":       _anchor,
+    "compass_rose": _compass_rose,
+    "treble_clef":  _treble_clef,
 }
 
 # Font stack mapping the 4 AI-selectable styles to a real CSS family.
@@ -237,6 +400,10 @@ def render_svg(design: dict[str, Any]) -> str:
 
     border = design.get("border", "none")
     border_thick = float(design.get("border_thickness", 0.25)) * PX_PER_INCH
+    # iter236 Phase 2 — engrave-only mode skips the outer cut border in the
+    # preview (renders it as a thin grey guide) and tells the DXF exporter
+    # to route every operation to the ENGRAVE layer instead of CUT.
+    engrave_only = bool(design.get("engrave_only", False))
 
     body_parts: list[str] = []
 
@@ -244,19 +411,28 @@ def render_svg(design: dict[str, Any]) -> str:
     if border in ("rectangle", "rounded"):
         rx_factor = BORDER_STYLES[border].get("rx", 0)
         rx = W * rx_factor if rx_factor else 0
-        body_parts.append(
-            f'<rect x="{border_thick/2:.2f}" y="{border_thick/2:.2f}" '
-            f'width="{W - border_thick:.2f}" height="{H - border_thick:.2f}" '
-            f'rx="{rx:.2f}" ry="{rx:.2f}" '
-            f'fill="none" stroke="#000" stroke-width="{border_thick:.2f}" />'
-        )
-    elif border == "circle":
+        if engrave_only:
+            # Thin grey guide (not a cut line)
+            body_parts.append(
+                f'<rect x="{border_thick/2:.2f}" y="{border_thick/2:.2f}" '
+                f'width="{W - border_thick:.2f}" height="{H - border_thick:.2f}" '
+                f'rx="{rx:.2f}" ry="{rx:.2f}" '
+                f'fill="none" stroke="#cccccc" stroke-width="2" stroke-dasharray="6 4" />'
+            )
+        else:
+            body_parts.append(
+                f'<rect x="{border_thick/2:.2f}" y="{border_thick/2:.2f}" '
+                f'width="{W - border_thick:.2f}" height="{H - border_thick:.2f}" '
+                f'rx="{rx:.2f}" ry="{rx:.2f}" '
+                f'fill="none" stroke="#000" stroke-width="{border_thick:.2f}" />'
+            )
+    elif border == "circle" and not engrave_only:
         r = min(W, H) / 2 - border_thick / 2
         body_parts.append(
             f'<circle cx="{W/2:.2f}" cy="{H/2:.2f}" r="{r:.2f}" '
             f'fill="none" stroke="#000" stroke-width="{border_thick:.2f}" />'
         )
-    elif border == "oval":
+    elif border == "oval" and not engrave_only:
         body_parts.append(
             f'<ellipse cx="{W/2:.2f}" cy="{H/2:.2f}" '
             f'rx="{W/2 - border_thick/2:.2f}" ry="{H/2 - border_thick/2:.2f}" '
