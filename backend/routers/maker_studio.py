@@ -434,6 +434,127 @@ async def studio_materials():
     }
 
 
+# ── CAM strategy — deterministic feed/RPM/tool recommendation ──────────────
+@router.get("/studio/cam-strategy")
+async def studio_cam_strategy(
+    material: str = "wood",
+    depth: float = 0.25,
+    units: str = "inches",
+    machine: Optional[str] = None,
+    engrave_only: bool = False,
+):
+    """Public — return a feed/RPM/tool recommendation card driven by the
+    `studio_cam` lookup table. Safe to call anonymously so guests can
+    inspect machining intent before signing in."""
+    from studio_cam import cam_strategy, SUPPORTED_MACHINES
+    if machine and machine not in SUPPORTED_MACHINES:
+        machine = None
+    return cam_strategy(
+        material=material, depth=depth, units=units,
+        machine=machine, engrave_only=engrave_only,
+    )
+
+
+# ── Design kits — group multiple published designs into a shareable pack ───
+class KitCreate(BaseModel):
+    title: str = Field(..., min_length=2, max_length=80)
+    description: Optional[str] = Field(default="", max_length=400)
+    visibility: str = "public"
+
+
+class KitAddFile(BaseModel):
+    file_id: str
+
+
+def _kit_doc(d: dict) -> dict:
+    """Strip internal fields + Mongo _id for safe response serialization."""
+    d.pop("_id", None)
+    return d
+
+
+@router.post("/studio/kits")
+async def studio_kit_create(body: KitCreate, user: dict = Depends(_current_studio_user)):
+    kit_id = str(uuid.uuid4())
+    doc = {
+        "id": kit_id,
+        "title": body.title.strip()[:80],
+        "description": (body.description or "").strip()[:400],
+        "owner_id": user["sub"],
+        "owner_role": user["role"],
+        "visibility": body.visibility if body.visibility in ("public", "unlisted") else "public",
+        "file_ids": [],
+        "created_at": now_iso(),
+    }
+    await db.studio_kits.insert_one(doc)
+    return _kit_doc(doc)
+
+
+@router.get("/studio/kits")
+async def studio_kit_list(user: dict = Depends(_current_studio_user)):
+    """Returns the caller's own kits + recent public kits from other users."""
+    mine = await db.studio_kits.find(
+        {"owner_id": user["sub"]}, {"_id": 0}
+    ).sort("created_at", -1).to_list(50)
+    public = await db.studio_kits.find(
+        {"visibility": "public", "owner_id": {"$ne": user["sub"]}}, {"_id": 0}
+    ).sort("created_at", -1).limit(24).to_list(24)
+    return {"mine": mine, "public": public}
+
+
+@router.get("/studio/kits/{kit_id}")
+async def studio_kit_read(kit_id: str, user: dict = Depends(_current_studio_user)):
+    kit = await db.studio_kits.find_one({"id": kit_id}, {"_id": 0})
+    if not kit:
+        raise HTTPException(404, "Kit not found")
+    if kit["visibility"] == "unlisted" and kit["owner_id"] != user["sub"]:
+        raise HTTPException(403, "Kit is unlisted")
+    files = await db.design_files.find(
+        {"id": {"$in": kit.get("file_ids", [])}, "quarantined_at": None},
+        {"_id": 0, "id": 1, "title": 1, "thumbnail_url": 1, "primary_url": 1,
+         "maker_slug": 1, "maker_name": 1, "ai_generated": 1, "source": 1},
+    ).to_list(50)
+    # Preserve user-defined order
+    order = {fid: i for i, fid in enumerate(kit.get("file_ids", []))}
+    files.sort(key=lambda f: order.get(f["id"], 999))
+    return {**kit, "files": files}
+
+
+@router.post("/studio/kits/{kit_id}/add")
+async def studio_kit_add_file(kit_id: str, body: KitAddFile, user: dict = Depends(_current_studio_user)):
+    kit = await db.studio_kits.find_one({"id": kit_id}, {"_id": 0})
+    if not kit:
+        raise HTTPException(404, "Kit not found")
+    if kit["owner_id"] != user["sub"]:
+        raise HTTPException(403, "Not your kit")
+    # Confirm the file exists + is not quarantined
+    file_exists = await db.design_files.find_one(
+        {"id": body.file_id, "quarantined_at": None}, {"_id": 0, "id": 1}
+    )
+    if not file_exists:
+        raise HTTPException(404, "Design file not found")
+    if body.file_id in (kit.get("file_ids") or []):
+        return {"ok": True, "already_in_kit": True}
+    await db.studio_kits.update_one(
+        {"id": kit_id},
+        {"$push": {"file_ids": body.file_id}},
+    )
+    return {"ok": True, "already_in_kit": False}
+
+
+@router.delete("/studio/kits/{kit_id}/file/{file_id}")
+async def studio_kit_remove_file(kit_id: str, file_id: str, user: dict = Depends(_current_studio_user)):
+    kit = await db.studio_kits.find_one({"id": kit_id}, {"_id": 0, "owner_id": 1})
+    if not kit:
+        raise HTTPException(404, "Kit not found")
+    if kit["owner_id"] != user["sub"]:
+        raise HTTPException(403, "Not your kit")
+    await db.studio_kits.update_one(
+        {"id": kit_id},
+        {"$pull": {"file_ids": file_id}},
+    )
+    return {"ok": True}
+
+
 # ── Refine — AI tweak on existing design (counts as 1 prompt) ──────────────
 class RefineBody(BaseModel):
     design: dict

@@ -67,6 +67,8 @@ export default function MakerStudio() {
   const [material, setMaterial] = useState("wood");
   const [units, setUnits] = useState("inches");
   const [materialDepth, setMaterialDepth] = useState(0.25);
+  const [machineType, setMachineType] = useState(null); // router | laser | plasma — auto by default
+  const [cam, setCam] = useState(null);
 
   // Templates are PUBLIC — load even when signed-out so visitors can browse.
   useEffect(() => {
@@ -127,6 +129,22 @@ export default function MakerStudio() {
       .then((r) => setSvg(r.data?.svg || ""))
       .catch(() => {});
   }, [design, width, height, engraveOnly, material, units, materialDepth]);
+
+  // iter239 — CAM strategy. Public endpoint, refreshes whenever the
+  // material / depth / units / mode / machine change. No auth required so
+  // the suggestion card stays visible to anonymous browsers too.
+  useEffect(() => {
+    const params = new URLSearchParams({
+      material,
+      depth: String(materialDepth),
+      units,
+      engrave_only: String(engraveOnly),
+    });
+    if (machineType) params.set("machine", machineType);
+    http.get(`/studio/cam-strategy?${params.toString()}`)
+      .then((r) => setCam(r.data))
+      .catch(() => setCam(null));
+  }, [material, materialDepth, units, engraveOnly, machineType]);
 
   const useTemplate = (tpl) => {
     setDesign(tpl.design);
@@ -521,6 +539,17 @@ export default function MakerStudio() {
               <DesignSummary design={design} width={width} height={height} />
             )}
 
+            {/* iter239 — CAM Strategy card. Always visible (even pre-design)
+                so the user can shop materials and see machining intent up
+                front. Refetches on every material / depth / mode change. */}
+            {cam && (
+              <CamStrategyCard
+                cam={cam}
+                machineType={machineType}
+                setMachineType={setMachineType}
+              />
+            )}
+
             <ShapeLegend />
           </div>
         </div>
@@ -552,6 +581,62 @@ function SummaryItem({ label, value, truncate }) {
     <div>
       <div className="text-[#525252] uppercase tracking-[0.22em] text-[9px] mb-1">{label}</div>
       <div className={`text-[#e5e5e5] ${truncate ? "truncate" : ""}`}>{value}</div>
+    </div>
+  );
+}
+
+// iter239 — CAM Strategy card. Deterministic feed/RPM/tool recommendation
+// driven by /api/studio/cam-strategy. Includes a machine-type switcher
+// (router/laser/plasma) so the maker can preview different setups without
+// changing material.
+function CamStrategyCard({ cam, machineType, setMachineType }) {
+  const MACHINES = ["router", "laser", "plasma"];
+  return (
+    <div className="border border-[#262626] bg-[#0a0a0a] p-4 space-y-3" data-testid="studio-cam-card">
+      <div className="flex items-center justify-between">
+        <div className="font-mono text-[10px] uppercase tracking-[0.32em] text-[#ff4500]">
+          ◆ CAM Strategy <span className="text-[#525252]">· {cam.tier}</span>
+        </div>
+        <div className="flex gap-1">
+          {MACHINES.map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setMachineType(machineType === m ? null : m)}
+              className={`px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.22em] border ${
+                (machineType === m || (!machineType && cam.machine === m))
+                  ? "border-[#ff4500] text-[#ff4500]"
+                  : "border-[#262626] text-[#a3a3a3] hover:border-[#525252]"
+              }`}
+              data-testid={`studio-cam-machine-${m}`}
+            >
+              {m}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 font-mono text-[10px]">
+        <SummaryItem label="Tool" value={cam.tool} truncate />
+        {cam.rpm != null && <SummaryItem label="Spindle" value={`${cam.rpm.toLocaleString()} RPM`} />}
+        <SummaryItem label="Feed" value={`${cam.feed_rate} ${cam.feed_unit}`} />
+        {cam.plunge_rate != null && <SummaryItem label="Plunge" value={`${cam.plunge_rate} ${cam.feed_unit}`} />}
+        <SummaryItem label="Passes" value={String(cam.passes)} />
+        <SummaryItem label="Depth/pass" value={`${cam.depth_per_pass} ${cam.depth_unit}`} />
+        {cam.chipload != null && <SummaryItem label="Chipload" value={`${cam.chipload}\" / tooth`} />}
+        <SummaryItem label="Mode" value={cam.engrave_only ? "ENGRAVE" : "CUT + ENGRAVE"} />
+      </div>
+
+      {cam.notes && (
+        <div className="border-t border-[#262626] pt-3">
+          <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252] mb-1.5">
+            ◆ Operator notes
+          </div>
+          <p className="font-mono text-[10px] text-[#a3a3a3] leading-relaxed">
+            {cam.notes}
+          </p>
+        </div>
+      )}
     </div>
   );
 }
