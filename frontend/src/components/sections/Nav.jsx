@@ -14,6 +14,7 @@ const primaryLinks = [
   { label: "Shop", href: "/shop" },
   { label: "Makers", href: "/makers" },
   { label: "Custom", href: "/custom-order" },
+  { label: "Studio", href: "/studio", accent: "cyan" },
 ];
 
 // Lives inside the Community dropdown — these used to be top-level
@@ -249,10 +250,17 @@ function DesktopNav() {
         <Link
           key={l.href}
           to={l.href}
-          className="industrial-link font-mono text-xs uppercase tracking-[0.22em] text-[#e5e5e5] hover:text-[#ff4500]"
+          className={`industrial-link font-mono text-xs uppercase tracking-[0.22em] hover:text-[#ff4500] inline-flex items-center gap-1.5 ${
+            l.accent === "cyan" ? "text-[#00ffff]" : "text-[#e5e5e5]"
+          }`}
           data-testid={`nav-link-${l.label.toLowerCase().replace(/\s/g, "-")}`}
         >
           {l.label}
+          {l.accent === "cyan" && (
+            <span className="text-[8px] border border-[#00ffff]/60 px-1 py-[1px] leading-none tracking-[0.18em]" aria-label="AI">
+              AI
+            </span>
+          )}
         </Link>
       ))}
 

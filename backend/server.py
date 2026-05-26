@@ -140,7 +140,9 @@ from routers.showcase_admin import router as showcase_admin_router
 api.include_router(showcase_admin_router)
 # iter232 — Grow With Us page (public traction counters)
 from routers.grow_page import router as grow_page_router
+from routers.maker_studio import router as maker_studio_router
 api.include_router(grow_page_router)
+api.include_router(maker_studio_router)
 app.include_router(api)
 
 # iter109 — Canonical-host 301 redirect middleware. When `CANONICAL_HOST`
