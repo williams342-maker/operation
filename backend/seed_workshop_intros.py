@@ -35,10 +35,18 @@ from core import db  # noqa: E402
 # featured_example makers but the user's brief was specifically these
 # four — staying disciplined.
 TARGET_SLUGS = [
+    # iter227 starter pack
     "cascade-iron-works",
     "hill-country-forge",
     "appalachian-steel-slab",
     "great-lakes-fabworks",
+    # iter229 expansion — 6 new makers
+    "blackriver-laserworks",
+    "emberline-metalworks",
+    "northforge-customs",
+    "redwood-cnc-collective",
+    "copperedge-makers",
+    "forge-and-grain",
 ]
 
 

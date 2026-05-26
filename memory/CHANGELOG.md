@@ -1,6 +1,52 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-26 — iter229 · Starter Pack v2 — +6 makers, +30 products, +6 intros ✅
+
+User-spec'd ecosystem expansion to build "a growing network of real independent makers." Recommended additive approach (option A from the planning question) — preserves the iter227 four, adds six new non-overlapping makers across distinct regions and specialties.
+
+### 6 new founding makers (founder #10–#15)
+- **BlackRiver Laserworks** · Truckee CA · fiber laser engraving (wedding plaques, constellation maps, coordinates) · #10
+- **Emberline Metalworks** · Salida CO · layered wildlife steel art (aspen groves, mountain sunsets, wolf packs) · #11
+- **NorthForge Customs** · Bozeman MT · commercial signage (brewery taps, cattle brands, trail markers) · #12
+- **Redwood CNC Collective** · Eureka CA · artistic 3-axis carving (topographic maps, redwood reliefs, wave forms) · #13
+- **CopperEdge Makers** · Sedona AZ · premium architectural metal (hex tiles, brass sculptures, sunburst pieces) · #14
+- **Forge & Grain Workshop** · Sandpoint ID · wood+steel hybrid furniture (floating shelves, console tables, pipe benches) · #15
+
+### 30 new products
+Each maker gets 5 products mapped to their specialty — distinct from iter227's 20. Highlights: engraved wedding plaques, layered aspen grove panels, cattle-brand ranch arches, topographic Lake Tahoe map, hexagonal copper wall tiles, walnut floating shelves on hidden steel brackets.
+
+### 6 new workshop intros (iter228 system extended)
+`seed_workshop_intros.py` had its `TARGET_SLUGS` extended to cover all 10 starter-pack makers. The 6 new intros each have:
+- Concrete origin year (2011–2018)
+- Named machinery (100W CO2 laser, fiber marking laser, 5x10 CNC router, vibratory polishing tank, etc.)
+- A stubborn craftsmanship principle (no two are alike, the seam between wood and steel, light catches differently across the planes)
+- Regional anchor naturally woven in
+- 158–176 words each
+
+### Marketplace numbers (preview, verified)
+- **18 makers** total (was 12) · **15 founding-tier** (was 9)
+- **84 published products** (was 54)
+- All 6 new maker names render on the `/makers` Workshop Roster page
+- 72 new Gemini Nano Banana images (12 maker portrait/cover + 60 product hero/process) generated, stored in `frontend/public/seed-images/starter-pack/`
+
+### Regression
+- `tests/test_iter229_starter_pack_v2.py` — 7/7 pass · locks 6-maker / 30-product / 5-per-maker / hero+process pair / founder tier / intro presence / featured_example flag invariants.
+- `tests/test_iter227_starter_pack_seed.py` — 10/10 still pass.
+- `tests/test_iter228_workshop_intros.py` — 7/7 still pass (TARGET_SLUGS expanded but iter228 tests still target only the original 4 by design).
+
+### Cost
+~$2.88 image budget + ~$0.005 text budget = under $3 total. Ran in ~22 min.
+
+### Files touched
+- `backend/seed_starter_pack_v2.py` (new — 700+ lines)
+- `backend/seed_workshop_intros.py` (TARGET_SLUGS extended to 10)
+- `backend/tests/test_iter229_starter_pack_v2.py` (7 tests)
+- `frontend/public/seed-images/starter-pack/` (72 new JPGs)
+- MongoDB: 6 maker docs + 30 product docs upserted (and 6 makers got workshop_intro updated)
+
+
+
 ## 2026-05-26 — iter228 · "From the Workshop" maker intro paragraphs ✅
 
 Adds a documentary-style 120-180 word intro section to each starter-pack maker's profile page. Bio is the tagline; workshop_intro is the deeper story — origin moment, specific machinery, the one thing the shop refuses to compromise on. Built as the natural follow-up to iter227's seed pack so the new founding makers feel like real shops, not catalog placeholders.
