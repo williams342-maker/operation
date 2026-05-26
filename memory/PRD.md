@@ -25,6 +25,7 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - Admin: `/admin/login|verify|dashboard`
 
 ## What's Implemented (cumulative)
+- ✅ **Grow With Us cinematic landing page (iter232, 2026-02-26):** Single-file React route at `/grow` (683-line `GrowWithUs.jsx`) with Framer Motion scroll animations, in-view animated count-up counters, 4-phase public roadmap (DONE → IN PROGRESS → UPCOMING → FUTURE), founder letter section, dark cinematic aesthetic (#0a0a0a + #ff4500 orange + #00ffff cyan accents). Backend endpoint `GET /api/grow/traction` returns live marketplace counts (makers/products/community/forum/clips/showcase + roadmap_pct) with 60s in-memory cache. Tested 7/7 backend pytest passing + 100% frontend smoke (0 console errors, mobile 375px no overflow). Routed via `App.js` `/grow`. Files: `/app/backend/routers/grow_page.py`, `/app/frontend/src/pages/GrowWithUs.jsx`, `/app/design_guidelines.json`.
 - ✅ **Community Showcase — maker video clips (2026-02, this iter):** Makers can upload short video clips alongside (or instead of) photos. Native R2 hosting + HTML5 `<video controls>` playback — no third-party dependencies.
   - New endpoint `POST /api/community/showcase/upload-video` (maker-only role gate). 50 MB / ≈60 s cap. Allowed: mp4 / webm / mov / m4v.
   - `ShowcasePost` extended with `video_url`; `create_showcase` now accepts buyer OR maker JWTs (extends the surface for makers; buyer photo flow unchanged).
