@@ -49,6 +49,11 @@ def _prune_states() -> None:
 
 def _redirect_uri() -> str:
     """Computed at request time so a hot-reloaded env var picks up."""
+    # Explicit override (used during preview-env testing — env-var swap
+    # is faster than redeploying production to test the OAuth flow).
+    override = (os.environ.get("GA4_OAUTH_REDIRECT_URI") or "").strip()
+    if override:
+        return override
     site = (os.environ.get("PUBLIC_SITE_URL") or "").rstrip("/")
     if not site:
         site = (os.environ.get("PUBLIC_BACKEND_URL") or "").rstrip("/")
