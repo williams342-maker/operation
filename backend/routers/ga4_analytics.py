@@ -36,7 +36,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.concurrency import run_in_threadpool
 
-from core import logger
+from core import db, logger
 from maker_auth import current_admin
 
 router = APIRouter()
@@ -51,9 +51,45 @@ GA4_KEY_PATH = Path(os.environ.get(
 
 @lru_cache(maxsize=1)
 def _client():
-    """Singleton BetaAnalyticsDataClient. Cached so we don't burn a new
-    gRPC channel per request."""
+    """Singleton BetaAnalyticsDataClient.
+
+    Auth-mode resolution (highest priority first):
+      1. OAuth refresh-token from `db.ga4_oauth` — set via the
+         /admin/ga4/oauth-* flow. Bypasses every service-account quirk.
+      2. Service account JSON at GA4_KEY_PATH — legacy fallback.
+
+    Cache is invalidated by callers (`_client.cache_clear()`) whenever
+    the OAuth token is connected/disconnected so the next call rebuilds.
+    """
     from google.analytics.data_v1beta import BetaAnalyticsDataClient
+
+    # Try OAuth user-creds first. We hit Mongo synchronously here because
+    # the function is itself cached behind lru_cache — it runs at most
+    # once per uvicorn worker until cache_clear() is called.
+    try:
+        import pymongo
+        client_id = (os.environ.get("GSC_OAUTH_CLIENT_ID") or "").strip()
+        client_secret = (os.environ.get("GSC_OAUTH_CLIENT_SECRET") or "").strip()
+        mongo_url = os.environ.get("MONGO_URL")
+        db_name = os.environ.get("DB_NAME")
+        if mongo_url and db_name and client_id and client_secret:
+            with pymongo.MongoClient(mongo_url, serverSelectionTimeoutMS=2000) as mc:
+                doc = mc[db_name].ga4_oauth.find_one({"_id": "singleton"})
+            if doc and doc.get("refresh_token"):
+                from google.oauth2.credentials import Credentials
+                creds = Credentials.from_authorized_user_info({
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "refresh_token": doc["refresh_token"],
+                    "scopes": ["https://www.googleapis.com/auth/analytics.readonly"],
+                })
+                logger.info("[ga4] using OAuth user creds (%s)", doc.get("connected_email") or "anon")
+                return BetaAnalyticsDataClient(credentials=creds)
+    except Exception as e:
+        logger.warning("[ga4] OAuth creds lookup failed, falling back to service account: %s", e)
+
+    # Legacy fallback — service account JSON.
+    logger.info("[ga4] using service account JSON at %s", GA4_KEY_PATH)
     return BetaAnalyticsDataClient.from_service_account_json(str(GA4_KEY_PATH))
 
 
@@ -103,28 +139,21 @@ def _friendly_ga4_error(exc: Exception) -> str:
 # ═══════════════════════════════════════════════════════════════════════
 @router.get("/admin/ga4/diag")
 async def ga4_diag(_: dict = Depends(current_admin)):
-    """One-shot health probe: confirms the service account JSON loads,
-    the API responds, and the property is accessible. Mirrors the
-    Stripe diag pattern so the UI can render an identical pill."""
-    if not GA4_KEY_PATH.exists():
+    """One-shot health probe: confirms auth works + property is accessible."""
+    # Detect which auth mode is in play.
+    oauth_doc = await db.ga4_oauth.find_one({"_id": "singleton"}, {"_id": 0, "refresh_token": 0})
+    sa_present = GA4_KEY_PATH.exists()
+    active_mode = "oauth" if oauth_doc else ("service_account" if sa_present else "none")
+
+    if active_mode == "none":
         return {
             "ok": False,
             "property_id": GA4_PROPERTY_ID,
-            "reason": f"GA4 service account JSON missing at {GA4_KEY_PATH}. "
-                      "Place the JSON key file there and restart the backend.",
+            "active_mode": "none",
+            "reason": "No GA4 credentials configured. Connect with your Google "
+                      "account from the admin GA4 panel (recommended), or place "
+                      f"a service account JSON at {GA4_KEY_PATH}.",
         }
-    # Load to verify the JSON is well-formed and grab the client_email
-    # so we can surface it in the diag tile (admin needs to know which
-    # service account email to authorize on the GA4 property).
-    try:
-        import json
-        with open(GA4_KEY_PATH) as f:
-            sa = json.load(f)
-        client_email = sa.get("client_email", "—")
-        project_id = sa.get("project_id", "—")
-    except Exception as e:
-        return {"ok": False, "property_id": GA4_PROPERTY_ID,
-                "reason": f"Service account JSON is malformed: {e}"}
 
     # Cheapest possible probe — runReport with one metric, no dimensions.
     try:
@@ -138,21 +167,34 @@ async def ga4_diag(_: dict = Depends(current_admin)):
         )
         resp = await run_in_threadpool(_client().run_report, req)
         sample = int(resp.rows[0].metric_values[0].value) if resp.rows else 0
-        return {
+        out = {
             "ok": True,
             "property_id": GA4_PROPERTY_ID,
-            "client_email": client_email,
-            "project_id": project_id,
+            "active_mode": active_mode,
             "sample_active_users_24h": sample,
         }
+        if active_mode == "oauth":
+            out["connected_email"] = oauth_doc.get("connected_email")
+        else:
+            try:
+                import json
+                with open(GA4_KEY_PATH) as f:
+                    sa = json.load(f)
+                out["client_email"] = sa.get("client_email", "—")
+                out["project_id"] = sa.get("project_id", "—")
+            except Exception:
+                pass
+        return out
     except Exception as e:
-        return {
+        out = {
             "ok": False,
             "property_id": GA4_PROPERTY_ID,
-            "client_email": client_email,
-            "project_id": project_id,
+            "active_mode": active_mode,
             "reason": _friendly_ga4_error(e),
         }
+        if active_mode == "oauth":
+            out["connected_email"] = oauth_doc.get("connected_email")
+        return out
 
 
 # ═══════════════════════════════════════════════════════════════════════
