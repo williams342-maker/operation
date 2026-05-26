@@ -25,6 +25,7 @@ const cols = [
     title: "Company",
     links: [
       { label: "What's New", href: "/updates" },
+      { label: "Where We're Going", href: "/grow" },
       { label: "Journal", href: "/journal" },
       { label: "Makers", href: "/makers" },
       { label: "Custom Orders", href: "/custom-order" },
@@ -50,6 +51,32 @@ const cols = [
 export default function Footer() {
   return (
     <footer className="relative w-full bg-[#0a0a0a] border-t border-[#262626]">
+      {/* Grow With Us cinematic CTA band — recruiting surface for
+          founding sellers / partners / press. Sits at the top of the
+          footer so every page exit funnel touches it. Cyan accent
+          matches the /grow page's secondary palette. */}
+      <Link
+        to="/grow"
+        className="group block border-b border-[#262626] hover:border-[#00ffff] transition-colors"
+        data-testid="footer-grow-cta"
+      >
+        <div className="w-full max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12 py-8 md:py-10 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <span className="font-mono text-[10px] sm:text-[11px] uppercase tracking-[0.32em] text-[#00ffff]">
+              ◆ The Build Log
+            </span>
+            <span className="hidden md:inline-block w-px h-4 bg-[#262626]" />
+            <span className="font-display text-2xl md:text-3xl lg:text-4xl leading-none tracking-tight group-hover:text-[#00ffff] transition-colors">
+              See where we&apos;re going
+            </span>
+          </div>
+          <span className="font-mono text-[11px] uppercase tracking-[0.28em] text-[#a3a3a3] group-hover:text-[#00ffff] transition-colors flex items-center gap-2">
+            Public roadmap &amp; founder letter
+            <span aria-hidden="true" className="text-[#00ffff] transition-transform group-hover:translate-x-1 inline-block">→</span>
+          </span>
+        </div>
+      </Link>
+
       <div className="w-full max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12 py-20">
         <div className="grid md:grid-cols-12 gap-10 mb-16">
           <div className="md:col-span-5">

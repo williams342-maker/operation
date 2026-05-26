@@ -13,6 +13,7 @@ const links = [
   { label: "Community", href: "/community", route: true },
   { label: "Journal", href: "/journal", route: true },
   { label: "What's new", href: "/updates", route: true },
+  { label: "Where we're going", href: "/grow", route: true, highlight: true },
   { label: "Contact", href: "/contact", route: true },
 ];
 
@@ -86,9 +87,14 @@ export default function Nav() {
             <Link
               key={l.href}
               to={l.href}
-              className="industrial-link font-mono text-xs uppercase tracking-[0.22em] text-[#e5e5e5] hover:text-[#ff4500]"
+              className={`industrial-link font-mono text-xs uppercase tracking-[0.22em] ${
+                l.highlight
+                  ? "text-[#00ffff] hover:text-[#ff4500] flex items-center gap-1.5"
+                  : "text-[#e5e5e5] hover:text-[#ff4500]"
+              }`}
               data-testid={`nav-link-${l.label.toLowerCase().replace(/\s/g, "-")}`}
             >
+              {l.highlight && <span aria-hidden="true">◆</span>}
               {l.label}
             </Link>
           ))}
