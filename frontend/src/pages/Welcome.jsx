@@ -145,7 +145,7 @@ export default function Welcome() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-[#e5e5e5] pt-32 md:pt-36 pb-20 px-4 md:px-8 relative">
+    <div className="min-h-screen bg-[#0a0a0a] text-[#e5e5e5] pt-40 md:pt-36 pb-20 px-4 md:px-8 relative">
       {/* Top progress + skip */}
       <div className="max-w-3xl mx-auto mb-8 flex items-center justify-between">
         <ProgressDots active={step} total={5} />

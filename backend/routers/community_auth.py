@@ -79,7 +79,7 @@ async def _upsert_buyer(email: str, name: str = "", picture: str = "",
             updates["eua_version"] = eua_version
             updates["eua_accepted_at"] = now_iso()
         await db.community_users.update_one({"email": email}, {"$set": updates})
-        return {**existing, **updates}
+        return {**existing, **updates, "_is_new_signup": False}
     user = {
         "user_id": f"user_{uuid.uuid4().hex[:12]}",
         "email": email,
@@ -92,6 +92,7 @@ async def _upsert_buyer(email: str, name: str = "", picture: str = "",
     }
     await db.community_users.insert_one(user)
     user.pop("_id", None)
+    user["_is_new_signup"] = True
     return user
 
 
@@ -131,8 +132,9 @@ async def community_auth_google(payload: GoogleSessionRequest):
         picture=data.get("picture", ""),
         eua_version=eua_version,
     )
+    is_new = user.pop("_is_new_signup", False)
     jwt_token = issue_session_jwt(user["user_id"], user["email"], role="buyer")
-    return {"token": jwt_token, "user": user}
+    return {"token": jwt_token, "user": user, "is_new_signup": is_new}
 
 
 @router.post("/community/auth/magic/request")
@@ -172,8 +174,9 @@ async def community_auth_magic_verify(payload: MagicVerifyRequest):
     eua_version = CURRENT_EUA_VERSION if (payload.accept_eua and payload.eua_version == CURRENT_EUA_VERSION) else ""
 
     user = await _upsert_buyer(email=email, eua_version=eua_version)
+    is_new = user.pop("_is_new_signup", False)
     jwt_token = issue_session_jwt(user["user_id"], user["email"], role="buyer")
-    return {"token": jwt_token, "user": user}
+    return {"token": jwt_token, "user": user, "is_new_signup": is_new}
 
 
 @router.get("/community/eua")

@@ -179,7 +179,8 @@ export function CommunityVerify() {
         localStorage.setItem("cm_last_email", r.user.email);
         if (r.user.name) localStorage.setItem("cm_last_name", r.user.name);
         localStorage.setItem("cm_last_signin_at", new Date().toISOString());
-        navigate("/community", { replace: true });
+        // iter249 — first-time community signups go through the welcome flow.
+        navigate(r.is_new_signup ? "/welcome" : "/community", { replace: true });
       } catch (e) { setError(e?.response?.data?.detail || "Could not verify the link."); }
     })();
   }, [params, navigate]);
@@ -226,7 +227,8 @@ export function CommunityAuthCallback() {
         localStorage.setItem("cm_last_signin_at", new Date().toISOString());
         // strip hash and navigate
         window.history.replaceState({}, "", window.location.pathname);
-        navigate("/community", { replace: true });
+        // iter249 — first-time community signups go through the welcome flow.
+        navigate(r.is_new_signup ? "/welcome" : "/community", { replace: true });
       } catch (e) {
         setError(e?.response?.data?.detail || "Sign-in failed. Please try again.");
       }
