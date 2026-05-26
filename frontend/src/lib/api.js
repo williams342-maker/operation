@@ -1366,6 +1366,8 @@ export const createForumThread = (payload) =>
   http.post("/community/forum", payload, { headers: buyerAuthHeaders() }).then((r) => r.data);
 export const replyForumThread = (id, payload) =>
   http.post(`/community/forum/${id}/reply`, payload, { headers: buyerAuthHeaders() }).then((r) => r.data);
+export const adminTeamReplyForumThread = (id, payload) =>
+  http.post(`/admin/forum/threads/${id}/team-reply`, payload, { headers: adminAuthHeaders() }).then((r) => r.data);
 export const uploadForumAttachment = (file) => {
   const fd = new FormData();
   fd.append("file", file);

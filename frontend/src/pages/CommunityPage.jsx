@@ -11,7 +11,7 @@ import {
   addDesignFileVariants, deleteDesignFileVariant, updateDesignFile,
   reportDesignFile, convertDxfToSvg, renderStlThumbnail,
   fetchForumThreads, fetchForumThread, fetchForumCategories,
-  createForumThread, replyForumThread, uploadForumAttachment,
+  createForumThread, replyForumThread, adminTeamReplyForumThread, uploadForumAttachment,
   uploadShowcaseImage, uploadShowcaseVideo, aiDescribeShowcase,
   deleteChatMessage, deleteForumThread, deleteForumReply,
   fetchChatHistory, wsChatUrl,
@@ -3034,8 +3034,14 @@ function ThreadDetail({ id, me, onBack }) {
   const [replyAttachments, setReplyAttachments] = useState([]);
   const [replyUploading, setReplyUploading] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [postAsTeam, setPostAsTeam] = useState(false);
   const [confirm, confirmModal] = useConfirm();
-  const isMod = !!localStorage.getItem("cm_admin_jwt") || !!localStorage.getItem("cm_maker_jwt");
+  const isAdmin = !!localStorage.getItem("cm_admin_jwt");
+  const isMod = isAdmin || !!localStorage.getItem("cm_maker_jwt");
+  // Admins without a buyer/maker session can ONLY post as the team
+  // (they have no community identity to reply under).
+  const teamOnly = isAdmin && !me;
+  useEffect(() => { if (teamOnly) setPostAsTeam(true); }, [teamOnly]);
   const seenReplyIdsRef = useRef(new Set());
   const mentionDingRef = useRef(null);
   const refresh = () => fetchForumThread(id).then(setData);
@@ -3112,7 +3118,12 @@ function ThreadDetail({ id, me, onBack }) {
     if (!body.trim() && replyAttachments.length === 0) return;
     setBusy(true);
     try {
-      await replyForumThread(id, { body: body || "(see attachment)", attachments: replyAttachments });
+      const payload = { body: body || "(see attachment)", attachments: replyAttachments };
+      if (isAdmin && postAsTeam) {
+        await adminTeamReplyForumThread(id, payload);
+      } else {
+        await replyForumThread(id, payload);
+      }
       setBody("");
       setReplyAttachments([]);
       refresh();
@@ -3188,16 +3199,44 @@ function ThreadDetail({ id, me, onBack }) {
           </div>
         );
       })}
-      {me && (
+      {(me || isAdmin) && (
         <form onSubmit={reply} className="ml-6 space-y-2" data-testid="reply-form">
-          <textarea rows={3} placeholder="Reply… (use @name to mention someone)" value={body}
+          <textarea rows={3} placeholder={postAsTeam ? "Reply as the Crafters Market Workshop Team…" : "Reply… (use @name to mention someone)"} value={body}
                     onChange={(e) => setBody(e.target.value)}
-                    className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs resize-y"
+                    className={`w-full bg-transparent border outline-none px-3 py-2 font-mono text-xs resize-y ${
+                      postAsTeam ? "border-[#00ffff] focus:border-[#00ffff]" : "border-[#262626] focus:border-[#ff4500]"
+                    }`}
                     data-testid="reply-body" />
           <ForumAttachmentPicker value={replyAttachments} onChange={setReplyAttachments} busy={replyUploading} onBusy={setReplyUploading} />
-          <button type="submit" disabled={busy || replyUploading} className="btn-industrial btn-primary disabled:opacity-50" data-testid="reply-submit">
-            {busy ? "Sending…" : "Reply →"}
-          </button>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            {isAdmin ? (
+              <label
+                className="inline-flex items-center gap-2 cursor-pointer select-none font-mono text-[10px] uppercase tracking-[0.22em]"
+                data-testid="reply-as-team-toggle"
+                title={teamOnly ? "You are signed in as admin only — replies post as the Workshop Team" : ""}
+              >
+                <input
+                  type="checkbox"
+                  checked={postAsTeam}
+                  disabled={teamOnly}
+                  onChange={(e) => setPostAsTeam(e.target.checked)}
+                  className="accent-[#00ffff] disabled:opacity-60"
+                  data-testid="reply-as-team-checkbox"
+                />
+                <span className={postAsTeam ? "text-[#00ffff]" : "text-[#a3a3a3]"}>
+                  ◆ Post as Workshop Team
+                </span>
+              </label>
+            ) : <span />}
+            <button
+              type="submit"
+              disabled={busy || replyUploading}
+              className={`btn-industrial disabled:opacity-50 ${postAsTeam ? "border border-[#00ffff] text-[#00ffff] hover:bg-[#00ffff]/10 px-4 py-2 font-mono text-[11px] uppercase tracking-[0.22em]" : "btn-primary"}`}
+              data-testid="reply-submit"
+            >
+              {busy ? "Sending…" : postAsTeam ? "Post as Team →" : "Reply →"}
+            </button>
+          </div>
         </form>
       )}
       {/* High-pitch ding for @mentions in forum replies */}

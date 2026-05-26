@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel
 
 from core import db, logger, now_iso
-from maker_auth import current_buyer
+from maker_auth import current_buyer, current_admin
 
 from .community_common import _ensure_user_can_post
 
@@ -191,6 +191,47 @@ async def reply_thread(thread_id: str, payload: ForumReplyCreate, claims: dict =
     }
     await db.forum_replies.insert_one(doc)
     await db.forum_threads.update_one({"id": thread_id}, {"$inc": {"reply_count": 1}})
+    doc.pop("_id", None)
+    return doc
+
+
+@router.post("/admin/forum/threads/{thread_id}/team-reply")
+async def admin_team_reply(
+    thread_id: str,
+    payload: ForumReplyCreate,
+    claims: dict = Depends(current_admin),
+):
+    """Admin-only — post a reply on a forum thread under the
+    'Crafters Market Workshop Team' persona. Used by ops to keep new
+    threads from sitting at zero replies. Skips the AI moderator (admin
+    trust) and tags the doc `is_team_reply: true` so it can be filtered
+    out of analytics if needed.
+    """
+    thread = await db.forum_threads.find_one({"id": thread_id}, {"_id": 0})
+    if not thread:
+        raise HTTPException(404, "Thread not found")
+    body = (payload.body or "").strip()[:8000]
+    if not body:
+        raise HTTPException(400, "Reply body required")
+    doc = {
+        "id": str(uuid.uuid4()),
+        "thread_id": thread_id,
+        "user_id": "system-workshop-team",
+        "user_email": "workshop@craftersmarket.org",
+        "user_name": "Crafters Market Workshop Team",
+        "body": body,
+        "attachments": [a.model_dump() for a in (payload.attachments or [])][:6],
+        "created_at": now_iso(),
+        "is_team_reply": True,
+        "posted_by_admin": claims.get("sub"),
+        "ai_mod_action": "allow",
+        "ai_mod_reason": "team_reply_admin",
+    }
+    await db.forum_replies.insert_one(doc)
+    await db.forum_threads.update_one(
+        {"id": thread_id},
+        {"$set": {"last_activity_at": doc["created_at"]}, "$inc": {"reply_count": 1}},
+    )
     doc.pop("_id", None)
     return doc
 
