@@ -1,0 +1,35 @@
+{
+  "summary": "Frontend-only verification of iter247 role-switcher dropdown in Nav.jsx. Ran 9 Playwright scenarios on the preview URL covering no-auth, single-role, multi-role, dropdown open/items, navigation, active indicator, sign-out-all, escape/outside-click close, and mobile hide. All 9 scenarios functionally pass. The critical ternary at Nav.jsx line 133 (signedInRoles.length > 1) cleanly excludes one of [nav-signin-btn] / [nav-role-switcher-btn] in every state — no DOM coexistence bug.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "RoleSwitcher → /maker/dashboard or /admin/dashboard with fake JWT", "issue": "Not a bug — observed during testing: routes /maker/dashboard and /admin/dashboard have client-side auth guards that redirect to /maker/login and /admin/login when the JWT fails server validation (expected with raw fake strings). Buyer route /community/me has no guard and resolves directly. Dropdown link hrefs are correct (verified in ROLE_META).", "affected_selectors": ["[data-testid='nav-role-switcher-maker']", "[data-testid='nav-role-switcher-admin']"]}
+    ],
+    "design_issues": []
+  },
+  "test_results_detail": {
+    "t1_noauth_baseline": {"status": "PASS", "note": "localStorage cleared → nav-signin-btn visible with text 'Sign in' (rendered 'SIGN IN' via CSS uppercase); nav-role-switcher-btn absent."},
+    "t2_single_role_admin": {"status": "PASS", "note": "Only cm_admin_jwt set → nav-signin-btn visible with text 'Account'; nav-role-switcher-btn absent."},
+    "t3_multi_role_admin_maker": {"status": "PASS", "note": "Both cm_admin_jwt + cm_maker_jwt set → nav-role-switcher-btn visible; nav-signin-btn absent. Ternary mutual-exclusion verified."},
+    "t4_dropdown_open_three_roles": {"status": "PASS", "note": "All 3 JWTs set, click switcher → menu + 3 role rows (admin/maker/buyer) + signout button all render."},
+    "t5_dropdown_navigation": {"status": "PASS (with note)", "note": "maker row → /maker/dashboard (redirects to /maker/login due to invalid fake JWT — guard behaviour). admin row → /admin/dashboard (redirects to /admin/login). buyer row → /community/me (direct). Link hrefs in ROLE_META are correct."},
+    "t6_active_indicator": {"status": "PASS", "note": "With admin+maker+buyer, admin row text = 'ADMIN\\n◆ NOW' (active per priority admin>maker>buyer). Maker/buyer rows have no 'now' marker."},
+    "t7_signout_all": {"status": "PASS", "note": "Click nav-role-switcher-signout → localStorage cm_admin_jwt + cm_maker_jwt + cm_maker_jwt_exp + cm_buyer_jwt all null. Redirected to /."},
+    "t8_close_on_escape_and_outside_click": {"status": "PASS", "note": "Escape closes menu. Mousedown outside switcher ref closes menu."},
+    "t9_mobile_hides_switcher": {"status": "PASS", "note": "375x800 viewport — nav-role-switcher-btn renders in DOM (parent has 'hidden sm:inline-block') but is not visible. Mobile drawer hamburger remains."}
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Nav.jsx is 649 lines — borderline. Consider extracting RoleSwitcher into its own file (e.g. /app/frontend/src/components/sections/nav/RoleSwitcher.jsx) for maintainability.",
+    "readSignedInRoles() only checks key presence, not JWT validity. If an expired/revoked token sits in localStorage, the user sees the role switcher but every dashboard nav redirects to login — slightly confusing UX. Acceptable for current scope but worth a follow-up to gate by token validity or at least expiry timestamp (cm_maker_jwt_exp already exists for maker)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only request)", "frontend": "100% (9/9 scenarios pass)"},
+  "test_credentials": "None used — raw non-empty strings injected directly into localStorage keys cm_admin_jwt / cm_maker_jwt / cm_buyer_jwt.",
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "iter247 RoleSwitcher implementation in /app/frontend/src/components/sections/Nav.jsx verified end-to-end. Ternary at line 133 correctly mutually-excludes nav-signin-btn vs nav-role-switcher-btn across no-auth / single-role / multi-role states. When testing navigation with FAKE JWTs, /maker/dashboard and /admin/dashboard will redirect to their /login pages due to server-side JWT validation — this is expected guard behaviour, not a switcher bug. Use real JWTs (or a credentialed account) if you need to verify the destination pages render fully."
+}

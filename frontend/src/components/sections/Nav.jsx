@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, ShoppingBag, User, ChevronDown, MessageSquare, Camera, ArrowUpRight } from "lucide-react";
+import { Menu, X, ShoppingBag, User, ChevronDown, MessageSquare, Camera, ArrowUpRight, Shield, Hammer, ShoppingBasket, LogOut } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useCart } from "../../lib/cart";
 import { http } from "../../lib/api";
@@ -39,18 +39,23 @@ const tertiaryLinks = [
 
 // Pull whichever JWT is present so we can switch the nav to "My account"
 // when the user is signed in. Reads on every render — cheap, runs in browser.
+function readSignedInRoles() {
+  if (typeof window === "undefined") return [];
+  const out = [];
+  if (localStorage.getItem("cm_admin_jwt")) out.push("admin");
+  if (localStorage.getItem("cm_maker_jwt")) out.push("maker");
+  if (localStorage.getItem("cm_buyer_jwt")) out.push("buyer");
+  return out;
+}
 function readSignedInRole() {
-  if (typeof window === "undefined") return null;
-  if (localStorage.getItem("cm_admin_jwt")) return "admin";
-  if (localStorage.getItem("cm_maker_jwt")) return "maker";
-  if (localStorage.getItem("cm_buyer_jwt")) return "buyer";
-  return null;
+  return readSignedInRoles()[0] || null;
 }
 
 export default function Nav() {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [signedInRole, setSignedInRole] = useState(readSignedInRole);
+  const [signedInRoles, setSignedInRoles] = useState(readSignedInRoles);
   const { count } = useCart() || { count: 0 };
   // useSiteSettings used to gate the now-removed beta pill — removed in
   // iter153 along with the pill itself. The bottom-of-home <BetaSignupCTA />
@@ -60,10 +65,16 @@ export default function Nav() {
     const onScroll = () => setScrolled(window.scrollY > 24);
     window.addEventListener("scroll", onScroll);
     // Listen for storage changes (sign-in / sign-out from another tab)
-    const onStorage = () => setSignedInRole(readSignedInRole());
+    const onStorage = () => {
+      setSignedInRole(readSignedInRole());
+      setSignedInRoles(readSignedInRoles());
+    };
     window.addEventListener("storage", onStorage);
     // Also re-check on focus — covers same-tab login flow
-    const onFocus = () => setSignedInRole(readSignedInRole());
+    const onFocus = () => {
+      setSignedInRole(readSignedInRole());
+      setSignedInRoles(readSignedInRoles());
+    };
     window.addEventListener("focus", onFocus);
     return () => {
       window.removeEventListener("scroll", onScroll);
@@ -115,16 +126,33 @@ export default function Nav() {
               sign-in entry point (which welcomes both regular makers AND
               Founding Sellers). Keeping one CTA reduces cognitive load
               and funnel leakage. */}
-          {/* Sign-in button — placed next to Cart so a returning user can
-              authenticate from anywhere on the site. Switches to "Account"
-              when signed in (any role). */}
-          <Link
-            to={accountHref}
-            className="hidden sm:inline-flex relative items-center gap-2 px-4 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em] transition"
-            data-testid="nav-signin-btn"
-          >
-            <User size={14} /> {signedInRole ? "Account" : "Sign in"}
-          </Link>
+          {/* Sign-in button / role switcher — placed next to Cart so a
+              returning user can authenticate or jump roles from anywhere
+              on the site. When signed into multiple roles, becomes a
+              dropdown listing each available context. */}
+          {signedInRoles.length > 1 ? (
+            <RoleSwitcher
+              roles={signedInRoles}
+              activeRole={signedInRole}
+              onSignOutAll={() => {
+                localStorage.removeItem("cm_admin_jwt");
+                localStorage.removeItem("cm_maker_jwt");
+                localStorage.removeItem("cm_maker_jwt_exp");
+                localStorage.removeItem("cm_buyer_jwt");
+                setSignedInRole(null);
+                setSignedInRoles([]);
+                window.location.href = "/";
+              }}
+            />
+          ) : (
+            <Link
+              to={accountHref}
+              className="hidden sm:inline-flex relative items-center gap-2 px-4 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em] transition"
+              data-testid="nav-signin-btn"
+            >
+              <User size={14} /> {signedInRole ? "Account" : "Sign in"}
+            </Link>
+          )}
           <Link
             to="/cart"
             className="relative inline-flex items-center gap-2 px-4 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em] transition"
@@ -519,6 +547,99 @@ function MegaMenuHotPreview() {
       {!thread && !showcase && (
         <div className="px-3 py-4 font-mono text-[10px] text-[#525252] italic">
           Community starts here. Check back soon.
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+// iter247 — Role switcher dropdown. Appears in place of the "Account"
+// link when the user holds JWTs for multiple roles (after the williams
+// merge, this is the common case for the founder account). Lets you
+// jump between admin/maker/buyer dashboards without re-logging-in.
+const ROLE_META = {
+  admin:  { label: "Admin",     href: "/admin/dashboard",  icon: Shield,         accent: "#ff4500" },
+  maker:  { label: "Maker",     href: "/maker/dashboard",  icon: Hammer,         accent: "#00ffff" },
+  buyer:  { label: "Shopper",   href: "/community/me",     icon: ShoppingBasket, accent: "#a3a3a3" },
+};
+
+function RoleSwitcher({ roles, activeRole, onSignOutAll }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const active = ROLE_META[activeRole] || ROLE_META.buyer;
+  const ActiveIcon = active.icon;
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onClick = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
+    window.addEventListener("mousedown", onClick);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousedown", onClick);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={ref} className="hidden sm:inline-block relative" data-testid="nav-role-switcher">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="inline-flex items-center gap-2 px-4 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em] transition"
+        data-testid="nav-role-switcher-btn"
+        aria-expanded={open}
+        aria-haspopup="menu"
+      >
+        <ActiveIcon size={14} style={{ color: active.accent }} />
+        <span>{active.label}</span>
+        <ChevronDown size={11} className={`transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open && (
+        <div
+          className="absolute right-0 top-[calc(100%+6px)] min-w-[220px] bg-black border border-[#262626] shadow-xl z-50"
+          role="menu"
+          data-testid="nav-role-switcher-menu"
+        >
+          <div className="px-3 py-2 border-b border-[#262626] font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252]">
+            Switch role
+          </div>
+          {roles.map((r) => {
+            const meta = ROLE_META[r];
+            if (!meta) return null;
+            const Icon = meta.icon;
+            const isActive = r === activeRole;
+            return (
+              <Link
+                key={r}
+                to={meta.href}
+                onClick={() => setOpen(false)}
+                className={`flex items-center gap-2.5 px-3 py-2.5 font-mono text-[11px] uppercase tracking-[0.22em] hover:bg-[#0d0d0d] transition ${
+                  isActive ? "bg-[#0a0a0a] text-white" : "text-[#a3a3a3]"
+                }`}
+                role="menuitem"
+                data-testid={`nav-role-switcher-${r}`}
+              >
+                <Icon size={13} style={{ color: meta.accent }} />
+                <span className="flex-1">{meta.label}</span>
+                {isActive && (
+                  <span className="font-mono text-[8px] tracking-[0.18em] text-[#525252]">◆ now</span>
+                )}
+              </Link>
+            );
+          })}
+          <button
+            type="button"
+            onClick={onSignOutAll}
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 border-t border-[#262626] font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] hover:bg-[#0d0d0d] transition"
+            data-testid="nav-role-switcher-signout"
+          >
+            <LogOut size={12} /> Sign out of all
+          </button>
         </div>
       )}
     </div>
