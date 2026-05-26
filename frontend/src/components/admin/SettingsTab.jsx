@@ -2642,6 +2642,196 @@ function EmailProviderAuditCard() {
 }
 
 
+// iter248 — Williams account-merge button card. One-click invocation of
+// the iter246 merge endpoints (/admin/merge-williams/preview + /commit).
+// Idempotent — re-clicking after success just confirms "already merged".
+// Strictly admin-gated by the existing JWT.
+function MergeWilliamsAccountsCard() {
+  const [plan, setPlan] = React.useState(null);
+  const [err, setErr] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  const [confirm, setConfirm] = React.useState(false);
+  const [result, setResult] = React.useState(null);
+
+  const API = process.env.REACT_APP_BACKEND_URL;
+  const authedFetch = (path, opts = {}) =>
+    fetch(`${API}${path}`, {
+      ...opts,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem("cm_admin_jwt") || ""}`,
+        ...(opts.headers || {}),
+      },
+    });
+
+  const loadPlan = async () => {
+    setErr("");
+    setBusy(true);
+    try {
+      const r = await authedFetch("/api/admin/merge-williams/preview");
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      setPlan(await r.json());
+    } catch (e) {
+      setErr(e.message || "Failed to load plan");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const runMerge = async () => {
+    setErr("");
+    setBusy(true);
+    setResult(null);
+    try {
+      const r = await authedFetch("/api/admin/merge-williams/commit", { method: "POST" });
+      if (!r.ok) {
+        const t = await r.text();
+        throw new Error(`HTTP ${r.status} — ${t.slice(0, 200)}`);
+      }
+      const data = await r.json();
+      setResult(data);
+      // Refresh plan to show the new state
+      await loadPlan();
+      setConfirm(false);
+    } catch (e) {
+      setErr(e.message || "Merge failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  React.useEffect(() => { loadPlan(); }, []);
+
+  const alreadyMerged = plan?.already_merged === true;
+
+  return (
+    <section
+      className="border border-[#262626] p-4 md:p-5"
+      data-testid="merge-williams-card"
+    >
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+            Database · one-time migration
+          </div>
+          <h3 className="font-display text-xl mt-1 text-[#e5e5e5]">
+            Merge williams1cnc → williams342
+          </h3>
+          <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-2xl leading-relaxed">
+            Rebinds the <code className="text-[#e5e5e5]">williams-cnc</code> maker shop
+            and historical audit rows to <code className="text-[#e5e5e5]">williams342@gmail.com</code>{" "}
+            so one Google sign-in drives admin + maker + buyer roles. Idempotent — safe to
+            click again; only writes if data needs merging.
+          </p>
+        </div>
+        <button
+          onClick={loadPlan}
+          disabled={busy}
+          className="shrink-0 px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+          data-testid="merge-williams-refresh"
+        >
+          {busy ? "Loading…" : "↻ Refresh"}
+        </button>
+      </div>
+
+      {err && (
+        <div className="mt-4 font-mono text-xs text-red-400 break-all" data-testid="merge-williams-error">
+          ✗ {err}
+        </div>
+      )}
+
+      {plan && !err && (
+        <div className="mt-4 space-y-3">
+          {alreadyMerged ? (
+            <div
+              className="px-3 py-2 border border-emerald-500/60 bg-emerald-500/5 font-mono text-[11px] text-emerald-400"
+              data-testid="merge-williams-already"
+            >
+              ✓ Already merged on this database — nothing to do.
+            </div>
+          ) : (
+            <>
+              <div className="grid md:grid-cols-3 gap-3 font-mono text-xs">
+                <Stat
+                  label="Maker email"
+                  value={plan.maker_row?.email || "—"}
+                  testId="merge-williams-current-email"
+                />
+                <Stat
+                  label="Buyer row to delete"
+                  value={plan.community_user_to_delete ? "yes" : "none"}
+                  testId="merge-williams-buyer-row"
+                />
+                <Stat
+                  label="Historical rows"
+                  value={Object.values(plan.historical_rows_to_rewrite || {}).reduce((a, b) => a + b, 0)}
+                  testId="merge-williams-historical-count"
+                />
+              </div>
+
+              <details className="border border-[#1a1a1a] bg-[#0a0a0a]">
+                <summary className="cursor-pointer px-3 py-2 font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#e5e5e5]">
+                  ↓ Full plan JSON
+                </summary>
+                <pre className="px-3 pb-3 text-[10.5px] font-mono text-[#a3a3a3] overflow-x-auto whitespace-pre">
+{JSON.stringify(plan, null, 2)}
+                </pre>
+              </details>
+
+              {!confirm ? (
+                <button
+                  type="button"
+                  onClick={() => setConfirm(true)}
+                  disabled={busy}
+                  className="px-4 py-2 bg-[#ff4500] hover:bg-[#ff6a2a] disabled:opacity-40 text-black font-mono text-[11px] uppercase tracking-[0.22em] font-bold"
+                  data-testid="merge-williams-start"
+                >
+                  Run merge…
+                </button>
+              ) : (
+                <div className="p-3 border border-amber-500/60 bg-amber-500/5 flex items-center justify-between gap-3 flex-wrap">
+                  <span className="font-mono text-[11px] text-amber-400">
+                    ⚠ Apply these changes to the production database?
+                  </span>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setConfirm(false)}
+                      disabled={busy}
+                      className="px-3 py-1.5 border border-[#262626] hover:border-[#737373] font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]"
+                      data-testid="merge-williams-cancel"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={runMerge}
+                      disabled={busy}
+                      className="px-3 py-1.5 bg-[#ff4500] hover:bg-[#ff6a2a] disabled:opacity-40 text-black font-mono text-[10px] uppercase tracking-[0.22em] font-bold"
+                      data-testid="merge-williams-confirm"
+                    >
+                      {busy ? "Merging…" : "Yes · commit merge"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {result && (
+            <div className="mt-3 border border-emerald-500/60 bg-emerald-500/5 p-3 font-mono text-[11px] text-emerald-400" data-testid="merge-williams-result">
+              ✓ Merge complete. Historical rows rewritten:{" "}
+              {Object.entries(result.rewritten_historical_counts || {}).map(([k, v]) => `${k}=${v}`).join(" · ") || "none"}.
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+
+
 
 
 export default function SettingsTab() {
@@ -2756,6 +2946,8 @@ export default function SettingsTab() {
       <SearchEnginePingCard />
 
       <EmailProviderAuditCard />
+
+      <MergeWilliamsAccountsCard />
 
       <GscConnectionCard />
 
