@@ -265,8 +265,10 @@ class DesignBody(BaseModel):
 
 
 @router.post("/studio/render")
-async def studio_render(body: DesignBody, user: dict = Depends(_current_studio_user)):
-    """Return SVG string for instant preview (no DB write)."""
+async def studio_render(body: DesignBody):
+    """Return SVG string for instant preview (no DB write).
+    Public — render_svg is deterministic geometry with no AI cost, so we let
+    anonymous browsers preview templates + drag elements before signing in."""
     design = _sanitize_design(body.design, body.design.get("width", 12), body.design.get("height", 6))
     svg = render_svg(design)
     return {"svg": svg, "summary": design_summary(design)}

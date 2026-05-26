@@ -118,8 +118,22 @@ export default function MakerStudio() {
       .catch(() => {});
   }, [signedIn]);
 
-  // Re-render SVG whenever the design or canvas size changes (debounced via
-  // simple effect — backend handles the sanitization).
+  // iter243 — Scroll the preview canvas into view the first time a design
+  // is loaded so first-time visitors immediately see the rendered SVG +
+  // can drag elements. Only runs on the design transitioning from null
+  // to a real value, not on subsequent re-renders during editing.
+  const prevDesignRef = useRef(null);
+  useEffect(() => {
+    if (!design || prevDesignRef.current) {
+      prevDesignRef.current = design;
+      return;
+    }
+    prevDesignRef.current = design;
+    // Defer one frame so the SVG has mounted before we scroll.
+    setTimeout(() => {
+      previewRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 200);
+  }, [design]);
   useEffect(() => {
     if (!design) return;
     const payload = {
