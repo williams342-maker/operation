@@ -1,104 +1,193 @@
 {
-  "theme": "dark",
-  "archetype": "5 (Luxury) + Industrial Forge",
-  "mood_board": "The cinematic identity of Crafters Market is raw, precise, and emotionally charged. We are replacing flat SaaS gradients with 'Industrial Luxury' — deep charcoal environments pierced by molten copper light, amber sparks, and technical blueprint grids. Every section should feel like stepping into a premium workshop, focusing on the machinery, raw textures, and the hands that build.",
-  "color_palette": {
-    "background_base": "#0a0a0a",
-    "background_surface": "#121212",
-    "accent_primary": "#f97316",
-    "accent_secondary": "#f59e0b",
-    "copper_glow": "rgba(217, 119, 6, 0.15)",
-    "text_primary": "#ffffff",
-    "text_secondary": "#a1a1aa",
-    "border_industrial": "rgba(255, 255, 255, 0.1)"
-  },
+  "project_name": "Crafters Market - Grow With Us Page",
+  "theme": "DARK",
+  "archetype": "Archetype 4 (Swiss & High-Contrast) + Neon Accents (Maker-Industrial)",
+  "emotional_goal": "Something important is being built here early — and I can still become part of it.",
+  "core_strategy": "Selling momentum, vision, belonging, future opportunity, creator empowerment.",
   "typography": {
-    "strategy": "Retain existing font stack. Focus on dramatic scale contrast. H1s should be tight and massive (tracking-tighter), while subheadings should be spaced and technical (tracking-widest).",
-    "classes": {
-      "hero_headline": "text-5xl md:text-6xl font-black tracking-tighter text-white drop-shadow-md",
-      "overline": "text-xs md:text-sm font-semibold tracking-[0.2em] text-orange-500 uppercase",
-      "body": "text-base md:text-lg text-zinc-400 leading-relaxed"
+    "headings": {
+      "font_family": "Satoshi, sans-serif",
+      "fallback": "Neue Montreal, Space Grotesk, sans-serif",
+      "classes": "font-display tracking-tight text-white font-bold",
+      "h1": "text-4xl sm:text-5xl lg:text-6xl+",
+      "h2": "text-3xl sm:text-4xl lg:text-5xl",
+      "h3": "text-xl sm:text-2xl"
+    },
+    "body": {
+      "font_family": "Inter, sans-serif",
+      "classes": "font-sans text-neutral-300 leading-relaxed",
+      "base": "text-base sm:text-lg",
+      "small": "text-sm text-neutral-400"
+    },
+    "labels": {
+      "font_family": "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+      "classes": "tracking-[0.28em] uppercase text-xs font-medium text-[#ff4500]"
     }
   },
-  "reusable_elements": {
-    "cinematic_frame": "border border-white/10 bg-black/40 backdrop-blur-md overflow-hidden",
-    "copper_glow_utility": "absolute pointer-events-none rounded-full blur-[100px] opacity-40 bg-amber-600/30",
-    "grain_overlay": "absolute inset-0 pointer-events-none opacity-[0.03] bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjZmZmIiBmaWxsLW9wYWNpdHk9IjAuMSIvPgo8L3N2Zz4=')]",
-    "button_primary": "bg-orange-600 hover:bg-orange-500 text-white font-medium px-6 py-3 rounded-none transition-colors duration-200 shadow-[0_0_15px_rgba(249,115,22,0.3)] hover:shadow-[0_0_25px_rgba(249,115,22,0.5)]"
-  },
-  "motion_specs": {
-    "guardrails": "All framer-motion animations must include `viewport={{ once: true }}` and respect `prefers-reduced-motion: reduce`. Use CSS media queries or framer-motion's useReducedMotion hook to disable video autoplay, particle motion, and intense parallax on mobile devices and for users who prefer reduced motion.",
-    "effects": {
-      "drift": "Slow, subtle Y-axis translations (e.g., y: [0, -10, 0]) over 10-15s for background elements. Must pause if reduced motion.",
-      "fade_up": "initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}",
-      "sparks": "Particle effect using framer-motion for subtle rising glowing dots, fading out at the top. Disable entirely on reduced motion and mobile cellular."
+  "colors": {
+    "background": {
+      "primary": "#0a0a0a",
+      "secondary": "#141414",
+      "tertiary": "#1a1a1a",
+      "surface": "rgba(38, 38, 38, 0.4)"
+    },
+    "border": {
+      "default": "#262626",
+      "highlight": "#333333",
+      "glow_cyan": "rgba(0, 255, 255, 0.3)",
+      "glow_orange": "rgba(255, 69, 0, 0.3)"
+    },
+    "text": {
+      "primary": "#ffffff",
+      "secondary": "#a3a3a3",
+      "muted": "#737373"
+    },
+    "accent": {
+      "orange": "#ff4500",
+      "cyan": "#00ffff",
+      "blue": "#007aff",
+      "amber": "#ffb000"
     }
+  },
+  "visual_features": {
+    "surfaces": "Frosted glass cards with backdrop-blur-xl and 1px border-white/10.",
+    "hover_states": "Hover depth via slight negative Y translation (-translate-y-1) and enhanced border glow.",
+    "motion": "Subtle particle movement, staggered Framer Motion reveals for sections, smooth parallax scrolling.",
+    "accents": "Glowing borders and animated gradients using cyan and orange.",
+    "backgrounds": "Grid overlays, blueprint/CNC visual language, dark matte background."
+  },
+  "image_urls": [
+    {
+      "category": "hero_background",
+      "url": "https://static.prod-images.emergentagent.com/jobs/ad0439ad-da94-4caf-a818-28a88417ad46/images/64b2aa078705ccfaf640acea24c0cb10071a1056c74ce16ae11b59801fc4bc1a.png",
+      "description": "Abstract cinematic background with amber and cyan glowing sparks and subtle technical grid lines."
+    },
+    {
+      "category": "hero_dashboard_mockup",
+      "url": "https://static.prod-images.emergentagent.com/jobs/ad0439ad-da94-4caf-a818-28a88417ad46/images/4c0a2f0df212bb01eb0a16a4e7c51c63d34688b417bc6a0ff17c264be9c31165.png",
+      "description": "Modern sleek dashboard UI mockup for creators in dark mode with neon accents."
+    },
+    {
+      "category": "vision_ecosystem_background",
+      "url": "https://static.prod-images.emergentagent.com/jobs/ad0439ad-da94-4caf-a818-28a88417ad46/images/2ee076d337ad698561a99dc8e80abf7b4536440e2388dc340ef40dfa53519b6a.png",
+      "description": "Abstract futuristic maker ecosystem with connected nodes and glowing lines."
+    },
+    {
+      "category": "founder_photo",
+      "url": "https://images.unsplash.com/photo-1584940120505-117038d90b05?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzZ8MHwxfHNlYXJjaHwyfHxtYWxlJTIwZm91bmRlciUyMHBvcnRyYWl0JTIwcHJvZmVzc2lvbmFsJTIwbGlnaHRpbmclMjBkYXJrJTIwYmFja2dyb3VuZHxlbnwwfHx8fDE3Nzk4MDc5OTJ8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Portrait of the founder, Michael Williams, professional lighting, dark background."
+    },
+    {
+      "category": "cnc_manufacturing",
+      "url": "https://images.unsplash.com/photo-1764114235896-034c8772de01?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODl8MHwxfHNlYXJjaHwxfHxjbmMlMjByb3V0ZXIlMjBtYWNoaW5lJTIwc3BhcmtzJTIwbWFudWZhY3R1cmluZ3xlbnwwfHx8fDE3Nzk4MDc5OTJ8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Industrial laser cutter working on metal sheet, sparks."
+    }
+  ],
+  "layout_strategy": {
+    "spacing": "Generous spacing. Use p-8, p-12, py-24, py-32 to create breathing room.",
+    "grid": "Bento grids for Vision and Who We're Looking For. Asymmetrical layouts for high visual interest.",
+    "container": "Max width 7xl for content, edge-to-edge for backgrounds."
   },
   "sections": [
     {
-      "name": "Hero",
-      "path": "/app/frontend/src/components/Hero.js",
-      "status": "REDESIGN",
-      "composition": "Layer 1: Deep black bg. Layer 2: Workshop photo (opacity 30-40%). Layer 3: Blueprint texture overlay (mix-blend-overlay or screen, opacity 20%). Layer 4: Ambient copper glowing orb (blur-3xl). Layer 5: Content layer.",
-      "copy": {
-        "headline": "Raw Materials. Radical Craft.",
-        "subheading": "The premier marketplace for CNC, plasma, and custom fabrication. Commission real makers in real workshops.",
-        "cta_primary": "Explore Builds",
-        "cta_secondary": "Join the Forge"
-      },
-      "media_urls": {
-        "workshop_hero_photo": "https://images.unsplash.com/photo-1707064892275-a3088e8240be?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODd8MHwxfHNlYXJjaHwxfHx3ZWxkaW5nJTIwc3BhcmtzJTIwZGFyayUyMHdvcmtzaG9wfGVufDB8fHx8MTc3OTczODg0MHww&ixlib=rb-4.1.0&q=85",
-        "blueprint_texture": "https://static.prod-images.emergentagent.com/jobs/ad0439ad-da94-4caf-a818-28a88417ad46/images/344eca9b73395e94723b39743e9202d29f0af82735b033abd426045535e48436.png"
-      },
-      "instructions_to_main_agent": "Implement a multi-layered cinematic hero. Do NOT use an opaque blanket overlay. Blend the AI blueprint texture with the workshop photo. Add a framer-motion glowing orb in the background that slowly drifts. Ensure text contrast is accessible. MUST include data-testid='hero-cta-explore' and data-testid='hero-cta-join'."
-    },
-    {
-      "name": "FeaturedBuildsRail",
-      "status": "REDESIGN",
-      "design_concept": "Framed gallery prints. Replace standard border-radius with sharp corners or 2px micro-rounding. Add a subtle inner border (white/10). On hover, scale image inside overflow-hidden, and make 'Commission' CTA glow.",
-      "instructions_to_main_agent": "Refactor card visuals. Add `.cinematic-frame` class to cards. The '✦ EXAMPLE' pill should use amber-500 bg with black text for intense contrast. Ensure all interactive elements have data-testids."
-    },
-    {
-      "name": "AiDiscoverySearch",
-      "status": "PRESERVE LAYOUT, RESKIN VISUALS",
-      "instructions_to_main_agent": "Do NOT break layout or remove any testids. Retain all functionality. Update background to `bg-[#0a0a0a]`. Change input borders to `border-white/10 focus:border-orange-500`. Enhance placeholder chips to align with the new Forge palette."
-    },
-    {
-      "name": "CinematicMomentsStrip",
-      "status": "NEW SECTION",
-      "design_concept": "A low-profile horizontal strip of 3 short looping videos that bring the workshop to life. Placed immediately after the Featured Builds section.",
-      "layout": "Grid of 3 panels (`grid-cols-1 md:grid-cols-3`). Use `.cinematic-frame` for each video container. Add section header with 'Watch on /clips \u2192' CTA.",
-      "media_urls": [
-        "/seed-clips/plasma-cut/clip.mp4",
-        "/seed-clips/welding/clip.mp4",
-        "/seed-clips/laser/clip.mp4"
+      "id": "hero",
+      "title": "Hero",
+      "description": "Cinematic introduction.",
+      "headline": "The Next Generation Marketplace for Independent Creators",
+      "supporting_copy": "Crafters Market is building a creator-first ecosystem for CNC makers, artisans, designers, and modern handmade brands — combining commerce, community, and AI-powered growth tools into one platform.",
+      "visual": "Layered floating panels showing dashboard mockups over an ambient CNC/sparks/laser footage backdrop. Use Framer Motion for parallax and 3D floating effect.",
+      "ctas": [
+        {"label": "Join as a Founding Seller", "type": "primary", "color": "orange"},
+        {"label": "View Roadmap", "type": "secondary", "color": "transparent_border"}
       ],
-      "instructions_to_main_agent": "Build this new section in the homepage. Video must use `<video muted autoplay playsinline loop>`. For performance/mobile, ensure videos are lazy-loaded and do not auto-play on reduced-data modes if detectable, or simply hide them on small viewports if performance dictates. Add data-testids to the section and CTA."
+      "brand_cues": "Include '◆ GROW WITH US' as monospace tracking-[0.28em] orange label above headline."
     },
     {
-      "name": "MeetTheMakers",
-      "status": "REDESIGN",
-      "design_concept": "Real people in real workshops. Portraits are treated with a grayscale/duotone filter that blooms into full color upon card hover. Hard, industrial container borders.",
-      "media_urls": {
-        "maker_1": "https://images.unsplash.com/photo-1542909192-2f2241a99c9d?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxNzV8MHwxfHNlYXJjaHwyfHxjcmFmdHNtYW4lMjBwb3J0cmFpdHxlbnwwfHx8fDE3Nzk3Mzg4NDB8MA&ixlib=rb-4.1.0&q=85",
-        "maker_2": "https://images.unsplash.com/photo-1660796334912-8ce8e9c2cff0?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxNzV8MHwxfHNlYXJjaHw0fHxjcmFmdHNtYW4lMjBwb3J0cmFpdHxlbnwwfHx8fDE3Nzk3Mzg4NDB8MA&ixlib=rb-4.1.0&q=85"
-      },
-      "instructions_to_main_agent": "Refactor Maker cards with `.cinematic-frame`. Implement CSS grayscale transition on hover. Stack the portrait image cleanly. Add a subtle amber `.copper_glow_utility` behind the card on hover. Add data-testids for Maker profile links."
+      "id": "problem",
+      "title": "The Problem",
+      "headline": "Makers Deserve Better Platforms",
+      "layout": "Split-screen comparison.",
+      "content": "LEFT: Oversaturated marketplace (cluttered, low visibility, generic listings, rising fees). RIGHT: Curated maker ecosystem (AI-assisted growth, community visibility, transparent fees).",
+      "visual": "Use contrasting UI blocks or stylized text/metrics to represent the chaos vs. the curated ecosystem."
     },
     {
-      "name": "WhyWeExist",
-      "status": "REDESIGN",
-      "design_concept": "The emotional anchor. Features oversized, tightly tracked typography. A massive copper glow and blueprint texture reveal themselves behind the text as the user scrolls.",
-      "instructions_to_main_agent": "Use framer-motion `useScroll` and `useTransform` to increase the opacity and scale of a background copper glow as the component enters the viewport. Typography should be `text-4xl md:text-5xl lg:text-6xl` with `tracking-tighter`. Respect reduced-motion (fallback to static glow)."
+      "id": "vision",
+      "title": "The Vision",
+      "headline": "A New Ecosystem for Modern Makers",
+      "layout": "6-block Bento Grid (grid-cols-1 md:grid-cols-2 lg:grid-cols-3, gap-6).",
+      "blocks": [
+        {"title": "Marketplace", "description": "Curated, high-quality listings for discerning buyers."},
+        {"title": "Community", "description": "Connect, collaborate, and grow with fellow makers."},
+        {"title": "AI Tools", "description": "Smart SEO and automated product descriptions."},
+        {"title": "Education", "description": "Resources and guides to scale your artisan business."},
+        {"title": "Partnerships", "description": "Exclusive deals with tool brands and suppliers."},
+        {"title": "Exposure", "description": "Dedicated spotlight campaigns for emerging creators."}
+      ],
+      "visual": "Use frosted glass cards with subtle cyan/orange glowing borders on hover. Incorporate vision_ecosystem_background subtly."
+    },
+    {
+      "id": "roadmap",
+      "title": "Roadmap",
+      "headline": "Public Roadmap",
+      "layout": "Horizontal timeline UI, scrollable on mobile.",
+      "phases": [
+        {"name": "Phase 1: Foundation", "status": "DONE", "details": "Marketplace launch, seller onboarding, core listings, shipping/payment"},
+        {"name": "Phase 2: Creator Growth", "status": "IN PROGRESS", "details": "AI product descriptions, smart SEO, social integrations, analytics", "highlight": true},
+        {"name": "Phase 3: Community Expansion", "status": "UPCOMING", "details": "Creator profiles, following, groups/forums, collaborations"},
+        {"name": "Phase 4: AI Commerce Platform", "status": "FUTURE", "details": "AI storefront assistant, automated marketing, predictive recs"}
+      ],
+      "visual": "Connecting line with glowing nodes. 'In Progress' phase pulses with electric blue or orange glow."
+    },
+    {
+      "id": "audience",
+      "title": "Who We're Looking For",
+      "layout": "Grid of 4 cards.",
+      "cards": [
+        {"title": "Founding Sellers", "description": "Early creators shaping the platform with feedback and premium listings."},
+        {"title": "Strategic Partners", "description": "Tool manufacturers, material brands, and educators."},
+        {"title": "Investors & Advisors", "description": "People who believe in the future of creator commerce."},
+        {"title": "Community Builders", "description": "Creators passionate about helping others grow in the ecosystem."}
+      ],
+      "visual": "Deep charcoal cards with 1px border-white/10, lifting on hover with a cyan/amber drop shadow."
+    },
+    {
+      "id": "traction",
+      "title": "Traction",
+      "headline": "Momentum",
+      "layout": "Grid of stat cards.",
+      "features": "Glowing stat cards with animated counters (use Framer Motion useInView).",
+      "stats": [
+        {"label": "Creators Onboarded", "value": "500+"},
+        {"label": "Products Listed", "value": "12,400+"},
+        {"label": "Community Members", "value": "3,200+"},
+        {"label": "Roadmap Progress", "value": "45%"}
+      ],
+      "visual": "Use electric blue and neon cyan accents for the numbers."
+    },
+    {
+      "id": "founder_letter",
+      "title": "Founder Letter",
+      "layout": "Two columns: Photo on left, text on right.",
+      "content": "Personal message from Michael Williams discussing CNC background, Etsy frustrations, and the vision for a better maker economy. Builds trust.",
+      "visual": "Use founder_photo. Add a stylized signature image or cursive font for the sign-off."
+    },
+    {
+      "id": "cta",
+      "title": "Final CTA",
+      "headline": "Join Early. Help Shape the Future.",
+      "layout": "Centered massive CTA block.",
+      "ctas": [
+        {"label": "Apply as a Founding Seller", "type": "primary", "color": "orange"},
+        {"label": "Partner With Us", "type": "secondary", "color": "transparent"},
+        {"label": "Join the Community", "type": "secondary", "color": "transparent"}
+      ],
+      "visual": "Heavy grain texture or subtle animated gradient background to make it feel impactful."
     }
   ],
-  "implementation_priority": [
-    "1. Hero (Highest ROI, sets the cinematic mood)",
-    "2. Reusable CSS/Utilities (grain, cinematic-frame)",
-    "3. FeaturedBuildsRail (Core product focus)",
-    "4. CinematicMomentsStrip (New dynamic visual hook)",
-    "5. MeetTheMakers (Humanizing the craft)",
-    "6. WhyWeExist (Emotional branding)",
-    "7. AiDiscoverySearch (Quick visual reskin)"
-  ]
+  "implementation_instructions": {
+    "file_structure": "Create as a single page component at `/src/pages/GrowWithUs.jsx` or equivalent router component, and break complex sections (like Hero mockups and Roadmap timeline) into smaller local components.",
+    "styling": "Use Tailwind CSS extensively. For glassmorphism, use `bg-white/5 backdrop-blur-xl border border-white/10`. For glowing accents, use `shadow-[0_0_15px_rgba(255,69,0,0.5)]` or similar.",
+    "animations": "Use Framer Motion for section reveals (`initial={{ opacity: 0, y: 20 }}` -> `animate={{ opacity: 1, y: 0 }}`). Implement parallax using `useScroll` and `useTransform` on the hero dashboard mockups.",
+    "testing": "Ensure all buttons and links have `data-testid` attributes (e.g., `data-testid=\"hero-primary-cta\"`)."
+  }
 }
