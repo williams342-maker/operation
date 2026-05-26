@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, ShoppingBag, User, ChevronDown } from "lucide-react";
+import { Menu, X, ShoppingBag, User, ChevronDown, MessageSquare, Camera, ArrowUpRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useCart } from "../../lib/cart";
+import { http } from "../../lib/api";
 import ActivityTicker from "./ActivityTicker";
 
 // Primary nav — 5 items only. Secondary/tertiary surfaces live under the
@@ -281,7 +282,7 @@ function DesktopNav() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 8 }}
               transition={{ duration: 0.18, ease: [0.22, 0.61, 0.36, 1] }}
-              className="absolute left-1/2 -translate-x-1/2 top-full mt-3 min-w-[260px] bg-[#0a0a0a] border border-[#262626] shadow-[0_20px_40px_-10px_rgba(0,0,0,0.8)] z-50"
+              className="absolute left-1/2 -translate-x-1/2 top-full mt-3 w-[680px] bg-[#0a0a0a] border border-[#262626] shadow-[0_20px_40px_-10px_rgba(0,0,0,0.8)] z-50"
               role="menu"
               data-testid="nav-community-menu"
             >
@@ -290,24 +291,41 @@ function DesktopNav() {
                 aria-hidden="true"
                 className="absolute -top-[5px] left-1/2 -translate-x-1/2 w-2 h-2 bg-[#0a0a0a] border-l border-t border-[#262626] rotate-45"
               />
-              <ul className="p-2">
-                {communityMenu.map((item) => (
-                  <li key={item.href}>
-                    <Link
-                      to={item.href}
-                      className="block px-3 py-2.5 hover:bg-[#171717] transition group"
-                      data-testid={`nav-community-${item.label.toLowerCase()}`}
-                    >
-                      <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#e5e5e5] group-hover:text-[#ff4500]">
-                        {item.label}
-                      </div>
-                      <div className="font-mono text-[10px] text-[#737373] mt-0.5">
-                        {item.blurb}
-                      </div>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
+              <div className="grid grid-cols-2 divide-x divide-[#262626]">
+                {/* LEFT — navigation links */}
+                <div className="p-3">
+                  <div className="font-mono text-[9px] uppercase tracking-[0.32em] text-[#737373] px-3 pt-1 pb-2">
+                    ◆ Browse
+                  </div>
+                  <ul>
+                    {communityMenu.map((item) => (
+                      <li key={item.href}>
+                        <Link
+                          to={item.href}
+                          className="block px-3 py-2.5 hover:bg-[#171717] transition group"
+                          data-testid={`nav-community-${item.label.toLowerCase()}`}
+                        >
+                          <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#e5e5e5] group-hover:text-[#ff4500] flex items-center gap-2">
+                            {item.label}
+                            <ArrowUpRight size={11} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </div>
+                          <div className="font-mono text-[10px] text-[#737373] mt-0.5">
+                            {item.blurb}
+                          </div>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                {/* RIGHT — live "what's hot" cards */}
+                <div className="p-3">
+                  <div className="font-mono text-[9px] uppercase tracking-[0.32em] text-[#737373] px-3 pt-1 pb-2">
+                    ◆ What&apos;s hot
+                  </div>
+                  <MegaMenuHotPreview />
+                </div>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -328,3 +346,110 @@ function DesktopNav() {
     </nav>
   );
 }
+
+// ─────────────────────────────────────────────────────────────────────
+// MegaMenuHotPreview — right column of the Community dropdown.
+// Pulls live data from two endpoints (trending forum thread + recent
+// showcase post) and renders them as two compact preview cards.
+// Both fetches fail-silent so the menu always renders even if backend
+// is down.
+// ─────────────────────────────────────────────────────────────────────
+function MegaMenuHotPreview() {
+  const [thread, setThread] = useState(null);
+  const [showcase, setShowcase] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    Promise.allSettled([
+      http.get("/community/forum/trending", { params: { days: 30, limit: 1 } }).then((r) => r.data),
+      http.get("/community/showcase/recent", { params: { limit: 1 } }).then((r) => r.data),
+    ]).then((results) => {
+      if (!alive) return;
+      if (results[0].status === "fulfilled") setThread(results[0].value?.threads?.[0] || null);
+      if (results[1].status === "fulfilled") setShowcase(results[1].value?.items?.[0] || null);
+      setLoading(false);
+    });
+    return () => { alive = false; };
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="space-y-2 px-3 py-2">
+        <div className="h-16 bg-[#171717] animate-pulse" />
+        <div className="h-16 bg-[#171717] animate-pulse" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {/* Hot forum thread */}
+      {thread ? (
+        <Link
+          to={`/community?tab=forum&open=${thread.id}`}
+          className="block p-3 hover:bg-[#171717] transition group border border-transparent hover:border-[#262626]"
+          data-testid="megamenu-hot-thread"
+        >
+          <div className="flex items-center gap-2 mb-1">
+            <MessageSquare size={12} className="text-[#ff4500]" aria-hidden="true" />
+            <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#ff4500]">
+              Forum · {thread.reply_count} repl{thread.reply_count === 1 ? "y" : "ies"}
+            </span>
+          </div>
+          <div className="font-mono text-[11px] text-[#e5e5e5] group-hover:text-white leading-snug line-clamp-2">
+            {thread.title}
+          </div>
+          <div className="font-mono text-[9px] text-[#737373] mt-1 uppercase tracking-[0.18em]">
+            {thread.category || "general"}
+          </div>
+        </Link>
+      ) : null}
+
+      {/* Recent showcase post (acts as the "clip" placeholder until real clips ship) */}
+      {showcase ? (
+        <Link
+          to={`/community?tab=showcase&open=${showcase.id}`}
+          className="flex gap-3 p-3 hover:bg-[#171717] transition group border border-transparent hover:border-[#262626]"
+          data-testid="megamenu-hot-showcase"
+        >
+          {showcase.image_url ? (
+            <div className="w-14 h-14 shrink-0 overflow-hidden border border-[#262626] bg-[#0a0a0a]">
+              <img
+                src={showcase.image_url}
+                alt=""
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                loading="lazy"
+              />
+            </div>
+          ) : (
+            <div className="w-14 h-14 shrink-0 border border-[#262626] bg-[#171717] flex items-center justify-center">
+              <Camera size={16} className="text-[#525252]" aria-hidden="true" />
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 mb-1">
+              <Camera size={12} className="text-[#00ffff]" aria-hidden="true" />
+              <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#00ffff]">
+                Showcase
+              </span>
+            </div>
+            <div className="font-mono text-[11px] text-[#e5e5e5] group-hover:text-white leading-snug line-clamp-2">
+              {showcase.title || "Untitled post"}
+            </div>
+            <div className="font-mono text-[9px] text-[#737373] mt-1 uppercase tracking-[0.18em] truncate">
+              {showcase.maker_slug ? `by ${showcase.maker_slug}` : (showcase.user_name || "Member")}
+            </div>
+          </div>
+        </Link>
+      ) : null}
+
+      {!thread && !showcase && (
+        <div className="px-3 py-4 font-mono text-[10px] text-[#525252] italic">
+          Community starts here. Check back soon.
+        </div>
+      )}
+    </div>
+  );
+}
+
