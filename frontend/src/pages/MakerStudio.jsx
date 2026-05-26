@@ -401,6 +401,41 @@ export default function MakerStudio() {
               </div>
             </div>
 
+            {/* Generate button — sits directly under the prompt for one
+                eye-line from prompt → action. */}
+            <button
+              type="button"
+              onClick={generate}
+              disabled={busy || !signedIn}
+              className="w-full px-4 py-3 border border-[#00ffff] text-[#00ffff] hover:bg-[#00ffff]/10 disabled:opacity-40 disabled:cursor-not-allowed font-mono text-xs uppercase tracking-[0.22em] flex items-center justify-center gap-2 transition"
+              data-testid="studio-generate-btn"
+            >
+              {busy ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+              {busy ? "Generating…" : "Generate design"}
+            </button>
+
+            {/* "Or start with a blank canvas" — surfaces the manual-editing
+                path right under Generate so users don't think AI is the only
+                way in. Stamps a tiny empty design so the ElementsEditor
+                mounts immediately. */}
+            {!design && (
+              <button
+                type="button"
+                onClick={() => {
+                  setDesign({
+                    width: 14, height: 6, border: "rounded", border_thickness: 0.2,
+                    operations: [],
+                    holes: { count: 2, diameter: 0.25, placement: "top_corners" },
+                  });
+                  toast.success("Blank canvas ready — add shapes or text below");
+                }}
+                className="w-full px-4 py-2.5 border border-[#262626] hover:border-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#fff] inline-flex items-center justify-center gap-2"
+                data-testid="studio-blank-canvas-btn"
+              >
+                ◇ Or start with a blank canvas
+              </button>
+            )}
+
             {/* Example prompts */}
             <div>
               <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] block mb-2">
@@ -420,18 +455,6 @@ export default function MakerStudio() {
                 ))}
               </div>
             </div>
-
-            {/* Generate button */}
-            <button
-              type="button"
-              onClick={generate}
-              disabled={busy || !signedIn}
-              className="w-full px-4 py-3 border border-[#00ffff] text-[#00ffff] hover:bg-[#00ffff]/10 disabled:opacity-40 disabled:cursor-not-allowed font-mono text-xs uppercase tracking-[0.22em] flex items-center justify-center gap-2 transition"
-              data-testid="studio-generate-btn"
-            >
-              {busy ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-              {busy ? "Generating…" : "Generate design"}
-            </button>
 
             {/* Size sliders + engrave-only toggle (only useful once a design exists) */}
             {design && (
