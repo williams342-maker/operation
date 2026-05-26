@@ -1,6 +1,40 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-26 — iter228 · "From the Workshop" maker intro paragraphs ✅
+
+Adds a documentary-style 120-180 word intro section to each starter-pack maker's profile page. Bio is the tagline; workshop_intro is the deeper story — origin moment, specific machinery, the one thing the shop refuses to compromise on. Built as the natural follow-up to iter227's seed pack so the new founding makers feel like real shops, not catalog placeholders.
+
+### What ships
+- **New model field** `Maker.workshop_intro: Optional[str]` (auto-hides UI when empty, so existing makers aren't affected).
+- **New generator** `backend/seed_workshop_intros.py` — runs Gemini 3 Flash with a prompt locking documentary voice, banning marketing fluff ("we strive", "passionate", "premium", "world-class"), requiring a concrete origin year + named machinery + a craftsmanship principle. Idempotent: skips makers that already have an intro.
+- **MakerDetail.jsx** — new "◆ From the Workshop" section with left orange accent border, monospace 13px text, 1.75 line-height. Renders directly under the bio when present, hidden otherwise.
+- **7/7 regression tests** in `tests/test_iter228_workshop_intros.py` lock the voice contract:
+  - Every starter-pack maker has an intro
+  - Word count in 80-280 range
+  - First-person plural ("we") required
+  - No banned marketing phrases
+  - No emoji or exclamation marks
+  - Regional anchor word (Hood River, Fredericksburg, Asheville, Marquette, etc.) present
+  - Model field persists in `Maker.model_fields`
+
+### Sample output (Cascade Iron Works)
+> "In 2016, we cleared out a derelict apple-sorting shed on the south side of Hood River to make room for a load of scrap plate and a salvaged welder. Eight years later, that same shed houses our 5x10 CNC plasma table and a custom-built powder coating booth. We operate as a two-man shop at the base of Mt. Hood, where Eli handles the CAD programming and torch height control while Sam manages the finish work. We built this business on a refusal to accept the burred, jagged edges common in mass-produced steelwork. Every piece that leaves our bench undergoes a multi-stage hand-sanding process to ensure the perimeter is smooth before it hits the rack. We obsess over the transition between the metal and the finish, ensuring our welds are ground flush and completely hidden beneath the final coat. If the structural integrity or the edge profile is anything less than clean, the piece stays in the shop. This is how we handle steel."
+
+163 words. Concrete year. Named machinery. A real obsession. Zero marketing fluff. The other 3 makers got equally strong intros (151-177 words each, all referencing region, equipment, origin moment).
+
+### Files touched
+- `backend/models.py` (Maker.workshop_intro field added)
+- `backend/seed_workshop_intros.py` (new — 130 lines incl. the voice-locked prompt)
+- `frontend/src/pages/MakerDetail.jsx` (new "From the Workshop" section)
+- `backend/tests/test_iter228_workshop_intros.py` (7 voice/content tests)
+- MongoDB: 4 makers updated with workshop_intro values
+
+### Cost
+~$0.005 total — 4 Gemini 3 Flash text calls, ran in under 60s.
+
+
+
 ## 2026-05-26 — iter227 · Starter Pack — 4 makers × 5 products = 20 listings ✅
 
 User-spec'd seed pass to manufacture perceived marketplace activity density. The brief called out specific items, maker attribution voice, workshop context language, process imagery (not just product shots), material tags, and the "small imperfection psychology" technique.

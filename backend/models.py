@@ -208,6 +208,14 @@ class Maker(BaseModel):
     workshop_videos: List[dict] = Field(default_factory=list)
     portrait: str
     cover: str
+    # iter228 — "From the Workshop" — a 100-180 word documentary-style
+    # intro paragraph generated (or hand-written) for each maker, surfaced
+    # on /makers/<slug> directly under the bio. Distinct from `bio`: bio
+    # is the 1-3 sentence tagline, workshop_intro is the deeper "how I
+    # got into this craft, what we run on the floor, what we obsess
+    # about" story that converts visitors into buyers. Optional — pages
+    # auto-hide the section when empty.
+    workshop_intro: Optional[str] = None
     email: Optional[EmailStr] = None
     listings_count: int = 0
     rating: float = 4.95

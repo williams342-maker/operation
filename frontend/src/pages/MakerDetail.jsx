@@ -152,6 +152,22 @@ export default function MakerDetail() {
         <div className="grid md:grid-cols-12 gap-8 mb-16">
           <div className="md:col-span-7">
             <p className="font-mono text-base text-[#e5e5e5] leading-relaxed">{m.bio}</p>
+            {/* iter228 — "From the Workshop" intro paragraph. Deeper
+                story than the bio tagline (~120-180 words: origin
+                moment, specific machinery, the one thing the shop
+                refuses to compromise on). Auto-hides when empty so
+                makers without an intro don't get a barren section
+                header. */}
+            {m.workshop_intro ? (
+              <div className="mt-8 border-l-2 border-[#ff4500] pl-5" data-testid="maker-workshop-intro">
+                <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#ff4500] mb-3">
+                  ◆ From the Workshop
+                </div>
+                <p className="font-mono text-[13px] text-[#e5e5e5] leading-[1.75] whitespace-pre-line">
+                  {m.workshop_intro}
+                </p>
+              </div>
+            ) : null}
             {/* iter178 — Meet-the-Makers credentials row. Renders only the
                 facts the maker actually filled in (never shows placeholder
                 "—" labels for unknown values). */}
