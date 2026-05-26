@@ -530,6 +530,10 @@ async def studio_kit_public_index(limit: int = 60):
         covers = {d["id"]: d.get("thumbnail_url") or "" for d in covers_docs}
     out = []
     for r in rows:
+        if not r.get("slug"):
+            # older kit docs predate the slug column — skip them rather
+            # than crash the index.
+            continue
         cover = ""
         if r.get("file_ids"):
             cover = covers.get(r["file_ids"][0], "")
@@ -586,6 +590,107 @@ async def studio_kit_by_slug(slug: str):
         if m:
             owner_name = m.get("shop_name") or m.get("name") or kit["owner_id"]
     return {**kit, "files": files, "owner_name": owner_name}
+
+
+# Public ZIP bundle — every SVG + DXF in the kit + a top-level README.
+# Slug-keyed so anonymous social-share traffic can download in one click.
+@router.get("/studio/kits/by-slug/{slug}/bundle.zip")
+async def studio_kit_bundle(slug: str):
+    import zipfile
+    kit = await db.studio_kits.find_one({"slug": slug, "visibility": "public"}, {"_id": 0})
+    if not kit:
+        raise HTTPException(404, "Kit not found")
+    file_ids = kit.get("file_ids") or []
+    if not file_ids:
+        raise HTTPException(404, "Kit is empty")
+
+    files = await db.design_files.find(
+        {"id": {"$in": file_ids}, "quarantined_at": None},
+        {"_id": 0, "id": 1, "title": 1, "design_intent": 1, "ai_prompt": 1,
+         "maker_name": 1, "source": 1},
+    ).to_list(50)
+    order = {fid: i for i, fid in enumerate(file_ids)}
+    files.sort(key=lambda f: order.get(f["id"], 999))
+
+    # Owner attribution for the README header
+    owner_name = "Studio Member"
+    if kit.get("owner_role") == "maker":
+        m = await db.makers.find_one({"slug": kit["owner_id"]}, {"_id": 0, "name": 1, "shop_name": 1})
+        if m:
+            owner_name = m.get("shop_name") or m.get("name") or kit["owner_id"]
+
+    buf = io.BytesIO()
+    used_names: set[str] = set()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        readme_lines = [
+            f"{kit['title']}",
+            "=" * len(kit["title"]),
+            "",
+            f"Curated by: {owner_name}",
+            f"File count: {len(files)}",
+            f"Source:     Maker Studio · craftersmarket.org/kits/{slug}",
+            "",
+        ]
+        if kit.get("description"):
+            readme_lines += [kit["description"], ""]
+        readme_lines += [
+            "Files included",
+            "--------------",
+        ]
+
+        for f in files:
+            intent = f.get("design_intent") or {}
+            if not intent:
+                continue
+            design = _sanitize_design(intent, intent.get("width", 12), intent.get("height", 6))
+            svg = render_svg(design)
+            try:
+                dxf_bytes = render_dxf(design)
+            except Exception:
+                logger.exception("[studio/bundle] dxf render failed for %s", f.get("id"))
+                dxf_bytes = b""
+
+            safe = re.sub(r"[^a-zA-Z0-9_-]+", "_", (f.get("title") or "design").lower())[:40] or "design"
+            # de-dupe filename collisions inside the same ZIP
+            base = safe
+            n = 2
+            while safe in used_names:
+                safe = f"{base}_{n}"
+                n += 1
+            used_names.add(safe)
+
+            zf.writestr(f"{safe}.svg", svg)
+            if dxf_bytes:
+                zf.writestr(f"{safe}.dxf", dxf_bytes)
+
+            material = (intent.get("material") or "wood").replace("_", " ")
+            depth = intent.get("material_depth") or 0.25
+            units = intent.get("units") or "inches"
+            size = f"{intent.get('width', '?')} x {intent.get('height', '?')} {units}"
+            engrave = " (engrave-only)" if intent.get("engrave_only") else ""
+            readme_lines.append(f"- {safe}.svg / .dxf — {size}{engrave} · material: {material} · suggested depth: {depth} in")
+            if f.get("ai_prompt"):
+                readme_lines.append(f"   prompt: {f['ai_prompt'][:200]}")
+
+        readme_lines += [
+            "",
+            "Notes",
+            "-----",
+            "• SVG = preview + most laser/plasma software. DXF = direct CAD/CAM import.",
+            "• These designs are free to use commercially. A credit link back to the",
+            "  curator on social posts is appreciated but not required.",
+            "• Want to remix or generate your own? Visit craftersmarket.org/studio",
+            "",
+        ]
+        zf.writestr("README.txt", "\n".join(readme_lines))
+
+    buf.seek(0)
+    zip_name = re.sub(r"[^a-zA-Z0-9_-]+", "_", kit["title"].lower())[:40] or "kit"
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{zip_name}_bundle.zip"'},
+    )
 
 
 @router.post("/studio/kits/{kit_id}/add")

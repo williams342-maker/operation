@@ -26,6 +26,7 @@ const communityMenu = [
   { label: "Clips",    href: "/clips",                  blurb: "Short workshop videos" },
   { label: "Journal",  href: "/journal",                blurb: "Long-form articles" },
   { label: "Showcase", href: "/community?tab=showcase", blurb: "Buyer + maker photos" },
+  { label: "Design kits", href: "/kits",                blurb: "Free SVG + DXF bundles" },
 ];
 
 // Tertiary surfaces — kept out of the desktop bar but still reachable
@@ -194,6 +195,7 @@ export default function Nav() {
                 { label: "Clips",    href: "/clips" },
                 { label: "Journal",  href: "/journal" },
                 { label: "Showcase", href: "/community?tab=showcase" },
+                { label: "Design kits", href: "/kits" },
                 { label: "Where we're going", href: "/grow", highlight: true },
                 ...tertiaryLinks,
               ].map((l, i) => (

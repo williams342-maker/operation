@@ -62,6 +62,7 @@ export default function KitPage() {
   }
 
   const shareUrl = `${window.location.origin}/kits/${slug}`;
+  const bundleUrl = `${process.env.REACT_APP_BACKEND_URL}/api/studio/kits/by-slug/${slug}/bundle.zip`;
   const copyShare = async () => {
     try {
       await navigator.clipboard.writeText(shareUrl);
@@ -107,6 +108,22 @@ export default function KitPage() {
               <Sparkles size={11} /> Make your own
             </Link>
           </div>
+
+          {kit.files && kit.files.length > 0 && (
+            <div className="mt-6">
+              <a
+                href={bundleUrl}
+                className="inline-flex items-center gap-2 px-5 py-3 bg-[#ff4500] text-[#0a0a0a] hover:bg-[#ff6a2a] font-mono text-[11px] uppercase tracking-[0.22em] font-bold transition"
+                data-testid="kit-bundle-download"
+                download
+              >
+                <Download size={14} /> Download bundle (ZIP · {kit.files.length} {kit.files.length === 1 ? "file" : "files"})
+              </a>
+              <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252] mt-2">
+                ◆ SVG + DXF + README · ready for laser, plasma, router
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Files grid */}
