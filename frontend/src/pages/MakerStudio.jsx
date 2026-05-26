@@ -12,7 +12,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Sparkles, Download, Share2, Loader2, Lock, FileDown, RotateCw } from "lucide-react";
+import { Sparkles, Download, Share2, Loader2, Lock, FileDown, RotateCw, Plus, Trash2, Pencil, Square, Type as TypeIcon, ChevronDown } from "lucide-react";
 import { http } from "../lib/api";
 import { toast } from "sonner";
 import { useStructuredData } from "../lib/seo";
@@ -485,6 +485,12 @@ export default function MakerStudio() {
                   materialDepth={materialDepth} setMaterialDepth={setMaterialDepth}
                 />
 
+                {/* iter242 — Elements editor. Direct, free, AI-quota-free
+                    manipulation of every shape / text / border / hole on the
+                    canvas. The AI is great for the initial concept; this is
+                    where the maker actually dials in the finished design. */}
+                <ElementsEditor design={design} setDesign={setDesign} />
+
                 {/* iter238 — Refine-with-AI box. Apply a small tweak to the
                     existing design without re-prompting from scratch. Costs 1
                     daily-quota prompt. */}
@@ -894,6 +900,286 @@ function TemplateThumb({ design }) {
           </text>
         )}
       </svg>
+    </div>
+  );
+}
+
+
+// iter242 — Elements editor. Direct, AI-quota-free manipulation of every
+// shape / text / border / hole. Mutating design.operations triggers the
+// existing render effect so the preview updates instantly.
+const SHAPE_OPTIONS = [
+  "mountains", "pine_trees", "deer", "heart", "star", "flag", "cross",
+  "sun_rays", "eagle", "antlers", "rooster", "anchor", "compass_rose", "treble_clef",
+];
+const FONT_OPTIONS = ["bold_serif", "script", "western", "sans"];
+const BORDER_OPTIONS = ["none", "rectangle", "rounded", "circle", "oval"];
+const HOLE_PLACEMENTS = ["top_corners", "bottom_corners", "four_corners", "top_center"];
+
+function ElementsEditor({ design, setDesign }) {
+  const [openIdx, setOpenIdx] = useState(null);
+  const ops = design?.operations || [];
+  const opCount = ops.length;
+  const atCap = opCount >= 4;
+
+  const updateOp = (idx, patch) => {
+    const next = ops.map((o, i) => (i === idx ? { ...o, ...patch } : o));
+    setDesign({ ...design, operations: next });
+  };
+
+  const removeOp = (idx) => {
+    const next = ops.filter((_, i) => i !== idx);
+    setDesign({ ...design, operations: next });
+    setOpenIdx(null);
+    toast.success("Element removed");
+  };
+
+  const addShape = () => {
+    if (atCap) { toast.error("Max 4 elements per design"); return; }
+    const newOp = { kind: "shape", primitive: "star", x: 0.5, y: 0.5, w: 0.4, h: 0.4 };
+    setDesign({ ...design, operations: [...ops, newOp] });
+    setOpenIdx(ops.length);
+  };
+
+  const addText = () => {
+    if (atCap) { toast.error("Max 4 elements per design"); return; }
+    const newOp = { kind: "text", content: "Your text", font: "bold_serif", size: 0.2, x: 0.5, y: 0.5 };
+    setDesign({ ...design, operations: [...ops, newOp] });
+    setOpenIdx(ops.length);
+  };
+
+  const setBorder = (patch) => {
+    setDesign({ ...design, ...patch });
+  };
+
+  const setHoles = (patch) => {
+    setDesign({ ...design, holes: { ...(design.holes || { count: 0, diameter: 0.25, placement: "top_corners" }), ...patch } });
+  };
+
+  const holes = design?.holes || { count: 0, diameter: 0.25, placement: "top_corners" };
+
+  return (
+    <div className="space-y-3" data-testid="studio-elements-editor">
+      <div className="flex items-center justify-between">
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+          ◆ Elements <span className="text-[#525252]">· {opCount}/4</span>
+        </span>
+        <div className="flex gap-1.5">
+          <button
+            type="button"
+            onClick={addShape}
+            disabled={atCap}
+            className="inline-flex items-center gap-1 px-2 py-1 border border-[#262626] hover:border-[#00ffff] disabled:opacity-40 font-mono text-[9px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#00ffff]"
+            data-testid="studio-add-shape"
+          >
+            <Plus size={10} /> <Square size={10} /> Shape
+          </button>
+          <button
+            type="button"
+            onClick={addText}
+            disabled={atCap}
+            className="inline-flex items-center gap-1 px-2 py-1 border border-[#262626] hover:border-[#00ffff] disabled:opacity-40 font-mono text-[9px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#00ffff]"
+            data-testid="studio-add-text"
+          >
+            <Plus size={10} /> <TypeIcon size={10} /> Text
+          </button>
+        </div>
+      </div>
+
+      {ops.length === 0 && (
+        <div className="border border-dashed border-[#262626] p-3 font-mono text-[10px] text-[#525252] text-center">
+          No elements yet — add a shape or text above.
+        </div>
+      )}
+
+      <div className="space-y-2">
+        {ops.map((op, idx) => {
+          const isOpen = openIdx === idx;
+          const label = op.kind === "shape"
+            ? (op.primitive || "shape").replace(/_/g, " ")
+            : (op.content || "(empty)");
+          return (
+            <div key={idx} className={`border ${isOpen ? "border-[#00ffff]" : "border-[#262626]"} bg-[#0a0a0a]`}>
+              <div className="flex items-center gap-2 px-2.5 py-2">
+                <span className={`font-mono text-[9px] uppercase tracking-[0.22em] px-1.5 py-0.5 border ${
+                  op.kind === "shape" ? "border-[#ff4500] text-[#ff4500]" : "border-[#00ffff] text-[#00ffff]"
+                }`}>
+                  {op.kind === "shape" ? <Square size={9} className="inline -mt-0.5 mr-0.5" /> : <TypeIcon size={9} className="inline -mt-0.5 mr-0.5" />}
+                  {op.kind}
+                </span>
+                <span className="flex-1 font-mono text-[11px] text-[#e5e5e5] truncate">{label}</span>
+                <button
+                  type="button"
+                  onClick={() => setOpenIdx(isOpen ? null : idx)}
+                  className="p-1 text-[#a3a3a3] hover:text-[#00ffff]"
+                  data-testid={`studio-element-edit-${idx}`}
+                  aria-label="Edit element"
+                >
+                  <Pencil size={11} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => removeOp(idx)}
+                  className="p-1 text-[#a3a3a3] hover:text-[#ff4500]"
+                  data-testid={`studio-element-delete-${idx}`}
+                  aria-label="Delete element"
+                >
+                  <Trash2 size={11} />
+                </button>
+              </div>
+              {isOpen && (
+                <div className="border-t border-[#262626] p-3 space-y-2.5" data-testid={`studio-element-panel-${idx}`}>
+                  {op.kind === "shape" ? (
+                    <SelectRow label="Shape" value={op.primitive} options={SHAPE_OPTIONS}
+                               onChange={(v) => updateOp(idx, { primitive: v })}
+                               testId={`studio-element-${idx}-primitive`} />
+                  ) : (
+                    <>
+                      <label className="block">
+                        <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#a3a3a3] block mb-1">Content</span>
+                        <input
+                          type="text"
+                          value={op.content || ""}
+                          onChange={(e) => updateOp(idx, { content: e.target.value.slice(0, 80) })}
+                          maxLength={80}
+                          className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#00ffff] outline-none px-2 py-1.5 font-mono text-[11px] text-[#e5e5e5]"
+                          data-testid={`studio-element-${idx}-content`}
+                        />
+                      </label>
+                      <SelectRow label="Font" value={op.font || "bold_serif"} options={FONT_OPTIONS}
+                                 onChange={(v) => updateOp(idx, { font: v })}
+                                 testId={`studio-element-${idx}-font`} />
+                      <SliderRow label="Text size" min={0.05} max={0.5} step={0.01}
+                                 value={op.size ?? 0.2}
+                                 onChange={(v) => updateOp(idx, { size: v })}
+                                 testId={`studio-element-${idx}-size`} suffix="" />
+                    </>
+                  )}
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <SliderRow label="X" min={0} max={1} step={0.01}
+                               value={op.x ?? 0.5}
+                               onChange={(v) => updateOp(idx, { x: v })}
+                               testId={`studio-element-${idx}-x`} />
+                    <SliderRow label="Y" min={0} max={1} step={0.01}
+                               value={op.y ?? 0.5}
+                               onChange={(v) => updateOp(idx, { y: v })}
+                               testId={`studio-element-${idx}-y`} />
+                  </div>
+                  {op.kind === "shape" && (
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <SliderRow label="Width" min={0.1} max={1} step={0.01}
+                                 value={op.w ?? 0.5}
+                                 onChange={(v) => updateOp(idx, { w: v })}
+                                 testId={`studio-element-${idx}-w`} />
+                      <SliderRow label="Height" min={0.1} max={1} step={0.01}
+                                 value={op.h ?? 0.5}
+                                 onChange={(v) => updateOp(idx, { h: v })}
+                                 testId={`studio-element-${idx}-h`} />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Border + Holes — top-level design fields, not operations */}
+      <details className="border border-[#262626] group" data-testid="studio-border-section">
+        <summary className="px-2.5 py-2 cursor-pointer flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#e5e5e5] select-none">
+          <span>◆ Border · <span className="text-[#525252]">{design.border || "none"}</span></span>
+          <ChevronDown size={11} className="group-open:rotate-180 transition-transform" />
+        </summary>
+        <div className="border-t border-[#262626] p-3 space-y-2.5">
+          <SelectRow label="Style" value={design.border || "none"} options={BORDER_OPTIONS}
+                     onChange={(v) => setBorder({ border: v })}
+                     testId="studio-border-style" />
+          {(design.border && design.border !== "none") && (
+            <SliderRow label="Thickness" min={0.05} max={0.5} step={0.01}
+                       value={design.border_thickness ?? 0.2}
+                       onChange={(v) => setBorder({ border_thickness: v })}
+                       testId="studio-border-thickness" />
+          )}
+        </div>
+      </details>
+
+      <details className="border border-[#262626] group" data-testid="studio-holes-section">
+        <summary className="px-2.5 py-2 cursor-pointer flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#e5e5e5] select-none">
+          <span>◆ Mounting holes · <span className="text-[#525252]">{holes.count} × {holes.diameter}″</span></span>
+          <ChevronDown size={11} className="group-open:rotate-180 transition-transform" />
+        </summary>
+        <div className="border-t border-[#262626] p-3 space-y-2.5">
+          <div>
+            <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#a3a3a3] block mb-1">Count</span>
+            <div className="grid grid-cols-5 gap-1.5">
+              {[0, 1, 2, 3, 4].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setHoles({ count: n })}
+                  className={`px-2 py-1.5 border font-mono text-[10px] ${
+                    holes.count === n
+                      ? "border-[#00ffff] text-[#00ffff] bg-[#00ffff]/5"
+                      : "border-[#262626] text-[#a3a3a3] hover:border-[#525252]"
+                  }`}
+                  data-testid={`studio-holes-count-${n}`}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+          </div>
+          {holes.count > 0 && (
+            <>
+              <SliderRow label="Diameter" min={0.1} max={0.6} step={0.01}
+                         value={holes.diameter}
+                         onChange={(v) => setHoles({ diameter: v })}
+                         testId="studio-holes-diameter" suffix="″" />
+              <SelectRow label="Placement" value={holes.placement || "top_corners"} options={HOLE_PLACEMENTS}
+                         onChange={(v) => setHoles({ placement: v })}
+                         testId="studio-holes-placement" />
+            </>
+          )}
+        </div>
+      </details>
+    </div>
+  );
+}
+
+function SelectRow({ label, value, options, onChange, testId }) {
+  return (
+    <label className="block">
+      <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#a3a3a3] block mb-1">{label}</span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#00ffff] outline-none px-2 py-1.5 font-mono text-[11px] text-[#e5e5e5] capitalize"
+        data-testid={testId}
+      >
+        {options.map((o) => (
+          <option key={o} value={o}>{o.replace(/_/g, " ")}</option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function SliderRow({ label, min, max, step, value, onChange, testId, suffix = "" }) {
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#a3a3a3]">{label}</span>
+        <span className="font-mono text-[9px] text-[#e5e5e5]">
+          {Number(value).toFixed(2)}{suffix}
+        </span>
+      </div>
+      <input
+        type="range" min={min} max={max} step={step}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="w-full accent-[#ff4500]"
+        data-testid={testId}
+      />
     </div>
   );
 }
