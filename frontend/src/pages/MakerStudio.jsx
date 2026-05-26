@@ -414,6 +414,42 @@ export default function MakerStudio() {
               {busy ? "Generating…" : "Generate design"}
             </button>
 
+            {/* Refine-with-AI box — surfaced right under Generate so the
+                natural flow is Generate → Refine → Refine → done. Only
+                renders once a design exists. */}
+            {design && (
+              <div data-testid="studio-refine" className="border border-[#00ffff]/30 bg-[#00ffff]/[0.03] p-3">
+                <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#00ffff] block mb-2">
+                  ◆ Refine with AI
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={refinePrompt}
+                    onChange={(e) => setRefinePrompt(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter" && refinePrompt.trim() && !refining) refine(); }}
+                    placeholder="e.g. add a frame · make the heart bigger · change text to Welcome"
+                    className="flex-1 min-w-0 bg-[#0a0a0a] border border-[#262626] focus:border-[#00ffff] outline-none px-2.5 py-2 font-mono text-xs text-[#e5e5e5]"
+                    maxLength={200}
+                    data-testid="studio-refine-input"
+                  />
+                  <button
+                    type="button"
+                    onClick={refine}
+                    disabled={refining || !refinePrompt.trim()}
+                    className="px-3 py-2 border border-[#00ffff] text-[#00ffff] hover:bg-[#00ffff]/10 disabled:opacity-40 font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5"
+                    data-testid="studio-refine-btn"
+                  >
+                    {refining ? <Loader2 size={12} className="animate-spin" /> : <RotateCw size={12} />}
+                    Refine
+                  </button>
+                </div>
+                <div className="font-mono text-[9px] text-[#525252] mt-1.5">
+                  Uses 1 prompt · keeps the rest of your design intact · ↵ enter to apply
+                </div>
+              </div>
+            )}
+
             {/* "Or start with a blank canvas" — surfaces the manual-editing
                 path right under Generate so users don't think AI is the only
                 way in. Stamps a tiny empty design so the ElementsEditor
@@ -528,39 +564,6 @@ export default function MakerStudio() {
                     canvas. The AI is great for the initial concept; this is
                     where the maker actually dials in the finished design. */}
                 <ElementsEditor design={design} setDesign={setDesign} />
-
-                {/* iter238 — Refine-with-AI box. Apply a small tweak to the
-                    existing design without re-prompting from scratch. Costs 1
-                    daily-quota prompt. */}
-                <div data-testid="studio-refine">
-                  <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] block mb-2">
-                    ◆ Refine with AI
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={refinePrompt}
-                      onChange={(e) => setRefinePrompt(e.target.value)}
-                      placeholder="e.g. make the heart bigger"
-                      className="flex-1 min-w-0 bg-[#0a0a0a] border border-[#262626] focus:border-[#00ffff] outline-none px-2.5 py-2 font-mono text-xs text-[#e5e5e5]"
-                      maxLength={200}
-                      data-testid="studio-refine-input"
-                    />
-                    <button
-                      type="button"
-                      onClick={refine}
-                      disabled={refining || !refinePrompt.trim()}
-                      className="px-3 py-2 border border-[#00ffff] text-[#00ffff] hover:bg-[#00ffff]/10 disabled:opacity-40 font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5"
-                      data-testid="studio-refine-btn"
-                    >
-                      {refining ? <Loader2 size={12} className="animate-spin" /> : <RotateCw size={12} />}
-                      Refine
-                    </button>
-                  </div>
-                  <div className="font-mono text-[9px] text-[#525252] mt-1">
-                    Uses 1 prompt · keeps the rest of your design intact
-                  </div>
-                </div>
               </div>
             )}
 
