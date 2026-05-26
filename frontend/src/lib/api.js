@@ -809,6 +809,12 @@ export const moveShowcaseDown = (id) =>
 export const shuffleShowcase = () =>
   http.post("/admin/showcase/shuffle", {}, { headers: adminAuthHeaders() }).then((r) => r.data);
 
+// iter251 — push a showcase post or clip to Buffer's social queue.
+export const shareShowcaseToBuffer = (postId) =>
+  http.post(`/admin/buffer/share-showcase/${postId}`, {}, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const shareClipToBuffer = (slug) =>
+  http.post(`/admin/buffer/share-clip/${slug}`, {}, { headers: adminAuthHeaders() }).then((r) => r.data);
+
 // iter226 — Integration diagnostics (Shippo / Mailgun / R2 — same friendly-error pattern).
 export const fetchShippoDiag = () =>
   http.get("/admin/shippo/diag", { headers: adminAuthHeaders() }).then((r) => r.data);

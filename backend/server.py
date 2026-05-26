@@ -141,6 +141,8 @@ from routers.merge_williams import router as merge_williams_router
 api.include_router(merge_williams_router)
 from routers.onboarding import router as onboarding_router
 api.include_router(onboarding_router)
+from routers.buffer_community import router as buffer_community_router
+api.include_router(buffer_community_router)
 # iter231 — Admin showcase curation (pin / hide / reorder / shuffle)
 from routers.showcase_admin import router as showcase_admin_router
 api.include_router(showcase_admin_router)
