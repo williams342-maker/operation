@@ -9,7 +9,7 @@
  * Designed to feel like a creation engine, not a form. Dark industrial
  * aesthetic to match the rest of the marketplace.
  */
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Sparkles, Download, Share2, Loader2, Lock, FileDown, RotateCw, Plus, Trash2, Pencil, Square, Type as TypeIcon, ChevronDown } from "lucide-react";
@@ -71,6 +71,7 @@ export default function MakerStudio() {
   const [cam, setCam] = useState(null);
   const [userKits, setUserKits] = useState([]);
   const [lastPublishedFileId, setLastPublishedFileId] = useState(null);
+  const previewRef = useRef(null);
 
   // Templates are PUBLIC — load even when signed-out so visitors can browse.
   useEffect(() => {
@@ -599,7 +600,8 @@ export default function MakerStudio() {
           {/* RIGHT — Preview canvas */}
           <div className="space-y-4">
             <div
-              className="aspect-[2/1] bg-white border border-[#262626] flex items-center justify-center overflow-hidden"
+              ref={previewRef}
+              className="aspect-[2/1] bg-white border border-[#262626] flex items-center justify-center overflow-hidden relative select-none"
               data-testid="studio-preview"
             >
               {svg ? (
@@ -623,11 +625,28 @@ export default function MakerStudio() {
                   )}
                 </div>
               )}
+              {/* iter243 — drag-to-position overlay. Lives above the SVG.
+                  Invisible until hovered; commits only on pointer-up so the
+                  backend gets one render call per drag, not one per mousemove. */}
+              {design && svg && (
+                <DragOverlay
+                  design={design}
+                  setDesign={setDesign}
+                  containerRef={previewRef}
+                  svgKey={svg.slice(0, 40)}
+                />
+              )}
             </div>
 
             {/* Design summary */}
             {design && (
               <DesignSummary design={design} width={width} height={height} />
+            )}
+
+            {design && svg && (
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] -mt-2 flex items-center gap-1.5" data-testid="studio-drag-hint">
+                <Sparkles size={10} className="text-[#00ffff]" /> Drag any element on the canvas to reposition
+              </div>
             )}
 
             {/* iter239 — CAM Strategy card. Always visible (even pre-design)
@@ -1183,3 +1202,159 @@ function SliderRow({ label, min, max, step, value, onChange, testId, suffix = ""
     </div>
   );
 }
+
+// iter243 — Drag-to-position overlay. Renders an absolutely-positioned
+// transparent hit-box on top of each design operation. The user drags a
+// hit-box to reposition the underlying shape/text. Only a ghost outline
+// tracks the pointer during drag; the final position commits to design
+// state on pointer-up, triggering exactly ONE backend render call per drag.
+function DragOverlay({ design, setDesign, containerRef, svgKey }) {
+  const [bounds, setBounds] = useState(null); // SVG's rendered bounds inside the container (px)
+  const [dragging, setDragging] = useState(null); // { idx, startX, startY, origX, origY }
+  const [ghost, setGhost] = useState(null); // { idx, x, y } during drag
+
+  // Measure the inner <svg>'s rendered bounding box relative to the container.
+  // Re-measure when the SVG content changes or the viewport resizes.
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const measure = () => {
+      const container = containerRef.current;
+      if (!container) return;
+      const svgEl = container.querySelector("svg");
+      if (!svgEl) { setBounds(null); return; }
+      const cRect = container.getBoundingClientRect();
+      const sRect = svgEl.getBoundingClientRect();
+      setBounds({
+        left: sRect.left - cRect.left,
+        top: sRect.top - cRect.top,
+        width: sRect.width,
+        height: sRect.height,
+      });
+    };
+    measure();
+    // SVG mounts via dangerouslySetInnerHTML — settle on next frame + after fonts.
+    const t1 = setTimeout(measure, 80);
+    const t2 = setTimeout(measure, 400);
+    window.addEventListener("resize", measure);
+    return () => {
+      clearTimeout(t1); clearTimeout(t2);
+      window.removeEventListener("resize", measure);
+    };
+  }, [svgKey, containerRef]);
+
+  const ops = design?.operations || [];
+  if (!bounds || ops.length === 0) return null;
+
+  const onPointerDown = (e, idx) => {
+    e.preventDefault();
+    const op = ops[idx];
+    setDragging({
+      idx,
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      origX: op.x ?? 0.5,
+      origY: op.y ?? 0.5,
+    });
+    setGhost({ idx, x: op.x ?? 0.5, y: op.y ?? 0.5 });
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+  };
+
+  const onPointerMove = (e) => {
+    if (!dragging) return;
+    const dx = (e.clientX - dragging.startX) / bounds.width;
+    const dy = (e.clientY - dragging.startY) / bounds.height;
+    const newX = Math.max(0, Math.min(1, dragging.origX + dx));
+    const newY = Math.max(0, Math.min(1, dragging.origY + dy));
+    setGhost({ idx: dragging.idx, x: newX, y: newY });
+  };
+
+  const finishDrag = () => {
+    if (dragging && ghost) {
+      const next = ops.map((o, i) =>
+        i === dragging.idx ? { ...o, x: ghost.x, y: ghost.y } : o,
+      );
+      setDesign({ ...design, operations: next });
+    }
+    setDragging(null);
+    setGhost(null);
+  };
+
+  // Per-op visible-size estimate — used to size the hit-box visually so the
+  // user can target it. Text width is hard to estimate without rendering, so
+  // we just give text a generous central box scaled to its `size`.
+  const opBox = (op, fallbackXY) => {
+    const x = fallbackXY?.x ?? op.x ?? 0.5;
+    const y = fallbackXY?.y ?? op.y ?? 0.5;
+    if (op.kind === "shape") {
+      const w = (op.w ?? 0.4) * bounds.width;
+      const h = (op.h ?? 0.4) * bounds.height;
+      return {
+        left: bounds.left + x * bounds.width - w / 2,
+        top:  bounds.top  + y * bounds.height - h / 2,
+        width: w,
+        height: h,
+      };
+    }
+    // text — approximate: width ∝ content length × size, height = size × canvas
+    const content = op.content || "";
+    const textH = (op.size ?? 0.2) * bounds.height;
+    const textW = Math.max(50, Math.min(bounds.width * 0.95, content.length * textH * 0.55));
+    return {
+      left: bounds.left + x * bounds.width - textW / 2,
+      top:  bounds.top  + y * bounds.height - textH / 2,
+      width: textW,
+      height: textH,
+    };
+  };
+
+  return (
+    <div
+      className="absolute inset-0"
+      onPointerMove={onPointerMove}
+      onPointerUp={finishDrag}
+      onPointerCancel={finishDrag}
+      style={{ pointerEvents: dragging ? "auto" : "none" }}
+      data-testid="studio-drag-layer"
+    >
+      {ops.map((op, idx) => {
+        const isDragging = dragging?.idx === idx;
+        const liveGhost = isDragging && ghost?.idx === idx ? { x: ghost.x, y: ghost.y } : null;
+        const box = opBox(op, liveGhost);
+        const isShape = op.kind === "shape";
+        return (
+          <div
+            key={idx}
+            onPointerDown={(e) => onPointerDown(e, idx)}
+            className={`absolute group cursor-move touch-none transition-all duration-100 ${
+              isDragging ? "ring-2 ring-[#ff4500] bg-[#ff4500]/5" : "ring-1 ring-transparent hover:ring-[#00ffff] hover:bg-[#00ffff]/5"
+            }`}
+            style={{
+              left: box.left,
+              top: box.top,
+              width: box.width,
+              height: box.height,
+              minWidth: 24,
+              minHeight: 24,
+              pointerEvents: "auto",
+            }}
+            data-testid={`studio-drag-handle-${idx}`}
+            title={isShape ? `Drag to move ${(op.primitive || "shape").replace(/_/g, " ")}` : "Drag to move text"}
+          >
+            <span
+              className={`absolute -top-5 left-0 font-mono text-[9px] uppercase tracking-[0.22em] px-1.5 py-0.5 bg-[#0a0a0a] text-[#00ffff] whitespace-nowrap pointer-events-none transition ${
+                isDragging ? "opacity-100 text-[#ff4500]" : "opacity-0 group-hover:opacity-100"
+              }`}
+            >
+              {isShape
+                ? `◇ ${(op.primitive || "shape").replace(/_/g, " ")}`
+                : `T · ${(op.content || "").slice(0, 14)}`}
+              {isDragging && ghost && ` · ${Math.round(ghost.x * 100)},${Math.round(ghost.y * 100)}`}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
