@@ -1,6 +1,46 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-26 — iter230 · Maker-attributed forum seeds + cross-maker replies ✅
+
+User's brief called out that each founding maker has "compatible forum/community topics" — and that the forum should feel like a real shop floor where makers help each other. This iteration delivers exactly that: 10 threads, each authored by one of the 10 founding makers from their specialty wheelhouse, each with cross-maker replies.
+
+### What ships
+- **`seed_maker_forum_posts.py`** — new seeder. For each of the 10 founding makers, creates one specialty thread (powder coat re-cure temps, epoxy degas, fiber laser PSI, brushed brass anti-fingerprint sealers, wood-to-steel seasonal movement, etc.) + 2 cross-maker replies generated in each replier's voice via Gemini Flash. Auto-creates a `community_users` row per maker (`is_maker_team: True`, `linked_maker_slug` populated) so the forum UI renders "Started by Cascade Iron Works" instead of an email.
+- **Cross-maker reply matrix** — each thread has 2 replies from OTHER founders chosen for overlapping expertise:
+  - Cascade's powder coat thread → replies from NorthForge + Hill Country
+  - Hill Country's patina thread → replies from Cascade + Emberline
+  - Appalachian's epoxy thread → replies from Forge & Grain + Redwood CNC
+  - Great Lakes' fiber laser PSI → replies from BlackRiver + NorthForge
+  - … (10 threads × 2 replies = 20 cross-maker exchanges total)
+- **Reply quality lock** — each reply written in first-person plural ("we"), references the replier's machinery/region naturally, includes a real spec (165 PSI, 1/32" stepover, 410°F threshold, ProtectaClear, hydrogen peroxide flash rust). 2-4 sentences, max 90 words. Banned filler phrases ("great post", "thanks for sharing", emoji, exclamation marks) enforced by the prompt + regression test.
+
+### Marketplace impact (preview verified)
+- Forum: was 23 threads / 161 replies → now **33 threads / 181 replies**.
+- 10 brand-new posts now lead the forum index when sorted by recency.
+- Forum UI renders "STARTED BY FORGE & GRAIN WORKSHOP" etc. on each thread card — exactly the ecosystem-density signal the user briefed.
+- Screenshot confirmed: 10/10 maker name strings present on the rendered forum page; all 10 maker-attributed threads visible above the fold on a 1920×1100 viewport.
+
+### Regression · `tests/test_iter230_maker_forum_seed.py` — **8/8 PASS**
+1. All 10 maker threads present in DB.
+2. Every thread carries `linked_maker_slug` (the UI binding).
+3. Every thread has at least one reply (no orphan threads).
+4. Every reply is from a DIFFERENT maker than the thread author (no self-threads).
+5. No reply contains banned filler / emoji / exclamation marks.
+6. Every thread uses a valid `FORUM_CATEGORY_IDS` category.
+7. `seed_key` values are unique (idempotent re-run safe).
+8. All 10 starter-pack makers are referenced across the forum (full ecosystem coverage).
+
+### Cost
+~$0.05 — 30 Gemini Flash text calls (10 threads × 2 replies + retries). Ran in ~90 seconds.
+
+### Files touched
+- `backend/seed_maker_forum_posts.py` (new — 320 lines)
+- `backend/tests/test_iter230_maker_forum_seed.py` (8 tests)
+- MongoDB: 10 forum_threads + 20 forum_replies inserted; 10 community_users upserted with `linked_maker_slug`.
+
+
+
 ## 2026-05-26 — iter229 · Starter Pack v2 — +6 makers, +30 products, +6 intros ✅
 
 User-spec'd ecosystem expansion to build "a growing network of real independent makers." Recommended additive approach (option A from the planning question) — preserves the iter227 four, adds six new non-overlapping makers across distinct regions and specialties.
