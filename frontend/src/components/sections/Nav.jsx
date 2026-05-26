@@ -1,20 +1,37 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, ShoppingBag, User } from "lucide-react";
+import { Menu, X, ShoppingBag, User, ChevronDown } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useCart } from "../../lib/cart";
 import ActivityTicker from "./ActivityTicker";
 
-const links = [
-  { label: "Shop", href: "/shop", route: true },
-  { label: "Makers", href: "/makers", route: true },
-  { label: "Clips", href: "/clips", route: true },
-  { label: "Custom", href: "/custom-order", route: true },
-  { label: "Community", href: "/community", route: true },
-  { label: "Journal", href: "/journal", route: true },
-  { label: "What's new", href: "/updates", route: true },
-  { label: "Where we're going", href: "/grow", route: true, highlight: true },
-  { label: "Contact", href: "/contact", route: true },
+// Primary nav — 5 items only. Secondary/tertiary surfaces live under the
+// Community dropdown or in the footer. Keeps the bar one-line at >=1100px
+// and stops the cyan "Where we're going" link from wrapping at /grow.
+const primaryLinks = [
+  { label: "Shop", href: "/shop" },
+  { label: "Makers", href: "/makers" },
+  { label: "Custom", href: "/custom-order" },
+];
+
+// Lives inside the Community dropdown — these used to be top-level
+// nav entries but all share the same "browse content / hang out"
+// intent. Surfacing them under one parent is cleaner + reflects user
+// behaviour (commerce links go to Shop, content links go here).
+const communityMenu = [
+  { label: "Forum",    href: "/community?tab=forum",    blurb: "Threads · Q&A · help" },
+  { label: "Clips",    href: "/clips",                  blurb: "Short workshop videos" },
+  { label: "Journal",  href: "/journal",                blurb: "Long-form articles" },
+  { label: "Showcase", href: "/community?tab=showcase", blurb: "Buyer + maker photos" },
+];
+
+// Tertiary surfaces — kept out of the desktop bar but still reachable
+// from the mobile drawer + footer. "What's New" and "Contact" both
+// live in the footer in their own columns now.
+const tertiaryLinks = [
+  { label: "What's new", href: "/updates" },
+  { label: "Contact",    href: "/contact" },
 ];
 
 // Pull whichever JWT is present so we can switch the nav to "My account"
@@ -82,23 +99,7 @@ export default function Nav() {
           </div>
         </Link>
 
-        <nav className="hidden lg:flex items-center gap-10" data-testid="nav-links">
-          {links.map((l) => (
-            <Link
-              key={l.href}
-              to={l.href}
-              className={`industrial-link font-mono text-xs uppercase tracking-[0.22em] ${
-                l.highlight
-                  ? "text-[#00ffff] hover:text-[#ff4500] flex items-center gap-1.5"
-                  : "text-[#e5e5e5] hover:text-[#ff4500]"
-              }`}
-              data-testid={`nav-link-${l.label.toLowerCase().replace(/\s/g, "-")}`}
-            >
-              {l.highlight && <span aria-hidden="true">◆</span>}
-              {l.label}
-            </Link>
-          ))}
-        </nav>
+        <DesktopNav signedInRole={signedInRole} />
 
         <div className="flex items-center gap-3">
           {/* Founding Seller Beta CTA moved out of the top Nav (iter153)
@@ -144,22 +145,23 @@ export default function Nav() {
         </div>
       </div>
 
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black"
-            data-testid="mobile-menu"
-          >
-            <div className="flex justify-between items-center px-6 py-5 border-b border-[#262626]">
+      {createPortal(
+        <AnimatePresence>
+          {open && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100] bg-black flex flex-col"
+              data-testid="mobile-menu"
+            >
+            <div className="flex justify-between items-center px-6 py-5 border-b border-[#262626] shrink-0">
               <span className="font-display text-2xl">Crafters Market</span>
               <button onClick={() => setOpen(false)} aria-label="Close menu" data-testid="nav-mobile-close">
                 <X size={24} />
               </button>
             </div>
-            <ul className="flex flex-col p-8 gap-6">
+            <ul className="flex flex-col p-8 gap-6 overflow-y-auto flex-1">
               {/* Sign in / Account — first item, always visible. Mobile users
                   were getting stranded looking for this in the hamburger
                   (it was only in the top-bar cluster which got squeezed off
@@ -173,19 +175,28 @@ export default function Nav() {
                 <Link
                   to={accountHref}
                   onClick={() => setOpen(false)}
-                  className="font-display text-5xl block hover:text-[#ff4500] transition flex items-center gap-3"
+                  className="font-display text-3xl sm:text-4xl block hover:text-[#ff4500] transition flex items-center gap-3"
                   data-testid="mobile-nav-signin"
                 >
-                  <User size={28} className="text-[#ff4500]" />
+                  <User size={22} className="text-[#ff4500]" />
                   {signedInRole ? "Account" : "Sign in"}
                 </Link>
               </motion.li>
-              {/* Beta Signup link removed from mobile drawer (iter153) — the
-                  dedicated <BetaSignupCTA /> band at the bottom of the home
-                  page is the single funnel surface now. */}
-              {links.map((l, i) => (
+              {/* Primary mobile nav — single flat list including the
+                  community dropdown items, the grow highlight, and
+                  the tertiary surfaces. Mobile users get everything in
+                  one tap-friendly column. */}
+              {[
+                ...primaryLinks,
+                { label: "Forum",    href: "/community?tab=forum" },
+                { label: "Clips",    href: "/clips" },
+                { label: "Journal",  href: "/journal" },
+                { label: "Showcase", href: "/community?tab=showcase" },
+                { label: "Where we're going", href: "/grow", highlight: true },
+                ...tertiaryLinks,
+              ].map((l, i) => (
                 <motion.li
-                  key={l.href}
+                  key={l.href + l.label}
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: (i + 2) * 0.05 }}
@@ -193,17 +204,127 @@ export default function Nav() {
                   <Link
                     to={l.href}
                     onClick={() => setOpen(false)}
-                    className="font-display text-5xl block hover:text-[#ff4500] transition"
+                    className={`font-display text-3xl sm:text-4xl block transition ${
+                      l.highlight ? "text-[#00ffff] hover:text-[#ff4500]" : "hover:text-[#ff4500]"
+                    }`}
                     data-testid={`mobile-nav-link-${l.label.toLowerCase().replace(/\s/g, "-")}`}
                   >
-                    {l.label}
+                    {l.highlight ? "◆ " : ""}{l.label}
                   </Link>
                 </motion.li>
               ))}
             </ul>
           </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </motion.header>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Desktop nav — 5 visible items + Community dropdown + ◆ Grow highlight.
+// Replaces the old flat 9-link bar that wrapped multi-line at /grow.
+// Hover-to-open dropdown (with a small open delay on leave so users
+// can travel cursor → menu without it slamming shut).
+// ─────────────────────────────────────────────────────────────────────
+function DesktopNav() {
+  const [openMenu, setOpenMenu] = useState(false);
+  const closeTimerRef = useRef(null);
+
+  const handleOpen = () => {
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    setOpenMenu(true);
+  };
+  const handleClose = () => {
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    closeTimerRef.current = setTimeout(() => setOpenMenu(false), 120);
+  };
+
+  return (
+    <nav className="hidden lg:flex items-center gap-9 xl:gap-10" data-testid="nav-links">
+      {primaryLinks.map((l) => (
+        <Link
+          key={l.href}
+          to={l.href}
+          className="industrial-link font-mono text-xs uppercase tracking-[0.22em] text-[#e5e5e5] hover:text-[#ff4500]"
+          data-testid={`nav-link-${l.label.toLowerCase().replace(/\s/g, "-")}`}
+        >
+          {l.label}
+        </Link>
+      ))}
+
+      {/* Community ▾ — replaces the standalone Community / Clips /
+          Journal / Forum / Showcase links. Click goes to the community
+          hub; hover reveals the sub-surfaces with one-line blurbs. */}
+      <div
+        className="relative"
+        onMouseEnter={handleOpen}
+        onMouseLeave={handleClose}
+        data-testid="nav-community-group"
+      >
+        <Link
+          to="/community"
+          className="industrial-link font-mono text-xs uppercase tracking-[0.22em] text-[#e5e5e5] hover:text-[#ff4500] inline-flex items-center gap-1"
+          data-testid="nav-link-community"
+          onFocus={handleOpen}
+        >
+          Community
+          <ChevronDown size={12} className={`transition-transform ${openMenu ? "rotate-180" : ""}`} aria-hidden="true" />
+        </Link>
+
+        <AnimatePresence>
+          {openMenu && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 8 }}
+              transition={{ duration: 0.18, ease: [0.22, 0.61, 0.36, 1] }}
+              className="absolute left-1/2 -translate-x-1/2 top-full mt-3 min-w-[260px] bg-[#0a0a0a] border border-[#262626] shadow-[0_20px_40px_-10px_rgba(0,0,0,0.8)] z-50"
+              role="menu"
+              data-testid="nav-community-menu"
+            >
+              {/* Decorative chevron pointing back at the trigger */}
+              <div
+                aria-hidden="true"
+                className="absolute -top-[5px] left-1/2 -translate-x-1/2 w-2 h-2 bg-[#0a0a0a] border-l border-t border-[#262626] rotate-45"
+              />
+              <ul className="p-2">
+                {communityMenu.map((item) => (
+                  <li key={item.href}>
+                    <Link
+                      to={item.href}
+                      className="block px-3 py-2.5 hover:bg-[#171717] transition group"
+                      data-testid={`nav-community-${item.label.toLowerCase()}`}
+                    >
+                      <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#e5e5e5] group-hover:text-[#ff4500]">
+                        {item.label}
+                      </div>
+                      <div className="font-mono text-[10px] text-[#737373] mt-0.5">
+                        {item.blurb}
+                      </div>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* ◆ Grow highlight — cyan accent. Stays visible on lg+, abbreviated
+          to a pill on smaller screens via the responsive `xl:` reveal. */}
+      <Link
+        to="/grow"
+        className="industrial-link font-mono text-xs uppercase tracking-[0.22em] text-[#00ffff] hover:text-[#ff4500] inline-flex items-center gap-1.5 whitespace-nowrap"
+        data-testid="nav-link-where-we're-going"
+        title="Where we're going · public roadmap"
+      >
+        <span aria-hidden="true">◆</span>
+        <span className="hidden xl:inline">Where we&apos;re going</span>
+        <span className="xl:hidden">Roadmap</span>
+      </Link>
+    </nav>
   );
 }
