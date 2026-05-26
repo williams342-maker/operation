@@ -793,6 +793,22 @@ export const purgeOrphanCommunityDesignsSeed = () =>
 export const fetchStripeDiag = () =>
   http.get("/admin/stripe/diag", { headers: adminAuthHeaders() }).then((r) => r.data);
 
+// iter231 — Admin showcase curation (pin / hide / reorder / shuffle). The
+// admin list includes hidden posts; the public /community/showcase route
+// already filters them out.
+export const fetchAdminShowcase = () =>
+  http.get("/admin/showcase", { headers: adminAuthHeaders() }).then((r) => r.data);
+export const toggleShowcasePin = (id) =>
+  http.post(`/admin/showcase/${id}/pin`, {}, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const toggleShowcaseHide = (id) =>
+  http.post(`/admin/showcase/${id}/hide`, {}, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const moveShowcaseUp = (id) =>
+  http.post(`/admin/showcase/${id}/move-up`, {}, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const moveShowcaseDown = (id) =>
+  http.post(`/admin/showcase/${id}/move-down`, {}, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const shuffleShowcase = () =>
+  http.post("/admin/showcase/shuffle", {}, { headers: adminAuthHeaders() }).then((r) => r.data);
+
 // iter226 — Integration diagnostics (Shippo / Mailgun / R2 — same friendly-error pattern).
 export const fetchShippoDiag = () =>
   http.get("/admin/shippo/diag", { headers: adminAuthHeaders() }).then((r) => r.data);

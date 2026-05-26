@@ -1,6 +1,49 @@
 # Crafters Market — CHANGELOG
 
 
+## 2026-05-26 — iter231 · Showcase curation tab — pin / hide / reorder / shuffle ✅
+
+Admin curation panel for the community showcase. Previous behavior: `/community → Showcase` tab sorted strictly by `created_at DESC` — the moment 10 newer posts arrived, the best work vanished off the bottom. Now the admin picks what greets buyers.
+
+### What ships
+- **`backend/routers/showcase_admin.py`** — new router with 6 admin-only endpoints:
+  - `GET /admin/showcase` — full list including hidden, in the same order the public feed renders
+  - `POST /admin/showcase/{id}/pin` — toggle pin (newest pin floats to the very top)
+  - `POST /admin/showcase/{id}/hide` — toggle soft-hide (different from quarantine — operator's choice, not abuse)
+  - `POST /admin/showcase/{id}/move-up` and `/move-down` — swap admin_sort_order with adjacent row
+  - `POST /admin/showcase/shuffle` — randomize sort_order on all non-pinned, non-hidden posts in one click
+- **`backend/routers/community_showcase.py` · `list_showcase`** — now filters `admin_hidden: True` out, and sorts: pinned first (newest pin first), then admin_sort_order ASC (nulls last), then created_at DESC. Buyer-facing change is zero-config; the new fields are additive and ignored where absent.
+- **`frontend/src/components/admin/ShowcaseCurationTab.jsx`** — three-section UI (Pinned · In Rotation · Hidden), each row shows thumbnail + title + maker + view count + 4 buttons (☆ Pin · ✕ Hide · ▲ ▼). Header has a hot amber "🎲 Shuffle N non-pinned" button.
+- **AdminDashboard.jsx** — new "Showcase Rotation" tab added between "Showcase Analytics" and "Showcase Mod", gated to `content` capability.
+- **`frontend/src/lib/api.js`** — 6 new helpers (fetch list, pin, hide, move-up, move-down, shuffle).
+
+### Bug found and fixed during testing
+First test pass failed with 404 on every pin/hide call. Root cause: my projection was `{"_id": 0, "admin_pinned": 1}` — for docs that didn't carry an `admin_pinned` field yet (most of them on first deploy), `find_one` returned `{}` (empty dict), and `if not doc:` evaluated `{}` as falsy → bogus 404. Fixed by also projecting `id` so the dict always has at least one field. Standard Mongo+Python footgun, now documented inline.
+
+### Regression · `tests/test_iter231_showcase_curation.py` — **8/8 PASS**
+1. Admin list returns required fields on every item
+2. All 6 admin endpoints reject unauth callers (401/403)
+3. Pin endpoint flips state both directions
+4. Hide endpoint flips state both directions
+5. Shuffle assigns sort_orders to all non-pinned, non-hidden posts
+6. Pinned posts appear FIRST in `/community/showcase` regardless of created_at
+7. Hidden posts are excluded from `/community/showcase`
+8. Move-up swaps a post with the one above it
+
+### Verified live (preview)
+Screenshot of `?tab=showcase-curation` rendered with the full three-section panel, all 8 rows mounted, shuffle button hot in amber. Curl-tested the full flow: list → pin → list (sees pinned section populated) → shuffle → list (sees new sort orders).
+
+### Files touched
+- `backend/routers/showcase_admin.py` (new — 215 lines)
+- `backend/routers/community_showcase.py` (`_PUBLIC_FEED_FILTER` + `list_showcase` updated)
+- `backend/server.py` (mount new router)
+- `frontend/src/components/admin/ShowcaseCurationTab.jsx` (new — 210 lines)
+- `frontend/src/pages/AdminDashboard.jsx` (new tab wired)
+- `frontend/src/lib/api.js` (6 new helpers)
+- `backend/tests/test_iter231_showcase_curation.py` (8 tests)
+
+
+
 ## 2026-05-26 — iter230 · Maker-attributed forum seeds + cross-maker replies ✅
 
 User's brief called out that each founding maker has "compatible forum/community topics" — and that the forum should feel like a real shop floor where makers help each other. This iteration delivers exactly that: 10 threads, each authored by one of the 10 founding makers from their specialty wheelhouse, each with cross-maker replies.

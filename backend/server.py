@@ -135,6 +135,9 @@ from routers.integration_diag import router as integration_diag_router
 api.include_router(integration_diag_router)
 from routers.ga4_analytics import router as ga4_analytics_router
 api.include_router(ga4_analytics_router)
+# iter231 — Admin showcase curation (pin / hide / reorder / shuffle)
+from routers.showcase_admin import router as showcase_admin_router
+api.include_router(showcase_admin_router)
 app.include_router(api)
 
 # iter109 — Canonical-host 301 redirect middleware. When `CANONICAL_HOST`

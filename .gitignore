@@ -138,3 +138,4 @@ frontend/node_modules/.cache/default-development/32.pack
 # iter226 — GCP service account keys
 backend/secrets/
 
+frontend/node_modules/.cache/default-development/41.pack

@@ -84,13 +84,52 @@ def _is_showcase_owner(doc: dict, claims: dict) -> bool:
 # buyers/makers while moderators decide. Moderator-approved posts stay
 # visible even with stale open_reports — the approval is the explicit
 # "this is fine" signal.
-_PUBLIC_FEED_FILTER = {"mod_status": {"$ne": "quarantined"}}
+#
+# iter231 — Also exclude `admin_hidden: True` posts. That's the admin
+# curation panel's soft-hide (different from quarantine, which is for
+# abuse). Quarantined = bad content. Admin-hidden = fine content the
+# operator chose to retire from the showcase rotation.
+_PUBLIC_FEED_FILTER = {
+    "mod_status": {"$ne": "quarantined"},
+    "admin_hidden": {"$ne": True},
+}
 
 
 # ===================== LISTING =====================
 @router.get("/community/showcase")
 async def list_showcase(limit: int = 50):
-    return await db.showcase_posts.find(_PUBLIC_FEED_FILTER, {"_id": 0}).sort("created_at", -1).to_list(limit)
+    """iter231 — Order key for the public feed:
+       1. admin_pinned: True first (newest pin first via pinned_at desc)
+       2. admin_sort_order ascending (lower number → higher in list, nulls last)
+       3. created_at descending (newest organic posts beat older ones)
+
+    We achieve the multi-key sort with two passes in code because Mongo
+    can't put `null`/missing values at the end of a single sort easily."""
+    rows = await db.showcase_posts.find(_PUBLIC_FEED_FILTER, {"_id": 0}).to_list(500)
+    def _key(r):
+        pinned = bool(r.get("admin_pinned"))
+        # Pinned-first → lower priority number
+        pinned_at = r.get("admin_pinned_at") or ""
+        # Non-pinned rows: sort_order ASC (None goes to the end)
+        so = r.get("admin_sort_order")
+        if so is None:
+            so = 10_000_000        # push to bottom
+        created_at = r.get("created_at") or ""
+        # Build a tuple: pinned posts (0) before unpinned (1);
+        # within pinned, newest pin first; within unpinned, sort_order
+        # asc then created_at desc.
+        if pinned:
+            return (0, "", -ord(pinned_at[0]) if pinned_at else 0, _neg_str(pinned_at))
+        return (1, so, _neg_str(created_at))
+    rows.sort(key=_key)
+    return rows[:limit]
+
+
+def _neg_str(s: str) -> tuple:
+    """Sort helper: returns a tuple that sorts in *reverse* alphabetical
+    order when used with the default ascending sort. Lets us mix ASC and
+    DESC keys in a single sort tuple."""
+    return tuple(-ord(c) for c in (s or ""))
 
 
 
