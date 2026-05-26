@@ -17,7 +17,7 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ShoppingBag, Hammer, Heart, Eye, Store, Users, Check,
-  ArrowRight, ArrowLeft, X, Sparkles, Loader2,
+  ArrowRight, ArrowLeft, X, Sparkles, Loader2, CreditCard, ExternalLink,
 } from "lucide-react";
 import { http } from "../lib/api";
 import { useStructuredData } from "../lib/seo";
@@ -371,6 +371,13 @@ function Step4FirstAction({ path, completed, onMark, onNext, onBack }) {
       <p className="font-mono text-xs text-[#a3a3a3] mb-8">
         Complete these quick steps to make your profile come alive — under 5 minutes.
       </p>
+
+      {/* iter250 — Stripe payouts nudge. Only renders for makers who are
+          actually signed in (so we have a JWT to call /maker/stripe/connect/status)
+          AND who haven't already finished onboarding. Pure call-out — never
+          blocks the flow. */}
+      {path === "maker" && <MakerPayoutsPrompt />}
+
       <ol className="space-y-3">
         {items.map((it, i) => {
           const done = isDone(it.key);
@@ -473,3 +480,119 @@ function Step5Tour({ onFinish, onBack }) {
     </motion.div>
   );
 }
+
+// iter250 — Friendly Stripe Payouts prompt rendered inside Step 4 when the
+// user picked "maker". Calls /api/maker/stripe/connect/status to determine
+// whether to show. Three states:
+//   • not signed in as a maker yet     → soft prompt linking to /maker/login
+//   • signed in, no Stripe account     → "Connect Stripe (2 min)" CTA
+//   • signed in, payouts not enabled   → "Finish Stripe verification" CTA
+//   • payouts enabled                  → green confirmation, no CTA
+function MakerPayoutsPrompt() {
+  const [state, setState] = useState({ loading: true });
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    const jwt = localStorage.getItem("cm_maker_jwt");
+    if (!jwt) {
+      setState({ loading: false, kind: "anon" });
+      return;
+    }
+    http.get("/maker/stripe/connect/status")
+      .then((r) => {
+        const d = r.data || {};
+        let kind = "needs-connect";
+        if (d.payouts_enabled && d.details_submitted) kind = "ready";
+        else if (d.connected) kind = "needs-finish";
+        setState({ loading: false, kind, ...d });
+      })
+      .catch(() => setState({ loading: false, kind: "needs-connect" }));
+  }, []);
+
+  if (state.loading) return null;
+
+  // Generate the Stripe Connect onboarding link in-place.
+  const startStripe = async () => {
+    setBusy(true);
+    try {
+      const r = await http.post("/maker/stripe/connect/onboard", {
+        origin_url: window.location.origin,
+      });
+      if (r.data?.onboarding_url) {
+        window.location.href = r.data.onboarding_url;
+      }
+    } catch (e) {
+      // fall through — user can retry from the maker dashboard
+      setBusy(false);
+    }
+  };
+
+  if (state.kind === "ready") {
+    return (
+      <div
+        className="mb-6 p-4 border border-emerald-500/60 bg-emerald-500/5 flex items-center gap-3"
+        data-testid="welcome-stripe-prompt"
+      >
+        <CreditCard size={18} className="text-emerald-400 flex-shrink-0" />
+        <div className="flex-1">
+          <div className="font-display text-base">Payouts ready ✓</div>
+          <p className="font-mono text-[11px] text-[#a3a3a3] mt-0.5">
+            Your Stripe account is verified. Sales will pay out automatically.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (state.kind === "anon") {
+    return (
+      <a
+        href="/maker/login"
+        className="mb-6 block p-4 border border-[#ff4500]/60 bg-[#ff4500]/5 hover:bg-[#ff4500]/10 transition group"
+        data-testid="welcome-stripe-prompt"
+      >
+        <div className="flex items-center gap-3">
+          <CreditCard size={18} className="text-[#ff4500] flex-shrink-0" />
+          <div className="flex-1">
+            <div className="font-display text-base">Get paid for your work.</div>
+            <p className="font-mono text-[11px] text-[#a3a3a3] mt-0.5">
+              Sign in as a maker and connect Stripe in 2 minutes —
+              the moment you make a sale, the money lands in your bank.
+            </p>
+          </div>
+          <ArrowRight size={14} className="text-[#ff4500] group-hover:translate-x-1 transition-transform" />
+        </div>
+      </a>
+    );
+  }
+
+  const isFinish = state.kind === "needs-finish";
+  return (
+    <button
+      type="button"
+      onClick={startStripe}
+      disabled={busy}
+      className="mb-6 w-full text-left p-4 border border-[#ff4500]/60 bg-[#ff4500]/5 hover:bg-[#ff4500]/10 disabled:opacity-50 transition group"
+      data-testid="welcome-stripe-prompt"
+    >
+      <div className="flex items-center gap-3">
+        <CreditCard size={18} className="text-[#ff4500] flex-shrink-0" />
+        <div className="flex-1">
+          <div className="font-display text-base">
+            {isFinish ? "Finish your Stripe verification" : "Connect Stripe — get paid in 2 min"}
+          </div>
+          <p className="font-mono text-[11px] text-[#a3a3a3] mt-0.5">
+            {isFinish
+              ? "You started Stripe onboarding but a couple steps are still open. We'll bounce you back the second it's done."
+              : "We use Stripe Express so you can accept cards anywhere in the US and get weekly payouts to your bank automatically."}
+          </p>
+        </div>
+        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#ff4500] group-hover:bg-[#ff6a2a] text-black font-mono text-[10px] uppercase tracking-[0.22em] font-bold">
+          {busy ? <Loader2 size={11} className="animate-spin" /> : <ExternalLink size={11} />}
+          {isFinish ? "Resume" : "Connect"}
+        </span>
+      </div>
+    </button>
+  );
+}
+
