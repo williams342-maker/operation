@@ -1,0 +1,34 @@
+{
+  "summary": "Regression retest of /welcome skip-button Nav-overlap fix. Confirmed pt-32 md:pt-36 padding bump resolves the desktop overlap. Both required tests (Step 1 & Step 3) PASSED on desktop without force=True. Bonus mobile (390x844) test FAILED — Nav header still intercepts pointer events at the skip button's center, because pt-32 (128px) is not enough clearance on mobile where the Nav extends past 128px.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Welcome.jsx (mobile only)",
+        "issue": "Mobile viewport (390x844): fixed <header data-testid='site-nav'> subtree still intercepts pointer events at welcome-skip center (x≈312, y=128). Skip button top edge sits AT y=128 (pt-32 = 128px) but the Nav header extends below 128px on mobile (BetaBanner h-10 = 40px + Nav py-4 + logo content ≈ 128px+). Resulted in Locator.click timeout after multiple retries. Desktop (md:pt-36 = 144px) works fine because there is real 40px+ clearance.",
+        "selector": "[data-testid='welcome-skip']",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "(Optional) Bump mobile top padding further to pt-36 (144px) or pt-40 (160px) so the skip button clears the Nav on viewports < 768px. Current pt-32 (128px) only gives 0px clearance on mobile where Nav bottom edge sits around y=128. Suggested: change `pt-32 md:pt-36` to `pt-36 md:pt-36` or `pt-40 md:pt-36` in /app/frontend/src/pages/Welcome.jsx line 148."
+  ],
+  "critical_code_review_comments": [
+    "The Nav-overlap clearance math in the commit message (40 + 64 = 104px) under-estimates the real mobile Nav height. On a 390px viewport the rendered Nav header bottom is at ~128-140px, not 104px. Recommend measuring with a real bounding box in the future or using a known sentinel offset constant exported from Nav.jsx."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (not in scope)", "frontend": "67% (2/3 viewports). Required desktop tests: 100% (2/2)."},
+  "test_credentials": "None required — flow is anonymous.",
+  "seed_data_creation": "None.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Regression target: pt-32 md:pt-36 padding on Welcome.jsx root container (line 148). Verified: (1) Desktop Step 1 skip click without force=True fires handler, sends POST /api/onboarding/skip (200), sets localStorage.cm_onboarding_skipped='1', navigates to /. (2) Desktop Step 3 (after Get Started → choose path 'buyer') same behavior — PASSED. Skip button bounding box at y=144 on desktop, topmost elementFromPoint = the BUTTON itself (no nav interception). Mobile failure is a separate observation — main agent may want to fix or accept it. The original p0 desktop overlap bug from iter73 is RESOLVED.",
+  "rca of the issue": "Original bug: skip button at y=96 (pt-24) was beneath fixed Nav (z-50) which extended to ~y=104. Fix: increase top padding to push button below Nav. pt-32 md:pt-36 succeeds on desktop. Mobile residual issue is because the Nav element renders taller than the math assumed (logo + hamburger + py-4 padding pushes header bottom past 128px)."
+}
