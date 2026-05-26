@@ -510,6 +510,43 @@ async def studio_kit_list(user: dict = Depends(_current_studio_user)):
     return {"mine": mine, "public": public}
 
 
+# Public — discovery index of every public kit with cover thumbnail.
+# IMPORTANT: must be declared BEFORE /studio/kits/{kit_id} so the literal
+# "public" path wins over the {kit_id} matcher.
+@router.get("/studio/kits/public")
+async def studio_kit_public_index(limit: int = 60):
+    """Anonymous-OK list of every public kit with the first file's thumbnail
+    used as the cover. Powers the `/kits` discovery gallery."""
+    limit = max(1, min(limit, 120))
+    rows = await db.studio_kits.find(
+        {"visibility": "public"}, {"_id": 0}
+    ).sort("created_at", -1).limit(limit).to_list(limit)
+    first_ids = [r["file_ids"][0] for r in rows if r.get("file_ids")]
+    covers: dict[str, str] = {}
+    if first_ids:
+        covers_docs = await db.design_files.find(
+            {"id": {"$in": first_ids}}, {"_id": 0, "id": 1, "thumbnail_url": 1}
+        ).to_list(len(first_ids))
+        covers = {d["id"]: d.get("thumbnail_url") or "" for d in covers_docs}
+    out = []
+    for r in rows:
+        cover = ""
+        if r.get("file_ids"):
+            cover = covers.get(r["file_ids"][0], "")
+        out.append({
+            "id": r["id"],
+            "slug": r["slug"],
+            "title": r["title"],
+            "description": r.get("description", ""),
+            "file_count": len(r.get("file_ids", [])),
+            "cover_url": cover,
+            "owner_id": r.get("owner_id"),
+            "owner_role": r.get("owner_role"),
+            "created_at": r.get("created_at"),
+        })
+    return {"kits": out}
+
+
 @router.get("/studio/kits/{kit_id}")
 async def studio_kit_read(kit_id: str, user: dict = Depends(_current_studio_user)):
     kit = await db.studio_kits.find_one({"id": kit_id}, {"_id": 0})
