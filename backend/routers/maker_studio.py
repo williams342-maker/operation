@@ -472,11 +472,20 @@ def _kit_doc(d: dict) -> dict:
     return d
 
 
+def _slugify_kit(title: str) -> str:
+    """Build a URL-safe slug from a kit title with a 6-char uuid suffix
+    so multiple users can create kits with the same name."""
+    base = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")[:40] or "kit"
+    return f"{base}-{uuid.uuid4().hex[:6]}"
+
+
 @router.post("/studio/kits")
 async def studio_kit_create(body: KitCreate, user: dict = Depends(_current_studio_user)):
     kit_id = str(uuid.uuid4())
+    slug = _slugify_kit(body.title)
     doc = {
         "id": kit_id,
+        "slug": slug,
         "title": body.title.strip()[:80],
         "description": (body.description or "").strip()[:400],
         "owner_id": user["sub"],
@@ -513,10 +522,33 @@ async def studio_kit_read(kit_id: str, user: dict = Depends(_current_studio_user
         {"_id": 0, "id": 1, "title": 1, "thumbnail_url": 1, "primary_url": 1,
          "maker_slug": 1, "maker_name": 1, "ai_generated": 1, "source": 1},
     ).to_list(50)
-    # Preserve user-defined order
     order = {fid: i for i, fid in enumerate(kit.get("file_ids", []))}
     files.sort(key=lambda f: order.get(f["id"], 999))
     return {**kit, "files": files}
+
+
+# Public — shareable URL lookup. Only `public` kits resolve here so the
+# /kits/<slug> route can be hit by anonymous social-share traffic.
+@router.get("/studio/kits/by-slug/{slug}")
+async def studio_kit_by_slug(slug: str):
+    kit = await db.studio_kits.find_one({"slug": slug, "visibility": "public"}, {"_id": 0})
+    if not kit:
+        raise HTTPException(404, "Kit not found")
+    files = await db.design_files.find(
+        {"id": {"$in": kit.get("file_ids", [])}, "quarantined_at": None},
+        {"_id": 0, "id": 1, "title": 1, "thumbnail_url": 1, "primary_url": 1,
+         "maker_slug": 1, "maker_name": 1, "ai_generated": 1, "source": 1,
+         "variants": 1, "ai_prompt": 1},
+    ).to_list(50)
+    order = {fid: i for i, fid in enumerate(kit.get("file_ids", []))}
+    files.sort(key=lambda f: order.get(f["id"], 999))
+    # Owner attribution
+    owner_name = "Studio Member"
+    if kit.get("owner_role") == "maker":
+        m = await db.makers.find_one({"slug": kit["owner_id"]}, {"_id": 0, "name": 1, "shop_name": 1})
+        if m:
+            owner_name = m.get("shop_name") or m.get("name") or kit["owner_id"]
+    return {**kit, "files": files, "owner_name": owner_name}
 
 
 @router.post("/studio/kits/{kit_id}/add")

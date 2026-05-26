@@ -51,6 +51,7 @@ import { SEO_LANDING_PAGES } from "./pages/seoLandingConfig";
 import LandingPage from "./pages/LandingPage";
 import GrowWithUs from "./pages/GrowWithUs";
 import MakerStudio from "./pages/MakerStudio";
+import KitPage from "./pages/KitPage";
 import UpdatesPage from "./pages/UpdatesPage";
 import SignInPage, { ForgotPasswordPage, ResetPasswordPage } from "./pages/SignInPage";
 import TrackBriefPage from "./pages/TrackBriefPage";
@@ -212,6 +213,7 @@ function App() {
                 <Route path="/for-makers" element={<LandingPage />} />
                 <Route path="/grow" element={<GrowWithUs />} />
                 <Route path="/studio" element={<MakerStudio />} />
+                <Route path="/kits/:slug" element={<KitPage />} />
                 <Route path="/updates" element={<UpdatesPage />} />
                 <Route path="/whats-new" element={<UpdatesPage />} />
                 <Route path="/journal" element={<JournalPage />} />

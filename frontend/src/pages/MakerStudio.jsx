@@ -69,6 +69,8 @@ export default function MakerStudio() {
   const [materialDepth, setMaterialDepth] = useState(0.25);
   const [machineType, setMachineType] = useState(null); // router | laser | plasma — auto by default
   const [cam, setCam] = useState(null);
+  const [userKits, setUserKits] = useState([]);
+  const [lastPublishedFileId, setLastPublishedFileId] = useState(null);
 
   // Templates are PUBLIC — load even when signed-out so visitors can browse.
   useEffect(() => {
@@ -109,6 +111,9 @@ export default function MakerStudio() {
     if (!signedIn) return;
     http.get("/studio/quota", { headers: authHeaders() })
       .then((r) => setQuota(r.data))
+      .catch(() => {});
+    http.get("/studio/kits", { headers: authHeaders() })
+      .then((r) => setUserKits(r.data?.mine || []))
       .catch(() => {});
   }, [signedIn]);
 
@@ -252,11 +257,54 @@ export default function MakerStudio() {
         { design: designPayload(), prompt: prompt.trim() },
         { headers: authHeaders() },
       );
+      const fileId = r.data?.file?.id;
+      setLastPublishedFileId(fileId);
+      // Reload kits so the dropdown reflects the latest list
+      http.get("/studio/kits", { headers: authHeaders() })
+        .then((kr) => setUserKits(kr.data?.mine || []))
+        .catch(() => {});
       toast.success(`Published — “${r.data?.file?.title}” · in the community feed`);
     } catch (e) {
       toast.error("Publish failed");
     } finally {
       setPublishing(false);
+    }
+  };
+
+  const addToKit = async (kitId) => {
+    if (!lastPublishedFileId) return;
+    try {
+      await http.post(
+        `/studio/kits/${kitId}/add`,
+        { file_id: lastPublishedFileId },
+        { headers: authHeaders() },
+      );
+      toast.success("Added to kit");
+    } catch {
+      toast.error("Couldn't add to kit");
+    }
+  };
+
+  const createKitAndAdd = async () => {
+    const title = (window.prompt("Name your kit", "Untitled Pack") || "").trim();
+    if (!title) return;
+    try {
+      const r = await http.post(
+        "/studio/kits",
+        { title, description: "", visibility: "public" },
+        { headers: authHeaders() },
+      );
+      setUserKits((prev) => [r.data, ...prev]);
+      if (lastPublishedFileId) {
+        await http.post(
+          `/studio/kits/${r.data.id}/add`,
+          { file_id: lastPublishedFileId },
+          { headers: authHeaders() },
+        );
+      }
+      toast.success(`Kit created — share: /kits/${r.data.slug}`);
+    } catch {
+      toast.error("Could not create kit");
     }
   };
 
@@ -501,6 +549,43 @@ export default function MakerStudio() {
                   {publishing ? <Loader2 size={13} className="animate-spin" /> : <Share2 size={13} />}
                   Publish to community
                 </button>
+
+                {/* iter240 — Save to kit. Surfaces ONLY after a successful publish.
+                    Lets the maker bundle the design into a shareable kit URL
+                    (`/kits/<slug>`) without leaving the studio. */}
+                {lastPublishedFileId && (
+                  <div className="border-t border-[#00ffff]/30 pt-3 mt-3 space-y-2" data-testid="studio-save-to-kit">
+                    <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#00ffff]">
+                      ◆ Save into a kit
+                    </div>
+                    {userKits.length > 0 && (
+                      <select
+                        onChange={(e) => e.target.value && addToKit(e.target.value)}
+                        defaultValue=""
+                        className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#00ffff] outline-none px-2.5 py-2 font-mono text-[11px] text-[#e5e5e5]"
+                        data-testid="studio-kit-select"
+                      >
+                        <option value="">Add to an existing kit…</option>
+                        {userKits.map((k) => (
+                          <option key={k.id} value={k.id}>{k.title}</option>
+                        ))}
+                      </select>
+                    )}
+                    <button
+                      type="button"
+                      onClick={createKitAndAdd}
+                      className="w-full px-3 py-2 border border-[#00ffff] text-[#00ffff] hover:bg-[#00ffff]/10 font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center justify-center gap-1.5"
+                      data-testid="studio-create-kit-btn"
+                    >
+                      <Sparkles size={11} /> Start a new kit
+                    </button>
+                    {userKits.length > 0 && (
+                      <div className="font-mono text-[9px] text-[#525252]">
+                        Public kits get shareable URLs at <span className="text-[#a3a3a3]">/kits/&lt;slug&gt;</span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
