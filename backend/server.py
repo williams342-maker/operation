@@ -150,6 +150,9 @@ api.include_router(maker_studio_router)
 # iter258 — EnrichLabs read-only marketing data API (API-key auth).
 from routers.enrichlabs import router as enrichlabs_router
 api.include_router(enrichlabs_router)
+# iter265 — Telnyx SMS (webhook + admin send/test).
+from routers.sms import router as sms_router
+api.include_router(sms_router)
 app.include_router(api)
 
 # iter109 — Canonical-host 301 redirect middleware. When `CANONICAL_HOST`
