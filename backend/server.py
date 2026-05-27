@@ -147,6 +147,9 @@ from routers.grow_page import router as grow_page_router
 from routers.maker_studio import router as maker_studio_router
 api.include_router(grow_page_router)
 api.include_router(maker_studio_router)
+# iter258 — EnrichLabs read-only marketing data API (API-key auth).
+from routers.enrichlabs import router as enrichlabs_router
+api.include_router(enrichlabs_router)
 app.include_router(api)
 
 # iter109 — Canonical-host 301 redirect middleware. When `CANONICAL_HOST`

@@ -1,3 +1,32 @@
+## 2026-05-26 — EnrichLabs read-only Data API (iter258)
+
+### User ask
+*"EnrichLabs can pull data from Crafters Market if you expose API endpoints for orders, sellers/listings, traffic. EnrichLabs would need: a base URL, auth method (API key or OAuth), and endpoint schema."*
+
+### What shipped
+- New router `/app/backend/routers/enrichlabs.py` mounted under `/api/enrich/v1`.
+- Static-API-key auth via `X-EnrichLabs-Key` header (constant-time compare), keyed off `ENRICHLABS_API_KEY` env var. Returns `503` when env is unset (integration "off") so a misconfigured deploy can't silently serve data without a key.
+- Six read-only GET endpoints:
+  - `/orders`   — anonymized paid orders (buyer exposed as salted `buyer_hash` only, never email/name)
+  - `/sellers`  — maker shops with computed `gross_revenue` + `paid_orders_count` aggregated from `payment_transactions`
+  - `/listings` — product catalog snapshot (id, price, status, maker_slug, …)
+  - `/funnel`   — 5-stage onboarding funnel (applied → approved → first_listing → first_sale → plus_upgrade)
+  - `/traffic`  — daily pageview/session/visitor aggregates from first-party `pageview_events` (GA4 flagged as canonical)
+  - `/schema`   — self-describing manifest for EnrichLabs to introspect
+- Cursor pagination on `/orders` via `next_cursor` (ISO `created_at` of the last row).
+- Hash salt env var `ENRICHLABS_HASH_SALT` so the buyer-hash isn't reversible across deploys without rotating both.
+
+### Handoff artifacts
+- `/app/memory/ENRICHLABS_API.md` — copy/paste doc for EnrichLabs (base URL, auth, every endpoint's params + response shape, error codes).
+- `backend/tests/test_enrichlabs_api.py` — 9 pytest cases covering auth gating, PII guards, and per-endpoint shape (9/9 passing).
+
+### Production rollout
+1. Set `ENRICHLABS_API_KEY=<long-random>` (already provisioned in preview .env).
+2. Set `ENRICHLABS_HASH_SALT=<long-random>` (different from preview).
+3. Redeploy.
+4. Hand the key + `/app/memory/ENRICHLABS_API.md` to the EnrichLabs team.
+
+
 ## 2026-05-26 — Email provider audit: drop retired providers (Brevo / MailerSend / MailerLite / Resend / Sender)
 
 ### User ask
