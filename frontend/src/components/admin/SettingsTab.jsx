@@ -857,7 +857,9 @@ function StripeLinkAccountCard() {
           ? body.detail
           : (body?.detail?.code === "stripe_account_already_linked"
               ? `Already linked to ${body.detail.current}. Check 'overwrite' to replace it.`
-              : `HTTP ${r.status}`);
+              : r.status === 401
+                ? "Your admin session expired. Sign in again at /admin/login and retry."
+                : `HTTP ${r.status}`);
         throw new Error(msg);
       }
       setResult(body);
