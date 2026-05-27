@@ -104,9 +104,12 @@ frontend/node_modules/.cache/default-development/20.pack
 frontend/node_modules/.cache/default-development/20.pack
 -e 
 # Environment and credential files
-.env
-.env.*
-*.env
+# NOTE: .env / .env.* / *.env intentionally NOT ignored — Emergent K8s
+# deployment requires these files in the build context. Real secrets
+# (Stripe live keys, Mongo URI, OAuth client secrets) are managed via
+# the Emergent deploy console, which writes them straight to the pod's
+# env at runtime. The .env files committed here are the preview/dev
+# defaults.
 credentials.json
 *.pem
 *.key
@@ -125,9 +128,7 @@ frontend/node_modules/.cache/default-development/38.pack
 frontend/node_modules/.cache/default-development/39.pack
 -e 
 # Environment and credential files
-.env
-.env.*
-*.env
+# NOTE: .env / .env.* / *.env intentionally NOT ignored — see note above.
 credentials.json
 *.pem
 *.key
