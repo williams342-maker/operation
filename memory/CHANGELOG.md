@@ -1,3 +1,16 @@
+## 2026-05-26 — Email provider audit: drop retired providers (Brevo / MailerSend / MailerLite / Resend / Sender)
+
+### User ask
+*"email stuck, check email, remove unused email providers"* (screenshot of Admin → Settings showing 5 UNUSED rows with ⚠ Safe to remove pills + the still-present Buffer "Social Auto-posts" card on the *deployed* site)
+
+### Fix
+- `/app/backend/routers/settings.py` — pruned `_PROVIDER_KEY_ENV` and `_PROVIDER_DNS_HINTS` down to the three providers the operator actually supports (mailgun / postmark / mailtrap). The audit endpoint now only surfaces those rows; leftover `BREVO_API_KEY` etc. in production env vars are harmless — just no longer surfaced in the UI.
+- Existing pytest suite `test_email_provider_audit.py` still passes (3/3 green).
+
+### Production hang flagged for redeploy
+Independent of the audit cleanup, `POST https://craftersmarket.org/api/admin/auth/request`, `/api/health`, and `/api/auth/flags` are all timing out at 30s on the live deploy (only `/api/` returns 200). The local backend is healthy — the stuck "SENDING…" button is a deploy-side issue. Recommended next: redeploy `main` so the latest backend + the Buffer-stripped frontend ship together.
+
+
 # Crafters Market — CHANGELOG
 
 
