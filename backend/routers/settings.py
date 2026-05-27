@@ -468,6 +468,18 @@ async def admin_email_health(_: dict = Depends(current_admin)):
 # these in Cloudflare" checklist for unused providers. Keep the hostname
 # tokens generic (we don't know each operator's apex) — the UI substitutes
 # `<apex>` with the configured `PUBLIC_SITE_URL` hostname at render time.
+#
+# iter257 (2026-05) — Operator decommissioned the alt providers
+# (Brevo, MailerSend, MailerLite, Resend, Sender). We no longer surface
+# them in the audit so the Settings card stays focused on the only
+# transactional senders we actually support:
+#   primary  → Mailgun
+#   fallback → Postmark
+#   sandbox  → Mailtrap
+# If you ever re-introduce one of the retired providers, re-add it here
+# along with its env var and DNS hint, and the audit picks it up
+# automatically. Leaving old env vars set in prod is harmless — the
+# audit just won't list them anymore.
 _PROVIDER_DNS_HINTS: dict[str, list[str]] = {
     "mailgun":  [
         "mg.<apex>            TXT   v=spf1 include:mailgun.org ~all",
@@ -478,38 +490,12 @@ _PROVIDER_DNS_HINTS: dict[str, list[str]] = {
         "<selector>._domainkey.<apex>  TXT  (DKIM from Postmark dashboard)",
         "(optional) postmark-return._<apex>  CNAME  pm.mtasv.net",
     ],
-    "sender":   [
-        "<apex>               TXT   v=spf1 include:_spf.sender.net ~all",
-        "<selector>._domainkey.<apex>  TXT  (DKIM from Sender.net dashboard)",
-    ],
-    "mailersend": [
-        "<apex>               TXT   v=spf1 include:_spf.mailersend.net ~all",
-        "mlsend._domainkey.<apex>  TXT  (DKIM from MailerSend dashboard)",
-    ],
-    "resend": [
-        "send.<apex>          MX     feedback-smtp.us-east-1.amazonses.com",
-        "send.<apex>          TXT    v=spf1 include:amazonses.com ~all",
-        "resend._domainkey.<apex>  TXT  (DKIM from Resend dashboard)",
-    ],
-    "brevo": [
-        "<apex>               TXT   v=spf1 include:spf.sendinblue.com ~all",
-        "mail._domainkey.<apex>  TXT  (DKIM from Brevo dashboard)",
-    ],
-    "mailerlite": [
-        "<apex>               TXT   v=spf1 include:_spf.mailerlite.com ~all",
-        "ml._domainkey.<apex>  TXT  (DKIM from MailerLite dashboard)",
-    ],
     "mailtrap": [],   # sandbox/testing — no DNS needed
 }
 
 _PROVIDER_KEY_ENV: dict[str, str] = {
     "mailgun":   "MAILGUN_API_KEY",
     "postmark":  "POSTMARK_API_KEY",
-    "sender":    "SENDER_API_KEY",
-    "mailersend": "MAILERSEND_API_KEY",
-    "resend":    "RESEND_API_KEY",
-    "brevo":     "BREVO_API_KEY",
-    "mailerlite": "MAILERLITE_API_KEY",
     "mailtrap":  "MAILTRAP_API_KEY",
 }
 
