@@ -141,6 +141,21 @@ async def notify_listing_published(
     high_value = _is_high_value(product)
     listing_url = f"{SITE_URL}/shop/{listing_slug}"
 
+    # iter271 — Social auto-post queue. Founder + Plus makers get every
+    # new listing automatically queued for posting to Crafters Market's
+    # branded IG/Pinterest/FB. Best-effort — failures here MUST NOT
+    # break the publish flow.
+    try:
+        from social_auto_post_service import enqueue_listing
+        social_q = await enqueue_listing(listing_slug)
+        if social_q.get("queued"):
+            logger.info(
+                "[listing_publish] %s → social queue id=%s tier=%s",
+                listing_slug, social_q.get("id"), social_q.get("tier"),
+            )
+    except Exception as e:
+        logger.exception("[listing_publish] social auto-post queue failed: %s", e)
+
     if high_value:
         # 5. Kit drop broadcast — only for the loud ones, targeted to the
         # maker's "interested-in-{slug}" tag (saved-drop audience). When

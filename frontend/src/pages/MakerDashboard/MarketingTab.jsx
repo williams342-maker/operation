@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import {
   ChevronDown, Megaphone, Tag, Gift, Camera, FileText, Hash,
-  TrendingUp, DollarSign, Copy, Download, Award,
+  TrendingUp, DollarSign, Copy, Download, Award, Share2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { fetchMakerProducts, downloadProductStoryCard, fetchMakerMe } from "../../lib/api";
@@ -12,6 +12,7 @@ import AICopyTools from "./Marketing/AICopyTools";
 import DiscountCodes from "./Marketing/DiscountCodes";
 import FounderCardSection from "./Marketing/FounderCardSection";
 import FounderEmailSignature from "./Marketing/FounderEmailSignature";
+import SocialAutoPostSection from "./Marketing/SocialAutoPostSection";
 
 /**
  * Etsy-parity Marketing hub.
@@ -38,6 +39,7 @@ import FounderEmailSignature from "./Marketing/FounderEmailSignature";
  */
 const SECTIONS_BASE = [
   { id: "ads",      label: "Crafters Market Ads", icon: Megaphone },
+  { id: "social",   label: "Social auto-post",    icon: Share2 },
   { id: "sales",    label: "Sales and discounts", icon: Tag },
   { id: "stories",  label: "Story templates",     icon: Download },
   { id: "share",    label: "Share & Save",        icon: Gift },
@@ -79,6 +81,7 @@ export default function MarketingTab() {
 
         <div className="min-w-0" data-testid={`marketing-section-${section}`}>
           {section === "ads"     && <AdsAndAITools />}
+          {section === "social"  && <SocialAutoPostSection />}
           {section === "sales"   && <DiscountCodes />}
           {section === "stories" && <StoryTemplates />}
           {section === "share"   && <ShareAndSave />}
