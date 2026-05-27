@@ -16,12 +16,12 @@ connected account, retaining a platform fee on the platform balance.
 """
 import os
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 import stripe as stripe_sdk
 
 from core import STRIPE_API_KEY, db, logger, now_iso
-from maker_auth import current_maker_slug
+from maker_auth import current_admin, current_maker_slug
 
 router = APIRouter()
 
@@ -36,7 +36,7 @@ def _stripe():
 
 
 @router.get("/admin/stripe/diag")
-async def stripe_diag(_: dict = Depends(__import__("maker_auth", fromlist=["current_admin"]).current_admin)):
+async def stripe_diag(_: dict = Depends(current_admin)):
     """iter222 — Admin-only one-shot health check. Verifies the Stripe API
     key is real (calls Account.retrieve on the platform account itself)
     and reports current mode (test/live). Lets the operator confirm in
@@ -90,6 +90,104 @@ async def _refresh_status(slug: str, account_id: str) -> dict:
     }
     await db.makers.update_one({"slug": slug}, {"$set": update})
     return update
+
+
+# ─────────────────────────────────────────────────────────────────────
+# iter259 — Admin: link an existing (manually-created) Stripe Connect
+# account to a maker row. Use when the operator created the Stripe
+# Connect account directly in the Stripe dashboard (instead of via our
+# /api/maker/stripe/connect/onboard endpoint) — that flow doesn't stamp
+# the account ID on the maker row.
+#
+# Calls the same _refresh_status helper as the live onboarding endpoint
+# so charges_enabled / payouts_enabled / details_submitted are pulled
+# straight from Stripe in one round-trip.
+# ─────────────────────────────────────────────────────────────────────
+class _LinkStripeAccountIn(BaseModel):
+    maker_slug: str = Field(min_length=1, max_length=80)
+    stripe_account_id: str = Field(min_length=8, max_length=40,
+                                   pattern=r"^acct_[A-Za-z0-9]+$")
+    overwrite: bool = False  # require explicit opt-in to overwrite an existing ID
+
+
+@router.post("/admin/stripe/link-account")
+async def admin_link_stripe_account(
+    payload: _LinkStripeAccountIn,
+    claims: dict = Depends(current_admin),
+):
+    """Stamp a manually-created Stripe Connect account ID onto a maker row
+    and pull its current status from Stripe. Idempotent — re-running with
+    the same pair is a no-op refresh.
+
+    Returns the resulting status flags so the operator can see right away
+    whether onboarding is complete on Stripe's side.
+    """
+    if not STRIPE_API_KEY or "*" in STRIPE_API_KEY:
+        raise HTTPException(503, "Stripe is not configured on this environment.")
+
+    maker = await db.makers.find_one(
+        {"slug": payload.maker_slug},
+        {"_id": 0, "slug": 1, "email": 1, "stripe_account_id": 1},
+    )
+    if not maker:
+        raise HTTPException(404, f"No maker with slug {payload.maker_slug!r}")
+
+    existing = (maker.get("stripe_account_id") or "").strip()
+    if existing and existing != payload.stripe_account_id and not payload.overwrite:
+        raise HTTPException(
+            409,
+            {
+                "code": "stripe_account_already_linked",
+                "current": existing,
+                "incoming": payload.stripe_account_id,
+                "hint": "Pass overwrite=true to replace the existing account ID.",
+            },
+        )
+
+    # Verify the account exists on Stripe BEFORE writing anything to the
+    # DB. A bad acct_id should fail loudly, not silently overwrite a
+    # maker row with a non-existent account.
+    try:
+        update = await _refresh_status(payload.maker_slug, payload.stripe_account_id)
+    except stripe_sdk.error.InvalidRequestError as e:
+        raise HTTPException(400, f"Stripe rejected the account ID: {e.user_message or str(e)}")
+    except stripe_sdk.error.AuthenticationError as e:
+        raise HTTPException(503, f"Stripe authentication failed: {e}")
+    except Exception as e:  # pragma: no cover
+        raise HTTPException(502, f"Stripe API error: {e}")
+
+    logger.info(
+        "[stripe-link] admin=%s linked acct=%s to maker=%s (charges=%s payouts=%s details=%s)",
+        claims.get("email"), payload.stripe_account_id, payload.maker_slug,
+        update["stripe_charges_enabled"], update["stripe_payouts_enabled"],
+        update["stripe_details_submitted"],
+    )
+
+    # Audit trail
+    try:
+        await db.admin_audit.insert_one({
+            "kind": "stripe_account_linked",
+            "admin_email": claims.get("email"),
+            "maker_slug": payload.maker_slug,
+            "stripe_account_id": payload.stripe_account_id,
+            "previous_account_id": existing or None,
+            "charges_enabled": update["stripe_charges_enabled"],
+            "payouts_enabled": update["stripe_payouts_enabled"],
+            "details_submitted": update["stripe_details_submitted"],
+            "created_at": now_iso(),
+        })
+    except Exception as e:
+        logger.warning("[stripe-link] audit mirror failed: %s", e)
+
+    return {
+        "ok": True,
+        "maker_slug": payload.maker_slug,
+        "stripe_account_id": payload.stripe_account_id,
+        "charges_enabled": update["stripe_charges_enabled"],
+        "payouts_enabled": update["stripe_payouts_enabled"],
+        "details_submitted": update["stripe_details_submitted"],
+    }
+
 
 
 @router.post("/maker/stripe/connect/onboard")

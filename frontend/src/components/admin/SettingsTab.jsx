@@ -817,6 +817,156 @@ function DiagTile({ label, value, highlight }) {
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────
+// iter259 — Link a manually-created Stripe Connect account to a maker.
+// Use when an operator created the Stripe Connect account directly in
+// the Stripe dashboard (so our `/maker/stripe/connect/onboard` flow
+// never ran and the maker row has no `stripe_account_id`).
+// ─────────────────────────────────────────────────────────────────────
+function StripeLinkAccountCard() {
+  const [slug, setSlug] = useState("");
+  const [acctId, setAcctId] = useState("");
+  const [overwrite, setOverwrite] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null);
+  const [err, setErr] = useState("");
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setErr("");
+    setResult(null);
+    setBusy(true);
+    try {
+      const API = process.env.REACT_APP_BACKEND_URL;
+      const token = localStorage.getItem("cm_admin_jwt") || "";
+      const r = await fetch(`${API}/api/admin/stripe/link-account`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          maker_slug: slug.trim(),
+          stripe_account_id: acctId.trim(),
+          overwrite,
+        }),
+      });
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        const msg = typeof body?.detail === "string"
+          ? body.detail
+          : (body?.detail?.code === "stripe_account_already_linked"
+              ? `Already linked to ${body.detail.current}. Check 'overwrite' to replace it.`
+              : `HTTP ${r.status}`);
+        throw new Error(msg);
+      }
+      setResult(body);
+    } catch (e2) {
+      setErr(e2.message || "Link failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section
+      className="border border-[#262626] p-4 md:p-5"
+      data-testid="stripe-link-account-card"
+    >
+      <div>
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+          Stripe Connect · manual link
+        </div>
+        <h3 className="font-display text-xl mt-1 text-[#e5e5e5]">
+          Link an existing Stripe account to a maker
+        </h3>
+        <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-2xl leading-relaxed">
+          Use when the Connect account was created directly in the Stripe
+          dashboard (instead of via the maker dashboard's onboarding flow).
+          We verify the account ID with Stripe, then stamp it + its current
+          status flags onto the maker row.
+        </p>
+      </div>
+
+      <form onSubmit={submit} className="mt-4 grid gap-3 md:grid-cols-[1fr,1fr,auto] md:items-end">
+        <label className="block">
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+            Maker slug
+          </span>
+          <input
+            type="text"
+            required
+            value={slug}
+            onChange={(e) => setSlug(e.target.value)}
+            placeholder="williams-cnc"
+            className="mt-1 w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm text-[#e5e5e5]"
+            data-testid="stripe-link-slug"
+          />
+        </label>
+        <label className="block">
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+            Stripe account ID
+          </span>
+          <input
+            type="text"
+            required
+            pattern="^acct_[A-Za-z0-9]+$"
+            value={acctId}
+            onChange={(e) => setAcctId(e.target.value)}
+            placeholder="acct_1ABCxyz…"
+            className="mt-1 w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm text-[#e5e5e5]"
+            data-testid="stripe-link-acct-id"
+          />
+        </label>
+        <button
+          type="submit"
+          disabled={busy || !slug.trim() || !acctId.trim()}
+          className="h-[42px] px-4 border border-[#ff4500] text-[#ff4500] hover:bg-[#ff4500] hover:text-black font-mono text-[11px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+          data-testid="stripe-link-submit"
+        >
+          {busy ? "Linking…" : "Link account →"}
+        </button>
+      </form>
+
+      <label className="mt-3 inline-flex items-center gap-2 font-mono text-[11px] text-[#a3a3a3] cursor-pointer">
+        <input
+          type="checkbox"
+          checked={overwrite}
+          onChange={(e) => setOverwrite(e.target.checked)}
+          data-testid="stripe-link-overwrite"
+        />
+        Overwrite if maker already has a different account ID
+      </label>
+
+      {err && (
+        <div className="mt-4 font-mono text-xs text-red-300 border border-red-900/60 bg-red-950/20 p-3" data-testid="stripe-link-error">
+          {err}
+        </div>
+      )}
+
+      {result && (
+        <div className="mt-4 border border-emerald-700/40 bg-emerald-950/15 p-3 font-mono text-xs text-emerald-200" data-testid="stripe-link-result">
+          <div className="font-bold mb-1.5">✓ Linked</div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[#a3a3a3]">
+            <div>maker: <span className="text-[#e5e5e5]">{result.maker_slug}</span></div>
+            <div>acct: <span className="text-[#e5e5e5]">…{result.stripe_account_id?.slice(-8)}</span></div>
+            <div>charges: <span className={result.charges_enabled ? "text-emerald-300" : "text-red-300"}>{String(result.charges_enabled)}</span></div>
+            <div>payouts: <span className={result.payouts_enabled ? "text-emerald-300" : "text-red-300"}>{String(result.payouts_enabled)}</span></div>
+            <div>details_submitted: <span className={result.details_submitted ? "text-emerald-300" : "text-red-300"}>{String(result.details_submitted)}</span></div>
+          </div>
+          {!result.details_submitted && (
+            <div className="mt-2 text-amber-300">
+              ⚠ Stripe says onboarding is NOT yet complete. Finish the Stripe-hosted flow, then re-run this link (or wait for the webhook) to flip the flags.
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+
+
 function HeroHeadlinesCard() {
   const [data, setData] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -2952,6 +3102,8 @@ export default function SettingsTab() {
       <ClipsSeedCard />
 
       <StripeDiagCard />
+
+      <StripeLinkAccountCard />
 
       {/* iter226 — Same friendly-error pattern, three more integrations. */}
       <ShippoDiagCard />
