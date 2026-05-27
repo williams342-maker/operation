@@ -1244,16 +1244,22 @@ function TrendingFilesRail({ me, onRefresh }) {
       toast.error("Sign in to download.");
       return;
     }
+    // iter262 — open the tab BEFORE the await so the browser doesn't
+    // popup-block the redirect. See onDownload() above for context.
+    const tab = window.open("about:blank", "_blank", "noopener");
     setBusy(file.id);
     try {
       const r = await downloadDesignFile(file.id);
       if (r.locked) {
+        if (tab && !tab.closed) tab.close();
         toast.error(r.message || "Free downloads exhausted — unlock for $5.");
         return;
       }
-      window.open(r.url, "_blank");
+      if (tab && !tab.closed) tab.location.href = r.url;
+      else window.location.href = r.url;
       onRefresh && onRefresh();
     } catch (e) {
+      if (tab && !tab.closed) tab.close();
       toast.error(e?.response?.data?.detail || "Download failed.");
     } finally {
       setBusy("");
@@ -2043,19 +2049,35 @@ function FileCard({ file, canDownload, me, onRefresh }) {
   const onDownload = async (variantUrl) => {
     if (!canDownload) return;
     setDownloadOpen(false);
+
+    // iter262 — Popup-blocker workaround. Browsers block `window.open()`
+    // when called AFTER an `await` because the user-gesture context is
+    // lost (it's not a synchronous response to the click). We open a
+    // blank tab BEFORE the await and then redirect it once the metered
+    // URL comes back. Falls back to `location.href` if the popup itself
+    // was blocked (mobile Safari, some ad-blockers).
+    const tab = window.open("about:blank", "_blank", "noopener");
     try {
       const r = await downloadDesignFile(file.id);
       if (r.locked) {
+        if (tab && !tab.closed) tab.close();
         setStatus({ kind: "locked", message: r.message });
-      } else {
-        // For the primary, use the metered URL (returned by backend).
-        // For variants, the metered count was already incremented above
-        // — we just open the variant URL directly.
-        const url = variantUrl || r.url;
-        setStatus({ kind: "ready", url, used: r.downloads_used });
-        window.open(url, "_blank", "noopener");
+        return;
       }
-    } catch { setStatus({ kind: "err" }); }
+      const url = variantUrl || r.url;
+      setStatus({ kind: "ready", url, used: r.downloads_used });
+      if (tab && !tab.closed) {
+        tab.location.href = url;
+      } else {
+        // Popup was blocked — fall back to a direct navigation. The
+        // user loses their place on the page but the download still
+        // happens, which is more important than the back-button UX.
+        window.location.href = url;
+      }
+    } catch {
+      if (tab && !tab.closed) tab.close();
+      setStatus({ kind: "err" });
+    }
   };
   const unlock = async () => {
     const r = await unlockDownloadsCheckout();
