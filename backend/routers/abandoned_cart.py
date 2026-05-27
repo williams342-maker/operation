@@ -50,6 +50,12 @@ class CartItem(BaseModel):
 
 class CartTrackPayload(BaseModel):
     items: list[CartItem] = Field(default_factory=list)
+    # iter265 — Optional SMS contact + per-channel consent.
+    # `phone` must be E.164 (frontend can pre-normalize, backend re-checks).
+    # `sms_consent_cart_nudges_at` must be an ISO timestamp; absence/empty
+    # string means "no consent" and we never text this cart.
+    phone: Optional[str] = None
+    sms_consent_cart_nudges_at: Optional[str] = None
 
 
 # ─────────────────── helpers ───────────────────
@@ -100,6 +106,24 @@ async def track_cart(payload: CartTrackPayload, request: Request):
         return {"ok": True, "tracked": False, "cleared": True}
 
     items = [it.model_dump(exclude_none=True) for it in payload.items]
+
+    # iter265 — capture SMS contact + consent if provided
+    set_extra: dict = {}
+    unset_extra: dict = {
+        "last_push_at": "", "checked_out_at": "",
+        "last_email_at": "", "email_attempt_count": "",
+        "last_sms_at": "", "sms_attempt_count": "",
+    }
+    if payload.phone and payload.sms_consent_cart_nudges_at:
+        try:
+            from sms_service import e164_normalize
+            normalized = e164_normalize(payload.phone)
+        except Exception:
+            normalized = None
+        if normalized:
+            set_extra["phone"] = normalized
+            set_extra["sms_consent_cart_nudges_at"] = payload.sms_consent_cart_nudges_at
+
     await db.abandoned_carts.update_one(
         {"email": email},
         {
@@ -107,18 +131,15 @@ async def track_cart(payload: CartTrackPayload, request: Request):
                 "email": email,
                 "items": items,
                 "updated_at": _now().isoformat(),
+                **set_extra,
             },
             "$setOnInsert": {"created_at": _now().isoformat()},
-            # New cart activity unblocks future pushes/emails, in case the
-            # buyer comes back, modifies the cart, walks away again.
-            "$unset": {
-                "last_push_at": "", "checked_out_at": "",
-                "last_email_at": "", "email_attempt_count": "",
-            },
+            "$unset": unset_extra,
         },
         upsert=True,
     )
-    return {"ok": True, "tracked": True, "items": len(items)}
+    return {"ok": True, "tracked": True, "items": len(items),
+            "sms_enrolled": bool(set_extra.get("phone"))}
 
 
 async def mark_checked_out(email: str) -> None:
@@ -364,6 +385,133 @@ async def fire_abandoned_cart_emails(
     return {"sent": sent, "skipped": skipped, "errors": errors}
 
 
+# iter265 — SMS sweep (3rd channel, gated by Telnyx config + consent).
+# Pattern mirrors the email sweep but with tighter timing because SMS
+# converts faster and is costlier per send.
+#   • 1h idle  → first SMS nudge (no discount)
+#   • 24h idle → discount SMS (10% off, reuses same BACK<sha1[4]> code
+#                that the email path already issued for this cart so we
+#                don't proliferate one-off codes per channel)
+async def fire_abandoned_cart_sms(
+    first_nudge_hours: int = 1,
+    discount_nudge_hours: int = 24,
+) -> dict:
+    """Two-tier SMS sweep. Telnyx unconfigured → no-op (zero side
+    effects). Carts without a consented phone are skipped silently."""
+    from sms_service import is_configured, is_opted_out, send_sms
+    if not is_configured():
+        return {"sent": 0, "skipped": 0, "errors": 0, "reason": "telnyx_unconfigured"}
+
+    now = _now()
+    sent = skipped = errors = 0
+
+    def _body(items: list, discount_code: Optional[str] = None) -> str:
+        first = (items[0].get("title") or "your item")[:48] if items else "your item"
+        more = max(0, len(items) - 1)
+        head = first + (f" (+{more} more)" if more else "")
+        if discount_code:
+            return (
+                f"Crafters Market: {head} is still in your cart. "
+                f"Use code {discount_code} for 10% off: "
+                "https://craftersmarket.org/cart Reply STOP to opt out."
+            )
+        return (
+            f"Crafters Market: {head} is waiting in your cart. "
+            "https://craftersmarket.org/cart Reply STOP to opt out."
+        )
+
+    cursor = db.abandoned_carts.find(
+        {
+            "phone": {"$exists": True, "$ne": ""},
+            "sms_consent_cart_nudges_at": {"$exists": True, "$ne": ""},
+            "items.0": {"$exists": True},
+            "checked_out_at": {"$in": [None, ""]},
+        },
+        {"_id": 0},
+    )
+    async for cart in cursor:
+        try:
+            email = cart.get("email") or ""
+            phone = cart.get("phone") or ""
+            items = cart.get("items") or []
+            updated_at = cart.get("updated_at")
+            if not phone or not updated_at:
+                skipped += 1
+                continue
+            if await is_opted_out(phone):
+                skipped += 1
+                continue
+            try:
+                age_hours = (now - datetime.fromisoformat(
+                    updated_at.replace("Z", "+00:00"))).total_seconds() / 3600
+            except Exception:
+                age_hours = 0
+            attempts = int(cart.get("sms_attempt_count") or 0)
+
+            if first_nudge_hours <= age_hours < discount_nudge_hours and attempts == 0:
+                r = await send_sms(
+                    to=phone, body=_body(items),
+                    dedup_key=f"cart_sms:{email}:nudge_1",
+                    kind="abandoned_cart_nudge_1",
+                )
+                if r.get("sent"):
+                    sent += 1
+                    await db.abandoned_carts.update_one(
+                        {"email": email},
+                        {"$set": {"last_sms_at": now.isoformat(),
+                                  "sms_attempt_count": 1}},
+                    )
+                else:
+                    skipped += 1
+            elif age_hours >= discount_nudge_hours and attempts == 1:
+                # Reuse the email arm's discount code if it already
+                # issued one (avoids duplicate codes per cart). If not,
+                # mint a fresh one here so SMS-only flows still work.
+                import hashlib
+                code = cart.get("discount_code_issued") or (
+                    "BACK" + hashlib.sha1(email.encode()).hexdigest()[:4].upper()
+                )
+                expires_at = (now + timedelta(days=7)).isoformat()
+                await db.marketing_codes.update_one(
+                    {"code": code},
+                    {
+                        "$set": {
+                            "code": code, "active": True,
+                            "scope": "marketplace_wide",
+                            "discount_pct": 10.0, "max_uses": 1,
+                            "expires_at": expires_at,
+                            "source": "abandoned_cart_nudge_2",
+                            "issued_to_email": email,
+                            "updated_at": now.isoformat(),
+                        },
+                        "$setOnInsert": {"uses_count": 0,
+                                          "created_at": now.isoformat()},
+                    },
+                    upsert=True,
+                )
+                r = await send_sms(
+                    to=phone, body=_body(items, discount_code=code),
+                    dedup_key=f"cart_sms:{email}:nudge_2",
+                    kind="abandoned_cart_nudge_2",
+                )
+                if r.get("sent"):
+                    sent += 1
+                    await db.abandoned_carts.update_one(
+                        {"email": email},
+                        {"$set": {"last_sms_at": now.isoformat(),
+                                  "sms_attempt_count": 2,
+                                  "discount_code_issued": code}},
+                    )
+                else:
+                    skipped += 1
+            else:
+                skipped += 1
+        except Exception:
+            errors += 1
+
+    return {"sent": sent, "skipped": skipped, "errors": errors}
+
+
 # ─────────────────── admin smoke endpoint ───────────────────
 @router.post("/admin/abandoned-cart/run")
 async def admin_run_abandoned_cart(idle_hours: int = 6):
@@ -387,6 +535,21 @@ async def admin_run_abandoned_cart_emails(
     if first_nudge_hours < 0 or discount_nudge_hours > 720:
         raise HTTPException(400, "Invalid window")
     return await fire_abandoned_cart_emails(
+        first_nudge_hours=first_nudge_hours,
+        discount_nudge_hours=discount_nudge_hours,
+    )
+
+
+@router.post("/admin/abandoned-cart/run-sms")
+async def admin_run_abandoned_cart_sms(
+    first_nudge_hours: int = 1,
+    discount_nudge_hours: int = 24,
+):
+    """iter265 — Manual trigger for the SMS sweep. No-op when Telnyx
+    isn't configured (returns reason='telnyx_unconfigured')."""
+    if first_nudge_hours < 0 or discount_nudge_hours > 720:
+        raise HTTPException(400, "Invalid window")
+    return await fire_abandoned_cart_sms(
         first_nudge_hours=first_nudge_hours,
         discount_nudge_hours=discount_nudge_hours,
     )

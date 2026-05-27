@@ -444,6 +444,34 @@ async def buy_label(session_id: str, body: BuyLabelReq, bg: BackgroundTasks, slu
             label.get("tracking_url_provider"),
         )
 
+    # iter265 — SMS shipping notice (opt-in only). Mirrors the email
+    # path above but is gated by `sms_consent_shipping_at`. Idempotent
+    # via dedup_key `shipped:{session_id}` so re-runs of the cron / label
+    # endpoint can't double-text.
+    buyer_phone_local = tx_for_email.get("customer_phone")
+    if (buyer_phone_local and tx_for_email.get("sms_consent_shipping_at")
+            and not tx_for_email.get("shipped_sms_sent")):
+        await db.payment_transactions.update_one(
+            {"session_id": session_id, "shipped_sms_sent": {"$ne": True}},
+            {"$set": {"shipped_sms_sent": True, "shipped_sms_at": now_iso()}},
+        )
+        tracking_no = label["tracking_number"]
+        tracking_url = label.get("tracking_url_provider") or ""
+
+        async def _send_shipped_sms(p, num, url, sid):
+            from sms_service import send_sms
+            body = (
+                f"Crafters Market: your order shipped! Tracking {num}"
+                + (f" — {url}" if url else "")
+                + ". Reply STOP to opt out."
+            )
+            await send_sms(
+                to=p, body=body, kind="order_shipped",
+                dedup_key=f"shipped:{sid}",
+            )
+        bg.add_task(_send_shipped_sms, buyer_phone_local, tracking_no,
+                    tracking_url, session_id)
+
     logger.info(
         "[shipping] maker=%s session=%s tracking=%s amount=$%.2f test=%s",
         slug, session_id, label["tracking_number"], amount_cents / 100, label.get("test"),

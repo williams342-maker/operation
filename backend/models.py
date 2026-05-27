@@ -639,6 +639,13 @@ class CheckoutRequest(BaseModel):
     policy_accepted: bool = False
     policy_version: Optional[str] = None
     policy_accepted_at: Optional[str] = None
+    # iter265 — optional SMS contact + granular consents.
+    # Each flag must be set independently to its UTC ISO timestamp by the
+    # frontend at submit; backend treats absence/empty-string as "no consent".
+    customer_phone: Optional[str] = Field(default=None, max_length=24)
+    sms_consent_cart_nudges_at: Optional[str] = None
+    sms_consent_receipts_at: Optional[str] = None
+    sms_consent_shipping_at: Optional[str] = None
 
 
 class ActivityEvent(BaseModel):

@@ -514,6 +514,11 @@ async def create_checkout(req: CheckoutRequest, http_request: Request):
     attr_source = (req.attribution_source or "").strip()[:50] or None
     is_external = bool(attr_source) and attr_source.lower() not in ("internal", "direct", "self")
     from core import POLICY_VERSION
+    # iter265 — Stamp SMS phone + per-channel consents onto the tx so
+    # the shipping notifier + receipt notifier can read them without
+    # joining back to the buyer record.
+    from sms_service import e164_normalize as _e164
+    sms_phone = _e164(req.customer_phone) if req.customer_phone else None
     await db.payment_transactions.insert_one({
         "id": str(uuid.uuid4()),
         "session_id": session.id,
@@ -524,6 +529,10 @@ async def create_checkout(req: CheckoutRequest, http_request: Request):
         "items": [ci.model_dump() for ci in req.items],
         "summary": line_summary,
         "customer_email": req.customer_email,
+        "customer_phone": sms_phone,
+        "sms_consent_cart_nudges_at": req.sms_consent_cart_nudges_at if sms_phone else None,
+        "sms_consent_receipts_at": req.sms_consent_receipts_at if sms_phone else None,
+        "sms_consent_shipping_at": req.sms_consent_shipping_at if sms_phone else None,
         "gift_note": req.gift_note,
         "transfer_group": pre_transfer_group,
         "attribution_source": attr_source,
@@ -740,6 +749,24 @@ async def checkout_status(session_id: str, http_request: Request, bg: Background
                     bg.add_task(mark_checked_out, buyer)
                 except Exception:
                     pass
+            # iter265 — SMS receipt (opt-in only). Fires alongside the
+            # email receipt for buyers who consented at checkout. The
+            # send_sms helper is a no-op if Telnyx isn't configured, so
+            # this is safe in preview.
+            buyer_phone = tx.get("customer_phone")
+            if buyer_phone and tx.get("sms_consent_receipts_at"):
+                session_id_local = tx.get("session_id")
+                async def _send_receipt_sms(p, total, sid):
+                    from sms_service import send_sms
+                    body = (
+                        f"Crafters Market: order confirmed for ${total:.2f}. "
+                        "We'll text you again when it ships. Reply STOP to opt out."
+                    )
+                    await send_sms(
+                        to=p, body=body, kind="order_receipt",
+                        dedup_key=f"receipt:{sid}",
+                    )
+                bg.add_task(_send_receipt_sms, buyer_phone, total_amount, session_id_local)
             for maker_slug, lines in by_maker.items():
                 m = await db.makers.find_one({"slug": maker_slug}, {"_id": 0})
                 if not m or not m.get("email"):

@@ -229,6 +229,18 @@ async def _job_abandoned_cart_email() -> None:
         logger.exception("[scheduler] abandoned-cart email failed: %s", e)
 
 
+async def _job_abandoned_cart_sms() -> None:
+    """iter265 — Two-tier SMS re-engagement (1h reminder, 24h discount).
+    No-op when Telnyx unconfigured. Runs at :55 hourly."""
+    from routers.abandoned_cart import fire_abandoned_cart_sms
+    try:
+        r = await fire_abandoned_cart_sms(first_nudge_hours=1, discount_nudge_hours=24)
+        if r.get("sent"):
+            logger.info("[scheduler] abandoned-cart sms: %s", r)
+    except Exception as e:
+        logger.exception("[scheduler] abandoned-cart sms failed: %s", e)
+
+
 
 
 
@@ -985,6 +997,10 @@ def start_scheduler() -> AsyncIOScheduler | None:
     # spam buyers in the same minute. Same hourly cadence.
     sched.add_job(_job_abandoned_cart_email, CronTrigger(minute=50),
                   id="abandoned_cart_email", replace_existing=True)
+    # iter265 — SMS arm runs at :55 (5 min after email arm). Telnyx
+    # unconfigured → no-op.
+    sched.add_job(_job_abandoned_cart_sms, CronTrigger(minute=55),
+                  id="abandoned_cart_sms", replace_existing=True)
     # Weekly forum thread auto-seeder — Tuesdays 14:00 UTC. Picks one
     # topic from the curated bank, expands it via Gemini Flash into a
     # full thread + 1-2 starter replies. Keeps the forum looking

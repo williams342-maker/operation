@@ -11,6 +11,13 @@ export default function CartPage() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
   const [email, setEmail] = useState("");
+  // iter265 — optional SMS contact + granular per-channel consents.
+  // Each checkbox stamps the current ISO timestamp at click-time so the
+  // backend has an audit trail of when consent was given.
+  const [phone, setPhone] = useState("");
+  const [smsCart, setSmsCart] = useState(false);
+  const [smsReceipts, setSmsReceipts] = useState(false);
+  const [smsShipping, setSmsShipping] = useState(false);
   const consent = usePolicyConsent();
   const [giftNote, setGiftNote] = useState(() => {
     try { return localStorage.getItem("cm_gift_note") || ""; } catch { return ""; }
@@ -65,8 +72,14 @@ export default function CartPage() {
     if (!consent.accepted) {
       setErr("Please review and accept the Site Policies to continue."); return;
     }
+    // iter265 — if any SMS consent is ticked, phone is required.
+    const anySmsConsent = smsCart || smsReceipts || smsShipping;
+    if (anySmsConsent && !/^\+?[\d\s().-]{7,20}$/.test(phone.trim())) {
+      setErr("Enter a phone number to receive the SMS updates you opted into."); return;
+    }
     setErr(""); setLoading(true);
     try {
+      const nowIso = new Date().toISOString();
       const res = await createCheckout({
         items: items.map((i) => ({
           product_id: i.id, quantity: i.quantity,
@@ -81,7 +94,12 @@ export default function CartPage() {
         discount_code: appliedCode || undefined,
         policy_accepted: true,
         policy_version: consent.version,
-        policy_accepted_at: new Date().toISOString(),
+        policy_accepted_at: nowIso,
+        // iter265 — SMS phone + per-channel consents. Absence = no consent.
+        customer_phone: anySmsConsent ? phone.trim() : undefined,
+        sms_consent_cart_nudges_at: smsCart ? nowIso : undefined,
+        sms_consent_receipts_at: smsReceipts ? nowIso : undefined,
+        sms_consent_shipping_at: smsShipping ? nowIso : undefined,
       });
       window.location.href = res.url;
     } catch (e) {
@@ -272,6 +290,71 @@ export default function CartPage() {
                   className="w-full mt-2 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-3 font-mono text-sm"
                 />
               </label>
+
+              {/* iter265 — Optional SMS notifications. Per-channel
+                  consent so the buyer can pick exactly which updates
+                  they want texted. The phone input only appears once
+                  any checkbox is ticked, keeping the default cart UI
+                  uncluttered. */}
+              <div className="mb-4 border border-[#262626] p-3" data-testid="cart-sms-block">
+                <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#a3a3a3] mb-2">
+                  ◆ Text me updates (optional)
+                </div>
+                <label className="flex items-start gap-2 cursor-pointer py-1">
+                  <input
+                    type="checkbox"
+                    checked={smsCart}
+                    onChange={(e) => setSmsCart(e.target.checked)}
+                    data-testid="cart-sms-consent-cart"
+                    className="mt-1"
+                  />
+                  <span className="font-mono text-[11px] text-[#d4d4d4]">
+                    Text me if I forget items in my cart
+                  </span>
+                </label>
+                <label className="flex items-start gap-2 cursor-pointer py-1">
+                  <input
+                    type="checkbox"
+                    checked={smsReceipts}
+                    onChange={(e) => setSmsReceipts(e.target.checked)}
+                    data-testid="cart-sms-consent-receipts"
+                    className="mt-1"
+                  />
+                  <span className="font-mono text-[11px] text-[#d4d4d4]">
+                    Text my order receipt confirmations
+                  </span>
+                </label>
+                <label className="flex items-start gap-2 cursor-pointer py-1">
+                  <input
+                    type="checkbox"
+                    checked={smsShipping}
+                    onChange={(e) => setSmsShipping(e.target.checked)}
+                    data-testid="cart-sms-consent-shipping"
+                    className="mt-1"
+                  />
+                  <span className="font-mono text-[11px] text-[#d4d4d4]">
+                    Text me when my order ships (with tracking link)
+                  </span>
+                </label>
+                {(smsCart || smsReceipts || smsShipping) && (
+                  <label className="block mt-3">
+                    <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#a3a3a3]">
+                      Mobile number
+                    </span>
+                    <input
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="+1 555 123 4567"
+                      data-testid="cart-phone"
+                      className="w-full mt-1 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm"
+                    />
+                    <span className="font-mono text-[9px] text-[#737373] mt-1 block">
+                      Msg & data rates may apply. Reply STOP to opt out anytime.
+                    </span>
+                  </label>
+                )}
+              </div>
               <label className="block mb-4">
                 <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#a3a3a3]">
                   🎁 Gift note (optional)
