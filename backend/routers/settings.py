@@ -627,3 +627,43 @@ async def admin_webhooks_test(payload: _WebhookTestIn, claims: dict = Depends(cu
         fields=[("Triggered by", claims.get("email") or "admin")],
     )
     return {"sent": True, "providers": res, "configured": cfg}
+
+
+
+# ─────────────────────────────────────────────────────────────────────
+# iter261 — LLM budget exhaustion alerts (read + test)
+# Surfaces the last few alerts so the admin dashboard can show
+# "Last budget alert: 3h ago", and provides a /test endpoint that
+# fires a one-shot alert through the same email+webhook fan-out.
+# ─────────────────────────────────────────────────────────────────────
+@router.get("/admin/llm-budget-alerts")
+async def admin_llm_budget_alerts(claims: dict = Depends(current_admin)):
+    """Last 20 LLM budget exhaustion alerts, newest first."""
+    rows = await db.llm_budget_alerts.find(
+        {},
+        {"_id": 0, "kind": 1, "service": 1, "error_message": 1, "context": 1, "created_at": 1},
+    ).sort("created_at", -1).limit(20).to_list(20)
+    last = rows[0] if rows else None
+    return {
+        "rows": rows,
+        "count": len(rows),
+        "last_alert_at": (last or {}).get("created_at"),
+        "last_service": (last or {}).get("service"),
+    }
+
+
+@router.post("/admin/llm-budget-alerts/test")
+async def admin_llm_budget_alerts_test(claims: dict = Depends(current_admin)):
+    """Fire a simulated budget exhaustion alert. Bypasses the 24h dedup
+    by inserting a synthetic kind on every call. Used to verify the
+    email + webhook fan-out works end-to-end."""
+    from llm_budget_alert import notify_budget_exhausted
+    import secrets
+    test_kind = f"_test_{secrets.token_hex(4)}"
+    result = await notify_budget_exhausted(
+        kind=test_kind,
+        service="(test) Sora-2 video",
+        error_message="Simulated: HTTP 402 insufficient_quota from Emergent Universal Key.",
+        context={"triggered_by": claims.get("email") or "admin", "test": True},
+    )
+    return {"sent": True, "result": result, "test_kind": test_kind}

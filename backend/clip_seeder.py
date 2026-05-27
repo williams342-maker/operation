@@ -114,7 +114,7 @@ async def _pick_next() -> dict:
     return {"category": cat, "prompt_index": idx, "prompt": PROMPTS[cat][idx]}
 
 
-def _generate_video_blocking(prompt: str, out_path: str, model: str = "sora-2-pro") -> bool:
+def _generate_video_blocking(prompt: str, out_path: str, model: str = "sora-2-pro") -> tuple[bool, str]:
     """Synchronous Sora 2 call. Wrapped in a thread by the caller — this
     function blocks for the full 2-5 minutes of generation.
 
@@ -124,6 +124,10 @@ def _generate_video_blocking(prompt: str, out_path: str, model: str = "sora-2-pr
     `sora-2` (it wants 720×1280 vertical) — so the only intersection is
     `sora-2-pro` with 1024×1792 for vertical, OR `sora-2` with 1280×720
     horizontal. Pick accordingly.
+
+    Returns (ok, error_message). On success: (True, ""). On failure the
+    raw provider error is preserved so the caller can classify it
+    (e.g. budget exhaustion vs transient timeout).
     """
     from emergentintegrations.llm.openai.video_generation import OpenAIVideoGeneration
 
@@ -132,18 +136,24 @@ def _generate_video_blocking(prompt: str, out_path: str, model: str = "sora-2-pr
     else:  # sora-2 (base) — must be horizontal through the wrapper
         size = "1280x720"
 
-    video_gen = OpenAIVideoGeneration(api_key=os.environ["EMERGENT_LLM_KEY"])
-    video_bytes = video_gen.text_to_video(
-        prompt=prompt,
-        model=model,
-        size=size,
-        duration=8,        # 4 / 8 / 12 — 8 gives a satisfying clip without ballooning cost
-        max_wait_time=600,
-    )
+    try:
+        video_gen = OpenAIVideoGeneration(api_key=os.environ["EMERGENT_LLM_KEY"])
+        video_bytes = video_gen.text_to_video(
+            prompt=prompt,
+            model=model,
+            size=size,
+            duration=8,        # 4 / 8 / 12 — 8 gives a satisfying clip without ballooning cost
+            max_wait_time=600,
+        )
+    except Exception as e:
+        return False, f"{type(e).__name__}: {e}"
     if not video_bytes:
-        return False
-    video_gen.save_video(video_bytes, out_path)
-    return True
+        return False, "empty response from provider"
+    try:
+        video_gen.save_video(video_bytes, out_path)
+    except Exception as e:
+        return False, f"save_video failed: {e}"
+    return True, ""
 
 
 async def generate_one_clip(model: str = "sora-2-pro") -> dict[str, Any]:
@@ -174,9 +184,26 @@ async def generate_one_clip(model: str = "sora-2-pro") -> dict[str, Any]:
 
     # Sora is blocking — run it in a thread so the FastAPI event loop
     # stays free.
-    ok = await asyncio.to_thread(_generate_video_blocking, prompt, str(out_path), model)
+    ok, err_msg = await asyncio.to_thread(_generate_video_blocking, prompt, str(out_path), model)
     if not ok:
-        return {"status": "error", "reason": "video generation failed"}
+        # iter261 — classify the failure. Budget exhaustion gets a
+        # dedup'd admin alert; other failures (timeout, prompt rejection,
+        # transient API errors) just bubble up as a soft-fail.
+        try:
+            from llm_budget_alert import is_budget_exhaustion_error, notify_budget_exhausted
+            if is_budget_exhaustion_error(err_msg):
+                await notify_budget_exhausted(
+                    kind=f"sora2_clip_{model}",
+                    service=f"Sora-2 video ({model})",
+                    error_message=err_msg,
+                    context={"job": "daily_clip_seed", "model": model, "prompt_title": title},
+                )
+                return {"status": "error", "reason": "budget_exhausted", "detail": err_msg}
+        except Exception as e:
+            # Don't let the alerter itself crash the cron — log and move on.
+            import logging
+            logging.getLogger("crafters").warning("[clip_seeder] budget-alerter failed: %s", e)
+        return {"status": "error", "reason": "video generation failed", "detail": err_msg}
 
     # Verify the file actually landed on disk with non-zero size before
     # we try to upload it. Keeps a failed Sora download from creating a

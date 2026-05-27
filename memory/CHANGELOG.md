@@ -1,3 +1,31 @@
+## 2026-05-27 — Sora-2 / LLM budget exhaustion watchdog (iter261)
+
+### User ask
+*"create [so]ra budget"* — wire admin notifications when Sora-2 (or any Emergent LLM call) silently fails because the Universal Key budget is depleted.
+
+### What shipped
+- New module `/app/backend/llm_budget_alert.py`:
+  - `is_budget_exhaustion_error(err)` — regex classifier for budget/quota/credit messages (avoids false positives on timeouts, content policy, generic 500s).
+  - `notify_budget_exhausted(...)` — fans out an admin email (OPS_EMAIL) + Slack/Discord webhook (notify_team), dedup'd per `kind` within a 24h window, persisted to `llm_budget_alerts`.
+- `/app/backend/clip_seeder.py` — `_generate_video_blocking` now returns `(ok, error_msg)` and `generate_one_clip` calls the alerter only when the error matches the budget pattern. Other failures (timeouts, content policy) still bubble up as soft-fails but don't trigger the alert.
+- `/app/backend/routers/settings.py` — two new admin endpoints:
+  - `GET /api/admin/llm-budget-alerts` — last 20 alerts + `last_alert_at`
+  - `POST /api/admin/llm-budget-alerts/test` — fires a synthetic alert (bypasses dedup with a fresh `kind`) for end-to-end verification
+- `/app/frontend/src/components/admin/SettingsTab.jsx` — new `LlmBudgetAlertsCard` between Stripe Diag and Stripe Link cards:
+  - "Healthy" / "Recent alert" pill
+  - 3 stat tiles (last alert relTime, last service, history count)
+  - Refresh + "▷ Fire test alert" buttons
+  - Last 10 alerts table
+
+### Tests
+- `tests/test_llm_budget_alert.py` — **17/17 pass**. Covers: 14 detection cases (positive + negative), exception-object handling, 24h dedup behavior with a real Mongo round-trip, and `/admin/...` auth gates.
+
+### Live verification
+- Detection unit-tested locally (all 8 sample phrases classified correctly)
+- Test endpoint fired end-to-end → email delivered to OPS_EMAIL, row persisted, GET endpoint returned it
+- Auth gate confirmed (401 without admin token)
+
+
 ## 2026-05-26 — EnrichLabs read-only Data API (iter258)
 
 ### User ask

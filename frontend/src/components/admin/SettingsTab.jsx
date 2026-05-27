@@ -3150,6 +3150,171 @@ function MergeWilliamsAccountsCard() {
 
 
 
+// ─────────────────────────────────────────────────────────────────────
+// iter261 — LLM budget exhaustion alerts panel. Shows recent budget
+// alerts + a one-click test button. The actual alerts are fired by the
+// Sora-2 daily clip cron when the Emergent Universal Key is exhausted.
+// ─────────────────────────────────────────────────────────────────────
+function LlmBudgetAlertsCard() {
+  const [data, setData] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [testing, setTesting] = useState(false);
+
+  const API = process.env.REACT_APP_BACKEND_URL;
+  const auth = () => ({ Authorization: `Bearer ${localStorage.getItem("cm_admin_jwt") || ""}` });
+
+  const refresh = async () => {
+    setBusy(true);
+    setErr("");
+    try {
+      const r = await fetch(`${API}/api/admin/llm-budget-alerts`, { headers: auth() });
+      const body = await r.json();
+      if (!r.ok) throw new Error(body?.detail || `HTTP ${r.status}`);
+      setData(body);
+    } catch (e) {
+      setErr(e.message || "Failed to load");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const fireTest = async () => {
+    setTesting(true);
+    setErr("");
+    try {
+      const r = await fetch(`${API}/api/admin/llm-budget-alerts/test`, {
+        method: "POST",
+        headers: { ...auth(), "Content-Type": "application/json" },
+      });
+      const body = await r.json();
+      if (!r.ok) throw new Error(body?.detail || `HTTP ${r.status}`);
+      await refresh();
+    } catch (e) {
+      setErr(e.message || "Test failed");
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  useEffect(() => {
+    refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const relTime = (iso) => {
+    if (!iso) return "—";
+    const t = new Date(iso).getTime();
+    const mins = Math.floor((Date.now() - t) / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    return `${Math.floor(hrs / 24)}d ago`;
+  };
+
+  const lastAt = data?.last_alert_at;
+  const healthy = !lastAt || (Date.now() - new Date(lastAt).getTime()) > 7 * 24 * 3600 * 1000;
+
+  return (
+    <section
+      className="border border-[#262626] p-4 md:p-5"
+      data-testid="llm-budget-alerts-card"
+    >
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+            LLM Universal Key · Budget watchdog
+          </div>
+          <h3 className="font-display text-xl mt-1 text-[#e5e5e5]">
+            Sora-2 budget exhaustion alerts
+          </h3>
+          <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-2xl leading-relaxed">
+            When the daily Sora-2 clip cron hits an "out of budget" error from
+            the Emergent Universal Key, we fire a one-shot admin email + Slack/Discord
+            ping (dedup'd 24h) and log it here. Top up at
+            {" "}<span className="text-[#ff4500]">Emergent → Profile → Universal Key</span>.
+          </p>
+        </div>
+        <div className={`px-2 py-1 border font-mono text-[10px] uppercase tracking-[0.22em] ${
+          healthy ? "border-emerald-700 text-emerald-300" : "border-amber-600 text-amber-300"
+        }`} data-testid="llm-budget-status-pill">
+          {healthy ? "✓ healthy" : "⚠ recent alert"}
+        </div>
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-2">
+        <div className="border border-[#262626] p-3 bg-[#0a0a0a]">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#737373]">Last alert</div>
+          <div className="font-mono text-sm text-[#e5e5e5] mt-1" data-testid="llm-last-alert">
+            {relTime(lastAt)}
+          </div>
+        </div>
+        <div className="border border-[#262626] p-3 bg-[#0a0a0a]">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#737373]">Last service</div>
+          <div className="font-mono text-sm text-[#e5e5e5] mt-1 truncate" title={data?.last_service || ""}>
+            {data?.last_service || "—"}
+          </div>
+        </div>
+        <div className="border border-[#262626] p-3 bg-[#0a0a0a]">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#737373]">History (90d)</div>
+          <div className="font-mono text-sm text-[#e5e5e5] mt-1">{data?.count ?? "—"}</div>
+        </div>
+      </div>
+
+      <div className="mt-4 flex gap-2 flex-wrap">
+        <button
+          onClick={refresh}
+          disabled={busy}
+          className="px-3 py-1.5 border border-[#262626] hover:border-[#737373] font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] disabled:opacity-50"
+          data-testid="llm-budget-refresh"
+        >
+          {busy ? "Loading…" : "↻ Refresh"}
+        </button>
+        <button
+          onClick={fireTest}
+          disabled={testing}
+          className="px-3 py-1.5 border border-amber-700/60 hover:border-amber-500 font-mono text-[10px] uppercase tracking-[0.22em] text-amber-300 disabled:opacity-50"
+          data-testid="llm-budget-test"
+        >
+          {testing ? "Firing…" : "▷ Fire test alert"}
+        </button>
+      </div>
+
+      {err && (
+        <div className="mt-3 font-mono text-xs text-red-300 border border-red-900/60 bg-red-950/20 p-3">
+          {err}
+        </div>
+      )}
+
+      {data?.rows && data.rows.length > 0 && (
+        <div className="mt-4 border border-[#262626]" data-testid="llm-budget-history">
+          <div className="px-3 py-2 border-b border-[#262626] font-mono text-[10px] uppercase tracking-[0.22em] text-[#737373]">
+            Recent alerts (newest first)
+          </div>
+          <div className="divide-y divide-[#1a1a1a]">
+            {data.rows.slice(0, 10).map((row, i) => (
+              <div key={i} className="px-3 py-2 grid grid-cols-[140px,1fr,auto] gap-3 items-center">
+                <div className="font-mono text-[10px] text-[#737373]">
+                  {relTime(row.created_at)}
+                </div>
+                <div className="font-mono text-xs text-[#e5e5e5] truncate" title={row.error_message}>
+                  {row.service} — {row.error_message}
+                </div>
+                <div className="font-mono text-[10px] text-[#737373] truncate" title={row.kind}>
+                  {row.kind}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+
+
 export default function SettingsTab() {
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -3274,6 +3439,8 @@ export default function SettingsTab() {
       <ClipsSeedCard />
 
       <StripeDiagCard />
+
+      <LlmBudgetAlertsCard />
 
       <StripeLinkAccountCard />
 
