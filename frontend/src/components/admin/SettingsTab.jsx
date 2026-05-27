@@ -3680,20 +3680,10 @@ function SocialAutoPostQueueCard() {
     }
   };
 
-  const copyCaption = (row) => {
-    const caption = [
-      `NEW DROP — ${row.maker_name}`,
-      "",
-      row.product_title,
-      `$${row.price.toFixed(0)}`,
-      "",
-      `Shop: ${row.product_url}`,
-      "",
-      "#handmade #cnc #craftersmarket",
-    ].join("\n");
-    navigator.clipboard?.writeText(caption);
-    toast.success("Caption copied — paste into IG/FB.");
-  };
+  const [captionsOpen, setCaptionsOpen] = useState({});  // {rowId: bool}
+
+  const toggleCaptions = (rowId) =>
+    setCaptionsOpen((prev) => ({ ...prev, [rowId]: !prev[rowId] }));
 
   const fmtDate = (iso) => {
     try { return new Date(iso).toLocaleString(); } catch { return iso || ""; }
@@ -3792,92 +3782,97 @@ function SocialAutoPostQueueCard() {
       {data?.rows?.length > 0 && (
         <div className="border border-[#262626] divide-y divide-[#262626]" data-testid="social-queue-list">
           {data.rows.map((row) => (
-            <div key={row.id} className="flex items-start gap-3 p-3" data-testid={`social-queue-row-${row.id}`}>
-              {row.image_url && (
-                <img
-                  src={row.image_url}
-                  alt=""
-                  loading="lazy"
-                  className="w-16 h-16 object-cover shrink-0"
-                />
+            <div key={row.id} className="p-3" data-testid={`social-queue-row-${row.id}`}>
+              <div className="flex items-start gap-3">
+                {row.image_url && (
+                  <img
+                    src={row.image_url}
+                    alt=""
+                    loading="lazy"
+                    className="w-16 h-16 object-cover shrink-0"
+                  />
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="font-mono text-xs text-[#e5e5e5] truncate">
+                      {row.product_title}
+                    </div>
+                    <span
+                      className="font-mono text-[9px] uppercase tracking-[0.22em] px-1.5 py-0.5 border"
+                      style={{ color: tierColor[row.eligibility_tier] || "#737373", borderColor: tierColor[row.eligibility_tier] || "#262626" }}
+                    >
+                      {row.eligibility_tier?.replace("_", " ")}
+                    </span>
+                    <span
+                      className="font-mono text-[9px] uppercase tracking-[0.22em] px-1.5 py-0.5 border"
+                      style={{
+                        color: row.status === "pending" ? "#ff4500"
+                             : row.status === "published" ? "#22c55e"
+                             : "#737373",
+                        borderColor: "#262626",
+                      }}
+                    >
+                      {row.status}
+                    </span>
+                  </div>
+                  <div className="font-mono text-[10px] text-[#737373] mt-1">
+                    by {row.maker_name} · ${(row.price || 0).toFixed(0)} ·{" "}
+                    {row.status === "pending" ? "Queued" : "Closed"} {fmtDate(row.published_at || row.queued_at)}
+                  </div>
+                  <div className="font-mono text-[10px] text-[#525252] mt-1">
+                    {(row.channels || []).join(" · ")}
+                  </div>
+                  {row.skipped_reason && (
+                    <div className="font-mono text-[10px] text-[#a3a3a3] mt-1 italic">
+                      Skip reason: {row.skipped_reason}
+                    </div>
+                  )}
+                </div>
+                {/* Actions */}
+                <div className="flex flex-col gap-1.5 shrink-0">
+                  <a
+                    href={row.product_url}
+                    target="_blank" rel="noopener noreferrer"
+                    className="px-2.5 py-1 border border-[#262626] text-[#a3a3a3] hover:text-[#e5e5e5] hover:border-[#525252] font-mono text-[9px] uppercase tracking-[0.22em] text-center"
+                    data-testid={`social-queue-open-${row.id}`}
+                  >
+                    View →
+                  </a>
+                  {row.status === "pending" && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => toggleCaptions(row.id)}
+                        className="px-2.5 py-1 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/10 font-mono text-[9px] uppercase tracking-[0.22em]"
+                        data-testid={`social-queue-copy-${row.id}`}
+                      >
+                        {captionsOpen[row.id] ? "Hide captions" : "Captions ▾"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => markPublished(row.id)}
+                        disabled={busy === row.id}
+                        className="px-2.5 py-1 border border-[#22c55e]/40 text-[#22c55e] hover:bg-[#22c55e]/10 font-mono text-[9px] uppercase tracking-[0.22em] disabled:opacity-50"
+                        data-testid={`social-queue-publish-${row.id}`}
+                      >
+                        {busy === row.id ? "…" : "Mark published"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => skip(row.id)}
+                        disabled={busy === row.id}
+                        className="px-2.5 py-1 border border-[#262626] text-[#737373] hover:text-[#e5e5e5] hover:border-[#525252] font-mono text-[9px] uppercase tracking-[0.22em] disabled:opacity-50"
+                        data-testid={`social-queue-skip-${row.id}`}
+                      >
+                        Skip
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+              {row.status === "pending" && captionsOpen[row.id] && (
+                <CaptionEditorPanel row={row} />
               )}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <div className="font-mono text-xs text-[#e5e5e5] truncate">
-                    {row.product_title}
-                  </div>
-                  <span
-                    className="font-mono text-[9px] uppercase tracking-[0.22em] px-1.5 py-0.5 border"
-                    style={{ color: tierColor[row.eligibility_tier] || "#737373", borderColor: tierColor[row.eligibility_tier] || "#262626" }}
-                  >
-                    {row.eligibility_tier?.replace("_", " ")}
-                  </span>
-                  <span
-                    className="font-mono text-[9px] uppercase tracking-[0.22em] px-1.5 py-0.5 border"
-                    style={{
-                      color: row.status === "pending" ? "#ff4500"
-                           : row.status === "published" ? "#22c55e"
-                           : "#737373",
-                      borderColor: "#262626",
-                    }}
-                  >
-                    {row.status}
-                  </span>
-                </div>
-                <div className="font-mono text-[10px] text-[#737373] mt-1">
-                  by {row.maker_name} · ${(row.price || 0).toFixed(0)} ·{" "}
-                  {row.status === "pending" ? "Queued" : "Closed"} {fmtDate(row.published_at || row.queued_at)}
-                </div>
-                <div className="font-mono text-[10px] text-[#525252] mt-1">
-                  {(row.channels || []).join(" · ")}
-                </div>
-                {row.skipped_reason && (
-                  <div className="font-mono text-[10px] text-[#a3a3a3] mt-1 italic">
-                    Skip reason: {row.skipped_reason}
-                  </div>
-                )}
-              </div>
-              {/* Actions */}
-              <div className="flex flex-col gap-1.5 shrink-0">
-                <a
-                  href={row.product_url}
-                  target="_blank" rel="noopener noreferrer"
-                  className="px-2.5 py-1 border border-[#262626] text-[#a3a3a3] hover:text-[#e5e5e5] hover:border-[#525252] font-mono text-[9px] uppercase tracking-[0.22em] text-center"
-                  data-testid={`social-queue-open-${row.id}`}
-                >
-                  View →
-                </a>
-                {row.status === "pending" && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => copyCaption(row)}
-                      className="px-2.5 py-1 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/10 font-mono text-[9px] uppercase tracking-[0.22em]"
-                      data-testid={`social-queue-copy-${row.id}`}
-                    >
-                      Copy caption
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => markPublished(row.id)}
-                      disabled={busy === row.id}
-                      className="px-2.5 py-1 border border-[#22c55e]/40 text-[#22c55e] hover:bg-[#22c55e]/10 font-mono text-[9px] uppercase tracking-[0.22em] disabled:opacity-50"
-                      data-testid={`social-queue-publish-${row.id}`}
-                    >
-                      {busy === row.id ? "…" : "Mark published"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => skip(row.id)}
-                      disabled={busy === row.id}
-                      className="px-2.5 py-1 border border-[#262626] text-[#737373] hover:text-[#e5e5e5] hover:border-[#525252] font-mono text-[9px] uppercase tracking-[0.22em] disabled:opacity-50"
-                      data-testid={`social-queue-skip-${row.id}`}
-                    >
-                      Skip
-                    </button>
-                  </>
-                )}
-              </div>
             </div>
           ))}
         </div>
@@ -3894,6 +3889,140 @@ function TierRow({ label, count, color, total }) {
       <span className="flex-1 text-[#d4d4d4] truncate">{label}</span>
       <span className="text-[#e5e5e5]" style={{ color: count ? color : undefined }}>{count}</span>
       <span className="text-[#525252] w-10 text-right">{pct}%</span>
+    </div>
+  );
+}
+
+
+// ─────────────────────────────────────────────────────────────────────
+// iter272 — Per-channel caption editor for the social auto-post queue.
+// Each platform gets its own optimized default template + inline
+// editable textarea + one-click Copy button. Three taps → three
+// platform-tuned captions in the clipboard.
+//
+// Why three templates?
+//   • Instagram → longer caption + relevant emoji + ~10 hashtags. IG
+//     ranks posts partly on engagement-per-impression; better hashtags
+//     surface the post to a wider niche audience.
+//   • Pinterest → keyword-rich descriptive copy. Pinterest is a search
+//     engine; what matters is putting the buyer's likely search terms
+//     in the description ("walnut cutting board live edge gift").
+//   • Facebook → short + link-forward. FB de-ranks anything that
+//     "looks like" Pinterest spam, so brevity + a clear CTA wins.
+// ─────────────────────────────────────────────────────────────────────
+function CaptionEditorPanel({ row }) {
+  const price = (row.price || 0).toFixed(0);
+  const title = row.product_title || "";
+  const maker = row.maker_name || "the maker";
+  const url = row.product_url || "https://craftersmarket.org";
+
+  // Build platform-tuned defaults. The admin can edit each before copying.
+  const defaults = React.useMemo(() => ({
+    instagram: [
+      `✨ NEW DROP — ${maker}`,
+      "",
+      `${title} · $${price}`,
+      "",
+      "Hand-crafted in a small workshop, made to order. Click the link in our bio (or the URL below) to grab one before it's gone — these tend to go fast.",
+      "",
+      `🔗 ${url}`,
+      "",
+      "#handmade #cncwoodworking #cncart #makersgonnamake #shopsmall #homedecor #craftersmarket #woodworking #smallbusiness #supportlocal",
+    ].join("\n"),
+    pinterest: [
+      `${title} — Handmade by ${maker}`,
+      "",
+      `${title} · CNC-crafted on Crafters Market · $${price} · made to order · ships from a small US workshop. Perfect for housewarming, anniversary, wedding, and gift ideas. Discover unique handmade decor, signs, and furniture made by independent fabricators.`,
+      "",
+      `Shop: ${url}`,
+    ].join("\n"),
+    facebook: [
+      `New from ${maker}: ${title} ($${price}) →`,
+      "",
+      `${url}`,
+      "",
+      "Hand-crafted, made-to-order, ships from a small US workshop.",
+    ].join("\n"),
+  }), [title, maker, price, url]);
+
+  const [drafts, setDrafts] = useState(defaults);
+
+  // If the row data changes (rare in practice), refresh the defaults.
+  useEffect(() => { setDrafts(defaults); }, [defaults]);
+
+  const reset = (channel) => {
+    setDrafts((d) => ({ ...d, [channel]: defaults[channel] }));
+    toast.success("Reset to default template.");
+  };
+
+  const copy = async (channel) => {
+    try {
+      await navigator.clipboard.writeText(drafts[channel]);
+      toast.success(`${channel} caption copied — paste into your post.`);
+    } catch {
+      toast.error("Couldn't copy. Select + copy manually.");
+    }
+  };
+
+  const channels = [
+    { key: "instagram", label: "Instagram",
+      hint: "Longer copy · 10 hashtags · emoji · link in URL line",
+      accent: "#ec4899" },
+    { key: "pinterest", label: "Pinterest",
+      hint: "Keyword-rich · search-optimized description · no hashtags",
+      accent: "#dc2626" },
+    { key: "facebook",  label: "Facebook",
+      hint: "Short + link-forward · no hashtag spam (FB de-ranks it)",
+      accent: "#3b82f6" },
+  ];
+
+  return (
+    <div
+      className="mt-3 border border-[#1f1f1f] bg-[#070707] p-3 space-y-3"
+      data-testid={`caption-editor-${row.id}`}
+    >
+      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#737373]">
+        ◆ Per-channel captions · edit then copy
+      </div>
+      {channels.map((c) => (
+        <div key={c.key} data-testid={`caption-editor-${row.id}-${c.key}`}>
+          <div className="flex items-center justify-between gap-2 mb-1">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em]" style={{ color: c.accent }}>
+              {c.label}
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => reset(c.key)}
+                className="px-2 py-0.5 border border-[#262626] text-[#737373] hover:text-[#e5e5e5] hover:border-[#525252] font-mono text-[9px] uppercase tracking-[0.18em]"
+                data-testid={`caption-editor-reset-${row.id}-${c.key}`}
+              >
+                Reset
+              </button>
+              <button
+                type="button"
+                onClick={() => copy(c.key)}
+                className="px-2 py-0.5 border font-mono text-[9px] uppercase tracking-[0.18em]"
+                style={{ color: c.accent, borderColor: c.accent, opacity: 0.85 }}
+                data-testid={`caption-editor-copy-${row.id}-${c.key}`}
+              >
+                Copy {c.label}
+              </button>
+            </div>
+          </div>
+          <div className="font-mono text-[9px] text-[#525252] mb-1">{c.hint}</div>
+          <textarea
+            rows={c.key === "instagram" ? 7 : c.key === "pinterest" ? 5 : 4}
+            value={drafts[c.key]}
+            onChange={(e) => setDrafts((d) => ({ ...d, [c.key]: e.target.value }))}
+            className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#525252] outline-none px-2.5 py-2 font-mono text-[11px] text-[#e5e5e5] leading-relaxed resize-y"
+            data-testid={`caption-editor-textarea-${row.id}-${c.key}`}
+          />
+          <div className="font-mono text-[9px] text-[#525252] mt-0.5 text-right">
+            {drafts[c.key].length} chars
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
