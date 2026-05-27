@@ -3198,6 +3198,163 @@ function MergeWilliamsAccountsCard() {
 // alerts + a one-click test button. The actual alerts are fired by the
 // Sora-2 daily clip cron when the Emergent Universal Key is exhausted.
 // ─────────────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────────────
+// iter263 — Daily ops digest preview + send. Mirrors the cron that
+// fires every 06:00 UTC. Lets the operator preview yesterday's data
+// without leaving the admin dashboard and fire a manual send to any
+// email (defaults to OPS_EMAIL).
+// ─────────────────────────────────────────────────────────────────────
+function OpsDigestCard() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [err, setErr] = useState("");
+  const [sentTo, setSentTo] = useState("");
+  const [recipient, setRecipient] = useState("");
+
+  const API = process.env.REACT_APP_BACKEND_URL;
+  const auth = () => ({ Authorization: `Bearer ${localStorage.getItem("cm_admin_jwt") || ""}` });
+
+  const loadPreview = async () => {
+    setLoading(true);
+    setErr("");
+    try {
+      const r = await fetch(`${API}/api/admin/ops-digest/preview`, { headers: auth() });
+      const body = await r.json();
+      if (!r.ok) throw new Error(body?.detail || `HTTP ${r.status}`);
+      setData(body);
+    } catch (e) {
+      setErr(e.message || "Preview failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const sendNow = async () => {
+    setSending(true);
+    setErr("");
+    setSentTo("");
+    try {
+      const r = await fetch(`${API}/api/admin/ops-digest/send-now`, {
+        method: "POST",
+        headers: { ...auth(), "Content-Type": "application/json" },
+        body: JSON.stringify({ recipient: recipient.trim() || null }),
+      });
+      const body = await r.json();
+      if (!r.ok) throw new Error(body?.detail || `HTTP ${r.status}`);
+      if (body.sent) setSentTo(body.to);
+      else setErr(body.reason || "Send returned false");
+    } catch (e) {
+      setErr(e.message || "Send failed");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  useEffect(() => { loadPreview(); /* eslint-disable-next-line */ }, []);
+
+  return (
+    <section className="border border-[#262626] p-4 md:p-5" data-testid="ops-digest-card">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+            Daily ops digest · 06:00 UTC cron
+          </div>
+          <h3 className="font-display text-xl mt-1 text-[#e5e5e5]">
+            Yesterday in one email
+          </h3>
+          <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-2xl leading-relaxed">
+            GMV, makers, catalog, traffic, reliability, community — one
+            inbox-worthy summary every morning. Disable via{" "}
+            <code>OPS_DIGEST_ENABLED=false</code>.
+          </p>
+        </div>
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-300 border border-emerald-700/60 px-2 py-1">
+          ✓ scheduled
+        </div>
+      </div>
+
+      {err && (
+        <div className="mt-3 font-mono text-xs text-red-300 border border-red-900/60 bg-red-950/20 p-3" data-testid="ops-digest-err">
+          {err}
+        </div>
+      )}
+
+      {sentTo && (
+        <div className="mt-3 font-mono text-xs text-emerald-300 border border-emerald-700/40 bg-emerald-950/20 p-3" data-testid="ops-digest-sent">
+          ✓ Sent to {sentTo}
+        </div>
+      )}
+
+      {data && (
+        <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-2" data-testid="ops-digest-tiles">
+          <div className="border border-[#262626] p-3 bg-[#0a0a0a]">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#737373]">GMV (yest.)</div>
+            <div className="font-mono text-lg text-emerald-300 mt-1">${data.revenue?.gmv?.toLocaleString?.(undefined, { minimumFractionDigits: 2 }) ?? "0.00"}</div>
+            <div className="font-mono text-[10px] text-[#737373] mt-0.5">{data.revenue?.orders ?? 0} orders</div>
+          </div>
+          <div className="border border-[#262626] p-3 bg-[#0a0a0a]">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#737373]">New makers</div>
+            <div className="font-mono text-lg text-cyan-300 mt-1">{data.makers?.new_makers ?? 0}</div>
+            <div className="font-mono text-[10px] text-[#737373] mt-0.5">{data.makers?.new_applications ?? 0} applied · {data.makers?.new_plus ?? 0} new Plus</div>
+          </div>
+          <div className="border border-[#262626] p-3 bg-[#0a0a0a]">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#737373]">Pageviews</div>
+            <div className="font-mono text-lg text-violet-300 mt-1">{(data.traffic?.pageviews ?? 0).toLocaleString()}</div>
+            <div className="font-mono text-[10px] text-[#737373] mt-0.5">{(data.traffic?.sessions ?? 0).toLocaleString()} sessions · {(data.traffic?.visitors ?? 0).toLocaleString()} visitors</div>
+          </div>
+          <div className="border border-[#262626] p-3 bg-[#0a0a0a]">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#737373]">Reliability</div>
+            <div className={`font-mono text-lg mt-1 ${
+              (data.reliability?.outages?.length || 0) + (data.reliability?.budget_alerts?.length || 0) === 0
+                ? "text-emerald-300" : "text-amber-300"
+            }`}>
+              {(data.reliability?.outages?.length || 0) + (data.reliability?.budget_alerts?.length || 0) === 0 ? "✓ All clear" : "⚠ Issues"}
+            </div>
+            <div className="font-mono text-[10px] text-[#737373] mt-0.5">{data.reliability?.outages?.length ?? 0} outages · {data.reliability?.budget_alerts?.length ?? 0} budget</div>
+          </div>
+        </div>
+      )}
+
+      <div className="mt-4 flex gap-2 flex-wrap items-end">
+        <div className="flex-1 min-w-[200px]">
+          <label className="block">
+            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+              Send to (defaults to OPS_EMAIL)
+            </span>
+            <input
+              type="email"
+              value={recipient}
+              onChange={(e) => setRecipient(e.target.value)}
+              placeholder="you@example.com"
+              className="mt-1 w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm text-[#e5e5e5]"
+              data-testid="ops-digest-recipient"
+            />
+          </label>
+        </div>
+        <button
+          onClick={loadPreview}
+          disabled={loading}
+          className="h-[42px] px-3 border border-[#262626] hover:border-[#737373] font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] disabled:opacity-50"
+          data-testid="ops-digest-refresh"
+        >
+          {loading ? "Loading…" : "↻ Refresh"}
+        </button>
+        <button
+          onClick={sendNow}
+          disabled={sending}
+          className="h-[42px] px-4 border border-[#ff4500] text-[#ff4500] hover:bg-[#ff4500] hover:text-black font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
+          data-testid="ops-digest-send"
+        >
+          {sending ? "Sending…" : "▷ Send now"}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+
 function LlmBudgetAlertsCard() {
   const [data, setData] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -3484,6 +3641,8 @@ export default function SettingsTab() {
       <StripeDiagCard />
 
       <LlmBudgetAlertsCard />
+
+      <OpsDigestCard />
 
       <StripeLinkAccountCard />
 

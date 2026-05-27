@@ -667,3 +667,35 @@ async def admin_llm_budget_alerts_test(claims: dict = Depends(current_admin)):
         context={"triggered_by": claims.get("email") or "admin", "test": True},
     )
     return {"sent": True, "result": result, "test_kind": test_kind}
+
+
+
+# ─────────────────────────────────────────────────────────────────────
+# iter263 — Daily ops digest (preview + send-now)
+# Preview returns the raw section data so the admin UI can render it
+# without dispatching an email. Send-now fires the same email the 6am
+# cron would send, optionally to a one-off recipient.
+# ─────────────────────────────────────────────────────────────────────
+@router.get("/admin/ops-digest/preview")
+async def admin_ops_digest_preview(_: dict = Depends(current_admin)):
+    """Returns yesterday's digest sections as JSON. No email is sent."""
+    from ops_digest import build_digest_data
+    return await build_digest_data()
+
+
+class _OpsDigestSendIn(BaseModel):
+    recipient: Optional[EmailStr] = None  # default: OPS_EMAIL
+
+
+@router.post("/admin/ops-digest/send-now")
+async def admin_ops_digest_send_now(
+    payload: _OpsDigestSendIn,
+    claims: dict = Depends(current_admin),
+):
+    """Build and send the digest immediately, optionally to a one-off
+    recipient (defaults to OPS_EMAIL). Used to test the cron output
+    without waiting for 06:00 UTC."""
+    from ops_digest import send_daily_digest
+    result = await send_daily_digest(recipient=payload.recipient)
+    logger.info("[ops_digest] manual send by %s → %s", claims.get("email"), result.get("to"))
+    return result

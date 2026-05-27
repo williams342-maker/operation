@@ -1,3 +1,36 @@
+## 2026-05-27 — Daily ops digest email (iter263)
+
+### User ask
+*"move on to one of the backlog items (daily ops digest / abandoned-cart SMS)"* → picked the digest since it needs zero new credentials.
+
+### What shipped
+- New module `/app/backend/ops_digest.py`:
+  - `build_digest_data()` — collects 6 sections (revenue, makers, catalog, traffic, reliability, community) from yesterday's UTC window.
+  - `_render_html()` — dark-themed inbox-friendly template matching the rest of our transactional emails. Stat tiles + section headers + collapsing reliability section ("All clear" vs "⚠ N outages, N budget alerts").
+  - `send_daily_digest(recipient=None, dry_run=False)` — kill-switch via `OPS_DIGEST_ENABLED=false`.
+- `/app/backend/scheduler.py` — new `_job_daily_ops_digest` cron at **06:00 UTC daily**.
+- `/app/backend/routers/settings.py` — two new admin endpoints:
+  - `GET /api/admin/ops-digest/preview` — returns the JSON the email would render from (no email fires).
+  - `POST /api/admin/ops-digest/send-now` — manual send, optional `recipient` override.
+- `/app/frontend/src/components/admin/SettingsTab.jsx` — new `OpsDigestCard` between `LlmBudgetAlertsCard` and `StripeLinkAccountCard`:
+  - 4 stat tiles auto-load on render (GMV / new makers / pageviews / reliability)
+  - "✓ scheduled" pill
+  - Refresh + "▷ Send now" buttons
+  - Optional recipient override field
+- Tests: `tests/test_ops_digest.py` — **6/6 pass individually** (sequential run hits the known pytest-asyncio + motor "event loop closed" issue from prior iterations — not a code defect).
+
+### Live verification
+- Curl'd `POST /api/admin/ops-digest/send-now` with real admin JWT → returned `sent: true`, subject `[Crafters Market] Daily digest · May 26`. Email delivered to `williams342@gmail.com` (OPS_EMAIL) via Mailgun.
+- Yesterday's window correctly bracketed to `2026-05-26T00:00:00Z` → `2026-05-27T00:00:00Z`.
+- Dry-run mode confirmed: returns HTML bytes (11,381) without dispatching.
+
+### Production rollout
+1. Save to Github → Redeploy
+2. Set `OPS_DIGEST_ENABLED=true` in Emergent production env (or leave unset — defaults to enabled)
+3. First digest hits inbox at 06:00 UTC tomorrow
+4. Manual test from Admin → Settings → "Daily ops digest · Send now"
+
+
 ## 2026-05-27 — Sora-2 / LLM budget exhaustion watchdog (iter261)
 
 ### User ask

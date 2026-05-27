@@ -799,6 +799,21 @@ async def _job_daily_design_file():
         logger.exception("[scheduler] daily_design_file failed: %s", e)
 
 
+
+async def _job_daily_ops_digest():
+    """iter263 — Daily ops digest email at 06:00 UTC. Summarizes yesterday
+    (GMV, makers, catalog, traffic, reliability, community) in one
+    inbox-worthy email to OPS_EMAIL. Disable via OPS_DIGEST_ENABLED=false.
+    """
+    try:
+        from ops_digest import send_daily_digest
+        result = await send_daily_digest()
+        logger.info("[scheduler] daily_ops_digest: %s", result)
+    except Exception as e:
+        logger.exception("[scheduler] daily_ops_digest failed: %s", e)
+
+
+
 async def _job_daily_clip_seed():
     """Adds 1 fresh Sora-2 generated clip to the public clip feed.
 
@@ -977,6 +992,11 @@ def start_scheduler() -> AsyncIOScheduler | None:
     # iter220 — Daily hero headline pool refresh (Gemini drafts via universal LLM key).
     sched.add_job(_job_hero_headlines_refresh, CronTrigger(hour=9, minute=15),
                   id="hero_headlines_refresh", replace_existing=True)
+    # iter263 — Daily ops digest email at 06:00 UTC. Single inbox-worthy
+    # view of yesterday: GMV, makers, catalog, traffic, reliability,
+    # community. Disable via OPS_DIGEST_ENABLED=false.
+    sched.add_job(_job_daily_ops_digest, CronTrigger(hour=6, minute=0),
+                  id="daily_ops_digest", replace_existing=True)
     # Secrets rotation nudge — daily at 09:30 UTC. Two-tier:
     #   • 14-day pre-warning (due_soon) → email + Slack
     #   • Overdue → email + Slack + Discord (high priority)
