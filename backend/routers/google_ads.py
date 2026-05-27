@@ -256,6 +256,11 @@ class GoogleAdsStatus(BaseModel):
     last_sync_error: Optional[str] = None
     rows_synced_yesterday: int = 0
     login_customer_id: Optional[str] = None
+    # iter269 — surfaced so the admin UI can show the exact URI that
+    # needs to be added to the OAuth Web Client's "Authorized redirect
+    # URIs" list in Google Cloud Console. This is the #1 source of
+    # `Error 400: redirect_uri_mismatch` during OAuth.
+    redirect_uri: Optional[str] = None
 
 
 @router.get("/admin/integrations/google-ads/status",
@@ -285,6 +290,7 @@ async def status(_: dict = Depends(current_admin)):
         last_sync_error=(last or {}).get("error"),
         rows_synced_yesterday=rows,
         login_customer_id=(cred or {}).get("login_customer_id"),
+        redirect_uri=_redirect_uri() or None,
     )
 
 

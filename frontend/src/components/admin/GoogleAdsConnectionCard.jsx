@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { CheckCircle2, AlertCircle, Loader2, RefreshCw, Unplug } from "lucide-react";
+import { CheckCircle2, AlertCircle, Loader2, RefreshCw, Unplug, Copy } from "lucide-react";
 import {
   fetchGoogleAdsStatus, startGoogleAdsOauth, disconnectGoogleAds,
   triggerGoogleAdsSync,
@@ -175,19 +175,68 @@ export default function GoogleAdsConnectionCard() {
       )}
 
       {status.config_ready && !status.connected && (
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          <button
-            onClick={onConnect}
-            disabled={busy === "connect"}
-            className="px-4 py-2 border border-[#ff4500] text-[#ff4500] hover:bg-[#ff4500] hover:text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50 flex items-center gap-2"
-            data-testid="google-ads-connect-btn"
-          >
-            {busy === "connect" ? <Loader2 size={12} className="animate-spin" /> : null}
-            Connect Google Ads
-          </button>
-          <span className="font-mono text-[10px] text-[#525252]">
-            ↗ opens Google's consent screen
-          </span>
+        <div className="mt-4 space-y-3">
+          {/* iter269 — Show the EXACT redirect URI Google needs to
+              whitelist. This is the #1 cause of `Error 400:
+              redirect_uri_mismatch` and copying the URL by hand from
+              the address bar after the fact is awful UX. */}
+          {status.redirect_uri && (
+            <div
+              className="border border-cyan-900/60 bg-cyan-950/20 p-3"
+              data-testid="google-ads-redirect-uri-callout"
+            >
+              <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-cyan-300 mb-1">
+                ◆ Whitelist this URL first
+              </p>
+              <p className="font-mono text-[11px] text-cyan-100/90 leading-relaxed mb-2">
+                Cloud Console → APIs &amp; Services → Credentials → your OAuth client
+                ({(process.env.REACT_APP_GOOGLE_ADS_CLIENT_HINT || "GOOGLE_ADS_CLIENT_ID")})
+                → <b>Authorized redirect URIs</b> → <b>+ Add URI</b> → paste:
+              </p>
+              <div className="flex items-stretch gap-2">
+                <code
+                  className="flex-1 bg-[#0a0a0a] border border-[#262626] px-2 py-1.5 font-mono text-[11px] text-[#e5e5e5] break-all"
+                  data-testid="google-ads-redirect-uri-value"
+                >
+                  {status.redirect_uri}
+                </code>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(status.redirect_uri);
+                      toast.success("Redirect URI copied. Paste into Cloud Console.");
+                    } catch {
+                      toast.error("Couldn't copy. Select + copy manually.");
+                    }
+                  }}
+                  className="px-3 py-1.5 border border-cyan-400/50 text-cyan-300 hover:bg-cyan-400/10 font-mono text-[10px] uppercase tracking-[0.22em] flex items-center gap-1.5"
+                  data-testid="google-ads-redirect-uri-copy"
+                >
+                  <Copy size={12} /> Copy
+                </button>
+              </div>
+              <p className="font-mono text-[10px] text-cyan-400/70 mt-2 leading-relaxed">
+                After saving in Cloud Console, wait ~30s for Google to propagate the change,
+                then click "Connect Google Ads" below.
+              </p>
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={onConnect}
+              disabled={busy === "connect"}
+              className="px-4 py-2 border border-[#ff4500] text-[#ff4500] hover:bg-[#ff4500] hover:text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50 flex items-center gap-2"
+              data-testid="google-ads-connect-btn"
+            >
+              {busy === "connect" ? <Loader2 size={12} className="animate-spin" /> : null}
+              Connect Google Ads
+            </button>
+            <span className="font-mono text-[10px] text-[#525252]">
+              ↗ opens Google's consent screen
+            </span>
+          </div>
         </div>
       )}
 
