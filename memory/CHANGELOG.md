@@ -1,3 +1,27 @@
+## 2026-05-27 — Abandoned-cart email nudges (iter264)
+
+### User pivot
+Started with Twilio SMS (A2P 10DLC brand registration). User pivoted to email instead — same goal (recover lost cart revenue), zero compliance overhead, uses existing Mailgun infra.
+
+### What shipped
+- `/app/backend/routers/abandoned_cart.py`:
+  - `fire_abandoned_cart_emails()` — two-tier nudge ladder.
+    - **2h idle** → plain reminder ("Did you forget about X?") with spotlight tile of highest-priced item.
+    - **24h idle** → reminder + 10% discount code (`BACK<sha1[4]>`, single-use, 7-day expiry, marketplace-wide).
+  - Discount code auto-inserted into `marketing_codes` so the checkout discount resolver honours it on apply.
+  - Idempotent via `email_attempt_count` field on the cart row.
+- `/app/backend/scheduler.py` — new `_job_abandoned_cart_email` cron at `:50` past every hour (8min after the existing push arm so we don't double-notify).
+- `/app/backend/routers/abandoned_cart.py` — admin endpoint `POST /api/admin/abandoned-cart/run-emails` for manual trigger.
+- Tests: `tests/test_abandoned_cart_email.py` — 5/5 pass individually (first nudge, discount nudge + code persistence, no double-fire, skip-checked-out, skip-under-2h).
+
+### Twilio SMS work reverted
+Deleted `sms_service.py` + `routers/sms.py` per user pivot. The abandoned-cart model no longer has phone/SMS-consent fields.
+
+### Live verification
+- Seeded test cart for williams342@gmail.com at 3h age → cron sent reminder email (1 sent, 0 skipped). Real email delivered via Mailgun.
+- Aged the cart to 25h + attempt_count=1 → cron sent discount email with code `BACK850A`. Code persisted in `marketing_codes` with `discount_pct: 10.0`, `max_uses: 1`, 7-day expiry, `scope: marketplace_wide`.
+
+
 ## 2026-05-27 — Daily ops digest email (iter263)
 
 ### User ask

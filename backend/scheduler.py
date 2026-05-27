@@ -217,6 +217,20 @@ async def _job_abandoned_cart_push() -> None:
         logger.exception("[scheduler] abandoned-cart push failed: %s", e)
 
 
+async def _job_abandoned_cart_email() -> None:
+    """iter264 — Two-tier email re-engagement (2h reminder, 24h discount).
+    Runs hourly, idempotent via `email_attempt_count` on the cart row."""
+    from routers.abandoned_cart import fire_abandoned_cart_emails
+    try:
+        r = await fire_abandoned_cart_emails(first_nudge_hours=2, discount_nudge_hours=24)
+        if r.get("sent"):
+            logger.info("[scheduler] abandoned-cart email: %s", r)
+    except Exception as e:
+        logger.exception("[scheduler] abandoned-cart email failed: %s", e)
+
+
+
+
 
 async def _job_secrets_rotation_nudge() -> None:
     """Daily sweep over tracked credentials with two-tier nudges:
@@ -967,6 +981,10 @@ def start_scheduler() -> AsyncIOScheduler | None:
     # anonymous shoppers.
     sched.add_job(_job_abandoned_cart_push, CronTrigger(minute=42),
                   id="abandoned_cart_push", replace_existing=True)
+    # iter264 — Email arm runs 8 minutes after the push arm so we don't
+    # spam buyers in the same minute. Same hourly cadence.
+    sched.add_job(_job_abandoned_cart_email, CronTrigger(minute=50),
+                  id="abandoned_cart_email", replace_existing=True)
     # Weekly forum thread auto-seeder — Tuesdays 14:00 UTC. Picks one
     # topic from the curated bank, expands it via Gemini Flash into a
     # full thread + 1-2 starter replies. Keeps the forum looking
