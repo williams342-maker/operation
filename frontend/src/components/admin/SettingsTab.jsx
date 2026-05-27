@@ -22,6 +22,7 @@ import {
   installCommunityDesignsSeed,
   purgeCommunityDesignsSeed,
   purgeOrphanCommunityDesignsSeed,
+  migrateCommunityDesignsToR2,
   fetchStripeDiag,
   generateOneCommunityDesign,
   generateBatchCommunityDesigns,
@@ -279,6 +280,25 @@ function CommunityDesignsSeedCard() {
     } finally { setOrphanBusy(false); }
   };
 
+  // iter262 — Re-upload local /seed-designs/<slug>/... files to R2 so the
+  // generated rows survive pod restarts. Rows whose local files are gone
+  // get `file_verified: false` so the orphan-guard hides them.
+  const [migrateBusy, setMigrateBusy] = useState(false);
+  const runR2Migrate = async () => {
+    setMigrateBusy(true);
+    try {
+      const r = await migrateCommunityDesignsToR2();
+      const parts = [];
+      if (r.migrated) parts.push(`${r.migrated} uploaded to R2`);
+      if (r.orphaned_marked) parts.push(`${r.orphaned_marked} marked orphaned`);
+      if (r.failed?.length) parts.push(`${r.failed.length} failed`);
+      toast.success(parts.length ? parts.join(" · ") : "No rows needed migration.");
+      refresh();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "R2 migration failed.");
+    } finally { setMigrateBusy(false); }
+  };
+
   const runGenerate = async () => {
     setGenBusy(true);
     try {
@@ -372,6 +392,29 @@ function CommunityDesignsSeedCard() {
           </button>
         </div>
       )}
+
+      {/* iter262 — Migrate any local-path seed design files to R2 so they
+          survive pod restarts. Always available; safe to run multiple
+          times. Rows whose local files are gone get hidden via
+          file_verified=false (handled by the backend). */}
+      <div className="mb-4 pb-4 border-b border-cyan-900/40">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-cyan-300 mb-1">
+          ◆ Migrate seed designs to R2 (one-click · idempotent)
+        </div>
+        <p className="font-mono text-[11px] text-[#a3a3a3] mb-2 leading-relaxed max-w-2xl">
+          Re-uploads <code>/seed-designs/&lt;slug&gt;/</code> local files to R2 and rewrites the DB rows
+          with the absolute CDN URLs. Without this, AI-generated design cards break on every redeploy
+          because the local pod disk is ephemeral. Run after the daily cron generates a new design.
+        </p>
+        <button
+          onClick={runR2Migrate}
+          disabled={migrateBusy}
+          className="px-3 py-1.5 border border-cyan-600 text-cyan-300 hover:bg-cyan-900/30 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
+          data-testid="migrate-designs-r2-btn"
+        >
+          {migrateBusy ? "Uploading…" : "↑ Migrate seed designs to R2"}
+        </button>
+      </div>
 
       <div className="mb-4 pb-4 border-b border-amber-900/40">
         <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-300 mb-1">

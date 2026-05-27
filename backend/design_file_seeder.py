@@ -580,10 +580,39 @@ def _write_dxf(slug: str, segments: list) -> str:
 # ---------------------------------------------------------------------------
 # Main entry — generate one fresh design and insert into design_files
 # ---------------------------------------------------------------------------
+async def _upload_to_r2(local_path: Path, key: str, mime: str) -> str | None:
+    """Best-effort R2 upload — returns the public CDN URL on success or
+    None if R2 is unconfigured / unreachable. We never block generation
+    on R2 because the local copy + the file_verified guard still keep
+    the row valid on the build that produced it. The orphan-guard will
+    hide rows whose local files vanish post-redeploy."""
+    try:
+        import r2_storage
+        if not local_path.exists():
+            return None
+        url = r2_storage.upload_bytes(
+            local_path.read_bytes(),
+            key,
+            mime,
+            cache_control="public, max-age=31536000, immutable",
+        )
+        return url
+    except Exception as e:
+        logger.warning("[design_seeder] R2 upload failed for %s: %s", key, e)
+        return None
+
+
 async def generate_one_design() -> dict[str, Any]:
     """Produce one new design file and write it into MongoDB.
 
     Returns a structured status dict so the admin UI can render a toast.
+
+    iter262 — All three asset files (svg/dxf/preview.jpg) now get uploaded
+    to R2 right after they're written locally. The DB row stores the
+    absolute R2 CDN URLs in `download_url`, `variants[].url`, and
+    `thumbnail_url` — these survive pod restarts and redeploys, unlike
+    the ephemeral `/app/frontend/public/seed-designs/...` paths the
+    previous generator used.
     """
     picked = await _pick_template_and_params()
     tmpl = TEMPLATES[picked["template_id"]]
@@ -592,23 +621,46 @@ async def generate_one_design() -> dict[str, Any]:
     # raises, we never make the LLM image call.
     svg_str, dxf_segments, w_in, h_in = tmpl["fn"](picked["params"])
     slug = await _unique_slug(_slugify(picked["title"]))
-    svg_url = _write_svg(slug, svg_str)
-    dxf_url = _write_dxf(slug, dxf_segments)
+    svg_local = _write_svg(slug, svg_str)
+    dxf_local = _write_dxf(slug, dxf_segments)
 
     # Preview is best-effort — if Nano Banana is down the design still
     # lands in the library (we just don't get a hero shot).
-    preview_url = await _generate_preview_jpg(slug, picked["image_prompt"]) or svg_url
+    preview_local = await _generate_preview_jpg(slug, picked["image_prompt"]) or svg_local
+
+    # Upload all three to R2 so the CDN-backed URLs survive pod restarts.
+    svg_r2 = await _upload_to_r2(
+        SEED_DIR / slug / "design.svg",
+        f"seed-designs/{slug}/design.svg",
+        "image/svg+xml",
+    )
+    dxf_r2 = await _upload_to_r2(
+        SEED_DIR / slug / "design.dxf",
+        f"seed-designs/{slug}/design.dxf",
+        "application/dxf",
+    )
+    preview_r2 = await _upload_to_r2(
+        SEED_DIR / slug / "preview.jpg",
+        f"seed-designs/{slug}/preview.jpg",
+        "image/jpeg",
+    )
+
+    # Prefer R2 URLs; fall back to local paths only if R2 isn't configured.
+    svg_url = svg_r2 or svg_local
+    dxf_url = dxf_r2 or dxf_local
+    preview_url = preview_r2 or preview_local
 
     file_type_codes = ["svg", "dxf"]
     seo_tags = extract_seo_tags(picked["title"], picked["description"], file_types=file_type_codes)
     seo_description = build_seo_description(picked["title"], picked["description"])
 
-    # iter221 — verify all 3 local files (svg + dxf + preview.jpg) actually
-    # landed on disk with non-zero size before flipping `file_verified` on.
-    # Same gate as iter218 used for clip orphans — prevents a half-saved
-    # AI generation from leaving a broken card on craftersmarket.org that
-    # renders alt-text-only because the preview.jpg 404s from the deploy
-    # artifact.
+    # iter262 — File verification now accepts either:
+    #   (a) all 3 files present on local disk with non-zero size, OR
+    #   (b) all 3 files successfully uploaded to R2 (the absolute CDN URL
+    #       is the source of truth and survives any pod restart).
+    # The orphan-guard listing query also accepts absolute http(s) URLs in
+    # `thumbnail_url` so R2-backed rows always show, even after the local
+    # files have been wiped from ephemeral storage.
     try:
         svg_ok = (SEED_DIR / slug / "design.svg").exists() and (SEED_DIR / slug / "design.svg").stat().st_size > 64
         dxf_ok = (SEED_DIR / slug / "design.dxf").exists() and (SEED_DIR / slug / "design.dxf").stat().st_size > 64
@@ -616,7 +668,9 @@ async def generate_one_design() -> dict[str, Any]:
         preview_ok = preview_path.exists() and preview_path.stat().st_size > 1024
     except Exception:
         svg_ok = dxf_ok = preview_ok = False
-    file_verified = bool(svg_ok and dxf_ok and preview_ok)
+    local_verified = bool(svg_ok and dxf_ok and preview_ok)
+    r2_verified = bool(svg_r2 and dxf_r2 and preview_r2)
+    file_verified = local_verified or r2_verified
 
     doc = {
         "id": str(uuid.uuid4()),

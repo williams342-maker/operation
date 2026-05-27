@@ -789,6 +789,11 @@ export const purgeCommunityDesignsSeed = () =>
 export const purgeOrphanCommunityDesignsSeed = () =>
   http.post("/admin/seed/community-designs/purge-orphans", null, { headers: adminAuthHeaders() }).then((r) => r.data);
 
+// iter262 — Re-upload local seed design files to R2 so they survive pod restarts.
+// Returns {migrated, orphaned_marked, failed[]}.
+export const migrateCommunityDesignsToR2 = () =>
+  http.post("/admin/seed/community-designs/migrate-to-r2", null, { headers: adminAuthHeaders() }).then((r) => r.data);
+
 // iter222 — Stripe Connect health probe.
 export const fetchStripeDiag = () =>
   http.get("/admin/stripe/diag", { headers: adminAuthHeaders() }).then((r) => r.data);
