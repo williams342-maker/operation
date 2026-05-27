@@ -968,6 +968,176 @@ function StripeLinkAccountCard() {
 }
 
 
+// ─────────────────────────────────────────────────────────────────────
+// iter260 — Bulk reset every maker's Stripe Connect state. Used during
+// a Stripe platform migration when STRIPE_API_KEY is being swapped to a
+// new platform account (old `acct_*` IDs become dead pointers).
+// ─────────────────────────────────────────────────────────────────────
+function StripeBulkResetCard() {
+  const [preview, setPreview] = useState(null);
+  const [confirmText, setConfirmText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null);
+  const [err, setErr] = useState("");
+
+  const API = process.env.REACT_APP_BACKEND_URL;
+  const authedFetch = (body) =>
+    fetch(`${API}/api/admin/stripe/reset-all-connect-accounts`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem("cm_admin_jwt") || ""}`,
+      },
+      body: JSON.stringify(body),
+    });
+
+  const loadPreview = async () => {
+    setErr("");
+    setResult(null);
+    setBusy(true);
+    try {
+      const r = await authedFetch({ confirm: "" });
+      const body = await r.json();
+      if (!r.ok) throw new Error(body?.detail || `HTTP ${r.status}`);
+      setPreview(body);
+    } catch (e) {
+      setErr(e.message || "Preview failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const runReset = async () => {
+    if (confirmText.trim() !== "RESET ALL") {
+      setErr("Type the exact phrase RESET ALL to confirm.");
+      return;
+    }
+    setErr("");
+    setBusy(true);
+    try {
+      const r = await authedFetch({ confirm: "RESET ALL" });
+      const body = await r.json();
+      if (!r.ok) throw new Error(body?.detail || `HTTP ${r.status}`);
+      setResult(body);
+      setPreview(null);
+      setConfirmText("");
+    } catch (e) {
+      setErr(e.message || "Reset failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section
+      className="border border-amber-900/40 bg-amber-950/10 p-4 md:p-5"
+      data-testid="stripe-bulk-reset-card"
+    >
+      <div>
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-amber-300">
+          ◆ Danger zone · Stripe platform migration
+        </div>
+        <h3 className="font-display text-xl mt-1 text-amber-100">
+          Reset all Stripe Connect accounts
+        </h3>
+        <p className="font-mono text-xs text-amber-200/70 mt-2 max-w-2xl leading-relaxed">
+          Wipes <code>stripe_account_id</code> + status flags on every maker.
+          Use this only when you've swapped <code>STRIPE_API_KEY</code> to a
+          new Stripe platform — the old <code>acct_*</code> IDs become dead
+          pointers (the new platform can't retrieve them). Makers will
+          re-onboard cleanly under the new platform on their next visit to
+          <code> /maker/dashboard/financials</code>.
+        </p>
+      </div>
+
+      {!preview && !result && (
+        <button
+          onClick={loadPreview}
+          disabled={busy}
+          className="mt-4 px-4 py-2 border border-amber-600/60 text-amber-200 hover:border-amber-400 hover:text-amber-100 font-mono text-[11px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+          data-testid="stripe-reset-preview"
+        >
+          {busy ? "Loading preview…" : "↻ Preview impact"}
+        </button>
+      )}
+
+      {preview && (
+        <div className="mt-4 border border-amber-700/40 bg-black/30 p-3" data-testid="stripe-reset-preview-panel">
+          <div className="font-mono text-xs text-amber-200">
+            <span className="font-bold">{preview.would_reset}</span> maker row(s) currently hold a Stripe Connect account ID.
+          </div>
+          {preview.sample && preview.sample.length > 0 && (
+            <div className="mt-2 font-mono text-[10.5px] text-amber-200/70">
+              <div className="text-amber-300/80 mb-1">Sample (up to 10):</div>
+              {preview.sample.map((s, i) => (
+                <div key={i} className="flex gap-2 py-0.5">
+                  <span className="w-32 truncate text-amber-100">{s.slug}</span>
+                  <span className="w-44 truncate">…{(s.stripe_account_id || "").slice(-12)}</span>
+                  <span className="text-amber-200/50">payouts: {String(s.stripe_payouts_enabled || false)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="mt-4 border-t border-amber-700/30 pt-3">
+            <label className="block">
+              <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-amber-300">
+                Type <code className="text-amber-100">RESET ALL</code> to confirm
+              </span>
+              <input
+                type="text"
+                value={confirmText}
+                onChange={(e) => setConfirmText(e.target.value)}
+                placeholder="RESET ALL"
+                className="mt-1 w-full bg-black border border-amber-700/40 focus:border-amber-400 outline-none px-3 py-2 font-mono text-sm text-amber-100"
+                data-testid="stripe-reset-confirm-input"
+              />
+            </label>
+            <div className="mt-3 flex gap-2">
+              <button
+                onClick={runReset}
+                disabled={busy || confirmText.trim() !== "RESET ALL"}
+                className="px-4 py-2 border border-red-600 bg-red-900/30 text-red-200 hover:bg-red-900/60 font-mono text-[11px] uppercase tracking-[0.22em] transition disabled:opacity-50 disabled:cursor-not-allowed"
+                data-testid="stripe-reset-execute"
+              >
+                {busy ? "Wiping…" : "⚠ Wipe Connect state →"}
+              </button>
+              <button
+                onClick={() => { setPreview(null); setConfirmText(""); setErr(""); }}
+                disabled={busy}
+                className="px-4 py-2 border border-[#262626] text-[#a3a3a3] hover:border-[#737373] font-mono text-[11px] uppercase tracking-[0.22em] transition"
+                data-testid="stripe-reset-cancel"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {err && (
+        <div className="mt-3 font-mono text-xs text-red-300 border border-red-900/60 bg-red-950/20 p-3" data-testid="stripe-reset-error">
+          {err}
+        </div>
+      )}
+
+      {result && (
+        <div className="mt-4 border border-emerald-700/40 bg-emerald-950/15 p-3 font-mono text-xs text-emerald-200" data-testid="stripe-reset-result">
+          <div className="font-bold mb-1.5">✓ Stripe Connect state wiped</div>
+          <div className="text-emerald-300/80">
+            matched <span className="text-emerald-100">{result.matched}</span> · modified <span className="text-emerald-100">{result.modified}</span>
+          </div>
+          <div className="mt-2 text-emerald-200/70">
+            All makers will see a fresh "Connect Stripe" prompt on their next visit to <code>/maker/dashboard/financials</code>.
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+
+
 
 function HeroHeadlinesCard() {
   const [data, setData] = useState(null);
@@ -3106,6 +3276,8 @@ export default function SettingsTab() {
       <StripeDiagCard />
 
       <StripeLinkAccountCard />
+
+      <StripeBulkResetCard />
 
       {/* iter226 — Same friendly-error pattern, three more integrations. */}
       <ShippoDiagCard />

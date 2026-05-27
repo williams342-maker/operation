@@ -189,6 +189,88 @@ async def admin_link_stripe_account(
     }
 
 
+# ─────────────────────────────────────────────────────────────────────
+# iter260 — Admin: wipe every maker's stored Stripe Connect state.
+# Use during a Stripe platform migration — when STRIPE_API_KEY is being
+# swapped to a different platform account, all the previously-stored
+# `acct_*` IDs become dead pointers (they belong to the OLD platform
+# and the new platform can't retrieve them). This resets every maker
+# so they re-onboard cleanly under the new platform on their next
+# visit to /maker/dashboard/financials.
+#
+# Idempotent. Two-step confirm pattern: pass {"confirm": "RESET ALL"}
+# to actually run, otherwise returns a dry-run preview of how many
+# rows would be touched.
+# ─────────────────────────────────────────────────────────────────────
+class _ResetAllConnectIn(BaseModel):
+    confirm: str = ""   # must be the literal string "RESET ALL" to execute
+
+
+@router.post("/admin/stripe/reset-all-connect-accounts")
+async def admin_reset_all_connect_accounts(
+    payload: _ResetAllConnectIn,
+    claims: dict = Depends(current_admin),
+):
+    """Strip every maker's Stripe Connect state — used during a platform
+    migration. Without `confirm == "RESET ALL"`, returns a dry-run preview.
+    """
+    affected_count = await db.makers.count_documents(
+        {"stripe_account_id": {"$exists": True, "$nin": [None, ""]}}
+    )
+
+    sample = await db.makers.find(
+        {"stripe_account_id": {"$exists": True, "$nin": [None, ""]}},
+        {"_id": 0, "slug": 1, "stripe_account_id": 1, "stripe_payouts_enabled": 1},
+    ).limit(10).to_list(10)
+
+    if payload.confirm != "RESET ALL":
+        return {
+            "dry_run": True,
+            "would_reset": affected_count,
+            "sample": sample,
+            "hint": "POST again with body {\"confirm\": \"RESET ALL\"} to actually wipe.",
+        }
+
+    # Live execution — strip every Stripe-Connect-related field. We don't
+    # touch the Stripe subscription fields (those belong to Crafters Plus,
+    # a separate concern handled by the subscriptions router).
+    result = await db.makers.update_many(
+        {"stripe_account_id": {"$exists": True, "$nin": [None, ""]}},
+        {"$unset": {
+            "stripe_account_id": "",
+            "stripe_charges_enabled": "",
+            "stripe_payouts_enabled": "",
+            "stripe_details_submitted": "",
+            "stripe_created_at": "",
+            "stripe_updated_at": "",
+        }},
+    )
+
+    logger.warning(
+        "[stripe-reset] admin=%s wiped Connect state on %d makers (matched=%d)",
+        claims.get("email"), result.modified_count, result.matched_count,
+    )
+
+    try:
+        await db.admin_audit.insert_one({
+            "kind": "stripe_connect_bulk_reset",
+            "admin_email": claims.get("email"),
+            "matched": result.matched_count,
+            "modified": result.modified_count,
+            "sample_before": sample,
+            "created_at": now_iso(),
+        })
+    except Exception as e:
+        logger.warning("[stripe-reset] audit mirror failed: %s", e)
+
+    return {
+        "dry_run": False,
+        "matched": result.matched_count,
+        "modified": result.modified_count,
+    }
+
+
+
 
 @router.post("/maker/stripe/connect/onboard")
 async def connect_onboard(payload: OnboardRequest, slug: str = Depends(current_maker_slug)):
