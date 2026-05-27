@@ -3473,6 +3473,143 @@ function CartRecoveryAttributionCard() {
 }
 
 
+// ─────────────────────────────────────────────────────────────────────
+// iter270 — EnrichLabs product-feed download card. Lets the operator
+// grab the {product_name, image_url, listing_url} export as CSV or JSON
+// to share with EnrichLabs (or any external marketing agent). The data
+// is the same as `/api/enrich/v1/feed.{csv,json}` — surfaced here so the
+// admin doesn't need to run curl with the API key.
+// ─────────────────────────────────────────────────────────────────────
+function EnrichLabsFeedCard() {
+  const API = process.env.REACT_APP_BACKEND_URL;
+  const [busy, setBusy] = useState("");
+  const [includeOos, setIncludeOos] = useState(false);
+  const [count, setCount] = useState(null);
+
+  const fetchWithAdminKey = async (path) => {
+    // The EnrichLabs endpoints are gated by `X-EnrichLabs-Key`, but the
+    // admin doesn't memorize that — so we proxy through an admin-only
+    // helper that reads the env-var server-side.
+    const r = await fetch(`${API}${path}`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem("cm_admin_jwt") || ""}` },
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r;
+  };
+
+  const download = async (fmt) => {
+    setBusy(fmt);
+    try {
+      const r = await fetchWithAdminKey(
+        `/api/admin/integrations/enrichlabs/feed.${fmt}?include_out_of_stock=${includeOos}`
+      );
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+      a.href = url;
+      a.download = `crafters_market_feed_${today}.${fmt}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success(`Downloaded ${fmt.toUpperCase()} feed.`);
+    } catch (e) {
+      toast.error(e.message || "Download failed");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const preview = async () => {
+    setBusy("preview");
+    try {
+      const r = await fetchWithAdminKey(
+        `/api/admin/integrations/enrichlabs/feed.json?include_out_of_stock=${includeOos}`
+      );
+      const arr = await r.json();
+      setCount(arr.length);
+      toast.success(`Feed contains ${arr.length} products.`);
+    } catch (e) {
+      toast.error(e.message || "Preview failed");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  return (
+    <section
+      className="border border-[#262626] bg-[#0a0a0a] p-5"
+      data-testid="enrichlabs-feed-card"
+    >
+      <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#ff4500]">
+        ◆ EnrichLabs product feed
+      </div>
+      <div className="text-[#e5e5e5] mt-1">
+        Export {`{product_name, image_url, listing_url}`} for EnrichLabs or any external marketing agent.
+      </div>
+      <div className="font-mono text-[11px] text-[#737373] mt-1">
+        Published listings only · absolute URLs · max 5000 rows
+      </div>
+
+      <label className="flex items-center gap-2 mt-3 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={includeOos}
+          onChange={(e) => setIncludeOos(e.target.checked)}
+          className="accent-[#ff4500]"
+          data-testid="enrich-feed-include-oos"
+        />
+        <span className="font-mono text-[11px] text-[#d4d4d4]">
+          Include out-of-stock listings
+        </span>
+      </label>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => download("csv")}
+          disabled={busy === "csv"}
+          className="px-4 py-2 border border-[#ff4500] text-[#ff4500] hover:bg-[#ff4500] hover:text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+          data-testid="enrich-feed-download-csv"
+        >
+          {busy === "csv" ? "Downloading…" : "Download CSV"}
+        </button>
+        <button
+          type="button"
+          onClick={() => download("json")}
+          disabled={busy === "json"}
+          className="px-4 py-2 border border-[#262626] text-[#e5e5e5] hover:border-[#525252] font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+          data-testid="enrich-feed-download-json"
+        >
+          {busy === "json" ? "Downloading…" : "Download JSON"}
+        </button>
+        <button
+          type="button"
+          onClick={preview}
+          disabled={busy === "preview"}
+          className="px-4 py-2 border border-[#262626] text-[#a3a3a3] hover:border-[#525252] hover:text-[#e5e5e5] font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+          data-testid="enrich-feed-preview"
+        >
+          {busy === "preview" ? "Counting…" : "Count rows"}
+        </button>
+        {count !== null && (
+          <span className="font-mono text-[11px] text-[#a3a3a3] self-center" data-testid="enrich-feed-count">
+            {count} products in current feed
+          </span>
+        )}
+      </div>
+
+      <div className="mt-4 pt-3 border-t border-[#262626] font-mono text-[11px] text-[#737373]">
+        EnrichLabs can also pull directly via the API:{" "}
+        <code className="text-[#a3a3a3]">GET /api/enrich/v1/feed.csv</code>{" "}
+        (header <code className="text-[#a3a3a3]">X-EnrichLabs-Key</code>).
+      </div>
+    </section>
+  );
+}
+
+
 
 export default function SettingsTab() {
   const [settings, setSettings] = useState(null);
@@ -3602,6 +3739,8 @@ export default function SettingsTab() {
       <OpsDigestCard />
 
       <CartRecoveryAttributionCard />
+
+      <EnrichLabsFeedCard />
 
       <StripeLinkAccountCard />
 

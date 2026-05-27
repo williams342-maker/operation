@@ -146,8 +146,9 @@ from routers.maker_studio import router as maker_studio_router
 api.include_router(grow_page_router)
 api.include_router(maker_studio_router)
 # iter258 — EnrichLabs read-only marketing data API (API-key auth).
-from routers.enrichlabs import router as enrichlabs_router
+from routers.enrichlabs import router as enrichlabs_router, admin_router as enrichlabs_admin_router
 api.include_router(enrichlabs_router)
+api.include_router(enrichlabs_admin_router)
 # iter265 — Telnyx SMS (webhook + admin send/test).
 from routers.sms import router as sms_router
 api.include_router(sms_router)

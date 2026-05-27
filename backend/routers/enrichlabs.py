@@ -19,7 +19,9 @@ Anonymization: orders never include buyer email/name/address. The buyer
 is exposed only as a stable hash so EnrichLabs can compute repeat-buyer
 rates without seeing PII. Maker slugs ARE exposed (public on the site).
 """
+import csv
 import hashlib
+import io
 import os
 import secrets
 from collections import defaultdict
@@ -27,6 +29,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi.responses import Response
 
 from core import db, logger
 
@@ -275,6 +278,122 @@ async def enrich_listings(
 
 
 # ─────────────────────────────────────────────────────────────────────
+# /feed.{csv,json} — minimal product feed for EnrichLabs / external
+# marketing agents (iter270). Only the three columns EnrichLabs needs:
+#   product_name · image_url · listing_url
+# Published-only, in-stock by default. Same API-key gate as the rest of
+# this router. JSON variant returns a top-level array (no envelope) so
+# it imports cleanly into spreadsheet tools.
+# ─────────────────────────────────────────────────────────────────────
+SITE_BASE = "https://craftersmarket.org"
+
+
+def _absolute_url(url: str) -> str:
+    """Convert relative paths (`/foo.jpg`) to absolute URLs so EnrichLabs
+    can fetch them directly without a base-URL guess."""
+    u = (url or "").strip()
+    if not u:
+        return ""
+    if u.startswith("//"):
+        return f"https:{u}"
+    if u.startswith("http://") or u.startswith("https://"):
+        return u
+    if u.startswith("/"):
+        return f"{SITE_BASE}{u}"
+    return f"{SITE_BASE}/{u}"
+
+
+def _build_feed_rows(rows: list[dict]) -> list[dict]:
+    out: list[dict] = []
+    for p in rows:
+        # Prefer the first uploaded image; fall back to legacy image_url.
+        img = ""
+        if isinstance(p.get("images"), list) and p["images"]:
+            img = (p["images"][0] or "").strip()
+        if not img:
+            img = (p.get("image_url") or "").strip()
+        img = _absolute_url(img)
+        if not img:
+            continue  # EnrichLabs can't use an entry with no image
+        slug = (p.get("slug") or "").strip()
+        if not slug:
+            continue
+        out.append({
+            "product_name": (p.get("title") or "").strip(),
+            "image_url": img,
+            "listing_url": f"{SITE_BASE}/shop/{slug}",
+        })
+    return out
+
+
+async def _fetch_feed_products(
+    *, maker_slug: Optional[str], include_oos: bool, limit: int,
+) -> list[dict]:
+    q: dict = {
+        "deleted_at": {"$in": [None, ""]},
+        "status": "published",
+    }
+    if maker_slug:
+        q["maker_slug"] = maker_slug
+    if not include_oos:
+        # Treat missing field as in-stock (matches the rest of the codebase).
+        q["$or"] = [
+            {"in_stock": {"$exists": False}},
+            {"in_stock": {"$gt": 0}},
+            {"in_stock": True},
+        ]
+    return await db.products.find(
+        q,
+        {"_id": 0, "slug": 1, "title": 1, "image_url": 1, "images": 1},
+    ).sort("created_at", -1).limit(limit).to_list(limit)
+
+
+@router.get("/feed.json")
+async def enrich_feed_json(
+    _: bool = Depends(_enrich_key_guard),
+    maker_slug: Optional[str] = Query(None),
+    include_out_of_stock: bool = Query(False),
+    limit: int = Query(1000, ge=1, le=5000),
+):
+    """Top-level array of {product_name, image_url, listing_url}."""
+    rows = await _fetch_feed_products(
+        maker_slug=maker_slug,
+        include_oos=include_out_of_stock,
+        limit=limit,
+    )
+    return _build_feed_rows(rows)
+
+
+@router.get("/feed.csv")
+async def enrich_feed_csv(
+    _: bool = Depends(_enrich_key_guard),
+    maker_slug: Optional[str] = Query(None),
+    include_out_of_stock: bool = Query(False),
+    limit: int = Query(1000, ge=1, le=5000),
+):
+    """RFC-4180 CSV — header row + one product per line. Streams as
+    attachment so the browser downloads instead of rendering inline."""
+    rows = await _fetch_feed_products(
+        maker_slug=maker_slug,
+        include_oos=include_out_of_stock,
+        limit=limit,
+    )
+    feed = _build_feed_rows(rows)
+    buf = io.StringIO()
+    w = csv.writer(buf, quoting=csv.QUOTE_MINIMAL, lineterminator="\n")
+    w.writerow(["product_name", "image_url", "listing_url"])
+    for r in feed:
+        w.writerow([r["product_name"], r["image_url"], r["listing_url"]])
+    today = datetime.now(timezone.utc).strftime("%Y%m%d")
+    fname = f"crafters_market_feed_{today}.csv"
+    return Response(
+        content=buf.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────
 # /funnel — onboarding funnel for last N days
 # ─────────────────────────────────────────────────────────────────────
 @router.get("/funnel")
@@ -467,9 +586,79 @@ async def enrich_schema(_: bool = Depends(_enrich_key_guard)):
                            "by_source[]", "by_country[]"],
             },
             {
+                "path": "/feed.json",
+                "method": "GET",
+                "description": "Minimal product feed (top-level array). Published + in-stock by default.",
+                "query": ["maker_slug", "include_out_of_stock (bool)", "limit (1-5000, default 1000)"],
+                "fields": ["product_name", "image_url", "listing_url"],
+            },
+            {
+                "path": "/feed.csv",
+                "method": "GET",
+                "description": "Same data as /feed.json but RFC-4180 CSV download.",
+                "query": ["maker_slug", "include_out_of_stock (bool)", "limit (1-5000, default 1000)"],
+                "fields": ["product_name", "image_url", "listing_url"],
+            },
+            {
                 "path": "/schema",
                 "method": "GET",
                 "description": "This manifest.",
             },
         ],
     }
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Admin proxy router (iter270) — same data as `/enrich/v1/feed.{csv,json}`
+# but gated by the admin JWT instead of the EnrichLabs key, so the admin
+# UI's download button doesn't have to know/expose the static API key.
+# Mounted at `/api/admin/integrations/enrichlabs/...`.
+# ─────────────────────────────────────────────────────────────────────
+from maker_auth import current_admin  # noqa: E402
+
+admin_router = APIRouter(
+    prefix="/admin/integrations/enrichlabs",
+    tags=["enrichlabs-admin"],
+)
+
+
+@admin_router.get("/feed.json")
+async def admin_enrich_feed_json(
+    _admin: str = Depends(current_admin),
+    maker_slug: Optional[str] = Query(None),
+    include_out_of_stock: bool = Query(False),
+    limit: int = Query(1000, ge=1, le=5000),
+):
+    rows = await _fetch_feed_products(
+        maker_slug=maker_slug,
+        include_oos=include_out_of_stock,
+        limit=limit,
+    )
+    return _build_feed_rows(rows)
+
+
+@admin_router.get("/feed.csv")
+async def admin_enrich_feed_csv(
+    _admin: str = Depends(current_admin),
+    maker_slug: Optional[str] = Query(None),
+    include_out_of_stock: bool = Query(False),
+    limit: int = Query(1000, ge=1, le=5000),
+):
+    rows = await _fetch_feed_products(
+        maker_slug=maker_slug,
+        include_oos=include_out_of_stock,
+        limit=limit,
+    )
+    feed = _build_feed_rows(rows)
+    buf = io.StringIO()
+    w = csv.writer(buf, quoting=csv.QUOTE_MINIMAL, lineterminator="\n")
+    w.writerow(["product_name", "image_url", "listing_url"])
+    for r in feed:
+        w.writerow([r["product_name"], r["image_url"], r["listing_url"]])
+    today = datetime.now(timezone.utc).strftime("%Y%m%d")
+    fname = f"crafters_market_feed_{today}.csv"
+    return Response(
+        content=buf.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )

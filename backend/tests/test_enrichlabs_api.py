@@ -119,3 +119,56 @@ async def test_traffic_shape():
     body = r.json()
     assert {"window_days", "since", "totals", "daily", "by_source", "by_country"} <= set(body)
     assert {"pageviews", "sessions", "visitors"} <= set(body["totals"])
+
+
+# iter270 — Product feed for EnrichLabs / external marketing agents.
+@pytest.mark.asyncio
+async def test_feed_json_shape():
+    """Top-level array of {product_name, image_url, listing_url} only."""
+    async with httpx.AsyncClient(timeout=30) as c:
+        r = await c.get(f"{API}/api/enrich/v1/feed.json?limit=5", headers=HDR)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert isinstance(body, list)
+    if body:
+        keys = set(body[0].keys())
+        assert keys == {"product_name", "image_url", "listing_url"}
+        for row in body:
+            assert row["image_url"].startswith("http"), row
+            assert row["listing_url"].startswith("https://craftersmarket.org/shop/")
+            assert row["product_name"]
+
+
+@pytest.mark.asyncio
+async def test_feed_csv_download_headers():
+    """CSV must be served as an attachment with the daily-stamped filename."""
+    async with httpx.AsyncClient(timeout=30) as c:
+        r = await c.get(f"{API}/api/enrich/v1/feed.csv?limit=3", headers=HDR)
+    assert r.status_code == 200, r.text
+    assert r.headers["content-type"].startswith("text/csv")
+    cd = r.headers.get("content-disposition", "")
+    assert "attachment" in cd and "crafters_market_feed_" in cd
+    lines = r.text.strip().splitlines()
+    assert lines[0] == "product_name,image_url,listing_url"
+    # All data rows have 3 columns
+    import csv as _csv
+    import io as _io
+    reader = list(_csv.reader(_io.StringIO(r.text)))
+    for row in reader[1:]:
+        assert len(row) == 3
+
+
+@pytest.mark.asyncio
+async def test_feed_requires_api_key():
+    async with httpx.AsyncClient(timeout=30) as c:
+        r1 = await c.get(f"{API}/api/enrich/v1/feed.json")
+        r2 = await c.get(f"{API}/api/enrich/v1/feed.csv")
+    assert r1.status_code == 401
+    assert r2.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_feed_limit_validation():
+    async with httpx.AsyncClient(timeout=30) as c:
+        r = await c.get(f"{API}/api/enrich/v1/feed.json?limit=99999", headers=HDR)
+    assert r.status_code == 422  # Pydantic ge/le validation
