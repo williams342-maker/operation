@@ -244,7 +244,12 @@ async def fire_abandoned_cart_emails(
     sent = skipped = errors = 0
 
     def _render(email: str, items: list, *, discount_code: Optional[str] = None) -> tuple[str, str]:
-        """Return (subject, html_body) for one nudge."""
+        """Return (subject, html_body) for one nudge.
+
+        iter268 — Cart CTA links carry `?recovery=email&code=<code>` so
+        the frontend can stamp `cm_recovery_medium=email` in localStorage
+        on landing; that gets forwarded into Stripe metadata and logged
+        into `discount_attributions` when the code is redeemed."""
         if not items:
             return ("", "")
         # spotlight = highest-priced item
@@ -293,6 +298,11 @@ async def fire_abandoned_cart_emails(
             + "</td></tr></table>"
         )
 
+        # iter268 — attribution params travel with every cart-recovery CTA.
+        # Frontend stamps `cm_recovery_medium` in localStorage on landing.
+        cta_qs = f"?recovery=email&code={discount_code}" if discount_code else "?recovery=email"
+        cta_url = f"https://craftersmarket.org/cart{cta_qs}"
+
         html = (
             "<div style='background:#0a0a0a;color:#e5e5e5;padding:32px;font-family:JetBrains Mono,monospace'>"
             "<div style='font-size:10px;letter-spacing:0.32em;color:#ff4500;text-transform:uppercase;margin-bottom:6px'>◆ Cart waiting</div>"
@@ -300,7 +310,7 @@ async def fire_abandoned_cart_emails(
             f"<p style='color:#a3a3a3;line-height:1.7;margin-top:14px'>{sub_copy}</p>"
             f"{spot_tile}"
             "<table cellpadding='0' cellspacing='0' style='margin:24px 0'><tr><td style='background:#ff4500;padding:14px 28px'>"
-            f"<a href='https://craftersmarket.org/cart' style='color:#000;text-decoration:none;font-family:Bebas Neue,Arial Black,sans-serif;font-size:16px;letter-spacing:0.08em'>{cta_label} →</a>"
+            f"<a href='{cta_url}' style='color:#000;text-decoration:none;font-family:Bebas Neue,Arial Black,sans-serif;font-size:16px;letter-spacing:0.08em'>{cta_label} →</a>"
             "</td></tr></table>"
             "<div style='margin-top:32px;padding-top:18px;border-top:1px solid #262626;font-family:JetBrains Mono,monospace;font-size:10px;color:#525252;line-height:1.7'>"
             "You're getting this because you started a checkout on Crafters Market. "
@@ -429,18 +439,21 @@ async def fire_abandoned_cart_sms(
     sent = skipped = errors = 0
 
     def _body(items: list, discount_code: Optional[str] = None) -> str:
+        # iter268 — attribution params on the SMS deep-link so the
+        # frontend can mark `cm_recovery_medium=sms` on landing.
         first = (items[0].get("title") or "your item")[:48] if items else "your item"
         more = max(0, len(items) - 1)
         head = first + (f" (+{more} more)" if more else "")
         if discount_code:
+            cart_url = f"https://craftersmarket.org/cart?recovery=sms&code={discount_code}"
             return (
                 f"Crafters Market: {head} is still in your cart. "
                 f"Use code {discount_code} for 10% off: "
-                "https://craftersmarket.org/cart Reply STOP to opt out."
+                f"{cart_url} Reply STOP to opt out."
             )
         return (
             f"Crafters Market: {head} is waiting in your cart. "
-            "https://craftersmarket.org/cart Reply STOP to opt out."
+            "https://craftersmarket.org/cart?recovery=sms Reply STOP to opt out."
         )
 
     # Eligible cart = has phone + (receipts OR shipping) consent + had
@@ -576,3 +589,55 @@ async def admin_run_abandoned_cart_sms(
     if hours_after_email < 0 or hours_after_email > 720:
         raise HTTPException(400, "Invalid window")
     return await fire_abandoned_cart_sms(hours_after_email=hours_after_email)
+
+
+# iter268 — Conversion attribution dashboard endpoint. Reads the
+# `discount_attributions` ledger and rolls it up so the admin can see
+# which channel (email vs sms vs direct) drove paid redemptions of the
+# cart-recovery discount codes. Direct attribution = buyer redeemed
+# without ever clicking through a recovery CTA (e.g. came back via the
+# regular site nav). The lift metric tells the operator whether the
+# per-message SMS spend justifies its conversion contribution. Same
+# ACL-at-load-balancer pattern as the rest of this file.
+@router.get("/admin/abandoned-cart/attribution")
+async def admin_abandoned_cart_attribution(days: int = 30):
+    """Aggregate redemptions over the last `days` (max 365). Returns
+    per-medium counts + revenue + average order value."""
+    if days < 1 or days > 365:
+        raise HTTPException(400, "days must be 1–365")
+    since = (_now() - timedelta(days=days)).isoformat()
+    pipeline = [
+        {"$match": {"redeemed_at": {"$gte": since}}},
+        {"$group": {
+            "_id": "$medium",
+            "redemptions": {"$sum": 1},
+            "total_revenue": {"$sum": "$order_total"},
+            "total_discount": {"$sum": "$amount_off"},
+        }},
+        {"$sort": {"redemptions": -1}},
+    ]
+    rows = await db.discount_attributions.aggregate(pipeline).to_list(20)
+    by_medium = {
+        r["_id"]: {
+            "redemptions": int(r["redemptions"]),
+            "total_revenue": round(float(r["total_revenue"]), 2),
+            "total_discount": round(float(r["total_discount"]), 2),
+            "avg_order_value": round(
+                float(r["total_revenue"]) / max(1, r["redemptions"]), 2
+            ),
+        }
+        for r in rows
+    }
+    # Ensure all three keys exist so the frontend doesn't need to
+    # handle missing buckets.
+    for k in ("email", "sms", "direct"):
+        by_medium.setdefault(k, {
+            "redemptions": 0, "total_revenue": 0.0,
+            "total_discount": 0.0, "avg_order_value": 0.0,
+        })
+    totals = {
+        "redemptions": sum(v["redemptions"] for v in by_medium.values()),
+        "total_revenue": round(sum(v["total_revenue"] for v in by_medium.values()), 2),
+        "total_discount": round(sum(v["total_discount"] for v in by_medium.values()), 2),
+    }
+    return {"days": days, "by_medium": by_medium, "totals": totals}

@@ -646,6 +646,12 @@ class CheckoutRequest(BaseModel):
     customer_phone: Optional[str] = Field(default=None, max_length=24)
     sms_consent_receipts_at: Optional[str] = None
     sms_consent_shipping_at: Optional[str] = None
+    # iter268 — Cart-recovery attribution. Set client-side when the
+    # buyer lands on /cart from an abandoned-cart email/SMS CTA
+    # (`?recovery=email|sms`). Logged into `discount_attributions` on
+    # successful redemption so the admin can measure the SMS channel's
+    # incremental lift over email alone.
+    recovery_medium: Optional[str] = None
 
 
 class ActivityEvent(BaseModel):

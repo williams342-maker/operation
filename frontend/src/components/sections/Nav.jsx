@@ -22,11 +22,13 @@ const primaryLinks = [
 // intent. Surfacing them under one parent is cleaner + reflects user
 // behaviour (commerce links go to Shop, content links go here).
 const communityMenu = [
-  { label: "Forum",    href: "/community?tab=forum",    blurb: "Threads · Q&A · help" },
-  { label: "Clips",    href: "/clips",                  blurb: "Short workshop videos" },
-  { label: "Journal",  href: "/journal",                blurb: "Long-form articles" },
-  { label: "Showcase", href: "/community?tab=showcase", blurb: "Buyer + maker photos" },
-  { label: "Design kits", href: "/kits",                blurb: "Free SVG + DXF bundles" },
+  { label: "Forum",        href: "/community?tab=forum",    blurb: "Threads · Q&A · help" },
+  { label: "Clips",        href: "/clips",                  blurb: "Short workshop videos" },
+  { label: "Journal",      href: "/journal",                blurb: "Long-form articles" },
+  { label: "Showcase",     href: "/community?tab=showcase", blurb: "Buyer + maker photos" },
+  { label: "Design files", href: "/community?tab=files",    blurb: "Community SVG · DXF uploads" },
+  { label: "Live chat",    href: "/community?tab=chat",     blurb: "Real-time maker chat" },
+  { label: "Design kits",  href: "/kits",                   blurb: "Curated free bundles" },
 ];
 
 // Tertiary surfaces — kept out of the desktop bar but still reachable
@@ -219,11 +221,13 @@ export default function Nav() {
                   one tap-friendly column. */}
               {[
                 ...primaryLinks,
-                { label: "Forum",    href: "/community?tab=forum" },
-                { label: "Clips",    href: "/clips" },
-                { label: "Journal",  href: "/journal" },
-                { label: "Showcase", href: "/community?tab=showcase" },
-                { label: "Design kits", href: "/kits" },
+                { label: "Forum",        href: "/community?tab=forum" },
+                { label: "Clips",        href: "/clips" },
+                { label: "Journal",      href: "/journal" },
+                { label: "Showcase",     href: "/community?tab=showcase" },
+                { label: "Design files", href: "/community?tab=files" },
+                { label: "Live chat",    href: "/community?tab=chat" },
+                { label: "Design kits",  href: "/kits" },
                 { label: "Where we're going", href: "/grow", highlight: true },
                 ...tertiaryLinks,
               ].map((l, i) => (

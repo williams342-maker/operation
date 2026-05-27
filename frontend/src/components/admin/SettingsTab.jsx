@@ -3322,6 +3322,157 @@ function LlmBudgetAlertsCard() {
 }
 
 
+// ─────────────────────────────────────────────────────────────────────
+// iter268 — Cart-recovery conversion attribution. Reads the
+// `discount_attributions` ledger and shows per-channel redemption
+// counts + revenue so the operator can see whether SMS adds enough
+// lift over email-only to justify the per-message cost. Channel buckets
+// are email · sms · direct (latter = buyer redeemed without clicking
+// through any recovery CTA).
+// ─────────────────────────────────────────────────────────────────────
+function CartRecoveryAttributionCard() {
+  const [data, setData] = useState(null);
+  const [days, setDays] = useState(30);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState("");
+
+  const API = process.env.REACT_APP_BACKEND_URL;
+  const auth = () => ({ Authorization: `Bearer ${localStorage.getItem("cm_admin_jwt") || ""}` });
+
+  const load = async (windowDays) => {
+    setLoading(true);
+    setErr("");
+    try {
+      const r = await fetch(
+        `${API}/api/admin/abandoned-cart/attribution?days=${windowDays}`,
+        { headers: auth() }
+      );
+      const body = await r.json();
+      if (!r.ok) throw new Error(body?.detail || `HTTP ${r.status}`);
+      setData(body);
+    } catch (e) {
+      setErr(e.message || "Load failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(days); /* eslint-disable-next-line */ }, []);
+
+  const onDaysChange = (d) => {
+    setDays(d);
+    load(d);
+  };
+
+  const fmt$ = (n) => `$${Number(n || 0).toFixed(2)}`;
+  const channelStyles = {
+    email:  { dot: "#22d3ee", label: "Email" },
+    sms:    { dot: "#ff4500", label: "SMS" },
+    direct: { dot: "#737373", label: "Direct (no CTA)" },
+  };
+
+  return (
+    <section
+      className="border border-[#262626] bg-[#0a0a0a] p-5"
+      data-testid="cart-recovery-attribution-card"
+    >
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#ff4500]">
+            ◆ Cart-recovery attribution
+          </div>
+          <div className="text-[#e5e5e5] mt-1">
+            Where the buyers came from when they redeemed a recovery discount code.
+          </div>
+          <div className="font-mono text-[11px] text-[#737373] mt-1">
+            Counts marketplace-wide codes only (per-shop maker codes excluded).
+          </div>
+        </div>
+        <div className="flex gap-1">
+          {[7, 30, 90].map((d) => (
+            <button
+              key={d}
+              type="button"
+              onClick={() => onDaysChange(d)}
+              className={`font-mono text-[11px] px-2 py-1 border ${days === d ? "border-[#ff4500] text-[#ff4500]" : "border-[#262626] text-[#a3a3a3] hover:text-[#e5e5e5]"}`}
+              data-testid={`attr-window-${d}d`}
+            >
+              {d}d
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {err && (
+        <div className="mt-3 font-mono text-xs text-red-400 break-all" data-testid="attr-error">
+          {err}
+        </div>
+      )}
+
+      {loading && !data && (
+        <div className="font-mono text-xs text-[#737373]">Loading…</div>
+      )}
+
+      {data && (
+        <>
+          <div className="grid md:grid-cols-3 gap-3 mt-4">
+            {["email", "sms", "direct"].map((k) => {
+              const v = data.by_medium[k] || {};
+              const s = channelStyles[k];
+              return (
+                <div
+                  key={k}
+                  className="border border-[#262626] bg-[#0a0a0a] p-3"
+                  data-testid={`attr-row-${k}`}
+                >
+                  <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+                    <span style={{ width: 8, height: 8, background: s.dot, display: "inline-block" }} />
+                    {s.label}
+                  </div>
+                  <div className="font-display text-[28px] text-[#e5e5e5] mt-2 leading-none" data-testid={`attr-${k}-redemptions`}>
+                    {v.redemptions || 0}
+                  </div>
+                  <div className="font-mono text-[10px] text-[#737373] mt-1">
+                    {v.redemptions === 1 ? "redemption" : "redemptions"}
+                  </div>
+                  <div className="font-mono text-[11px] text-[#a3a3a3] mt-3">
+                    Revenue: <span className="text-[#e5e5e5]" data-testid={`attr-${k}-revenue`}>{fmt$(v.total_revenue)}</span>
+                  </div>
+                  <div className="font-mono text-[11px] text-[#a3a3a3]">
+                    AOV: <span className="text-[#e5e5e5]">{fmt$(v.avg_order_value)}</span>
+                  </div>
+                  <div className="font-mono text-[11px] text-[#a3a3a3]">
+                    Total discounted: {fmt$(v.total_discount)}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-4 pt-3 border-t border-[#262626] grid md:grid-cols-3 gap-3 font-mono text-[11px]">
+            <div className="text-[#a3a3a3]">
+              <span className="text-[#737373]">Last {data.days}d total · </span>
+              <span className="text-[#e5e5e5]" data-testid="attr-total-redemptions">
+                {data.totals.redemptions}
+              </span>{" "}
+              redemptions
+            </div>
+            <div className="text-[#a3a3a3]">
+              <span className="text-[#737373]">Revenue: </span>
+              <span className="text-[#e5e5e5]">{fmt$(data.totals.total_revenue)}</span>
+            </div>
+            <div className="text-[#a3a3a3]">
+              <span className="text-[#737373]">Discounted: </span>
+              <span className="text-[#e5e5e5]">{fmt$(data.totals.total_discount)}</span>
+            </div>
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+
 
 export default function SettingsTab() {
   const [settings, setSettings] = useState(null);
@@ -3449,6 +3600,8 @@ export default function SettingsTab() {
       <LlmBudgetAlertsCard />
 
       <OpsDigestCard />
+
+      <CartRecoveryAttributionCard />
 
       <StripeLinkAccountCard />
 

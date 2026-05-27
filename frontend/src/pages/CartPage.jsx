@@ -35,6 +35,32 @@ export default function CartPage() {
     try { localStorage.setItem("cm_gift_note", giftNote); } catch {}
   }, [giftNote]);
 
+  // iter268 — Capture cart-recovery attribution from the URL once on
+  // mount. Email/SMS abandoned-cart CTAs land here with `?recovery=email`
+  // or `?recovery=sms` (+ optional `?code=BACKxxxx` for auto-apply).
+  // We persist `cm_recovery_medium` in localStorage so the value
+  // survives the Stripe cancel-and-return round-trip, and we
+  // auto-apply the code so the buyer doesn't have to retype it.
+  useEffect(() => {
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      const medium = (sp.get("recovery") || "").toLowerCase();
+      if (medium === "email" || medium === "sms") {
+        const ts = new Date().toISOString();
+        localStorage.setItem("cm_recovery_medium", medium);
+        localStorage.setItem("cm_recovery_landed_at", ts);
+      }
+      const codeFromUrl = (sp.get("code") || "").trim().toUpperCase();
+      if (codeFromUrl && /^[A-Z0-9_-]{3,32}$/.test(codeFromUrl)) {
+        setDiscountInput(codeFromUrl);
+        setAppliedCode(codeFromUrl);
+        try { localStorage.setItem("cm_cart_discount", codeFromUrl); } catch {}
+      }
+    } catch { /* no-op */ }
+    // run-once on mount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Live shipping/total quote (refreshes whenever cart OR applied code changes)
   useEffect(() => {
     if (!items.length) { setQuote(null); return; }
@@ -124,6 +150,14 @@ export default function CartPage() {
         customer_phone: anySmsConsent ? phone.trim() : undefined,
         sms_consent_receipts_at: smsReceipts ? nowIso : undefined,
         sms_consent_shipping_at: smsShipping ? nowIso : undefined,
+        // iter268 — Cart-recovery attribution. If the buyer landed here
+        // from an email/SMS abandoned-cart CTA, forward the medium so
+        // the discount-redemption hook can log it into the attribution
+        // ledger.
+        recovery_medium: (() => {
+          try { return localStorage.getItem("cm_recovery_medium") || undefined; }
+          catch { return undefined; }
+        })(),
       });
       window.location.href = res.url;
     } catch (e) {

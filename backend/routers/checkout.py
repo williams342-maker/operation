@@ -532,6 +532,11 @@ async def create_checkout(req: CheckoutRequest, http_request: Request):
         "customer_phone": sms_phone,
         "sms_consent_receipts_at": req.sms_consent_receipts_at if sms_phone else None,
         "sms_consent_shipping_at": req.sms_consent_shipping_at if sms_phone else None,
+        # iter268 — Cart-recovery attribution. Whitelisted to known values.
+        "recovery_medium": (
+            req.recovery_medium
+            if (req.recovery_medium or "").lower() in ("email", "sms") else None
+        ),
         "gift_note": req.gift_note,
         "transfer_group": pre_transfer_group,
         "attribution_source": attr_source,
@@ -632,12 +637,14 @@ async def checkout_status(session_id: str, http_request: Request, bg: Background
                     )
                     # If we didn't match a per-shop code, this is a marketplace-wide
                     # retention code from `marketing_codes`. Increment there too.
+                    is_marketplace_code = False
                     if discount_update.modified_count == 0:
-                        await db.marketing_codes.update_one(
+                        mc_update = await db.marketing_codes.update_one(
                             {"code": used_code},
                             {"$inc": {"uses_count": 1},
                              "$set": {"last_used_at": now_iso(), "active": False}},
                         )
+                        is_marketplace_code = mc_update.modified_count > 0
                     await db.transactions.update_one(
                         {"session_id": session_id},
                         {"$set": {
@@ -646,6 +653,31 @@ async def checkout_status(session_id: str, http_request: Request, bg: Background
                             "discount_maker_slug": used_maker,
                         }},
                     )
+                    # iter268 — Conversion attribution ledger. One row
+                    # per redeemed marketplace-wide code (these are the
+                    # ones our cart-recovery flow issues; per-shop codes
+                    # come from makers and aren't attribution-tracked).
+                    # `recovery_medium` was stamped at checkout-session
+                    # creation from the localStorage flag the CartPage
+                    # set on landing from email/SMS CTAs.
+                    if is_marketplace_code:
+                        try:
+                            recovery_medium = (tx.get("recovery_medium") or "").lower()
+                            if recovery_medium not in ("email", "sms"):
+                                recovery_medium = "direct"
+                            await db.discount_attributions.insert_one({
+                                "id": str(uuid.uuid4()),
+                                "code": used_code,
+                                "medium": recovery_medium,  # email | sms | direct
+                                "amount_off": used_amount,
+                                "order_total": float(tx.get("amount") or 0),
+                                "session_id": session_id,
+                                "buyer_email": (tx.get("customer_email") or "").lower(),
+                                "redeemed_at": now_iso(),
+                                "source": "abandoned_cart",
+                            })
+                        except Exception as att_err:
+                            logger.warning("[attribution] insert failed: %s", att_err)
                     logger.info("[discount] code %s used on session %s for $%.2f",
                                 used_code, session_id, used_amount)
             except Exception as e:
