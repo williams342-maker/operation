@@ -1978,6 +1978,7 @@ function FileUploadForm({ onSaved }) {
 }
 
 function FileCard({ file, canDownload, me, onRefresh }) {
+  const navigate = useNavigate();
   const [status, setStatus] = useState(null);
   const [reportOpen, setReportOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -2315,8 +2316,10 @@ function FileCard({ file, canDownload, me, onRefresh }) {
         </button>
       ) : !hasBundle ? (
         // Single-format files keep the simple direct-download button.
-        <button onClick={() => onDownload(null)} disabled={!canDownload}
-                className="btn-industrial inline-flex items-center justify-center gap-2 border border-[#262626] hover:border-[#ff4500] disabled:opacity-50"
+        // iter262 — when not signed in, clicking the button must send the
+        // visitor to the community login (was a no-op `disabled` button).
+        <button onClick={() => canDownload ? onDownload(null) : navigate("/community/login")}
+                className="btn-industrial inline-flex items-center justify-center gap-2 border border-[#262626] hover:border-[#ff4500]"
                 data-testid={`file-download-${file.id}`}>
           <Download size={14} /> {canDownload ? "Download" : "Sign in to download"}
         </button>
@@ -2325,9 +2328,8 @@ function FileCard({ file, canDownload, me, onRefresh }) {
         // so quotas stay accurate.
         <div className="relative" data-testid={`file-download-bundle-${file.id}`}>
           <button
-            onClick={() => canDownload && setDownloadOpen((s) => !s)}
-            disabled={!canDownload}
-            className="btn-industrial w-full inline-flex items-center justify-center gap-2 border border-[#262626] hover:border-[#ff4500] disabled:opacity-50"
+            onClick={() => canDownload ? setDownloadOpen((s) => !s) : navigate("/community/login")}
+            className="btn-industrial w-full inline-flex items-center justify-center gap-2 border border-[#262626] hover:border-[#ff4500]"
             data-testid={`file-download-${file.id}`}
           >
             <Download size={14} />
