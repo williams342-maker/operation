@@ -45,7 +45,6 @@ import ContactInboxTab from "../components/admin/ContactInboxTab";
 import SettingsTab from "../components/admin/SettingsTab";
 import AuditTab from "../components/admin/AuditTab";
 import AdsTab from "../components/admin/AdsTab";
-import BufferTab from "../components/admin/BufferTab";
 import ChatModTab from "../components/admin/ChatModTab";
 import RetentionTab from "../components/admin/RetentionTab";
 import TeamTab from "../components/admin/TeamTab";
@@ -102,7 +101,6 @@ const TABS = [
   { id: "showcase-curation", label: "Showcase Rotation", caps: ["content"] },
   { id: "showcase-mod", label: "Showcase Mod", caps: ["moderation", "content"] },
   { id: "shipping-ledger", label: "Shipping Ledger", caps: ["finance"] },
-  { id: "buffer", label: "Social", caps: ["content"] },
   { id: "team", label: "Team", superOnly: true },
   { id: "updates", label: "Updates", caps: ["content"] },
   { id: "users", label: "Users", caps: ["moderation"] },
@@ -512,7 +510,6 @@ export default function AdminDashboard() {
             {tab === "reviews" && <ReviewsTab />}
             {tab === "audit" && <AuditTab />}
             {tab === "ads" && <AdsTab />}
-            {tab === "buffer" && <BufferTab />}
             {tab === "chat" && <ChatModTab />}
             {tab === "digests" && <DigestsTab />}
             {tab === "feedback" && <FeedbackTab />}

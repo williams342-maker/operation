@@ -141,13 +141,6 @@ async def notify_listing_published(
     high_value = _is_high_value(product)
     listing_url = f"{SITE_URL}/shop/{listing_slug}"
 
-    # 4. Buffer (social fan-out)
-    try:
-        from buffer_service import auto_post_listing
-        await auto_post_listing(product, maker)
-    except Exception as e:
-        logger.exception("[listing_publish] buffer auto-post failed: %s", e)
-
     if high_value:
         # 5. Kit drop broadcast — only for the loud ones, targeted to the
         # maker's "interested-in-{slug}" tag (saved-drop audience). When
@@ -199,7 +192,6 @@ async def notify_listing_published(
         "follower_sent": follower_sent,
         "high_value": high_value,
         "fanout": {
-            "buffer": True,
             "kit_broadcast": high_value,
             "activity_drop": high_value,
         },

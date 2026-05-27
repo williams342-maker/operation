@@ -864,20 +864,6 @@ async def _job_weekly_seo_ping():
 
 
 
-async def _job_buffer_auto_pick():
-    """iter251 — Pick the top clip + top showcase post from the trailing
-    24h, queue each to every connected Buffer channel. No-op when the
-    admin toggle in db.app_settings._id=buffer_auto.enabled is False."""
-    from routers.buffer_community import run_auto_pick
-    try:
-        r = await run_auto_pick()
-        logger.info("[scheduler] buffer_auto_pick: %s", r)
-    except Exception as e:
-        logger.exception("[scheduler] buffer_auto_pick failed: %s", e)
-
-
-
-
 async def _job_hero_headlines_refresh():
     """Daily refresh of the rotating hero headline pool (iter220). Calls
     Gemini once via `hero_headlines.refresh_pool()` to draft 5 fresh
@@ -1091,12 +1077,7 @@ def start_scheduler() -> AsyncIOScheduler | None:
                   CronTrigger(day_of_week="mon", hour=14, minute=0),
                   id="maker_journal_digest", replace_existing=True)
 
-    # iter251 — nightly Buffer auto-pick. Picks the top-engaging clip + top
-    # showcase post from the last 24h, queues both to every connected social
-    # channel. No-op when the admin toggle is off (db.app_settings._id=buffer_auto).
-    sched.add_job(_job_buffer_auto_pick,
-                  CronTrigger(hour=14, minute=0),  # 9am ET
-                  id="buffer_auto_pick", replace_existing=True)
+    # iter251 — nightly Buffer auto-pick. REMOVED iter252 (Buffer replaced by EnrichLabs).
     sched.start()
     _scheduler = sched
     logger.info(

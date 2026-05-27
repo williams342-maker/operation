@@ -49,12 +49,6 @@ DEFAULT_SETTINGS: dict = {
     # single biggest UGC lever for indie shops; ops can mute during
     # email-deliverability investigations.
     "auto_review_prompt_enabled": True,
-    # When ON, fresh 5-star reviews ≥30 chars long are auto-queued to
-    # Buffer (every connected channel) so makers get free social proof
-    # distribution. Idempotent — each review is posted at most once. Default
-    # OFF so existing installs don't start posting without explicit
-    # operator opt-in.
-    "auto_publish_5star_reviews_enabled": False,
 }
 
 

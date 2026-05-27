@@ -30,7 +30,6 @@ from routers.gsc_admin import router as gsc_admin_router
 from routers.admin_secrets import router as admin_secrets_router
 from routers.follows import router as follows_router
 from routers.ad_spend import router as ad_spend_router
-from routers.buffer import router as buffer_router
 from routers.newsletter import router as newsletter_router
 from routers.chat_mod import router as chat_mod_router
 from routers.stripe_connect import router as stripe_connect_router
@@ -86,7 +85,6 @@ api.include_router(community_chat_router)
 api.include_router(settings_router)
 api.include_router(follows_router)
 api.include_router(ad_spend_router)
-api.include_router(buffer_router)
 api.include_router(newsletter_router)
 api.include_router(chat_mod_router)
 api.include_router(auth_password_router)
@@ -141,8 +139,6 @@ from routers.merge_williams import router as merge_williams_router
 api.include_router(merge_williams_router)
 from routers.onboarding import router as onboarding_router
 api.include_router(onboarding_router)
-from routers.buffer_community import router as buffer_community_router
-api.include_router(buffer_community_router)
 # iter231 — Admin showcase curation (pin / hide / reorder / shuffle)
 from routers.showcase_admin import router as showcase_admin_router
 api.include_router(showcase_admin_router)

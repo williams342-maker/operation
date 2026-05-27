@@ -7,7 +7,6 @@ import {
   moveShowcaseUp,
   moveShowcaseDown,
   shuffleShowcase,
-  shareShowcaseToBuffer,
 } from "../../lib/api";
 
 /**
@@ -71,21 +70,7 @@ export default function ShowcaseCurationTab() {
   };
 
   // iter251 — push the showcase post to every connected Buffer channel.
-  const onShare = async (id) => {
-    setBusyId(id);
-    try {
-      const r = await shareShowcaseToBuffer(id);
-      const ok = r?.result?.success_count || 0;
-      const fail = r?.result?.fail_count || 0;
-      if (ok > 0) toast.success(`Queued to ${ok} channel${ok === 1 ? "" : "s"}` + (fail > 0 ? ` · ${fail} failed` : ""));
-      else if (fail > 0) toast.error(`All ${fail} channels failed. Check Buffer status.`);
-      else toast.success("Queued.");
-    } catch (e) {
-      toast.error(e?.response?.data?.detail || "Share failed.");
-    } finally {
-      setBusyId(null);
-    }
-  };
+  // Removed iter252 (Buffer replaced by EnrichLabs).
 
   if (loading) {
     return (
@@ -131,7 +116,6 @@ export default function ShowcaseCurationTab() {
                busyId={busyId} canReorder={false}
                onPin={() => wrap(p.id, toggleShowcasePin, p.admin_pinned ? "Unpinned." : "Pinned.")}
                onHide={() => wrap(p.id, toggleShowcaseHide)}
-               onShare={() => onShare(p.id)}
                onUp={() => wrap(p.id, moveShowcaseUp)}
                onDown={() => wrap(p.id, moveShowcaseDown)} />
         ))}
@@ -147,7 +131,6 @@ export default function ShowcaseCurationTab() {
                busyId={busyId} canReorder
                onPin={() => wrap(p.id, toggleShowcasePin, "Pinned.")}
                onHide={() => wrap(p.id, toggleShowcaseHide, "Hidden from showcase.")}
-               onShare={() => onShare(p.id)}
                onUp={() => wrap(p.id, moveShowcaseUp)}
                onDown={() => wrap(p.id, moveShowcaseDown)} />
         ))}
@@ -164,7 +147,6 @@ export default function ShowcaseCurationTab() {
                  busyId={busyId} canReorder={false} dimmed
                  onPin={() => wrap(p.id, toggleShowcasePin, "Pinned.")}
                  onHide={() => wrap(p.id, toggleShowcaseHide, "Restored to showcase.")}
-                 onShare={() => onShare(p.id)}
                  onUp={() => wrap(p.id, moveShowcaseUp)}
                  onDown={() => wrap(p.id, moveShowcaseDown)} />
           ))}
@@ -191,7 +173,7 @@ function Section({ title, blurb, empty, testId, children }) {
   );
 }
 
-function Row({ item, index, total, busyId, canReorder, dimmed, onPin, onHide, onShare, onUp, onDown }) {
+function Row({ item, index, total, busyId, canReorder, dimmed, onPin, onHide, onUp, onDown }) {
   const busy = busyId === item.id;
   return (
     <div
@@ -221,15 +203,6 @@ function Row({ item, index, total, busyId, canReorder, dimmed, onPin, onHide, on
         </div>
       </div>
       <div className="flex items-center gap-1">
-        <button
-          onClick={onShare}
-          disabled={busy}
-          className="px-2 py-1.5 border border-[#262626] hover:border-[#00ffff] hover:text-[#00ffff] font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50"
-          title="Share to social channels via Buffer"
-          data-testid={`showcase-share-${item.id}`}
-        >
-          ↗ Share
-        </button>
         <button
           onClick={onPin}
           disabled={busy}

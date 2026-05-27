@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from "react";
 import {
-  ChevronDown, Megaphone, Tag, Share2, Gift, Camera, FileText, Hash,
+  ChevronDown, Megaphone, Tag, Gift, Camera, FileText, Hash,
   TrendingUp, DollarSign, Copy, Download, Award,
 } from "lucide-react";
 import { toast } from "sonner";
-import { fetchMakerProducts, makerShareListingToBuffer, downloadProductStoryCard, fetchMakerMe } from "../../lib/api";
+import { fetchMakerProducts, downloadProductStoryCard, fetchMakerMe } from "../../lib/api";
 import { RowsSkeleton } from "../../components/Skeleton";
 import Section from "./Marketing/Section";
 import AdsSection from "./Marketing/AdsSection";
@@ -39,7 +39,6 @@ import FounderEmailSignature from "./Marketing/FounderEmailSignature";
 const SECTIONS_BASE = [
   { id: "ads",      label: "Crafters Market Ads", icon: Megaphone },
   { id: "sales",    label: "Sales and discounts", icon: Tag },
-  { id: "social",   label: "Social media",        icon: Share2 },
   { id: "stories",  label: "Story templates",     icon: Download },
   { id: "share",    label: "Share & Save",        icon: Gift },
 ];
@@ -81,7 +80,6 @@ export default function MarketingTab() {
         <div className="min-w-0" data-testid={`marketing-section-${section}`}>
           {section === "ads"     && <AdsAndAITools />}
           {section === "sales"   && <DiscountCodes />}
-          {section === "social"  && <SocialMedia />}
           {section === "stories" && <StoryTemplates />}
           {section === "share"   && <ShareAndSave />}
           {section === "founder" && (
@@ -152,63 +150,6 @@ function SubNav({ sections, activeId, onPick, open, onToggleOpen }) {
         </ul>
       </nav>
     </>
-  );
-}
-
-// ============================================================================
-// Section: Social media — share to Buffer (already wired backend-side)
-// ============================================================================
-function SocialMedia() {
-  const [products, setProducts] = useState(null);
-  const [busy, setBusy] = useState("");
-
-  useEffect(() => {
-    fetchMakerProducts()
-      .then((all) => setProducts(all.filter((p) => !p.deleted_at && p.status !== "draft")))
-      .catch(() => setProducts([]));
-  }, []);
-
-  const share = async (slug) => {
-    setBusy(slug);
-    try {
-      await makerShareListingToBuffer(slug);
-      toast.success("Queued to Buffer — will post across your linked socials.");
-    } catch (e) {
-      toast.error(e?.response?.data?.detail || "Buffer queue failed.");
-    } finally { setBusy(""); }
-  };
-
-  return (
-    <Section title="Share to social media" testId="social-share">
-      <p className="font-mono text-xs text-[#a3a3a3] mb-5 max-w-2xl leading-relaxed">
-        Queue any listing to your linked Buffer account — posts go out to Instagram, Facebook, X, and Pinterest on your schedule. Connect Buffer in <a href="/maker/dashboard#settings" className="text-[#ff4500] hover:underline">Settings → Integrations</a>.
-      </p>
-
-      {products === null ? (
-        <div data-testid="social-share-loading"><RowsSkeleton count={3} /></div>
-      ) : products.length === 0 ? (
-        <p className="font-mono text-xs text-[#525252]">Publish a listing first — drafts can't be shared.</p>
-      ) : (
-        <ul className="border border-[#1f1f1f] divide-y divide-[#1f1f1f]" data-testid="social-share-list">
-          {products.slice(0, 12).map((p) => (
-            <li key={p.id} className="flex items-center gap-3 px-3 py-2">
-              {p.images?.[0] && (
-                <img src={p.images[0]} alt="" className="w-10 h-10 object-cover" />
-              )}
-              <div className="flex-1 min-w-0">
-                <div className="font-mono text-xs text-[#e5e5e5] truncate">{p.title}</div>
-                <div className="font-mono text-[10px] text-[#525252]">${p.price.toFixed(0)} · {p.category}</div>
-              </div>
-              <button onClick={() => share(p.slug)} disabled={busy === p.slug}
-                className="px-3 py-1.5 border border-sky-500/40 text-sky-400 hover:bg-sky-500/10 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
-                data-testid={`social-share-${p.slug}`}>
-                {busy === p.slug ? "Queueing…" : "↗ Queue"}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </Section>
   );
 }
 
