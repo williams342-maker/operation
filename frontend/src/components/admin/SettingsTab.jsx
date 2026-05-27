@@ -3610,6 +3610,295 @@ function EnrichLabsFeedCard() {
 }
 
 
+// ─────────────────────────────────────────────────────────────────────
+// iter271 — Social auto-post queue. Lists every listing that's been
+// auto-queued for Crafters Market's branded IG/Pinterest/FB posting
+// (only Founder + Plus makers get auto-queued — eligibility lives in
+// `backend/social_auto_post_service.py::eligibility_for`). Ops works
+// the queue manually today: copy the image + caption to IG, mark the
+// row "Published". Skip if it's off-brand / poor photo / already posted.
+// ─────────────────────────────────────────────────────────────────────
+function SocialAutoPostQueueCard() {
+  const API = process.env.REACT_APP_BACKEND_URL;
+  const [status, setStatus] = useState("pending");
+  const [data, setData] = useState(null);
+  const [eligCounts, setEligCounts] = useState(null);
+  const [busy, setBusy] = useState("");
+  const [err, setErr] = useState("");
+
+  const auth = () => ({
+    Authorization: `Bearer ${localStorage.getItem("cm_admin_jwt") || ""}`,
+  });
+
+  const load = async (statusFilter) => {
+    setErr("");
+    try {
+      const [r1, r2] = await Promise.all([
+        fetch(`${API}/api/admin/social-auto-post/queue?status=${statusFilter}&limit=50`, { headers: auth() }),
+        fetch(`${API}/api/admin/social-auto-post/eligibility-counts`, { headers: auth() }),
+      ]);
+      if (!r1.ok) throw new Error(`HTTP ${r1.status}`);
+      const body = await r1.json();
+      setData(body);
+      if (r2.ok) setEligCounts(await r2.json());
+    } catch (e) {
+      setErr(e.message || "Load failed");
+    }
+  };
+
+  useEffect(() => { load(status); /* eslint-disable-next-line */ }, [status]);
+
+  const markPublished = async (rowId) => {
+    setBusy(rowId);
+    try {
+      const r = await fetch(`${API}/api/admin/social-auto-post/${rowId}/mark-published`, {
+        method: "POST", headers: auth(),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      toast.success("Marked as published.");
+      load(status);
+    } catch (e) {
+      toast.error(e.message || "Failed");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const skip = async (rowId) => {
+    const reason = window.prompt("Why skip this listing? (optional, ≤200 chars)") || "";
+    setBusy(rowId);
+    try {
+      const url = `${API}/api/admin/social-auto-post/${rowId}/skip?reason=${encodeURIComponent(reason)}`;
+      const r = await fetch(url, { method: "POST", headers: auth() });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      toast.success("Skipped.");
+      load(status);
+    } catch (e) {
+      toast.error(e.message || "Failed");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const copyCaption = (row) => {
+    const caption = [
+      `NEW DROP — ${row.maker_name}`,
+      "",
+      row.product_title,
+      `$${row.price.toFixed(0)}`,
+      "",
+      `Shop: ${row.product_url}`,
+      "",
+      "#handmade #cnc #craftersmarket",
+    ].join("\n");
+    navigator.clipboard?.writeText(caption);
+    toast.success("Caption copied — paste into IG/FB.");
+  };
+
+  const fmtDate = (iso) => {
+    try { return new Date(iso).toLocaleString(); } catch { return iso || ""; }
+  };
+
+  const tierColor = {
+    inaugural_founder: "#22d3ee",
+    founder: "#ff4500",
+    plus: "#ff4500",
+  };
+
+  return (
+    <section
+      className="border border-[#262626] bg-[#0a0a0a] p-5"
+      data-testid="social-auto-post-queue-card"
+    >
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#ff4500]">
+            ◆ Social auto-post queue
+          </div>
+          <div className="text-[#e5e5e5] mt-1">
+            Listings queued for our IG / Pinterest / Facebook accounts.
+          </div>
+          <div className="font-mono text-[11px] text-[#737373] mt-1">
+            Only Founder + Plus makers' listings auto-queue. Free-tier makers must upgrade.
+          </div>
+        </div>
+        <div className="flex gap-1">
+          {["pending", "published", "skipped", "all"].map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => setStatus(s)}
+              className={`font-mono text-[10px] uppercase tracking-[0.18em] px-2 py-1 border ${status === s ? "border-[#ff4500] text-[#ff4500]" : "border-[#262626] text-[#a3a3a3] hover:text-[#e5e5e5]"}`}
+              data-testid={`social-queue-filter-${s}`}
+            >
+              {s}
+              {data?.summary?.[s] !== undefined && s !== "all" && (
+                <span className="ml-1 text-[#525252]">· {data.summary[s]}</span>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Top stats row: queue summary + eligibility breakdown */}
+      <div className="grid md:grid-cols-2 gap-3 mb-4">
+        {data?.summary && (
+          <div className="border border-[#262626] bg-[#0d0d0d] p-3">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#737373] mb-2">
+              ◆ Queue totals
+            </div>
+            <div className="grid grid-cols-3 gap-3 text-center">
+              {[
+                ["Pending",   data.summary.pending,   "#ff4500"],
+                ["Published", data.summary.published, "#22c55e"],
+                ["Skipped",   data.summary.skipped,   "#737373"],
+              ].map(([lbl, v, col]) => (
+                <div key={lbl} data-testid={`social-queue-stat-${lbl.toLowerCase()}`}>
+                  <div className="font-display text-2xl leading-none" style={{ color: v ? col : "#525252" }}>
+                    {v}
+                  </div>
+                  <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#737373] mt-1">{lbl}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {eligCounts && (
+          <div className="border border-[#262626] bg-[#0d0d0d] p-3">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#737373] mb-2">
+              ◆ Makers by tier ({eligCounts.total} total)
+            </div>
+            <div className="space-y-1.5 font-mono text-[11px]">
+              <TierRow label="Inaugural Founder" count={eligCounts.counts.inaugural_founder} color="#22d3ee" total={eligCounts.total} />
+              <TierRow label="Founder member"    count={eligCounts.counts.founder}           color="#ff4500" total={eligCounts.total} />
+              <TierRow label="Plus subscriber"   count={eligCounts.counts.plus}              color="#ff4500" total={eligCounts.total} />
+              <TierRow label="Free tier (no auto-post)" count={eligCounts.counts.none}       color="#737373" total={eligCounts.total} />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {err && (
+        <div className="font-mono text-xs text-red-400 mb-3" data-testid="social-queue-error">{err}</div>
+      )}
+
+      {/* Queue rows */}
+      {data?.rows?.length === 0 && (
+        <div className="border border-[#262626] bg-[#0d0d0d] p-6 text-center font-mono text-xs text-[#525252]">
+          No rows in the "{status}" bucket.
+        </div>
+      )}
+
+      {data?.rows?.length > 0 && (
+        <div className="border border-[#262626] divide-y divide-[#262626]" data-testid="social-queue-list">
+          {data.rows.map((row) => (
+            <div key={row.id} className="flex items-start gap-3 p-3" data-testid={`social-queue-row-${row.id}`}>
+              {row.image_url && (
+                <img
+                  src={row.image_url}
+                  alt=""
+                  loading="lazy"
+                  className="w-16 h-16 object-cover shrink-0"
+                />
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="font-mono text-xs text-[#e5e5e5] truncate">
+                    {row.product_title}
+                  </div>
+                  <span
+                    className="font-mono text-[9px] uppercase tracking-[0.22em] px-1.5 py-0.5 border"
+                    style={{ color: tierColor[row.eligibility_tier] || "#737373", borderColor: tierColor[row.eligibility_tier] || "#262626" }}
+                  >
+                    {row.eligibility_tier?.replace("_", " ")}
+                  </span>
+                  <span
+                    className="font-mono text-[9px] uppercase tracking-[0.22em] px-1.5 py-0.5 border"
+                    style={{
+                      color: row.status === "pending" ? "#ff4500"
+                           : row.status === "published" ? "#22c55e"
+                           : "#737373",
+                      borderColor: "#262626",
+                    }}
+                  >
+                    {row.status}
+                  </span>
+                </div>
+                <div className="font-mono text-[10px] text-[#737373] mt-1">
+                  by {row.maker_name} · ${(row.price || 0).toFixed(0)} ·{" "}
+                  {row.status === "pending" ? "Queued" : "Closed"} {fmtDate(row.published_at || row.queued_at)}
+                </div>
+                <div className="font-mono text-[10px] text-[#525252] mt-1">
+                  {(row.channels || []).join(" · ")}
+                </div>
+                {row.skipped_reason && (
+                  <div className="font-mono text-[10px] text-[#a3a3a3] mt-1 italic">
+                    Skip reason: {row.skipped_reason}
+                  </div>
+                )}
+              </div>
+              {/* Actions */}
+              <div className="flex flex-col gap-1.5 shrink-0">
+                <a
+                  href={row.product_url}
+                  target="_blank" rel="noopener noreferrer"
+                  className="px-2.5 py-1 border border-[#262626] text-[#a3a3a3] hover:text-[#e5e5e5] hover:border-[#525252] font-mono text-[9px] uppercase tracking-[0.22em] text-center"
+                  data-testid={`social-queue-open-${row.id}`}
+                >
+                  View →
+                </a>
+                {row.status === "pending" && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => copyCaption(row)}
+                      className="px-2.5 py-1 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/10 font-mono text-[9px] uppercase tracking-[0.22em]"
+                      data-testid={`social-queue-copy-${row.id}`}
+                    >
+                      Copy caption
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => markPublished(row.id)}
+                      disabled={busy === row.id}
+                      className="px-2.5 py-1 border border-[#22c55e]/40 text-[#22c55e] hover:bg-[#22c55e]/10 font-mono text-[9px] uppercase tracking-[0.22em] disabled:opacity-50"
+                      data-testid={`social-queue-publish-${row.id}`}
+                    >
+                      {busy === row.id ? "…" : "Mark published"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => skip(row.id)}
+                      disabled={busy === row.id}
+                      className="px-2.5 py-1 border border-[#262626] text-[#737373] hover:text-[#e5e5e5] hover:border-[#525252] font-mono text-[9px] uppercase tracking-[0.22em] disabled:opacity-50"
+                      data-testid={`social-queue-skip-${row.id}`}
+                    >
+                      Skip
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function TierRow({ label, count, color, total }) {
+  const pct = total ? Math.round((count / total) * 100) : 0;
+  return (
+    <div className="flex items-center gap-2">
+      <span style={{ width: 6, height: 6, background: color, display: "inline-block" }} />
+      <span className="flex-1 text-[#d4d4d4] truncate">{label}</span>
+      <span className="text-[#e5e5e5]" style={{ color: count ? color : undefined }}>{count}</span>
+      <span className="text-[#525252] w-10 text-right">{pct}%</span>
+    </div>
+  );
+}
+
+
 
 export default function SettingsTab() {
   const [settings, setSettings] = useState(null);
@@ -3741,6 +4030,8 @@ export default function SettingsTab() {
       <CartRecoveryAttributionCard />
 
       <EnrichLabsFeedCard />
+
+      <SocialAutoPostQueueCard />
 
       <StripeLinkAccountCard />
 
