@@ -793,7 +793,12 @@ class BackorderDecision(BaseModel):
 class RestockWaitlistEntry(BaseModel):
     """A buyer who wants to hear back when a 0-stock listing is restocked.
     Distinct from BackorderRequest — no commitment, no maker decision flow.
-    Sent automatically the next time stock goes from 0 → positive."""
+    Sent automatically the next time stock goes from 0 → positive.
+
+    iter266 — Optional SMS channel. `phone` (E.164) + `sms_consent_at`
+    (ISO timestamp at click-time) opt the buyer into receiving the
+    notification as a text in addition to the email. Both fields must be
+    present together or neither — the modal enforces this client-side."""
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     product_id: str
@@ -802,6 +807,8 @@ class RestockWaitlistEntry(BaseModel):
     maker_slug: str
     buyer_email: EmailStr
     buyer_name: Optional[str] = ""
+    phone: Optional[str] = None
+    sms_consent_at: Optional[str] = None
     created_at: str = Field(default_factory=now_iso)
     notified_at: Optional[str] = None
 
@@ -810,3 +817,8 @@ class RestockWaitlistCreate(BaseModel):
     model_config = ConfigDict(extra="ignore")
     buyer_email: EmailStr
     buyer_name: Optional[str] = ""
+    # iter266 — optional SMS opt-in. If `phone` is set without
+    # `sms_consent_at` (or vice-versa) the backend silently drops both
+    # and falls back to email-only.
+    phone: Optional[str] = None
+    sms_consent_at: Optional[str] = None

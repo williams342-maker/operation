@@ -14,6 +14,7 @@ listing so makers know how much demand sits behind a 0-stock SKU.
 """
 from __future__ import annotations
 import os
+from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 
@@ -48,9 +49,24 @@ async def join_restock_waitlist(
         )
     email_norm = payload.buyer_email.lower().strip()
 
+    # iter266 — Optional SMS channel. Both `phone` AND `sms_consent_at`
+    # must be present for us to text. Phone is normalized to E.164 (US
+    # default); invalid numbers fall through silently as email-only.
+    phone_norm: Optional[str] = None
+    sms_consent_at: Optional[str] = None
+    if payload.phone and payload.sms_consent_at:
+        try:
+            from sms_service import e164_normalize
+            phone_norm = e164_normalize(payload.phone)
+        except Exception:
+            phone_norm = None
+        if phone_norm:
+            sms_consent_at = payload.sms_consent_at
+
     # Prevent duplicate signups: if the same email is already on the list
     # for this product (and hasn't been notified), return the existing
-    # row instead of stacking duplicates.
+    # row instead of stacking duplicates. If the buyer is re-submitting
+    # to ADD phone/SMS, update the existing row in place.
     existing = await db.restock_waitlist.find_one(
         {
             "product_id": p["id"],
@@ -60,6 +76,14 @@ async def join_restock_waitlist(
         {"_id": 0},
     )
     if existing:
+        if phone_norm and not existing.get("phone"):
+            await db.restock_waitlist.update_one(
+                {"id": existing["id"]},
+                {"$set": {"phone": phone_norm,
+                          "sms_consent_at": sms_consent_at}},
+            )
+            existing["phone"] = phone_norm
+            existing["sms_consent_at"] = sms_consent_at
         return existing
 
     entry = RestockWaitlistEntry(
@@ -67,6 +91,8 @@ async def join_restock_waitlist(
         product_title=p["title"], maker_slug=p["maker_slug"],
         buyer_email=email_norm,
         buyer_name=(payload.buyer_name or "").strip(),
+        phone=phone_norm,
+        sms_consent_at=sms_consent_at,
     )
     doc = entry.model_dump()
     await db.restock_waitlist.insert_one(dict(doc))
@@ -79,8 +105,25 @@ async def join_restock_waitlist(
         email_norm, payload.buyer_name or "",
         p["title"], maker.get("name") or p["maker_slug"],
     )
+    # iter266 — confirmation SMS (one tiny ping so the buyer knows their
+    # phone got saved correctly). Telnyx-config-gated; opted-out numbers
+    # are skipped inside send_sms itself.
+    if phone_norm:
+        from sms_service import send_sms
+        bg.add_task(
+            send_sms,
+            to=phone_norm,
+            body=(
+                f"Crafters Market: you're on the restock list for "
+                f"{p['title'][:60]}. We'll text + email once it's back. "
+                "Reply STOP to opt out."
+            ),
+            dedup_key=f"restock_signup:{p['id']}:{phone_norm}",
+            kind="restock_signup",
+        )
     logger.info(
-        "restock waitlist signup · slug=%s buyer=%s", p["slug"], email_norm,
+        "restock waitlist signup · slug=%s buyer=%s sms=%s",
+        p["slug"], email_norm, bool(phone_norm),
     )
     return entry
 
@@ -144,23 +187,43 @@ async def fire_restock_notifications_if_needed(
     # Lazy-import here so this helper module stays importable from
     # routers/maker.py even on cold start ordering.
     from email_service import send_buyer_restocked
+    # iter266 — SMS send is gated by Telnyx config at the send_sms layer;
+    # we always queue both, the unconfigured branch silently no-ops.
+    from sms_service import send_sms
 
+    product_title = p.get("title") or "your saved item"
+    maker_name = maker.get("name") or p.get("maker_slug") or "the maker"
+
+    sms_count = 0
     for e in pending:
         bg.add_task(
             send_buyer_restocked,
             e["buyer_email"],
             e.get("buyer_name") or "",
-            p.get("title") or e.get("product_title") or "your saved item",
+            product_title,
             product_url,
-            maker.get("name") or p.get("maker_slug") or "the maker",
+            maker_name,
         )
+        if e.get("phone") and e.get("sms_consent_at"):
+            sms_count += 1
+            bg.add_task(
+                send_sms,
+                to=e["phone"],
+                body=(
+                    f"Crafters Market: {product_title[:50]} is back in stock! "
+                    f"Grab it before it's gone: {product_url} "
+                    "Reply STOP to opt out."
+                ),
+                dedup_key=f"restock_back:{product_id}:{e['phone']}",
+                kind="restock_back_in_stock",
+            )
     ts = now_iso()
     await db.restock_waitlist.update_many(
         {"product_id": product_id, "notified_at": None},
         {"$set": {"notified_at": ts}},
     )
     logger.info(
-        "restock waitlist drained · product=%s notified=%d",
-        product_id, len(pending),
+        "restock waitlist drained · product=%s notified=%d sms=%d",
+        product_id, len(pending), sms_count,
     )
     return len(pending)
