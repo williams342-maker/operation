@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useCart } from "../lib/cart";
-import { createCheckout, fetchCartQuote } from "../lib/api";
+import { createCheckout, fetchCartQuote, trackCart } from "../lib/api";
 import { getAttributionSource } from "../lib/analytics";
 import { Trash2 } from "lucide-react";
 import PolicyConsent, { usePolicyConsent } from "../components/PolicyConsent";
@@ -15,7 +15,6 @@ export default function CartPage() {
   // Each checkbox stamps the current ISO timestamp at click-time so the
   // backend has an audit trail of when consent was given.
   const [phone, setPhone] = useState("");
-  const [smsCart, setSmsCart] = useState(false);
   const [smsReceipts, setSmsReceipts] = useState(false);
   const [smsShipping, setSmsShipping] = useState(false);
   const consent = usePolicyConsent();
@@ -54,6 +53,27 @@ export default function CartPage() {
     return () => { alive = false; };
   }, [items, appliedCode]);
 
+  // iter267 — Debounced push of phone + receipts/shipping consents to
+  // /cart/track so the abandoned-cart SMS fallback has the buyer's
+  // number even if they bounce before hitting checkout. Backend still
+  // only writes the row when it can resolve an email (JWT or push sub).
+  useEffect(() => {
+    if (!items.length) return;
+    const anySmsConsent = smsReceipts || smsShipping;
+    if (!anySmsConsent) return;
+    if (!/^\+?[\d\s().-]{7,20}$/.test(phone.trim())) return;
+    const t = setTimeout(() => {
+      const nowIso = new Date().toISOString();
+      const trimmed = items.map(({ image: _img, ...rest }) => rest);
+      trackCart(trimmed, {
+        phone: phone.trim(),
+        sms_consent_receipts_at: smsReceipts ? nowIso : undefined,
+        sms_consent_shipping_at: smsShipping ? nowIso : undefined,
+      }).catch(() => {});
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [phone, smsReceipts, smsShipping, items]);
+
   const applyCode = () => {
     const c = (discountInput || "").trim().toUpperCase();
     if (!c) return;
@@ -72,8 +92,11 @@ export default function CartPage() {
     if (!consent.accepted) {
       setErr("Please review and accept the Site Policies to continue."); return;
     }
-    // iter265 — if any SMS consent is ticked, phone is required.
-    const anySmsConsent = smsCart || smsReceipts || smsShipping;
+    // iter267 — if any SMS consent is ticked, phone is required. The
+    // cart-nudge consent was removed; cart-recovery SMS now only fires
+    // as a fallback against the phone given for receipts/shipping,
+    // 24h after the first abandoned-cart email goes out.
+    const anySmsConsent = smsReceipts || smsShipping;
     if (anySmsConsent && !/^\+?[\d\s().-]{7,20}$/.test(phone.trim())) {
       setErr("Enter a phone number to receive the SMS updates you opted into."); return;
     }
@@ -95,9 +118,10 @@ export default function CartPage() {
         policy_accepted: true,
         policy_version: consent.version,
         policy_accepted_at: nowIso,
-        // iter265 — SMS phone + per-channel consents. Absence = no consent.
+        // iter267 — SMS phone + per-channel consents. Absence = no
+        // consent. Cart-nudges consent removed — cart-recovery SMS is
+        // an automatic 24h-after-email fallback (not buyer-toggled).
         customer_phone: anySmsConsent ? phone.trim() : undefined,
-        sms_consent_cart_nudges_at: smsCart ? nowIso : undefined,
         sms_consent_receipts_at: smsReceipts ? nowIso : undefined,
         sms_consent_shipping_at: smsShipping ? nowIso : undefined,
       });
@@ -291,27 +315,16 @@ export default function CartPage() {
                 />
               </label>
 
-              {/* iter265 — Optional SMS notifications. Per-channel
-                  consent so the buyer can pick exactly which updates
-                  they want texted. The phone input only appears once
-                  any checkbox is ticked, keeping the default cart UI
-                  uncluttered. */}
+              {/* iter267 — Optional SMS notifications. Buyer-toggled
+                  consents are receipts + shipping only. Cart-recovery
+                  SMS no longer has a checkbox — it fires automatically
+                  as a fallback 24h after the abandoned-cart email,
+                  reusing the phone the buyer provided for transactional
+                  receipts/shipping updates. */}
               <div className="mb-4 border border-[#262626] p-3" data-testid="cart-sms-block">
                 <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#a3a3a3] mb-2">
                   ◆ Text me updates (optional)
                 </div>
-                <label className="flex items-start gap-2 cursor-pointer py-1">
-                  <input
-                    type="checkbox"
-                    checked={smsCart}
-                    onChange={(e) => setSmsCart(e.target.checked)}
-                    data-testid="cart-sms-consent-cart"
-                    className="mt-1"
-                  />
-                  <span className="font-mono text-[11px] text-[#d4d4d4]">
-                    Text me if I forget items in my cart
-                  </span>
-                </label>
                 <label className="flex items-start gap-2 cursor-pointer py-1">
                   <input
                     type="checkbox"
@@ -336,7 +349,7 @@ export default function CartPage() {
                     Text me when my order ships (with tracking link)
                   </span>
                 </label>
-                {(smsCart || smsReceipts || smsShipping) && (
+                {(smsReceipts || smsShipping) && (
                   <label className="block mt-3">
                     <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#a3a3a3]">
                       Mobile number

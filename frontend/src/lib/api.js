@@ -1482,7 +1482,11 @@ export const sendAdminPushTest = () =>
 // to /api/cart/track. Server resolves the buyer's email from the
 // `cm_buyer_jwt` (when signed-in) or from a registered Web Push
 // endpoint we attach via X-Push-Endpoint header. Self-noops otherwise.
-export const trackCart = async (items) => {
+//
+// iter267 — Optional `contact` arg lets the CartPage push phone +
+// receipts/shipping consents BEFORE checkout submit, so abandoned-cart
+// SMS fallback has the buyer's phone even if they bounce mid-form.
+export const trackCart = async (items, contact = null) => {
   let pushEndpoint = "";
   try {
     if ("serviceWorker" in navigator) {
@@ -1497,8 +1501,14 @@ export const trackCart = async (items) => {
   if (pushEndpoint) headers["X-Push-Endpoint"] = pushEndpoint;
   // Skip the network call entirely when we have no email path
   if (!buyerJwt && !pushEndpoint) return { ok: true, tracked: false, reason: "no_auth" };
+  const body = { items: items || [] };
+  if (contact && typeof contact === "object") {
+    if (contact.phone) body.phone = contact.phone;
+    if (contact.sms_consent_receipts_at) body.sms_consent_receipts_at = contact.sms_consent_receipts_at;
+    if (contact.sms_consent_shipping_at) body.sms_consent_shipping_at = contact.sms_consent_shipping_at;
+  }
   return http
-    .post("/cart/track", { items: items || [] }, { headers })
+    .post("/cart/track", body, { headers })
     .then((r) => r.data)
     .catch(() => ({ ok: false }));
 };

@@ -50,12 +50,16 @@ class CartItem(BaseModel):
 
 class CartTrackPayload(BaseModel):
     items: list[CartItem] = Field(default_factory=list)
-    # iter265 — Optional SMS contact + per-channel consent.
-    # `phone` must be E.164 (frontend can pre-normalize, backend re-checks).
-    # `sms_consent_cart_nudges_at` must be an ISO timestamp; absence/empty
-    # string means "no consent" and we never text this cart.
+    # iter267 — Optional SMS contact + per-channel consent. Buyer-facing
+    # cart-nudge consent was removed; cart-recovery SMS now fires as a
+    # transactional fallback against the phone given for receipts or
+    # shipping, 24h after the first abandoned-cart email goes out.
+    # `phone` must be normalize-able to E.164 (backend re-checks).
+    # Either `sms_consent_receipts_at` OR `sms_consent_shipping_at` is
+    # enough — both are ISO timestamps stamped at click-time.
     phone: Optional[str] = None
-    sms_consent_cart_nudges_at: Optional[str] = None
+    sms_consent_receipts_at: Optional[str] = None
+    sms_consent_shipping_at: Optional[str] = None
 
 
 # ─────────────────── helpers ───────────────────
@@ -107,14 +111,23 @@ async def track_cart(payload: CartTrackPayload, request: Request):
 
     items = [it.model_dump(exclude_none=True) for it in payload.items]
 
-    # iter265 — capture SMS contact + consent if provided
+    # iter267 — capture SMS contact + receipts/shipping consent if
+    # provided. Cart-nudges consent removed; the abandoned-cart SMS
+    # sweep now keys on receipts/shipping consent (which proves the
+    # buyer wanted SMS for transactional updates).
     set_extra: dict = {}
     unset_extra: dict = {
         "last_push_at": "", "checked_out_at": "",
         "last_email_at": "", "email_attempt_count": "",
         "last_sms_at": "", "sms_attempt_count": "",
+        # Legacy field — clear on every track so stale consent from
+        # iter265 cart-nudge checkbox doesn't haunt this row.
+        "sms_consent_cart_nudges_at": "",
     }
-    if payload.phone and payload.sms_consent_cart_nudges_at:
+    any_consent_ts = (
+        payload.sms_consent_receipts_at or payload.sms_consent_shipping_at
+    )
+    if payload.phone and any_consent_ts:
         try:
             from sms_service import e164_normalize
             normalized = e164_normalize(payload.phone)
@@ -122,7 +135,10 @@ async def track_cart(payload: CartTrackPayload, request: Request):
             normalized = None
         if normalized:
             set_extra["phone"] = normalized
-            set_extra["sms_consent_cart_nudges_at"] = payload.sms_consent_cart_nudges_at
+            if payload.sms_consent_receipts_at:
+                set_extra["sms_consent_receipts_at"] = payload.sms_consent_receipts_at
+            if payload.sms_consent_shipping_at:
+                set_extra["sms_consent_shipping_at"] = payload.sms_consent_shipping_at
 
     await db.abandoned_carts.update_one(
         {"email": email},
@@ -385,19 +401,26 @@ async def fire_abandoned_cart_emails(
     return {"sent": sent, "skipped": skipped, "errors": errors}
 
 
-# iter265 — SMS sweep (3rd channel, gated by Telnyx config + consent).
-# Pattern mirrors the email sweep but with tighter timing because SMS
-# converts faster and is costlier per send.
-#   • 1h idle  → first SMS nudge (no discount)
-#   • 24h idle → discount SMS (10% off, reuses same BACK<sha1[4]> code
-#                that the email path already issued for this cart so we
-#                don't proliferate one-off codes per channel)
+# iter267 — SMS sweep as a TRANSACTIONAL FALLBACK after the email
+# reminder failed. Buyer-facing cart-nudges consent was removed; we
+# reuse the phone they gave for receipts/shipping (i.e. proved they
+# want SMS for order updates) and only fire if all of:
+#   1. An email reminder already went out (`last_email_at` is set)
+#   2. ≥ `hours_after_email` (default 24h) have passed since that email
+#   3. The buyer didn't opt out of SMS (STOP) and hasn't checked out
+#   4. We haven't already SMS'd this cart (sms_attempt_count == 0)
+# Single send; no two-tier ladder. Discount code reuses whatever the
+# 24h email arm already minted for this cart so the buyer sees one
+# consistent code across channels.
 async def fire_abandoned_cart_sms(
-    first_nudge_hours: int = 1,
-    discount_nudge_hours: int = 24,
+    hours_after_email: int = 24,
+    # legacy kwarg kept for the existing admin endpoint's query-string
+    # signature (`?first_nudge_hours=…&discount_nudge_hours=…`). Ignored
+    # by the new logic but accepted so cron schedules don't 422.
+    first_nudge_hours: Optional[int] = None,
+    discount_nudge_hours: Optional[int] = None,
 ) -> dict:
-    """Two-tier SMS sweep. Telnyx unconfigured → no-op (zero side
-    effects). Carts without a consented phone are skipped silently."""
+    """Single-shot SMS fallback. Telnyx unconfigured → no-op."""
     from sms_service import is_configured, is_opted_out, send_sms
     if not is_configured():
         return {"sent": 0, "skipped": 0, "errors": 0, "reason": "telnyx_unconfigured"}
@@ -420,12 +443,25 @@ async def fire_abandoned_cart_sms(
             "https://craftersmarket.org/cart Reply STOP to opt out."
         )
 
+    # Eligible cart = has phone + (receipts OR shipping) consent + had
+    # at least one abandoned-cart email + still abandoned (not checked
+    # out) + not already SMS'd.
     cursor = db.abandoned_carts.find(
         {
             "phone": {"$exists": True, "$ne": ""},
-            "sms_consent_cart_nudges_at": {"$exists": True, "$ne": ""},
+            "$or": [
+                {"sms_consent_receipts_at": {"$exists": True, "$ne": ""}},
+                {"sms_consent_shipping_at": {"$exists": True, "$ne": ""}},
+            ],
+            "last_email_at": {"$exists": True, "$ne": ""},
             "items.0": {"$exists": True},
             "checked_out_at": {"$in": [None, ""]},
+            "$and": [
+                {"$or": [
+                    {"sms_attempt_count": {"$exists": False}},
+                    {"sms_attempt_count": 0},
+                ]},
+            ],
         },
         {"_id": 0},
     )
@@ -434,43 +470,32 @@ async def fire_abandoned_cart_sms(
             email = cart.get("email") or ""
             phone = cart.get("phone") or ""
             items = cart.get("items") or []
-            updated_at = cart.get("updated_at")
-            if not phone or not updated_at:
+            last_email_at = cart.get("last_email_at")
+            if not phone or not last_email_at:
                 skipped += 1
                 continue
             if await is_opted_out(phone):
                 skipped += 1
                 continue
             try:
-                age_hours = (now - datetime.fromisoformat(
-                    updated_at.replace("Z", "+00:00"))).total_seconds() / 3600
+                hours_since_email = (
+                    now - datetime.fromisoformat(
+                        last_email_at.replace("Z", "+00:00"))
+                ).total_seconds() / 3600
             except Exception:
-                age_hours = 0
-            attempts = int(cart.get("sms_attempt_count") or 0)
+                hours_since_email = 0
+            if hours_since_email < hours_after_email:
+                skipped += 1
+                continue
 
-            if first_nudge_hours <= age_hours < discount_nudge_hours and attempts == 0:
-                r = await send_sms(
-                    to=phone, body=_body(items),
-                    dedup_key=f"cart_sms:{email}:nudge_1",
-                    kind="abandoned_cart_nudge_1",
-                )
-                if r.get("sent"):
-                    sent += 1
-                    await db.abandoned_carts.update_one(
-                        {"email": email},
-                        {"$set": {"last_sms_at": now.isoformat(),
-                                  "sms_attempt_count": 1}},
-                    )
-                else:
-                    skipped += 1
-            elif age_hours >= discount_nudge_hours and attempts == 1:
-                # Reuse the email arm's discount code if it already
-                # issued one (avoids duplicate codes per cart). If not,
-                # mint a fresh one here so SMS-only flows still work.
-                import hashlib
-                code = cart.get("discount_code_issued") or (
-                    "BACK" + hashlib.sha1(email.encode()).hexdigest()[:4].upper()
-                )
+            # Reuse the email arm's discount code if it already issued
+            # one for this cart, so the buyer sees ONE consistent code.
+            # Otherwise mint a fresh single-use 10% code.
+            import hashlib
+            code = cart.get("discount_code_issued") or (
+                "BACK" + hashlib.sha1(email.encode()).hexdigest()[:4].upper()
+            )
+            if not cart.get("discount_code_issued"):
                 expires_at = (now + timedelta(days=7)).isoformat()
                 await db.marketing_codes.update_one(
                     {"code": code},
@@ -480,33 +505,33 @@ async def fire_abandoned_cart_sms(
                             "scope": "marketplace_wide",
                             "discount_pct": 10.0, "max_uses": 1,
                             "expires_at": expires_at,
-                            "source": "abandoned_cart_nudge_2",
+                            "source": "abandoned_cart_sms_fallback",
                             "issued_to_email": email,
                             "updated_at": now.isoformat(),
                         },
                         "$setOnInsert": {"uses_count": 0,
-                                          "created_at": now.isoformat()},
+                                         "created_at": now.isoformat()},
                     },
                     upsert=True,
                 )
-                r = await send_sms(
-                    to=phone, body=_body(items, discount_code=code),
-                    dedup_key=f"cart_sms:{email}:nudge_2",
-                    kind="abandoned_cart_nudge_2",
+
+            r = await send_sms(
+                to=phone, body=_body(items, discount_code=code),
+                dedup_key=f"cart_sms:{email}:fallback",
+                kind="abandoned_cart_sms_fallback",
+            )
+            if r.get("sent"):
+                sent += 1
+                await db.abandoned_carts.update_one(
+                    {"email": email},
+                    {"$set": {"last_sms_at": now.isoformat(),
+                              "sms_attempt_count": 1,
+                              "discount_code_issued": code}},
                 )
-                if r.get("sent"):
-                    sent += 1
-                    await db.abandoned_carts.update_one(
-                        {"email": email},
-                        {"$set": {"last_sms_at": now.isoformat(),
-                                  "sms_attempt_count": 2,
-                                  "discount_code_issued": code}},
-                    )
-                else:
-                    skipped += 1
             else:
                 skipped += 1
         except Exception:
+            errors += 1
             errors += 1
 
     return {"sent": sent, "skipped": skipped, "errors": errors}
@@ -542,14 +567,12 @@ async def admin_run_abandoned_cart_emails(
 
 @router.post("/admin/abandoned-cart/run-sms")
 async def admin_run_abandoned_cart_sms(
-    first_nudge_hours: int = 1,
-    discount_nudge_hours: int = 24,
+    hours_after_email: int = 24,
 ):
-    """iter265 — Manual trigger for the SMS sweep. No-op when Telnyx
-    isn't configured (returns reason='telnyx_unconfigured')."""
-    if first_nudge_hours < 0 or discount_nudge_hours > 720:
+    """iter267 — Manual trigger for the SMS fallback sweep. Single-shot;
+    fires only against carts that already received an email reminder
+    ≥`hours_after_email` hours ago. No-op when Telnyx isn't configured
+    (returns reason='telnyx_unconfigured')."""
+    if hours_after_email < 0 or hours_after_email > 720:
         raise HTTPException(400, "Invalid window")
-    return await fire_abandoned_cart_sms(
-        first_nudge_hours=first_nudge_hours,
-        discount_nudge_hours=discount_nudge_hours,
-    )
+    return await fire_abandoned_cart_sms(hours_after_email=hours_after_email)

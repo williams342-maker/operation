@@ -230,11 +230,13 @@ async def _job_abandoned_cart_email() -> None:
 
 
 async def _job_abandoned_cart_sms() -> None:
-    """iter265 — Two-tier SMS re-engagement (1h reminder, 24h discount).
-    No-op when Telnyx unconfigured. Runs at :55 hourly."""
+    """iter267 — Single-shot SMS fallback against carts that already
+    received an abandoned-cart email ≥ 24h ago. Reuses the phone the
+    buyer gave for receipts/shipping consent (no separate cart-nudge
+    opt-in). No-op when Telnyx unconfigured. Runs at :55 hourly."""
     from routers.abandoned_cart import fire_abandoned_cart_sms
     try:
-        r = await fire_abandoned_cart_sms(first_nudge_hours=1, discount_nudge_hours=24)
+        r = await fire_abandoned_cart_sms(hours_after_email=24)
         if r.get("sent"):
             logger.info("[scheduler] abandoned-cart sms: %s", r)
     except Exception as e:

@@ -530,7 +530,6 @@ async def create_checkout(req: CheckoutRequest, http_request: Request):
         "summary": line_summary,
         "customer_email": req.customer_email,
         "customer_phone": sms_phone,
-        "sms_consent_cart_nudges_at": req.sms_consent_cart_nudges_at if sms_phone else None,
         "sms_consent_receipts_at": req.sms_consent_receipts_at if sms_phone else None,
         "sms_consent_shipping_at": req.sms_consent_shipping_at if sms_phone else None,
         "gift_note": req.gift_note,
