@@ -50,13 +50,34 @@ from typing import Optional
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel
 
 from core import db, logger, now_iso
 from maker_auth import current_admin
 
 router = APIRouter()
+
+
+# iter269 — Public route that serves the pre-built "Design documentation"
+# PDF required by Google Ads API Center's Basic Access application. We
+# can't gate it behind admin auth because the reviewer at Google needs
+# to download the file the operator uploads — and uploading from a
+# logged-in admin browser only works if the file URL is browser-reachable
+# anyway. Stays public; the content has no secrets in it.
+@router.get("/google-ads/design-doc.pdf")
+async def google_ads_design_doc():
+    """Returns the PDF design document used in Google's Basic Access
+    application form. Static asset — never regenerated at request time."""
+    import os as _os
+    pdf_path = _os.path.join(_os.path.dirname(__file__), "_google_ads_design_doc.pdf")
+    if not _os.path.exists(pdf_path):
+        raise HTTPException(404, "Design doc not bundled with this deploy.")
+    return FileResponse(
+        pdf_path,
+        media_type="application/pdf",
+        filename="crafters_market_google_ads_api_design.pdf",
+    )
 
 
 # ---------------- Config helpers ---------------- #
