@@ -245,3 +245,91 @@ async def gsc_test_inspect(
         "verdict": ((result.get("indexStatusResult") or {}).get("verdict") or ""),
         "last_crawl": ((result.get("indexStatusResult") or {}).get("lastCrawlTime") or ""),
     }
+
+
+# ─────────────── iter275 — Indexation summary widget ───────────────
+@router.get("/admin/gsc/indexation-summary")
+async def gsc_indexation_summary(_: dict = Depends(current_admin)):
+    """One-glance indexation health for the admin dashboard.
+
+    Aggregates three sources:
+      1. `products.gsc_tier` (populated by the daily `refresh_gsc_indexing`
+         cron via `revenue.refresh_gsc_indexing_status`) → buckets every
+         published listing into established / submitted / not_in_sitemap
+         / unchecked.
+      2. `gsc_sitemap_log` → recent sitemap submits (last 7d count +
+         last 30d ok/error totals).
+      3. `system_state/startup_seo` → last on-deploy submission timestamp.
+
+    Returned shape is deliberately flat so the React widget can render
+    without nested null-checks.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    now = datetime.now(timezone.utc)
+    cutoff_7d  = (now - timedelta(days=7)).isoformat()
+    cutoff_30d = (now - timedelta(days=30)).isoformat()
+    stale_cutoff = (now - timedelta(days=7)).isoformat()
+
+    # ── 1. Published-listing index buckets ──
+    pipeline = [
+        {"$match": {"status": "published",
+                    "deleted_at": {"$in": [None, ""]}}},
+        {"$group": {"_id": "$gsc_tier", "n": {"$sum": 1}}},
+    ]
+    tier_counts: dict[str, int] = {
+        "established": 0, "submitted": 0, "not_in_sitemap": 0, "unchecked": 0,
+    }
+    async for row in db.products.aggregate(pipeline):
+        key = row.get("_id") or "unchecked"
+        if key not in tier_counts:
+            key = "unchecked"
+        tier_counts[key] += int(row.get("n") or 0)
+
+    total_published = sum(tier_counts.values())
+    indexed_pct = (
+        round(100 * tier_counts["established"] / total_published, 1)
+        if total_published else 0.0
+    )
+
+    # Listings whose GSC check is missing or older than 7 days — surfaces
+    # how far behind the daily refresh cron is.
+    stale_count = await db.products.count_documents({
+        "status": "published",
+        "deleted_at": {"$in": [None, ""]},
+        "$or": [
+            {"gsc_checked_at": None},
+            {"gsc_checked_at": {"$exists": False}},
+            {"gsc_checked_at": {"$lt": stale_cutoff}},
+        ],
+    })
+
+    # ── 2. Sitemap submission log ──
+    submits_7d = await db.gsc_sitemap_log.count_documents(
+        {"ts": {"$gte": cutoff_7d}})
+    submits_30d_ok = await db.gsc_sitemap_log.count_documents(
+        {"ts": {"$gte": cutoff_30d}, "ok": True})
+    submits_30d_err = await db.gsc_sitemap_log.count_documents(
+        {"ts": {"$gte": cutoff_30d}, "ok": False})
+    last_submit = await db.gsc_sitemap_log.find_one(
+        {}, {"_id": 0}, sort=[("ts", -1)])
+
+    # ── 3. Most recent on-deploy auto-submit ──
+    startup_doc = await db.system_state.find_one(
+        {"_id": "startup_seo"},
+        {"_id": 0, "last_submitted_at": 1, "last_payload": 1},
+    )
+
+    return {
+        "total_published": total_published,
+        "tier_counts": tier_counts,
+        "indexed_pct": indexed_pct,
+        "stale_count": stale_count,
+        "sitemap_submits_7d": submits_7d,
+        "sitemap_submits_30d_ok": submits_30d_ok,
+        "sitemap_submits_30d_err": submits_30d_err,
+        "last_sitemap_submit": last_submit,
+        "last_startup_submit": startup_doc,
+        "gsc_connected": bool(await db.gsc_oauth.find_one(
+            {"_id": "singleton"}, {"_id": 0, "refresh_token": 1})),
+    }

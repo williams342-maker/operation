@@ -2659,6 +2659,195 @@ function SearchEnginePingCard() {
  * Idempotent disconnect — never destructive (only removes the stored
  * refresh-token; doesn't touch GSC-side permissions).
  */
+// ─────────────────────────────────────────────────────────────────────
+// iter275 — GSC indexation summary widget. One-glance "is Google
+// noticing my listings?" answer that surfaces stuck URLs (crawled-
+// not-indexed, soft 404s) before they tank organic traffic. Reads
+// from `GET /api/admin/gsc/indexation-summary` which aggregates:
+//   • products.gsc_tier buckets (established / submitted /
+//     not_in_sitemap / unchecked) — populated by the daily refresh cron
+//   • gsc_sitemap_log (last 7d / 30d submit counts)
+//   • system_state/startup_seo (most recent on-deploy auto-submit)
+// ─────────────────────────────────────────────────────────────────────
+function GscIndexationCard() {
+  const API = process.env.REACT_APP_BACKEND_URL;
+  const [data, setData] = useState(null);
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const load = async () => {
+    setBusy(true); setErr("");
+    try {
+      const token = localStorage.getItem("cm_admin_jwt") || "";
+      const r = await fetch(`${API}/api/admin/gsc/indexation-summary`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      setData(await r.json());
+    } catch (e) {
+      setErr(e.message || "Failed to load");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
+
+  if (err && !data) {
+    return (
+      <section className="border border-[#262626] p-4 md:p-5" data-testid="gsc-indexation-card">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">SEO · indexation health</div>
+        <div className="font-mono text-xs text-red-400 mt-2">{err}</div>
+      </section>
+    );
+  }
+  if (!data) {
+    return (
+      <section className="border border-[#262626] p-4 md:p-5" data-testid="gsc-indexation-card">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">SEO · indexation health</div>
+        <div className="font-mono text-xs text-[#737373] mt-2">Loading…</div>
+      </section>
+    );
+  }
+
+  const t = data.tier_counts || {};
+  const total = data.total_published || 0;
+  const pct = (n) => total ? Math.round((n / total) * 100) : 0;
+
+  const fmtDate = (iso) => {
+    if (!iso) return "—";
+    try {
+      const d = new Date(iso);
+      const ms = Date.now() - d.getTime();
+      const h = Math.floor(ms / 3.6e6);
+      if (h < 1) return "just now";
+      if (h < 24) return `${h}h ago`;
+      const days = Math.floor(h / 24);
+      if (days < 30) return `${days}d ago`;
+      return d.toLocaleDateString();
+    } catch { return iso; }
+  };
+
+  const lastSubmit = data.last_sitemap_submit;
+  const lastStartup = data.last_startup_submit;
+
+  return (
+    <section
+      className="border border-[#262626] p-4 md:p-5"
+      data-testid="gsc-indexation-card"
+    >
+      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-3">
+        <div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+            SEO · indexation health
+          </div>
+          <h3 className="font-display text-xl mt-1 text-[#e5e5e5]">
+            {data.indexed_pct}% of published listings indexed by Google
+          </h3>
+          <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-2xl">
+            One-glance "is Google noticing my listings?". Refreshed by the
+            daily 05:30 UTC <code className="text-[#ff4500]">refresh_gsc_indexing</code>{" "}
+            cron + the on-deploy submission hook.
+          </p>
+        </div>
+        <button
+          onClick={load}
+          disabled={busy}
+          data-testid="gsc-indexation-refresh"
+          className="shrink-0 px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+        >
+          {busy ? "Refreshing…" : "Refresh"}
+        </button>
+      </div>
+
+      {/* Tier buckets — the load-bearing visualization */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+        {[
+          ["Indexed",       t.established,    "#22c55e", "established"],
+          ["Submitted",     t.submitted,      "#f59e0b", "submitted"],
+          ["Excluded",      t.not_in_sitemap, "#ef4444", "not_in_sitemap"],
+          ["Not checked",   t.unchecked,      "#737373", "unchecked"],
+        ].map(([lbl, n, col, key]) => (
+          <div
+            key={key}
+            className="border border-[#262626] bg-[#0d0d0d] p-3"
+            data-testid={`gsc-indexation-tier-${key}`}
+          >
+            <div className="flex items-baseline gap-2">
+              <div className="font-display text-2xl" style={{ color: n ? col : "#525252" }}>
+                {n || 0}
+              </div>
+              <div className="font-mono text-[10px] text-[#737373]">· {pct(n)}%</div>
+            </div>
+            <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#a3a3a3] mt-1">
+              {lbl}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Stale + submit history strip */}
+      <div className="grid md:grid-cols-3 gap-3 text-[11px] font-mono">
+        <div className="border border-[#262626] bg-[#0d0d0d] p-3">
+          <div className="text-[10px] uppercase tracking-[0.22em] text-[#737373] mb-1">
+            ◆ Refresh backlog
+          </div>
+          <div className="text-[#e5e5e5]">
+            <span className="font-display text-lg"
+                  style={{ color: data.stale_count ? "#f59e0b" : "#22c55e" }}>
+              {data.stale_count}
+            </span>{" "}
+            listings unchecked or {">"}7 days stale
+          </div>
+        </div>
+        <div className="border border-[#262626] bg-[#0d0d0d] p-3">
+          <div className="text-[10px] uppercase tracking-[0.22em] text-[#737373] mb-1">
+            ◆ Sitemap submits (7d)
+          </div>
+          <div className="text-[#e5e5e5]">
+            <span className="font-display text-lg text-[#22d3ee]">{data.sitemap_submits_7d}</span>{" "}
+            total · 30d: {data.sitemap_submits_30d_ok} ok / {data.sitemap_submits_30d_err} err
+          </div>
+          {lastSubmit?.ts && (
+            <div className="text-[10px] text-[#737373] mt-1">
+              Last: {fmtDate(lastSubmit.ts)}{" "}
+              <span style={{ color: lastSubmit.ok ? "#22c55e" : "#ef4444" }}>
+                · {lastSubmit.ok ? "ok" : `err ${lastSubmit.status || ""}`}
+              </span>
+            </div>
+          )}
+        </div>
+        <div className="border border-[#262626] bg-[#0d0d0d] p-3">
+          <div className="text-[10px] uppercase tracking-[0.22em] text-[#737373] mb-1">
+            ◆ On-deploy auto-submit
+          </div>
+          <div className="text-[#e5e5e5]">
+            {lastStartup?.last_submitted_at
+              ? `Fired ${fmtDate(lastStartup.last_submitted_at)}`
+              : "Never fired"}
+          </div>
+          {lastStartup?.last_payload?.indexnow && (
+            <div className="text-[10px] text-[#737373] mt-1">
+              IndexNow: {lastStartup.last_payload.indexnow.submitted ?? "?"} URLs ·
+              GSC: {lastStartup.last_payload.gsc?.ok ? "ok"
+                  : (lastStartup.last_payload.gsc?.reason || "err")}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {!data.gsc_connected && (
+        <div className="mt-3 border border-amber-500/30 bg-amber-500/5 p-2.5 font-mono text-[11px] text-amber-300"
+             data-testid="gsc-indexation-not-connected">
+          ⚠ GSC not connected — tier buckets stay at 0 until you connect
+          OAuth in the "GSC connection" card above. The on-deploy
+          IndexNow ping still fires either way.
+        </div>
+      )}
+    </section>
+  );
+}
+
 function GscConnectionCard() {
   const [status, setStatus] = useState(null);
   const [busy, setBusy] = useState("");
@@ -4253,6 +4442,8 @@ export default function SettingsTab() {
       <EmailProviderAuditCard />
 
       <GscConnectionCard />
+
+      <GscIndexationCard />
 
       <PurgeFeaturedSeedCard />
 
