@@ -405,6 +405,39 @@ async def connect_status(slug: str = Depends(current_maker_slug)):
     try:
         u = await _refresh_status(slug, account_id)
     except Exception as e:
+        # iter276 — Distinguish "Stripe is unreachable" (network) from
+        # "account no longer exists on this Stripe platform" (the post-
+        # platform-migration symptom). On `No such account` we drop the
+        # stale ID from the maker doc so the dashboard immediately
+        # surfaces the "Link Stripe" CTA instead of showing a connected-
+        # but-broken state.
+        import stripe as _stripe_sdk
+        if isinstance(e, _stripe_sdk.error.InvalidRequestError) and (
+            "no such account" in str(e).lower()
+            or "account_invalid" in str(e).lower()
+        ):
+            logger.warning(
+                "[stripe_connect] maker=%s has stale stripe_account_id=%s on "
+                "current platform (%s). Clearing so they can re-link.",
+                slug, account_id, str(e)[:120],
+            )
+            await db.makers.update_one(
+                {"slug": slug},
+                {"$unset": {
+                    "stripe_account_id": "",
+                    "stripe_charges_enabled": "",
+                    "stripe_payouts_enabled": "",
+                    "stripe_details_submitted": "",
+                }},
+            )
+            return {
+                "connected": False,
+                "stripe_account_id": None,
+                "charges_enabled": False,
+                "payouts_enabled": False,
+                "details_submitted": False,
+                "stale_id_cleared": True,
+            }
         logger.warning("Stripe Account.retrieve failed for %s: %s", account_id, e)
         return {
             "connected": True,

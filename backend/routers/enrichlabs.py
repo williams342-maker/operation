@@ -329,12 +329,35 @@ def _build_feed_rows(rows: list[dict]) -> list[dict]:
 async def _fetch_feed_products(
     *, maker_slug: Optional[str], include_oos: bool, limit: int,
 ) -> list[dict]:
+    # iter276 — Honor each maker's `external_ads_opt_out` toggle (lives
+    # on the maker doc, surfaced via Settings → Privacy). When True, none
+    # of that maker's listings are returned to EnrichLabs / external
+    # marketing partners. Default = False (opt-in) so the feed stays
+    # comprehensive unless the maker explicitly opts out. Same field
+    # already powers external-attribution payout exclusion in
+    # `routers/stripe_connect.py`, so the toggle has one consistent
+    # meaning across the codebase.
+    opted_out_slugs = await db.makers.distinct(
+        "slug",
+        {
+            "external_ads_opt_out": True,
+            "deleted_at": {"$in": [None, ""]},
+        },
+    )
+
     q: dict = {
         "deleted_at": {"$in": [None, ""]},
         "status": "published",
     }
     if maker_slug:
+        # When an explicit maker_slug filter is supplied, respect their
+        # opt-out — return an empty list instead of leaking listings the
+        # maker didn't consent to be in the feed.
+        if maker_slug in opted_out_slugs:
+            return []
         q["maker_slug"] = maker_slug
+    elif opted_out_slugs:
+        q["maker_slug"] = {"$nin": opted_out_slugs}
     if not include_oos:
         # Treat missing field as in-stock (matches the rest of the codebase).
         q["$or"] = [

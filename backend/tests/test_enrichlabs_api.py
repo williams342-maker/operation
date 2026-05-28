@@ -172,3 +172,73 @@ async def test_feed_limit_validation():
     async with httpx.AsyncClient(timeout=30) as c:
         r = await c.get(f"{API}/api/enrich/v1/feed.json?limit=99999", headers=HDR)
     assert r.status_code == 422  # Pydantic ge/le validation
+
+
+# iter276 — per-maker opt-out via the existing `external_ads_opt_out` flag
+@pytest.mark.asyncio
+async def test_feed_excludes_opted_out_makers():
+    """Listings owned by a maker with external_ads_opt_out=True must NOT
+    appear in the global feed. Untouched (opt-out=false/missing) makers'
+    listings stay in."""
+    from core import db
+    test_slug = "_pytest_feed_optout_maker"
+    test_pid = "_pytest_feed_optout_pid"
+    await db.makers.delete_many({"slug": test_slug})
+    await db.products.delete_many({"id": test_pid})
+    try:
+        # Seed: opted-out maker + 1 published listing
+        await db.makers.insert_one({
+            "slug": test_slug, "name": "Test Optout",
+            "external_ads_opt_out": True,
+            "deleted_at": None,
+        })
+        await db.products.insert_one({
+            "id": test_pid, "slug": test_pid,
+            "title": "Should be excluded", "price": 49.0,
+            "maker_slug": test_slug, "status": "published",
+            "deleted_at": None, "in_stock": 5,
+            "images": ["https://cdn.example.com/x.jpg"],
+        })
+        async with httpx.AsyncClient(timeout=30) as c:
+            r = await c.get(f"{API}/api/enrich/v1/feed.json?limit=5000", headers=HDR)
+        assert r.status_code == 200
+        body = r.json()
+        # The opted-out product must not appear in the feed
+        for row in body:
+            assert "Should be excluded" not in row["product_name"], row
+    finally:
+        await db.makers.delete_many({"slug": test_slug})
+        await db.products.delete_many({"id": test_pid})
+
+
+@pytest.mark.asyncio
+async def test_feed_per_maker_filter_respects_optout():
+    """Explicit `?maker_slug=...` filter targeting an opted-out maker
+    returns an empty array (we don't leak even with an explicit pull)."""
+    from core import db
+    test_slug = "_pytest_feed_optout_explicit"
+    await db.makers.delete_many({"slug": test_slug})
+    await db.products.delete_many({"maker_slug": test_slug})
+    try:
+        await db.makers.insert_one({
+            "slug": test_slug, "name": "Optout Explicit",
+            "external_ads_opt_out": True, "deleted_at": None,
+        })
+        await db.products.insert_one({
+            "id": "_pytest_feed_optout_explicit_p1",
+            "slug": "_pytest_feed_optout_explicit_p1",
+            "title": "Walnut Box", "price": 49.0,
+            "maker_slug": test_slug, "status": "published",
+            "deleted_at": None, "in_stock": 5,
+            "images": ["https://cdn.example.com/x.jpg"],
+        })
+        async with httpx.AsyncClient(timeout=30) as c:
+            r = await c.get(
+                f"{API}/api/enrich/v1/feed.json?maker_slug={test_slug}",
+                headers=HDR,
+            )
+        assert r.status_code == 200
+        assert r.json() == [], "Explicit maker_slug filter must respect opt-out"
+    finally:
+        await db.makers.delete_many({"slug": test_slug})
+        await db.products.delete_many({"maker_slug": test_slug})

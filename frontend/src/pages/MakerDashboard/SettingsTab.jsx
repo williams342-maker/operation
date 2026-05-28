@@ -345,8 +345,8 @@ function Options({ maker, onSaved }) {
         testId="settings-backorders-default"
       />
       <ToggleRow
-        label="Opt out of off-site ads"
-        hint="When ON, we won't promote your listings on Google/Meta — but you also won't pay the 12% off-site ad fee on attributed orders."
+        label="Opt out of off-site ads & marketing feeds"
+        hint="When ON: (1) we won't promote your listings on Google/Meta — and you won't pay the 12% off-site ad fee on attributed orders, and (2) your listings will be excluded from our partner marketing feeds (EnrichLabs and any future ad partners that pull from our catalog). When OFF (default), your listings get maximum reach across all channels."
         value={!!form.external_ads_opt_out}
         onChange={set("external_ads_opt_out")}
         testId="settings-offsite-optout"
