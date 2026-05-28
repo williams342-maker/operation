@@ -3623,6 +3623,7 @@ function SocialAutoPostQueueCard() {
   const [status, setStatus] = useState("pending");
   const [data, setData] = useState(null);
   const [eligCounts, setEligCounts] = useState(null);
+  const [credStatus, setCredStatus] = useState(null);  // {instagram, facebook, pinterest}
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
 
@@ -3633,14 +3634,16 @@ function SocialAutoPostQueueCard() {
   const load = async (statusFilter) => {
     setErr("");
     try {
-      const [r1, r2] = await Promise.all([
+      const [r1, r2, r3] = await Promise.all([
         fetch(`${API}/api/admin/social-auto-post/queue?status=${statusFilter}&limit=50`, { headers: auth() }),
         fetch(`${API}/api/admin/social-auto-post/eligibility-counts`, { headers: auth() }),
+        fetch(`${API}/api/admin/social-auto-post/credentials-status`, { headers: auth() }),
       ]);
       if (!r1.ok) throw new Error(`HTTP ${r1.status}`);
       const body = await r1.json();
       setData(body);
       if (r2.ok) setEligCounts(await r2.json());
+      if (r3.ok) setCredStatus((await r3.json()).channels);
     } catch (e) {
       setErr(e.message || "Load failed");
     }
@@ -3656,6 +3659,33 @@ function SocialAutoPostQueueCard() {
       });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       toast.success("Marked as published.");
+      load(status);
+    } catch (e) {
+      toast.error(e.message || "Failed");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  // iter273 — actually fire the publish to IG/FB/Pinterest via env-bound
+  // credentials. Per-channel result lives in `platform_post_ids` +
+  // `platform_errors` on the row. UI surfaces the per-channel outcome
+  // via toasts so the admin sees exactly which channel landed.
+  const publishNow = async (rowId) => {
+    setBusy(rowId);
+    try {
+      const r = await fetch(`${API}/api/admin/social-auto-post/${rowId}/publish-now`, {
+        method: "POST", headers: auth(),
+      });
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(body?.detail || `HTTP ${r.status}`);
+      const ok = Object.keys(body.platform_ids || {});
+      const errs = Object.keys(body.errors || {});
+      const skipped = Object.keys(body.skipped || {});
+      if (ok.length) toast.success(`Published to ${ok.join(", ")}`);
+      if (errs.length) toast.error(`Errors on: ${errs.join(", ")}`);
+      if (skipped.length) toast(`Skipped (no creds): ${skipped.join(", ")}`,
+                                 { icon: "⚠️" });
       load(status);
     } catch (e) {
       toast.error(e.message || "Failed");
@@ -3772,6 +3802,34 @@ function SocialAutoPostQueueCard() {
         <div className="font-mono text-xs text-red-400 mb-3" data-testid="social-queue-error">{err}</div>
       )}
 
+      {/* iter273 — Auto-publish credential status banner */}
+      {credStatus && (
+        <div
+          className="border border-[#262626] bg-[#0d0d0d] p-2.5 mb-3 flex items-center gap-4 flex-wrap"
+          data-testid="social-queue-creds-banner"
+        >
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#737373]">
+            ◆ Auto-publish
+          </div>
+          {["instagram", "facebook", "pinterest"].map((ch) => (
+            <span
+              key={ch}
+              className="font-mono text-[10px] uppercase tracking-[0.18em]"
+              style={{ color: credStatus[ch] ? "#22c55e" : "#737373" }}
+              data-testid={`social-queue-cred-${ch}`}
+            >
+              {credStatus[ch] ? "✓" : "○"} {ch}
+            </span>
+          ))}
+          {!Object.values(credStatus).some(Boolean) && (
+            <span className="font-mono text-[10px] text-[#737373] ml-auto">
+              Add Meta/Pinterest tokens to /app/backend/.env to enable
+              "Publish now" buttons.
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Queue rows */}
       {data?.rows?.length === 0 && (
         <div className="border border-[#262626] bg-[#0d0d0d] p-6 text-center font-mono text-xs text-[#525252]">
@@ -3848,6 +3906,18 @@ function SocialAutoPostQueueCard() {
                       >
                         {captionsOpen[row.id] ? "Hide captions" : "Captions ▾"}
                       </button>
+                      {credStatus && Object.values(credStatus).some(Boolean) && (
+                        <button
+                          type="button"
+                          onClick={() => publishNow(row.id)}
+                          disabled={busy === row.id}
+                          className="px-2.5 py-1 border border-[#ff4500]/70 text-[#ff4500] hover:bg-[#ff4500]/10 font-mono text-[9px] uppercase tracking-[0.22em] disabled:opacity-50"
+                          data-testid={`social-queue-publish-now-${row.id}`}
+                          title="Fire the actual external API calls (IG / FB / Pinterest)"
+                        >
+                          {busy === row.id ? "…" : "Publish now ⚡"}
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => markPublished(row.id)}
@@ -3945,10 +4015,16 @@ function CaptionEditorPanel({ row }) {
     ].join("\n"),
   }), [title, maker, price, url]);
 
-  const [drafts, setDrafts] = useState(defaults);
+  // Pre-populate with previously saved captions (if any) so re-opening
+  // the editor doesn't blow away the admin's edits.
+  const [drafts, setDrafts] = useState({ ...defaults, ...(row.captions || {}) });
+  const [saving, setSaving] = useState(false);
 
   // If the row data changes (rare in practice), refresh the defaults.
-  useEffect(() => { setDrafts(defaults); }, [defaults]);
+  useEffect(() => {
+    setDrafts({ ...defaults, ...(row.captions || {}) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaults, row.id]);
 
   const reset = (channel) => {
     setDrafts((d) => ({ ...d, [channel]: defaults[channel] }));
@@ -3961,6 +4037,29 @@ function CaptionEditorPanel({ row }) {
       toast.success(`${channel} caption copied — paste into your post.`);
     } catch {
       toast.error("Couldn't copy. Select + copy manually.");
+    }
+  };
+
+  // iter273 — Persist the edits so "Publish now" (and the auto-publish
+  // cron) use them instead of the default templates.
+  const save = async () => {
+    setSaving(true);
+    try {
+      const API = process.env.REACT_APP_BACKEND_URL;
+      const r = await fetch(`${API}/api/admin/social-auto-post/${row.id}/captions`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("cm_admin_jwt") || ""}`,
+        },
+        body: JSON.stringify(drafts),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      toast.success("Captions saved — Publish now will use these.");
+    } catch (e) {
+      toast.error(e.message || "Save failed");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -3981,8 +4080,19 @@ function CaptionEditorPanel({ row }) {
       className="mt-3 border border-[#1f1f1f] bg-[#070707] p-3 space-y-3"
       data-testid={`caption-editor-${row.id}`}
     >
-      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#737373]">
-        ◆ Per-channel captions · edit then copy
+      <div className="flex items-center justify-between gap-2">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#737373]">
+          ◆ Per-channel captions · edit, save, then publish
+        </div>
+        <button
+          type="button"
+          onClick={save}
+          disabled={saving}
+          className="px-2.5 py-0.5 border border-[#ff4500]/60 text-[#ff4500] hover:bg-[#ff4500]/10 font-mono text-[9px] uppercase tracking-[0.18em] disabled:opacity-50"
+          data-testid={`caption-editor-save-${row.id}`}
+        >
+          {saving ? "Saving…" : "Save captions"}
+        </button>
       </div>
       {channels.map((c) => (
         <div key={c.key} data-testid={`caption-editor-${row.id}-${c.key}`}>

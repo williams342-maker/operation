@@ -151,6 +151,7 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - ✅ AI showcase description vision upgrade — Claude Haiku 4.5 reads the buyer's photos (iter115)
 - ✅ "Recently shared by buyers" discovery strip on Home + Product pages (iter116)
 - ✅ Showcase analytics: view + click tracking + admin leaderboard with source attribution (iter117)
+- ✅ **iter273 (2026-05-28): Auto-publish via Meta/Pinterest API** — `social_publisher.py` fires real Graph API calls (IG two-step container/publish, FB Page /photos, Pinterest /v5/pins). New admin endpoints `/credentials-status`, `PATCH /captions`, `POST /publish-now`. Scheduler cron `*/15` (off by default via `SOCIAL_AUTO_PUBLISH_ENABLED=false`). Soft-skip pattern: missing creds = no error, just skip that channel. 20 new tests via `httpx.MockTransport`. Admin UI: credentials banner, "Publish now ⚡" button per row, "Save captions" persistence.
 
 ## Next Action Items
 *(All P1/P2/P3s from the original handoff backlog are now shipped or blocked on user paperwork.)*

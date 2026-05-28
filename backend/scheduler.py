@@ -930,6 +930,20 @@ async def _job_hero_headlines_refresh():
 
 
 
+async def _job_social_auto_publish() -> None:
+    """Every 15 min — push pending `social_auto_post_queue` rows to
+    Instagram / Facebook / Pinterest via `social_publisher`. Self-skips
+    when `SOCIAL_AUTO_PUBLISH_ENABLED` env var isn't truthy (default OFF
+    for safety — admin opts in once creds are tested via 'Publish now')."""
+    try:
+        from social_publisher import run_auto_publish_sweep
+        r = await run_auto_publish_sweep(limit=25)
+        if r.get("ran") and (r.get("published") or r.get("failed")):
+            logger.info("[scheduler] social_auto_publish: %s", r)
+    except Exception as e:
+        logger.exception("[scheduler] social_auto_publish failed: %s", e)
+
+
 def start_scheduler() -> AsyncIOScheduler | None:
     """Boot the scheduler if SCHEDULER_ENABLED isn't 'false'."""
     global _scheduler
@@ -1134,6 +1148,12 @@ def start_scheduler() -> AsyncIOScheduler | None:
                   id="maker_journal_digest", replace_existing=True)
 
     # iter251 — nightly Buffer auto-pick. REMOVED iter252 (Buffer replaced by EnrichLabs).
+    # iter273 — Social auto-publish sweep every 15 min. Self-skips when
+    # SOCIAL_AUTO_PUBLISH_ENABLED is not truthy. Admin must explicitly
+    # opt in once Meta/Pinterest creds are wired + verified via
+    # "Publish now" from the queue UI.
+    sched.add_job(_job_social_auto_publish, CronTrigger(minute="*/15"),
+                  id="social_auto_publish", replace_existing=True)
     sched.start()
     _scheduler = sched
     logger.info(

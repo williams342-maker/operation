@@ -12,9 +12,15 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from pydantic import BaseModel, Field
+
 from core import db, logger, now_iso
 from maker_auth import current_admin, current_maker_slug
 from social_auto_post_service import eligibility_for, queue_summary
+from social_publisher import (
+    credentials_status as _cred_status,
+    publish_row_by_id,
+)
 
 
 router = APIRouter()
@@ -128,3 +134,66 @@ async def admin_eligibility_counts(_admin: str = Depends(current_admin)):
         e = eligibility_for(m)
         counts[e["tier"]] = counts.get(e["tier"], 0) + 1
     return {"counts": counts, "total": sum(counts.values())}
+
+
+# ─────────────── Auto-publish to Meta/Pinterest (iter273) ───────────────
+@admin_router.get("/admin/social-auto-post/credentials-status")
+async def admin_credentials_status(_admin: str = Depends(current_admin)):
+    """Reports which of {instagram, facebook, pinterest} currently have
+    valid env credentials. The admin UI uses this to enable/disable the
+    'Publish now' button — no UI ambiguity, no failed clicks when creds
+    are missing. Booleans only; we never expose the tokens themselves."""
+    return {"channels": _cred_status()}
+
+
+class _CaptionsBody(BaseModel):
+    """Optional per-channel caption overrides. Empty strings clear the
+    override (publisher falls back to the platform-tuned template)."""
+    instagram: str | None = Field(default=None, max_length=4000)
+    facebook:  str | None = Field(default=None, max_length=4000)
+    pinterest: str | None = Field(default=None, max_length=2000)
+
+
+@admin_router.patch("/admin/social-auto-post/{row_id}/captions")
+async def admin_save_captions(
+    row_id: str,
+    body: _CaptionsBody,
+    _admin: str = Depends(current_admin),
+):
+    """Persist the admin's edited per-channel captions onto the queue
+    row so that 'Publish now' uses them. Without this the captions live
+    only in the clipboard."""
+    captions = {k: (v or "").strip()
+                for k, v in body.model_dump().items() if v}
+    r = await db.social_auto_post_queue.update_one(
+        {"id": row_id},
+        {"$set": {"captions": captions, "captions_updated_at": now_iso()}},
+    )
+    if r.matched_count == 0:
+        raise HTTPException(404, "Queue row not found.")
+    logger.info("[social_auto_post] row=%s captions saved: %s",
+                row_id, list(captions))
+    return {"ok": True, "saved_channels": list(captions)}
+
+
+@admin_router.post("/admin/social-auto-post/{row_id}/publish-now")
+async def admin_publish_now(
+    row_id: str,
+    _admin: str = Depends(current_admin),
+):
+    """Fire the actual external API calls to publish this queue row to
+    Instagram / Facebook Page / Pinterest. Returns a structured per-
+    channel result so the UI can show success vs. skipped vs. error.
+
+    No external creds = soft-skip for that channel; one failing platform
+    never blocks the others. See `social_publisher.publish_row_by_id`."""
+    res = await publish_row_by_id(row_id, actor="admin")
+    if res.get("reason") == "not_found":
+        raise HTTPException(404, "Queue row not found.")
+    if res.get("reason") == "not_pending":
+        raise HTTPException(
+            409,
+            f"Row already {res.get('current_status')}. "
+            "Only pending or previously-failed rows can be published.",
+        )
+    return res
