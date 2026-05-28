@@ -196,6 +196,18 @@ async def notify_listing_published(
         except Exception as e:
             logger.exception("[listing_publish] activity drop entry failed: %s", e)
 
+    # iter274 — Per-listing IndexNow ping (best-effort, throttled inside
+    # `submit_urls` via `indexnow_url_log`). Hits Bing/Yandex/Naver/Seznam
+    # within minutes of publish — much faster than waiting for the
+    # Monday weekly cron. Throttling in submit_urls prevents republish
+    # spam if a listing is edited multiple times in quick succession.
+    try:
+        from seo_indexnow import submit_urls, url_for_product
+        await submit_urls([url_for_product(listing_slug)],
+                          reason="listing_publish")
+    except Exception as e:
+        logger.exception("[listing_publish] indexnow ping failed: %s", e)
+
     logger.info(
         "[listing_publish] %s · maker=%s followers=%d sent=%d",
         listing_slug, maker.get("slug"), follower_count, follower_sent,

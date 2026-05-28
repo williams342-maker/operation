@@ -235,6 +235,16 @@ async def on_startup():
         await bootstrap_team_replies()
     except Exception:
         logger.exception("[forum_team_replies] bootstrap failed (non-fatal)")
+    # iter274 — On-deploy sitemap submission. Re-submits to GSC + pings
+    # IndexNow on every backend boot, gated by a 6h restart-storm guard
+    # so supervisor reloads/hot-reload don't hammer the crawlers. Best-
+    # effort; never blocks startup. Kill-switch: SCHEDULER_STARTUP_SEO=false.
+    try:
+        from startup_seo import run_startup_seo_submit
+        import asyncio as _asyncio
+        _asyncio.create_task(run_startup_seo_submit())
+    except Exception:
+        logger.exception("[startup_seo] kickoff failed (non-fatal)")
     logger.info("Crafters Market API ready (seed checked).")
 
 
