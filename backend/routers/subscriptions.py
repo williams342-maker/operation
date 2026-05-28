@@ -53,18 +53,48 @@ async def _get_or_create_plus_price() -> str:
     Caches in-process so we don't round-trip Stripe on every subscribe. We
     also persist the IDs in `db.platform_meta` so a process restart doesn't
     duplicate Products / Prices in Stripe.
+
+    iter275 — When the Stripe platform was migrated (mid-2026), the
+    cached `price_id` in `platform_meta` referenced the OLD platform's
+    product. The new platform's keys can't see that price, so Stripe
+    raises `InvalidRequestError: No such price`. We now validate the
+    cached price by calling `Price.retrieve` first; on any failure we
+    drop the cache and recreate, so the platform migration self-heals
+    on the first upgrade attempt.
     """
     global PLUS_PRICE_ID_CACHE, PLUS_PRODUCT_ID_CACHE
-    if PLUS_PRICE_ID_CACHE:
-        return PLUS_PRICE_ID_CACHE
-
-    meta = await db.platform_meta.find_one({"key": "plus_subscription"}, {"_id": 0})
-    if meta and meta.get("price_id"):
-        PLUS_PRICE_ID_CACHE = meta["price_id"]
-        PLUS_PRODUCT_ID_CACHE = meta.get("product_id")
-        return PLUS_PRICE_ID_CACHE
 
     s = _stripe()
+    import stripe as _stripe_sdk
+
+    # Try the in-process cache first.
+    if PLUS_PRICE_ID_CACHE:
+        try:
+            s.Price.retrieve(PLUS_PRICE_ID_CACHE)
+            return PLUS_PRICE_ID_CACHE
+        except _stripe_sdk.error.InvalidRequestError as e:
+            logger.warning(
+                "[plus] cached price_id %s no longer exists on this Stripe "
+                "platform (%s). Recreating.", PLUS_PRICE_ID_CACHE, str(e)[:120],
+            )
+            PLUS_PRICE_ID_CACHE = None
+            PLUS_PRODUCT_ID_CACHE = None
+
+    # Then the Mongo-persisted meta.
+    meta = await db.platform_meta.find_one({"key": "plus_subscription"}, {"_id": 0})
+    if meta and meta.get("price_id"):
+        try:
+            s.Price.retrieve(meta["price_id"])
+            PLUS_PRICE_ID_CACHE = meta["price_id"]
+            PLUS_PRODUCT_ID_CACHE = meta.get("product_id")
+            return PLUS_PRICE_ID_CACHE
+        except _stripe_sdk.error.InvalidRequestError as e:
+            logger.warning(
+                "[plus] persisted price_id %s no longer valid on this Stripe "
+                "platform (%s). Recreating.", meta["price_id"], str(e)[:120],
+            )
+            await db.platform_meta.delete_one({"key": "plus_subscription"})
+
     product = s.Product.create(
         name="Crafters Plus",
         description=(
@@ -96,10 +126,24 @@ async def _get_or_create_plus_price() -> str:
 
 
 async def _ensure_stripe_customer(maker: dict) -> str:
-    """Idempotently create a Stripe Customer for the maker."""
-    if maker.get("stripe_customer_id"):
-        return maker["stripe_customer_id"]
+    """Idempotently create a Stripe Customer for the maker.
+
+    iter275 — Validates the stored `stripe_customer_id` against the
+    current Stripe platform before reusing it. After a platform migration
+    the old customer IDs become orphan, so we recreate transparently.
+    """
     s = _stripe()
+    import stripe as _stripe_sdk
+    stored = maker.get("stripe_customer_id")
+    if stored:
+        try:
+            s.Customer.retrieve(stored)
+            return stored
+        except _stripe_sdk.error.InvalidRequestError as e:
+            logger.warning(
+                "[plus] maker=%s has stale stripe_customer_id %s (%s). Recreating.",
+                maker.get("slug"), stored, str(e)[:120],
+            )
     cust = s.Customer.create(
         email=maker.get("email"),
         name=maker.get("name") or maker["slug"],
