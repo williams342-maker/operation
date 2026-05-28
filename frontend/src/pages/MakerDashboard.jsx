@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
 import {
@@ -107,6 +107,42 @@ export default function MakerDashboard() {
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
   const changeTab = (id) => { window.location.hash = id; setTab(id); };
+
+  // iter274 — When the user is already on /maker/dashboard and clicks
+  // a <Link to="/maker/dashboard?tab=settings&section=clips"> from
+  // inside the dashboard, React Router navigates within the same
+  // component without remounting it. Without this effect, `tab` state
+  // stays stale → "nothing happens" UX bug on the dashboard's CLAIM SLOT
+  // card. We re-run the tab resolver whenever `location.search` changes.
+  // Reuses the existing `cm:open-settings` event so `?section=` deep-
+  // links the right sub-section (clips / videos / subscription / etc).
+  const location = useLocation();
+  useEffect(() => {
+    if (!location.search) return;
+    const sp = new URLSearchParams(location.search);
+    const tabParam = (sp.get("tab") || "").trim().toLowerCase();
+    const sectionParam = (sp.get("section") || "").trim().toLowerCase();
+    if (tabParam === "settings" && sectionParam) {
+      // Use the existing event so SettingsTab's `initialSection` prop
+      // gets pre-populated with the requested sub-section.
+      window.dispatchEvent(new CustomEvent("cm:open-settings", {
+        detail: { section: sectionParam },
+      }));
+    } else if (tabParam && KNOWN_TABS.has(tabParam)) {
+      changeTab(tabParam);  // also rewrites the hash via window.location
+    }
+    // Strip the query params after handling so subsequent in-tab nav
+    // doesn't re-fire this effect on every render.
+    if (tabParam || sectionParam) {
+      sp.delete("tab"); sp.delete("section");
+      const qs = sp.toString();
+      window.history.replaceState(
+        null, "",
+        `${window.location.pathname}${qs ? "?" + qs : ""}${window.location.hash || ""}`,
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.search]);
 
   // Reset scroll to top whenever the active tab changes — otherwise
   // switching from a long Dashboard scroll into Listings/Orders keeps

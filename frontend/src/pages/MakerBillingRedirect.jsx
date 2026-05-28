@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { startMakerSubscription, fetchMakerMe } from "../lib/api";
 
 /**
@@ -16,7 +16,28 @@ import { startMakerSubscription, fetchMakerMe } from "../lib/api";
  * If the maker is already active/trialing on Plus, we skip Stripe and
  * send them back to the dashboard Settings tab where the "active
  * subscription" card lives.
+ *
+ * iter275 — surfaced the real backend `detail` + HTTP status when
+ * checkout fails. Previously the catch fell straight through to a
+ * generic "Could not start the upgrade. Please try again." which made
+ * stale-JWT and Stripe-config bugs invisible. Now the user sees the
+ * specific reason (e.g. "Maker not found.", "Stripe is not
+ * configured.", "Maker access required.") and we also log the full
+ * error to the console for debugging.
  */
+function explainError(e) {
+  // axios populates `e.response` only when the server responded.
+  // Network errors / CORS rejection / DNS failure leave e.response = undefined.
+  if (e?.response) {
+    const detail = e.response.data?.detail;
+    const status = e.response.status;
+    if (detail) return `${detail} (HTTP ${status})`;
+    return `Server returned HTTP ${status} with no error detail.`;
+  }
+  if (e?.message) return `Network error: ${e.message}`;
+  return "Could not start the upgrade. Please try again.";
+}
+
 export default function MakerBillingRedirect() {
   const navigate = useNavigate();
   const [err, setErr] = useState("");
@@ -37,9 +58,19 @@ export default function MakerBillingRedirect() {
             navigate("/maker/dashboard#settings", { replace: true });
             return;
           }
-        } catch {
-          // If the /me call fails, fall through to checkout — the
-          // backend will still validate eligibility.
+        } catch (meErr) {
+          // If /me returns 401/404, the stored maker JWT is stale —
+          // probably from a deleted/renamed shop or a backend secret
+          // rotation. Force a re-login instead of staggering through
+          // checkout with a doomed token.
+          if (meErr?.response?.status === 401 || meErr?.response?.status === 404) {
+            try {
+              localStorage.removeItem("cm_maker_jwt");
+              localStorage.removeItem("cm_maker_jwt_exp");
+            } catch {}
+            navigate("/maker/login?from=billing-stale", { replace: true });
+            return;
+          }
         }
         const { checkout_url } = await startMakerSubscription();
         if (checkout_url) {
@@ -48,7 +79,9 @@ export default function MakerBillingRedirect() {
         }
         setErr("Stripe did not return a checkout URL. Please try again.");
       } catch (e) {
-        setErr(e?.response?.data?.detail || "Could not start the upgrade. Please try again.");
+        // eslint-disable-next-line no-console
+        console.error("[MakerBilling] start_subscription failed:", e);
+        setErr(explainError(e));
       }
     })();
   }, [navigate]);
@@ -73,7 +106,9 @@ export default function MakerBillingRedirect() {
                   const { checkout_url } = await startMakerSubscription();
                   if (checkout_url) window.location.href = checkout_url;
                 } catch (e) {
-                  setErr(e?.response?.data?.detail || "Could not start the upgrade.");
+                  // eslint-disable-next-line no-console
+                  console.error("[MakerBilling] retry failed:", e);
+                  setErr(explainError(e));
                 }
               }}
               className="btn-industrial btn-primary"
@@ -88,13 +123,26 @@ export default function MakerBillingRedirect() {
             <p className="font-mono text-xs text-red-400 leading-relaxed mb-4" data-testid="billing-error">
               {err}
             </p>
-            <button
-              onClick={() => navigate("/maker/dashboard", { replace: true })}
-              className="px-4 py-2 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em] transition"
-              data-testid="billing-back"
-            >
-              Back to dashboard
-            </button>
+            <p className="font-mono text-[10px] text-[#737373] leading-relaxed mb-5">
+              If this keeps happening, sign out and back in to refresh your maker
+              session, then try the Upgrade button again from your dashboard.
+            </p>
+            <div className="flex flex-wrap gap-2 justify-center">
+              <Link
+                to="/maker/dashboard"
+                className="btn-industrial"
+                data-testid="billing-back-dashboard"
+              >
+                Back to dashboard
+              </Link>
+              <Link
+                to="/maker/login?from=billing-error"
+                className="btn-industrial"
+                data-testid="billing-re-signin"
+              >
+                Sign back in
+              </Link>
+            </div>
           </>
         )}
       </div>
