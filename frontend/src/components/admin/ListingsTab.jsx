@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { fetchProducts, adminPatchProduct, adminDeleteProduct } from "../../lib/api";
+import { toast } from "sonner";
+import { fetchProducts, adminPatchProduct, adminDeleteProduct, adminGscRecheck } from "../../lib/api";
 import { useConfirm } from "../../hooks/useConfirm";
 
 // iter108 — One-click OG preview affordance per listing. Operators
@@ -76,10 +77,31 @@ function ListingRow({ p, onChange }) {
   const [busy, setBusy] = useState(false);
   const [stock, setStock] = useState(p.in_stock);
   const [confirm, confirmModal] = useConfirm();
+  // iter276 — Result of the latest "Re-check GSC" click. Kept local so
+  // the operator sees the verdict inline without a full list refresh.
+  const [gscResult, setGscResult] = useState(null);
   const toggleFeatured = async () => {
     setBusy(true);
     try { await adminPatchProduct(p.slug, { featured: !p.featured }); onChange(); }
     finally { setBusy(false); }
+  };
+  const recheckGsc = async () => {
+    setBusy(true);
+    setGscResult(null);
+    try {
+      const r = await adminGscRecheck(p.slug);
+      setGscResult(r);
+      if (r.ok) {
+        toast.success(`GSC: ${r.tier}${r.coverage ? ` · ${r.coverage}` : ""}`);
+      } else {
+        toast.error(r.reason || "Re-check failed");
+      }
+    } catch (e) {
+      const msg = e?.response?.data?.detail || e?.message || "Failed";
+      toast.error(msg);
+    } finally {
+      setBusy(false);
+    }
   };
   const saveStock = async () => {
     setBusy(true);
@@ -127,6 +149,31 @@ function ListingRow({ p, onChange }) {
           {p.featured ? "★ Featured" : "☆ Feature"}
         </button>
         <CrawlerPreviewMenu slug={p.slug} />
+        <button
+          onClick={recheckGsc}
+          disabled={busy}
+          title="Force-refresh Google indexation status for this listing — bypasses the daily cron"
+          className="px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.22em] border border-[#262626] text-[#a3a3a3] hover:border-cyan-500 hover:text-cyan-300 transition disabled:opacity-50"
+          data-testid={`listing-gsc-recheck-${p.slug}`}
+        >
+          {busy ? "…" : "↺ GSC re-check"}
+        </button>
+        {gscResult && (
+          <div
+            className="text-[9px] font-mono uppercase tracking-[0.18em] text-right"
+            style={{
+              color: gscResult.tier === "established" ? "#22c55e"
+                   : gscResult.tier === "submitted" ? "#f59e0b"
+                   : gscResult.tier === "not_in_sitemap" ? "#ef4444"
+                   : "#737373",
+            }}
+            data-testid={`listing-gsc-result-${p.slug}`}
+          >
+            {gscResult.ok
+              ? `${gscResult.tier}${gscResult.coverage ? ` · ${gscResult.coverage}` : ""}`
+              : "no result"}
+          </div>
+        )}
         <div className="flex items-center gap-2">
           <input
             type="number"

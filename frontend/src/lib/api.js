@@ -1182,6 +1182,9 @@ export const adminGscDisconnect = () =>
   http.post("/admin/gsc/disconnect", {}, { headers: adminAuthHeaders() }).then((r) => r.data);
 export const adminGscTestInspect = (slug = "") =>
   http.post("/admin/gsc/test-inspect", { slug }, { headers: adminAuthHeaders() }).then((r) => r.data);
+// iter276 — Force re-check this listing now (persists tier + checked_at).
+export const adminGscRecheck = (slug) =>
+  http.post(`/admin/gsc/recheck/${slug}`, {}, { headers: adminAuthHeaders() }).then((r) => r.data);
 
 // Maker-only — upload a ≤50MB / ≤60s video clip to attach to a showcase post.
 export const uploadShowcaseVideo = (file, opts = {}) => {

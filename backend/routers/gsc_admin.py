@@ -247,6 +247,69 @@ async def gsc_test_inspect(
     }
 
 
+# ─────────────── iter276 — Per-listing force re-check ───────────────
+@router.post("/admin/gsc/recheck/{slug}")
+async def gsc_recheck_product(
+    slug: str,
+    _: dict = Depends(current_admin),
+):
+    """Force-refresh GSC indexation status for a single listing.
+
+    Differs from `/test-inspect` in two ways:
+      1. Persists the new `gsc_tier`, `gsc_coverage`, `gsc_checked_at`
+         back onto the product so the indexation widget + maker
+         dashboard immediately reflect the fresh verdict.
+      2. Idempotent — safe to spam-click; the next call simply
+         overwrites the previous stamp.
+
+    Useful when ops just shipped a fix for a "soft 404" or thin
+    description and wants to confirm Google re-indexed without
+    waiting up to 7 days for the daily refresh cron to pick it up.
+    """
+    product = await db.products.find_one(
+        {"slug": slug, "deleted_at": {"$in": [None, ""]}},
+        {"_id": 0, "slug": 1, "status": 1},
+    )
+    if not product:
+        raise HTTPException(404, "Listing not found.")
+    if product.get("status") != "published":
+        raise HTTPException(409, "Listing isn't published — nothing for Google to index.")
+
+    site_root = (os.environ.get("PUBLIC_APP_URL")
+                 or os.environ.get("GSC_SITE_URL")
+                 or "https://craftersmarket.org").rstrip("/")
+    target = f"{site_root}/shop/{slug}"
+    result = await inspect_url(target)
+    if result is None:
+        return {"ok": False, "url": target,
+                "reason": "no result (GSC not connected or property URL mismatch)"}
+
+    from gsc_client import map_to_tier
+    idx = (result.get("indexStatusResult") or {})
+    tier = map_to_tier(result)
+    coverage = idx.get("coverageState") or ""
+    verdict = idx.get("verdict") or ""
+    last_crawl = idx.get("lastCrawlTime") or ""
+
+    await db.products.update_one(
+        {"slug": slug},
+        {"$set": {
+            "gsc_tier": tier,
+            "gsc_coverage": coverage,
+            "gsc_checked_at": now_iso(),
+        }},
+    )
+    return {
+        "ok": True,
+        "slug": slug,
+        "url": target,
+        "tier": tier,
+        "coverage": coverage,
+        "verdict": verdict,
+        "last_crawl": last_crawl,
+    }
+
+
 # ─────────────── iter275 — Indexation summary widget ───────────────
 @router.get("/admin/gsc/indexation-summary")
 async def gsc_indexation_summary(_: dict = Depends(current_admin)):
