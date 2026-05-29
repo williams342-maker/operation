@@ -417,7 +417,10 @@ async def list_recent_showcase(
 
     async def _query(filt: dict, n: int) -> list[dict]:
         # Always exclude quarantined posts from the public recent feed.
-        merged = {**filt, **_PUBLIC_FEED_FILTER}
+        # iter279 — Also require an image and the row is a strip-style
+        # visual feed; we never want "NO IMAGE" tiles on the homepage or
+        # product page.
+        merged = {**filt, **_PUBLIC_FEED_FILTER, **_HAS_IMAGE_FILTER}
         # `only_makers=true` restricts to maker-authored posts (used by
         # the homepage "Built in Real Workshops" workshop-imagery
         # mosaic — buyer posts go elsewhere).
@@ -444,6 +447,11 @@ async def list_recent_showcase(
         more = await _query({"id": {"$nin": list(seen_ids)}}, limit - len(rows))
         rows.extend(more)
 
+    # iter279 — Dedup by cover so two posts with the same hero photo
+    # don't render side-by-side. Newest-first ordering is already
+    # applied by `.sort("created_at", -1)`, so the dedupe keeps the
+    # most-recently-posted version when two posts share a cover.
+    rows = _dedupe_by_cover(rows)
     return {"items": rows[:limit], "count": len(rows[:limit])}
 
 

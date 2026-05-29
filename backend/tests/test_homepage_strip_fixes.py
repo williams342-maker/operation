@@ -161,3 +161,49 @@ async def test_maker_of_week_top_posts_only_have_images():
 
     await db.makers.delete_one({"slug": maker})
     await _cleanup()
+
+
+# ─────────────────── 4. /showcase/recent filters + dedupes ───────────────────
+async def test_recent_strip_excludes_no_image_and_dedupes():
+    """iter279 — The 'Recently shared by buyers' strip (homepage + product
+    pages + maker pages) must apply the same image filter + cover dedupe
+    as the trending strip. Same bug class would otherwise crop up there."""
+    await _cleanup()
+    SHARED = "https://x/recent_shared.jpg"
+    # Newest-first: r_uniq (newest) → r_dup1 → r_dup2 (oldest, dup cover)
+    #              → r_video (no image)
+    from datetime import timedelta
+    now = datetime.now(timezone.utc)
+    async def _seed_with_ts(pid, *, image_urls=None, image_url=None,
+                            video_url=None, ts=None):
+        await _seed_post(pid, image_urls=image_urls, image_url=image_url,
+                         video_url=video_url)
+        await db.showcase_posts.update_one(
+            {"id": f"{PREFIX}{pid}"},
+            {"$set": {"created_at": (ts or now).isoformat()}},
+        )
+
+    await _seed_with_ts("r_uniq", image_urls=["https://x/r_uniq.jpg"],
+                       ts=now)
+    await _seed_with_ts("r_dup1", image_urls=[SHARED],
+                       ts=now - timedelta(minutes=1))
+    await _seed_with_ts("r_dup2", image_urls=[SHARED],
+                       ts=now - timedelta(minutes=2))
+    await _seed_with_ts("r_video", video_url="https://x/r.mp4",
+                       ts=now - timedelta(minutes=3))
+
+    async with httpx.AsyncClient(timeout=20) as c:
+        r = await c.get(f"{API}/api/community/showcase/recent?limit=12")
+    assert r.status_code == 200
+    ids = [it["id"] for it in r.json()["items"]]
+    seeded = [i for i in ids if i.startswith(PREFIX)]
+
+    # Video-only post must NOT appear
+    assert f"{PREFIX}r_video" not in seeded
+    # Duplicate-cover pair: only the newest (r_dup1) survives
+    dups = [i for i in seeded if i in (f"{PREFIX}r_dup1", f"{PREFIX}r_dup2")]
+    assert len(dups) == 1
+    assert dups[0] == f"{PREFIX}r_dup1"
+    # Unique post present
+    assert f"{PREFIX}r_uniq" in seeded
+    await _cleanup()
