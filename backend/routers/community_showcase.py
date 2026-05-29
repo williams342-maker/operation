@@ -95,6 +95,45 @@ _PUBLIC_FEED_FILTER = {
 }
 
 
+# iter278 — Two homepage strips (`top-week` + `maker-of-week`) were
+# rendering "NO IMAGE" tiles for video-only posts and side-by-side
+# duplicates when two posts shared the same cover image. This helper
+# centralizes both fixes: a Mongo filter that requires at least one
+# image, and a Python-level dedupe by cover URL preserving rank order.
+_HAS_IMAGE_FILTER = {
+    "$or": [
+        {"image_url": {"$nin": [None, ""]}},
+        {"image_urls.0": {"$exists": True, "$nin": [None, ""]}},
+    ],
+}
+
+
+def _cover_url(post: dict) -> str:
+    """Mirrors the frontend's `(image_urls && image_urls[0]) || image_url`
+    fallback so backend dedup matches what the user actually sees."""
+    imgs = post.get("image_urls") or []
+    if imgs and imgs[0]:
+        return str(imgs[0]).strip()
+    return str(post.get("image_url") or "").strip()
+
+
+def _dedupe_by_cover(posts: list[dict]) -> list[dict]:
+    """Drop posts that share a cover URL with an earlier-ranked post.
+    Keeps the higher-ranked entry (which is what the caller already
+    sorted into position[0])."""
+    seen: set[str] = set()
+    out: list[dict] = []
+    for p in posts:
+        url = _cover_url(p)
+        if not url:
+            continue  # safety — should already be filtered by _HAS_IMAGE_FILTER
+        if url in seen:
+            continue
+        seen.add(url)
+        out.append(p)
+    return out
+
+
 # ===================== LISTING =====================
 @router.get("/community/showcase")
 async def list_showcase(limit: int = 50):
@@ -228,16 +267,19 @@ async def get_maker_of_the_week():
 
     # Top 3 contributing posts from this maker — sort by weekly views
     # (when trending) or by lifetime views (when lifetime fallback).
+    # iter278 — Require an image so the spotlight strip doesn't render
+    # "NO IMAGE" tiles for video-only posts.
     sort_field = "weekly_views" if mode == "trending" else "views"
     contributing = await db.showcase_posts.find(
-        {"maker_slug": maker_slug, **_PUBLIC_FEED_FILTER},
+        {"maker_slug": maker_slug, **_PUBLIC_FEED_FILTER, **_HAS_IMAGE_FILTER},
         {"_id": 0, "id": 1, "title": 1, "image_url": 1, "image_urls": 1,
          "views": 1, "likes": 1},
     ).to_list(50)
     for p in contributing:
         p["weekly_views"] = weekly_by_post.get(p["id"], 0)
     contributing.sort(key=lambda p: p.get(sort_field) or 0, reverse=True)
-    top_posts = contributing[:3]
+    # iter278 — Dedup by cover so we never show two identical tiles.
+    top_posts = _dedupe_by_cover(contributing)[:3]
 
     return {
         "maker": maker,
@@ -292,6 +334,7 @@ async def list_top_week_showcase(limit: int = 6):
         fallback = await db.showcase_posts.find(
             {
                 **_PUBLIC_FEED_FILTER,
+                **_HAS_IMAGE_FILTER,  # iter278 — no "no image" tiles in the fallback
                 "id": {"$nin": list(seen_ids)},
                 "views": {"$gt": 0},
             },
@@ -312,7 +355,7 @@ async def list_top_week_showcase(limit: int = 6):
         "likes": 1, "views": 1, "created_at": 1,
     }
     posts = await db.showcase_posts.find(
-        {"id": {"$in": post_ids}, **_PUBLIC_FEED_FILTER},
+        {"id": {"$in": post_ids}, **_PUBLIC_FEED_FILTER, **_HAS_IMAGE_FILTER},
         proj,
     ).to_list(len(post_ids))
     by_id = {p["id"]: p for p in posts}
@@ -326,8 +369,10 @@ async def list_top_week_showcase(limit: int = 6):
             continue
         p["views_this_week"] = cnt
         items.append(p)
-        if len(items) >= n:
-            break
+    # iter278 — Drop visual duplicates (two different posts using the
+    # same cover image render as identical tiles). Dedup happens AFTER
+    # the rank-order reassembly so we keep the higher-ranked post.
+    items = _dedupe_by_cover(items)[:n]
     return {"items": items}
 
 
