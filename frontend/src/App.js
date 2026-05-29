@@ -63,6 +63,7 @@ import MakerBillingRedirect from "./pages/MakerBillingRedirect";
 import AIAssistant from "./components/AIAssistant";
 import InstallPwaButton from "./components/InstallPwaButton";
 import LiveChatWidget from "./components/LiveChatWidget";
+import WelcomeBackToast from "./components/WelcomeBackToast";
 import MaintenancePage from "./components/MaintenancePage";
 import BetaBanner from "./components/BetaBanner";
 import CNCEmblem from "./components/CNCEmblem";
@@ -296,6 +297,7 @@ function App() {
         />
         <InstallPwaButton />
         <LiveChatWidget />
+        <WelcomeBackToast />
       </BrowserRouter>
     </CartProvider>
   );
