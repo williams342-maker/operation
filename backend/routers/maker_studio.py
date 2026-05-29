@@ -48,6 +48,11 @@ async def _current_studio_user(authorization: str | None = Header(default=None))
     token = authorization.split(" ", 1)[1].strip()
     try:
         claims = decode_session_jwt(token)
+    except HTTPException:
+        # iter285 — Preserve the specific reason from decode_session_jwt
+        # ("Session expired — sign in again." vs "Invalid session.")
+        # so the user sees an actionable error instead of a generic one.
+        raise
     except Exception:
         raise HTTPException(401, "Invalid session")
     role = claims.get("role") or "buyer"

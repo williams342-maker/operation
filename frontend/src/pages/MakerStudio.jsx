@@ -235,8 +235,18 @@ export default function MakerStudio() {
       setQuota(r.data.quota);
       toast.success("Design generated");
     } catch (e) {
+      const status = e?.response?.status;
       const msg = e?.response?.data?.detail || "AI generation failed";
-      toast.error(msg);
+      if (status === 401) {
+        // iter285 — Stale JWT path. The api.js interceptor has already
+        // wiped the bad token, so a single hard-refresh would re-render
+        // the sign-in callout. Toast the user there now with an
+        // actionable CTA.
+        toast.error(`${msg} — please sign in again`);
+        setTimeout(() => { window.location.reload(); }, 1500);
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setBusy(false);
     }

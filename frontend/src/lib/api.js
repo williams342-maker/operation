@@ -20,6 +20,30 @@ http.interceptors.response.use(
     } else if (d && typeof d === "object") {
       error.response.data.detail = d.msg || JSON.stringify(d);
     }
+
+    // iter285 — Auto-purge stale tokens on 401. The Studio (and several
+    // other gated flows) checks `!!localStorage.getItem("cm_*_jwt")` to
+    // decide whether to show a sign-in callout. If the token is present
+    // but expired/invalid the UI looks signed-in, the action fires, and
+    // backend returns 401 → user gets a confusing "Invalid session"
+    // toast with no path forward. Clearing the bad token here flips the
+    // UI back to signed-out so the user sees the sign-in CTA on the
+    // next render and knows what to do.
+    const status = error?.response?.status;
+    if (status === 401) {
+      const detail = error?.response?.data?.detail || "";
+      const looksExpired = /session|sign in|expired|invalid|missing/i.test(detail);
+      if (looksExpired) {
+        try {
+          // Don't touch admin JWT — admin session lives elsewhere and
+          // their 401 path is the admin login redirect.
+          localStorage.removeItem("cm_maker_jwt");
+          localStorage.removeItem("cm_maker_slug");
+          localStorage.removeItem("cm_maker_jwt_exp");
+          localStorage.removeItem("cm_buyer_jwt");
+        } catch { /* private mode — silent */ }
+      }
+    }
     return Promise.reject(error);
   },
 );
