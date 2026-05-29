@@ -239,7 +239,12 @@ export default function MakerDetail() {
         </div>
 
         <h2 className="font-display text-4xl md:text-6xl mb-8">From the workshop</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        {/* iter281 — Doubled the column count at lg+ so each card lands
+            at ~half its previous width on desktop. Mobile keeps 2-col
+            (was 1-col — felt sparse at the request to shrink). The
+            ProductCard's `aspect-[4/5]` portrait ratio is preserved so
+            photos still feel like product hero shots, just smaller. */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5">
           {products.map((p, i) => <ProductCard key={p.id} p={p} i={i} />)}
         </div>
 

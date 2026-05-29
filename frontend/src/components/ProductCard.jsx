@@ -84,8 +84,8 @@ export default function ProductCard({ p, i = 0 }) {
             </div>
           </div>
         </div>
-        <div className="p-6 border-t border-[#262626]">
-          <h3 className="font-display text-2xl mb-2">{p.title}</h3>
+        <div className="p-4 md:p-5 border-t border-[#262626]">
+          <h3 className="font-display text-lg md:text-xl lg:text-2xl mb-2 line-clamp-2">{p.title}</h3>
           <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-[#a3a3a3]">
             {p.dimensions || "Made to order"}
           </p>
