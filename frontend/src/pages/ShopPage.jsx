@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { fetchProducts } from "../lib/api";
 import ProductCard from "../components/ProductCard";
@@ -90,6 +90,44 @@ export default function ShopPage() {
     return true;
   }), [products, cat, tech, q, onlyExamples]);
 
+  // iter283 — Infinite-scroll pagination. The catalog is already
+  // client-cached after `fetchProducts()`, so this is purely a render-
+  // budget optimization: only mount `PAGE_SIZE` ProductCards at a
+  // time, then expand as the user scrolls. Cuts initial DOM cost +
+  // framer-motion mount work by ~3x on a typical 87-listing catalog.
+  const PAGE_SIZE = 24;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const sentinelRef = useRef(null);
+
+  // Reset to the first page whenever the filter narrows or widens the
+  // result set — otherwise a stale `visibleCount` could show e.g. only
+  // the first 24 of the previous filter applied against the new one.
+  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [cat, tech, q, onlyExamples]);
+
+  // IntersectionObserver-based loader. Fires once when the sentinel
+  // enters the viewport (≈600px before the bottom for a smooth feel)
+  // and bumps `visibleCount`. Self-disconnects once the full list is
+  // rendered so we don't keep firing on every scroll.
+  useEffect(() => {
+    if (!sentinelRef.current) return;
+    if (visibleCount >= filtered.length) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setVisibleCount((n) => Math.min(n + PAGE_SIZE, filtered.length));
+        }
+      },
+      { rootMargin: "600px 0px" },
+    );
+    io.observe(sentinelRef.current);
+    return () => io.disconnect();
+  }, [visibleCount, filtered.length]);
+
+  const visible = useMemo(
+    () => filtered.slice(0, visibleCount),
+    [filtered, visibleCount],
+  );
+
   return (
     <div className="pb-24 grain min-h-screen" data-testid="shop-page">
       <SupportVeteransStrip />
@@ -150,9 +188,34 @@ export default function ShopPage() {
         ) : (
           <>
             {filtered.length > 0 ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 md:gap-5">
-                {filtered.map((p, i) => <ProductCard key={p.id} p={p} i={i} />)}
-              </div>
+              <>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 md:gap-5">
+                  {visible.map((p, i) => <ProductCard key={p.id} p={p} i={i} />)}
+                </div>
+                {/* iter283 — Infinite-scroll sentinel + status. Hidden
+                    once we've shown everything; shows a "loading more"
+                    indicator otherwise. */}
+                {visibleCount < filtered.length ? (
+                  <div
+                    ref={sentinelRef}
+                    className="flex items-center justify-center py-10 font-mono text-[10px] uppercase tracking-[0.3em] text-[#525252]"
+                    data-testid="shop-infinite-loader"
+                  >
+                    <span className="inline-block w-2 h-2 bg-[#ff4500] mr-3 animate-pulse" aria-hidden="true" />
+                    Loading {Math.min(PAGE_SIZE, filtered.length - visibleCount)} more
+                    <span className="ml-2 text-[#737373]">
+                      · {visibleCount}/{filtered.length}
+                    </span>
+                  </div>
+                ) : filtered.length > PAGE_SIZE && (
+                  <div
+                    className="flex items-center justify-center py-10 font-mono text-[10px] uppercase tracking-[0.3em] text-[#525252]"
+                    data-testid="shop-infinite-end"
+                  >
+                    ◆ End of catalog · {filtered.length} pieces
+                  </div>
+                )}
+              </>
             ) : (
               <EmptyState
                 icon={Wrench}
