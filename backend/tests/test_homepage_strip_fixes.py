@@ -207,3 +207,64 @@ async def test_recent_strip_excludes_no_image_and_dedupes():
     # Unique post present
     assert f"{PREFIX}r_uniq" in seeded
     await _cleanup()
+
+
+# ─────────────────── 5. only_makers top-up from product covers ───────────────────
+async def test_only_makers_tops_up_from_product_covers():
+    """iter280 — The 'Built in Real Workshops' mosaic must stay full
+    (up to `limit`) even when the maker has only video-only showcase
+    posts. Backend tops up with the maker's published product covers."""
+    await _cleanup()
+    await db.products.delete_many({"slug": {"$regex": "^_pytest_iter280_prod_"}})
+    await db.makers.delete_many({"slug": {"$regex": "^_pytest_iter280_"}})
+
+    maker = "_pytest_iter280_maker"
+    await db.makers.update_one(
+        {"slug": maker},
+        {"$set": {"slug": maker, "name": "iter280 Maker",
+                  "shop_name": "iter280 Shop", "deleted_at": None}},
+        upsert=True,
+    )
+    await _seed_post("real", image_urls=["https://x/real.jpg"],
+                     maker_slug=maker)
+    await _seed_post("vid_only", video_url="https://x/v.mp4",
+                     maker_slug=maker)
+    # Need many products since the endpoint already has fallback products
+    # in the DB; ours need to push to the top by being newest.
+    now = datetime.now(timezone.utc)
+    for i in range(3):
+        slug = f"_pytest_iter280_prod_{i}"
+        m_slug = f"_pytest_iter280_m_{i}"
+        await db.makers.update_one(
+            {"slug": m_slug},
+            {"$set": {"slug": m_slug, "name": f"M{i}",
+                      "deleted_at": None}},
+            upsert=True,
+        )
+        await db.products.update_one(
+            {"slug": slug},
+            {"$set": {
+                "id": slug, "slug": slug, "title": f"Prod {i}",
+                "status": "published", "deleted_at": None,
+                "maker_slug": m_slug,
+                "images": [f"https://cdn.x/_pytest_iter280_{i}.jpg"],
+                "price": 25.0,
+                "created_at": now.isoformat(),
+            }},
+            upsert=True,
+        )
+
+    async with httpx.AsyncClient(timeout=20) as c:
+        r = await c.get(f"{API}/api/community/showcase/recent?only_makers=true&limit=4")
+    items = r.json()["items"]
+    assert len(items) == 4, f"expected 4 tiles, got {len(items)}"
+    fallbacks = [i for i in items if i.get("source") == "product_fallback"]
+    assert len(fallbacks) >= 1
+    for f in fallbacks:
+        assert f.get("product_slug")
+        assert (f.get("image_urls") or [None])[0]
+        assert f["id"].startswith("prod:")
+
+    await db.products.delete_many({"slug": {"$regex": "^_pytest_iter280_prod_"}})
+    await db.makers.delete_many({"slug": {"$regex": "^_pytest_iter280_"}})
+    await _cleanup()

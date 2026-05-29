@@ -452,6 +452,66 @@ async def list_recent_showcase(
     # applied by `.sort("created_at", -1)`, so the dedupe keeps the
     # most-recently-posted version when two posts share a cover.
     rows = _dedupe_by_cover(rows)
+
+    # iter280 — Top-up fallback for the "Built in Real Workshops" mosaic
+    # specifically (`only_makers=true`). The image filter (iter279) often
+    # leaves us with < 4 maker showcase posts, because most maker posts
+    # are workshop video clips with no still image. Rather than letting
+    # the strip self-hide on the frontend (`posts.length < 2 → return null`),
+    # we top up from each maker's PRODUCT photos — every published
+    # listing has a guaranteed cover image, and a product shot is still
+    # an authentic "this is what they make" tile, which is exactly the
+    # promise this section makes to homepage visitors.
+    if only_makers and len(rows) < limit:
+        used_covers = {_cover_url(r) for r in rows if _cover_url(r)}
+        seen_makers = {r.get("maker_slug") for r in rows if r.get("maker_slug")}
+        need = limit - len(rows)
+        # Pull recent published listings from active makers (prefer makers
+        # we haven't already represented in the strip — variety wins).
+        prod_cursor = db.products.find(
+            {
+                "status": "published",
+                "deleted_at": {"$in": [None, ""]},
+                "images.0": {"$exists": True, "$nin": [None, ""]},
+                "maker_slug": {"$nin": [None, ""]},
+            },
+            {"_id": 0, "id": 1, "slug": 1, "title": 1, "images": 1,
+             "maker_slug": 1, "created_at": 1},
+        ).sort("created_at", -1).limit(need * 4)  # over-fetch for dedup
+        async for prod in prod_cursor:
+            cover = (prod.get("images") or [None])[0]
+            if not cover or cover in used_covers:
+                continue
+            # Bias toward makers not already in the strip for variety
+            if prod.get("maker_slug") in seen_makers:
+                continue
+            seen_makers.add(prod["maker_slug"])
+            used_covers.add(cover)
+            # Look up the maker name once for the hover-attribution chip.
+            maker = await db.makers.find_one(
+                {"slug": prod["maker_slug"]},
+                {"_id": 0, "name": 1, "shop_name": 1, "portrait": 1},
+            )
+            rows.append({
+                "id":           f"prod:{prod.get('slug') or prod['id']}",
+                "title":        prod.get("title") or "",
+                "image_url":    cover,
+                "image_urls":   [cover],
+                "video_url":    None,
+                "product_slug": prod.get("slug"),
+                "maker_slug":   prod["maker_slug"],
+                "user_name":    (maker or {}).get("shop_name") or (maker or {}).get("name") or "",
+                "user_picture": (maker or {}).get("portrait") or "",
+                "user_role":    "maker",
+                "likes":        0,
+                "created_at":   prod.get("created_at") or "",
+                # Source flag so the frontend (if it ever cares) knows
+                # this came from the product catalog, not a real showcase post.
+                "source":       "product_fallback",
+            })
+            if len(rows) >= limit:
+                break
+
     return {"items": rows[:limit], "count": len(rows[:limit])}
 
 

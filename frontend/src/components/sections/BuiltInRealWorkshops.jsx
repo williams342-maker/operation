@@ -90,10 +90,19 @@ export default function BuiltInRealWorkshops({ testId = "real-workshops" }) {
         <div className="grid grid-cols-2 gap-2 md:gap-3 min-w-0">
           {posts.slice(0, 4).map((p) => {
             const cover = (p.image_urls && p.image_urls[0]) || p.image_url;
+            // iter280 — Backend may supplement maker showcase posts with
+            // product-catalog covers (rows where `source === "product_fallback"`,
+            // id prefixed with "prod:"). Deep-link those tiles to the
+            // actual product page so the click goes somewhere meaningful
+            // — not a broken `/community#showcase-prod:slug` anchor.
+            const isProductFallback = p.source === "product_fallback" || (p.id || "").startsWith("prod:");
+            const href = isProductFallback
+              ? `/shop/${p.product_slug || (p.id || "").replace(/^prod:/, "")}`
+              : `/community#showcase-${p.id}`;
             return (
               <Link
                 key={p.id}
-                to={`/community#showcase-${p.id}`}
+                to={href}
                 className="group relative aspect-[4/3] bg-[#121212] border border-[#262626] hover:border-[#ff4500] overflow-hidden transition"
                 data-testid={`${testId}-tile-${p.id}`}
                 title={p.title}
