@@ -22,6 +22,25 @@ export default function ShopPage() {
   const [cat, setCat] = useState(params.get("category") || "All");
   const [tech, setTech] = useState("All");
   const [q, setQ] = useState(params.get("q") || "");
+  // iter284 — Honor `cm_shop_scroll_memory` on first mount so a buyer
+  // who clicks into a listing and hits "back" lands exactly where they
+  // left. We only consume the entry once; subsequent route entries
+  // start fresh. Stored before state inits so the first render uses
+  // the restored visibleCount.
+  const _memoryRef = useRef((() => {
+    try {
+      const raw = sessionStorage.getItem("cm_shop_scroll_memory");
+      if (!raw) return null;
+      const m = JSON.parse(raw);
+      // Only honor when search params match (filter hash) AND the
+      // memory is < 30 min old — stale entries become noise.
+      const fresh = m && (Date.now() - (m.savedAt || 0)) < 30 * 60 * 1000;
+      const sameFilter = m && m.search === (window.location.search || "");
+      return fresh && sameFilter ? m : null;
+    } catch {
+      return null;
+    }
+  })());
   // ?featured=examples — "View all examples" CTA destination from the
   // homepage Featured Builds rail. Filters the grid down to platform-
   // seeded "Featured Example" listings only so visitors who clicked the
@@ -96,13 +115,67 @@ export default function ShopPage() {
   // time, then expand as the user scrolls. Cuts initial DOM cost +
   // framer-motion mount work by ~3x on a typical 87-listing catalog.
   const PAGE_SIZE = 24;
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [visibleCount, setVisibleCount] = useState(_memoryRef.current?.visibleCount || PAGE_SIZE);
   const sentinelRef = useRef(null);
 
   // Reset to the first page whenever the filter narrows or widens the
   // result set — otherwise a stale `visibleCount` could show e.g. only
   // the first 24 of the previous filter applied against the new one.
-  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [cat, tech, q, onlyExamples]);
+  // iter284 — Skip the reset on the very first render so a restored
+  // visibleCount from memory survives. _firstFilterChangeRef flips after
+  // the user actually touches a filter (not from URL hydration).
+  const _firstFilterChangeRef = useRef(true);
+  useEffect(() => {
+    if (_firstFilterChangeRef.current) {
+      _firstFilterChangeRef.current = false;
+      return;
+    }
+    setVisibleCount(PAGE_SIZE);
+    // Filter change invalidates any memory under the previous filter.
+    try { sessionStorage.removeItem("cm_shop_scroll_memory"); } catch { /* ignore */ }
+  }, [cat, tech, q, onlyExamples]);
+
+  // iter284 — After products + visible cards render, restore the saved
+  // scrollY (if any) so the buyer lands back on the same row. One-shot
+  // via the ref; cleared so subsequent re-renders don't fight the user.
+  useEffect(() => {
+    const mem = _memoryRef.current;
+    if (!mem || products === null) return;
+    // The DOM needs a tick to settle before the scroll target exists.
+    const id = window.requestAnimationFrame(() => {
+      window.scrollTo({ top: mem.scrollY || 0, behavior: "instant" in window ? "instant" : "auto" });
+      _memoryRef.current = null;  // one-shot
+    });
+    return () => window.cancelAnimationFrame(id);
+  }, [products]);
+
+  // iter284 — Continuously persist `{visibleCount, scrollY, search}` so
+  // the next mount of this page (after a detail-page round-trip) can
+  // restore. Throttled to 300ms — scroll fires ~60×/s otherwise.
+  useEffect(() => {
+    let t = null;
+    const save = () => {
+      try {
+        sessionStorage.setItem("cm_shop_scroll_memory", JSON.stringify({
+          visibleCount,
+          scrollY:  window.scrollY,
+          search:   window.location.search || "",
+          savedAt:  Date.now(),
+        }));
+      } catch { /* quota or private-mode — silent */ }
+    };
+    const onScroll = () => {
+      if (t) return;
+      t = setTimeout(() => { t = null; save(); }, 300);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    // Also persist immediately when visibleCount changes (paged load).
+    save();
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (t) clearTimeout(t);
+    };
+  }, [visibleCount]);
 
   // IntersectionObserver-based loader. Fires once when the sentinel
   // enters the viewport (≈600px before the bottom for a smooth feel)

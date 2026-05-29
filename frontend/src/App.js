@@ -141,7 +141,24 @@ function ScrollTop() {
   const { pathname, search } = useLocation();
   useEffect(() => {
     captureAttribution();
-    window.scrollTo(0, 0);
+    // iter284 — Skip the auto-reset when returning to `/shop` AND the
+    // saved scroll-memory entry matches the current URL filter state.
+    // Lets the buyer come back from a product detail page to exactly
+    // the row they left. ShopPage owns the actual restore inside its
+    // own effect once products are loaded.
+    let skip = false;
+    try {
+      if (pathname === "/shop") {
+        const raw = sessionStorage.getItem("cm_shop_scroll_memory");
+        if (raw) {
+          const m = JSON.parse(raw);
+          // Only skip when the saved entry was captured under the same
+          // URL search params — otherwise filter changes get sticky.
+          if (m && m.search === search) skip = true;
+        }
+      }
+    } catch { /* corrupted entry — fall through to default reset */ }
+    if (!skip) window.scrollTo(0, 0);
     trackPageview();
   }, [pathname, search]);
   return null;
