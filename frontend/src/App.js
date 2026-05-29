@@ -16,6 +16,7 @@ import ForMakers from "./components/sections/ForMakers";
 import Reviews from "./components/sections/Reviews";
 import CustomCTA from "./components/sections/CustomCTA";
 import BetaSignupCTA from "./components/sections/BetaSignupCTA";
+import BuiltByMakers from "./components/sections/BuiltByMakers";
 import Footer from "./components/sections/Footer";
 import SupportVeteransStrip from "./components/SupportVeteransStrip";
 
@@ -131,6 +132,7 @@ const Home = () => {
       <NewsletterSignup />
       <CustomCTA />
       <BetaSignupCTA />
+      <BuiltByMakers />
     </>
   );
 };
