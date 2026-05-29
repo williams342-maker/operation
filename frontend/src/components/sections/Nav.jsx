@@ -39,14 +39,39 @@ const tertiaryLinks = [
   { label: "Contact",    href: "/contact" },
 ];
 
-// Pull whichever JWT is present so we can switch the nav to "My account"
-// when the user is signed in. Reads on every render — cheap, runs in browser.
+// iter286 — Inline JWT exp validation so the nav never shows "Account"
+// (with deep-links into the dashboard) when the underlying token has
+// expired. Admin token is opaque to us (different flow + secret); we
+// just check presence for that role.
+function _decodeExp(token) {
+  if (!token || typeof token !== "string") return null;
+  const parts = token.split(".");
+  if (parts.length !== 3) return null;
+  try {
+    let b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    b64 += "=".repeat((4 - (b64.length % 4)) % 4);
+    const payload = JSON.parse(decodeURIComponent(escape(atob(b64))));
+    return typeof payload.exp === "number" ? payload.exp : null;
+  } catch {
+    return null;
+  }
+}
+function _isLive(token) {
+  const exp = _decodeExp(token);
+  if (exp === null) return !!token;  // can't decode → assume live (admin etc.)
+  return Date.now() / 1000 <= exp + 5;
+}
+
 function readSignedInRoles() {
   if (typeof window === "undefined") return [];
   const out = [];
-  if (localStorage.getItem("cm_admin_jwt")) out.push("admin");
-  if (localStorage.getItem("cm_maker_jwt")) out.push("maker");
-  if (localStorage.getItem("cm_buyer_jwt")) out.push("buyer");
+  try {
+    if (localStorage.getItem("cm_admin_jwt")) out.push("admin");
+    const mk = localStorage.getItem("cm_maker_jwt");
+    if (mk && _isLive(mk)) out.push("maker");
+    const by = localStorage.getItem("cm_buyer_jwt");
+    if (by && _isLive(by)) out.push("buyer");
+  } catch { /* private-mode */ }
   return out;
 }
 function readSignedInRole() {

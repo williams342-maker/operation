@@ -16,6 +16,7 @@ import { Sparkles, Download, Share2, Loader2, Lock, FileDown, RotateCw, Plus, Tr
 import { http } from "../lib/api";
 import { toast } from "sonner";
 import { useStructuredData } from "../lib/seo";
+import useAuth from "../hooks/useAuth";
 
 // Pre-built prompt examples to demystify the tool for first-timers.
 const EXAMPLE_PROMPTS = [
@@ -49,7 +50,10 @@ export default function MakerStudio() {
     url: "https://craftersmarket.org/studio",
   });
 
-  const signedIn = !!jwt();
+  // iter286 — `useAuth` validates `exp` client-side so a stale JWT
+  // never makes the Generate button look usable. Stays in sync with
+  // cross-tab logout and one-shot expiry timer.
+  const { signedIn, token } = useAuth();
   const [prompt, setPrompt] = useState(EXAMPLE_PROMPTS[0]);
   const [refinePrompt, setRefinePrompt] = useState("");
   const [width, setWidth] = useState(14);
