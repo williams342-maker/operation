@@ -32,7 +32,7 @@ import os
 from datetime import datetime, timezone
 from xml.sax.saxutils import escape as xml_escape
 
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, Request, Response
 
 from core import db
 from routers.pinterest_feed import (
@@ -70,7 +70,7 @@ async def _fetch_products() -> list[dict]:
 
 # ─────────────── Google Shopping (XML, g: namespace) ───────────────
 @router.get("/google-merchant/feed.xml")
-async def google_merchant_feed_xml() -> Response:
+async def google_merchant_feed_xml(request: Request) -> Response:
     """RSS 2.0 feed with `xmlns:g="http://base.google.com/ns/1.0"`.
 
     Google Merchant Center pulls this URL daily and reconciles each
@@ -140,6 +140,12 @@ async def google_merchant_feed_xml() -> Response:
     parts.append("</channel></rss>")
 
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    # iter292 — Log the crawler hit for the admin "Sales channel feeds" card.
+    try:
+        from feed_access_log import record_hit
+        await record_hit(request, channel="google", rows=rows_written)
+    except Exception:
+        pass
     return Response(
         content="\n".join(parts),
         media_type="application/xml; charset=utf-8",
@@ -153,7 +159,7 @@ async def google_merchant_feed_xml() -> Response:
 
 # ─────────────── Meta (Facebook + Instagram Shop) CSV ───────────────
 @router.get("/meta/feed.csv")
-async def meta_feed_csv() -> Response:
+async def meta_feed_csv(request: Request) -> Response:
     """Meta Catalog Manager pulls this URL on whatever schedule the user
     configures (default daily). Format identical to Pinterest aside from
     minor field-name nits — easier to debug than Meta's alternate XML.
@@ -207,6 +213,12 @@ async def meta_feed_csv() -> Response:
         rows_written += 1
 
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    # iter292 — Log the Meta crawler hit.
+    try:
+        from feed_access_log import record_hit
+        await record_hit(request, channel="meta", rows=rows_written)
+    except Exception:
+        pass
     return Response(
         content=buf.getvalue(),
         media_type="text/csv; charset=utf-8",

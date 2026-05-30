@@ -688,3 +688,42 @@ async def stripe_webhook_health(_admin: dict = Depends(_current_admin)):
                         or (os.environ.get("STRIPE_WEBHOOK_SECRET") or "").strip()),
     }
     return out
+
+
+# ─────────────── iter292 — Sales channel feeds widget ───────────────
+@router.get("/admin/feeds/status")
+async def feeds_status(_admin: dict = Depends(_current_admin)):
+    """Per-channel summary for the admin "Sales channel feeds" card.
+
+    For each of the 3 catalog feeds we run (Pinterest / Google / Meta),
+    returns the most-recent crawler hit + a 7d hit count. The card uses
+    this to prove the platform's crawler is actually fetching, and to
+    surface "haven't seen a hit in 36h" warnings."""
+    from datetime import datetime, timedelta, timezone
+    PUBLIC = (os.environ.get("PUBLIC_APP_URL") or "https://craftersmarket.org").rstrip("/")
+    now = datetime.now(timezone.utc)
+    cutoff_7d = (now - timedelta(days=7)).isoformat()
+
+    channels = [
+        {"key": "pinterest", "name": "Pinterest",
+         "url": f"{PUBLIC}/api/pinterest/feed.csv",
+         "format": "CSV"},
+        {"key": "google", "name": "Google Merchant",
+         "url": f"{PUBLIC}/api/google-merchant/feed.xml",
+         "format": "XML"},
+        {"key": "meta", "name": "Meta (FB + IG Shop)",
+         "url": f"{PUBLIC}/api/meta/feed.csv",
+         "format": "CSV"},
+    ]
+    for c in channels:
+        last = await db.feed_access_log.find_one(
+            {"channel": c["key"]}, {"_id": 0},
+            sort=[("ts", -1)],
+        )
+        hits_7d = await db.feed_access_log.count_documents(
+            {"channel": c["key"], "ts": {"$gte": cutoff_7d}},
+        )
+        c["last_hit"] = last
+        c["hits_7d"] = hits_7d
+
+    return {"channels": channels}

@@ -2666,6 +2666,184 @@ function SearchEnginePingCard() {
 // the last 7d of `stripe_webhook_log` rows (populated by both the
 // main checkout webhook and the Connect webhook).
 // ─────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────
+// iter292 — Sales channel feeds card.
+// Surfaces the 3 catalog feed URLs (Pinterest / Google / Meta) with a
+// one-click "Copy URL" and a "last crawled X ago" indicator pulled from
+// `feed_access_log`. Discoverable home for these URLs so they're not
+// buried in chat history.
+// ─────────────────────────────────────────────────────────────────────
+function SalesChannelFeedsCard() {
+  const API = process.env.REACT_APP_BACKEND_URL;
+  const [data, setData] = useState(null);
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState("");  // which channel was just copied
+
+  const load = async () => {
+    setBusy(true); setErr("");
+    try {
+      const r = await fetch(`${API}/api/admin/feeds/status`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("cm_admin_jwt") || ""}` },
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      setData(await r.json());
+    } catch (e) {
+      setErr(e.message || "Load failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
+
+  const copy = async (key, url) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(key);
+      toast.success("URL copied — paste into the platform's catalog form.");
+      setTimeout(() => setCopied((c) => (c === key ? "" : c)), 2500);
+    } catch {
+      toast.error("Couldn't copy — select + copy manually.");
+    }
+  };
+
+  const fmtAgo = (iso) => {
+    if (!iso) return "never";
+    try {
+      const ms = Date.now() - new Date(iso).getTime();
+      if (ms < 60_000) return "just now";
+      if (ms < 3_600_000) return `${Math.floor(ms / 60_000)}m ago`;
+      if (ms < 86_400_000) return `${Math.floor(ms / 3_600_000)}h ago`;
+      const d = Math.floor(ms / 86_400_000);
+      return d < 30 ? `${d}d ago` : new Date(iso).toLocaleDateString();
+    } catch { return iso; }
+  };
+
+  // Verdict colors based on time-since-last-crawl. Platforms typically
+  // hit daily, so a > 36h gap is a real red flag.
+  const hitVerdict = (last) => {
+    if (!last?.ts) return { color: "#737373", label: "no hits yet" };
+    const hoursAgo = (Date.now() - new Date(last.ts).getTime()) / 3.6e6;
+    if (hoursAgo < 36) return { color: "#22c55e", label: "active" };
+    if (hoursAgo < 7 * 24) return { color: "#f59e0b", label: "stale" };
+    return { color: "#ef4444", label: "silent" };
+  };
+
+  if (err && !data) {
+    return (
+      <section className="border border-[#262626] p-4 md:p-5" data-testid="sales-feeds-card">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Sales channel feeds</div>
+        <div className="font-mono text-xs text-red-400 mt-2">{err}</div>
+      </section>
+    );
+  }
+  if (!data) {
+    return (
+      <section className="border border-[#262626] p-4 md:p-5" data-testid="sales-feeds-card">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Sales channel feeds</div>
+        <div className="font-mono text-xs text-[#737373] mt-2">Loading…</div>
+      </section>
+    );
+  }
+
+  return (
+    <section
+      className="border border-[#262626] p-4 md:p-5"
+      data-testid="sales-feeds-card"
+    >
+      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-3">
+        <div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+            Sales channel feeds
+          </div>
+          <h3 className="font-display text-xl mt-1 text-[#e5e5e5]">
+            Auto-pull catalog URLs
+          </h3>
+          <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-2xl">
+            Paste each URL into the matching platform's "catalog feed" form.
+            All three are public, refresh hourly, and honor each maker's
+            <code className="text-[#ff4500]"> external_ads_opt_out</code> toggle.
+            The "last crawled" timestamp confirms the platform's crawler is
+            actually hitting us.
+          </p>
+        </div>
+        <button
+          onClick={load}
+          disabled={busy}
+          data-testid="sales-feeds-refresh"
+          className="shrink-0 px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+        >
+          {busy ? "Refreshing…" : "Refresh"}
+        </button>
+      </div>
+
+      <div className="space-y-3">
+        {data.channels.map((c) => {
+          const verd = hitVerdict(c.last_hit);
+          return (
+            <div
+              key={c.key}
+              className="border border-[#262626] bg-[#0d0d0d] p-4"
+              data-testid={`sales-feed-${c.key}`}
+            >
+              <div className="flex flex-wrap items-baseline gap-3 mb-2">
+                <div className="font-display text-base text-[#e5e5e5]">{c.name}</div>
+                <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252]">{c.format}</span>
+                <span
+                  className="ml-auto px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.22em] border"
+                  style={{ borderColor: verd.color, color: verd.color }}
+                  data-testid={`sales-feed-${c.key}-verdict`}
+                >
+                  ◆ {verd.label}
+                </span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 mb-2">
+                <code
+                  className="font-mono text-[11px] text-cyan-300 bg-[#080808] border border-[#262626] px-2 py-1 break-all flex-1 min-w-0"
+                  data-testid={`sales-feed-${c.key}-url`}
+                >
+                  {c.url}
+                </code>
+                <button
+                  onClick={() => copy(c.key, c.url)}
+                  className="px-2.5 py-1 border border-[#ff4500]/60 text-[#ff4500] hover:bg-[#ff4500]/10 font-mono text-[9px] uppercase tracking-[0.22em]"
+                  data-testid={`sales-feed-${c.key}-copy`}
+                >
+                  {copied === c.key ? "✓ Copied" : "Copy URL"}
+                </button>
+                <a
+                  href={c.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-2.5 py-1 border border-[#262626] text-[#a3a3a3] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[9px] uppercase tracking-[0.22em]"
+                  data-testid={`sales-feed-${c.key}-open`}
+                >
+                  Open ↗
+                </a>
+              </div>
+
+              <div className="font-mono text-[10px] text-[#737373]">
+                Last crawl:{" "}
+                <span className="text-[#e5e5e5]">{fmtAgo(c.last_hit?.ts)}</span>
+                {c.last_hit?.rows != null && (
+                  <span className="text-[#525252]">{" "}· returned <span className="text-[#a3a3a3]">{c.last_hit.rows}</span> rows</span>
+                )}
+                <span className="text-[#525252]">{" "}· {c.hits_7d} hits in 7d</span>
+                {c.last_hit?.ua && (
+                  <div className="text-[#525252] truncate" title={c.last_hit.ua}>
+                    UA: {c.last_hit.ua.slice(0, 80)}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function StripeWebhookHealthCard() {
   const API = process.env.REACT_APP_BACKEND_URL;
   const [data, setData] = useState(null);
@@ -4651,6 +4829,8 @@ export default function SettingsTab() {
       <GscIndexationCard />
 
       <StripeWebhookHealthCard />
+
+      <SalesChannelFeedsCard />
 
       <PurgeFeaturedSeedCard />
 

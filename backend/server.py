@@ -257,6 +257,12 @@ async def on_startup():
         await _ensure_swh()
     except Exception:
         logger.exception("[stripe_webhook_log] index init failed (non-fatal)")
+    # iter292 — Initialize the feed_access_log TTL + lookup indexes.
+    try:
+        from feed_access_log import ensure_indexes as _ensure_fal
+        await _ensure_fal()
+    except Exception:
+        logger.exception("[feed_access_log] index init failed (non-fatal)")
     logger.info("Crafters Market API ready (seed checked).")
 
 

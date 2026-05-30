@@ -37,7 +37,7 @@ import io
 import os
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, Request, Response
 
 from core import db
 
@@ -109,7 +109,7 @@ async def _maker_brand_map(maker_slugs: list[str]) -> dict[str, str]:
 
 
 @router.get("/pinterest/feed.csv")
-async def pinterest_feed_csv() -> Response:
+async def pinterest_feed_csv(request: Request) -> Response:
     """Public CSV consumed by Pinterest's daily catalog crawler.
 
     No auth — Pinterest crawls without custom headers, and all product
@@ -194,6 +194,13 @@ async def pinterest_feed_csv() -> Response:
 
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     fname = f"crafters_market_pinterest_{today}.csv"
+    # iter292 — Log the crawler hit for the admin "Sales channel feeds"
+    # card so operators have proof Pinterest actually fetched.
+    try:
+        from feed_access_log import record_hit
+        await record_hit(request, channel="pinterest", rows=rows_written)
+    except Exception:
+        pass  # best-effort logging — never blocks the response
     return Response(
         content=buf.getvalue(),
         media_type="text/csv; charset=utf-8",
