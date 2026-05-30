@@ -65,20 +65,29 @@ def _truncate(s: str, n: int) -> str:
 def _google_product_category(category: str, technique: str) -> str:
     """Best-fit Google Product Taxonomy ID. Pinterest accepts either the
     numeric ID or the breadcrumb path; we use breadcrumbs for clarity.
-    `technique` is reserved for future technique-specific mapping."""
+    `technique` is reserved for future technique-specific mapping.
+
+    iter294 — Every return value is at least 3 levels deep — Pinterest's
+    validator (alert 126) warns when the GPC is shallower than that:
+        "Some items only have 1 or 2 levels of google_product_category"
+    """
     _ = technique  # placeholder — kept for future technique-specific mapping
     cat = (category or "").lower()
     if "sign" in cat:
         return "Home & Garden > Decor > Signs"
     if "wall" in cat or "art" in cat:
-        return "Home & Garden > Decor > Wall Decor"
-    if "furniture" in cat or "table" in cat or "shelf" in cat:
-        return "Furniture"
+        return "Home & Garden > Decor > Wall Art"
+    if "furniture" in cat or "table" in cat:
+        return "Furniture > Tables > Accent Tables"
+    if "shelf" in cat or "shelv" in cat:
+        return "Furniture > Cabinets & Storage > Storage Cabinets"
     if "ornament" in cat or "decor" in cat:
-        return "Home & Garden > Decor"
-    if "jewel" in cat or "gift" in cat:
+        return "Home & Garden > Decor > Sculptures & Statues"
+    if "jewel" in cat:
+        return "Apparel & Accessories > Jewelry > Necklaces"
+    if "gift" in cat or "craft" in cat:
         return "Arts & Entertainment > Hobbies & Creative Arts > Arts & Crafts"
-    return "Home & Garden > Decor"
+    return "Home & Garden > Decor > Sculptures & Statues"
 
 
 def _availability(p: dict) -> str:
@@ -177,6 +186,18 @@ async def pinterest_feed_csv(request: Request) -> Response:
         slug = (p.get("slug") or "").strip()
         if not slug:
             continue
+
+        # iter294 — Hard skip when Pinterest-required fields are empty.
+        # The validator counts every empty title/description/price/image
+        # as an error and refuses to publish the row. Better to omit the
+        # row entirely than ship a broken one.
+        title = (p.get("title") or "").strip()
+        if not title:
+            continue
+        description = (p.get("description") or "").strip()
+        if not description:
+            continue
+
         # Primary image is required by Pinterest. Skip rows without one
         # rather than uploading rows that will fail validation.
         images = [img for img in (p.get("images") or []) if img]
@@ -185,14 +206,14 @@ async def pinterest_feed_csv(request: Request) -> Response:
             continue
         extras = [_abs(u) for u in images[1:6] if u]  # Pinterest accepts up to 10; cap at 5 to keep CSV small.
 
-        price = p.get("price")
+        # Pinterest rejects rows with $0 or missing price.
         try:
-            price_str = f"{float(price):.2f} USD" if price is not None else ""
+            price_val = float(p.get("price") or 0)
         except (TypeError, ValueError):
-            price_str = ""
-        if not price_str:
-            # Pinterest rejects rows without a valid price.
             continue
+        if price_val <= 0:
+            continue
+        price_str = f"{price_val:.2f} USD"
 
         brand = brand_map.get(p.get("maker_slug") or "", "") or "Crafters Market"
         technique = (p.get("technique") or "").strip()
@@ -200,8 +221,8 @@ async def pinterest_feed_csv(request: Request) -> Response:
 
         w.writerow([
             slug,
-            _truncate(p.get("title") or "", 100),
-            _truncate(p.get("description") or p.get("title") or "Handcrafted item", 500),
+            _truncate(title, 100),
+            _truncate(description, 500),
             f"{SITE_BASE}/shop/{slug}",
             primary_img,
             price_str,

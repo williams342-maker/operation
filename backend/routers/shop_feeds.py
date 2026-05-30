@@ -95,21 +95,29 @@ async def google_merchant_feed_xml(request: Request) -> Response:
         slug = (p.get("slug") or "").strip()
         if not slug:
             continue
+        # iter294 — Same hard-skip pattern as Pinterest: never emit a row
+        # with empty required fields. Google Merchant rejects them too.
+        title = (p.get("title") or "").strip()
+        if not title:
+            continue
+        description = (p.get("description") or "").strip()
+        if not description:
+            continue
         images = [img for img in (p.get("images") or []) if img]
         primary_img = _abs(images[0] if images else (p.get("image_url") or ""))
         if not primary_img:
             continue
         try:
-            price = float(p.get("price"))
+            price = float(p.get("price") or 0)
         except (TypeError, ValueError):
             continue
         if price <= 0:
             continue
 
         brand = brand_map.get(p.get("maker_slug") or "", "") or "Crafters Market"
-        title = _truncate(p.get("title") or "", 150)
+        title = _truncate(title, 150)
         # Google requires a description ≥ 1 char; pad with the title if missing.
-        desc = _truncate(p.get("description") or title, 5000)
+        desc = _truncate(description, 5000)
         link = f"{SITE_BASE}/shop/{slug}"
 
         item: list[str] = ["<item>"]
@@ -183,14 +191,24 @@ async def meta_feed_csv(request: Request) -> Response:
         slug = (p.get("slug") or "").strip()
         if not slug:
             continue
+        # iter294 — Hard skip rows missing required Meta catalog fields.
+        title = (p.get("title") or "").strip()
+        if not title:
+            continue
+        description = (p.get("description") or "").strip()
+        if not description:
+            continue
         images = [img for img in (p.get("images") or []) if img]
         primary_img = _abs(images[0] if images else (p.get("image_url") or ""))
         if not primary_img:
             continue
         try:
-            price_str = f"{float(p.get('price')):.2f} USD"
+            price_val = float(p.get("price") or 0)
         except (TypeError, ValueError):
             continue
+        if price_val <= 0:
+            continue
+        price_str = f"{price_val:.2f} USD"
         extras = [_abs(u) for u in images[1:10] if u]
         brand = brand_map.get(p.get("maker_slug") or "", "") or "Crafters Market"
         category = (p.get("category") or "").strip()
@@ -198,8 +216,8 @@ async def meta_feed_csv(request: Request) -> Response:
 
         w.writerow([
             slug,
-            _truncate(p.get("title") or "", 150),
-            _truncate(p.get("description") or p.get("title") or "Handcrafted item", 5000),
+            _truncate(title, 150),
+            _truncate(description, 5000),
             _availability(p),
             "new",
             price_str,
