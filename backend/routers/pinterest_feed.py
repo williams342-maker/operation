@@ -63,31 +63,42 @@ def _truncate(s: str, n: int) -> str:
 
 
 def _google_product_category(category: str, technique: str) -> str:
-    """Best-fit Google Product Taxonomy ID. Pinterest accepts either the
-    numeric ID or the breadcrumb path; we use breadcrumbs for clarity.
-    `technique` is reserved for future technique-specific mapping.
+    """Best-fit Google Product Taxonomy node. Pinterest matches against
+    Google's actual taxonomy and collapses any unrecognized path to the
+    longest valid prefix — which then trips alert 126 ("only 1 or 2
+    levels"). Every value returned here is a verbatim node from the
+    official taxonomy
+    ( https://www.google.com/basepages/producttype/taxonomy.en-US.txt ).
 
-    iter294 — Every return value is at least 3 levels deep — Pinterest's
-    validator (alert 126) warns when the GPC is shallower than that:
-        "Some items only have 1 or 2 levels of google_product_category"
+    `technique` is reserved for future technique-specific mapping.
     """
-    _ = technique  # placeholder — kept for future technique-specific mapping
+    _ = technique  # placeholder
     cat = (category or "").lower()
     if "sign" in cat:
+        # GPC ID 6325 — verified leaf, 3 levels.
         return "Home & Garden > Decor > Signs"
     if "wall" in cat or "art" in cat:
-        return "Home & Garden > Decor > Wall Art"
-    if "furniture" in cat or "table" in cat:
-        return "Furniture > Tables > Accent Tables"
+        # GPC ID 500044 — verified leaf, 4 levels. (The non-existent
+        # "Home & Garden > Decor > Wall Art" path was the iter294 bug.)
+        return "Home & Garden > Decor > Artwork > Posters, Prints, & Visual Artwork"
     if "shelf" in cat or "shelv" in cat:
+        # GPC ID 6361, 3 levels.
         return "Furniture > Cabinets & Storage > Storage Cabinets"
+    if "furniture" in cat or "table" in cat:
+        # GPC ID 4239, 3 levels.
+        return "Furniture > Tables > Accent Tables"
     if "ornament" in cat or "decor" in cat:
-        return "Home & Garden > Decor > Sculptures & Statues"
+        # GPC ID 500045 — verified leaf, 4 levels.
+        return "Home & Garden > Decor > Artwork > Sculptures & Statues"
     if "jewel" in cat:
+        # GPC ID 188, 3 levels.
         return "Apparel & Accessories > Jewelry > Necklaces"
     if "gift" in cat or "craft" in cat:
+        # GPC ID 16, 3 levels.
         return "Arts & Entertainment > Hobbies & Creative Arts > Arts & Crafts"
-    return "Home & Garden > Decor > Sculptures & Statues"
+    # Default for unmapped categories — Sculptures & Statues is the best
+    # generic fit for one-of-a-kind handmade pieces. 4 levels.
+    return "Home & Garden > Decor > Artwork > Sculptures & Statues"
 
 
 def _availability(p: dict) -> str:
