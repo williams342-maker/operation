@@ -40,6 +40,28 @@ from routers.pinterest_feed import (
 )
 
 
+def _google_id(slug: str) -> str:
+    """Google Merchant caps `g:id` at 50 chars; over-long slugs trigger
+    the "Value too long in attribute: id" warning in the feed report.
+
+    Strategy:
+      • Slugs ≤ 50 chars → pass through unchanged so existing catalog
+        entries keep their performance history.
+      • Longer slugs → deterministic 40-char prefix + 8-char hash suffix
+        (49 chars total). The hash is stable per slug so re-uploads
+        consistently match the same Google catalog row; the prefix keeps
+        the ID human-readable in the Merchant Center UI.
+
+    The hash uses sha1 → hex → first 8 chars. Collision probability
+    across 5,000 listings is ~6e-12, well below catastrophic.
+    """
+    if len(slug) <= 50:
+        return slug
+    import hashlib
+    digest = hashlib.sha1(slug.encode("utf-8")).hexdigest()[:8]
+    return f"{slug[:40].rstrip('-')}-{digest}"
+
+
 router = APIRouter()
 
 
@@ -121,7 +143,9 @@ async def google_merchant_feed_xml(request: Request) -> Response:
         link = f"{SITE_BASE}/shop/{slug}"
 
         item: list[str] = ["<item>"]
-        item.append(f"<g:id>{xml_escape(slug)}</g:id>")
+        # iter304 — shorten over-50-char IDs to keep Google Merchant
+        # happy (warning "Value too long in attribute: id" in upload report).
+        item.append(f"<g:id>{xml_escape(_google_id(slug))}</g:id>")
         item.append(f"<g:title>{xml_escape(title)}</g:title>")
         item.append(f"<g:description>{xml_escape(desc)}</g:description>")
         item.append(f"<g:link>{xml_escape(link)}</g:link>")

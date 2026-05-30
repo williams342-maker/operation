@@ -1,3 +1,22 @@
+## 2026-05-30 — Google Merchant `g:id` length fix (iter304)
+
+### Issue
+Google Merchant Center feed upload report flagged 19 warnings — all "Value too long in attribute: id". Google's `g:id` spec caps the field at **50 chars**, but our feed was emitting full product slugs (up to 73 chars on long titles like `wood-steampunk-keepsake-box-with-laser-etched-gears-and-metal-accents`). Warnings, not errors, so products were still indexed — but some Google surfaces truncate over-length IDs and drop products from those carousels.
+
+### What shipped
+- `/app/backend/routers/shop_feeds.py` — new `_google_id(slug)` helper:
+  - Slugs ≤ 50 chars: passed through unchanged (preserves Google catalog row-match history; no performance reset).
+  - Slugs > 50 chars: deterministic `slug[:40] + "-" + sha1(slug)[:8]` = 49 chars max.
+  - Hash suffix prevents collisions when two long slugs share a 40-char prefix (e.g. the two `wood-steampunk-keepsake-box-...` variants in the upload report now get distinct IDs `b2b418c8` vs `9a759dce`).
+  - Applied ONLY to the Google Merchant XML feed. Pinterest (127-char cap) and Meta (100-char cap) feeds keep full slugs so their existing catalog match history stays intact.
+- Tests: `/app/backend/tests/test_google_id_shortener_iter304.py` — **7/7 pass**. Covers short-slug pass-through, long-slug shortening, idempotency, collision avoidance, format spec, live-feed verification, and Pinterest-preservation regression.
+
+### Live verification
+- Live `/api/google-merchant/feed.xml` now contains 83 products; max ID length 49 chars; zero over-limit IDs.
+- The 19 specific slugs called out in the upload report all shorten to valid 48-49 char IDs.
+
+
+
 ## 2026-05-30 — SEO Phase 4 Bundle C: Free SVG/DXF lead magnet + PDP guide cross-link (iter303)
 
 ### User ask
