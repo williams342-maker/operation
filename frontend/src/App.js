@@ -49,7 +49,10 @@ import BetaPage from "./pages/BetaPage";
 import PressPage from "./pages/PressPage";
 import SEOLandingPage from "./pages/SEOLandingPage";
 import HowCustomOrdersWorkPage from "./pages/HowCustomOrdersWorkPage";
+import StatePage from "./pages/StatePage";
+import GuidePage from "./pages/GuidePage";
 import { SEO_LANDING_PAGES } from "./pages/seoLandingConfig";
+import { GUIDES } from "./pages/guideConfig";
 import LandingPage from "./pages/LandingPage";
 import GrowWithUs from "./pages/GrowWithUs";
 import MakerStudio from "./pages/MakerStudio";
@@ -233,6 +236,14 @@ function App() {
                     targeting transactional intent queries between the
                     landing pages and the /custom-order form. */}
                 <Route path="/how-custom-orders-work" element={<HowCustomOrdersWorkPage />} />
+                {/* Phase-4 state pages (iter301) — only states with ≥ 1
+                    maker render; backend filters the sitemap to match. */}
+                <Route path="/makers/state/:code" element={<StatePage />} />
+                {/* Phase-4 content guides (iter301) — long-form
+                    educational content with HowTo + FAQPage schema. */}
+                {Object.entries(GUIDES).map(([slug, cfg]) => (
+                  <Route key={slug} path={`/guides/${slug}`} element={<GuidePage config={cfg} />} />
+                ))}
                 {/* Marketing landing page — 3 aliased routes for A/B testing
                     ad copy/URL variants. All render the same component. */}
                 <Route path="/launch" element={<LandingPage />} />

@@ -1,3 +1,30 @@
+## 2026-05-30 — SEO Phase 4 Bundle A: state pages + content guides (iter301)
+
+### User ask
+Continued from Phase 3 (iter300). User picked Bundle A from the Phase 4 polish list: state pages for the makers index + 2-3 educational content-hub articles with FAQ schema. (Bundles B and C — reviews/alt-text/dedup and DXF lead magnet — deferred.)
+
+### What shipped
+- `/app/backend/routers/state_pages.py` (new) — `GET /api/state-pages` returns every state with ≥ 1 maker, sorted by maker count desc then name asc. Houses the 50-state lookup table (`US_STATES`) and a robust `state_for_location()` parser that handles `"City, ST"`, `"City, ST 12345"`, `"City, State"`, `"City, State, Country"` etc. Pure-function, reusable.
+- `/app/backend/server.py` — wired the `state_pages` router into the `/api` namespace.
+- `/app/backend/routers/seo.py` — sitemap now auto-includes every state page with ≥ 1 maker (13 currently) at `weekly` changefreq, `0.75` priority. Avoids the doorway-page penalty by skipping empty states. Also added the 3 new content guides at `monthly` / `0.80`.
+- `/app/frontend/src/pages/StatePage.jsx` (new) — `/makers/state/:code` route. Accepts both 2-letter codes (`tx`) and full-name slugs (`texas`). Renders breadcrumbs, H1 with state name, intro + supporting paragraphs, 3 CTAs, a maker grid with technique badges + veteran-owned indicators, and a sibling-states cross-link grid. JSON-LD `@graph` ships `CollectionPage + BreadcrumbList + ItemList` with `Place + PostalAddress` as the `about` reference for the geographic targeting Google needs.
+- `/app/frontend/src/pages/GuidePage.jsx` (new) — reusable long-form guide component. Renders breadcrumbs, H1, intro, ≥ 5 H2 sections (each with paragraphs + optional bullet lists), FAQ accordion, dual CTAs to `/custom-order` + `/shop`, related-links grid. JSON-LD `@graph` ships `Article + BreadcrumbList + FAQPage`.
+- `/app/frontend/src/pages/guideConfig.js` (new, ~330 lines of content) — 3 production-ready guide configs:
+  - **Plasma vs Laser vs Router** — 5 sections (plasma overview, laser overview, router overview, decision matrix with 7-item bullet list, how to read a maker's tooling list), 5 FAQs, 6 related links.
+  - **Outdoor Mounting Guide** — 5 sections (substrate ID, hardware sizing/standoffs, sealing/protecting anchor points, wind/weight loading, annual maintenance), 5 FAQs, 6 related links.
+  - **Metal Gauge & Finish Guide** — 5 sections (steel gauges, when to step up, powder-coat vs paint vs clear-coat vs raw patina, aluminum/copper specs, brief-writing checklist with 3-item bullet list), 5 FAQs, 6 related links.
+- `/app/frontend/src/App.js` — registered the new state route + dynamic `/guides/:slug` routes mapped from `GUIDES`.
+- Tests: `/app/backend/tests/test_seo_phase4_iter301.py` — 6/6 pass. Covers state-string parsing (all 50 states + DC + bogus inputs), sorted state-page endpoint, sitemap inclusion of every state page + all 3 guides, and frontend guide-config structural checks (sections, faqs, relatedLinks, publishedAt).
+
+### Live verification
+- `GET /api/state-pages` → 13 states with maker counts (CA/MT/OR/TN/TX at 2 makers each, 8 more states at 1 maker).
+- `/api/sitemap.xml` → contains all 13 state URLs + all 3 guide URLs at correct priorities.
+- `/makers/state/tn` → H1 "CNC, Plasma & Laser Makers in Tennessee.", 2 makers, 9 sibling-state cross-links, schema `CollectionPage + BreadcrumbList + ItemList`.
+- `/makers/state/tx`, `/makers/state/ca` → equivalent structure with correct geo schema.
+- `/guides/plasma-vs-laser-vs-router`, `/guides/outdoor-mounting-guide`, `/guides/metal-gauge-finish-guide` → all 3 render 5 sections, 5 FAQs, 6 related links, schema `Article + BreadcrumbList + FAQPage`. Canonicals point to apex URLs.
+
+
+
 ## 2026-05-30 — SEO Phase 3: content-rich landing pages + custom-order hub (iter300)
 
 ### User ask

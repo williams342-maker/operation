@@ -107,6 +107,12 @@ async def sitemap_xml(http_request: Request):
         # pages to the /custom-order form. High priority because it
         # converts informational searches into commission briefs.
         ("/how-custom-orders-work", "monthly", "0.85"),
+        # Phase-4 content guides (iter301) — educational hub linking to
+        # both buyer-intent landing pages and product listings. Each
+        # ships HowTo + FAQPage JSON-LD.
+        ("/guides/plasma-vs-laser-vs-router", "monthly", "0.80"),
+        ("/guides/outdoor-mounting-guide",    "monthly", "0.80"),
+        ("/guides/metal-gauge-finish-guide",  "monthly", "0.80"),
         ("/journal",       "weekly",  "0.7"),
         ("/updates",       "weekly",  "0.6"),
         ("/custom-order",  "monthly", "0.6"),
@@ -119,7 +125,7 @@ async def sitemap_xml(http_request: Request):
         {"_id": 0, "slug": 1, "created_at": 1, "images": 1, "title": 1},
     ).to_list(2000)
     makers = await db.makers.find(
-        {}, {"_id": 0, "slug": 1, "created_at": 1, "name": 1, "cover": 1, "banner_image_url": 1},
+        {}, {"_id": 0, "slug": 1, "created_at": 1, "name": 1, "cover": 1, "banner_image_url": 1, "location": 1},
     ).to_list(2000)
     posts = await db.blog_posts.find(
         {}, {"_id": 0, "slug": 1, "created_at": 1, "cover": 1, "title": 1},
@@ -171,6 +177,21 @@ async def sitemap_xml(http_request: Request):
         urls.append(_u(
             f"/journal/{b['slug']}", b.get("created_at"),
             "monthly", "0.6", imgs,
+        ))
+
+    # State landing pages (iter301) — only include states that actually
+    # have ≥ 1 maker. We'd rather ship 13 dense pages than 50 thin
+    # doorway pages, which Google deprioritizes.
+    from routers.state_pages import state_for_location  # local import to avoid cycles
+    state_counts: dict[str, int] = {}
+    for m in makers:
+        code = state_for_location(m.get("location"))
+        if code:
+            state_counts[code] = state_counts.get(code, 0) + 1
+    for code in sorted(state_counts.keys()):
+        urls.append(_u(
+            f"/makers/state/{code.lower()}", today,
+            "weekly", "0.75",
         ))
 
     xml = (
