@@ -2080,6 +2080,111 @@ async def admin_delete_product(slug: str, _: dict = Depends(current_admin)):
     return {"deleted": True}
 
 
+# ─────────────── iter295 — Soft-delete & zombie product cleanup ───────────────
+class SoftDeleteBody(BaseModel):
+    """Free-form audit reason — surfaced in admin lists + Stripe Dashboard."""
+    reason: str = "incomplete_metadata"
+
+
+@router.post("/admin/products/{slug}/soft-delete")
+async def admin_soft_delete_product(
+    slug: str,
+    body: SoftDeleteBody | None = None,
+    admin: dict = Depends(current_admin),
+):
+    """Soft-delete a product. Stamps `deleted_at` (so it's excluded from
+    every public surface that respects that flag — catalog feeds, search,
+    maker profile, etc.) but leaves the document intact for audit + undo.
+
+    Differs from `DELETE /admin/products/{slug}` (hard delete) which is
+    irreversible. Use this for zombie listings, accidental seed rows,
+    or makers who deactivated mid-publish — preserves the row in case
+    the maker comes back."""
+    reason = (body.reason if body else "incomplete_metadata").strip() or "incomplete_metadata"
+    r = await db.products.update_one(
+        {"slug": slug},
+        {"$set": {
+            "deleted_at":     now_iso(),
+            "deleted_reason": reason,
+            "deleted_by":     (admin or {}).get("email") or "admin",
+            "status":         "deleted",  # hides from any code path that filters by status="published"
+        }},
+    )
+    if r.matched_count == 0:
+        raise HTTPException(404, "Product not found")
+    logger.info("[admin] soft-deleted product=%s reason=%s by=%s",
+                slug, reason, (admin or {}).get("email") or "admin")
+    return {"ok": True, "slug": slug, "reason": reason}
+
+
+@router.post("/admin/products/{slug}/restore")
+async def admin_restore_product(slug: str, admin: dict = Depends(current_admin)):
+    """Undo a soft-delete. Clears the audit fields and flips status back
+    to `draft` (maker must re-review + republish, never auto-relive)."""
+    r = await db.products.update_one(
+        {"slug": slug, "deleted_at": {"$nin": [None, ""]}},
+        {"$set": {
+            "deleted_at":     None,
+            "deleted_reason": None,
+            "deleted_by":     None,
+            "status":         "draft",
+        }},
+    )
+    if r.matched_count == 0:
+        raise HTTPException(404, "Soft-deleted product not found.")
+    logger.info("[admin] restored product=%s by=%s",
+                slug, (admin or {}).get("email") or "admin")
+    return {"ok": True, "slug": slug, "status": "draft"}
+
+
+@router.get("/admin/products/incomplete")
+async def admin_list_incomplete_products(_: dict = Depends(current_admin)):
+    """Surface zombie / incomplete products so the admin can soft-delete
+    them in one click. A product is "incomplete" when it would fail the
+    Pinterest/Google/Meta catalog feed validation:
+      • title missing/empty
+      • description missing/empty
+      • price <= 0 or unparseable
+      • no images (and no image_url fallback)
+
+    Excludes already-soft-deleted rows (only "live" zombies)."""
+    cursor = db.products.find(
+        {"deleted_at": {"$in": [None, ""]}},
+        {"_id": 0, "slug": 1, "title": 1, "description": 1, "price": 1,
+         "images": 1, "image_url": 1, "status": 1, "maker_slug": 1,
+         "created_at": 1},
+    ).limit(2000)
+    items: list[dict] = []
+    async for p in cursor:
+        issues: list[str] = []
+        if not (p.get("title") or "").strip():
+            issues.append("no_title")
+        if not (p.get("description") or "").strip():
+            issues.append("no_description")
+        try:
+            price_val = float(p.get("price") or 0)
+            if price_val <= 0:
+                issues.append("zero_price")
+        except (TypeError, ValueError):
+            issues.append("invalid_price")
+        imgs = [i for i in (p.get("images") or []) if i]
+        if not imgs and not (p.get("image_url") or "").strip():
+            issues.append("no_images")
+        if issues:
+            items.append({
+                "slug":        p.get("slug"),
+                "title":       p.get("title") or "(no title)",
+                "status":      p.get("status"),
+                "maker_slug":  p.get("maker_slug"),
+                "price":       p.get("price"),
+                "created_at":  p.get("created_at"),
+                "issues":      issues,
+            })
+    # Sort by most issues first — admin's eyes go to the worst offenders
+    items.sort(key=lambda x: (-len(x["issues"]), x.get("slug") or ""))
+    return {"items": items, "count": len(items)}
+
+
 # ===================== USER MODERATION =====================
 class UserModerationAction(BaseModel):
     """Apply a moderation status to a community user.
