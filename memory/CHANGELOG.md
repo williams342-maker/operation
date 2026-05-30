@@ -1,3 +1,23 @@
+## 2026-05-30 — Admin "Generate Fresh Clip" network-error fix (iter310)
+
+### Issue
+On production (`craftersmarket.org`), clicking **Admin → Settings → Short-form video seed → Generate Fresh Clip** surfaced "Network error" after ~100s — even though Sora-2-pro renders typically take 2–5 min. The frontend's 15-min axios timeout was irrelevant: Cloudflare's edge proxy was dropping the long synchronous HTTP request before the backend could reply.
+
+### What shipped — background job + polling pattern
+- `/app/backend/routers/seed_admin.py`:
+  - `POST /admin/seed/clips/generate-one` now returns `{job_id, status: "queued"}` in <1s. Render runs via `asyncio.create_task`. State persisted in `db.clip_seed_jobs`.
+  - New `GET /admin/seed/clips/job/{job_id}` returns `{status: queued|running|done|error, clip?, reason?, detail?}` (with `_id` stripped).
+- `/app/frontend/src/lib/api.js`:
+  - `generateOneClipSeed()` no longer holds a 15-min timeout — returns the job_id immediately.
+  - New `fetchClipSeedJob(jobId)` polling helper.
+- `/app/frontend/src/components/admin/SettingsTab.jsx`:
+  - `runGenerate` enqueues a job, then polls every 5s for up to 10 min. Tolerates up to 3 transient poll failures before giving up. Identical UX (toast on success/error) once the job resolves — no UI redesign needed.
+- Tests: `/app/backend/tests/test_iter310_clip_job_polling.py` — **5/5 pass**. Covers fast POST return (<5s), 404 on unknown job, end-to-end job retrieval with ObjectId stripping, 422 on bad model, 401/403 admin-gating.
+
+### Why this fixes prod (but worked in preview)
+Preview uses the Emergent ingress, which doesn't enforce the same edge-cut timeout. Production sits behind Cloudflare's default ~100s proxy timeout. The background-job pattern decouples HTTP request lifetime from render duration — works identically in both environments now.
+
+
 ## 2026-05-30 — Google Merchant `g:id` length fix (iter304)
 
 ### Issue

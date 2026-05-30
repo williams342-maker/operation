@@ -28,6 +28,7 @@ import {
   generateBatchCommunityDesigns,
   fetchClipsSeedStatus,
   generateOneClipSeed,
+  fetchClipSeedJob,
   purgeClipsSeed,
   purgeOrphanClipsSeed,
   fetchOgDiag,
@@ -585,38 +586,79 @@ function ClipsSeedCard() {
   const runGenerate = async () => {
     setGenBusy(true);
     setGenResult(null);
-    // 2-3min render — keep the user oriented during the wait.
+    // iter310 — background-job pattern. The POST returns instantly with
+    // a job_id; we then poll for completion. This survives Cloudflare's
+    // ~100s edge timeout on craftersmarket.org which was dropping the
+    // long synchronous request and surfacing as a "Network error".
     toast.info(`Drafting clip via ${model}… typically 2–3 min. You can leave this tab; the toast will follow.`);
+    let jobId;
     try {
-      const r = await generateOneClipSeed(model);
-      setGenResult(r);
-      if (r.status === "ok") {
-        toast.success(`✓ Generated "${r.clip.title}" (${r.clip.category}).`);
+      const enq = await generateOneClipSeed(model);
+      jobId = enq?.job_id;
+      if (!jobId) {
+        toast.error("Failed to enqueue render job — backend returned no job_id.");
+        setGenBusy(false);
+        return;
+      }
+    } catch (e) {
+      const detail = e?.response?.data?.detail;
+      const status = e?.response?.status;
+      let pretty = detail || e?.message || "Failed to start generation.";
+      if (status === 401 || status === 403) pretty = "Admin auth expired — refresh and retry.";
+      else if (!status) pretty = "Network error reaching backend. Check VPN / connection.";
+      toast.error(pretty, { duration: 10000 });
+      setGenBusy(false);
+      return;
+    }
+
+    // Poll every 5s up to ~10 min. The actual render hits ~5 min worst
+    // case so this leaves headroom for Sora capacity hiccups.
+    const POLL_MS = 5000;
+    const MAX_TRIES = 120; // 10 minutes
+    let consecutiveErrors = 0;
+    for (let i = 0; i < MAX_TRIES; i++) {
+      await new Promise((res) => setTimeout(res, POLL_MS));
+      let job;
+      try {
+        job = await fetchClipSeedJob(jobId);
+        consecutiveErrors = 0;
+      } catch (e) {
+        consecutiveErrors += 1;
+        if (consecutiveErrors >= 4) {
+          toast.error("Lost connection to backend while polling render status. Refresh the page to recover — the render may still complete.", { duration: 12000 });
+          setGenBusy(false);
+          return;
+        }
+        continue;
+      }
+      if (job.status === "done") {
+        setGenResult({ status: "ok", clip: job.clip });
+        toast.success(`✓ Generated "${job.clip?.title}" (${job.clip?.category}).`);
         refresh();
-      } else {
-        // Map common backend failure reasons to actionable operator copy.
-        const reason = (r.reason || "").toLowerCase();
-        let pretty = r.reason || "Sora generation failed.";
-        if (reason.includes("budget") || reason.includes("quota") || reason.includes("402") || reason.includes("balance")) {
+        setGenBusy(false);
+        return;
+      }
+      if (job.status === "error") {
+        setGenResult({ status: "error", reason: job.reason, detail: job.detail });
+        const reason = (job.reason || "").toLowerCase();
+        let pretty = job.reason || "Sora generation failed.";
+        if (reason.includes("budget") || reason.includes("quota") || reason.includes("balance") || reason.includes("exhaust")) {
           pretty = "Universal LLM Key budget exhausted. Sora-2-pro renders cost ~$3.40 each. Top up at Profile → Universal Key → Add Balance, then retry.";
         } else if (reason.includes("video file missing") || reason.includes("download")) {
           pretty = "Sora returned but the MP4 download didn't complete (likely a transient upstream timeout). Safe to retry — no DB row was created.";
         } else if (reason.includes("rate") || reason.includes("429")) {
           pretty = "Sora is rate-limiting us — wait 60s and retry.";
+        } else if (job.detail) {
+          pretty = `${pretty} — ${job.detail.slice(0, 200)}`;
         }
         toast.error(pretty, { duration: 12000 });
+        setGenBusy(false);
+        return;
       }
-    } catch (e) {
-      const detail = e?.response?.data?.detail;
-      const status = e?.response?.status;
-      let pretty = detail || e?.message || "Generation failed.";
-      if (status === 402 || (typeof detail === "string" && /budget|quota|balance/i.test(detail))) {
-        pretty = "Universal LLM Key budget exhausted. Sora-2-pro renders cost ~$3.40 each. Top up at Profile → Universal Key → Add Balance.";
-      } else if (status === 504 || /timeout/i.test(pretty)) {
-        pretty = "Sora call timed out (>3 min). Retry — and if it keeps failing, switch to gemini-3-flash-video or wait for Sora capacity.";
-      }
-      toast.error(pretty, { duration: 12000 });
-    } finally { setGenBusy(false); }
+      // status: queued | running → keep polling
+    }
+    toast.error("Render polling timed out after 10 minutes. The job may still finish in the background — refresh to see the latest counts.", { duration: 12000 });
+    setGenBusy(false);
   };
 
   const runPurge = async () => {

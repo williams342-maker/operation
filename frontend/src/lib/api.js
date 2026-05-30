@@ -919,10 +919,16 @@ export const deleteMyClip = (clipId) =>
 // Admin seed
 export const fetchClipsSeedStatus = () =>
   http.get("/admin/seed/clips/status", { headers: adminAuthHeaders() }).then((r) => r.data);
+// iter310 — generate-one now enqueues a background job + returns {job_id}.
+// Long-running Sora-2 renders no longer block the HTTP request, which
+// dies behind Cloudflare's ~100s edge timeout on craftersmarket.org.
 export const generateOneClipSeed = (model = "sora-2") =>
   http.post(`/admin/seed/clips/generate-one?model=${encodeURIComponent(model)}`, null, {
     headers: adminAuthHeaders(),
-    timeout: 900000,
+  }).then((r) => r.data);
+export const fetchClipSeedJob = (jobId) =>
+  http.get(`/admin/seed/clips/job/${encodeURIComponent(jobId)}`, {
+    headers: adminAuthHeaders(),
   }).then((r) => r.data);
 export const purgeClipsSeed = () =>
   http.post("/admin/seed/clips/purge", null, { headers: adminAuthHeaders() }).then((r) => r.data);

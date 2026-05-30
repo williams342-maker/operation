@@ -6,11 +6,16 @@ the UI so visitors are never misled. Once organic listings fill the
 catalogue, the admin can purge every seeded row in a single call —
 nothing organic is touched because the query is gated on the flag.
 """
+import asyncio
+import logging
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException
 from maker_auth import current_admin
-from core import db
+from core import db, now_iso
 
 router = APIRouter()
+_log = logging.getLogger("crafters.seed_admin")
 
 
 @router.get("/admin/seed/featured-content/status")
@@ -303,13 +308,71 @@ async def generate_one_clip(
     model: str = "sora-2-pro",
     _: dict = Depends(current_admin),
 ):
-    """Render ONE fresh Sora-2 seed clip. Vertical 9:16, 8s. Blocks for
-    2-5 minutes — admin UI should use a long timeout. Picks the
-    least-used (category, prompt) combo so the feed stays diverse."""
-    from clip_seeder import generate_one_clip as _go
+    """iter310 — Enqueue a background Sora-2 render and return a job id
+    immediately so the HTTP response never exceeds Cloudflare's ~100s
+    edge timeout. The actual render still takes 2-5 min; the frontend
+    polls `GET /admin/seed/clips/job/{job_id}` until the job resolves.
+
+    Previously the endpoint blocked the request for the full render
+    duration → on production (CDN-fronted) the connection was always
+    killed before Sora returned, surfacing as a generic "Network error"
+    even though the render may have completed server-side and inserted
+    a clip row.
+    """
     if model not in ("sora-2", "sora-2-pro"):
         raise HTTPException(422, "Model must be sora-2 or sora-2-pro.")
-    return await _go(model=model)
+
+    job_id = str(uuid.uuid4())
+    await db.clip_seed_jobs.insert_one({
+        "job_id": job_id,
+        "status": "queued",
+        "model": model,
+        "started_at": now_iso(),
+        "finished_at": None,
+        "clip": None,
+        "reason": None,
+        "detail": None,
+    })
+
+    async def _runner():
+        from clip_seeder import generate_one_clip as _go
+        await db.clip_seed_jobs.update_one(
+            {"job_id": job_id},
+            {"$set": {"status": "running"}},
+        )
+        try:
+            result = await _go(model=model)
+            patch = {
+                "status": "done" if result.get("status") == "ok" else "error",
+                "finished_at": now_iso(),
+                "clip": result.get("clip"),
+                "reason": result.get("reason"),
+                "detail": result.get("detail"),
+            }
+        except Exception as e:
+            _log.exception("[seed_admin] clip job %s crashed", job_id)
+            patch = {
+                "status": "error",
+                "finished_at": now_iso(),
+                "reason": "internal error",
+                "detail": str(e),
+            }
+        await db.clip_seed_jobs.update_one({"job_id": job_id}, {"$set": patch})
+
+    asyncio.create_task(_runner())
+    return {"job_id": job_id, "status": "queued"}
+
+
+@router.get("/admin/seed/clips/job/{job_id}")
+async def get_clip_seed_job(job_id: str, _: dict = Depends(current_admin)):
+    """Poll a background clip-render job. Returns the same `{status,
+    clip, reason}` shape the old synchronous endpoint used so the UI
+    can render the existing toasts once `status` flips to `done` or
+    `error`."""
+    job = await db.clip_seed_jobs.find_one({"job_id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(404, "Job not found.")
+    return job
 
 
 @router.post("/admin/seed/clips/purge")
