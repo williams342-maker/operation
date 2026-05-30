@@ -1,3 +1,32 @@
+## 2026-05-30 — SEO Phase 2: on-page signals, canonicals, breadcrumbs UI (iter299)
+
+### User ask
+Continued from iter298 (Phase 1 — crawler prerender + schema graph). User picked Phase 2 next: refine remaining titles/H1s, add `<link rel="canonical">` per route in the SPA, render visible breadcrumb navigation on PDP and maker pages.
+
+### What shipped
+- `/app/frontend/src/components/Breadcrumbs.jsx` — new reusable component. Accepts `items: [{name, to?}]` and renders an aria-labelled `<ol>` with `lucide-react` ChevronRight separators. Last item is the current page (not a link).
+- `/app/frontend/src/lib/seo.js` — **canonical-leak bugfix.** `setLink()` now updates the existing static `<link rel="canonical">` from index.html in place (preserving and restoring on unmount) instead of appending a duplicate. Before this fix, the homepage canonical from `index.html` was the FIRST canonical in the DOM, and Google honors the first one — so every PDP was mis-canonicalized to the homepage URL.
+- `/app/frontend/src/pages/ProductDetail.jsx`:
+  - Added `BreadcrumbList` to the JSON-LD `@graph` (Home › Shop › Category › Title).
+  - Replaced `window.location.origin` with hard-coded `SITE_URL = "https://craftersmarket.org"` so canonicals never leak preview URLs.
+  - Added visible `<Breadcrumbs>` above the "Back to shop" link.
+  - Title now `"{title} · {category} · Crafters Market"` (was `"{title} · Crafters Market"`).
+- `/app/frontend/src/pages/MakerDetail.jsx`:
+  - Same `@graph` upgrade with `BreadcrumbList` (Home › Makers › Name).
+  - `SITE_URL` constant for canonical correctness.
+  - Visible `<Breadcrumbs>` rendered above the hero.
+  - Title now `"{name} · {location} · Crafters Market"` (e.g. `Iron & Oak Studio · Nashville, TN · Crafters Market`).
+  - Only emits `aggregateRating` when `m.rating` is truthy (was emitting a null-rating object).
+- `/app/frontend/src/pages/ShopPage.jsx` — visible `<Breadcrumbs>` rendered above the SHOP eyebrow; URL-aware (renders `HOME › SHOP › <category|technique>` when filtered, else `HOME › SHOP` with current page not linked).
+- `/app/frontend/src/pages/MakersPage.jsx` — visible `<Breadcrumbs>` + added `BreadcrumbList` to the JSON-LD `@graph` (was missing in iter298). Title also tightened to `"Meet the Makers · Vetted CNC, Plasma & Laser Artisans · Crafters Market"`.
+- **Tests:** `testing_agent_v3_fork` reported **19/19 assertions PASS, 100% frontend success rate**. Verified visible breadcrumbs on all four routes, exactly-one-canonical-per-page pointing at the correct apex URL, BreadcrumbList JSON-LD in `@graph` on PDP/MakerDetail/MakersPage, sharpened titles, and the home-canonical regression (visiting a PDP then returning to `/` correctly restores `https://craftersmarket.org/`).
+
+### Known minor leftovers (pre-existing, not blocking)
+- Site-wide JSON-LD in `index.html` includes a homepage `BreadcrumbList`. Per-route pages now emit their own `BreadcrumbList` too, so two `BreadcrumbList` blocks appear in the DOM on PDP/MakerDetail/MakersPage. Google tolerates this (it merges all valid blocks), but a future polish pass could remove the site-wide one and rely on per-route emission only.
+- Unrelated React DevTools warning: `Invalid DOM property fetchpriority — did you mean fetchPriority?` (camelCase fix needed in some image component, low priority).
+
+
+
 ## 2026-05-30 — SEO Phase 1: crawler prerender + index pages + schema graph (iter298)
 
 ### User ask
