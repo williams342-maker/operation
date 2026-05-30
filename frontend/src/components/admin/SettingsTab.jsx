@@ -2679,15 +2679,33 @@ function SalesChannelFeedsCard() {
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState("");  // which channel was just copied
+  // iter293 — Per-channel auth credentials. Currently only Pinterest
+  // requires login on the data-source URL. `null` means "not loaded yet";
+  // empty object means "no auth required for this channel".
+  const [creds, setCreds] = useState({});  // { pinterest: {username, password, rotated_at} }
+  const [showPw, setShowPw] = useState({});
+  const [rotating, setRotating] = useState("");
+
+  const adminHeader = () => ({
+    Authorization: `Bearer ${localStorage.getItem("cm_admin_jwt") || ""}`,
+  });
 
   const load = async () => {
     setBusy(true); setErr("");
     try {
-      const r = await fetch(`${API}/api/admin/feeds/status`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("cm_admin_jwt") || ""}` },
-      });
+      const r = await fetch(`${API}/api/admin/feeds/status`, { headers: adminHeader() });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       setData(await r.json());
+      // Fetch Pinterest credentials in parallel — fire-and-forget; if
+      // the endpoint 404s (e.g. backwards-compat with older API), we
+      // simply hide the password row.
+      try {
+        const rc = await fetch(`${API}/api/admin/feeds/pinterest/credentials`, { headers: adminHeader() });
+        if (rc.ok) {
+          const body = await rc.json();
+          setCreds((c) => ({ ...c, pinterest: body }));
+        }
+      } catch {/* ignore */}
     } catch (e) {
       setErr(e.message || "Load failed");
     } finally {
@@ -2696,14 +2714,38 @@ function SalesChannelFeedsCard() {
   };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
 
-  const copy = async (key, url) => {
+  const copy = async (key, value, label = "URL") => {
     try {
-      await navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(value);
       setCopied(key);
-      toast.success("URL copied — paste into the platform's catalog form.");
+      toast.success(`${label} copied`);
       setTimeout(() => setCopied((c) => (c === key ? "" : c)), 2500);
     } catch {
       toast.error("Couldn't copy — select + copy manually.");
+    }
+  };
+
+  const rotate = async (channel) => {
+    if (!window.confirm(
+      `Rotate the ${channel} feed password?\n\n` +
+      "The current password stops working IMMEDIATELY. You'll need to " +
+      "paste the new password into the platform's data-source form before " +
+      "the next crawl, or the feed will fail."
+    )) return;
+    setRotating(channel);
+    try {
+      const r = await fetch(`${API}/api/admin/feeds/${channel}/rotate-password`, {
+        method: "POST", headers: adminHeader(),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const fresh = await r.json();
+      setCreds((c) => ({ ...c, [channel]: fresh }));
+      setShowPw((s) => ({ ...s, [channel]: true }));  // auto-reveal so admin sees the new value
+      toast.success("Password rotated — copy + paste it into the platform now.");
+    } catch (e) {
+      toast.error(e.message || "Rotation failed");
+    } finally {
+      setRotating("");
     }
   };
 
@@ -2836,6 +2878,68 @@ function SalesChannelFeedsCard() {
                   </div>
                 )}
               </div>
+
+              {/* iter293 — Pinterest-only credentials block */}
+              {c.key === "pinterest" && creds.pinterest && (
+                <div className="mt-3 pt-3 border-t border-[#1f1f1f]">
+                  <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">
+                    ◆ Basic auth credentials (Pinterest enterprise flow)
+                  </div>
+                  <div className="grid sm:grid-cols-[120px_1fr_auto] gap-2 items-center mb-2">
+                    <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#737373]">username</div>
+                    <code className="font-mono text-[11px] text-cyan-300 bg-[#080808] border border-[#262626] px-2 py-1">
+                      {creds.pinterest.username}
+                    </code>
+                    <button
+                      onClick={() => copy(`${c.key}-user`, creds.pinterest.username, "Username")}
+                      className="px-2.5 py-1 border border-[#262626] text-[#a3a3a3] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[9px] uppercase tracking-[0.22em]"
+                      data-testid={`sales-feed-${c.key}-copy-user`}
+                    >
+                      {copied === `${c.key}-user` ? "✓" : "Copy"}
+                    </button>
+                  </div>
+                  <div className="grid sm:grid-cols-[120px_1fr_auto] gap-2 items-center mb-2">
+                    <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#737373]">password</div>
+                    <code className="font-mono text-[11px] text-amber-300 bg-[#080808] border border-[#262626] px-2 py-1 break-all">
+                      {showPw[c.key]
+                        ? creds.pinterest.password
+                        : "•".repeat(Math.min(creds.pinterest.password?.length || 0, 32))}
+                    </code>
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => setShowPw((s) => ({ ...s, [c.key]: !s[c.key] }))}
+                        className="px-2.5 py-1 border border-[#262626] text-[#a3a3a3] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[9px] uppercase tracking-[0.22em]"
+                        data-testid={`sales-feed-${c.key}-toggle-pw`}
+                      >
+                        {showPw[c.key] ? "Hide" : "Show"}
+                      </button>
+                      <button
+                        onClick={() => copy(`${c.key}-pw`, creds.pinterest.password, "Password")}
+                        className="px-2.5 py-1 border border-[#262626] text-[#a3a3a3] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[9px] uppercase tracking-[0.22em]"
+                        data-testid={`sales-feed-${c.key}-copy-pw`}
+                      >
+                        {copied === `${c.key}-pw` ? "✓" : "Copy"}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between flex-wrap gap-2 mt-2">
+                    <div className="font-mono text-[10px] text-[#525252]">
+                      Last rotated: {fmtAgo(creds.pinterest.rotated_at)}
+                      {creds.pinterest.rotated_by && (
+                        <span> · by <span className="text-[#737373]">{creds.pinterest.rotated_by}</span></span>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => rotate(c.key)}
+                      disabled={rotating === c.key}
+                      className="px-2.5 py-1 border border-amber-500/60 text-amber-300 hover:bg-amber-500/10 font-mono text-[9px] uppercase tracking-[0.22em] disabled:opacity-50"
+                      data-testid={`sales-feed-${c.key}-rotate`}
+                    >
+                      {rotating === c.key ? "Rotating…" : "↺ Rotate password"}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}

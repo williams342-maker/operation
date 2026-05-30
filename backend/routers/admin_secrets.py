@@ -727,3 +727,31 @@ async def feeds_status(_admin: dict = Depends(_current_admin)):
         c["hits_7d"] = hits_7d
 
     return {"channels": channels}
+
+
+# ─────────────── iter293 — Pinterest feed credentials view + rotate ───────────────
+@router.get("/admin/feeds/{channel}/credentials")
+async def feed_credentials_get(channel: str, _admin: dict = Depends(_current_admin)):
+    """Return the current Basic-Auth credentials for a catalog feed.
+    Currently only `pinterest` is supported (Google + Meta don't require auth)."""
+    if channel not in ("pinterest",):
+        raise HTTPException(404, "Channel does not require auth.")
+    from feed_auth import get as _get
+    creds = await _get(channel)
+    if not creds:
+        # Auto-bootstrap if the doc somehow disappeared.
+        from feed_auth import ensure_default
+        creds = await ensure_default(channel)
+    return creds
+
+
+@router.post("/admin/feeds/{channel}/rotate-password")
+async def feed_credentials_rotate(channel: str, admin: dict = Depends(_current_admin)):
+    """Generate a fresh password for this channel. The previous password
+    immediately stops working, so the admin needs to paste the new value
+    into Pinterest's data-source form before the next crawl."""
+    if channel not in ("pinterest",):
+        raise HTTPException(404, "Channel does not require auth.")
+    from feed_auth import rotate as _rotate
+    actor = (admin or {}).get("email") or "admin"
+    return await _rotate(channel, actor=actor)

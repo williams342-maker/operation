@@ -37,7 +37,7 @@ import io
 import os
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Request, Response
+from fastapi import APIRouter, Request, Response, HTTPException
 
 from core import db
 
@@ -112,10 +112,32 @@ async def _maker_brand_map(maker_slugs: list[str]) -> dict[str, str]:
 async def pinterest_feed_csv(request: Request) -> Response:
     """Public CSV consumed by Pinterest's daily catalog crawler.
 
-    No auth — Pinterest crawls without custom headers, and all product
-    data here is already public on the site. Honors maker opt-out via
-    `external_ads_opt_out`.
+    iter293 — HTTP Basic Auth required (Pinterest's enterprise flow
+    requires login credentials on the data source URL). Admin can view
+    + rotate the password from Settings → Sales channel feeds.
+
+    On bad/missing auth: returns 401 with `WWW-Authenticate: Basic`
+    so Pinterest's crawler knows to retry with credentials.
     """
+    # ── iter293 — Basic Auth gate ──
+    import base64
+    from feed_auth import verify as _verify_creds
+    auth_header = request.headers.get("authorization", "")
+    ok = False
+    if auth_header.lower().startswith("basic "):
+        try:
+            decoded = base64.b64decode(auth_header.split(" ", 1)[1]).decode("utf-8", errors="ignore")
+            user, _, pwd = decoded.partition(":")
+            ok = await _verify_creds("pinterest", user, pwd)
+        except Exception:
+            ok = False
+    if not ok:
+        raise HTTPException(
+            status_code=401,
+            detail="Pinterest crawler authentication required.",
+            headers={"WWW-Authenticate": 'Basic realm="Crafters Market Pinterest Feed"'},
+        )
+    # ── /Basic Auth gate ──
     opted_out = await db.makers.distinct(
         "slug",
         {"external_ads_opt_out": True,

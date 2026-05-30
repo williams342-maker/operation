@@ -263,6 +263,13 @@ async def on_startup():
         await _ensure_fal()
     except Exception:
         logger.exception("[feed_access_log] index init failed (non-fatal)")
+    # iter293 — Bootstrap a Pinterest feed password if none exists yet.
+    # Idempotent: subsequent boots are a no-op once a credential is set.
+    try:
+        from feed_auth import ensure_default as _ensure_feed_auth
+        await _ensure_feed_auth("pinterest")
+    except Exception:
+        logger.exception("[feed_auth] bootstrap failed (non-fatal)")
     logger.info("Crafters Market API ready (seed checked).")
 
 
