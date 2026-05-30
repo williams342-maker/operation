@@ -851,11 +851,17 @@ STRIPE_CONNECT_WEBHOOK_SECRET = os.environ.get("STRIPE_CONNECT_WEBHOOK_SECRET", 
 
 
 @router.post("/webhook/stripe/connect")
+@router.post("/stripe/connect/webhook")  # iter288 — Alias for the URL advertised in subscriptions.py docstring + previously configured in some Stripe Dashboard accounts. Both paths route to the same handler.
 async def stripe_connect_webhook(request: Request):
     """Handles Stripe Connect events (account.updated, etc.).
 
+    Accepts POST at either of two paths:
+      • /api/webhook/stripe/connect   (original)
+      • /api/stripe/connect/webhook   (alias — what subscriptions.py docstring advertised)
+
     Configure on Stripe dashboard: Connect webhooks endpoint pointing to
-    {PUBLIC_BACKEND_URL}/api/webhook/stripe/connect with event type 'account.updated'.
+    either of the above + event types: account.updated,
+    customer.subscription.* , invoice.payment_succeeded.
     Falls back to STRIPE_WEBHOOK_SECRET if STRIPE_CONNECT_WEBHOOK_SECRET is not set
     (single-secret config also works).
     """
