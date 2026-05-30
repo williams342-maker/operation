@@ -23,6 +23,7 @@ from routers.retention import router as retention_router
 from routers.reddit_feeds import router as reddit_feeds_router
 from routers.seo import router as seo_router
 from routers.state_pages import router as state_pages_router
+from routers.lead_magnet import router as lead_magnet_router
 from routers.settings import router as settings_router
 from routers.shipping import router as shipping_router
 from routers.admin_shipping import router as admin_shipping_router
@@ -70,6 +71,7 @@ api = APIRouter(prefix="/api")
 api.include_router(catalog_router)
 api.include_router(seo_router)
 api.include_router(state_pages_router)
+api.include_router(lead_magnet_router)
 api.include_router(checkout_router)
 api.include_router(maker_router)
 api.include_router(stripe_connect_router)

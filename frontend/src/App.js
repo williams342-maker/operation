@@ -49,6 +49,7 @@ import BetaPage from "./pages/BetaPage";
 import PressPage from "./pages/PressPage";
 import SEOLandingPage from "./pages/SEOLandingPage";
 import HowCustomOrdersWorkPage from "./pages/HowCustomOrdersWorkPage";
+import FreeSvgPackPage from "./pages/FreeSvgPackPage";
 import StatePage from "./pages/StatePage";
 import GuidePage from "./pages/GuidePage";
 import { SEO_LANDING_PAGES } from "./pages/seoLandingConfig";
@@ -236,6 +237,10 @@ function App() {
                     targeting transactional intent queries between the
                     landing pages and the /custom-order form. */}
                 <Route path="/how-custom-orders-work" element={<HowCustomOrdersWorkPage />} />
+                {/* Phase-4-C lead magnet (iter303) — free CNC starter pack
+                    behind soft email gate. Page is publicly indexable;
+                    only the ZIP requires email submission. */}
+                <Route path="/free-svg-pack" element={<FreeSvgPackPage />} />
                 {/* Phase-4 state pages (iter301) — only states with ≥ 1
                     maker render; backend filters the sitemap to match. */}
                 <Route path="/makers/state/:code" element={<StatePage />} />

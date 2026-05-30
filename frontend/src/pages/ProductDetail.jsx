@@ -16,6 +16,7 @@ import RecentShowcaseStrip from "../components/RecentShowcaseStrip";
 import SimilarProductsRail from "../components/SimilarProductsRail";
 import CustomOrderCTA from "../components/CustomOrderCTA";
 import Breadcrumbs from "../components/Breadcrumbs";
+import GuideCrossLinkCard from "../components/GuideCrossLinkCard";
 import { DetailSkeleton } from "../components/Skeleton";
 
 // Always emit the canonical apex URL — never the preview hostname. SEO
@@ -269,6 +270,12 @@ export default function ProductDetail() {
             <ProductBasics product={p} effectiveStock={effectiveStock} />
 
             <ProductDescription description={p.description} />
+
+            {/* iter303 — auto-cross-link to the most relevant guide
+                based on technique + materials. Renders null when no
+                guide matches. Compounds internal-link equity into the
+                /guides/* pages and reduces buyer hesitation. */}
+            <GuideCrossLinkCard product={p} />
 
             {hasVariants && (
               <div className="mb-6" data-testid="product-variants">

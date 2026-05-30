@@ -1,3 +1,28 @@
+## 2026-05-30 — SEO Phase 4 Bundle C: Free SVG/DXF lead magnet + PDP guide cross-link (iter303)
+
+### User ask
+Continued from Bundle B (iter302). User picked Bundle C + the PDP cross-link both. Bundle C is the compounding-traffic lead magnet — free CNC starter pack behind a soft email gate; PDP cross-link surfaces a contextual guide card on every plasma/laser/router product page.
+
+### What shipped
+- `/app/backend/routers/lead_magnet.py` (new) — three public endpoints:
+  - `GET /api/lead-magnet/starter-pack/preview` — file list metadata (title, use case, preview image URL, formats) for the SEO landing page.
+  - `POST /api/lead-magnet/starter-pack/subscribe` — stores email + UTM + consent flag in dedicated `db.lead_magnet_subscribers` collection (separate funnel from regular newsletter for clean reporting). Idempotent on email. Returns a per-call download token (single-use-ish; re-subscription gives a fresh one but the old stays valid).
+  - `GET /api/lead-magnet/starter-pack/download/<token>` — streams the curated ZIP (10 designs × SVG+DXF + preview JPGs + README, ~9 MB). ZIP is assembled once at module load from `/app/frontend/public/seed-designs/<folder>/`.
+- `/app/frontend/src/pages/FreeSvgPackPage.jsx` (new) — SEO-friendly soft-gate landing page. Renders the whole page publicly (file grid, FAQs, HowTo, CTAs) — only the ZIP download requires email. JSON-LD `@graph` ships `CreativeWork + BreadcrumbList + FAQPage + HowTo` (4 schema types eligible for SERP rich results). 5 FAQ accordion items, 4-step HowTo guide, ten file-preview cards, 3 bottom CTAs to `/custom-order`, `/shop`, `/guides/plasma-vs-laser-vs-router`.
+- `/app/frontend/src/components/GuideCrossLinkCard.jsx` (new) — reusable contextual guide card. Mapping priority: outdoor+metal → Metal Gauge guide; outdoor → Outdoor Mounting; metal → Metal Gauge; PLASMA/LASER/ROUTER technique → Plasma vs Laser vs Router. Renders null when no match.
+- `/app/frontend/src/pages/ProductDetail.jsx` — `<GuideCrossLinkCard product={p} />` mounted between ProductDescription and the variants section. Internal-link equity now flows from every plasma/laser/router PDP into the educational guides.
+- `/app/frontend/src/App.js` — `/free-svg-pack` route wired.
+- `/app/backend/routers/seo.py` — sitemap entry for `/free-svg-pack` at `weekly` changefreq, `0.9` priority (top-tier — it's a backlink-magnet candidate).
+- `/app/backend/server.py` — registered the new `lead_magnet` router under `/api`.
+- Tests: `/app/backend/tests/test_seo_phase4c_iter303.py` — **7/7 pass**. Covers preview endpoint, subscribe (basic, idempotency, token format), download (valid token returns ZIP with README + SVG + DXF; bad token → 404), sitemap inclusion, and JS source verification of the cross-link mapping.
+
+### Live verification
+- `/free-svg-pack` Playwright run: H1, canonical, 4 JSON-LD types (`CreativeWork + BreadcrumbList + FAQPage + HowTo`), 10 file cards, 5 FAQs, 4 HowTo steps, form submission successfully transitions to the "Your pack is downloading" success state with a re-download link.
+- PDP `/shop/carved-oak-wedding-monogram` shows the guide cross-link card with `data-testid="pdp-guide-cross-link-plasma-vs-laser-vs-router"` and contextual blurb.
+- ZIP contents inspected via test: contains `README.txt`, `Mountain Range Silhouette/Mountain Range Silhouette.svg`, `.dxf`, `.jpg`, etc. — 10 design folders × 3 files each + README.
+
+
+
 ## 2026-05-30 — SEO Phase 4 Bundle B: Review schema + alt-text + BreadcrumbList dedup (iter302)
 
 ### User ask

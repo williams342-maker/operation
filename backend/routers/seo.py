@@ -107,6 +107,10 @@ async def sitemap_xml(http_request: Request):
         # pages to the /custom-order form. High priority because it
         # converts informational searches into commission briefs.
         ("/how-custom-orders-work", "monthly", "0.85"),
+        # Phase-4-C lead magnet (iter303) — free SVG/DXF starter pack.
+        # High priority because it's an external-backlink magnet (CNC
+        # forums, subreddits, maker blogs love free starter packs).
+        ("/free-svg-pack", "weekly", "0.9"),
         # Phase-4 content guides (iter301) — educational hub linking to
         # both buyer-intent landing pages and product listings. Each
         # ships HowTo + FAQPage JSON-LD.
