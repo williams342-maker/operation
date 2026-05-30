@@ -1,3 +1,34 @@
+## 2026-05-30 — SEO Phase 1: crawler prerender + index pages + schema graph (iter298)
+
+### User ask
+SEO scan flagged JS-only rendering, missing exact-match keywords, and missing BreadcrumbList / ItemList schema on category and index pages. User picked "Phase 1 as scoped" — bot prerender + schema + OG + keyword tightening.
+
+### What shipped
+- `/app/backend/routers/og_prerender.py`:
+  - New `GET /api/og/shop` → CollectionPage + ItemList + BreadcrumbList JSON-LD with a crawlable grid of the latest 48 listings, internal links into per-product prerenders, and category landing-page links.
+  - New `GET /api/og/makers` → CollectionPage + ItemList + BreadcrumbList JSON-LD listing every vetted maker with location + tagline + veteran-owned badge.
+  - Added `BreadcrumbList` to the existing per-product prerender (Home › Shop › category › title).
+  - Added `BreadcrumbList` to the existing per-maker prerender (Home › Makers › name).
+  - `/api/og/diag` now surfaces the new index URLs so operators can verify post-deploy.
+- `/app/frontend/public/index.html`:
+  - Title, OG title, Twitter title, and meta description rewritten to lead with "Custom Metal Signs, CNC Wood Signs & Laser Art" (exact-match keywords from the SEO scan).
+  - Pre-mount H1 (visible to non-JS crawlers) now reads "Custom Metal Signs, CNC Wood Signs & Laser-Cut Wall Art by Vetted US Makers."
+- `/app/cloudflare/prerender-router.worker.js` + `/app/cloudflare/README.md`:
+  - Cloudflare Worker that sniffs `User-Agent`, matches against 35+ known crawlers (Googlebot, Bingbot, Pinterest, Facebook, Slack, Discord, GPTBot, ClaudeBot, PerplexityBot, AhrefsBot, etc.), and transparently rewrites their requests to the matching `/api/og/<kind>/<slug>` prerender. Real browsers pass through to the SPA. Deploy by pasting into Cloudflare Dashboard → Workers Routes → `craftersmarket.org/*`.
+- Tests: `tests/test_seo_phase1_iter298.py` (5/5 pass) — covers both new index endpoints, breadcrumb additions, and the diag wiring.
+
+### Operator action required to take effect on production
+Deploy `/app/cloudflare/prerender-router.worker.js` as a Cloudflare Worker bound to `craftersmarket.org/*`. Without the Worker, the prerender endpoints still work but only fire on direct shares of `/api/og/...` URLs. With it, every Googlebot / Bingbot / Pinterest / AI-crawler request to `/shop/<slug>`, `/makers/<slug>`, `/journal/<slug>`, `/community/files/<uuid>`, plus the new `/shop` and `/makers` index pages, is auto-routed to the crawlable HTML version. See `/app/cloudflare/README.md` for the full deploy + verify recipe.
+
+### Live verification
+- `curl /api/og/shop` returns CollectionPage + ItemList + BreadcrumbList graph + indexable HTML listing grid.
+- `curl /api/og/makers` returns the same triple for the maker index.
+- Per-product prerender now ships `Product + Offer + Brand + BreadcrumbList + ListItem` (was `Product + Offer + Brand` only).
+- Per-maker prerender now ships `Person + PostalAddress + BreadcrumbList + ListItem` (was `Person` only).
+- Homepage title 59 chars, fits the Google SERP rail; OG/Twitter mirrors.
+
+
+
 ## 2026-05-30 — Maker-supplied GPC path override (iter297)
 
 ### User ask

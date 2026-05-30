@@ -296,24 +296,47 @@ async def og_product(slug: str, http_request: Request):
     )
     body_html = "".join(body_parts)
 
-    # Schema.org Product structured data
+    # Schema.org Product structured data + BreadcrumbList (iter298 — adds
+    # the breadcrumb to the search-result trail under each product entry).
     import json as _json
+    breadcrumb_items = [
+        {"@type": "ListItem", "position": 1, "name": "Home", "item": f"{site}/"},
+        {"@type": "ListItem", "position": 2, "name": "Shop", "item": f"{site}/shop"},
+    ]
+    if category:
+        breadcrumb_items.append({
+            "@type": "ListItem", "position": 3, "name": category,
+            "item": f"{site}/shop?category={category}",
+        })
+    breadcrumb_items.append({
+        "@type": "ListItem",
+        "position": len(breadcrumb_items) + 1,
+        "name": title_raw, "item": canonical,
+    })
     json_ld = _json.dumps({
         "@context": "https://schema.org/",
-        "@type": "Product",
-        "name": title_raw,
-        "description": _truncate(full_desc, 500) or desc,
-        "image": img,
-        "url": canonical,
-        "brand": {"@type": "Brand", "name": maker or "Crafters Market"},
-        "offers": {
-            "@type": "Offer",
-            "url": canonical,
-            "priceCurrency": "USD",
-            "price": f"{float(price):.2f}" if price is not None else "0.00",
-            "availability": "https://schema.org/InStock" if in_stock else "https://schema.org/PreOrder",
-            "itemCondition": "https://schema.org/NewCondition",
-        },
+        "@graph": [
+            {
+                "@type": "Product",
+                "name": title_raw,
+                "description": _truncate(full_desc, 500) or desc,
+                "image": img,
+                "url": canonical,
+                "brand": {"@type": "Brand", "name": maker or "Crafters Market"},
+                "offers": {
+                    "@type": "Offer",
+                    "url": canonical,
+                    "priceCurrency": "USD",
+                    "price": f"{float(price):.2f}" if price is not None else "0.00",
+                    "availability": "https://schema.org/InStock" if in_stock else "https://schema.org/PreOrder",
+                    "itemCondition": "https://schema.org/NewCondition",
+                },
+            },
+            {
+                "@type": "BreadcrumbList",
+                "itemListElement": breadcrumb_items,
+            },
+        ],
     }, separators=(",", ":"))
 
     html = _render_og_html(
@@ -528,13 +551,25 @@ async def og_maker(slug: str, http_request: Request):
     import json as _json
     json_ld = _json.dumps({
         "@context": "https://schema.org",
-        "@type": "Person",
-        "name": name,
-        "description": _truncate(full_bio or tagline or desc, 500),
-        "image": img,
-        "url": canonical,
-        "address": {"@type": "PostalAddress", "addressLocality": location} if location else None,
-        "knowsAbout": techniques[:6] if techniques else None,
+        "@graph": [
+            {
+                "@type": "Person",
+                "name": name,
+                "description": _truncate(full_bio or tagline or desc, 500),
+                "image": img,
+                "url": canonical,
+                "address": {"@type": "PostalAddress", "addressLocality": location} if location else None,
+                "knowsAbout": techniques[:6] if techniques else None,
+            },
+            {
+                "@type": "BreadcrumbList",
+                "itemListElement": [
+                    {"@type": "ListItem", "position": 1, "name": "Home", "item": f"{site}/"},
+                    {"@type": "ListItem", "position": 2, "name": "Makers", "item": f"{site}/makers"},
+                    {"@type": "ListItem", "position": 3, "name": name, "item": canonical},
+                ],
+            },
+        ],
     }, separators=(",", ":"), default=str)
 
     html = _render_og_html(
@@ -639,6 +674,234 @@ async def og_journal(slug: str, http_request: Request):
 
 
 # ============================================================
+# Shop index — `/shop` crawler prerender (iter298)
+# ============================================================
+@router.get("/og/shop", include_in_schema=False)
+async def og_shop_index(http_request: Request):
+    """Crawler-targeted prerender for the `/shop` catalog index page.
+
+    Returns an ItemList JSON-LD + crawlable HTML grid of the latest
+    published listings. Real browsers hit the meta-refresh and end up on
+    the SPA at `/shop`; crawlers index the static catalog grid + schema.
+    """
+    site = _site()
+    products = await db.products.find(
+        {"deleted_at": None, "status": {"$ne": "draft"}},
+        {"_id": 0, "slug": 1, "title": 1, "price": 1, "images": 1,
+         "category": 1, "maker_name": 1},
+    ).sort("created_at", -1).limit(48).to_list(48)
+
+    title = "Shop — Handmade Metal Signs, CNC Wood Signs & Laser-Cut Art | Crafters Market"
+    desc = (
+        "Browse handcrafted metal signs, CNC wood signs, plasma-cut wall art, "
+        "and laser-engraved cutting boards from vetted independent US makers. "
+        "Made-to-order, ships nationwide, Stripe-secured checkout."
+    )
+    canonical = f"{site}/shop"
+    img = _placeholder_image()
+    if products and (products[0].get("images") or []):
+        img = (products[0]["images"] or [_placeholder_image()])[0]
+
+    # Indexable HTML grid of the latest listings — each entry an
+    # internal link the crawler can follow into the per-product
+    # prerender (which already has Product + BreadcrumbList JSON-LD).
+    body_parts: list[str] = []
+    body_parts.append(
+        '<nav class="breadcrumb" aria-label="Breadcrumb">'
+        f'<a href="{site}/">Home</a> · <span>Shop</span>'
+        '</nav>'
+    )
+    body_parts.append(
+        '<section class="sect"><h2>What you can buy on Crafters Market</h2>'
+        '<p>Every listing below is hand-built by a vetted independent maker — '
+        'plasma-cut metal signs, CNC-routed wood signs, laser-engraved cutting boards, '
+        'monogrammed wall art, and one-off custom pieces. No mass production, no '
+        'drop-shipping, no overseas re-branding.</p></section>'
+    )
+    if products:
+        list_items = "".join(
+            f'<li><a href="{site}/shop/{_esc(p.get("slug",""))}">'
+            f'{_esc(p.get("title", ""))}'
+            f'{" — $" + str(int(p["price"])) if p.get("price") else ""}'
+            f'{" · " + _esc(p["maker_name"]) if p.get("maker_name") else ""}'
+            f'</a></li>'
+            for p in products
+        )
+        body_parts.append(
+            '<section class="sect"><h2>Latest listings</h2>'
+            f'<ul>{list_items}</ul></section>'
+        )
+    body_parts.append(
+        '<section class="sect"><h2>Explore by category</h2><ul>'
+        f'<li><a href="{site}/custom-metal-signs">Custom metal signs</a></li>'
+        f'<li><a href="{site}/cnc-metal-wall-art">CNC metal wall art</a></li>'
+        f'<li><a href="{site}/cnc-laser-art">CNC &amp; laser art</a></li>'
+        f'<li><a href="{site}/personalized-gifts">Personalized gifts</a></li>'
+        f'<li><a href="{site}/wedding-gifts">Wedding gifts</a></li>'
+        f'<li><a href="{site}/outdoor-metal-decor">Outdoor metal decor</a></li>'
+        f'<li><a href="{site}/business-signs">Business signs</a></li>'
+        f'<li><a href="{site}/makers">Meet the makers</a></li>'
+        f'<li><a href="{site}/custom-order">Request a custom order</a></li>'
+        '</ul></section>'
+    )
+    body_html = "".join(body_parts)
+
+    import json as _json
+    item_list = [
+        {
+            "@type": "ListItem",
+            "position": i + 1,
+            "url": f"{site}/shop/{p.get('slug','')}",
+            "name": p.get("title", "") or p.get("slug", ""),
+        }
+        for i, p in enumerate(products[:24])
+    ]
+    json_ld = _json.dumps({
+        "@context": "https://schema.org",
+        "@graph": [
+            {
+                "@type": "CollectionPage",
+                "name": "Shop · Crafters Market",
+                "url": canonical,
+                "description": desc,
+                "isPartOf": {"@id": f"{site}/#website"},
+            },
+            {
+                "@type": "BreadcrumbList",
+                "itemListElement": [
+                    {"@type": "ListItem", "position": 1, "name": "Home", "item": f"{site}/"},
+                    {"@type": "ListItem", "position": 2, "name": "Shop", "item": canonical},
+                ],
+            },
+            {
+                "@type": "ItemList",
+                "name": "Latest listings on Crafters Market",
+                "numberOfItems": len(item_list),
+                "itemListElement": item_list,
+            },
+        ],
+    }, separators=(",", ":"))
+
+    html = _render_og_html(
+        title=title, description=desc, image=img,
+        canonical_url=canonical, redirect_url=canonical,
+        extra_props=[("og:type", "website")],
+        body_html=body_html,
+        json_ld=json_ld,
+    )
+    return HTMLResponse(content=html)
+
+
+# ============================================================
+# Makers index — `/makers` crawler prerender (iter298)
+# ============================================================
+@router.get("/og/makers", include_in_schema=False)
+async def og_makers_index(http_request: Request):
+    """Crawler-targeted prerender for the `/makers` index page.
+
+    Returns an ItemList JSON-LD + crawlable list of all vetted makers
+    with internal links into each maker's prerender. Real browsers
+    bounce to the SPA at `/makers`.
+    """
+    site = _site()
+    makers = await db.makers.find(
+        {}, {"_id": 0, "slug": 1, "name": 1, "location": 1, "tagline": 1,
+             "headline": 1, "techniques": 1, "is_veteran_owned": 1},
+    ).sort("created_at", -1).limit(100).to_list(100)
+
+    title = "Meet the Makers — Vetted CNC, Plasma & Laser Artisans | Crafters Market"
+    desc = (
+        "Browse every vetted independent maker on Crafters Market — plasma-cutters, "
+        "CNC routers, laser engravers, and woodworkers shipping handcrafted goods "
+        "nationwide. Read their stories, see their workshops, message them directly."
+    )
+    canonical = f"{site}/makers"
+    img = _placeholder_image()
+
+    body_parts: list[str] = []
+    body_parts.append(
+        '<nav class="breadcrumb" aria-label="Breadcrumb">'
+        f'<a href="{site}/">Home</a> · <span>Makers</span>'
+        '</nav>'
+    )
+    body_parts.append(
+        '<section class="sect"><h2>Vetted independent makers, no factories</h2>'
+        '<p>Every maker below was hand-vetted by the Crafters Market team — we verified '
+        'workshop photos, machines, and past commissions before approving them to list. '
+        'No drop-shippers, no overseas re-branding, no warehouse middlemen. Just '
+        'real artisans running real shops across the United States.</p></section>'
+    )
+    if makers:
+        list_items = "".join(
+            f'<li><a href="{site}/makers/{_esc(m.get("slug",""))}">'
+            f'{_esc(m.get("name", "") or m.get("slug", ""))}'
+            f'{" · " + _esc(m["location"]) if m.get("location") else ""}'
+            f'{" · Veteran-owned" if m.get("is_veteran_owned") else ""}'
+            f'</a>'
+            f'{" — " + _esc(m["tagline"] or m["headline"] or "") if (m.get("tagline") or m.get("headline")) else ""}'
+            f'</li>'
+            for m in makers[:60]
+        )
+        body_parts.append(
+            '<section class="sect"><h2>All makers</h2>'
+            f'<ul>{list_items}</ul></section>'
+        )
+    body_parts.append(
+        '<section class="sect"><h2>Looking for something specific?</h2><ul>'
+        f'<li><a href="{site}/shop">Browse all listings</a></li>'
+        f'<li><a href="{site}/custom-order">Request a custom build</a></li>'
+        f'<li><a href="{site}/apply">Apply to sell on Crafters Market</a></li>'
+        '</ul></section>'
+    )
+    body_html = "".join(body_parts)
+
+    import json as _json
+    item_list = [
+        {
+            "@type": "ListItem",
+            "position": i + 1,
+            "url": f"{site}/makers/{m.get('slug','')}",
+            "name": m.get("name", "") or m.get("slug", ""),
+        }
+        for i, m in enumerate(makers[:24])
+    ]
+    json_ld = _json.dumps({
+        "@context": "https://schema.org",
+        "@graph": [
+            {
+                "@type": "CollectionPage",
+                "name": "Meet the Makers · Crafters Market",
+                "url": canonical,
+                "description": desc,
+                "isPartOf": {"@id": f"{site}/#website"},
+            },
+            {
+                "@type": "BreadcrumbList",
+                "itemListElement": [
+                    {"@type": "ListItem", "position": 1, "name": "Home", "item": f"{site}/"},
+                    {"@type": "ListItem", "position": 2, "name": "Makers", "item": canonical},
+                ],
+            },
+            {
+                "@type": "ItemList",
+                "name": "Vetted makers on Crafters Market",
+                "numberOfItems": len(item_list),
+                "itemListElement": item_list,
+            },
+        ],
+    }, separators=(",", ":"))
+
+    html = _render_og_html(
+        title=title, description=desc, image=img,
+        canonical_url=canonical, redirect_url=canonical,
+        extra_props=[("og:type", "website")],
+        body_html=body_html,
+        json_ld=json_ld,
+    )
+    return HTMLResponse(content=html)
+
+
+# ============================================================
 # Diagnostics
 # ============================================================
 @router.get("/og/diag")
@@ -655,6 +918,10 @@ async def og_prerender_diag():
     site = _site()
     return {
         "site_root": site,
+        "indexes": {
+            "shop":   {"og_url": f"{site}/api/og/shop",   "spa_url": f"{site}/shop"},
+            "makers": {"og_url": f"{site}/api/og/makers", "spa_url": f"{site}/makers"},
+        },
         "samples": {
             "products": [
                 {"slug": p["slug"], "og_url": f"{site}/api/og/product/{p['slug']}",
