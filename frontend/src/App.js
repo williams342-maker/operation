@@ -48,6 +48,7 @@ import MakerListingEditor from "./pages/MakerListingEditor";
 import BetaPage from "./pages/BetaPage";
 import PressPage from "./pages/PressPage";
 import SEOLandingPage from "./pages/SEOLandingPage";
+import HowCustomOrdersWorkPage from "./pages/HowCustomOrdersWorkPage";
 import { SEO_LANDING_PAGES } from "./pages/seoLandingConfig";
 import LandingPage from "./pages/LandingPage";
 import GrowWithUs from "./pages/GrowWithUs";
@@ -228,6 +229,10 @@ function App() {
                 {Object.entries(SEO_LANDING_PAGES).map(([slug, cfg]) => (
                   <Route key={slug} path={`/${slug}`} element={<SEOLandingPage config={cfg} />} />
                 ))}
+                {/* Phase-3 SEO hub — "How custom orders work" content page
+                    targeting transactional intent queries between the
+                    landing pages and the /custom-order form. */}
+                <Route path="/how-custom-orders-work" element={<HowCustomOrdersWorkPage />} />
                 {/* Marketing landing page — 3 aliased routes for A/B testing
                     ad copy/URL variants. All render the same component. */}
                 <Route path="/launch" element={<LandingPage />} />

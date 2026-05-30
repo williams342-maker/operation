@@ -103,6 +103,10 @@ async def sitemap_xml(http_request: Request):
         ("/custom-ranch-signs",    "weekly", "0.75"),
         ("/cnc-metal-wall-art",    "weekly", "0.85"),
         ("/handmade-gifts-for-dad", "weekly", "0.75"),
+        # Phase-3 SEO hub (iter300) — content page bridging landing
+        # pages to the /custom-order form. High priority because it
+        # converts informational searches into commission briefs.
+        ("/how-custom-orders-work", "monthly", "0.85"),
         ("/journal",       "weekly",  "0.7"),
         ("/updates",       "weekly",  "0.6"),
         ("/custom-order",  "monthly", "0.6"),

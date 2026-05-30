@@ -5,32 +5,45 @@ import ProductCard from "../components/ProductCard";
 import { CardSkeleton } from "../components/Skeleton";
 import { useStructuredData } from "../lib/seo";
 import SupportVeteransStrip from "../components/SupportVeteransStrip";
+import Breadcrumbs from "../components/Breadcrumbs";
+
+const SITE_URL = "https://craftersmarket.org";
 
 /**
- * SEOLandingPage
- * --------------
+ * SEOLandingPage (Phase 3 / iter300)
+ * ----------------------------------
  * Keyword-targeted landing page for high-intent search queries. Each
  * page has:
- *   • H1 that exactly matches the target search phrase (single biggest
- *     ranking factor after `<title>`).
- *   • Long-form body copy with the keyword + 2–3 related variants
- *     (Google rewards topical depth, not just keyword stuffing).
+ *   • Visible breadcrumb (Home › <keyword>) — added iter300.
+ *   • H1 that exactly matches the target search phrase (biggest ranking
+ *     factor after `<title>`).
+ *   • Long-form body copy (300–600 words on the rich pages) — Google
+ *     rewards topical depth, not just keyword density.
  *   • A live product or maker grid filtered by `match` so the page
  *     never looks empty.
- *   • Per-page CollectionPage JSON-LD with the page's name + URL +
- *     an ItemList of up to 12 results (eligible for rich-result
- *     "Top results" carousels in SERP).
- *   • Internal links back to /shop, /makers, /custom-order so search
- *     engines see strong site structure from these landing pages.
+ *   • Per-page `CollectionPage` + `ItemList` + `BreadcrumbList` +
+ *     `FAQPage` JSON-LD blocks combined in a `@graph` (eligible for
+ *     SERP rich results — "People also ask", "Top results" carousels).
+ *   • FAQ accordion at the bottom of the page (iter300) — surfaces the
+ *     same answers visible to humans, increases time-on-page.
+ *   • Related-landing-page link grid (iter300) — internal-link equity
+ *     between sibling keyword pages so SERP discovery cascades.
+ *   • Standard CTAs back to /shop, /makers, /custom-order.
  *
- * Driven by `config` props passed in from `App.js` route definitions.
- * One component, six pages, zero duplication.
+ * Config keys consumed:
+ *   slug, keyword, h1, eyebrow, intro, paragraphs[], match,
+ *   mode ("products" | "makers"), ctaLabel, ctaHref,
+ *   faqs[]            — iter300, array of { q, a }
+ *   relatedLinks[]    — iter300, array of { to, label, blurb? }
+ *   bodyExtras[]      — iter300, array of { heading, paragraphs[] }
+ *                       Rendered as additional H2 sections between
+ *                       the intro paragraphs and the live grid.
  */
 export default function SEOLandingPage({ config }) {
   const {
     slug, keyword, h1, eyebrow, intro, paragraphs,
     match, mode = "products", ctaLabel = "Browse the marketplace",
-    ctaHref = "/shop",
+    ctaHref = "/shop", faqs = [], relatedLinks = [], bodyExtras = [],
   } = config;
 
   const [items, setItems] = useState(null);
@@ -49,38 +62,61 @@ export default function SEOLandingPage({ config }) {
   // back to the primary pages even when this landing page ranks.
   const itemListUrls = grid.slice(0, 12).map((it) => (
     mode === "makers"
-      ? `https://craftersmarket.org/makers/${it.slug}`
-      : `https://craftersmarket.org/shop/${it.slug}`
+      ? `${SITE_URL}/makers/${it.slug}`
+      : `${SITE_URL}/shop/${it.slug}`
   ));
+
+  // @graph composition — modern Google preference. We combine
+  // CollectionPage, BreadcrumbList, optional FAQPage, and the inline
+  // ItemList into a single JSON-LD block.
+  const graphParts = [
+    {
+      "@type": "CollectionPage",
+      "@id": `${SITE_URL}/${slug}#page`,
+      name: `${keyword} · Crafters Market`,
+      description: intro,
+      url: `${SITE_URL}/${slug}`,
+      isPartOf: { "@type": "WebSite", "@id": `${SITE_URL}/#website` },
+    },
+    {
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        { "@type": "ListItem", position: 1, name: "Home", item: `${SITE_URL}/` },
+        { "@type": "ListItem", position: 2, name: keyword, item: `${SITE_URL}/${slug}` },
+      ],
+    },
+  ];
+  if (itemListUrls.length) {
+    graphParts.push({
+      "@type": "ItemList",
+      numberOfItems: itemListUrls.length,
+      itemListElement: itemListUrls.map((url, i) => ({
+        "@type": "ListItem", position: i + 1, url,
+      })),
+    });
+  }
+  if (faqs.length) {
+    graphParts.push({
+      "@type": "FAQPage",
+      "@id": `${SITE_URL}/${slug}#faq`,
+      mainEntity: faqs.map(({ q, a }) => ({
+        "@type": "Question",
+        name: q,
+        acceptedAnswer: { "@type": "Answer", text: a },
+      })),
+    });
+  }
 
   useStructuredData({
     title: `${keyword} · Crafters Market`,
     description: intro,
-    url: `https://craftersmarket.org/${slug}`,
-    image: "https://craftersmarket.org/downloads/cnc-garage-builders.png",
+    url: `${SITE_URL}/${slug}`,
+    image: `${SITE_URL}/downloads/cnc-garage-builders.png`,
     imageAlt: `${keyword} on Crafters Market`,
     ogType: "website",
     jsonLd: {
       "@context": "https://schema.org",
-      "@type": "CollectionPage",
-      name: `${keyword} · Crafters Market`,
-      description: intro,
-      url: `https://craftersmarket.org/${slug}`,
-      isPartOf: { "@type": "WebSite", "@id": "https://craftersmarket.org/#website" },
-      breadcrumb: {
-        "@type": "BreadcrumbList",
-        itemListElement: [
-          { "@type": "ListItem", position: 1, name: "Home", item: "https://craftersmarket.org/" },
-          { "@type": "ListItem", position: 2, name: keyword, item: `https://craftersmarket.org/${slug}` },
-        ],
-      },
-      mainEntity: itemListUrls.length ? {
-        "@type": "ItemList",
-        numberOfItems: itemListUrls.length,
-        itemListElement: itemListUrls.map((url, i) => ({
-          "@type": "ListItem", position: i + 1, url,
-        })),
-      } : undefined,
+      "@graph": graphParts,
     },
   });
 
@@ -88,10 +124,16 @@ export default function SEOLandingPage({ config }) {
     <div className="pb-24 grain min-h-screen" data-testid={`seo-page-${slug}`}>
       <SupportVeteransStrip />
       <div className="w-full max-w-[1400px] mx-auto px-4 md:px-8 pt-16 md:pt-24">
+        <Breadcrumbs
+          items={[
+            { name: "Home", to: "/" },
+            { name: keyword },
+          ]}
+          testId={`seo-breadcrumbs-${slug}`}
+        />
         <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-4">
           ◆ {eyebrow}
         </div>
-        {/* H1 exact-match with the target keyword phrase. */}
         <h1
           className="font-display text-[44px] sm:text-[64px] md:text-[88px] lg:text-[112px] leading-[0.92] mb-8"
           data-testid={`seo-h1-${slug}`}
@@ -128,6 +170,35 @@ export default function SEOLandingPage({ config }) {
             Meet the makers →
           </Link>
         </div>
+
+        {/* Body extras (iter300) — additional H2 sections with deep
+            content. Renders only when the config supplies them. */}
+        {bodyExtras.length > 0 && (
+          <div className="border-t border-[#262626] pt-12 mb-16 space-y-12">
+            {bodyExtras.map((section, idx) => (
+              <section
+                key={idx}
+                data-testid={`seo-body-extra-${slug}-${idx}`}
+                className="max-w-3xl"
+              >
+                <h2
+                  className="font-display text-2xl md:text-4xl uppercase mb-4 leading-tight"
+                  data-testid={`seo-body-extra-heading-${slug}-${idx}`}
+                >
+                  {section.heading}
+                </h2>
+                {section.paragraphs.map((p, pi) => (
+                  <p
+                    key={pi}
+                    className="font-mono text-sm text-[#a3a3a3] leading-relaxed mb-4"
+                  >
+                    {p}
+                  </p>
+                ))}
+              </section>
+            ))}
+          </div>
+        )}
 
         {/* Live grid — products or makers depending on mode. */}
         <div className="border-t border-[#262626] pt-12">
@@ -188,6 +259,68 @@ export default function SEOLandingPage({ config }) {
             </div>
           )}
         </div>
+
+        {/* FAQ section (iter300) — visible to users + ranked by Google
+            via FAQPage schema above. */}
+        {faqs.length > 0 && (
+          <div className="border-t border-[#262626] mt-20 pt-12" data-testid={`seo-faq-${slug}`}>
+            <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-3">
+              ◆ FAQ
+            </div>
+            <h2 className="font-display text-3xl md:text-5xl uppercase mb-8">
+              Frequently asked questions
+            </h2>
+            <div className="max-w-3xl space-y-4">
+              {faqs.map(({ q, a }, idx) => (
+                <details
+                  key={idx}
+                  className="border border-[#262626] bg-[#0a0a0a] open:border-[#ff4500] transition"
+                  data-testid={`seo-faq-item-${slug}-${idx}`}
+                >
+                  <summary className="cursor-pointer list-none p-4 flex items-start justify-between gap-4 font-mono text-sm text-[#e5e5e5] hover:text-[#ff4500]">
+                    <span className="flex-1">{q}</span>
+                    <span className="font-display text-xl shrink-0">+</span>
+                  </summary>
+                  <div className="px-4 pb-4 pt-2 border-t border-[#262626] font-mono text-sm text-[#a3a3a3] leading-relaxed">
+                    {a}
+                  </div>
+                </details>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Related landing pages (iter300) — internal-link grid for
+            crawler equity flow between sibling keyword pages. */}
+        {relatedLinks.length > 0 && (
+          <div className="border-t border-[#262626] mt-20 pt-12" data-testid={`seo-related-${slug}`}>
+            <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-3">
+              ◆ Related categories
+            </div>
+            <h2 className="font-display text-3xl md:text-5xl uppercase mb-8">
+              Keep exploring
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {relatedLinks.map(({ to, label, blurb }, idx) => (
+                <Link
+                  key={idx}
+                  to={to}
+                  className="group border border-[#262626] hover:border-[#ff4500] p-5 transition block"
+                  data-testid={`seo-related-link-${slug}-${idx}`}
+                >
+                  <div className="font-display text-xl mb-2 group-hover:text-[#ff4500] transition">
+                    {label} →
+                  </div>
+                  {blurb && (
+                    <p className="font-mono text-[11px] text-[#737373] leading-relaxed">
+                      {blurb}
+                    </p>
+                  )}
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

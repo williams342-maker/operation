@@ -1,3 +1,34 @@
+## 2026-05-30 — SEO Phase 3: content-rich landing pages + custom-order hub (iter300)
+
+### User ask
+Continued from Phase 2 (iter299). User picked Phase 3: deepen the top buyer-intent landing pages (already wired in `seo.py` but thin) into proper content hubs with FAQ schema + internal-link grids, plus build a dedicated "How custom orders work" hub bridging landing pages to the `/custom-order` form.
+
+### What shipped
+- `/app/frontend/src/pages/SEOLandingPage.jsx` — extended (full rewrite, behavior unchanged for un-enhanced configs) to support three new config keys:
+  - `bodyExtras: [{ heading, paragraphs[] }]` — additional H2 content sections rendered between the intro paragraphs and the live grid. Adds the depth Google rewards (300–600 word target per page).
+  - `faqs: [{ q, a }]` — visible accordion + `FAQPage` JSON-LD eligible for "People Also Ask" SERP rich results.
+  - `relatedLinks: [{ to, label, blurb? }]` — internal-link grid surfacing sibling landing pages so SERP equity cascades across the keyword family.
+  - Also added the iter299 `<Breadcrumbs>` component to every SEO landing page and consolidated the JSON-LD blocks into a single `@graph`.
+- `/app/frontend/src/pages/seoLandingConfig.js` — top-3 highest-intent configs enriched with ~3 body sections, 5 FAQs, and 6 related links each:
+  - `custom-metal-signs`: materials/finishes, sizes/mounting/installation, custom-design/proofs/lead-times sections; FAQs on timelines, weatherproofing, font/logo/color matching, cost, design ownership.
+  - `personalized-gifts`: engraved-vs-printed-vs-cut, popular gift categories + price ranges, personalization details that matter; FAQs on rush, proofs, returns, multi-line text, gift wrap/direct ship.
+  - `wedding-gifts`: gifts that survive the marriage, timing, anniversaries; FAQs on timing, working from venue/invite photos, popular gifts, direct-to-venue ship, bridal-party sets.
+- `/app/frontend/src/pages/HowCustomOrdersWorkPage.jsx` (new, ~340 lines) — dedicated `/how-custom-orders-work` hub with:
+  - 5-step process (HowTo JSON-LD: brief → match → quote/proof → pay → receive).
+  - 4-tier price guide ($35–$200 / $200–$800 / $800–$2.5k / $2.5k+).
+  - 7-question FAQ with `FAQPage` JSON-LD covering full-flow timeline, escrow payment, proof revisions, novel commissions, damage handling, batches, international.
+  - Internal-link grid to 6 related landing pages.
+  - Three CTAs to `/custom-order` (top + bottom + inline) bridging informational searches into commissions.
+- `/app/frontend/src/App.js` — new `<Route path="/how-custom-orders-work" element={<HowCustomOrdersWorkPage />} />`.
+- `/app/backend/routers/seo.py` — added `/how-custom-orders-work` to the static sitemap entries at `monthly` changefreq / `0.85` priority.
+- Tests: `/app/backend/tests/test_seo_phase3_iter300.py` — 4/4 pass. Verifies sitemap inclusion of the new hub slug + the iter177 buyer-intent landing pages, the bodyExtras/faqs/relatedLinks keys on the 3 enhanced configs, and the HowTo/FAQPage/BreadcrumbList/WebPage schema types on the hub page. Frontend smoke-verified via Playwright: all four pages emit `Organization + WebSite + CollectionPage|WebPage + BreadcrumbList + ItemList + FAQPage` (+ HowTo on the hub), with single-canonical, visible breadcrumbs, working FAQ accordion, and 6 related links each.
+
+### Live verification
+- `/how-custom-orders-work`: H1 = "How Custom Orders Work.", title = "How Custom Orders Work · Crafters Market", canonical = `https://craftersmarket.org/how-custom-orders-work`, 5 process steps, 7 FAQ accordion items, 6 related-link cards, schema `@graph` contains `WebPage + BreadcrumbList + HowTo + FAQPage`.
+- `/custom-metal-signs` + `/wedding-gifts` + `/personalized-gifts`: each has 3 bodyExtras H2 sections, 5 FAQ items (accordion opens with orange border), 6 related-link cards, schema `@graph` contains `CollectionPage + BreadcrumbList + ItemList + FAQPage`, single canonical at the apex URL.
+
+
+
 ## 2026-05-30 — SEO Phase 2: on-page signals, canonicals, breadcrumbs UI (iter299)
 
 ### User ask
