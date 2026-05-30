@@ -149,6 +149,9 @@ api.include_router(maker_studio_router)
 from routers.enrichlabs import router as enrichlabs_router, admin_router as enrichlabs_admin_router
 api.include_router(enrichlabs_router)
 api.include_router(enrichlabs_admin_router)
+# iter290 — Public Pinterest catalog feed (unauthenticated; Pinterest crawler doesn't send custom headers)
+from routers.pinterest_feed import router as pinterest_feed_router
+api.include_router(pinterest_feed_router)
 from routers.social_auto_post import router as social_auto_post_router, admin_router as social_auto_post_admin_router
 api.include_router(social_auto_post_router)
 api.include_router(social_auto_post_admin_router)
