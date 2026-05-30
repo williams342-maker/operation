@@ -54,6 +54,18 @@ export function useStructuredData({
 
     const setLink = (rel, href) => {
       if (!href) return;
+      // First update the static `<link rel="canonical">` from index.html
+      // if present — Google honors the first canonical it sees, so if we
+      // leave the homepage default in place AND append our route-specific
+      // one, the homepage URL wins and PDPs get mis-canonicalized.
+      // (iter299 — fixes per-route canonical leak.)
+      const staticEl = document.head.querySelector(`link[rel="${rel}"]:not([data-cm-structured])`);
+      if (staticEl) {
+        const prev = staticEl.getAttribute("href");
+        staticEl.setAttribute("href", href);
+        cleanups.push(() => prev != null && staticEl.setAttribute("href", prev));
+        return;
+      }
       const sel = `link[rel="${rel}"][data-cm-structured]`;
       let el = document.head.querySelector(sel);
       if (!el) {

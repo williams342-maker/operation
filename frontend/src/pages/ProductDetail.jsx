@@ -15,7 +15,13 @@ import RestockWaitlistModal from "../components/RestockWaitlistModal";
 import RecentShowcaseStrip from "../components/RecentShowcaseStrip";
 import SimilarProductsRail from "../components/SimilarProductsRail";
 import CustomOrderCTA from "../components/CustomOrderCTA";
+import Breadcrumbs from "../components/Breadcrumbs";
 import { DetailSkeleton } from "../components/Skeleton";
+
+// Always emit the canonical apex URL — never the preview hostname. SEO
+// canonical leaks were causing Google to index preview.emergentagent.com
+// pages as the canonical version. (iter299)
+const SITE_URL = "https://craftersmarket.org";
 
 export default function ProductDetail() {
   const { slug } = useParams();
@@ -56,30 +62,51 @@ export default function ProductDetail() {
   }, [slug]);
 
   useStructuredData(p ? {
-    title: `${p.title} · Crafters Market`,
+    title: `${p.title}${p.category ? ` · ${p.category}` : ""} · Crafters Market`,
     description: p.description,
     image: p.images?.[0],
-    url: `${window.location.origin}/shop/${p.slug}`,
+    url: `${SITE_URL}/shop/${p.slug}`,
     imageAlt: p.title,
     ogType: "product",
     jsonLd: {
       "@context": "https://schema.org",
-      "@type": "Product",
-      "name": p.title,
-      "description": p.description,
-      "image": p.images || [],
-      "category": p.category,
-      "sku": p.id,
-      "brand": maker ? { "@type": "Organization", "name": maker.name } : undefined,
-      "offers": {
-        "@type": "Offer",
-        "url": `${window.location.origin}/shop/${p.slug}`,
-        "priceCurrency": "USD",
-        "price": p.price,
-        "availability": p.in_stock > 0
-          ? "https://schema.org/InStock"
-          : "https://schema.org/OutOfStock",
-      },
+      "@graph": [
+        {
+          "@type": "Product",
+          "name": p.title,
+          "description": p.description,
+          "image": p.images || [],
+          "category": p.category,
+          "sku": p.id,
+          "brand": maker ? { "@type": "Organization", "name": maker.name } : undefined,
+          "offers": {
+            "@type": "Offer",
+            "url": `${SITE_URL}/shop/${p.slug}`,
+            "priceCurrency": "USD",
+            "price": p.price,
+            "availability": p.in_stock > 0
+              ? "https://schema.org/InStock"
+              : "https://schema.org/OutOfStock",
+          },
+        },
+        {
+          "@type": "BreadcrumbList",
+          "itemListElement": [
+            { "@type": "ListItem", "position": 1, "name": "Home", "item": `${SITE_URL}/` },
+            { "@type": "ListItem", "position": 2, "name": "Shop", "item": `${SITE_URL}/shop` },
+            ...(p.category ? [{
+              "@type": "ListItem", "position": 3, "name": p.category,
+              "item": `${SITE_URL}/shop?category=${encodeURIComponent(p.category)}`,
+            }] : []),
+            {
+              "@type": "ListItem",
+              "position": p.category ? 4 : 3,
+              "name": p.title,
+              "item": `${SITE_URL}/shop/${p.slug}`,
+            },
+          ],
+        },
+      ],
     },
   } : { jsonLd: null });
 
@@ -117,6 +144,17 @@ export default function ProductDetail() {
   return (
     <div className="pt-32 pb-24 grain min-h-screen" data-testid="product-detail">
       <div className="w-full max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12">
+        <Breadcrumbs
+          items={[
+            { name: "Home", to: "/" },
+            { name: "Shop", to: "/shop" },
+            ...(p.category
+              ? [{ name: p.category, to: `/shop?category=${encodeURIComponent(p.category)}` }]
+              : []),
+            { name: p.title },
+          ]}
+          testId="product-breadcrumbs"
+        />
         <Link to="/shop" className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] mb-8">
           <ArrowLeft size={14} /> Back to shop
         </Link>

@@ -17,6 +17,10 @@ import CustomOrderCTA from "../components/CustomOrderCTA";
 import SaveDropButton from "../components/SaveDropButton";
 import WorkshopVideoGrid from "../components/WorkshopVideoGrid";
 import { Mail, Facebook, Instagram, Twitter, Youtube, Globe, BookOpen, ArrowUpRight } from "lucide-react";
+import Breadcrumbs from "../components/Breadcrumbs";
+
+// Always emit the canonical apex URL — never the preview hostname.
+const SITE_URL = "https://craftersmarket.org";
 
 export default function MakerDetail() {
   const { slug } = useParams();
@@ -34,25 +38,37 @@ export default function MakerDetail() {
   }, [slug]);
 
   useStructuredData(m ? {
-    title: `${m.name} · Crafters Market`,
+    title: `${m.name}${m.location ? ` · ${m.location}` : ""} · Crafters Market`,
     description: m.bio,
     image: m.cover || m.portrait,
-    url: `${window.location.origin}/makers/${m.slug}`,
+    url: `${SITE_URL}/makers/${m.slug}`,
     imageAlt: `${m.name} — ${m.location || ""}`.trim(),
     ogType: "profile",
     jsonLd: {
       "@context": "https://schema.org",
-      "@type": "Organization",
-      "name": m.name,
-      "description": m.bio,
-      "image": m.portrait,
-      "url": `${window.location.origin}/makers/${m.slug}`,
-      "address": { "@type": "PostalAddress", "addressLocality": m.location },
-      "aggregateRating": {
-        "@type": "AggregateRating",
-        "ratingValue": m.rating,
-        "reviewCount": Math.max(m.listings_count, 1),
-      },
+      "@graph": [
+        {
+          "@type": "Organization",
+          "name": m.name,
+          "description": m.bio,
+          "image": m.portrait,
+          "url": `${SITE_URL}/makers/${m.slug}`,
+          "address": m.location ? { "@type": "PostalAddress", "addressLocality": m.location } : undefined,
+          "aggregateRating": m.rating ? {
+            "@type": "AggregateRating",
+            "ratingValue": m.rating,
+            "reviewCount": Math.max(m.listings_count || 1, 1),
+          } : undefined,
+        },
+        {
+          "@type": "BreadcrumbList",
+          "itemListElement": [
+            { "@type": "ListItem", "position": 1, "name": "Home", "item": `${SITE_URL}/` },
+            { "@type": "ListItem", "position": 2, "name": "Makers", "item": `${SITE_URL}/makers` },
+            { "@type": "ListItem", "position": 3, "name": m.name, "item": `${SITE_URL}/makers/${m.slug}` },
+          ],
+        },
+      ],
     },
   } : { jsonLd: null });
 
@@ -60,6 +76,16 @@ export default function MakerDetail() {
 
   return (
     <div className="pt-32 pb-24 grain min-h-screen" data-testid="maker-detail">
+      <div className="w-full max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12">
+        <Breadcrumbs
+          items={[
+            { name: "Home", to: "/" },
+            { name: "Makers", to: "/makers" },
+            { name: m.name },
+          ]}
+          testId="maker-breadcrumbs"
+        />
+      </div>
       <div className="relative h-[60vh] overflow-hidden border-b border-[#262626] mb-16 -mx-4 md:-mx-8 xl:-mx-12">
         <img
           src={m.banner_image_url || m.cover}

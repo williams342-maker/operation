@@ -6,6 +6,9 @@ import { useStructuredData } from "../lib/seo";
 import { CardSkeleton } from "../components/Skeleton";
 import EmptyState from "../components/EmptyState";
 import VeteranBadge from "../components/VeteranBadge";
+import Breadcrumbs from "../components/Breadcrumbs";
+
+const SITE_URL = "https://craftersmarket.org";
 
 export default function MakersPage() {
   const [makers, setMakers] = useState(null);
@@ -20,32 +23,50 @@ export default function MakersPage() {
   }, [makers, veteranOnly]);
 
   useStructuredData({
-    title: "Approved Makers · Independent CNC Artists & Signmakers · Crafters Market",
+    title: "Meet the Makers · Vetted CNC, Plasma & Laser Artisans · Crafters Market",
     description: "Meet the workshop roster — independent metal, wood, and CNC artists hand-vetted to sell on Crafters Market. Each shop ships direct to buyers via Stripe-secured checkout.",
-    url: "https://craftersmarket.org/makers",
-    image: "https://craftersmarket.org/downloads/cnc-garage-builders.png",
+    url: `${SITE_URL}/makers`,
+    image: `${SITE_URL}/downloads/cnc-garage-builders.png`,
     jsonLd: {
       "@context": "https://schema.org",
-      "@type": "CollectionPage",
-      name: "Crafters Market — Approved Makers",
-      url: "https://craftersmarket.org/makers",
-      isPartOf: { "@type": "WebSite", "@id": "https://craftersmarket.org/#website" },
-      mainEntity: {
-        "@type": "ItemList",
-        numberOfItems: (makers || []).length,
-        itemListElement: (makers || []).slice(0, 20).map((m, i) => ({
-          "@type": "ListItem",
-          position: i + 1,
-          url: `https://craftersmarket.org/makers/${m.slug}`,
-          name: m.name,
-        })),
-      },
+      "@graph": [
+        {
+          "@type": "CollectionPage",
+          name: "Crafters Market — Approved Makers",
+          url: `${SITE_URL}/makers`,
+          isPartOf: { "@type": "WebSite", "@id": `${SITE_URL}/#website` },
+          mainEntity: {
+            "@type": "ItemList",
+            numberOfItems: (makers || []).length,
+            itemListElement: (makers || []).slice(0, 20).map((m, i) => ({
+              "@type": "ListItem",
+              position: i + 1,
+              url: `${SITE_URL}/makers/${m.slug}`,
+              name: m.name,
+            })),
+          },
+        },
+        {
+          "@type": "BreadcrumbList",
+          itemListElement: [
+            { "@type": "ListItem", position: 1, name: "Home", item: `${SITE_URL}/` },
+            { "@type": "ListItem", position: 2, name: "Makers", item: `${SITE_URL}/makers` },
+          ],
+        },
+      ],
     },
   });
 
   return (
     <div className="pt-32 pb-24 grain min-h-screen" data-testid="makers-page">
       <div className="w-full max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12">
+        <Breadcrumbs
+          items={[
+            { name: "Home", to: "/" },
+            { name: "Makers" },
+          ]}
+          testId="makers-breadcrumbs"
+        />
         <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-4">◆ APPROVED MAKERS</div>
         <h1 className="font-display text-[64px] md:text-[120px] leading-[0.88] mb-8">
           The <span className="text-outline-orange">Workshop</span><br />Roster
