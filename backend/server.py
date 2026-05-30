@@ -245,6 +245,12 @@ async def on_startup():
         _asyncio.create_task(run_startup_seo_submit())
     except Exception:
         logger.exception("[startup_seo] kickoff failed (non-fatal)")
+    # iter289 — Initialize the stripe_webhook_log TTL + lookup indexes.
+    try:
+        from stripe_webhook_log import ensure_indexes as _ensure_swh
+        await _ensure_swh()
+    except Exception:
+        logger.exception("[stripe_webhook_log] index init failed (non-fatal)")
     logger.info("Crafters Market API ready (seed checked).")
 
 

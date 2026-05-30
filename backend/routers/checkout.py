@@ -825,6 +825,10 @@ async def checkout_status(session_id: str, http_request: Request, bg: Background
 
 @router.post("/webhook/stripe")
 async def stripe_webhook(request: Request):
+    # iter289 — Log every hit for the admin Stripe Webhook Health widget.
+    from stripe_webhook_log import record as _log
+    path = request.url.path
+
     body = await request.body()
     sig = request.headers.get("Stripe-Signature", "")
     host_url = public_host(request)
@@ -836,27 +840,31 @@ async def stripe_webhook(request: Request):
     from stripe_webhook_secrets import get_active_webhook_secrets, verify_with_secrets
     secrets = await get_active_webhook_secrets("main")
     accepted_secret = None
-    if secrets:
-        try:
-            verify_with_secrets(body, sig, secrets)
-            # Find which one matched (re-try to remember the winner)
-            for sec in secrets:
-                try:
-                    import stripe as _sdk
-                    _sdk.Webhook.construct_event(body, sig, sec)
-                    accepted_secret = sec
-                    break
-                except Exception:
-                    continue
-        except Exception as e:
-            logger.warning("checkout webhook signature failed: %s", e)
-            return {"received": False, "reason": "bad-signature"}
+    if not secrets:
+        await _log(kind="main", path=path, status="no_secret")
+        return {"received": False, "reason": "no-secret-configured"}
+    try:
+        verify_with_secrets(body, sig, secrets)
+        # Find which one matched (re-try to remember the winner)
+        for sec in secrets:
+            try:
+                import stripe as _sdk
+                _sdk.Webhook.construct_event(body, sig, sec)
+                accepted_secret = sec
+                break
+            except Exception:
+                continue
+    except Exception as e:
+        logger.warning("checkout webhook signature failed: %s", e)
+        await _log(kind="main", path=path, status="bad_signature", error=str(e))
+        return {"received": False, "reason": "bad-signature"}
     stripe = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url,
                             webhook_secret=accepted_secret)
     try:
         evt = await stripe.handle_webhook(body, sig)
     except Exception as e:
         logger.exception("webhook fail: %s", e)
+        await _log(kind="main", path=path, status="handler_error", error=str(e))
         return {"received": False}
     # Update local payment_transactions row (regular product purchases)
     await db.payment_transactions.update_one(
@@ -875,4 +883,7 @@ async def stripe_webhook(request: Request):
             await transfer_to_makers_for_session(evt.session_id)
         except Exception as e:
             logger.exception("connect transfer failed: %s", e)
+    await _log(kind="main", path=path, status="ok",
+               event_type=getattr(evt, "event_type", None) or "checkout.session.*",
+               event_id=getattr(evt, "session_id", None))
     return {"received": True}

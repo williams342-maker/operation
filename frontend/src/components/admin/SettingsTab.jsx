@@ -2660,6 +2660,211 @@ function SearchEnginePingCard() {
  * refresh-token; doesn't touch GSC-side permissions).
  */
 // ─────────────────────────────────────────────────────────────────────
+// iter289 — Stripe webhook health card. Surfaces signature failures,
+// route 404s, and stuck event types BEFORE they cost real money.
+// Reads from `GET /api/admin/stripe/webhook-health` which aggregates
+// the last 7d of `stripe_webhook_log` rows (populated by both the
+// main checkout webhook and the Connect webhook).
+// ─────────────────────────────────────────────────────────────────────
+function StripeWebhookHealthCard() {
+  const API = process.env.REACT_APP_BACKEND_URL;
+  const [data, setData] = useState(null);
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const load = async () => {
+    setBusy(true); setErr("");
+    try {
+      const r = await fetch(`${API}/api/admin/stripe/webhook-health`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("cm_admin_jwt") || ""}` },
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      setData(await r.json());
+    } catch (e) {
+      setErr(e.message || "Load failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
+
+  const fmtAgo = (iso) => {
+    if (!iso) return "never";
+    try {
+      const ms = Date.now() - new Date(iso).getTime();
+      if (ms < 60_000) return "just now";
+      if (ms < 3_600_000) return `${Math.floor(ms / 60_000)}m ago`;
+      if (ms < 86_400_000) return `${Math.floor(ms / 3_600_000)}h ago`;
+      const d = Math.floor(ms / 86_400_000);
+      return d < 30 ? `${d}d ago` : new Date(iso).toLocaleDateString();
+    } catch { return iso; }
+  };
+
+  if (err && !data) {
+    return (
+      <section className="border border-[#262626] p-4 md:p-5" data-testid="stripe-webhook-health-card">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Stripe · webhook health</div>
+        <div className="font-mono text-xs text-red-400 mt-2">{err}</div>
+      </section>
+    );
+  }
+  if (!data) {
+    return (
+      <section className="border border-[#262626] p-4 md:p-5" data-testid="stripe-webhook-health-card">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Stripe · webhook health</div>
+        <div className="font-mono text-xs text-[#737373] mt-2">Loading…</div>
+      </section>
+    );
+  }
+
+  // Health verdict per channel — drives the colored status pill at top.
+  // Definitions:
+  //   green  → at least 1 ok in last 24h AND zero errors in last 7d
+  //   amber  → ok in last 24h BUT some errors in last 7d
+  //   red    → zero ok in last 24h (or never received) — actively broken
+  //   gray   → no secret configured (channel disabled by ops)
+  const verdict = (k) => {
+    const v = data[k] || {};
+    if (!data.secrets_configured?.[k]) return { color: "#737373", label: "not configured" };
+    if (v.ok_24h > 0 && v.err_7d === 0) return { color: "#22c55e", label: "healthy" };
+    if (v.ok_24h > 0)                   return { color: "#f59e0b", label: "degraded" };
+    if (v.last)                         return { color: "#ef4444", label: "failing" };
+    return { color: "#737373", label: "no events yet" };
+  };
+
+  const Channel = ({ k, title, configUrl }) => {
+    const v = data[k] || {};
+    const verd = verdict(k);
+    return (
+      <div
+        className="border border-[#262626] bg-[#0d0d0d] p-4"
+        data-testid={`stripe-webhook-${k}`}
+      >
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <div>
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">{title}</div>
+            <div className="font-mono text-[10px] text-[#525252] mt-0.5">
+              {configUrl}
+            </div>
+          </div>
+          <span
+            className="px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.22em] border"
+            style={{ borderColor: verd.color, color: verd.color }}
+            data-testid={`stripe-webhook-${k}-verdict`}
+          >
+            ◆ {verd.label}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2 mb-3">
+          <div>
+            <div className="font-display text-xl" style={{ color: v.ok_24h ? "#22c55e" : "#525252" }}>
+              {v.ok_24h || 0}
+            </div>
+            <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#737373]">ok · 24h</div>
+          </div>
+          <div>
+            <div className="font-display text-xl text-[#a3a3a3]">{v.ok_7d || 0}</div>
+            <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#737373]">ok · 7d</div>
+          </div>
+          <div>
+            <div className="font-display text-xl" style={{ color: v.err_7d ? "#ef4444" : "#525252" }}>
+              {v.err_7d || 0}
+            </div>
+            <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#737373]">err · 7d</div>
+          </div>
+        </div>
+
+        <div className="font-mono text-[10px] text-[#a3a3a3]">
+          Last event: <span className="text-[#e5e5e5]">{fmtAgo(v.last?.ts)}</span>
+          {v.last?.event_type && (
+            <span className="text-[#525252]"> · <code className="text-cyan-400">{v.last.event_type}</code></span>
+          )}
+        </div>
+
+        {/* Recent errors — inline preview so admin can copy/paste */}
+        {v.recent_errors?.length > 0 && (
+          <details className="mt-3">
+            <summary className="font-mono text-[10px] uppercase tracking-[0.22em] text-amber-300 cursor-pointer">
+              ▾ {v.recent_errors.length} recent error{v.recent_errors.length === 1 ? "" : "s"}
+            </summary>
+            <ul className="mt-2 space-y-1.5 max-h-48 overflow-auto" data-testid={`stripe-webhook-${k}-errors`}>
+              {v.recent_errors.map((e, i) => (
+                <li key={i} className="border-l-2 border-red-500/40 pl-2 py-0.5">
+                  <div className="font-mono text-[10px] text-[#737373]">
+                    {fmtAgo(e.ts)} · <span className="text-amber-300">{e.status}</span>
+                    {e.event_type && <span className="text-[#525252]"> · {e.event_type}</span>}
+                  </div>
+                  <div className="font-mono text-[10px] text-red-300 break-words mt-0.5">
+                    {e.error || "(no detail)"}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <section
+      className="border border-[#262626] p-4 md:p-5"
+      data-testid="stripe-webhook-health-card"
+    >
+      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-3">
+        <div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+            Stripe · webhook health
+          </div>
+          <h3 className="font-display text-xl mt-1 text-[#e5e5e5]">
+            Are Stripe events actually reaching us?
+          </h3>
+          <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-2xl">
+            Both webhook routes log every hit (signature failures, route 404s,
+            handler errors). A red verdict means something is silently broken —
+            check the recent errors below or send a test event from the Stripe
+            Dashboard webhook page.
+          </p>
+        </div>
+        <button
+          onClick={load}
+          disabled={busy}
+          data-testid="stripe-webhook-health-refresh"
+          className="shrink-0 px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+        >
+          {busy ? "Refreshing…" : "Refresh"}
+        </button>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-3">
+        <Channel
+          k="main"
+          title="Main · checkout.session.*"
+          configUrl="POST /api/webhook/stripe"
+        />
+        <Channel
+          k="connect"
+          title="Connect · account.updated, subscriptions"
+          configUrl="POST /api/stripe/connect/webhook"
+        />
+      </div>
+
+      {(!data.secrets_configured?.main || !data.secrets_configured?.connect) && (
+        <div
+          className="mt-3 border border-amber-500/30 bg-amber-500/5 p-2.5 font-mono text-[11px] text-amber-300"
+          data-testid="stripe-webhook-health-config-warn"
+        >
+          ⚠ Set <code className="text-amber-200">STRIPE_WEBHOOK_SECRET</code> and{" "}
+          <code className="text-amber-200">STRIPE_CONNECT_WEBHOOK_SECRET</code> in backend/.env
+          (find them in Stripe Dashboard → Developers → Webhooks → your endpoint → "Signing secret").
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
 // iter275 — GSC indexation summary widget. One-glance "is Google
 // noticing my listings?" answer that surfaces stuck URLs (crawled-
 // not-indexed, soft 404s) before they tank organic traffic. Reads
@@ -4444,6 +4649,8 @@ export default function SettingsTab() {
       <GscConnectionCard />
 
       <GscIndexationCard />
+
+      <StripeWebhookHealthCard />
 
       <PurgeFeaturedSeedCard />
 

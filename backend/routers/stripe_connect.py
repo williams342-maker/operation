@@ -865,20 +865,27 @@ async def stripe_connect_webhook(request: Request):
     Falls back to STRIPE_WEBHOOK_SECRET if STRIPE_CONNECT_WEBHOOK_SECRET is not set
     (single-secret config also works).
     """
+    # iter289 — Log every hit (success + failure) for the admin health widget.
+    from stripe_webhook_log import record as _log
+    path = request.url.path
+
     body = await request.body()
     sig = request.headers.get("Stripe-Signature", "")
     from stripe_webhook_secrets import get_active_webhook_secrets, verify_with_secrets
     secrets = await get_active_webhook_secrets("connect")
     if not secrets:
+        await _log(kind="connect", path=path, status="no_secret")
         return {"received": False, "reason": "no-secret-configured"}
     try:
         event = verify_with_secrets(body, sig, secrets)
     except Exception as e:
         logger.warning("connect webhook signature failed: %s", e)
+        await _log(kind="connect", path=path, status="bad_signature", error=str(e))
         return {"received": False, "reason": "bad-signature"}
 
     etype = event["type"]
     obj = event["data"]["object"]
+    event_id = event.get("id") if isinstance(event, dict) else getattr(event, "id", None)
     # `obj` is either a plain dict (iter9 unit tests) or a StripeObject
     # (real webhooks). StripeObject doesn't implement .get() / .items() in
     # stripe>=15, but attribute access works on both. Use a small shim.
@@ -890,9 +897,13 @@ async def stripe_connect_webhook(request: Request):
     if etype == "account.updated":
         account_id = field("id")
         if not account_id:
+            await _log(kind="connect", path=path, status="ok",
+                       event_type=etype, event_id=event_id, error="no-account-id")
             return {"received": True, "skipped": "no-account-id"}
         maker = await db.makers.find_one({"stripe_account_id": account_id}, {"_id": 0})
         if not maker:
+            await _log(kind="connect", path=path, status="ok",
+                       event_type=etype, event_id=event_id, error="unknown-maker")
             return {"received": True, "skipped": "unknown-maker"}
         await db.makers.update_one(
             {"slug": maker["slug"]},
@@ -906,6 +917,8 @@ async def stripe_connect_webhook(request: Request):
         logger.info("connect: synced maker=%s charges=%s payouts=%s",
                     maker["slug"],
                     field("charges_enabled"), field("payouts_enabled"))
+        await _log(kind="connect", path=path, status="ok",
+                   event_type=etype, event_id=event_id, maker_slug=maker["slug"])
         return {"received": True, "type": etype, "maker": maker["slug"]}
 
     # Crafters Plus subscription lifecycle
@@ -916,8 +929,18 @@ async def stripe_connect_webhook(request: Request):
             obj_dict = obj.to_dict() if hasattr(obj, "to_dict") else dict(obj)
         except Exception:
             obj_dict = obj
-        handled = await handle_subscription_event(etype, obj_dict)
-        return {"received": True, "type": etype, "handled": handled}
+        try:
+            handled = await handle_subscription_event(etype, obj_dict)
+            await _log(kind="connect", path=path, status="ok",
+                       event_type=etype, event_id=event_id)
+            return {"received": True, "type": etype, "handled": handled}
+        except Exception as e:
+            logger.exception("connect subscription handler failed: %s", e)
+            await _log(kind="connect", path=path, status="handler_error",
+                       event_type=etype, event_id=event_id, error=str(e))
+            return {"received": False, "type": etype, "reason": "handler-error"}
 
+    await _log(kind="connect", path=path, status="ok",
+               event_type=etype, event_id=event_id)
     return {"received": True, "type": etype, "handled": False}
 

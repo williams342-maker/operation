@@ -27,6 +27,7 @@ from pydantic import BaseModel, Field
 
 from core import db, logger, now_iso
 from maker_auth import require_super_admin
+from maker_auth import current_admin as _current_admin
 
 router = APIRouter()
 
@@ -629,3 +630,61 @@ async def stripe_webhook_cancel(
         "new_delete_error": delete_err,
         "cancelled_at": cancelled_at,
     }
+
+
+# ─────────────── iter289 — Stripe webhook health widget ───────────────
+@router.get("/admin/stripe/webhook-health")
+async def stripe_webhook_health(_admin: dict = Depends(_current_admin)):
+    """Last-7-days summary of Stripe webhook events (main + connect).
+
+    Pulls from `stripe_webhook_log` (populated by both webhook routes
+    via `stripe_webhook_log.record`). Surfaces at-a-glance:
+      • last received event timestamp per kind (with how-long-ago)
+      • 7d success / failure counts split by main vs. connect
+      • most-recent 5 errors so the admin can copy the message into
+        Stripe Dashboard support without leaving the page
+    Empty / never-hit state returns zeros + a hint string the UI shows
+    when no webhooks have fired yet (e.g. fresh deploy, wrong URL).
+    """
+    from datetime import datetime, timedelta, timezone
+    now = datetime.now(timezone.utc)
+    cutoff_7d  = (now - timedelta(days=7)).isoformat()
+    cutoff_24h = (now - timedelta(hours=24)).isoformat()
+
+    out = {}
+    for kind in ("main", "connect"):
+        # Counts in last 7d
+        ok_7d = await db.stripe_webhook_log.count_documents(
+            {"kind": kind, "ts": {"$gte": cutoff_7d}, "status": "ok"})
+        err_7d = await db.stripe_webhook_log.count_documents(
+            {"kind": kind, "ts": {"$gte": cutoff_7d}, "status": {"$ne": "ok"}})
+        # Last 24h subset (for the "is it still working?" pulse)
+        ok_24h = await db.stripe_webhook_log.count_documents(
+            {"kind": kind, "ts": {"$gte": cutoff_24h}, "status": "ok"})
+        # Most-recent hit of any status — drives the "last seen 4h ago" chip
+        last = await db.stripe_webhook_log.find_one(
+            {"kind": kind}, {"_id": 0},
+            sort=[("ts", -1)],
+        )
+        # Last 5 NON-ok rows for the inline error preview
+        errors_cur = db.stripe_webhook_log.find(
+            {"kind": kind, "status": {"$ne": "ok"}},
+            {"_id": 0, "ts": 1, "status": 1, "error": 1,
+             "event_type": 1, "path": 1},
+        ).sort("ts", -1).limit(5)
+        errors = [e async for e in errors_cur]
+        out[kind] = {
+            "ok_7d": ok_7d,
+            "err_7d": err_7d,
+            "ok_24h": ok_24h,
+            "last": last,
+            "recent_errors": errors,
+        }
+
+    # Configuration sanity — is the secret even loaded?
+    out["secrets_configured"] = {
+        "main":    bool((os.environ.get("STRIPE_WEBHOOK_SECRET") or "").strip()),
+        "connect": bool((os.environ.get("STRIPE_CONNECT_WEBHOOK_SECRET") or "").strip()
+                        or (os.environ.get("STRIPE_WEBHOOK_SECRET") or "").strip()),
+    }
+    return out
