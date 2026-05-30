@@ -192,6 +192,9 @@ class MakerProductUpdate(BaseModel):
     accept_exchanges: Optional[bool] = None
     seo_tags: Optional[List[str]] = None
     contact_email: Optional[str] = None
+    # Maker-supplied Google Product Category override. Empty string clears
+    # the override and reverts to the auto-derived path on the catalog feeds.
+    gpc_path: Optional[str] = None
     accepts_backorders: Optional[bool] = None
     backorder_lead_weeks: Optional[int] = None
     renewal_option: Optional[str] = None  # "automatic" | "manual"
@@ -227,6 +230,20 @@ async def maker_update_product(
         raise HTTPException(400, "status must be 'draft' or 'published'.")
     if payload.seo_tags is not None and len(payload.seo_tags) > 13:
         raise HTTPException(400, "Maximum 13 SEO tags per listing.")
+    if payload.gpc_path is not None:
+        # Light validation — accept empty (clears the override) or a
+        # breadcrumb path ≥ 2 levels deep so Pinterest/Google don't trip
+        # the "only 1 or 2 levels" warning (alert 126). The maker can
+        # paste any valid Google Product Taxonomy node; we don't enforce
+        # an exhaustive enum because the taxonomy has 6000+ leaves and
+        # changes ~yearly.
+        cleaned = payload.gpc_path.strip()
+        if cleaned and (len(cleaned) > 250 or cleaned.count(">") < 1):
+            raise HTTPException(
+                400,
+                "Catalog category must be a Google Product Category path with at least 2 levels (e.g. 'Home & Garden > Decor > Signs').",
+            )
+        payload.gpc_path = cleaned  # may be "" to clear the override
     if payload.renewal_option is not None and payload.renewal_option not in ("automatic", "manual"):
         raise HTTPException(400, "renewal_option must be 'automatic' or 'manual'.")
     if payload.variants is not None:

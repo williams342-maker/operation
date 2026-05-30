@@ -1,3 +1,27 @@
+## 2026-05-30 — Maker-supplied GPC path override (iter297)
+
+### User ask
+*"add a `gpc_path` field on the maker's 'Edit listing' form in MakerDashboard"* — directly downstream of iter296's Pinterest alert-126 fix. Some listings still trip the shallow-category warning because the auto-mapper can't infer the correct leaf for niche categories. Letting the maker override gives them an escape hatch without having to wait on a code change.
+
+### What shipped
+- `/app/backend/models.py` — `Product.gpc_path: Optional[str]` and `MakerProductCreate.gpc_path: Optional[str]`. Backwards-compatible (defaults to None → auto-derive).
+- `/app/backend/routers/maker.py` — `MakerProductUpdate.gpc_path` + light validation (≥ 2 levels deep, ≤ 250 chars; empty string clears the override).
+- `/app/backend/routers/pinterest_feed.py` — new `_resolve_gpc(p)` helper: prefers `gpc_path` verbatim, falls back to `_google_product_category(category, technique)`. Pinterest feed query now projects the new field.
+- `/app/backend/routers/shop_feeds.py` — both Google Merchant XML and Meta CSV feeds use `_resolve_gpc` so the maker's override applies across all three external catalogs.
+- `/app/backend/routers/feeds.py` — the legacy EnrichLabs / Google Ads feed also honours the override (Google's spec accepts either numeric ID or breadcrumb path).
+- `/app/frontend/src/pages/MakerListingEditor/constants.js` — `GPC_PRESETS` list (~50 CNC-relevant breadcrumb paths) + `gpc_path: ""` added to `emptyForm()`.
+- `/app/frontend/src/pages/MakerListingEditor/GpcCombobox.jsx` — new searchable combobox (presets + freeform fallback, type-ahead filter, clear button, ≥ 2-levels warning).
+- `/app/frontend/src/pages/MakerListingEditor.jsx` — new "Catalog Category" section sitting between SEO Tags and Contact. Shows the auto-derived path as a placeholder so makers know what they're overriding. Wired into `buildPayload` + load hydration.
+- Tests: `tests/test_gpc_path_override.py` (7/7 pass) — verifies override priority, whitespace stripping, fallback when empty/missing/too-shallow, and that all three catalog feeds + the EnrichLabs feed honour the override.
+
+### Live verification
+- PATCH `gpc_path="Home & Garden > Decor > Plaques"` on a published listing → confirmed verbatim in `/api/google-merchant/feed.xml` and `/api/meta/feed.csv` within seconds of the update.
+- Invalid 1-level path → 400 with clear error message.
+- Empty string → clears the override; feeds revert to auto-derived path.
+- Frontend combobox: type "signs" → filters to 2 matches; click commits selection; clear button wipes value.
+
+
+
 ## 2026-05-27 — Abandoned-cart email nudges (iter264)
 
 ### User pivot

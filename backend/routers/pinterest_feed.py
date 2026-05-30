@@ -101,6 +101,16 @@ def _google_product_category(category: str, technique: str) -> str:
     return "Home & Garden > Decor > Artwork > Sculptures & Statues"
 
 
+def _resolve_gpc(p: dict) -> str:
+    """Return the GPC path to ship in catalog feeds. Maker-supplied
+    `gpc_path` wins when set (verbatim — they own the taxonomy choice);
+    otherwise fall back to the category→GPC auto-mapper. iter297."""
+    override = (p.get("gpc_path") or "").strip()
+    if override and ">" in override:
+        return override
+    return _google_product_category(p.get("category") or "", p.get("technique") or "")
+
+
 def _availability(p: dict) -> str:
     stock = p.get("in_stock")
     # In our schema `in_stock` can be a bool, an int, or missing.
@@ -177,7 +187,7 @@ async def pinterest_feed_csv(request: Request) -> Response:
         q,
         {"_id": 0, "slug": 1, "title": 1, "description": 1, "price": 1,
          "images": 1, "image_url": 1, "in_stock": 1, "category": 1,
-         "technique": 1, "maker_slug": 1},
+         "technique": 1, "maker_slug": 1, "gpc_path": 1},
     ).sort("created_at", -1).limit(5000).to_list(5000)
 
     brand_map = await _maker_brand_map(
@@ -240,7 +250,7 @@ async def pinterest_feed_csv(request: Request) -> Response:
             _availability(p),
             "new",
             _truncate(brand, 70),
-            _google_product_category(category, technique),
+            _resolve_gpc(p),
             _truncate(f"{category} > {technique}".strip(" >"), 750),
             "|".join(extras),
         ])

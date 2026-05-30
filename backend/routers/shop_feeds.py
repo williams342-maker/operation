@@ -36,7 +36,7 @@ from fastapi import APIRouter, Request, Response
 
 from core import db
 from routers.pinterest_feed import (
-    _abs, _availability, _google_product_category, _maker_brand_map, _truncate,
+    _abs, _availability, _maker_brand_map, _resolve_gpc, _truncate,
 )
 
 
@@ -64,7 +64,7 @@ async def _fetch_products() -> list[dict]:
         {"_id": 0, "slug": 1, "title": 1, "description": 1, "price": 1,
          "images": 1, "image_url": 1, "in_stock": 1, "category": 1,
          "technique": 1, "maker_slug": 1, "materials": 1,
-         "dimensions": 1, "published_at": 1},
+         "dimensions": 1, "published_at": 1, "gpc_path": 1},
     ).sort("created_at", -1).limit(5000).to_list(5000)
 
 
@@ -133,7 +133,8 @@ async def google_merchant_feed_xml(request: Request) -> Response:
         item.append("<g:condition>new</g:condition>")
         item.append(f"<g:brand>{xml_escape(_truncate(brand, 70))}</g:brand>")
         # google_product_category accepts the breadcrumb path verbatim.
-        gpc = _google_product_category(p.get("category") or "", p.get("technique") or "")
+        # iter297 — Honor the maker-supplied override when set.
+        gpc = _resolve_gpc(p)
         item.append(f"<g:google_product_category>{xml_escape(gpc)}</g:google_product_category>")
         # `product_type` lets us pass our own taxonomy alongside Google's.
         pt = _truncate(f"{p.get('category') or ''} > {p.get('technique') or ''}".strip(" >"), 750)
@@ -224,7 +225,7 @@ async def meta_feed_csv(request: Request) -> Response:
             f"{SITE_BASE}/shop/{slug}",
             primary_img,
             _truncate(brand, 70),
-            _google_product_category(category, technique),
+            _resolve_gpc(p),
             _truncate(f"{category} > {technique}".strip(" >"), 750),
             "|".join(extras),
         ])

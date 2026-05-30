@@ -102,6 +102,11 @@ class Product(BaseModel):
     accept_exchanges: bool = False
     # ---- SEO ----
     seo_tags: List[str] = []                # max 13, validated in router
+    # Google Product Category (GPC) path override — when set, this verbatim
+    # breadcrumb wins over the auto-derived path in every external catalog
+    # feed (Pinterest, Google Merchant, Meta). Empty/None ⇒ fall back to
+    # the category→GPC mapper. See routers/pinterest_feed._google_product_category.
+    gpc_path: Optional[str] = None
     # ---- Contact override (optional — defaults to maker email) ----
     contact_email: Optional[str] = None
     # ---- Backorders ----
@@ -176,6 +181,9 @@ class MakerProductCreate(BaseModel):
     accept_exchanges: bool = False
     seo_tags: List[str] = []
     contact_email: Optional[str] = None
+    # Google Product Category path override — verbatim breadcrumb that
+    # wins over the auto-derived path in external catalog feeds.
+    gpc_path: Optional[str] = None
     # Backorder gating (see Product class for semantics)
     accepts_backorders: Optional[bool] = None
     backorder_lead_weeks: Optional[int] = None

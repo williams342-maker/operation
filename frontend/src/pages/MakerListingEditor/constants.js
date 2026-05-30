@@ -60,6 +60,75 @@ export const DELIVERY_RANGES = [
 ];
 export const CARRIERS = ["USPS", "UPS", "FedEx", "DHL", "Other"];
 
+// Google Product Category preset breadcrumb paths — mirror the
+// `_google_product_category` mapper in `backend/routers/pinterest_feed.py`
+// plus extra CNC-relevant leaves. Pinterest/Google reject any path ≤ 2
+// levels deep (alert 126) so every entry here is ≥ 3 levels. Makers can
+// also paste any verbatim path from
+// https://www.google.com/basepages/producttype/taxonomy.en-US.txt
+// — the combobox accepts freeform input alongside presets.
+export const GPC_PRESETS = [
+  // Home & Garden — the bucket most CNC/laser/plasma pieces land in.
+  "Home & Garden > Decor > Signs",
+  "Home & Garden > Decor > Address Signs",
+  "Home & Garden > Decor > House Numbers & Letters",
+  "Home & Garden > Decor > Artwork > Posters, Prints, & Visual Artwork",
+  "Home & Garden > Decor > Artwork > Sculptures & Statues",
+  "Home & Garden > Decor > Wall Decor",
+  "Home & Garden > Decor > Clocks",
+  "Home & Garden > Decor > Mirrors",
+  "Home & Garden > Decor > Ornaments",
+  "Home & Garden > Decor > Music Boxes",
+  "Home & Garden > Decor > Picture Frames",
+  "Home & Garden > Decor > Plaques",
+  "Home & Garden > Decor > Vases",
+  "Home & Garden > Decor > Wreaths",
+  "Home & Garden > Decor > Candles",
+  "Home & Garden > Decor > Candle Holders",
+  "Home & Garden > Kitchen & Dining > Tableware > Serveware > Serving Boards",
+  "Home & Garden > Kitchen & Dining > Kitchen Tools & Utensils > Cutting Boards",
+  "Home & Garden > Kitchen & Dining > Kitchen Tools & Utensils > Coasters",
+  "Home & Garden > Kitchen & Dining > Tableware > Drinkware",
+  "Home & Garden > Lawn & Garden > Outdoor Living > Outdoor Decor",
+  "Home & Garden > Lawn & Garden > Outdoor Living > Garden Art",
+  "Home & Garden > Linens & Bedding > Towels",
+  "Home & Garden > Lighting > Lamps",
+  "Home & Garden > Lighting > Light Bulbs",
+  "Home & Garden > Lighting > Light Ropes & Strings",
+  "Home & Garden > Lighting > Night Lights",
+  // Furniture
+  "Furniture > Tables > Accent Tables",
+  "Furniture > Tables > Coffee Tables",
+  "Furniture > Tables > End Tables",
+  "Furniture > Tables > Dining Tables",
+  "Furniture > Shelving > Wall Shelves & Ledges",
+  "Furniture > Shelving > Bookcases & Standing Shelves",
+  "Furniture > Cabinets & Storage > Storage Cabinets",
+  "Furniture > Chairs",
+  // Jewelry
+  "Apparel & Accessories > Jewelry > Necklaces",
+  "Apparel & Accessories > Jewelry > Bracelets",
+  "Apparel & Accessories > Jewelry > Earrings",
+  "Apparel & Accessories > Jewelry > Rings",
+  "Apparel & Accessories > Jewelry > Pins",
+  // Office & business
+  "Office Supplies > Office Equipment > Desk Organizers",
+  "Office Supplies > Desk Pads & Blotters",
+  "Business & Industrial > Signage",
+  "Business & Industrial > Retail > Retail Display Cases",
+  // Arts & entertainment
+  "Arts & Entertainment > Hobbies & Creative Arts > Arts & Crafts",
+  "Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments",
+  "Arts & Entertainment > Party & Celebration > Special Occasion Decor",
+  // Toys / kids
+  "Toys & Games > Toys > Educational Toys",
+  "Toys & Games > Toys > Wooden Toys",
+  // Pet supplies
+  "Animals & Pet Supplies > Pet Supplies > Pet ID Tags",
+  // Sporting / outdoors
+  "Sporting Goods > Outdoor Recreation > Camping & Hiking > Camping Tools",
+];
+
 export const MAX_IMAGES = 10;
 export const MAX_TAGS = 13;
 
@@ -81,6 +150,9 @@ export const emptyForm = () => ({
   processing_time: "Made to order · 1-2 weeks",
   accept_returns: false, accept_exchanges: false,
   seo_tags: [], seo_input: "",
+  // Google Product Category override — verbatim breadcrumb path. Empty
+  // string ⇒ feeds auto-derive from category. See backend pinterest_feed.py.
+  gpc_path: "",
   contact_email: "",
   // Backorders — `null` means inherit from maker.accepts_backorders_default
   accepts_backorders: null,

@@ -69,7 +69,7 @@ def _row_for_product(p: dict, maker: dict) -> dict:
         "image_link": primary_img,
         "additional_image_link": additional,
         "brand": (maker.get("name") or "Crafters Market")[:70],
-        "google_product_category": _category_for(p.get("category"), p.get("technique")),
+        "google_product_category": (p.get("gpc_path") or "").strip() or _category_for(p.get("category"), p.get("technique")),
         "product_type": " > ".join(filter(None, [
             "Crafters Market",
             (p.get("category") or "").title(),

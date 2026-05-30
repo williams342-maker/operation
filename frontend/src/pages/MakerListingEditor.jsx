@@ -25,7 +25,27 @@ import {
 import MediaSection from "./MakerListingEditor/MediaSection";
 import AiAssistantSection from "./MakerListingEditor/AiAssistantSection";
 import PricingSection from "./MakerListingEditor/PricingSection";
+import GpcCombobox from "./MakerListingEditor/GpcCombobox";
 import { estimateShipping } from "../lib/shippingEstimator";
+
+// Mirrors `_google_product_category` in backend/routers/pinterest_feed.py
+// so the maker sees the same default the feed would have shipped if they
+// left `gpc_path` blank. Pure UX hint — the actual feed mapping lives
+// server-side.
+function _autoGpcHint(category) {
+  const cat = (category || "").toLowerCase();
+  if (cat.includes("sign")) return "Home & Garden > Decor > Signs";
+  if (cat.includes("wall") || cat.includes("art"))
+    return "Home & Garden > Decor > Artwork > Posters, Prints, & Visual Artwork";
+  if (cat.includes("shelf") || cat.includes("shelv"))
+    return "Furniture > Cabinets & Storage > Storage Cabinets";
+  if (cat.includes("furniture") || cat.includes("table"))
+    return "Furniture > Tables > Accent Tables";
+  if (cat.includes("jewel")) return "Apparel & Accessories > Jewelry > Necklaces";
+  if (cat.includes("gift") || cat.includes("craft"))
+    return "Arts & Entertainment > Hobbies & Creative Arts > Arts & Crafts";
+  return "Home & Garden > Decor > Artwork > Sculptures & Statues";
+}
 
 /** Crafters Market — full-page Listing Editor.
  *
@@ -123,6 +143,7 @@ export default function MakerListingEditor() {
             materials: found.materials || [],
             materials_input: "",
             seo_input: "",
+            gpc_path: found.gpc_path || "",
             who_made_it: found.who_made_it || "i_made_it",
             condition: found.condition || "new",
             dim_unit: found.dim_unit || "in",
@@ -598,6 +619,7 @@ export default function MakerListingEditor() {
     accept_exchanges: form.accept_exchanges,
     seo_tags: form.seo_tags,
     contact_email: form.contact_email || null,
+    gpc_path: (form.gpc_path || "").trim(),
     accepts_backorders: form.accepts_backorders,
     backorder_lead_weeks: form.backorder_lead_weeks ?? null,
     renewal_option: form.renewal_option || "automatic",
@@ -1370,6 +1392,35 @@ export default function MakerListingEditor() {
               ))}
             </div>
           )}
+        </Section>
+
+        {/* ---------- Catalog Category (GPC override) ---------- */}
+        <Section
+          eyebrow="◆ External catalogs"
+          title="Catalog Category"
+          subtitle="Google Product Category path used by the Pinterest, Google Merchant, and Meta catalog feeds. Leave blank to inherit the auto-derived path. Override here if Pinterest flags your listing with alert 126 (shallow category)."
+        >
+          <Label>
+            GPC path <span className="text-[#525252] normal-case">(optional override)</span>
+          </Label>
+          <GpcCombobox
+            value={form.gpc_path}
+            onChange={(v) => set({ gpc_path: v })}
+            autoPlaceholder={_autoGpcHint(form.category)}
+            testid="editor-gpc"
+          />
+          <p className="font-mono text-[10px] text-[#525252] mt-2 leading-relaxed">
+            Pick a preset or paste any verbatim path from the{" "}
+            <a
+              href="https://www.google.com/basepages/producttype/taxonomy.en-US.txt"
+              target="_blank"
+              rel="noreferrer"
+              className="text-[#a3a3a3] hover:text-[#ff4500] underline"
+            >
+              Google Product Taxonomy
+            </a>
+            . Aim for ≥ 3 levels (e.g. <span className="text-[#a3a3a3]">Home &amp; Garden &gt; Decor &gt; Signs</span>) so Pinterest doesn&apos;t collapse it.
+          </p>
         </Section>
 
         {/* ---------- Contact ---------- */}
