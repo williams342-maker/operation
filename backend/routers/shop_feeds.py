@@ -1,0 +1,218 @@
+"""Google Merchant Center + Meta Shop catalog feeds (iter291).
+
+Two more public catalog feeds in the formats their respective crawlers
+require, both populated from the same `products` collection as the
+Pinterest feed (iter290). One source of truth, three sales channels.
+
+Endpoints:
+  GET /api/google-merchant/feed.xml   — Google Shopping RSS 2.0 + g: namespace
+  GET /api/meta/feed.csv              — Meta (Facebook + Instagram Shop) CSV
+
+Why each format:
+  • Google Merchant Center requires the legacy RSS-2.0-with-`g:`-namespace
+    XML format. CSV submission exists but XML is far more reliable for
+    larger catalogs and supports richer attributes (additional_image_link
+    as repeated elements rather than pipe-separated, structured shipping).
+  • Meta Catalog Manager accepts both CSV and XML, but CSV is dramatically
+    simpler to debug when something doesn't import — every row a row.
+    Meta's required columns are a superset of Pinterest's so we reuse the
+    Pinterest builder where it overlaps.
+
+Both feeds:
+  • are public (no auth — crawlers don't send custom headers)
+  • respect maker `external_ads_opt_out`
+  • include out-of-stock listings (auto-reactivate on restock)
+  • return `Cache-Control: public, max-age=3600` to spare the backend
+"""
+from __future__ import annotations
+
+import csv
+import io
+import os
+from datetime import datetime, timezone
+from xml.sax.saxutils import escape as xml_escape
+
+from fastapi import APIRouter, Response
+
+from core import db
+from routers.pinterest_feed import (
+    _abs, _availability, _google_product_category, _maker_brand_map, _truncate,
+)
+
+
+router = APIRouter()
+
+
+SITE_BASE = (os.environ.get("PUBLIC_APP_URL") or "https://craftersmarket.org").rstrip("/")
+
+
+async def _fetch_products() -> list[dict]:
+    """Shared query — same opt-out logic as Pinterest feed."""
+    opted_out = await db.makers.distinct(
+        "slug",
+        {"external_ads_opt_out": True,
+         "deleted_at": {"$in": [None, ""]}},
+    )
+    q = {
+        "status": "published",
+        "deleted_at": {"$in": [None, ""]},
+    }
+    if opted_out:
+        q["maker_slug"] = {"$nin": opted_out}
+    return await db.products.find(
+        q,
+        {"_id": 0, "slug": 1, "title": 1, "description": 1, "price": 1,
+         "images": 1, "image_url": 1, "in_stock": 1, "category": 1,
+         "technique": 1, "maker_slug": 1, "materials": 1,
+         "dimensions": 1, "published_at": 1},
+    ).sort("created_at", -1).limit(5000).to_list(5000)
+
+
+# ─────────────── Google Shopping (XML, g: namespace) ───────────────
+@router.get("/google-merchant/feed.xml")
+async def google_merchant_feed_xml() -> Response:
+    """RSS 2.0 feed with `xmlns:g="http://base.google.com/ns/1.0"`.
+
+    Google Merchant Center pulls this URL daily and reconciles each
+    `<g:id>` against its existing catalog — adds new SKUs, marks
+    missing ones inactive, refreshes price/availability on the rest.
+    """
+    products = await _fetch_products()
+    brand_map = await _maker_brand_map(
+        list({p.get("maker_slug") for p in products if p.get("maker_slug")}),
+    )
+
+    parts: list[str] = []
+    parts.append('<?xml version="1.0" encoding="UTF-8"?>')
+    parts.append('<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">')
+    parts.append("<channel>")
+    parts.append("<title>Crafters Market — CNC-crafted goods</title>")
+    parts.append(f"<link>{SITE_BASE}/shop</link>")
+    parts.append("<description>Handmade pieces from independent CNC fabricators across the US</description>")
+
+    rows_written = 0
+    for p in products:
+        slug = (p.get("slug") or "").strip()
+        if not slug:
+            continue
+        images = [img for img in (p.get("images") or []) if img]
+        primary_img = _abs(images[0] if images else (p.get("image_url") or ""))
+        if not primary_img:
+            continue
+        try:
+            price = float(p.get("price"))
+        except (TypeError, ValueError):
+            continue
+        if price <= 0:
+            continue
+
+        brand = brand_map.get(p.get("maker_slug") or "", "") or "Crafters Market"
+        title = _truncate(p.get("title") or "", 150)
+        # Google requires a description ≥ 1 char; pad with the title if missing.
+        desc = _truncate(p.get("description") or title, 5000)
+        link = f"{SITE_BASE}/shop/{slug}"
+
+        item: list[str] = ["<item>"]
+        item.append(f"<g:id>{xml_escape(slug)}</g:id>")
+        item.append(f"<g:title>{xml_escape(title)}</g:title>")
+        item.append(f"<g:description>{xml_escape(desc)}</g:description>")
+        item.append(f"<g:link>{xml_escape(link)}</g:link>")
+        item.append(f"<g:image_link>{xml_escape(primary_img)}</g:image_link>")
+        for extra in images[1:10]:  # Google supports up to 10 additional images
+            item.append(f"<g:additional_image_link>{xml_escape(_abs(extra))}</g:additional_image_link>")
+        item.append(f"<g:availability>{_availability(p).replace(' ', '_')}</g:availability>")
+        item.append(f"<g:price>{price:.2f} USD</g:price>")
+        item.append("<g:condition>new</g:condition>")
+        item.append(f"<g:brand>{xml_escape(_truncate(brand, 70))}</g:brand>")
+        # google_product_category accepts the breadcrumb path verbatim.
+        gpc = _google_product_category(p.get("category") or "", p.get("technique") or "")
+        item.append(f"<g:google_product_category>{xml_escape(gpc)}</g:google_product_category>")
+        # `product_type` lets us pass our own taxonomy alongside Google's.
+        pt = _truncate(f"{p.get('category') or ''} > {p.get('technique') or ''}".strip(" >"), 750)
+        if pt:
+            item.append(f"<g:product_type>{xml_escape(pt)}</g:product_type>")
+        # `identifier_exists=false` because handmade pieces have no GTIN/MPN.
+        item.append("<g:identifier_exists>false</g:identifier_exists>")
+        item.append("</item>")
+        parts.append("".join(item))
+        rows_written += 1
+
+    parts.append("</channel></rss>")
+
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    return Response(
+        content="\n".join(parts),
+        media_type="application/xml; charset=utf-8",
+        headers={
+            "Content-Disposition": f'inline; filename="crafters_market_google_{today}.xml"',
+            "Cache-Control": "public, max-age=3600",
+            "X-Feed-Rows": str(rows_written),
+        },
+    )
+
+
+# ─────────────── Meta (Facebook + Instagram Shop) CSV ───────────────
+@router.get("/meta/feed.csv")
+async def meta_feed_csv() -> Response:
+    """Meta Catalog Manager pulls this URL on whatever schedule the user
+    configures (default daily). Format identical to Pinterest aside from
+    minor field-name nits — easier to debug than Meta's alternate XML.
+    """
+    products = await _fetch_products()
+    brand_map = await _maker_brand_map(
+        list({p.get("maker_slug") for p in products if p.get("maker_slug")}),
+    )
+
+    buf = io.StringIO()
+    w = csv.writer(buf, quoting=csv.QUOTE_MINIMAL, lineterminator="\n")
+    w.writerow([
+        "id", "title", "description", "availability", "condition",
+        "price", "link", "image_link", "brand",
+        "google_product_category", "fb_product_category",
+        "additional_image_link",
+    ])
+
+    rows_written = 0
+    for p in products:
+        slug = (p.get("slug") or "").strip()
+        if not slug:
+            continue
+        images = [img for img in (p.get("images") or []) if img]
+        primary_img = _abs(images[0] if images else (p.get("image_url") or ""))
+        if not primary_img:
+            continue
+        try:
+            price_str = f"{float(p.get('price')):.2f} USD"
+        except (TypeError, ValueError):
+            continue
+        extras = [_abs(u) for u in images[1:10] if u]
+        brand = brand_map.get(p.get("maker_slug") or "", "") or "Crafters Market"
+        category = (p.get("category") or "").strip()
+        technique = (p.get("technique") or "").strip()
+
+        w.writerow([
+            slug,
+            _truncate(p.get("title") or "", 150),
+            _truncate(p.get("description") or p.get("title") or "Handcrafted item", 5000),
+            _availability(p),
+            "new",
+            price_str,
+            f"{SITE_BASE}/shop/{slug}",
+            primary_img,
+            _truncate(brand, 70),
+            _google_product_category(category, technique),
+            _truncate(f"{category} > {technique}".strip(" >"), 750),
+            "|".join(extras),
+        ])
+        rows_written += 1
+
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    return Response(
+        content=buf.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": f'inline; filename="crafters_market_meta_{today}.csv"',
+            "Cache-Control": "public, max-age=3600",
+            "X-Feed-Rows": str(rows_written),
+        },
+    )

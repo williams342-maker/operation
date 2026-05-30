@@ -152,6 +152,9 @@ api.include_router(enrichlabs_admin_router)
 # iter290 — Public Pinterest catalog feed (unauthenticated; Pinterest crawler doesn't send custom headers)
 from routers.pinterest_feed import router as pinterest_feed_router
 api.include_router(pinterest_feed_router)
+# iter291 — Google Merchant XML + Meta (FB/IG Shop) CSV feeds
+from routers.shop_feeds import router as shop_feeds_router
+api.include_router(shop_feeds_router)
 from routers.social_auto_post import router as social_auto_post_router, admin_router as social_auto_post_admin_router
 api.include_router(social_auto_post_router)
 api.include_router(social_auto_post_admin_router)
