@@ -27,11 +27,15 @@ Crawlers detected (substring match on `User-Agent`):
 ## Deploy
 
 1. **Cloudflare Dashboard → `craftersmarket.org` → Workers Routes → Create**
-2. Route pattern: `craftersmarket.org/*` (and `www.craftersmarket.org/*` if that hostname is still live)
-3. Worker → "Create application" → paste the contents of `/app/cloudflare/prerender-router.worker.js`
-4. **Save and Deploy**.
+2. Add **TWO** routes (NOT a wildcard) so subdomains like `cdn.craftersmarket.org` (R2 assets) and `api.craftersmarket.org` are NOT hijacked:
+   - Route 1: `craftersmarket.org/*`
+   - Route 2: `www.craftersmarket.org/*`
+3. **Do NOT use** `*.craftersmarket.org/*` — that wildcard covers `cdn.` and will break image delivery from your R2 bucket.
+4. Worker → "Create application" → paste the contents of `/app/cloudflare/prerender-router.worker.js`
+5. **Save and Deploy**.
 
-Optional: assign the Worker to a custom name (e.g. `crafters-market-prerender-router`) so future deploys overwrite the same worker.
+### Defense in depth
+The Worker script also has an `ALLOWED_HOSTS` allowlist (iter305) that short-circuits any request whose hostname is not `craftersmarket.org` or `www.craftersmarket.org`. So even if the route binding accidentally widens to a wildcard, the Worker itself refuses to process `cdn.` / `api.` / `static.` traffic.
 
 ## Verify
 

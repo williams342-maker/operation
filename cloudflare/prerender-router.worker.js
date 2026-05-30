@@ -102,6 +102,18 @@ export default {
     const url = new URL(request.url);
     const ua = request.headers.get("user-agent") || "";
 
+    // iter305 — Hostname guard. This Worker is ONLY meant for the
+    // apex marketing site. If the route binding accidentally covers a
+    // wildcard like `*.craftersmarket.org/*`, requests to
+    // `cdn.craftersmarket.org/...` (R2 assets), `api.craftersmarket.org`,
+    // or other subdomains would otherwise be hijacked and break image
+    // delivery. We allowlist apex + www only; everything else falls
+    // straight through to its real origin.
+    const ALLOWED_HOSTS = new Set(["craftersmarket.org", "www.craftersmarket.org"]);
+    if (!ALLOWED_HOSTS.has(url.hostname)) {
+      return fetch(request);
+    }
+
     // Non-crawlers → pass through to the SPA / regular origin.
     if (!isCrawler(ua)) {
       return fetch(request);
