@@ -88,7 +88,7 @@ function VideoCard({ video }) {
             {thumb ? (
               <img
                 src={thumb}
-                alt=""
+                alt={video.title ? `${video.title} — workshop video` : "Workshop video preview"}
                 loading="lazy"
                 className="w-full h-full object-cover group-hover/btn:scale-[1.02] transition duration-500"
               />

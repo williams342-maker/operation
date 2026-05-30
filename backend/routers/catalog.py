@@ -220,6 +220,66 @@ async def list_reviews(
     return await db.reviews.find(q, {"_id": 0}).sort("created_at", -1).to_list(limit)
 
 
+@router.get("/reviews/aggregate")
+async def review_aggregate(
+    maker_slug: Optional[str] = None,
+    product_slug: Optional[str] = None,
+):
+    """Returns `{count, average}` for the public reviews matching the
+    filter. Fuels JSON-LD `AggregateRating` on PDPs and maker pages so
+    Google can render star snippets in SERP results (iter302).
+
+    Mirrors the visibility logic from `list_reviews`:
+      • Native reviews (no `source`) always count.
+      • Imported reviews count only when `published_publicly != False`.
+
+    Returns zeroed values when no reviews match — callers MUST drop
+    AggregateRating from JSON-LD when count is 0 (Schema.org requires
+    `reviewCount >= 1`).
+    """
+    if not maker_slug and not product_slug:
+        # Sitewide aggregate — useful for the homepage Organization
+        # schema; cheap because it's a single count + sum.
+        q: Dict = {
+            "$or": [
+                {"source": {"$exists": False}},
+                {"source": None},
+                {"published_publicly": {"$ne": False}},
+            ],
+        }
+    else:
+        q = {
+            "$or": [
+                {"source": {"$exists": False}},
+                {"source": None},
+                {"published_publicly": {"$ne": False}},
+            ],
+        }
+        if maker_slug:
+            q["maker_slug"] = maker_slug
+        if product_slug:
+            q["product_slug"] = product_slug
+
+    pipeline = [
+        {"$match": q},
+        {"$group": {
+            "_id": None,
+            "count": {"$sum": 1},
+            "sum": {"$sum": "$rating"},
+        }},
+    ]
+    cursor = db.reviews.aggregate(pipeline)
+    rows = await cursor.to_list(1)
+    if not rows or rows[0]["count"] == 0:
+        return {"count": 0, "average": None}
+    row = rows[0]
+    return {
+        "count": row["count"],
+        # Round to 1 decimal — matches the precision Google displays.
+        "average": round(row["sum"] / row["count"], 1),
+    }
+
+
 @router.post("/reviews", response_model=Review)
 async def create_review(payload: ReviewCreate, bg: BackgroundTasks):
     """Public review submission. Lightly validated — no auth required to keep

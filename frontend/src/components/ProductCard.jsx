@@ -38,10 +38,22 @@ export default function ProductCard({ p, i = 0 }) {
       <Link to={`/shop/${p.slug}`} className="block">
         <div className="relative aspect-[4/5] overflow-hidden">
           <motion.img
-            src={p.images?.[0]} alt={p.title}
+            src={p.images?.[0]}
+            // iter302 — denser alt text. ProductCard renders on every
+            // shop / landing / category page, and Google Image Search
+            // ranks alt text heavily. "Title — Category by Maker" gives
+            // the crawler enough context to rank for compound queries.
+            alt={[
+              p.title,
+              p.category ? `· ${p.category}` : "",
+              p.maker_name ? `by ${p.maker_name}` : "",
+            ].filter(Boolean).join(" ")}
             loading={i < 4 ? "eager" : "lazy"}
             decoding="async"
-            fetchpriority={i === 0 ? "high" : "auto"}
+            // iter302 — camelCase prop name (React strict-mode warning
+            // from iter299 testing). Browsers accept both; this just
+            // silences the dev console warning without changing behavior.
+            fetchPriority={i === 0 ? "high" : "auto"}
             className="absolute inset-0 w-full h-full object-cover media-img"
             whileHover={{ scale: 1.06 }}
             transition={{ duration: 0.9 }}

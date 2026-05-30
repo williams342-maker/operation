@@ -1,3 +1,30 @@
+## 2026-05-30 — SEO Phase 4 Bundle B: Review schema + alt-text + BreadcrumbList dedup (iter302)
+
+### User ask
+Continued from Bundle A (iter301). User picked Bundle B from the Phase 4 polish list: Review/AggregateRating schema sitewide, alt-text audit pass, and dedup the site-wide BreadcrumbList from `index.html` (the iter299 leftover).
+
+### What shipped
+- `/app/backend/routers/catalog.py` — new public endpoint `GET /api/reviews/aggregate?product_slug=&maker_slug=` returning `{count, average}` aggregated from `db.reviews`. Honors the same visibility logic as `list_reviews` (native reviews always count; imported reviews only when `published_publicly != False`). Average rounded to 1 decimal to match the precision Google displays.
+- `/app/backend/routers/og_prerender.py` — per-product and per-maker prerenders now run a $group aggregation in-line and inject `AggregateRating` into the `Product` / `Person` JSON-LD node ONLY when `count ≥ 1` (Schema.org rejects `reviewCount=0`). Adds `bestRating: "5"`, `worstRating: "1"`, and the rounded `ratingValue`.
+- `/app/frontend/src/pages/ProductDetail.jsx` — fetches `/api/reviews/aggregate?product_slug=…` on mount and conditionally splices `aggregateRating` into the Product JSON-LD. Silent on error → graceful degrade. Imported `http` from `lib/api`.
+- `/app/frontend/src/pages/MakerDetail.jsx` — same pattern with `maker_slug` filter. Removed the buggy `Math.max(m.listings_count || 1, 1)` placeholder that was mis-counting `reviewCount` as the number of products listed. Now uses real review counts from the aggregate endpoint.
+- `/app/frontend/public/index.html` — removed the site-wide `BreadcrumbList` JSON-LD block (had `@id: "https://craftersmarket.org/#breadcrumb"` going Home › Shop › Makers). Every route now emits its own BreadcrumbList per Phase 2 (iter299); Google was merging both, producing a confused trail. Comment block updated to reflect the change.
+- `/app/frontend/src/components/ProductCard.jsx` — alt-text upgrade: now `"{title} · {category} by {maker_name}"` instead of just `"{title}"`. Google Image Search ranks alt text heavily, so adding compound-query context (category + maker) lifts long-tail discoverability. Also fixed the `fetchpriority` → `fetchPriority` React strict-mode warning (camelCase) flagged in iter299 testing.
+- `/app/frontend/src/components/TrendingJournalRail.jsx`, `/app/frontend/src/pages/MakerDetail.jsx` (journal rail), `/app/frontend/src/components/WorkshopVideoGrid.jsx` — replaced 3 user-facing `alt=""` instances with descriptive alt text. Decorative images (hero backgrounds, gradient overlays, admin thumbnails) were left as `alt=""` per WCAG — they're inside `aria-hidden="true"` or behind auth, so empty alt is correct.
+- Tests: `/app/backend/tests/test_seo_phase4b_iter302.py` — **9/9 pass**. Covers aggregate endpoint (zero result, real counts, maker filter, sitewide call), per-product and per-maker prerender AggregateRating inclusion + correct omission on zero-review products, index.html BreadcrumbList removal, and ProductCard alt-text + fetchPriority verification.
+
+### Live verification
+- `GET /api/reviews/aggregate` → `{count: 7, average: 4.0}` sitewide.
+- `GET /api/reviews/aggregate?product_slug=carved-oak-wedding-monogram` → `{count: 2, average: 3.0}` (matches the 2 real reviews on that slug).
+- `GET /api/og/product/carved-oak-wedding-monogram` → JSON-LD now contains `aggregateRating: {ratingValue: "3.0", reviewCount: 2}` (verified live).
+- `GET /api/og/maker/iron-and-oak` → JSON-LD contains real `aggregateRating: {ratingValue: "3.0", reviewCount: 2}`.
+- `/shop/carved-oak-wedding-monogram` (SPA) → Playwright found `AggregateRating` on `Product` node with correct values.
+- `/makers/iron-and-oak` (SPA) → `AggregateRating` on `Organization` node, replacing the legacy `listings_count` bug.
+- `/shop/<any>` PDPs → exactly 1 `BreadcrumbList` in the DOM (was 2 before iter302, causing Google to merge an incorrect trail).
+- ProductCard alt-text on `/shop` → `"TEST iter21 bg 4213c8 · Decor"` (was `"TEST iter21 bg 4213c8"`).
+
+
+
 ## 2026-05-30 — SEO Phase 4 Bundle A: state pages + content guides (iter301)
 
 ### User ask

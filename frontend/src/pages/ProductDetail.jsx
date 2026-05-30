@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { toast } from "sonner";
-import { fetchProduct, fetchMaker, fetchBackorderPolicy } from "../lib/api";
+import { fetchProduct, fetchMaker, fetchBackorderPolicy, http } from "../lib/api";
 import { useCart } from "../lib/cart";
 import { useStructuredData } from "../lib/seo";
 import { ArrowLeft, ZoomIn } from "lucide-react";
@@ -42,12 +42,15 @@ export default function ProductDetail() {
   const [backorderPolicy, setBackorderPolicy] = useState(null);
   const [backorderOpen, setBackorderOpen] = useState(false);
   const [restockOpen, setRestockOpen] = useState(false);
+  // iter302 — aggregate review summary for JSON-LD AggregateRating.
+  const [reviewAgg, setReviewAgg] = useState(null);
   const { add } = useCart();
 
   useEffect(() => {
     setActive(0);
     setSelectedVariantId(null);
     setBackorderPolicy(null);
+    setReviewAgg(null);
     fetchProduct(slug).then(async (prod) => {
       setP(prod);
       // Auto-select first variant if any
@@ -58,6 +61,13 @@ export default function ProductDetail() {
       if (prod && (prod.in_stock || 0) <= 0) {
         fetchBackorderPolicy(slug).then(setBackorderPolicy).catch(() => setBackorderPolicy({ allowed: false }));
       }
+      // Fire-and-forget the review aggregate so the AggregateRating
+      // node can be added to the Product JSON-LD. Failure is silent —
+      // schema gracefully degrades to Product-only.
+      try {
+        const r = await http.get(`/reviews/aggregate?product_slug=${slug}`);
+        if (r?.data?.count > 0) setReviewAgg(r.data);
+      } catch (e) { /* ignore */ }
     });
   }, [slug]);
 
@@ -88,6 +98,18 @@ export default function ProductDetail() {
               ? "https://schema.org/InStock"
               : "https://schema.org/OutOfStock",
           },
+          // iter302 — AggregateRating from /api/reviews/aggregate when
+          // ≥ 1 public review. Schema.org requires reviewCount ≥ 1, so
+          // we omit the field entirely on no-review products.
+          ...(reviewAgg && reviewAgg.count > 0 ? {
+            aggregateRating: {
+              "@type": "AggregateRating",
+              ratingValue: String(reviewAgg.average),
+              reviewCount: reviewAgg.count,
+              bestRating: "5",
+              worstRating: "1",
+            },
+          } : {}),
         },
         {
           "@type": "BreadcrumbList",

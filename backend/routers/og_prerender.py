@@ -296,8 +296,34 @@ async def og_product(slug: str, http_request: Request):
     )
     body_html = "".join(body_parts)
 
+    # AggregateRating (iter302) — read the public review aggregate
+    # for this product slug. When count is 0 we OMIT the field
+    # entirely; Schema.org rejects AggregateRating with reviewCount=0.
+    agg_pipeline = [
+        {"$match": {
+            "product_slug": slug,
+            "$or": [
+                {"source": {"$exists": False}},
+                {"source": None},
+                {"published_publicly": {"$ne": False}},
+            ],
+        }},
+        {"$group": {"_id": None, "count": {"$sum": 1}, "sum": {"$sum": "$rating"}}},
+    ]
+    agg_rows = await db.reviews.aggregate(agg_pipeline).to_list(1)
+    aggregate_rating = None
+    if agg_rows and agg_rows[0]["count"] > 0:
+        aggregate_rating = {
+            "@type": "AggregateRating",
+            "ratingValue": f"{round(agg_rows[0]['sum'] / agg_rows[0]['count'], 1):.1f}",
+            "reviewCount": agg_rows[0]["count"],
+            "bestRating": "5",
+            "worstRating": "1",
+        }
+
     # Schema.org Product structured data + BreadcrumbList (iter298 — adds
     # the breadcrumb to the search-result trail under each product entry).
+    # iter302 — adds AggregateRating when ≥ 1 public review.
     import json as _json
     breadcrumb_items = [
         {"@type": "ListItem", "position": 1, "name": "Home", "item": f"{site}/"},
@@ -313,25 +339,28 @@ async def og_product(slug: str, http_request: Request):
         "position": len(breadcrumb_items) + 1,
         "name": title_raw, "item": canonical,
     })
+    product_node = {
+        "@type": "Product",
+        "name": title_raw,
+        "description": _truncate(full_desc, 500) or desc,
+        "image": img,
+        "url": canonical,
+        "brand": {"@type": "Brand", "name": maker or "Crafters Market"},
+        "offers": {
+            "@type": "Offer",
+            "url": canonical,
+            "priceCurrency": "USD",
+            "price": f"{float(price):.2f}" if price is not None else "0.00",
+            "availability": "https://schema.org/InStock" if in_stock else "https://schema.org/PreOrder",
+            "itemCondition": "https://schema.org/NewCondition",
+        },
+    }
+    if aggregate_rating:
+        product_node["aggregateRating"] = aggregate_rating
     json_ld = _json.dumps({
         "@context": "https://schema.org/",
         "@graph": [
-            {
-                "@type": "Product",
-                "name": title_raw,
-                "description": _truncate(full_desc, 500) or desc,
-                "image": img,
-                "url": canonical,
-                "brand": {"@type": "Brand", "name": maker or "Crafters Market"},
-                "offers": {
-                    "@type": "Offer",
-                    "url": canonical,
-                    "priceCurrency": "USD",
-                    "price": f"{float(price):.2f}" if price is not None else "0.00",
-                    "availability": "https://schema.org/InStock" if in_stock else "https://schema.org/PreOrder",
-                    "itemCondition": "https://schema.org/NewCondition",
-                },
-            },
+            product_node,
             {
                 "@type": "BreadcrumbList",
                 "itemListElement": breadcrumb_items,
@@ -548,19 +577,46 @@ async def og_maker(slug: str, http_request: Request):
     )
     body_html = "".join(body_parts)
 
+    # AggregateRating for the maker (iter302) — sum of public reviews
+    # explicitly tagged with this maker_slug. Sourced from the same
+    # `db.reviews` collection as the product aggregate.
+    maker_agg_rows = await db.reviews.aggregate([
+        {"$match": {
+            "maker_slug": slug,
+            "$or": [
+                {"source": {"$exists": False}},
+                {"source": None},
+                {"published_publicly": {"$ne": False}},
+            ],
+        }},
+        {"$group": {"_id": None, "count": {"$sum": 1}, "sum": {"$sum": "$rating"}}},
+    ]).to_list(1)
+    maker_aggregate_rating = None
+    if maker_agg_rows and maker_agg_rows[0]["count"] > 0:
+        maker_aggregate_rating = {
+            "@type": "AggregateRating",
+            "ratingValue": f"{round(maker_agg_rows[0]['sum'] / maker_agg_rows[0]['count'], 1):.1f}",
+            "reviewCount": maker_agg_rows[0]["count"],
+            "bestRating": "5",
+            "worstRating": "1",
+        }
+
     import json as _json
+    person_node = {
+        "@type": "Person",
+        "name": name,
+        "description": _truncate(full_bio or tagline or desc, 500),
+        "image": img,
+        "url": canonical,
+        "address": {"@type": "PostalAddress", "addressLocality": location} if location else None,
+        "knowsAbout": techniques[:6] if techniques else None,
+    }
+    if maker_aggregate_rating:
+        person_node["aggregateRating"] = maker_aggregate_rating
     json_ld = _json.dumps({
         "@context": "https://schema.org",
         "@graph": [
-            {
-                "@type": "Person",
-                "name": name,
-                "description": _truncate(full_bio or tagline or desc, 500),
-                "image": img,
-                "url": canonical,
-                "address": {"@type": "PostalAddress", "addressLocality": location} if location else None,
-                "knowsAbout": techniques[:6] if techniques else None,
-            },
+            person_node,
             {
                 "@type": "BreadcrumbList",
                 "itemListElement": [

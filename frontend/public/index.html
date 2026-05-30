@@ -64,11 +64,13 @@
         <!-- Sitemap reference -->
         <link rel="sitemap" type="application/xml" href="/api/sitemap.xml" />
 
-        <!-- JSON-LD: Organization + WebSite + BreadcrumbList + FAQ
+        <!-- JSON-LD: Organization + WebSite + FAQ (site-wide)
+             iter302 removed the homepage BreadcrumbList — every per-route
+             page now emits its own (PDP, maker, shop, makers, guides, etc.),
+             and Google was merging both into a confused trail.
              Eligibility:
               · Organization → brand panel / Knowledge Graph
               · WebSite + SearchAction → sitelinks search box on branded queries
-              · BreadcrumbList → breadcrumb trail under search results
               · FAQPage → rich FAQ rows directly in SERP -->
         <script type="application/ld+json">
         {
@@ -137,30 +139,6 @@
                 },
                 "query-input": "required name=search_term_string"
               }
-            },
-            {
-              "@type": "BreadcrumbList",
-              "@id": "https://craftersmarket.org/#breadcrumb",
-              "itemListElement": [
-                {
-                  "@type": "ListItem",
-                  "position": 1,
-                  "name": "Home",
-                  "item": "https://craftersmarket.org/"
-                },
-                {
-                  "@type": "ListItem",
-                  "position": 2,
-                  "name": "Shop",
-                  "item": "https://craftersmarket.org/shop"
-                },
-                {
-                  "@type": "ListItem",
-                  "position": 3,
-                  "name": "Makers",
-                  "item": "https://craftersmarket.org/makers"
-                }
-              ]
             },
             {
               "@type": "FAQPage",

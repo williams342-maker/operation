@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { fetchMaker, fetchProducts, fetchMakerJournalPosts } from "../lib/api";
+import { fetchMaker, fetchProducts, fetchMakerJournalPosts, http } from "../lib/api";
 import { useStructuredData } from "../lib/seo";
 import ProductCard from "../components/ProductCard";
 import MakerReviews from "../components/MakerReviews";
@@ -28,6 +28,9 @@ export default function MakerDetail() {
   const [products, setProducts] = useState([]);
   const [posts, setPosts] = useState([]);
   const [contactOpen, setContactOpen] = useState(false);
+  // iter302 — real review aggregate; replaces the legacy `listings_count`
+  // hack which mis-counted reviewCount as the number of products listed.
+  const [reviewAgg, setReviewAgg] = useState(null);
 
   useEffect(() => {
     fetchMaker(slug).then(setM);
@@ -35,6 +38,12 @@ export default function MakerDetail() {
     // Maker-authored posts only — falls back to empty array on 404 /
     // network error so the rail just hides itself.
     fetchMakerJournalPosts(slug, 3).then(setPosts).catch(() => setPosts([]));
+    setReviewAgg(null);
+    // Public review aggregate for AggregateRating in JSON-LD. Silent
+    // on error — schema degrades gracefully to Organization-only.
+    http.get(`/reviews/aggregate?maker_slug=${slug}`)
+      .then((r) => { if (r?.data?.count > 0) setReviewAgg(r.data); })
+      .catch(() => {});
   }, [slug]);
 
   useStructuredData(m ? {
@@ -54,11 +63,19 @@ export default function MakerDetail() {
           "image": m.portrait,
           "url": `${SITE_URL}/makers/${m.slug}`,
           "address": m.location ? { "@type": "PostalAddress", "addressLocality": m.location } : undefined,
-          "aggregateRating": m.rating ? {
-            "@type": "AggregateRating",
-            "ratingValue": m.rating,
-            "reviewCount": Math.max(m.listings_count || 1, 1),
-          } : undefined,
+          // iter302 — real review-based AggregateRating. We omit the
+          // field when there are 0 public reviews (Schema.org rejects
+          // reviewCount=0). Falls back to the seeded `m.rating` value
+          // only when count ≥ 1 to keep historical seed data visible.
+          ...(reviewAgg && reviewAgg.count > 0 ? {
+            aggregateRating: {
+              "@type": "AggregateRating",
+              ratingValue: String(reviewAgg.average),
+              reviewCount: reviewAgg.count,
+              bestRating: "5",
+              worstRating: "1",
+            },
+          } : {}),
         },
         {
           "@type": "BreadcrumbList",
@@ -386,7 +403,7 @@ function MakerJournalRail({ maker, posts }) {
               <div className="aspect-[16/10] overflow-hidden bg-[#0d0d0d]">
                 <img
                   src={p.cover}
-                  alt=""
+                  alt={p.title ? `${p.title} — ${m.name} journal` : `${m.name} journal post`}
                   className="w-full h-full object-cover group-hover:scale-[1.03] transition duration-700"
                   loading="lazy"
                 />

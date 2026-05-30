@@ -62,7 +62,7 @@ export default function TrendingJournalRail() {
                 {p.cover ? (
                   <img
                     src={p.cover}
-                    alt=""
+                    alt={p.title || "Crafters Market journal post"}
                     className="w-full h-full object-cover group-hover:scale-[1.04] transition duration-700"
                     loading="lazy"
                   />
