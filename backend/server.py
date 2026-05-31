@@ -24,6 +24,7 @@ from routers.reddit_feeds import router as reddit_feeds_router
 from routers.seo import router as seo_router
 from routers.state_pages import router as state_pages_router
 from routers.lead_magnet import router as lead_magnet_router
+from routers.help_chat import router as help_chat_router
 from routers.settings import router as settings_router
 from routers.shipping import router as shipping_router
 from routers.admin_shipping import router as admin_shipping_router
@@ -84,6 +85,7 @@ api.include_router(analytics_router)
 api.include_router(admin_router)
 api.include_router(gsc_admin_router)
 api.include_router(ai_router)
+api.include_router(help_chat_router)
 api.include_router(community_router)
 api.include_router(community_chat_router)
 api.include_router(settings_router)

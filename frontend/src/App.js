@@ -66,6 +66,7 @@ import TrackBriefPage from "./pages/TrackBriefPage";
 import MakerBriefPrintPage from "./pages/MakerBriefPrintPage";
 import MakerBillingRedirect from "./pages/MakerBillingRedirect";
 import AIAssistant from "./components/AIAssistant";
+import HelpSupportWidget from "./components/HelpSupportWidget";
 import InstallPwaButton from "./components/InstallPwaButton";
 import LiveChatWidget from "./components/LiveChatWidget";
 import WelcomeBackToast from "./components/WelcomeBackToast";
@@ -298,6 +299,7 @@ function App() {
             <Footer />
             <BetaBannerBottom />
             <AIAssistant />
+            <HelpSupportWidget />
           </MaintenanceGate>
         </div>
         <Toaster

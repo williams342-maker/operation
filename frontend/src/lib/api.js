@@ -1069,6 +1069,11 @@ export const quoteCustomOrder = (id, payload) =>
 export const aiChat = (payload) => http.post("/ai/chat", payload).then((r) => r.data);
 export const aiSubmitBrief = (brief) => http.post("/ai/submit-brief", brief).then((r) => r.data);
 
+// ---------- Help & Support (iter312) ----------
+export const helpChat = (payload) => http.post("/help/chat", payload).then((r) => r.data);
+export const fetchTopHelpQuestions = (days = 7, limit = 20) =>
+  http.get(`/help/analytics/top-questions?days=${days}&limit=${limit}`).then((r) => r.data);
+
 // ---------- Community ----------
 const buyerAuthHeaders = () => {
   const t = localStorage.getItem("cm_buyer_jwt");

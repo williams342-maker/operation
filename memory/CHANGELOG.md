@@ -1,4 +1,26 @@
-## 2026-05-30 — Android APK (Trusted Web Activity) scaffolding (iter311)
+## 2026-05-31 — Help & Support AI chat widget (iter312)
+
+### What shipped
+- **Backend** `routers/help_chat.py`:
+  - `POST /api/help/chat` — Claude Sonnet 4.5 via Emergent LLM Key, distinct from the existing `/api/ai/chat` buyer-concierge. System prompt baked with platform mechanics (Stripe Connect flow, listing schema, GPC taxonomy, fees, refunds, custom orders, Plus subscription). Accepts `{message, session_id, page_url, user_role}` and replays the last 20 turns of the session as transcript memory. Persisted to `db.help_questions` (separate from `ai_chats`) for clean analytics.
+  - `GET /api/help/analytics/top-questions?days=N` — aggregation of most-asked questions in the last N days (case-insensitive grouping). Surfaces UI-friction patterns without admin gating.
+- **Frontend** `components/HelpSupportWidget.jsx`:
+  - Floating cyan `?` button at `bottom-24 right-24` (sits to the left of the existing orange AI assistant — clear color/icon differentiation: HelpCircle vs MessageCircle).
+  - Slide-up panel with role-aware greeting + 2-4 starter hint buttons that change based on detected role (visitor/buyer/maker/admin from localStorage JWTs).
+  - Auto-passes current pathname + role on every message so answers are contextual ("you're on /maker/dashboard, here's the Stripe Connect flow").
+  - Transcript + session id persist across navigations via localStorage. ↻ New button resets.
+  - Opt-out: append `?nohelp=1` to any URL to hide the widget on focused workflows.
+- **Mount**: added once in `App.js` alongside `<AIAssistant />` — visible site-wide.
+- **API client**: `helpChat()` + `fetchTopHelpQuestions()` in `lib/api.js`.
+- **Tests**: `tests/test_iter312_help_chat.py` — **6/6 pass** (visitor reply, session continuity (number recall across turns), maker-role tailoring (Stripe mention), persistence to `help_questions`, garbage-role normalization, analytics endpoint shape).
+
+### Why this matters
+- Single biggest activation lever for maker onboarding — Stripe Connect, GPC, listings, photos all have 20+ edge cases a single video can't cover.
+- Captures every question in `db.help_questions` → analytics ready from day 1.
+- Tailored answers for buyers vs makers vs admins without separate widgets.
+- Zero new keys / infra — reuses Emergent LLM Key + Claude Sonnet 4.5 already wired in.
+
+
 
 ### What shipped
 - `/app/android/twa-manifest.json` — pre-built Bubblewrap input. Defines `org.craftersmarket.app` package id, `Crafters Market` launcher name, `#0a0a0a` theme/background, three app shortcuts (Shop / Custom Order / Makers), maskable + standard icons pulled from the live PWA manifest, `enableNotifications: true` so existing web-push works in-app, `startUrl` includes `utm_source=android-twa` for analytics segmentation.
@@ -24,6 +46,13 @@
 - `GET /api/admin/seed/clips/jobs/recent?limit=N` (capped at 25) — returns most-recent `clip_seed_jobs` rows, latest first, `_id` stripped.
 - `SettingsTab.jsx` renders a tiny strip under the Generate button: one row per render with status pill (done/error/running/queued — colour-coded, `running` pulses), start time, model, slug/reason, and duration in seconds. Auto-refreshes after every Generate click + has a `↻ Refresh` button. Hover-title surfaces the full error `detail` so degrading-Sora-queue patterns are spottable at a glance.
 - Tests: `tests/test_iter310c_recent_jobs.py` — **4/4 pass** (limit cap, latest-first order, admin gating, error-row payload integrity).
+
+## 2026-05-30 — Android APK (Trusted Web Activity) scaffolding (iter311)
+
+### What shipped
+- `/app/android/twa-manifest.json` — pre-built Bubblewrap input. Defines `org.craftersmarket.app` package id, `Crafters Market` launcher name, `#0a0a0a` theme/background, three app shortcuts (Shop / Custom Order / Makers), maskable + standard icons pulled from the live PWA manifest, `enableNotifications: true` so existing web-push works in-app, `startUrl` includes `utm_source=android-twa` for analytics segmentation.
+- `/app/android/update-assetlinks.sh` — one-shot helper that writes the user's release SHA-256 fingerprint into `/app/frontend/public/.well-known/assetlinks.json`.
+- `/app/android/README.md` — single-page operator runbook for build → fingerprint wiring → Play Console upload.
 
 ## 2026-05-30 — "Last 5 renders" admin strip (iter310c)
 
