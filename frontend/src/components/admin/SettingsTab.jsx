@@ -4403,6 +4403,129 @@ function EnrichLabsFeedCard() {
 
 
 // ─────────────────────────────────────────────────────────────────────
+// iter313 — Community feeds (Showcase + Design Files). Same shape as
+// the product feed above so any partner that ingests {product_name,
+// image_url, listing_url} can reuse their parser unchanged — we just
+// rename to {item_name, image_url, permalink} since the source rows
+// aren't products. Both feeds honor each maker's external_ads_opt_out
+// toggle, identical to the product feed.
+// ─────────────────────────────────────────────────────────────────────
+function CommunityFeedCard({ kind, title, description, accent }) {
+  // kind: "showcase" | "design-files"
+  const API = process.env.REACT_APP_BACKEND_URL;
+  const [busy, setBusy] = useState("");
+  const [count, setCount] = useState(null);
+
+  const fetchAdmin = async (path) => {
+    const r = await fetch(`${API}${path}`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem("cm_admin_jwt") || ""}` },
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r;
+  };
+
+  const download = async (fmt) => {
+    setBusy(fmt);
+    try {
+      const r = await fetchAdmin(`/api/admin/integrations/enrichlabs/${kind}/feed.${fmt}`);
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+      a.href = url;
+      a.download = `crafters_${kind.replace("-", "_")}_feed_${today}.${fmt}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success(`Downloaded ${fmt.toUpperCase()} feed.`);
+    } catch (e) {
+      toast.error(e.message || "Download failed");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const preview = async () => {
+    setBusy("preview");
+    try {
+      const r = await fetchAdmin(`/api/admin/integrations/enrichlabs/${kind}/feed.json`);
+      const arr = await r.json();
+      setCount(arr.length);
+      toast.success(`Feed contains ${arr.length} items.`);
+    } catch (e) {
+      toast.error(e.message || "Preview failed");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  return (
+    <section
+      className="border border-[#262626] bg-[#0a0a0a] p-5"
+      data-testid={`enrichlabs-${kind}-feed-card`}
+    >
+      <div
+        className="font-mono text-[10px] uppercase tracking-[0.25em]"
+        style={{ color: accent }}
+      >
+        ◆ {title}
+      </div>
+      <div className="text-[#e5e5e5] mt-1">{description}</div>
+      <div className="font-mono text-[11px] text-[#737373] mt-1">
+        Shape: {`{item_name, image_url, permalink}`} · honors maker opt-out · max 5000 rows
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => download("csv")}
+          disabled={busy === "csv"}
+          className="px-4 py-2 border font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+          style={{ borderColor: accent, color: accent }}
+          data-testid={`enrichlabs-${kind}-download-csv`}
+        >
+          {busy === "csv" ? "Downloading…" : "Download CSV"}
+        </button>
+        <button
+          type="button"
+          onClick={() => download("json")}
+          disabled={busy === "json"}
+          className="px-4 py-2 border border-[#262626] text-[#e5e5e5] hover:border-[#525252] font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+          data-testid={`enrichlabs-${kind}-download-json`}
+        >
+          {busy === "json" ? "Downloading…" : "Download JSON"}
+        </button>
+        <button
+          type="button"
+          onClick={preview}
+          disabled={busy === "preview"}
+          className="px-4 py-2 border border-[#262626] text-[#a3a3a3] hover:border-[#525252] hover:text-[#e5e5e5] font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+          data-testid={`enrichlabs-${kind}-preview`}
+        >
+          {busy === "preview" ? "Counting…" : "Count rows"}
+        </button>
+        {count !== null && (
+          <span
+            className="font-mono text-[11px] text-[#a3a3a3] self-center"
+            data-testid={`enrichlabs-${kind}-count`}
+          >
+            {count} items in current feed
+          </span>
+        )}
+      </div>
+
+      <div className="mt-4 pt-3 border-t border-[#262626] font-mono text-[11px] text-[#737373]">
+        Partner pull (no admin JWT needed):{" "}
+        <code className="text-[#a3a3a3]">GET /api/enrich/v1/{kind}/feed.csv</code>{" "}
+        (header <code className="text-[#a3a3a3]">X-EnrichLabs-Key</code>).
+      </div>
+    </section>
+  );
+}
+
+
+// ─────────────────────────────────────────────────────────────────────
 // iter271 — Social auto-post queue. Lists every listing that's been
 // auto-queued for Crafters Market's branded IG/Pinterest/FB posting
 // (only Founder + Plus makers get auto-queued — eligibility lives in
@@ -5067,6 +5190,18 @@ export default function SettingsTab() {
       <CartRecoveryAttributionCard />
 
       <EnrichLabsFeedCard />
+      <CommunityFeedCard
+        kind="showcase"
+        title="EnrichLabs · Showcase feed"
+        description="Buyer + maker photos of finished pieces. Permalinks deep-link to /community/showcase/&lt;id&gt; — high-converting UGC for partners."
+        accent="#22d3ee"
+      />
+      <CommunityFeedCard
+        kind="design-files"
+        title="EnrichLabs · Design files feed"
+        description="Free SVG/DXF designs. Permalinks point at /free-svg-pack with utm_source=enrichlabs — drives email captures + lead-magnet conversions."
+        accent="#a78bfa"
+      />
 
       <SocialAutoPostQueueCard />
 

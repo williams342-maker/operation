@@ -1,4 +1,27 @@
-## 2026-05-31 — Help & Support AI chat widget (iter312)
+## 2026-05-31 — Community feeds for external distribution (iter313)
+
+### What shipped
+Two new feed families on the existing EnrichLabs read-only API so any external marketing/distribution partner (EnrichLabs or future agents) can ingest community content with the same parser they use for the product feed.
+
+- **Backend** (`routers/enrichlabs.py`):
+  - `GET /api/enrich/v1/showcase/feed.json` + `.csv` — Community Showcase posts (buyer + maker finished-piece photos). Newest-first, admin-hidden posts excluded, permalinks deep-link to `/community/showcase/<id>`.
+  - `GET /api/enrich/v1/design-files/feed.json` + `.csv` — Free SVG/DXF design files. Permalinks point at the lead-magnet landing page `/free-svg-pack?utm_source=enrichlabs&utm_medium=feed` so partner traffic lands on a purpose-built conversion page.
+  - Shape `{item_name, image_url, permalink}` — deliberately identical 3-column structure to the existing product feed so partners can reuse their parser unchanged (just swap `product_name` → `item_name` / `listing_url` → `permalink`).
+  - Same `X-EnrichLabs-Key` auth header + admin-JWT proxy variants under `/api/admin/integrations/enrichlabs/...`.
+  - Both feeds honor each maker's existing `external_ads_opt_out` toggle (one consistent meaning across products, showcase, design files).
+  - Schema endpoint (`/schema`) lists all four new paths for partner introspection.
+- **Frontend** (`components/admin/SettingsTab.jsx`):
+  - New reusable `<CommunityFeedCard kind="showcase|design-files" />` component (cyan/violet accent to differentiate from the orange product-feed card).
+  - Mounted both alongside the existing `EnrichLabsFeedCard` in Settings — operator gets CSV/JSON download + row count buttons for each.
+- **Tests** (`tests/test_iter313_community_feeds.py`): **9/9 pass** — shape contract, CSV RFC-4180 + attachment header, auth gate, opt-out exclusion (creates a real opted-out maker + showcase post + design file, confirms neither surfaces), schema documentation, both admin-proxy variants.
+
+### Live verification
+- `GET /enrich/v1/showcase/feed.json?limit=3` → returns 2 real showcase posts with absolute image URLs + correct permalinks.
+- `GET /enrich/v1/design-files/feed.json?limit=3` → returns 3 real design files all with UTM-tagged lead-magnet permalinks.
+- CSVs serve `Content-Type: text/csv` + `Content-Disposition: attachment` with dated filenames.
+- Unauthenticated → 401.
+
+
 
 ### What shipped
 - **Backend** `routers/help_chat.py`:
@@ -46,6 +69,13 @@
 - `GET /api/admin/seed/clips/jobs/recent?limit=N` (capped at 25) — returns most-recent `clip_seed_jobs` rows, latest first, `_id` stripped.
 - `SettingsTab.jsx` renders a tiny strip under the Generate button: one row per render with status pill (done/error/running/queued — colour-coded, `running` pulses), start time, model, slug/reason, and duration in seconds. Auto-refreshes after every Generate click + has a `↻ Refresh` button. Hover-title surfaces the full error `detail` so degrading-Sora-queue patterns are spottable at a glance.
 - Tests: `tests/test_iter310c_recent_jobs.py` — **4/4 pass** (limit cap, latest-first order, admin gating, error-row payload integrity).
+
+## 2026-05-31 — Help & Support AI chat widget (iter312)
+
+### What shipped
+- **Backend** `routers/help_chat.py`: `POST /api/help/chat` powered by Claude Sonnet 4.5 via Emergent LLM Key. System prompt baked with platform mechanics (Stripe Connect, listing schema, GPC taxonomy, fees, custom orders, Plus subscription). Replays last 20 turns as memory. Persists to `db.help_questions` for analytics. Bonus `GET /api/help/analytics/top-questions` aggregates most-asked questions.
+- **Frontend** `components/HelpSupportWidget.jsx`: floating cyan `?` button site-wide (`bottom-24 right-24`, sits next to the orange AI bubble — distinct color/icon). Slide-up panel with role-aware greeting + 2-4 starter hint buttons (visitor/buyer/maker/admin auto-detected from localStorage JWTs). Passes current pathname + role on every message. Persists transcript + session across navigations; `↻ New` button resets. Opt-out via `?nohelp=1`.
+- **Tests**: 6/6 pass — session memory continuity (remembers "47" across turns), role tailoring (maker payout question → mentions Stripe Connect).
 
 ## 2026-05-30 — Android APK (Trusted Web Activity) scaffolding (iter311)
 

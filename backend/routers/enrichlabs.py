@@ -417,6 +417,185 @@ async def enrich_feed_csv(
 
 
 # ─────────────────────────────────────────────────────────────────────
+# iter313 — Showcase + Design-file feeds for external distribution
+# partners. Same auth + URL contract as /feed.{csv,json} so EnrichLabs
+# (or any other agent) can ingest community content with one extra row
+# in their pipeline. Three columns each, deliberately identical shape:
+#   item_name · image_url · permalink
+# So partners can reuse their listing-feed parser unchanged.
+# ─────────────────────────────────────────────────────────────────────
+async def _fetch_feed_showcase(*, maker_slug: Optional[str], limit: int) -> list[dict]:
+    """Public, non-hidden showcase posts with at least one image.
+
+    Respects each maker's `external_ads_opt_out` (same toggle the
+    product feed honors) so opt-out is a one-flip decision.
+    """
+    opted_out = await db.makers.distinct(
+        "slug",
+        {"external_ads_opt_out": True, "deleted_at": {"$in": [None, ""]}},
+    )
+    q: dict = {
+        "$or": [{"admin_hidden": {"$exists": False}}, {"admin_hidden": False}],
+    }
+    if maker_slug:
+        if maker_slug in opted_out:
+            return []
+        q["maker_slug"] = maker_slug
+    elif opted_out:
+        q["maker_slug"] = {"$nin": opted_out}
+    return await db.showcase_posts.find(
+        q,
+        {
+            "_id": 0, "id": 1, "title": 1, "description": 1,
+            "image_url": 1, "image_urls": 1, "maker_slug": 1,
+            "user_name": 1, "created_at": 1, "likes": 1,
+        },
+    ).sort("created_at", -1).limit(limit).to_list(limit)
+
+
+def _build_showcase_rows(rows: list[dict]) -> list[dict]:
+    out: list[dict] = []
+    for s in rows:
+        img = ""
+        if isinstance(s.get("image_urls"), list) and s["image_urls"]:
+            img = (s["image_urls"][0] or "").strip()
+        if not img:
+            img = (s.get("image_url") or "").strip()
+        img = _absolute_url(img)
+        if not img:
+            continue  # no usable image for a partner to ingest
+        # Showcase posts surface on the community showcase tab; deep-link
+        # to the dedicated post route so partner traffic lands somewhere
+        # buyers can actually convert from.
+        pid = s.get("id") or ""
+        if not pid:
+            continue
+        title = (s.get("title") or "").strip()
+        if not title:
+            title = "Showcase from Crafters Market"
+        out.append({
+            "item_name": title,
+            "image_url": img,
+            "permalink": f"{SITE_BASE}/community/showcase/{pid}",
+        })
+    return out
+
+
+@router.get("/showcase/feed.json")
+async def enrich_showcase_feed_json(
+    _: bool = Depends(_enrich_key_guard),
+    maker_slug: Optional[str] = Query(None),
+    limit: int = Query(1000, ge=1, le=5000),
+):
+    """Top-level array of {item_name, image_url, permalink} for the
+    Community Showcase wall — buyer + maker photos of finished pieces.
+    Newest-first, opt-out aware."""
+    rows = await _fetch_feed_showcase(maker_slug=maker_slug, limit=limit)
+    return _build_showcase_rows(rows)
+
+
+@router.get("/showcase/feed.csv")
+async def enrich_showcase_feed_csv(
+    _: bool = Depends(_enrich_key_guard),
+    maker_slug: Optional[str] = Query(None),
+    limit: int = Query(1000, ge=1, le=5000),
+):
+    rows = await _fetch_feed_showcase(maker_slug=maker_slug, limit=limit)
+    feed = _build_showcase_rows(rows)
+    buf = io.StringIO()
+    w = csv.writer(buf, quoting=csv.QUOTE_MINIMAL, lineterminator="\n")
+    w.writerow(["item_name", "image_url", "permalink"])
+    for r in feed:
+        w.writerow([r["item_name"], r["image_url"], r["permalink"]])
+    today = datetime.now(timezone.utc).strftime("%Y%m%d")
+    return Response(
+        content=buf.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="crafters_showcase_feed_{today}.csv"'},
+    )
+
+
+async def _fetch_feed_design_files(*, maker_slug: Optional[str], limit: int) -> list[dict]:
+    """Published design files with a usable thumbnail. Honors the maker
+    opt-out toggle just like the showcase + product feeds.
+    """
+    opted_out = await db.makers.distinct(
+        "slug",
+        {"external_ads_opt_out": True, "deleted_at": {"$in": [None, ""]}},
+    )
+    q: dict = {"thumbnail_url": {"$nin": [None, ""]}}
+    if maker_slug:
+        if maker_slug in opted_out:
+            return []
+        q["maker_slug"] = maker_slug
+    elif opted_out:
+        q["maker_slug"] = {"$nin": opted_out + [""]}
+    return await db.design_files.find(
+        q,
+        {
+            "_id": 0, "id": 1, "title": 1, "description": 1,
+            "thumbnail_url": 1, "maker_slug": 1, "maker_name": 1,
+            "file_type": 1, "created_at": 1, "downloads": 1,
+        },
+    ).sort("created_at", -1).limit(limit).to_list(limit)
+
+
+def _build_design_file_rows(rows: list[dict]) -> list[dict]:
+    out: list[dict] = []
+    for d in rows:
+        thumb = _absolute_url((d.get("thumbnail_url") or "").strip())
+        if not thumb:
+            continue
+        title = (d.get("title") or "").strip() or "Free CNC Design File"
+        # Design files are surfaced on /community (Design Files tab) and
+        # also drive the lead-magnet funnel at /free-svg-pack. Point
+        # external partners at the lead-magnet page — it's purpose-built
+        # for email capture and has its own conversion tracking, so
+        # partner traffic converts predictably.
+        out.append({
+            "item_name": title,
+            "image_url": thumb,
+            "permalink": f"{SITE_BASE}/free-svg-pack?utm_source=enrichlabs&utm_medium=feed",
+        })
+    return out
+
+
+@router.get("/design-files/feed.json")
+async def enrich_design_files_feed_json(
+    _: bool = Depends(_enrich_key_guard),
+    maker_slug: Optional[str] = Query(None),
+    limit: int = Query(1000, ge=1, le=5000),
+):
+    """Top-level array of {item_name, image_url, permalink} for the
+    Community Design Files (free SVG/DXF) catalog. Permalink points at
+    the lead-magnet landing page (/free-svg-pack) for predictable
+    conversion attribution."""
+    rows = await _fetch_feed_design_files(maker_slug=maker_slug, limit=limit)
+    return _build_design_file_rows(rows)
+
+
+@router.get("/design-files/feed.csv")
+async def enrich_design_files_feed_csv(
+    _: bool = Depends(_enrich_key_guard),
+    maker_slug: Optional[str] = Query(None),
+    limit: int = Query(1000, ge=1, le=5000),
+):
+    rows = await _fetch_feed_design_files(maker_slug=maker_slug, limit=limit)
+    feed = _build_design_file_rows(rows)
+    buf = io.StringIO()
+    w = csv.writer(buf, quoting=csv.QUOTE_MINIMAL, lineterminator="\n")
+    w.writerow(["item_name", "image_url", "permalink"])
+    for r in feed:
+        w.writerow([r["item_name"], r["image_url"], r["permalink"]])
+    today = datetime.now(timezone.utc).strftime("%Y%m%d")
+    return Response(
+        content=buf.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="crafters_design_files_feed_{today}.csv"'},
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────
 # /funnel — onboarding funnel for last N days
 # ─────────────────────────────────────────────────────────────────────
 @router.get("/funnel")
@@ -623,6 +802,34 @@ async def enrich_schema(_: bool = Depends(_enrich_key_guard)):
                 "fields": ["product_name", "image_url", "listing_url"],
             },
             {
+                "path": "/showcase/feed.json",
+                "method": "GET",
+                "description": "Community showcase (buyer + maker photos of finished pieces). Newest-first, opt-out aware. Identical 3-column shape as /feed.json so partners can reuse their listing-feed parser.",
+                "query": ["maker_slug", "limit (1-5000, default 1000)"],
+                "fields": ["item_name", "image_url", "permalink"],
+            },
+            {
+                "path": "/showcase/feed.csv",
+                "method": "GET",
+                "description": "Same as /showcase/feed.json but RFC-4180 CSV download.",
+                "query": ["maker_slug", "limit (1-5000, default 1000)"],
+                "fields": ["item_name", "image_url", "permalink"],
+            },
+            {
+                "path": "/design-files/feed.json",
+                "method": "GET",
+                "description": "Free SVG/DXF design files. Permalink points at /free-svg-pack (the lead-magnet landing page) for predictable conversion attribution.",
+                "query": ["maker_slug", "limit (1-5000, default 1000)"],
+                "fields": ["item_name", "image_url", "permalink"],
+            },
+            {
+                "path": "/design-files/feed.csv",
+                "method": "GET",
+                "description": "Same as /design-files/feed.json but RFC-4180 CSV download.",
+                "query": ["maker_slug", "limit (1-5000, default 1000)"],
+                "fields": ["item_name", "image_url", "permalink"],
+            },
+            {
                 "path": "/schema",
                 "method": "GET",
                 "description": "This manifest.",
@@ -684,4 +891,71 @@ async def admin_enrich_feed_csv(
         content=buf.getvalue(),
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )
+
+
+
+# iter313 — Admin-proxy versions of the new showcase + design-file feeds.
+# Same shape, admin-JWT gated so the admin Settings page can render
+# "Download" buttons without exposing ENRICHLABS_API_KEY to the browser.
+
+@admin_router.get("/showcase/feed.json")
+async def admin_enrich_showcase_feed_json(
+    _admin: str = Depends(current_admin),
+    maker_slug: Optional[str] = Query(None),
+    limit: int = Query(1000, ge=1, le=5000),
+):
+    rows = await _fetch_feed_showcase(maker_slug=maker_slug, limit=limit)
+    return _build_showcase_rows(rows)
+
+
+@admin_router.get("/showcase/feed.csv")
+async def admin_enrich_showcase_feed_csv(
+    _admin: str = Depends(current_admin),
+    maker_slug: Optional[str] = Query(None),
+    limit: int = Query(1000, ge=1, le=5000),
+):
+    rows = await _fetch_feed_showcase(maker_slug=maker_slug, limit=limit)
+    feed = _build_showcase_rows(rows)
+    buf = io.StringIO()
+    w = csv.writer(buf, quoting=csv.QUOTE_MINIMAL, lineterminator="\n")
+    w.writerow(["item_name", "image_url", "permalink"])
+    for r in feed:
+        w.writerow([r["item_name"], r["image_url"], r["permalink"]])
+    today = datetime.now(timezone.utc).strftime("%Y%m%d")
+    return Response(
+        content=buf.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="crafters_showcase_feed_{today}.csv"'},
+    )
+
+
+@admin_router.get("/design-files/feed.json")
+async def admin_enrich_design_files_feed_json(
+    _admin: str = Depends(current_admin),
+    maker_slug: Optional[str] = Query(None),
+    limit: int = Query(1000, ge=1, le=5000),
+):
+    rows = await _fetch_feed_design_files(maker_slug=maker_slug, limit=limit)
+    return _build_design_file_rows(rows)
+
+
+@admin_router.get("/design-files/feed.csv")
+async def admin_enrich_design_files_feed_csv(
+    _admin: str = Depends(current_admin),
+    maker_slug: Optional[str] = Query(None),
+    limit: int = Query(1000, ge=1, le=5000),
+):
+    rows = await _fetch_feed_design_files(maker_slug=maker_slug, limit=limit)
+    feed = _build_design_file_rows(rows)
+    buf = io.StringIO()
+    w = csv.writer(buf, quoting=csv.QUOTE_MINIMAL, lineterminator="\n")
+    w.writerow(["item_name", "image_url", "permalink"])
+    for r in feed:
+        w.writerow([r["item_name"], r["image_url"], r["permalink"]])
+    today = datetime.now(timezone.utc).strftime("%Y%m%d")
+    return Response(
+        content=buf.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="crafters_design_files_feed_{today}.csv"'},
     )
