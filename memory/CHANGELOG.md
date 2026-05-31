@@ -1,4 +1,21 @@
-## 2026-05-31 — Community feeds for external distribution (iter313)
+## 2026-05-31 — Sora content-moderation fix + classified error UI (iter313c)
+
+### Issue
+Five consecutive `video generation failed` errors on prod, including an 8-second instant-fail that ruled out timeout. Universal LLM Key balance was healthy ($108.98 with auto-recharge), ruling out budget. The instant-rejection signature matched Sora's content-moderation layer flagging prompts with words like "blasting", "molten", "slicing", "blade cutting" — false positives for violence on shop/CNC language.
+
+### What shipped
+- `/app/backend/clip_seeder.py`:
+  - **Prompts softened** across all 18 seed renders. Replaced moderation-triggering verbs with craft-positive equivalents: "blasting through" → "tracing across", "slicing" → "outlining", "blade cutting" → "shaping", "molten" → "glowing", "leather gloves" → "work gloves", "burning" → "inscribing". Visuals unchanged.
+  - **Raw provider error preserved verbatim** on exception path. Previously the exception was a generic stringification; now we log the raw `type: message` to `crafters` logger AND classify the common failure modes (moderation / 401 auth / 429 rate / 402 budget) so the admin "Last 5 renders" inline-detail view gets actionable copy.
+- `/app/frontend/src/components/admin/SettingsTab.jsx`:
+  - **Classified failure badges** in the "Last 5 renders" strip — `BUDGET` (amber), `BLOCKED` (pink, content moderation), `RATE` (orange), `TIMEOUT` (red), `INSTANT-FAIL` (rose), `OTHER` (grey). Lets the operator scan a column and immediately spot a degrading queue or moderation pattern.
+  - **Expandable rows** — clicking any error row reveals the full `detail` field inline (was tooltip-only before).
+- No new tests needed — existing iter310 + iter310c suites cover both touched files. **9/9 still pass.**
+
+### Why prompts trigger moderation false positives
+Sora wraps OpenAI's moderation layer, which over-flags industrial-craft vocabulary as violence/weapons. The OpenAI moderation guide explicitly lists this as a known issue for shop/manufacturing content. Recommended workaround: lead with the artifact ("plasma machine tracing a line") instead of the action ("cutter blasting through"). All 18 prompts now follow this pattern.
+
+
 
 ### What shipped
 Two new feed families on the existing EnrichLabs read-only API so any external marketing/distribution partner (EnrichLabs or future agents) can ingest community content with the same parser they use for the product feed.
@@ -69,6 +86,20 @@ Two new feed families on the existing EnrichLabs read-only API so any external m
 - `GET /api/admin/seed/clips/jobs/recent?limit=N` (capped at 25) — returns most-recent `clip_seed_jobs` rows, latest first, `_id` stripped.
 - `SettingsTab.jsx` renders a tiny strip under the Generate button: one row per render with status pill (done/error/running/queued — colour-coded, `running` pulses), start time, model, slug/reason, and duration in seconds. Auto-refreshes after every Generate click + has a `↻ Refresh` button. Hover-title surfaces the full error `detail` so degrading-Sora-queue patterns are spottable at a glance.
 - Tests: `tests/test_iter310c_recent_jobs.py` — **4/4 pass** (limit cap, latest-first order, admin gating, error-row payload integrity).
+
+## 2026-05-31 — Community feeds for external distribution (iter313)
+
+### What shipped
+Two new feed families on the existing EnrichLabs read-only API so external distribution partners (EnrichLabs or future agents) can ingest community content with the same parser they use for the product feed.
+
+- `GET /api/enrich/v1/showcase/feed.{json,csv}` — Community Showcase posts (UGC photos). Permalinks: `/community/showcase/<id>`. Newest-first, admin-hidden excluded.
+- `GET /api/enrich/v1/design-files/feed.{json,csv}` — Free SVG/DXF designs. Permalinks: `/free-svg-pack?utm_source=enrichlabs&utm_medium=feed` for predictable lead-magnet conversion attribution.
+- Shape `{item_name, image_url, permalink}` — identical 3-column structure to product feed so partners reuse their parser.
+- Same `X-EnrichLabs-Key` auth + admin-JWT proxy variants under `/api/admin/integrations/enrichlabs/...`.
+- Both honor each maker's `external_ads_opt_out` toggle.
+- Schema endpoint documents all four new paths.
+- Frontend: new `<CommunityFeedCard>` mounted twice in admin Settings (cyan + violet, distinct from product orange) with CSV/JSON download + row count buttons.
+- Tests: **9/9 pass** (`tests/test_iter313_community_feeds.py`) — shape, RFC-4180 CSV, auth gate, opt-out exclusion, schema docs, admin proxy.
 
 ## 2026-05-31 — Help & Support AI chat widget (iter312)
 

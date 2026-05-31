@@ -842,6 +842,7 @@ function ClipsSeedCard() {
                 const detail = (j.detail || "").toLowerCase();
                 const reason = (j.reason || "").toLowerCase();
                 if (detail.includes("budget") || reason.includes("budget") || detail.includes("balance") || detail.includes("402")) kind = "budget";
+                else if (detail.includes("moderation") || detail.includes("content_policy") || detail.includes("rejected the prompt") || detail.includes("flagged")) kind = "moderation";
                 else if (detail.includes("rate") || detail.includes("429")) kind = "rate";
                 else if (detail.includes("no video after") || (durSec != null && durSec >= 590)) kind = "timeout";
                 else if (durSec != null && durSec < 30) kind = "rejected";
@@ -855,6 +856,7 @@ function ClipsSeedCard() {
               }[j.status] || "border-[#525252] text-[#a3a3a3]";
               const kindBadge = {
                 budget: { label: "BUDGET", cls: "border-amber-700 text-amber-300 bg-amber-950/40" },
+                moderation: { label: "BLOCKED", cls: "border-pink-700 text-pink-300 bg-pink-950/40" },
                 rate: { label: "RATE", cls: "border-orange-700 text-orange-300 bg-orange-950/40" },
                 timeout: { label: "TIMEOUT", cls: "border-red-800/70 text-red-300/80 bg-red-950/20" },
                 rejected: { label: "INSTANT-FAIL", cls: "border-rose-700 text-rose-200 bg-rose-950/40" },

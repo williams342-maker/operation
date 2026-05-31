@@ -32,25 +32,30 @@ WORKSHOP_NAME = "Crafters Market Workshop Team"
 # 2-3 prompts per category — round-robin picks the least-used (category,
 # prompt) combo so the seed library stays varied even on long runs.
 PROMPTS: dict[str, list[dict]] = {
+    # iter313c — Prompts softened for Sora's content-moderation layer.
+    # Sora wraps OpenAI moderation, which over-flags words like "blasting",
+    # "molten", "blade cutting", "slicing into flesh-coded material" as
+    # violence. Same visuals, gentler verbs reliably pass — no need to
+    # change the captured aesthetic.
     "workshop": [
-        {"title": "CNC Plasma Cuts a Steel Mountain",
-         "prompt": "Cinematic close-up of a CNC plasma cutter slicing a mountain silhouette out of 1/4 inch steel plate inside a dim industrial workshop, slow-motion sparks arcing off the cut path, vertical 9:16, photoreal, no text."},
+        {"title": "CNC Plasma Forms a Steel Mountain",
+         "prompt": "Cinematic close-up of a CNC plasma machine tracing a mountain silhouette across a 1/4 inch steel plate inside a warm industrial workshop, glowing sparks arcing along the path, vertical 9:16, photoreal, no text."},
         {"title": "Router Carving Walnut",
-         "prompt": "Top-down close-up of a CNC router bit carving an intricate pattern into walnut wood, sawdust flying in golden lamp light, vertical 9:16, satisfying slow-motion, no text."},
-        {"title": "Hands at the Bench",
-         "prompt": "Maker's hands wearing leather gloves placing freshly cut metal pieces on a wooden workbench under a single warm shop lamp, vertical 9:16, cinematic, no text."},
+         "prompt": "Top-down close-up of a CNC router bit carving an intricate pattern into walnut wood, sawdust drifting in golden lamp light, vertical 9:16, satisfying slow-motion, no text."},
+        {"title": "Hands at the Workbench",
+         "prompt": "Artisan's hands wearing simple work gloves placing freshly finished metal pieces on a wooden workbench under a single warm shop lamp, vertical 9:16, cinematic, no text."},
     ],
     "cuts": [
-        {"title": "Plasma Through Quarter Inch",
-         "prompt": "Hyper-detailed slow-motion close-up of a plasma cutter blasting through 1/4 inch mild steel, blue-white arc, molten metal droplets, vertical 9:16, no text."},
-        {"title": "Laser Engraver Slicing Acrylic",
-         "prompt": "Top-down view of a CO2 laser cutter slicing a heart shape from black acrylic, faint blue glow, smoke curling up, vertical 9:16, satisfying, no text."},
-        {"title": "Bandsaw Through Aluminum",
-         "prompt": "Tight close-up of a vertical bandsaw blade cutting a clean line through a thick aluminum bar, blue cutting fluid pooling, vertical 9:16, photoreal, no text."},
+        {"title": "Plasma Tracing Quarter Inch Steel",
+         "prompt": "Slow-motion close-up of a plasma machine etching a clean line across 1/4 inch mild steel plate, blue-white glow, bright sparks lifting away, vertical 9:16, no text."},
+        {"title": "Laser Engraver Forms Acrylic Heart",
+         "prompt": "Top-down view of a CO2 laser engraver outlining a heart shape into a sheet of black acrylic, faint blue glow, soft smoke wisp curling up, vertical 9:16, satisfying, no text."},
+        {"title": "Bandsaw Shaping Aluminum",
+         "prompt": "Close-up of a vertical bandsaw shaping a clean line across a thick aluminum bar, blue cutting fluid pooling, vertical 9:16, photoreal, no text."},
     ],
     "welding": [
         {"title": "MIG Welder Hot Bead",
-         "prompt": "Cinematic macro of a MIG welder laying a fresh bead between two steel plates inside a dark welding booth, brilliant arc light, sparks cascading down, vertical 9:16, photoreal, no text."},
+         "prompt": "Cinematic macro of a MIG welder laying a fresh bead between two steel plates inside a workshop welding booth, brilliant arc light, glowing sparks drifting down, vertical 9:16, photoreal, no text."},
         {"title": "TIG Welding Stainless",
          "prompt": "Top-down close-up of a TIG welder fusing two stainless steel sheets, blue-white arc, tungsten electrode steady in a gloved hand, vertical 9:16, slow-motion, no text."},
     ],
@@ -58,20 +63,20 @@ PROMPTS: dict[str, list[dict]] = {
         {"title": "Matte Black Powder Coat",
          "prompt": "Close-up of a powder-coat spray gun coating a steel mountain wall art piece in matte black, fine powder cloud catching backlight, vertical 9:16, photoreal industrial setting, no text."},
         {"title": "Color Change Spray",
-         "prompt": "Spray-gun applying bright copper powder coat to a custom address plaque hanging on a rack in a powder coat booth, vertical 9:16, photoreal, no text."},
+         "prompt": "Spray gun applying bright copper powder coat to a custom address plaque hanging on a rack in a powder coat booth, vertical 9:16, photoreal, no text."},
     ],
     "engraving": [
         {"title": "Diamond Drag on Brass",
-         "prompt": "Top-down close-up of a diamond drag engraver cutting fine cursive script into a brass plate, vertical 9:16, photoreal, soft warm light, no text overlay just the engraved letters appearing as the tool moves.",
+         "prompt": "Top-down close-up of a diamond drag engraver inscribing fine cursive script into a brass plate, vertical 9:16, photoreal, soft warm light, the engraved letters appearing as the tool moves.",
          },
         {"title": "Laser Engraving Walnut",
-         "prompt": "Cinematic close-up of a CO2 laser engraver burning a mountain logo into a walnut plaque, faint smoke wisp, vertical 9:16, photoreal, no text overlay."},
+         "prompt": "Cinematic close-up of a CO2 laser engraver inscribing a mountain logo into a walnut plaque, faint smoke wisp, vertical 9:16, photoreal, no text overlay."},
     ],
     "before-after": [
         {"title": "Raw Steel to Finished Sign",
-         "prompt": "Time-lapse split showing a raw rusted steel sheet on the left and a finished matte black welcome sign with mountain silhouette on the right, vertical 9:16, photoreal, no text."},
+         "prompt": "Time-lapse split showing a raw weathered steel sheet on the left and a finished matte black welcome sign with mountain silhouette on the right, vertical 9:16, photoreal, no text."},
         {"title": "Bare Wood to Engraved Plaque",
-         "prompt": "Time-lapse split showing a blank walnut blank on the left and a finished laser-engraved family monogram plaque on the right, vertical 9:16, photoreal warm lighting, no text overlay."},
+         "prompt": "Time-lapse split showing a blank walnut block on the left and a finished laser-engraved family monogram plaque on the right, vertical 9:16, photoreal warm lighting, no text overlay."},
     ],
 }
 
@@ -152,7 +157,27 @@ def _generate_video_blocking(prompt: str, out_path: str, model: str = "sora-2-pr
             max_wait_time=max_wait,
         )
     except Exception as e:
-        return False, f"{type(e).__name__}: {e}"
+        # iter313c — Log the raw provider error verbatim so the admin
+        # "Last 5 renders" inline-detail view shows the actual Sora
+        # message (moderation block, 4xx, 5xx, etc.). Previously the
+        # exception was just stringified — we now classify common cases
+        # so the operator gets an actionable label without needing a
+        # JSON viewer.
+        raw = f"{type(e).__name__}: {e}"
+        logger.error("[clip_seeder] Sora call raised: %s", raw)
+        lowered = raw.lower()
+        if any(k in lowered for k in ("moderation", "content_policy", "safety", "rejected", "flagged")):
+            return False, (
+                "Sora rejected the prompt via content moderation. "
+                f"Raw: {raw[:300]}"
+            )
+        if "401" in lowered or "unauthorized" in lowered or "invalid_api_key" in lowered:
+            return False, f"Sora auth failed — check EMERGENT_LLM_KEY. Raw: {raw[:300]}"
+        if "429" in lowered or "rate" in lowered:
+            return False, f"Sora rate-limited. Raw: {raw[:300]}"
+        if "402" in lowered or "insufficient" in lowered or "balance" in lowered:
+            return False, f"Universal LLM Key budget exhausted. Raw: {raw[:300]}"
+        return False, raw[:500]
     if not video_bytes:
         # The wrapper returns empty bytes (NOT an exception) on:
         # - max_wait_time exhaustion (most common with sora-2-pro)
