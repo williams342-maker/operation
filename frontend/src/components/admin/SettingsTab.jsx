@@ -787,8 +787,13 @@ function ClipsSeedCard() {
           </div>
         )}
         {genResult?.status === "error" && (
-          <div className="font-mono text-[11px] text-red-400" data-testid="generate-one-clip-error">
-            ✕ {genResult.reason}
+          <div className="font-mono text-[11px] text-red-400 space-y-1" data-testid="generate-one-clip-error">
+            <div>✕ {genResult.reason}</div>
+            {genResult.detail && (
+              <div className="text-red-300/80 text-[10px] leading-relaxed break-all whitespace-pre-wrap max-w-2xl" data-testid="generate-one-clip-error-detail">
+                ↳ {genResult.detail}
+              </div>
+            )}
           </div>
         )}
       </div>
