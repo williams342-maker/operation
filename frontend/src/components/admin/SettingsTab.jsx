@@ -574,6 +574,7 @@ function ClipsSeedCard() {
   // Banana.
   const [status, setStatus] = useState(null);
   const [recentJobs, setRecentJobs] = useState([]);
+  const [recentExpanded, setRecentExpanded] = useState(null);
   const [genBusy, setGenBusy] = useState(false);
   const [genResult, setGenResult] = useState(null);
   const [purgeStep, setPurgeStep] = useState(0);
@@ -831,35 +832,78 @@ function ClipsSeedCard() {
               const startedMs = j.started_at ? Date.parse(j.started_at) : null;
               const finishedMs = j.finished_at ? Date.parse(j.finished_at) : null;
               const durSec = startedMs && finishedMs ? Math.round((finishedMs - startedMs) / 1000) : null;
+              // iter313b — Classify the failure shape so the operator
+              // can spot patterns at a glance. The 8s-instant-fail is
+              // almost always budget/auth/rate-limit (real upstream
+              // rejection); 600-900s is a wait-timeout (Sora capacity
+              // hiccup or queue saturation).
+              let kind = "";
+              if (j.status === "error") {
+                const detail = (j.detail || "").toLowerCase();
+                const reason = (j.reason || "").toLowerCase();
+                if (detail.includes("budget") || reason.includes("budget") || detail.includes("balance") || detail.includes("402")) kind = "budget";
+                else if (detail.includes("rate") || detail.includes("429")) kind = "rate";
+                else if (detail.includes("no video after") || (durSec != null && durSec >= 590)) kind = "timeout";
+                else if (durSec != null && durSec < 30) kind = "rejected";
+                else kind = "other";
+              }
               const pillColor = {
                 done: "border-emerald-700 text-emerald-300 bg-emerald-950/30",
                 error: "border-red-700 text-red-300 bg-red-950/30",
                 running: "border-yellow-700 text-yellow-300 bg-yellow-950/30 animate-pulse",
                 queued: "border-[#525252] text-[#a3a3a3] bg-neutral-900/30",
               }[j.status] || "border-[#525252] text-[#a3a3a3]";
+              const kindBadge = {
+                budget: { label: "BUDGET", cls: "border-amber-700 text-amber-300 bg-amber-950/40" },
+                rate: { label: "RATE", cls: "border-orange-700 text-orange-300 bg-orange-950/40" },
+                timeout: { label: "TIMEOUT", cls: "border-red-800/70 text-red-300/80 bg-red-950/20" },
+                rejected: { label: "INSTANT-FAIL", cls: "border-rose-700 text-rose-200 bg-rose-950/40" },
+                other: { label: "OTHER", cls: "border-[#525252] text-[#a3a3a3]" },
+              }[kind];
               const startedLabel = startedMs
                 ? new Date(startedMs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
                 : "—";
+              const isOpen = recentExpanded === j.job_id;
               return (
                 <div
                   key={j.job_id}
-                  className="grid grid-cols-[70px_55px_60px_1fr_55px] gap-2 items-center font-mono text-[10px] py-1 border-l-2 border-purple-900/40 pl-2"
+                  className="border-l-2 border-purple-900/40 pl-2"
                   data-testid="clips-seed-recent-row"
                 >
-                  <span className={`uppercase tracking-[0.15em] text-center px-1.5 py-0.5 border ${pillColor}`}>
-                    {j.status || "?"}
-                  </span>
-                  <span className="text-[#737373]">{startedLabel}</span>
-                  <span className="text-purple-300/80 truncate" title={j.model}>{(j.model || "").replace("sora-2-", "")}</span>
-                  <span
-                    className={`truncate ${j.status === "error" ? "text-red-300" : "text-emerald-300/90"}`}
-                    title={j.status === "error" ? (j.detail || j.reason || "") : (j.clip?.slug || "")}
+                  <button
+                    type="button"
+                    onClick={() => setRecentExpanded(isOpen ? null : j.job_id)}
+                    disabled={j.status !== "error" || !j.detail}
+                    className="w-full grid grid-cols-[70px_55px_55px_70px_1fr_55px] gap-2 items-center font-mono text-[10px] py-1 text-left disabled:cursor-default"
                   >
-                    {j.status === "done" && (j.clip?.slug || j.clip?.title || "—")}
-                    {j.status === "error" && (j.reason || "failed")}
-                    {(j.status === "running" || j.status === "queued") && "rendering…"}
-                  </span>
-                  <span className="text-[#737373] text-right">{durSec != null ? `${durSec}s` : "—"}</span>
+                    <span className={`uppercase tracking-[0.15em] text-center px-1.5 py-0.5 border ${pillColor}`}>
+                      {j.status || "?"}
+                    </span>
+                    <span className="text-[#737373]">{startedLabel}</span>
+                    <span className="text-purple-300/80 truncate" title={j.model}>{(j.model || "").replace("sora-2-", "")}</span>
+                    <span
+                      className={`uppercase tracking-[0.15em] text-center px-1 py-0.5 border ${kindBadge ? kindBadge.cls : "border-transparent"}`}
+                    >
+                      {kindBadge ? kindBadge.label : ""}
+                    </span>
+                    <span
+                      className={`truncate ${j.status === "error" ? "text-red-300" : "text-emerald-300/90"}`}
+                      title={j.status === "error" ? (j.detail || j.reason || "") : (j.clip?.slug || "")}
+                    >
+                      {j.status === "done" && (j.clip?.slug || j.clip?.title || "—")}
+                      {j.status === "error" && (j.reason || "failed")}
+                      {(j.status === "running" || j.status === "queued") && "rendering…"}
+                    </span>
+                    <span className="text-[#737373] text-right">{durSec != null ? `${durSec}s` : "—"}</span>
+                  </button>
+                  {isOpen && j.detail && (
+                    <div
+                      className="ml-[70px] mb-1.5 px-2 py-1.5 bg-red-950/20 border-l-2 border-red-800/60 font-mono text-[10px] text-red-200/85 leading-relaxed whitespace-pre-wrap break-all"
+                      data-testid="clips-seed-recent-detail"
+                    >
+                      {j.detail}
+                    </div>
+                  )}
                 </div>
               );
             })}
