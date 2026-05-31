@@ -375,6 +375,20 @@ async def get_clip_seed_job(job_id: str, _: dict = Depends(current_admin)):
     return job
 
 
+@router.get("/admin/seed/clips/jobs/recent")
+async def list_recent_clip_seed_jobs(
+    limit: int = 5,
+    _: dict = Depends(current_admin),
+):
+    """iter310c — Most recent clip-render jobs for the admin "Last N
+    renders" strip. Lets the operator spot recurring failures (Sora
+    queue congestion, budget creep) without re-clicking Generate.
+    """
+    limit = max(1, min(limit, 25))
+    cursor = db.clip_seed_jobs.find({}, {"_id": 0}).sort("started_at", -1).limit(limit)
+    return {"jobs": [j async for j in cursor]}
+
+
 @router.post("/admin/seed/clips/purge")
 async def purge_clips_seed(_: dict = Depends(current_admin)):
     """Hard-delete every seeded clip + its engagement rows. Organic

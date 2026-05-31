@@ -29,6 +29,7 @@ import {
   fetchClipsSeedStatus,
   generateOneClipSeed,
   fetchClipSeedJob,
+  fetchRecentClipSeedJobs,
   purgeClipsSeed,
   purgeOrphanClipsSeed,
   fetchOgDiag,
@@ -572,6 +573,7 @@ function ClipsSeedCard() {
   // "this is slow" warning since Sora is meaningfully slower than Nano
   // Banana.
   const [status, setStatus] = useState(null);
+  const [recentJobs, setRecentJobs] = useState([]);
   const [genBusy, setGenBusy] = useState(false);
   const [genResult, setGenResult] = useState(null);
   const [purgeStep, setPurgeStep] = useState(0);
@@ -580,6 +582,10 @@ function ClipsSeedCard() {
 
   const refresh = async () => {
     try { setStatus(await fetchClipsSeedStatus()); } catch (_e) { /* admin-gated */ }
+    try {
+      const r = await fetchRecentClipSeedJobs(5);
+      setRecentJobs(r?.jobs || []);
+    } catch (_e) { /* admin-gated */ }
   };
   useEffect(() => { refresh(); }, []);
 
@@ -611,10 +617,10 @@ function ClipsSeedCard() {
       return;
     }
 
-    // Poll every 5s up to ~10 min. The actual render hits ~5 min worst
-    // case so this leaves headroom for Sora capacity hiccups.
+    // Poll every 5s up to ~17 min (covers the new sora-2-pro 900s wait
+    // + R2 upload + DB write + a small buffer).
     const POLL_MS = 5000;
-    const MAX_TRIES = 120; // 10 minutes
+    const MAX_TRIES = 200; // ~16.7 minutes
     let consecutiveErrors = 0;
     for (let i = 0; i < MAX_TRIES; i++) {
       await new Promise((res) => setTimeout(res, POLL_MS));
@@ -641,17 +647,20 @@ function ClipsSeedCard() {
       if (job.status === "error") {
         setGenResult({ status: "error", reason: job.reason, detail: job.detail });
         const reason = (job.reason || "").toLowerCase();
+        const detail = (job.detail || "").toLowerCase();
         let pretty = job.reason || "Sora generation failed.";
-        if (reason.includes("budget") || reason.includes("quota") || reason.includes("balance") || reason.includes("exhaust")) {
+        if (reason.includes("budget") || reason.includes("quota") || reason.includes("balance") || reason.includes("exhaust") || detail.includes("budget exhausted")) {
           pretty = "Universal LLM Key budget exhausted. Sora-2-pro renders cost ~$3.40 each. Top up at Profile → Universal Key → Add Balance, then retry.";
         } else if (reason.includes("video file missing") || reason.includes("download")) {
           pretty = "Sora returned but the MP4 download didn't complete (likely a transient upstream timeout). Safe to retry — no DB row was created.";
         } else if (reason.includes("rate") || reason.includes("429")) {
           pretty = "Sora is rate-limiting us — wait 60s and retry.";
+        } else if (detail.includes("no video after") || detail.includes("wait timeout") || (reason.includes("video generation failed") && detail.includes("max_wait"))) {
+          pretty = "Sora-2-pro render exceeded the 15-min wait timeout. Retry — or switch to `sora-2` (horizontal, faster). If this keeps happening, Sora's queue may be congested or the Universal LLM Key balance is low.";
         } else if (job.detail) {
-          pretty = `${pretty} — ${job.detail.slice(0, 200)}`;
+          pretty = `${pretty} — ${job.detail.slice(0, 250)}`;
         }
-        toast.error(pretty, { duration: 12000 });
+        toast.error(pretty, { duration: 15000 });
         setGenBusy(false);
         return;
       }
@@ -797,6 +806,66 @@ function ClipsSeedCard() {
           </div>
         )}
       </div>
+
+      {/* iter310c — Last 5 renders strip. One row per recent
+          clip_seed_job: status pill + model + slug-or-reason + duration.
+          Helps the operator spot a degrading Sora queue or recurring
+          failures without re-clicking Generate. */}
+      {recentJobs.length > 0 && (
+        <div className="mb-4 pb-4 border-b border-purple-900/40" data-testid="clips-seed-recent">
+          <div className="flex items-center justify-between mb-2">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+              Last {recentJobs.length} render{recentJobs.length === 1 ? "" : "s"}
+            </div>
+            <button
+              onClick={refresh}
+              className="font-mono text-[10px] uppercase tracking-[0.18em] text-purple-300 hover:text-purple-100"
+              data-testid="clips-seed-recent-refresh"
+              title="Refresh recent renders"
+            >
+              ↻ Refresh
+            </button>
+          </div>
+          <div className="space-y-1">
+            {recentJobs.map((j) => {
+              const startedMs = j.started_at ? Date.parse(j.started_at) : null;
+              const finishedMs = j.finished_at ? Date.parse(j.finished_at) : null;
+              const durSec = startedMs && finishedMs ? Math.round((finishedMs - startedMs) / 1000) : null;
+              const pillColor = {
+                done: "border-emerald-700 text-emerald-300 bg-emerald-950/30",
+                error: "border-red-700 text-red-300 bg-red-950/30",
+                running: "border-yellow-700 text-yellow-300 bg-yellow-950/30 animate-pulse",
+                queued: "border-[#525252] text-[#a3a3a3] bg-neutral-900/30",
+              }[j.status] || "border-[#525252] text-[#a3a3a3]";
+              const startedLabel = startedMs
+                ? new Date(startedMs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                : "—";
+              return (
+                <div
+                  key={j.job_id}
+                  className="grid grid-cols-[70px_55px_60px_1fr_55px] gap-2 items-center font-mono text-[10px] py-1 border-l-2 border-purple-900/40 pl-2"
+                  data-testid="clips-seed-recent-row"
+                >
+                  <span className={`uppercase tracking-[0.15em] text-center px-1.5 py-0.5 border ${pillColor}`}>
+                    {j.status || "?"}
+                  </span>
+                  <span className="text-[#737373]">{startedLabel}</span>
+                  <span className="text-purple-300/80 truncate" title={j.model}>{(j.model || "").replace("sora-2-", "")}</span>
+                  <span
+                    className={`truncate ${j.status === "error" ? "text-red-300" : "text-emerald-300/90"}`}
+                    title={j.status === "error" ? (j.detail || j.reason || "") : (j.clip?.slug || "")}
+                  >
+                    {j.status === "done" && (j.clip?.slug || j.clip?.title || "—")}
+                    {j.status === "error" && (j.reason || "failed")}
+                    {(j.status === "running" || j.status === "queued") && "rendering…"}
+                  </span>
+                  <span className="text-[#737373] text-right">{durSec != null ? `${durSec}s` : "—"}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {purgeStep === 0 && (
         <button

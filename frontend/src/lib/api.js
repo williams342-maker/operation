@@ -930,6 +930,10 @@ export const fetchClipSeedJob = (jobId) =>
   http.get(`/admin/seed/clips/job/${encodeURIComponent(jobId)}`, {
     headers: adminAuthHeaders(),
   }).then((r) => r.data);
+export const fetchRecentClipSeedJobs = (limit = 5) =>
+  http.get(`/admin/seed/clips/jobs/recent?limit=${limit}`, {
+    headers: adminAuthHeaders(),
+  }).then((r) => r.data);
 export const purgeClipsSeed = () =>
   http.post("/admin/seed/clips/purge", null, { headers: adminAuthHeaders() }).then((r) => r.data);
 export const purgeOrphanClipsSeed = () =>

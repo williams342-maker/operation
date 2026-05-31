@@ -136,6 +136,12 @@ def _generate_video_blocking(prompt: str, out_path: str, model: str = "sora-2-pr
     else:  # sora-2 (base) — must be horizontal through the wrapper
         size = "1280x720"
 
+    # iter310 — sora-2-pro consistently times out at the default 600s
+    # (returns empty bytes silently per the wrapper contract). Playbook
+    # recommends 900s for `pro`. Base `sora-2` keeps 600 — it's the
+    # faster path and almost always finishes well under that.
+    max_wait = 900 if model == "sora-2-pro" else 600
+
     try:
         video_gen = OpenAIVideoGeneration(api_key=os.environ["EMERGENT_LLM_KEY"])
         video_bytes = video_gen.text_to_video(
@@ -143,12 +149,24 @@ def _generate_video_blocking(prompt: str, out_path: str, model: str = "sora-2-pr
             model=model,
             size=size,
             duration=8,        # 4 / 8 / 12 — 8 gives a satisfying clip without ballooning cost
-            max_wait_time=600,
+            max_wait_time=max_wait,
         )
     except Exception as e:
         return False, f"{type(e).__name__}: {e}"
     if not video_bytes:
-        return False, "empty response from provider"
+        # The wrapper returns empty bytes (NOT an exception) on:
+        # - max_wait_time exhaustion (most common with sora-2-pro)
+        # - upstream Sora capacity/queue failures
+        # - silent budget exhaustion paths
+        # Give the operator a hint so they can pick the right next step.
+        return False, (
+            f"Sora returned no video after {max_wait}s "
+            f"(model={model}, size={size}). Likely causes: (1) the render exceeded "
+            f"the wrapper's wait timeout — retry, or switch to model=sora-2 for a "
+            f"faster horizontal render, (2) Sora queue capacity hiccup — wait 60s "
+            f"and retry, (3) Universal LLM Key budget exhausted — top up at "
+            f"Profile → Universal Key → Add Balance."
+        )
     try:
         video_gen.save_video(video_bytes, out_path)
     except Exception as e:

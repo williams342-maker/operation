@@ -1,3 +1,24 @@
+## 2026-05-30 — "Last 5 renders" admin strip (iter310c)
+
+### What shipped
+- `GET /api/admin/seed/clips/jobs/recent?limit=N` (capped at 25) — returns most-recent `clip_seed_jobs` rows, latest first, `_id` stripped.
+- `SettingsTab.jsx` renders a tiny strip under the Generate button: one row per render with status pill (done/error/running/queued — colour-coded, `running` pulses), start time, model, slug/reason, and duration in seconds. Auto-refreshes after every Generate click + has a `↻ Refresh` button. Hover-title surfaces the full error `detail` so degrading-Sora-queue patterns are spottable at a glance.
+- Tests: `tests/test_iter310c_recent_jobs.py` — **4/4 pass** (limit cap, latest-first order, admin gating, error-row payload integrity).
+
+## 2026-05-30 — Sora-2-pro 600s timeout fix + actionable inline errors (iter310b)
+
+### Issue
+After iter310 (background-job polling) landed and was redeployed to prod, "Generate Fresh Clip" now surfaced the *real* underlying error: `video generation failed — empty response from provider`. Root cause: `emergentintegrations.OpenAIVideoGeneration.text_to_video` returns empty bytes silently (NOT an exception) when its `max_wait_time` is exhausted. We were passing 600s on every render — too tight for sora-2-pro per the integration playbook ("Issue 2: Video generation timeout — increase max_wait_time, especially for sora-2-pro").
+
+### What shipped
+- `/app/backend/clip_seeder.py`:
+  - `_generate_video_blocking` now uses **`max_wait=900s` for sora-2-pro**, keeps 600s for the faster horizontal base model.
+  - Empty-bytes detail message now spells out the three real causes (timeout, queue capacity, budget exhaustion) so operators don't have to dig through logs.
+- `/app/frontend/src/components/admin/SettingsTab.jsx`:
+  - New error-classification branch surfaces the timeout case with actionable copy ("Retry — or switch to `sora-2`…").
+  - Polling ceiling bumped from 10min → ~17min to cover the new 900s backend wait.
+  - Inline `genResult` block now renders the full `detail` field under the headline so future failures don't require chasing the toast.
+
 ## 2026-05-30 — Admin "Generate Fresh Clip" network-error fix (iter310)
 
 ### Issue
