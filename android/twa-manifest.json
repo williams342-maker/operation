@@ -1,0 +1,64 @@
+{
+  "packageId": "org.craftersmarket.app",
+  "host": "craftersmarket.org",
+  "name": "Crafters Market",
+  "launcherName": "Crafters Market",
+  "display": "standalone",
+  "orientation": "default",
+  "themeColor": "#0a0a0a",
+  "navigationColor": "#0a0a0a",
+  "navigationColorDark": "#0a0a0a",
+  "navigationDividerColor": "#0a0a0a",
+  "navigationDividerColorDark": "#0a0a0a",
+  "backgroundColor": "#0a0a0a",
+  "enableNotifications": true,
+  "startUrl": "/?utm_source=android-twa",
+  "iconUrl": "https://craftersmarket.org/icons/icon-512.png",
+  "maskableIconUrl": "https://craftersmarket.org/icons/icon-maskable-512.png",
+  "appVersionName": "1.0.0",
+  "appVersion": "1.0.0",
+  "appVersionCode": 1,
+  "shortcuts": [
+    {
+      "name": "Shop",
+      "shortName": "Shop",
+      "url": "/shop?utm_source=android-twa-shortcut",
+      "chosenIconUrl": "https://craftersmarket.org/icons/icon-192.png"
+    },
+    {
+      "name": "Custom Order",
+      "shortName": "Custom",
+      "url": "/custom-order?utm_source=android-twa-shortcut",
+      "chosenIconUrl": "https://craftersmarket.org/icons/icon-192.png"
+    },
+    {
+      "name": "Makers",
+      "shortName": "Makers",
+      "url": "/makers?utm_source=android-twa-shortcut",
+      "chosenIconUrl": "https://craftersmarket.org/icons/icon-192.png"
+    }
+  ],
+  "signingKey": {
+    "path": "./android.keystore",
+    "alias": "android"
+  },
+  "splashScreenFadeOutDuration": 300,
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://craftersmarket.org/",
+  "minSdkVersion": 21,
+  "fallbackType": "customtabs",
+  "features": {
+    "playBilling": {
+      "enabled": false
+    }
+  },
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "additionalTrustedOrigins": [],
+  "retainedBundles": [],
+  "appVersionCode_comment": "Increment this integer for every Play Store upload (1 → 2 → 3 …). appVersionName is the human-readable string shown in the Play listing.",
+  "_generator": "Crafters Market — iter311 — see /app/android/README.md for build steps."
+}

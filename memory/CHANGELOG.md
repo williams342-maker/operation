@@ -1,3 +1,30 @@
+## 2026-05-30 — Android APK (Trusted Web Activity) scaffolding (iter311)
+
+### What shipped
+- `/app/android/twa-manifest.json` — pre-built Bubblewrap input. Defines `org.craftersmarket.app` package id, `Crafters Market` launcher name, `#0a0a0a` theme/background, three app shortcuts (Shop / Custom Order / Makers), maskable + standard icons pulled from the live PWA manifest, `enableNotifications: true` so existing web-push works in-app, `startUrl` includes `utm_source=android-twa` for analytics segmentation.
+- `/app/android/update-assetlinks.sh` — one-shot helper that writes the user's release SHA-256 fingerprint into `/app/frontend/public/.well-known/assetlinks.json`. Supports an optional debug fingerprint for testing. Bash syntax + JSON output validated end-to-end on a synthetic fingerprint.
+- `/app/android/README.md` — single-page operator runbook covering: prerequisites (Node, JDK 17, Bubblewrap CLI), the 5-step build flow (`bubblewrap init → init keystore → bubblewrap build`), Digital Asset Links wiring, Play Console upload, version-bump workflow for future releases, and a troubleshooting table.
+
+### PWA validation (pre-existing, confirmed via live audit)
+- Manifest at `https://craftersmarket.org/manifest.webmanifest` — all required fields present, scope `/`, display `standalone`, theme/background colors set.
+- Icons live and serve correctly: 192/512 + maskable 192/512 — confirmed via GET.
+- Service worker registered from `index.html` line 213.
+- `.well-known/assetlinks.json` stub already deployed (replaced via the helper script once the keystore is generated on the user's laptop).
+
+### What the user runs (not in this container)
+1. Copy `/app/android/` to a laptop with Node + JDK 17.
+2. `npm i -g @bubblewrap/cli && bubblewrap init --manifest=./twa-manifest.json`.
+3. Generate keystore when prompted, run `bubblewrap build`, get `app-release-bundle.aab`.
+4. Paste the printed SHA-256 fingerprint into `./update-assetlinks.sh "..."` inside this pod → redeploy.
+5. Upload the AAB to Play Console.
+
+
+
+### What shipped
+- `GET /api/admin/seed/clips/jobs/recent?limit=N` (capped at 25) — returns most-recent `clip_seed_jobs` rows, latest first, `_id` stripped.
+- `SettingsTab.jsx` renders a tiny strip under the Generate button: one row per render with status pill (done/error/running/queued — colour-coded, `running` pulses), start time, model, slug/reason, and duration in seconds. Auto-refreshes after every Generate click + has a `↻ Refresh` button. Hover-title surfaces the full error `detail` so degrading-Sora-queue patterns are spottable at a glance.
+- Tests: `tests/test_iter310c_recent_jobs.py` — **4/4 pass** (limit cap, latest-first order, admin gating, error-row payload integrity).
+
 ## 2026-05-30 — "Last 5 renders" admin strip (iter310c)
 
 ### What shipped
