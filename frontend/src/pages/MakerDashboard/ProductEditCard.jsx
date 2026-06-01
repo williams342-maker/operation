@@ -19,6 +19,7 @@ export default function ProductEditCard({ product, archived = false, draft = fal
   const [removing, setRemoving] = useState(false);
   const [uploadingModel, setUploadingModel] = useState(false);
   const [modelErr, setModelErr] = useState("");
+  const [modelDrag, setModelDrag] = useState(false);
   const [togglingStatus, setTogglingStatus] = useState(false);
   const [statusErr, setStatusErr] = useState("");
   const [promoting, setPromoting] = useState(false);
@@ -353,19 +354,41 @@ export default function ProductEditCard({ product, archived = false, draft = fal
                   className="hidden"
                   data-testid={`product-model-file-${p.slug}`}
                 />
-                <button
-                  type="button"
-                  onClick={() => modelInputRef.current?.click()}
-                  disabled={uploadingModel}
-                  className="w-full border border-dashed border-[#262626] hover:border-[#ff4500]/60 px-3 py-2 text-left font-mono text-[10px] text-[#a3a3a3] hover:text-[#ff4500] transition disabled:opacity-50"
-                  data-testid={`product-model-upload-${p.slug}`}
+                {/* iter313d Tier-2 — drag-drop wrapper around the model
+                    upload button. The maker can drag a .glb straight
+                    from the GLTF exporter onto the row instead of
+                    click-pick-navigate-confirm. */}
+                <div
+                  onDragOver={(e) => { if (!uploadingModel) { e.preventDefault(); setModelDrag(true); } }}
+                  onDragLeave={() => setModelDrag(false)}
+                  onDrop={(e) => {
+                    if (uploadingModel) return;
+                    e.preventDefault();
+                    setModelDrag(false);
+                    const f = e.dataTransfer.files?.[0];
+                    if (f) onModelFile({ target: { files: [f], value: "" } });
+                  }}
                 >
-                  {uploadingModel
-                    ? "Uploading model…"
-                    : p.model_url
-                      ? "↻ Replace .glb / .gltf"
-                      : "+ Upload .glb / .gltf"}
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => modelInputRef.current?.click()}
+                    disabled={uploadingModel}
+                    className={`w-full border border-dashed px-3 py-2 text-left font-mono text-[10px] transition disabled:opacity-50 ${
+                      modelDrag
+                        ? "border-[#ff4500] text-[#ff4500] bg-[#ff4500]/5"
+                        : "border-[#262626] hover:border-[#ff4500]/60 text-[#a3a3a3] hover:text-[#ff4500]"
+                    }`}
+                    data-testid={`product-model-upload-${p.slug}`}
+                  >
+                    {uploadingModel
+                      ? "Uploading model…"
+                      : modelDrag
+                        ? "↓ Release to upload .glb / .gltf"
+                        : p.model_url
+                          ? "↻ Drop or click to replace .glb / .gltf"
+                          : "+ Drop or click to upload .glb / .gltf"}
+                  </button>
+                </div>
                 <input
                   type="url"
                   value={modelUrl}

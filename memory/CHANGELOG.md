@@ -1,4 +1,32 @@
-## 2026-05-31 — Drag-and-drop image uploads (iter313d)
+## 2026-05-31 — Drag-and-drop image uploads (iter313d Tier 1 + Tier 2)
+
+### What shipped
+Drag-and-drop now works everywhere the user uploads files. The Tier 1 batch (Shop Icon + Custom Order reference + Maker Profile banner) was followed by Tier 2 in the same session.
+
+#### Tier 1 (highest-impact)
+- **Shop Icon "drop to replace" UX** (`Settings/_shared.jsx`): persistent bottom hint band + full-overlay orange "Drop to replace" indicator + `pointer-events-none` on the preview img so drops aren't intercepted by browser default.
+- **Custom Order reference upload** (`CustomOrderPage.jsx`): real `CoDropZone` component with onDrop handler. The previous label *said* "Drop your file here" but had no handler — dropping a file would open it in a new tab.
+- **Maker Profile banner** (`ProfileForm.jsx`): drag-drop wrapper respecting Plus-only gating, dynamic button label (Drop → Release → Replace).
+
+#### Tier 2 (deferred from initial batch, shipped same session)
+- **PersonalizationPanel** (buyer-side personalization image upload): extracted `processFile()` helper, wrapped picker button in a dashed-border drop zone with orange "Release to upload" state.
+- **ProductEditCard 3D model upload**: drag-drop wrapper around the `.glb / .gltf` picker button. Maker can drag straight from their GLTF exporter.
+- **CommunityPage showcase image picker** (multi-file): refactored `onPickImages → processImages()`. The dashed-border container is now itself a drop zone — drag multiple images straight from Finder/Explorer into a showcase post.
+- **CommunityPage showcase video picker**: refactored `onPickVideo → processVideo()`, same dashed-border drop zone treatment.
+- **CommunityPage design-file upload** (the lead-magnet bundle picker): refactored `onFileChange → processPickedFiles()`. Drop multiple files (DXF + SVG + PNG preview) directly into the form. Preserves dedup/format-inference + per-file size validation.
+
+### Files NOT touched
+- **Avatar upload** (CommunityPage line 213) — click target is fine, low traffic.
+- **Design-file variants picker** (CommunityPage line 2210) — secondary, can layer in later if signal warrants.
+- **Forum attachment picker** (CommunityPage line 2996) — low traffic, click already works well.
+
+### No new tests
+All changes are pure UX additions on existing upload paths. The underlying upload functions (`uploadMakerPortrait`, `uploadMakerBanner`, `uploadShowcaseImage`, `uploadShowcaseVideo`, `uploadDesignFileDirect`, custom-order's `handleFile`, personalization's data-URL POST, `uploadMakerModel`) are unchanged.
+
+### Note on the screenshot
+User flagged the Shop Icon. Investigation found the drag-drop was always wired but the visual cue disappeared once an image was uploaded, so users thought they needed to click X first. Tier 1 fix addresses that directly; Tier 2 expands the same UX paradigm across the rest of the app.
+
+
 
 ### Issue
 User flagged that the **Shop Icon** field in Maker Dashboard → Settings claims "Drop an image to upload" but doesn't appear to support drag-drop once an image is already present. Survey of the codebase identified several other upload locations missing drag-drop entirely.

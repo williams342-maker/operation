@@ -299,6 +299,8 @@ function ShowcaseForm({ onSaved }) {
   const [video, setVideo] = useState(null); // {url, name, size, mime} | null
   const [uploading, setUploading] = useState(false);
   const [videoUploading, setVideoUploading] = useState(false);
+  const [imgDrag, setImgDrag] = useState(false);
+  const [videoDrag, setVideoDrag] = useState(false);
   const [videoProgress, setVideoProgress] = useState(0);
   const [products, setProducts] = useState([]);
   const [makers, setMakers] = useState([]);
@@ -325,24 +327,29 @@ function ShowcaseForm({ onSaved }) {
   }, []);
 
   const onPickImages = async (e) => {
-    setErr("");
     const fl = Array.from(e.target.files || []);
+    e.target.value = "";
+    await processImages(fl);
+  };
+
+  // iter313d Tier-2 — Extract the image-upload pipeline so both the
+  // click-to-browse input AND the drag-drop handler can reuse it.
+  // Same validation, same backend call, same state mutation.
+  const processImages = async (fl) => {
+    setErr("");
     if (!fl.length) return;
     const room = SHOWCASE_MAX_IMAGES - images.length;
     if (fl.length > room) {
       setErr(`Up to ${SHOWCASE_MAX_IMAGES} photos per post — you have ${images.length} already.`);
-      e.target.value = "";
       return;
     }
     for (const file of fl) {
       if (!file.type.startsWith("image/")) {
         setErr(`'${file.name}' isn't an image — pick JPG/PNG/WebP.`);
-        e.target.value = "";
         return;
       }
       if (file.size > SHOWCASE_MAX_BYTES_PER_FILE) {
         setErr(`'${file.name}' is ${(file.size / 1024 / 1024).toFixed(1)}MB — must be ≤ 8MB.`);
-        e.target.value = "";
         return;
       }
     }
@@ -359,24 +366,28 @@ function ShowcaseForm({ onSaved }) {
       setErr(uploadErr?.response?.data?.detail || "Upload failed.");
     } finally {
       setUploading(false);
-      e.target.value = "";
     }
   };
 
   const removeImage = (i) => setImages((cur) => cur.filter((_, idx) => idx !== i));
 
   const onPickVideo = async (e) => {
-    setErr("");
     const file = e.target.files?.[0];
+    e.target.value = "";
+    await processVideo(file);
+  };
+
+  // iter313d Tier-2 — Single-file video upload pipeline reused by both
+  // the click-to-browse input and the drag-drop handler.
+  const processVideo = async (file) => {
+    setErr("");
     if (!file) return;
     if (!SHOWCASE_ALLOWED_VIDEO_TYPES.includes(file.type) && !/\.(mp4|webm|mov|m4v)$/i.test(file.name)) {
       setErr(`'${file.name}' isn't a supported clip — use MP4, WebM, or MOV.`);
-      e.target.value = "";
       return;
     }
     if (file.size > SHOWCASE_MAX_VIDEO_BYTES) {
       setErr(`Clip is ${(file.size / 1024 / 1024).toFixed(1)}MB — must be ≤ 50MB. Trim it in CapCut / Premiere Rush first.`);
-      e.target.value = "";
       return;
     }
     setVideoUploading(true);
@@ -388,7 +399,6 @@ function ShowcaseForm({ onSaved }) {
       setErr(uploadErr?.response?.data?.detail || "Video upload failed.");
     } finally {
       setVideoUploading(false);
-      e.target.value = "";
     }
   };
   const removeVideo = () => { setVideo(null); setVideoProgress(0); };
@@ -460,8 +470,26 @@ function ShowcaseForm({ onSaved }) {
         data-testid="showcase-title"
       />
 
-      {/* Multi-image picker */}
-      <div className="md:col-span-2 border border-dashed border-[#262626] p-4" data-testid="showcase-image-picker">
+      {/* Multi-image picker — drag-drop + click */}
+      <div
+        className={`md:col-span-2 border border-dashed p-4 transition-colors ${
+          imgDrag ? "border-[#ff4500] bg-[#ff4500]/5" : "border-[#262626]"
+        }`}
+        data-testid="showcase-image-picker"
+        onDragOver={(e) => {
+          if (uploading || images.length >= SHOWCASE_MAX_IMAGES) return;
+          e.preventDefault();
+          setImgDrag(true);
+        }}
+        onDragLeave={() => setImgDrag(false)}
+        onDrop={(e) => {
+          if (uploading || images.length >= SHOWCASE_MAX_IMAGES) return;
+          e.preventDefault();
+          setImgDrag(false);
+          const fl = Array.from(e.dataTransfer.files || []);
+          if (fl.length) processImages(fl);
+        }}
+      >
         <div className="flex flex-wrap items-center gap-3 mb-3">
           <button
             type="button"
@@ -471,10 +499,12 @@ function ShowcaseForm({ onSaved }) {
             data-testid="showcase-image-add"
           >
             <Plus size={14} />
-            {images.length === 0 ? "Add photos" : `Add more (${images.length}/${SHOWCASE_MAX_IMAGES})`}
+            {imgDrag
+              ? "↓ Release to upload"
+              : images.length === 0 ? "Drop or click to add photos" : `Add more (${images.length}/${SHOWCASE_MAX_IMAGES})`}
           </button>
           <p className="font-mono text-[10px] text-[#525252]">
-            JPG/PNG/WebP, ≤ 8MB each. First photo becomes the cover.
+            JPG/PNG/WebP, ≤ 8MB each. First photo becomes the cover. Drag &amp; drop or click.
           </p>
           <input
             ref={inputRef} type="file" accept="image/*" multiple onChange={onPickImages}
@@ -514,9 +544,27 @@ function ShowcaseForm({ onSaved }) {
         )}
       </div>
 
-      {/* Maker-only video picker (this iter) */}
+      {/* Maker-only video picker (this iter) — drag-drop + click */}
       {isMaker && (
-        <div className="md:col-span-2 border border-dashed border-[#262626] p-4" data-testid="showcase-video-picker">
+        <div
+          className={`md:col-span-2 border border-dashed p-4 transition-colors ${
+            videoDrag ? "border-[#ff4500] bg-[#ff4500]/5" : "border-[#262626]"
+          }`}
+          data-testid="showcase-video-picker"
+          onDragOver={(e) => {
+            if (videoUploading || !!video) return;
+            e.preventDefault();
+            setVideoDrag(true);
+          }}
+          onDragLeave={() => setVideoDrag(false)}
+          onDrop={(e) => {
+            if (videoUploading || !!video) return;
+            e.preventDefault();
+            setVideoDrag(false);
+            const f = e.dataTransfer.files?.[0];
+            if (f) processVideo(f);
+          }}
+        >
           <div className="flex flex-wrap items-center gap-3 mb-3">
             <button
               type="button"
@@ -526,7 +574,7 @@ function ShowcaseForm({ onSaved }) {
               data-testid="showcase-video-add"
             >
               <Film size={14} />
-              {video ? "Clip attached" : "Add video clip"}
+              {videoDrag ? "↓ Release to upload" : video ? "Clip attached" : "Drop or click to add video"}
             </button>
             <p className="font-mono text-[10px] text-[#525252]">
               MP4 / WebM / MOV · ≤ 50MB · ~60s. Maker-only feature.
@@ -1494,6 +1542,7 @@ function FileUploadForm({ onSaved }) {
   const [err, setErr] = useState("");
   const [autoSvg, setAutoSvg] = useState(true);  // auto-generate SVG from DXF post-upload
   const [previews, setPreviews] = useState({}); // index → blob URL or inline string
+  const [fileDrag, setFileDrag] = useState(false);
   const isMaker = !!localStorage.getItem("cm_maker_jwt");
   // Ref so the "+ Add another file" button can re-open the native picker
   // dialog without forcing the operator to scroll back up to the input.
@@ -1543,14 +1592,24 @@ function FileUploadForm({ onSaved }) {
   };
 
   const onFileChange = (e) => {
-    setErr("");
     const fl = Array.from(e.target.files || []);
+    // Clear the input value so the SAME file can be re-picked after a
+    // remove (otherwise Chrome blocks the re-selection because nothing
+    // changed).
+    e.target.value = "";
     if (!fl.length) {
       // Empty event — happens when the user opens the picker and cancels
       // out of it. Don't clobber what they already have selected.
-      e.target.value = "";
       return;
     }
+    processPickedFiles(fl);
+  };
+
+  // iter313d Tier-2 — Shared dedupe + merge pipeline reused by both
+  // click-to-browse and drag-drop. Encapsulates the format-inference,
+  // size validation, and max-bundle handling.
+  const processPickedFiles = (fl) => {
+    setErr("");
     // Per-file size cap (matches backend MAX_DESIGN_BYTES). Reject the
     // whole batch if any file is over — clearer error than partial fail.
     for (const file of fl) {
@@ -1592,10 +1651,6 @@ function FileUploadForm({ onSaved }) {
       }
       return merged;
     });
-    // Clear the input value so the SAME file can be re-picked after a
-    // remove (otherwise Chrome blocks the re-selection because nothing
-    // changed).
-    e.target.value = "";
   };
 
   const removePicked = (idx) => {
@@ -1720,7 +1775,20 @@ function FileUploadForm({ onSaved }) {
             </>
           ) : (
             <>
-              <div className="mt-1 relative flex items-center border border-[#262626] focus-within:border-[#ff4500] px-3 py-2">
+              <div
+                className={`mt-1 relative flex items-center border focus-within:border-[#ff4500] px-3 py-2 transition-colors ${
+                  fileDrag ? "border-[#ff4500] bg-[#ff4500]/5" : "border-[#262626]"
+                }`}
+                onDragOver={(e) => { if (!busy) { e.preventDefault(); setFileDrag(true); } }}
+                onDragLeave={() => setFileDrag(false)}
+                onDrop={(e) => {
+                  if (busy) return;
+                  e.preventDefault();
+                  setFileDrag(false);
+                  const fl = Array.from(e.dataTransfer.files || []);
+                  if (fl.length) processPickedFiles(fl);
+                }}
+              >
                 <input
                   ref={pickerRef}
                   type="file"
@@ -1734,7 +1802,7 @@ function FileUploadForm({ onSaved }) {
                 />
               </div>
               <span className="font-mono text-[10px] text-[#525252]">
-                Pick one or several files — the first is the primary preview.
+                {fileDrag ? "↓ Release to add to the bundle" : "Pick one or several files — or drag &amp; drop. The first is the primary preview."}
               </span>
             </>
           )}

@@ -28,6 +28,7 @@ export default function PersonalizationPanel({
   const [text, setText] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   const fileInput = useRef(null);
 
   // Push the current state up to the parent. Run on every change so the
@@ -51,6 +52,15 @@ export default function PersonalizationPanel({
   const onFileChange = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = "";    // allow re-picking the same file later
+    await processFile(file);
+  };
+
+  // iter313d Tier-2 — Shared upload pipeline reused by both the
+  // file-input change AND the drag-drop handler. Previously the
+  // upload logic was inline in `onFileChange` so a drop event would
+  // have needed to fake a synthetic event — extracting it cleanly
+  // separates "I have a File" from "I have a change event".
+  const processFile = async (file) => {
     if (!file) return;
     if (!ALLOWED.includes(file.type)) {
       toast.error("Please pick a PNG, JPG, WEBP, GIF, or HEIC image.");
@@ -149,7 +159,20 @@ export default function PersonalizationPanel({
             </div>
           </div>
         ) : (
-          <>
+          <div
+            onDragOver={(e) => { if (!uploading) { e.preventDefault(); setDragOver(true); } }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={(e) => {
+              if (uploading) return;
+              e.preventDefault();
+              setDragOver(false);
+              const f = e.dataTransfer.files?.[0];
+              if (f) processFile(f);
+            }}
+            className={`border-2 border-dashed transition-colors p-4 ${
+              dragOver ? "border-[#ff4500] bg-[#ff4500]/5" : "border-[#262626]"
+            }`}
+          >
             <input
               type="file"
               ref={fileInput}
@@ -167,14 +190,16 @@ export default function PersonalizationPanel({
             >
               {uploading ? (
                 <><Loader2 size={13} className="animate-spin" /> Uploading…</>
+              ) : dragOver ? (
+                <><ImageIcon size={13} /> ↓ Release to upload</>
               ) : (
-                <><ImageIcon size={13} /> ↑ Attach reference image</>
+                <><ImageIcon size={13} /> ↑ Drop or click to attach reference</>
               )}
             </button>
             <div className="font-mono text-[10px] text-[#525252] mt-2">
               PNG · JPG · WEBP · HEIC · GIF · max 5 MB
             </div>
-          </>
+          </div>
         )}
       </div>
     </div>
