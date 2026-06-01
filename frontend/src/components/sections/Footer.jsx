@@ -178,6 +178,15 @@ export default function Footer() {
               Live chat
             </button>
             <Link to="/updates" className="hover:text-[#ff4500]" data-testid="footer-updates">What's New</Link>
+            <a
+              href="/fees.pdf"
+              target="_blank"
+              rel="noopener"
+              className="hover:text-[#ff4500]"
+              data-testid="footer-pricing"
+            >
+              Transparent pricing
+            </a>
             <Link to="/policy" className="hover:text-[#ff4500]" data-testid="footer-privacy">Privacy</Link>
             <Link to="/policy" className="hover:text-[#ff4500]" data-testid="footer-terms">Terms</Link>
             <Link to="/contact" className="hover:text-[#ff4500]" data-testid="footer-contact">Contact</Link>

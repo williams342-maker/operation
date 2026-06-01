@@ -53,6 +53,11 @@ FREE_SHIPPING_THRESHOLD_USD = 250
 
 OUT_PATH = Path("/app/docs/crafters_market_fee_breakdown.pdf")
 OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+# iter314 — also drop the PDF into frontend/public so it's served
+# publicly at /fees.pdf — buyers, prospective makers, and the About
+# page can link to it directly with no auth.
+PUBLIC_COPY = Path("/app/frontend/public/fees.pdf")
+PUBLIC_COPY.parent.mkdir(parents=True, exist_ok=True)
 
 # Brand palette — matches site
 ORANGE = colors.HexColor("#ff4500")
@@ -413,5 +418,11 @@ story.append(Paragraph(
 
 doc.build(story, onFirstPage=on_page, onLaterPages=on_page)
 
+# Mirror to the frontend's public/ folder so the file is served at
+# craftersmarket.org/fees.pdf without needing a backend route.
+import shutil
+shutil.copyfile(OUT_PATH, PUBLIC_COPY)
+
 size_kb = OUT_PATH.stat().st_size / 1024
 print(f"✓ wrote {OUT_PATH} ({size_kb:.1f} KB)")
+print(f"✓ copied to {PUBLIC_COPY} (public at /fees.pdf)")

@@ -1,4 +1,17 @@
-## 2026-05-31 — Drag-and-drop image uploads (iter313d Tier 1 + Tier 2)
+## 2026-06-01 — Transparent pricing PDF + public surfaces (iter314)
+
+### What shipped
+- **Auto-generated fee PDF** at `/app/docs/build_fee_breakdown.py`. 4-page document covering Buyers, Standard makers, Founder makers, Plus makers, side-by-side comparison, veteran-owned bonus, and admins. All fee numbers pulled from `revenue.py` + `stripe_connect.py` constants — re-run the script to refresh whenever any env-var changes.
+- **Public URL**: PDF is mirrored to `/app/frontend/public/fees.pdf` so it serves at `https://craftersmarket.org/fees.pdf` with `Content-Type: application/pdf`, no auth.
+- **Site-wide footer link** ("Transparent pricing") so the PDF is discoverable from every page.
+- **`/founders` page**: new "Transparent Pricing" block right above the apply form. Three side-by-side cards (Standard · Founder · Plus) with price, commission rate, badge ("Lowest commission" / "Best for high-volume"), and 3-bullet feature list. Orange "↓ Full pricing breakdown (PDF)" CTA links to the file.
+- **`MakerFeeTable` component** (used by `/apply`): added a small "↓ PDF" link in the header next to the existing "Full policy ↗" link.
+- All 3 touched frontend files lint clean.
+
+### Why this matters
+Makers convert better when they can see the full fee schedule before they apply. Linking the same auto-generated PDF from multiple surfaces (footer + founders apply page + standard apply page) means there's one source of truth — every page reflects whatever the env-var values are at deploy time. No hidden fees, no marketing copy to drift from the actual code.
+
+
 
 ### What shipped
 Drag-and-drop now works everywhere the user uploads files. The Tier 1 batch (Shop Icon + Custom Order reference + Maker Profile banner) was followed by Tier 2 in the same session.
@@ -132,6 +145,10 @@ Two new feed families on the existing EnrichLabs read-only API so any external m
 - `GET /api/admin/seed/clips/jobs/recent?limit=N` (capped at 25) — returns most-recent `clip_seed_jobs` rows, latest first, `_id` stripped.
 - `SettingsTab.jsx` renders a tiny strip under the Generate button: one row per render with status pill (done/error/running/queued — colour-coded, `running` pulses), start time, model, slug/reason, and duration in seconds. Auto-refreshes after every Generate click + has a `↻ Refresh` button. Hover-title surfaces the full error `detail` so degrading-Sora-queue patterns are spottable at a glance.
 - Tests: `tests/test_iter310c_recent_jobs.py` — **4/4 pass** (limit cap, latest-first order, admin gating, error-row payload integrity).
+
+## 2026-05-31 — Drag-and-drop image uploads (iter313d Tier 1 + Tier 2)
+
+Drag-drop added to all major upload surfaces. **Tier 1**: Shop Icon "drop to replace" UX (was always wired, visual cue was hidden once an image existed); Custom Order reference file (was label-only, now real onDrop); Maker Profile banner (Plus-gated). **Tier 2**: PersonalizationPanel buyer image, ProductEditCard `.glb/.gltf` 3D model, CommunityPage showcase multi-image picker, showcase video picker, design-file bundle picker. Each location got a shared `process*()` helper so click + drop run identical validation. 7 files touched, all lint clean. Skipped: avatar / variants / forum (low traffic).
 
 ## 2026-05-31 — Sora content-moderation fix + classified error UI (iter313c)
 

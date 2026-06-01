@@ -91,15 +91,26 @@ export default function MakerFeeTable({ variant = "full", title }) {
         <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#ff4500]">
           ◆ {title || "What you'll pay"}
         </div>
-        <a
-          href="/policy#marketplace"
-          target="_blank"
-          rel="noreferrer"
-          className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] transition"
-          data-testid="maker-fee-table-policy-link"
-        >
-          Full policy ↗
-        </a>
+        <div className="flex items-center gap-3">
+          <a
+            href="/fees.pdf"
+            target="_blank"
+            rel="noopener"
+            className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] transition"
+            data-testid="maker-fee-table-pdf-link"
+          >
+            ↓ PDF
+          </a>
+          <a
+            href="/policy#marketplace"
+            target="_blank"
+            rel="noreferrer"
+            className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] transition"
+            data-testid="maker-fee-table-policy-link"
+          >
+            Full policy ↗
+          </a>
+        </div>
       </div>
 
       <ul className="divide-y divide-[#1f1f1f]">

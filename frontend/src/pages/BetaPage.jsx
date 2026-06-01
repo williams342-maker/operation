@@ -275,6 +275,98 @@ export default function BetaPage() {
           </p>
         </div>
 
+        {/* iter314 — Transparent pricing block, right before the
+            apply form. Makers see exactly what they'll pay before
+            committing. Links to the auto-generated PDF for the full
+            side-by-side comparison + buyer-side fees. */}
+        <div className="mb-14 border border-[#262626] bg-[#0a0a0a] p-6 md:p-8" data-testid="beta-transparent-pricing">
+          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-3">
+            ◆ Transparent Pricing
+          </div>
+          <h2 className="font-display text-3xl md:text-4xl mb-3 uppercase leading-[0.95]">
+            No hidden fees. Ever.
+          </h2>
+          <p className="font-mono text-sm text-[#a3a3a3] max-w-2xl leading-relaxed mb-6">
+            What you pay is exactly what's listed below. Every fee is set by environment variable
+            in the codebase — change one, and every page (including the PDF) reflects it instantly.
+          </p>
+          <div className="grid md:grid-cols-3 gap-4 mb-6">
+            {[
+              {
+                tier: "Standard",
+                price: "$0 / mo",
+                rate: "5% commission",
+                bullets: [
+                  "10 free listings (lifetime)",
+                  "$0.20 per listing past quota",
+                  "Keeps $91.80 on a $100 sale",
+                ],
+              },
+              {
+                tier: "Founder",
+                price: "$0 / mo",
+                rate: "3% commission",
+                badge: "Lowest commission",
+                bullets: [
+                  "50 free listings / month",
+                  "12-month window (lifetime for first 100)",
+                  "Keeps $93.80 on a $100 sale",
+                ],
+              },
+              {
+                tier: "Plus",
+                price: "$12 / mo",
+                rate: "4% commission",
+                badge: "Best for high-volume",
+                bullets: [
+                  "15 free listings / month",
+                  "$15 boost credit included",
+                  "AI Maker Studio · custom banner",
+                ],
+              },
+            ].map((t) => (
+              <div
+                key={t.tier}
+                className="border border-[#262626] hover:border-[#ff4500]/50 transition-colors p-4 bg-[#141414]"
+                data-testid={`beta-pricing-${t.tier.toLowerCase()}`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="font-display text-xl uppercase">{t.tier}</div>
+                  {t.badge && (
+                    <div className="font-mono text-[8px] uppercase tracking-[0.18em] text-[#ff4500] border border-[#ff4500]/40 px-1.5 py-0.5">
+                      {t.badge}
+                    </div>
+                  )}
+                </div>
+                <div className="font-mono text-[11px] text-[#737373] mb-1">{t.price}</div>
+                <div className="font-mono text-[12px] text-[#fafafa] mb-3">{t.rate}</div>
+                <ul className="space-y-1.5">
+                  {t.bullets.map((b) => (
+                    <li key={b} className="font-mono text-[10px] text-[#a3a3a3] leading-relaxed flex gap-1.5">
+                      <span className="text-[#ff4500] mt-0.5">→</span>
+                      <span>{b}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-4 pt-4 border-t border-[#262626]">
+            <a
+              href="/fees.pdf"
+              target="_blank"
+              rel="noopener"
+              className="inline-flex items-center gap-2 px-4 py-2 border border-[#ff4500] text-[#ff4500] hover:bg-[#ff4500] hover:text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] transition-colors"
+              data-testid="beta-pricing-pdf"
+            >
+              ↓ Full pricing breakdown (PDF)
+            </a>
+            <p className="font-mono text-[10px] text-[#525252] flex-1 min-w-[200px]">
+              Includes buyer fees, veteran-owned bonus, Stripe processing breakdown, and a side-by-side comparison.
+            </p>
+          </div>
+        </div>
+
         {/* Application form */}
         <div id="apply" className="border-t border-[#262626] pt-10">
           <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-3">
