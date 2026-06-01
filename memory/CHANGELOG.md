@@ -1,4 +1,20 @@
-## 2026-06-01 — Transparent pricing PDF + public surfaces (iter314)
+## 2026-06-01 — Sora classifier false-positive fix + auto-fallback (iter314b)
+
+### Issue
+User flagged 4 errors badged `BUDGET` in the admin "Last 5 renders" strip — but Universal LLM Key balance was actually $102.80 with auto-recharge enabled. The renders were timeouts (all ~902s = the 900s `max_wait_time` ceiling for sora-2-pro), not budget rejections.
+
+### Root cause
+Two bugs stacked:
+1. **Misleading error copy** — the timeout-class detail message included an explanatory paragraph mentioning "Universal LLM Key budget exhausted" as one of three possible causes. The substring `budget` was real text in a timeout error.
+2. **Loose classifier order** — the frontend kind-classifier checked for the word `budget` BEFORE checking the more precise `"no video after Ns"` / `durSec >= 590` timeout markers. First match wins, so timeouts were getting tagged as BUDGET.
+
+### What shipped
+- `clip_seeder.py`: rewrote the timeout error copy to remove the loaded word "budget" entirely. The new copy says "Likely a Sora queue capacity hiccup — retry or switch to model=sora-2…" — operator gets the same actionable hint without poisoning the classifier.
+- `SettingsTab.jsx`: reordered + tightened the kind-classifier. TIMEOUT is now checked first via precise markers (`startsWith("Sora returned no video after")` OR `duration ≥ 590s`). BUDGET only matches the exact backend-emitted phrase `"Universal LLM Key budget exhausted"`, an HTTP 402, or `insufficient_quota` — never on generic substrings.
+- `clip_seeder.py`: **auto-fallback to sora-2 on pro timeout** — if sora-2-pro hits the wait ceiling, the seeder retries once with the faster base model (horizontal 1280×720). Success path tags the title `(fallback)` so the admin can see in the queue which renders took the fast path. Ships a usable clip instead of erroring out when Sora's pro queue is congested.
+- 9/9 existing iter310 + iter310c tests still pass (no regressions).
+
+
 
 ### What shipped
 - **Auto-generated fee PDF** at `/app/docs/build_fee_breakdown.py`. 4-page document covering Buyers, Standard makers, Founder makers, Plus makers, side-by-side comparison, veteran-owned bonus, and admins. All fee numbers pulled from `revenue.py` + `stripe_connect.py` constants — re-run the script to refresh whenever any env-var changes.
@@ -145,6 +161,10 @@ Two new feed families on the existing EnrichLabs read-only API so any external m
 - `GET /api/admin/seed/clips/jobs/recent?limit=N` (capped at 25) — returns most-recent `clip_seed_jobs` rows, latest first, `_id` stripped.
 - `SettingsTab.jsx` renders a tiny strip under the Generate button: one row per render with status pill (done/error/running/queued — colour-coded, `running` pulses), start time, model, slug/reason, and duration in seconds. Auto-refreshes after every Generate click + has a `↻ Refresh` button. Hover-title surfaces the full error `detail` so degrading-Sora-queue patterns are spottable at a glance.
 - Tests: `tests/test_iter310c_recent_jobs.py` — **4/4 pass** (limit cap, latest-first order, admin gating, error-row payload integrity).
+
+## 2026-06-01 — Transparent pricing PDF + public surfaces (iter314)
+
+Auto-generated 4-page fee PDF (`/app/docs/build_fee_breakdown.py`) covering Buyers, Standard/Founder/Plus makers, side-by-side comparison, veteran bonus, admins. Mirrored to `/app/frontend/public/fees.pdf` for public access at `craftersmarket.org/fees.pdf`. Footer link site-wide. New "Transparent Pricing" 3-tier comparison block on `/founders` above the apply form. PDF link added to existing `MakerFeeTable` on `/apply`. All numbers pulled from `revenue.py` env-var constants — re-run script to refresh.
 
 ## 2026-05-31 — Drag-and-drop image uploads (iter313d Tier 1 + Tier 2)
 

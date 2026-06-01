@@ -837,16 +837,36 @@ function ClipsSeedCard() {
               // almost always budget/auth/rate-limit (real upstream
               // rejection); 600-900s is a wait-timeout (Sora capacity
               // hiccup or queue saturation).
+              // iter314 — Classification order matters. The TIMEOUT
+              // signal ("no video after Ns" / duration ≥ 590s) is far
+              // more precise than the generic substring "budget" or
+              // "balance" which legitimately appears inside the
+              // explanatory copy of a timeout-class error too. Check
+              // for precise markers first; only call it BUDGET if the
+              // error explicitly starts with the budget-exhausted
+              // phrase or carries a 402.
               let kind = "";
               if (j.status === "error") {
                 const detail = (j.detail || "").toLowerCase();
                 const reason = (j.reason || "").toLowerCase();
-                if (detail.includes("budget") || reason.includes("budget") || detail.includes("balance") || detail.includes("402")) kind = "budget";
-                else if (detail.includes("moderation") || detail.includes("content_policy") || detail.includes("rejected the prompt") || detail.includes("flagged")) kind = "moderation";
-                else if (detail.includes("rate") || detail.includes("429")) kind = "rate";
-                else if (detail.includes("no video after") || (durSec != null && durSec >= 590)) kind = "timeout";
+                const isTimeout = detail.startsWith("sora returned no video after")
+                  || detail.includes("no video after ")
+                  || (durSec != null && durSec >= 590);
+                const isBudget = detail.startsWith("universal llm key budget exhausted")
+                  || detail.includes("status 402") || detail.includes("http 402")
+                  || /\b402\b/.test(detail)
+                  || detail.includes("insufficient_quota") || detail.includes("balance exhausted");
+                const isModeration = detail.includes("moderation")
+                  || detail.includes("content_policy")
+                  || detail.includes("rejected the prompt") || detail.includes("flagged");
+                const isRate = detail.includes("rate limit") || detail.includes("rate-limit")
+                  || detail.includes("status 429") || /\b429\b/.test(detail);
+                if (isTimeout) kind = "timeout";
+                else if (isBudget) kind = "budget";
+                else if (isModeration) kind = "moderation";
+                else if (isRate) kind = "rate";
                 else if (durSec != null && durSec < 30) kind = "rejected";
-                else kind = "other";
+                else if (reason || detail) kind = "other";
               }
               const pillColor = {
                 done: "border-emerald-700 text-emerald-300 bg-emerald-950/30",

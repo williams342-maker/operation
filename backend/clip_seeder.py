@@ -182,15 +182,15 @@ def _generate_video_blocking(prompt: str, out_path: str, model: str = "sora-2-pr
         # The wrapper returns empty bytes (NOT an exception) on:
         # - max_wait_time exhaustion (most common with sora-2-pro)
         # - upstream Sora capacity/queue failures
-        # - silent budget exhaustion paths
-        # Give the operator a hint so they can pick the right next step.
+        # iter314 — Word "budget" intentionally removed from this copy.
+        # The frontend classifier used to false-positive this as a
+        # BUDGET error because the string contained the substring.
         return False, (
             f"Sora returned no video after {max_wait}s "
-            f"(model={model}, size={size}). Likely causes: (1) the render exceeded "
-            f"the wrapper's wait timeout — retry, or switch to model=sora-2 for a "
-            f"faster horizontal render, (2) Sora queue capacity hiccup — wait 60s "
-            f"and retry, (3) Universal LLM Key budget exhausted — top up at "
-            f"Profile → Universal Key → Add Balance."
+            f"(model={model}, size={size}). Likely a Sora queue capacity "
+            f"hiccup — retry or switch to model=sora-2 for a faster "
+            f"horizontal render. If renders keep failing, verify the "
+            f"Universal LLM Key has sufficient credit."
         )
     try:
         video_gen.save_video(video_bytes, out_path)
@@ -225,9 +225,24 @@ async def generate_one_clip(model: str = "sora-2-pro") -> dict[str, Any]:
     folder.mkdir(parents=True, exist_ok=True)
     out_path = folder / "clip.mp4"
 
-    # Sora is blocking — run it in a thread so the FastAPI event loop
-    # stays free.
+    # iter314 — Sora capacity has been saturating sora-2-pro's 900s
+    # ceiling consistently. Auto-fallback once: if pro times out, retry
+    # with base sora-2 (horizontal 1280×720). Better to ship a clip
+    # than to error out — and the operator can re-seed via "Generate
+    # Fresh Clip" if they specifically want pro. The TIMEOUT badge in
+    # the admin UI now correctly identifies these cases (was misread as
+    # BUDGET because the explanatory copy contained the word).
     ok, err_msg = await asyncio.to_thread(_generate_video_blocking, prompt, str(out_path), model)
+    if not ok and model == "sora-2-pro" and (
+        "no video after" in err_msg.lower() or "wait timeout" in err_msg.lower()
+    ):
+        logger.warning("[clip_seeder] sora-2-pro timed out — auto-retrying with sora-2 base")
+        ok, err_msg = await asyncio.to_thread(_generate_video_blocking, prompt, str(out_path), "sora-2")
+        if ok:
+            err_msg = ""  # success on fallback
+            # Tag the title so it's visible in the admin queue that this
+            # was the fallback path, not the requested pro render.
+            title = f"{title} (fallback)"
     if not ok:
         # iter261 — classify the failure. Budget exhaustion gets a
         # dedup'd admin alert; other failures (timeout, prompt rejection,
