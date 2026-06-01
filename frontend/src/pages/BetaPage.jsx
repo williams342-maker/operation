@@ -275,6 +275,30 @@ export default function BetaPage() {
           </p>
         </div>
 
+        {/* iter314c — Marketing hero poster: same fee data as the
+            cards below + the PDF, but in one share-friendly visual.
+            Hidden on mobile (the cards below stay legible at any
+            width); shown md+ where the image's high information
+            density actually works. Click-to-open full-size in new tab. */}
+        <a
+          href="/marketing/maker-tiers-poster.png"
+          target="_blank"
+          rel="noopener"
+          className="hidden md:block mb-8 group"
+          data-testid="beta-pricing-poster-link"
+        >
+          <img
+            src="/marketing/maker-tiers-poster.png"
+            alt="Crafters Market maker tiers — Standard, Founder, and Crafters Plus side-by-side, with veteran bonus"
+            className="w-full border border-[#262626] group-hover:border-[#ff4500] transition-colors"
+            data-testid="beta-pricing-poster"
+            loading="lazy"
+          />
+          <div className="text-right font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] group-hover:text-[#ff4500] mt-1 transition-colors">
+            Click to view full-size · share with friends ↗
+          </div>
+        </a>
+
         {/* iter314 — Transparent pricing block, right before the
             apply form. Makers see exactly what they'll pay before
             committing. Links to the auto-generated PDF for the full
