@@ -516,36 +516,65 @@ function StepUpload({ value, onPick }) {
           </div>
         </div>
       ) : (
-        <label
-          htmlFor="co-upload-input"
-          className="block border-2 border-dashed border-[#262626] hover:border-[#ff4500] transition cursor-pointer p-12 md:p-16 text-center"
-          data-testid="co-upload-zone"
-        >
-          <div className="w-16 h-16 mx-auto mb-5 flex items-center justify-center bg-[#1a1a1a] text-[#ff4500]">
-            <UploadIcon size={24} />
-          </div>
-          <div className="font-display text-2xl mb-1">
-            {uploading ? "Uploading…" : "Drop your file here"}
-          </div>
-          <div className="font-mono text-xs text-[#a3a3a3] mb-4">or click to browse</div>
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252]">
-            JPG · PNG · SVG · PDF · DXF · Max 10 MB
-          </div>
-          <input
-            id="co-upload-input"
-            type="file"
-            accept=".jpg,.jpeg,.png,.svg,.pdf,.dxf,.webp"
-            onChange={(e) => handleFile(e.target.files?.[0])}
-            disabled={uploading}
-            className="hidden"
-          />
-        </label>
+        <CoDropZone
+          uploading={uploading}
+          onFile={handleFile}
+        />
       )}
 
       <p className="font-mono text-[11px] text-[#525252] mt-6 italic">
         No design file? No problem — you can describe everything in words and the maker will work with you from there.
       </p>
     </div>
+  );
+}
+
+// iter313d — Real drag-and-drop zone for the custom-order reference
+// file. The previous `<label>` claimed "Drop your file here" but had no
+// onDrop handler — a pure click-only fallback. Buyers dragging a file
+// onto the page would get a browser default behavior (the file opens
+// in a new tab) instead of an upload. This component is a thin shell
+// that supports both drag-drop AND click-to-browse with consistent
+// visual feedback.
+function CoDropZone({ uploading, onFile }) {
+  const [dragOver, setDragOver] = React.useState(false);
+  return (
+    <label
+      htmlFor="co-upload-input"
+      onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragOver(false);
+        const f = e.dataTransfer.files?.[0];
+        if (f) onFile(f);
+      }}
+      className={`block border-2 border-dashed transition cursor-pointer p-12 md:p-16 text-center ${
+        dragOver
+          ? "border-[#ff4500] bg-[#ff4500]/5"
+          : "border-[#262626] hover:border-[#ff4500]"
+      }`}
+      data-testid="co-upload-zone"
+    >
+      <div className="w-16 h-16 mx-auto mb-5 flex items-center justify-center bg-[#1a1a1a] text-[#ff4500]">
+        <UploadIcon size={24} />
+      </div>
+      <div className="font-display text-2xl mb-1">
+        {uploading ? "Uploading…" : dragOver ? "Release to upload" : "Drop your file here"}
+      </div>
+      <div className="font-mono text-xs text-[#a3a3a3] mb-4">or click to browse</div>
+      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252]">
+        JPG · PNG · SVG · PDF · DXF · Max 10 MB
+      </div>
+      <input
+        id="co-upload-input"
+        type="file"
+        accept=".jpg,.jpeg,.png,.svg,.pdf,.dxf,.webp"
+        onChange={(e) => onFile(e.target.files?.[0])}
+        disabled={uploading}
+        className="hidden"
+      />
+    </label>
   );
 }
 

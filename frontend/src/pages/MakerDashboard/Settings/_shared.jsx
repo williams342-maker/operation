@@ -144,7 +144,7 @@ export function ImageDropzone({ value, onUploaded, uploadFn, kind, testId }) {
       >
         {value ? (
           <>
-            <img src={value} alt="" className="w-full h-full object-cover" />
+            <img src={value} alt="" className="w-full h-full object-cover pointer-events-none" />
             <button
               type="button"
               onClick={() => onUploaded("")}
@@ -154,6 +154,29 @@ export function ImageDropzone({ value, onUploaded, uploadFn, kind, testId }) {
             >
               <X className="w-3.5 h-3.5 text-[#e5e5e5]" />
             </button>
+            {/* iter313d — "Drop to replace" affordance. Previously the
+                visual cue disappeared once an image was set, making
+                users think they had to click X first. Now we surface
+                two cues: a persistent bottom hint, and a full overlay
+                while a drag is active. */}
+            {drag && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#ff4500]/85 text-black pointer-events-none">
+                <Upload className="w-6 h-6 mb-2" />
+                <div className="font-mono text-[11px] uppercase tracking-[0.22em] font-bold">Drop to replace</div>
+              </div>
+            )}
+            {busy && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+                <Loader2 className="w-6 h-6 text-[#ff4500] animate-spin" />
+              </div>
+            )}
+            <label
+              htmlFor={inputId}
+              className="absolute bottom-0 inset-x-0 bg-black/70 hover:bg-black/85 cursor-pointer py-1.5 text-center font-mono text-[9px] uppercase tracking-[0.22em] text-[#e5e5e5] transition-colors"
+              data-testid={`${testId}-replace`}
+            >
+              Drop or click to replace
+            </label>
           </>
         ) : (
           <label

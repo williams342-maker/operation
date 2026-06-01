@@ -1,4 +1,22 @@
-## 2026-05-31 — Sora content-moderation fix + classified error UI (iter313c)
+## 2026-05-31 — Drag-and-drop image uploads (iter313d)
+
+### Issue
+User flagged that the **Shop Icon** field in Maker Dashboard → Settings claims "Drop an image to upload" but doesn't appear to support drag-drop once an image is already present. Survey of the codebase identified several other upload locations missing drag-drop entirely.
+
+### What shipped (Tier 1 — highest-impact)
+- **Shop Icon "drop to replace" UX** (`Settings/_shared.jsx`): The dropzone always had `onDrop` wired, but the visual cue disappeared once an image was uploaded so users thought they had to click X first. Added: (1) persistent bottom "Drop or click to replace" hint band, (2) full-overlay orange "Drop to replace" indicator while a drag is active, (3) `pointer-events-none` on the `<img>` so the browser doesn't intercept the drag.
+- **Custom Order page reference upload** (`pages/CustomOrderPage.jsx`): The previous label *said* "Drop your file here" but had **no actual onDrop handler** — pure click-only fallback (dropping a file would open it in a new tab via browser default). Now a real `CoDropZone` component handles drag-drop + click + visual "Release to upload" state. High-impact buyer-facing change — direct conversion lever for the custom-order funnel.
+- **Maker Profile banner** (`pages/MakerDashboard/ProfileForm.jsx`): Plus-only banner upload wrapped with a drag-drop handler that preserves the Plus gating (drops ignored when `!isPlus`). Button label updates dynamically: "Drop or click to upload" → "Release to upload" (drag) → "Drop or click to replace" (after upload).
+
+### Files NOT touched (deferred to Tier 2)
+- `pages/CommunityPage.jsx` — 6 file inputs (showcase post creation). Heavy rework, mid-impact.
+- `components/PersonalizationPanel.jsx` — Personalization image. Mid-impact.
+- `pages/MakerDashboard/ProductEditCard.jsx` — 3D model `.glb` upload. Low traffic.
+
+### No new tests
+All changes are pure UX additions on existing upload paths. The underlying `uploadFn` calls (`uploadMakerPortrait`, `uploadMakerBanner`, custom-order's `handleFile`) are unchanged — existing test coverage still applies.
+
+
 
 ### Issue
 Five consecutive `video generation failed` errors on prod, including an 8-second instant-fail that ruled out timeout. Universal LLM Key balance was healthy ($108.98 with auto-recharge), ruling out budget. The instant-rejection signature matched Sora's content-moderation layer flagging prompts with words like "blasting", "molten", "slicing", "blade cutting" — false positives for violence on shop/CNC language.
@@ -86,6 +104,17 @@ Two new feed families on the existing EnrichLabs read-only API so any external m
 - `GET /api/admin/seed/clips/jobs/recent?limit=N` (capped at 25) — returns most-recent `clip_seed_jobs` rows, latest first, `_id` stripped.
 - `SettingsTab.jsx` renders a tiny strip under the Generate button: one row per render with status pill (done/error/running/queued — colour-coded, `running` pulses), start time, model, slug/reason, and duration in seconds. Auto-refreshes after every Generate click + has a `↻ Refresh` button. Hover-title surfaces the full error `detail` so degrading-Sora-queue patterns are spottable at a glance.
 - Tests: `tests/test_iter310c_recent_jobs.py` — **4/4 pass** (limit cap, latest-first order, admin gating, error-row payload integrity).
+
+## 2026-05-31 — Sora content-moderation fix + classified error UI (iter313c)
+
+### Issue
+Five consecutive `video generation failed` errors on prod, including an 8-second instant-fail that ruled out timeout. Universal LLM Key balance was healthy ($108.98 with auto-recharge), ruling out budget. The instant-rejection signature matched Sora's content-moderation layer flagging shop/CNC vocabulary.
+
+### What shipped
+- `clip_seeder.py`: Softened all 18 seed prompts (blasting→tracing, slicing→outlining, blade cutting→shaping, molten→glowing, leather gloves→work gloves, burning→inscribing). Same visuals, moderation-safe verbs.
+- `clip_seeder.py`: Raw provider error preserved verbatim + classified (moderation / 401 / 429 / 402) for actionable copy in the admin "Last 5 renders" inline-detail view.
+- `SettingsTab.jsx`: New classified failure badges — `BUDGET` (amber), `BLOCKED` (pink, content moderation), `RATE` (orange), `TIMEOUT` (red), `INSTANT-FAIL` (rose), `OTHER` (grey). Each row is clickable to expand the full `detail` inline.
+- Tests: 9/9 existing iter310/iter310c suites still pass.
 
 ## 2026-05-31 — Community feeds for external distribution (iter313)
 

@@ -18,6 +18,7 @@ export default function ProfileForm({ maker, onSaved }) {
   const [bannerUrl, setBannerUrl] = useState(maker.banner_image_url || "");
   const [bannerBusy, setBannerBusy] = useState(false);
   const [bannerErr, setBannerErr] = useState("");
+  const [bannerDrag, setBannerDrag] = useState(false);
   const bannerRef = useRef(null);
   const isPlus = maker.subscription_status === "active";
 
@@ -154,25 +155,45 @@ export default function ProfileForm({ maker, onSaved }) {
           className="hidden"
           data-testid="profile-banner-file"
         />
-        <button
-          type="button"
-          onClick={() => bannerRef.current?.click()}
-          disabled={!isPlus || bannerBusy}
-          className={`w-full border border-dashed px-4 py-3 text-left font-mono text-[11px] transition ${
-            isPlus
-              ? "border-[#262626] hover:border-[#ff4500] text-[#a3a3a3] hover:text-[#ff4500]"
-              : "border-[#1a1a1a] text-[#525252] cursor-not-allowed"
-          }`}
-          data-testid="profile-banner-upload"
+        {/* iter313d — Drag-drop wrapper. Maintains the existing
+            click-to-browse behavior + adds proper onDrop so the maker
+            can drag a banner JPG straight from their desktop. Plus-only
+            gating preserved — drops are ignored when isPlus is false. */}
+        <div
+          onDragOver={(e) => { if (isPlus && !bannerBusy) { e.preventDefault(); setBannerDrag(true); } }}
+          onDragLeave={() => setBannerDrag(false)}
+          onDrop={(e) => {
+            if (!isPlus || bannerBusy) return;
+            e.preventDefault();
+            setBannerDrag(false);
+            const f = e.dataTransfer.files?.[0];
+            if (f) onBannerFile({ target: { files: [f] } });
+          }}
         >
-          {bannerBusy
-            ? "Uploading…"
-            : !isPlus
-            ? "Upgrade to Crafters Plus to unlock"
-            : bannerUrl
-            ? "↻ Replace banner"
-            : "+ Upload banner image (recommended 1600×400)"}
-        </button>
+          <button
+            type="button"
+            onClick={() => bannerRef.current?.click()}
+            disabled={!isPlus || bannerBusy}
+            className={`w-full border border-dashed px-4 py-3 text-left font-mono text-[11px] transition ${
+              bannerDrag
+                ? "border-[#ff4500] text-[#ff4500] bg-[#ff4500]/5"
+                : isPlus
+                ? "border-[#262626] hover:border-[#ff4500] text-[#a3a3a3] hover:text-[#ff4500]"
+                : "border-[#1a1a1a] text-[#525252] cursor-not-allowed"
+            }`}
+            data-testid="profile-banner-upload"
+          >
+            {bannerBusy
+              ? "Uploading…"
+              : !isPlus
+              ? "Upgrade to Crafters Plus to unlock"
+              : bannerDrag
+              ? "↓ Release to upload"
+              : bannerUrl
+              ? "↻ Drop or click to replace banner"
+              : "+ Drop or click to upload banner (recommended 1600×400)"}
+          </button>
+        </div>
         {bannerErr && (
           <p className="font-mono text-[10px] text-red-400 mt-1" data-testid="profile-banner-err">{bannerErr}</p>
         )}
