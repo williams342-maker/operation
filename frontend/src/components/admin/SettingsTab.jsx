@@ -579,7 +579,12 @@ function ClipsSeedCard() {
   const [genResult, setGenResult] = useState(null);
   const [purgeStep, setPurgeStep] = useState(0);
   const [purgeBusy, setPurgeBusy] = useState(false);
-  const [model, setModel] = useState("sora-2-pro");
+  // iter314c — Default flipped to base sora-2 (horizontal). Sora pro
+  // queue has been saturating its 900s wait ceiling, while sora-2 base
+  // is finishing in 60-90s reliably. Pro still selectable from the
+  // dropdown; auto-fallback in clip_seeder.py covers either choice.
+  // Revisit ~mid-June 2026 once pro capacity stabilises.
+  const [model, setModel] = useState("sora-2");
 
   const refresh = async () => {
     try { setStatus(await fetchClipsSeedStatus()); } catch (_e) { /* admin-gated */ }
@@ -777,8 +782,8 @@ function ClipsSeedCard() {
             className="ml-2 bg-[#0a0a0a] border border-[#262626] px-2 py-1 font-mono text-xs"
             data-testid="clips-seed-model"
           >
-            <option value="sora-2-pro">sora-2-pro · 1024×1792 (recommended)</option>
-            <option value="sora-2">sora-2 · 1280×720 horizontal (cheaper)</option>
+            <option value="sora-2">sora-2 · 1280×720 horizontal (recommended · faster + cheaper)</option>
+            <option value="sora-2-pro">sora-2-pro · 1024×1792 vertical (premium · slower queue)</option>
           </select>
         </label>
         <div>
