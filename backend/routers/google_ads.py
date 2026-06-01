@@ -152,10 +152,16 @@ async def oauth_start(_: dict = Depends(current_admin)):
         # refresh_token alongside the access_token. Without it we'd
         # get an access_token only and the daily sync would fail.
         "access_type": "offline",
-        # `prompt=consent` forces Google to re-issue a refresh_token
-        # even if the admin has already authorized this OAuth app
-        # (Google de-dupes refresh tokens by default).
-        "prompt": "consent",
+        # `prompt=consent select_account` — iter314d:
+        # • `consent` forces Google to re-issue a refresh_token even
+        #   when the admin has previously authorized this OAuth app
+        #   (Google de-dupes refresh tokens by default).
+        # • `select_account` forces Google to show the account picker
+        #   instead of silently using whichever Google account the
+        #   browser is currently signed in to. Prevents the wrong-account
+        #   trap (e.g. signed in as williams342 when you mean
+        #   williams1cnc — the Google Ads account owner).
+        "prompt": "consent select_account",
         "state": state,
     }
     return OauthStartResponse(
