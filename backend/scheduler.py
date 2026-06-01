@@ -742,6 +742,20 @@ async def _job_meta_ads_daily_sync() -> None:
         logger.exception("[scheduler] meta_ads_daily_sync failed: %s", e)
 
 
+async def _job_listing_budgets_renew() -> None:
+    """iter315 — Daily 03:30 UTC. Resets MTD spend on the 1st of each
+    month + auto-renews $5/wk boosts on listings whose maker-set
+    budget still has headroom. Idempotent within the day (skips
+    listings whose `promoted_until` is >24h out)."""
+    try:
+        from routers.listing_budgets import renew_listing_budgets_tick
+        r = await renew_listing_budgets_tick()
+        logger.info("[scheduler] listing_budgets_renew: %s", r)
+    except Exception as e:
+        logger.exception("[scheduler] listing_budgets_renew failed: %s", e)
+
+
+
 async def _job_maker_journal_digest() -> None:
     """Weekly Monday 14:00 UTC — for each maker who published one or
     more journal posts in the past 7 days, send a single digest email
@@ -1154,6 +1168,11 @@ def start_scheduler() -> AsyncIOScheduler | None:
     # "Publish now" from the queue UI.
     sched.add_job(_job_social_auto_publish, CronTrigger(minute="*/15"),
                   id="social_auto_publish", replace_existing=True)
+    # iter315 — per-listing marketing budgets: daily 03:30 UTC tick
+    # rolls month-start counters AND auto-renews $5/wk boosts on
+    # listings that still have budget for the calendar month.
+    sched.add_job(_job_listing_budgets_renew, CronTrigger(hour=3, minute=30),
+                  id="listing_budgets_renew", replace_existing=True)
     sched.start()
     _scheduler = sched
     logger.info(

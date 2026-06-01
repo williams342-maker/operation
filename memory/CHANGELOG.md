@@ -1,4 +1,41 @@
-## 2026-06-01 — Sora classifier false-positive fix + auto-fallback (iter314b)
+## 2026-06-01 — Per-listing marketing budgets (iter315)
+
+### What shipped
+Makers can now set a monthly $-cap **per listing** for marketing spend. A daily backend cron auto-renews the existing $5/wk on-site boost as long as the listing has budget remaining for the calendar month. Spend resets on the 1st automatically (lazy roll on next read + persisted by the cron).
+
+**Why now / why this shape:** External Google/Meta ad budgets per listing (the larger option discussed) are blocked on Google brand verification and Standard API access — both multi-week external dependencies. The internal-boost lever ships today, reuses the existing boost machinery + `accrue_promotion_charge` flow, and the data model is intentionally a superset so external ads can plug into the same UI when verification clears.
+
+### Backend
+- `routers/listing_budgets.py` (new):
+  - `GET /api/maker/listing-budgets` — all budgets for caller, decorated with product title, `promoted_until`, MTD impressions, MTD conversions (single aggregation each, no N+1).
+  - `PUT /api/maker/listing-budgets/{slug}` — owner-gated upsert (rejects non-owner with 404, rejects draft listings with 400, caps at $1000/mo).
+  - `DELETE /api/maker/listing-budgets/{slug}` — remove the budget row entirely.
+  - `renew_listing_budgets_tick()` — exported async fn called from scheduler.
+- `scheduler.py`: new `_job_listing_budgets_renew` job, daily 03:30 UTC. Two passes: (1) period roll on month boundary; (2) auto-renew candidates with headroom + listing within 24h of lapsing. The 24h-window guard ensures ≤1 charge per week regardless of cron frequency.
+- New collection `db.maker_listing_budgets` with compound key `(maker_slug, product_slug)`.
+
+### Frontend
+- `MakerDashboard/Marketing/ListingBudgetsSection.jsx` (new):
+  - Table per listing: cap input, auto-renew checkbox, MTD spend progress bar (orange → grey at cap), MTD conversions/views with CVR, Save/Remove buttons.
+  - Header summary tiles: total cap, total MTD spend, count auto-renewing.
+  - "Boosted" green pill on listings currently within their `promoted_until` window.
+- Mounted in the existing **Marketing & AI** tab, between Ads section and AI Copy Tools.
+- API client helpers in `lib/api.js`.
+
+### Tests
+`tests/test_iter315_listing_budgets.py` — **6/6 pass**:
+- CRUD round-trip (upsert → list → update → delete)
+- Owner-gating (rejects another maker's product)
+- Draft-listing rejection
+- Renew tick: charges $5, sets `promoted_until`, increments `spent_cents`
+- Cap respect: tick skips listings where `spent + 500 > cap`
+- 24h-window guard: tick skips listings still actively promoted
+
+### What this does NOT do (yet)
+- External Google/Meta ad spend per listing — waits on Google brand verification + Standard API access.
+- Per-listing ROAS in dollars — currently surfaces conversions count + CVR. Adding revenue attribution is a small follow-up once `events.product_buy` carries the line-item price.
+
+
 
 ### Issue
 User flagged 4 errors badged `BUDGET` in the admin "Last 5 renders" strip — but Universal LLM Key balance was actually $102.80 with auto-recharge enabled. The renders were timeouts (all ~902s = the 900s `max_wait_time` ceiling for sora-2-pro), not budget rejections.
@@ -161,6 +198,10 @@ Two new feed families on the existing EnrichLabs read-only API so any external m
 - `GET /api/admin/seed/clips/jobs/recent?limit=N` (capped at 25) — returns most-recent `clip_seed_jobs` rows, latest first, `_id` stripped.
 - `SettingsTab.jsx` renders a tiny strip under the Generate button: one row per render with status pill (done/error/running/queued — colour-coded, `running` pulses), start time, model, slug/reason, and duration in seconds. Auto-refreshes after every Generate click + has a `↻ Refresh` button. Hover-title surfaces the full error `detail` so degrading-Sora-queue patterns are spottable at a glance.
 - Tests: `tests/test_iter310c_recent_jobs.py` — **4/4 pass** (limit cap, latest-first order, admin gating, error-row payload integrity).
+
+## 2026-06-01 — Sora classifier false-positive fix + auto-fallback (iter314b)
+
+User saw 4 timeouts (~902s each) mis-badged as BUDGET despite healthy $102.80 Universal Key balance. Root cause: timeout error copy mentioned "budget" in narrative text, and the frontend classifier checked for that substring BEFORE the precise timeout markers. Fix: rewrote timeout copy to omit "budget"; reordered classifier (TIMEOUT first via `startsWith` / duration; BUDGET only on exact phrase or 402). Added auto-fallback — if sora-2-pro hits the 900s ceiling, the seeder retries once with base sora-2 and tags the title `(fallback)`. 9/9 tests still green.
 
 ## 2026-06-01 — Transparent pricing PDF + public surfaces (iter314)
 

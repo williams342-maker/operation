@@ -13,6 +13,7 @@ import DiscountCodes from "./Marketing/DiscountCodes";
 import FounderCardSection from "./Marketing/FounderCardSection";
 import FounderEmailSignature from "./Marketing/FounderEmailSignature";
 import SocialAutoPostSection from "./Marketing/SocialAutoPostSection";
+import ListingBudgetsSection from "./Marketing/ListingBudgetsSection";
 
 /**
  * Etsy-parity Marketing hub.
@@ -103,6 +104,7 @@ function AdsAndAITools() {
   return (
     <div className="space-y-6">
       <AdsSection />
+      <ListingBudgetsSection />
       <AICopyTools />
       <MarketingTips />
     </div>

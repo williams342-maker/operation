@@ -1074,6 +1074,18 @@ export const helpChat = (payload) => http.post("/help/chat", payload).then((r) =
 export const fetchTopHelpQuestions = (days = 7, limit = 20) =>
   http.get(`/help/analytics/top-questions?days=${days}&limit=${limit}`).then((r) => r.data);
 
+// ---------- Per-listing marketing budgets (iter315) ----------
+export const fetchListingBudgets = () =>
+  http.get("/maker/listing-budgets", { headers: _makerAuth() }).then((r) => r.data);
+export const upsertListingBudget = (productSlug, body) =>
+  http.put(`/maker/listing-budgets/${encodeURIComponent(productSlug)}`, body, {
+    headers: _makerAuth(),
+  }).then((r) => r.data);
+export const deleteListingBudget = (productSlug) =>
+  http.delete(`/maker/listing-budgets/${encodeURIComponent(productSlug)}`, {
+    headers: _makerAuth(),
+  }).then((r) => r.data);
+
 // ---------- Community ----------
 const buyerAuthHeaders = () => {
   const t = localStorage.getItem("cm_buyer_jwt");
