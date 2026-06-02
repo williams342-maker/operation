@@ -493,6 +493,307 @@ export const SEO_LANDING_PAGES = {
     ctaLabel: "Shop gifts for dad",
     ctaHref: "/shop",
   },
+
+  // ── iter321 — 5 new category landing pages (SEO/Trust audit) ──────
+  "plasma-cut-wall-art": {
+    slug: "plasma-cut-wall-art",
+    keyword: "Plasma Cut Wall Art",
+    eyebrow: "Curated · Plasma Cut Wall Art",
+    h1: "Plasma Cut Wall Art, Made in American Shops.",
+    intro:
+      "Real plasma-cut steel wall art — abstract sculptures, geometric panels, wildlife silhouettes, family-name monograms, and custom statement pieces. Every piece is cut on a CNC plasma table by a vetted American maker, then hand-finished in their workshop.",
+    paragraphs: [
+      "Plasma cutting gives steel a depth you can't fake — raw cut edges, controlled HAZ patina, and the kind of weight that makes a 4-foot panel land on a wall instead of float on it. Our makers run Hypertherm Powermax and EDGE Pro tables to keep cuts crisp on stock from 12-gauge up to 1/4-inch plate.",
+      "Most plasma-cut pieces ship in 2-4 weeks. Custom monograms, ranch silhouettes, compass roses, and one-off commissions are bread-and-butter — submit a brief with your size, finish, and dimensions and the maker quotes back inside 24 hours.",
+    ],
+    bodyExtras: [
+      {
+        heading: "What plasma cutting actually means",
+        paragraphs: [
+          "Plasma cutting passes a high-velocity ionized gas stream through steel to slice through it cleanly — the result is a sharper, more controlled cut than oxy-fuel and the ability to handle thicker stock than fiber laser. For wall art, that translates into pieces that look like sculpture, not stamped sheet metal.",
+          "Look for makers running CNC plasma (not handheld torches) for art-grade work — every curve in the photo was generated from a vector file, not freehanded. That's why our marketplace surfaces the machine type on every maker's profile.",
+        ],
+      },
+      {
+        heading: "Finishes that survive the wall",
+        paragraphs: [
+          "Indoor plasma-cut steel typically ships with a clear-coat or hand-rubbed oil finish that preserves the raw mill scale and HAZ coloring around the cut edge. For a darker look, makers blacken the steel with gun-blue or hot-patina then seal it. For outdoor pieces, powder-coat (RAL or Pantone matched) gives 5-7+ years of UV durability.",
+          "If you want a controlled rust patina (the orange-brown 'weathered steel' look popular for ranch and farmhouse decor), the maker accelerates the rust with saltwater + vinegar + peroxide, then seals it with industrial clear-coat so it stops oxidizing.",
+        ],
+      },
+    ],
+    faqs: [
+      {
+        q: "Plasma vs. laser — what's the difference for wall art?",
+        a: "Plasma is faster and cheaper on thick stock (1/8-inch and up), and the cut edge has a slightly rounded, hand-finished look. Fiber laser is razor-sharp on thin stock (under 1/8-inch) and great for fine detail like tight lettering. Most wall art at 16+ inches looks better in plasma; small ornate pieces under a foot look better in laser.",
+      },
+      {
+        q: "How big can a plasma-cut wall piece be?",
+        a: "Our makers' tables max out around 5x10 feet of cut bed, but pieces can be built modular up to any size — a 12-foot ranch entry sign typically ships as 2-3 sections that bolt together on site. Tell the maker your max wall dimension and they'll plan the splits where they're least visible.",
+      },
+      {
+        q: "Can I supply my own design file?",
+        a: "Yes — most makers accept .dxf, .ai, .svg, or even high-resolution PNG that can be re-traced. Vector files run straight to the table. Raster designs add a small re-tracing fee. Send what you have and the maker will tell you if it's table-ready.",
+      },
+      {
+        q: "What does it cost?",
+        a: "Plasma-cut wall pieces start around $95 for small accent panels (12-18 inches) and scale up to $1,500+ for 6-foot statement pieces or multi-layered welded sculptures. The price drivers are total cut length, material gauge, and finish system — every quote breaks down where the cost goes.",
+      },
+    ],
+    relatedLinks: [
+      { to: "/cnc-metal-wall-art", label: "CNC Metal Wall Art", blurb: "All metal wall art (plasma + laser + router)." },
+      { to: "/custom-metal-signs", label: "Custom Metal Signs", blurb: "Address, family-name, and storefront signage." },
+      { to: "/outdoor-metal-decor", label: "Outdoor Metal Decor", blurb: "Yard art and garden silhouettes built for weather." },
+      { to: "/custom-ranch-signs", label: "Custom Ranch Signs", blurb: "Property-entry plasma signs with livestock brands." },
+      { to: "/cnc-metal-art", label: "CNC Metal Art", blurb: "The full CNC-fabricated metal art catalog." },
+      { to: "/how-custom-orders-work", label: "How Custom Orders Work", blurb: "The 5-step brief-to-shipping flow." },
+    ],
+    match: (p) =>
+      /plasma|wall art|sculpture|panel|silhouette|monogram/i.test(`${p.title} ${p.description}`)
+      || p.technique === "PLASMA",
+    ctaLabel: "Browse plasma cut wall art",
+    ctaHref: "/shop?category=Wall%20Art",
+  },
+
+  "cnc-wood-signs": {
+    slug: "cnc-wood-signs",
+    keyword: "CNC Wood Signs",
+    eyebrow: "Made-to-Order · CNC Wood Signs",
+    h1: "CNC Wood Signs, Carved in American Shops.",
+    intro:
+      "V-carved and 3D-routed wood signs in walnut, white oak, cherry, maple, and reclaimed hardwoods — family-name signs, address plaques, business signage, cabin and lake-house names, wedding signs, and memorial pieces. Every sign is routed on a CNC and finished by hand.",
+    paragraphs: [
+      "CNC wood signs look like they were carved by hand but with the precision of a laser — clean V-grooves, deep 3D relief, perfect repeatable letterforms in any font. Our makers run ShopBots, Avid CNCs, and large-format Laguna routers on solid hardwood up to 8 feet long.",
+      "Standard finishes: hand-rubbed oil for indoor pieces, marine-grade spar urethane for porch and entry signs, and epoxy-filled inlays for high-contrast letter work. Most signs ship in 2-4 weeks; rush is available on most makers for an extra fee.",
+    ],
+    bodyExtras: [
+      {
+        heading: "Wood species and what they're good for",
+        paragraphs: [
+          "Walnut is the workhorse for high-end signs — dark chocolate grain, takes V-carve cleanly, gets richer with age. White oak handles outdoor exposure better than any other domestic hardwood (it's what they build wine barrels and shipyards out of) — sealed white oak signs last 15+ years outside. Cherry is gorgeous for indoor pieces and gets a deeper red patina with sunlight. Maple is the cheapest hardwood that still looks premium and is perfect for stained or painted signs.",
+          "If you want reclaimed wood (barn-board, salvaged lumber with natural patina), most makers source regionally and can quote with photos before they cut. Reclaimed adds character and story but limits the size — you're working with what the salvage yard has on the truck.",
+        ],
+      },
+      {
+        heading: "V-carve, 3D relief, and epoxy inlay",
+        paragraphs: [
+          "V-carving cuts the letter or graphic at a 60- or 90-degree angle so the deepest point is at the centerline — it's the classic 'carved' wood-sign look you've seen on cabin and ranch signs your whole life. 3D relief uses multiple tool passes to actually carve the design out of the surface (think topographic maps or sculpted faces) — more expensive but lets the wood become a sculpture.",
+          "Epoxy inlay is the modern upgrade: V-carve the design deep, then fill the channel with pigmented epoxy (black, white, gold leaf, glow-in-the-dark, color-matched to your branding), sand flush, and finish. The result is a perfectly flat surface where the design pops in another color — high-contrast at any viewing distance. Adds 1-2 weeks to lead time and ~30% to cost but transforms the piece.",
+        ],
+      },
+    ],
+    faqs: [
+      {
+        q: "Are CNC wood signs as good as hand-carved?",
+        a: "Different strengths. Hand-carving has slight imperfections that read as 'human' up close — beautiful for small heirloom pieces. CNC delivers perfect consistency, repeatable lettering, and lets you scale to 6-foot signs that would take a hand-carver months. The best CNC sign-makers hand-finish (sand, oil, distress) after the router pass so the sign reads as crafted, not machine-stamped. That's what we vet for.",
+      },
+      {
+        q: "How long do CNC wood signs last outside?",
+        a: "With marine-grade spar urethane on sealed white oak or western red cedar: 15+ years before refinishing. With standard exterior poly on softer woods like walnut or maple: 5-7 years before fading or checking. Re-coat every 5-7 years and an outdoor sign can last indefinitely. Tell the maker your climate (humidity, sun exposure, freeze cycles) and they'll match the finish system.",
+      },
+      {
+        q: "Can I get a CNC sign with my logo or custom font?",
+        a: "Yes — every CNC sign is custom by definition. Send your logo as a vector (.svg, .ai, .dxf) or as a clean high-res image to re-trace, and your font as a .ttf file (or just the font name if it's a common one). Custom fonts cost nothing extra; logo re-tracing is a small one-time setup fee.",
+      },
+      {
+        q: "What sizes work for V-carved address signs?",
+        a: "Standard porch address signs run 18-24 inches wide with 4-inch numbers. For mounting at the street or above a garage, scale up to 30-48 inches with 6-8 inch numbers so they're readable from 50 feet away. Our makers will tell you the readable distance for any size — match it to where the sign will be viewed from.",
+      },
+    ],
+    relatedLinks: [
+      { to: "/custom-metal-signs", label: "Custom Metal Signs", blurb: "Plasma and laser-cut steel signage." },
+      { to: "/custom-address-signs", label: "Custom Address Signs", blurb: "Wood and metal house-number plaques." },
+      { to: "/farmhouse-decor", label: "Farmhouse Decor", blurb: "Distressed wood and CNC pieces for farmhouse aesthetics." },
+      { to: "/rustic-cabin-decor", label: "Rustic Cabin Decor", blurb: "Cabin and lake-house signs and wall pieces." },
+      { to: "/wedding-gifts", label: "Wedding Gifts", blurb: "Wedding-name and date V-carved signs." },
+      { to: "/how-custom-orders-work", label: "How Custom Orders Work", blurb: "The brief-to-shipping flow for custom CNC work." },
+    ],
+    match: (p) =>
+      /wood|sign|v-carve|v carve|carved|router|hardwood|walnut|oak|maple|cherry/i.test(`${p.title} ${p.description}`)
+      || p.technique === "ROUTER",
+    ctaLabel: "Browse CNC wood signs",
+    ctaHref: "/shop?category=Custom%20Signs",
+  },
+
+  "laser-engraved-gifts": {
+    slug: "laser-engraved-gifts",
+    keyword: "Laser Engraved Gifts",
+    eyebrow: "Made-to-Order · Laser Engraved Gifts",
+    h1: "Laser Engraved Gifts, Personalized in Real Shops.",
+    intro:
+      "Engraved cutting boards, custom whiskey glasses, leather portfolios, slate coasters, photo-engraved keepsakes, and one-off personalized pieces — every gift is laser-engraved by an American maker, not screen-printed in a factory.",
+    paragraphs: [
+      "Laser engraving permanently marks wood, leather, slate, glass, anodized aluminum, and acrylic without changing the substrate's shape — the design becomes part of the material itself. Our makers run Epilog, Trotec, and OMTech CO2 and fiber lasers calibrated to keep edges crisp at any scale.",
+      "Most engraved gifts ship in 5-10 business days because the engraving step itself is fast — the wait is the curing of any oil or wax finish after the engraving. Rush orders for birthdays, anniversaries, weddings, and graduations are almost always available; just message the maker before checkout.",
+    ],
+    bodyExtras: [
+      {
+        heading: "Materials that engrave well — and ones that don't",
+        paragraphs: [
+          "Best results: walnut, cherry, maple, and oak hardwoods (clean dark contrast, no scorching when calibrated right); vegetable-tanned leather (deep brown burn line that ages beautifully); slate (high-contrast white-on-black); anodized aluminum (laser strips the anodization to reveal silver underneath — perfect for branded tumblers and tool tags); acrylic (clean frosted etching on either side).",
+          "Photos engrave best on light hardwood (maple, beech) or slate — the laser converts the photo to a grayscale dot pattern. Send the highest-resolution original you have; the maker will dither it for the laser. Avoid trying to engrave dark woods like walnut for photos (the contrast won't carry).",
+        ],
+      },
+      {
+        heading: "Personalization that doesn't look cheesy",
+        paragraphs: [
+          "The difference between a meaningful engraved gift and a tchotchke is usually the typography. Our makers stock a curated set of script and serif fonts that look hand-crafted; they'll also import any custom font you supply (.ttf). Skip the default 'Curlz' or 'Comic Sans' presets — pick a font that fits the piece (script for romantic gifts, slab serif for masculine pieces, sans serif for modern).",
+          "For couples gifts, three lines of text is the sweet spot: name 1, ampersand or date or symbol, name 2. More than that and the engraving starts to feel busy. For corporate gifts, lead with the recipient's name + a small logo block rather than the giver's logo top-and-center.",
+        ],
+      },
+    ],
+    faqs: [
+      {
+        q: "How long does laser engraving last?",
+        a: "Permanently. The laser physically alters the surface (carbonizes wood, etches slate, strips anodization on aluminum) — there's no ink or paint that can wear off. A cutting board you engrave today will still show the engraving after 30 years of dishwasher cycles, just lighter. Oil-treated boards keep the engraving sharper longer.",
+      },
+      {
+        q: "Can I engrave food-safe items?",
+        a: "Yes — every cutting board, charcuterie plank, and bamboo serving piece sold on the marketplace is laser-engraved on food-grade hardwood and finished with food-safe mineral oil and beeswax. The laser doesn't introduce any chemicals; it just chars the surface in a controlled pattern.",
+      },
+      {
+        q: "Can I send a photo for engraving?",
+        a: "Yes — most makers offer photo engraving on maple, slate, leather, or anodized aluminum. Send the highest-resolution original you have (ideally 1500+ pixels on the long edge). The maker converts it to a grayscale dot pattern that the laser reproduces; you'll see a digital proof before the engraving runs.",
+      },
+      {
+        q: "What's the shortest lead time for an engraved gift?",
+        a: "1-3 business days from order on most ready-stock items (cutting boards, glasses, slate coasters). Custom photos or complex multi-side engraving runs 5-10 days. Need it tomorrow? Many makers offer rush + overnight shipping for an upcharge — message them before checkout.",
+      },
+    ],
+    relatedLinks: [
+      { to: "/personalized-gifts", label: "Personalized Gifts", blurb: "All custom and monogrammed gift pieces." },
+      { to: "/wedding-gifts", label: "Wedding Gifts", blurb: "Engraved wedding-name boards and keepsakes." },
+      { to: "/engraved-cutting-boards", label: "Engraved Cutting Boards", blurb: "Hardwood boards with name + date engraving." },
+      { to: "/handmade-gifts-for-dad", label: "Handmade Gifts for Dad", blurb: "Engraved tools, whiskey glasses, and shop pieces." },
+      { to: "/memorial-pieces", label: "Memorial Pieces", blurb: "Tribute plaques and remembrance keepsakes." },
+      { to: "/how-custom-orders-work", label: "How Custom Orders Work", blurb: "The brief-to-shipping flow." },
+    ],
+    match: (p) =>
+      /engrav|laser|cutting board|glass|coaster|keepsake|leather|monogram/i.test(`${p.title} ${p.description}`)
+      || p.technique === "LASER",
+    ctaLabel: "Browse laser engraved gifts",
+    ctaHref: "/shop?q=engraved",
+  },
+
+  "custom-address-signs": {
+    slug: "custom-address-signs",
+    keyword: "Custom Address Signs",
+    eyebrow: "Made-to-Order · Custom Address Signs",
+    h1: "Custom Address Signs, Made for Your House Number.",
+    intro:
+      "Personalized address plaques in plasma-cut steel, V-carved hardwood, and laser-cut copper — built to your house number, street, and finish preferences by vetted American makers. The first thing visitors see should not be a stick-on number from the hardware store.",
+    paragraphs: [
+      "A custom address sign is the cheapest curb-appeal upgrade in real estate. Our makers build address plaques in raw steel, powder-coated aluminum, V-carved walnut, hand-burnished copper, and stained hardwood — sized from a 12-inch porch number up to 36-inch mailbox or driveway-entry signs.",
+      "Most address signs ship in 1-3 weeks with mounting hardware included (anchors sized for drywall, brick, stucco, or wood siding). Tell the maker your wall material and they'll send the right anchors in the box — no separate hardware-store trip after the sign arrives.",
+    ],
+    bodyExtras: [
+      {
+        heading: "Sizes that actually read from the street",
+        paragraphs: [
+          "The general rule: numbers should be 1 inch tall for every 10 feet of viewing distance. A house set 30 feet back from the road needs 3-inch numbers minimum. A mailbox sign needs 4-inch numbers to be readable from a car. A driveway-entry sign for a 100-foot lane needs 10-inch numbers.",
+          "Most porch and front-door address signs run 18-24 inches wide with 4-6 inch numbers — readable for delivery drivers and emergency services without being oversized. Driveway-entry signs scale up to 36+ inches with 8-12 inch numbers and are usually mounted on welded steel posts shipped separately.",
+        ],
+      },
+      {
+        heading: "Materials matched to your facade",
+        paragraphs: [
+          "Modern / contemporary homes: brushed aluminum, powder-coated steel in matte black or charcoal, or copper that's been sealed before it patinas. Clean sans-serif fonts, geometric layouts.",
+          "Traditional / craftsman / colonial homes: V-carved walnut or cherry with gold or black painted numbers, hand-rubbed oil finish, marine-grade spar urethane for weather. Serif or script fonts.",
+          "Farmhouse / ranch / rustic homes: raw steel with controlled patina, plasma-cut numbers with hammered edges, distressed reclaimed wood with hand-painted numbers. Slab-serif or hand-lettered fonts.",
+          "If you're not sure what fits, message the maker with a photo of your front door and they'll mock up two or three options before you commit.",
+        ],
+      },
+    ],
+    faqs: [
+      {
+        q: "How long do custom address signs last outside?",
+        a: "Powder-coated steel and aluminum signs last 7-10+ years before any visible fading. Marine-finished hardwood signs (white oak, walnut with spar urethane) last 5-7 years before they need a re-coat. Raw steel with sealed patina lasts indefinitely — the patina is the finish, and it's chemically stable once sealed. Tell the maker your climate (coastal, desert, snowbelt) and they'll match the finish to it.",
+      },
+      {
+        q: "Can the maker match my house's font or style?",
+        a: "Yes — send a photo of your existing house numbers (or your address, mailbox, or front door) and the maker will suggest 2-3 font and material combinations that match. Most makers offer 1-2 free font swaps before the cut goes on the table.",
+      },
+      {
+        q: "Do address signs come with mounting hardware?",
+        a: "Yes — every address sign ships with the right anchors for your wall material. Drywall + interior trim get heavy-duty anchors rated for the sign weight. Brick, stucco, and masonry get sleeves and masonry screws. Wood siding gets stainless deck screws. Tell the maker what your wall is and they include the right hardware at no extra charge.",
+      },
+      {
+        q: "What if my address has more than 4 digits?",
+        a: "No problem — our makers scale the layout to fit. Long addresses (5+ digits) typically go horizontal on a wider sign or split across two lines on a square layout. Street name + number combo signs are common for rural and ranch addresses. Just tell the maker your full address and any layout preference.",
+      },
+    ],
+    relatedLinks: [
+      { to: "/custom-metal-signs", label: "Custom Metal Signs", blurb: "All custom metal signage." },
+      { to: "/cnc-wood-signs", label: "CNC Wood Signs", blurb: "V-carved hardwood signs and plaques." },
+      { to: "/outdoor-metal-decor", label: "Outdoor Metal Decor", blurb: "Yard art, garden silhouettes, and mailbox flags." },
+      { to: "/custom-ranch-signs", label: "Custom Ranch Signs", blurb: "Large-format property and driveway entry signs." },
+      { to: "/business-signs", label: "Custom Business Signs", blurb: "Storefront and commercial signage." },
+      { to: "/how-custom-orders-work", label: "How Custom Orders Work", blurb: "5-step brief-to-shipping flow." },
+    ],
+    match: (p) =>
+      /address|house number|mailbox|porch|street|entry sign/i.test(`${p.title} ${p.description}`),
+    ctaLabel: "Order a custom address sign",
+    ctaHref: "/custom-order",
+  },
+
+  "engraved-cutting-boards": {
+    slug: "engraved-cutting-boards",
+    keyword: "Engraved Cutting Boards",
+    eyebrow: "Made-to-Order · Engraved Cutting Boards",
+    h1: "Engraved Cutting Boards, Made for Real Kitchens.",
+    intro:
+      "Hardwood cutting boards engraved with your family name, wedding date, monogram, or custom artwork — walnut, maple, cherry, and end-grain butcher blocks finished with food-safe mineral oil and beeswax by vetted American makers.",
+    paragraphs: [
+      "An engraved cutting board is the wedding gift that gets used three times a week for 30 years. Our makers route and laser-engrave solid hardwood boards in sizes from 9x12-inch personal boards up to 18x24-inch carving boards. Standard finishes are food-safe mineral oil topped with beeswax conditioner — refresh once a quarter and the board stays beautiful for decades.",
+      "Most engraved boards ship in 5-10 business days. End-grain butcher-block boards take longer (2-3 weeks) because each block is hand-glued from individual hardwood squares for self-healing knife marks and edge stability.",
+    ],
+    bodyExtras: [
+      {
+        heading: "Hardwoods that work in a real kitchen",
+        paragraphs: [
+          "Walnut is the showstopper — dark chocolate grain, engraves with high contrast, and the natural tannins resist staining from beets and berries. Maple is the chef's standard — pale, dense, and easy on knife edges. Cherry develops a deeper red over time and looks beautiful as a serving piece. White oak is the most water-resistant domestic hardwood and is ideal if the board will see a lot of dishwasher-adjacent use.",
+          "Skip exotic species (bamboo, teak, padauk) for engraved-gift cutting boards — they engrave with poor contrast, can react with food acids, and lack the look-and-feel that makes the gift land. Stick with American hardwoods.",
+        ],
+      },
+      {
+        heading: "Edge-grain vs. end-grain — what matters",
+        paragraphs: [
+          "Edge-grain boards (the long planks bonded side-to-side) are the most common: lighter, less expensive, and showcase the wood's flowing grain pattern beautifully — perfect for serving boards and gift pieces. Engraving stays sharp because the wood fibers run horizontal to the surface.",
+          "End-grain boards (small hardwood squares bonded face-up so the cut grain shows on top) are the chef's-knife standard: knife edges slip between the wood fibers instead of slicing them, so the board self-heals and stays sharp on your knives. Heavier, pricier, and the engraving sits on top of a checkerboard grain pattern instead of a flowing one. Decide based on whether the board is for daily cooking (end-grain) or for serving and display (edge-grain).",
+        ],
+      },
+    ],
+    faqs: [
+      {
+        q: "Is laser-engraved wood food-safe?",
+        a: "Yes — the laser carbonizes a thin layer of wood without introducing any chemicals. Finished with food-grade mineral oil and beeswax (both NSF-certified for direct food contact), the board is safe for raw meat, vegetables, bread, and cheese. Don't put it in a dishwasher (heat warps the wood) and re-condition with mineral oil every 1-3 months and it'll last 30+ years.",
+      },
+      {
+        q: "Will the engraving wear off?",
+        a: "No — laser engraving is permanent. The carbonized surface is sealed under the mineral-oil finish. After years of use, the engraving may lighten slightly from natural wear, but it never disappears. Re-conditioning with oil brings back the contrast.",
+      },
+      {
+        q: "Can I get a family-name + date engraved board?",
+        a: "Yes — this is the most-ordered customization. Standard layout is last name on top in larger script, established date below in smaller serif. Many makers also offer monogram-in-a-wreath, vintage-style banner art, or your own custom artwork. Send the maker your preferred font and layout in the order notes.",
+      },
+      {
+        q: "What size board should I get for a wedding gift?",
+        a: "12x18 inch is the gift-standard sweet spot — large enough for a charcuterie spread or a multi-course prep job, small enough to fit on most counters. For couples who entertain, jump to 14x20. For everyday-use kitchens, a 10x14 personal board is more practical. End-grain butcher-block versions of any of these add weight and price but last forever.",
+      },
+    ],
+    relatedLinks: [
+      { to: "/laser-engraved-gifts", label: "Laser Engraved Gifts", blurb: "All laser-engraved gift pieces." },
+      { to: "/wedding-gifts", label: "Wedding Gifts", blurb: "Engraved wedding-name boards and keepsakes." },
+      { to: "/personalized-gifts", label: "Personalized Gifts", blurb: "All custom and monogrammed gift pieces." },
+      { to: "/handmade-gifts-for-dad", label: "Handmade Gifts for Dad", blurb: "Engraved tools, whiskey glasses, and shop pieces." },
+      { to: "/cnc-wood-signs", label: "CNC Wood Signs", blurb: "V-carved hardwood signs and plaques." },
+      { to: "/how-custom-orders-work", label: "How Custom Orders Work", blurb: "5-step brief-to-shipping flow." },
+    ],
+    match: (p) =>
+      /cutting board|charcuterie|serving|butcher|board/i.test(`${p.title} ${p.description}`),
+    ctaLabel: "Browse engraved cutting boards",
+    ctaHref: "/shop?q=cutting+board",
+  },
 };
 
 /** Slug list for sitemap consumers — keep in sync with the keys above. */

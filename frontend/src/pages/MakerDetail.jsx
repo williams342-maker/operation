@@ -155,6 +155,50 @@ export default function MakerDetail() {
             </div>
           )}
           <div className="font-mono text-xs uppercase tracking-[0.22em] text-[#a3a3a3] mt-2">{m.location} · {m.listings_count} listings · ★ {m.rating}</div>
+          {/* iter321 — Trust / proof strip. Loud, scannable, sits above
+              the fold so buyers see the credentials before they scroll
+              into the bio. Each chip auto-hides when the underlying
+              field is empty so we never show "Replies in ~null hours". */}
+          {(m.years_crafting || m.response_time_hours || (m.machinery && m.machinery.length) || m.location) && (
+            <div
+              className="mt-4 flex flex-wrap gap-2"
+              data-testid="maker-trust-strip"
+            >
+              {m.location ? (
+                <span
+                  className="inline-flex items-center gap-2 px-3 py-1.5 border border-[#262626] bg-black/40 backdrop-blur font-mono text-[10px] uppercase tracking-[0.22em] text-[#e5e5e5]"
+                  data-testid="maker-trust-location"
+                >
+                  <span className="text-[#ff4500]">◆</span> Workshop · {m.location}
+                </span>
+              ) : null}
+              {m.years_crafting ? (
+                <span
+                  className="inline-flex items-center gap-2 px-3 py-1.5 border border-[#262626] bg-black/40 backdrop-blur font-mono text-[10px] uppercase tracking-[0.22em] text-[#e5e5e5]"
+                  data-testid="maker-trust-years"
+                >
+                  <span className="text-[#ff4500]">◆</span> {m.years_crafting}+ Years Active
+                </span>
+              ) : null}
+              {m.response_time_hours ? (
+                <span
+                  className="inline-flex items-center gap-2 px-3 py-1.5 border border-amber-500/40 bg-amber-500/[0.08] backdrop-blur font-mono text-[10px] uppercase tracking-[0.22em] text-amber-300"
+                  data-testid="maker-trust-response"
+                  title="Typical reply time to messages and custom-order briefs"
+                >
+                  <span>◆</span> Replies in ~{m.response_time_hours}h
+                </span>
+              ) : null}
+              {m.machinery && m.machinery.length > 0 ? (
+                <span
+                  className="inline-flex items-center gap-2 px-3 py-1.5 border border-[#262626] bg-black/40 backdrop-blur font-mono text-[10px] uppercase tracking-[0.22em] text-[#e5e5e5]"
+                  data-testid="maker-trust-machines"
+                >
+                  <span className="text-[#ff4500]">◆</span> {m.machinery.length} CNC machine{m.machinery.length > 1 ? "s" : ""}
+                </span>
+              ) : null}
+            </div>
+          )}
           <div className="mt-5 flex flex-wrap items-center gap-3">
             <FollowButton makerSlug={m.slug} makerName={m.name} />
             <ShareLinkButton kind="maker" slug={m.slug} testId="maker-share-link" />
@@ -254,6 +298,49 @@ export default function MakerDetail() {
           </div>
         </div>
         <SocialLinks maker={m} />
+
+        {/* iter321 — Workshop photos gallery. Real proof that the
+            maker runs a real shop floor. Auto-hides on empty so makers
+            without photos uploaded yet don't get a barren section. */}
+        {Array.isArray(m.workshop_photos) && m.workshop_photos.length > 0 && (
+          <section
+            className="mt-16 mb-16"
+            data-testid="maker-workshop-photos"
+          >
+            <div className="flex items-end justify-between mb-6">
+              <div>
+                <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#ff4500] mb-2">
+                  ◆ Inside the workshop
+                </div>
+                <h2 className="font-display text-3xl md:text-5xl leading-none">
+                  Real shop. Real machines.
+                </h2>
+              </div>
+              <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] hidden md:inline">
+                {m.workshop_photos.length} photo{m.workshop_photos.length > 1 ? "s" : ""}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
+              {m.workshop_photos.slice(0, 6).map((src, i) => (
+                <a
+                  key={`${src}-${i}`}
+                  href={src}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group block aspect-[4/3] overflow-hidden border border-[#262626] hover:border-[#ff4500] transition-colors bg-[#0a0a0a]"
+                  data-testid={`maker-workshop-photo-${i}`}
+                >
+                  <img
+                    src={src}
+                    alt={`${m.name} workshop · photo ${i + 1}`}
+                    loading="lazy"
+                    className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500"
+                  />
+                </a>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* iter186 — Workshop video grid (auto-hides when empty) */}
         <WorkshopVideoGrid videos={m.workshop_videos || []} />

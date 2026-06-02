@@ -198,9 +198,19 @@ export default function Hero() {
           ))}
         </motion.div>
 
-        <div className="mt-8 flex items-center justify-center gap-8 font-mono text-[10px] uppercase tracking-[0.28em] text-zinc-500">
+        <div className="mt-8 flex items-center justify-center gap-4 md:gap-8 font-mono text-[10px] uppercase tracking-[0.28em] text-zinc-500 flex-wrap">
           <span className="flex items-center gap-2">
             <span className="w-1.5 h-1.5 bg-amber-400 animate-pulse" /> 12 makers · live now
+          </span>
+          {/* iter321 — Loud business-model proof point. The single
+              clearest reason a maker (or buyer) should pick us over Etsy
+              et al. Sits with the other trust pills so it reads as
+              fact, not advertisement. */}
+          <span
+            className="flex items-center gap-2 text-amber-300"
+            data-testid="hero-trust-95-percent"
+          >
+            <span className="text-amber-400">◆</span> Makers keep 95% · 5% platform fee
           </span>
           <span className="hidden md:inline text-amber-500/60">Plasma · Laser · Router</span>
           <span className="hidden md:flex items-center gap-2">

@@ -29,6 +29,9 @@ SEO_LANDING_SLUGS: tuple[str, ...] = (
     "memorial-pieces", "outdoor-metal-decor", "business-signs",
     "patriotic-decor", "custom-ranch-signs", "cnc-metal-wall-art",
     "handmade-gifts-for-dad",
+    # SEO/Trust audit — category landing pages (iter321)
+    "plasma-cut-wall-art", "cnc-wood-signs", "laser-engraved-gifts",
+    "custom-address-signs", "engraved-cutting-boards",
 )
 SEO_LANDING_PATHS: tuple[str, ...] = tuple(f"/{s}" for s in SEO_LANDING_SLUGS)
 
@@ -103,6 +106,13 @@ async def sitemap_xml(http_request: Request):
         ("/custom-ranch-signs",    "weekly", "0.75"),
         ("/cnc-metal-wall-art",    "weekly", "0.85"),
         ("/handmade-gifts-for-dad", "weekly", "0.75"),
+        # iter321 — SEO/Trust audit category landing pages. High priority
+        # because each maps to a clear product-search intent.
+        ("/plasma-cut-wall-art",     "weekly", "0.85"),
+        ("/cnc-wood-signs",          "weekly", "0.85"),
+        ("/laser-engraved-gifts",    "weekly", "0.85"),
+        ("/custom-address-signs",    "weekly", "0.85"),
+        ("/engraved-cutting-boards", "weekly", "0.85"),
         # Phase-3 SEO hub (iter300) — content page bridging landing
         # pages to the /custom-order form. High priority because it
         # converts informational searches into commission briefs.

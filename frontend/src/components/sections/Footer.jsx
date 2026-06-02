@@ -35,15 +35,19 @@ const cols = [
   // SEO landing-page links — buried in the footer specifically for
   // search-engine discovery / link-equity flow. Keep human-readable
   // labels but link directly to the keyword-targeted slugs.
+  //
+  // iter321: rotated to surface the 5 new high-intent category pages
+  // (plasma-cut wall art, CNC wood signs, laser engraved gifts, custom
+  // address signs, engraved cutting boards) alongside the older slugs.
   {
-    title: "Explore",
+    title: "Browse by Craft",
     links: [
-      { label: "CNC Metal Art", href: "/cnc-metal-art" },
-      { label: "CNC Laser Art", href: "/cnc-laser-art" },
-      { label: "CNC Manufacturing", href: "/cnc-manufacturing" },
-      { label: "CNC USA", href: "/cnc-usa" },
-      { label: "Artisan Marketplace", href: "/artisan-marketplace" },
-      { label: "Custom Handmade Goods", href: "/custom-handmade-goods" },
+      { label: "Plasma Cut Wall Art", href: "/plasma-cut-wall-art" },
+      { label: "CNC Wood Signs", href: "/cnc-wood-signs" },
+      { label: "Laser Engraved Gifts", href: "/laser-engraved-gifts" },
+      { label: "Custom Address Signs", href: "/custom-address-signs" },
+      { label: "Engraved Cutting Boards", href: "/engraved-cutting-boards" },
+      { label: "Custom Metal Signs", href: "/custom-metal-signs" },
     ],
   },
 ];
@@ -95,6 +99,33 @@ export default function Footer() {
               A marketplace connecting buyers with approved CNC artisan makers. Built in workshops.
               Shipped to doorsteps.
             </p>
+            {/* iter321 — Trust / business-model strip. Loud and unambiguous:
+                makers keep 95% of every sale. No listing fees, no setup.
+                Surfaces the same message we publish in /fees.pdf so the
+                value prop is visible without a click. */}
+            <div
+              className="mt-6 border border-[#ff4500]/40 bg-[#ff4500]/[0.06] p-4 max-w-md"
+              data-testid="footer-business-model"
+            >
+              <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#ff4500] mb-2">
+                ◆ How we make money
+              </div>
+              <p className="font-mono text-xs text-[#e5e5e5] leading-relaxed">
+                <span className="text-white font-bold">Makers keep 95%.</span>{" "}
+                We take a flat <span className="text-white font-bold">5% platform fee</span> — no
+                listing fees, no setup costs, no hidden surcharges. Plus &amp; Founder makers pay
+                even less.{" "}
+                <a
+                  href="/fees.pdf"
+                  target="_blank"
+                  rel="noopener"
+                  className="text-[#ff4500] hover:text-white underline underline-offset-2"
+                  data-testid="footer-fees-pdf-link"
+                >
+                  See the full pricing PDF →
+                </a>
+              </p>
+            </div>
             <ul className="mt-8 space-y-2 font-mono text-xs uppercase tracking-[0.22em] text-[#a3a3a3]">
               <li className="flex items-center gap-3">
                 <Mail size={14} className="text-[#ff4500]" /> team@craftersmarket.org

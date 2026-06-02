@@ -217,6 +217,14 @@ class Maker(BaseModel):
     # tables specifically, not just the technique.
     years_crafting: Optional[int] = None
     machinery: List[str] = []
+    # iter321 — SEO/Trust audit proof signals.
+    # `workshop_photos`: up to 6 R2/CDN URLs of the maker's shop floor,
+    # machines, in-progress work. Surfaced on /makers/<slug> as a gallery.
+    # Stored as strings (not dicts) — the frontend handles lightbox + alt.
+    # `response_time_hours`: self-reported typical reply time to a custom
+    # order or message. Surfaced as "Replies in ~Nh" in the proof strip.
+    workshop_photos: List[str] = Field(default_factory=list)
+    response_time_hours: Optional[int] = None
     # Maker workshop videos (iter186). Up to 6 embeds (YouTube / Vimeo URL).
     # Each row: {url, video_id, provider, title?, thumbnail?, added_at}.
     # Provider+id are extracted from the URL at insert time so the frontend
@@ -697,6 +705,9 @@ class MakerProfileUpdate(BaseModel):
     # iter178 — Meet-the-Makers fields
     years_crafting: Optional[int] = None
     machinery: Optional[List[str]] = None
+    # iter321 — SEO/Trust audit proof signals (editable from profile tab).
+    workshop_photos: Optional[List[str]] = None
+    response_time_hours: Optional[int] = None
     portrait: Optional[str] = None
     cover: Optional[str] = None
     email: Optional[EmailStr] = None

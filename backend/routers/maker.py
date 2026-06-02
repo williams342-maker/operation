@@ -135,6 +135,28 @@ async def maker_update_profile(
             if len(clean) >= 12:
                 break
         updates["machinery"] = clean
+    # iter321 — Workshop photos (up to 6 URLs, strip/dedupe).
+    if "workshop_photos" in updates and isinstance(updates["workshop_photos"], list):
+        seen_p: set[str] = set()
+        clean_p: list[str] = []
+        for u in updates["workshop_photos"]:
+            s = (u or "").strip()
+            if not s or len(s) > 500 or not s.startswith(("http://", "https://", "/")):
+                continue
+            if s in seen_p:
+                continue
+            seen_p.add(s)
+            clean_p.append(s)
+            if len(clean_p) >= 6:
+                break
+        updates["workshop_photos"] = clean_p
+    # iter321 — Response time hours: clamp 1..168 (1h .. 7 days).
+    if "response_time_hours" in updates:
+        try:
+            rt = int(updates["response_time_hours"])
+            updates["response_time_hours"] = max(1, min(rt, 168))
+        except (TypeError, ValueError):
+            updates.pop("response_time_hours", None)
     if updates:
         await db.makers.update_one({"slug": slug}, {"$set": updates})
     maker = await db.makers.find_one({"slug": slug}, {"_id": 0})

@@ -224,6 +224,52 @@ _LANDING_CONTENT: dict[str, dict[str, object]] = {
             "Most pieces ship in 2-3 weeks with rush options for Father's Day, birthdays, and retirements. Filter by under-$50, under-$100, or commission a one-of-a-kind for the dad who has everything.",
         ],
     },
+    # iter321 — SEO/Trust audit category landing pages
+    "plasma-cut-wall-art": {
+        "h1": "Plasma Cut Wall Art, Made in American Shops.",
+        "title": "Plasma Cut Wall Art — Custom Steel Sculpture by US Makers | Crafters Market",
+        "desc": "Plasma-cut steel wall art — abstract sculptures, family monograms, ranch silhouettes, geometric panels. Cut on real CNC plasma tables by vetted American makers.",
+        "paragraphs": [
+            "Plasma cutting gives steel a depth you can't fake — raw cut edges, controlled HAZ patina, and the weight that makes a 4-foot panel land on a wall instead of float on it. Our makers run Hypertherm Powermax and EDGE Pro tables on stock from 12-gauge up to 1/4-inch plate.",
+            "Most plasma-cut wall pieces ship in 2-4 weeks. Custom monograms, ranch silhouettes, compass roses, and one-off commissions are bread-and-butter — submit a brief with your size, finish, and dimensions and the maker quotes back inside 24 hours.",
+        ],
+    },
+    "cnc-wood-signs": {
+        "h1": "CNC Wood Signs, Carved in American Shops.",
+        "title": "CNC Wood Signs — V-Carved & Routed by US Makers | Crafters Market",
+        "desc": "V-carved and 3D-routed wood signs in walnut, oak, cherry, maple — family-name, address, business, cabin, wedding, memorial pieces. Custom built by US makers.",
+        "paragraphs": [
+            "CNC wood signs look like they were carved by hand but with the precision of a laser — clean V-grooves, deep 3D relief, perfect repeatable letterforms in any font. Our makers run ShopBots, Avid CNCs, and large-format Laguna routers on solid hardwood up to 8 feet long.",
+            "Standard finishes: hand-rubbed oil for indoor pieces, marine-grade spar urethane for porch and entry signs, and epoxy-filled inlays for high-contrast letter work. Most signs ship in 2-4 weeks; rush is available on most makers for an extra fee.",
+        ],
+    },
+    "laser-engraved-gifts": {
+        "h1": "Laser Engraved Gifts, Personalized in Real Shops.",
+        "title": "Laser Engraved Gifts — Personalized by US Artisans | Crafters Market",
+        "desc": "Engraved cutting boards, whiskey glasses, leather portfolios, slate coasters, photo-engraved keepsakes — laser-engraved by US makers. No screen-printed factory gifts.",
+        "paragraphs": [
+            "Laser engraving permanently marks wood, leather, slate, glass, anodized aluminum, and acrylic without changing the substrate's shape — the design becomes part of the material itself. Our makers run Epilog, Trotec, and OMTech CO2 and fiber lasers calibrated to keep edges crisp at any scale.",
+            "Most engraved gifts ship in 5-10 business days because the engraving step itself is fast — the wait is the curing of any oil or wax finish after engraving. Rush orders for birthdays, anniversaries, weddings, and graduations are almost always available.",
+        ],
+    },
+    "custom-address-signs": {
+        "h1": "Custom Address Signs, Made for Your House Number.",
+        "title": "Custom Address Signs — Plasma, Wood & Copper by US Makers | Crafters Market",
+        "desc": "Personalized address plaques in plasma-cut steel, V-carved hardwood, and laser-cut copper. Built to your house number, street, and finish preferences by vetted US makers.",
+        "paragraphs": [
+            "A custom address sign is the cheapest curb-appeal upgrade in real estate. Our makers build address plaques in raw steel, powder-coated aluminum, V-carved walnut, hand-burnished copper, and stained hardwood — sized from a 12-inch porch number up to 36-inch mailbox or driveway-entry signs.",
+            "Most address signs ship in 1-3 weeks with mounting hardware included (anchors sized for drywall, brick, stucco, or wood siding). Tell the maker your wall material and they'll send the right anchors in the box — no separate hardware-store trip after the sign arrives.",
+        ],
+    },
+    "engraved-cutting-boards": {
+        "h1": "Engraved Cutting Boards, Made for Real Kitchens.",
+        "title": "Engraved Cutting Boards — Walnut, Maple, Cherry by US Makers | Crafters Market",
+        "desc": "Hardwood cutting boards engraved with your family name, wedding date, or monogram. Walnut, maple, cherry, end-grain butcher blocks — food-safe, made by US artisans.",
+        "paragraphs": [
+            "An engraved cutting board is the wedding gift that gets used three times a week for 30 years. Our makers route and laser-engrave solid hardwood boards in sizes from 9x12 personal boards up to 18x24 carving boards. Standard finishes are food-safe mineral oil topped with beeswax conditioner — refresh once a quarter and the board stays beautiful for decades.",
+            "Most engraved boards ship in 5-10 business days. End-grain butcher-block boards take longer (2-3 weeks) because each block is hand-glued from individual hardwood squares for self-healing knife marks and edge stability.",
+        ],
+    },
 }
 # Self-check at import — every slug in seo.SEO_LANDING_SLUGS should
 # have a matching content entry so a crawler never lands on a 404
