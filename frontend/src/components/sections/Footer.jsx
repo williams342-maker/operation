@@ -187,8 +187,12 @@ export default function Footer() {
             >
               Transparent pricing
             </a>
-            <Link to="/policy" className="hover:text-[#ff4500]" data-testid="footer-privacy">Privacy</Link>
-            <Link to="/policy" className="hover:text-[#ff4500]" data-testid="footer-terms">Terms</Link>
+            <Link to="/policy#privacy" className="hover:text-[#ff4500]" data-testid="footer-privacy">Privacy</Link>
+            <Link to="/policy#terms" className="hover:text-[#ff4500]" data-testid="footer-terms">Terms</Link>
+            <Link to="/policy#returns" className="hover:text-[#ff4500]" data-testid="footer-returns">Returns</Link>
+            <Link to="/policy#shipping" className="hover:text-[#ff4500]" data-testid="footer-shipping">Shipping</Link>
+            <Link to="/policy#buyer-protection" className="hover:text-[#ff4500]" data-testid="footer-buyer-protection">Buyer Protection</Link>
+            <Link to="/policy#maker-agreement" className="hover:text-[#ff4500]" data-testid="footer-maker-agreement">Maker Agreement</Link>
             <Link to="/contact" className="hover:text-[#ff4500]" data-testid="footer-contact">Contact</Link>
             <Link to="/press" className="hover:text-[#ff4500]" data-testid="footer-press">Press</Link>
           </div>

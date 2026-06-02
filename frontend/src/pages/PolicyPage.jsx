@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ChevronDown, FileText, Truck, RotateCcw, Wand2, Boxes, CreditCard,
   ShieldCheck, Lock, Ban, Copyright, AlertTriangle, UserX, Mail,
@@ -224,6 +224,10 @@ const SECTIONS = [
 
   {
     id: "marketplace",
+    // iter318a — alias anchors so direct deep-links from the footer
+    // (Buyer Protection / Maker Agreement) land on this section, which
+    // owns BOTH the buyer-side and seller-side rules.
+    aliasIds: ["buyer-protection", "maker-agreement"],
     icon: ShieldCheck,
     title: "Makers Market — Seller & Commission Policy",
     intro: "Crafters Market's Makers Market allows approved Artists to list and sell their work directly to buyers on our platform.",
@@ -435,9 +439,21 @@ function PolicySection({ section, isOpen, onToggle }) {
   const Icon = section.icon;
   return (
     <div
-      className={`border ${isOpen ? "border-[#ff4500]/40" : "border-[#262626]"} transition-colors`}
+      // iter318a — anchor target so footer links like `/policy#shipping`
+      // scroll the user to the right section. Browsers default to
+      // top-of-element on hash-jump, so we keep the wrapper id-bound
+      // (the page-level useEffect also force-opens this section).
+      id={section.id}
+      className={`border ${isOpen ? "border-[#ff4500]/40" : "border-[#262626]"} transition-colors scroll-mt-32`}
       data-testid={`policy-section-${section.id}`}
     >
+      {/* iter318a — alias anchors: footer links to /policy#buyer-protection
+          and /policy#maker-agreement both land on this same section,
+          because they're the two blocks inside the Makers Market policy.
+          Empty <span id> tags are inert layout-wise. */}
+      {section.aliasIds?.map((aid) => (
+        <span key={aid} id={aid} className="block scroll-mt-32" aria-hidden="true" />
+      ))}
       <button
         type="button"
         onClick={onToggle}
@@ -529,6 +545,31 @@ export default function PolicyPage() {
   // so the page reads as a structured index rather than a wall of text.
   const [open, setOpen] = useState({ terms: true, shipping: true, returns: true });
   const toggle = (id) => setOpen((s) => ({ ...s, [id]: !s[id] }));
+
+  // iter318a — hash deep-link support. When the user lands on
+  // `/policy#shipping` (or any alias like `#buyer-protection`), find
+  // the canonical section that owns that id (or claims it via aliasIds)
+  // and (a) force it open, (b) scroll it into view. Runs once on mount
+  // and again on any in-app hash change.
+  useEffect(() => {
+    const applyHash = () => {
+      const hash = (window.location.hash || "").replace(/^#/, "");
+      if (!hash) return;
+      const ownerId = (SECTIONS.find(
+        (s) => s.id === hash || (s.aliasIds || []).includes(hash),
+      ) || {}).id;
+      if (!ownerId) return;
+      setOpen((s) => ({ ...s, [ownerId]: true }));
+      // Defer scroll until after the section opens (next paint).
+      setTimeout(() => {
+        const el = document.getElementById(hash) || document.getElementById(ownerId);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 100);
+    };
+    applyHash();
+    window.addEventListener("hashchange", applyHash);
+    return () => window.removeEventListener("hashchange", applyHash);
+  }, []);
 
   useStructuredData({
     title: "Terms of Service & Site Policies · Crafters Market",

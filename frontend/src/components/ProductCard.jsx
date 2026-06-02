@@ -101,6 +101,46 @@ export default function ProductCard({ p, i = 0 }) {
           <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-[#a3a3a3]">
             {p.dimensions || "Made to order"}
           </p>
+          {/* iter318c — Trust strip: maker location · lead time ·
+              customization. Each pill renders only if the underlying
+              field is populated so we never show empty placeholders.
+              Keeps the card scannable: buyer sees who/where/how-fast
+              without opening the detail page. */}
+          {(p.maker_location || p.lead_time_days || p.accepts_custom_orders) && (
+            <div
+              className="mt-3 flex flex-wrap gap-x-3 gap-y-1.5 font-mono text-[10px] text-[#a3a3a3]"
+              data-testid={`product-card-trust-${p.slug}`}
+            >
+              {p.maker_location && (
+                <span
+                  className="inline-flex items-center gap-1"
+                  data-testid={`product-card-location-${p.slug}`}
+                >
+                  <span className="text-[#525252]">◆</span>
+                  {p.maker_location}
+                </span>
+              )}
+              {p.lead_time_days != null && p.lead_time_days > 0 && (
+                <span
+                  className="inline-flex items-center gap-1"
+                  data-testid={`product-card-lead-${p.slug}`}
+                >
+                  <span className="text-[#525252]">◆</span>
+                  Ships in {p.lead_time_days}d
+                </span>
+              )}
+              {p.accepts_custom_orders && (
+                <span
+                  className="inline-flex items-center gap-1 text-emerald-400"
+                  data-testid={`product-card-custom-${p.slug}`}
+                  title="Maker accepts custom-order briefs"
+                >
+                  <span>◆</span>
+                  Custom orders
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </Link>
     </motion.article>

@@ -127,6 +127,14 @@ class Product(BaseModel):
     # trialing). Drives the Plus badge on ProductCard and powers the
     # 3-tier catalog ranking boost. Never stored on the product doc.
     maker_is_plus: bool = False
+    # iter318c — Denormalized trust facts pulled from the maker on read
+    # (never stored on the product doc). Surface them on ProductCard so
+    # buyers see who built the piece + where + how fast they ship,
+    # without an N+1 maker fetch.
+    maker_location: Optional[str] = None
+    lead_time_days: Optional[int] = None
+    accepts_custom_orders: bool = False
+    maker_response_time_hours: Optional[int] = None
     # Transparent platform-seed marker. When True, this product was seeded by
     # the platform team as a "Featured Example" so the marketplace doesn't
     # feel empty pre-launch — ProductCard renders an explicit

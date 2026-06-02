@@ -87,6 +87,50 @@ const ROUTES = [
     regex: /^\/makers\/?$/i,
     rewrite: () => `/api/og/makers`,
   },
+  // iter318b — Static + SEO-landing routes.
+  // Homepage `/` → /api/og/home
+  {
+    regex: /^\/?$/,
+    rewrite: () => `/api/og/home`,
+  },
+  // /custom-order → /api/og/custom-order
+  {
+    regex: /^\/custom-order\/?$/i,
+    rewrite: () => `/api/og/custom-order`,
+  },
+  // /apply → /api/og/apply
+  {
+    regex: /^\/apply\/?$/i,
+    rewrite: () => `/api/og/apply`,
+  },
+  // /journal (index, no slug) → /api/og/journal
+  {
+    regex: /^\/journal\/?$/i,
+    rewrite: () => `/api/og/journal`,
+  },
+  // /policy → /api/og/policy
+  {
+    regex: /^\/policy\/?$/i,
+    rewrite: () => `/api/og/policy`,
+  },
+  // iter318b — SEO landing slugs. Keep this LAST among static routes
+  // so the more specific paths above always match first. The slug
+  // allowlist is enforced server-side; here we just check the URL
+  // shape (single kebab-case segment, no extra path bits).
+  // Maintenance: when adding a new landing slug, also add it to
+  // SEO_LANDING_SLUGS in /app/backend/routers/seo.py.
+  ...[
+    "cnc-metal-art", "cnc-laser-art", "cnc-manufacturing", "cnc-usa",
+    "artisan-marketplace", "custom-handmade-goods",
+    "custom-metal-signs", "personalized-gifts", "farmhouse-decor",
+    "garage-decor", "rustic-cabin-decor", "wedding-gifts",
+    "memorial-pieces", "outdoor-metal-decor", "business-signs",
+    "patriotic-decor", "custom-ranch-signs", "cnc-metal-wall-art",
+    "handmade-gifts-for-dad",
+  ].map((slug) => ({
+    regex: new RegExp(`^/${slug}/?$`, "i"),
+    rewrite: () => `/api/og/landing/${slug}`,
+  })),
 ];
 
 function isCrawler(ua) {

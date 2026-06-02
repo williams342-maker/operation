@@ -117,6 +117,32 @@ async def list_products(category: Optional[str] = None, technique: Optional[str]
         p["maker_is_veteran"] = p.get("maker_slug") in vet_slugs
         p["maker_is_plus"] = p.get("maker_slug") in plus_slugs
 
+    # iter318c — Denormalize maker fields onto the product so ProductCard
+    # can render the trust strip (location, lead time, custom-order
+    # availability) without an N+1 maker fetch per card. Veteran +
+    # plus flags already get bulk-resolved above; this adds the
+    # human-facing facts on the same code path.
+    maker_meta = {
+        m["slug"]: m async for m in db.makers.find(
+            {"deleted_at": {"$in": [None, ""]}},
+            {"_id": 0, "slug": 1, "location": 1, "lead_time_days": 1,
+             "processing_time_days": 1, "accepts_custom_orders": 1,
+             "response_time_hours": 1, "is_veteran_owned": 1},
+        )
+    }
+    for p in products:
+        m = maker_meta.get(p.get("maker_slug")) or {}
+        # Don't overwrite product-level fields if a maker explicitly
+        # set them on the listing (per-listing overrides win).
+        if not p.get("maker_location"):
+            p["maker_location"] = m.get("location") or None
+        if not p.get("lead_time_days"):
+            p["lead_time_days"] = p.get("processing_time_days") or m.get("lead_time_days") or m.get("processing_time_days")
+        if "accepts_custom_orders" not in p:
+            p["accepts_custom_orders"] = bool(m.get("accepts_custom_orders"))
+        if "maker_response_time_hours" not in p:
+            p["maker_response_time_hours"] = m.get("response_time_hours")
+
     def _sort_key(p):
         promo = p.get("promoted_until")
         is_promoted = bool(promo and promo > nowiso)
