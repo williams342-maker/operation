@@ -2,6 +2,25 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Check, X } from "lucide-react";
 import { GPC_PRESETS } from "./constants";
 
+// Consumer-language aliases for taxonomy paths whose Google text uses
+// industry terms (e.g. "Vehicles & Parts > Motor Vehicle Parts"). If a
+// maker types "automotive" or "car", we still surface those entries
+// without forcing them to know the verbatim Google wording.
+const PRESET_ALIASES = [
+  {
+    keywords: ["automotive", "auto", "car", "truck", "vehicle"],
+    match: (p) => p.startsWith("Vehicles & Parts > Vehicle Parts & Accessories > Motor Vehicle"),
+  },
+  {
+    keywords: ["boat", "marine", "watercraft", "yacht"],
+    match: (p) => p.includes("Watercraft"),
+  },
+  {
+    keywords: ["bike", "bicycle", "cycling"],
+    match: (p) => p.includes("Bicycle"),
+  },
+];
+
 /**
  * Searchable Google Product Category (GPC) combobox.
  *
@@ -47,7 +66,20 @@ export default function GpcCombobox({
   const filtered = useMemo(() => {
     const q = (query || "").trim().toLowerCase();
     if (!q) return GPC_PRESETS.slice(0, 30);
-    return GPC_PRESETS.filter((p) => p.toLowerCase().includes(q)).slice(0, 30);
+    // Direct substring match against the verbatim path.
+    const direct = GPC_PRESETS.filter((p) => p.toLowerCase().includes(q));
+    // Plus any preset that matches a consumer-language alias for `q`.
+    const aliasHits = PRESET_ALIASES
+      .filter((a) => a.keywords.some((kw) => kw.includes(q) || q.includes(kw)))
+      .flatMap((a) => GPC_PRESETS.filter(a.match));
+    // De-dupe while preserving order (direct first).
+    const seen = new Set();
+    const merged = [...direct, ...aliasHits].filter((p) => {
+      if (seen.has(p)) return false;
+      seen.add(p);
+      return true;
+    });
+    return merged.slice(0, 30);
   }, [query]);
 
   const commit = (next) => {

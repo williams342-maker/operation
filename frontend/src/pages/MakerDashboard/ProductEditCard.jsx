@@ -10,7 +10,7 @@ import {
 import { useConfirm } from "./useConfirm";
 import { toast } from "sonner";
 
-export default function ProductEditCard({ product, archived = false, draft = false, onChanged, stats = null, indexing = null }) {
+export default function ProductEditCard({ product, archived = false, draft = false, onChanged, onBudgetChanged, stats = null, indexing = null }) {
   const [confirm, confirmModal] = useConfirm();
   const [p, setP] = useState(product);
   const [open, setOpen] = useState(false);
@@ -301,7 +301,7 @@ export default function ProductEditCard({ product, archived = false, draft = fal
                   testid={`product-budget-${p.slug}`}
                   label={
                     hasBudget
-                      ? `$ Budget · $${((p.marketing_budget_cents ?? 0) / 100).toFixed(0)}/mo`
+                      ? `$ Budget · $${((product.marketing_budget_cents ?? 0) / 100).toFixed(0)}/mo`
                       : "$ Set marketing budget"
                   }
                 />
