@@ -39,6 +39,18 @@ export default function ProductEditCard({ product, archived = false, draft = fal
   );
   const [budgetBusy, setBudgetBusy] = useState(false);
   const hasBudget = (product.marketing_budget_cents ?? 0) > 0;
+  // Re-sync the popover inputs with the parent-decorated product
+  // whenever the budget map upstream changes (e.g. another card just
+  // saved or the listings list refreshed). Keeps the "$ X/mo" pill
+  // label and the popover's pre-fill in lockstep.
+  useEffect(() => {
+    setBudgetCap(
+      product.marketing_budget_cents != null
+        ? String(product.marketing_budget_cents / 100)
+        : ""
+    );
+    setBudgetAutoRenew(product.marketing_budget_auto_renew !== false);
+  }, [product.marketing_budget_cents, product.marketing_budget_auto_renew]);
   const modelInputRef = useRef(null);
 
   const save = async (e) => {
@@ -428,6 +440,7 @@ export default function ProductEditCard({ product, archived = false, draft = fal
                         }
                         // Refresh parent listing list so the pill picks
                         // up the new budget state via the next render.
+                        onBudgetChanged?.();
                         onChanged?.();
                         setBudgetOpen(false);
                       } catch (e) {

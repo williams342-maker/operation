@@ -74,19 +74,46 @@ def _google_product_category(category: str, technique: str) -> str:
     """
     _ = technique  # placeholder
     cat = (category or "").lower()
+    # Order matters — most specific matches first so e.g. "Wedding Gifts"
+    # hits the wedding branch before falling through to "gift".
+    if "address" in cat or "house number" in cat:
+        # House Numbers & Letters — verified leaf, 3 levels.
+        return "Home & Garden > Decor > House Numbers & Letters"
     if "sign" in cat:
         # GPC ID 6325 — verified leaf, 3 levels.
         return "Home & Garden > Decor > Signs"
+    if "wedding" in cat or "bridal" in cat:
+        # Wedding Decor — verified leaf, 4 levels.
+        return "Arts & Entertainment > Party & Celebration > Special Occasion Decor > Wedding Decor"
+    if "holiday" in cat or "season" in cat or "christmas" in cat:
+        # Seasonal & Holiday Decorations — verified leaf, 3 levels.
+        return "Home & Garden > Decor > Seasonal & Holiday Decorations"
+    if "outdoor" in cat or "garden" in cat or "yard" in cat:
+        # Garden Art — verified leaf, 4 levels. Best fit for CNC plasma
+        # cut yard pieces, hose-reel art, garden stakes, etc.
+        return "Home & Garden > Lawn & Garden > Outdoor Living > Garden Art"
+    if "kitchen" in cat or "bar" in cat or "cutting" in cat:
+        # Cutting Boards — verified leaf, 4 levels. Single most-common
+        # CNC kitchen item (engraved boards, charcuterie, bar plaques).
+        return "Home & Garden > Kitchen & Dining > Kitchen Tools & Utensils > Cutting Boards"
+    if "lighting" in cat or "lamp" in cat or "lantern" in cat:
+        # Lamps — verified leaf, 3 levels.
+        return "Home & Garden > Lighting > Lamps"
+    if "memorial" in cat or "tribute" in cat or " urn" in cat or cat.startswith("urn"):
+        # Plaques — verified leaf, 3 levels. Best fit for memorial
+        # plaques / dedication pieces. (Use a leading-space check on
+        # "urn" so it doesn't accidentally match "f-urn-iture".)
+        return "Home & Garden > Decor > Plaques"
+    if "furniture" in cat or "table" in cat:
+        # GPC ID 4239, 3 levels.
+        return "Furniture > Tables > Accent Tables"
+    if "shelf" in cat or "shelv" in cat:
+        # GPC ID 6361, 3 levels.
+        return "Furniture > Cabinets & Storage > Storage Cabinets"
     if "wall" in cat or "art" in cat:
         # GPC ID 500044 — verified leaf, 4 levels. (The non-existent
         # "Home & Garden > Decor > Wall Art" path was the iter294 bug.)
         return "Home & Garden > Decor > Artwork > Posters, Prints, & Visual Artwork"
-    if "shelf" in cat or "shelv" in cat:
-        # GPC ID 6361, 3 levels.
-        return "Furniture > Cabinets & Storage > Storage Cabinets"
-    if "furniture" in cat or "table" in cat:
-        # GPC ID 4239, 3 levels.
-        return "Furniture > Tables > Accent Tables"
     if "ornament" in cat or "decor" in cat:
         # GPC ID 500045 — verified leaf, 4 levels.
         return "Home & Garden > Decor > Artwork > Sculptures & Statues"

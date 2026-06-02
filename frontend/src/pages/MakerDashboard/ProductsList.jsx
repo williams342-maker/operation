@@ -69,6 +69,29 @@ export default function ProductsList({ products, onChanged, onRefresh }) {
       .catch(() => {});
     return () => { cancelled = true; };
   }, [products.length]);
+
+  // iter315b — Per-listing marketing budgets. Fetched once per
+  // listing list mount + after the inline "Save budget" popover
+  // commits (via `refreshBudgets`). Keyed by `product_slug` so the
+  // ProductEditCard can light up the "$ Budget · $X/mo" pill and
+  // preload the popover with current values.
+  const [budgetMap, setBudgetMap] = useState({});
+  const [budgetVersion, setBudgetVersion] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    fetchListingBudgets()
+      .then((d) => {
+        if (cancelled) return;
+        const map = {};
+        for (const b of d?.budgets || []) {
+          map[b.product_slug] = b;
+        }
+        setBudgetMap(map);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [products.length, budgetVersion]);
+  const refreshBudgets = () => setBudgetVersion((v) => v + 1);
   const toggleStats = () => {
     setShowStats((v) => {
       const next = !v;
@@ -189,9 +212,11 @@ export default function ProductsList({ products, onChanged, onRefresh }) {
                 </p>
               }
               onChanged={refresh}
+              onBudgetChanged={refreshBudgets}
               showStats={showStats}
               statsMap={statsMap}
               indexingMap={indexingMap}
+              budgetMap={budgetMap}
             />
           )}
           {view === "drafts" && (
@@ -204,10 +229,12 @@ export default function ProductsList({ products, onChanged, onRefresh }) {
                 </p>
               }
               onChanged={refresh}
+              onBudgetChanged={refreshBudgets}
               cardProps={{ draft: true }}
               showStats={showStats}
               statsMap={statsMap}
               indexingMap={indexingMap}
+              budgetMap={budgetMap}
             />
           )}
           {view === "archived" && (
@@ -255,7 +282,7 @@ function ViewSwitcher({ view, setView, counts }) {
   );
 }
 
-function Bucket({ items, testId, empty, onChanged, cardProps = {}, banner = null, showStats = false, statsMap = {}, indexingMap = {} }) {
+function Bucket({ items, testId, empty, onChanged, onBudgetChanged, cardProps = {}, banner = null, showStats = false, statsMap = {}, indexingMap = {}, budgetMap = {} }) {
   if (items.length === 0) {
     return (
       <section data-testid={testId} className="border border-dashed border-[#262626] p-8">
@@ -267,16 +294,31 @@ function Bucket({ items, testId, empty, onChanged, cardProps = {}, banner = null
     <section data-testid={testId}>
       {banner}
       <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {items.map((p) => (
-          <ProductEditCard
-            key={p.id}
-            product={p}
-            onChanged={onChanged}
-            stats={showStats ? (statsMap[p.slug] || null) : null}
-            indexing={indexingMap[p.slug] || null}
-            {...cardProps}
-          />
-        ))}
+        {items.map((p) => {
+          // Decorate the product row with the maker's saved marketing
+          // budget (if any) so the ProductEditCard pill renders the
+          // current cap + auto-renew state without a per-card fetch.
+          const b = budgetMap[p.slug];
+          const decorated = b
+            ? {
+                ...p,
+                marketing_budget_cents: b.monthly_cap_cents,
+                marketing_budget_auto_renew: b.auto_renew,
+                marketing_budget_spent_cents: b.spent_cents,
+              }
+            : p;
+          return (
+            <ProductEditCard
+              key={p.id}
+              product={decorated}
+              onChanged={onChanged}
+              onBudgetChanged={onBudgetChanged}
+              stats={showStats ? (statsMap[p.slug] || null) : null}
+              indexing={indexingMap[p.slug] || null}
+              {...cardProps}
+            />
+          );
+        })}
       </div>
     </section>
   );
