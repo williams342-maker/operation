@@ -116,6 +116,34 @@ export default function FeedHealthCard() {
     }
   };
 
+  // iter320 — LLM-powered SEO tag backfill. Same UX shape as autoThumb
+  // (one button, batched at 25 per click) but works for either
+  // `design-files` or `showcase` surface.
+  const [seoBusy, setSeoBusy] = useState({});
+  const autoSeo = async (surface) => {
+    setSeoBusy((p) => ({ ...p, [surface]: true }));
+    try {
+      const jwt = localStorage.getItem("cm_admin_jwt") || "";
+      const r = await axios.post(
+        `${API}/admin/seo/auto-tag/${surface}?limit=25`,
+        null,
+        { headers: { Authorization: `Bearer ${jwt}` }, timeout: 180000 },
+      );
+      if (r.data.succeeded > 0) {
+        toast.success(`Tagged ${r.data.succeeded} row${r.data.succeeded === 1 ? "" : "s"} · ${r.data.failed} skipped.`);
+      } else if (r.data.attempted === 0) {
+        toast.info(`No untagged ${surface.replace("-", " ")} — feed is clean.`);
+      } else {
+        toast.error(`LLM failed on all ${r.data.failed} rows. Re-run to retry.`);
+      }
+      await load();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Auto-tag failed.");
+    } finally {
+      setSeoBusy((p) => ({ ...p, [surface]: false }));
+    }
+  };
+
   if (loading) {
     return (
       <div data-testid="feed-health-card-loading" className="font-mono text-xs text-[#a3a3a3] py-3">
@@ -264,6 +292,28 @@ export default function FeedHealthCard() {
                           </button>
                           <p className="font-mono text-[10px] text-[#525252] mt-1.5 max-w-xl leading-relaxed">
                             Renders a PNG preview from the source SVG / DXF / STL / image. Up to 25 per click (each render takes a few seconds). Re-run for the next batch.
+                          </p>
+                        </div>
+                      )}
+                      {/* iter320 — surface SEO auto-tagging on both
+                          design_files and showcase channels. Always
+                          available (re-runnable for force-refresh) since
+                          a row can have a thumbnail but still lack
+                          SEO metadata. */}
+                      {(c.channel === "design_files" || c.channel === "showcase") && (
+                        <div className="pt-1">
+                          <button
+                            onClick={() => autoSeo(c.channel === "design_files" ? "design-files" : "showcase")}
+                            disabled={seoBusy[c.channel === "design_files" ? "design-files" : "showcase"]}
+                            className="px-3 py-1.5 border border-orange-500/40 text-orange-300 hover:bg-orange-500/10 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+                            data-testid={`feed-health-${c.channel}-auto-seo`}
+                          >
+                            {seoBusy[c.channel === "design_files" ? "design-files" : "showcase"]
+                              ? "Tagging…"
+                              : `⟲ Auto-tag SEO (up to 25)`}
+                          </button>
+                          <p className="font-mono text-[10px] text-[#525252] mt-1.5 max-w-xl leading-relaxed">
+                            Claude Sonnet 4.5 generates SEO title, meta description, keyword tags, and alt-text for any row missing them. ~$0.001 per row. Skips rows that already have all four fields (use ?force=true to re-tag).
                           </p>
                         </div>
                       )}

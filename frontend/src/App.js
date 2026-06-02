@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import "./App.css";
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams } from "react-router-dom";
 import { CartProvider } from "./lib/cart";
 
 import Nav from "./components/sections/Nav";
@@ -200,6 +200,18 @@ function BetaBannerBottom() {
   return <BetaBanner message={settings.beta_message} position="bottom" />;
 }
 
+// iter320b — Crawler → real-browser handoff for showcase posts.
+// The prerender at /api/og/showcase/<id> renders crawlable HTML and
+// meta-refreshes a real browser to /community?showcase=<id>. The
+// React Router route at /community/showcase/:postId hands off here
+// so we redirect with the postId carried through as a query param,
+// which CommunityPage's useEffect picks up to open the focused post.
+function ShowcaseDeeplinkRedirect() {
+  const { postId } = useParams();
+  return <Navigate to={`/community?showcase=${encodeURIComponent(postId || "")}`} replace />;
+}
+
+
 function App() {
   return (
     <CartProvider>
@@ -287,6 +299,7 @@ function App() {
                 <Route path="/forgot-password" element={<ForgotPasswordPage />} />
                 <Route path="/reset-password" element={<ResetPasswordPage />} />
                 <Route path="/community" element={<CommunityPage />} />
+                <Route path="/community/showcase/:postId" element={<ShowcaseDeeplinkRedirect />} />
                 <Route path="/community/login" element={<CommunityLogin />} />
                 <Route path="/community/verify" element={<CommunityVerify />} />
                 <Route path="/community/auth/callback" element={<CommunityAuthCallback />} />

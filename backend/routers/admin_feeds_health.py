@@ -420,3 +420,46 @@ async def admin_auto_thumbnail_design_files(
         "results": results,
     }
 
+
+@router.post("/admin/seo/auto-tag/design-files")
+async def admin_auto_tag_design_files(
+    limit: int = 25,
+    force: bool = False,
+    _: dict = Depends(require_capability("content", "marketplace")),
+):
+    """iter320 — LLM-powered SEO tag backfill for design files.
+
+    Walks `db.design_files` looking for non-quarantined rows that are
+    missing any of seo_title / seo_description / seo_tags / alt_text
+    (or all of them when `force=true`) and uses Claude Sonnet 4.5 to
+    fill them in. Writes back with a `seo_auto_generated_at` audit
+    stamp.
+
+    Batch size is capped at 50 per call to keep within the admin
+    fetch timeout — re-run for the next batch.
+    """
+    if limit < 1 or limit > 50:
+        from fastapi import HTTPException
+        raise HTTPException(400, "limit must be 1-50")
+    from auto_seo_tags import bulk_tag_design_files
+    r = await bulk_tag_design_files(db, limit=limit, force=force)
+    return {"ok": True, **r}
+
+
+@router.post("/admin/seo/auto-tag/showcase")
+async def admin_auto_tag_showcase_posts(
+    limit: int = 25,
+    force: bool = False,
+    _: dict = Depends(require_capability("content", "marketplace")),
+):
+    """iter320 — LLM-powered SEO tag backfill for showcase posts.
+    Sibling to `/admin/seo/auto-tag/design-files`. Skips admin-hidden
+    rows. Writes back to `db.showcase_posts`.
+    """
+    if limit < 1 or limit > 50:
+        from fastapi import HTTPException
+        raise HTTPException(400, "limit must be 1-50")
+    from auto_seo_tags import bulk_tag_showcase_posts
+    r = await bulk_tag_showcase_posts(db, limit=limit, force=force)
+    return {"ok": True, **r}
+

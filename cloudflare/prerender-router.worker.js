@@ -77,6 +77,11 @@ const ROUTES = [
     regex: /^\/community\/files\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})\/?$/i,
     rewrite: (m) => `/api/og/community/file/${m[1]}`,
   },
+  // iter320b — /community/showcase/<uuid> → /api/og/showcase/<uuid>
+  {
+    regex: /^\/community\/showcase\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})\/?$/i,
+    rewrite: (m) => `/api/og/showcase/${m[1]}`,
+  },
   // /shop (index)   → /api/og/shop
   {
     regex: /^\/shop\/?$/i,

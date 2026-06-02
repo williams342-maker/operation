@@ -231,13 +231,18 @@ function ShowcaseTab({ me }) {
   useEffect(() => { refresh(); }, []);
 
   // Deep-link to a specific showcase via `#showcase-<id>` (used by share
-  // links). Scrolls to + highlights the target card once posts arrive.
+  // links), or via `?showcase=<id>` (iter320b — used by the prerender
+  // redirect for crawler → real-browser handoff). Scrolls to + highlights
+  // the target card once posts arrive.
   useEffect(() => {
     if (!posts.length) return;
     const hash = window.location.hash;
-    const match = hash.match(/^#showcase-([0-9a-f-]{8,})/i);
-    if (!match) return;
-    const targetId = `showcase-${match[1]}`;
+    const qs = new URLSearchParams(window.location.search);
+    const fromHash = hash.match(/^#showcase-([0-9a-f-]{8,})/i);
+    const fromQuery = qs.get("showcase");
+    const id = (fromHash && fromHash[1]) || fromQuery;
+    if (!id) return;
+    const targetId = `showcase-${id}`;
     // Defer to next tick so the DOM has the new cards mounted.
     setTimeout(() => {
       const el = document.getElementById(targetId);
