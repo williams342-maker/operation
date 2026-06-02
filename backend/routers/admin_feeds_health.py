@@ -141,15 +141,25 @@ def _bucket(channel: str, products: list[dict]) -> dict[str, Any]:
 
 
 async def _showcase_health() -> dict[str, Any]:
-    """Showcase posts feed health — items need an image to be useful in
-    Pinterest / EnrichLabs distribution. Counts approved posts (gate:
-    not deleted, status=public)."""
-    total = await db.community_showcase.count_documents(
-        {"deleted_at": {"$in": [None, ""]}},
+    """Showcase posts feed health — counts approved posts (not admin-
+    hidden) that have at least one image so they're useful in
+    Pinterest / EnrichLabs distribution.
+
+    iter319a — the actual collection name is `showcase_posts` (NOT
+    `community_showcase`) and the visibility filter is
+    `admin_hidden != true`. Image lives on either `image_url` or
+    `image_urls[0]`.
+    """
+    total = await db.showcase_posts.count_documents(
+        {"admin_hidden": {"$ne": True}},
     )
-    ready = await db.community_showcase.count_documents(
-        {"deleted_at": {"$in": [None, ""]},
-         "images": {"$exists": True, "$ne": []}},
+    # "Ready" = has at least one of image_url / image_urls[0].
+    ready = await db.showcase_posts.count_documents(
+        {"admin_hidden": {"$ne": True},
+         "$or": [
+             {"image_url": {"$exists": True, "$nin": [None, ""]}},
+             {"image_urls.0": {"$exists": True}},
+         ]},
     )
     return {
         "channel": "showcase",
@@ -164,25 +174,74 @@ async def _showcase_health() -> dict[str, Any]:
 
 
 async def _design_files_health() -> dict[str, Any]:
-    """Free SVG/DXF design-files feed — need at least one file URL and
-    a preview image to be partner-distributable."""
-    total = await db.community_files.count_documents(
-        {"deleted_at": {"$in": [None, ""]}, "is_free": True},
-    )
-    ready = await db.community_files.count_documents(
-        {"deleted_at": {"$in": [None, ""]}, "is_free": True,
-         "preview_url": {"$exists": True, "$ne": None}},
-    )
+    """Free SVG/DXF design-files feed — count distributable rows on
+    `db.design_files` (the live collection — `community_files` is a
+    legacy stub that's never populated).
+
+    iter319a — eligibility now mirrors the public `/community/files`
+    feed exactly: applies the same `_design_orphan_guard` predicate
+    used by the live router so test/stub rows that the public never
+    sees don't pollute the count.
+
+    iter319b — "Ready" requires BOTH a downloadable file URL
+    (`primary_url`) AND a thumbnail. A row missing either is not
+    distributable.
+    """
+    # Reuse the live feed's orphan guard so the count mirrors what
+    # buyers actually see — avoids the "155 zombies in the feed"
+    # phantom-blocker problem.
+    from routers.community_files import _design_orphan_guard
+    base = {"quarantined_at": None, **_design_orphan_guard()}
+    total = await db.design_files.count_documents(base)
+    has_thumb = {"thumbnail_url": {"$exists": True, "$nin": [None, ""]}}
+    has_file = {"primary_url": {"$exists": True, "$nin": [None, ""]}}
+    ready = await db.design_files.count_documents({**base, **has_thumb, **has_file})
+    missing_thumb = await db.design_files.count_documents({**base, **has_file, "$or": [
+        {"thumbnail_url": {"$exists": False}},
+        {"thumbnail_url": {"$in": [None, ""]}},
+    ]})
+    missing_file = await db.design_files.count_documents({**base, **has_thumb, "$or": [
+        {"primary_url": {"$exists": False}},
+        {"primary_url": {"$in": [None, ""]}},
+    ]})
+    missing_both = await db.design_files.count_documents({**base, "$and": [
+        {"$or": [{"thumbnail_url": {"$exists": False}}, {"thumbnail_url": {"$in": [None, ""]}}]},
+        {"$or": [{"primary_url": {"$exists": False}}, {"primary_url": {"$in": [None, ""]}}]},
+    ]})
+    # Surface 5 example blocked rows so the admin can act on them.
+    examples = await db.design_files.find(
+        {**base, "$or": [
+            {"thumbnail_url": {"$in": [None, ""]}},
+            {"primary_url": {"$in": [None, ""]}},
+        ]},
+        {"_id": 0, "id": 1, "slug": 1, "title": 1, "thumbnail_url": 1, "primary_url": 1},
+    ).limit(5).to_list(5)
+    blocked_examples = [
+        {
+            "slug": e.get("slug") or e.get("id"),
+            "title": e.get("title"),
+            "maker_slug": "—",
+            "blockers": [
+                *(["missing_preview"] if not e.get("thumbnail_url") else []),
+                *(["missing_file_url"] if not e.get("primary_url") else []),
+            ],
+        }
+        for e in examples
+    ]
+    top_blockers = []
+    if missing_both:
+        top_blockers.append({"reason": "empty_stub", "count": missing_both})
+    if missing_thumb:
+        top_blockers.append({"reason": "missing_preview", "count": missing_thumb})
+    if missing_file:
+        top_blockers.append({"reason": "missing_file_url", "count": missing_file})
     return {
         "channel": "design_files",
         "ready": ready,
         "blocked": max(0, total - ready),
         "total": total,
-        "top_blockers": (
-            [{"reason": "missing_preview", "count": total - ready}]
-            if total > ready else []
-        ),
-        "blocked_examples": [],
+        "top_blockers": top_blockers,
+        "blocked_examples": blocked_examples,
     }
 
 
@@ -220,5 +279,83 @@ async def admin_feeds_health(
             "out_of_stock": "Pinterest + Meta drop out-of-stock items entirely. Google flips availability instead.",
             "shallow_gpc": "GPC path < 3 levels deep — Pinterest alert 126 / Google collapses to root.",
             "short_description": "Pinterest needs ≥50 characters of description for ad approval.",
+            "missing_preview": "Design file has no thumbnail — partners can't render a card.",
+            "missing_file_url": "Design file has no primary_url — nothing to download.",
+            "empty_stub": "Design file has neither a download URL nor a thumbnail — likely a leftover test/AI-stub row. Use Quarantine action to clear.",
         },
+    }
+
+
+@router.post("/admin/feeds/design-files/quarantine-stubs")
+async def admin_quarantine_design_file_stubs(
+    _: dict = Depends(require_capability("content", "marketplace")),
+):
+    """iter319b — One-click cleanup for design-file stubs.
+
+    Quarantines any row that lacks a usable download URL — covers
+    both empty stubs (no primary_url, no thumbnail) and partially-
+    seeded test rows (thumbnail but no primary_url AND no usable
+    variant url either). The public `/community/files` listing
+    drops quarantined rows automatically.
+
+    Safe to re-run; idempotent. Doesn't delete — just sets
+    `quarantined_at` so an operator can review + restore if needed.
+
+    iter319c — Also catches rows whose title literally starts with
+    "TEST" (case-insensitive) since those are unambiguously dev
+    fixtures that should never reach production buyers.
+    """
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).isoformat()
+    # Step 1 — empty stubs (no primary_url AND no thumbnail).
+    res_empty = await db.design_files.update_many(
+        {
+            "quarantined_at": None,
+            "$and": [
+                {"$or": [{"thumbnail_url": {"$exists": False}}, {"thumbnail_url": {"$in": [None, ""]}}]},
+                {"$or": [{"primary_url": {"$exists": False}}, {"primary_url": {"$in": [None, ""]}}]},
+            ],
+        },
+        {"$set": {"quarantined_at": now, "quarantined_reason": "empty_stub_iter319b"}},
+    )
+    # Step 2 — TEST_* prefix rows (case-insensitive). These were left
+    # behind by iter66/iter221 test runs and never represent a real
+    # distributable design file.
+    res_test = await db.design_files.update_many(
+        {
+            "quarantined_at": None,
+            "title": {"$regex": "^test[_ -]", "$options": "i"},
+        },
+        {"$set": {"quarantined_at": now, "quarantined_reason": "test_fixture_iter319c"}},
+    )
+    # Step 3 — no usable download URL anywhere (primary_url empty AND
+    # no variant with a non-empty url). These are partially seeded
+    # rows that can't be distributed even though they have a thumbnail.
+    res_nofile = await db.design_files.update_many(
+        {
+            "quarantined_at": None,
+            "$and": [
+                {"$or": [{"primary_url": {"$exists": False}}, {"primary_url": {"$in": [None, ""]}}]},
+                {"$or": [
+                    {"variants": {"$exists": False}},
+                    {"variants": {"$size": 0}},
+                    {"variants.url": {"$in": [None, ""]}},
+                ]},
+            ],
+        },
+        {"$set": {"quarantined_at": now, "quarantined_reason": "no_download_url_iter319c"}},
+    )
+    return {
+        "ok": True,
+        "quarantined_count": (
+            res_empty.modified_count
+            + res_test.modified_count
+            + res_nofile.modified_count
+        ),
+        "breakdown": {
+            "empty_stub": res_empty.modified_count,
+            "test_fixture": res_test.modified_count,
+            "no_download_url": res_nofile.modified_count,
+        },
+        "quarantined_at": now,
     }

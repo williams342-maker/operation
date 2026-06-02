@@ -15,7 +15,10 @@
  */
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
+import axios from "axios";
 import { fetchAdminFeedHealth } from "../../lib/api";
+
+const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const CHANNEL_LABELS = {
   google_merchant: "Google Merchant",
@@ -32,7 +35,9 @@ const BLOCKER_LABELS = {
   out_of_stock: "Out of stock",
   shallow_gpc: "GPC < 3 levels",
   short_description: "Description < 50 chars",
-  missing_preview: "Missing preview img",
+  missing_preview: "No thumbnail",
+  missing_file_url: "No download URL",
+  empty_stub: "Empty stub (no file + no thumb)",
 };
 
 export default function FeedHealthCard() {
@@ -56,6 +61,32 @@ export default function FeedHealthCard() {
   useEffect(() => { load(); }, []);
 
   const toggle = (channel) => setExpanded((p) => ({ ...p, [channel]: !p[channel] }));
+
+  // iter319b — One-click quarantine of empty design-file stubs.
+  // Clears the 155+ leftover test/AI-generated rows that have neither
+  // a download URL nor a thumbnail so they stop showing as feed
+  // blockers. Idempotent — safe to re-run.
+  const [quarantineBusy, setQuarantineBusy] = useState(false);
+  const quarantineStubs = async () => {
+    if (!window.confirm(
+      "Quarantine all empty design-file stubs (rows with no download URL and no thumbnail)?\n\nThis hides them from the public feed but doesn't delete — you can restore later.",
+    )) return;
+    setQuarantineBusy(true);
+    try {
+      const jwt = localStorage.getItem("cm_admin_jwt") || "";
+      const r = await axios.post(
+        `${API}/admin/feeds/design-files/quarantine-stubs`,
+        null,
+        { headers: { Authorization: `Bearer ${jwt}` } },
+      );
+      toast.success(`Quarantined ${r.data.quarantined_count} empty stub${r.data.quarantined_count === 1 ? "" : "s"}.`);
+      await load();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Quarantine failed.");
+    } finally {
+      setQuarantineBusy(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -166,6 +197,27 @@ export default function FeedHealthCard() {
                           ))}
                         </div>
                       </div>
+                      {/* iter319b — surface the one-click cleanup for the
+                          design-files channel when empty stubs are
+                          contributing to the blocked count. */}
+                      {c.channel === "design_files" &&
+                       c.top_blockers.some((b) => b.reason === "empty_stub") && (
+                        <div className="pt-1">
+                          <button
+                            onClick={quarantineStubs}
+                            disabled={quarantineBusy}
+                            className="px-3 py-1.5 border border-red-500/40 text-red-300 hover:bg-red-500/10 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+                            data-testid="feed-health-design-files-quarantine"
+                          >
+                            {quarantineBusy
+                              ? "Quarantining…"
+                              : `↯ Quarantine ${c.top_blockers.find((b) => b.reason === "empty_stub")?.count || 0} empty stubs`}
+                          </button>
+                          <p className="font-mono text-[10px] text-[#525252] mt-1.5 max-w-xl leading-relaxed">
+                            Empty stubs (no download URL + no thumbnail) are leftover test or AI-generated rows that pollute the count without being distributable. This hides them from the public feed — restorable from the DB.
+                          </p>
+                        </div>
+                      )}
                       {c.blocked_examples?.length > 0 && (
                         <div>
                           <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-1.5">
