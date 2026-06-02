@@ -43,6 +43,7 @@ import ShowcaseCurationTab from "../components/admin/ShowcaseCurationTab";
 import AdminShowcaseModTab from "./AdminDashboard/AdminShowcaseModTab";
 import ContactInboxTab from "../components/admin/ContactInboxTab";
 import SettingsTab from "../components/admin/SettingsTab";
+import LeadMagnetTab from "../components/admin/LeadMagnetTab";
 import AuditTab from "../components/admin/AuditTab";
 import AdsTab from "../components/admin/AdsTab";
 import ChatModTab from "../components/admin/ChatModTab";
@@ -82,6 +83,7 @@ const TABS = [
   { id: "contact", label: "Contact Inbox", caps: ["support"] },
   { id: "custom", label: "Custom Orders", caps: ["support", "marketplace"] },
   { id: "digests", label: "Digests", caps: ["content"] },
+  { id: "lead-magnet", label: "Lead Magnet", caps: ["content"] },
   { id: "file-reports", label: "File Reports", caps: ["moderation", "content"] },
   { id: "design-files", label: "Design Files", caps: ["content"] },
   { id: "listings", label: "Listings", caps: ["marketplace"] },
@@ -512,6 +514,7 @@ export default function AdminDashboard() {
             {tab === "ads" && <AdsTab />}
             {tab === "chat" && <ChatModTab />}
             {tab === "digests" && <DigestsTab />}
+            {tab === "lead-magnet" && <LeadMagnetTab />}
             {tab === "feedback" && <FeedbackTab />}
             {tab === "contact" && <ContactInboxTab />}
             {tab === "team" && me?.is_super_admin && <TeamTab />}

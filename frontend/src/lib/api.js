@@ -1086,6 +1086,46 @@ export const deleteListingBudget = (productSlug) =>
     headers: _makerAuth(),
   }).then((r) => r.data);
 
+// ---------- Admin lead-magnet inbox + drip (iter316) ----------
+export const fetchAdminLeadMagnetSummary = () =>
+  http.get("/admin/lead-magnet/summary", {
+    headers: { Authorization: `Bearer ${localStorage.getItem("cm_admin_jwt") || ""}` },
+  }).then((r) => r.data);
+export const fetchAdminLeadMagnetSubscribers = (limit = 200, skip = 0) =>
+  http.get(`/admin/lead-magnet/subscribers?limit=${limit}&skip=${skip}`, {
+    headers: { Authorization: `Bearer ${localStorage.getItem("cm_admin_jwt") || ""}` },
+  }).then((r) => r.data);
+export const adminLeadMagnetExportCsvUrl = () => {
+  // Direct download URL — appends the bearer via a one-shot auth header is
+  // not possible with <a href>, so the operator clicks the button and the
+  // axios client downloads the body for them, then we trigger a save.
+  return "/admin/lead-magnet/export.csv";
+};
+export const downloadAdminLeadMagnetCsv = async () => {
+  const r = await http.get("/admin/lead-magnet/export.csv", {
+    headers: { Authorization: `Bearer ${localStorage.getItem("cm_admin_jwt") || ""}` },
+    responseType: "blob",
+  });
+  const url = URL.createObjectURL(r.data);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `lead-magnet-subscribers-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, "")}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
+export const adminLeadMagnetDripRun = (dryRun = true) =>
+  http.post(`/admin/lead-magnet/drip/run-now?dry_run=${dryRun}`, null, {
+    headers: { Authorization: `Bearer ${localStorage.getItem("cm_admin_jwt") || ""}` },
+  }).then((r) => r.data);
+
+// ---------- Admin feed health (iter316c) ----------
+export const fetchAdminFeedHealth = () =>
+  http.get("/admin/feeds/health", {
+    headers: { Authorization: `Bearer ${localStorage.getItem("cm_admin_jwt") || ""}` },
+  }).then((r) => r.data);
+
 // ---------- Community ----------
 const buyerAuthHeaders = () => {
   const t = localStorage.getItem("cm_buyer_jwt");

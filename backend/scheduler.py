@@ -755,6 +755,18 @@ async def _job_listing_budgets_renew() -> None:
         logger.exception("[scheduler] listing_budgets_renew failed: %s", e)
 
 
+async def _job_lead_magnet_drip() -> None:
+    """iter316b — Daily 14:30 UTC. Walks `lead_magnet_subscribers` and
+    sends day-3 / day-7 nurture emails to opted-in subscribers. See
+    `lead_magnet_drip.py` for sequence + suppression rules."""
+    try:
+        from lead_magnet_drip import run_drip_tick
+        r = await run_drip_tick(dry_run=False)
+        logger.info("[scheduler] lead_magnet_drip: %s", r)
+    except Exception as e:
+        logger.exception("[scheduler] lead_magnet_drip failed: %s", e)
+
+
 
 async def _job_maker_journal_digest() -> None:
     """Weekly Monday 14:00 UTC — for each maker who published one or
@@ -1173,6 +1185,12 @@ def start_scheduler() -> AsyncIOScheduler | None:
     # listings that still have budget for the calendar month.
     sched.add_job(_job_listing_budgets_renew, CronTrigger(hour=3, minute=30),
                   id="listing_budgets_renew", replace_existing=True)
+    # iter316b — Lead-magnet drip nurture sequence (day-3, day-7).
+    # 14:30 UTC = 10:30 ET / 07:30 PT — typical "afternoon coffee"
+    # open window. Per-subscriber `drip_step` + RESEND_GUARD_HOURS
+    # make a re-run within 24h a no-op for the same row.
+    sched.add_job(_job_lead_magnet_drip, CronTrigger(hour=14, minute=30),
+                  id="lead_magnet_drip", replace_existing=True)
     sched.start()
     _scheduler = sched
     logger.info(

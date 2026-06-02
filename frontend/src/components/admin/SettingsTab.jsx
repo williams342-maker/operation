@@ -48,6 +48,9 @@ import {
 import { refreshSiteSettings } from "../../hooks/useSiteSettings";
 import { RowsSkeleton } from "../Skeleton";
 import { ShippoDiagCard, MailgunDiagCard, R2DiagCard } from "./IntegrationDiagCards";
+import FeedHealthCard from "./FeedHealthCard";
+import ZombieCleanupCard from "./ZombieCleanupCard";
+import ExternalDistributionStatusCard from "./ExternalDistributionStatusCard";
 
 const SWITCHES = [
   {
@@ -5205,6 +5208,9 @@ export default function SettingsTab() {
 
   return (
     <div data-testid="settings-tab" className="space-y-6">
+      <FeedHealthCard />
+      <ExternalDistributionStatusCard />
+      <ZombieCleanupCard />
       <div className="border border-[#262626] p-4 md:p-5">
         <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-2">
           ◆ Site Switches

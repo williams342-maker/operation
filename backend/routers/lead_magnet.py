@@ -248,6 +248,32 @@ async def preview_starter_pack():
     }
 
 
+@router.get("/lead-magnet/unsubscribe")
+async def lead_magnet_unsubscribe(email: str = ""):
+    """One-click unsubscribe target for the drip email footer link.
+    Flips `consent_marketing` to false + drip_step to -1 so the
+    nurture sequence stops cold. Always returns a 200 confirmation
+    page so we don't leak which emails are on the list.
+
+    iter316b — see `lead_magnet_drip.handle_unsubscribe`.
+    """
+    from lead_magnet_drip import handle_unsubscribe
+    await handle_unsubscribe(email)
+    from fastapi.responses import HTMLResponse
+    return HTMLResponse(
+        f"""<!doctype html><html><head><meta charset="utf-8">
+<title>Unsubscribed · Crafters Market</title>
+<style>body{{background:#0a0a0a;color:#e5e5e5;font-family:-apple-system,Helvetica,Arial,sans-serif;padding:48px 24px;text-align:center}}
+h1{{font-size:22px;letter-spacing:.02em;color:#fafafa}}p{{color:#a3a3a3;max-width:480px;margin:16px auto;line-height:1.6}}
+a{{color:#ff4500;text-decoration:none}}</style></head>
+<body><h1>You're unsubscribed.</h1>
+<p>We won't email you again about the starter pack or maker-onboarding tips.
+You'll still receive the original download link if you submit the form again.</p>
+<p><a href="https://craftersmarket.org">← Back to Crafters Market</a></p>
+</body></html>"""
+    )
+
+
 _README_TEMPLATE = """Crafters Market — Free CNC Starter Pack
 ===========================================
 
