@@ -5,6 +5,7 @@ import {
   publishMakerProduct, unpublishMakerProduct, uploadMakerModel,
   promoteMakerProduct, renewMakerProduct,
   downloadProductStoryCard,
+  upsertListingBudget, deleteListingBudget,
 } from "../../lib/api";
 import { useConfirm } from "./useConfirm";
 import { toast } from "sonner";
@@ -24,6 +25,20 @@ export default function ProductEditCard({ product, archived = false, draft = fal
   const [statusErr, setStatusErr] = useState("");
   const [promoting, setPromoting] = useState(false);
   const [renewing, setRenewing] = useState(false);
+  // iter315b — inline marketing-budget popover state. The button
+  // surfaces the budget feature on the page makers actually visit
+  // (Listings tab) instead of buried in the Marketing tab.
+  const [budgetOpen, setBudgetOpen] = useState(false);
+  const [budgetCap, setBudgetCap] = useState(
+    product.marketing_budget_cents != null
+      ? String(product.marketing_budget_cents / 100)
+      : ""
+  );
+  const [budgetAutoRenew, setBudgetAutoRenew] = useState(
+    product.marketing_budget_auto_renew !== false
+  );
+  const [budgetBusy, setBudgetBusy] = useState(false);
+  const hasBudget = (product.marketing_budget_cents ?? 0) > 0;
   const modelInputRef = useRef(null);
 
   const save = async (e) => {
@@ -268,6 +283,18 @@ export default function ProductEditCard({ product, archived = false, draft = fal
                 />
               )}
               {!draft && (
+                <ActionPill
+                  onClick={() => setBudgetOpen((v) => !v)}
+                  tone="cyan"
+                  testid={`product-budget-${p.slug}`}
+                  label={
+                    hasBudget
+                      ? `$ Budget · $${((p.marketing_budget_cents ?? 0) / 100).toFixed(0)}/mo`
+                      : "$ Set marketing budget"
+                  }
+                />
+              )}
+              {!draft && (
                 // Copy a share-friendly URL that points at the server-side
                 // OG prerender endpoint. When pasted into Slack/Discord/
                 // iMessage/Facebook DM, the link unfurls with a real card
@@ -335,6 +362,98 @@ export default function ProductEditCard({ product, archived = false, draft = fal
                 testid={`product-overflow-${p.slug}`}
               />
             </div>
+
+            {/* iter315b — Inline marketing-budget popover. Saves to
+                /api/maker/listing-budgets/{slug}. Optimistically
+                updates the local product row so the pill label
+                changes immediately. */}
+            {budgetOpen && (
+              <div
+                className="mt-3 border-t border-cyan-900/40 pt-3 space-y-2"
+                data-testid={`product-budget-form-${p.slug}`}
+              >
+                <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-cyan-400">
+                  ◆ Marketing budget · /{p.slug}
+                </div>
+                <p className="font-mono text-[10px] text-[#a3a3a3] leading-relaxed">
+                  Crafters Market auto-renews the $5/week boost until your
+                  monthly cap is hit. Resets on the 1st. Set to $0 to pause.
+                </p>
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-1">
+                    <span className="font-mono text-[10px] text-[#525252]">$</span>
+                    <input
+                      type="number"
+                      min="0"
+                      max="1000"
+                      step="1"
+                      value={budgetCap}
+                      onChange={(e) => setBudgetCap(e.target.value)}
+                      disabled={budgetBusy}
+                      className="w-20 bg-[#0a0a0a] border border-[#262626] focus:border-cyan-500 font-mono text-[12px] text-[#fafafa] px-2 py-1.5"
+                      data-testid={`product-budget-cap-${p.slug}`}
+                    />
+                    <span className="font-mono text-[10px] text-[#525252]">/ mo</span>
+                  </div>
+                  <label className="inline-flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={budgetAutoRenew}
+                      onChange={(e) => setBudgetAutoRenew(e.target.checked)}
+                      disabled={budgetBusy || Number(budgetCap) <= 0}
+                      className="accent-cyan-500"
+                      data-testid={`product-budget-autorenew-${p.slug}`}
+                    />
+                    <span className="font-mono text-[10px] text-[#a3a3a3]">Auto-renew</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const cents = Math.round(Number(budgetCap) * 100);
+                      if (!Number.isFinite(cents) || cents < 0 || cents > 100_000) {
+                        toast.error("Cap must be $0 – $1000.");
+                        return;
+                      }
+                      setBudgetBusy(true);
+                      try {
+                        if (cents === 0) {
+                          await deleteListingBudget(p.slug);
+                          toast.success("Budget removed.");
+                        } else {
+                          await upsertListingBudget(p.slug, {
+                            monthly_cap_cents: cents,
+                            auto_renew: budgetAutoRenew,
+                          });
+                          toast.success(`Budget set to $${(cents / 100).toFixed(0)}/mo.`);
+                        }
+                        // Refresh parent listing list so the pill picks
+                        // up the new budget state via the next render.
+                        onChanged?.();
+                        setBudgetOpen(false);
+                      } catch (e) {
+                        toast.error(e?.response?.data?.detail || "Save failed.");
+                      } finally {
+                        setBudgetBusy(false);
+                      }
+                    }}
+                    disabled={budgetBusy}
+                    className="font-mono text-[10px] uppercase tracking-[0.18em] text-cyan-300 hover:bg-cyan-500 hover:text-[#0a0a0a] border border-cyan-500/50 hover:border-cyan-500 px-3 py-1.5 transition disabled:opacity-50"
+                    data-testid={`product-budget-save-${p.slug}`}
+                  >
+                    {budgetBusy ? "Saving…" : "Save budget"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBudgetOpen(false)}
+                    disabled={budgetBusy}
+                    className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#525252] hover:text-[#a3a3a3] transition"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
             {statusErr && (
               <p
                 className="font-mono text-[10px] text-red-400 mt-2"
@@ -458,6 +577,11 @@ const TONES = {
     border: "border-sky-500/30 hover:border-sky-400",
     text: "text-sky-400 hover:text-sky-300",
     hoverBg: "hover:bg-sky-500/10",
+  },
+  cyan: {
+    border: "border-cyan-500/30 hover:border-cyan-400",
+    text: "text-cyan-400 hover:text-cyan-300",
+    hoverBg: "hover:bg-cyan-500/10",
   },
   neutral: {
     border: "border-[#262626] hover:border-[#ff4500]",
