@@ -352,6 +352,10 @@ async def upload_design_file(payload: DesignFileMeta, slug: str = Depends(curren
     doc.pop("_id", None)
     if slug:
         await grant_weekly_boost_credit(slug)
+    # iter320b — fire-and-forget LLM SEO tagging so new uploads land
+    # in the catalog feed with full meta out-of-the-box.
+    from auto_seo_inline import schedule_seo_for_design_file
+    schedule_seo_for_design_file(doc.get("id"))
     return doc
 
 
@@ -452,6 +456,9 @@ async def upload_design_file_direct(
     doc.pop("_id", None)
     if role == "maker" and uploader_label:
         await grant_weekly_boost_credit(uploader_label)
+    # iter320b — fire-and-forget LLM SEO tagging on direct uploads.
+    from auto_seo_inline import schedule_seo_for_design_file
+    schedule_seo_for_design_file(doc.get("id"))
     return _with_quality(doc)
 
 

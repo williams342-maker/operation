@@ -575,6 +575,11 @@ async def create_showcase(post: ShowcasePost, claims: dict = Depends(current_any
     }
     await db.showcase_posts.insert_one(doc)
     doc.pop("_id", None)
+    # iter320b — fire-and-forget LLM SEO tagging on new showcase posts
+    # so they ship to the prerender / sitemap with full meta out-of-
+    # the-box.
+    from auto_seo_inline import schedule_seo_for_showcase
+    schedule_seo_for_showcase(doc.get("id"))
     return doc
 
 
