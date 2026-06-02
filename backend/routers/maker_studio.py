@@ -910,6 +910,14 @@ async def studio_publish(body: PublishBody, user: dict = Depends(_current_studio
     }
     await db.design_files.insert_one(doc)
 
+    # iter320b — Fire-and-forget auto-SEO tag generation for the new design.
+    # Non-blocking: returns immediately, LLM call runs concurrently.
+    try:
+        from auto_seo_inline import schedule_seo_for_design_file
+        schedule_seo_for_design_file(doc.get("id"))
+    except Exception:
+        logger.exception("[studio] auto-seo schedule failed (non-fatal)")
+
     # iter237 — Surface AI designs in the community showcase carousel too.
     # Public-only; unlisted designs stay in the files feed only. Use the
     # same SVG as the showcase image_url so it renders inline alongside
@@ -937,6 +945,12 @@ async def studio_publish(body: PublishBody, user: dict = Depends(_current_studio
                 "design_file_id": file_id,
                 "ai_generated": True,
             })
+            # iter320b — Fire-and-forget auto-SEO for the mirrored showcase post.
+            try:
+                from auto_seo_inline import schedule_seo_for_showcase
+                schedule_seo_for_showcase(showcase_post_id)
+            except Exception:
+                logger.exception("[studio] auto-seo showcase schedule failed (non-fatal)")
         except Exception:
             logger.exception("[studio] showcase mirror insert failed (non-fatal)")
             showcase_post_id = None
