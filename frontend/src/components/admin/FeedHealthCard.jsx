@@ -88,6 +88,34 @@ export default function FeedHealthCard() {
     }
   };
 
+  // iter319c — Bulk auto-generate thumbnails for design files that
+  // have a download URL but no preview. Renders SVG / DXF / STL /
+  // raster sources via the auto_thumbnail module on the backend.
+  const [autoThumbBusy, setAutoThumbBusy] = useState(false);
+  const autoThumb = async () => {
+    setAutoThumbBusy(true);
+    try {
+      const jwt = localStorage.getItem("cm_admin_jwt") || "";
+      const r = await axios.post(
+        `${API}/admin/feeds/design-files/auto-thumbnail?limit=25`,
+        null,
+        { headers: { Authorization: `Bearer ${jwt}` }, timeout: 120000 },
+      );
+      if (r.data.succeeded > 0) {
+        toast.success(`Generated ${r.data.succeeded} thumbnail${r.data.succeeded === 1 ? "" : "s"} · ${r.data.failed} skipped.`);
+      } else if (r.data.attempted === 0) {
+        toast.info("No thumbnailless files to render — feed is clean.");
+      } else {
+        toast.error(`Couldn't render any thumbnails (${r.data.failed} skipped — sources not renderable).`);
+      }
+      await load();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Auto-thumbnail failed.");
+    } finally {
+      setAutoThumbBusy(false);
+    }
+  };
+
   if (loading) {
     return (
       <div data-testid="feed-health-card-loading" className="font-mono text-xs text-[#a3a3a3] py-3">
@@ -215,6 +243,27 @@ export default function FeedHealthCard() {
                           </button>
                           <p className="font-mono text-[10px] text-[#525252] mt-1.5 max-w-xl leading-relaxed">
                             Empty stubs (no download URL + no thumbnail) are leftover test or AI-generated rows that pollute the count without being distributable. This hides them from the public feed — restorable from the DB.
+                          </p>
+                        </div>
+                      )}
+                      {/* iter319c — surface the auto-thumbnail action when
+                          missing_preview rows exist (these have a download
+                          URL but no thumbnail — we can render one). */}
+                      {c.channel === "design_files" &&
+                       c.top_blockers.some((b) => b.reason === "missing_preview") && (
+                        <div className="pt-1">
+                          <button
+                            onClick={autoThumb}
+                            disabled={autoThumbBusy}
+                            className="px-3 py-1.5 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/10 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+                            data-testid="feed-health-design-files-auto-thumb"
+                          >
+                            {autoThumbBusy
+                              ? "Rendering thumbnails…"
+                              : `⟲ Auto-generate up to 25 thumbnails`}
+                          </button>
+                          <p className="font-mono text-[10px] text-[#525252] mt-1.5 max-w-xl leading-relaxed">
+                            Renders a PNG preview from the source SVG / DXF / STL / image. Up to 25 per click (each render takes a few seconds). Re-run for the next batch.
                           </p>
                         </div>
                       )}

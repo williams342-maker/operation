@@ -359,3 +359,64 @@ async def admin_quarantine_design_file_stubs(
         },
         "quarantined_at": now,
     }
+
+
+@router.post("/admin/feeds/design-files/auto-thumbnail")
+async def admin_auto_thumbnail_design_files(
+    limit: int = 25,
+    _: dict = Depends(require_capability("content", "marketplace")),
+):
+    """iter319c — Bulk auto-render thumbnails for design files that
+    have a downloadable source URL but no `thumbnail_url`.
+
+    Picks up to `limit` rows per call (default 25 — kept low so a
+    blocking R2 upload chain stays under the 60s admin-fetch timeout).
+    Renders SVG via CairoSVG, DXF via ezdxf+matplotlib, STL via the
+    existing stl_renderer, and rasters via Pillow.
+
+    Returns per-row outcome so the admin can re-run for the next
+    batch. Safe to re-run; only acts on rows that still lack a
+    thumbnail at query time.
+    """
+    if limit < 1 or limit > 200:
+        from fastapi import HTTPException
+        raise HTTPException(400, "limit must be 1-200")
+    from auto_thumbnail import generate_and_store_thumbnail
+    rows = await db.design_files.find(
+        {
+            "quarantined_at": None,
+            "$or": [
+                {"thumbnail_url": {"$exists": False}},
+                {"thumbnail_url": {"$in": [None, ""]}},
+            ],
+        },
+        {"_id": 0, "id": 1, "title": 1, "file_type": 1, "primary_url": 1,
+         "download_url": 1, "variants": 1, "maker_slug": 1, "uploader_id": 1},
+    ).limit(limit).to_list(limit)
+
+    results = []
+    succeeded = 0
+    for doc in rows:
+        try:
+            url = await generate_and_store_thumbnail(doc)
+        except Exception as e:
+            log.exception("[auto_thumb] error on %s: %s", doc.get("id"), e)
+            url = None
+        if url:
+            await db.design_files.update_one(
+                {"id": doc["id"]},
+                {"$set": {"thumbnail_url": url, "thumbnail_auto_generated": True}},
+            )
+            succeeded += 1
+            results.append({"id": doc["id"], "title": doc.get("title"), "ok": True, "url": url})
+        else:
+            results.append({"id": doc["id"], "title": doc.get("title"), "ok": False,
+                             "reason": "no_renderable_source"})
+    return {
+        "ok": True,
+        "attempted": len(rows),
+        "succeeded": succeeded,
+        "failed": len(rows) - succeeded,
+        "results": results,
+    }
+
