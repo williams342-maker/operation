@@ -633,6 +633,11 @@ class MakerApplicationCreate(BaseModel):
     portfolio_url: Optional[str] = None
     about: str
     referred_by_code: Optional[str] = None
+    # iter324 — Honeypot field. Real applicants never see this hidden
+    # input; bots that scrape <form> elements fill everything. If
+    # non-empty, the endpoint silently 200s without persisting so the
+    # bot doesn't retry with variations.
+    website: Optional[str] = ""
 
 
 class CartItem(BaseModel):

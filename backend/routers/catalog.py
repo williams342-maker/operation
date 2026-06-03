@@ -1,10 +1,11 @@
 """Public catalog: products, makers, reviews, blog, activity, custom-orders, maker-applications."""
+import time as _time
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
-from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, File, HTTPException, Request, UploadFile
 
-from core import db, now_iso
+from core import db, now_iso, logger
 from email_service import (
     send_applicant_received, send_buyer_custom_ack,
     send_ops_new_application, send_ops_new_custom_order,
@@ -16,6 +17,30 @@ from models import (
 )
 
 router = APIRouter()
+
+
+# ── iter324 — Maker-application anti-spam: cheap in-process IP rate
+# limiter. 5 submissions per IP per 60s. Same pattern as contact_messages.
+# Resets on process restart, which is fine — anything more sophisticated
+# (Redis token bucket) is overkill for a maker apply form.
+_MAKER_APP_RATE_BUCKET: dict[str, list[float]] = {}
+_MAKER_APP_RATE_LIMIT = 5
+_MAKER_APP_RATE_WINDOW_S = 60.0
+
+
+def _check_maker_app_rate_limit(ip: str) -> None:
+    now = _time.monotonic()
+    arr = [t for t in _MAKER_APP_RATE_BUCKET.get(ip, []) if now - t < _MAKER_APP_RATE_WINDOW_S]
+    if len(arr) >= _MAKER_APP_RATE_LIMIT:
+        raise HTTPException(429, "Too many applications from your network — please try again in a minute.")
+    arr.append(now)
+    _MAKER_APP_RATE_BUCKET[ip] = arr
+    # Opportunistic cleanup so the dict never grows unbounded.
+    if len(_MAKER_APP_RATE_BUCKET) > 1024:
+        for k in list(_MAKER_APP_RATE_BUCKET.keys()):
+            _MAKER_APP_RATE_BUCKET[k] = [t for t in _MAKER_APP_RATE_BUCKET[k] if now - t < _MAKER_APP_RATE_WINDOW_S]
+            if not _MAKER_APP_RATE_BUCKET[k]:
+                _MAKER_APP_RATE_BUCKET.pop(k, None)
 
 
 @router.get("/policy/version")
@@ -558,7 +583,27 @@ async def upload_custom_order_design(file: UploadFile = File(...)):
 
 
 @router.post("/maker-applications", response_model=MakerApplication)
-async def create_maker_application(payload: MakerApplicationCreate, bg: BackgroundTasks):
+async def create_maker_application(
+    payload: MakerApplicationCreate, bg: BackgroundTasks, request: Request,
+):
+    # iter324 — Anti-spam guard: rate-limit + honeypot + 24h soft dedupe.
+    # The contact form has the same shape; keep them in sync if you tune
+    # either knob.
+    ip = (
+        request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+        or (request.client.host if request.client else "0.0.0.0")
+    )
+    _check_maker_app_rate_limit(ip)
+
+    # Honeypot — `MakerApplicationCreate.website` is a hidden field most
+    # real applicants never see. Bots that scrape <form> elements fill
+    # everything including the honeypot. If it's non-empty, silently
+    # return a fabricated success so the bot doesn't retry with variations.
+    if (getattr(payload, "website", "") or "").strip():
+        logger.info("[maker-app] honeypot tripped from ip=%s", ip)
+        # Return a plausible Pydantic instance — same shape as success.
+        return MakerApplication(**payload.model_dump(exclude={"website"}))
+
     # Honour the "Allow new maker applications" admin switch.
     from routers.settings import get_setting
     if not await get_setting("allow_maker_applications", True):
@@ -567,7 +612,24 @@ async def create_maker_application(payload: MakerApplicationCreate, bg: Backgrou
             "We're at capacity for new makers right now. Applications will reopen soon.",
         )
         raise HTTPException(403, msg)
-    app_obj = MakerApplication(**payload.model_dump())
+
+    # iter324 — 24h soft dedupe. If the SAME email submitted in the last
+    # 24h, surface the existing row instead of inserting a duplicate.
+    # Honest re-submitters get an idempotent response (no error toast,
+    # no double email to ops). Bots get exactly the same response, so
+    # they can't probe for dupes either.
+    from datetime import datetime, timezone, timedelta
+    cutoff_iso = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+    existing = await db.maker_applications.find_one(
+        {"email": payload.email, "created_at": {"$gte": cutoff_iso}},
+        {"_id": 0},
+        sort=[("created_at", -1)],
+    )
+    if existing:
+        logger.info("[maker-app] dedupe hit for email=%s ip=%s", payload.email, ip)
+        return MakerApplication(**{k: v for k, v in existing.items() if k in MakerApplication.model_fields})
+
+    app_obj = MakerApplication(**payload.model_dump(exclude={"website"}))
     # Auto-detect Founding Seller Beta signups (BetaPage prefixes the about
     # field with this marker before hitting /api/maker-applications).
     if "[FOUNDING SELLER BETA]" in (payload.about or ""):

@@ -22,7 +22,7 @@ export default function ApplyPage() {
   });
 
   const settings = useSiteSettings();
-  const [f, setF] = useState({ name: "", email: "", studio_name: "", location: "", techniques: [], portfolio_url: "", about: "" });
+  const [f, setF] = useState({ name: "", email: "", studio_name: "", location: "", techniques: [], portfolio_url: "", about: "", website: "" });
   const [state, setState] = useState("idle");
   const [errMsg, setErrMsg] = useState("");
   // Referral attribution — picks up `?ref=<code>` once on mount, same
@@ -95,6 +95,27 @@ export default function ApplyPage() {
         </div>
 
         <form onSubmit={submit} className="grid md:grid-cols-2 gap-6 border-y border-[#262626] py-8" data-testid="apply-form" autoComplete="on">
+          {/* iter324 — Honeypot. Hidden from real users with tab/screen
+              readers via aria-hidden + off-screen positioning + tabIndex=-1.
+              Bots that scrape <form> elements fill everything; the server
+              silently 200s without persisting when this is non-empty. */}
+          <div
+            aria-hidden="true"
+            style={{ position: "absolute", left: "-9999px", width: "1px", height: "1px", overflow: "hidden" }}
+          >
+            <label>
+              Website (leave blank)
+              <input
+                type="text"
+                name="website"
+                tabIndex={-1}
+                autoComplete="off"
+                value={f.website}
+                onChange={set("website")}
+                data-testid="apply-honeypot"
+              />
+            </label>
+          </div>
           {[["Your name", "name", true, "name"], ["Email", "email", true, "email"], ["Studio name", "studio_name", true, "organization"], ["City, State", "location", true, "address-level2"], ["Portfolio URL (optional)", "portfolio_url", false, "url"]].map(([label, k, req, autoComp]) => (
             <label key={k} className={`block ${k === "portfolio_url" ? "md:col-span-2" : ""}`}>
               <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#a3a3a3]">{label}</span>
