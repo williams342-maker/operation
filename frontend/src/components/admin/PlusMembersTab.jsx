@@ -17,6 +17,13 @@ export default function PlusMembersTab() {
   const [replenishBusy, setReplenishBusy] = useState(false);
   const [replenishResult, setReplenishResult] = useState(null);
 
+  // iter326 — Founders Wall integrity. Auto-runs the repair endpoint
+  // in dry-run mode on tab mount so we know IMMEDIATELY whether the
+  // duplicate-founder-number bug has crept back in. Operator can then
+  // hit "Apply repair" to renumber the collisions.
+  const [repairStatus, setRepairStatus] = useState({ loading: true, plan: null, error: "" });
+  const [repairBusy, setRepairBusy] = useState(false);
+
   useEffect(() => {
     (async () => {
       setLoading(true);
@@ -58,6 +65,64 @@ export default function PlusMembersTab() {
       toast.error("Replenish failed", { description: e?.message || "Try again in a moment." });
     } finally {
       setReplenishBusy(false);
+    }
+  };
+
+  // iter326 — Run the repair endpoint in dry-run mode on mount and
+  // whenever the operator clicks "Re-check". Returns a structured plan
+  // listing every collision the apply step will fix.
+  const fetchRepairPlan = async () => {
+    setRepairStatus((s) => ({ ...s, loading: true, error: "" }));
+    try {
+      const token = localStorage.getItem("cm_admin_jwt");
+      const res = await fetch(`${API}/api/admin/founders/repair-numbers`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ dry_run: true }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setRepairStatus({ loading: false, plan: data, error: "" });
+    } catch (e) {
+      setRepairStatus({ loading: false, plan: null, error: e?.message || "Could not load repair plan." });
+    }
+  };
+
+  useEffect(() => { fetchRepairPlan(); }, []);
+
+  // One-click apply. Re-fetches the plan after success so the badge
+  // updates immediately. Protected by a confirm() — the underlying
+  // endpoint is idempotent but a renumber on the live Founders Wall is
+  // a visible, non-trivial change worth confirming.
+  const handleApplyRepair = async () => {
+    const planned = repairStatus.plan?.proposed_changes || [];
+    if (!planned.length) {
+      toast.info("Nothing to repair", { description: "No duplicate founder numbers detected." });
+      return;
+    }
+    const ok = window.confirm(
+      `Renumber ${planned.length} colliding maker${planned.length === 1 ? "" : "s"}? ` +
+      `Newer collisions will get fresh sequential numbers. Older makers keep their slots.`,
+    );
+    if (!ok) return;
+    setRepairBusy(true);
+    try {
+      const token = localStorage.getItem("cm_admin_jwt");
+      const res = await fetch(`${API}/api/admin/founders/repair-numbers`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ dry_run: false }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      toast.success("Founder numbers repaired", {
+        description: `${data.duplicates_renumbered || 0} maker${data.duplicates_renumbered === 1 ? "" : "s"} renumbered · counter set to #${data.counter_set_to}`,
+      });
+      await fetchRepairPlan();
+    } catch (e) {
+      toast.error("Repair failed", { description: e?.message || "Try again." });
+    } finally {
+      setRepairBusy(false);
     }
   };
 
@@ -103,6 +168,105 @@ export default function PlusMembersTab() {
           {replenishBusy ? "Replenishing…" : "Replenish now"}
         </button>
       </div>
+
+      {/* iter326 — Founders Wall integrity card. Auto-detects duplicate
+          founder_numbers on mount and exposes a one-click repair. The
+          underlying endpoint (POST /api/admin/founders/repair-numbers)
+          renumbers newer collisions while keeping the OLDEST maker's
+          slot stable. Idempotent — re-running is a no-op. */}
+      {(() => {
+        const plan = repairStatus.plan;
+        const planned = plan?.proposed_changes || [];
+        const hasDupes = planned.length > 0;
+        return (
+          <div
+            className={`border bg-[#0a0a0a] p-4 ${hasDupes ? "border-red-700/60" : "border-[#262626]"}`}
+            data-testid="founders-repair-card"
+          >
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+              <div className="min-w-0">
+                <div className="font-mono text-[10px] uppercase tracking-[0.22em] flex items-center gap-2">
+                  <span className={hasDupes ? "text-red-400" : "text-emerald-400"}>◆ Founders Wall integrity</span>
+                  {repairStatus.loading ? (
+                    <span className="text-[9px] text-[#737373]">checking…</span>
+                  ) : hasDupes ? (
+                    <span
+                      className="text-[9px] px-1.5 py-px bg-red-950/40 border border-red-700 text-red-300"
+                      data-testid="founders-repair-badge-dupes"
+                    >
+                      {planned.length} duplicate{planned.length === 1 ? "" : "s"}
+                    </span>
+                  ) : (
+                    <span
+                      className="text-[9px] px-1.5 py-px bg-emerald-950/40 border border-emerald-700 text-emerald-300"
+                      data-testid="founders-repair-badge-clean"
+                    >
+                      Clean
+                    </span>
+                  )}
+                </div>
+                <div className="font-display text-lg mt-1 text-[#e5e5e5]">
+                  {hasDupes
+                    ? `${planned.length} maker${planned.length === 1 ? " is" : "s are"} sharing slot number${planned.length === 1 ? "" : "s"}`
+                    : "Every Founder owns a unique slot number."}
+                </div>
+                <div className="font-mono text-[10px] text-[#737373] mt-1.5 leading-relaxed">
+                  {hasDupes
+                    ? "Newer collisions will get fresh sequential numbers. Older makers keep their slots. Activity-ticker events stay in sync."
+                    : `Counter at #${plan?.counter_will_be_set_to ?? "—"} · ${plan?.total_founders ?? 0} founders total.`}
+                </div>
+                {repairStatus.error && (
+                  <div className="font-mono text-[10px] text-red-400 mt-2" data-testid="founders-repair-error">
+                    {repairStatus.error}
+                  </div>
+                )}
+                {hasDupes && (
+                  <details className="mt-2" data-testid="founders-repair-details">
+                    <summary className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] cursor-pointer hover:text-[#ff4500]">
+                      ▸ Show {planned.length} planned change{planned.length === 1 ? "" : "s"}
+                    </summary>
+                    <ul className="mt-2 space-y-1 font-mono text-[10px] text-[#a3a3a3]">
+                      {planned.map((p, i) => (
+                        <li key={i} className="flex items-baseline gap-2">
+                          <span className="text-red-400">#{String(p.old_number).padStart(3, "0")}</span>
+                          <span className="text-[#525252]">→</span>
+                          <span className="text-emerald-400">#{String(p.new_number).padStart(3, "0")}</span>
+                          <span className="text-[#e5e5e5] truncate">{p.name || p.slug}</span>
+                          <span className="text-[#525252]">(keeps slot: {p.kept_for_slug})</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+              </div>
+              <div className="shrink-0 flex flex-col md:flex-row gap-2">
+                <button
+                  type="button"
+                  onClick={fetchRepairPlan}
+                  disabled={repairStatus.loading}
+                  data-testid="founders-repair-recheck-btn"
+                  className="px-3 py-2 border border-[#262626] hover:border-[#ff4500] disabled:opacity-50 font-mono text-[10px] uppercase tracking-[0.22em] text-[#e5e5e5] transition"
+                >
+                  Re-check
+                </button>
+                <button
+                  type="button"
+                  onClick={handleApplyRepair}
+                  disabled={!hasDupes || repairBusy}
+                  data-testid="founders-repair-apply-btn"
+                  className={`px-4 py-2 font-mono text-[11px] uppercase tracking-[0.22em] font-bold transition ${
+                    hasDupes
+                      ? "bg-red-600 hover:bg-red-700 text-white"
+                      : "bg-[#171717] text-[#525252] cursor-not-allowed"
+                  } disabled:opacity-60`}
+                >
+                  {repairBusy ? "Repairing…" : hasDupes ? `Apply repair (${planned.length})` : "Nothing to repair"}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="border border-[#262626] p-4" data-testid="plus-stat-count">
