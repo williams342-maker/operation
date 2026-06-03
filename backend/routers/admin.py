@@ -1166,6 +1166,20 @@ async def admin_decide_application(
                     return_document=True,
                 )
                 number = int((counter or {}).get("value") or 1)
+                # iter325 — Reuse any pre-existing founder_number on this
+                # maker so re-running approval (or a future demote/re-
+                # promote) doesn't burn through the monotonic counter and
+                # inflate the apparent applicant count. Mirrors the same
+                # guard in founders.py:174. Currently this code path only
+                # runs for freshly-inserted makers (existing is None just
+                # above), so the guard is defensive — protects against
+                # future refactoring that might call this block on an
+                # already-promoted maker.
+                fresh_maker = await db.makers.find_one(
+                    {"slug": slug}, {"_id": 0, "founder_number": 1}
+                )
+                if fresh_maker and fresh_maker.get("founder_number"):
+                    number = int(fresh_maker["founder_number"])
                 await db.makers.update_one(
                     {"slug": slug},
                     {"$set": {
@@ -1180,16 +1194,30 @@ async def admin_decide_application(
                 # Surface as a public activity event so the live ticker
                 # picks it up — same recruiting psychology as the
                 # homepage 'just bought X' feed.
+                #
+                # iter325 — Idempotent insert. The event `id` follows
+                # `founder-{slug}-{N}` and `founder_number` is reused on
+                # re-promotion (founders.py:174). Without this guard a
+                # demote → re-promote during admin testing would double-
+                # insert the SAME event, making the live ticker repeat
+                # "Mike just became Founder #003" twice in a row. Use
+                # update_one(upsert=True) keyed on the event id so the
+                # second insert becomes a no-op.
                 try:
-                    await db.activity_events.insert_one({
-                        "kind": "founder_joined",
-                        "text": f"{appn.get('name') or 'A new maker'} just became Founder #{number:03d}",
-                        "location": appn.get("location") or "",
-                        "amount": None,
-                        "session_id": None,
-                        "created_at": now_dt.isoformat(),
-                        "id": f"founder-{slug}-{number}",
-                    })
+                    event_id = f"founder-{slug}-{number}"
+                    await db.activity_events.update_one(
+                        {"id": event_id},
+                        {"$setOnInsert": {
+                            "kind": "founder_joined",
+                            "text": f"{appn.get('name') or 'A new maker'} just became Founder #{number:03d}",
+                            "location": appn.get("location") or "",
+                            "amount": None,
+                            "session_id": None,
+                            "created_at": now_dt.isoformat(),
+                            "id": event_id,
+                        }},
+                        upsert=True,
+                    )
                 except Exception:
                     pass
                 logger.info("auto-promoted to founder: slug=%s number=%s status=%s",

@@ -41,6 +41,11 @@ export default function BetaPage() {
     techniques: [],
     portfolio_url: "",
     about: "",
+    // iter325 — Honeypot field (matches iter324 on /apply). Hidden from
+    // real users via aria-hidden + off-screen positioning. Bot scrapers
+    // fill all form fields; server silently 200s without persisting
+    // when this is non-empty.
+    website: "",
   });
   const [state, setState] = useState("idle");
   const [errMsg, setErrMsg] = useState("");
@@ -404,6 +409,27 @@ export default function BetaPage() {
           </p>
 
           <form onSubmit={submit} className="grid md:grid-cols-2 gap-6" data-testid="beta-form" autoComplete="on">
+            {/* iter325 — Honeypot. Hidden from real users via aria-hidden
+                + off-screen positioning. Bots fill everything; server
+                silently 200s without persisting when this is non-empty.
+                Identical pattern to /apply (iter324). */}
+            <div
+              aria-hidden="true"
+              style={{ position: "absolute", left: "-9999px", width: "1px", height: "1px", overflow: "hidden" }}
+            >
+              <label>
+                Website (leave blank)
+                <input
+                  type="text"
+                  name="website"
+                  tabIndex={-1}
+                  autoComplete="off"
+                  value={f.website}
+                  onChange={set("website")}
+                  data-testid="beta-honeypot"
+                />
+              </label>
+            </div>
             {[
               ["Your name", "name", true, "name"],
               ["Email", "email", true, "email"],

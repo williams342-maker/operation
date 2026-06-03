@@ -206,16 +206,25 @@ async def admin_promote(body: PromoteRequest, _: dict = Depends(current_admin)):
 
     # Surface in the public activity ticker — "Mike Williams just became
     # Founder #003" — same psychology as the homepage 'just bought X' feed.
+    # iter325 — Idempotent insert. `final_number` is reused on re-promote
+    # (line 174 above), so an admin clicking "Promote" twice on the same
+    # maker would otherwise double-insert the same event. Upsert keyed on
+    # the deterministic event id collapses repeats into a no-op.
     try:
-        await db.activity_events.insert_one({
-            "kind": "founder_joined",
-            "text": f"{maker.get('name') or maker.get('shop_name') or 'A new maker'} just became Founder #{final_number:03d}",
-            "location": maker.get("location") or "",
-            "amount": None,
-            "session_id": None,
-            "created_at": starts,
-            "id": f"founder-{body.slug}-{final_number}",
-        })
+        event_id = f"founder-{body.slug}-{final_number}"
+        await db.activity_events.update_one(
+            {"id": event_id},
+            {"$setOnInsert": {
+                "kind": "founder_joined",
+                "text": f"{maker.get('name') or maker.get('shop_name') or 'A new maker'} just became Founder #{final_number:03d}",
+                "location": maker.get("location") or "",
+                "amount": None,
+                "session_id": None,
+                "created_at": starts,
+                "id": event_id,
+            }},
+            upsert=True,
+        )
     except Exception as e:
         logger.warning("[founders] activity event insert failed: %s", e)
 
@@ -389,4 +398,136 @@ async def admin_replenish_credits(_: dict = Depends(current_admin)):
     logger.info("[founders] admin-triggered credit replenish: plus=%s vet=%s",
                 plus, vet)
     return {"plus": plus, "veteran": vet}
+
+
+# ----------------------- Repair: duplicate founder_number ----------------------- #
+class RepairNumbersRequest(BaseModel):
+    """Repair endpoint flags (iter326). `dry_run=True` returns the
+    proposed changes without applying them — use this to preview the
+    fix on production before committing."""
+    dry_run: bool = False
+
+
+@router.post("/admin/founders/repair-numbers")
+async def admin_repair_founder_numbers(
+    body: RepairNumbersRequest = RepairNumbersRequest(),
+    _: dict = Depends(current_admin),
+):
+    """One-shot repair for the duplicate-founder-number bug (iter326).
+
+    Background: when an admin installs the featured seed fixture into a
+    fresh production database, the seeded makers occupy slots #1..#N
+    based on hardcoded numbers in the JSON, but `platform_meta.founder_
+    counter.value` is not bumped. The next maker approved through the
+    live promotion flow starts the counter from 0 → 1 → 2 and COLLIDES
+    with the seeded Iron & Oak (#001) and MetalArt Pro (#002).
+
+    What this endpoint does:
+      1. Scans every `tier="founder"` maker.
+      2. Groups them by `founder_number`.
+      3. Any group with >1 maker is a duplicate. Sorts by
+         `founder_started_at` ASC and KEEPS the oldest maker's number.
+         Reassigns every newer maker to a fresh number from the live
+         `founder_counter` (which we also bump up to the new max).
+      4. Rewrites any matching `activity_events` ids
+         (`founder-{slug}-{N}`) so the live ticker entries stay in sync
+         with the new number.
+
+    Idempotent — once duplicates are repaired, re-running is a no-op.
+    Dry-run mode returns the proposed plan without touching the DB.
+    """
+    from collections import defaultdict
+
+    makers = await db.makers.find(
+        {"tier": "founder"},
+        {"_id": 0, "slug": 1, "name": 1, "founder_number": 1, "founder_started_at": 1},
+    ).to_list(2000)
+
+    by_number: dict[int, list[dict]] = defaultdict(list)
+    for m in makers:
+        n = m.get("founder_number")
+        if n is None:
+            continue
+        by_number[int(n)].append(m)
+
+    # Find the current max so we know where the next fresh number goes.
+    current_max = max(by_number.keys(), default=0)
+    next_number = current_max + 1
+
+    duplicates: list[dict] = []
+    for n, rows in by_number.items():
+        if len(rows) <= 1:
+            continue
+        # Sort by founder_started_at ASC — oldest keeps the slot, newer
+        # ones get renumbered. Missing timestamps sort last so seeded
+        # rows (which all share the bulk-insert ts) keep priority over
+        # rows with NULL ts.
+        rows.sort(key=lambda r: r.get("founder_started_at") or "9999")
+        keeper = rows[0]
+        for victim in rows[1:]:
+            duplicates.append({
+                "old_number": n,
+                "new_number": next_number,
+                "slug": victim["slug"],
+                "name": victim.get("name") or "",
+                "kept_for_slug": keeper["slug"],
+            })
+            next_number += 1
+
+    if body.dry_run:
+        return {
+            "ok": True,
+            "dry_run": True,
+            "total_founders": len(makers),
+            "duplicate_groups": sum(1 for rows in by_number.values() if len(rows) > 1),
+            "proposed_changes": duplicates,
+            "counter_will_be_set_to": max(current_max, next_number - 1),
+        }
+
+    # Apply changes.
+    applied: list[dict] = []
+    for d in duplicates:
+        new_n = d["new_number"]
+        slug = d["slug"]
+        old_n = d["old_number"]
+        await db.makers.update_one(
+            {"slug": slug},
+            {"$set": {"founder_number": new_n}},
+        )
+        # Rewrite any matching activity_event id so the live ticker
+        # entry doesn't point to a number this maker no longer holds.
+        old_event_id = f"founder-{slug}-{old_n}"
+        new_event_id = f"founder-{slug}-{new_n}"
+        await db.activity_events.update_one(
+            {"id": old_event_id},
+            {"$set": {
+                "id": new_event_id,
+                # Patch the human text too — was "...just became Founder
+                # #001" but they're now #017, so the displayed badge has
+                # to match the live data.
+                "text": f"{d['name'] or 'A new maker'} just became Founder #{new_n:03d}",
+            }},
+        )
+        applied.append({"slug": slug, "old_number": old_n, "new_number": new_n})
+
+    # Finally — bump `founder_counter` so the NEXT promotion lands at
+    # `next_number` (i.e., one past the highest assigned number now).
+    final_max = max(current_max, next_number - 1)
+    await db.platform_meta.update_one(
+        {"key": "founder_counter"},
+        {"$max": {"value": final_max}},
+        upsert=True,
+    )
+
+    logger.info(
+        "[founders] repair-numbers: %d duplicates renumbered, counter set to %d",
+        len(applied), final_max,
+    )
+    return {
+        "ok": True,
+        "dry_run": False,
+        "duplicates_renumbered": len(applied),
+        "applied": applied,
+        "counter_set_to": final_max,
+    }
 

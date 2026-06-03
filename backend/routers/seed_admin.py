@@ -85,6 +85,25 @@ async def install_featured_seed_fixture(_: dict = Depends(current_admin)):
         await db.showcase_posts.update_one({"id": s["id"]}, {"$set": s}, upsert=True)
         counts["showcase"] += 1
 
+    # iter326 — Bump `platform_meta.founder_counter` to AT LEAST the max
+    # founder_number embedded in the fixture. Without this, the seeded
+    # makers occupy slots #1..#N but `founder_counter` stays at 0, so
+    # the next maker approved by the live `/api/admin/maker-applications/
+    # approve` flow gets #1 and COLLIDES with Iron & Oak Studio. Use
+    # `$max` so it's idempotent across re-runs and never accidentally
+    # lowers a counter that's already grown past the fixture.
+    max_seed_number = 0
+    for m in fixture.get("makers", []):
+        n = int(m.get("founder_number") or 0)
+        if n > max_seed_number:
+            max_seed_number = n
+    if max_seed_number > 0:
+        await db.platform_meta.update_one(
+            {"key": "founder_counter"},
+            {"$max": {"value": max_seed_number}},
+            upsert=True,
+        )
+
     # Refresh listings_count on each seeded maker so shop tiles reflect
     # reality immediately. Mirrors the standalone script's behaviour.
     for slug in {p["maker_slug"] for p in fixture.get("products", []) if p.get("maker_slug")}:
