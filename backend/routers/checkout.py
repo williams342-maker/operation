@@ -193,6 +193,21 @@ def _quote_for(resolved: list[dict]) -> dict:
     """
     subtotal = round(sum(r["product"]["price"] * r["quantity"] for r in resolved), 2)
 
+    # iter328 — Pure-digital carts skip shipping entirely. Hybrid (
+    # `listing_type=="both"`) products still ship the physical part so
+    # they participate in the regular shipping calc below.
+    if resolved and all(
+        (r["product"].get("listing_type") == "digital") for r in resolved
+    ):
+        return {
+            "subtotal": subtotal,
+            "shipping": 0.0,
+            "free_shipping_threshold": FREE_SHIPPING_THRESHOLD,
+            "free_shipping_eligible": True,
+            "total_before_tax": subtotal,
+            "digital_only": True,
+        }
+
     # Subtotal-threshold platform promo wins over everything else.
     if subtotal >= FREE_SHIPPING_THRESHOLD:
         shipping = 0.0
@@ -221,6 +236,10 @@ def _quote_for(resolved: list[dict]) -> dict:
         "free_shipping_threshold": FREE_SHIPPING_THRESHOLD,
         "free_shipping_eligible": subtotal >= FREE_SHIPPING_THRESHOLD,
         "total_before_tax": round(subtotal + shipping, 2),
+        # iter328 — Always present so the frontend has one stable key
+        # to check. False on the regular path; only the early-return
+        # above sets it to True.
+        "digital_only": False,
     }
 
 
@@ -418,12 +437,17 @@ async def create_checkout(req: CheckoutRequest, http_request: Request):
     # accepts any string. Replace with the real session.id after we have it.
     pre_transfer_group = f"order_{uuid.uuid4().hex}"
 
+    # iter328 — Skip shipping options + address collection entirely when
+    # the cart is 100% digital. Stripe interprets `shipping_options=[]`
+    # as "no shipping" (so no $0 line is rendered) and dropping the
+    # `shipping_address_collection` key keeps the checkout form
+    # streamlined to just card + email.
+    is_digital_only = bool(quote.get("digital_only"))
+
     session_kwargs = {
         "mode": "payment",
         "payment_method_types": ["card"],
         "line_items": line_items,
-        "shipping_options": shipping_options,
-        "shipping_address_collection": {"allowed_countries": ["US"]},
         "success_url": success_url,
         "cancel_url": cancel_url,
         "payment_intent_data": {
@@ -438,8 +462,12 @@ async def create_checkout(req: CheckoutRequest, http_request: Request):
             "discount_code": (discount_doc or {}).get("code", "") if discount_doc else "",
             "discount_amount": f"{discount_amount:.2f}" if discount_amount else "",
             "discount_maker_slug": (discount_doc or {}).get("maker_slug", "") if discount_doc else "",
+            "digital_only": "1" if is_digital_only else "",
         },
     }
+    if not is_digital_only:
+        session_kwargs["shipping_options"] = shipping_options
+        session_kwargs["shipping_address_collection"] = {"allowed_countries": ["US"]}
 
     # Apply discount as a one-shot Stripe Coupon. This way Stripe handles the
     # math + the buyer sees the discount line on Stripe's checkout page itself.
@@ -568,6 +596,13 @@ async def checkout_status(session_id: str, http_request: Request, bg: Background
             "payment_status": "paid",
             "amount_total": fallback_amount,
             "currency": tx.get("currency", "usd"),
+            # iter328 — Surface the per-file download manifest so the
+            # success page can render direct download links. Each entry:
+            # {file_id, filename, size_bytes, ext, product_slug,
+            #  product_title, token, expires_at_unix, downloads}. We
+            # send the `token` so the frontend can build the URL itself
+            # without a second auth round-trip.
+            "digital_downloads": tx.get("digital_downloads") or [],
         }
 
     try:
@@ -600,6 +635,7 @@ async def checkout_status(session_id: str, http_request: Request, bg: Background
                 "payment_status": "paid",
                 "amount_total": fallback_amount,
                 "currency": tx.get("currency", "usd"),
+                "digital_downloads": tx.get("digital_downloads") or [],
             }
         await db.payment_transactions.update_one(
             {"session_id": session_id},
@@ -820,7 +856,156 @@ async def checkout_status(session_id: str, http_request: Request, bg: Background
             # Stripe Connect: transfer each maker's share to their connected acct
             from routers.stripe_connect import transfer_to_makers_for_session
             bg.add_task(transfer_to_makers_for_session, session_id)
+
+            # iter328 — Digital delivery. For every line item whose
+            # product is digital or hybrid, mint a download token per
+            # uploaded file and persist a `digital_downloads` manifest
+            # on the transaction. The checkout-success page reads this
+            # manifest via /api/checkout/status and the buyer email
+            # carries the same links inline.
+            try:
+                from digital_delivery import mint_download_token
+                digital_downloads: list[dict] = []
+                for ci in tx.get("items", []):
+                    p = await db.products.find_one(
+                        {"id": ci["product_id"]},
+                        {"_id": 0, "slug": 1, "title": 1,
+                         "listing_type": 1, "digital_files": 1},
+                    ) or await db.products.find_one(
+                        {"slug": ci["product_id"]},
+                        {"_id": 0, "slug": 1, "title": 1,
+                         "listing_type": 1, "digital_files": 1},
+                    )
+                    if not p or p.get("listing_type") not in ("digital", "both"):
+                        continue
+                    for f in (p.get("digital_files") or []):
+                        token, exp = mint_download_token(session_id, f["id"])
+                        digital_downloads.append({
+                            "file_id": f["id"],
+                            "filename": f.get("filename") or "file",
+                            "size_bytes": f.get("size_bytes") or 0,
+                            "ext": f.get("ext") or "",
+                            "product_slug": p.get("slug") or "",
+                            "product_title": p.get("title") or "",
+                            "token": token,
+                            "expires_at_unix": exp,
+                            "downloads": 0,
+                        })
+                if digital_downloads:
+                    await db.transactions.update_one(
+                        {"session_id": session_id},
+                        {"$set": {"digital_downloads": digital_downloads}},
+                    )
+                    logger.info(
+                        "[digital-delivery] minted %d download tokens for session %s",
+                        len(digital_downloads), session_id,
+                    )
+                    # Optional: queue a dedicated digital-delivery email
+                    # if the buyer email is on file. The regular receipt
+                    # already includes a link to the order page where
+                    # the downloads also live, but a dedicated mail is
+                    # the "instant download" experience buyers expect.
+                    if buyer:
+                        try:
+                            from email_service import send_buyer_digital_downloads
+                            bg.add_task(
+                                send_buyer_digital_downloads,
+                                buyer, summary, digital_downloads,
+                            )
+                        except Exception:
+                            # The helper may not be present in older
+                            # builds — non-fatal.
+                            logger.warning(
+                                "[digital-delivery] send_buyer_digital_downloads "
+                                "helper missing — buyer can still grab files from "
+                                "the order confirmation page."
+                            )
+            except Exception as e:
+                # NEVER let digital-delivery break the paid-order pipeline.
+                logger.exception("[digital-delivery] manifest minting failed: %s", e)
+    # iter328 — Surface the manifest on the very first /status call
+    # that flips this session to paid. Re-fetch the tx because we just
+    # wrote `digital_downloads` to it above.
+    if result.get("payment_status") == "paid":
+        fresh = await db.payment_transactions.find_one(
+            {"session_id": session_id},
+            {"_id": 0, "digital_downloads": 1},
+        )
+        if fresh and fresh.get("digital_downloads"):
+            result["digital_downloads"] = fresh["digital_downloads"]
     return result
+
+
+@router.get("/checkout/downloads/{token}")
+async def checkout_download(token: str):
+    """Token-gated digital file download (iter328).
+
+    Verifies the HMAC token, increments a `downloads` counter, and
+    302-redirects to the public R2 URL. The redirect is fine because:
+      - The token itself is the credential — only someone holding the
+        valid token (i.e. the buyer who paid) can mint the request.
+      - The R2 URL is public-CDN-fronted but the path is non-guessable
+        (UUIDv4 file id + maker slug + product slug + filename), so
+        guessing a URL without the token isn't feasible.
+      - If a token leaks, rotating MAKER_AUTH_SECRET invalidates every
+        outstanding token — same blast radius as for the magic-link
+        tokens we already mint.
+
+    Buyer never sees the raw R2 URL — they always click through this
+    endpoint, which gives us a per-file download counter we can show
+    on the order page later.
+    """
+    from digital_delivery import verify_download_token
+    try:
+        meta = verify_download_token(token)
+    except ValueError as e:
+        raise HTTPException(403, f"Invalid or expired download link: {e}")
+    session_id = meta["session_id"]
+    file_id = meta["file_id"]
+
+    tx = await db.payment_transactions.find_one(
+        {"session_id": session_id},
+        {"_id": 0, "payment_status": 1, "digital_downloads": 1},
+    )
+    if not tx:
+        raise HTTPException(404, "Order not found.")
+    if tx.get("payment_status") != "paid":
+        raise HTTPException(403, "Order not paid yet.")
+
+    # Find the matching manifest row.
+    files = tx.get("digital_downloads") or []
+    entry = next((f for f in files if f.get("file_id") == file_id), None)
+    if not entry:
+        raise HTTPException(404, "File not found on this order.")
+
+    # Look up the underlying R2 URL from the product. Doing it this way
+    # (instead of caching the URL in the manifest) means the maker can
+    # re-upload a fixed file and ALL buyers immediately get the
+    # corrected version on next download — no token reminting needed.
+    prod = await db.products.find_one(
+        {"slug": entry.get("product_slug")},
+        {"_id": 0, "digital_files": 1},
+    ) or {}
+    product_file = next(
+        (f for f in (prod.get("digital_files") or []) if f.get("id") == file_id),
+        None,
+    )
+    if not product_file or not product_file.get("url"):
+        raise HTTPException(
+            410,
+            "This file is no longer available from the maker. "
+            "Contact them via the order page.",
+        )
+
+    # Atomic counter bump.
+    await db.payment_transactions.update_one(
+        {"session_id": session_id, "digital_downloads.file_id": file_id},
+        {"$inc": {"digital_downloads.$.downloads": 1},
+         "$set": {"digital_downloads.$.last_downloaded_at": now_iso()}},
+    )
+
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url=product_file["url"], status_code=302)
 
 
 @router.post("/webhook/stripe")

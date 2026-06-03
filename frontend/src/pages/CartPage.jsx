@@ -253,7 +253,9 @@ export default function CartPage() {
                 <Row
                   k="Shipping"
                   v={
-                    shipping == null
+                    quote?.digital_only
+                      ? <span className="text-cyan-400">Digital · no shipping</span>
+                      : shipping == null
                       ? "—"
                       : shipping === 0
                       ? "Free"
@@ -270,7 +272,20 @@ export default function CartPage() {
                   />
                 )}
               </div>
-              {quote && remaining > 0 && (
+              {/* iter328 — All-sales-final disclaimer for pure-digital
+                  carts. Surfaces ABOVE the checkout button so the buyer
+                  can't miss it before paying. */}
+              {quote?.digital_only && (
+                <div
+                  className="mb-4 p-3 border border-cyan-500/40 bg-cyan-950/[0.15] font-mono text-[10.5px] text-cyan-200 leading-relaxed"
+                  data-testid="cart-digital-disclaimer"
+                >
+                  ◆ This is a digital download — files are delivered the moment
+                  payment clears, via email and on the order confirmation page.
+                  <strong className="text-cyan-100"> All digital sales are final.</strong>
+                </div>
+              )}
+              {quote && !quote.digital_only && remaining > 0 && (
                 <p
                   className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mb-4"
                   data-testid="free-shipping-banner"
@@ -278,7 +293,7 @@ export default function CartPage() {
                   ◆ Add ${remaining.toFixed(2)} for free shipping
                 </p>
               )}
-              {quote && quote.free_shipping_eligible && (
+              {quote && !quote.digital_only && quote.free_shipping_eligible && (
                 <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mb-4">
                   ◆ Free shipping unlocked
                 </p>

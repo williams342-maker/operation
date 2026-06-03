@@ -78,6 +78,60 @@ export default function CheckoutSuccess() {
             : "Verifying payment status with Stripe…"}
       </p>
 
+      {/* iter328 — Digital download manifest. Renders only when the
+          order's transaction has uploaded files. Each row links to the
+          token-gated `/api/checkout/downloads/{token}` endpoint which
+          302s to the public R2 URL after verifying the HMAC token and
+          bumping the per-file counter. */}
+      {paid && Array.isArray(state.digital_downloads) && state.digital_downloads.length > 0 && (
+        <div
+          className="max-w-2xl mx-auto border border-cyan-500/40 bg-cyan-950/[0.15] p-6 mb-10 text-left"
+          data-testid="success-digital-downloads"
+        >
+          <div className="font-mono text-[11px] uppercase tracking-[0.28em] text-cyan-300 mb-3">
+            ◆ Your downloads ({state.digital_downloads.length})
+          </div>
+          <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed mb-4">
+            Files are ready right now. Links also went to your email — they stay
+            valid for 30 days. Save them locally; all digital sales are final.
+          </p>
+          <ul className="space-y-2">
+            {state.digital_downloads.map((d) => {
+              const apiBase = process.env.REACT_APP_BACKEND_URL || "";
+              const href = `${apiBase}/api/checkout/downloads/${d.token}`;
+              const sizeH = d.size_bytes >= 1024 * 1024
+                ? `${(d.size_bytes / 1024 / 1024).toFixed(1)} MB`
+                : `${Math.max(1, Math.round(d.size_bytes / 1024))} KB`;
+              return (
+                <li
+                  key={d.file_id}
+                  className="flex items-center gap-3 p-3 border border-[#262626] bg-[#0a0a0a]"
+                  data-testid={`success-download-row-${d.file_id}`}
+                >
+                  <div className="min-w-0 flex-1 text-left">
+                    <div className="font-mono text-[11.5px] text-[#e5e5e5] truncate">
+                      {d.filename}
+                    </div>
+                    <div className="font-mono text-[9.5px] text-[#525252] mt-1 uppercase tracking-[0.18em]">
+                      {(d.ext || "").toUpperCase()} · {sizeH}
+                    </div>
+                  </div>
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="shrink-0 px-4 py-2 bg-[#ff4500] hover:bg-[#ff5a1f] text-black font-mono text-[10px] uppercase tracking-[0.22em] font-bold transition"
+                    data-testid={`success-download-btn-${d.file_id}`}
+                  >
+                    Download →
+                  </a>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
       {canCreateAccount && (
         <div
           className="max-w-lg mx-auto border border-[#ff4500]/40 bg-[#ff4500]/5 p-6 mb-10 text-left"

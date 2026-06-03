@@ -609,6 +609,73 @@ async def send_buyer_receipt(buyer_email: str, summary: str, total: float, items
     return await _send(buyer_email, "Your Crafters Market order is confirmed", html)
 
 
+async def send_buyer_digital_downloads(
+    buyer_email: str, summary: str, downloads: list[dict],
+):
+    """iter328 — Instant download email for digital + hybrid orders.
+
+    Sent IN ADDITION to the regular receipt (which doesn't carry the
+    file links for security reasons). Each download row links to the
+    token-gated `/api/checkout/downloads/{token}` endpoint which 302s
+    to the underlying R2 file.
+
+    Tokens are valid for 30 days — we re-state that in the email so the
+    buyer doesn't park them indefinitely and then complain when they
+    expire.
+    """
+    if not buyer_email or not downloads:
+        return
+    site = (os.environ.get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
+    api_base = (os.environ.get("BACKEND_URL") or site).rstrip("/")
+
+    rows = ""
+    for d in downloads:
+        ext = (d.get("ext") or "").upper()
+        size = d.get("size_bytes") or 0
+        if size >= 1024 * 1024:
+            size_h = f"{size / 1024 / 1024:.1f} MB"
+        else:
+            size_h = f"{max(1, round(size / 1024))} KB"
+        url = f"{api_base}/api/checkout/downloads/{d.get('token')}"
+        rows += (
+            "<tr><td style='padding:10px 0;border-bottom:1px solid #262626'>"
+            f"<div style='font-size:13px;color:#e5e5e5'>{d.get('filename')}</div>"
+            f"<div style='font-size:10px;color:#737373;letter-spacing:0.18em;text-transform:uppercase;margin-top:4px'>{ext} · {size_h}</div>"
+            "</td><td style='padding:10px 0;border-bottom:1px solid #262626;text-align:right'>"
+            f"<a href='{url}' style='display:inline-block;background:#ff4500;color:#000;"
+            "padding:10px 16px;font-family:JetBrains Mono,monospace;font-size:11px;"
+            "letter-spacing:0.22em;text-transform:uppercase;text-decoration:none'>Download</a>"
+            "</td></tr>"
+        )
+    table = (
+        "<table cellpadding=0 cellspacing=0 width='100%' "
+        "style='font-family:Helvetica,Arial,sans-serif;margin:8px 0 16px'>"
+        f"{rows}</table>"
+    )
+    body = (
+        f"<p style='font-size:13px;line-height:1.6;color:#a3a3a3;margin:0 0 16px'>"
+        f"Your purchase: <span style='color:#e5e5e5'>{summary[:200]}</span>"
+        "</p>"
+        + table
+        + "<p style='font-size:12px;line-height:1.6;color:#a3a3a3;margin:16px 0 0'>"
+        "Download links are valid for <strong style='color:#e5e5e5'>30 days</strong>. "
+        "Save the files locally — we don't keep a copy in your account. "
+        "All digital sales are final."
+        "</p>"
+    )
+    html = _shell(
+        "Files Ready.",
+        f"{len(downloads)} download{'s' if len(downloads) != 1 else ''} unlocked — grab them below.",
+        body,
+        "Instant download",
+    )
+    return await _send(
+        buyer_email,
+        f"Your Crafters Market files are ready ({len(downloads)} download{'s' if len(downloads) != 1 else ''})",
+        html,
+    )
+
+
 async def send_buyer_review_prompt(
     buyer_email: str,
     buyer_name: str | None,
