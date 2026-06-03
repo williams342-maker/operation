@@ -7,14 +7,16 @@ import { useCart } from "../../lib/cart";
 import { http } from "../../lib/api";
 import ActivityTicker from "./ActivityTicker";
 
-// Primary nav — 5 items only. Secondary/tertiary surfaces live under the
-// Community dropdown or in the footer. Keeps the bar one-line at >=1100px
-// and stops the cyan "Where we're going" link from wrapping at /grow.
+// Primary nav — 3 items only. Studio moved into the Community dropdown
+// (iter323) — it's a content/creation surface, not a commerce path, so
+// it belonged under Community alongside Clips / Journal / Forum.
+// "Where we're going" was removed from the top nav (still reachable
+// from the footer's "Build Log" CTA band) to free up horizontal space
+// and stop competing with the commerce CTAs.
 const primaryLinks = [
   { label: "Shop", href: "/shop" },
   { label: "Makers", href: "/makers" },
   { label: "Custom", href: "/custom-order" },
-  { label: "Studio", href: "/studio", accent: "cyan" },
 ];
 
 // Lives inside the Community dropdown — these used to be top-level
@@ -22,6 +24,7 @@ const primaryLinks = [
 // intent. Surfacing them under one parent is cleaner + reflects user
 // behaviour (commerce links go to Shop, content links go here).
 const communityMenu = [
+  { label: "Studio · AI",  href: "/studio",                 blurb: "AI design tool · SVG + DXF", accent: "cyan" },
   { label: "Forum",        href: "/community?tab=forum",    blurb: "Threads · Q&A · help" },
   { label: "Clips",        href: "/clips",                  blurb: "Short workshop videos" },
   { label: "Journal",      href: "/journal",                blurb: "Long-form articles" },
@@ -241,11 +244,13 @@ export default function Nav() {
                 </Link>
               </motion.li>
               {/* Primary mobile nav — single flat list including the
-                  community dropdown items, the grow highlight, and
-                  the tertiary surfaces. Mobile users get everything in
-                  one tap-friendly column. */}
+                  community dropdown items + the tertiary surfaces.
+                  Mobile users get everything in one tap-friendly column.
+                  iter323 — "Where we're going" removed from the drawer
+                  (still in the footer's Build Log band). */}
               {[
                 ...primaryLinks,
+                { label: "Studio · AI",  href: "/studio", highlight: true },
                 { label: "Forum",        href: "/community?tab=forum" },
                 { label: "Clips",        href: "/clips" },
                 { label: "Journal",      href: "/journal" },
@@ -253,7 +258,6 @@ export default function Nav() {
                 { label: "Design files", href: "/community?tab=files" },
                 { label: "Live chat",    href: "/community?tab=chat" },
                 { label: "Design kits",  href: "/kits" },
-                { label: "Where we're going", href: "/grow", highlight: true },
                 ...tertiaryLinks,
               ].map((l, i) => (
                 <motion.li
@@ -370,10 +374,24 @@ function DesktopNav() {
                         <Link
                           to={item.href}
                           className="block px-3 py-2.5 hover:bg-[#171717] transition group"
-                          data-testid={`nav-community-${item.label.toLowerCase()}`}
+                          data-testid={`nav-community-${item.label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`}
                         >
-                          <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#e5e5e5] group-hover:text-[#ff4500] flex items-center gap-2">
+                          <div
+                            className={`font-mono text-[11px] uppercase tracking-[0.22em] flex items-center gap-2 ${
+                              item.accent === "cyan"
+                                ? "text-[#00ffff] group-hover:text-[#ff4500]"
+                                : "text-[#e5e5e5] group-hover:text-[#ff4500]"
+                            }`}
+                          >
                             {item.label}
+                            {item.accent === "cyan" && (
+                              <span
+                                aria-hidden="true"
+                                className="px-1 py-px text-[8px] font-bold tracking-[0.18em] border border-[#00ffff]/60 text-[#00ffff]"
+                              >
+                                NEW
+                              </span>
+                            )}
                             <ArrowUpRight size={11} className="opacity-0 group-hover:opacity-100 transition-opacity" />
                           </div>
                           <div className="font-mono text-[10px] text-[#737373] mt-0.5">
@@ -398,18 +416,10 @@ function DesktopNav() {
         </AnimatePresence>
       </div>
 
-      {/* ◆ Grow highlight — cyan accent. Stays visible on lg+, abbreviated
-          to a pill on smaller screens via the responsive `xl:` reveal. */}
-      <Link
-        to="/grow"
-        className="industrial-link font-mono text-xs uppercase tracking-[0.22em] text-[#00ffff] hover:text-[#ff4500] inline-flex items-center gap-1.5 whitespace-nowrap"
-        data-testid="nav-link-where-we're-going"
-        title="Where we're going · public roadmap"
-      >
-        <span aria-hidden="true">◆</span>
-        <span className="hidden xl:inline">Where we&apos;re going</span>
-        <span className="xl:hidden">Roadmap</span>
-      </Link>
+      {/* iter323 — "Where we're going" removed from the desktop nav
+          to free horizontal space + reduce visual noise. Still reachable
+          from the footer's cyan "Build Log · See where we're going"
+          band at the top of the footer. */}
     </nav>
   );
 }
