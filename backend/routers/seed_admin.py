@@ -8,6 +8,7 @@ nothing organic is touched because the query is gated on the flag.
 """
 import asyncio
 import logging
+import os
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -321,6 +322,17 @@ async def generate_one_clip(
     """
     if model not in ("sora-2", "sora-2-pro"):
         raise HTTPException(422, "Model must be sora-2 or sora-2-pro.")
+    # iter322 — Sora-2-pro queue is currently saturating its 900s wait
+    # ceiling on virtually every render. Until upstream capacity recovers
+    # we hard-reject pro requests with a clear message instead of letting
+    # the operator wait 15 minutes for the inevitable timeout. Flip the
+    # env var to re-enable pro once Sora capacity is healthy.
+    if model == "sora-2-pro" and os.environ.get("SORA_DISABLE_PRO", "true").lower() in ("true", "1", "yes"):
+        raise HTTPException(
+            422,
+            "sora-2-pro is temporarily disabled (queue exceeded its 900s wait ceiling on recent attempts). "
+            "Use sora-2 base instead, or unset SORA_DISABLE_PRO when Sora pro capacity recovers.",
+        )
 
     job_id = str(uuid.uuid4())
     await db.clip_seed_jobs.insert_one({
@@ -348,6 +360,12 @@ async def generate_one_clip(
                 "clip": result.get("clip"),
                 "reason": result.get("reason"),
                 "detail": result.get("detail"),
+                # iter322 — per-attempt diagnostics. Empty list when the
+                # primary attempt succeeded with no retry; otherwise
+                # carries one row per attempt with {model, ok, elapsed_s,
+                # error}. Surfaced in the "Last 5 renders" admin panel
+                # so the operator can see both pro + fallback outcomes.
+                "attempts": result.get("attempts") or [],
             }
         except Exception as e:
             _log.exception("[seed_admin] clip job %s crashed", job_id)
@@ -356,6 +374,7 @@ async def generate_one_clip(
                 "finished_at": now_iso(),
                 "reason": "internal error",
                 "detail": str(e),
+                "attempts": [],
             }
         await db.clip_seed_jobs.update_one({"job_id": job_id}, {"$set": patch})
 

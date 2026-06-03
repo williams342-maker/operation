@@ -225,19 +225,44 @@ async def generate_one_clip(model: str = "sora-2-pro") -> dict[str, Any]:
     folder.mkdir(parents=True, exist_ok=True)
     out_path = folder / "clip.mp4"
 
-    # iter314 — Sora capacity has been saturating sora-2-pro's 900s
-    # ceiling consistently. Auto-fallback once: if pro times out, retry
-    # with base sora-2 (horizontal 1280×720). Better to ship a clip
-    # than to error out — and the operator can re-seed via "Generate
-    # Fresh Clip" if they specifically want pro. The TIMEOUT badge in
-    # the admin UI now correctly identifies these cases (was misread as
-    # BUDGET because the explanatory copy contained the word).
+    # iter314 / iter322 — Sora capacity has been saturating sora-2-pro's
+    # 900s ceiling consistently. Auto-fallback once: if pro times out,
+    # retry with base sora-2 (horizontal 1280×720). Better to ship a
+    # clip than to error out — and the operator can re-seed via
+    # "Generate Fresh Clip" if they specifically want pro. The TIMEOUT
+    # badge in the admin UI now correctly identifies these cases (was
+    # misread as BUDGET because the explanatory copy contained the word).
+    #
+    # iter322 — Per-attempt diagnostics. We persist both the primary and
+    # the fallback attempt outcome so the operator can tell, at a glance
+    # in the "Last 5 renders" panel, exactly what failed. Previously
+    # only the LAST error was surfaced, which made fallback failures
+    # indistinguishable from primary failures.
+    import time as _time
+    attempts: list[dict[str, Any]] = []
+
+    t0 = _time.time()
     ok, err_msg = await asyncio.to_thread(_generate_video_blocking, prompt, str(out_path), model)
+    attempts.append({
+        "model": model,
+        "ok": ok,
+        "elapsed_s": round(_time.time() - t0, 1),
+        "error": "" if ok else err_msg[:500],
+    })
+
     if not ok and model == "sora-2-pro" and (
         "no video after" in err_msg.lower() or "wait timeout" in err_msg.lower()
     ):
         logger.warning("[clip_seeder] sora-2-pro timed out — auto-retrying with sora-2 base")
+        t1 = _time.time()
         ok, err_msg = await asyncio.to_thread(_generate_video_blocking, prompt, str(out_path), "sora-2")
+        attempts.append({
+            "model": "sora-2",
+            "ok": ok,
+            "elapsed_s": round(_time.time() - t1, 1),
+            "error": "" if ok else err_msg[:500],
+            "is_fallback": True,
+        })
         if ok:
             err_msg = ""  # success on fallback
             # Tag the title so it's visible in the admin queue that this
@@ -256,12 +281,12 @@ async def generate_one_clip(model: str = "sora-2-pro") -> dict[str, Any]:
                     error_message=err_msg,
                     context={"job": "daily_clip_seed", "model": model, "prompt_title": title},
                 )
-                return {"status": "error", "reason": "budget_exhausted", "detail": err_msg}
+                return {"status": "error", "reason": "budget_exhausted", "detail": err_msg, "attempts": attempts}
         except Exception as e:
             # Don't let the alerter itself crash the cron — log and move on.
             import logging
             logging.getLogger("crafters").warning("[clip_seeder] budget-alerter failed: %s", e)
-        return {"status": "error", "reason": "video generation failed", "detail": err_msg}
+        return {"status": "error", "reason": "video generation failed", "detail": err_msg, "attempts": attempts}
 
     # Verify the file actually landed on disk with non-zero size before
     # we try to upload it. Keeps a failed Sora download from creating a
@@ -360,4 +385,5 @@ async def generate_one_clip(model: str = "sora-2-pro") -> dict[str, Any]:
             "video_url": public_video_url,
             "poster_url": poster_url,
         },
+        "attempts": attempts,
     }

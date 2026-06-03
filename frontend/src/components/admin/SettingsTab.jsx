@@ -786,7 +786,7 @@ function ClipsSeedCard() {
             data-testid="clips-seed-model"
           >
             <option value="sora-2">sora-2 · 1280×720 horizontal (recommended · faster + cheaper)</option>
-            <option value="sora-2-pro">sora-2-pro · 1024×1792 vertical (premium · slower queue)</option>
+            <option value="sora-2-pro" disabled>sora-2-pro · vertical (DISABLED · pro queue exceeds 900s ceiling)</option>
           </select>
         </label>
         <div>
@@ -903,7 +903,7 @@ function ClipsSeedCard() {
                   <button
                     type="button"
                     onClick={() => setRecentExpanded(isOpen ? null : j.job_id)}
-                    disabled={j.status !== "error" || !j.detail}
+                    disabled={j.status !== "error" || (!j.detail && !(Array.isArray(j.attempts) && j.attempts.length))}
                     className="w-full grid grid-cols-[70px_55px_55px_70px_1fr_55px] gap-2 items-center font-mono text-[10px] py-1 text-left disabled:cursor-default"
                   >
                     <span className={`uppercase tracking-[0.15em] text-center px-1.5 py-0.5 border ${pillColor}`}>
@@ -926,12 +926,41 @@ function ClipsSeedCard() {
                     </span>
                     <span className="text-[#737373] text-right">{durSec != null ? `${durSec}s` : "—"}</span>
                   </button>
-                  {isOpen && j.detail && (
+                  {isOpen && (j.detail || (Array.isArray(j.attempts) && j.attempts.length)) && (
                     <div
                       className="ml-[70px] mb-1.5 px-2 py-1.5 bg-red-950/20 border-l-2 border-red-800/60 font-mono text-[10px] text-red-200/85 leading-relaxed whitespace-pre-wrap break-all"
                       data-testid="clips-seed-recent-detail"
                     >
-                      {j.detail}
+                      {/* iter322 — Per-attempt diagnostics. When the job ran
+                          a fallback (sora-2-pro → sora-2 base) both attempts
+                          are surfaced so the operator can see exactly where
+                          the chain broke. */}
+                      {Array.isArray(j.attempts) && j.attempts.length > 0 && (
+                        <div className="mb-2 space-y-1">
+                          {j.attempts.map((a, i) => (
+                            <div
+                              key={i}
+                              className={`border-l-2 pl-2 ${a.ok ? "border-emerald-700 text-emerald-200/90" : "border-red-700 text-red-200/90"}`}
+                              data-testid={`clips-seed-recent-attempt-${i}`}
+                            >
+                              <span className="text-[#a3a3a3] mr-1.5">
+                                {a.is_fallback ? "↳ fallback" : "primary"}
+                              </span>
+                              <span className="text-purple-300/80 mr-1.5">{a.model}</span>
+                              <span className="text-[#737373] mr-1.5">{a.elapsed_s}s</span>
+                              <span className="uppercase tracking-[0.18em] text-[9px] mr-1.5">
+                                {a.ok ? "✓ ok" : "✗ fail"}
+                              </span>
+                              {!a.ok && a.error && (
+                                <div className="mt-0.5 text-red-300/80 text-[9.5px]">{a.error}</div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {j.detail && (
+                        <div className="text-[10px] text-red-200/85">{j.detail}</div>
+                      )}
                     </div>
                   )}
                 </div>
