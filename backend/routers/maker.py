@@ -220,6 +220,12 @@ class MakerProductUpdate(BaseModel):
     accepts_backorders: Optional[bool] = None
     backorder_lead_weeks: Optional[int] = None
     renewal_option: Optional[str] = None  # "automatic" | "manual"
+    # iter327 — Switch a listing between physical / digital / both.
+    # Validated by the handler against the allow-list. Note that
+    # changing a hybrid listing to "physical" doesn't auto-purge any
+    # uploaded digital files — the maker has to remove them explicitly
+    # via DELETE /digital-files/{id} so they aren't silently lost.
+    listing_type: Optional[str] = None
 
 
 class ProductVariantInput(BaseModel):
@@ -268,6 +274,12 @@ async def maker_update_product(
         payload.gpc_path = cleaned  # may be "" to clear the override
     if payload.renewal_option is not None and payload.renewal_option not in ("automatic", "manual"):
         raise HTTPException(400, "renewal_option must be 'automatic' or 'manual'.")
+    # iter327 — Allow toggling listing_type on edit. Note: we DON'T auto-
+    # delete uploaded digital files when switching to "physical" — that
+    # would silently lose user data. Maker must remove them explicitly
+    # via DELETE /api/maker/listings/{slug}/digital-files/{id}.
+    if payload.listing_type is not None and payload.listing_type not in ("physical", "digital", "both"):
+        raise HTTPException(400, "listing_type must be 'physical', 'digital', or 'both'.")
     if payload.variants is not None:
         for v in payload.variants:
             if not v.label.strip():
@@ -978,6 +990,10 @@ async def maker_create_product(
         raise HTTPException(400, "Maximum 13 SEO tags per listing.")
     if payload.renewal_option not in ("automatic", "manual"):
         raise HTTPException(400, "renewal_option must be 'automatic' or 'manual'.")
+    # iter327 — Validate listing_type. Defaults to "physical" so legacy
+    # clients that don't send the field keep the existing behaviour.
+    if payload.listing_type not in ("physical", "digital", "both"):
+        raise HTTPException(400, "listing_type must be 'physical', 'digital', or 'both'.")
     # Validate variants — labels are required and stock must be non-negative
     for v in payload.variants or []:
         if not v.label.strip():
@@ -1079,6 +1095,10 @@ async def maker_create_product(
         seo_tags=(payload.seo_tags or [])[:13],
         contact_email=payload.contact_email,
         renewal_option=payload.renewal_option,
+        # iter327 — Pass through the listing_type (physical/digital/both).
+        # `digital_files` starts empty — the maker uploads them in a
+        # separate request after the listing is created.
+        listing_type=payload.listing_type,
         # Auto-set expiry only on publish; drafts have no expiry until published.
         expires_at=(
             __import__("revenue").expiry_iso_from_now()
@@ -1382,6 +1402,146 @@ async def maker_upload_listing_image(
         raise HTTPException(502, "Could not upload photo to storage.")
 
     return {"url": url, "size": len(body)}
+
+
+# ════════════════════════════════════════════════════════════════════════
+# iter327 — Digital-file uploads for digital + hybrid listings.
+# ════════════════════════════════════════════════════════════════════════
+# Each listing of type "digital" or "both" can carry up to 10 downloadable
+# files. We piggyback on the existing `upload_design_file_bytes` helper in
+# `r2_storage.py` which already validates against a safe allow-list
+# (SVG, DXF, DWG, AI, EPS, STL, STEP, PDF, ZIP) and caps each file at 25 MB.
+#
+# Files live in R2 under `digital-listings/{maker_slug}/{product_slug}/`
+# so the maker-owned scope is clear. The buyer never sees these public
+# R2 URLs directly — at checkout we mint a token-gated download URL
+# scoped to the order, but that's iter328 work. For now we just persist
+# the manifest entries onto `Product.digital_files`.
+DIGITAL_FILE_MAX_COUNT = 10
+
+
+@router.post("/maker/listings/{product_slug}/digital-files")
+async def maker_upload_digital_file(
+    product_slug: str,
+    file: UploadFile = File(...),
+    slug: str = Depends(current_maker_slug),
+):
+    """Upload one digital-deliverable file to a digital or hybrid listing.
+
+    Validations:
+      - Listing must exist AND belong to the calling maker.
+      - Listing `listing_type` must be "digital" or "both" (not "physical").
+      - At most DIGITAL_FILE_MAX_COUNT files per listing.
+      - Each file ≤ 25 MB and content-type in the design-file allow-list.
+
+    Returns the freshly-inserted manifest entry so the editor can append
+    it to the list without a second round-trip.
+    """
+    prod = await db.products.find_one({"slug": product_slug}, {"_id": 0})
+    if not prod:
+        raise HTTPException(404, "Product not found.")
+    if prod.get("maker_slug") != slug:
+        raise HTTPException(403, "You can only edit your own listings.")
+    if prod.get("listing_type") not in ("digital", "both"):
+        raise HTTPException(
+            400,
+            "Switch this listing to 'digital' or 'both' before uploading files.",
+        )
+    existing = prod.get("digital_files") or []
+    if len(existing) >= DIGITAL_FILE_MAX_COUNT:
+        raise HTTPException(
+            400,
+            f"Maximum {DIGITAL_FILE_MAX_COUNT} files per listing. Remove one before uploading another.",
+        )
+
+    body = await file.read()
+    if not body:
+        raise HTTPException(400, "Empty file.")
+
+    # Persist to R2 — design-file helper validates extension + content
+    # type and caps at 25 MB, exactly the rules we want here.
+    try:
+        from r2_storage import is_configured as _r2_ok, upload_design_file_bytes
+    except Exception:
+        raise HTTPException(503, "R2 storage is not available.")
+    if not _r2_ok():
+        raise HTTPException(503, "R2 storage is not configured.")
+
+    key_prefix = f"digital-listings/{slug}/{product_slug}"
+    try:
+        url, ext = upload_design_file_bytes(
+            body, key_prefix,
+            filename=file.filename,
+            content_type=file.content_type or "",
+        )
+    except ValueError as e:
+        # Bad extension / content type — bubble up the human message.
+        raise HTTPException(400, str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("digital-file upload failed slug=%s: %s", product_slug, e)
+        raise HTTPException(502, "Could not upload file to storage.")
+
+    entry = {
+        "id": str(uuid.uuid4()),
+        "filename": (file.filename or f"file.{ext.lower()}")[:200],
+        "size_bytes": len(body),
+        "content_type": (file.content_type or "").lower(),
+        "ext": ext,
+        "url": url,
+        "uploaded_at": now_iso(),
+    }
+    await db.products.update_one(
+        {"slug": product_slug},
+        {"$push": {"digital_files": entry}},
+    )
+    logger.info(
+        "[digital-files] uploaded slug=%s file=%s size=%dKB ext=%s",
+        product_slug, entry["filename"], entry["size_bytes"] // 1024, ext,
+    )
+    return entry
+
+
+@router.delete("/maker/listings/{product_slug}/digital-files/{file_id}")
+async def maker_delete_digital_file(
+    product_slug: str, file_id: str,
+    slug: str = Depends(current_maker_slug),
+):
+    """Remove a single uploaded digital file from a listing.
+
+    Best-effort R2 cleanup — we strip the object from the bucket if the
+    URL prefix matches our configured public R2 URL, otherwise we just
+    drop the manifest entry. Either way the Mongo update is the source
+    of truth for what buyers can download.
+    """
+    prod = await db.products.find_one(
+        {"slug": product_slug}, {"_id": 0, "maker_slug": 1, "digital_files": 1},
+    )
+    if not prod:
+        raise HTTPException(404, "Product not found.")
+    if prod.get("maker_slug") != slug:
+        raise HTTPException(403, "You can only edit your own listings.")
+
+    files = prod.get("digital_files") or []
+    target = next((f for f in files if f.get("id") == file_id), None)
+    if not target:
+        raise HTTPException(404, "File not found on this listing.")
+
+    # Best-effort R2 delete.
+    try:
+        from r2_storage import key_from_public_url, delete_key
+        key = key_from_public_url(target.get("url") or "")
+        if key:
+            delete_key(key)
+    except Exception as e:
+        logger.warning("[digital-files] r2 delete failed (non-fatal): %s", e)
+
+    await db.products.update_one(
+        {"slug": product_slug},
+        {"$pull": {"digital_files": {"id": file_id}}},
+    )
+    return {"ok": True, "removed_id": file_id}
 
 
 @router.post("/maker/uploads/portrait")

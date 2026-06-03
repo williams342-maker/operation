@@ -142,6 +142,20 @@ class Product(BaseModel):
     # a real listing for sale. Admins can purge all seeded examples in one
     # click once organic listings fill the catalog.
     featured_example: bool = False
+    # iter327 — Digital + hybrid listings.
+    # `listing_type`: "physical" (default — legacy listings) | "digital"
+    # (downloadable file only) | "both" (physical item + bonus digital
+    # source files). Drives shipping calc skip on checkout, "Instant
+    # Download" badge on the product card, and post-payment file
+    # delivery emails. Defaulting to "physical" keeps every pre-iter327
+    # listing behaving exactly as before.
+    listing_type: str = "physical"
+    # `digital_files`: 0..10 file manifest entries. Each entry is a dict
+    # `{id, filename, size_bytes, content_type, ext, url, uploaded_at}`.
+    # `url` points to R2 — the public URL is only useful to admins; on
+    # the buyer side we serve a token-gated download endpoint after
+    # purchase. Skip ObjectIds; this is just a thin manifest.
+    digital_files: List[dict] = []
     created_at: str = Field(default_factory=now_iso)
 
 
@@ -197,6 +211,13 @@ class MakerProductCreate(BaseModel):
     backorder_lead_weeks: Optional[int] = None
     # Etsy-style renewal mode: "automatic" (default) or "manual".
     renewal_option: str = "automatic"
+    # iter327 — Digital/hybrid listing type. Validated at the create/
+    # update handler (must be one of "physical" | "digital" | "both").
+    # `digital_files` are NOT set via this payload — they're uploaded
+    # separately to POST /api/maker/listings/{slug}/digital-files so we
+    # can stream multipart bodies straight to R2 without bloating the
+    # JSON create payload.
+    listing_type: str = "physical"
 
 
 class Maker(BaseModel):

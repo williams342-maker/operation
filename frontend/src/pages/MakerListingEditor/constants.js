@@ -284,5 +284,10 @@ export const emptyForm = () => ({
   // "manual" (flips to draft on expiry). Default to automatic so the
   // listing keeps earning unless the maker deliberately opts out.
   renewal_option: "automatic",
+  // iter327 — Digital/hybrid listings. "physical" by default (legacy
+  // behaviour). Switching to "digital" or "both" unlocks the file
+  // upload card and hides irrelevant shipping fields.
+  listing_type: "physical",
+  digital_files: [],
   status: "draft",
 });

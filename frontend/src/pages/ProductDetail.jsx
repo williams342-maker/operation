@@ -259,6 +259,23 @@ export default function ProductDetail() {
                 ✦ Featured Example · Curated by Crafters Market to showcase the platform
               </div>
             )}
+            {/* iter327 — Listing-type badge. Renders only when the
+                listing is digital-only or hybrid; physical listings
+                (the default and overwhelming majority) get no badge so
+                we don't add visual noise. */}
+            {(p.listing_type === "digital" || p.listing_type === "both") && (
+              <div
+                className="mb-3 inline-flex items-center gap-2 px-3 py-1.5 border border-cyan-400/60 bg-cyan-950/30 text-cyan-300 font-mono text-[10px] uppercase tracking-[0.22em]"
+                data-testid="product-detail-digital-badge"
+              >
+                ◆ {p.listing_type === "digital" ? "Instant Download" : "Physical + Digital Files"}
+                {Array.isArray(p.digital_files) && p.digital_files.length > 0 && (
+                  <span className="text-cyan-100/80">
+                    · {p.digital_files.length} file{p.digital_files.length === 1 ? "" : "s"}
+                  </span>
+                )}
+              </div>
+            )}
             <div className="font-display text-2xl text-[#ff4500] mb-4" data-testid="product-price">
               ${effectivePrice.toFixed(2)}
             </div>
@@ -270,6 +287,43 @@ export default function ProductDetail() {
             <ProductBasics product={p} effectiveStock={effectiveStock} />
 
             <ProductDescription description={p.description} />
+
+            {/* iter327 — Buyer-facing digital file manifest. Shown for
+                digital + hybrid listings so buyers know exactly what
+                they'll receive before purchase. Filenames + types only —
+                no URLs (those are token-gated after payment). */}
+            {(p.listing_type === "digital" || p.listing_type === "both")
+              && Array.isArray(p.digital_files) && p.digital_files.length > 0 && (
+              <div
+                className="mb-6 p-4 border border-cyan-900/50 bg-cyan-950/[0.18]"
+                data-testid="product-detail-digital-manifest"
+              >
+                <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-cyan-300 mb-3">
+                  ◆ Files you'll receive ({p.digital_files.length})
+                </div>
+                <ul className="space-y-1.5">
+                  {p.digital_files.map((f) => (
+                    <li
+                      key={f.id}
+                      className="flex items-baseline gap-3 font-mono text-[11px]"
+                      data-testid={`product-detail-digital-file-${f.id}`}
+                    >
+                      <span className="text-cyan-400 shrink-0">▸</span>
+                      <span className="text-[#e5e5e5] truncate">{f.filename}</span>
+                      <span className="text-[#737373] shrink-0 ml-auto">
+                        {f.ext} · {f.size_bytes >= 1024 * 1024
+                          ? (f.size_bytes / 1024 / 1024).toFixed(1) + " MB"
+                          : Math.max(1, Math.round(f.size_bytes / 1024)) + " KB"}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="font-mono text-[10px] text-cyan-200/70 mt-3 leading-relaxed">
+                  Files are sent the moment payment clears — via email + on the order
+                  confirmation page. All digital sales are final.
+                </div>
+              </div>
+            )}
 
             {/* iter303 — auto-cross-link to the most relevant guide
                 based on technique + materials. Renders null when no

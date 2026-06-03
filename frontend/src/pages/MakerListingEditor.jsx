@@ -25,6 +25,7 @@ import {
 import MediaSection from "./MakerListingEditor/MediaSection";
 import AiAssistantSection from "./MakerListingEditor/AiAssistantSection";
 import PricingSection from "./MakerListingEditor/PricingSection";
+import ListingTypeSection from "./MakerListingEditor/ListingTypeSection";
 import GpcCombobox from "./MakerListingEditor/GpcCombobox";
 import { estimateShipping } from "../lib/shippingEstimator";
 
@@ -158,6 +159,11 @@ export default function MakerListingEditor() {
             // listings that don't have the field set yet so the toggle
             // reflects the backend's default behaviour.
             renewal_option: found.renewal_option || "automatic",
+            // iter327 — Digital/hybrid listing fields. Legacy listings
+            // default to "physical" so existing rows behave exactly as
+            // they did pre-upgrade.
+            listing_type: found.listing_type || "physical",
+            digital_files: found.digital_files || [],
           });
           setLoaded(true);
         }
@@ -623,6 +629,10 @@ export default function MakerListingEditor() {
     accepts_backorders: form.accepts_backorders,
     backorder_lead_weeks: form.backorder_lead_weeks ?? null,
     renewal_option: form.renewal_option || "automatic",
+    // iter327 — Digital/hybrid listing type. `digital_files` are NOT
+    // included in this payload — they're uploaded via the dedicated
+    // /maker/listings/{slug}/digital-files endpoint after save.
+    listing_type: form.listing_type || "physical",
   });
 
   const submit = async (statusOverride) => {
@@ -1002,6 +1012,17 @@ export default function MakerListingEditor() {
         <PricingSection
           form={form} set={set} errors={errors}
           addVariant={addVariant} updateVariant={updateVariant} removeVariant={removeVariant}
+        />
+
+        {/* iter327 — Listing type (physical/digital/both) + digital file
+            uploads. Uploads hit the backend directly via the dedicated
+            endpoint, so the section state is the source of truth for
+            `form.digital_files` without needing to bundle them in the
+            main create/update payload. */}
+        <ListingTypeSection
+          form={form} set={set}
+          productSlug={slug}
+          api={process.env.REACT_APP_BACKEND_URL}
         />
 
         {/* ---------- Personalization ---------- */}
