@@ -17,6 +17,7 @@ import {
   CATEGORIES, TECHNIQUES, WHO_MADE_IT, CONDITIONS, DIM_UNITS, COLORS,
   OCCASIONS, PROCESSING_TIMES, DELIVERY_RANGES, CARRIERS,
   MAX_IMAGES, MAX_TAGS, emptyForm,
+  shippingHintForCategory,
 } from "./MakerListingEditor/constants";
 import {
   Section, Label, FieldError, NumInput, Select, ChipGrid, Toggle, ToggleRow,
@@ -846,6 +847,29 @@ export default function MakerListingEditor() {
               <p className="font-mono text-[10px] text-[#525252] mt-1 leading-relaxed">
                 The single best filter buyers use — pick the closest match.
               </p>
+              {/* iter331 — Shipping-rate hint chip. Shows the flat ship
+                  rate buyers will see at checkout for the picked category
+                  UNLESS the maker has set a custom `shipping_domestic_usd`
+                  (which would override the per-category default — surface
+                  a different chip in that case so we don't lie). */}
+              {form.category && (
+                form.shipping_domestic_usd != null && form.shipping_domestic_usd !== "" ? (
+                  <div
+                    className="mt-2 inline-flex items-center gap-2 px-2.5 py-1.5 border border-[#ff4500]/40 bg-[#ff4500]/[0.06] font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]"
+                    data-testid="editor-shipping-hint-custom"
+                  >
+                    ◆ Ships at custom rate · ${Number(form.shipping_domestic_usd).toFixed(2)}
+                  </div>
+                ) : (
+                  <div
+                    className="mt-2 inline-flex items-center gap-2 px-2.5 py-1.5 border border-[#262626] bg-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]"
+                    title="Buyer-facing flat shipping rate at checkout. Override per-listing in the Shipping section below."
+                    data-testid="editor-shipping-hint-default"
+                  >
+                    <span className="text-[#ff4500]">◆</span> Ships in: {shippingHintForCategory(form.category)}
+                  </div>
+                )
+              )}
             </div>
             <div>
               <Label>Technique</Label>

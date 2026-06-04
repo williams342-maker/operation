@@ -35,6 +35,46 @@ export const CATEGORIES = [
   "Other",
 ];
 export const TECHNIQUES = ["PLASMA", "LASER", "ROUTER", "FORGE", "CUSTOM"];
+
+// iter331 — Per-category default shipping rates, mirrored 1:1 with
+// `SHIPPING_BY_CATEGORY` in /app/backend/routers/checkout.py. Used by
+// the listing editor to show makers what flat ship rate buyers will
+// see at checkout when no custom `shipping_domestic_usd` is set.
+// MUST stay in sync with the backend — there's no API endpoint to
+// fetch this dynamically (it's a 14-entry static map). If you change
+// one, change both.
+export const SHIPPING_DEFAULTS = {
+  "Wall Art": 25.0,
+  "Custom Signs": 35.0,
+  "Outdoor Art": 55.0,
+  "Home Decor": 25.0,
+  "Wedding Gifts": 20.0,
+  "Business Signage": 45.0,
+  "Address Numbers": 20.0,
+  "Lighting & Lamps": 35.0,
+  "Garden & Yard Art": 55.0,
+  "Memorial & Tribute": 25.0,
+  "Furniture": 95.0,
+  "Kitchen & Bar": 25.0,
+  "Sculpture": 65.0,
+  "Jewelry & Wearables": 8.0,
+  "Holiday & Seasonal": 25.0,
+};
+export const SHIPPING_FALLBACK = 30.0;
+
+// Human-readable carrier hint per shipping price tier. We can't know
+// the exact carrier service the maker will use, but rough size + weight
+// implied by the per-category default lets us hint sensibly. Stays
+// purely advisory — buyer-facing shipping descriptions are still set
+// by Shippo / the maker at fulfilment time.
+export function shippingHintForCategory(cat) {
+  const usd = SHIPPING_DEFAULTS[cat] ?? SHIPPING_FALLBACK;
+  if (usd <= 10) return `USPS first-class envelope ($${usd.toFixed(2)})`;
+  if (usd <= 25) return `USPS Priority small flat-rate box ($${usd.toFixed(2)})`;
+  if (usd <= 45) return `USPS Priority medium box / UPS Ground ($${usd.toFixed(2)})`;
+  if (usd <= 65) return `UPS Ground · oversized ($${usd.toFixed(2)})`;
+  return `Freight / LTL · heavy ($${usd.toFixed(2)})`;
+}
 export const WHO_MADE_IT = [
   ["i_made_it", "I made it"],
   ["shop_member", "A member of my shop"],
