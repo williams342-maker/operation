@@ -206,6 +206,21 @@
           gtag('config', 'G-HY3FKJS4JK');
         </script>
 
+        <!-- Microsoft Advertising UET (iter334d · ti=97249872) -->
+        <!-- SPA route changes auto-tracked via enableAutoSpaTracking:true -->
+        <script>
+          (function(w,d,t,u,o){w[u]=w[u]||[],o.ts=(new Date).getTime();var n=d.createElement(t);n.src="https://bat.bing.net/bat.js?ti="+o.ti+("uetq"!=u?"&q="+u:""),n.async=1,n.onload=n.onreadystatechange=function(){var s=this.readyState;s&&"loaded"!==s&&"complete"!==s||(o.q=w[u],w[u]=new UET(o),w[u].push("pageLoad"),n.onload=n.onreadystatechange=null)};var i=d.getElementsByTagName(t)[0];i.parentNode.insertBefore(n,i)})(window,document,"script","uetq",{ti:"97249872",enableAutoSpaTracking:true});
+        </script>
+        <!-- UET Consent Mode — defaults to 'granted' to match the
+             existing GA4 setup above (no consent banner today). When a
+             GDPR/cookie banner is added, flip the default to 'denied'
+             below and call `window.uetq.push('consent','update',{ad_storage:'granted'})`
+             when the user accepts. See: https://help.ads.microsoft.com/#apex/ads/en/60118 -->
+        <script>
+          window.uetq = window.uetq || [];
+          window.uetq.push('consent', 'default', { 'ad_storage': 'granted' });
+        </script>
+
         <!-- PWA service-worker registration (handles offline shell + web push) -->
         <script>
           if ('serviceWorker' in navigator) {
