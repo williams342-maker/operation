@@ -62,18 +62,89 @@ export const SHIPPING_DEFAULTS = {
 };
 export const SHIPPING_FALLBACK = 30.0;
 
-// Human-readable carrier hint per shipping price tier. We can't know
-// the exact carrier service the maker will use, but rough size + weight
-// implied by the per-category default lets us hint sensibly. Stays
-// purely advisory — buyer-facing shipping descriptions are still set
-// by Shippo / the maker at fulfilment time.
+// Human-readable carrier hint — derived from the preset table so the
+// chip label and the picker stay perfectly aligned.
 export function shippingHintForCategory(cat) {
+  const presetId = defaultPresetIdForCategory(cat);
+  const preset = SHIPPING_PRESETS.find((p) => p.id === presetId);
+  if (!preset) return "";
+  return `${preset.label} ($${preset.cost.toFixed(2)})`;
+}
+
+// iter332 — Carrier shipping presets. Each preset captures the
+// canonical packed dimensions + weight assumption + cost for a USPS
+// or UPS service tier. Clicking the chip-as-button in the listing
+// editor pops a picker and fills the `packed_*` + `weight_*` fields
+// + sets `shipping_domestic_usd` to the listed cost.
+//
+// Dimensions are USPS / UPS published box specs. Weight assumptions
+// are conservative defaults makers can override per-listing — if you
+// don't know your weight, "average filled" is a safer guess than
+// blank (Shippo rejects blank weight).
+//
+// Stays in sync with backend `SHIPPING_BY_CATEGORY` (checkout.py) by
+// matching the per-category default dollar amount when applicable.
+export const SHIPPING_PRESETS = [
+  {
+    id: "envelope",
+    label: "USPS first-class envelope",
+    blurb: "Jewelry · patches · flat lightweight",
+    length: 9.5, width: 6, height: 0.25,
+    weight_lbs: 0, weight_oz: 4,
+    cost: 8.0,
+  },
+  {
+    id: "small_box",
+    label: "USPS Priority small flat-rate box",
+    blurb: "Trinkets · address numbers · small wall art",
+    length: 8.625, width: 5.375, height: 1.625,
+    weight_lbs: 0, weight_oz: 12,
+    cost: 25.0,
+  },
+  {
+    id: "medium_box",
+    label: "USPS Priority medium flat-rate box",
+    blurb: "Mid-size wall art · custom signs · home decor",
+    length: 11, width: 8.5, height: 5.5,
+    weight_lbs: 2, weight_oz: 0,
+    cost: 35.0,
+  },
+  {
+    id: "large_box",
+    label: "USPS Priority large flat-rate box",
+    blurb: "Bigger signs · clustered orders · framed art",
+    length: 12, width: 12, height: 5.5,
+    weight_lbs: 5, weight_oz: 0,
+    cost: 45.0,
+  },
+  {
+    id: "ups_ground",
+    label: "UPS Ground · oversized",
+    blurb: "Outdoor sculpture · large yard art · clocks",
+    length: 24, width: 18, height: 12,
+    weight_lbs: 12, weight_oz: 0,
+    cost: 65.0,
+  },
+  {
+    id: "freight",
+    label: "Freight / LTL · heavy",
+    blurb: "Furniture · multi-piece installations · entry signs",
+    length: 48, width: 30, height: 24,
+    weight_lbs: 75, weight_oz: 0,
+    cost: 95.0,
+  },
+];
+
+// Map a category's flat shipping cost back to the closest preset id so
+// the chip can open the picker with the "right" preset pre-highlighted.
+export function defaultPresetIdForCategory(cat) {
   const usd = SHIPPING_DEFAULTS[cat] ?? SHIPPING_FALLBACK;
-  if (usd <= 10) return `USPS first-class envelope ($${usd.toFixed(2)})`;
-  if (usd <= 25) return `USPS Priority small flat-rate box ($${usd.toFixed(2)})`;
-  if (usd <= 45) return `USPS Priority medium box / UPS Ground ($${usd.toFixed(2)})`;
-  if (usd <= 65) return `UPS Ground · oversized ($${usd.toFixed(2)})`;
-  return `Freight / LTL · heavy ($${usd.toFixed(2)})`;
+  if (usd <= 10) return "envelope";
+  if (usd <= 25) return "small_box";
+  if (usd <= 45) return "medium_box";
+  if (usd <= 60) return "large_box";
+  if (usd <= 80) return "ups_ground";
+  return "freight";
 }
 export const WHO_MADE_IT = [
   ["i_made_it", "I made it"],

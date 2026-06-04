@@ -18,6 +18,7 @@ import {
   OCCASIONS, PROCESSING_TIMES, DELIVERY_RANGES, CARRIERS,
   MAX_IMAGES, MAX_TAGS, emptyForm,
   shippingHintForCategory,
+  SHIPPING_PRESETS, defaultPresetIdForCategory,
 } from "./MakerListingEditor/constants";
 import {
   Section, Label, FieldError, NumInput, Select, ChipGrid, Toggle, ToggleRow,
@@ -91,6 +92,10 @@ export default function MakerListingEditor() {
   // (last attempt failed — manual retry recommended).
   const [autoStatus, setAutoStatus] = useState("idle");
   const [lastSavedAt, setLastSavedAt] = useState(null);
+  // iter332 — Carrier-preset picker. Open/closed UI state for the chip
+  // popover under Category; clicking a preset row fills the packed
+  // dimensions + weight fields + sets shipping_domestic_usd in one shot.
+  const [presetOpen, setPresetOpen] = useState(false);
   // Slug of the draft auto-created on a brand-new listing. Once set, all
   // subsequent autosaves PATCH instead of creating duplicate drafts.
   const [autoSlug, setAutoSlug] = useState(null);
@@ -847,13 +852,18 @@ export default function MakerListingEditor() {
               <p className="font-mono text-[10px] text-[#525252] mt-1 leading-relaxed">
                 The single best filter buyers use — pick the closest match.
               </p>
-              {/* iter331 — Shipping-rate hint chip. Shows the flat ship
-                  rate buyers will see at checkout for the picked category
-                  UNLESS the maker has set a custom `shipping_domestic_usd`
-                  (which would override the per-category default — surface
-                  a different chip in that case so we don't lie). */}
+              {/* iter331/332 — Shipping-rate hint chip → clickable
+                  button. Default state shows the per-category carrier
+                  hint; clicking opens a popover with 6 carrier presets
+                  (USPS envelope → USPS Priority small/medium/large box
+                  → UPS Ground → Freight). Picking one fills the packed
+                  dimensions, weight (in lbs/oz), and `shipping_domestic
+                  _usd` in one click — Shippo-compatible defaults that
+                  buyers see at checkout. Custom rate chip is unchanged
+                  (no override of a deliberate maker choice). */}
               {form.category && (
-                form.shipping_domestic_usd != null && form.shipping_domestic_usd !== "" ? (
+                form.shipping_domestic_usd != null && form.shipping_domestic_usd !== ""
+                  && !presetOpen ? (
                   <div
                     className="mt-2 inline-flex items-center gap-2 px-2.5 py-1.5 border border-[#ff4500]/40 bg-[#ff4500]/[0.06] font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]"
                     data-testid="editor-shipping-hint-custom"
@@ -861,12 +871,90 @@ export default function MakerListingEditor() {
                     ◆ Ships at custom rate · ${Number(form.shipping_domestic_usd).toFixed(2)}
                   </div>
                 ) : (
-                  <div
-                    className="mt-2 inline-flex items-center gap-2 px-2.5 py-1.5 border border-[#262626] bg-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]"
-                    title="Buyer-facing flat shipping rate at checkout. Override per-listing in the Shipping section below."
-                    data-testid="editor-shipping-hint-default"
-                  >
-                    <span className="text-[#ff4500]">◆</span> Ships in: {shippingHintForCategory(form.category)}
+                  <div className="mt-2 relative inline-block">
+                    <button
+                      type="button"
+                      onClick={() => setPresetOpen((v) => !v)}
+                      className="inline-flex items-center gap-2 px-2.5 py-1.5 border border-[#262626] hover:border-[#ff4500] bg-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#e5e5e5] transition"
+                      title="Click to apply a Shippo-ready preset (fills dimensions + weight + ship cost)"
+                      data-testid="editor-shipping-hint-default"
+                      aria-expanded={presetOpen}
+                    >
+                      <span className="text-[#ff4500]">◆</span> Ships in: {shippingHintForCategory(form.category)}
+                      <span className="text-[#525252]">▾</span>
+                    </button>
+
+                    {presetOpen && (
+                      <div
+                        className="absolute z-30 mt-2 left-0 w-[420px] max-w-[calc(100vw-2rem)] border border-[#262626] bg-[#0a0a0a] shadow-2xl"
+                        data-testid="editor-shipping-preset-picker"
+                      >
+                        <div className="px-4 py-3 border-b border-[#262626] font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] flex items-center justify-between">
+                          <span>◆ One-click carrier preset</span>
+                          <button
+                            type="button"
+                            onClick={() => setPresetOpen(false)}
+                            className="text-[#737373] hover:text-[#ff4500]"
+                            aria-label="Close picker"
+                            data-testid="editor-shipping-preset-close"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                        <ul className="max-h-[420px] overflow-y-auto">
+                          {SHIPPING_PRESETS.map((p) => {
+                            const isDefault = defaultPresetIdForCategory(form.category) === p.id;
+                            return (
+                              <li key={p.id}>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    set({
+                                      packed_length_in: p.length,
+                                      packed_width_in: p.width,
+                                      packed_height_in: p.height,
+                                      weight_lbs: p.weight_lbs,
+                                      weight_oz: p.weight_oz,
+                                      shipping_domestic_usd: p.cost,
+                                    });
+                                    setPresetOpen(false);
+                                    toast.success(`Applied: ${p.label}`, {
+                                      description: `Dimensions, weight, and $${p.cost.toFixed(2)} ship rate filled. You can fine-tune in the Shipping section.`,
+                                    });
+                                  }}
+                                  className="w-full text-left px-4 py-3 hover:bg-[#171717] border-b border-[#171717] transition group"
+                                  data-testid={`editor-shipping-preset-${p.id}`}
+                                >
+                                  <div className="flex items-baseline justify-between gap-3">
+                                    <div className="font-mono text-[11px] uppercase tracking-[0.18em] text-[#e5e5e5] group-hover:text-[#ff4500] flex items-center gap-2">
+                                      {p.label}
+                                      {isDefault && (
+                                        <span className="px-1 py-px text-[8.5px] font-bold tracking-[0.18em] border border-[#ff4500]/60 text-[#ff4500]">
+                                          DEFAULT
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="font-mono text-[12px] text-[#ff4500] shrink-0">
+                                      ${p.cost.toFixed(2)}
+                                    </div>
+                                  </div>
+                                  <div className="font-mono text-[9.5px] text-[#737373] mt-1">
+                                    {p.blurb}
+                                  </div>
+                                  <div className="font-mono text-[9.5px] text-[#525252] mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5">
+                                    <span>📦 {p.length}″ × {p.width}″ × {p.height}″</span>
+                                    <span>⚖ {p.weight_lbs} lb {p.weight_oz} oz</span>
+                                  </div>
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                        <div className="px-4 py-2 border-t border-[#262626] font-mono text-[9.5px] text-[#525252] leading-relaxed">
+                          Applied values populate the Shipping section below — fine-tune any field after picking.
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )
               )}
