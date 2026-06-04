@@ -185,6 +185,9 @@ api.include_router(maker_shipping_presets_router)
 # iter334 — AI Price Comparison companion (Jina Reader + Claude).
 from routers.ai_price_compare import router as ai_price_compare_router
 api.include_router(ai_price_compare_router)
+# iter334c — Weekly AI pricing digest (cron + admin manual trigger).
+from routers.pricing_digest import router as pricing_digest_router
+api.include_router(pricing_digest_router)
 app.include_router(api)
 
 # iter109 — Canonical-host 301 redirect middleware. When `CANONICAL_HOST`

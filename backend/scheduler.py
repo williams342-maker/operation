@@ -784,6 +784,22 @@ async def _job_maker_journal_digest() -> None:
         logger.exception("[scheduler] maker_journal_digest failed: %s", e)
 
 
+async def _job_maker_pricing_digest() -> None:
+    """Weekly Monday 15:00 UTC — for each maker with one or more
+    listings priced 20%+ above the AI-derived market median (from the
+    `price_comparisons` collection populated by the AI Price Check
+    tool), send a single digest email summarizing the flagged items.
+    Idempotent on ISO week via `pricing_digest_log`. Maker can opt out
+    via `maker.pricing_digest_opt_out: true`. Runs one hour after the
+    journal digest so we don't clash on Mailgun send-rate."""
+    try:
+        from routers.pricing_digest import run_weekly_pricing_digest
+        r = await run_weekly_pricing_digest()
+        logger.info("[scheduler] maker_pricing_digest: %s", r)
+    except Exception as e:
+        logger.exception("[scheduler] maker_pricing_digest failed: %s", e)
+
+
 async def _job_social_momentum_digest() -> None:
     """Weekly Monday 14:30 UTC — for each maker whose listings collected
     one or more public Share-button clicks in the past 7 days, send a
@@ -1172,6 +1188,15 @@ def start_scheduler() -> AsyncIOScheduler | None:
     sched.add_job(_job_maker_journal_digest,
                   CronTrigger(day_of_week="mon", hour=14, minute=0),
                   id="maker_journal_digest", replace_existing=True)
+
+    # iter334c — Weekly AI pricing digest. Monday 15:00 UTC so it's a
+    # safe 1h after the journal digest. One email per maker with any
+    # listings priced 20%+ above AI-derived market median. Idempotent
+    # on ISO week via `pricing_digest_log`. Maker opt-out via
+    # `maker.pricing_digest_opt_out: true`.
+    sched.add_job(_job_maker_pricing_digest,
+                  CronTrigger(day_of_week="mon", hour=15, minute=0),
+                  id="maker_pricing_digest", replace_existing=True)
 
     # iter251 — nightly Buffer auto-pick. REMOVED iter252 (Buffer replaced by EnrichLabs).
     # iter273 — Social auto-publish sweep every 15 min. Self-skips when

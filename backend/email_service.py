@@ -1488,6 +1488,81 @@ async def send_maker_renewal_digest(
     )
 
 
+# iter334c — Weekly AI pricing digest
+async def send_maker_pricing_digest(
+    maker_email: str, maker_name: str, flagged: list[dict],
+):
+    """Sent weekly to makers who have one or more listings priced ≥20%
+    above the AI-derived market median (from the `price_comparisons`
+    collection populated by the AI Price Check feature).
+
+    `flagged` rows look like:
+        { slug, title, listed_price, market_median, delta_pct }
+    Sorted highest-delta first so the most over-priced item leads.
+    """
+    if not maker_email or not flagged:
+        return None
+    base = os.environ.get("PUBLIC_APP_URL") or "https://craftersmarket.org"
+    n = len(flagged)
+    plural = "" if n == 1 else "s"
+
+    def _row(li: dict) -> str:
+        slug = li.get("slug") or ""
+        title = li.get("title") or slug
+        lp = float(li.get("listed_price") or 0)
+        med = float(li.get("market_median") or 0)
+        delta = int(round(float(li.get("delta_pct") or 0)))
+        return (
+            "<tr>"
+            f"<td style='padding:10px 14px;border-bottom:1px solid #1a1a1a;font-size:13px;color:#e5e5e5'>"
+            f"<a href='{base}/maker/listings/{slug}/edit' style='color:#e5e5e5;text-decoration:none'>"
+            f"{title}</a></td>"
+            f"<td style='padding:10px 14px;border-bottom:1px solid #1a1a1a;font-size:12px;text-align:right;font-family:monospace;color:#e5e5e5'>"
+            f"${lp:.0f}</td>"
+            f"<td style='padding:10px 14px;border-bottom:1px solid #1a1a1a;font-size:12px;text-align:right;font-family:monospace;color:#a3a3a3'>"
+            f"${med:.0f}</td>"
+            f"<td style='padding:10px 14px;border-bottom:1px solid #1a1a1a;font-size:12px;text-align:right;font-family:monospace;color:#ff4500;font-weight:bold'>"
+            f"+{delta}%</td>"
+            "</tr>"
+        )
+
+    rows = "".join(_row(li) for li in flagged[:10])
+    body = (
+        "<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 16px'>"
+        f"Hi {maker_name}, "
+        f"<strong style='color:#ff4500'>{n} of your listing{plural}</strong> "
+        f"{'are' if n != 1 else 'is'} priced 20%+ above the AI-derived market median. "
+        "Doesn't mean you should drop prices — premium positioning works — but worth a look "
+        "if anything is sitting in the catalog without sales.</p>"
+        "<table style='width:100%;border-collapse:collapse;margin:18px 0;background:#0d0d0d;border:1px solid #262626'>"
+        "<thead><tr>"
+        "<th style='padding:10px 14px;text-align:left;border-bottom:1px solid #262626;font-family:monospace;font-size:10px;letter-spacing:0.22em;text-transform:uppercase;color:#a3a3a3'>Listing</th>"
+        "<th style='padding:10px 14px;text-align:right;border-bottom:1px solid #262626;font-family:monospace;font-size:10px;letter-spacing:0.22em;text-transform:uppercase;color:#a3a3a3'>Yours</th>"
+        "<th style='padding:10px 14px;text-align:right;border-bottom:1px solid #262626;font-family:monospace;font-size:10px;letter-spacing:0.22em;text-transform:uppercase;color:#a3a3a3'>Market</th>"
+        "<th style='padding:10px 14px;text-align:right;border-bottom:1px solid #262626;font-family:monospace;font-size:10px;letter-spacing:0.22em;text-transform:uppercase;color:#a3a3a3'>Delta</th>"
+        f"</tr></thead><tbody>{rows}</tbody></table>"
+        "<p style='font-size:13px;color:#e5e5e5;line-height:1.6;margin:18px 0 12px'>"
+        "Want a fresh second opinion? Open any listing → <strong>◆ AI Price Check</strong> "
+        "(next to the price field). It pulls live web comparables and gives you a sharp "
+        "recommendation in under 10 seconds.</p>"
+        f"<a href='{base}/maker/dashboard#listings' style='display:inline-block;background:#ff4500;color:#0a0a0a;"
+        "padding:14px 26px;font-family:Impact,Arial Black,sans-serif;font-size:13px;letter-spacing:0.18em;"
+        "text-transform:uppercase;text-decoration:none;border:1px solid #ff4500'>Open my listings →</a>"
+        "<p style='font-size:12px;color:#525252;margin-top:24px;line-height:1.6'>"
+        "Reading this every week is opt-out: go to "
+        f"<a href='{base}/maker/dashboard?tab=profile' style='color:#737373'>profile settings</a> → "
+        "toggle <em>Weekly pricing digest</em>. Market median is derived from real comparable items "
+        "and is a starting point, not financial advice.</p>"
+    )
+    html = _shell(
+        f"{n} listing{plural} priced 20%+ above market.",
+        "AI-derived comparables · weekly pricing pulse.",
+        body, "Maker · pricing digest",
+    )
+    return await _send(
+        maker_email, f"Pricing digest · {n} listing{plural} above market", html,
+    )
+
 
 async def send_maker_smart_paused(
     maker_email: str, maker_name: str, paused_count: int,
