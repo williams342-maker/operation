@@ -107,6 +107,11 @@ export default function MakerListingEditor() {
   const [presetRates, setPresetRates] = useState({});
   const [presetRatesLoading, setPresetRatesLoading] = useState(false);
   const [presetRatesUsingDemoFrom, setPresetRatesUsingDemoFrom] = useState(false);
+  // iter334b — Which parcel fields the backend actually overrode (echo
+  // of the maker's listing-actual dims). Used to label the picker
+  // header so the maker knows whether the live rates are against the
+  // preset's canonical box or their own dimensions.
+  const [presetRatesOverrides, setPresetRatesOverrides] = useState([]);
   // Slug of the draft auto-created on a brand-new listing. Once set, all
   // subsequent autosaves PATCH instead of creating duplicate drafts.
   const [autoSlug, setAutoSlug] = useState(null);
@@ -774,15 +779,49 @@ export default function MakerListingEditor() {
   // Failures per preset are swallowed silently so one carrier hiccup
   // doesn't break the whole list — the missing rows just show the
   // static $cost as before.
+  //
+  // iter334b — When the maker has filled in their own packed_* dims +
+  // weight on the listing, we pass them as overrides so the quote
+  // reflects the actual box being shipped. Partial overrides supported.
   const loadLivePresetRates = async () => {
     if (presetRatesLoading) return;
+    // Build the override parcel from the form. Only include fields the
+    // maker has actually set (truthy + numeric > 0). Backend ignores
+    // missing fields and falls back to the preset value.
+    const toNum = (v) => {
+      const n = Number(v);
+      return Number.isFinite(n) && n > 0 ? n : null;
+    };
+    const totalWeightLbs = (() => {
+      const lbs = toNum(form.weight_lbs);
+      const oz = toNum(form.weight_oz);
+      if (lbs == null && oz == null) return null;
+      return (lbs || 0) + ((oz || 0) / 16);
+    })();
+    const overrides = {
+      length: toNum(form.packed_length_in),
+      width: toNum(form.packed_width_in),
+      height: toNum(form.packed_height_in),
+      weight: totalWeightLbs,
+    };
+    // Drop nulls so the JSON payload is clean and overrides are obvious.
+    const cleanOverrides = Object.fromEntries(
+      Object.entries(overrides).filter(([, v]) => v != null)
+    );
+    const hasOverrides = Object.keys(cleanOverrides).length > 0;
+
     setPresetRatesLoading(true);
     try {
       const results = await Promise.allSettled(
-        SHIPPING_PRESETS.map((p) => fetchPresetShippingRates(p.id, null))
+        SHIPPING_PRESETS.map((p) => fetchPresetShippingRates(
+          p.id,
+          null,
+          hasOverrides ? cleanOverrides : null,
+        ))
       );
       const next = {};
       let demoFrom = false;
+      let overridesEcho = [];
       results.forEach((res, i) => {
         if (res.status === "fulfilled") {
           const pid = SHIPPING_PRESETS[i].id;
@@ -796,16 +835,23 @@ export default function MakerListingEditor() {
             };
           }
           if (res.value.using_demo_from) demoFrom = true;
+          if (Array.isArray(res.value.parcel_overrides) && res.value.parcel_overrides.length > overridesEcho.length) {
+            overridesEcho = res.value.parcel_overrides;
+          }
         }
       });
       setPresetRates(next);
       setPresetRatesUsingDemoFrom(demoFrom);
+      setPresetRatesOverrides(overridesEcho);
       const found = Object.keys(next).length;
       if (found === 0) {
         toast.error("Couldn't fetch live rates — Shippo may be unavailable.");
       } else {
+        const usingDims = overridesEcho.length > 0;
         toast.success(`Live rates loaded for ${found} preset${found === 1 ? "" : "s"}.`, {
-          description: demoFrom ? "Using demo ship-from. Save your address for accurate rates." : undefined,
+          description: usingDims
+            ? `Quoted against your listing's ${overridesEcho.join(" + ")}.`
+            : (demoFrom ? "Using demo ship-from. Save your address for accurate rates." : undefined),
         });
       }
     } catch (e) {
@@ -973,9 +1019,11 @@ export default function MakerListingEditor() {
                             in parallel for all 6 presets and shows the
                             cheapest carrier rate on each row. */}
                         <div className="px-4 py-2.5 border-b border-[#262626] flex items-center justify-between gap-3 bg-[#0f0f0f]">
-                          <div className="font-mono text-[9.5px] text-[#a3a3a3] leading-tight">
+                          <div className="font-mono text-[9.5px] text-[#a3a3a3] leading-tight" data-testid="editor-shipping-preset-header">
                             {Object.keys(presetRates).length > 0
-                              ? `◆ Live USPS/UPS rates loaded${presetRatesUsingDemoFrom ? " (demo ship-from)" : ""}`
+                              ? (presetRatesOverrides.length > 0
+                                  ? `◆ Live rates · using YOUR ${presetRatesOverrides.join(" + ")}`
+                                  : `◆ Live USPS/UPS rates loaded${presetRatesUsingDemoFrom ? " (demo ship-from)" : ""}`)
                               : "Static rates shown — fetch live Shippo prices below"}
                           </div>
                           <button

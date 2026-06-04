@@ -246,6 +246,106 @@ async def test_preset_rates_uses_demo_from_when_maker_has_no_address():
     await db.makers.delete_one({"slug": slug})
 
 
+# iter334b — parcel overrides
+async def test_preset_rates_applies_parcel_overrides():
+    """When the editor supplies packed_* dims + weight, the backend should
+    pass them to Shippo instead of the preset's canonical values, and
+    echo back which fields were overridden."""
+    from server import app
+    slug = await _make_test_maker()
+    token = _issue_jwt(slug)
+
+    captured = {}
+
+    def fake_get_rates(from_addr, to_addr, parcel):
+        captured["parcel"] = dict(parcel)
+        return {"shipment_id": "x", "rates": [], "messages": []}
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        with patch("shippo_service.is_configured", return_value=True):
+            with patch("shippo_service.is_test_key", return_value=True):
+                with patch("shippo_service.get_rates", side_effect=fake_get_rates):
+                    r = await ac.post(
+                        "/api/maker/shipping/preset-rates",
+                        json={
+                            "preset_id": "medium_box",
+                            "length": 14.5, "width": 10, "height": 7.25,
+                            "weight": 3.5,
+                        },
+                        headers={"Authorization": f"Bearer {token}"},
+                    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    # Echo of what was used
+    assert body["parcel_used"]["length"] == 14.5
+    assert body["parcel_used"]["width"] == 10
+    assert body["parcel_used"]["height"] == 7.25
+    assert body["parcel_used"]["weight"] == 3.5
+    assert set(body["parcel_overrides"]) == {"length", "width", "height", "weight"}
+    # And the underlying Shippo call got the overrides, not the preset.
+    assert captured["parcel"]["length"] == 14.5
+    assert captured["parcel"]["weight"] == 3.5
+
+    from core import db
+    await db.makers.delete_one({"slug": slug})
+
+
+async def test_preset_rates_partial_overrides_fall_back_to_preset():
+    """If the maker only overrides weight, length/width/height come from the preset."""
+    from server import app
+    slug = await _make_test_maker()
+    token = _issue_jwt(slug)
+
+    captured = {}
+
+    def fake_get_rates(from_addr, to_addr, parcel):
+        captured["parcel"] = dict(parcel)
+        return {"shipment_id": "x", "rates": [], "messages": []}
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        with patch("shippo_service.is_configured", return_value=True):
+            with patch("shippo_service.is_test_key", return_value=True):
+                with patch("shippo_service.get_rates", side_effect=fake_get_rates):
+                    r = await ac.post(
+                        "/api/maker/shipping/preset-rates",
+                        json={"preset_id": "small_box", "weight": 1.5},
+                        headers={"Authorization": f"Bearer {token}"},
+                    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["parcel_overrides"] == ["weight"]
+    # small_box preset: 8.625 × 5.375 × 1.625, 0.75 lbs → length/width/height
+    # should still be the preset, weight should be the override.
+    assert captured["parcel"]["length"] == 8.625
+    assert captured["parcel"]["width"] == 5.375
+    assert captured["parcel"]["weight"] == 1.5
+
+    from core import db
+    await db.makers.delete_one({"slug": slug})
+
+
+async def test_preset_rates_rejects_silly_overrides():
+    """Weight > 150 lb and dims > 120 in should be rejected by Pydantic."""
+    from server import app
+    slug = await _make_test_maker()
+    token = _issue_jwt(slug)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        with patch("shippo_service.is_configured", return_value=True):
+            r = await ac.post(
+                "/api/maker/shipping/preset-rates",
+                json={"preset_id": "envelope", "weight": 9999},
+                headers={"Authorization": f"Bearer {token}"},
+            )
+    assert r.status_code == 422  # Pydantic validation
+
+    from core import db
+    await db.makers.delete_one({"slug": slug})
+
+
 # ── integration: price-compare daily limit ─────────────────────────────
 async def test_price_compare_rate_limit():
     """5 fresh runs/day/listing should block the 6th."""

@@ -74,6 +74,16 @@ class PresetRatesReq(BaseModel):
     model_config = ConfigDict(extra="ignore")
     preset_id: str = Field(..., description="One of: envelope, small_box, medium_box, large_box, ups_ground, freight")
     to_zip: str | None = Field(None, description="Optional 5-digit US ZIP; falls back to 64101")
+    # iter334b — Optional parcel overrides. When the listing editor has
+    # `packed_*` dims + a weight already filled in (e.g. for a hybrid /
+    # oversized custom piece), the frontend can pass them here so the
+    # rate quote reflects the maker's actual box rather than the preset's
+    # canonical USPS/UPS dimensions. Any field left as None falls back to
+    # the preset value, so partial overrides are supported.
+    length: float | None = Field(None, gt=0, le=120)
+    width: float | None = Field(None, gt=0, le=120)
+    height: float | None = Field(None, gt=0, le=120)
+    weight: float | None = Field(None, gt=0, le=150)   # pounds
 
 
 @router.post("/maker/shipping/preset-rates")
@@ -113,11 +123,29 @@ async def preset_rates(body: PresetRatesReq, slug: str = Depends(current_maker_s
         to_addr["city"] = ""
         to_addr["state"] = ""
 
+    # Compose the parcel — start from preset, overlay any caller-supplied
+    # dims. Track which (if any) overrides were applied so the response
+    # can tell the UI to show "Quoted using your listing's packed dims".
+    parcel = dict(preset)
+    overrides_used: list[str] = []
+    if body.length is not None:
+        parcel["length"] = float(body.length)
+        overrides_used.append("length")
+    if body.width is not None:
+        parcel["width"] = float(body.width)
+        overrides_used.append("width")
+    if body.height is not None:
+        parcel["height"] = float(body.height)
+        overrides_used.append("height")
+    if body.weight is not None:
+        parcel["weight"] = float(body.weight)
+        overrides_used.append("weight")
+
     try:
         result = shippo_service.get_rates(
             from_addr=from_addr,
             to_addr=to_addr,
-            parcel=preset,
+            parcel=parcel,
         )
     except shippo_service.ShippoError as e:
         logger.warning("[preset-rates] shippo error maker=%s preset=%s: %s", slug, body.preset_id, e)
@@ -130,5 +158,12 @@ async def preset_rates(body: PresetRatesReq, slug: str = Depends(current_maker_s
         "using_demo_from": using_demo_from,
         "test_mode": shippo_service.is_test_key(),
         "to_zip": to_addr["zip"],
+        # iter334b — Echo back the parcel actually used + which fields
+        # were overridden so the UI can show provenance.
+        "parcel_used": {
+            "length": parcel["length"], "width": parcel["width"],
+            "height": parcel["height"], "weight": parcel["weight"],
+        },
+        "parcel_overrides": overrides_used,
         "messages": result.get("messages") or [],
     }
