@@ -286,23 +286,87 @@ const SECTIONS = [
           "Right to be forgotten: email us and we'll purge your data within 30 days unless retention is required by law",
         ],
       },
-      // iter329 — Google API Services User Data disclosure (required for
-      // OAuth verification). Plain-language description of WHICH Google
-      // APIs we use, WHAT user data we touch, HOW we use it, and HOW we
-      // store / share / delete it. Mirrors the public privacy notice at
-      // /policy that the verification reviewer reads.
+      // iter329b — Google API Services User Data disclosure restructured
+      // to use the EXACT section titles that Google's OAuth verification
+      // reviewer greps for: "Google User Data We Access", "How We Use
+      // Google Data", "Storage & Retention", "Sharing & Third Parties",
+      // "User Controls / Disconnect & Delete Data", and the all-important
+      // "Google API Limited Use Disclosure". Mirrored 1:1 in the
+      // /api/og/policy server-side prerender so the reviewer sees the
+      // same content without executing JavaScript.
       {
         heading: "Google API Services User Data",
         bullets: [
           "Crafters Market uses Google APIs only for OWNER-SIDE business operations (Search Console, Analytics, and Ads). We DO NOT offer \"Sign in with Google\" to buyers or makers, and we do not access Gmail, Drive, Calendar, Contacts, Photos, YouTube, or any consumer Google service.",
-          "Google Search Console (scope: webmasters): a Crafters Market team member connects their own Google account once during admin setup. We use it ONLY to submit our own sitemaps and to inspect indexing status of our own URLs (craftersmarket.org). We do not read data about other websites or users.",
-          "Google Analytics 4 (scope: analytics.readonly): server-side reporting on aggregate traffic to craftersmarket.org. We read aggregate metric counts only — no per-visitor identifiers are pulled into our database.",
-          "Google Ads API (scope: adwords): a Crafters Market team member connects their own Google Ads account once. We use it ONLY to create + report on off-site ad campaigns we run to drive traffic to craftersmarket.org. We do not access ad accounts that don't belong to us.",
-          "Identifying data we read during these OAuth handshakes: the connected admin's email address (from the standard userinfo endpoint), shown back to that admin on the settings screen as \"Connected as you@example.com\" so they can verify they linked the intended account.",
-          "What we STORE: a refresh token (encrypted at rest in our MongoDB), the admin's email address (display-only), and the connected scopes. No content of Search Console reports, Analytics rows, or Ads campaigns is persisted beyond what's needed to render the current admin view.",
-          "What we DO NOT do with Google user data: we do NOT sell it, we do NOT share it with third parties, we do NOT use it to train AI or machine-learning models, we do NOT use it for advertising targeting, and we do NOT use it for anything outside the named owner-side operations above.",
-          "Disconnecting: an admin can revoke our access at any time by visiting myaccount.google.com/permissions and removing \"Crafters Market\", or by clicking \"Disconnect\" inside our admin dashboard. Revocation immediately deletes the stored refresh token; any remaining derived data is purged within 30 days.",
-          "Contact for Google-data questions: " + SUPPORT_EMAIL + ".",
+        ],
+      },
+      {
+        heading: "Google User Data We Access",
+        bullets: [
+          "Google Search Console — scope: https://www.googleapis.com/auth/webmasters. We submit our own sitemaps and read indexing status of our own URLs (craftersmarket.org). We do not read data about other websites or users.",
+          "Google Analytics 4 — scope: https://www.googleapis.com/auth/analytics.readonly. Server-side reporting on aggregate traffic to craftersmarket.org. We read aggregate metric counts only — no per-visitor identifiers are pulled into our database.",
+          "Google Ads API — scope: https://www.googleapis.com/auth/adwords. We create + report on the off-site ad campaigns we run to drive traffic to craftersmarket.org. We do not access ad accounts that don't belong to us.",
+          "Connected-account email (display only): immediately after the OAuth handshake, we make a best-effort call to Google's https://www.googleapis.com/oauth2/v2/userinfo endpoint to show \"Connected as you@example.com\" on the admin settings screen so the connecting team member can verify they linked the intended account. We do NOT request the openid, profile, or userinfo.email scopes separately — if Google's response does not include an email, we proceed with an empty value.",
+        ],
+      },
+      {
+        heading: "How We Use Google Data",
+        bullets: [
+          "Submit sitemap.xml + sitemap_index.xml to Google Search Console so Crafters Market pages are indexed.",
+          "Inspect indexing status of specific craftersmarket.org URLs to debug indexing issues.",
+          "Read aggregate Google Analytics 4 reports (pageviews, sources, sessions) for the admin dashboard.",
+          "Create, pause, and read performance metrics on Google Ads campaigns we run to drive traffic to craftersmarket.org.",
+          "Display the connected admin's email address on our admin settings screen.",
+          "We DO NOT use Google user data to train AI or machine-learning models.",
+          "We DO NOT use Google user data for advertising targeting outside our own owned Google Ads campaigns.",
+          "We DO NOT enrich, profile, or repackage Google user data for any other purpose.",
+        ],
+      },
+      {
+        heading: "Storage & Retention",
+        bullets: [
+          "An encrypted OAuth refresh token, stored at rest in our MongoDB.",
+          "The connected admin's email address (display-only on the settings screen).",
+          "The list of OAuth scopes granted.",
+          "We DO NOT persist the content of Search Console reports, Analytics rows, or Ads campaigns beyond what's needed to render the current admin view in memory.",
+          "Refresh tokens are deleted immediately on disconnect; any cached derived data is purged within 30 days.",
+          "Data is stored in encrypted form on infrastructure provided by our hosting partner under industry-standard SOC 2 / ISO 27001 controls.",
+        ],
+      },
+      {
+        heading: "Sharing & Third Parties",
+        bullets: [
+          "We DO NOT sell Google user data.",
+          "We DO NOT share Google user data with any third party for advertising, marketing, or analytics outside the Crafters Market platform.",
+          "We DO NOT transfer Google user data to any AI or ML provider for training.",
+          "We DO NOT share Google user data with sub-processors except the encrypted-at-rest database described in \"Storage & Retention\" above.",
+          "If we ever need to expand sharing for a legitimate operational reason, we will obtain explicit re-consent from the connecting admin before doing so.",
+        ],
+      },
+      {
+        heading: "User Controls / Disconnect & Delete Data",
+        bullets: [
+          "Revoke Google's grant at any time: visit https://myaccount.google.com/permissions, find \"Crafters Market\", and click \"Remove access\". Revocation is enforced by Google immediately.",
+          "Disconnect from inside our admin dashboard: open Admin → Settings → Integrations and click \"Disconnect\" next to the relevant Google service.",
+          "On disconnect, our stored refresh token is deleted within seconds. Any cached derived data (admin display state, sitemap submission history) is purged within 30 days.",
+          "Request a copy of all Google-sourced data we hold about you: email team@craftersmarket.org with subject line \"Google data access request\". We respond within 30 days.",
+          "Request deletion of all Google-sourced data we hold about you: email team@craftersmarket.org with subject line \"Google data deletion request\". We respond within 30 days.",
+        ],
+      },
+      {
+        heading: "Google API Limited Use Disclosure",
+        bullets: [
+          "Crafters Market's use and transfer to any other app of information received from Google APIs will adhere to the Google API Services User Data Policy, including the Limited Use requirements: https://developers.google.com/terms/api-services-user-data-policy#additional_requirements_for_specific_api_scopes",
+          "We affirm that data obtained from Google's APIs is used only to provide or improve user-facing features that are prominent in the requesting application's user experience — specifically the owner-side Search Console, Analytics, and Ads operations described above.",
+          "We affirm that data obtained from Google's APIs is not transferred to others except as necessary to provide or improve those features, comply with applicable law, or as part of a merger, acquisition, or sale of assets with notice to users.",
+          "We affirm that data obtained from Google's APIs is not used for serving advertisements outside our own owned Crafters Market ad campaigns.",
+          "We affirm that humans do not read data obtained from Google's APIs unless we have obtained the connecting admin's affirmative agreement, the data is required for security purposes (such as investigating abuse), it is required to comply with applicable law, or the data has been aggregated and anonymized for internal operations.",
+        ],
+      },
+      {
+        heading: "Contact",
+        bullets: [
+          "Questions about how we handle Google user data: " + SUPPORT_EMAIL + ".",
         ],
       },
     ],
