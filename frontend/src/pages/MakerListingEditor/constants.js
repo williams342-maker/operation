@@ -24,7 +24,13 @@ export const CATEGORIES = [
   "Furniture",
   "Kitchen & Bar",
   "Sculpture",
-  "Jewelry",
+  // iter330 — Broadened "Jewelry" → "Jewelry & Wearables" to cover
+  // necklaces + rings + earrings + cufflinks + belt buckles + key chains
+  // + money clips + leather wallets + embroidered patches + apparel.
+  // The Product.category field is a free-form string so historical
+  // listings tagged "Jewelry" continue to render — feeds.py + checkout.py
+  // do prefix/substring matches that still hit both labels.
+  "Jewelry & Wearables",
   "Holiday & Seasonal",
   "Other",
 ];

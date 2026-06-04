@@ -97,6 +97,14 @@ def _category_for(cat: str | None, tech: str | None) -> str:
         return "696"     # Home & Garden > Lawn & Garden > Outdoor Living
     if "sign" in cat_l:
         return "499831"  # Home & Garden > Decor > Signs
+    # iter330 — Jewelry & Wearables. "jewelry" catches the broadened
+    # label "Jewelry & Wearables" too (substring). "wearable" / "apparel"
+    # / "leather" / "patch" route through the same Apparel & Accessories
+    # > Jewelry bucket (188) for now — most listings are still jewelry-
+    # like accessories. Makers selling pure apparel can override per-
+    # listing via the GPC picker in the editor.
+    if "jewelry" in cat_l or "wearable" in cat_l or "apparel" in cat_l:
+        return "188"     # Apparel & Accessories > Jewelry
     if "wall" in cat_l or "art" in cat_l:
         return "500044"  # Home & Garden > Decor > Artwork > Posters, Prints
     if "monogram" in tech_l or "engrav" in tech_l:

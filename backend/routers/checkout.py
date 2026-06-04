@@ -85,7 +85,12 @@ SHIPPING_BY_CATEGORY = {
     "Furniture": 95.0,
     "Kitchen & Bar": 25.0,
     "Sculpture": 65.0,
+    # iter330 — Broadened "Jewelry" → "Jewelry & Wearables". Both keys
+    # mapped so existing listings keep their flat $8 ship rate and new
+    # wearables (necklaces, patches, t-shirts) inherit the same default
+    # — small lightweight items so $8 covers a USPS first-class envelope.
     "Jewelry": 8.0,
+    "Jewelry & Wearables": 8.0,
     "Holiday & Seasonal": 25.0,
 }
 DEFAULT_SHIPPING = 30.0
