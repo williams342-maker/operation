@@ -8,7 +8,7 @@ import {
   fetchMakerMe, fetchMakerProducts, createMakerProduct,
   updateMakerProduct, aiListingCopy, aiSeoTags,
   duplicateMakerProduct, uploadMakerVideo, uploadMakerListingImage,
-  downloadProductStoryCard,
+  downloadProductStoryCard, fetchPresetShippingRates,
 } from "../lib/api";
 import ImageCropModal from "../components/ImageCropModal";
 import ProcessingProfilePicker from "../components/ProcessingProfilePicker";
@@ -27,6 +27,7 @@ import {
 import MediaSection from "./MakerListingEditor/MediaSection";
 import AiAssistantSection from "./MakerListingEditor/AiAssistantSection";
 import PricingSection from "./MakerListingEditor/PricingSection";
+import PriceComparePanel from "./MakerListingEditor/PriceComparePanel";
 import ListingTypeSection from "./MakerListingEditor/ListingTypeSection";
 import GpcCombobox from "./MakerListingEditor/GpcCombobox";
 import { estimateShipping } from "../lib/shippingEstimator";
@@ -96,6 +97,16 @@ export default function MakerListingEditor() {
   // popover under Category; clicking a preset row fills the packed
   // dimensions + weight fields + sets shipping_domestic_usd in one shot.
   const [presetOpen, setPresetOpen] = useState(false);
+  // iter334 — AI Price Check side panel.
+  const [priceCheckOpen, setPriceCheckOpen] = useState(false);
+  // iter334 — Live Shippo preset rates. Maps preset_id → { amount, provider,
+  // servicelevel_name } once "Get live rates" is hit. While fetching,
+  // `presetRatesLoading` is true and rows show a small spinner inline.
+  // `presetRatesUsingDemoFrom` flags when we fell back to the platform's
+  // demo ship-from so the UI can nudge the maker to save their address.
+  const [presetRates, setPresetRates] = useState({});
+  const [presetRatesLoading, setPresetRatesLoading] = useState(false);
+  const [presetRatesUsingDemoFrom, setPresetRatesUsingDemoFrom] = useState(false);
   // Slug of the draft auto-created on a brand-new listing. Once set, all
   // subsequent autosaves PATCH instead of creating duplicate drafts.
   const [autoSlug, setAutoSlug] = useState(null);
@@ -756,6 +767,54 @@ export default function MakerListingEditor() {
     return () => clearInterval(id);
   }, []);
 
+  // iter334 — Fetch live Shippo rates for every preset in parallel.
+  // Triggered by the "Get live rates" button in the preset picker.
+  // Each preset hits its own backend endpoint, which uses the maker's
+  // saved ship-from (or a platform demo fallback) and a mid-US ZIP.
+  // Failures per preset are swallowed silently so one carrier hiccup
+  // doesn't break the whole list — the missing rows just show the
+  // static $cost as before.
+  const loadLivePresetRates = async () => {
+    if (presetRatesLoading) return;
+    setPresetRatesLoading(true);
+    try {
+      const results = await Promise.allSettled(
+        SHIPPING_PRESETS.map((p) => fetchPresetShippingRates(p.id, null))
+      );
+      const next = {};
+      let demoFrom = false;
+      results.forEach((res, i) => {
+        if (res.status === "fulfilled") {
+          const pid = SHIPPING_PRESETS[i].id;
+          const rate = (res.value.rates || [])[0];  // cheapest
+          if (rate && rate.amount) {
+            next[pid] = {
+              amount: rate.amount,
+              provider: rate.provider || "",
+              servicelevel: rate.servicelevel_name || "",
+              estimated_days: rate.estimated_days || null,
+            };
+          }
+          if (res.value.using_demo_from) demoFrom = true;
+        }
+      });
+      setPresetRates(next);
+      setPresetRatesUsingDemoFrom(demoFrom);
+      const found = Object.keys(next).length;
+      if (found === 0) {
+        toast.error("Couldn't fetch live rates — Shippo may be unavailable.");
+      } else {
+        toast.success(`Live rates loaded for ${found} preset${found === 1 ? "" : "s"}.`, {
+          description: demoFrom ? "Using demo ship-from. Save your address for accurate rates." : undefined,
+        });
+      }
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Couldn't fetch live rates.");
+    } finally {
+      setPresetRatesLoading(false);
+    }
+  };
+
   if (!loaded) {
     return (
       <div className="pt-40 text-center font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500]">
@@ -768,6 +827,15 @@ export default function MakerListingEditor() {
   return (
     <div className="min-h-screen grain bg-[#0a0a0a] text-[#e5e5e5]" data-testid="maker-listing-editor">
       {confirmModal}
+      {/* iter334 — AI Price Comparison side panel. Triggered from the
+          ◆ AI Price Check button in PricingSection. Renders nothing
+          unless `priceCheckOpen` is true. */}
+      <PriceComparePanel
+        open={priceCheckOpen}
+        onClose={() => setPriceCheckOpen(false)}
+        listingSlug={slug || autoSlug}
+        listedPrice={form.price}
+      />
       <div className="pt-32" />
       {/* Top action bar */}
       <header className="sticky top-[calc(var(--beta-banner-h,0px)+72px)] z-30 bg-[#0a0a0a]/95 backdrop-blur border-b border-[#262626]">
@@ -886,7 +954,7 @@ export default function MakerListingEditor() {
 
                     {presetOpen && (
                       <div
-                        className="absolute z-30 mt-2 left-0 w-[420px] max-w-[calc(100vw-2rem)] border border-[#262626] bg-[#0a0a0a] shadow-2xl"
+                        className="absolute z-30 mt-2 left-0 w-[440px] max-w-[calc(100vw-2rem)] border border-[#262626] bg-[#0a0a0a] shadow-2xl"
                         data-testid="editor-shipping-preset-picker"
                       >
                         <div className="px-4 py-3 border-b border-[#262626] font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] flex items-center justify-between">
@@ -901,25 +969,51 @@ export default function MakerListingEditor() {
                             <X size={14} />
                           </button>
                         </div>
+                        {/* iter334 — Get live rates button. Calls Shippo
+                            in parallel for all 6 presets and shows the
+                            cheapest carrier rate on each row. */}
+                        <div className="px-4 py-2.5 border-b border-[#262626] flex items-center justify-between gap-3 bg-[#0f0f0f]">
+                          <div className="font-mono text-[9.5px] text-[#a3a3a3] leading-tight">
+                            {Object.keys(presetRates).length > 0
+                              ? `◆ Live USPS/UPS rates loaded${presetRatesUsingDemoFrom ? " (demo ship-from)" : ""}`
+                              : "Static rates shown — fetch live Shippo prices below"}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={loadLivePresetRates}
+                            disabled={presetRatesLoading}
+                            className="px-2.5 py-1 border border-cyan-400/40 hover:border-cyan-300 text-cyan-300 font-mono text-[9.5px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-wait shrink-0"
+                            data-testid="editor-shipping-preset-live-rates"
+                          >
+                            <Sparkles size={10} />
+                            {presetRatesLoading ? "Fetching…" : (Object.keys(presetRates).length > 0 ? "Refresh" : "Get live rates")}
+                          </button>
+                        </div>
                         <ul className="max-h-[420px] overflow-y-auto">
                           {SHIPPING_PRESETS.map((p) => {
                             const isDefault = defaultPresetIdForCategory(form.category) === p.id;
+                            const live = presetRates[p.id];
                             return (
                               <li key={p.id}>
                                 <button
                                   type="button"
                                   onClick={() => {
+                                    const liveAmount = live?.amount;
+                                    const finalCost = liveAmount && liveAmount > 0 ? Number(liveAmount.toFixed(2)) : p.cost;
                                     set({
                                       packed_length_in: p.length,
                                       packed_width_in: p.width,
                                       packed_height_in: p.height,
                                       weight_lbs: p.weight_lbs,
                                       weight_oz: p.weight_oz,
-                                      shipping_domestic_usd: p.cost,
+                                      shipping_domestic_usd: finalCost,
+                                      shipping_carrier: live?.provider || form.shipping_carrier,
                                     });
                                     setPresetOpen(false);
                                     toast.success(`Applied: ${p.label}`, {
-                                      description: `Dimensions, weight, and $${p.cost.toFixed(2)} ship rate filled. You can fine-tune in the Shipping section.`,
+                                      description: live
+                                        ? `Live ${live.provider} ${live.servicelevel} rate $${finalCost.toFixed(2)} applied.`
+                                        : `Dimensions, weight, and $${p.cost.toFixed(2)} ship rate filled.`,
                                     });
                                   }}
                                   className="w-full text-left px-4 py-3 hover:bg-[#171717] border-b border-[#171717] transition group"
@@ -934,8 +1028,17 @@ export default function MakerListingEditor() {
                                         </span>
                                       )}
                                     </div>
-                                    <div className="font-mono text-[12px] text-[#ff4500] shrink-0">
-                                      ${p.cost.toFixed(2)}
+                                    <div className="font-mono shrink-0 text-right">
+                                      {live ? (
+                                        <>
+                                          <div className="text-[12px] text-cyan-300 font-bold" data-testid={`editor-preset-live-${p.id}`}>
+                                            ${live.amount.toFixed(2)} <span className="text-[8px] text-cyan-400/60">LIVE</span>
+                                          </div>
+                                          <div className="text-[9px] text-[#737373] line-through">${p.cost.toFixed(2)}</div>
+                                        </>
+                                      ) : (
+                                        <div className="text-[12px] text-[#ff4500]">${p.cost.toFixed(2)}</div>
+                                      )}
                                     </div>
                                   </div>
                                   <div className="font-mono text-[9.5px] text-[#737373] mt-1">
@@ -944,6 +1047,9 @@ export default function MakerListingEditor() {
                                   <div className="font-mono text-[9.5px] text-[#525252] mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5">
                                     <span>📦 {p.length}″ × {p.width}″ × {p.height}″</span>
                                     <span>⚖ {p.weight_lbs} lb {p.weight_oz} oz</span>
+                                    {live && live.provider && (
+                                      <span className="text-cyan-400/80">▸ {live.provider} {live.servicelevel}{live.estimated_days ? ` · ${live.estimated_days}d` : ""}</span>
+                                    )}
                                   </div>
                                 </button>
                               </li>
@@ -1124,6 +1230,8 @@ export default function MakerListingEditor() {
         <PricingSection
           form={form} set={set} errors={errors}
           addVariant={addVariant} updateVariant={updateVariant} removeVariant={removeVariant}
+          canPriceCheck={!!(slug || autoSlug)}
+          onOpenPriceCheck={() => setPriceCheckOpen(true)}
         />
 
         {/* iter327 — Listing type (physical/digital/both) + digital file

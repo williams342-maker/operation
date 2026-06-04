@@ -173,6 +173,14 @@ export const validateShippingAddress = (addr) =>
 export const fetchShippingAnalytics = (days = 30) =>
   http.get("/maker/shipping/analytics", { params: { days }, headers: authHeaders() }).then((r) => r.data);
 
+// iter334 — Live Shippo rates for the listing-editor preset picker
+export const fetchPresetShippingRates = (preset_id, to_zip = null) =>
+  http.post("/maker/shipping/preset-rates", { preset_id, to_zip }, { headers: authHeaders() }).then((r) => r.data);
+
+// iter334 — AI Price Comparison companion (Jina Reader + Claude)
+export const fetchListingPriceCompare = (slug, force_refresh = false) =>
+  http.post(`/maker/listings/${slug}/price-compare`, { force_refresh }, { headers: authHeaders() }).then((r) => r.data);
+
 // Admin · shipping ledger
 export const adminFetchShippingLedger = (token, params = {}) =>
   http.get("/admin/shipping-ledger", { params, headers: { Authorization: `Bearer ${token}` } }).then((r) => r.data);

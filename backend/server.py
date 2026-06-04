@@ -179,6 +179,12 @@ api.include_router(social_auto_post_admin_router)
 # iter265 — Telnyx SMS (webhook + admin send/test).
 from routers.sms import router as sms_router
 api.include_router(sms_router)
+# iter334 — Live Shippo rates for the listing editor preset picker.
+from routers.maker_shipping_presets import router as maker_shipping_presets_router
+api.include_router(maker_shipping_presets_router)
+# iter334 — AI Price Comparison companion (Jina Reader + Claude).
+from routers.ai_price_compare import router as ai_price_compare_router
+api.include_router(ai_price_compare_router)
 app.include_router(api)
 
 # iter109 — Canonical-host 301 redirect middleware. When `CANONICAL_HOST`

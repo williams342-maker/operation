@@ -1,5 +1,5 @@
 import React from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Sparkles } from "lucide-react";
 import { Section, Label, FieldError } from "./FormControls";
 
 /**
@@ -13,6 +13,8 @@ import { Section, Label, FieldError } from "./FormControls";
 export default function PricingSection({
   form, set, errors,
   addVariant, updateVariant, removeVariant,
+  onOpenPriceCheck,   // iter334 — opens the AI Price Comparison side panel
+  canPriceCheck,      // iter334 — only enable once the listing has a slug (draft saved)
 }) {
   return (
     <>
@@ -36,6 +38,25 @@ export default function PricingSection({
               />
             </div>
             {errors.price && <FieldError msg={errors.price} />}
+            {/* iter334 — AI Price Check companion button. Disabled until
+                the listing has a slug (i.e., draft has been saved at
+                least once) so the backend has something concrete to
+                analyze. */}
+            <button
+              type="button"
+              onClick={onOpenPriceCheck}
+              disabled={!canPriceCheck || !form.price}
+              className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 border border-cyan-400/40 hover:border-cyan-300 hover:bg-cyan-400/5 disabled:opacity-40 disabled:cursor-not-allowed font-mono text-[10px] uppercase tracking-[0.22em] text-cyan-300 transition"
+              title={!canPriceCheck ? "Save draft first to enable price check" : !form.price ? "Enter a price first" : "Compare with similar items on the web"}
+              data-testid="editor-price-check-btn"
+            >
+              <Sparkles size={11} /> AI Price Check
+            </button>
+            {!canPriceCheck && (
+              <p className="font-mono text-[9px] text-[#525252] mt-1.5 leading-relaxed">
+                Save the draft once to unlock — the AI compares against your listing's title, category &amp; specs.
+              </p>
+            )}
           </div>
           <div>
             <Label>Quantity *</Label>
