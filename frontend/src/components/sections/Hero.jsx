@@ -117,10 +117,10 @@ export default function Hero() {
           transition={{ delay: 0.28, duration: 0.7 }}
           className="font-mono text-sm md:text-base text-zinc-300 max-w-2xl mx-auto mt-6 leading-relaxed"
         >
-          The marketplace for{" "}
-          <strong className="text-white font-normal">CNC</strong>,{" "}
-          <strong className="text-white font-normal">plasma</strong>, and{" "}
-          <strong className="text-white font-normal">custom fabrication</strong>.
+          Built for{" "}
+          <strong className="text-white font-normal">independent makers</strong> and{" "}
+          <strong className="text-white font-normal">handmade businesses</strong> — from{" "}
+          CNC and laser shops to jewelry artists, woodworkers, and creators.
           Commission real makers in real workshops — no mass production, no drop-shipping,
           backed by the hands that built it.
         </motion.p>

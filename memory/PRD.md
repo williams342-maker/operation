@@ -23,6 +23,8 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - Admin: `/admin/login|verify|dashboard`
 
 ## What's Implemented (cumulative)
+- ✅ **Inclusive Hero copy (iter333, 2026-06-04):** Hero subtitle on the homepage now reads "Built for **independent makers** and **handmade businesses** — from CNC and laser shops to jewelry artists, woodworkers, and creators…" replacing the narrower CNC/plasma/fabrication framing. Mirrored on `LandingPage.jsx` ("Built for makers of all kinds") so the marketing surface stays consistent with the broadened Jewelry & Wearables category and overall positioning.
+
 - ✅ **Digital + hybrid listings — Phase 2: checkout + delivery (iter328, 2026-06-03):** Buyers can now actually CHECKOUT digital and hybrid listings end-to-end. This completes the feature pair started in iter327.
   • **Pure-digital carts skip shipping entirely.** `_quote_for` now short-circuits when every item in the resolved cart has `listing_type=="digital"` and returns `{digital_only: True, shipping: 0.0, ...}`. Hybrid (`both`) listings still ship the physical part so they participate in the regular shipping calc. Legacy listings without `listing_type` set continue to behave identically.
   • **Stripe checkout session omits shipping_options + shipping_address_collection** when `digital_only=True`. Buyer sees a streamlined checkout form (email + card only). The `digital_only` flag is also stamped onto the Stripe session metadata so we can audit it later.

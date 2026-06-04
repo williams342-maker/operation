@@ -146,8 +146,8 @@ export default function LandingPage() {
               body="Lower fees. Stripe-direct payouts. Own your margin. Period."
             />
             <SolutionCard
-              title="Built for CNC & handmade"
-              body="File-type aware (DXF, SVG, STL). Custom-order flow. Real maker tools."
+              title="Built for makers of all kinds"
+              body="CNC, laser, jewelry, woodworking & more. File-type aware (DXF, SVG, STL). Custom-order flow. Real maker tools."
             />
             <SolutionCard
               title="Direct connection with buyers"
