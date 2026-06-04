@@ -624,11 +624,11 @@ async def og_journal_index(http_request: Request):
 async def og_policy(http_request: Request):
     """Policy page prerender — terms, shipping, returns, etc."""
     site = _site()
-    title = "Site Policies — Terms, Shipping, Returns, Privacy | Crafters Market"
+    title = "Site Policies — Terms, Shipping, Returns, Privacy, Google API Use | Crafters Market"
     desc = (
         "Crafters Market site policies — Terms of Service, Shipping, Returns, "
-        "Custom Orders, Privacy, Makers Market commission, Prohibited Items, IP, "
-        "and buyer/seller conduct."
+        "Custom Orders, Privacy, Google API Services User Data, Makers Market "
+        "commission, Prohibited Items, IP, and buyer/seller conduct."
     )
     canonical = f"{site}/policy"
     body_html = (
@@ -638,6 +638,72 @@ async def og_policy(http_request: Request):
         '<p>The full operating manual for buying and selling on Crafters Market. '
         'Each section opens to its full text on the live page — please read the ones '
         'relevant to your transaction.</p>'
+        '</section>'
+        # iter329 — Inline Google API Services User Data disclosure so
+        # Google's OAuth-verification reviewer (and Googlebot) sees the
+        # text without executing JavaScript. The live React page also
+        # renders the same content under #privacy.
+        '<section class="sect" id="google-api-user-data">'
+        '<h2>Google API Services User Data</h2>'
+        '<p>Crafters Market uses Google APIs only for OWNER-SIDE business '
+        'operations (Search Console, Analytics, and Ads). We DO NOT offer '
+        '"Sign in with Google" to buyers or makers, and we do not access '
+        'Gmail, Drive, Calendar, Contacts, Photos, YouTube, or any consumer '
+        'Google service.</p>'
+        '<h3>Which Google APIs we use, and why</h3>'
+        '<ul>'
+        '<li><strong>Google Search Console</strong> (scope: <code>webmasters</code>) — '
+        'a Crafters Market team member connects their own Google account once during '
+        'admin setup. We use it ONLY to submit our own sitemaps and to inspect indexing '
+        'status of our own URLs (craftersmarket.org). We do not read data about other '
+        'websites or users.</li>'
+        '<li><strong>Google Analytics 4</strong> (scope: <code>analytics.readonly</code>) — '
+        'server-side reporting on aggregate traffic to craftersmarket.org. We read '
+        'aggregate metric counts only — no per-visitor identifiers are pulled into our '
+        'database.</li>'
+        '<li><strong>Google Ads API</strong> (scope: <code>adwords</code>) — '
+        'a Crafters Market team member connects their own Google Ads account once. '
+        'We use it ONLY to create + report on off-site ad campaigns we run to drive '
+        'traffic to craftersmarket.org. We do not access ad accounts that don\'t '
+        'belong to us.</li>'
+        '</ul>'
+        '<h3>Data we read</h3>'
+        '<p>During each OAuth handshake we read the connected admin\'s email address '
+        '(from the standard <code>userinfo</code> endpoint), shown back to that admin '
+        'on the settings screen as "Connected as you@example.com" so they can verify '
+        'they linked the intended account.</p>'
+        '<h3>Data we store</h3>'
+        '<ul>'
+        '<li>An encrypted refresh token (in our MongoDB, at rest).</li>'
+        '<li>The admin\'s email address (display-only).</li>'
+        '<li>The list of scopes granted.</li>'
+        '</ul>'
+        '<p>No content of Search Console reports, Analytics rows, or Ads campaigns '
+        'is persisted beyond what\'s needed to render the current admin view.</p>'
+        '<h3>What we do NOT do with Google user data</h3>'
+        '<ul>'
+        '<li>We do NOT sell it.</li>'
+        '<li>We do NOT share it with third parties.</li>'
+        '<li>We do NOT use it to train AI or machine-learning models.</li>'
+        '<li>We do NOT use it for advertising targeting.</li>'
+        '<li>We do NOT use it for any purpose other than the named owner-side '
+        'operations above.</li>'
+        '</ul>'
+        '<h3>Disconnecting</h3>'
+        '<p>An admin can revoke our access at any time by visiting '
+        '<a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a> '
+        'and removing "Crafters Market", or by clicking "Disconnect" inside our '
+        'admin dashboard. Revocation immediately deletes the stored refresh token; '
+        'any remaining derived data is purged within 30 days.</p>'
+        '<h3>Use of Google user data is governed by Google\'s policies</h3>'
+        '<p>Crafters Market\'s use and transfer to any other app of information '
+        'received from Google APIs will adhere to the '
+        '<a href="https://developers.google.com/terms/api-services-user-data-policy">'
+        'Google API Services User Data Policy</a>, including the Limited Use '
+        'requirements.</p>'
+        '<h3>Contact</h3>'
+        f'<p>Questions about how we handle Google user data: '
+        f'<a href="mailto:team@craftersmarket.org">team@craftersmarket.org</a>.</p>'
         '</section>'
         '<section class="sect"><h2>Sections</h2><ul>'
         f'<li><a href="{site}/policy#terms">Terms of Service</a></li>'
@@ -649,6 +715,7 @@ async def og_policy(http_request: Request):
         f'<li><a href="{site}/policy#buyer-protection">Buyer Protection</a></li>'
         f'<li><a href="{site}/policy#maker-agreement">Maker Agreement</a></li>'
         f'<li><a href="{site}/policy#privacy">Privacy Policy</a></li>'
+        f'<li><a href="{site}/policy#google-api-user-data">Google API Services User Data</a></li>'
         f'<li><a href="{site}/policy#prohibited">Prohibited Items</a></li>'
         f'<li><a href="{site}/policy#ip">Intellectual Property</a></li>'
         '</ul></section>'
