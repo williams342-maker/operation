@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { ArrowUpRight } from "lucide-react";
 import VeteranBadge from "./VeteranBadge";
 import useCountdown from "../hooks/useCountdown";
+import { formatPriceDisplay } from "../lib/variantPricing";
 
 // Inline live "★ Featured · ends in Xh Ym" badge — only visible while
 // `promoted_until` is in the future. Rendered as a sibling so the parent
@@ -90,7 +91,7 @@ export default function ProductCard({ p, i = 0 }) {
             </span>
           )}
           <div className="absolute bottom-4 right-4 flex items-end justify-end gap-3">
-            <div className="font-display text-3xl text-white drop-shadow-md">${p.price}</div>
+            <div className="font-display text-3xl text-white drop-shadow-md">{formatPriceDisplay(p)}</div>
             <div className="w-10 h-10 border border-white/40 group-hover:bg-[#ff4500] group-hover:border-[#ff4500] transition flex items-center justify-center">
               <ArrowUpRight size={18} className="text-white" />
             </div>

@@ -171,7 +171,12 @@ export default function MakerListingEditor() {
             condition: found.condition || "new",
             dim_unit: found.dim_unit || "in",
             processing_time: found.processing_time || "1-3 business days",
-            variants: found.variants || [],
+            variants: (found.variants || []).map((v) => ({
+              ...v,
+              // iter334r — variants now carry an absolute `price`;
+              // surface "" for the input when not yet set.
+              price: v.price != null ? v.price : "",
+            })),
             status: found.status || "draft",
             // Backorders — preserve `null` (inherit from maker default)
             // distinct from explicit `false` (override off)
@@ -577,7 +582,7 @@ export default function MakerListingEditor() {
     set({
       variants: [
         ...form.variants,
-        { id: undefined, label: "", price_delta: 0, in_stock: 1 },
+        { id: undefined, label: "", price: "", price_delta: 0, in_stock: 1 },
       ],
     });
   };
@@ -595,7 +600,13 @@ export default function MakerListingEditor() {
     if (!form.title.trim()) out.title = "Title is required.";
     if (form.title.length > 100) out.title = "Max 100 characters.";
     if (!form.description.trim()) out.description = "Description is required.";
-    if (!form.price || Number(form.price) <= 0) out.price = "Price must be > 0.";
+    // iter334r — Allow base price 0 if any variant has its own absolute price.
+    const variantHasPrice = (form.variants || []).some(
+      (v) => v && v.label && Number(v.price) > 0,
+    );
+    if ((!form.price || Number(form.price) <= 0) && !variantHasPrice) {
+      out.price = "Price must be > 0 (or set a price on at least one variant).";
+    }
     if (form.in_stock < 0) out.in_stock = "Quantity can't be negative.";
     if (!form.images.length) out.images = "At least one photo is required.";
     return out;
@@ -616,6 +627,10 @@ export default function MakerListingEditor() {
     in_stock: Math.max(0, Number(form.in_stock) || 0),
     variants: form.variants.map((v) => ({
       id: v.id, label: v.label.trim(),
+      // iter334r — Variants now carry an absolute `price`. Legacy
+      // `price_delta` still serialized to keep older buyer pages happy
+      // until they re-fetch a new Product schema.
+      price: v.price !== "" && v.price != null ? Number(v.price) : null,
       price_delta: Number(v.price_delta) || 0,
       in_stock: Math.max(0, Number(v.in_stock) || 0),
     })).filter((v) => v.label),

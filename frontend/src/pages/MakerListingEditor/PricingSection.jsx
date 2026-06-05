@@ -126,7 +126,7 @@ export default function PricingSection({
       <Section
         eyebrow="◆ Options"
         title="Variations"
-        subtitle="Add options buyers can choose — like size, color, or finish. You can also add a price difference per option."
+        subtitle="Add options buyers can choose — like size, color, or finish. Each variation can have its own price. If you leave the base price at $0, the listing shows a range ($min – $max) on shop cards."
       >
         {form.variants.length === 0 ? (
           <div className="border border-dashed border-[#262626] p-8 text-center" data-testid="editor-variants-empty">
@@ -135,6 +135,13 @@ export default function PricingSection({
           </div>
         ) : (
           <div className="space-y-3" data-testid="editor-variants">
+            {/* iter334r — Column headers so the absolute price column reads clearly.  */}
+            <div className="grid grid-cols-12 gap-2 font-mono text-[9px] uppercase tracking-[0.22em] text-[#737373] px-1">
+              <div className="col-span-6">Label</div>
+              <div className="col-span-3">Price ($)</div>
+              <div className="col-span-2">Qty</div>
+              <div className="col-span-1" />
+            </div>
             {form.variants.map((v, i) => (
               <div key={i} className="grid grid-cols-12 gap-2 items-center" data-testid={`editor-variant-${i}`}>
                 <input
@@ -144,11 +151,12 @@ export default function PricingSection({
                   onChange={(e) => updateVariant(i, { label: e.target.value })}
                 />
                 <input
-                  type="number" step="0.01"
+                  type="number" min="0" step="0.01"
                   className="col-span-3 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm"
-                  placeholder="±$"
-                  value={v.price_delta}
-                  onChange={(e) => updateVariant(i, { price_delta: e.target.value })}
+                  placeholder={form.price ? `${Number(form.price).toFixed(2)}` : "0.00"}
+                  value={v.price ?? ""}
+                  onChange={(e) => updateVariant(i, { price: e.target.value })}
+                  data-testid={`editor-variant-price-${i}`}
                 />
                 <input
                   type="number" min="0" step="1"

@@ -140,7 +140,8 @@ async def _resolve_cart(items: list) -> list[dict]:
                     break
             if not variant:
                 raise HTTPException(400, "Selected variant no longer exists.")
-            effective_price = float(prod["price"]) + float(variant.get("price_delta", 0))
+            from core import effective_variant_price
+            effective_price = effective_variant_price(prod.get("price"), variant)
             prod = {
                 **prod,
                 "price": round(effective_price, 2),

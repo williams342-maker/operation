@@ -39,8 +39,12 @@ export function CartProvider({ children }) {
         id: p.id,
         slug: p.slug,
         title: p.title,
-        // Effective price: base + variant.price_delta (if any)
-        price: variant ? Number(p.price) + Number(variant.price_delta || 0) : p.price,
+        // Effective price: variant.price (absolute) > base + variant.price_delta > base.
+        price: variant
+          ? (Number(variant.price) > 0
+              ? Number(variant.price)
+              : Number(p.price) + Number(variant.price_delta || 0))
+          : p.price,
         image: p.images?.[0],
         quantity: qty,
         variant_id: variant?.id || null,

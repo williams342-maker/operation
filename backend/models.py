@@ -13,10 +13,18 @@ class ProductVariant(BaseModel):
     Optional two-axis support: `axis1` / `axis2` are short tags that, when
     present on every variant, let the buyer page render a 2D grid (e.g. size ×
     finish). When axes are blank, the UI falls back to a flat one-axis list.
+
+    Pricing — two ways to set the price for a variant:
+      • `price` (preferred): absolute price for this SKU in USD.
+      • `price_delta` (legacy): added to the listing's base `price`.
+    `price` wins when both are set. New listings created through the
+    Listing Editor write `price`; older docs continue to work via
+    `price_delta`. See `effective_variant_price()` in core.
     """
     id: str = Field(default_factory=lambda: uuid.uuid4().hex[:12])
     label: str                         # buyer-facing label, e.g. '24" Walnut'
-    price_delta: float = 0.0           # added to base price (can be negative)
+    price: Optional[float] = None      # absolute SKU price (overrides base+delta)
+    price_delta: float = 0.0           # added to base price (legacy fallback)
     in_stock: int = 0
     axis1: Optional[str] = None        # e.g. '24"' (size axis)
     axis2: Optional[str] = None        # e.g. 'Walnut' (finish axis)

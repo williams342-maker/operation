@@ -158,7 +158,9 @@ export default function ProductDetail() {
     ? p.variants.find((v) => v.id === selectedVariantId) || p.variants[0]
     : null;
   const effectivePrice = selectedVariant
-    ? Number(p.price) + Number(selectedVariant.price_delta || 0)
+    ? (Number(selectedVariant.price) > 0
+        ? Number(selectedVariant.price)
+        : Number(p.price) + Number(selectedVariant.price_delta || 0))
     : p.price;
   const effectiveStock = selectedVariant ? selectedVariant.in_stock : p.in_stock;
 
@@ -422,7 +424,9 @@ export default function ProductDetail() {
                                   } ${oos ? "opacity-40 cursor-not-allowed" : ""}`}
                                 >
                                   <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
-                                    {v.price_delta === 0
+                                    {Number(v.price) > 0
+                                      ? `$${Number(v.price).toFixed(0)}`
+                                      : v.price_delta === 0
                                       ? "—"
                                       : v.price_delta > 0
                                       ? `+$${Number(v.price_delta).toFixed(0)}`
@@ -461,7 +465,9 @@ export default function ProductDetail() {
                           >
                             <div className="font-mono text-xs text-[#e5e5e5]">{v.label}</div>
                             <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mt-1">
-                              {v.price_delta === 0
+                              {Number(v.price) > 0
+                                ? `$${Number(v.price).toFixed(0)}`
+                                : v.price_delta === 0
                                 ? "Included"
                                 : v.price_delta > 0
                                 ? `+ $${Number(v.price_delta).toFixed(0)}`

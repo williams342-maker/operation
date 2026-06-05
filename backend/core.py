@@ -94,6 +94,46 @@ SUPER_ADMIN_CAPABILITIES: list[str] = list(ADMIN_CAPABILITIES)  # super admins h
 def is_super_admin_email(email: str) -> bool:
     return (email or "").strip().lower() in ADMIN_EMAILS
 
+
+def effective_variant_price(base_price: float, variant) -> float:
+    """Compute the unit price for a given (product, variant) pair.
+
+    Accepts either a Pydantic `ProductVariant` or a raw dict (Mongo doc).
+    Precedence:
+      1. `variant.price` (absolute SKU price) when set and > 0
+      2. `base_price + variant.price_delta` (legacy)
+    Negative results clamp to 0 — we never want to charge a buyer a
+    nonsensical price even if data is mis-entered."""
+    if variant is None:
+        return max(float(base_price or 0), 0.0)
+    if hasattr(variant, "model_dump"):
+        v = variant.model_dump()
+    else:
+        v = dict(variant or {})
+    abs_price = v.get("price")
+    if abs_price is not None and float(abs_price) > 0:
+        return round(float(abs_price), 2)
+    return max(round(float(base_price or 0) + float(v.get("price_delta") or 0), 2), 0.0)
+
+
+def listing_price_range(product) -> tuple[float, float]:
+    """Return (min_price, max_price) across the listing's variants for
+    use in shop cards when the base price is 0. Falls back to (base, base)
+    when no variants exist."""
+    if hasattr(product, "model_dump"):
+        p = product.model_dump()
+    else:
+        p = dict(product or {})
+    base = float(p.get("price") or 0)
+    variants = p.get("variants") or []
+    if not variants:
+        return (base, base)
+    prices = [effective_variant_price(base, v) for v in variants]
+    prices = [x for x in prices if x > 0]
+    if not prices:
+        return (base, base)
+    return (min(prices), max(prices))
+
 # ---- Logger ----
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("crafters")

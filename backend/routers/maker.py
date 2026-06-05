@@ -233,6 +233,7 @@ class ProductVariantInput(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: Optional[str] = None
     label: str
+    price: Optional[float] = None
     price_delta: float = 0.0
     in_stock: int = 0
     axis1: Optional[str] = None
@@ -357,6 +358,18 @@ async def maker_publish_product(
     prod = await db.products.find_one({"slug": product_slug}, {"_id": 0})
     if not prod or prod.get("maker_slug") != slug:
         raise HTTPException(404, "Product not found")
+    # iter334r — Same gate as create-published: base price 0 is allowed
+    # iff at least one variant has its own absolute price > 0.
+    if (prod.get("price") or 0) <= 0:
+        has_variant_price = any(
+            float((v or {}).get("price") or 0) > 0
+            for v in (prod.get("variants") or [])
+        )
+        if not has_variant_price:
+            raise HTTPException(
+                400,
+                "Set a base price (or add at least one variant with a price) before publishing.",
+            )
     was_already_published = prod.get("status") == "published" and not prod.get("deleted_at")
     if not was_already_published:
         await accrue_listing_charge(slug, product_slug, kind="listing_publish")
@@ -974,6 +987,20 @@ async def maker_create_product(
     400KB raw to absorb edge cases without blowing the 16MB Mongo doc limit)."""
     if payload.price < 0:
         raise HTTPException(400, "Price must be non-negative.")
+    # iter334r — Allow base price = 0 when at least one variant carries
+    # an absolute price > 0. The shop card will render a price range
+    # ($min – $max) from variants instead of the empty base.
+    if payload.status == "published" and (payload.price or 0) <= 0:
+        variants = payload.variants or []
+        has_variant_price = any(
+            (v.price or 0) > 0 if hasattr(v, "price") else float((v or {}).get("price") or 0) > 0
+            for v in variants
+        )
+        if not has_variant_price:
+            raise HTTPException(
+                400,
+                "Price must be > 0 (or add at least one variant with a price).",
+            )
     if payload.in_stock < 0:
         raise HTTPException(400, "Stock must be non-negative.")
     if len(payload.images) > 8:
@@ -1740,7 +1767,8 @@ async def maker_orders(slug: str = Depends(current_maker_slug)):
             if variant_id:
                 for v in (p.get("variants") or []):
                     if v.get("id") == variant_id:
-                        unit_price = float(p["price"]) + float(v.get("price_delta", 0))
+                        from core import effective_variant_price
+                        unit_price = effective_variant_price(p.get("price"), v)
                         variant_label = v.get("label")
                         break
             my_lines.append({
@@ -1800,7 +1828,8 @@ async def maker_order_detail(session_id: str, slug: str = Depends(current_maker_
         if variant_id:
             for v in (p.get("variants") or []):
                 if v.get("id") == variant_id:
-                    unit_price = float(p["price"]) + float(v.get("price_delta", 0))
+                    from core import effective_variant_price
+                    unit_price = effective_variant_price(p.get("price"), v)
                     variant_label = v.get("label")
                     break
         lines.append({
