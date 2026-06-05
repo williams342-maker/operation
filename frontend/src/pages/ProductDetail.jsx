@@ -3,6 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import { toast } from "sonner";
 import { fetchProduct, fetchMaker, fetchBackorderPolicy, http } from "../lib/api";
 import { useCart } from "../lib/cart";
+import { uetTrack } from "../lib/consent";
 import { useStructuredData } from "../lib/seo";
 import { ArrowLeft, ZoomIn } from "lucide-react";
 import SaveDropButton from "../components/SaveDropButton";
@@ -162,6 +163,23 @@ export default function ProductDetail() {
     add(p, qty, selectedVariant, personalization || null);
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
+    // iter334i — Fire Microsoft Ads `add_to_cart` conversion event so
+    // Bing Ads can build a full GA4-style ecommerce funnel
+    // (add_to_cart → begin_checkout → purchase). Uses the effective
+    // line-total (price * qty) for `revenue_value` so it reflects what
+    // the user is actually committing to, not just the unit price.
+    // Honors Consent Mode via the existing helper.
+    try {
+      const lineRevenue = Number((effectivePrice * qty).toFixed(2));
+      if (lineRevenue > 0) {
+        uetTrack("add_to_cart", {
+          revenue_value: lineRevenue,
+          currency: "USD",
+          event_label: p.slug || "unknown_listing",
+          event_value: lineRevenue,
+        });
+      }
+    } catch { /* analytics should never break add-to-cart */ }
   };
 
   return (

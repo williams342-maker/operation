@@ -8,7 +8,7 @@ import { useConfirm } from "./useConfirm";
 import {
   restoreMakerProduct, purgeMakerProduct, fetchMakerRestockWaitlist,
   fetchMakerProductsStats, fetchMakerProductsIndexingStatus,
-  fetchListingBudgets,
+  fetchListingBudgets, fetchLatestPriceComparisons,
 } from "../../lib/api";
 
 /**
@@ -92,6 +92,20 @@ export default function ProductsList({ products, onChanged, onRefresh }) {
     return () => { cancelled = true; };
   }, [products.length, budgetVersion]);
   const refreshBudgets = () => setBudgetVersion((v) => v + 1);
+
+  // iter334i — Pricing comparison map for inline-verdict badges.
+  // Keyed by listing slug → { delta_pct, price_median, generated_at }.
+  // Single bulk fetch on mount, refreshed when the products list
+  // identity changes (e.g. after a new listing is added). Skipped
+  // gracefully if the endpoint hiccups — badges just don't render.
+  const [comparisonsMap, setComparisonsMap] = useState({});
+  useEffect(() => {
+    let cancelled = false;
+    fetchLatestPriceComparisons(60)
+      .then((d) => { if (!cancelled) setComparisonsMap(d?.comparisons || {}); })
+      .catch(() => { /* no badges shown — fine */ });
+    return () => { cancelled = true; };
+  }, [products.length]);
   const toggleStats = () => {
     setShowStats((v) => {
       const next = !v;
@@ -217,6 +231,7 @@ export default function ProductsList({ products, onChanged, onRefresh }) {
               statsMap={statsMap}
               indexingMap={indexingMap}
               budgetMap={budgetMap}
+              comparisonsMap={comparisonsMap}
             />
           )}
           {view === "drafts" && (
@@ -235,6 +250,7 @@ export default function ProductsList({ products, onChanged, onRefresh }) {
               statsMap={statsMap}
               indexingMap={indexingMap}
               budgetMap={budgetMap}
+              comparisonsMap={comparisonsMap}
             />
           )}
           {view === "archived" && (
@@ -282,7 +298,7 @@ function ViewSwitcher({ view, setView, counts }) {
   );
 }
 
-function Bucket({ items, testId, empty, onChanged, onBudgetChanged, cardProps = {}, banner = null, showStats = false, statsMap = {}, indexingMap = {}, budgetMap = {} }) {
+function Bucket({ items, testId, empty, onChanged, onBudgetChanged, cardProps = {}, banner = null, showStats = false, statsMap = {}, indexingMap = {}, budgetMap = {}, comparisonsMap = {} }) {
   if (items.length === 0) {
     return (
       <section data-testid={testId} className="border border-dashed border-[#262626] p-8">
@@ -307,6 +323,19 @@ function Bucket({ items, testId, empty, onChanged, onBudgetChanged, cardProps = 
                 marketing_budget_spent_cents: b.spent_cents,
               }
             : p;
+          // iter334i — Recompute the badge against the CURRENT product
+          // price + cached median so the verdict reflects today's
+          // pricing, not the price when the AI Price Check ran.
+          const comp = comparisonsMap[p.slug] || null;
+          let comparison = null;
+          if (comp && comp.price_median > 0 && p.price > 0) {
+            const deltaPct = ((Number(p.price) - comp.price_median) / comp.price_median) * 100.0;
+            comparison = {
+              delta_pct: deltaPct,
+              price_median: comp.price_median,
+              generated_at: comp.generated_at,
+            };
+          }
           return (
             <ProductEditCard
               key={p.id}
@@ -315,6 +344,7 @@ function Bucket({ items, testId, empty, onChanged, onBudgetChanged, cardProps = 
               onBudgetChanged={onBudgetChanged}
               stats={showStats ? (statsMap[p.slug] || null) : null}
               indexing={indexingMap[p.slug] || null}
+              comparison={comparison}
               {...cardProps}
             />
           );

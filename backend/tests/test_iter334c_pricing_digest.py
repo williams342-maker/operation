@@ -475,3 +475,125 @@ async def test_maker_opt_out_requires_maker_jwt():
         assert r.status_code in (401, 403)
         r = await ac.post("/api/maker/pricing-digest/preference", json={"opt_out": True})
         assert r.status_code in (401, 403)
+
+
+# iter334i — Inline pricing-verdict bulk endpoint.
+async def test_latest_comparisons_returns_keyed_dict():
+    """Endpoint should return the latest comparison per listing keyed by slug,
+    skipping older rows for the same listing."""
+    from core import db
+    from server import app
+    from maker_auth import issue_session_jwt
+    from datetime import timedelta
+
+    maker_slug = f"test-maker-{uuid.uuid4().hex[:8]}"
+    await db.makers.insert_one({
+        "slug": maker_slug, "name": "T", "email": f"{maker_slug}@t.com",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+
+    listing_a = f"listing-a-{uuid.uuid4().hex[:6]}"
+    listing_b = f"listing-b-{uuid.uuid4().hex[:6]}"
+    now = datetime.now(timezone.utc)
+    # Two comparisons for listing_a — newer should win.
+    await db.price_comparisons.insert_many([
+        {
+            "maker_slug": maker_slug, "listing_slug": listing_a,
+            "listed_price": 120.0, "price_median": 100.0,
+            "price_low": 70, "price_high": 150, "currency": "USD",
+            "comparables": [], "recommendation": "old",
+            "from_cache": False,
+            "created_at": (now - timedelta(days=5)).isoformat(),
+            "generated_at": (now - timedelta(days=5)).isoformat(),
+        },
+        {
+            "maker_slug": maker_slug, "listing_slug": listing_a,
+            "listed_price": 140.0, "price_median": 100.0,
+            "price_low": 70, "price_high": 150, "currency": "USD",
+            "comparables": [], "recommendation": "newer",
+            "from_cache": False,
+            "created_at": now.isoformat(),
+            "generated_at": now.isoformat(),
+        },
+        {
+            "maker_slug": maker_slug, "listing_slug": listing_b,
+            "listed_price": 70.0, "price_median": 100.0,
+            "price_low": 60, "price_high": 140, "currency": "USD",
+            "comparables": [], "recommendation": "underpriced",
+            "from_cache": False,
+            "created_at": now.isoformat(),
+            "generated_at": now.isoformat(),
+        },
+    ])
+
+    token = issue_session_jwt(maker_slug, f"{maker_slug}@t.com")
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        r = await ac.get("/api/maker/pricing-comparisons/latest",
+                         headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["count"] == 2
+    comps = body["comparisons"]
+    # Listing A — newer row wins (listed=140, median=100 → +40%)
+    assert listing_a in comps
+    assert comps[listing_a]["listed_price_at_check"] == 140.0
+    assert comps[listing_a]["price_median"] == 100.0
+    assert abs(comps[listing_a]["delta_pct"] - 40.0) < 0.001
+    # Listing B — single row (listed=70, median=100 → -30%)
+    assert listing_b in comps
+    assert abs(comps[listing_b]["delta_pct"] - (-30.0)) < 0.001
+
+    # Cleanup
+    await db.makers.delete_one({"slug": maker_slug})
+    await db.price_comparisons.delete_many({"maker_slug": maker_slug})
+
+
+async def test_latest_comparisons_age_filter():
+    """Comparisons older than `max_age_days` should be excluded."""
+    from core import db
+    from server import app
+    from maker_auth import issue_session_jwt
+    from datetime import timedelta
+
+    maker_slug = f"test-maker-{uuid.uuid4().hex[:8]}"
+    await db.makers.insert_one({
+        "slug": maker_slug, "name": "T", "email": f"{maker_slug}@t.com",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    very_old = (datetime.now(timezone.utc) - timedelta(days=90)).isoformat()
+    await db.price_comparisons.insert_one({
+        "maker_slug": maker_slug, "listing_slug": "ancient-listing",
+        "listed_price": 100.0, "price_median": 100.0,
+        "price_low": 80, "price_high": 120, "currency": "USD",
+        "comparables": [], "recommendation": "ancient",
+        "from_cache": False,
+        "created_at": very_old, "generated_at": very_old,
+    })
+    token = issue_session_jwt(maker_slug, f"{maker_slug}@t.com")
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        # Default window is 60 days → should exclude.
+        r = await ac.get("/api/maker/pricing-comparisons/latest",
+                         headers={"Authorization": f"Bearer {token}"})
+        assert r.status_code == 200
+        assert r.json()["count"] == 0
+        # Stretch the window to 180 → should include.
+        r = await ac.get("/api/maker/pricing-comparisons/latest?max_age_days=180",
+                         headers={"Authorization": f"Bearer {token}"})
+        assert r.status_code == 200
+        assert r.json()["count"] == 1
+
+    await db.makers.delete_one({"slug": maker_slug})
+    await db.price_comparisons.delete_many({"maker_slug": maker_slug})
+
+
+async def test_latest_comparisons_requires_maker_jwt():
+    from server import app
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        r = await ac.get("/api/maker/pricing-comparisons/latest")
+        assert r.status_code in (401, 403)
+
+
+# iter334h — History endpoint (existing)

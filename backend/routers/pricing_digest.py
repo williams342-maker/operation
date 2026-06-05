@@ -383,3 +383,50 @@ async def maker_set_pricing_digest_preference(
         {"$set": {"pricing_digest_opt_out": bool(body.opt_out)}},
     )
     return {"ok": True, "opt_out": bool(body.opt_out)}
+
+
+
+# iter334i — Maker-facing inline pricing verdicts. Returns the latest
+# `price_comparisons` row per listing-slug for the requesting maker,
+# capped at a sensible window so old AI runs don't litter the dashboard.
+@router.get("/maker/pricing-comparisons/latest")
+async def maker_latest_comparisons(
+    max_age_days: int = 60, slug: str = Depends(current_maker_slug),
+):
+    """Bulk fetch the latest comparison per listing for the dashboard
+    inline-verdict badges. Returns a dict keyed by listing_slug for
+    O(1) lookup client-side. Empty `comparisons` is the happy path
+    when the maker hasn't run any AI Price Checks yet.
+
+    Each entry includes:
+        { delta_pct, price_median, listed_price_at_check, generated_at }
+    The frontend mixes this with the maker's current `product.price` so
+    a stale row can still surface a fresh verdict — the badge math runs
+    against today's price + the cached median, not yesterday's.
+    """
+    max_age_days = max(1, min(180, int(max_age_days)))
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=max_age_days)).isoformat()
+    pipeline = [
+        {"$match": {"maker_slug": slug, "created_at": {"$gte": cutoff}}},
+        {"$sort": {"created_at": -1}},
+        {"$group": {"_id": "$listing_slug", "doc": {"$first": "$$ROOT"}}},
+        {"$replaceRoot": {"newRoot": "$doc"}},
+    ]
+    out: dict[str, dict] = {}
+    async for r in db.price_comparisons.aggregate(pipeline):
+        listing_slug = r.get("listing_slug")
+        if not listing_slug:
+            continue
+        median = float(r.get("price_median") or 0)
+        listed = float(r.get("listed_price") or 0)
+        delta_pct = None
+        if median > 0 and listed > 0:
+            delta_pct = ((listed - median) / median) * 100.0
+        out[listing_slug] = {
+            "delta_pct": delta_pct,
+            "price_median": median,
+            "listed_price_at_check": listed,
+            "generated_at": r.get("generated_at") or r.get("created_at"),
+        }
+    return {"comparisons": out, "count": len(out)}
+

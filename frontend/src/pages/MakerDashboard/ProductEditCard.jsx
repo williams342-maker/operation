@@ -10,7 +10,7 @@ import {
 import { useConfirm } from "./useConfirm";
 import { toast } from "sonner";
 
-export default function ProductEditCard({ product, archived = false, draft = false, onChanged, onBudgetChanged, stats = null, indexing = null }) {
+export default function ProductEditCard({ product, archived = false, draft = false, onChanged, onBudgetChanged, stats = null, indexing = null, comparison = null }) {
   const [confirm, confirmModal] = useConfirm();
   const [p, setP] = useState(product);
   const [open, setOpen] = useState(false);
@@ -216,6 +216,12 @@ export default function ProductEditCard({ product, archived = false, draft = fal
             {p.in_stock} in stock
           </span>
         </div>
+        {/* iter334i — Inline pricing-verdict badge. Pulled from the
+            latest AI Price Check cached in `price_comparisons`. Only
+            renders when delta is meaningful (>=10% off median in either
+            direction); on-target listings stay quiet to avoid badge
+            noise on every card. */}
+        {comparison && <PricingVerdictBadge comparison={comparison} slug={p.slug} />}
         {p.expires_at && !archived && (
           <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-[#525252] mt-1" data-testid={`product-expires-${p.slug}`}>
             {p.renewal_option === "automatic" ? "Auto-renews" : "Expires"} {new Date(p.expires_at).toLocaleDateString()}
@@ -759,3 +765,53 @@ function IndexingBadge({ indexing, slug }) {
     </div>
   );
 }
+
+// iter334i — Inline pricing-verdict badge. Decisive labels at-a-glance:
+//   delta > +20%  → orange  "↑ N% above market"
+//   delta > +10%  → amber   "↑ N% above market"
+//   delta in ±10% → emerald "On target"
+//   delta < -10%  → cyan    "↓ N% below — opportunity"
+//   delta < -20%  → cyan + stronger weight (same color, bold)
+// 10% buffer around median avoids badge noise — most listings within
+// 10% are perfectly fine; we only flag the truly drifty ones.
+function PricingVerdictBadge({ comparison, slug }) {
+  const delta = comparison?.delta_pct;
+  if (delta == null || Number.isNaN(delta)) return null;
+  const abs = Math.abs(delta);
+  if (abs < 10) {
+    return (
+      <div
+        className="mt-1.5 inline-flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.2em] text-emerald-400/80"
+        title={`Your price is within ±10% of the AI-derived market median ($${comparison.price_median.toFixed(0)}).`}
+        data-testid={`pricing-verdict-${slug}`}
+      >
+        <span className="w-1 h-1 bg-emerald-400 rounded-full" />
+        On target
+      </div>
+    );
+  }
+  const isAbove = delta > 0;
+  const intensity = abs >= 20 ? "strong" : "soft";
+  const tone = isAbove
+    ? (intensity === "strong"
+        ? { color: "text-[#ff4500]", dot: "bg-[#ff4500]", weight: "font-bold" }
+        : { color: "text-amber-400", dot: "bg-amber-400", weight: "" })
+    : { color: "text-cyan-400", dot: "bg-cyan-400", weight: intensity === "strong" ? "font-bold" : "" };
+  const arrow = isAbove ? "\u2191" : "\u2193";
+  const pct = Math.round(abs);
+  const verb = isAbove ? "above market" : "below — opportunity";
+  const tip = isAbove
+    ? `Your $${(comparison.price_median * (1 + delta / 100)).toFixed(0)} is ${pct}% above the AI median ($${comparison.price_median.toFixed(0)}). Premium positioning is fine — but if it's sitting in the catalog, consider trimming.`
+    : `Your price is ${pct}% below the AI median ($${comparison.price_median.toFixed(0)}). If volume is strong, you may have room to raise prices.`;
+  return (
+    <div
+      className={`mt-1.5 inline-flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.2em] ${tone.color} ${tone.weight}`}
+      title={tip}
+      data-testid={`pricing-verdict-${slug}`}
+    >
+      <span className={`w-1.5 h-1.5 ${tone.dot} rounded-full`} />
+      {arrow} {pct}% {verb}
+    </div>
+  );
+}
+

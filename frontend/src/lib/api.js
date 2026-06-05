@@ -304,6 +304,12 @@ export const fetchPricingDigestPreference = () =>
   http.get("/maker/pricing-digest/preference", { headers: authHeaders() }).then((r) => r.data);
 export const setPricingDigestPreference = (opt_out) =>
   http.post("/maker/pricing-digest/preference", { opt_out }, { headers: authHeaders() }).then((r) => r.data);
+
+// iter334i — Inline pricing-verdict badges on the maker dashboard
+export const fetchLatestPriceComparisons = (max_age_days = 60) =>
+  http.get("/maker/pricing-comparisons/latest", {
+    params: { max_age_days }, headers: authHeaders(),
+  }).then((r) => r.data);
 export const renewMakerProduct = (slug) =>
   http.post(`/maker/products/${slug}/renew`, {}, { headers: authHeaders() }).then((r) => r.data);
 export const fetchMakerProductsStats = () =>
