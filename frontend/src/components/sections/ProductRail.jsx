@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowUpRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { fetchProducts } from "../../lib/api";
+import { formatPriceDisplay } from "../../lib/variantPricing";
 
 export default function ProductRail({ title, eyebrow, category, technique, featured, viewAllHref = "/shop", testId }) {
   const [items, setItems] = useState([]);
@@ -71,7 +72,7 @@ export default function ProductRail({ title, eyebrow, category, technique, featu
                     {p.dimensions || p.category}
                   </div>
                   <div className="flex items-end justify-between">
-                    <div className="font-display text-2xl text-[#ff4500]">${p.price.toFixed(0)}</div>
+                    <div className="font-display text-2xl text-[#ff4500]">{formatPriceDisplay(p)}</div>
                     <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">+ ship</div>
                   </div>
                 </div>

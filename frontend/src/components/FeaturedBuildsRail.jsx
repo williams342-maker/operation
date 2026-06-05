@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowUpRight, ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
 import { fetchProducts } from "../lib/api";
+import { formatPriceDisplay } from "../lib/variantPricing";
 
 /**
  * Homepage "Featured Builds" hero strip.
@@ -163,7 +164,7 @@ export default function FeaturedBuildsRail({ testId = "home-featured-builds" }) 
                     {p.category}
                   </div>
                   <div className="flex items-end justify-between">
-                    <div className="font-display text-2xl text-amber-300 tracking-tight">${p.price.toFixed(0)}</div>
+                    <div className="font-display text-2xl text-amber-300 tracking-tight">{formatPriceDisplay(p)}</div>
                     <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-zinc-600">
                       reference price
                     </div>

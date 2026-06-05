@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { fetchProducts } from "../../lib/api";
+import { formatPriceDisplay } from "../../lib/variantPricing";
 
 /**
  * iter334m — Hover-fan teaser for the homepage "Popular →" pill row.
@@ -165,7 +166,7 @@ export default function PillTeaser({ label, query }) {
                     {p.title}
                   </div>
                   <div className="font-mono text-[10px] text-[#ff4500]">
-                    ${Number(p.price || 0).toFixed(0)}
+                    {formatPriceDisplay(p)}
                   </div>
                 </button>
               ))}

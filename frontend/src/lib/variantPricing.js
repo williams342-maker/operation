@@ -35,13 +35,18 @@ export function listingPriceRange(product) {
   return [Math.min(...prices), Math.max(...prices)];
 }
 
-/** Display string for shop cards. Returns "$23 – $32" when the listing's
- *  base price is 0 and variants disagree, otherwise a single "$N". */
+/** Display string for shop cards.
+ *  - Base price set → use it (e.g. `"$45"`)
+ *  - Base price 0, variants with distinct prices → `"From $23"` (anchor on
+ *    the cheapest option so buyers click through expecting that price)
+ *  - All variants priced the same → single price (e.g. `"$32"`)
+ *  - Nothing priced → `"—"`
+ */
 export function formatPriceDisplay(product) {
+  const base = Number(product?.price || 0);
   const [min, max] = listingPriceRange(product);
   if (max <= 0) return "—";
-  if (min === max || (Number(product?.price || 0) > 0)) {
-    return `$${Math.round(Number(product?.price || max))}`;
-  }
-  return `$${Math.round(min)} – $${Math.round(max)}`;
+  if (base > 0) return `$${Math.round(base)}`;
+  if (min === max) return `$${Math.round(min)}`;
+  return `From $${Math.round(min)}`;
 }
