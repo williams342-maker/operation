@@ -58,6 +58,23 @@ export default function ProductDetail() {
       // Auto-select first variant if any
       if (prod?.variants?.length) setSelectedVariantId(prod.variants[0].id);
       if (prod?.maker_slug) setMaker(await fetchMaker(prod.maker_slug).catch(() => null));
+      // iter334k — Fire Microsoft Ads `view_content` UET event once
+      // per product. Completes the GA4-style ecommerce funnel
+      // (view_content → add_to_cart → begin_checkout → purchase) so
+      // Bing Ads can build product-detail remarketing audiences
+      // (e.g. "viewed Veteran Shadow Box but didn't add to cart").
+      // Fires AFTER the product fetch resolves so `revenue_value`
+      // reflects the actual listed price, not zero.
+      try {
+        if (prod && Number(prod.price) > 0) {
+          uetTrack("view_content", {
+            revenue_value: Number(Number(prod.price).toFixed(2)),
+            currency: "USD",
+            event_label: prod.slug || slug,
+            event_value: Number(Number(prod.price).toFixed(2)),
+          });
+        }
+      } catch { /* analytics should never break the page */ }
       // Only hit the policy endpoint when the listing is actually OOS —
       // saves a round-trip on the 99% of listings that have stock.
       if (prod && (prod.in_stock || 0) <= 0) {

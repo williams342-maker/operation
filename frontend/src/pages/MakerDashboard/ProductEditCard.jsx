@@ -774,10 +774,19 @@ function IndexingBadge({ indexing, slug }) {
 //   delta < -20%  → cyan + stronger weight (same color, bold)
 // 10% buffer around median avoids badge noise — most listings within
 // 10% are perfectly fine; we only flag the truly drifty ones.
+// iter334k — Badge is now a click target: opens an inline popover
+// with the AI-suggested price + a 1-click Apply button. After apply,
+// the toast offers a 6s undo window so an accidental click is easily
+// reversed without re-running the AI Price Check.
 function PricingVerdictBadge({ comparison, slug }) {
+  const [open, setOpen] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
   const delta = comparison?.delta_pct;
   if (delta == null || Number.isNaN(delta)) return null;
   const abs = Math.abs(delta);
+
+  // On-target: just a quiet emerald dot. No popover — there's nothing
+  // to apply since the maker is already inside the ±10% buffer.
   if (abs < 10) {
     return (
       <div
@@ -800,17 +809,98 @@ function PricingVerdictBadge({ comparison, slug }) {
   const arrow = isAbove ? "\u2191" : "\u2193";
   const pct = Math.round(abs);
   const verb = isAbove ? "above market" : "below — opportunity";
-  const tip = isAbove
-    ? `Your $${(comparison.price_median * (1 + delta / 100)).toFixed(0)} is ${pct}% above the AI median ($${comparison.price_median.toFixed(0)}). Premium positioning is fine — but if it's sitting in the catalog, consider trimming.`
-    : `Your price is ${pct}% below the AI median ($${comparison.price_median.toFixed(0)}). If volume is strong, you may have room to raise prices.`;
+  const suggestedPrice = Number(comparison.price_median.toFixed(2));
+
+  const onApply = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      // Snapshot the current price so the undo toast can restore it.
+      const prevPrice = Number(comparison.listed_price_at_check || 0);
+      const productSlug = slug;
+      await updateMakerProduct(productSlug, { price: suggestedPrice });
+      setOpen(false);
+      toast.success(`Price set to $${suggestedPrice.toFixed(2)}`, {
+        description: prevPrice > 0 ? `Was $${prevPrice.toFixed(2)} — auto-saved.` : "Auto-saved.",
+        duration: 6000,
+        action: prevPrice > 0 ? {
+          label: "Undo",
+          onClick: async () => {
+            try {
+              await updateMakerProduct(productSlug, { price: prevPrice });
+              toast.success(`Reverted to $${prevPrice.toFixed(2)}`);
+              if (typeof window !== "undefined") {
+                // Cheap full refresh — keeps the badge math in sync
+                // without threading a callback through 4 components.
+                window.location.reload();
+              }
+            } catch (e) {
+              toast.error(e?.response?.data?.detail || "Couldn't undo. Edit the listing manually to revert.");
+            }
+          },
+        } : undefined,
+      });
+      // Refresh so badge + price tile reflect the new value.
+      setTimeout(() => { if (typeof window !== "undefined") window.location.reload(); }, 800);
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Couldn't update price — try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
-    <div
-      className={`mt-1.5 inline-flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.2em] ${tone.color} ${tone.weight}`}
-      title={tip}
-      data-testid={`pricing-verdict-${slug}`}
-    >
-      <span className={`w-1.5 h-1.5 ${tone.dot} rounded-full`} />
-      {arrow} {pct}% {verb}
+    <div className="mt-1.5 relative inline-block">
+      <button
+        type="button"
+        onClick={() => setOpen((s) => !s)}
+        className={`inline-flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.2em] ${tone.color} ${tone.weight} hover:underline cursor-pointer transition`}
+        title={isAbove
+          ? `Click to see the AI-suggested median ($${suggestedPrice.toFixed(2)}) and one-click apply.`
+          : `Click to apply the AI median ($${suggestedPrice.toFixed(2)}) — your current price may be leaving money on the table.`}
+        data-testid={`pricing-verdict-${slug}`}
+        aria-expanded={open}
+      >
+        <span className={`w-1.5 h-1.5 ${tone.dot} rounded-full`} />
+        {arrow} {pct}% {verb}
+      </button>
+      {open && (
+        <div
+          className="absolute z-20 left-0 top-full mt-2 w-64 bg-[#0a0a0a] border border-[#262626] shadow-2xl p-3 space-y-2"
+          data-testid={`pricing-verdict-popover-${slug}`}
+        >
+          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-[#a3a3a3]">
+            AI-suggested median
+          </p>
+          <p className="font-mono text-xl text-[#e5e5e5] font-bold">
+            ${suggestedPrice.toFixed(2)}
+          </p>
+          <p className="font-mono text-[10px] text-[#737373] leading-relaxed">
+            {isAbove
+              ? `Your current price is ${pct}% above. Lower to the median to test elasticity.`
+              : `Your current price is ${pct}% below. Raise to the median to capture upside.`}
+          </p>
+          <div className="flex gap-2 pt-1">
+            <button
+              type="button"
+              onClick={onApply}
+              disabled={busy}
+              className="flex-1 px-2 py-2 bg-[#ff4500] hover:bg-[#cc3700] text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.2em] font-bold disabled:opacity-60 disabled:cursor-wait transition"
+              data-testid={`pricing-verdict-apply-${slug}`}
+            >
+              {busy ? "Saving…" : "Apply"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="px-3 py-2 border border-[#262626] hover:border-[#525252] text-[#a3a3a3] hover:text-[#e5e5e5] font-mono text-[10px] uppercase tracking-[0.2em] transition"
+              data-testid={`pricing-verdict-cancel-${slug}`}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -342,6 +342,10 @@ function Bucket({ items, testId, empty, onChanged, onBudgetChanged, cardProps = 
             comparison = {
               delta_pct: deltaPct,
               price_median: comp.price_median,
+              // iter334k — Pass the CURRENT product price so the
+              // verdict popover's "Undo" action can restore it after a
+              // one-click apply.
+              listed_price_at_check: Number(p.price),
               generated_at: comp.generated_at,
             };
           }
