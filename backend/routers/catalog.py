@@ -19,6 +19,16 @@ from models import (
 router = APIRouter()
 
 
+# iter334n — Lightweight in-process TTL cache for /api/products list reads.
+# Keyed by the full (category, technique, q, featured, featured_example,
+# maker) tuple. Skipped when maker= is set (private dashboard fetches).
+# Resets on process restart, which is fine — we lean on the short TTL to
+# keep data fresh and the cap to keep memory bounded.
+_LIST_PRODUCTS_CACHE: dict[tuple, tuple[float, list]] = {}
+_LIST_PRODUCTS_TTL_S = 60.0
+_LIST_PRODUCTS_CACHE_MAX = 32
+
+
 # ── iter324 — Maker-application anti-spam: cheap in-process IP rate
 # limiter. 5 submissions per IP per 60s. Same pattern as contact_messages.
 # Resets on process restart, which is fine — anything more sophisticated
@@ -91,6 +101,16 @@ async def list_products(category: Optional[str] = None, technique: Optional[str]
                         q: Optional[str] = None, featured: Optional[bool] = None,
                         featured_example: Optional[bool] = None,
                         maker: Optional[str] = None):
+    # iter334n — 60s in-process TTL cache for the popular catalog reads
+    # (homepage rails, hero pill teasers, /shop landing). Keyed by the
+    # full param tuple. Cap at 32 entries; oldest evicted FIFO. Skipped
+    # for `maker=` queries so the maker dashboard always sees fresh data.
+    cache_key = (category, technique, q, featured, featured_example, maker)
+    if maker is None:
+        hit = _LIST_PRODUCTS_CACHE.get(cache_key)
+        if hit and _time.monotonic() - hit[0] < _LIST_PRODUCTS_TTL_S:
+            return hit[1]
+
     # Exclude soft-deleted listings AND drafts. In Mongo, `field: None` matches
     # both missing-field AND explicit-null docs — covers Pydantic's habit of
     # serializing Optional fields as null. Backwards-compat: products predating
@@ -187,7 +207,23 @@ async def list_products(category: Optional[str] = None, technique: Optional[str]
     promoted.sort(key=lambda p: p.get("created_at") or "", reverse=True)
     plus.sort(key=lambda p: p.get("created_at") or "", reverse=True)
     rest.sort(key=lambda p: p.get("created_at") or "", reverse=True)
-    return (promoted + plus + rest)[:200]
+    result = (promoted + plus + rest)[:200]
+    # iter334n — Cache the final sorted+denormalized list. Cap eviction
+    # is FIFO (not strict LRU) — good-enough for ~4-10 hot keys.
+    # Backfill any product missing `id`/`created_at` BEFORE caching so
+    # repeat hits don't generate fresh Pydantic defaults each response.
+    if maker is None:
+        import uuid as _uuid
+        for _p in result:
+            if not _p.get("id"):
+                _p["id"] = str(_uuid.uuid4())
+            if not _p.get("created_at"):
+                _p["created_at"] = nowiso
+        if len(_LIST_PRODUCTS_CACHE) >= _LIST_PRODUCTS_CACHE_MAX:
+            oldest = min(_LIST_PRODUCTS_CACHE, key=lambda k: _LIST_PRODUCTS_CACHE[k][0])
+            _LIST_PRODUCTS_CACHE.pop(oldest, None)
+        _LIST_PRODUCTS_CACHE[cache_key] = (_time.monotonic(), result)
+    return result
 
 
 @router.get("/products/{slug}", response_model=Product)
