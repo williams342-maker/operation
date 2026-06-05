@@ -188,6 +188,9 @@ api.include_router(ai_price_compare_router)
 # iter334c — Weekly AI pricing digest (cron + admin manual trigger).
 from routers.pricing_digest import router as pricing_digest_router
 api.include_router(pricing_digest_router)
+# iter334l — Microsoft Ads ROAS tile + spend recorder (admin only).
+from routers.admin_msft_roas import router as admin_msft_roas_router
+api.include_router(admin_msft_roas_router)
 app.include_router(api)
 
 # iter109 — Canonical-host 301 redirect middleware. When `CANONICAL_HOST`

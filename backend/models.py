@@ -683,6 +683,10 @@ class CheckoutRequest(BaseModel):
     customer_email: Optional[EmailStr] = None
     gift_note: Optional[str] = None
     attribution_source: Optional[str] = None   # off-site ad surcharge tag
+    # iter334l — Microsoft Click ID (msclkid) captured from Bing Ads
+    # landing URLs. Persisted on the txn so the admin ROAS tile can
+    # attribute revenue back to the ad click within Bing's 30-day window.
+    msclkid: Optional[str] = Field(default=None, max_length=100)
     discount_code: Optional[str] = None        # per-shop maker promo code
     # Audit-trail consent. Frontend must stamp this client-side at submit;
     # backend re-stamps a server-time value into the order doc.

@@ -6,6 +6,7 @@ import {
   promoteMakerProduct, renewMakerProduct,
   downloadProductStoryCard,
   upsertListingBudget, deleteListingBudget,
+  aiTitleRefresh,
 } from "../../lib/api";
 import { useConfirm } from "./useConfirm";
 import { toast } from "sonner";
@@ -820,6 +821,42 @@ function PricingVerdictBadge({ comparison, slug }) {
       const productSlug = slug;
       await updateMakerProduct(productSlug, { price: suggestedPrice });
       setOpen(false);
+
+      // iter334l — When the price drop is meaningful (>=10%), kick off
+      // a background title-refresh suggestion. The title can lag the
+      // price (e.g. "Heirloom Walnut…" doesn't fit a $50 sale price),
+      // so we proactively pitch a fresh framing. Stay off the critical
+      // path — show in a follow-up toast so the Apply success isn't
+      // blocked on a 5-10s AI call.
+      const dropPct = prevPrice > 0 ? ((prevPrice - suggestedPrice) / prevPrice) * 100 : 0;
+      if (Math.abs(dropPct) >= 10) {
+        // Fire-and-forget; on success, raise a second toast with the
+        // suggestion + a one-click apply.
+        aiTitleRefresh(productSlug, prevPrice, suggestedPrice)
+          .then((titleResult) => {
+            const newTitle = titleResult?.suggested_title?.trim();
+            const oldTitle = (titleResult?.current_title || "").trim();
+            if (!newTitle || newTitle === oldTitle) return;
+            toast(`◆ Suggested title: "${newTitle}"`, {
+              description: titleResult.rationale || "Tap Apply to update.",
+              duration: 10000,
+              action: {
+                label: "Apply title",
+                onClick: async () => {
+                  try {
+                    await updateMakerProduct(productSlug, { title: newTitle });
+                    toast.success("Title updated.");
+                    setTimeout(() => window.location.reload(), 600);
+                  } catch (e) {
+                    toast.error(e?.response?.data?.detail || "Couldn't update title.");
+                  }
+                },
+              },
+            });
+          })
+          .catch(() => { /* AI busy — silently skip */ });
+      }
+
       toast.success(`Price set to $${suggestedPrice.toFixed(2)}`, {
         description: prevPrice > 0 ? `Was $${prevPrice.toFixed(2)} — auto-saved.` : "Auto-saved.",
         duration: 6000,
@@ -830,8 +867,6 @@ function PricingVerdictBadge({ comparison, slug }) {
               await updateMakerProduct(productSlug, { price: prevPrice });
               toast.success(`Reverted to $${prevPrice.toFixed(2)}`);
               if (typeof window !== "undefined") {
-                // Cheap full refresh — keeps the badge math in sync
-                // without threading a callback through 4 components.
                 window.location.reload();
               }
             } catch (e) {

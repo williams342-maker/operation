@@ -575,6 +575,11 @@ async def create_checkout(req: CheckoutRequest, http_request: Request):
         "transfer_group": pre_transfer_group,
         "attribution_source": attr_source,
         "external_attribution": is_external,
+        # iter334l — Microsoft Click ID for Bing Ads attribution.
+        # Validated by Pydantic (max 100 chars), then sanity-clean here
+        # to drop anything that doesn't look like a Bing ID (32-48 hex/
+        # alphanumeric chars typically).
+        "msclkid": ((req.msclkid or "").strip()[:100] or None),
         "payment_status": "initiated",
         "status": "open",
         # Policy audit trail — proves which version the buyer agreed to and

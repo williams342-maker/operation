@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useCart } from "../lib/cart";
 import { createCheckout, fetchCartQuote, trackCart } from "../lib/api";
-import { getAttributionSource } from "../lib/analytics";
+import { getAttributionSource, getMsclkid } from "../lib/analytics";
 import { uetTrack } from "../lib/consent";
 import { Trash2 } from "lucide-react";
 import PolicyConsent, { usePolicyConsent } from "../components/PolicyConsent";
@@ -141,6 +141,7 @@ export default function CartPage() {
         customer_email: email,
         gift_note: giftNote || undefined,
         attribution_source: getAttributionSource() || undefined,
+        msclkid: getMsclkid() || undefined,
         discount_code: appliedCode || undefined,
         policy_accepted: true,
         policy_version: consent.version,

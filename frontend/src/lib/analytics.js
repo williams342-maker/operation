@@ -124,7 +124,13 @@ function _attachListenersOnce() {
  * Capture and persist UTM source (or `via=external`) for off-site ad
  * attribution. Stored in localStorage with a 30-day TTL — surfaced at
  * checkout so Stripe Connect can apply the off-site fee surcharge.
+ *
+ * iter334l — Also captures Microsoft Ads `msclkid` query param so the
+ * admin ROAS tile can attribute revenue back to Bing Ads spend.
  */
+const MSCLKID_KEY = "cm_msclkid";
+const MSCLKID_TS_KEY = "cm_msclkid_ts";
+
 export function captureAttribution() {
   try {
     const url = new URL(window.location.href);
@@ -133,7 +139,25 @@ export function captureAttribution() {
       localStorage.setItem(ATTR_KEY, utm.slice(0, 50));
       localStorage.setItem(ATTR_TS_KEY, String(Date.now()));
     }
+    const msclkid = url.searchParams.get("msclkid");
+    if (msclkid) {
+      // Microsoft Click ID. Persist for 30 days — Bing's standard
+      // attribution window. Maxed at 100 chars to bound localStorage.
+      localStorage.setItem(MSCLKID_KEY, msclkid.slice(0, 100));
+      localStorage.setItem(MSCLKID_TS_KEY, String(Date.now()));
+    }
   } catch { /* swallow */ }
+}
+
+/** Returns the persisted msclkid if within 30-day TTL, else null. */
+export function getMsclkid() {
+  try {
+    const ts = parseInt(localStorage.getItem(MSCLKID_TS_KEY) || "0", 10);
+    if (!ts || Date.now() - ts > ATTR_TTL_MS) return null;
+    return localStorage.getItem(MSCLKID_KEY) || null;
+  } catch {
+    return null;
+  }
 }
 
 /**

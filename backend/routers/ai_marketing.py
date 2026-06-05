@@ -442,3 +442,74 @@ async def ai_pricing_suggest(product_slug: str, slug: str = Depends(current_make
         "band_high": band_hi,
         "advice": advice,
     }
+
+
+# ───────────────────── iter334l — Title refresh on price change ─────────────────────
+TITLE_REFRESH_SYSTEM = """You rewrite handmade-marketplace listing titles to better match a NEW price point.
+
+Given the current title, category, description, OLD price, and NEW price, produce a single
+fresh title that:
+- Stays under 80 characters
+- Keeps the materials/dimensions/specifics from the original
+- If price DROPPED, leans on accessible/gift-friendly framing ("Affordable", "Starter",
+  "Everyday", "Compact"); if price ROSE, leans on premium framing ("Heirloom", "Limited",
+  "Signature", "Commission-Grade")
+- Does NOT use spammy SEO stuffing ("BEST", "AMAZING", "MUST-HAVE")
+- Does NOT use ALL CAPS
+
+Return EXACTLY a JSON object:
+{
+  "suggested_title": "...",
+  "rationale": "ONE short sentence explaining the change"
+}
+"""
+
+
+class TitleRefreshIn(BaseModel):
+    slug: str
+    old_price: float
+    new_price: float
+
+
+@router.post("/maker/ai/title-refresh")
+async def ai_title_refresh(payload: TitleRefreshIn, slug: str = Depends(current_maker_slug)):
+    """One-shot title rewrite tied to a price change. Reads the listing
+    by slug, asks Claude to repitch the title around the new price
+    point. Lightweight — no caching since the maker typically only
+    calls this once per Apply event."""
+    listing = await db.products.find_one(
+        {"slug": payload.slug, "maker_slug": slug},
+        {"_id": 0, "title": 1, "category": 1, "description": 1},
+    )
+    if not listing:
+        raise HTTPException(404, "Listing not found.")
+    delta = payload.new_price - payload.old_price
+    direction = "DROPPED" if delta < 0 else ("ROSE" if delta > 0 else "UNCHANGED")
+    user_msg = (
+        f"Current title: {listing.get('title') or '(empty)'}\n"
+        f"Category: {listing.get('category') or 'unspecified'}\n"
+        f"Description: {(listing.get('description') or '')[:600]}\n"
+        f"OLD price: ${payload.old_price:.2f}\n"
+        f"NEW price: ${payload.new_price:.2f}\n"
+        f"Direction: {direction}\n"
+    )
+    out = await _claude_async(TITLE_REFRESH_SYSTEM, user_msg, max_chars=600)
+    if not out or not out.get("suggested_title"):
+        raise HTTPException(503, "AI is busy — please retry in a few seconds.")
+    suggested = (out.get("suggested_title") or "").strip()[:80]
+    rationale = (out.get("rationale") or "").strip()[:200]
+    await db.ai_marketing_log.insert_one({
+        "kind": "title_refresh", "maker_slug": slug,
+        "listing_slug": payload.slug,
+        "old_title": listing.get("title"),
+        "suggested_title": suggested,
+        "old_price": payload.old_price,
+        "new_price": payload.new_price,
+        "created_at": now_iso(),
+    })
+    return {
+        "current_title": listing.get("title"),
+        "suggested_title": suggested,
+        "rationale": rationale,
+    }
+

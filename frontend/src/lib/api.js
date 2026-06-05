@@ -211,6 +211,13 @@ export const fetchMakerTransactions = () =>
 // AI Marketing Companion
 export const aiListingCopy = (payload) =>
   http.post("/maker/ai/listing-copy", payload, { headers: authHeaders() }).then((r) => r.data);
+
+// iter334l — Title refresh tied to a price change.
+export const aiTitleRefresh = (slug, old_price, new_price) =>
+  http.post("/maker/ai/title-refresh",
+    { slug, old_price, new_price },
+    { headers: authHeaders() },
+  ).then((r) => r.data);
 export const aiSeoTags = (payload) =>
   http.post("/maker/ai/seo-tags", payload, { headers: authHeaders() }).then((r) => r.data);
 export const aiSeoBulk = (payload) =>
@@ -316,6 +323,12 @@ export const startBatchPriceCompare = () =>
   http.post("/maker/price-compare/batch", {}, { headers: authHeaders() }).then((r) => r.data);
 export const fetchBatchPriceCompareJob = (job_id) =>
   http.get(`/maker/price-compare/jobs/${job_id}`, { headers: authHeaders() }).then((r) => r.data);
+
+// iter334l — Microsoft Ads ROAS tile (admin)
+export const fetchMsftRoas = (days = 7) =>
+  http.get("/admin/ads/msft-roas", { params: { days }, headers: adminAuthHeaders() }).then((r) => r.data);
+export const recordMsftAdSpend = (amount_usd, period_days = 7, note = null) =>
+  http.post("/admin/ads/msft-spend", { amount_usd, period_days, note }, { headers: adminAuthHeaders() }).then((r) => r.data);
 export const renewMakerProduct = (slug) =>
   http.post(`/maker/products/${slug}/renew`, {}, { headers: authHeaders() }).then((r) => r.data);
 export const fetchMakerProductsStats = () =>

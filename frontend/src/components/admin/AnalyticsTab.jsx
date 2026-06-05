@@ -4,6 +4,7 @@ import { Sparkline } from "../Charts";
 import { Stat } from "./_shared";
 import { StatsSkeleton, RowsSkeleton } from "../Skeleton";
 import GA4LiveCard from "./GA4LiveCard";
+import MsftRoasCard from "./MsftRoasCard";
 
 // ===================== ANALYTICS =====================
 export default function AnalyticsTab() {
@@ -28,6 +29,9 @@ export default function AnalyticsTab() {
           first thing the admin sees when opening the Analytics tab. Falls
           back to a friendly setup card if GA4 isn't wired yet. */}
       <GA4LiveCard />
+      {/* iter334l — Microsoft Ads ROAS tile right below GA4. Both are
+          ad-platform attribution surfaces so they pair naturally. */}
+      <MsftRoasCard />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Stat label="GMV (all-time)" value={`$${data.gmv.toFixed(0)}`} testId="an-gmv" />
