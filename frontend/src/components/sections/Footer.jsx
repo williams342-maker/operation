@@ -1,6 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { Instagram, Mail, MapPin } from "lucide-react";
+import { reopenBanner } from "../../lib/consent";
 
 const cols = [
   {
@@ -226,6 +227,16 @@ export default function Footer() {
             <Link to="/policy#maker-agreement" className="hover:text-[#ff4500]" data-testid="footer-maker-agreement">Maker Agreement</Link>
             <Link to="/contact" className="hover:text-[#ff4500]" data-testid="footer-contact">Contact</Link>
             <Link to="/press" className="hover:text-[#ff4500]" data-testid="footer-press">Press</Link>
+            {/* iter334e — Re-opens the GDPR cookie banner so users can
+                change their analytics + ads consent any time. */}
+            <button
+              type="button"
+              onClick={reopenBanner}
+              className="hover:text-[#ff4500] cursor-pointer bg-transparent border-none p-0 font-inherit text-inherit text-left"
+              data-testid="footer-cookie-preferences"
+            >
+              Cookie preferences
+            </button>
           </div>
         </div>
       </div>

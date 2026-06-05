@@ -70,6 +70,7 @@ import HelpSupportWidget from "./components/HelpSupportWidget";
 import InstallPwaButton from "./components/InstallPwaButton";
 import LiveChatWidget from "./components/LiveChatWidget";
 import WelcomeBackToast from "./components/WelcomeBackToast";
+import CookieBanner from "./components/CookieBanner";
 import MaintenancePage from "./components/MaintenancePage";
 import BetaBanner from "./components/BetaBanner";
 import CNCEmblem from "./components/CNCEmblem";
@@ -334,6 +335,11 @@ function App() {
         <InstallPwaButton />
         <LiveChatWidget />
         <WelcomeBackToast />
+        {/* iter334e — GDPR cookie banner. Self-gates display: only
+            renders when no valid consent record exists in localStorage,
+            and re-opens via the `cm:reopen-cookie-banner` event fired
+            from the Footer "Cookie preferences" link. */}
+        <CookieBanner />
       </BrowserRouter>
     </CartProvider>
   );
