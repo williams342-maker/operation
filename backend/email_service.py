@@ -1491,27 +1491,38 @@ async def send_maker_renewal_digest(
 # iter334c — Weekly AI pricing digest
 async def send_maker_pricing_digest(
     maker_email: str, maker_name: str, flagged: list[dict],
+    underpriced: list[dict] | None = None,
 ):
     """Sent weekly to makers who have one or more listings priced ≥20%
     above the AI-derived market median (from the `price_comparisons`
     collection populated by the AI Price Check feature).
 
-    `flagged` rows look like:
+    iter334g — Now also includes a complementary "underpriced
+    opportunities" section listing items 20%+ BELOW market median so
+    makers can capture upside. Either list can be empty (but at least
+    one will have content when this is called).
+
+    `flagged` / `underpriced` rows look like:
         { slug, title, listed_price, market_median, delta_pct }
-    Sorted highest-delta first so the most over-priced item leads.
+    For `flagged`, delta_pct is positive (>= +20). For `underpriced`,
+    it's negative (<= -20). Sorted highest-abs-delta first per section.
     """
-    if not maker_email or not flagged:
+    flagged = flagged or []
+    underpriced = underpriced or []
+    if not maker_email or (not flagged and not underpriced):
         return None
     base = os.environ.get("PUBLIC_APP_URL") or "https://craftersmarket.org"
-    n = len(flagged)
-    plural = "" if n == 1 else "s"
+    n_above = len(flagged)
+    n_below = len(underpriced)
+    total = n_above + n_below
 
-    def _row(li: dict) -> str:
+    def _row(li: dict, accent: str = "#ff4500") -> str:
         slug = li.get("slug") or ""
         title = li.get("title") or slug
         lp = float(li.get("listed_price") or 0)
         med = float(li.get("market_median") or 0)
         delta = int(round(float(li.get("delta_pct") or 0)))
+        sign = "+" if delta >= 0 else ""
         return (
             "<tr>"
             f"<td style='padding:10px 14px;border-bottom:1px solid #1a1a1a;font-size:13px;color:#e5e5e5'>"
@@ -1521,27 +1532,53 @@ async def send_maker_pricing_digest(
             f"${lp:.0f}</td>"
             f"<td style='padding:10px 14px;border-bottom:1px solid #1a1a1a;font-size:12px;text-align:right;font-family:monospace;color:#a3a3a3'>"
             f"${med:.0f}</td>"
-            f"<td style='padding:10px 14px;border-bottom:1px solid #1a1a1a;font-size:12px;text-align:right;font-family:monospace;color:#ff4500;font-weight:bold'>"
-            f"+{delta}%</td>"
+            f"<td style='padding:10px 14px;border-bottom:1px solid #1a1a1a;font-size:12px;text-align:right;font-family:monospace;color:{accent};font-weight:bold'>"
+            f"{sign}{delta}%</td>"
             "</tr>"
         )
 
-    rows = "".join(_row(li) for li in flagged[:10])
+    def _table(rows_html: str, header_text: str, header_accent: str) -> str:
+        return (
+            f"<p style='font-size:11px;font-family:monospace;letter-spacing:0.22em;text-transform:uppercase;color:{header_accent};margin:24px 0 10px'>"
+            f"◆ {header_text}</p>"
+            "<table style='width:100%;border-collapse:collapse;margin:0 0 8px;background:#0d0d0d;border:1px solid #262626'>"
+            "<thead><tr>"
+            "<th style='padding:10px 14px;text-align:left;border-bottom:1px solid #262626;font-family:monospace;font-size:10px;letter-spacing:0.22em;text-transform:uppercase;color:#a3a3a3'>Listing</th>"
+            "<th style='padding:10px 14px;text-align:right;border-bottom:1px solid #262626;font-family:monospace;font-size:10px;letter-spacing:0.22em;text-transform:uppercase;color:#a3a3a3'>Yours</th>"
+            "<th style='padding:10px 14px;text-align:right;border-bottom:1px solid #262626;font-family:monospace;font-size:10px;letter-spacing:0.22em;text-transform:uppercase;color:#a3a3a3'>Market</th>"
+            "<th style='padding:10px 14px;text-align:right;border-bottom:1px solid #262626;font-family:monospace;font-size:10px;letter-spacing:0.22em;text-transform:uppercase;color:#a3a3a3'>Delta</th>"
+            f"</tr></thead><tbody>{rows_html}</tbody></table>"
+        )
+
+    # Intro — phrased based on which sections are present.
+    if n_above and n_below:
+        intro = (
+            f"<strong style='color:#ff4500'>{n_above} above</strong> · "
+            f"<strong style='color:#22d3ee'>{n_below} below</strong> market"
+        )
+        framing = ("Two-sided pricing pulse this week — listings above market may need a "
+                   "trim, listings below market are leaving money on the table.")
+    elif n_above:
+        intro = f"<strong style='color:#ff4500'>{n_above} of your listing{'s' if n_above != 1 else ''}</strong> priced above market"
+        framing = ("Doesn't mean you should drop prices — premium positioning works — "
+                   "but worth a look if anything is sitting in the catalog without sales.")
+    else:
+        intro = f"<strong style='color:#22d3ee'>{n_below} of your listing{'s' if n_below != 1 else ''}</strong> priced below market"
+        framing = ("These are potential upside. If they're selling well, you may be able to "
+                   "raise prices and keep volume; if they're slow, the price isn't the issue.")
+
+    above_table = _table("".join(_row(li, "#ff4500") for li in flagged[:10]),
+                         f"Above market · {n_above}", "#ff4500") if n_above else ""
+    below_table = _table("".join(_row(li, "#22d3ee") for li in underpriced[:10]),
+                         f"Below market · {n_below}", "#22d3ee") if n_below else ""
+
     body = (
         "<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 16px'>"
-        f"Hi {maker_name}, "
-        f"<strong style='color:#ff4500'>{n} of your listing{plural}</strong> "
-        f"{'are' if n != 1 else 'is'} priced 20%+ above the AI-derived market median. "
-        "Doesn't mean you should drop prices — premium positioning works — but worth a look "
-        "if anything is sitting in the catalog without sales.</p>"
-        "<table style='width:100%;border-collapse:collapse;margin:18px 0;background:#0d0d0d;border:1px solid #262626'>"
-        "<thead><tr>"
-        "<th style='padding:10px 14px;text-align:left;border-bottom:1px solid #262626;font-family:monospace;font-size:10px;letter-spacing:0.22em;text-transform:uppercase;color:#a3a3a3'>Listing</th>"
-        "<th style='padding:10px 14px;text-align:right;border-bottom:1px solid #262626;font-family:monospace;font-size:10px;letter-spacing:0.22em;text-transform:uppercase;color:#a3a3a3'>Yours</th>"
-        "<th style='padding:10px 14px;text-align:right;border-bottom:1px solid #262626;font-family:monospace;font-size:10px;letter-spacing:0.22em;text-transform:uppercase;color:#a3a3a3'>Market</th>"
-        "<th style='padding:10px 14px;text-align:right;border-bottom:1px solid #262626;font-family:monospace;font-size:10px;letter-spacing:0.22em;text-transform:uppercase;color:#a3a3a3'>Delta</th>"
-        f"</tr></thead><tbody>{rows}</tbody></table>"
-        "<p style='font-size:13px;color:#e5e5e5;line-height:1.6;margin:18px 0 12px'>"
+        f"Hi {maker_name}, your weekly pricing pulse: {intro}.</p>"
+        f"<p style='font-size:13px;color:#a3a3a3;line-height:1.6;margin:0 0 8px'>{framing}</p>"
+        f"{above_table}"
+        f"{below_table}"
+        "<p style='font-size:13px;color:#e5e5e5;line-height:1.6;margin:24px 0 12px'>"
         "Want a fresh second opinion? Open any listing → <strong>◆ AI Price Check</strong> "
         "(next to the price field). It pulls live web comparables and gives you a sharp "
         "recommendation in under 10 seconds.</p>"
@@ -1550,18 +1587,31 @@ async def send_maker_pricing_digest(
         "text-transform:uppercase;text-decoration:none;border:1px solid #ff4500'>Open my listings →</a>"
         "<p style='font-size:12px;color:#525252;margin-top:24px;line-height:1.6'>"
         "Reading this every week is opt-out: go to "
-        f"<a href='{base}/maker/dashboard?tab=profile' style='color:#737373'>profile settings</a> → "
-        "toggle <em>Weekly pricing digest</em>. Market median is derived from real comparable items "
+        f"<a href='{base}/maker/dashboard?tab=settings#notifications' style='color:#737373'>profile settings → notifications</a> → "
+        "toggle <em>Weekly AI pricing digest</em>. Market median is derived from real comparable items "
         "and is a starting point, not financial advice.</p>"
     )
+    # Headline + subhead vary so the email feels intentional, not templated.
+    if n_above and n_below:
+        headline = f"{n_above} above · {n_below} below market."
+    elif n_above:
+        headline = f"{n_above} listing{'s' if n_above != 1 else ''} priced 20%+ above market."
+    else:
+        headline = f"{n_below} listing{'s' if n_below != 1 else ''} priced 20%+ below market."
+
     html = _shell(
-        f"{n} listing{plural} priced 20%+ above market.",
+        headline,
         "AI-derived comparables · weekly pricing pulse.",
         body, "Maker · pricing digest",
     )
-    return await _send(
-        maker_email, f"Pricing digest · {n} listing{plural} above market", html,
-    )
+    # Subject too — mention the dominant side.
+    if n_above and n_below:
+        subject = f"Pricing digest · {n_above} above + {n_below} below market"
+    elif n_above:
+        subject = f"Pricing digest · {n_above} listing{'s' if n_above != 1 else ''} above market"
+    else:
+        subject = f"Pricing digest · {n_below} listing{'s' if n_below != 1 else ''} below market (upside)"
+    return await _send(maker_email, subject, html)
 
 
 async def send_maker_smart_paused(

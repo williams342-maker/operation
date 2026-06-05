@@ -65,6 +65,33 @@ export function pushVendorConsent(adStorage, analyticsStorage) {
   } catch { /* same */ }
 }
 
+/**
+ * iter334f — Microsoft Ads conversion event helper.
+ *
+ * Safely fires a UET custom event. Honors the Consent Mode default —
+ * if the user rejected ad_storage, Microsoft's SDK silently drops the
+ * event server-side, so calling this is always safe. The local guard
+ * just avoids throwing if the SDK hasn't loaded (ad blocker, etc).
+ *
+ * Standard events Microsoft accepts:
+ *   - 'purchase' with { revenue_value, currency, event_label?, event_value? }
+ *   - 'submit_lead' with { event_label?, event_value? }
+ *   - 'sign_up' / 'add_to_cart' / 'begin_checkout' (full list:
+ *     https://help.ads.microsoft.com/#apex/ads/en/60118)
+ *
+ * Returns true if the event was queued, false otherwise.
+ */
+export function uetTrack(eventName, params = {}) {
+  if (typeof window === "undefined") return false;
+  try {
+    if (!window.uetq || typeof window.uetq.push !== "function") return false;
+    window.uetq.push("event", eventName, params);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Convenience helpers for the banner. */
 export const acceptAll = () => writeConsent("granted", "granted");
 export const rejectAll = () => writeConsent("denied", "denied");

@@ -33,7 +33,7 @@ from pydantic import BaseModel
 
 from core import db, logger, now_iso
 from email_service import send_maker_pricing_digest
-from maker_auth import current_admin
+from maker_auth import current_admin, current_maker_slug
 
 router = APIRouter()
 
@@ -52,6 +52,19 @@ def _over_pct() -> float:
         return 20.0
 
 
+# iter334g — Underpriced threshold. Symmetrical to _over_pct by default,
+# but separately tunable so ops can dial down "too low" alerts without
+# affecting "too high" alerts (e.g. for makers selling premium goods who
+# might genuinely undercut general market median for strategic reasons).
+def _under_pct() -> float:
+    raw = (os.environ.get("PRICING_DIGEST_UNDER_PCT") or "").strip()
+    try:
+        v = float(raw) if raw else 20.0
+        return max(5.0, min(80.0, v))  # bounded — can't be "100% below"
+    except ValueError:
+        return 20.0
+
+
 async def run_weekly_pricing_digest(
     *,
     dry_run: bool = False,
@@ -60,12 +73,19 @@ async def run_weekly_pricing_digest(
 ) -> dict:
     """Find flagged listings per maker and send (or simulate) a digest.
 
+    iter334g — Now collects BOTH above-market (default 20%+ over median)
+    AND below-market (default 20%+ under median) listings. Both kinds
+    are sent in a single weekly Monday email so the maker has one
+    "pricing pulse" inbox footprint, not two. The opt-out flag still
+    governs the whole email.
+
     Returns a stats dict for logging / admin debug rendering. Safe to
     call multiple times in a week — idempotent via `pricing_digest_log`.
     """
     now = datetime.now(timezone.utc)
     week_key = _iso_week_key(now)
-    threshold_pct = _over_pct()
+    over_pct = _over_pct()
+    under_pct = _under_pct()
     cutoff = (now - timedelta(days=comparison_max_age_days)).isoformat()
 
     # 1) Pull the most recent comparison per (maker, listing) within the
@@ -88,31 +108,35 @@ async def run_weekly_pricing_digest(
         return {"status": "skipped", "reason": "no_recent_comparisons",
                 "week_key": week_key}
 
-    # 2) Group by maker → list of flagged listings.
-    by_maker: dict[str, list[dict]] = {}
+    # 2) Group by maker → two lists: above + below. A single listing can
+    #    only land in one bucket (never both — it's strictly priced
+    #    either over or under median).
+    by_maker: dict[str, dict] = {}
     for r in rows:
         median = float(r.get("price_median") or 0)
         listed = float(r.get("listed_price") or 0)
         if median <= 0 or listed <= 0:
             continue
         delta_pct = ((listed - median) / median) * 100.0
-        if delta_pct < threshold_pct:
-            continue
         slug = r.get("listing_slug") or ""
         maker = r.get("maker_slug") or ""
         if not slug or not maker:
             continue
-        by_maker.setdefault(maker, []).append({
+        entry = {
             "slug": slug,
             "listed_price": listed,
             "market_median": median,
             "delta_pct": delta_pct,
-        })
+        }
+        if delta_pct >= over_pct:
+            by_maker.setdefault(maker, {"above": [], "below": []})["above"].append(entry)
+        elif delta_pct <= -under_pct:
+            by_maker.setdefault(maker, {"above": [], "below": []})["below"].append(entry)
 
     if not by_maker:
         return {"status": "skipped", "reason": "no_flagged_listings",
                 "week_key": week_key, "comparisons_scanned": len(rows),
-                "threshold_pct": threshold_pct}
+                "over_pct": over_pct, "under_pct": under_pct}
 
     # 3) Hydrate titles + maker email/name + run idempotency check.
     sent_to = []
@@ -121,7 +145,7 @@ async def run_weekly_pricing_digest(
     skipped_no_email = 0
     errors = 0
 
-    for maker_slug, flagged in by_maker.items():
+    for maker_slug, buckets in by_maker.items():
         maker = await db.makers.find_one(
             {"slug": maker_slug},
             {"_id": 0, "email": 1, "name": 1, "pricing_digest_opt_out": 1},
@@ -136,38 +160,54 @@ async def run_weekly_pricing_digest(
             skipped_no_email += 1
             continue
 
-        # Hydrate titles from the products collection.
-        slugs = [f["slug"] for f in flagged]
+        # Hydrate titles from the products collection (one query for
+        # both buckets combined).
+        all_slugs = [f["slug"] for f in buckets["above"]] + [f["slug"] for f in buckets["below"]]
         products = await db.products.find(
-            {"slug": {"$in": slugs}, "maker_slug": maker_slug},
+            {"slug": {"$in": all_slugs}, "maker_slug": maker_slug},
             {"_id": 0, "slug": 1, "title": 1, "status": 1, "price": 1},
-        ).to_list(len(slugs))
+        ).to_list(len(all_slugs))
         prod_by_slug = {p["slug"]: p for p in products}
 
         # Drop listings that are no longer published or whose CURRENT
-        # price has been dropped to within threshold (maker may have
-        # already adjusted since the comparison was generated).
-        live_flagged = []
-        for f in flagged:
+        # price has drifted back to within the relevant threshold (maker
+        # may have already adjusted since the comparison was generated).
+        live_above: list[dict] = []
+        live_below: list[dict] = []
+        for f in buckets["above"]:
             p = prod_by_slug.get(f["slug"])
-            if not p:
-                continue
-            if p.get("status") and p["status"] != "published":
+            if not p or (p.get("status") and p["status"] != "published"):
                 continue
             current_price = float(p.get("price") or 0)
             if current_price <= 0:
                 continue
             current_delta = ((current_price - f["market_median"]) / f["market_median"]) * 100.0
-            if current_delta < threshold_pct:
+            if current_delta < over_pct:
                 continue
-            live_flagged.append({
+            live_above.append({
                 **f,
-                "listed_price": current_price,  # use *current* price for the email
+                "listed_price": current_price,
+                "delta_pct": current_delta,
+                "title": p.get("title") or f["slug"],
+            })
+        for f in buckets["below"]:
+            p = prod_by_slug.get(f["slug"])
+            if not p or (p.get("status") and p["status"] != "published"):
+                continue
+            current_price = float(p.get("price") or 0)
+            if current_price <= 0:
+                continue
+            current_delta = ((current_price - f["market_median"]) / f["market_median"]) * 100.0
+            if current_delta > -under_pct:
+                continue
+            live_below.append({
+                **f,
+                "listed_price": current_price,
                 "delta_pct": current_delta,
                 "title": p.get("title") or f["slug"],
             })
 
-        if not live_flagged:
+        if not live_above and not live_below:
             continue
 
         # Idempotency — has this maker already gotten a digest this week?
@@ -177,18 +217,26 @@ async def run_weekly_pricing_digest(
             skipped_already_sent += 1
             continue
 
-        live_flagged.sort(key=lambda x: x["delta_pct"], reverse=True)
+        live_above.sort(key=lambda x: x["delta_pct"], reverse=True)
+        # For below, biggest absolute discount first (most negative).
+        live_below.sort(key=lambda x: x["delta_pct"])
 
         if dry_run:
-            sent_to.append({"maker": maker_slug, "flagged_count": len(live_flagged),
-                            "would_send_to": email})
+            sent_to.append({
+                "maker": maker_slug,
+                "flagged_count": len(live_above) + len(live_below),
+                "above_count": len(live_above),
+                "below_count": len(live_below),
+                "would_send_to": email,
+            })
             continue
 
         try:
             await send_maker_pricing_digest(
                 maker_email=email,
                 maker_name=maker.get("name") or maker_slug,
-                flagged=live_flagged,
+                flagged=live_above,
+                underpriced=live_below,
             )
             await db.pricing_digest_log.update_one(
                 {"_id": log_id},
@@ -196,13 +244,20 @@ async def run_weekly_pricing_digest(
                     "sent_at": now_iso(),
                     "status": "sent",
                     "maker_slug": maker_slug,
-                    "flagged_count": len(live_flagged),
-                    "flagged_slugs": [f["slug"] for f in live_flagged],
-                    "threshold_pct": threshold_pct,
+                    "flagged_count": len(live_above) + len(live_below),
+                    "flagged_slugs": [f["slug"] for f in live_above],
+                    "underpriced_slugs": [f["slug"] for f in live_below],
+                    "over_pct": over_pct,
+                    "under_pct": under_pct,
                 }},
                 upsert=True,
             )
-            sent_to.append({"maker": maker_slug, "flagged_count": len(live_flagged)})
+            sent_to.append({
+                "maker": maker_slug,
+                "flagged_count": len(live_above) + len(live_below),
+                "above_count": len(live_above),
+                "below_count": len(live_below),
+            })
         except Exception as e:
             errors += 1
             logger.exception("[pricing_digest] send failed maker=%s: %s", maker_slug, e)
@@ -210,7 +265,8 @@ async def run_weekly_pricing_digest(
     return {
         "status": "ok",
         "week_key": week_key,
-        "threshold_pct": threshold_pct,
+        "over_pct": over_pct,
+        "under_pct": under_pct,
         "comparisons_scanned": len(rows),
         "makers_eligible": len(by_maker),
         "sent": len([s for s in sent_to if "would_send_to" not in s]),
@@ -243,3 +299,33 @@ async def admin_run_pricing_digest(
     except Exception as e:
         logger.exception("[pricing_digest] admin trigger failed: %s", e)
         raise HTTPException(500, f"Pricing digest failed: {e}")
+
+
+# ── maker-facing opt-out toggle (iter334f) ─────────────────────────────
+class _OptOutReq(BaseModel):
+    opt_out: bool
+
+
+@router.get("/maker/pricing-digest/preference")
+async def maker_get_pricing_digest_preference(slug: str = Depends(current_maker_slug)):
+    """Return the maker's current pricing-digest opt-out state. Used by
+    the Settings → Notifications panel to render the toggle's initial
+    checked state."""
+    m = await db.makers.find_one(
+        {"slug": slug}, {"_id": 0, "pricing_digest_opt_out": 1},
+    ) or {}
+    return {"opt_out": bool(m.get("pricing_digest_opt_out"))}
+
+
+@router.post("/maker/pricing-digest/preference")
+async def maker_set_pricing_digest_preference(
+    body: _OptOutReq, slug: str = Depends(current_maker_slug),
+):
+    """Update the maker's pricing-digest opt-out flag. When set to True
+    the weekly cron skips this maker. Mirrors the `push_on_ship_optout`
+    pattern in `routers/push.py` for consistency."""
+    await db.makers.update_one(
+        {"slug": slug},
+        {"$set": {"pricing_digest_opt_out": bool(body.opt_out)}},
+    )
+    return {"ok": True, "opt_out": bool(body.opt_out)}

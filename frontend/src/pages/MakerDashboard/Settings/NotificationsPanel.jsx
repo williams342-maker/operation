@@ -1,7 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { Bell, Users, Globe } from "lucide-react";
+import { Bell, Users, Globe, Sparkles } from "lucide-react";
 import { toast } from "sonner";
-import { fetchMakerPushStats, setMakerPushOnShipOptout } from "../../../lib/api";
+import {
+  fetchMakerPushStats, setMakerPushOnShipOptout,
+  fetchPricingDigestPreference, setPricingDigestPreference,
+} from "../../../lib/api";
 
 /**
  * Settings → Notifications panel.
@@ -17,6 +20,9 @@ import { fetchMakerPushStats, setMakerPushOnShipOptout } from "../../../lib/api"
 export default function NotificationsPanel() {
   const [data, setData] = useState(null);
   const [busy, setBusy] = useState(false);
+  // iter334f — Weekly AI pricing digest opt-out.
+  const [pricingOptOut, setPricingOptOut] = useState(null);  // null = loading
+  const [pricingBusy, setPricingBusy] = useState(false);
 
   const refresh = () =>
     fetchMakerPushStats()
@@ -24,6 +30,13 @@ export default function NotificationsPanel() {
       .catch(() => setData({ error: true }));
 
   useEffect(() => { refresh(); }, []);
+
+  // Load pricing digest preference once on mount.
+  useEffect(() => {
+    fetchPricingDigestPreference()
+      .then((r) => setPricingOptOut(!!r.opt_out))
+      .catch(() => setPricingOptOut(false));
+  }, []);
 
   const toggle = async (next) => {
     setBusy(true);
@@ -38,6 +51,21 @@ export default function NotificationsPanel() {
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Failed.");
     } finally { setBusy(false); }
+  };
+
+  const togglePricingDigest = async (nextOptOut) => {
+    setPricingBusy(true);
+    try {
+      await setPricingDigestPreference(nextOptOut);
+      setPricingOptOut(nextOptOut);
+      toast.success(
+        nextOptOut
+          ? "Weekly pricing digest turned OFF — you won't get the Monday email."
+          : "Weekly pricing digest turned ON — you'll get a Monday email when listings drift 20%+ above market.",
+      );
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Failed.");
+    } finally { setPricingBusy(false); }
   };
 
   if (!data) {
@@ -128,6 +156,42 @@ export default function NotificationsPanel() {
               to the buyer's order page. Turn this OFF if you'd rather the buyer
               hear from email only — the delivered-confirmation push always fires
               regardless of this setting.
+            </p>
+          </div>
+        </label>
+      </div>
+
+      {/* iter334f — Weekly AI pricing digest opt-out. Sits next to the
+          push toggle because it's the same shape of decision (an
+          outgoing email I might or might not want every Monday). */}
+      <div className="border border-[#262626] bg-[#0d0d0d]" data-testid="pricing-digest-card">
+        <label
+          htmlFor="pricing-digest-toggle"
+          className="flex items-start gap-4 p-5 cursor-pointer"
+        >
+          <input
+            id="pricing-digest-toggle"
+            type="checkbox"
+            // DB stores the opt-out; surface as inverted "digest is ON"
+            checked={pricingOptOut === null ? false : !pricingOptOut}
+            disabled={pricingBusy || pricingOptOut === null}
+            onChange={(e) => togglePricingDigest(!e.target.checked)}
+            className="mt-1 w-5 h-5 accent-[#ff4500] cursor-pointer"
+            data-testid="pricing-digest-toggle"
+          />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 mb-1">
+              <Sparkles size={12} className="text-cyan-400" />
+              <div className="font-mono text-sm text-[#e5e5e5]">
+                Weekly AI pricing digest
+              </div>
+            </div>
+            <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed">
+              When ON, you get a single Monday morning email any week where one
+              or more of your listings is priced <strong className="text-[#ff4500]">20%+
+              above the AI-derived market median</strong> (from the ◆ AI Price
+              Check tool in the listing editor). Skipped automatically when
+              nothing is flagged. Default ON.
             </p>
           </div>
         </label>

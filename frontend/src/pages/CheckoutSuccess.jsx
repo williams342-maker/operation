@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { getCheckoutStatus, communityRequestMagic, subscribeNewsletter } from "../lib/api";
 import { useCart } from "../lib/cart";
+import { uetTrack } from "../lib/consent";
 import PushOptInCard from "../components/PushOptInCard";
 
 export default function CheckoutSuccess() {
@@ -27,6 +28,25 @@ export default function CheckoutSuccess() {
             cleared.current = true;
             clear();
             try { localStorage.removeItem("cm_gift_note"); } catch {}
+            // iter334f — Fire Microsoft Ads `purchase` conversion event
+            // exactly once per successful checkout. Honors Consent Mode
+            // — if the user rejected ad_storage, UET drops it
+            // server-side. Stripe returns amount in cents, UET expects
+            // a decimal — divide by 100 here. GA4 `purchase` event is
+            // already fired by Stripe's redirect/return-url tracking
+            // pixel; this complements that on the Bing Ads side.
+            try {
+              const revenue = (s.amount_total || 0) / 100;
+              const currency = (s.currency || "usd").toUpperCase();
+              if (revenue > 0) {
+                uetTrack("purchase", {
+                  revenue_value: revenue,
+                  currency,
+                  event_label: "checkout_success",
+                  event_value: revenue,
+                });
+              }
+            } catch { /* analytics should never break the success page */ }
           }
           return;
         }

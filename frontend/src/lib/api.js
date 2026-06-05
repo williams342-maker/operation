@@ -298,6 +298,12 @@ export const fetchMakerPushStats = () =>
   http.get("/maker/push/stats", { headers: authHeaders() }).then((r) => r.data);
 export const setMakerPushOnShipOptout = (optout) =>
   http.post("/maker/push/on-ship", { optout }, { headers: authHeaders() }).then((r) => r.data);
+
+// iter334f — Weekly AI pricing digest opt-out
+export const fetchPricingDigestPreference = () =>
+  http.get("/maker/pricing-digest/preference", { headers: authHeaders() }).then((r) => r.data);
+export const setPricingDigestPreference = (opt_out) =>
+  http.post("/maker/pricing-digest/preference", { opt_out }, { headers: authHeaders() }).then((r) => r.data);
 export const renewMakerProduct = (slug) =>
   http.post(`/maker/products/${slug}/renew`, {}, { headers: authHeaders() }).then((r) => r.data);
 export const fetchMakerProductsStats = () =>

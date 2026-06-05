@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { submitMakerApplication } from "../lib/api";
 import { useSiteSettings } from "../hooks/useSiteSettings";
 import { useStructuredData } from "../lib/seo";
+import { uetTrack } from "../lib/consent";
 import MakerFeeTable from "../components/MakerFeeTable";
 
 const TECH = ["PLASMA", "LASER", "ROUTER", "CUSTOM"];
@@ -51,7 +52,21 @@ export default function ApplyPage() {
     e.preventDefault();
     setState("sending");
     setErrMsg("");
-    try { await submitMakerApplication({ ...f, referred_by_code: refCode || undefined }); setState("done"); }
+    try {
+      await submitMakerApplication({ ...f, referred_by_code: refCode || undefined });
+      setState("done");
+      // iter334f — Fire Microsoft Ads `submit_lead` conversion event on
+      // successful application submission. Honors Consent Mode (denied
+      // → UET drops it server-side). Wrapped in try so analytics can't
+      // break the success UX. `event_label` lets the Bing Ads dashboard
+      // filter maker leads from any future lead events (e.g. /beta).
+      try {
+        uetTrack("submit_lead", {
+          event_label: "maker_application",
+          event_value: 1,
+        });
+      } catch { /* noop */ }
+    }
     catch (e2) {
       const d = e2?.response?.data?.detail;
       setErrMsg(typeof d === "string" ? d : "Something went wrong. Try again.");

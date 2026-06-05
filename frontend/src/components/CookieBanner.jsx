@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Cookie, X } from "lucide-react";
-import { readConsent, acceptAll, rejectAll, REOPEN_EVENT } from "../lib/consent";
+import { Cookie, X, ChevronDown } from "lucide-react";
+import { readConsent, acceptAll, rejectAll, writeConsent, REOPEN_EVENT } from "../lib/consent";
 
 /**
  * iter334e — GDPR cookie consent banner.
@@ -13,17 +13,35 @@ import { readConsent, acceptAll, rejectAll, REOPEN_EVENT } from "../lib/consent"
  *   to re-show the banner if the user wants to change their mind.
  * - Accept All / Reject All push consent updates to both GA4 + UET via
  *   the helpers in `lib/consent.js`.
+ * - iter334g — A "Customize" button expands a sub-panel with two
+ *   independent toggles (analytics vs ads). Save Selection writes the
+ *   exact combination chosen, so privacy-conscious users can allow
+ *   analytics without enabling ad tracking, or vice versa.
  * - Bottom-fixed strip (not a modal overlay) — non-blocking, dismissible.
  * - Industrial dark palette matching the rest of the site.
  */
 export default function CookieBanner() {
   const [open, setOpen] = useState(false);
+  // iter334g — Customize panel state.
+  const [customize, setCustomize] = useState(false);
+  const [analyticsOn, setAnalyticsOn] = useState(true);
+  const [adsOn, setAdsOn] = useState(true);
 
   // On mount, decide whether to show. Also listen for the footer
   // reopen event so users can revisit their choice any time.
   useEffect(() => {
     if (!readConsent()) setOpen(true);
-    const handler = () => setOpen(true);
+    const handler = () => {
+      // Re-opened from footer → preload toggles from the last saved
+      // record so the maker sees their current choice, not the optimistic default.
+      const c = readConsent();
+      if (c) {
+        setAnalyticsOn(c.analytics_storage === "granted");
+        setAdsOn(c.ad_storage === "granted");
+      }
+      setCustomize(false);  // start collapsed even on reopen
+      setOpen(true);
+    };
     window.addEventListener(REOPEN_EVENT, handler);
     return () => window.removeEventListener(REOPEN_EVENT, handler);
   }, []);
@@ -32,6 +50,10 @@ export default function CookieBanner() {
 
   const onAccept = () => { acceptAll(); setOpen(false); };
   const onReject = () => { rejectAll(); setOpen(false); };
+  const onSaveCustom = () => {
+    writeConsent(adsOn ? "granted" : "denied", analyticsOn ? "granted" : "denied");
+    setOpen(false);
+  };
 
   return (
     <div
@@ -49,7 +71,7 @@ export default function CookieBanner() {
           </p>
           <p className="font-mono text-[12px] text-[#e5e5e5] leading-relaxed">
             We use cookies for analytics (Google Analytics) and advertising (Microsoft Ads).
-            You can accept all, reject all, or read our{" "}
+            You can accept all, reject all, customize, or read our{" "}
             <Link to="/policy#privacy" className="text-[#ff4500] hover:underline" data-testid="cookie-banner-policy-link">
               privacy policy
             </Link>
@@ -58,6 +80,21 @@ export default function CookieBanner() {
           </p>
         </div>
         <div className="flex items-stretch gap-2 shrink-0 w-full md:w-auto">
+          {/* iter334g — Customize toggle button. Expands the inline
+              panel below. Independent of Accept/Reject so picking
+              "Customize" then "Save Selection" doesn't surprise the
+              user with a different consent state than what they set. */}
+          <button
+            type="button"
+            onClick={() => setCustomize((s) => !s)}
+            aria-expanded={customize}
+            aria-controls="cookie-banner-customize-panel"
+            className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2.5 border border-[#262626] hover:border-[#525252] text-[#a3a3a3] hover:text-[#e5e5e5] font-mono text-[10px] uppercase tracking-[0.22em] transition"
+            data-testid="cookie-banner-customize"
+          >
+            Customize
+            <ChevronDown size={11} className={`transition-transform ${customize ? "rotate-180" : ""}`} />
+          </button>
           <button
             type="button"
             onClick={onReject}
@@ -85,6 +122,75 @@ export default function CookieBanner() {
           </button>
         </div>
       </div>
+
+      {/* iter334g — Customize panel. Slides open beneath the banner so
+          users can pick analytics independently of ads. Toggling the
+          checkboxes is local-only until "Save selection" is clicked —
+          that way "Accept all" / "Reject all" remain instantaneous. */}
+      {customize && (
+        <div
+          id="cookie-banner-customize-panel"
+          className="border-t border-[#262626] bg-[#0d0d0d]"
+          data-testid="cookie-banner-customize-panel"
+        >
+          <div className="max-w-[1300px] mx-auto px-4 md:px-8 py-4 md:py-5 flex flex-col md:flex-row items-start md:items-center gap-4 md:gap-6">
+            <div className="flex-1 grid sm:grid-cols-2 gap-3 w-full">
+              <label
+                htmlFor="cookie-toggle-analytics"
+                className="flex items-start gap-3 p-3 border border-[#262626] hover:border-[#525252] cursor-pointer transition"
+                data-testid="cookie-customize-analytics-row"
+              >
+                <input
+                  id="cookie-toggle-analytics"
+                  type="checkbox"
+                  checked={analyticsOn}
+                  onChange={(e) => setAnalyticsOn(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 accent-[#ff4500] cursor-pointer shrink-0"
+                  data-testid="cookie-customize-analytics"
+                />
+                <div className="min-w-0">
+                  <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#e5e5e5] mb-0.5">
+                    Analytics
+                  </div>
+                  <div className="font-mono text-[10px] text-[#a3a3a3] leading-relaxed">
+                    Google Analytics 4. Pageviews + clicks. No ad targeting.
+                  </div>
+                </div>
+              </label>
+              <label
+                htmlFor="cookie-toggle-ads"
+                className="flex items-start gap-3 p-3 border border-[#262626] hover:border-[#525252] cursor-pointer transition"
+                data-testid="cookie-customize-ads-row"
+              >
+                <input
+                  id="cookie-toggle-ads"
+                  type="checkbox"
+                  checked={adsOn}
+                  onChange={(e) => setAdsOn(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 accent-[#ff4500] cursor-pointer shrink-0"
+                  data-testid="cookie-customize-ads"
+                />
+                <div className="min-w-0">
+                  <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#e5e5e5] mb-0.5">
+                    Advertising
+                  </div>
+                  <div className="font-mono text-[10px] text-[#a3a3a3] leading-relaxed">
+                    Microsoft Ads (Bing). Conversion tracking + remarketing.
+                  </div>
+                </div>
+              </label>
+            </div>
+            <button
+              type="button"
+              onClick={onSaveCustom}
+              className="px-5 py-2.5 bg-[#22d3ee] hover:bg-[#06b6d4] text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] font-bold transition w-full md:w-auto shrink-0"
+              data-testid="cookie-banner-save-custom"
+            >
+              Save selection
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
