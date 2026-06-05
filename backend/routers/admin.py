@@ -116,6 +116,15 @@ async def admin_auth_recovery(secret: str = "", request_email: Optional[str] = N
     return RedirectResponse(url=f"/admin/verify?token={token}", status_code=302)
 
 
+@router.get("/admin/cache/stats")
+async def admin_cache_stats(_: dict = Depends(current_admin)):
+    """iter334o — Snapshot of the in-process /api/products TTL cache.
+    Surfaced on the admin Prod Health tab. Read-only; no mutations."""
+    from routers.catalog import get_list_products_cache_stats
+    return get_list_products_cache_stats()
+
+
+
 @router.get("/admin/me")
 async def admin_me(claims: dict = Depends(current_admin)):
     is_super, caps = await admin_capabilities(claims)

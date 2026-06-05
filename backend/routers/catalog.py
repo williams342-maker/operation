@@ -27,6 +27,33 @@ router = APIRouter()
 _LIST_PRODUCTS_CACHE: dict[tuple, tuple[float, list]] = {}
 _LIST_PRODUCTS_TTL_S = 60.0
 _LIST_PRODUCTS_CACHE_MAX = 32
+_LIST_PRODUCTS_HITS = 0
+_LIST_PRODUCTS_MISSES = 0
+
+
+def get_list_products_cache_stats() -> dict:
+    """Snapshot of the /api/products cache — surfaced on the admin
+    Prod Health tab so ops can sanity-check hit rate + entry age."""
+    now = _time.monotonic()
+    entries = []
+    for key, (ts, val) in _LIST_PRODUCTS_CACHE.items():
+        entries.append({
+            "key": "·".join(str(k) if k is not None else "—" for k in key),
+            "age_s": round(now - ts, 1),
+            "size": len(val),
+        })
+    entries.sort(key=lambda e: e["age_s"], reverse=True)
+    total = _LIST_PRODUCTS_HITS + _LIST_PRODUCTS_MISSES
+    return {
+        "hits": _LIST_PRODUCTS_HITS,
+        "misses": _LIST_PRODUCTS_MISSES,
+        "hit_rate": round(_LIST_PRODUCTS_HITS / total, 3) if total else 0.0,
+        "entries": entries,
+        "entries_count": len(entries),
+        "cap": _LIST_PRODUCTS_CACHE_MAX,
+        "ttl_s": _LIST_PRODUCTS_TTL_S,
+        "oldest_age_s": entries[0]["age_s"] if entries else 0.0,
+    }
 
 
 # ── iter324 — Maker-application anti-spam: cheap in-process IP rate
@@ -109,7 +136,11 @@ async def list_products(category: Optional[str] = None, technique: Optional[str]
     if maker is None:
         hit = _LIST_PRODUCTS_CACHE.get(cache_key)
         if hit and _time.monotonic() - hit[0] < _LIST_PRODUCTS_TTL_S:
+            global _LIST_PRODUCTS_HITS
+            _LIST_PRODUCTS_HITS += 1
             return hit[1]
+        global _LIST_PRODUCTS_MISSES
+        _LIST_PRODUCTS_MISSES += 1
 
     # Exclude soft-deleted listings AND drafts. In Mongo, `field: None` matches
     # both missing-field AND explicit-null docs — covers Pydantic's habit of

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { CheckCircle2, AlertTriangle, RefreshCw, ExternalLink } from "lucide-react";
 import { fetchAdminProdHealth, adminProdHealthCheckNow } from "../../lib/api";
+import CacheStatsCard from "./CacheStatsCard";
 
 /**
  * Prod health watchdog admin tab — surfaces the latest result from the
@@ -136,6 +137,10 @@ export default function ProdHealthTab() {
           ⚠ One or more endpoints are currently in the alerted state. The OPS inbox has already been notified.
         </div>
       )}
+
+      {/* iter334o — Products cache stats. Lives at the bottom of Prod
+          Health so ops can sanity-check cache hit rate alongside uptime. */}
+      <CacheStatsCard />
     </div>
   );
 }
