@@ -5,6 +5,7 @@ import { Search, ArrowDown, Users, Hammer } from "lucide-react";
 import CopperGlowOrb from "../CopperGlowOrb";
 import RotatingHeadline from "../RotatingHeadline";
 import EmberField from "../EmberField";
+import PillTeaser from "./PillTeaser";
 
 /**
  * Cinematic Hero (iter217 redesign).
@@ -188,13 +189,7 @@ export default function Hero() {
             Popular →
           </span>
           {PILLS.map((p) => (
-            <button
-              key={p}
-              onClick={() => nav(`/shop?q=${encodeURIComponent(p)}`)}
-              className="px-3 py-1.5 border border-amber-500/20 hover:border-amber-400 hover:text-amber-300 font-mono text-[10px] uppercase tracking-[0.22em] text-zinc-300 transition bg-black/30 backdrop-blur-sm"
-            >
-              {p}
-            </button>
+            <PillTeaser key={p} label={p} query={p} />
           ))}
         </motion.div>
 
