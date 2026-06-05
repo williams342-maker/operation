@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { ArrowUpRight } from "lucide-react";
 import VeteranBadge from "./VeteranBadge";
 import useCountdown from "../hooks/useCountdown";
-import { formatPriceDisplay } from "../lib/variantPricing";
+import { formatPriceDisplay, trackPricingLabelClick } from "../lib/variantPricing";
 
 // Inline live "★ Featured · ends in Xh Ym" badge — only visible while
 // `promoted_until` is in the future. Rendered as a sibling so the parent
@@ -36,7 +36,7 @@ export default function ProductCard({ p, i = 0 }) {
       className="group relative bg-[#121212] border border-[#262626] hover:border-[#ff4500] transition-colors duration-500 overflow-hidden"
       data-testid={`product-card-${p.slug}`}
     >
-      <Link to={`/shop/${p.slug}`} className="block">
+      <Link to={`/shop/${p.slug}`} className="block" onClick={() => trackPricingLabelClick(p.slug)}>
         <div className="relative aspect-[4/5] overflow-hidden">
           <motion.img
             src={p.images?.[0]}

@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowUpRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { fetchProducts } from "../../lib/api";
-import { formatPriceDisplay } from "../../lib/variantPricing";
+import { formatPriceDisplay, trackPricingLabelClick } from "../../lib/variantPricing";
 
 export default function ProductRail({ title, eyebrow, category, technique, featured, viewAllHref = "/shop", testId }) {
   const [items, setItems] = useState([]);
@@ -57,7 +57,7 @@ export default function ProductRail({ title, eyebrow, category, technique, featu
               className="snap-start flex-shrink-0 w-[260px] md:w-[300px] bg-[#121212] border border-[#262626] hover:border-[#ff4500] transition-colors duration-500"
               data-testid={`rail-product-${p.slug}`}
             >
-              <Link to={`/shop/${p.slug}`} className="block">
+              <Link to={`/shop/${p.slug}`} className="block" onClick={() => trackPricingLabelClick(p.slug)}>
                 <div className="relative aspect-[4/5] overflow-hidden">
                   <img src={p.images?.[0]} alt={p.title} className="absolute inset-0 w-full h-full object-cover media-img hover:scale-105 transition duration-700" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />

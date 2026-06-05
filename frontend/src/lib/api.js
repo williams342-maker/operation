@@ -614,6 +614,8 @@ export const fetchAdminCacheStats = () =>
   http.get("/admin/cache/stats", { headers: adminAuthHeaders() }).then((r) => r.data);
 export const clearAdminCache = () =>
   http.post("/admin/cache/clear", {}, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const fetchAdminPricingLabelStats = (days = 14) =>
+  http.get("/admin/experiments/pricing-label/stats", { params: { days }, headers: adminAuthHeaders() }).then((r) => r.data);
 
 // ---------- Updates digest subscription (iter96) ----------
 export const subscribeToUpdates = (email, name) =>

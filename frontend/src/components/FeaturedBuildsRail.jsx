@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowUpRight, ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
 import { fetchProducts } from "../lib/api";
-import { formatPriceDisplay } from "../lib/variantPricing";
+import { formatPriceDisplay, trackPricingLabelClick } from "../lib/variantPricing";
 
 /**
  * Homepage "Featured Builds" hero strip.
@@ -139,7 +139,7 @@ export default function FeaturedBuildsRail({ testId = "home-featured-builds" }) 
               className="cinematic-frame snap-start flex-shrink-0 w-[280px] md:w-[340px] group"
               data-testid={`featured-build-${p.slug}`}
             >
-              <Link to={`/shop/${p.slug}`} className="block">
+              <Link to={`/shop/${p.slug}`} className="block" onClick={() => trackPricingLabelClick(p.slug)}>
                 <div className="relative aspect-[4/5] overflow-hidden">
                   <img
                     src={p.images?.[0]}

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { CheckCircle2, AlertTriangle, RefreshCw, ExternalLink } from "lucide-react";
 import { fetchAdminProdHealth, adminProdHealthCheckNow } from "../../lib/api";
 import CacheStatsCard from "./CacheStatsCard";
+import PricingLabelAbCard from "./PricingLabelAbCard";
 
 /**
  * Prod health watchdog admin tab — surfaces the latest result from the
@@ -141,6 +142,8 @@ export default function ProdHealthTab() {
       {/* iter334o — Products cache stats. Lives at the bottom of Prod
           Health so ops can sanity-check cache hit rate alongside uptime. */}
       <CacheStatsCard />
+      {/* iter334s — A/B status: pricing-label headline framing. */}
+      <PricingLabelAbCard />
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { fetchProducts } from "../../lib/api";
-import { formatPriceDisplay } from "../../lib/variantPricing";
+import { formatPriceDisplay, trackPricingLabelClick } from "../../lib/variantPricing";
 
 /**
  * iter334m — Hover-fan teaser for the homepage "Popular →" pill row.
@@ -149,7 +149,7 @@ export default function PillTeaser({ label, query }) {
               {items.map((p) => (
                 <button
                   key={p.slug}
-                  onClick={() => nav(`/shop/${p.slug}`)}
+                  onClick={() => { trackPricingLabelClick(p.slug); nav(`/shop/${p.slug}`); }}
                   className="group text-left"
                   data-testid={`pill-teaser-item-${label}-${p.slug}`}
                   title={p.title}
