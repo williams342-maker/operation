@@ -10,6 +10,7 @@ const cols = [
       { label: "Wall Art", href: "/shop?category=Wall%20Art" },
       { label: "Custom Signs", href: "/shop?category=Custom%20Signs" },
       { label: "Outdoor Art", href: "/shop?category=Outdoor%20Art" },
+      { label: "Jewelry & Wearables", href: "/shop?category=Jewelry%20%26%20Wearables" },
       { label: "All Listings", href: "/shop" },
     ],
   },

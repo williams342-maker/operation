@@ -24,7 +24,7 @@ import EmberField from "../EmberField";
 const HERO_BG =
   "https://images.unsplash.com/photo-1745448797900-35d08e85e9db?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1NzZ8MHwxfHNlYXJjaHwxfHx3ZWxkaW5nJTIwc3BhcmtzJTIwZGFyayUyMGluZHVzdHJpYWx8ZW58MHx8fHwxNzc3MTU0OTg0fDA&ixlib=rb-4.1.0&q=85";
 
-const PILLS = ["Wall Art", "Custom Signs", "Outdoor Art"];
+const PILLS = ["Wall Art", "Custom Signs", "Outdoor Art", "Jewelry & Wearables"];
 
 export default function Hero() {
   const [q, setQ] = useState("");
