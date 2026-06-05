@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { Database, RefreshCw } from "lucide-react";
+import { Database, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { fetchAdminCacheStats } from "../../lib/api";
+import { fetchAdminCacheStats, clearAdminCache } from "../../lib/api";
 
 /**
  * iter334o — In-process /api/products TTL cache stats.
@@ -15,6 +15,7 @@ import { fetchAdminCacheStats } from "../../lib/api";
 export default function CacheStatsCard() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [clearing, setClearing] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -24,6 +25,19 @@ export default function CacheStatsCard() {
       toast.error(e?.response?.data?.detail || "Couldn't load cache stats.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const clear = async () => {
+    setClearing(true);
+    try {
+      const r = await clearAdminCache();
+      toast.success(`Cache cleared — dropped ${r.cleared} ${r.cleared === 1 ? "entry" : "entries"}.`);
+      await load();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Couldn't clear cache.");
+    } finally {
+      setClearing(false);
     }
   };
 
@@ -59,6 +73,15 @@ export default function CacheStatsCard() {
           data-testid="cache-stats-refresh"
         >
           <RefreshCw size={10} className={loading ? "animate-spin" : ""} /> Refresh
+        </button>
+        <button
+          onClick={clear}
+          disabled={clearing || loading || !data?.entries_count}
+          className="px-2 py-1 border border-red-500/30 hover:border-red-400 text-red-400 hover:text-red-300 hover:bg-red-500/5 font-mono text-[9px] uppercase tracking-[0.22em] inline-flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+          data-testid="cache-stats-clear"
+          title={data?.entries_count ? "Drop every cached entry (read counters preserved)." : "Cache already empty."}
+        >
+          <Trash2 size={10} className={clearing ? "animate-pulse" : ""} /> {clearing ? "Clearing…" : "Clear"}
         </button>
       </div>
 

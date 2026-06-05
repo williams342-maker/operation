@@ -124,6 +124,15 @@ async def admin_cache_stats(_: dict = Depends(current_admin)):
     return get_list_products_cache_stats()
 
 
+@router.post("/admin/cache/clear")
+async def admin_cache_clear(_: dict = Depends(current_admin)):
+    """iter334p — Drop every cached /api/products entry. Used when a
+    maker pushes an urgent edit and ops doesn't want to wait for the
+    60s natural TTL. Read counters survive — only entries are wiped."""
+    from routers.catalog import clear_list_products_cache
+    return clear_list_products_cache()
+
+
 
 @router.get("/admin/me")
 async def admin_me(claims: dict = Depends(current_admin)):

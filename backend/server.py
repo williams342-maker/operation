@@ -213,6 +213,38 @@ app.add_middleware(
 )
 
 
+# iter334q — Auto-invalidate the /api/products TTL cache after any
+# successful product mutation. Catches publish/unpublish/edit/delete/
+# restore/promote/renew/duplicate/bulk-edit in one place rather than
+# instrumenting ~17 individual handler sites. Triggers on:
+#   • POST/PATCH/PUT/DELETE under /api/maker/products or /api/maker/listings
+#   • Same methods under /api/admin/products
+# Failed responses (>=400) don't clear — keeps the cache warm during
+# validation errors. Internal cron paths (background loops) call
+# `db.products.update_one` directly and are NOT routed through here, so
+# they keep relying on natural TTL — fine, those mutations are not
+# user-visible-immediately.
+@app.middleware("http")
+async def auto_invalidate_products_cache(request, call_next):
+    response = await call_next(request)
+    try:
+        path = request.url.path
+        if (
+            request.method in ("POST", "PATCH", "PUT", "DELETE")
+            and response.status_code < 400
+            and (
+                path.startswith("/api/maker/products")
+                or path.startswith("/api/maker/listings")
+                or path.startswith("/api/admin/products")
+            )
+        ):
+            from routers.catalog import clear_list_products_cache
+            clear_list_products_cache()
+    except Exception:
+        pass  # cache invalidation is best-effort
+    return response
+
+
 @app.on_event("startup")
 async def on_startup():
     await seed_if_empty()

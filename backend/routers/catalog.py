@@ -31,6 +31,14 @@ _LIST_PRODUCTS_HITS = 0
 _LIST_PRODUCTS_MISSES = 0
 
 
+def clear_list_products_cache() -> dict:
+    """Drop every cached entry — used by the admin "Clear cache" button
+    when a maker pushes a hotfix and doesn't want to wait for TTL."""
+    cleared = len(_LIST_PRODUCTS_CACHE)
+    _LIST_PRODUCTS_CACHE.clear()
+    return {"cleared": cleared}
+
+
 def get_list_products_cache_stats() -> dict:
     """Snapshot of the /api/products cache — surfaced on the admin
     Prod Health tab so ops can sanity-check hit rate + entry age."""
