@@ -304,3 +304,175 @@ async def price_compare(slug: str, body: PriceCompareReq | None = None, maker_sl
         "had_search_results": doc["had_search_results"],
         "remaining_today": max(0, PRICE_COMPARE_DAILY_LIMIT - (used + 1)),
     }
+
+
+# ───────────────────── batch endpoint (iter334j) ─────────────────────
+BATCH_MAX_LISTINGS = 10  # per-call cap so a 50-listing shop doesn't burn $20 in tokens in one click
+
+
+async def _run_one_for_batch(listing: dict, maker_slug: str) -> dict:
+    """Run a single price-comparison cycle inside the batch worker.
+
+    Mirrors the logic in the single endpoint but returns a status dict
+    instead of raising. Honors the 24h cache + 5/day limit just like
+    the single endpoint, so the batch is safe to invoke daily.
+    """
+    slug = listing.get("slug") or ""
+    # Cache hit — skip the AI call entirely.
+    cached = await _latest_cached(maker_slug, slug)
+    if cached:
+        return {"slug": slug, "status": "cached", "delta_pct": _delta_pct_from(cached)}
+
+    # Daily-limit check (same window as single endpoint).
+    used = await _count_today(maker_slug, slug)
+    if used >= PRICE_COMPARE_DAILY_LIMIT:
+        return {"slug": slug, "status": "rate_limited"}
+
+    try:
+        query = _build_search_query(listing)
+        search_text = await _jina_reader_search(query)
+        result = await _call_claude(listing, search_text)
+    except HTTPException as e:
+        return {"slug": slug, "status": "error", "error": str(e.detail)}
+    except Exception as e:
+        logger.exception("[price-compare-batch] unexpected error slug=%s: %s", slug, e)
+        return {"slug": slug, "status": "error", "error": "unexpected"}
+
+    doc = {
+        **result,
+        "maker_slug": maker_slug,
+        "listing_slug": slug,
+        "listed_price": float(listing.get("price") or 0),
+        "search_query": query,
+        "had_search_results": bool(search_text),
+        "generated_at": now_iso(),
+        "created_at": now_iso(),
+        "from_cache": False,
+    }
+    await db.price_comparisons.insert_one(dict(doc))
+    return {
+        "slug": slug, "status": "generated",
+        "delta_pct": _delta_pct_from(doc),
+    }
+
+
+def _delta_pct_from(comp: dict) -> float | None:
+    median = float(comp.get("price_median") or 0)
+    listed = float(comp.get("listed_price") or 0)
+    if median <= 0 or listed <= 0:
+        return None
+    return round(((listed - median) / median) * 100.0, 2)
+
+
+async def _batch_worker(maker_slug: str, job_id: str) -> None:
+    """Background task — sweeps the maker's published listings, runs a
+    price-compare per listing (cache-aware), writes per-listing status
+    into `price_compare_jobs.results[]` as it goes. The frontend can
+    poll `/maker/price-compare/jobs/{job_id}` to render progress.
+
+    Sequential, not parallel — keeps token spend predictable and
+    respects the underlying Jina + Claude rate limits.
+    """
+    listings = await db.products.find(
+        {"maker_slug": maker_slug, "status": "published",
+         "deleted_at": {"$in": [None, False]}},
+        {"_id": 0, "slug": 1, "title": 1, "category": 1, "technique": 1,
+         "materials": 1, "price": 1, "length_in": 1, "width_in": 1, "height_in": 1},
+    ).to_list(BATCH_MAX_LISTINGS)
+
+    await db.price_compare_jobs.update_one(
+        {"_id": job_id},
+        {"$set": {"total": len(listings), "started_at": now_iso(), "status": "running"}},
+    )
+
+    for li in listings:
+        res = await _run_one_for_batch(li, maker_slug)
+        await db.price_compare_jobs.update_one(
+            {"_id": job_id},
+            {"$push": {"results": res}, "$inc": {"completed": 1}},
+        )
+
+    await db.price_compare_jobs.update_one(
+        {"_id": job_id},
+        {"$set": {"finished_at": now_iso(), "status": "done"}},
+    )
+
+
+class BatchReq(BaseModel):
+    pass  # No params today — batch is "all my published listings, cache-aware."
+
+
+@router.post("/maker/price-compare/batch")
+async def price_compare_batch(
+    body: BatchReq | None = None,
+    maker_slug: str = Depends(current_maker_slug),
+):
+    """Kick off a background batch sweep over the maker's published
+    listings. Returns a job id the frontend can poll. Skips listings
+    with a fresh (≤24h) cache so re-running tomorrow is cheap.
+
+    Why a background task instead of a sync loop? Each AI call takes
+    5-15s; even a 10-listing batch could take 2+ minutes. The HTTP
+    request would time out on most ingress configs. Background +
+    polling is the standard pattern.
+    """
+    # Prevent two concurrent batches per maker (no point — they'd just
+    # double-bill on tokens and hit the daily limit).
+    existing = await db.price_compare_jobs.find_one(
+        {"maker_slug": maker_slug, "status": "running"},
+        {"_id": 1, "started_at": 1, "total": 1, "completed": 1},
+    )
+    if existing:
+        return {
+            "job_id": existing["_id"],
+            "status": "already_running",
+            "started_at": existing.get("started_at"),
+            "total": existing.get("total", 0),
+            "completed": existing.get("completed", 0),
+        }
+
+    import uuid as _uuid
+    job_id = f"batch-{maker_slug}-{_uuid.uuid4().hex[:10]}"
+    await db.price_compare_jobs.insert_one({
+        "_id": job_id,
+        "maker_slug": maker_slug,
+        "status": "queued",
+        "total": 0,
+        "completed": 0,
+        "results": [],
+        "created_at": now_iso(),
+    })
+
+    # Fire-and-forget. asyncio.create_task is fine here — the FastAPI
+    # event loop survives until shutdown so the background coroutine
+    # finishes naturally.
+    import asyncio
+    asyncio.create_task(_batch_worker(maker_slug, job_id))
+
+    return {"job_id": job_id, "status": "queued", "total": 0, "completed": 0}
+
+
+@router.get("/maker/price-compare/jobs/{job_id}")
+async def price_compare_job_status(
+    job_id: str, maker_slug: str = Depends(current_maker_slug),
+):
+    """Poll endpoint for batch progress. Returns `null` if the job ID
+    doesn't exist or belongs to a different maker (security: never
+    leak other makers' jobs)."""
+    job = await db.price_compare_jobs.find_one({"_id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(404, "Job not found.")
+    if job.get("maker_slug") != maker_slug:
+        raise HTTPException(404, "Job not found.")
+    # Compress the `results` array — only return tail summaries so
+    # polling doesn't bloat over long batches.
+    return {
+        "job_id": job_id,
+        "status": job.get("status"),
+        "total": job.get("total", 0),
+        "completed": job.get("completed", 0),
+        "results": (job.get("results") or [])[-30:],  # last 30 listings
+        "started_at": job.get("started_at"),
+        "finished_at": job.get("finished_at"),
+    }
+

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Hammer, Check, Mail, BarChart3 } from "lucide-react";
 import { toast } from "sonner";
 import ProductEditCard from "./ProductEditCard";
+import BatchPriceCheckButton from "./BatchPriceCheckButton";
 import EmptyState from "../../components/EmptyState";
 import { useConfirm } from "./useConfirm";
 import {
@@ -99,13 +100,16 @@ export default function ProductsList({ products, onChanged, onRefresh }) {
   // identity changes (e.g. after a new listing is added). Skipped
   // gracefully if the endpoint hiccups — badges just don't render.
   const [comparisonsMap, setComparisonsMap] = useState({});
+  // iter334j — Bumped by BatchPriceCheckButton on completion so the
+  // verdict badges refresh against the freshly-generated comparisons.
+  const [batchVersion, setBatchVersion] = useState(0);
   useEffect(() => {
     let cancelled = false;
     fetchLatestPriceComparisons(60)
       .then((d) => { if (!cancelled) setComparisonsMap(d?.comparisons || {}); })
       .catch(() => { /* no badges shown — fine */ });
     return () => { cancelled = true; };
-  }, [products.length]);
+  }, [products.length, batchVersion]);
   const toggleStats = () => {
     setShowStats((v) => {
       const next = !v;
@@ -194,6 +198,11 @@ export default function ProductsList({ products, onChanged, onRefresh }) {
           >
             <BarChart3 size={12} /> Stats {showStats ? "ON" : "OFF"}
           </button>
+          {/* iter334j — Batch AI Price Check. One button kicks off a
+              backend background job that runs the AI Price Check on
+              every published listing (cache-aware, ≤10 per batch).
+              Badges refresh as jobs complete. */}
+          <BatchPriceCheckButton onCompleted={() => setBatchVersion((v) => v + 1)} />
           <button
             onClick={goNew}
             className="btn-industrial btn-primary"

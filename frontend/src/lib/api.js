@@ -310,6 +310,12 @@ export const fetchLatestPriceComparisons = (max_age_days = 60) =>
   http.get("/maker/pricing-comparisons/latest", {
     params: { max_age_days }, headers: authHeaders(),
   }).then((r) => r.data);
+
+// iter334j — Batch AI Price Check across all maker listings
+export const startBatchPriceCompare = () =>
+  http.post("/maker/price-compare/batch", {}, { headers: authHeaders() }).then((r) => r.data);
+export const fetchBatchPriceCompareJob = (job_id) =>
+  http.get(`/maker/price-compare/jobs/${job_id}`, { headers: authHeaders() }).then((r) => r.data);
 export const renewMakerProduct = (slug) =>
   http.post(`/maker/products/${slug}/renew`, {}, { headers: authHeaders() }).then((r) => r.data);
 export const fetchMakerProductsStats = () =>

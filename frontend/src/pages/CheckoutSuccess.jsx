@@ -39,12 +39,23 @@ export default function CheckoutSuccess() {
               const revenue = (s.amount_total || 0) / 100;
               const currency = (s.currency || "usd").toUpperCase();
               if (revenue > 0) {
-                uetTrack("purchase", {
+                // iter334j — Include the buyer's SHA-256 hashed email
+                // (computed server-side) as the `pid.em` field on the
+                // UET purchase event. This is Microsoft's "Enhanced
+                // Conversions" payload — the hash is one-way so the
+                // raw email never leaves our server, and Bing matches
+                // it against their hashed Customer Match database for
+                // ~30-50% better attribution + lookalike audiences.
+                const payload = {
                   revenue_value: revenue,
                   currency,
                   event_label: "checkout_success",
                   event_value: revenue,
-                });
+                };
+                if (s.email_sha256) {
+                  payload.pid = { em: s.email_sha256 };
+                }
+                uetTrack("purchase", payload);
               }
             } catch { /* analytics should never break the success page */ }
           }

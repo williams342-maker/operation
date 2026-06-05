@@ -1,4 +1,5 @@
 """Stripe checkout: cart quote, session creation, status polling, webhook handler."""
+import hashlib
 import os
 import uuid
 from emergentintegrations.payments.stripe.checkout import StripeCheckout
@@ -592,6 +593,23 @@ async def checkout_status(session_id: str, http_request: Request, bg: Background
     tx = await db.payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
     fallback_amount = int(round(float(tx["amount"]) * 100)) if tx and tx.get("amount") else 0
 
+    # iter334j — Hash the buyer email server-side for Microsoft Ads
+    # Enhanced Conversions (a.k.a. Customer Match). Microsoft expects a
+    # lower-cased + trimmed email passed through SHA-256 — the standard
+    # PII-hashing recipe shared by Google Ads, Meta, and Bing. Hashing
+    # happens server-side so the raw email never traverses an additional
+    # client→server hop, and the hash is included only when the
+    # transaction is actually paid (no email leakage on abandoned
+    # checkouts). Frontend reads `email_sha256` from the response and
+    # passes it as `pid.em` in the UET purchase event payload.
+    def _hash_email(raw: str | None) -> str | None:
+        if not raw:
+            return None
+        normalized = raw.strip().lower()
+        if not normalized:
+            return None
+        return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
     # If our webhook already recorded this as paid, trust the DB — it's the
     # authoritative record of payment. Stripe sessions can expire/return stale
     # status long after the webhook fires.
@@ -608,6 +626,7 @@ async def checkout_status(session_id: str, http_request: Request, bg: Background
             # send the `token` so the frontend can build the URL itself
             # without a second auth round-trip.
             "digital_downloads": tx.get("digital_downloads") or [],
+            "email_sha256": _hash_email(tx.get("customer_email")),
         }
 
     try:
@@ -641,6 +660,7 @@ async def checkout_status(session_id: str, http_request: Request, bg: Background
                 "amount_total": fallback_amount,
                 "currency": tx.get("currency", "usd"),
                 "digital_downloads": tx.get("digital_downloads") or [],
+                "email_sha256": _hash_email(tx.get("customer_email")),
             }
         await db.payment_transactions.update_one(
             {"session_id": session_id},
@@ -934,10 +954,17 @@ async def checkout_status(session_id: str, http_request: Request, bg: Background
     if result.get("payment_status") == "paid":
         fresh = await db.payment_transactions.find_one(
             {"session_id": session_id},
-            {"_id": 0, "digital_downloads": 1},
+            {"_id": 0, "digital_downloads": 1, "customer_email": 1},
         )
         if fresh and fresh.get("digital_downloads"):
             result["digital_downloads"] = fresh["digital_downloads"]
+        # iter334j — Surface hashed buyer email for Microsoft Ads
+        # Enhanced Conversions on the FIRST status hit that flips to
+        # paid (not just on subsequent re-hits). Without this, the very
+        # success-page poll that does fire `purchase` would miss the
+        # email hash and lose Customer Match matching.
+        if fresh and fresh.get("customer_email"):
+            result["email_sha256"] = _hash_email(fresh["customer_email"])
     return result
 
 
