@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { adminRunPlusRoiDigest } from "../../lib/api";
 import { Stat } from "./_shared";
 import useModalA11y from "../../hooks/useModalA11y";
+import PricingDigestHealthCard from "./PricingDigestHealthCard";
 
 export default function DigestsTab() {
   const [data, setData] = useState(null);
@@ -48,6 +49,11 @@ export default function DigestsTab() {
 
   return (
     <div data-testid="digests-tab" className="space-y-6">
+      {/* iter334h — AI pricing digest health card. Sits at the top of
+          the Digests tab because it's the higher-frequency cron
+          (weekly vs the Plus ROI cron's monthly cadence). */}
+      <PricingDigestHealthCard />
+
       <div className="border border-[#262626] p-5 md:p-6 space-y-3">
         <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500]">
           ◆ Crafters Plus ROI Digest

@@ -324,6 +324,90 @@ async def test_admin_endpoint_requires_admin_jwt():
     assert r.status_code in (401, 403)
 
 
+# iter334h — History endpoint
+async def test_pricing_digest_history_groups_by_week():
+    """Seed two log rows for the same week and one for a different week.
+    Endpoint should return week-bucketed aggregates with above/below
+    counts and top makers."""
+    from core import db
+    from server import app
+    from maker_auth import issue_session_jwt
+
+    # Seed log rows.
+    w1, w2 = "2026-W22", "2026-W23"
+    s1 = f"hist-m1-{uuid.uuid4().hex[:6]}"
+    s2 = f"hist-m2-{uuid.uuid4().hex[:6]}"
+    docs = [
+        {"_id": f"{w1}:{s1}", "maker_slug": s1, "flagged_count": 3,
+         "flagged_slugs": ["a", "b"], "underpriced_slugs": ["c"],
+         "sent_at": "2026-05-26T15:00:00Z"},
+        {"_id": f"{w1}:{s2}", "maker_slug": s2, "flagged_count": 1,
+         "flagged_slugs": ["d"], "underpriced_slugs": [],
+         "sent_at": "2026-05-26T15:01:00Z"},
+        {"_id": f"{w2}:{s1}", "maker_slug": s1, "flagged_count": 2,
+         "flagged_slugs": [], "underpriced_slugs": ["e", "f"],
+         "sent_at": "2026-06-02T15:00:00Z"},
+    ]
+    for d in docs:
+        await db.pricing_digest_log.replace_one({"_id": d["_id"]}, d, upsert=True)
+
+    admin_token = issue_session_jwt("admin", "team@craftersmarket.org", role="admin")
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        r = await ac.get("/api/admin/pricing-digest/history?weeks=8",
+                         headers={"Authorization": f"Bearer {admin_token}"})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    weeks = body["weeks"]
+    # Newest-first ordering
+    week_keys = [w["week_key"] for w in weeks]
+    assert w2 in week_keys
+    assert w1 in week_keys
+    assert week_keys.index(w2) < week_keys.index(w1)
+
+    # Aggregate values for w1: 2 sent, 3 above (a+b+d), 1 below (c)
+    w1_row = next(w for w in weeks if w["week_key"] == w1)
+    assert w1_row["sent"] == 2
+    assert w1_row["above_flagged"] == 3
+    assert w1_row["below_flagged"] == 1
+    # Top maker for w1 should be s1 (3 flagged) before s2 (1)
+    assert w1_row["top_makers"][0]["maker_slug"] == s1
+    assert w1_row["top_makers"][0]["flagged"] == 3
+
+    # Aggregate values for w2: 1 sent, 0 above, 2 below
+    w2_row = next(w for w in weeks if w["week_key"] == w2)
+    assert w2_row["sent"] == 1
+    assert w2_row["above_flagged"] == 0
+    assert w2_row["below_flagged"] == 2
+
+    # Cleanup
+    await db.pricing_digest_log.delete_many({"_id": {"$in": [d["_id"] for d in docs]}})
+
+
+async def test_pricing_digest_history_requires_admin():
+    from server import app
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        r = await ac.get("/api/admin/pricing-digest/history")
+    assert r.status_code in (401, 403)
+
+
+async def test_pricing_digest_history_weeks_param_bounded():
+    """weeks=0 → coerced to 1, weeks=9999 → coerced to 52."""
+    from server import app
+    from maker_auth import issue_session_jwt
+    admin_token = issue_session_jwt("admin", "team@craftersmarket.org", role="admin")
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        r = await ac.get("/api/admin/pricing-digest/history?weeks=0",
+                         headers={"Authorization": f"Bearer {admin_token}"})
+        assert r.status_code == 200
+        r = await ac.get("/api/admin/pricing-digest/history?weeks=9999",
+                         headers={"Authorization": f"Bearer {admin_token}"})
+        assert r.status_code == 200
+        # Shouldn't crash, just bound the query.
+
+
 # iter334f — Maker-facing opt-out endpoints.
 async def test_maker_opt_out_get_default_false():
     """A fresh maker with no `pricing_digest_opt_out` field should return

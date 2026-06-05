@@ -301,6 +301,60 @@ async def admin_run_pricing_digest(
         raise HTTPException(500, f"Pricing digest failed: {e}")
 
 
+# iter334h — Admin week-over-week health view for the pricing digest.
+# Aggregates `pricing_digest_log` rows into a per-ISO-week summary so
+# ops can see whether the digest is reaching anyone, how the
+# above/below split is trending, and which makers received the most
+# flagged items in any given week.
+@router.get("/admin/pricing-digest/history")
+async def admin_pricing_digest_history(
+    weeks: int = 8, _admin: dict = Depends(current_admin),
+):
+    """Return the last `weeks` ISO-week buckets (default 8) with aggregate
+    counts of sent digests + above/below-market flagged listings, plus
+    the top 5 makers by total flagged items per week. Read-only — never
+    mutates the log."""
+    weeks = max(1, min(52, int(weeks)))
+    # `pricing_digest_log._id` is shape `{iso_year}-W{iso_week:02d}:{maker_slug}`
+    # so we can pull the week-key out by splitting the doc id. Cheaper
+    # than a $dateFromString + $isoWeek over `sent_at`.
+    cursor = db.pricing_digest_log.find(
+        {}, {"_id": 1, "maker_slug": 1, "flagged_count": 1,
+             "flagged_slugs": 1, "underpriced_slugs": 1, "sent_at": 1},
+    ).sort([("_id", -1)]).limit(2000)
+
+    by_week: dict[str, dict] = {}
+    async for r in cursor:
+        rid = r.get("_id") or ""
+        if ":" not in rid:
+            continue
+        week_key, maker_slug = rid.split(":", 1)
+        bucket = by_week.setdefault(week_key, {
+            "week_key": week_key,
+            "sent": 0,
+            "above_flagged": 0,
+            "below_flagged": 0,
+            "total_flagged": 0,
+            "by_maker": {},
+        })
+        above = len(r.get("flagged_slugs") or [])
+        below = len(r.get("underpriced_slugs") or [])
+        bucket["sent"] += 1
+        bucket["above_flagged"] += above
+        bucket["below_flagged"] += below
+        bucket["total_flagged"] += int(r.get("flagged_count") or above + below)
+        bucket["by_maker"][maker_slug] = above + below
+
+    # Sort weeks newest-first and cap to the requested window.
+    weeks_sorted = sorted(by_week.values(), key=lambda b: b["week_key"], reverse=True)[:weeks]
+    # Convert per-maker dict → top 5 list per week for compact UI rendering.
+    for b in weeks_sorted:
+        top = sorted(b["by_maker"].items(), key=lambda x: x[1], reverse=True)[:5]
+        b["top_makers"] = [{"maker_slug": s, "flagged": n} for s, n in top]
+        del b["by_maker"]
+    return {"weeks": weeks_sorted, "total_weeks_returned": len(weeks_sorted)}
+
+
 # ── maker-facing opt-out toggle (iter334f) ─────────────────────────────
 class _OptOutReq(BaseModel):
     opt_out: bool

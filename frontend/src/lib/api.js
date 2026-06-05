@@ -476,6 +476,14 @@ export const adminRunPlusRoiDigest = (apply = false) =>
     .post(`/admin/digests/plus-roi`, {}, { params: { apply }, headers: adminAuthHeaders() })
     .then((r) => r.data);
 
+// iter334h — Pricing digest admin tooling
+export const adminRunPricingDigest = (dry_run = true, only_maker = null) =>
+  http.post("/admin/pricing-digest/run", { dry_run, only_maker }, { headers: adminAuthHeaders() })
+    .then((r) => r.data);
+export const fetchPricingDigestHistory = (weeks = 8) =>
+  http.get("/admin/pricing-digest/history", { params: { weeks }, headers: adminAuthHeaders() })
+    .then((r) => r.data);
+
 // ---------- Site settings (public + admin) ----------
 export const fetchSiteSettings = () => http.get("/settings").then((r) => r.data);
 export const submitBetaFeedback = (payload) =>

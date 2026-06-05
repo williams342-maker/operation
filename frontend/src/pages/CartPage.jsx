@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useCart } from "../lib/cart";
 import { createCheckout, fetchCartQuote, trackCart } from "../lib/api";
 import { getAttributionSource } from "../lib/analytics";
+import { uetTrack } from "../lib/consent";
 import { Trash2 } from "lucide-react";
 import PolicyConsent, { usePolicyConsent } from "../components/PolicyConsent";
 
@@ -159,6 +160,23 @@ export default function CartPage() {
           catch { return undefined; }
         })(),
       });
+      // iter334h — Fire Microsoft Ads `begin_checkout` BEFORE the
+      // redirect to Stripe so the event registers in this session, not
+      // the next one (the buyer is about to leave our origin). Honors
+      // Consent Mode — denied → UET drops it server-side. Powers the
+      // "abandoned-cart" remarketing audience in Bing Ads (anyone who
+      // hit begin_checkout but didn't fire purchase within N days).
+      try {
+        const revenue = (quote?.total_before_tax ?? subtotal) || 0;
+        if (revenue > 0) {
+          uetTrack("begin_checkout", {
+            revenue_value: Number(revenue.toFixed(2)),
+            currency: "USD",
+            event_label: "cart_to_stripe",
+            event_value: Number(revenue.toFixed(2)),
+          });
+        }
+      } catch { /* analytics should never block checkout */ }
       window.location.href = res.url;
     } catch (e) {
       setErr(e?.response?.data?.detail || "Checkout failed. Try again."); setLoading(false);
