@@ -5,6 +5,7 @@ import { Stat } from "./_shared";
 import { StatsSkeleton, RowsSkeleton } from "../Skeleton";
 import GA4LiveCard from "./GA4LiveCard";
 import MsftRoasCard from "./MsftRoasCard";
+import GoogleRoasCard from "./GoogleRoasCard";
 
 // ===================== ANALYTICS =====================
 export default function AnalyticsTab() {
@@ -32,6 +33,8 @@ export default function AnalyticsTab() {
       {/* iter334l — Microsoft Ads ROAS tile right below GA4. Both are
           ad-platform attribution surfaces so they pair naturally. */}
       <MsftRoasCard />
+      {/* iter334u — Google Ads ROAS tile (live spend from synced campaigns). */}
+      <GoogleRoasCard />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Stat label="GMV (all-time)" value={`$${data.gmv.toFixed(0)}`} testId="an-gmv" />

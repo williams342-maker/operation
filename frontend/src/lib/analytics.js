@@ -127,9 +127,14 @@ function _attachListenersOnce() {
  *
  * iter334l — Also captures Microsoft Ads `msclkid` query param so the
  * admin ROAS tile can attribute revenue back to Bing Ads spend.
+ *
+ * iter334u — Same pattern for Google Ads `gclid` query param → Google
+ * Ads ROAS tile attribution.
  */
 const MSCLKID_KEY = "cm_msclkid";
 const MSCLKID_TS_KEY = "cm_msclkid_ts";
+const GCLID_KEY = "cm_gclid";
+const GCLID_TS_KEY = "cm_gclid_ts";
 
 export function captureAttribution() {
   try {
@@ -146,6 +151,13 @@ export function captureAttribution() {
       localStorage.setItem(MSCLKID_KEY, msclkid.slice(0, 100));
       localStorage.setItem(MSCLKID_TS_KEY, String(Date.now()));
     }
+    const gclid = url.searchParams.get("gclid");
+    if (gclid) {
+      // Google Click ID. 90-day default attribution window in Google
+      // Ads; we use the same 30-day TTL as msclkid for consistency.
+      localStorage.setItem(GCLID_KEY, gclid.slice(0, 200));
+      localStorage.setItem(GCLID_TS_KEY, String(Date.now()));
+    }
   } catch { /* swallow */ }
 }
 
@@ -155,6 +167,17 @@ export function getMsclkid() {
     const ts = parseInt(localStorage.getItem(MSCLKID_TS_KEY) || "0", 10);
     if (!ts || Date.now() - ts > ATTR_TTL_MS) return null;
     return localStorage.getItem(MSCLKID_KEY) || null;
+  } catch {
+    return null;
+  }
+}
+
+/** Returns the persisted gclid if within 30-day TTL, else null. */
+export function getGclid() {
+  try {
+    const ts = parseInt(localStorage.getItem(GCLID_TS_KEY) || "0", 10);
+    if (!ts || Date.now() - ts > ATTR_TTL_MS) return null;
+    return localStorage.getItem(GCLID_KEY) || null;
   } catch {
     return null;
   }

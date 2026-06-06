@@ -695,6 +695,11 @@ class CheckoutRequest(BaseModel):
     # landing URLs. Persisted on the txn so the admin ROAS tile can
     # attribute revenue back to the ad click within Bing's 30-day window.
     msclkid: Optional[str] = Field(default=None, max_length=100)
+    # iter334u — Google Click ID (gclid). Same shape as msclkid; surfaced
+    # on the admin Google Ads ROAS tile to attribute Stripe revenue back
+    # to Google Ads clicks. gclids can be longer than msclkids (encoded
+    # auction metadata), so we allow up to 200 chars.
+    gclid: Optional[str] = Field(default=None, max_length=200)
     discount_code: Optional[str] = None        # per-shop maker promo code
     # Audit-trail consent. Frontend must stamp this client-side at submit;
     # backend re-stamps a server-time value into the order doc.

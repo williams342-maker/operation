@@ -191,6 +191,9 @@ api.include_router(pricing_digest_router)
 # iter334l — Microsoft Ads ROAS tile + spend recorder (admin only).
 from routers.admin_msft_roas import router as admin_msft_roas_router
 api.include_router(admin_msft_roas_router)
+# iter334u — Google Ads ROAS tile (live spend from synced ad_spend rows).
+from routers.admin_google_roas import router as admin_google_roas_router
+api.include_router(admin_google_roas_router)
 # iter334s — A/B test: pricing-label headline framing.
 from routers.ab_pricing_label import router as ab_pricing_label_router
 api.include_router(ab_pricing_label_router)

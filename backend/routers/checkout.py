@@ -581,6 +581,8 @@ async def create_checkout(req: CheckoutRequest, http_request: Request):
         # to drop anything that doesn't look like a Bing ID (32-48 hex/
         # alphanumeric chars typically).
         "msclkid": ((req.msclkid or "").strip()[:100] or None),
+        # iter334u — Google Click ID for Google Ads attribution.
+        "gclid": ((req.gclid or "").strip()[:200] or None),
         "payment_status": "initiated",
         "status": "open",
         # Policy audit trail — proves which version the buyer agreed to and
