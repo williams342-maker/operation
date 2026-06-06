@@ -17,6 +17,7 @@ import BackordersList from "./MakerDashboard/BackordersList";
 import StatsTab from "./MakerDashboard/StatsTab";
 import ViolationsTab from "./MakerDashboard/ViolationsTab";
 import MarketingTab from "./MakerDashboard/MarketingTab";
+import PromoteTab from "./MakerDashboard/PromoteTab";
 import FinancialsTab from "./MakerDashboard/FinancialsTab";
 import HelpTab from "./MakerDashboard/HelpTab";
 import MessagesTab from "./MakerDashboard/MessagesTab";
@@ -36,7 +37,7 @@ function normalizeTab(id) {
 // (e.g. rewriter-mangled links) — unknown ids fall back to "dashboard".
 const KNOWN_TABS = new Set([
   "dashboard", "listings", "renewals", "orders", "messages", "briefs", "reviews", "stats",
-  "violations", "marketing", "financials", "help", "settings",
+  "violations", "marketing", "promote", "financials", "help", "settings",
 ]);
 
 /**
@@ -426,6 +427,7 @@ export default function MakerDashboard() {
         {tab === "stats"      && <StatsTab />}
         {tab === "violations" && <ViolationsTab />}
         {tab === "marketing"  && <MarketingTab />}
+        {tab === "promote"    && <PromoteTab />}
         {tab === "financials" && <FinancialsTab />}
         {tab === "help"       && <HelpTab />}
         {tab === "settings"   && (

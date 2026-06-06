@@ -1694,3 +1694,40 @@ export const trackCart = async (items, contact = null) => {
     .then((r) => r.data)
     .catch(() => ({ ok: false }));
 };
+
+
+// ── iter335 — Unified Promote Engine ───────────────────────────────────
+export const fetchPromoteWallet = () =>
+  http.get("/promote/wallet", { headers: authHeaders() }).then((r) => r.data);
+
+export const topupPromoteWallet = (amountCents) =>
+  http.post("/promote/wallet/topup", { amount_cents: amountCents },
+    { headers: authHeaders() }).then((r) => r.data);
+
+export const subscribePromoteWallet = (monthlyCents) =>
+  http.post("/promote/wallet/subscribe", { monthly_cents: monthlyCents },
+    { headers: authHeaders() }).then((r) => r.data);
+
+export const cancelPromoteSubscription = () =>
+  http.delete("/promote/wallet/subscribe", { headers: authHeaders() }).then((r) => r.data);
+
+export const fetchPromoteCampaign = () =>
+  http.get("/promote/campaign", { headers: authHeaders() }).then((r) => r.data);
+
+export const upsertPromoteCampaign = (payload) =>
+  http.post("/promote/campaign", payload, { headers: authHeaders() }).then((r) => r.data);
+
+export const previewPromoteCampaign = (payload) =>
+  http.post("/promote/campaign/preview", payload, { headers: authHeaders() }).then((r) => r.data);
+
+export const pausePromoteCampaign = () =>
+  http.post("/promote/campaign/pause", {}, { headers: authHeaders() }).then((r) => r.data);
+
+export const resumePromoteCampaign = () =>
+  http.post("/promote/campaign/resume", {}, { headers: authHeaders() }).then((r) => r.data);
+
+export const applyPromoteCampaign = () =>
+  http.post("/promote/campaign/apply", {}, { headers: authHeaders() }).then((r) => r.data);
+
+export const fetchPromoteAnalytics = () =>
+  http.get("/promote/analytics", { headers: authHeaders() }).then((r) => r.data);

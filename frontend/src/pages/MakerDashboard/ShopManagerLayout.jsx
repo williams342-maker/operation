@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import {
   Box, MessageSquare, ShoppingBag, BarChart3, AlertTriangle,
   Megaphone, DollarSign, HelpCircle, Settings, ArrowLeft,
-  LayoutDashboard, SlidersHorizontal, Inbox, Star, CalendarClock,
+  LayoutDashboard, SlidersHorizontal, Inbox, Star, CalendarClock, Rocket,
 } from "lucide-react";
 import TrialBanner from "./TrialBanner";
 
@@ -18,6 +18,7 @@ const NAV = [
   { id: "stats",       label: "Stats",       icon: BarChart3 },
   { id: "violations",  label: "Violations",  icon: AlertTriangle },
   { id: "marketing",   label: "Marketing",   icon: Megaphone },
+  { id: "promote",     label: "Promote",     icon: Rocket, badge: "Beta" },
   { id: "financials",  label: "Financials",  icon: DollarSign },
   { id: "help",        label: "Help",        icon: HelpCircle },
   { id: "settings",    label: "Settings",    icon: SlidersHorizontal },
@@ -130,6 +131,11 @@ export default function ShopManagerLayout({
                 >
                   <Icon size={14} className="shrink-0" />
                   <span className="truncate">{item.label}</span>
+                  {item.badge && (
+                    <span className="ml-auto text-[8px] tracking-[0.18em] text-cyan-400 border border-cyan-400/40 px-1 py-px font-mono">
+                      {item.badge}
+                    </span>
+                  )}
                 </button>
               );
             })}

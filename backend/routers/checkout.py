@@ -1113,4 +1113,119 @@ async def stripe_webhook(request: Request):
     await _log(kind="main", path=path, status="ok",
                event_type=getattr(evt, "event_type", None) or "checkout.session.*",
                event_id=getattr(evt, "session_id", None))
+    # iter335 — Promote wallet hooks (top-ups + subscription renewals).
+    # The emergentintegrations wrapper only exposes checkout-session
+    # fields, so we re-parse the raw body to inspect metadata + handle
+    # `invoice.payment_succeeded` (subscription renewals fire without
+    # any checkout session at all).
+    try:
+        await _dispatch_promote_wallet_events(body, sig, accepted_secret)
+    except Exception as e:
+        logger.exception("[promote] webhook hook failed: %s", e)
     return {"received": True}
+
+
+async def _dispatch_promote_wallet_events(body: bytes, sig: str, secret: str):
+    """Re-parse the verified Stripe webhook and credit the Promote
+    wallet on `checkout.session.completed` (one-time top-up) and on
+    `invoice.payment_succeeded` (subscription renewal).
+
+    Idempotent: each credit is keyed by either the Stripe session id
+    (top-ups) or the Stripe invoice id (subscriptions) so re-fired
+    webhooks can't double-credit.
+    """
+    import stripe as _sdk
+    _sdk.api_key = STRIPE_API_KEY
+    try:
+        event = _sdk.Webhook.construct_event(body, sig, secret)
+    except Exception as e:
+        logger.warning("[promote] event re-parse failed: %s", e)
+        return
+
+    etype = event.get("type") if isinstance(event, dict) else getattr(event, "type", "")
+    data = event.get("data", {}).get("object", {}) if isinstance(event, dict) else {}
+
+    from services import promote_wallet as _wallet
+
+    if etype == "checkout.session.completed":
+        meta = (data.get("metadata") or {})
+        if meta.get("promote_kind") == "topup":
+            if data.get("payment_status") == "paid":
+                maker_slug = meta.get("maker_slug", "")
+                cents = int(meta.get("amount_cents") or 0)
+                if maker_slug and cents > 0:
+                    await _wallet.credit(
+                        maker_slug, cents,
+                        kind="topup",
+                        ref=data.get("id", ""),
+                        idempotency_key=f"topup:{data.get('id', '')}",
+                        note=f"Stripe Checkout · ${cents/100:.2f}",
+                    )
+                    await db.promote_pending_topups.update_one(
+                        {"_id": data.get("id")},
+                        {"$set": {"status": "paid", "paid_at": now_iso()}},
+                    )
+        elif meta.get("promote_kind") == "subscription":
+            # First-time subscription created. Persist the sub id on the
+            # wallet so the maker can cancel later. The actual credit
+            # happens via `invoice.payment_succeeded` below.
+            maker_slug = meta.get("maker_slug", "")
+            sub_id = data.get("subscription")
+            if maker_slug and sub_id:
+                await _wallet.ensure_wallet(maker_slug)
+                await db.promotion_wallets.update_one(
+                    {"_id": maker_slug},
+                    {"$set": {
+                        "subscription": {
+                            "stripe_subscription_id": sub_id,
+                            "status": "active",
+                            "monthly_cents": int(meta.get("monthly_cents") or 0),
+                            "started_at": now_iso(),
+                        },
+                        "updated_at": now_iso(),
+                    }},
+                )
+
+    elif etype == "invoice.payment_succeeded":
+        # Monthly subscription renewal. Stripe attaches the subscription's
+        # metadata to the invoice when it was set via subscription_data.
+        sub_id = data.get("subscription")
+        invoice_id = data.get("id")
+        if not (sub_id and invoice_id):
+            return
+        # Pull metadata from the subscription itself (more reliable than
+        # the invoice's metadata copy).
+        try:
+            sub = _sdk.Subscription.retrieve(sub_id)
+        except Exception as e:
+            logger.warning("[promote] could not retrieve subscription %s: %s", sub_id, e)
+            return
+        meta = (sub.get("metadata") or {}) if isinstance(sub, dict) else dict(sub.metadata or {})
+        if meta.get("promote_kind") != "subscription":
+            return
+        maker_slug = meta.get("maker_slug", "")
+        cents = int(meta.get("monthly_cents") or data.get("amount_paid") or 0)
+        if maker_slug and cents > 0:
+            await _wallet.credit(
+                maker_slug, cents,
+                kind="subscription",
+                ref=invoice_id,
+                idempotency_key=f"sub_invoice:{invoice_id}",
+                note=f"Stripe subscription · ${cents/100:.2f}/mo",
+            )
+
+    elif etype == "customer.subscription.deleted":
+        sub_id = data.get("id")
+        meta = (data.get("metadata") or {})
+        if meta.get("promote_kind") != "subscription":
+            return
+        maker_slug = meta.get("maker_slug", "")
+        if maker_slug:
+            await db.promotion_wallets.update_one(
+                {"_id": maker_slug, "subscription.stripe_subscription_id": sub_id},
+                {"$set": {
+                    "subscription.status": "cancelled",
+                    "subscription.cancelled_at": now_iso(),
+                    "updated_at": now_iso(),
+                }},
+            )

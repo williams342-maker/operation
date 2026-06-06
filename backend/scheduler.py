@@ -778,6 +778,43 @@ async def _job_listing_budgets_renew() -> None:
         logger.exception("[scheduler] listing_budgets_renew failed: %s", e)
 
 
+async def _job_promote_allocator() -> None:
+    """iter335 — Daily 04:45 UTC. For each `active` campaign_group whose
+    maker wallet has at least $5, run the allocator to:
+      1. Re-score listings (conv + CTR + inventory + freshness + margin)
+      2. Distribute the campaign budget across listings by weight
+      3. Debit the wallet by each listing's boost cost
+      4. Extend `promoted_until` so the listing surfaces in featured rails
+
+    Idempotent: spends only what was allocated for the current run.
+    Wallets that drop below the $5 boost floor are simply skipped (the
+    UI surfaces a "top up to resume" hint)."""
+    try:
+        from services import promote_allocator as _alloc
+        from services import promote_wallet as _wallet
+        ran = skipped = 0
+        async for camp in db.campaign_groups.find(
+            {"status": "active", "deleted_at": None}
+        ):
+            try:
+                bal = await _wallet.get_balance_cents(camp["maker_slug"])
+                if bal < 500:
+                    skipped += 1
+                    continue
+                await _alloc.apply_allocations(
+                    camp["maker_slug"], camp["campaign_id"],
+                    int(camp.get("budget_cents") or 0),
+                    explicit_listing_slugs=camp.get("explicit_listing_slugs") or None,
+                )
+                ran += 1
+            except Exception as e:
+                logger.exception("[scheduler] promote_allocator per-campaign failed (%s): %s",
+                                 camp.get("campaign_id"), e)
+        logger.info("[scheduler] promote_allocator: ran=%d skipped=%d", ran, skipped)
+    except Exception as e:
+        logger.exception("[scheduler] promote_allocator failed: %s", e)
+
+
 async def _job_lead_magnet_drip() -> None:
     """iter316b — Daily 14:30 UTC. Walks `lead_magnet_subscribers` and
     sends day-3 / day-7 nurture emails to opted-in subscribers. See
@@ -1250,6 +1287,11 @@ def start_scheduler() -> AsyncIOScheduler | None:
     # make a re-run within 24h a no-op for the same row.
     sched.add_job(_job_lead_magnet_drip, CronTrigger(hour=14, minute=30),
                   id="lead_magnet_drip", replace_existing=True)
+    # iter335 — Unified Promote Engine allocator: daily 04:45 UTC. Runs
+    # after listing_budgets_renew (03:30) so the per-listing budgets
+    # finish their pass before the wallet-driven campaigns kick in.
+    sched.add_job(_job_promote_allocator, CronTrigger(hour=4, minute=45),
+                  id="promote_allocator", replace_existing=True)
     sched.start()
     _scheduler = sched
     logger.info(
