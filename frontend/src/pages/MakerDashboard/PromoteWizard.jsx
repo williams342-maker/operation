@@ -28,10 +28,13 @@ import {
 
 import {
   upsertPromoteCampaign, previewPromoteCampaign, topupPromoteWallet,
-  subscribePromoteWallet,
+  subscribePromoteWallet, applyPromoteCampaign,
 } from "../../lib/api";
 
 const DISMISS_KEY = "promote_wizard_dismissed";
+// iter335.9 — Set right before redirecting to Stripe so the post-fund
+// return path knows to re-open the wizard at the success step (4).
+const PENDING_RETURN_KEY = "promote_wizard_pending_return";
 
 const GOALS = [
   { id: "sales",   label: "Increase sales",  icon: TrendingUp,
@@ -60,13 +63,29 @@ export function shouldShowWizard(wallet, campaign) {
 }
 
 
-export default function PromoteWizard({ onComplete, onDismiss }) {
-  const [step, setStep] = useState(1);
+/** iter335.9 — Post-fund return detector. Returns true when we should
+ * re-open the wizard at the success step (4) instead of letting the
+ * regular Promote tab render. Used by PromoteTab to decide whether
+ * to mount <PromoteWizard initialStep={4} />.
+ */
+export function shouldShowSuccessStep() {
+  try {
+    if (localStorage.getItem(PENDING_RETURN_KEY) !== "true") return false;
+  } catch { return false; }
+  const params = new URLSearchParams(window.location.search);
+  const flag = params.get("topup") || params.get("subscribe");
+  return flag === "success";
+}
+
+
+export default function PromoteWizard({ onComplete, onDismiss, initialStep = 1, wallet }) {
+  const [step, setStep] = useState(initialStep);
   const [goal, setGoal] = useState("sales");
   const [budgetCents, setBudgetCents] = useState(5000);
   const [preview, setPreview] = useState([]);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [busy, setBusy] = useState("");
+  const [applyResult, setApplyResult] = useState(null);
 
   // Step 2 live distribution preview — same debounced pattern as the
   // main Promote tab so it doesn't hammer the allocator on slider drag.
@@ -88,7 +107,12 @@ export default function PromoteWizard({ onComplete, onDismiss }) {
   }, [step, budgetCents, goal]);
 
   const dismiss = () => {
-    try { localStorage.setItem(DISMISS_KEY, "true"); } catch { /* noop */ }
+    try {
+      localStorage.setItem(DISMISS_KEY, "true");
+      // Also clear pending-return so a stale flag never re-opens
+      // the wizard mid-session.
+      localStorage.removeItem(PENDING_RETURN_KEY);
+    } catch { /* noop */ }
     onDismiss?.();
   };
 
@@ -116,8 +140,10 @@ export default function PromoteWizard({ onComplete, onDismiss }) {
     setBusy(`topup-${amount}`);
     try {
       const r = await topupPromoteWallet(amount);
-      // Clear dismissal so the wizard doesn't re-trigger after Stripe redirect.
-      try { localStorage.setItem(DISMISS_KEY, "true"); } catch { /* noop */ }
+      try {
+        localStorage.setItem(DISMISS_KEY, "true");
+        localStorage.setItem(PENDING_RETURN_KEY, "true");
+      } catch { /* noop */ }
       onComplete?.();
       window.location.assign(r.checkout_url);
     } catch (e) {
@@ -130,13 +156,36 @@ export default function PromoteWizard({ onComplete, onDismiss }) {
     setBusy(`sub-${amount}`);
     try {
       const r = await subscribePromoteWallet(amount);
-      try { localStorage.setItem(DISMISS_KEY, "true"); } catch { /* noop */ }
+      try {
+        localStorage.setItem(DISMISS_KEY, "true");
+        localStorage.setItem(PENDING_RETURN_KEY, "true");
+      } catch { /* noop */ }
       onComplete?.();
       window.location.assign(r.checkout_url);
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Could not start subscription.");
       setBusy("");
     }
+  };
+
+  const onApplyNow = async () => {
+    setBusy("apply");
+    try {
+      const r = await applyPromoteCampaign();
+      setApplyResult(r);
+      if ((r.boosts_applied || 0) > 0) {
+        toast.success(`Applied · ${r.boosts_applied} boost-weeks · $${((r.cents_spent || 0)/100).toFixed(2)} spent.`);
+      } else {
+        toast.info("Allocator ran — funds will boost listings on the next daily pass.");
+      }
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Apply failed.");
+    } finally { setBusy(""); }
+  };
+
+  const finishSuccess = () => {
+    try { localStorage.removeItem(PENDING_RETURN_KEY); } catch { /* noop */ }
+    onComplete?.();
   };
 
   const goalMeta = useMemo(() => GOALS.find((g) => g.id === goal), [goal]);
@@ -162,15 +211,18 @@ export default function PromoteWizard({ onComplete, onDismiss }) {
         <header className="px-6 pt-6 pb-3">
           <div className="flex items-center gap-2 mb-1">
             <Rocket size={16} className="text-[#ff4500]" />
-            <span className="font-mono text-[9px] uppercase tracking-[0.28em] text-[#ff4500]">Set up Promote · {step}/3</span>
+            <span className="font-mono text-[9px] uppercase tracking-[0.28em] text-[#ff4500]">
+              {step === 4 ? "Promote · live" : `Set up Promote · ${step}/3`}
+            </span>
           </div>
           <h2 className="font-display text-3xl text-[#f5f5f5]">
             {step === 1 && "What's your goal?"}
             {step === 2 && "How much per month?"}
             {step === 3 && "Fund your wallet to launch"}
+            {step === 4 && "🎉 You're live"}
           </h2>
           <div className="mt-3 flex gap-1">
-            {[1, 2, 3].map((n) => (
+            {[1, 2, 3, 4].map((n) => (
               <div
                 key={n}
                 className={`h-1 flex-1 ${n <= step ? "bg-[#ff4500]" : "bg-[#262626]"}`}
@@ -343,16 +395,60 @@ export default function PromoteWizard({ onComplete, onDismiss }) {
               </div>
             </div>
           )}
+
+          {step === 4 && (
+            <div data-testid="promote-wizard-step-4">
+              <div className="text-center py-2">
+                <div className="font-display text-5xl text-[#ff4500] mb-2" data-testid="promote-wizard-balance">
+                  {wallet ? dollars(wallet.balance_cents || 0) : "—"}
+                </div>
+                <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#a3a3a3]">
+                  in your Promote wallet
+                </div>
+              </div>
+
+              {!applyResult && (
+                <div className="mt-5 border border-[#262626] p-4 bg-[#050505]">
+                  <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2 flex items-center gap-1.5">
+                    <Sparkles size={11} className="text-cyan-400" /> Next: boost your listings
+                  </div>
+                  <p className="text-xs text-[#a3a3a3] leading-snug">
+                    Click <span className="text-[#ff4500]">Apply now</span> to fire the allocator immediately — your top-scoring listings get a 7-day boost on Crafters Market featured rails. Otherwise it runs automatically at 04:45 UTC tomorrow.
+                  </p>
+                </div>
+              )}
+
+              {applyResult && (
+                <div className="mt-5 border border-emerald-900/40 bg-emerald-950/30 p-4" data-testid="promote-wizard-apply-result">
+                  <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-300 mb-2 flex items-center gap-1.5">
+                    <Sparkles size={11} /> Boosts applied
+                  </div>
+                  <div className="text-sm text-[#f5f5f5]">
+                    <span className="font-display text-2xl text-[#ff4500]">{applyResult.boosts_applied || 0}</span>
+                    <span className="text-[#a3a3a3] ml-2">boost-week{applyResult.boosts_applied === 1 ? "" : "s"} applied · {dollars(applyResult.cents_spent || 0)} spent</span>
+                  </div>
+                  {(applyResult.allocations || []).filter((a) => (a.boosts_applied || 0) > 0).slice(0, 4).map((a) => (
+                    <div key={a.slug} className="mt-2 text-xs text-[#a3a3a3] flex justify-between" data-testid={`promote-wizard-applied-${a.slug}`}>
+                      <span className="truncate flex-1">{a.title}</span>
+                      <span className="font-mono ml-2">{a.boosts_applied}× · {dollars(a.spent_cents)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Footer / nav */}
         <footer className="px-6 py-4 border-t border-[#262626] flex items-center justify-between">
           <button
-            onClick={step === 1 ? dismiss : back}
+            onClick={step === 1 ? dismiss : (step === 4 ? finishSuccess : back)}
             className="px-3 py-2 font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#f5f5f5] flex items-center gap-1.5"
             data-testid="promote-wizard-back"
           >
-            {step === 1 ? "Skip for now" : (<><ChevronLeft size={12} /> Back</>)}
+            {step === 1 ? "Skip for now"
+              : step === 4 ? "Done"
+              : (<><ChevronLeft size={12} /> Back</>)}
           </button>
 
           {step < 3 && (
@@ -371,6 +467,28 @@ export default function PromoteWizard({ onComplete, onDismiss }) {
             <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] flex items-center gap-1.5">
               <Wallet size={11} /> Pick an amount to launch
             </div>
+          )}
+          {step === 4 && !applyResult && (
+            <button
+              onClick={onApplyNow}
+              disabled={busy === "apply" || !wallet || (wallet.balance_cents || 0) < 500}
+              className="px-5 py-2.5 bg-[#ff4500] text-[#0a0a0a] font-mono text-xs uppercase tracking-[0.22em] disabled:opacity-50 flex items-center gap-1.5"
+              data-testid="promote-wizard-apply"
+              title={(wallet && (wallet.balance_cents || 0) < 500) ? "Wallet balance below $5 boost threshold" : ""}
+            >
+              {busy === "apply"
+                ? <Loader2 size={12} className="animate-spin" />
+                : <><Rocket size={12} /> Apply now</>}
+            </button>
+          )}
+          {step === 4 && applyResult && (
+            <button
+              onClick={finishSuccess}
+              className="px-5 py-2.5 bg-[#ff4500] text-[#0a0a0a] font-mono text-xs uppercase tracking-[0.22em] flex items-center gap-1.5"
+              data-testid="promote-wizard-finish"
+            >
+              View dashboard <ChevronRight size={12} />
+            </button>
           )}
         </footer>
       </div>

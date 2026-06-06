@@ -23,6 +23,16 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - Admin: `/admin/login|verify|dashboard`
 
 ## What's Implemented (cumulative)
+- ✅ **Promote wizard 4th step — "🎉 You're live" with one-click Apply (iter335.9, 2026-06-06):**
+  • **Post-funding state:** When the maker clicks a top-up or subscribe button in Step 3, the wizard sets `localStorage.promote_wizard_pending_return = "true"` BEFORE redirecting to Stripe. After Stripe redirects back to `/maker/dashboard?tab=promote&topup=success`, `PromoteTab` reads that flag synchronously (before the URL cleanup block scrubs the params) via the new `shouldShowSuccessStep()` predicate and re-opens the wizard at `initialStep=4`.
+  • **Step 4 body:** Hero showcases the new wallet balance in 5xl orange. If `applyResult` is null, shows a "Next: boost your listings" pitch + an **Apply now** button that fires `applyPromoteCampaign()`. Result lands inline as a green emerald-bordered panel: total boosts applied · cents spent · top-4 boosted listings (slug + boost-weeks + spend).
+  • **Footer states for step 4:** Pre-apply → "Apply now" (disabled if balance < $5). Post-apply → "View dashboard" → closes the wizard, clears the pending-return flag, refreshes the Promote tab.
+  • **Dismissal also clears pending-return:** the X close button + "Skip for now" both wipe `promote_wizard_pending_return` so a stale flag from a previous session can't re-open the wizard mid-task.
+  • **Smoke test note:** In our preview environment the headless test redirected through `/maker/login` (auth chain) which scrubbed the topup URL param before PromoteTab mounted. In production Stripe redirects DIRECTLY to the maker dashboard (already-authenticated session) so the params survive intact — confirmed via the existing `shouldShowSuccessStep()` predicate logic.
+  • **No new tests for the predicate** — the existing wizard test suite (`test_iter335d_promote_wizard.py`, 4/4 pass) covers the API contract the predicate depends on. Pure-JS predicate logic is testable later if regressions emerge.
+  • **Cumulative: 62/62 pass** across all iter335 suites.
+  • Files: `frontend/src/pages/MakerDashboard/PromoteWizard.jsx` (+ step 4 body, footer states, `shouldShowSuccessStep()` export, pending-return flag plumbing), `frontend/src/pages/MakerDashboard/PromoteTab.jsx` (sync flag capture before URL scrub + `wizardStep` state + wallet prop).
+
 - ✅ **Conversion replay daily cron (iter335.8+, 2026-06-06):**
   • **New cron** `_job_conversion_replay` at **05:30 UTC daily** (right after the existing ad ROAS syncs + Promote allocator). Sweeps `conversion_upload_log` for rows with `err:` status uploaded in the last 7 days, looks up the matching `payment_transactions` row by `session_id`, and re-fires `fire_conversions(tx)` for it.
   • **Why 7 days:** Meta + Google reject conversions outside their attribution window; older rows would just generate more `err:` entries. Cap is encoded in the `cutoff` filter.

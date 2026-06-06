@@ -28,7 +28,7 @@ import {
   fetchPromoteChannels, fetchExternalCampaigns,
   launchExternalCampaign, pauseExternalCampaign, resumeExternalCampaign,
 } from "../../lib/api";
-import PromoteWizard, { shouldShowWizard } from "./PromoteWizard";
+import PromoteWizard, { shouldShowWizard, shouldShowSuccessStep } from "./PromoteWizard";
 
 const TOPUP_PRESETS = [1000, 2500, 5000, 10000]; // $10 · $25 · $50 · $100
 const BUDGET_PRESETS = [1000, 2500, 5000, 10000, 25000]; // $10 → $250
@@ -49,6 +49,7 @@ export default function PromoteTab() {
   const [channels, setChannels] = useState([]);
   const [extCampaigns, setExtCampaigns] = useState([]);
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [wizardStep, setWizardStep] = useState(1);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState("");
 
@@ -62,6 +63,10 @@ export default function PromoteTab() {
   // Initial load + handle ?topup=success / ?subscribe=success post-Stripe.
   useEffect(() => {
     let cancelled = false;
+    // Capture the return-from-Stripe state BEFORE the cleanup block
+    // below scrubs the URL params. The async data-fetch resolves later,
+    // by which time the params are gone.
+    const wantSuccessStep = shouldShowSuccessStep();
     (async () => {
       try {
         const [w, c, a, ch, ext] = await Promise.all([
@@ -75,8 +80,15 @@ export default function PromoteTab() {
         setAnalytics(a);
         setChannels(ch.channels || []);
         setExtCampaigns(ext.campaigns || []);
-        // First-time wizard: only opens for empty wallets without a campaign.
-        if (shouldShowWizard(w, c.campaign)) setWizardOpen(true);
+        // iter335.9 — Post-fund return: re-open at step 4 ("You're live")
+        // takes precedence over the regular first-time-empty trigger.
+        if (wantSuccessStep) {
+          setWizardStep(4);
+          setWizardOpen(true);
+        } else if (shouldShowWizard(w, c.campaign)) {
+          setWizardStep(1);
+          setWizardOpen(true);
+        }
         if (c.campaign) {
           setBudgetCents(c.campaign.budget_cents || 5000);
           setGoal(c.campaign.goal || "sales");
@@ -247,7 +259,9 @@ export default function PromoteTab() {
     <div className="space-y-6" data-testid="promote-tab">
       {wizardOpen && (
         <PromoteWizard
-          onComplete={() => setWizardOpen(false)}
+          initialStep={wizardStep}
+          wallet={wallet}
+          onComplete={async () => { setWizardOpen(false); await refresh(); }}
           onDismiss={() => setWizardOpen(false)}
         />
       )}
@@ -268,6 +282,7 @@ export default function PromoteTab() {
           <button
             onClick={() => {
               try { localStorage.removeItem("promote_wizard_dismissed"); } catch { /* noop */ }
+              setWizardStep(1);
               setWizardOpen(true);
             }}
             className="px-3 py-2 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] flex items-center gap-1.5"
