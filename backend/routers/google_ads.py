@@ -349,8 +349,14 @@ def _gaql_campaign_metrics(date_str: str) -> str:
 
 
 def _run_gaql_sync(date_str: str, refresh_token: str,
-                   login_customer_id: str) -> list[dict]:
-    """Synchronous metrics fetch — called inside `run_in_executor`."""
+                   login_customer_id: str,
+                   operating_customer_id: str) -> list[dict]:
+    """Synchronous metrics fetch — called inside `run_in_executor`.
+
+    `login_customer_id` is the manager (MCC) account the OAuth refresh
+    token authenticates through. `operating_customer_id` is the actual
+    ad-running account whose campaigns we want metrics for. For
+    non-MCC setups, both IDs are the same."""
     # Lazy import so the module loads even when google-ads isn't
     # installed (prevents preview-pod boot failures pre-rollout).
     from google.ads.googleads.client import GoogleAdsClient
@@ -366,7 +372,7 @@ def _run_gaql_sync(date_str: str, refresh_token: str,
     svc = client.get_service("GoogleAdsService")
     out: list[dict] = []
     stream = svc.search_stream(
-        customer_id=login_customer_id,
+        customer_id=operating_customer_id,
         query=_gaql_campaign_metrics(date_str),
     )
     for batch in stream:
@@ -427,6 +433,16 @@ async def sync_metrics(date_str: Optional[str] = None) -> dict:
         or os.environ.get("GOOGLE_ADS_LOGIN_CUSTOMER_ID", "")
     ).replace("-", "")
 
+    # iter334t — Operating customer ID is the ad-running account whose
+    # campaigns we sync. For MCC setups this differs from login_customer_id
+    # (which is the manager). Falls back to login_customer_id when only
+    # one account is involved (no MCC).
+    operating_customer_id = (
+        cred.get("operating_customer_id")
+        or os.environ.get("GOOGLE_ADS_CUSTOMER_ID", "")
+        or login_customer_id
+    ).replace("-", "")
+
     try:
         loop = asyncio.get_running_loop()
         rows = await loop.run_in_executor(
@@ -435,6 +451,7 @@ async def sync_metrics(date_str: Optional[str] = None) -> dict:
             date_str,
             cred["refresh_token"],
             login_customer_id,
+            operating_customer_id,
         )
     except Exception as e:
         logger.exception("[google_ads] sync failed: %s", e)
