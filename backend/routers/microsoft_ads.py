@@ -280,3 +280,57 @@ async def manual_sync(
     after first connect without waiting for the daily cron."""
     from .microsoft_ads_sdk import sync_metrics
     return await sync_metrics(date_str=date)
+
+
+# ── Bulk backfill (one-time, after first ad spend) ─────────────────────
+@router.post("/admin/integrations/microsoft-ads/backfill")
+async def backfill(
+    days: int = Query(default=30, ge=1, le=90),
+    _: dict = Depends(current_admin),
+):
+    """Pull the last N days of campaign-level metrics into `ad_spend`.
+
+    Used after a campaign first goes live so the admin tile fills in
+    history immediately instead of waiting for the daily cron to walk
+    forward one day at a time. Runs synchronously day-by-day (each call
+    is ~3-8s against the MS Reporting API), so 30 days takes 2-4 min.
+
+    Caps at 90 days to keep request budget bounded and because the
+    Bing Reporting API throttles large historical pulls aggressively.
+
+    Returns a summary `{status, days_requested, days_ok, days_skipped,
+    days_error, total_rows, results: [...]}` so the UI can render a
+    progress toast / per-day breakdown.
+    """
+    from .microsoft_ads_sdk import sync_metrics
+
+    today = datetime.now(timezone.utc).date()
+    results: list[dict] = []
+    total_rows = 0
+    n_ok = n_skip = n_err = 0
+
+    # Walk yesterday → N days back (today's data isn't final yet so skip it).
+    for i in range(1, days + 1):
+        d = (today - timedelta(days=i)).strftime("%Y-%m-%d")
+        try:
+            r = await sync_metrics(date_str=d)
+        except Exception as e:  # defensive — sync_metrics already wraps
+            r = {"status": "error", "date": d, "error": str(e)[:200]}
+        results.append(r)
+        if r.get("status") == "ok":
+            n_ok += 1
+            total_rows += int(r.get("rows") or 0)
+        elif r.get("status") == "skipped":
+            n_skip += 1
+        else:
+            n_err += 1
+
+    return {
+        "status": "ok" if n_err == 0 else "partial",
+        "days_requested": days,
+        "days_ok": n_ok,
+        "days_skipped": n_skip,
+        "days_error": n_err,
+        "total_rows": total_rows,
+        "results": results,
+    }

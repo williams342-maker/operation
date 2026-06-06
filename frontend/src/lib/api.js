@@ -790,6 +790,11 @@ export const triggerMicrosoftAdsSync = (date) =>
     {},
     { params: date ? { date } : {}, headers: adminAuthHeaders() }
   ).then((r) => r.data);
+export const backfillMicrosoftAds = (days = 30) =>
+  http.post("/admin/integrations/microsoft-ads/backfill",
+    {},
+    { params: { days }, headers: adminAuthHeaders(), timeout: 600000 }
+  ).then((r) => r.data);
 
 // ---------- Meta Ads integration ----------
 // Same shape as Google Ads — separate provider, separate token, but

@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { CheckCircle2, AlertCircle, Loader2, RefreshCw, Unplug, Copy } from "lucide-react";
+import { CheckCircle2, AlertCircle, Loader2, RefreshCw, Unplug, Copy, History } from "lucide-react";
 import {
   fetchMicrosoftAdsStatus, startMicrosoftAdsOauth, disconnectMicrosoftAds,
-  triggerMicrosoftAdsSync,
+  triggerMicrosoftAdsSync, backfillMicrosoftAds,
 } from "../../lib/api";
 import { useConfirm } from "../../hooks/useConfirm";
 
@@ -35,7 +35,15 @@ export default function MicrosoftAdsConnectionCard() {
   };
 
   useEffect(() => {
-    refresh();
+    let cancelled = false;
+    (async () => {
+      try {
+        const s = await fetchMicrosoftAdsStatus();
+        if (!cancelled) setStatus(s);
+      } catch {
+        if (!cancelled) toast.error("Could not load Microsoft Ads status.");
+      }
+    })();
     // After OAuth callback we land on /admin/dashboard?tab=ads&microsoft_ads=connected
     // Surface a toast based on that flag, then strip from the URL so a
     // page refresh doesn't re-fire the toast.
@@ -53,6 +61,7 @@ export default function MicrosoftAdsConnectionCard() {
         (params.toString() ? `?${params}` : "") + window.location.hash;
       window.history.replaceState({}, "", newUrl);
     }
+    return () => { cancelled = true; };
   }, []);
 
   const onConnect = async () => {
@@ -80,6 +89,34 @@ export default function MicrosoftAdsConnectionCard() {
       await refresh();
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Sync failed.");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const onBackfill = async () => {
+    const ok = await confirm({
+      title: "Backfill the last 30 days?",
+      body: "Walks day-by-day through the Microsoft Reporting API. Each day takes ~3–8s so the whole batch runs 2–4 min. The card will look unresponsive during the call — leave the tab open. Already-synced days are upserted (no duplicates).",
+      confirmLabel: "Run 30-day backfill",
+      tone: "info",
+      testId: "confirm-microsoft-ads-backfill",
+    });
+    if (!ok) return;
+    setBusy("backfill");
+    const t = toast.loading("Backfilling 30 days of Microsoft Ads spend…", { duration: Infinity });
+    try {
+      const r = await backfillMicrosoftAds(30);
+      toast.dismiss(t);
+      if (r.status === "ok") {
+        toast.success(`Backfill complete · ${r.days_ok}/${r.days_requested} days · ${r.total_rows} campaign rows.`);
+      } else {
+        toast.warning(`Backfill partial · ${r.days_ok} ok · ${r.days_skipped} skipped · ${r.days_error} error · ${r.total_rows} rows.`);
+      }
+      await refresh();
+    } catch (e) {
+      toast.dismiss(t);
+      toast.error(e?.response?.data?.detail || "Backfill failed. The MS Reporting API may be throttling — retry in a few minutes.");
     } finally {
       setBusy("");
     }
@@ -271,6 +308,16 @@ export default function MicrosoftAdsConnectionCard() {
           >
             {busy === "sync" ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />}
             Sync yesterday now
+          </button>
+          <button
+            onClick={onBackfill}
+            disabled={busy === "backfill"}
+            className="px-3 py-2 border border-[#262626] hover:border-cyan-400 font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50 flex items-center gap-1.5"
+            data-testid="microsoft-ads-backfill-btn"
+            title="Pull the last 30 days of spend into the ad_spend ledger. Takes 2–4 min."
+          >
+            {busy === "backfill" ? <Loader2 size={11} className="animate-spin" /> : <History size={11} />}
+            Backfill 30 days
           </button>
           <button
             onClick={onDisconnect}
