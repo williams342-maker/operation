@@ -54,7 +54,19 @@ router = APIRouter()
 META_API_VERSION = "v20.0"
 GRAPH_BASE = f"https://graph.facebook.com/{META_API_VERSION}"
 AUTH_BASE = f"https://www.facebook.com/{META_API_VERSION}"
-SCOPES = ["ads_read"]
+# iter335.5 — write access requires `ads_management` which is gated by
+# Meta App Review. Until App Review approves, leave the env flag off
+# so we keep requesting `ads_read` only (read access works without
+# review). After approval, set META_REQUEST_MANAGEMENT_SCOPE=true and
+# admins reconnect — the new refresh token then carries write scope
+# and the Promote engine's MetaGateway flips `is_eligible` to true.
+def _meta_scopes() -> list[str]:
+    s = ["ads_read"]
+    if (os.environ.get("META_REQUEST_MANAGEMENT_SCOPE") or "").lower() in ("1", "true", "yes"):
+        s.append("ads_management")
+    return s
+
+SCOPES = _meta_scopes()
 
 
 def _redirect_uri() -> str:

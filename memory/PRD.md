@@ -23,6 +23,16 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - Admin: `/admin/login|verify|dashboard`
 
 ## What's Implemented (cumulative)
+- ✅ **Google Ads + Meta gateway live implementations (iter335.7, 2026-06-06):**
+  • **Both stub adapters replaced with LIVE implementations** that auto-degrade to helpful messages when external approvals haven't landed yet. Once approvals come in, NO code change is needed — eligibility flips on automatically.
+  • **Google Ads (LIVE):** Uses the pinned `google-ads==30.1.0` SDK. Creates `Budget → Campaign (PAUSED) → AdGroup → ResponsiveSearchAd → Keywords` per listing. Auto-derives creative from listing title/description (3 headlines × 2 descriptions, broad-match keywords from title minus stopwords). Daily budget clamped to [$5, $200] window in micros. Tracking template appends `?gclid={gclid}` so existing checkout attribution holds. SAFETY: campaigns land in `PAUSED` status — maker activates explicitly. Eligibility detection uses a **`validate_only=True` mutate probe** so we can detect developer-token tier (Test vs Basic) without ever creating anything; surfaces the precise Google error to the UI if probe fails.
+  • **Meta Ads (LIVE, gated on App Review):** Uses raw `httpx` to the Graph API (matches existing `meta_ads.py` pattern — no facebook_business dep). Creates `Campaign (PAUSED, OUTCOME_TRAFFIC) → AdSet (US, LINK_CLICKS) → AdCreative (link ad with image + SHOP_NOW CTA) → Ad`. Auto-derives creative; `fbclid={{ad.id}}` Meta substitution maintains URL-param attribution. Uses `META_DEFAULT_PAGE_ID` for the Facebook Page that posts ads (Phase 2 will let makers connect own Page). Eligibility detection reads the **granted scopes** from the OAuth token — until `ads_management` is present, returns the "pending App Review" message verbatim.
+  • **OAuth scope flag for Meta:** New env flag `META_REQUEST_MANAGEMENT_SCOPE=true` flips the OAuth scope list from `["ads_read"]` to `["ads_read", "ads_management"]` after App Review lands. Admins flip the flag, reconnect Meta, and the gateway's `is_eligible` auto-detects the upgraded token. Zero code deploy required for the post-approval flip.
+  • **Updated `iter335b_ads_gateway.py`:** Tests that asserted stub behavior were rewritten to reflect live-but-not-connected behavior (Google now returns 409 NotEligible like Microsoft, not 501 NotImplemented).
+  • **New tests:** `/app/backend/tests/test_iter335e_google_meta_gateway_live.py` — 11/11 pass. Covers: Google missing-OAuth + missing-env-var paths, create_campaign raises NotEligible before SDK call; Meta missing-OAuth + missing-ad-account + missing-scope paths, eligibility ON when ads_management granted, space- AND comma-separated scope parsers both work, OAuth scope flag toggle.
+  • **Cumulative: 49/49 pass** across all iter335 suites.
+  • Files: `services/ads_gateway/google.py` (full rewrite, ~290 LOC), `services/ads_gateway/meta.py` (full rewrite, ~260 LOC), `routers/meta_ads.py` (conditional scope helper).
+
 - ✅ **Promote first-time setup wizard (iter335.6, 2026-06-06):**
   • **3-step wizard** auto-opens on first visit to the Promote tab when:
     - Wallet balance is 0 AND has never been funded (`lifetime_funded_cents === 0`)

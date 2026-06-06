@@ -90,28 +90,25 @@ def test_gateway_factory_dispatches_correctly():
         get_gateway("tiktok")  # not registered
 
 
-async def test_google_stub_is_not_eligible():
-    from services.ads_gateway import get_gateway, GatewayNotImplemented
+async def test_google_not_eligible_without_oauth():
+    """iter335.7 — Google is now LIVE but degrades gracefully when no
+    OAuth row is persisted. Returns eligible=False with a connect hint
+    (not NotImplemented like the old stub)."""
+    from services.ads_gateway import get_gateway
     gw = get_gateway("google")
     ok, reason = await gw.is_eligible(MAKER_SLUG)
     assert ok is False
-    assert "brand verification" in reason.lower()
-    import pytest
-    with pytest.raises(GatewayNotImplemented):
-        from services.ads_gateway import CreateCampaignSpec
-        await gw.create_campaign(CreateCampaignSpec(
-            maker_slug=MAKER_SLUG, listing_slug="x", listing_title="x",
-            listing_description="x", listing_url="https://x/",
-            listing_image_url=None, daily_budget_cents=500,
-        ))
+    assert "connect google ads" in reason.lower()
 
 
-async def test_meta_stub_is_not_eligible():
+async def test_meta_not_eligible_without_oauth():
+    """iter335.7 — Meta is now LIVE but degrades gracefully when no
+    OAuth row is persisted (matches Google behavior)."""
     from services.ads_gateway import get_gateway
     gw = get_gateway("meta")
     ok, reason = await gw.is_eligible(MAKER_SLUG)
     assert ok is False
-    assert "app review" in reason.lower()
+    assert "connect meta ads" in reason.lower()
 
 
 async def test_microsoft_not_eligible_without_oauth():
@@ -171,8 +168,10 @@ async def test_launch_below_floor_rejected():
     assert "floor" in r.json()["detail"].lower()
 
 
-async def test_launch_google_returns_501_stub():
-    """Google adapter is a stub — must return 501 with the planned message."""
+async def test_launch_google_returns_409_when_not_connected():
+    """iter335.7 — Google adapter is now LIVE. Without OAuth +
+    developer token, it returns 409 (NotEligible) with a connect
+    hint — same shape as the Microsoft adapter."""
     from server import app
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
@@ -185,8 +184,8 @@ async def test_launch_google_returns_501_stub():
         r = await ac.post("/api/promote/external/launch", headers=h, json={
             "channel": "google", "listing_slug": f"{MAKER_SLUG}-big",
         })
-    assert r.status_code == 501
-    assert "verification" in r.json()["detail"].lower()
+    assert r.status_code == 409
+    assert "connect google ads" in r.json()["detail"].lower()
 
 
 async def test_launch_microsoft_blocked_when_oauth_missing():
