@@ -23,6 +23,16 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - Admin: `/admin/login|verify|dashboard`
 
 ## What's Implemented (cumulative)
+- ✅ **Conversion replay daily cron (iter335.8+, 2026-06-06):**
+  • **New cron** `_job_conversion_replay` at **05:30 UTC daily** (right after the existing ad ROAS syncs + Promote allocator). Sweeps `conversion_upload_log` for rows with `err:` status uploaded in the last 7 days, looks up the matching `payment_transactions` row by `session_id`, and re-fires `fire_conversions(tx)` for it.
+  • **Why 7 days:** Meta + Google reject conversions outside their attribution window; older rows would just generate more `err:` entries. Cap is encoded in the `cutoff` filter.
+  • **Why this matters:** Pre-replay, a transient outage at the moment of checkout (Meta CAPI 503, Google rate-limit, Bing SOAP timeout) permanently lost that conversion since the only retry path was a Stripe webhook re-delivery (which rarely fires). Now those rows self-heal within 24 hours, lifting reported ROAS toward near-100% accuracy.
+  • **Per-channel isolation continues during replay:** if Meta is still down at 05:30, only Meta's row stays `err:` and gets retried again tomorrow. Google + Microsoft channels for the same session can flip to `ok` independently.
+  • **Bounded cost:** `$limit: 200` distinct session_ids per run keeps the cron's blast radius predictable even if a multi-day outage stacks up thousands of err rows.
+  • **Tests:** `/app/backend/tests/test_iter335g_conversion_replay_cron.py` — 5/5 pass. Covers: recent errored rows DO retry, already-`ok` rows DON'T re-fire, rows older than 7 days are skipped, missing payment_transactions handled gracefully (no crash), partial success updates only the channels that succeeded.
+  • **Cumulative: 62/62 pass** across all iter335 suites.
+  • Files: `scheduler.py` (+58 lines: new job function + cron registration).
+
 - ✅ **Server-side Conversions API uploads (iter335.8, 2026-06-06):**
   • **Triggers** when `payment_transactions` transitions unpaid → paid in `routers/checkout.py`. Fires uploads to all 3 ad platforms in parallel (per-channel try/except — one outage doesn't block the others or the checkout response).
   • **Meta CAPI:** POST to `/{pixel_id}/events` with `Purchase` event. `event_id = session_id` for browser-pixel dedup. User identifiers: SHA-256 hashed `email` (lower+trim per Meta spec) + `fbc` constructed from fbclid. Custom data: value + currency. Optional `META_CAPI_TEST_CODE` env supported for test events.

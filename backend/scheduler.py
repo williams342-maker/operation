@@ -815,6 +815,72 @@ async def _job_promote_allocator() -> None:
         logger.exception("[scheduler] promote_allocator failed: %s", e)
 
 
+async def _job_conversion_replay() -> None:
+    """iter335.8 — Daily 05:30 UTC. Re-fires conversion uploads for
+    rows in `conversion_upload_log` with `err:` status from the last
+    7 days.
+
+    Why this exists: the synchronous fire happens in `routers/checkout.py`
+    on the unpaid→paid transition. If Meta/Google/Microsoft is down
+    that moment, the row gets logged as `err:` and only retries on the
+    next Stripe webhook re-fire (rare). This cron sweeps the backlog
+    so transient outages don't permanently lose attribution.
+
+    `fire_conversions` is itself idempotent on (session_id, channel)
+    — successful rows short-circuit, so this job is safe to run as
+    often as we like. We cap at last-7-days because Meta/Google reject
+    conversions older than 7d (their attribution windows).
+    """
+    from datetime import datetime, timedelta, timezone
+    from core import db
+    from services.conversions_uploader import fire_conversions
+    try:
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+        # Find distinct session_ids that have at least one `err:` row.
+        pipeline = [
+            {"$match": {
+                "status": {"$regex": "^err:"},
+                "uploaded_at": {"$gte": cutoff},
+            }},
+            {"$group": {"_id": "$session_id"}},
+            {"$limit": 200},  # bound per-run cost
+        ]
+        session_ids = []
+        async for row in db.conversion_upload_log.aggregate(pipeline):
+            session_ids.append(row["_id"])
+
+        replayed = succeeded = 0
+        for sid in session_ids:
+            tx = await db.payment_transactions.find_one(
+                {"session_id": sid},
+                {"session_id": 1, "customer_email": 1, "amount": 1,
+                 "currency": 1, "gclid": 1, "fbclid": 1, "msclkid": 1},
+            )
+            if not tx:
+                continue
+            try:
+                # `fire_conversions` reads "amount_total" key; the
+                # payment_transactions doc uses "amount". Map it.
+                results = await fire_conversions({
+                    "session_id": tx.get("session_id"),
+                    "customer_email": tx.get("customer_email"),
+                    "amount_total": tx.get("amount") or 0,
+                    "currency": tx.get("currency") or "usd",
+                    "gclid": tx.get("gclid"),
+                    "fbclid": tx.get("fbclid"),
+                    "msclkid": tx.get("msclkid"),
+                })
+                replayed += 1
+                succeeded += sum(1 for v in results.values() if v == "ok")
+            except Exception as e:
+                logger.exception("[scheduler] conversion_replay session=%s: %s", sid, e)
+        logger.info("[scheduler] conversion_replay: scanned=%d replayed=%d succeeded=%d",
+                    len(session_ids), replayed, succeeded)
+    except Exception as e:
+        logger.exception("[scheduler] conversion_replay failed: %s", e)
+
+
+
 async def _job_lead_magnet_drip() -> None:
     """iter316b — Daily 14:30 UTC. Walks `lead_magnet_subscribers` and
     sends day-3 / day-7 nurture emails to opted-in subscribers. See
@@ -1292,6 +1358,12 @@ def start_scheduler() -> AsyncIOScheduler | None:
     # finish their pass before the wallet-driven campaigns kick in.
     sched.add_job(_job_promote_allocator, CronTrigger(hour=4, minute=45),
                   id="promote_allocator", replace_existing=True)
+    # iter335.8 — Sweep failed conversion uploads from the last 7 days.
+    # 05:30 UTC keeps it after the allocator + before business-hours
+    # spike. Idempotent — fire_conversions short-circuits successful
+    # (session_id, channel) pairs.
+    sched.add_job(_job_conversion_replay, CronTrigger(hour=5, minute=30),
+                  id="conversion_replay", replace_existing=True)
     sched.start()
     _scheduler = sched
     logger.info(
