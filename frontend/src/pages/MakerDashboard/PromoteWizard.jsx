@@ -1,0 +1,379 @@
+/**
+ * iter335.6 — First-time Promote setup wizard.
+ *
+ * 3-step flow optimized for a new maker who's never funded the wallet:
+ *   1. GOAL    — pick sales / traffic / reach (3 radio cards)
+ *   2. BUDGET  — slider + presets, live distribution preview
+ *   3. FUND    — one-time top-up or monthly auto-refill → Stripe Checkout
+ *
+ * Triggers when ALL three are true:
+ *   • Wallet is empty AND has never been funded (no prior top-ups)
+ *   • No campaign group exists yet for this maker
+ *   • User hasn't explicitly dismissed the wizard (localStorage flag)
+ *
+ * The wizard creates the campaign on Step 2 → Continue so that when
+ * the maker funds in Step 3 and Stripe redirects back, the plan is
+ * already saved and the first allocator pass can fire automatically.
+ *
+ * `<Dialog>` from shadcn was deliberately not used — the wizard needs
+ * a full-bleed CTA aesthetic that doesn't visually fit Shadcn's
+ * generic modal frame.
+ */
+import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
+import {
+  Rocket, Target, TrendingUp, Eye, Wallet, Sparkles, ChevronRight,
+  ChevronLeft, Loader2, X,
+} from "lucide-react";
+
+import {
+  upsertPromoteCampaign, previewPromoteCampaign, topupPromoteWallet,
+  subscribePromoteWallet,
+} from "../../lib/api";
+
+const DISMISS_KEY = "promote_wizard_dismissed";
+
+const GOALS = [
+  { id: "sales",   label: "Increase sales",  icon: TrendingUp,
+    blurb: "Bias budget toward listings with the highest conversion rate. Best for makers with proven inventory." },
+  { id: "traffic", label: "Drive traffic",   icon: Target,
+    blurb: "Spread budget evenly to grow click volume across your catalog. Best when you're testing many SKUs." },
+  { id: "reach",   label: "Build awareness", icon: Eye,
+    blurb: "Push newer + lower-traffic listings to bootstrap visibility. Best for makers under 6 months old." },
+];
+
+const BUDGET_PRESETS = [2500, 5000, 10000, 25000]; // $25 · $50 · $100 · $250
+
+function dollarsRound(c) { return `$${Math.round((c || 0) / 100)}`; }
+function dollars(c)      { return `$${((c || 0) / 100).toFixed(2)}`; }
+
+
+export function shouldShowWizard(wallet, campaign) {
+  if (!wallet) return false;
+  if (campaign) return false;
+  if ((wallet.balance_cents || 0) > 0) return false;
+  if ((wallet.lifetime_funded_cents || 0) > 0) return false;
+  try {
+    if (localStorage.getItem(DISMISS_KEY) === "true") return false;
+  } catch { /* localStorage blocked */ }
+  return true;
+}
+
+
+export default function PromoteWizard({ onComplete, onDismiss }) {
+  const [step, setStep] = useState(1);
+  const [goal, setGoal] = useState("sales");
+  const [budgetCents, setBudgetCents] = useState(5000);
+  const [preview, setPreview] = useState([]);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [busy, setBusy] = useState("");
+
+  // Step 2 live distribution preview — same debounced pattern as the
+  // main Promote tab so it doesn't hammer the allocator on slider drag.
+  useEffect(() => {
+    if (step !== 2) return;
+    let cancelled = false;
+    setPreviewLoading(true);
+    const t = setTimeout(async () => {
+      try {
+        const r = await previewPromoteCampaign({
+          budget_cents: budgetCents, goal, channels: ["internal"],
+          auto_allocate: true,
+        });
+        if (!cancelled) setPreview(r.allocations || []);
+      } catch { if (!cancelled) setPreview([]); }
+      finally { if (!cancelled) setPreviewLoading(false); }
+    }, 250);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [step, budgetCents, goal]);
+
+  const dismiss = () => {
+    try { localStorage.setItem(DISMISS_KEY, "true"); } catch { /* noop */ }
+    onDismiss?.();
+  };
+
+  const next = async () => {
+    if (step === 1) { setStep(2); return; }
+    if (step === 2) {
+      // Save the campaign so funding (Step 3) lands on an existing plan.
+      setBusy("save");
+      try {
+        await upsertPromoteCampaign({
+          budget_cents: budgetCents, goal, channels: ["internal"],
+          auto_allocate: true,
+        });
+        setStep(3);
+      } catch (e) {
+        toast.error(e?.response?.data?.detail || "Could not save plan.");
+      } finally { setBusy(""); }
+      return;
+    }
+  };
+
+  const back = () => setStep((s) => Math.max(1, s - 1));
+
+  const onTopup = async (amount) => {
+    setBusy(`topup-${amount}`);
+    try {
+      const r = await topupPromoteWallet(amount);
+      // Clear dismissal so the wizard doesn't re-trigger after Stripe redirect.
+      try { localStorage.setItem(DISMISS_KEY, "true"); } catch { /* noop */ }
+      onComplete?.();
+      window.location.assign(r.checkout_url);
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Could not start checkout.");
+      setBusy("");
+    }
+  };
+
+  const onSubscribe = async (amount) => {
+    setBusy(`sub-${amount}`);
+    try {
+      const r = await subscribePromoteWallet(amount);
+      try { localStorage.setItem(DISMISS_KEY, "true"); } catch { /* noop */ }
+      onComplete?.();
+      window.location.assign(r.checkout_url);
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Could not start subscription.");
+      setBusy("");
+    }
+  };
+
+  const goalMeta = useMemo(() => GOALS.find((g) => g.id === goal), [goal]);
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+      data-testid="promote-wizard"
+      onClick={(e) => e.target === e.currentTarget && dismiss()}
+    >
+      <div className="relative w-full max-w-2xl bg-[#0a0a0a] border border-[#262626] shadow-2xl shadow-[#ff4500]/10">
+        {/* Close */}
+        <button
+          onClick={dismiss}
+          className="absolute top-3 right-3 text-[#525252] hover:text-[#f5f5f5] p-1"
+          data-testid="promote-wizard-close"
+          aria-label="Close wizard"
+        >
+          <X size={16} />
+        </button>
+
+        {/* Header / progress */}
+        <header className="px-6 pt-6 pb-3">
+          <div className="flex items-center gap-2 mb-1">
+            <Rocket size={16} className="text-[#ff4500]" />
+            <span className="font-mono text-[9px] uppercase tracking-[0.28em] text-[#ff4500]">Set up Promote · {step}/3</span>
+          </div>
+          <h2 className="font-display text-3xl text-[#f5f5f5]">
+            {step === 1 && "What's your goal?"}
+            {step === 2 && "How much per month?"}
+            {step === 3 && "Fund your wallet to launch"}
+          </h2>
+          <div className="mt-3 flex gap-1">
+            {[1, 2, 3].map((n) => (
+              <div
+                key={n}
+                className={`h-1 flex-1 ${n <= step ? "bg-[#ff4500]" : "bg-[#262626]"}`}
+                data-testid={`promote-wizard-progress-${n}`}
+              />
+            ))}
+          </div>
+        </header>
+
+        {/* Step body */}
+        <div className="px-6 py-4">
+          {step === 1 && (
+            <div className="space-y-2" data-testid="promote-wizard-step-1">
+              {GOALS.map((g) => {
+                const Icon = g.icon;
+                const active = goal === g.id;
+                return (
+                  <button
+                    key={g.id}
+                    onClick={() => setGoal(g.id)}
+                    className={`w-full text-left p-4 border flex items-start gap-3 transition-colors ${
+                      active
+                        ? "border-[#ff4500] bg-[#1a0e08]"
+                        : "border-[#262626] hover:border-[#525252]"
+                    }`}
+                    data-testid={`promote-wizard-goal-${g.id}`}
+                  >
+                    <Icon size={20} className={active ? "text-[#ff4500] shrink-0 mt-0.5" : "text-[#a3a3a3] shrink-0 mt-0.5"} />
+                    <div className="min-w-0">
+                      <div className={`font-mono text-xs uppercase tracking-[0.18em] ${active ? "text-[#ff4500]" : "text-[#f5f5f5]"}`}>
+                        {g.label}
+                      </div>
+                      <div className="text-[11px] text-[#a3a3a3] mt-1 leading-snug">
+                        {g.blurb}
+                      </div>
+                    </div>
+                    {active && <Sparkles size={14} className="text-[#ff4500] shrink-0 mt-1 ml-auto" />}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {step === 2 && (
+            <div data-testid="promote-wizard-step-2">
+              <div className="flex items-baseline justify-between mb-2">
+                <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Monthly budget</span>
+                <span className="font-display text-4xl text-[#ff4500]" data-testid="promote-wizard-budget-value">
+                  {dollarsRound(budgetCents)}
+                  <span className="text-sm text-[#737373]">/mo</span>
+                </span>
+              </div>
+              <input
+                type="range" min={500} max={50000} step={500}
+                value={budgetCents}
+                onChange={(e) => setBudgetCents(Number(e.target.value))}
+                className="w-full accent-[#ff4500]"
+                data-testid="promote-wizard-slider"
+              />
+              <div className="flex flex-wrap gap-1.5 mt-2 mb-4">
+                {BUDGET_PRESETS.map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => setBudgetCents(c)}
+                    className={`px-2 py-1 border font-mono text-[10px] ${
+                      budgetCents === c
+                        ? "border-[#ff4500] text-[#ff4500]"
+                        : "border-[#262626] text-[#a3a3a3] hover:border-[#525252]"
+                    }`}
+                    data-testid={`promote-wizard-preset-${c}`}
+                  >
+                    {dollarsRound(c)}
+                  </button>
+                ))}
+              </div>
+
+              <div className="border border-[#262626] p-3 bg-[#050505]">
+                <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#737373] mb-2 flex items-center gap-1.5">
+                  <TrendingUp size={11} className="text-cyan-400" />
+                  Smart distribution preview
+                </div>
+                {previewLoading && (
+                  <div className="text-xs text-[#737373] py-2 flex items-center gap-2">
+                    <Loader2 size={10} className="animate-spin" /> Scoring listings…
+                  </div>
+                )}
+                {!previewLoading && preview.length === 0 && (
+                  <div className="text-xs text-[#737373] py-2">
+                    No published listings yet. The wizard will still create a plan — once you publish listings, the allocator picks them up automatically.
+                  </div>
+                )}
+                {!previewLoading && preview.length > 0 && (
+                  <div className="space-y-1.5">
+                    {preview.slice(0, 4).map((a) => (
+                      <div key={a.slug} className="flex items-center gap-2 text-xs" data-testid={`promote-wizard-alloc-${a.slug}`}>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[#f5f5f5] truncate">{a.title}</div>
+                          <div className="h-1 mt-0.5 bg-[#1f1f1f] rounded">
+                            <div
+                              className="h-1 bg-gradient-to-r from-[#ff4500] to-[#ff8800] rounded"
+                              style={{ width: `${Math.round((a.weight || 0) * 100)}%` }}
+                            />
+                          </div>
+                        </div>
+                        <span className="font-mono text-[10px] text-[#a3a3a3] tabular-nums w-16 text-right">{dollars(a.allocated_cents)}</span>
+                      </div>
+                    ))}
+                    {preview.length > 4 && (
+                      <div className="text-[10px] text-[#737373] pt-1">
+                        + {preview.length - 4} more listing{preview.length - 4 === 1 ? "" : "s"}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-3 text-[10px] text-[#737373] leading-snug">
+                Goal: <span className="text-[#a3a3a3]">{goalMeta?.label}</span>.
+                You can change this anytime from the Promote tab.
+              </div>
+            </div>
+          )}
+
+          {step === 3 && (
+            <div data-testid="promote-wizard-step-3">
+              <p className="text-sm text-[#a3a3a3] mb-4 leading-snug">
+                Add credit to your Promote wallet to unlock boosts. Funds carry forward — unused $$ at month-end stays in your wallet.
+              </p>
+
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">
+                One-time top-up
+              </div>
+              <div className="grid grid-cols-4 gap-1.5 mb-5">
+                {[2500, 5000, 10000, 25000].map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => onTopup(c)}
+                    disabled={busy === `topup-${c}`}
+                    className="p-3 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-display text-xl text-[#f5f5f5] disabled:opacity-50 flex flex-col items-center"
+                    data-testid={`promote-wizard-topup-${c}`}
+                  >
+                    {busy === `topup-${c}`
+                      ? <Loader2 size={14} className="animate-spin" />
+                      : <>{dollarsRound(c)}<span className="font-mono text-[9px] text-[#737373] uppercase tracking-[0.2em] mt-0.5">one-time</span></>}
+                  </button>
+                ))}
+              </div>
+
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">
+                Or — monthly auto-refill
+              </div>
+              <div className="grid grid-cols-3 gap-1.5">
+                {[2500, 5000, 10000].map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => onSubscribe(c)}
+                    disabled={busy === `sub-${c}`}
+                    className="p-3 border border-[#262626] hover:border-cyan-400 hover:text-cyan-400 font-display text-lg text-[#f5f5f5] disabled:opacity-50 flex flex-col items-center"
+                    data-testid={`promote-wizard-subscribe-${c}`}
+                  >
+                    {busy === `sub-${c}`
+                      ? <Loader2 size={14} className="animate-spin" />
+                      : <>{dollarsRound(c)}<span className="font-mono text-[9px] text-[#737373] uppercase tracking-[0.2em] mt-0.5">/month</span></>}
+                  </button>
+                ))}
+              </div>
+
+              <div className="mt-5 text-[10px] text-[#737373] leading-snug border-l-2 border-[#1f1f1f] pl-3">
+                You&apos;ll be redirected to Stripe to complete payment. Funds appear in your wallet within ~30s of checkout completing. Cancel anytime.
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer / nav */}
+        <footer className="px-6 py-4 border-t border-[#262626] flex items-center justify-between">
+          <button
+            onClick={step === 1 ? dismiss : back}
+            className="px-3 py-2 font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#f5f5f5] flex items-center gap-1.5"
+            data-testid="promote-wizard-back"
+          >
+            {step === 1 ? "Skip for now" : (<><ChevronLeft size={12} /> Back</>)}
+          </button>
+
+          {step < 3 && (
+            <button
+              onClick={next}
+              disabled={busy === "save"}
+              className="px-5 py-2.5 bg-[#ff4500] text-[#0a0a0a] font-mono text-xs uppercase tracking-[0.22em] disabled:opacity-50 flex items-center gap-1.5"
+              data-testid="promote-wizard-next"
+            >
+              {busy === "save"
+                ? <Loader2 size={12} className="animate-spin" />
+                : <>{step === 1 ? "Continue" : "Save & continue"} <ChevronRight size={12} /></>}
+            </button>
+          )}
+          {step === 3 && (
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] flex items-center gap-1.5">
+              <Wallet size={11} /> Pick an amount to launch
+            </div>
+          )}
+        </footer>
+      </div>
+    </div>
+  );
+}

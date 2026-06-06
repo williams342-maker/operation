@@ -23,6 +23,20 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - Admin: `/admin/login|verify|dashboard`
 
 ## What's Implemented (cumulative)
+- ✅ **Promote first-time setup wizard (iter335.6, 2026-06-06):**
+  • **3-step wizard** auto-opens on first visit to the Promote tab when:
+    - Wallet balance is 0 AND has never been funded (`lifetime_funded_cents === 0`)
+    - No campaign group exists for the maker
+    - User hasn't explicitly dismissed (`localStorage.promote_wizard_dismissed !== "true"`)
+  • **Step 1 — Goal:** 3 radio cards (Increase sales · Drive traffic · Build awareness) with one-line "best for" tooltips. Defaults to Increase sales. Active card glows orange with Sparkles icon.
+  • **Step 2 — Budget:** Slider $5–$500/mo + 4 presets ($25/$50/$100/$250) + live distribution preview (debounced 250ms, shows top 4 listings with weight bars). Empty-catalog hint when maker has no listings yet. Hitting Continue calls `upsertPromoteCampaign` so the plan persists before funding.
+  • **Step 3 — Fund:** 4 one-time top-up tiles ($25/$50/$100/$250) + 3 monthly subscription tiles ($25/$50/$100/mo). Either click → Stripe Checkout → wallet credits land via the existing webhook.
+  • **Re-open later:** "Setup" button in the header (next to Refresh) clears the dismissal flag and re-opens the wizard. Useful for makers who skipped on purpose then changed their mind.
+  • **Tests:** `/app/backend/tests/test_iter335d_promote_wizard.py` — 4/4 pass. Verifies API contract the predicate depends on (`balance_cents`, `lifetime_funded_cents`, `campaign` null state), funded wallets short-circuit, existing campaign short-circuits, Step 2 save creates the campaign.
+  • **Cumulative: 38/38 pass** across all iter335 suites.
+  • Smoke test: live preview screenshot confirmed wizard auto-opens on a fresh-state maker with all 3 steps reachable.
+  • Files: `frontend/src/pages/MakerDashboard/PromoteWizard.jsx` (NEW · ~330 LOC), `frontend/src/pages/MakerDashboard/PromoteTab.jsx` (wizard mount + Setup button).
+
 - ✅ **Backfill button parity — Google + Meta Ads (iter335.5+, 2026-06-06):**
   • **Symmetric API across all 3 ad platforms:** `POST /api/admin/integrations/{google-ads|microsoft-ads|meta-ads}/backfill?days={1..90}` — identical request/response contract, all admin-gated, all return `{status, days_requested, days_ok, days_skipped, days_error, total_rows, results}`. Days range validated (Pydantic Query `ge=1, le=90`).
   • **UI**: "Backfill 30 days" buttons added to both `GoogleAdsConnectionCard.jsx` and `MetaAdsConnectionCard.jsx` between Sync and Disconnect. Confirm modal warns 1–4 min runtime per platform (Google ~2-5s/day, Meta ~3-6s/day). Loading toast persists; success/partial/error toasts render the same `30/30 days · N rows` summary.

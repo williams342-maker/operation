@@ -28,6 +28,7 @@ import {
   fetchPromoteChannels, fetchExternalCampaigns,
   launchExternalCampaign, pauseExternalCampaign, resumeExternalCampaign,
 } from "../../lib/api";
+import PromoteWizard, { shouldShowWizard } from "./PromoteWizard";
 
 const TOPUP_PRESETS = [1000, 2500, 5000, 10000]; // $10 · $25 · $50 · $100
 const BUDGET_PRESETS = [1000, 2500, 5000, 10000, 25000]; // $10 → $250
@@ -47,6 +48,7 @@ export default function PromoteTab() {
   const [analytics, setAnalytics] = useState(null);
   const [channels, setChannels] = useState([]);
   const [extCampaigns, setExtCampaigns] = useState([]);
+  const [wizardOpen, setWizardOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState("");
 
@@ -73,6 +75,8 @@ export default function PromoteTab() {
         setAnalytics(a);
         setChannels(ch.channels || []);
         setExtCampaigns(ext.campaigns || []);
+        // First-time wizard: only opens for empty wallets without a campaign.
+        if (shouldShowWizard(w, c.campaign)) setWizardOpen(true);
         if (c.campaign) {
           setBudgetCents(c.campaign.budget_cents || 5000);
           setGoal(c.campaign.goal || "sales");
@@ -241,6 +245,13 @@ export default function PromoteTab() {
 
   return (
     <div className="space-y-6" data-testid="promote-tab">
+      {wizardOpen && (
+        <PromoteWizard
+          onComplete={() => setWizardOpen(false)}
+          onDismiss={() => setWizardOpen(false)}
+        />
+      )}
+
       {/* ── Header ─────────────────────────────────────────────────── */}
       <header className="flex flex-wrap items-end justify-between gap-3 border-b border-[#262626] pb-4">
         <div>
@@ -253,13 +264,26 @@ export default function PromoteTab() {
             Set one budget. We pick which listings to boost based on your goal — no campaign manager, no per-listing micromanaging.
           </p>
         </div>
-        <button
-          onClick={refresh}
-          className="px-3 py-2 border border-[#262626] hover:border-cyan-400 font-mono text-[10px] uppercase tracking-[0.22em] flex items-center gap-1.5"
-          data-testid="promote-refresh-btn"
-        >
-          <RefreshCw size={11} /> Refresh
-        </button>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <button
+            onClick={() => {
+              try { localStorage.removeItem("promote_wizard_dismissed"); } catch { /* noop */ }
+              setWizardOpen(true);
+            }}
+            className="px-3 py-2 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] flex items-center gap-1.5"
+            data-testid="promote-rerun-wizard-btn"
+            title="Re-open the 3-step setup wizard"
+          >
+            <Rocket size={11} /> Setup
+          </button>
+          <button
+            onClick={refresh}
+            className="px-3 py-2 border border-[#262626] hover:border-cyan-400 font-mono text-[10px] uppercase tracking-[0.22em] flex items-center gap-1.5"
+            data-testid="promote-refresh-btn"
+          >
+            <RefreshCw size={11} /> Refresh
+          </button>
+        </div>
       </header>
 
       {/* ── Wallet ─────────────────────────────────────────────────── */}
