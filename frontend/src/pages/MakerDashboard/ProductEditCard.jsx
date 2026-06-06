@@ -45,7 +45,6 @@ export default function ProductEditCard({ product, archived = false, draft = fal
   // whenever the budget map upstream changes (e.g. another card just
   // saved or the listings list refreshed). Keeps the "$ X/mo" pill
   // label and the popover's pre-fill in lockstep.
-  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     setBudgetCap(
       product.marketing_budget_cents != null
@@ -54,7 +53,6 @@ export default function ProductEditCard({ product, archived = false, draft = fal
     );
     setBudgetAutoRenew(product.marketing_budget_auto_renew !== false);
   }, [product.marketing_budget_cents, product.marketing_budget_auto_renew]);
-  /* eslint-enable react-hooks/set-state-in-effect */
   const modelInputRef = useRef(null);
 
   const save = async (e) => {
