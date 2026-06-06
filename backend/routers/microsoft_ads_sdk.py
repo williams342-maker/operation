@@ -224,8 +224,14 @@ def _run_report_sync(date_str: str, refresh_token: str,
     rpt.ExcludeReportHeader = True
 
     scope = factory.create("AccountThroughCampaignReportScope")
-    scope.AccountIds = factory.create("ArrayOflong")
-    scope.AccountIds.long.append(int(account_id))
+    # Microsoft's official Python SDK sample passes AccountIds as a dict
+    # literal — suds serializes `{'long': [...]}` into the right
+    # ArrayOflong shape regardless of the WSDL's internal namespace.
+    # Using `factory.create("ArrayOflong")` fails with
+    # `Type not found: 'ArrayOflong'` because that type is namespaced
+    # inside the reporting WSDL.
+    scope.AccountIds = {"long": [int(account_id)]}
+    scope.Campaigns = None
     rpt.Scope = scope
 
     cols = factory.create("ArrayOfCampaignPerformanceReportColumn")
