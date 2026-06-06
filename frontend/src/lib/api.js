@@ -332,6 +332,9 @@ export const recordMsftAdSpend = (amount_usd, period_days = 7, note = null) =>
 // iter334u — Google Ads ROAS tile (admin) — live spend from synced ad_spend rows.
 export const fetchGoogleRoas = (days = 7) =>
   http.get("/admin/ads/google-roas", { params: { days }, headers: adminAuthHeaders() }).then((r) => r.data);
+// iter334v — Combined "All Ads ROAS" (Microsoft + Google).
+export const fetchAllAdsRoas = (days = 7) =>
+  http.get("/admin/ads/all-roas", { params: { days }, headers: adminAuthHeaders() }).then((r) => r.data);
 export const renewMakerProduct = (slug) =>
   http.post(`/maker/products/${slug}/renew`, {}, { headers: authHeaders() }).then((r) => r.data);
 export const fetchMakerProductsStats = () =>
