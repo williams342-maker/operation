@@ -199,6 +199,9 @@ api.include_router(admin_google_roas_router)
 # iter334x — Meta Ads ROAS tile (live spend from synced ad_spend rows).
 from routers.admin_meta_roas import router as admin_meta_roas_router
 api.include_router(admin_meta_roas_router)
+# iter334y — Weekly ROAS digest email (Monday morning cron + admin tools).
+from routers.roas_digest import router as roas_digest_router
+api.include_router(roas_digest_router)
 # iter334v — Combined "All Ads ROAS" header card (Microsoft + Google).
 from routers.admin_all_roas import router as admin_all_roas_router
 api.include_router(admin_all_roas_router)

@@ -754,6 +754,17 @@ async def _job_microsoft_ads_daily_sync() -> None:
         logger.exception("[scheduler] microsoft_ads_daily_sync failed: %s", e)
 
 
+async def _job_weekly_roas_digest() -> None:
+    """Mondays 13:00 UTC (~6am Pacific) — combined paid-channel ROAS
+    digest emailed to OPS_EMAIL. iter334y. Idempotent on ISO week."""
+    try:
+        from routers.roas_digest import run_weekly_roas_digest
+        r = await run_weekly_roas_digest()
+        logger.info("[scheduler] weekly_roas_digest: %s", r)
+    except Exception as e:
+        logger.exception("[scheduler] weekly_roas_digest failed: %s", e)
+
+
 async def _job_listing_budgets_renew() -> None:
     """iter315 — Daily 03:30 UTC. Resets MTD spend on the 1st of each
     month + auto-renews $5/wk boosts on listings whose maker-set
@@ -1198,6 +1209,12 @@ def start_scheduler() -> AsyncIOScheduler | None:
     sched.add_job(_job_microsoft_ads_daily_sync,
                   CronTrigger(hour=4, minute=30),
                   id="microsoft_ads_daily_sync", replace_existing=True)
+    # Weekly ROAS digest email — Mondays 13:00 UTC (~6am Pacific).
+    # iter334y. Idempotent on ISO week so a process restart-on-Monday
+    # doesn't double-send.
+    sched.add_job(_job_weekly_roas_digest,
+                  CronTrigger(day_of_week="mon", hour=13, minute=0),
+                  id="weekly_roas_digest", replace_existing=True)
     # Weekly maker-journal digest — Monday 14:00 UTC (≈ 9am ET / 6am PT
     # — buyers tend to read on the train/over coffee, not 2am). Sends
     # one email per (maker, follower) pair summarizing all of that

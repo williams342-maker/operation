@@ -108,9 +108,11 @@ async def oauth_start(_: dict = Depends(current_admin)):
         "response_type": "code",
         "redirect_uri": _redirect_uri(),
         "scope": " ".join(SCOPES),
-        # Force consent screen + account picker so the wrong MSA isn't
-        # silently re-used (same trap we hit on Google).
-        "prompt": "consent select_account",
+        # Microsoft's v2.0 endpoint rejects multi-value `prompt` (unlike
+        # Google's `consent select_account`). Use a single value —
+        # `select_account` is the more useful of the two since it
+        # surfaces the account picker after first consent.
+        "prompt": "select_account",
         "state": state,
     }
     return OauthStartResponse(
