@@ -46,7 +46,7 @@ async def _platform_aggregate(platform: str, days: int, start_iso: str,
         click_field = "msclkid"
         spend_doc = await db.ops_settings.find_one({"_id": "bing_ad_spend"}, {"_id": 0})
         spend = float((spend_doc or {}).get("amount_usd") or 0)
-    else:  # google
+    elif platform == "google":
         click_field = "gclid"
         # Sum platform=google ad_spend rows in the date window.
         pipeline = [
@@ -58,6 +58,21 @@ async def _platform_aggregate(platform: str, days: int, start_iso: str,
         ]
         agg = await db.ad_spend.aggregate(pipeline).to_list(length=1)
         spend = float(agg[0]["total"]) if agg else 0.0
+    elif platform == "meta":
+        # iter334x — Meta spend lives in the same ad_spend collection,
+        # just with platform="meta". Revenue is attributed via fbclid.
+        click_field = "fbclid"
+        pipeline = [
+            {"$match": {
+                "platform": "meta",
+                "date": {"$gte": start_date, "$lte": end_date},
+            }},
+            {"$group": {"_id": None, "total": {"$sum": "$spend_usd"}}},
+        ]
+        agg = await db.ad_spend.aggregate(pipeline).to_list(length=1)
+        spend = float(agg[0]["total"]) if agg else 0.0
+    else:
+        raise ValueError(f"Unknown platform: {platform}")
 
     cursor = db.payment_transactions.find(
         {
@@ -94,10 +109,11 @@ async def all_roas(days: int = 7, _admin: dict = Depends(current_admin)):
 
     ms = await _platform_aggregate("microsoft", days, start_iso, start_date, end_date)
     gg = await _platform_aggregate("google", days, start_iso, start_date, end_date)
+    mt = await _platform_aggregate("meta", days, start_iso, start_date, end_date)
 
-    total_orders = ms["orders"] + gg["orders"]
-    total_revenue = round(ms["revenue"] + gg["revenue"], 2)
-    total_spend = round(ms["spend"] + gg["spend"], 2)
+    total_orders = ms["orders"] + gg["orders"] + mt["orders"]
+    total_revenue = round(ms["revenue"] + gg["revenue"] + mt["revenue"], 2)
+    total_spend = round(ms["spend"] + gg["spend"] + mt["spend"], 2)
     roas = round(total_revenue / total_spend, 2) if total_spend > 0 else None
 
     return {
@@ -107,5 +123,5 @@ async def all_roas(days: int = 7, _admin: dict = Depends(current_admin)):
         "total_attributed_revenue": total_revenue,
         "total_ad_spend_usd": total_spend,
         "roas": roas,
-        "breakdown": [ms, gg],
+        "breakdown": [ms, gg, mt],
     }

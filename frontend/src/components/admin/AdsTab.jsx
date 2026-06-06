@@ -10,6 +10,7 @@ import { Stat } from "./_shared";
 import { Sparkline } from "../Charts";
 import { useConfirm } from "../../hooks/useConfirm";
 import GoogleAdsConnectionCard from "./GoogleAdsConnectionCard";
+import MicrosoftAdsConnectionCard from "./MicrosoftAdsConnectionCard";
 import MetaAdsConnectionCard from "./MetaAdsConnectionCard";
 
 const PLATFORM_TONE = {
@@ -86,6 +87,7 @@ export default function AdsTab() {
     <div data-testid="ads-tab" className="space-y-6">
       {confirmModal}
       <GoogleAdsConnectionCard />
+      <MicrosoftAdsConnectionCard />
       <MetaAdsConnectionCard />
       <div className="border border-[#262626] p-4 md:p-5">
         <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-2">

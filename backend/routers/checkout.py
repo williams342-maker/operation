@@ -583,6 +583,8 @@ async def create_checkout(req: CheckoutRequest, http_request: Request):
         "msclkid": ((req.msclkid or "").strip()[:100] or None),
         # iter334u — Google Click ID for Google Ads attribution.
         "gclid": ((req.gclid or "").strip()[:200] or None),
+        # iter334x — Facebook Click ID for Meta Ads attribution.
+        "fbclid": ((req.fbclid or "").strip()[:300] or None),
         "payment_status": "initiated",
         "status": "open",
         # Policy audit trail — proves which version the buyer agreed to and

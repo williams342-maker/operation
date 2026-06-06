@@ -742,6 +742,18 @@ async def _job_meta_ads_daily_sync() -> None:
         logger.exception("[scheduler] meta_ads_daily_sync failed: %s", e)
 
 
+async def _job_microsoft_ads_daily_sync() -> None:
+    """Daily 04:30 UTC — Microsoft Ads (Bing) campaign metrics sync.
+    iter334w. Offset another 30 min from Meta to keep the worker pool
+    spread across the night. Skips silently when not connected."""
+    try:
+        from routers.microsoft_ads_sdk import sync_metrics
+        r = await sync_metrics()
+        logger.info("[scheduler] microsoft_ads_daily_sync: %s", r)
+    except Exception as e:
+        logger.exception("[scheduler] microsoft_ads_daily_sync failed: %s", e)
+
+
 async def _job_listing_budgets_renew() -> None:
     """iter315 — Daily 03:30 UTC. Resets MTD spend on the 1st of each
     month + auto-renews $5/wk boosts on listings whose maker-set
@@ -1181,6 +1193,11 @@ def start_scheduler() -> AsyncIOScheduler | None:
     sched.add_job(_job_meta_ads_daily_sync,
                   CronTrigger(hour=4, minute=0),
                   id="meta_ads_daily_sync", replace_existing=True)
+    # Microsoft Ads daily metrics sync — 04:30 UTC. iter334w. Offset
+    # another 30 min from Meta to space out the network calls.
+    sched.add_job(_job_microsoft_ads_daily_sync,
+                  CronTrigger(hour=4, minute=30),
+                  id="microsoft_ads_daily_sync", replace_existing=True)
     # Weekly maker-journal digest — Monday 14:00 UTC (≈ 9am ET / 6am PT
     # — buyers tend to read on the train/over coffee, not 2am). Sends
     # one email per (maker, follower) pair summarizing all of that

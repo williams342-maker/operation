@@ -130,11 +130,16 @@ function _attachListenersOnce() {
  *
  * iter334u — Same pattern for Google Ads `gclid` query param → Google
  * Ads ROAS tile attribution.
+ *
+ * iter334x — Same pattern for Meta Ads `fbclid` query param → Meta
+ * Ads ROAS tile attribution.
  */
 const MSCLKID_KEY = "cm_msclkid";
 const MSCLKID_TS_KEY = "cm_msclkid_ts";
 const GCLID_KEY = "cm_gclid";
 const GCLID_TS_KEY = "cm_gclid_ts";
+const FBCLID_KEY = "cm_fbclid";
+const FBCLID_TS_KEY = "cm_fbclid_ts";
 
 export function captureAttribution() {
   try {
@@ -158,6 +163,14 @@ export function captureAttribution() {
       localStorage.setItem(GCLID_KEY, gclid.slice(0, 200));
       localStorage.setItem(GCLID_TS_KEY, String(Date.now()));
     }
+    const fbclid = url.searchParams.get("fbclid");
+    if (fbclid) {
+      // Facebook Click ID (Meta). 28-day default attribution window.
+      // We use the same 30-day TTL — close enough and one less knob.
+      // Fbclids can be quite long (encoded session data), cap at 300.
+      localStorage.setItem(FBCLID_KEY, fbclid.slice(0, 300));
+      localStorage.setItem(FBCLID_TS_KEY, String(Date.now()));
+    }
   } catch { /* swallow */ }
 }
 
@@ -178,6 +191,17 @@ export function getGclid() {
     const ts = parseInt(localStorage.getItem(GCLID_TS_KEY) || "0", 10);
     if (!ts || Date.now() - ts > ATTR_TTL_MS) return null;
     return localStorage.getItem(GCLID_KEY) || null;
+  } catch {
+    return null;
+  }
+}
+
+/** Returns the persisted fbclid if within 30-day TTL, else null. */
+export function getFbclid() {
+  try {
+    const ts = parseInt(localStorage.getItem(FBCLID_TS_KEY) || "0", 10);
+    if (!ts || Date.now() - ts > ATTR_TTL_MS) return null;
+    return localStorage.getItem(FBCLID_KEY) || null;
   } catch {
     return null;
   }

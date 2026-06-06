@@ -46,8 +46,9 @@ export default function AllAdsRoasCard() {
   const platformAccent = {
     microsoft: "text-cyan-300 border-cyan-400/30",
     google: "text-emerald-300 border-emerald-400/30",
+    meta: "text-blue-300 border-blue-400/30",
   };
-  const platformLabel = { microsoft: "Microsoft", google: "Google" };
+  const platformLabel = { microsoft: "Microsoft", google: "Google", meta: "Meta" };
 
   const refresh = () => setDays((d) => d);
 
@@ -112,8 +113,8 @@ export default function AllAdsRoasCard() {
           </div>
         </div>
 
-        {/* Per-platform breakdown — spans 2 cols */}
-        <div className="md:col-span-2 grid sm:grid-cols-2 gap-3" data-testid="all-roas-breakdown">
+        {/* Per-platform breakdown — spans 2 cols (3 platforms fit nicely on md+) */}
+        <div className="md:col-span-2 grid sm:grid-cols-3 gap-3" data-testid="all-roas-breakdown">
           {(data?.breakdown || []).map((p) => (
             <div
               key={p.platform}

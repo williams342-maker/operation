@@ -700,6 +700,10 @@ class CheckoutRequest(BaseModel):
     # to Google Ads clicks. gclids can be longer than msclkids (encoded
     # auction metadata), so we allow up to 200 chars.
     gclid: Optional[str] = Field(default=None, max_length=200)
+    # iter334x — Facebook/Meta Click ID (fbclid). Mirror of gclid; surfaced
+    # on the admin Meta Ads ROAS tile. fbclids encode session metadata and
+    # can be quite long, so we allow up to 300 chars.
+    fbclid: Optional[str] = Field(default=None, max_length=300)
     discount_code: Optional[str] = None        # per-shop maker promo code
     # Audit-trail consent. Frontend must stamp this client-side at submit;
     # backend re-stamps a server-time value into the order doc.

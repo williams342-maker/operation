@@ -65,6 +65,7 @@ from routers.abandoned_cart import router as abandoned_cart_router
 from routers.feeds import router as feeds_router
 from routers.story_card import router as story_card_router
 from routers.google_ads import router as google_ads_router
+from routers.microsoft_ads import router as microsoft_ads_router
 from routers.meta_ads import router as meta_ads_router
 from routers.journal_digest import router as journal_digest_router
 from routers.share_counter import router as share_counter_router
@@ -140,6 +141,7 @@ api.include_router(abandoned_cart_router)
 api.include_router(feeds_router)
 api.include_router(story_card_router)
 api.include_router(google_ads_router)
+api.include_router(microsoft_ads_router)
 api.include_router(meta_ads_router)
 api.include_router(journal_digest_router)
 api.include_router(share_counter_router)
@@ -194,6 +196,9 @@ api.include_router(admin_msft_roas_router)
 # iter334u — Google Ads ROAS tile (live spend from synced ad_spend rows).
 from routers.admin_google_roas import router as admin_google_roas_router
 api.include_router(admin_google_roas_router)
+# iter334x — Meta Ads ROAS tile (live spend from synced ad_spend rows).
+from routers.admin_meta_roas import router as admin_meta_roas_router
+api.include_router(admin_meta_roas_router)
 # iter334v — Combined "All Ads ROAS" header card (Microsoft + Google).
 from routers.admin_all_roas import router as admin_all_roas_router
 api.include_router(admin_all_roas_router)

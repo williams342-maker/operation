@@ -6,6 +6,7 @@ import { StatsSkeleton, RowsSkeleton } from "../Skeleton";
 import GA4LiveCard from "./GA4LiveCard";
 import MsftRoasCard from "./MsftRoasCard";
 import GoogleRoasCard from "./GoogleRoasCard";
+import MetaRoasCard from "./MetaRoasCard";
 import AllAdsRoasCard from "./AllAdsRoasCard";
 
 // ===================== ANALYTICS =====================
@@ -40,6 +41,8 @@ export default function AnalyticsTab() {
       <MsftRoasCard />
       {/* iter334u — Google Ads ROAS tile (live spend from synced campaigns). */}
       <GoogleRoasCard />
+      {/* iter334x — Meta Ads ROAS tile (Facebook + Instagram). */}
+      <MetaRoasCard />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Stat label="GMV (all-time)" value={`$${data.gmv.toFixed(0)}`} testId="an-gmv" />
