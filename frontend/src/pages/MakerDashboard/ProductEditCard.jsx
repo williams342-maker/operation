@@ -8,6 +8,7 @@ import {
   upsertListingBudget, deleteListingBudget,
   aiTitleRefresh,
 } from "../../lib/api";
+import { listingPriceRange } from "../../lib/variantPricing";
 import { useConfirm } from "./useConfirm";
 import { toast } from "sonner";
 
@@ -44,6 +45,7 @@ export default function ProductEditCard({ product, archived = false, draft = fal
   // whenever the budget map upstream changes (e.g. another card just
   // saved or the listings list refreshed). Keeps the "$ X/mo" pill
   // label and the popover's pre-fill in lockstep.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     setBudgetCap(
       product.marketing_budget_cents != null
@@ -52,6 +54,7 @@ export default function ProductEditCard({ product, archived = false, draft = fal
     );
     setBudgetAutoRenew(product.marketing_budget_auto_renew !== false);
   }, [product.marketing_budget_cents, product.marketing_budget_auto_renew]);
+  /* eslint-enable react-hooks/set-state-in-effect */
   const modelInputRef = useRef(null);
 
   const save = async (e) => {
@@ -212,7 +215,19 @@ export default function ProductEditCard({ product, archived = false, draft = fal
         {indexing && <IndexingBadge indexing={indexing} slug={p.slug} />}
         <div className="font-display text-base mt-1.5 leading-tight line-clamp-2 min-h-[2.4em]">{p.title}</div>
         <div className="flex items-center justify-between mt-2">
-          <span className="font-display text-lg text-[#ff4500]">${p.price.toFixed(0)}</span>
+          <span className="font-display text-lg text-[#ff4500]" data-testid={`product-price-${p.slug}`}>
+            {(() => {
+              // iter334r+ — When base price is 0 but variants carry
+              // absolute prices, surface the variant range so makers
+              // (and the buyer-facing card) don't see a misleading "$0".
+              const base = Number(p.price || 0);
+              const [min, max] = listingPriceRange(p);
+              if (base > 0) return `$${base.toFixed(0)}`;
+              if (max <= 0) return "$0";
+              if (min === max) return `$${Math.round(min)}`;
+              return `$${Math.round(min)} – $${Math.round(max)}`;
+            })()}
+          </span>
           <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-[#a3a3a3]">
             {p.in_stock} in stock
           </span>
