@@ -353,3 +353,47 @@ async def manual_sync(
     _: dict = Depends(current_admin),
 ):
     return await sync_metrics(date_str=date)
+
+
+
+@router.post("/admin/integrations/meta-ads/backfill")
+async def backfill(
+    days: int = Query(default=30, ge=1, le=90),
+    _: dict = Depends(current_admin),
+):
+    """iter335.5 — Bulk historical pull for the Meta Ads ROAS tile.
+
+    Mirrors the Google/Microsoft Ads backfill pattern. Meta's
+    `/insights` endpoint accepts up to ~37 months of history, but we
+    cap at 90 days here to keep the per-request rate-limit budget
+    bounded (Meta's Marketing API throttles aggressively when you
+    walk months in one session)."""
+    today = datetime.now(timezone.utc).date()
+    results: list[dict] = []
+    total_rows = 0
+    n_ok = n_skip = n_err = 0
+
+    for i in range(1, days + 1):
+        d = (today - timedelta(days=i)).strftime("%Y-%m-%d")
+        try:
+            r = await sync_metrics(date_str=d)
+        except Exception as e:
+            r = {"status": "error", "date": d, "error": str(e)[:200]}
+        results.append(r)
+        if r.get("status") == "ok":
+            n_ok += 1
+            total_rows += int(r.get("rows") or 0)
+        elif r.get("status") == "skipped":
+            n_skip += 1
+        else:
+            n_err += 1
+
+    return {
+        "status": "ok" if n_err == 0 else "partial",
+        "days_requested": days,
+        "days_ok": n_ok,
+        "days_skipped": n_skip,
+        "days_error": n_err,
+        "total_rows": total_rows,
+        "results": results,
+    }

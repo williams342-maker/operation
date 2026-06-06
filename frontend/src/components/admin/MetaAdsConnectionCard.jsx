@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { CheckCircle2, AlertCircle, Loader2, RefreshCw, Unplug } from "lucide-react";
+import { CheckCircle2, AlertCircle, Loader2, RefreshCw, Unplug, History } from "lucide-react";
 import {
   fetchMetaAdsStatus, startMetaAdsOauth, disconnectMetaAds,
-  triggerMetaAdsSync,
+  triggerMetaAdsSync, backfillMetaAds,
 } from "../../lib/api";
 import { useConfirm } from "../../hooks/useConfirm";
 
@@ -63,6 +63,34 @@ export default function MetaAdsConnectionCard() {
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Sync failed.");
     } finally { setBusy(""); }
+  };
+
+  const onBackfill = async () => {
+    const ok = await confirm({
+      title: "Backfill the last 30 days?",
+      body: "Walks day-by-day through Meta's Marketing API. Each day takes ~3–6s so the whole batch runs 2–4 min. Leave the tab open. Already-synced days are upserted (no duplicates).",
+      confirmLabel: "Run 30-day backfill",
+      tone: "info",
+      testId: "confirm-meta-ads-backfill",
+    });
+    if (!ok) return;
+    setBusy("backfill");
+    const t = toast.loading("Backfilling 30 days of Meta Ads spend…", { duration: Infinity });
+    try {
+      const r = await backfillMetaAds(30);
+      toast.dismiss(t);
+      if (r.status === "ok") {
+        toast.success(`Backfill complete · ${r.days_ok}/${r.days_requested} days · ${r.total_rows} campaign rows.`);
+      } else {
+        toast.warning(`Backfill partial · ${r.days_ok} ok · ${r.days_skipped} skipped · ${r.days_error} error · ${r.total_rows} rows.`);
+      }
+      await refresh();
+    } catch (e) {
+      toast.dismiss(t);
+      toast.error(e?.response?.data?.detail || "Backfill failed. Meta's Marketing API may be throttling — retry in a few minutes.");
+    } finally {
+      setBusy("");
+    }
   };
 
   const onDisconnect = async () => {
@@ -172,6 +200,13 @@ export default function MetaAdsConnectionCard() {
             data-testid="meta-ads-sync-btn">
             {busy === "sync" ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />}
             Sync yesterday now
+          </button>
+          <button onClick={onBackfill} disabled={busy === "backfill"}
+            className="px-3 py-2 border border-[#262626] hover:border-[#1877f2] font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50 flex items-center gap-1.5"
+            data-testid="meta-ads-backfill-btn"
+            title="Pull the last 30 days of spend into the ad_spend ledger. Takes 2–4 min.">
+            {busy === "backfill" ? <Loader2 size={11} className="animate-spin" /> : <History size={11} />}
+            Backfill 30 days
           </button>
           <button onClick={onDisconnect} disabled={busy === "disconnect"}
             className="px-3 py-2 border border-red-900/60 text-red-300 hover:border-red-500 hover:text-red-200 font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50 flex items-center gap-1.5"

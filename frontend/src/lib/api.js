@@ -774,6 +774,11 @@ export const triggerGoogleAdsSync = (date) =>
     {},
     { params: date ? { date } : {}, headers: adminAuthHeaders() }
   ).then((r) => r.data);
+export const backfillGoogleAds = (days = 30) =>
+  http.post("/admin/integrations/google-ads/backfill",
+    {},
+    { params: { days }, headers: adminAuthHeaders(), timeout: 600000 }
+  ).then((r) => r.data);
 
 // iter334w — Microsoft Ads (Bing) integration. Same shape as Google.
 export const fetchMicrosoftAdsStatus = () =>
@@ -813,6 +818,11 @@ export const triggerMetaAdsSync = (date) =>
   http.post("/admin/integrations/meta-ads/sync",
     {},
     { params: date ? { date } : {}, headers: adminAuthHeaders() }
+  ).then((r) => r.data);
+export const backfillMetaAds = (days = 30) =>
+  http.post("/admin/integrations/meta-ads/backfill",
+    {},
+    { params: { days }, headers: adminAuthHeaders(), timeout: 600000 }
   ).then((r) => r.data);
 
 // ---------- Newsletter (Kit.com) ----------

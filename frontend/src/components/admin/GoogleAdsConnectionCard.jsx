@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { CheckCircle2, AlertCircle, Loader2, RefreshCw, Unplug, Copy } from "lucide-react";
+import { CheckCircle2, AlertCircle, Loader2, RefreshCw, Unplug, Copy, History } from "lucide-react";
 import {
   fetchGoogleAdsStatus, startGoogleAdsOauth, disconnectGoogleAds,
-  triggerGoogleAdsSync,
+  triggerGoogleAdsSync, backfillGoogleAds,
 } from "../../lib/api";
 import { useConfirm } from "../../hooks/useConfirm";
 
@@ -85,6 +85,34 @@ export default function GoogleAdsConnectionCard() {
       await refresh();
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Sync failed.");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const onBackfill = async () => {
+    const ok = await confirm({
+      title: "Backfill the last 30 days?",
+      body: "Walks day-by-day through the Google Ads API. Each day takes ~2–5s so the whole batch runs 1–3 min. Leave the tab open. Already-synced days are upserted (no duplicates).",
+      confirmLabel: "Run 30-day backfill",
+      tone: "info",
+      testId: "confirm-google-ads-backfill",
+    });
+    if (!ok) return;
+    setBusy("backfill");
+    const t = toast.loading("Backfilling 30 days of Google Ads spend…", { duration: Infinity });
+    try {
+      const r = await backfillGoogleAds(30);
+      toast.dismiss(t);
+      if (r.status === "ok") {
+        toast.success(`Backfill complete · ${r.days_ok}/${r.days_requested} days · ${r.total_rows} campaign rows.`);
+      } else {
+        toast.warning(`Backfill partial · ${r.days_ok} ok · ${r.days_skipped} skipped · ${r.days_error} error · ${r.total_rows} rows.`);
+      }
+      await refresh();
+    } catch (e) {
+      toast.dismiss(t);
+      toast.error(e?.response?.data?.detail || "Backfill failed. The Google Ads API may be rate-limiting — retry in a few minutes.");
     } finally {
       setBusy("");
     }
@@ -267,6 +295,16 @@ export default function GoogleAdsConnectionCard() {
           >
             {busy === "sync" ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />}
             Sync yesterday now
+          </button>
+          <button
+            onClick={onBackfill}
+            disabled={busy === "backfill"}
+            className="px-3 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50 flex items-center gap-1.5"
+            data-testid="google-ads-backfill-btn"
+            title="Pull the last 30 days of spend into the ad_spend ledger. Takes 1–3 min."
+          >
+            {busy === "backfill" ? <Loader2 size={11} className="animate-spin" /> : <History size={11} />}
+            Backfill 30 days
           </button>
           <button
             onClick={onDisconnect}

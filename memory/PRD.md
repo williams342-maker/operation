@@ -23,6 +23,13 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - Admin: `/admin/login|verify|dashboard`
 
 ## What's Implemented (cumulative)
+- ✅ **Backfill button parity — Google + Meta Ads (iter335.5+, 2026-06-06):**
+  • **Symmetric API across all 3 ad platforms:** `POST /api/admin/integrations/{google-ads|microsoft-ads|meta-ads}/backfill?days={1..90}` — identical request/response contract, all admin-gated, all return `{status, days_requested, days_ok, days_skipped, days_error, total_rows, results}`. Days range validated (Pydantic Query `ge=1, le=90`).
+  • **UI**: "Backfill 30 days" buttons added to both `GoogleAdsConnectionCard.jsx` and `MetaAdsConnectionCard.jsx` between Sync and Disconnect. Confirm modal warns 1–4 min runtime per platform (Google ~2-5s/day, Meta ~3-6s/day). Loading toast persists; success/partial/error toasts render the same `30/30 days · N rows` summary.
+  • **Test parity:** `/app/backend/tests/test_iter335c_ads_backfill_parity.py` — parametrized tests for all 3 platforms (6/6 pass). Verifies: endpoint exists, validates days range, requires admin auth, returns the standard summary shape. Any platform-specific refactor that changes the contract now fails the test.
+  • **Cumulative test pass: 34/34** across all iter335 suites.
+  • Files: `routers/google_ads.py` (+44 lines backfill), `routers/meta_ads.py` (+44 lines backfill), `frontend/src/lib/api.js` (+12 lines for 2 helpers), `components/admin/GoogleAdsConnectionCard.jsx` (+button + handler), `components/admin/MetaAdsConnectionCard.jsx` (+button + handler).
+
 - ✅ **Unified Promotion Engine — Phase 1.5: External ad channels (iter335.5, 2026-06-06):**
   • **Scope (per recommendation):** 1b (Microsoft-LIVE, Google/Meta stubs) · 2a (auto-derive creative from listing) · 3a (URL-param attribution via existing gclid/msclkid/fbclid). Safety-first: every new external campaign lands in `paused` state; maker must explicitly Activate before real spend starts.
   • **Adapter framework:** `/app/backend/services/ads_gateway/` — `base.py` (abstract `AdsGateway` + `CreateCampaignSpec` + `CampaignHandle` + `GatewayError/NotEligible/NotImplemented`), `__init__.py` (lazy factory `get_gateway(channel)`), `microsoft.py` (LIVE, ~250 lines of bingads SOAP), `google.py` + `meta.py` (stubs with eligibility=False + planned approval timelines).
