@@ -23,6 +23,14 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - Admin: `/admin/login|verify|dashboard`
 
 ## What's Implemented (cumulative)
+- ✅ **Ad Attribution Health admin tile (iter335.10, 2026-06-06):**
+  • **New endpoint:** `GET /api/admin/ads/attribution-health` — single-shot 7-day diagnostic over `payment_transactions` × `conversion_upload_log`. Returns: paid_sessions total, sessions_with_click_id, click_id_coverage_pct, per-channel breakdown (paid w/ click ID · uploaded_ok · errored · pending · upload_rate_pct), replay_backlog (distinct sessions still in err: state).
+  • **New card:** `AdAttributionHealthCard.jsx` mounted at the top of Admin → Ads tab (above the 3 connection cards). 3 KPI tiles (Coverage / Paid sessions / Replay backlog with amber-warning state when > 0) + per-channel table with green/amber/red coloring on upload rate. Amber call-out below when backlog > 0 telling the admin the daily 05:30 UTC replay will retry.
+  • **Defensive math:** when `paid_sessions === 0` the endpoint returns `null` for percentages (not divide-by-zero) and the UI renders "—" gracefully.
+  • **Tests:** `/app/backend/tests/test_iter335h_attribution_health.py` — 4/4 pass. Covers: empty window (no div-by-zero), 3-paid-sessions math (75% coverage, per-channel rates correct, backlog count), 7-day cutoff (older rows ignored), admin auth gate.
+  • **Cumulative: 66/66 pass** across all iter335 suites.
+  • Files: `routers/admin_ads_health.py` (NEW), `server.py` (router mount), `frontend/src/lib/api.js` (helper), `frontend/src/components/admin/AdAttributionHealthCard.jsx` (NEW), `frontend/src/components/admin/AdsTab.jsx` (card mount).
+
 - ✅ **Promote wizard 4th step — "🎉 You're live" with one-click Apply (iter335.9, 2026-06-06):**
   • **Post-funding state:** When the maker clicks a top-up or subscribe button in Step 3, the wizard sets `localStorage.promote_wizard_pending_return = "true"` BEFORE redirecting to Stripe. After Stripe redirects back to `/maker/dashboard?tab=promote&topup=success`, `PromoteTab` reads that flag synchronously (before the URL cleanup block scrubs the params) via the new `shouldShowSuccessStep()` predicate and re-opens the wizard at `initialStep=4`.
   • **Step 4 body:** Hero showcases the new wallet balance in 5xl orange. If `applyResult` is null, shows a "Next: boost your listings" pitch + an **Apply now** button that fires `applyPromoteCampaign()`. Result lands inline as a green emerald-bordered panel: total boosts applied · cents spent · top-4 boosted listings (slug + boost-weeks + spend).

@@ -12,6 +12,7 @@ import { useConfirm } from "../../hooks/useConfirm";
 import GoogleAdsConnectionCard from "./GoogleAdsConnectionCard";
 import MicrosoftAdsConnectionCard from "./MicrosoftAdsConnectionCard";
 import MetaAdsConnectionCard from "./MetaAdsConnectionCard";
+import AdAttributionHealthCard from "./AdAttributionHealthCard";
 
 const PLATFORM_TONE = {
   google: "border-blue-700/50 text-blue-300",
@@ -86,6 +87,7 @@ export default function AdsTab() {
   return (
     <div data-testid="ads-tab" className="space-y-6">
       {confirmModal}
+      <AdAttributionHealthCard />
       <GoogleAdsConnectionCard />
       <MicrosoftAdsConnectionCard />
       <MetaAdsConnectionCard />

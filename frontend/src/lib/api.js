@@ -824,6 +824,10 @@ export const backfillMetaAds = (days = 30) =>
     {},
     { params: { days }, headers: adminAuthHeaders(), timeout: 600000 }
   ).then((r) => r.data);
+export const fetchAdAttributionHealth = () =>
+  http.get("/admin/ads/attribution-health",
+    { headers: adminAuthHeaders() }
+  ).then((r) => r.data);
 
 // ---------- Newsletter (Kit.com) ----------
 export const subscribeNewsletter = (email, source = "homepage") =>
