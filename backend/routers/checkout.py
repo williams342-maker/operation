@@ -753,6 +753,27 @@ async def checkout_status(session_id: str, http_request: Request, bg: Background
                                 used_code, session_id, used_amount)
             except Exception as e:
                 logger.exception("[discount] usage recording failed: %s", e)
+
+            # iter335.8 — Fire server-side conversions uploads to Meta
+            # CAPI / Google Enhanced Conversions / Microsoft UET Offline
+            # Conversions. Best-effort, fully isolated — failures here
+            # never block the rest of the post-paid flow. Each platform
+            # is idempotent on session_id, so re-fired webhooks are
+            # safe.
+            try:
+                from services.conversions_uploader import fire_conversions
+                await fire_conversions({
+                    "session_id": session_id,
+                    "customer_email": tx.get("customer_email"),
+                    "amount_total": tx.get("amount") or 0,
+                    "currency": tx.get("currency") or "usd",
+                    "gclid": tx.get("gclid"),
+                    "fbclid": tx.get("fbclid"),
+                    "msclkid": tx.get("msclkid"),
+                })
+            except Exception as e:
+                logger.exception("[conversions] post-paid upload failed: %s", e)
+
             # Enrich the public ticker event with buyer first-name + city when
             # the Stripe session exposes them. Falls back to the generic copy.
             buyer_first = ""

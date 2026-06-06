@@ -23,6 +23,21 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - Admin: `/admin/login|verify|dashboard`
 
 ## What's Implemented (cumulative)
+- ✅ **Server-side Conversions API uploads (iter335.8, 2026-06-06):**
+  • **Triggers** when `payment_transactions` transitions unpaid → paid in `routers/checkout.py`. Fires uploads to all 3 ad platforms in parallel (per-channel try/except — one outage doesn't block the others or the checkout response).
+  • **Meta CAPI:** POST to `/{pixel_id}/events` with `Purchase` event. `event_id = session_id` for browser-pixel dedup. User identifiers: SHA-256 hashed `email` (lower+trim per Meta spec) + `fbc` constructed from fbclid. Custom data: value + currency. Optional `META_CAPI_TEST_CODE` env supported for test events.
+  • **Google Enhanced Conversions:** Uses `google-ads` SDK `ConversionUploadService.upload_click_conversions` in a thread executor. Sends gclid + value + currency + hashed_email user identifier + `order_id = session_id`. Reads conversion-action resource from `GOOGLE_ADS_CONVERSION_ACTION_ID`. partial_failure errors surface as exceptions (not silent data loss).
+  • **Microsoft UET Offline Conversions:** SOAP `ApplyOfflineConversions` against `BING_CONVERSION_GOAL_NAME`. Reuses the existing `_auth_data` helper from `services/ads_gateway/microsoft.py`.
+  • **Idempotency:** Each (`session_id`, `channel`) tuple is logged in `conversion_upload_log`. Successful uploads short-circuit on re-fire (Stripe webhooks occasionally double-deliver — without dedup, ad-platform dashboards would double-count). Failed uploads (status starts with `err:`) DO retry on next fire — transient outages self-heal.
+  • **Required env vars (deploy these to enable each channel):**
+    - Meta: `META_PIXEL_ID` + `META_CAPI_ACCESS_TOKEN` (+ optional `META_CAPI_TEST_CODE`)
+    - Google: `GOOGLE_ADS_CONVERSION_ACTION_ID` (numeric conversion action ID; the rest reuses the existing OAuth setup)
+    - Microsoft: `BING_CONVERSION_GOAL_NAME` (the exact UET goal name from Bing UI)
+  • **Expected lift:** 15-30% more attributed conversions on iOS (URL params get stripped by ITP after a few hops; server-side hashed-email matching catches them).
+  • **Tests:** `/app/backend/tests/test_iter335f_conversions_uploader.py` — 8/8 pass. Covers: SHA-256 normalization matches Meta/Google spec, no-click-id → no uploads, single click ID fires only one channel, all-3 click IDs fire all 3, per-channel failure isolation, idempotency on repeat (no double-count), retry-on-error semantics (failed uploads re-fire), missing-config graceful degradation.
+  • **Cumulative: 57/57 pass** across all iter335 suites.
+  • Files: `services/conversions_uploader.py` (NEW · ~250 LOC), `routers/checkout.py` (+20 lines hook into unpaid→paid transition).
+
 - ✅ **Google Ads + Meta gateway live implementations (iter335.7, 2026-06-06):**
   • **Both stub adapters replaced with LIVE implementations** that auto-degrade to helpful messages when external approvals haven't landed yet. Once approvals come in, NO code change is needed — eligibility flips on automatically.
   • **Google Ads (LIVE):** Uses the pinned `google-ads==30.1.0` SDK. Creates `Budget → Campaign (PAUSED) → AdGroup → ResponsiveSearchAd → Keywords` per listing. Auto-derives creative from listing title/description (3 headlines × 2 descriptions, broad-match keywords from title minus stopwords). Daily budget clamped to [$5, $200] window in micros. Tracking template appends `?gclid={gclid}` so existing checkout attribution holds. SAFETY: campaigns land in `PAUSED` status — maker activates explicitly. Eligibility detection uses a **`validate_only=True` mutate probe** so we can detect developer-token tier (Test vs Basic) without ever creating anything; surfaces the precise Google error to the UI if probe fails.
