@@ -25,6 +25,8 @@ import {
   fetchPromoteCampaign, upsertPromoteCampaign, previewPromoteCampaign,
   pausePromoteCampaign, resumePromoteCampaign, applyPromoteCampaign,
   fetchPromoteAnalytics,
+  fetchPromoteChannels, fetchExternalCampaigns,
+  launchExternalCampaign, pauseExternalCampaign, resumeExternalCampaign,
 } from "../../lib/api";
 
 const TOPUP_PRESETS = [1000, 2500, 5000, 10000]; // $10 · $25 · $50 · $100
@@ -43,6 +45,8 @@ export default function PromoteTab() {
   const [campaign, setCampaign] = useState(null);
   const [allocations, setAllocations] = useState([]);
   const [analytics, setAnalytics] = useState(null);
+  const [channels, setChannels] = useState([]);
+  const [extCampaigns, setExtCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState("");
 
@@ -58,14 +62,17 @@ export default function PromoteTab() {
     let cancelled = false;
     (async () => {
       try {
-        const [w, c, a] = await Promise.all([
+        const [w, c, a, ch, ext] = await Promise.all([
           fetchPromoteWallet(), fetchPromoteCampaign(), fetchPromoteAnalytics(),
+          fetchPromoteChannels(), fetchExternalCampaigns(),
         ]);
         if (cancelled) return;
         setWallet(w);
         setCampaign(c.campaign || null);
         setAllocations(c.allocations || []);
         setAnalytics(a);
+        setChannels(ch.channels || []);
+        setExtCampaigns(ext.campaigns || []);
         if (c.campaign) {
           setBudgetCents(c.campaign.budget_cents || 5000);
           setGoal(c.campaign.goal || "sales");
@@ -111,13 +118,16 @@ export default function PromoteTab() {
   }, [budgetCents, goal, autoAllocate, loading]);
 
   const refresh = async () => {
-    const [w, c, a] = await Promise.all([
+    const [w, c, a, ch, ext] = await Promise.all([
       fetchPromoteWallet(), fetchPromoteCampaign(), fetchPromoteAnalytics(),
+      fetchPromoteChannels(), fetchExternalCampaigns(),
     ]);
     setWallet(w);
     setCampaign(c.campaign || null);
     setAllocations(c.allocations || []);
     setAnalytics(a);
+    setChannels(ch.channels || []);
+    setExtCampaigns(ext.campaigns || []);
   };
 
   const onTopup = async (amount) => {
@@ -184,6 +194,31 @@ export default function PromoteTab() {
       if (next === "paused") await pausePromoteCampaign();
       else await resumePromoteCampaign();
       toast.success(`Plan ${next}.`);
+      await refresh();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Could not change status.");
+    } finally { setBusy(""); }
+  };
+
+  const onLaunchExternal = async (channel, slug) => {
+    setBusy(`launch-${channel}-${slug}`);
+    try {
+      const r = await launchExternalCampaign(channel, slug);
+      if (r.created) toast.success(`Created paused ${channel} campaign · review before activating.`);
+      else toast.info(`${channel} campaign already exists for this listing.`);
+      await refresh();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Could not launch external campaign.");
+    } finally { setBusy(""); }
+  };
+
+  const onToggleExternal = async (row) => {
+    const next = row.status === "active" ? "pause" : "resume";
+    setBusy(`ext-${row.external_id}`);
+    try {
+      if (next === "pause") await pauseExternalCampaign(row.channel, row.external_id);
+      else await resumeExternalCampaign(row.channel, row.external_id);
+      toast.success(`${row.channel} · ${next === "resume" ? "activated — real spend starts now" : "paused"}.`);
       await refresh();
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Could not change status.");
@@ -384,19 +419,30 @@ export default function PromoteTab() {
           </div>
         </div>
 
-        {/* Channels */}
+        {/* Channels — iter335.5 */}
         <div className="mb-5">
           <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] block mb-2">Channels</label>
-          <div className="flex flex-wrap gap-2">
-            <span className="px-3 py-1.5 border border-[#ff4500] text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] flex items-center gap-1.5">
-              <Sparkles size={11} /> Crafters Market (Featured Rails)
-            </span>
-            <span className="px-3 py-1.5 border border-[#262626] text-[#525252] font-mono text-[10px] uppercase tracking-[0.22em]">Google Ads · soon</span>
-            <span className="px-3 py-1.5 border border-[#262626] text-[#525252] font-mono text-[10px] uppercase tracking-[0.22em]">Meta · soon</span>
-            <span className="px-3 py-1.5 border border-[#262626] text-[#525252] font-mono text-[10px] uppercase tracking-[0.22em]">Microsoft · soon</span>
+          <div className="grid sm:grid-cols-2 gap-2">
+            <ChannelChip
+              label="Crafters Market"
+              sublabel="Featured rails · search rank boost"
+              active state="active"
+              testId="promote-channel-internal"
+            />
+            {channels.map((ch) => (
+              <ChannelChip
+                key={ch.channel}
+                label={ch.channel === "microsoft" ? "Microsoft Ads" : ch.channel === "google" ? "Google Ads" : "Meta Ads"}
+                sublabel={ch.eligible
+                  ? `${ch.active_count} active campaign${ch.active_count === 1 ? "" : "s"} · launch per listing below`
+                  : ch.reason}
+                state={ch.eligible ? "available" : "blocked"}
+                testId={`promote-channel-${ch.channel}`}
+              />
+            ))}
           </div>
           <p className="text-[10px] text-[#737373] mt-2">
-            Phase 1 promotes on Crafters Market itself (featured rails, search rank boost). External ads launch once the allocator&apos;s proven on-platform.
+            External channels are opt-in per listing. New campaigns always start paused — review before activating.
           </p>
         </div>
 
@@ -478,6 +524,91 @@ export default function PromoteTab() {
         )}
       </section>
 
+      {/* ── External campaigns (iter335.5) ─────────────────────────── */}
+      {(extCampaigns.length > 0 || channels.some((c) => c.eligible)) && (
+        <section className="border border-[#262626] bg-[#0a0a0a] p-5" data-testid="promote-external-card">
+          <div className="font-display text-xl text-[#f5f5f5] mb-1">External channels</div>
+          <p className="text-xs text-[#737373] mb-4">
+            Launch real campaigns on supported ad networks. Each campaign starts <span className="text-amber-300">paused</span> — activate manually when you&apos;re ready to spend.
+          </p>
+
+          {/* Per-listing launch row — show only listings above the $35 floor. */}
+          {channels.filter((c) => c.eligible).length > 0 && preview.length > 0 && (
+            <div className="mb-5">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">
+                Launch new (listings allocated ≥ $35)
+              </div>
+              <div className="space-y-1">
+                {preview.filter((p) => p.allocated_cents >= 3500).slice(0, 5).map((p) => (
+                  <div key={p.slug} className="flex items-center gap-2 text-sm border border-[#1f1f1f] px-3 py-2" data-testid={`promote-ext-launch-${p.slug}`}>
+                    <span className="flex-1 truncate text-[#f5f5f5]">{p.title}</span>
+                    <span className="font-mono text-[10px] text-[#737373]">{dollars(p.allocated_cents)}/mo</span>
+                    {channels.filter((c) => c.eligible).map((c) => (
+                      <button
+                        key={c.channel}
+                        onClick={() => onLaunchExternal(c.channel, p.slug)}
+                        disabled={busy === `launch-${c.channel}-${p.slug}`}
+                        className="px-2 py-1 border border-cyan-400/40 hover:bg-cyan-400/10 text-cyan-300 font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50"
+                        data-testid={`promote-launch-${c.channel}-${p.slug}`}
+                      >
+                        {busy === `launch-${c.channel}-${p.slug}` ? <Loader2 size={10} className="animate-spin" /> : `+ ${c.channel}`}
+                      </button>
+                    ))}
+                  </div>
+                ))}
+                {preview.filter((p) => p.allocated_cents >= 3500).length === 0 && (
+                  <div className="text-xs text-[#737373] py-2">
+                    No listings are allocated $35/mo or more yet. Bump your monthly budget or focus on fewer listings to qualify for external channels.
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Existing external campaigns */}
+          {extCampaigns.length > 0 && (
+            <div>
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">
+                Your external campaigns ({extCampaigns.length})
+              </div>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-[#262626] font-mono text-[9px] uppercase tracking-[0.22em] text-[#737373]">
+                    <th className="text-left py-1.5">Listing</th>
+                    <th className="text-left py-1.5">Channel</th>
+                    <th className="text-right py-1.5">Daily</th>
+                    <th className="text-right py-1.5">Status</th>
+                    <th className="text-right py-1.5"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {extCampaigns.map((row) => (
+                    <tr key={`${row.channel}-${row.external_id}`} className="border-b border-[#1f1f1f]" data-testid={`promote-ext-row-${row.external_id}`}>
+                      <td className="py-2 text-[#f5f5f5] truncate max-w-[12rem]">{row.listing_slug}</td>
+                      <td className="py-2 text-[#a3a3a3] capitalize">{row.channel}</td>
+                      <td className="py-2 text-right font-mono text-[#a3a3a3]">{dollars(row.daily_budget_cents)}</td>
+                      <td className={`py-2 text-right font-mono uppercase tracking-[0.18em] text-[10px] ${row.status === "active" ? "text-emerald-400" : "text-amber-300"}`}>
+                        {row.status}
+                      </td>
+                      <td className="py-2 text-right">
+                        <button
+                          onClick={() => onToggleExternal(row)}
+                          disabled={busy === `ext-${row.external_id}`}
+                          className="px-2 py-1 border border-[#262626] hover:border-cyan-400 font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50"
+                          data-testid={`promote-ext-toggle-${row.external_id}`}
+                        >
+                          {busy === `ext-${row.external_id}` ? <Loader2 size={10} className="animate-spin" /> : (row.status === "active" ? "Pause" : "Activate")}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
+
       {/* ── Analytics ──────────────────────────────────────────────── */}
       {analytics && (
         <section className="border border-[#262626] bg-[#0a0a0a] p-5" data-testid="promote-analytics-card">
@@ -528,6 +659,25 @@ function Stat({ label, value, accent = "", testid }) {
     <div className="border border-[#262626] p-3" data-testid={testid}>
       <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#737373]">{label}</div>
       <div className={`font-display text-2xl mt-1 ${accent || "text-[#f5f5f5]"}`}>{value}</div>
+    </div>
+  );
+}
+
+function ChannelChip({ label, sublabel, state, testId }) {
+  // state: "active" (this maker's primary on-platform channel),
+  //        "available" (external channel ready to launch),
+  //        "blocked" (pending approval / connect required)
+  const tone =
+    state === "active"    ? "border-[#ff4500] text-[#ff4500] bg-[#1a0e08]" :
+    state === "available" ? "border-cyan-400/60 text-cyan-300 bg-cyan-400/5" :
+                            "border-[#262626] text-[#525252]";
+  return (
+    <div className={`px-3 py-2 border ${tone}`} data-testid={testId}>
+      <div className="font-mono text-[11px] uppercase tracking-[0.22em] flex items-center gap-1.5">
+        {state === "active" && <Sparkles size={11} />}
+        {label}
+      </div>
+      <div className="text-[10px] mt-1 leading-snug opacity-90">{sublabel}</div>
     </div>
   );
 }

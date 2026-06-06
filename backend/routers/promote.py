@@ -33,6 +33,10 @@ from pydantic import BaseModel, Field
 from core import STRIPE_API_KEY, db, now_iso, public_host
 from maker_auth import current_maker_slug
 from services import promote_wallet, promote_allocator
+from services.ads_gateway import (
+    get_gateway, GatewayNotEligible, GatewayNotImplemented, GatewayError,
+    CreateCampaignSpec,
+)
 
 router = APIRouter()
 log = logging.getLogger("crafters.promote")
@@ -389,3 +393,189 @@ async def analytics(maker_slug: str = Depends(current_maker_slug)):
         "per_listing": per_listing,
         "as_of": cutoff,
     }
+
+
+# ── External ad channels (iter335.5 — Phase 1.5) ───────────────────────
+# Wallet + allocator stay channel-agnostic. External campaigns are
+# OPT-IN per listing: maker explicitly clicks "Launch on Microsoft"
+# from the Promote tab. Newly-launched campaigns ALWAYS land in
+# `paused` state so nothing spends until the maker reviews + activates.
+EXTERNAL_MIN_PER_LISTING_CENTS = 3500  # = $5/day Bing floor × 7-day window
+
+SUPPORTED_CHANNELS = {"microsoft", "google", "meta"}
+
+
+class ExternalLaunchRequest(BaseModel):
+    channel: str
+    listing_slug: str
+
+
+@router.get("/promote/channels")
+async def list_channels(maker_slug: str = Depends(current_maker_slug)):
+    """Returns eligibility + status for each external channel so the
+    Promote UI can render Connect / Coming-soon / Active states."""
+    out = []
+    for ch in ("microsoft", "google", "meta"):
+        try:
+            gw = get_gateway(ch)
+            ok, reason = await gw.is_eligible(maker_slug)
+        except Exception as e:  # defensive — never let a broken adapter crash the page
+            ok, reason = False, f"adapter error: {str(e)[:80]}"
+        active_count = await db.external_ad_campaigns.count_documents({
+            "maker_slug": maker_slug, "channel": ch, "status": "active",
+        })
+        out.append({
+            "channel": ch,
+            "eligible": ok,
+            "reason": reason,
+            "active_count": active_count,
+        })
+    return {"channels": out}
+
+
+@router.get("/promote/external")
+async def list_external_campaigns(maker_slug: str = Depends(current_maker_slug)):
+    cur = db.external_ad_campaigns.find(
+        {"maker_slug": maker_slug}
+    ).sort("created_at", -1)
+    out = []
+    async for d in cur:
+        d.pop("_id", None)
+        out.append(d)
+    return {"campaigns": out}
+
+
+@router.post("/promote/external/launch")
+async def launch_external(body: ExternalLaunchRequest,
+                          request: Request,
+                          maker_slug: str = Depends(current_maker_slug)):
+    """Create a paused external campaign for one listing on one channel.
+    Idempotent — if a campaign already exists for the (maker, channel,
+    slug) tuple, returns the existing handle without creating again."""
+    if body.channel not in SUPPORTED_CHANNELS:
+        raise HTTPException(400, f"channel must be one of {sorted(SUPPORTED_CHANNELS)}")
+
+    camp = await db.campaign_groups.find_one(
+        {"maker_slug": maker_slug, "deleted_at": None}
+    )
+    if not camp:
+        raise HTTPException(404, "Create a Promote plan first.")
+
+    allocs = await promote_allocator.compute_allocations(
+        maker_slug, int(camp.get("budget_cents") or 0),
+        explicit_listing_slugs=(camp.get("explicit_listing_slugs") or None),
+    )
+    alloc = next((a for a in allocs if a["slug"] == body.listing_slug), None)
+    if not alloc:
+        raise HTTPException(404, "Listing not eligible — check it's published.")
+    if int(alloc["allocated_cents"]) < EXTERNAL_MIN_PER_LISTING_CENTS:
+        raise HTTPException(
+            400,
+            f"Per-listing allocation (${alloc['allocated_cents']/100:.2f}) "
+            f"below external-channel floor (${EXTERNAL_MIN_PER_LISTING_CENTS/100:.2f}). "
+            "Increase your monthly budget or focus on fewer listings to qualify."
+        )
+
+    existing = await db.external_ad_campaigns.find_one({
+        "maker_slug": maker_slug, "channel": body.channel,
+        "listing_slug": body.listing_slug,
+    })
+    if existing:
+        existing.pop("_id", None)
+        return {"campaign": existing, "created": False}
+
+    listing = await db.products.find_one(
+        {"slug": body.listing_slug, "maker_slug": maker_slug,
+         "deleted_at": None},
+        {"_id": 0, "slug": 1, "title": 1, "description": 1, "short_description": 1, "images": 1},
+    )
+    if not listing:
+        raise HTTPException(404, "Listing not found.")
+
+    host = public_host(request)
+    description = (listing.get("description")
+                   or listing.get("short_description") or "")
+    primary_image = None
+    imgs = listing.get("images") or []
+    if isinstance(imgs, list) and imgs:
+        first = imgs[0]
+        primary_image = first if isinstance(first, str) else (first or {}).get("url")
+
+    spec = CreateCampaignSpec(
+        maker_slug=maker_slug,
+        listing_slug=body.listing_slug,
+        listing_title=listing.get("title") or body.listing_slug,
+        listing_description=description,
+        listing_url=f"{host}/p/{body.listing_slug}",
+        listing_image_url=primary_image,
+        daily_budget_cents=int(alloc["allocated_cents"] // 7),
+    )
+
+    try:
+        gw = get_gateway(body.channel)
+        handle = await gw.create_campaign(spec)
+    except GatewayNotEligible as e:
+        raise HTTPException(409, str(e))
+    except GatewayNotImplemented as e:
+        raise HTTPException(501, str(e))
+    except GatewayError as e:
+        raise HTTPException(502, str(e))
+
+    row = {
+        "_id": f"{body.channel}:{handle.external_id}",
+        "maker_slug": maker_slug,
+        "campaign_id": camp["campaign_id"],
+        "channel": body.channel,
+        "listing_slug": body.listing_slug,
+        "external_id": handle.external_id,
+        "status": handle.status,
+        "note": handle.note,
+        "daily_budget_cents": spec.daily_budget_cents,
+        "created_at": now_iso(),
+        "updated_at": now_iso(),
+    }
+    await db.external_ad_campaigns.insert_one(row)
+    row.pop("_id", None)
+    return {"campaign": row, "created": True}
+
+
+@router.post("/promote/external/{channel}/{external_id}/pause")
+async def pause_external(channel: str, external_id: str,
+                         maker_slug: str = Depends(current_maker_slug)):
+    row = await db.external_ad_campaigns.find_one({
+        "channel": channel, "external_id": external_id, "maker_slug": maker_slug,
+    })
+    if not row:
+        raise HTTPException(404, "Campaign not found.")
+    try:
+        await get_gateway(channel).pause_campaign(external_id)
+    except GatewayError as e:
+        raise HTTPException(502, str(e))
+    await db.external_ad_campaigns.update_one(
+        {"_id": row["_id"]},
+        {"$set": {"status": "paused", "updated_at": now_iso()}},
+    )
+    return {"status": "paused"}
+
+
+@router.post("/promote/external/{channel}/{external_id}/resume")
+async def resume_external(channel: str, external_id: str,
+                          maker_slug: str = Depends(current_maker_slug)):
+    """Activate a paused external campaign. From this point on real
+    money starts flowing through the channel — the maker has now
+    explicitly consented to external ad spend on this listing."""
+    row = await db.external_ad_campaigns.find_one({
+        "channel": channel, "external_id": external_id, "maker_slug": maker_slug,
+    })
+    if not row:
+        raise HTTPException(404, "Campaign not found.")
+    try:
+        await get_gateway(channel).resume_campaign(external_id)
+    except GatewayError as e:
+        raise HTTPException(502, str(e))
+    await db.external_ad_campaigns.update_one(
+        {"_id": row["_id"]},
+        {"$set": {"status": "active", "activated_at": now_iso(),
+                  "updated_at": now_iso()}},
+    )
+    return {"status": "active"}

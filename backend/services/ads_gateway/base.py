@@ -1,0 +1,75 @@
+"""Abstract base for all external ad channel gateways."""
+from __future__ import annotations
+from dataclasses import dataclass, field
+from typing import Optional
+
+
+class GatewayError(RuntimeError): ...
+class GatewayNotEligible(GatewayError):
+    """The channel can't be used yet for this maker (missing OAuth,
+    missing write scope, awaiting platform approval, etc.). The UI
+    should surface `reason` directly to the maker."""
+
+class GatewayNotImplemented(GatewayError):
+    """Channel exists in the codebase as a stub — full implementation
+    is pending external approval (Google brand verification, Meta App
+    Review, etc.)."""
+
+
+@dataclass
+class CreateCampaignSpec:
+    """Phase 1.5 — auto-derived from the listing (option 2a).
+
+    `daily_budget_cents` comes from the allocator: per-listing
+    allocated_cents divided across the 7-day boost window.
+    """
+    maker_slug: str
+    listing_slug: str
+    listing_title: str
+    listing_description: str
+    listing_url: str             # absolute https URL — final landing
+    listing_image_url: Optional[str]
+    daily_budget_cents: int
+    keywords: list[str] = field(default_factory=list)
+
+
+@dataclass
+class CampaignHandle:
+    """Opaque-ish identifier returned by `create_campaign`. Persisted
+    in `external_ad_campaigns` so subsequent ops can look it up."""
+    channel: str
+    external_id: str             # e.g. Bing CampaignId, Google customer/campaign, Meta campaign_id
+    status: str                  # "draft" | "paused" | "active" | "rejected"
+    note: str = ""               # human-readable status hint for the UI
+
+
+@dataclass
+class MetricsSnapshot:
+    spend_cents: int = 0
+    clicks: int = 0
+    impressions: int = 0
+    conversions: int = 0
+
+
+class AdsGateway:
+    """Abstract contract every channel adapter must implement."""
+
+    channel: str = ""
+
+    async def is_eligible(self, maker_slug: str) -> tuple[bool, str]:
+        """Returns `(eligible, reason)`. `eligible=False` blocks the UI
+        toggle; the UI shows `reason` directly so makers know what to do
+        next (e.g. "Connect Microsoft Ads in Admin → Ads first")."""
+        raise NotImplementedError
+
+    async def create_campaign(self, spec: CreateCampaignSpec) -> CampaignHandle:
+        raise NotImplementedError
+
+    async def pause_campaign(self, external_id: str) -> None:
+        raise NotImplementedError
+
+    async def resume_campaign(self, external_id: str) -> None:
+        raise NotImplementedError
+
+    async def update_budget(self, external_id: str, daily_budget_cents: int) -> None:
+        raise NotImplementedError

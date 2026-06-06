@@ -23,6 +23,20 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - Admin: `/admin/login|verify|dashboard`
 
 ## What's Implemented (cumulative)
+- ✅ **Unified Promotion Engine — Phase 1.5: External ad channels (iter335.5, 2026-06-06):**
+  • **Scope (per recommendation):** 1b (Microsoft-LIVE, Google/Meta stubs) · 2a (auto-derive creative from listing) · 3a (URL-param attribution via existing gclid/msclkid/fbclid). Safety-first: every new external campaign lands in `paused` state; maker must explicitly Activate before real spend starts.
+  • **Adapter framework:** `/app/backend/services/ads_gateway/` — `base.py` (abstract `AdsGateway` + `CreateCampaignSpec` + `CampaignHandle` + `GatewayError/NotEligible/NotImplemented`), `__init__.py` (lazy factory `get_gateway(channel)`), `microsoft.py` (LIVE, ~250 lines of bingads SOAP), `google.py` + `meta.py` (stubs with eligibility=False + planned approval timelines).
+  • **Microsoft adapter (LIVE):** Reuses existing OAuth from `routers/microsoft_ads_sdk.py`. Creates a Bing Search campaign + 1 ad group + 1 ResponsiveSearchAd + 5 broad-match keywords per listing. Auto-derived from listing: title → 3 headlines (trimmed to 30c), description → 2 descriptions (trimmed to 90c), keywords derived from title words minus stopwords. Daily budget clamped to Bing's [$5, $200] window. Tracking template appends `?msclkid={msclkid}` so existing checkout attribution works. Campaign starts Paused — `resume_campaign` is the explicit consent moment for real spend.
+  • **API endpoints (all `/api/promote/*`):**
+    - `GET /channels` — eligibility + active count per channel
+    - `GET /external` — list maker's external campaigns
+    - `POST /external/launch` — create paused external campaign (idempotent on channel+slug; enforces $35/mo per-listing floor)
+    - `POST /external/{channel}/{id}/pause` · `POST /external/{channel}/{id}/resume`
+  • **Frontend:** PromoteTab now renders 4 channel chips (Crafters Market active + 3 external with real eligibility + reasons), and conditionally shows a new "External channels" section when any channel is eligible or any campaign exists. Per-listing launch buttons appear only for allocations ≥ $35/mo. Campaigns table with Activate/Pause toggle per row. All elements `data-testid`-tagged.
+  • **Tests:** `/app/backend/tests/test_iter335b_ads_gateway.py` — 11/11 pass. Covers factory dispatch, stub channel rejection (Google → 501, Meta → not eligible), Microsoft graceful degradation when OAuth missing (409 not 500), per-listing $35 floor enforcement, plan-exists guard, idempotency on re-launch (returns existing row with `created: False`), pause/resume calls real SDK methods (monkey-patched).
+  • **Cumulative test pass:** 28/28 across all four iter335 suites.
+  • Files: `services/ads_gateway/{base,__init__,microsoft,google,meta}.py`, `routers/promote.py` (5 new endpoints), `frontend/src/lib/api.js` (5 helpers), `frontend/src/pages/MakerDashboard/PromoteTab.jsx` (channels grid + external section + ChannelChip helper).
+
 - ✅ **Unified Promotion Engine — Phase 1 (iter335, 2026-06-06):**
   • **Spec choice:** Per user confirmation — 1c (Stripe top-up + monthly sub), 2c (internal-only Phase 1, external Phase 1.5), 3b (coexist with `marketing_budget_cents`), 4c (skip credits for now). One budget → AI allocation across listings → internal placement boost.
   • **Backend services:**

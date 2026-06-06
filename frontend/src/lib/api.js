@@ -1729,5 +1729,25 @@ export const resumePromoteCampaign = () =>
 export const applyPromoteCampaign = () =>
   http.post("/promote/campaign/apply", {}, { headers: authHeaders() }).then((r) => r.data);
 
+
+// iter335.5 — External ad channel adapters
+export const fetchPromoteChannels = () =>
+  http.get("/promote/channels", { headers: authHeaders() }).then((r) => r.data);
+
+export const fetchExternalCampaigns = () =>
+  http.get("/promote/external", { headers: authHeaders() }).then((r) => r.data);
+
+export const launchExternalCampaign = (channel, listing_slug) =>
+  http.post("/promote/external/launch", { channel, listing_slug },
+    { headers: authHeaders() }).then((r) => r.data);
+
+export const pauseExternalCampaign = (channel, externalId) =>
+  http.post(`/promote/external/${channel}/${externalId}/pause`, {},
+    { headers: authHeaders() }).then((r) => r.data);
+
+export const resumeExternalCampaign = (channel, externalId) =>
+  http.post(`/promote/external/${channel}/${externalId}/resume`, {},
+    { headers: authHeaders() }).then((r) => r.data);
+
 export const fetchPromoteAnalytics = () =>
   http.get("/promote/analytics", { headers: authHeaders() }).then((r) => r.data);
