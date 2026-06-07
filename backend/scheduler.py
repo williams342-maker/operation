@@ -893,6 +893,22 @@ async def _job_lead_magnet_drip() -> None:
         logger.exception("[scheduler] lead_magnet_drip failed: %s", e)
 
 
+async def _job_channel_attribution_recompute() -> None:
+    """iter335.14 — Daily 04:30 UTC. Recomputes per-channel attribution
+    weights (Google / Meta / Microsoft) from the rolling 30-day window
+    of paid orders × ad spend. Runs BEFORE the promote_allocator (04:45)
+    so the allocator sees the freshest weights."""
+    try:
+        from services import channel_attribution
+        r = await channel_attribution.recompute_and_persist()
+        logger.info("[scheduler] channel_attribution: cold_start=%s · %s",
+                    r["cold_start"],
+                    ", ".join(f"{c['channel']}={c['weight']:.3f}"
+                              for c in r["channels"]))
+    except Exception as e:
+        logger.exception("[scheduler] channel_attribution failed: %s", e)
+
+
 
 async def _job_maker_journal_digest() -> None:
     """Weekly Monday 14:00 UTC — for each maker who published one or
@@ -1358,6 +1374,11 @@ def start_scheduler() -> AsyncIOScheduler | None:
     # finish their pass before the wallet-driven campaigns kick in.
     sched.add_job(_job_promote_allocator, CronTrigger(hour=4, minute=45),
                   id="promote_allocator", replace_existing=True)
+    # iter335.14 — Phase 4 Promote: recompute per-channel attribution
+    # weights at 04:30 UTC so the allocator (04:45) sees fresh data.
+    sched.add_job(_job_channel_attribution_recompute,
+                  CronTrigger(hour=4, minute=30),
+                  id="channel_attribution_recompute", replace_existing=True)
     # iter335.8 — Sweep failed conversion uploads from the last 7 days.
     # 05:30 UTC keeps it after the allocator + before business-hours
     # spike. Idempotent — fire_conversions short-circuits successful

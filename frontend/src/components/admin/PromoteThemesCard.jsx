@@ -11,11 +11,12 @@
  */
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Sparkles, Plus, Loader2, X, Play, Pause, Square } from "lucide-react";
+import { Sparkles, Plus, Loader2, X, Play, Pause, Square, TrendingUp, Wand2 } from "lucide-react";
 import {
   adminFetchPromoteThemes,
   adminCreatePromoteTheme,
   adminSetPromoteThemeStatus,
+  adminSuggestPromoteThemes,
 } from "../../lib/api";
 
 const STATUS_TONE = {
@@ -38,8 +39,12 @@ export default function PromoteThemesCard() {
   const [themes, setThemes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [formSeed, setFormSeed] = useState(null);  // pre-filled draft from a suggestion
   const [busy, setBusy] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
+  // iter335.14 — Auto-suggest themes
+  const [suggestions, setSuggestions] = useState(null);  // null = not loaded; [] = loaded but empty
+  const [suggestLoading, setSuggestLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -70,6 +75,29 @@ export default function PromoteThemesCard() {
     } finally { setBusy(""); }
   };
 
+  const onSuggest = async () => {
+    setSuggestLoading(true);
+    try {
+      const r = await adminSuggestPromoteThemes();
+      setSuggestions(r.suggestions || []);
+      if ((r.suggestions || []).length === 0) {
+        toast.info("No trending tags yet — not enough order data in the last 7 days.");
+      }
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Suggestion engine unavailable.");
+    } finally { setSuggestLoading(false); }
+  };
+
+  const applySuggestion = (s) => {
+    setFormSeed(s.draft);
+    setShowForm(true);
+    setSuggestions(null);
+    // Scroll to form after react renders it.
+    setTimeout(() => {
+      document.querySelector('[data-testid="promote-themes-form"]')?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 100);
+  };
+
   return (
     <div className="border border-[#262626] p-4 md:p-5" data-testid="promote-themes-card">
       <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -82,20 +110,77 @@ export default function PromoteThemesCard() {
             Shared budget pools that subsidize maker boosts on listings matching a category. Multiple makers benefit from one pool; per-maker + per-listing caps keep allocation fair.
           </p>
         </div>
-        <button
-          onClick={() => setShowForm((v) => !v)}
-          className="px-3 py-2 border border-cyan-700/50 hover:border-cyan-400 text-cyan-300 font-mono text-[10px] uppercase tracking-[0.22em] flex items-center gap-1.5"
-          data-testid="promote-themes-new"
-        >
-          {showForm ? <X size={11} /> : <Plus size={11} />}
-          {showForm ? "Cancel" : "New theme"}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onSuggest}
+            disabled={suggestLoading}
+            className="px-3 py-2 border border-amber-700/50 hover:border-amber-400 text-amber-300 font-mono text-[10px] uppercase tracking-[0.22em] flex items-center gap-1.5 disabled:opacity-50"
+            data-testid="promote-themes-suggest"
+          >
+            {suggestLoading
+              ? <><Loader2 size={11} className="animate-spin" /> Scanning…</>
+              : <><Wand2 size={11} /> Suggest from trends</>}
+          </button>
+          <button
+            onClick={() => { setShowForm((v) => !v); if (showForm) setFormSeed(null); }}
+            className="px-3 py-2 border border-cyan-700/50 hover:border-cyan-400 text-cyan-300 font-mono text-[10px] uppercase tracking-[0.22em] flex items-center gap-1.5"
+            data-testid="promote-themes-new"
+          >
+            {showForm ? <X size={11} /> : <Plus size={11} />}
+            {showForm ? "Cancel" : "New theme"}
+          </button>
+        </div>
       </div>
+
+      {/* iter335.14 — Trending tag suggestions panel */}
+      {suggestions !== null && suggestions.length > 0 && (
+        <div
+          className="mt-4 border border-amber-900/40 bg-amber-950/10 p-3"
+          data-testid="promote-themes-suggestions"
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-amber-300 flex items-center gap-1.5">
+              <TrendingUp size={11} /> Trending tags · last 7 days
+            </div>
+            <button
+              onClick={() => setSuggestions(null)}
+              className="text-[#737373] hover:text-[#a3a3a3]"
+              data-testid="promote-themes-suggestions-close"
+              aria-label="Close suggestions"
+            >
+              <X size={12} />
+            </button>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            {suggestions.map((s) => (
+              <div
+                key={s.tag}
+                className="border border-amber-700/30 bg-[#050505] p-3"
+                data-testid={`promote-theme-suggestion-${s.tag}`}
+              >
+                <div className="font-display text-base text-amber-200 truncate">{s.draft.name}</div>
+                <div className="font-mono text-[10px] text-[#a3a3a3] mt-1">
+                  <span className="text-amber-300">+{s.growth_pct}%</span>
+                  {" · "}{s.recent_orders} orders · {s.distinct_makers} makers
+                </div>
+                <button
+                  onClick={() => applySuggestion(s)}
+                  className="mt-2 w-full px-2 py-1 border border-amber-700/50 hover:border-amber-400 hover:bg-amber-950/30 text-amber-300 font-mono text-[9px] uppercase tracking-[0.22em] flex items-center justify-center gap-1.5"
+                  data-testid={`promote-theme-suggestion-use-${s.tag}`}
+                >
+                  <Sparkles size={10} /> Use this draft
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {showForm && (
         <NewThemeForm
-          onCancel={() => setShowForm(false)}
-          onCreated={() => { setShowForm(false); reload(); }}
+          seed={formSeed}
+          onCancel={() => { setShowForm(false); setFormSeed(null); }}
+          onCreated={() => { setShowForm(false); setFormSeed(null); reload(); }}
         />
       )}
 
@@ -185,15 +270,15 @@ export default function PromoteThemesCard() {
   );
 }
 
-function NewThemeForm({ onCancel, onCreated }) {
-  const [name, setName] = useState("");
-  const [slug, setSlug] = useState("");
-  const [startDate, setStartDate] = useState(todayIso());
-  const [endDate, setEndDate] = useState(plusDays(todayIso(), 7));
-  const [poolDollars, setPoolDollars] = useState(500);
-  const [perMakerCapDollars, setPerMakerCapDollars] = useState(50);
-  const [perListingCapDollars, setPerListingCapDollars] = useState(20);
-  const [categoryFilter, setCategoryFilter] = useState("");
+function NewThemeForm({ onCancel, onCreated, seed }) {
+  const [name, setName] = useState(seed?.name || "");
+  const [slug, setSlug] = useState(seed?.slug || "");
+  const [startDate, setStartDate] = useState(seed?.start_date || todayIso());
+  const [endDate, setEndDate] = useState(seed?.end_date || plusDays(todayIso(), 7));
+  const [poolDollars, setPoolDollars] = useState(Math.round((seed?.pool_total_cents ?? 50000) / 100));
+  const [perMakerCapDollars, setPerMakerCapDollars] = useState(Math.round((seed?.per_maker_cap_cents ?? 5000) / 100));
+  const [perListingCapDollars, setPerListingCapDollars] = useState(Math.round((seed?.per_listing_cap_cents ?? 2000) / 100));
+  const [categoryFilter, setCategoryFilter] = useState((seed?.category_filter || []).join(", "));
   const [busy, setBusy] = useState(false);
 
   const onSlugSync = (v) => {

@@ -132,6 +132,15 @@ async def set_theme_status(theme_id: str, status: str,
     return {"status": status}
 
 
+@router.get("/admin/promote/themes/suggest")
+async def suggest_themes(_: dict = Depends(current_admin)):
+    """iter335.14 — Auto-suggest theme drafts based on recent order
+    growth per tag. UI uses these to pre-fill the NewThemeForm with
+    a single click."""
+    from services import theme_suggestions
+    return await theme_suggestions.suggest()
+
+
 # ── Allocator helper (used by services.promote_allocator) ──────────────
 async def find_active_themes_for_listing(slug: str) -> list[dict]:
     """Returns active themes whose category_filter intersects the

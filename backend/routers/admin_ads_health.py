@@ -110,3 +110,22 @@ async def attribution_health(_: dict = Depends(current_admin)):
         "by_channel": by_channel,
         "replay_backlog": backlog,
     }
+
+
+# ── iter335.14: Phase 4 channel attribution weights ──────────────────
+@router.get("/admin/ads/channel-weights")
+async def channel_weights(_: dict = Depends(current_admin)):
+    """Returns the most-recently-persisted per-channel attribution
+    weights (Google / Meta / Microsoft) plus the raw orders / spend /
+    ROAS that produced them. Allocator pulls these to recommend a
+    default paid-channel split for makers running multi-channel."""
+    from services import channel_attribution
+    return await channel_attribution.get_persisted()
+
+
+@router.post("/admin/ads/channel-weights/recompute")
+async def channel_weights_recompute(_: dict = Depends(current_admin)):
+    """Manual recompute trigger — same logic the daily cron runs.
+    Useful right after a backfill to pull in fresh data."""
+    from services import channel_attribution
+    return await channel_attribution.recompute_and_persist()

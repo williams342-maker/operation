@@ -1776,12 +1776,25 @@ export const fetchActivePromoteThemes = () =>
 
 // iter335.13 — Admin: theme campaign CRUD
 export const adminFetchPromoteThemes = () =>
-  http.get("/admin/promote/themes", { headers: authHeaders() }).then((r) => r.data);
+  http.get("/admin/promote/themes", { headers: adminAuthHeaders() }).then((r) => r.data);
 
 export const adminCreatePromoteTheme = (payload) =>
   http.post("/admin/promote/themes", payload,
-    { headers: authHeaders() }).then((r) => r.data);
+    { headers: adminAuthHeaders() }).then((r) => r.data);
 
 export const adminSetPromoteThemeStatus = (themeId, status) =>
   http.post(`/admin/promote/themes/${themeId}/status?status=${encodeURIComponent(status)}`,
-    {}, { headers: authHeaders() }).then((r) => r.data);
+    {}, { headers: adminAuthHeaders() }).then((r) => r.data);
+
+// iter335.14 — Phase 4: Channel attribution weights + theme suggestions
+export const adminFetchChannelWeights = () =>
+  http.get("/admin/ads/channel-weights",
+    { headers: adminAuthHeaders() }).then((r) => r.data);
+
+export const adminRecomputeChannelWeights = () =>
+  http.post("/admin/ads/channel-weights/recompute", {},
+    { headers: adminAuthHeaders() }).then((r) => r.data);
+
+export const adminSuggestPromoteThemes = () =>
+  http.get("/admin/promote/themes/suggest",
+    { headers: adminAuthHeaders() }).then((r) => r.data);
