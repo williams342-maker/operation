@@ -162,7 +162,12 @@ async def ping(*, urls: Optional[list[str]] = None,
     site = _site_root()
     host = site.replace("https://", "").replace("http://", "").rstrip("/")
     key = await _get_or_create_key()
-    key_location = f"{site}/api/indexnow-key.txt"
+    # iter338e — IndexNow requires the keyLocation filename to equal the
+    # key value (otherwise it 422s with the misleading "URLs are not
+    # related to your site verified through the keylocation parameter"
+    # even when every URL matches the host). Serve via the canonical
+    # `/api/indexnow/{key}.txt` route that satisfies this.
+    key_location = f"{site}/api/indexnow/{key}.txt"
     url_list = list(urls) if urls else await _collect_recent_urls(budget)
 
     payload = {
@@ -237,7 +242,7 @@ async def status() -> dict:
     site = _site_root()
     return {
         "key_configured": bool(doc.get("key")),
-        "key_location": f"{site}/api/indexnow-key.txt",
+        "key_location": f"{site}/api/indexnow/{doc.get('key')}.txt" if doc.get("key") else None,
         "key_created_at": doc.get("created_at"),
         "last_ping_at": doc.get("last_ping_at"),
         "last_ping_status": doc.get("last_ping_status"),

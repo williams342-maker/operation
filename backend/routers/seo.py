@@ -8,7 +8,7 @@ results in AI answers, which is free distribution.
 import re
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import PlainTextResponse, Response
 
 from core import db, site_root
@@ -337,15 +337,34 @@ from fastapi import Body
 from pydantic import BaseModel
 
 
-@router.get("/indexnow-key.txt", include_in_schema=False)
+@router.api_route("/indexnow-key.txt", methods=["GET", "HEAD"], include_in_schema=False)
 async def indexnow_key_file():
-    """IndexNow ownership-verification file. The protocol requires the bare
-    key, plain text, no surrounding whitespace. Lazily generated on first
-    request — operators don't need to do anything to enable verification."""
+    """LEGACY keyLocation route — kept for any external systems still
+    pointing here. New code uses `/api/indexnow/<key>.txt` so the filename
+    matches the key value (which the IndexNow protocol requires —
+    submitting a payload with keyLocation pointing to a file whose name
+    does NOT equal the key value triggers `InvalidRequestParameters
+    · "URLs are not related to your site verified through the
+    keylocation parameter"` even when every URL is on the same host)."""
     from seo_indexnow import get_key
     key = await get_key()
-    # Spec is strict: response body MUST be the bare key, MUST NOT have
-    # trailing whitespace/newline beyond what's in the key itself.
+    return PlainTextResponse(content=key, media_type="text/plain; charset=utf-8")
+
+
+@router.api_route("/indexnow/{key_param}.txt",
+                  methods=["GET", "HEAD"], include_in_schema=False)
+async def indexnow_key_file_canonical(key_param: str):
+    """IndexNow ownership-verification file at the protocol-compliant path
+    `/<key>.txt`. The filename portion (`{key_param}`) MUST equal the stored
+    key value — otherwise IndexNow's validator rejects the entire submission.
+    Also responds to HEAD because some IndexNow validators probe with HEAD
+    first; a 405 there is the difference between "URLs are not related to
+    your site" (false-positive 422) and a successful submission.
+    """
+    from seo_indexnow import get_key
+    key = await get_key()
+    if key_param != key:
+        raise HTTPException(404, "key not found")
     return PlainTextResponse(content=key, media_type="text/plain; charset=utf-8")
 
 
