@@ -124,7 +124,7 @@ export default function Hero() {
           <strong className="text-white font-normal">creators</strong> —
           from workshops and studios to gardens and small shops.
           Real products from real people — no mass production, no drop-shipping,
-          just independent businesses with stories behind what they make.
+          just small businesses with stories behind what they make.
         </motion.p>
 
         <motion.div
