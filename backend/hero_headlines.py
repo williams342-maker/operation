@@ -209,7 +209,61 @@ def _parse_and_validate(raw: str, expected: int) -> list[dict]:
 
 async def ensure_seed_pool() -> int:
     """Idempotent seed: inserts SEED_VARIANTS once on first boot.
-    Returns the count actually inserted."""
+    Returns the count actually inserted.
+
+    iter337 — Also runs a one-shot voice-broaden migration that
+    archives the deprecated materials-first seeds + any AI variants
+    that contain the deprecated voice words. Idempotent — once a row
+    is `status="archived"` it never gets re-matched, so this is a
+    safe op to call on every boot."""
+    # ── iter337 voice-broaden migration ────────────────────────────
+    # Old materials-heavy seeds we explicitly retired.
+    _DEPRECATED_SEEDS = [
+        ("Built by Real Makers",    "American",    "Workshops"),
+        ("Custom Work",             "Independent", "Workshops"),
+        ("Precision Craftsmanship", "Modern",      "Marketplace"),
+        ("Fabricators · Artists",   "Makers",      "Sell Here"),
+        ("Raw Materials",           "Radical",     "Craft"),
+        ("Steel · Wood · Light",    "Forged",      "in America"),
+        ("No Drop-shipping",        "Real",        "Workshops Only"),
+        ("Hands · Tools · Sparks",  "Built",       "to Order"),
+    ]
+    # Voice words that consistently appear in materials-first AI
+    # drafts — surfaced in the live pool review on 2026-06-07.
+    _DEPRECATED_WORDS = [
+        "Steel", "Plasma", "Welding", "Forge",
+        "Sparks", "Raw Material", "Drop-shipping",
+        "Industrial", "Fabrication", "Heavy Metal",
+    ]
+    archived_now = now_iso()
+    archived_seeds = 0
+    for s, a, c in _DEPRECATED_SEEDS:
+        r = await db.hero_headlines.update_many(
+            {"statement": s, "accent": a, "closer": c, "status": "live"},
+            {"$set": {"status": "archived",
+                      "archived_reason": "iter337 voice broaden — materials-first deprecated",
+                      "archived_at": archived_now}},
+        )
+        archived_seeds += r.modified_count
+    archived_ai = 0
+    for w in _DEPRECATED_WORDS:
+        r = await db.hero_headlines.update_many(
+            {"status": "live",
+             "$or": [
+                 {"statement": {"$regex": w, "$options": "i"}},
+                 {"accent":    {"$regex": w, "$options": "i"}},
+                 {"closer":    {"$regex": w, "$options": "i"}},
+             ]},
+            {"$set": {"status": "archived",
+                      "archived_reason": f"iter337 voice broaden — contained '{w}'",
+                      "archived_at": archived_now}},
+        )
+        archived_ai += r.modified_count
+    if archived_seeds or archived_ai:
+        logger.info("[hero_headlines] iter337 voice migration: archived %d old seeds + %d AI variants",
+                    archived_seeds, archived_ai)
+
+    # ── Normal seeding (idempotent — only fires on rows we don't have) ──
     inserted = 0
     for v in SEED_VARIANTS:
         exists = await db.hero_headlines.find_one(
