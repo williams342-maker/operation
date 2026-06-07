@@ -58,7 +58,24 @@ export default function FeedHealthCard() {
       setLoading(false);
     }
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const jwt = localStorage.getItem("cm_admin_jwt") || "";
+        const r = await axios.get(`${API}/admin/feeds/health`, {
+          headers: { Authorization: `Bearer ${jwt}` }, timeout: 30000,
+        });
+        if (!cancelled) setData(r.data);
+      } catch (e) {
+        if (!cancelled) toast.error(e?.response?.data?.detail || "Failed to load feed health.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const toggle = (channel) => setExpanded((p) => ({ ...p, [channel]: !p[channel] }));
 
@@ -141,6 +158,34 @@ export default function FeedHealthCard() {
       toast.error(e?.response?.data?.detail || "Auto-tag failed.");
     } finally {
       setSeoBusy((p) => ({ ...p, [surface]: false }));
+    }
+  };
+
+  // iter338 — Bulk-attach each maker's hero_image_url to showcase
+  // posts that have no image. Mirrors the design-files auto-thumb
+  // flow: idempotent, batched, only acts on currently-missing rows.
+  const [attachBusy, setAttachBusy] = useState(false);
+  const attachMakerImages = async () => {
+    setAttachBusy(true);
+    try {
+      const jwt = localStorage.getItem("cm_admin_jwt") || "";
+      const r = await axios.post(
+        `${API}/admin/feeds/showcase/auto-attach-maker-image?limit=100`,
+        null,
+        { headers: { Authorization: `Bearer ${jwt}` }, timeout: 60000 },
+      );
+      if (r.data.attached > 0) {
+        toast.success(`Attached ${r.data.attached} maker image${r.data.attached === 1 ? "" : "s"} · ${r.data.skipped} skipped.`);
+      } else if (r.data.attempted === 0) {
+        toast.info("No imageless showcase posts — feed is clean.");
+      } else {
+        toast.error(`Couldn't attach any (${r.data.skipped} skipped — makers without hero images).`);
+      }
+      await load();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Auto-attach failed.");
+    } finally {
+      setAttachBusy(false);
     }
   };
 
@@ -292,6 +337,27 @@ export default function FeedHealthCard() {
                           </button>
                           <p className="font-mono text-[10px] text-[#525252] mt-1.5 max-w-xl leading-relaxed">
                             Renders a PNG preview from the source SVG / DXF / STL / image. Up to 25 per click (each render takes a few seconds). Re-run for the next batch.
+                          </p>
+                        </div>
+                      )}
+                      {/* iter338 — Showcase: bulk-attach maker hero
+                          images to imageless posts. Surfaces only when
+                          missing_image is in the top blockers. */}
+                      {c.channel === "showcase" &&
+                       c.top_blockers.some((b) => b.reason === "missing_image") && (
+                        <div className="pt-1">
+                          <button
+                            onClick={attachMakerImages}
+                            disabled={attachBusy}
+                            className="px-3 py-1.5 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+                            data-testid="feed-health-showcase-attach-maker-image"
+                          >
+                            {attachBusy
+                              ? "Attaching maker images…"
+                              : `⟲ Auto-attach maker images (up to 100)`}
+                          </button>
+                          <p className="font-mono text-[10px] text-[#525252] mt-1.5 max-w-xl leading-relaxed">
+                            For showcase posts missing an image, copies the maker&apos;s shop hero image into the post so it can publish to the showcase / Pinterest feed. Skips posts whose maker has no hero image (those need a manual upload).
                           </p>
                         </div>
                       )}

@@ -25,10 +25,10 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Body, Depends, Request
 
 from core import db
-from maker_auth import require_capability
+from maker_auth import require_capability, current_admin
 
 router = APIRouter()
 log = logging.getLogger("crafters.admin.feeds_health")
@@ -149,27 +149,44 @@ async def _showcase_health() -> dict[str, Any]:
     `community_showcase`) and the visibility filter is
     `admin_hidden != true`. Image lives on either `image_url` or
     `image_urls[0]`.
+
+    iter338 — surface 5 example blocked posts so the admin can drill
+    in + fix them (matches the design-files row's UX).
     """
-    total = await db.showcase_posts.count_documents(
-        {"admin_hidden": {"$ne": True}},
-    )
-    # "Ready" = has at least one of image_url / image_urls[0].
-    ready = await db.showcase_posts.count_documents(
-        {"admin_hidden": {"$ne": True},
-         "$or": [
-             {"image_url": {"$exists": True, "$nin": [None, ""]}},
-             {"image_urls.0": {"$exists": True}},
-         ]},
-    )
+    base = {"admin_hidden": {"$ne": True}}
+    has_img = {"$or": [
+        {"image_url": {"$exists": True, "$nin": [None, ""]}},
+        {"image_urls.0": {"$exists": True}},
+    ]}
+    total = await db.showcase_posts.count_documents(base)
+    ready = await db.showcase_posts.count_documents({**base, **has_img})
+    blocked = max(0, total - ready)
+    examples_raw = await db.showcase_posts.find(
+        {**base, "$nor": [
+            {"image_url": {"$exists": True, "$nin": [None, ""]}},
+            {"image_urls.0": {"$exists": True}},
+        ]},
+        {"_id": 0, "id": 1, "slug": 1, "title": 1, "caption": 1,
+         "maker_slug": 1, "image_url": 1, "image_urls": 1},
+    ).limit(5).to_list(5)
+    blocked_examples = [
+        {
+            "slug": e.get("slug") or e.get("id"),
+            "title": (e.get("title") or e.get("caption") or "—")[:60],
+            "maker_slug": e.get("maker_slug") or "—",
+            "blockers": ["missing_image"],
+        }
+        for e in examples_raw
+    ]
     return {
         "channel": "showcase",
         "ready": ready,
-        "blocked": max(0, total - ready),
+        "blocked": blocked,
         "total": total,
-        "top_blockers": [
-            {"reason": "missing_image", "count": max(0, total - ready)},
-        ] if total > ready else [],
-        "blocked_examples": [],
+        "top_blockers": (
+            [{"reason": "missing_image", "count": blocked}] if blocked else []
+        ),
+        "blocked_examples": blocked_examples,
     }
 
 
@@ -447,6 +464,130 @@ async def admin_auto_tag_design_files(
 
 
 @router.post("/admin/seo/auto-tag/showcase")
+
+
+# ──────────────────────────────────────────────────────────────────
+# iter338 — Manual export-tuning endpoints for design files +
+# showcase posts. These give the admin "FeedHealthCard" drill-downs
+# the ability to FIX what's blocked, not just count it.
+# ──────────────────────────────────────────────────────────────────
+
+@router.post("/admin/feeds/showcase/auto-attach-maker-image")
+async def admin_showcase_attach_maker_image(
+    limit: int = 50,
+    _: dict = Depends(require_capability("content", "marketplace")),
+):
+    """iter338 — Bulk-attach each maker's `hero_image_url` to their
+    showcase posts that currently have no image.
+
+    Mirrors the design-files auto-thumbnail flow: idempotent, batched,
+    only acts on rows that still lack imagery at query time. Skips any
+    post whose maker has no hero_image_url (those need manual upload).
+    """
+    if limit < 1 or limit > 500:
+        from fastapi import HTTPException
+        raise HTTPException(400, "limit must be 1-500")
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).isoformat()
+    rows = await db.showcase_posts.find(
+        {"admin_hidden": {"$ne": True},
+         "$nor": [
+             {"image_url": {"$exists": True, "$nin": [None, ""]}},
+             {"image_urls.0": {"$exists": True}},
+         ]},
+        {"_id": 0, "id": 1, "slug": 1, "title": 1, "maker_slug": 1},
+    ).limit(limit).to_list(limit)
+    attached = 0
+    skipped: list[dict] = []
+    for r in rows:
+        maker_slug = r.get("maker_slug")
+        if not maker_slug:
+            skipped.append({"id": r.get("id"), "reason": "no_maker_slug"})
+            continue
+        m = await db.makers.find_one(
+            {"slug": maker_slug},
+            {"hero_image_url": 1, "image_url": 1, "_id": 0},
+        )
+        img = (m or {}).get("hero_image_url") or (m or {}).get("image_url")
+        if not img:
+            skipped.append({"id": r.get("id"), "reason": "maker_has_no_hero"})
+            continue
+        await db.showcase_posts.update_one(
+            {"id": r["id"]},
+            {"$set": {"image_url": img,
+                      "image_auto_attached": True,
+                      "image_auto_attached_at": now}},
+        )
+        attached += 1
+    return {
+        "ok": True,
+        "attempted": len(rows),
+        "attached": attached,
+        "skipped": len(skipped),
+        "skipped_details": skipped[:20],
+    }
+
+
+@router.post("/admin/feeds/showcase/{post_id}/admin-hide")
+async def admin_showcase_admin_hide(
+    post_id: str,
+    _: dict = Depends(require_capability("content", "marketplace")),
+):
+    """iter338 — Per-row escape hatch for showcase posts that will
+    never be distributable (no usable maker image, NSFW, etc.).
+    Idempotent. Sets `admin_hidden=true` which removes the row from
+    every downstream feed's `ready` count + the public showcase grid.
+    """
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).isoformat()
+    r = await db.showcase_posts.update_one(
+        {"id": post_id},
+        {"$set": {"admin_hidden": True, "admin_hidden_at": now}},
+    )
+    if r.matched_count == 0:
+        from fastapi import HTTPException
+        raise HTTPException(404, f"Showcase post {post_id} not found")
+    return {"ok": True, "post_id": post_id, "admin_hidden": True}
+
+
+@router.patch("/admin/feeds/design-files/{file_id}")
+async def admin_patch_design_file(
+    file_id: str,
+    request: Request,
+    claims: dict = Depends(current_admin),
+):
+    """iter338 — Per-row patch for design files. Limited to the fields
+    that actually unblock distribution (thumbnail_url, primary_url,
+    title, description, file_type) so the admin can hand-fix a stuck
+    row from the FeedHealthCard drill-down without leaving the panel.
+
+    NOTE: uses `current_admin` (header-only) instead of
+    `require_capability(...)` because the latter binds the PATCH JSON
+    body to its internal `claims: dict` parameter (FastAPI quirk for
+    typed-dict params). We re-check the capability inline.
+    """
+    from fastapi import HTTPException
+    from maker_auth import admin_capabilities
+    is_super, caps = await admin_capabilities(claims)
+    if not (is_super or any(c in caps for c in ("content", "marketplace"))):
+        raise HTTPException(403, "Missing capability: content, marketplace.")
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    if not isinstance(payload, dict):
+        payload = {}
+    ALLOWED = {"thumbnail_url", "primary_url", "title", "description", "file_type"}
+    updates = {k: v for k, v in payload.items() if k in ALLOWED}
+    if not updates:
+        raise HTTPException(400, f"No allowed fields in payload. Allowed: {sorted(ALLOWED)}")
+    from datetime import datetime, timezone
+    updates["admin_patched_at"] = datetime.now(timezone.utc).isoformat()
+    r = await db.design_files.update_one({"id": file_id}, {"$set": updates})
+    if r.matched_count == 0:
+        raise HTTPException(404, f"Design file {file_id} not found")
+    return {"ok": True, "file_id": file_id, "updated_fields": sorted(updates.keys())}
+
 async def admin_auto_tag_showcase_posts(
     limit: int = 25,
     force: bool = False,
