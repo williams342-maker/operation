@@ -325,6 +325,93 @@ async def recommend_budget(body: RecommendBudgetRequest,
     return await promote_recommend.recommend(maker_slug, body.goal)
 
 
+@router.get("/promote/channel-split")
+async def channel_split(maker_slug: str = Depends(current_maker_slug)):
+    """iter335.16 — Maker-facing channel-split hint.
+
+    Combines the persisted marketplace-wide attribution weights (Google
+    / Meta / Microsoft, from `channel_weights` collection) with this
+    maker's per-channel gateway eligibility, then re-normalizes weights
+    over only the channels the maker can actually use.
+
+    Returns:
+        {
+          channels: [{channel, weight, eligible, roas, orders_30d, note}],
+          eligible_channels: int,
+          cold_start: bool,
+          basis: "marketplace" | "cold-start",
+          computed_at: iso,
+        }
+
+    Used by the wizard Step 2 + PromoteTab as a non-committal nudge —
+    the actual launch still happens per-listing via the existing
+    `/promote/external/launch` flow, this just tells the maker "if
+    you're going to split a $100 budget across paid channels, here's
+    where marketplace data says the dollars should go."
+    """
+    from services import channel_attribution
+    weights = await channel_attribution.get_persisted()
+    weights_by_ch = {c["channel"]: c for c in weights["channels"]}
+
+    # Per-channel eligibility (re-uses the same adapter the launch flow
+    # checks — keeps the hint consistent with what they can actually do).
+    eligible_set: list[dict] = []
+    for ch in ("google", "meta", "microsoft"):
+        try:
+            gw = get_gateway(ch)
+            ok, reason = await gw.is_eligible(maker_slug)
+        except Exception as e:
+            ok, reason = False, f"adapter error: {str(e)[:80]}"
+        w = weights_by_ch.get(ch) or {}
+        eligible_set.append({
+            "channel": ch,
+            "eligible": bool(ok),
+            "eligibility_reason": reason if not ok else None,
+            "raw_weight": w.get("weight", 0.0),
+            "roas": w.get("roas", 0.0),
+            "orders_30d": w.get("orders_30d", 0),
+            "spend_cents_30d": w.get("spend_cents_30d", 0),
+        })
+
+    # Re-normalize weights across the eligible subset only.
+    eligible_total = sum(c["raw_weight"] for c in eligible_set if c["eligible"])
+    out: list[dict] = []
+    for c in eligible_set:
+        if c["eligible"]:
+            if eligible_total > 0:
+                norm = c["raw_weight"] / eligible_total
+            else:
+                # All eligible channels have zero weight → equal split.
+                n_eligible = sum(1 for x in eligible_set if x["eligible"])
+                norm = (1.0 / n_eligible) if n_eligible > 0 else 0.0
+            note = None
+            if c["roas"] >= 2:
+                note = f"{c['roas']:.1f}× ROAS on marketplace — strong lift"
+            elif c["roas"] >= 1:
+                note = f"{c['roas']:.1f}× ROAS — solid"
+            elif c["orders_30d"] > 0:
+                note = f"{c['orders_30d']} orders in 30d — measurable"
+        else:
+            norm = 0.0
+            note = c["eligibility_reason"] or "Connect this channel to unlock"
+        out.append({
+            "channel": c["channel"],
+            "weight": round(norm, 4),
+            "eligible": c["eligible"],
+            "roas": c["roas"],
+            "orders_30d": c["orders_30d"],
+            "note": note,
+        })
+
+    return {
+        "channels": out,
+        "eligible_channels": sum(1 for c in out if c["eligible"]),
+        "cold_start": bool(weights.get("cold_start")),
+        "basis": "cold-start" if weights.get("cold_start") else "marketplace",
+        "computed_at": weights.get("computed_at"),
+    }
+
+
 @router.get("/promote/themes/active")
 async def active_themes_for_maker(maker_slug: str = Depends(current_maker_slug)):
     """iter335.13 — Maker-facing view of cross-maker theme campaigns

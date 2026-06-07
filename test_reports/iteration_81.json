@@ -1,0 +1,31 @@
+{
+  "summary": "iter335.16 — Maker-facing channel-split hint + theme-digest cron. All 9 new tests + 117/117 cumulative iter335 regression pass. Live API verified end-to-end (401 unauth, 200 with maker JWT). Frontend self-hide path confirmed (eligible_channels=0 cold-start → section absent). Frontend visible path confirmed via mocked API (Google 67% / Meta 33% rows render, microsoft ineligible row hidden, green progress bars, correct subtitle).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter335m_channel_split_and_theme_digest.py",
+    "/app/test_reports/pytest/iter335m.xml",
+    "/app/test_reports/pytest/iter335_full_iter335m.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "routers/promote.py /promote/channel-split: gateway eligibility is queried sequentially for each of the 3 channels via `await get_gateway(ch).is_eligible(...)`. With 3 channels this is fine, but if new ad platforms are added consider `asyncio.gather` to parallelise — currently each request makes one extra round-trip per channel.",
+    "scheduler._job_theme_suggestions_digest: marker is keyed on `global` doc with `last_sent_date` checked against UTC date. Works for one-shop/marketplace-wide digest but if you ever need per-tenant digests the marker schema will need to evolve (per-region or per-org keys).",
+    "PromoteTab.jsx self-hide gate `channelSplit.eligible_channels >= 2` correctly hides for cold-start state, but if backend evolves to return `eligible_channels: 1` (one channel newly connected) the row would still render data — but the heading 'Recommended split' implies multi-channel. Current >=2 gate is the right call; just document in component the rationale so future contributors don't relax it to >=1."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "iron-and-oak maker JWT minted via maker_auth.issue_session_jwt; admin via OPS_EMAIL=team@craftersmarket.org",
+  "seed_data_creation": "None on live preview. Backend tests seed/teardown their own channel_weights + theme_digest_marker docs via autouse fixture. Live preview db.channel_weights remains in cold-start state (all 0.0) and db.theme_digest_marker remains empty as specified by main agent.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Live preview maker portal route is /maker/dashboard?tab=promote (NOT /maker/portal). Maker JWT localStorage key is `cm_maker_jwt` + `cm_maker_slug` + `cm_maker_persist`. Channel-split section will remain self-hidden until ad-platform integrations are connected on the live preview (eligible_channels must be >=2). Verified visible path by intercepting /api/promote/channel-split with playwright route() mock.",
+  "rca_of_the_issue": "N/A — feature shipped clean. Backend normalize-over-eligible math verified by test_channel_split_normalizes_over_eligible_channels (google 0.667 + meta 0.333, microsoft clamped to 0). Theme digest idempotency verified by test_theme_digest_cron_idempotent (second same-day call short-circuits via marker). Cron registered at hour=9, minute=30 via CronTrigger."
+}

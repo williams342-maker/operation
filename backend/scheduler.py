@@ -909,6 +909,59 @@ async def _job_channel_attribution_recompute() -> None:
         logger.exception("[scheduler] channel_attribution failed: %s", e)
 
 
+# iter335.16 — Theme suggestions digest threshold
+TRENDING_THEME_GROWTH_THRESHOLD = 50.0  # % growth required to surface in digest
+
+
+async def _job_theme_suggestions_digest() -> None:
+    """iter335.16 — Daily 09:30 UTC. Re-runs the theme suggestions
+    engine; emails the ops team an HTML digest of any tag whose
+    week-over-week order growth crossed the +50% threshold AND that
+    is not yet covered by an active theme. Idempotent — we stamp the
+    last-sent date on a small marker doc so the same digest is never
+    sent twice in one calendar day (covers timezone-edge re-runs or
+    manual triggers during the same UTC day)."""
+    try:
+        from services import theme_suggestions
+        from datetime import datetime, timezone
+        from email_service import send_ops_trending_themes_digest
+
+        # Re-pull, then filter to "high-growth and unclaimed".
+        result = await theme_suggestions.suggest(limit=20)
+        hot = [s for s in (result.get("suggestions") or [])
+               if (s.get("growth_pct") or 0) >= TRENDING_THEME_GROWTH_THRESHOLD]
+        if not hot:
+            logger.info("[scheduler] theme_suggestions_digest: nothing above %s%% threshold",
+                        TRENDING_THEME_GROWTH_THRESHOLD)
+            return
+
+        # Idempotency — one send per UTC day.
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        from core import db
+        marker = await db.theme_digest_marker.find_one({"_id": "global"})
+        if marker and marker.get("last_sent_date") == today:
+            logger.info("[scheduler] theme_suggestions_digest: already sent on %s — skipping",
+                        today)
+            return
+
+        sent = await send_ops_trending_themes_digest(hot)
+        if sent:
+            await db.theme_digest_marker.update_one(
+                {"_id": "global"},
+                {"$set": {"last_sent_date": today,
+                          "last_sent_count": len(hot),
+                          "last_tags": [s["tag"] for s in hot]}},
+                upsert=True,
+            )
+            logger.info("[scheduler] theme_suggestions_digest: emailed %d tag(s) — %s",
+                        len(hot), ", ".join(s["tag"] for s in hot[:5]))
+        else:
+            logger.info("[scheduler] theme_suggestions_digest: send_ops returned False "
+                        "(OPS_EMAIL missing?) — not stamping marker")
+    except Exception as e:
+        logger.exception("[scheduler] theme_suggestions_digest failed: %s", e)
+
+
 
 async def _job_maker_journal_digest() -> None:
     """Weekly Monday 14:00 UTC — for each maker who published one or
@@ -1379,6 +1432,12 @@ def start_scheduler() -> AsyncIOScheduler | None:
     sched.add_job(_job_channel_attribution_recompute,
                   CronTrigger(hour=4, minute=30),
                   id="channel_attribution_recompute", replace_existing=True)
+    # iter335.16 — Theme suggestions ops digest at 09:30 UTC. Surfaces
+    # any tag that crossed +50% week-over-week growth and isn't yet
+    # covered by a theme. Idempotent per UTC day.
+    sched.add_job(_job_theme_suggestions_digest,
+                  CronTrigger(hour=9, minute=30),
+                  id="theme_suggestions_digest", replace_existing=True)
     # iter335.8 — Sweep failed conversion uploads from the last 7 days.
     # 05:30 UTC keeps it after the allocator + before business-hours
     # spike. Idempotent — fire_conversions short-circuits successful

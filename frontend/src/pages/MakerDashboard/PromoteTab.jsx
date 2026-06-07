@@ -28,6 +28,7 @@ import {
   fetchPromoteChannels, fetchExternalCampaigns,
   launchExternalCampaign, pauseExternalCampaign, resumeExternalCampaign,
   fetchActivePromoteThemes,
+  fetchPromoteChannelSplit,
 } from "../../lib/api";
 import PromoteWizard, { shouldShowWizard, shouldShowSuccessStep } from "./PromoteWizard";
 
@@ -50,6 +51,7 @@ export default function PromoteTab() {
   const [channels, setChannels] = useState([]);
   const [extCampaigns, setExtCampaigns] = useState([]);
   const [activeThemes, setActiveThemes] = useState([]);
+  const [channelSplit, setChannelSplit] = useState(null);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [wizardStep, setWizardStep] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -71,10 +73,11 @@ export default function PromoteTab() {
     const wantSuccessStep = shouldShowSuccessStep();
     (async () => {
       try {
-        const [w, c, a, ch, ext, themes] = await Promise.all([
+        const [w, c, a, ch, ext, themes, split] = await Promise.all([
           fetchPromoteWallet(), fetchPromoteCampaign(), fetchPromoteAnalytics(),
           fetchPromoteChannels(), fetchExternalCampaigns(),
           fetchActivePromoteThemes().catch(() => ({ themes: [] })),
+          fetchPromoteChannelSplit().catch(() => null),
         ]);
         if (cancelled) return;
         setWallet(w);
@@ -84,6 +87,7 @@ export default function PromoteTab() {
         setChannels(ch.channels || []);
         setExtCampaigns(ext.campaigns || []);
         setActiveThemes(themes.themes || []);
+        setChannelSplit(split);
         // iter335.9 — Post-fund return: re-open at step 4 ("You're live")
         // takes precedence over the regular first-time-empty trigger.
         if (wantSuccessStep) {
@@ -138,10 +142,11 @@ export default function PromoteTab() {
   }, [budgetCents, goal, autoAllocate, loading]);
 
   const refresh = async () => {
-    const [w, c, a, ch, ext, themes] = await Promise.all([
+    const [w, c, a, ch, ext, themes, split] = await Promise.all([
       fetchPromoteWallet(), fetchPromoteCampaign(), fetchPromoteAnalytics(),
       fetchPromoteChannels(), fetchExternalCampaigns(),
       fetchActivePromoteThemes().catch(() => ({ themes: [] })),
+      fetchPromoteChannelSplit().catch(() => null),
     ]);
     setWallet(w);
     setCampaign(c.campaign || null);
@@ -150,6 +155,7 @@ export default function PromoteTab() {
     setChannels(ch.channels || []);
     setExtCampaigns(ext.campaigns || []);
     setActiveThemes(themes.themes || []);
+    setChannelSplit(split);
   };
 
   const onTopup = async (amount) => {
@@ -536,6 +542,53 @@ export default function PromoteTab() {
           <p className="text-[10px] text-[#737373] mt-2">
             External channels are opt-in per listing. New campaigns always start paused — review before activating.
           </p>
+
+          {/* iter335.16 — Recommended channel split hint */}
+          {channelSplit && channelSplit.eligible_channels >= 2 && (
+            <div
+              className="mt-3 border border-emerald-700/30 bg-emerald-950/10 p-3"
+              data-testid="promote-channel-split"
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <TrendingUp size={12} className="text-emerald-300" />
+                <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-emerald-300">
+                  Recommended split · marketplace data
+                </span>
+                {channelSplit.cold_start && (
+                  <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-amber-300 ml-1">
+                    · cold start
+                  </span>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                {channelSplit.channels.filter((c) => c.eligible).map((c) => (
+                  <div
+                    key={c.channel}
+                    className="flex items-center gap-3"
+                    data-testid={`promote-channel-split-row-${c.channel}`}
+                  >
+                    <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] w-20 shrink-0">
+                      {c.channel === "microsoft" ? "Microsoft" : c.channel === "google" ? "Google" : "Meta"}
+                    </span>
+                    <div className="flex-1 h-1.5 bg-[#1f1f1f]">
+                      <div
+                        className="h-1.5 bg-gradient-to-r from-emerald-700 to-emerald-300 transition-all"
+                        style={{ width: `${Math.max(3, c.weight * 100)}%` }}
+                      />
+                    </div>
+                    <span className="font-mono text-[11px] tabular-nums text-emerald-200 w-12 text-right">
+                      {(c.weight * 100).toFixed(0)}%
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[10px] text-[#737373] mt-2 leading-snug">
+                {channelSplit.cold_start
+                  ? "Not enough paid-channel data on the marketplace yet — split is even across your eligible channels until orders start landing."
+                  : "Based on the marketplace's last-30-day ROAS across all makers. Use this as a starting point when funding multiple paid channels."}
+              </p>
+            </div>
+          )}
         </div>
 
         <label className="flex items-center gap-2 text-sm text-[#a3a3a3] mb-5 cursor-pointer">

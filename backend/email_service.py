@@ -3071,3 +3071,72 @@ async def send_showcase_restored_notice(
     html = _shell("All clear.", intro, body, "Crafters Market · Community Moderation")
     subject = "[Crafters Market] Your showcase post is back live"
     return await _send(email, subject, html)
+
+
+
+# ── iter335.16 — Trending theme suggestions digest (ops) ────────────
+async def send_ops_trending_themes_digest(suggestions: list[dict]) -> bool:
+    """Daily ops digest: tags that crossed the 50% growth threshold and
+    are NOT yet covered by an active theme campaign. One CTA per
+    suggestion → deep-links to the admin Themes tab so the admin can
+    spin up the cross-maker pool in one click.
+
+    Returns True if an email was actually dispatched, False otherwise
+    (no OPS_EMAIL configured, or `suggestions` is empty)."""
+    if not OPS_EMAIL or not suggestions:
+        return False
+    rows = []
+    for s in suggestions:
+        draft = s.get("draft") or {}
+        growth = s.get("growth_pct", 0)
+        growth_color = "#22c55e" if growth >= 100 else "#f59e0b"
+        rows.append(f"""
+          <tr>
+            <td style="padding:14px 0;border-top:1px solid #262626;vertical-align:top">
+              <div style="font-family:Impact,Arial Black,sans-serif;
+                          font-size:20px;color:#e5e5e5;letter-spacing:-0.01em;
+                          text-transform:uppercase">{draft.get('name', s.get('tag', '?'))}</div>
+              <div style="font-family:'JetBrains Mono',monospace;font-size:11px;
+                          color:#a3a3a3;margin-top:4px">
+                <span style="color:{growth_color};font-weight:bold">+{growth}%</span>
+                &nbsp;·&nbsp; {s.get('recent_orders', 0)} orders
+                &nbsp;·&nbsp; {s.get('distinct_makers', 0)} makers
+              </div>
+              <div style="font-family:'JetBrains Mono',monospace;font-size:11px;
+                          color:#737373;margin-top:6px">
+                Suggested pool: ${(draft.get('pool_total_cents', 50000)/100):.0f}
+                &nbsp;·&nbsp; per-maker cap: ${(draft.get('per_maker_cap_cents', 5000)/100):.0f}
+                &nbsp;·&nbsp; window: {draft.get('start_date', '?')} → {draft.get('end_date', '?')}
+              </div>
+            </td>
+          </tr>
+        """)
+    body = (
+        "<p style='font-size:13px;color:#a3a3a3;margin:0 0 18px'>"
+        "These tags crossed +50% order growth this week and aren't yet "
+        "covered by an active theme. One click in the admin will spin up "
+        "a subsidized cross-maker pool."
+        "</p>"
+        "<table width='100%' cellpadding='0' cellspacing='0'>"
+        + "".join(rows)
+        + "</table>"
+        "<div style='margin-top:24px;text-align:center'>"
+        "<a href='https://craftersmarket.org/admin/dashboard?tab=ads' "
+        "style='display:inline-block;background:#ff4500;color:#0a0a0a;"
+        "padding:14px 28px;font-family:Impact,Arial Black,sans-serif;"
+        "font-size:13px;letter-spacing:0.18em;text-transform:uppercase;"
+        "text-decoration:none'>Open admin · Themes</a>"
+        "</div>"
+    )
+    html = _shell(
+        f"{len(suggestions)} trending tag{'s' if len(suggestions) != 1 else ''}.",
+        "Promotion engine spotted unclaimed momentum overnight.",
+        body,
+        "Crafters Market · Promote Intel",
+    )
+    subject = (
+        f"[Crafters Market] {len(suggestions)} hot tag"
+        f"{'s' if len(suggestions) != 1 else ''} need a theme pool"
+    )
+    await _send(OPS_EMAIL, subject, html)
+    return True

@@ -1774,6 +1774,10 @@ export const recommendPromoteBudget = (goal = "sales") =>
 export const fetchActivePromoteThemes = () =>
   http.get("/promote/themes/active", { headers: authHeaders() }).then((r) => r.data);
 
+// iter335.16 — Maker-facing channel-split hint
+export const fetchPromoteChannelSplit = () =>
+  http.get("/promote/channel-split", { headers: authHeaders() }).then((r) => r.data);
+
 // iter335.13 — Admin: theme campaign CRUD
 export const adminFetchPromoteThemes = () =>
   http.get("/admin/promote/themes", { headers: adminAuthHeaders() }).then((r) => r.data);
