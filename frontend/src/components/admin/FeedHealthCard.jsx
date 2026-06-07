@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import axios from "axios";
 import { fetchAdminFeedHealth } from "../../lib/api";
 import QuickEditDesignFile from "./QuickEditDesignFile";
+import QuickEditShowcase from "./QuickEditShowcase";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -170,6 +171,8 @@ export default function FeedHealthCard() {
   // Holds the example dict (or null when closed); fields edit
   // locally; Save calls PATCH and reloads feed health.
   const [editing, setEditing] = useState(null);
+  // iter338c — Parallel state for showcase post Quick Edit modal.
+  const [editingShowcase, setEditingShowcase] = useState(null);
   const attachMakerImages = async () => {
     setAttachBusy(true);
     try {
@@ -422,6 +425,16 @@ export default function FeedHealthCard() {
                                       Edit
                                     </button>
                                   )}
+                                  {c.channel === "showcase" && ex.id && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setEditingShowcase(ex)}
+                                      className="px-2 py-0.5 border border-emerald-700/50 text-emerald-300 hover:bg-emerald-500/10 font-mono text-[9px] uppercase tracking-[0.18em] transition"
+                                      data-testid={`feed-health-edit-showcase-${ex.id}`}
+                                    >
+                                      Edit
+                                    </button>
+                                  )}
                                 </div>
                               </li>
                             ))}
@@ -447,6 +460,14 @@ export default function FeedHealthCard() {
           example={editing}
           onClose={() => setEditing(null)}
           onSaved={() => { setEditing(null); load(); }}
+        />
+      )}
+      {/* iter338c — Quick Edit modal for blocked showcase posts */}
+      {editingShowcase && (
+        <QuickEditShowcase
+          example={editingShowcase}
+          onClose={() => setEditingShowcase(null)}
+          onSaved={() => { setEditingShowcase(null); load(); }}
         />
       )}
     </section>

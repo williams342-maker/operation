@@ -1,3 +1,27 @@
+## 2026-06-07 — Quick Edit modal for showcase posts (iter338c)
+
+### What shipped
+Admins can now patch individual blocked **community showcase posts** directly from the Feed Health card drill-down — same UX as the design-files Quick Edit, distinct emerald color cue to avoid mixing up the two row types.
+
+### Backend
+- `routers/admin_feeds_health.py::admin_patch_showcase_post` — `PATCH /api/admin/feeds/showcase/{post_id}` with allow-listed fields (`image_url`, `caption`, `title`). Same header-only `current_admin` + inline capability check pattern as the design-files PATCH.
+- Stamps `admin_patched_at` for audit.
+- `_showcase_health()` blocked_examples now include `id`, `image_url`, and `caption` (previously only `slug`, `title`, `maker_slug`).
+
+### Frontend
+- `components/admin/QuickEditShowcase.jsx` (new, ~155 lines) — sibling to `QuickEditDesignFile`. Pre-fills image URL (with live preview), caption (textarea), and title. Emerald accent color.
+- `components/admin/FeedHealthCard.jsx` — adds parallel `editingShowcase` state + "Edit" pill on each showcase example row + modal mount.
+
+### Smoke test (post-deploy verification)
+- ✅ Showcase blocked_examples include `id` field
+- ✅ PATCH round-trip succeeds: `{"ok":true,"post_id":"…","updated_fields":["admin_patched_at","caption","image_url"]}`
+- ✅ Empty/unknown payload rejected with 400: `"No allowed fields in payload. Allowed: ['caption', 'image_url', 'title']"`
+- ✅ Modal renders + opens via Edit pill (screenshot validated)
+- ✅ ESLint clean on both modal files
+
+---
+
+
 ## 2026-06-07 — Admin Quick Edit Modal for Feed Health (iter338b)
 
 ### What shipped

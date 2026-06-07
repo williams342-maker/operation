@@ -171,8 +171,11 @@ async def _showcase_health() -> dict[str, Any]:
     ).limit(5).to_list(5)
     blocked_examples = [
         {
+            "id": e.get("id"),
             "slug": e.get("slug") or e.get("id"),
             "title": (e.get("title") or e.get("caption") or "—")[:60],
+            "caption": e.get("caption") or "",
+            "image_url": e.get("image_url") or "",
             "maker_slug": e.get("maker_slug") or "—",
             "blockers": ["missing_image"],
         }
@@ -590,6 +593,45 @@ async def admin_patch_design_file(
     if r.matched_count == 0:
         raise HTTPException(404, f"Design file {file_id} not found")
     return {"ok": True, "file_id": file_id, "updated_fields": sorted(updates.keys())}
+
+
+@router.patch("/admin/feeds/showcase/{post_id}")
+async def admin_patch_showcase_post(
+    post_id: str,
+    request: Request,
+    claims: dict = Depends(current_admin),
+):
+    """iter338c — Per-row patch for community showcase posts. Same
+    shape as the design-files PATCH: allow-listed fields, header-only
+    auth + inline capability check (dodges FastAPI `claims: dict =
+    Depends(...)` body-vs-deps collision on PATCH).
+
+    Allows the admin to attach an image_url, fix the caption, or set
+    a title on a stuck showcase post without leaving the FeedHealthCard
+    drill-down.
+    """
+    from fastapi import HTTPException
+    from maker_auth import admin_capabilities
+    is_super, caps = await admin_capabilities(claims)
+    if not (is_super or any(c in caps for c in ("content", "marketplace"))):
+        raise HTTPException(403, "Missing capability: content, marketplace.")
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    if not isinstance(payload, dict):
+        payload = {}
+    ALLOWED = {"image_url", "caption", "title"}
+    updates = {k: v for k, v in payload.items() if k in ALLOWED}
+    if not updates:
+        raise HTTPException(400, f"No allowed fields in payload. Allowed: {sorted(ALLOWED)}")
+    from datetime import datetime, timezone
+    updates["admin_patched_at"] = datetime.now(timezone.utc).isoformat()
+    r = await db.showcase_posts.update_one({"id": post_id}, {"$set": updates})
+    if r.matched_count == 0:
+        raise HTTPException(404, f"Showcase post {post_id} not found")
+    return {"ok": True, "post_id": post_id, "updated_fields": sorted(updates.keys())}
+
 
 async def admin_auto_tag_showcase_posts(
     limit: int = 25,

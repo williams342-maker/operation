@@ -23,11 +23,14 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - Admin: `/admin/login|verify|dashboard`
 
 ## What's Implemented (cumulative)
-- ✅ **Admin Quick Edit Modal for Feed Health (iter338b, 2026-06-07):**
+- ✅ **Admin Quick Edit Modal for Feed Health (iter338b/c, 2026-06-07):**
   • **`PATCH /api/admin/feeds/design-files/{file_id}`** — allow-listed patch (`thumbnail_url`, `primary_url`, `title`, `description`, `file_type`) for stuck design-file rows. Uses header-only `current_admin` + inline capability check (content/marketplace) to dodge FastAPI body/Depends collision. Stamps `admin_patched_at` for audit.
-  • **Frontend `QuickEditDesignFile` modal** in `FeedHealthCard.jsx` — "Edit" pill next to each blocked design-file example opens a pre-filled modal (title + thumb URL with live preview + primary URL) with "* MISSING" indicators on the blocker fields. Saves only changed fields → parent reloads feed-health snapshot so counters update immediately.
-  • **Smoke-tested live:** ESLint clean, modal renders + opens, PATCH round-trip verified via curl (`updated_fields: ["admin_patched_at","title"]`).
-  • Files MODIFIED: `backend/routers/admin_feeds_health.py`, `frontend/src/components/admin/FeedHealthCard.jsx`.
+  • **`PATCH /api/admin/feeds/showcase/{post_id}`** (iter338c) — sibling endpoint, allow-listed fields `image_url`, `caption`, `title`. Same auth + audit pattern.
+  • **Frontend `QuickEditDesignFile` modal** (`components/admin/QuickEditDesignFile.jsx`, 161 lines) — "Edit" pill next to each blocked design-file example opens a pre-filled modal (title + thumb URL with live preview + primary URL) with "* MISSING" indicators. Cyan accent.
+  • **Frontend `QuickEditShowcase` modal** (`components/admin/QuickEditShowcase.jsx`, iter338c, ~155 lines) — sibling modal with image URL (live preview), caption textarea, title. Emerald accent to differentiate channel.
+  • **`FeedHealthCard.jsx`** holds parallel `editing` (design-files) + `editingShowcase` states; renders the correct modal based on which Edit pill was clicked. Refactored from 599 → 454 lines after extracting modals to separate files.
+  • **Smoke-tested live:** ESLint clean, both modals render + open, PATCH round-trips verified via curl on both endpoints, allow-list rejection verified.
+  • Files NEW: `frontend/src/components/admin/QuickEditDesignFile.jsx`, `frontend/src/components/admin/QuickEditShowcase.jsx`. Files MODIFIED: `backend/routers/admin_feeds_health.py`, `frontend/src/components/admin/FeedHealthCard.jsx`.
 
 
 - ✅ **Maker rank widget + parallel eligibility + monthly leaderboard rewards (iter335.17, 2026-06-07):**
