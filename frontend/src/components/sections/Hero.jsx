@@ -92,7 +92,7 @@ export default function Hero() {
           className="font-mono text-[11px] uppercase tracking-[0.32em] text-amber-400 mb-6 inline-flex items-center gap-3 justify-center"
         >
           <span className="inline-block w-8 h-px bg-amber-400" />
-          Built by Independent Makers · Worldwide
+          Built by Independent Makers · US
           <span className="inline-block w-8 h-px bg-amber-400" />
         </motion.div>
 
