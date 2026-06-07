@@ -23,6 +23,15 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - Admin: `/admin/login|verify|dashboard`
 
 ## What's Implemented (cumulative)
+- ✅ **Buyer color selection + Message-the-maker on product detail (iter339, 2026-06-07):**
+  • **Color picker** on ProductDetail when listing has `colors[]` — Tailwind-JIT-safe swatch chips per color name, "maker offers N" hint, single-color = informational, ≥2 colors = required-pick guard before Add-to-cart.
+  • **"Question for {maker} about color" CTA** opens the existing `ContactMakerModal` with a new `prefillBody` prop pre-seeded with `Hi {maker}, I'm interested in "{title}" in {color}.` so the buyer can hit Send in two clicks.
+  • **`color_choice` flows end-to-end:** `cart.js add()` → `localStorage` row → `CartItem.color_choice` (≤40 char Pydantic field) → `_resolve_cart` → order doc snapshot → maker order email (rendered as `Color · <chip>` line above any free-text personalization).
+  • **Cart `rowKey`** now includes `color_choice` so two of the same item in different colors stay as separate lines (no merging).
+  • **Smoke-tested live:** picker renders, missing-color toast guard fires, Add-to-cart with color writes `color_choice` to localStorage, message modal pre-fill confirmed, `/api/cart/quote` accepts payload.
+  • Files MODIFIED: `backend/models.py`, `backend/routers/checkout.py`, `backend/email_service.py`, `frontend/src/lib/cart.js`, `frontend/src/components/ContactMakerModal.jsx`, `frontend/src/pages/ProductDetail.jsx`.
+
+
 - ✅ **Admin Quick Edit Modal for Feed Health (iter338b/c/d, 2026-06-07):**
   • **`PATCH /api/admin/feeds/design-files/{file_id}`** — allow-listed patch. Fields: `thumbnail_url`, `primary_url`, `title`, `description`, `file_type`, plus iter338d SEO fields `seo_title`, `seo_description`, `seo_tags`, `alt_text`. Header-only `current_admin` + inline capability check (content/marketplace) to dodge FastAPI body/Depends collision. Stamps `admin_patched_at`.
   • **`PATCH /api/admin/feeds/showcase/{post_id}`** — sibling endpoint, allow-listed fields `image_url`, `caption`, `title`, `seo_title`, `seo_description`, `seo_tags`, `alt_text`.

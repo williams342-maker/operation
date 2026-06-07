@@ -9,8 +9,10 @@ const STORAGE = "cm_cart_v1";
 const rowKey = (i) =>
   // Personalization fields differentiate otherwise-identical rows so
   // a buyer ordering two of the same product with different engravings
-  // doesn't get them merged into one quantity-2 line.
-  `${i.id}::${i.variant_id || ""}::${i.personalization_text || ""}::${i.personalization_image_url || ""}`;
+  // doesn't get them merged into one quantity-2 line. iter339 — color
+  // choice does the same so two of the same item in different colors
+  // stay as separate cart lines instead of stacking.
+  `${i.id}::${i.variant_id || ""}::${i.color_choice || ""}::${i.personalization_text || ""}::${i.personalization_image_url || ""}`;
 
 export function CartProvider({ children }) {
   const [items, setItems] = useState(() => {
@@ -33,7 +35,7 @@ export function CartProvider({ children }) {
     return () => clearTimeout(syncTimer.current);
   }, [items]);
 
-  const add = useCallback((p, qty = 1, variant = null, personalization = null) => {
+  const add = useCallback((p, qty = 1, variant = null, personalization = null, colorChoice = null) => {
     setItems((cur) => {
       const newRow = {
         id: p.id,
@@ -54,6 +56,10 @@ export function CartProvider({ children }) {
         // on the order doc, surfaced in the maker order email.
         personalization_text: personalization?.text || null,
         personalization_image_url: personalization?.image_url || null,
+        // iter339 — buyer-selected color from the maker's offered palette.
+        // Same path: flows into the resolved cart on checkout, persists on
+        // the order doc, surfaces in the maker order email as a chip.
+        color_choice: (colorChoice || "").trim() || null,
       };
       const ex = cur.find((i) => rowKey(i) === rowKey(newRow));
       if (ex) {

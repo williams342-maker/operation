@@ -18,6 +18,7 @@ import SimilarProductsRail from "../components/SimilarProductsRail";
 import CustomOrderCTA from "../components/CustomOrderCTA";
 import Breadcrumbs from "../components/Breadcrumbs";
 import GuideCrossLinkCard from "../components/GuideCrossLinkCard";
+import ContactMakerModal from "../components/ContactMakerModal";
 import { DetailSkeleton } from "../components/Skeleton";
 
 // Always emit the canonical apex URL — never the preview hostname. SEO
@@ -46,6 +47,11 @@ export default function ProductDetail() {
   const [restockOpen, setRestockOpen] = useState(false);
   // iter302 — aggregate review summary for JSON-LD AggregateRating.
   const [reviewAgg, setReviewAgg] = useState(null);
+  // iter339 — buyer's color choice (from maker's offered palette in `p.colors`).
+  // Flows into add-to-cart → checkout → order doc → maker order email,
+  // and also pre-fills the "Message the maker" body when set.
+  const [selectedColor, setSelectedColor] = useState(null);
+  const [contactOpen, setContactOpen] = useState(false);
   const { add } = useCart();
 
   useEffect(() => {
@@ -53,6 +59,7 @@ export default function ProductDetail() {
     setSelectedVariantId(null);
     setBackorderPolicy(null);
     setReviewAgg(null);
+    setSelectedColor(null);
     fetchProduct(slug).then(async (prod) => {
       setP(prod);
       // Auto-select first variant if any
@@ -179,7 +186,15 @@ export default function ProductDetail() {
       node?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
-    add(p, qty, selectedVariant, personalization || null);
+    // iter339 — if the maker offers 2+ colors and the buyer hasn't picked
+    // one, nudge them. Single-color or no-color listings skip this check.
+    if ((p.colors || []).length >= 2 && !selectedColor) {
+      toast.error("Please choose a color before adding to cart.");
+      const node = document.querySelector("[data-testid='product-color-picker']");
+      node?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    add(p, qty, selectedVariant, personalization || null, selectedColor);
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
     // iter334i — Fire Microsoft Ads `add_to_cart` conversion event so
@@ -336,7 +351,7 @@ export default function ProductDetail() {
                 data-testid="product-detail-digital-manifest"
               >
                 <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-cyan-300 mb-3">
-                  ◆ Files you'll receive ({p.digital_files.length})
+                  ◆ Files you&apos;ll receive ({p.digital_files.length})
                 </div>
                 <ul className="space-y-1.5">
                   {p.digital_files.map((f) => (
@@ -483,6 +498,67 @@ export default function ProductDetail() {
               </div>
             )}
 
+            {/* iter339 — Buyer color picker. Renders only when the maker
+                has offered ≥1 color on the listing. Single-color listings
+                still show the swatch so the buyer knows what they're
+                getting, but the row is informational. ≥2 colors → buyer
+                MUST pick before Add to cart fires. */}
+            {(p.colors || []).length > 0 && (
+              <div className="mb-6" data-testid="product-color-picker">
+                <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-3">
+                  Color <span className="text-[#525252] normal-case tracking-normal">— maker offers {p.colors.length}</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {p.colors.map((c) => {
+                    const isSel = selectedColor === c;
+                    const isSingle = p.colors.length === 1;
+                    return (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => {
+                          if (isSingle) return; // single-color is informational
+                          setSelectedColor(isSel ? null : c);
+                        }}
+                        aria-pressed={isSel}
+                        disabled={isSingle}
+                        data-testid={`product-color-${c.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
+                        className={`px-3 py-2 border font-mono text-[11px] uppercase tracking-[0.22em] transition ${
+                          isSel
+                            ? "border-[#ff4500] bg-[#ff4500]/10 text-[#ff4500]"
+                            : isSingle
+                            ? "border-[#262626] text-[#a3a3a3] cursor-default"
+                            : "border-[#262626] text-[#a3a3a3] hover:border-[#ff4500] hover:text-[#ff4500]"
+                        }`}
+                      >
+                        <span className={`inline-block w-3 h-3 mr-2 align-middle border border-[#262626] ${_colorSwatchClass(c)}`} />
+                        {c}
+                      </button>
+                    );
+                  })}
+                </div>
+                {(p.colors.length >= 2 && !selectedColor) && (
+                  <div className="font-mono text-[10px] text-[#525252] mt-2">
+                    ◆ Pick one to add to cart.
+                  </div>
+                )}
+                {/* Message-the-maker CTA. Always shown when colors are
+                    offered so a buyer who isn't sure can ask before
+                    committing. The selected color (if any) pre-fills
+                    the message body so the maker has full context. */}
+                {maker && (
+                  <button
+                    type="button"
+                    onClick={() => setContactOpen(true)}
+                    data-testid="product-message-maker"
+                    className="mt-3 inline-flex items-center gap-2 px-3 py-2 border border-cyan-700/50 text-cyan-300 hover:bg-cyan-500/10 font-mono text-[10px] uppercase tracking-[0.22em] transition"
+                  >
+                    ✉ Question for {maker.name || "the maker"} about color
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* iter150 — Buyer personalization panel. Renders only when
                 the maker has flagged this listing as personalizable. The
                 buyer can add a message and/or upload a reference image
@@ -622,6 +698,23 @@ export default function ProductDetail() {
         />
       )}
 
+      {/* iter339 — Message-the-maker modal opened from the color picker.
+          When a color is selected we pre-seed the body so the maker
+          gets full context ("Hey — interested in this in Red…") without
+          the buyer having to retype it. */}
+      {contactOpen && maker && (
+        <ContactMakerModal
+          maker={maker}
+          productSlug={p.slug}
+          prefillBody={
+            selectedColor
+              ? `Hi ${maker.name || ""},\n\nI'm interested in "${p.title}" in ${selectedColor}. `
+              : `Hi ${maker.name || ""},\n\nI have a question about "${p.title}". `
+          }
+          onClose={() => setContactOpen(false)}
+        />
+      )}
+
       {/* iter116 — Discovery surface for community showcase posts.
           Scoped to this product first, falls back to maker, then site-wide
           so a brand-new product always shows something. Self-hides if the
@@ -726,4 +819,34 @@ function ProductDescription({ description }) {
       </button>
     </div>
   );
+}
+
+
+// iter339 — Tailwind class for the small swatch chip next to the color
+// label. Kept as a name→class map (not inline `bg-[#hex]`) so Tailwind
+// JIT picks the classes up at build time. Anything not in the map falls
+// back to a neutral checkered fill so unknown / future palette additions
+// still render something rather than disappearing.
+function _colorSwatchClass(name) {
+  const m = {
+    Black: "bg-[#111111]",
+    White: "bg-white",
+    Gray: "bg-[#737373]",
+    Silver: "bg-[#bfbfbf]",
+    Gold: "bg-[#c9a227]",
+    Bronze: "bg-[#8c6a3d]",
+    Copper: "bg-[#b87333]",
+    Red: "bg-red-600",
+    Orange: "bg-[#ff7a2a]",
+    Yellow: "bg-yellow-400",
+    Green: "bg-emerald-600",
+    Blue: "bg-blue-600",
+    Purple: "bg-purple-600",
+    Brown: "bg-[#6b4423]",
+    Beige: "bg-[#e8d8b8]",
+    Natural: "bg-[#d9c9a3]",
+    "Multi-color":
+      "bg-gradient-to-br from-red-500 via-yellow-400 via-emerald-500 to-blue-500",
+  };
+  return m[name] || "bg-[#525252]";
 }

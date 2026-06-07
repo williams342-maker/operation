@@ -1,3 +1,34 @@
+## 2026-06-07 — Buyer color selection + Message-the-maker on product detail (iter339)
+
+### What shipped
+Buyers can now pick from the maker's offered color palette directly on the product page, and can message the maker right from that same panel (modal pre-fills with the selected color for context).
+
+### Backend
+- `models.py::CartItem` — new `color_choice: Optional[str] = Field(default=None, max_length=40)` field.
+- `routers/checkout.py::_resolve_cart` — extracts `color_choice` from cart items (handles both attr and dict access) and propagates to the resolved cart row.
+- `routers/checkout.py` order-snapshot block — persists `color_choice` on each line of the email/order payload so makers see it on confirmation.
+- `email_service.py::_items_table` — renders a small "Color · <chip>" line in the buyer-personalization block of the maker order email (HTML-escaped, ≤40 chars). Tucked above any free-text personalization so it's the first thing the maker scans.
+
+### Frontend
+- `lib/cart.js` — `add()` accepts 5th arg `colorChoice`. Stored as `color_choice` on the row + included in `rowKey` so two of the same item in different colors are separate cart lines (no merging).
+- `components/ContactMakerModal.jsx` — accepts new `prefillBody` prop. Buyer can edit before sending.
+- `pages/ProductDetail.jsx`:
+  - Renders `[data-testid="product-color-picker"]` block when `p.colors?.length ≥ 1`. Shows small Tailwind-JIT-safe swatch chip next to each color name (see `_colorSwatchClass` map). Single-color listings render the chip as informational (disabled, no toggle). ≥2 colors → buyer MUST pick before Add-to-cart fires (soft toast + scroll-to).
+  - "✉ Question for {maker} about color" CTA button right under the picker — opens `ContactMakerModal` with body pre-seeded with `Hi {maker}, I'm interested in "{product title}" in {selected color}.` if a color is picked, generic otherwise.
+
+### Smoke test (live preview)
+- ✅ Color picker renders with walnut + black swatches
+- ✅ Click "Add to cart" without picking → toast "Please choose a color before adding to cart."
+- ✅ Pick walnut → click "Add to cart" → button shows "ADDED ✓"
+- ✅ localStorage cart row: `color_choice: "walnut"` (separate row from `color_choice: "black"`)
+- ✅ Click message CTA → modal opens with body pre-filled: `Hi Oakridge Woodcraft Co.,\n\nI'm interested in "Walnut Floating Shelf Trio" in walnut.`
+- ✅ Subject auto-prefilled with product slug
+- ✅ Backend `/api/cart/quote` accepts `color_choice` payload without error
+- ✅ ESLint + ruff clean on all touched files
+
+---
+
+
 ## 2026-06-07 — Per-row SEO field editing in Quick Edit modals (iter338d)
 
 ### What shipped

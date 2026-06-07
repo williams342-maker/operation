@@ -521,8 +521,24 @@ def _items_table(items: list[dict]) -> str:
         # before passing into us.
         pers_text = (i.get("personalization_text") or "").strip()
         pers_img = (i.get("personalization_image_url") or "").strip()
-        if pers_text or pers_img:
+        color_choice = (i.get("color_choice") or "").strip()
+        if pers_text or pers_img or color_choice:
             inner_bits: list[str] = []
+            if color_choice:
+                # iter339 — buyer's chosen color from the maker's offered
+                # palette. Short string (≤40 chars). Rendered as a chip
+                # above any free-text personalization so the maker sees
+                # it first when scanning the order.
+                safe_c = (color_choice
+                          .replace("&", "&amp;")
+                          .replace("<", "&lt;")
+                          .replace(">", "&gt;"))
+                inner_bits.append(
+                    "<div style='font-size:11px;color:#ff4500;text-transform:uppercase;"
+                    "letter-spacing:0.22em;margin-bottom:8px'>"
+                    f"Color · <span style='color:#e5e5e5;letter-spacing:0'>{safe_c}</span>"
+                    "</div>"
+                )
             if pers_text:
                 # Escape user input — this is buyer-submitted free text
                 # and we render it in the maker's inbox. Newlines → <br>.

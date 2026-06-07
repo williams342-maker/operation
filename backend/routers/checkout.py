@@ -161,11 +161,16 @@ async def _resolve_cart(items: list) -> list[dict]:
             ci.personalization_image_url if hasattr(ci, "personalization_image_url")
             else (ci.get("personalization_image_url") if isinstance(ci, dict) else None)
         )
+        color_choice = (
+            ci.color_choice if hasattr(ci, "color_choice")
+            else (ci.get("color_choice") if isinstance(ci, dict) else None)
+        )
         out.append({
             "product": prod,
             "quantity": max(1, int(qty)),
             "personalization_text": (pers_text or "").strip() or None,
             "personalization_image_url": (pers_img or "").strip() or None,
+            "color_choice": (color_choice or "").strip() or None,
         })
     return out
 
@@ -848,6 +853,7 @@ async def checkout_status(session_id: str, http_request: Request, bg: Background
                     # template short-circuits on falsy values.
                     "personalization_text": ci.get("personalization_text"),
                     "personalization_image_url": ci.get("personalization_image_url"),
+                    "color_choice": ci.get("color_choice"),
                 }
                 email_items.append(line)
                 by_maker.setdefault(p["maker_slug"], []).append(line)

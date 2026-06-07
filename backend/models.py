@@ -683,6 +683,11 @@ class CartItem(BaseModel):
     # adversarial caller can at worst poison their own order doc.
     personalization_text: Optional[str] = Field(default=None, max_length=2000)
     personalization_image_url: Optional[str] = Field(default=None, max_length=600)
+    # iter339 — Buyer's color choice from the maker's offered palette
+    # (see `Listing.colors`). Free-text up to 40 chars so the buyer can
+    # also write "I'd like the third silver swatch from the left" or
+    # similar — the field doubles as a soft attribute and a manual note.
+    color_choice: Optional[str] = Field(default=None, max_length=40)
 
 
 class CheckoutRequest(BaseModel):

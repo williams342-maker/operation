@@ -7,14 +7,14 @@ import useModalA11y from "../hooks/useModalA11y";
 /** Compose-message modal. Buyers can reach a maker without signing in —
  *  if they ARE signed in we pre-fill name/email from their community profile.
  *  Used from MakerDetail (and ProductDetail in a future iteration). */
-export default function ContactMakerModal({ maker, productSlug = null, onClose }) {
+export default function ContactMakerModal({ maker, productSlug = null, prefillBody = "", onClose }) {
   const ref = useModalA11y(onClose);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [subject, setSubject] = useState(
     productSlug ? `Question about: ${productSlug}` : `Question for ${maker?.name || ""}`,
   );
-  const [body, setBody] = useState("");
+  const [body, setBody] = useState(prefillBody || "");
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
 
@@ -141,7 +141,7 @@ export default function ContactMakerModal({ maker, productSlug = null, onClose }
               <div className="text-right font-mono text-[10px] text-[#525252] mt-1">{body.length} / 4000</div>
             </Field>
             <p className="font-mono text-[10px] text-[#525252] leading-relaxed">
-              ◆ Replies arrive at the email above. We deliver via Postmark — check your spam folder if you don't see one within a day.
+              ◆ Replies arrive at the email above. We deliver via Postmark — check your spam folder if you don&apos;t see one within a day.
             </p>
             <div className="flex justify-end gap-2 pt-2 border-t border-[#262626]">
               <button
