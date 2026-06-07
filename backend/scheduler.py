@@ -962,6 +962,85 @@ async def _job_theme_suggestions_digest() -> None:
         logger.exception("[scheduler] theme_suggestions_digest failed: %s", e)
 
 
+# iter335.17 — Leaderboard rewards: top-3 makers each get a wallet credit
+# on the 1st of every month. Tunable via `LEADERBOARD_REWARD_CENTS`.
+LEADERBOARD_REWARD_CENTS = (2000, 1000, 500)  # $20 / $10 / $5
+
+
+async def _job_leaderboard_rewards() -> None:
+    """iter335.17 — Monthly on day=1 at 06:00 UTC. Credits the top-3
+    makers' Promote wallets ($20 / $10 / $5) using their previous-month
+    workshop scores. Skips silently when:
+       • `leaderboard_rewards_enabled` site_setting is OFF, or
+       • Already credited this calendar month (marker
+         `leaderboard_rewards_marker.global.last_credited_month`).
+
+    Each credit uses `kind="credit"` (matches the wallet's "founder
+    bonus" pattern), bumps `lifetime_funded_cents`, and writes a
+    `wallet_transactions` row with `note="Leaderboard reward — rank N"`
+    plus a deterministic `idempotency_key=YYYY-MM:<slug>:rank-N` so a
+    cron mis-fire never double-credits."""
+    try:
+        from datetime import datetime, timezone
+        from core import db
+        from routers.settings import get_setting
+        from routers.leaderboard import compute_ranked
+        from services import promote_wallet
+
+        enabled = await get_setting("leaderboard_rewards_enabled", True)
+        if not enabled:
+            logger.info("[scheduler] leaderboard_rewards: disabled by site_settings")
+            return
+
+        now = datetime.now(timezone.utc)
+        month_key = now.strftime("%Y-%m")
+        marker = await db.leaderboard_rewards_marker.find_one({"_id": "global"})
+        if marker and marker.get("last_credited_month") == month_key:
+            logger.info("[scheduler] leaderboard_rewards: already credited %s", month_key)
+            return
+
+        # Use a 30-day window ending NOW (= the leaderboard for the
+        # month that just closed). compute_ranked returns the full
+        # sorted list; we slice off the top-3.
+        ranked = await compute_ranked(end_iso=now.isoformat(), limit=3)
+        if not ranked:
+            logger.info("[scheduler] leaderboard_rewards: no eligible makers — skipping")
+            return
+
+        credited = []
+        for m in ranked:
+            rank = m["rank"]
+            if rank > len(LEADERBOARD_REWARD_CENTS):
+                break
+            cents = LEADERBOARD_REWARD_CENTS[rank - 1]
+            idem = f"{month_key}:{m['slug']}:rank-{rank}"
+            try:
+                await promote_wallet.credit(
+                    m["slug"], cents,
+                    kind="credit",
+                    ref=f"leaderboard:{month_key}:rank-{rank}",
+                    note=f"Leaderboard reward — rank #{rank} ({month_key})",
+                    idempotency_key=idem,
+                )
+                credited.append({"slug": m["slug"], "rank": rank, "cents": cents})
+            except Exception as ce:
+                logger.exception("[scheduler] leaderboard_rewards: credit failed for %s: %s",
+                                 m["slug"], ce)
+
+        await db.leaderboard_rewards_marker.update_one(
+            {"_id": "global"},
+            {"$set": {"last_credited_month": month_key,
+                      "credited_at": now.isoformat(),
+                      "credits": credited}},
+            upsert=True,
+        )
+        logger.info("[scheduler] leaderboard_rewards: credited %d makers for %s — %s",
+                    len(credited), month_key,
+                    ", ".join(f"#{c['rank']}:{c['slug']}=${c['cents']/100:.0f}" for c in credited))
+    except Exception as e:
+        logger.exception("[scheduler] leaderboard_rewards failed: %s", e)
+
+
 
 async def _job_maker_journal_digest() -> None:
     """Weekly Monday 14:00 UTC — for each maker who published one or
@@ -1438,6 +1517,11 @@ def start_scheduler() -> AsyncIOScheduler | None:
     sched.add_job(_job_theme_suggestions_digest,
                   CronTrigger(hour=9, minute=30),
                   id="theme_suggestions_digest", replace_existing=True)
+    # iter335.17 — Leaderboard rewards: 1st of every month at 06:00 UTC,
+    # auto-credit top-3 makers' Promote wallets. Idempotent per month.
+    sched.add_job(_job_leaderboard_rewards,
+                  CronTrigger(day=1, hour=6, minute=0),
+                  id="leaderboard_rewards", replace_existing=True)
     # iter335.8 — Sweep failed conversion uploads from the last 7 days.
     # 05:30 UTC keeps it after the allocator + before business-hours
     # spike. Idempotent — fire_conversions short-circuits successful

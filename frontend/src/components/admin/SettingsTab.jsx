@@ -141,6 +141,12 @@ const SWITCHES = [
     blurb: "When ON (default), the public /makers page renders a 'Workshop Leaderboard' above the maker grid showing the top 10 makers by a rolling 30-day Workshop Score (50× orders + revenue + 5× reviews + 2× new listings + log views). Each card displays rank, a personality badge ('Top Seller', 'Rising', 'Reviewer Favorite', etc.), and quick stats. Pure gamification — makes the marketplace feel alive and gives makers a target to climb. Mute when scores are noisy (e.g. right after a category restructure or during a big catalog import). The endpoint returns 503 when this is OFF, and the widget hides itself automatically.",
     tone: "primary",
   },
+  {
+    key: "leaderboard_rewards_enabled",
+    label: "Leaderboard rewards (1st of month auto-credit)",
+    blurb: "When ON (default), at 06:00 UTC on day 1 of every month, the cron credits the top-3 makers' Promote wallets — $20 for rank 1, $10 for rank 2, $5 for rank 3. Idempotent per month via `leaderboard_rewards_marker`, so a manual cron retrigger or scheduler restart can never double-credit. Each credit is logged as a `wallet_transactions` row with `kind='credit'` and `note='Leaderboard reward — rank #N'`. The reward → reinvest loop drives ad spend back into the marketplace. Mute during a freeze period or while reworking the rewards budget. Requires `leaderboard_enabled` to also be ON (the cron uses the same scoring engine).",
+    tone: "primary",
+  },
 ];
 
 const toneClass = (tone, on) => {

@@ -32,9 +32,10 @@ import logging
 import math
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from core import db
+from maker_auth import current_maker_slug
 from routers.settings import get_setting
 
 router = APIRouter()
@@ -71,17 +72,19 @@ def _badge_for(stats: dict) -> str:
     return "Workshop Hero"
 
 
-async def _orders_per_maker(since_iso: str) -> dict[str, dict]:
-    """Aggregate orders + revenue per maker over the window.
+async def _orders_per_maker(since_iso: str, until_iso: str | None = None) -> dict[str, dict]:
+    """Aggregate orders + revenue per maker over [since_iso, until_iso).
 
     Reads `orders.items[].snapshot.maker_slug` so we still credit the
     maker even if the snapshot is the only record of the original
     listing (e.g. archived/deleted SKUs)."""
+    q: dict = {"status": "paid"}
+    if until_iso:
+        q["paid_at"] = {"$gte": since_iso, "$lt": until_iso}
+    else:
+        q["paid_at"] = {"$gte": since_iso}
     by_maker: dict[str, dict] = {}
-    async for o in db.orders.find(
-        {"status": "paid", "paid_at": {"$gte": since_iso}},
-        {"items": 1, "_id": 0},
-    ):
+    async for o in db.orders.find(q, {"items": 1, "_id": 0}):
         for item in (o.get("items") or []):
             snap = item.get("snapshot") or item
             slug = snap.get("maker_slug")
@@ -95,12 +98,14 @@ async def _orders_per_maker(since_iso: str) -> dict[str, dict]:
     return by_maker
 
 
-async def _reviews_per_maker(since_iso: str) -> dict[str, int]:
+async def _reviews_per_maker(since_iso: str, until_iso: str | None = None) -> dict[str, int]:
     out: dict[str, int] = {}
-    async for r in db.reviews.find(
-        {"created_at": {"$gte": since_iso}},
-        {"maker_slug": 1, "_id": 0},
-    ):
+    q: dict = {}
+    if until_iso:
+        q["created_at"] = {"$gte": since_iso, "$lt": until_iso}
+    else:
+        q["created_at"] = {"$gte": since_iso}
+    async for r in db.reviews.find(q, {"maker_slug": 1, "_id": 0}):
         slug = r.get("maker_slug")
         if slug:
             out[slug] = out.get(slug, 0) + 1
@@ -135,32 +140,39 @@ def _score(stats: dict) -> int:
     ))
 
 
-@router.get("/leaderboard/makers")
-async def maker_leaderboard(
-    window_days: int = Query(WINDOW_DAYS, ge=1, le=365),
-    limit: int = Query(TOP_N, ge=1, le=50),
-):
-    """Returns top makers by Workshop Score over the window.
-    Returns 503 when the admin has toggled `leaderboard_enabled` OFF."""
-    enabled = await get_setting("leaderboard_enabled", True)
-    if not enabled:
-        raise HTTPException(503, "Maker leaderboard is currently disabled.")
+async def compute_ranked(
+    end_iso: str | None = None,
+    window_days: int = WINDOW_DAYS,
+    limit: int | None = None,
+) -> list[dict]:
+    """Pure ranking computation — returned in score-desc order with
+    rank already assigned (1-based, contiguous).
 
-    since = (datetime.now(timezone.utc) - timedelta(days=window_days)).isoformat()
-    orders = await _orders_per_maker(since)
-    reviews = await _reviews_per_maker(since)
+    Args:
+      end_iso:     the right edge of the window (inclusive). Defaults to
+                   now. Passing an earlier `end_iso` gives the
+                   leaderboard "as of" that timestamp — used by the
+                   maker rank-delta widget to fetch last-week ranks.
+      window_days: rolling window size (typ. 30).
+      limit:       optional max rows. None = return all eligible makers,
+                   which the rank-widget needs to find a maker that
+                   isn't in the top 10.
+    """
+    end_dt = (
+        datetime.fromisoformat(end_iso) if end_iso
+        else datetime.now(timezone.utc)
+    )
+    since = (end_dt - timedelta(days=window_days)).isoformat()
+    end_cutoff = end_dt.isoformat()
+
+    orders = await _orders_per_maker(since, end_cutoff)
+    reviews = await _reviews_per_maker(since, end_cutoff)
     listings = await _listings_and_views_per_maker(since)
 
-    # Union of all maker slugs that have ANY signal — skips inactive shops.
     slugs = set(orders) | set(reviews) | set(listings)
     if not slugs:
-        return {
-            "makers": [],
-            "window_days": window_days,
-            "computed_at": datetime.now(timezone.utc).isoformat(),
-        }
+        return []
 
-    # Pull maker metadata in one round-trip.
     metas = {}
     async for m in db.makers.find(
         {"slug": {"$in": list(slugs)}, "status": {"$ne": "rejected"}},
@@ -173,7 +185,7 @@ async def maker_leaderboard(
     for slug in slugs:
         meta = metas.get(slug)
         if not meta:
-            continue  # maker may have been rejected / deleted
+            continue
         stats = {
             "orders": orders.get(slug, {}).get("orders", 0),
             "revenue_cents": orders.get(slug, {}).get("revenue_cents", 0),
@@ -196,12 +208,97 @@ async def maker_leaderboard(
         })
 
     ranked.sort(key=lambda m: m["score"], reverse=True)
-    ranked = ranked[:limit]
+    if limit:
+        ranked = ranked[:limit]
     for i, m in enumerate(ranked, 1):
         m["rank"] = i
+    return ranked
 
+
+@router.get("/leaderboard/makers")
+async def maker_leaderboard(
+    window_days: int = Query(WINDOW_DAYS, ge=1, le=365),
+    limit: int = Query(TOP_N, ge=1, le=50),
+):
+    """Returns top makers by Workshop Score over the window.
+    Returns 503 when the admin has toggled `leaderboard_enabled` OFF."""
+    enabled = await get_setting("leaderboard_enabled", True)
+    if not enabled:
+        raise HTTPException(503, "Maker leaderboard is currently disabled.")
+    makers = await compute_ranked(window_days=window_days, limit=limit)
     return {
-        "makers": ranked,
+        "makers": makers,
         "window_days": window_days,
         "computed_at": datetime.now(timezone.utc).isoformat(),
     }
+
+@router.get("/maker/leaderboard-rank")
+async def maker_rank(maker_slug: str = Depends(current_maker_slug)):
+    """iter335.17 — Maker-side rank widget.
+
+    Returns this maker's current rank + the week-over-week delta so the
+    dashboard can render "#12 (↑3 this week)".
+
+    Implementation: compute the full leaderboard twice — once "as of
+    now" and once "as of 7 days ago" — then look up this maker's
+    position in each. delta = prev_rank - current_rank, so positive =
+    climbing, negative = sliding, zero = held position.
+
+    Returns 503 when the admin has toggled `leaderboard_enabled` OFF
+    (matches the public endpoint).
+    Returns {on_leaderboard: False, ...} when the maker has zero
+    activity in the current window — used by the widget to show a
+    "Make your first sale to enter the leaderboard" CTA instead of a
+    rank pill.
+    """
+    enabled = await get_setting("leaderboard_enabled", True)
+    if not enabled:
+        raise HTTPException(503, "Maker leaderboard is currently disabled.")
+
+    now = datetime.now(timezone.utc)
+    last_week = now - timedelta(days=7)
+
+    current = await compute_ranked(end_iso=now.isoformat(), limit=None)
+    prev = await compute_ranked(end_iso=last_week.isoformat(), limit=None)
+
+    me_now = next((m for m in current if m["slug"] == maker_slug), None)
+    me_prev = next((m for m in prev if m["slug"] == maker_slug), None)
+
+    if not me_now:
+        return {
+            "on_leaderboard": False,
+            "rank": None,
+            "score": 0,
+            "badge": None,
+            "delta": None,
+            "prev_rank": me_prev["rank"] if me_prev else None,
+            "prev_score": me_prev["score"] if me_prev else 0,
+            "total_makers": len(current),
+            "window_days": WINDOW_DAYS,
+            "computed_at": now.isoformat(),
+        }
+
+    if me_prev:
+        delta = me_prev["rank"] - me_now["rank"]  # positive = climbed
+    else:
+        # New entry to the leaderboard this week — treat the rank
+        # outside the prior leaderboard as "ranked: not-on-list" rather
+        # than fabricating a number; UI shows "NEW" pill.
+        delta = None
+
+    return {
+        "on_leaderboard": True,
+        "rank": me_now["rank"],
+        "score": me_now["score"],
+        "badge": me_now["badge"],
+        "delta": delta,
+        "prev_rank": me_prev["rank"] if me_prev else None,
+        "prev_score": me_prev["score"] if me_prev else 0,
+        "orders": me_now["orders"],
+        "revenue_cents": me_now["revenue_cents"],
+        "reviews": me_now["reviews"],
+        "total_makers": len(current),
+        "window_days": WINDOW_DAYS,
+        "computed_at": now.isoformat(),
+    }
+

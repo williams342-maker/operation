@@ -350,23 +350,33 @@ async def channel_split(maker_slug: str = Depends(current_maker_slug)):
     where marketplace data says the dollars should go."
     """
     from services import channel_attribution
+    import asyncio
     weights = await channel_attribution.get_persisted()
     weights_by_ch = {c["channel"]: c for c in weights["channels"]}
 
-    # Per-channel eligibility (re-uses the same adapter the launch flow
-    # checks — keeps the hint consistent with what they can actually do).
-    eligible_set: list[dict] = []
-    for ch in ("google", "meta", "microsoft"):
+    # iter335.17 — Run the 3 gateway eligibility checks in parallel so
+    # the response time stays O(1) instead of O(N_channels) as we add
+    # more ad platforms. Each is_eligible() may do a Mongo round-trip
+    # to integration_credentials, so the speedup is real.
+    channels = ("google", "meta", "microsoft")
+
+    async def _eligibility(ch: str) -> tuple[bool, str | None]:
         try:
             gw = get_gateway(ch)
             ok, reason = await gw.is_eligible(maker_slug)
+            return bool(ok), (None if ok else reason)
         except Exception as e:
-            ok, reason = False, f"adapter error: {str(e)[:80]}"
+            return False, f"adapter error: {str(e)[:80]}"
+
+    elig_results = await asyncio.gather(*[_eligibility(ch) for ch in channels])
+
+    eligible_set: list[dict] = []
+    for ch, (ok, reason) in zip(channels, elig_results):
         w = weights_by_ch.get(ch) or {}
         eligible_set.append({
             "channel": ch,
-            "eligible": bool(ok),
-            "eligibility_reason": reason if not ok else None,
+            "eligible": ok,
+            "eligibility_reason": reason,
             "raw_weight": w.get("weight", 0.0),
             "roas": w.get("roas", 0.0),
             "orders_30d": w.get("orders_30d", 0),

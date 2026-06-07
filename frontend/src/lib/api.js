@@ -1806,3 +1806,8 @@ export const adminSuggestPromoteThemes = () =>
 // iter335.15 — Maker Leaderboard (public; widget hides if disabled)
 export const fetchMakerLeaderboard = (params = {}) =>
   http.get("/leaderboard/makers", { params }).then((r) => r.data);
+
+// iter335.17 — Maker rank widget (closes the leaderboard feedback loop)
+export const fetchMakerLeaderboardRank = () =>
+  http.get("/maker/leaderboard-rank",
+    { headers: authHeaders() }).then((r) => r.data);

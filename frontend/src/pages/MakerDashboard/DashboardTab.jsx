@@ -7,6 +7,7 @@ import {
 import PlusUpgradeNudge from "./PlusUpgradeNudge";
 import ReferralCard from "./ReferralCard";
 import ClipsIncentiveCard from "./ClipsIncentiveCard";
+import MakerRankCard from "../../components/maker/MakerRankCard";
 
 /**
  * Maker Dashboard "home" view — at-a-glance overview of the shop.
@@ -162,6 +163,9 @@ export default function DashboardTab({
           onTabChange={onTabChange}
         />
       </header>
+
+      {/* iter335.17 — Maker rank widget (closes leaderboard feedback loop) */}
+      <MakerRankCard />
 
       {/* TODAY — actionable alerts surface. Defaults open when there are
           high-priority items, collapsed when everything's quiet (so it

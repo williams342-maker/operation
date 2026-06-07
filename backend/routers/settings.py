@@ -54,6 +54,10 @@ DEFAULT_SETTINGS: dict = {
     # can mute when scores are noisy (e.g. right after a category
     # restructure).
     "leaderboard_enabled": True,
+    # iter335.17 — Monthly auto-credit to top-3 makers' Promote wallets.
+    # Default ON because the reward → reinvest loop drives more
+    # marketplace ad spend; admin can mute during a freeze period.
+    "leaderboard_rewards_enabled": True,
 }
 
 
@@ -93,6 +97,7 @@ async def public_settings():
         "beta_signup_enabled": s["beta_signup_enabled"],
         "live_chat_enabled": s["live_chat_enabled"],
         "leaderboard_enabled": s["leaderboard_enabled"],
+        "leaderboard_rewards_enabled": s.get("leaderboard_rewards_enabled", True),
     }
 
 
@@ -176,6 +181,7 @@ class SettingsPatch(BaseModel):
     email_poster_on_admin_edit: Optional[bool] = None
     auto_review_prompt_enabled: Optional[bool] = None
     leaderboard_enabled: Optional[bool] = None
+    leaderboard_rewards_enabled: Optional[bool] = None
 
 
 @router.patch("/admin/settings")
