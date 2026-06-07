@@ -27,9 +27,9 @@ const CYCLE_MS = 7000;
 
 const FALLBACK = {
   id: "fallback",
-  statement: "Raw Materials",
-  accent: "Radical",
-  closer: "Craft",
+  statement: "Makers • Growers • Creators",
+  accent: "Belong",
+  closer: "Here",
   source: "fallback",
 };
 

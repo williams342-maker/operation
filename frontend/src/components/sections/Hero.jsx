@@ -92,7 +92,7 @@ export default function Hero() {
           className="font-mono text-[11px] uppercase tracking-[0.32em] text-amber-400 mb-6 inline-flex items-center gap-3 justify-center"
         >
           <span className="inline-block w-8 h-px bg-amber-400" />
-          Handmade in America · Built to order
+          Built by Independent Makers · Worldwide
           <span className="inline-block w-8 h-px bg-amber-400" />
         </motion.div>
 
@@ -119,11 +119,12 @@ export default function Hero() {
           className="font-mono text-sm md:text-base text-zinc-300 max-w-2xl mx-auto mt-6 leading-relaxed"
         >
           Built for{" "}
-          <strong className="text-white font-normal">independent makers</strong> and{" "}
-          <strong className="text-white font-normal">handmade businesses</strong> — from{" "}
-          CNC and laser shops to jewelry artists, woodworkers, and creators.
-          Commission real makers in real workshops — no mass production, no drop-shipping,
-          backed by the hands that built it.
+          <strong className="text-white font-normal">independent makers</strong>,{" "}
+          <strong className="text-white font-normal">growers</strong> and{" "}
+          <strong className="text-white font-normal">creators</strong> —
+          from workshops and studios to orchards and home kitchens.
+          Real products from real people — no mass production, no drop-shipping,
+          every shop with a story behind it.
         </motion.p>
 
         <motion.div

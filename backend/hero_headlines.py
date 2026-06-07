@@ -43,22 +43,30 @@ MAX_CLOSER = 16
 TARGET_POOL_SIZE = 12  # how many "live" headlines we want in the pool at any time
 DAILY_NEW_COUNT = 5    # how many fresh variants to draft per cron run
 
-# User-curated seed variants from the iter220 brief — these always live in
-# the pool and never get archived by the auto-trim. They are the baseline
-# voice the AI extends.
+# User-curated seed variants — iter337 "broaden the tent" pass.
+# Voice shift from MATERIALS-FIRST (Steel · Wood · Sparks · Forged) to
+# IDENTITY + VALUES (Makers · Growers · Creators · Belong · Independent).
+# The old materials-heavy seeds were unintentionally telling non-metal
+# sellers (seed sellers, growers, jewelers, artists) "this place isn't
+# for you." This set keeps the punchy industrial energy but explicitly
+# welcomes every independent maker / grower / creator.
+#
+# Top 5 (user-favorited) appear first so the shuffle-on-mount weighting
+# leans toward them; the next 5 round out the rotation without
+# repeating accent words.
 SEED_VARIANTS: list[dict] = [
-    # User's 4 explicit examples (verbatim) — broken into the
-    # statement/accent/closer shape. The accent word is the most
-    # punchy/branded noun in each closer phrase.
-    {"statement": "Built by Real Makers",      "accent": "American",  "closer": "Workshops"},
-    {"statement": "Custom Work",               "accent": "Independent","closer": "Workshops"},
-    {"statement": "Precision Craftsmanship",   "accent": "Modern",     "closer": "Marketplace"},
-    {"statement": "Fabricators · Artists",     "accent": "Makers",     "closer": "Sell Here"},
-    # On-brand companions
-    {"statement": "Raw Materials",             "accent": "Radical",    "closer": "Craft"},
-    {"statement": "Steel · Wood · Light",      "accent": "Forged",     "closer": "in America"},
-    {"statement": "No Drop-shipping",          "accent": "Real",       "closer": "Workshops Only"},
-    {"statement": "Hands · Tools · Sparks",    "accent": "Built",      "closer": "to Order"},
+    # ── Top 5 (user picks) ────────────────────────────────────────
+    {"statement": "Makers • Growers • Creators", "accent": "Belong",      "closer": "Here"},
+    {"statement": "Handmade • Built • Grown",    "accent": "Sell",        "closer": "Here"},
+    {"statement": "Workshop • Studio • Orchard", "accent": "Welcome",     "closer": "Here"},
+    {"statement": "Built Small",                 "accent": "Crafted",     "closer": "Different"},
+    {"statement": "Real Makers",                 "accent": "Real",        "closer": "Marketplace"},
+    # ── Rotation companions ───────────────────────────────────────
+    {"statement": "Made by Real People",         "accent": "Independent", "closer": "Sellers"},
+    {"statement": "Your Craft",                  "accent": "Your",        "closer": "Marketplace"},
+    {"statement": "Small Shops",                 "accent": "Big",         "closer": "Potential"},
+    {"statement": "Real Products",               "accent": "Real",        "closer": "Stories"},
+    {"statement": "Build What You Love",         "accent": "Reach",       "closer": "Customers"},
 ]
 
 
@@ -140,8 +148,8 @@ STRUCTURE RULES (enforced by validator — break any and your variant is discard
 - accent:    EXACTLY ONE WORD, ≤ {MAX_ACCENT} chars (this word becomes the painted orange highlight)
 - closer:    1-3 words, ≤ {MAX_CLOSER} chars, NO trailing period
 
-VOICE: industrial · craft · maker · workshop · American · real · built · forged · precision · raw · independent · custom · fabrication
-AVOID: "amazing", "premium", "luxury", "exclusive", "discover", "explore", emojis, generic SaaS-speak, anything that sounds like Etsy or Amazon ad copy.
+VOICE: identity · values · independent · makers · growers · creators · workshops · studios · orchards · craft · handmade · built · grown · belong · real · purpose · stories · marketplace · community
+AVOID: "amazing", "premium", "luxury", "exclusive", "discover", "explore", emojis, generic SaaS-speak, anything that sounds like Etsy or Amazon ad copy. Avoid materials-only framing (e.g. "steel", "wood", "sparks", "plasma", "forged") — we welcome every kind of independent maker, not just metal/wood shops.
 
 EXAMPLES (do NOT copy these — generate fresh variants in this exact format & voice):
 {examples}
