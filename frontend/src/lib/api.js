@@ -1798,3 +1798,7 @@ export const adminRecomputeChannelWeights = () =>
 export const adminSuggestPromoteThemes = () =>
   http.get("/admin/promote/themes/suggest",
     { headers: adminAuthHeaders() }).then((r) => r.data);
+
+// iter335.15 — Maker Leaderboard (public; widget hides if disabled)
+export const fetchMakerLeaderboard = (params = {}) =>
+  http.get("/leaderboard/makers", { params }).then((r) => r.data);

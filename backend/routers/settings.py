@@ -49,6 +49,11 @@ DEFAULT_SETTINGS: dict = {
     # single biggest UGC lever for indie shops; ops can mute during
     # email-deliverability investigations.
     "auto_review_prompt_enabled": True,
+    # iter335.15 — Maker leaderboard widget on /makers page.
+    # Default ON because gamification lifts maker engagement; admin
+    # can mute when scores are noisy (e.g. right after a category
+    # restructure).
+    "leaderboard_enabled": True,
 }
 
 
@@ -87,6 +92,7 @@ async def public_settings():
         "applications_closed_message": s["applications_closed_message"],
         "beta_signup_enabled": s["beta_signup_enabled"],
         "live_chat_enabled": s["live_chat_enabled"],
+        "leaderboard_enabled": s["leaderboard_enabled"],
     }
 
 
@@ -169,6 +175,7 @@ class SettingsPatch(BaseModel):
     recovery_drill_min_products: Optional[int] = Field(default=None, ge=1, le=100000)
     email_poster_on_admin_edit: Optional[bool] = None
     auto_review_prompt_enabled: Optional[bool] = None
+    leaderboard_enabled: Optional[bool] = None
 
 
 @router.patch("/admin/settings")

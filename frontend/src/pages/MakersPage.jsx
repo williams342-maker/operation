@@ -7,6 +7,7 @@ import { CardSkeleton } from "../components/Skeleton";
 import EmptyState from "../components/EmptyState";
 import VeteranBadge from "../components/VeteranBadge";
 import Breadcrumbs from "../components/Breadcrumbs";
+import MakerLeaderboard from "../components/MakerLeaderboard";
 
 const SITE_URL = "https://craftersmarket.org";
 
@@ -71,6 +72,9 @@ export default function MakersPage() {
         <h1 className="font-display text-[64px] md:text-[120px] leading-[0.88] mb-8">
           The <span className="text-outline-orange">Workshop</span><br />Roster
         </h1>
+
+        {/* iter335.15 — Maker Leaderboard widget (self-hides when admin toggles OFF or list is empty) */}
+        <MakerLeaderboard />
 
         {/* Veteran-owned filter pills */}
         <div className="flex flex-wrap items-center gap-2 mb-12" data-testid="makers-filters">

@@ -135,6 +135,12 @@ const SWITCHES = [
     blurb: "When ON (default), at 16:00 UTC every day we sweep all orders delivered between 7 and 30 days ago that haven't been prompted yet, and email the buyer a one-tap review CTA per maker on the order. Idempotent — `review_prompt_sent_at` is the source of truth so the same order can never receive a second prompt. Reviews are the single biggest UGC lever for indie shops; expect a 15-25% review-creation rate on prompted orders. Mute during email-deliverability investigations or domain changes. Manual trigger via `POST /api/admin/marketing/review-prompts/run` works regardless of this toggle.",
     tone: "primary",
   },
+  {
+    key: "leaderboard_enabled",
+    label: "Maker Leaderboard widget (/makers)",
+    blurb: "When ON (default), the public /makers page renders a 'Workshop Leaderboard' above the maker grid showing the top 10 makers by a rolling 30-day Workshop Score (50× orders + revenue + 5× reviews + 2× new listings + log views). Each card displays rank, a personality badge ('Top Seller', 'Rising', 'Reviewer Favorite', etc.), and quick stats. Pure gamification — makes the marketplace feel alive and gives makers a target to climb. Mute when scores are noisy (e.g. right after a category restructure or during a big catalog import). The endpoint returns 503 when this is OFF, and the widget hides itself automatically.",
+    tone: "primary",
+  },
 ];
 
 const toneClass = (tone, on) => {
