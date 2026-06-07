@@ -213,12 +213,43 @@ async def apply_allocations(
                               "reason": "insufficient_balance"})
             continue
         cost = n_boosts * PROMOTION_WEEKLY_FEE_CENTS
+
+        # iter335.12 — Cross-maker theme campaign subsidies. If any
+        # active theme covers this listing, claim a slice of the pool
+        # first — reduces what the maker's wallet has to pay.
+        theme_subsidy_total = 0
+        theme_contributions: list[dict] = []
+        try:
+            from routers.promote_themes import (
+                find_active_themes_for_listing, claim_theme_subsidy,
+            )
+            themes = await find_active_themes_for_listing(slug)
+            remaining_cost = cost
+            for theme in themes:
+                if remaining_cost <= 0:
+                    break
+                claimed = await claim_theme_subsidy(
+                    theme["_id"], maker_slug, slug, remaining_cost,
+                )
+                if claimed > 0:
+                    theme_subsidy_total += claimed
+                    remaining_cost -= claimed
+                    theme_contributions.append({
+                        "theme_id": theme["_id"], "name": theme.get("name"),
+                        "amount_cents": claimed,
+                    })
+        except Exception as e:
+            log.exception("[allocator] theme subsidy lookup failed for %s: %s", slug, e)
+
+        maker_cost = max(0, cost - theme_subsidy_total)
         txn = await promote_wallet.debit(
-            maker_slug, cost,
+            maker_slug, maker_cost,
             kind="spend",
             ref=f"campaign:{campaign_id}:{slug}",
-            note=f"{n_boosts}× boost · {slug}",
-        )
+            note=(f"{n_boosts}× boost · {slug}"
+                  + (f" (themes subsidized {theme_subsidy_total}c)"
+                     if theme_subsidy_total > 0 else "")),
+        ) if maker_cost > 0 else {"balance_after_cents": balance}
         if not txn:
             # Race condition: balance dropped between get_balance and
             # debit. Skip and the next run will retry.

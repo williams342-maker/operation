@@ -28,7 +28,7 @@ import {
 
 import {
   upsertPromoteCampaign, previewPromoteCampaign, topupPromoteWallet,
-  subscribePromoteWallet, applyPromoteCampaign,
+  subscribePromoteWallet, applyPromoteCampaign, recommendPromoteBudget,
 } from "../../lib/api";
 
 const DISMISS_KEY = "promote_wizard_dismissed";
@@ -84,27 +84,57 @@ export default function PromoteWizard({ onComplete, onDismiss, initialStep = 1, 
   const [budgetCents, setBudgetCents] = useState(5000);
   const [preview, setPreview] = useState([]);
   const [previewLoading, setPreviewLoading] = useState(false);
-  const [busy, setBusy] = useState("");
-  const [applyResult, setApplyResult] = useState(null);
+  // Debounced trigger — bumps 250ms after budget/goal change so the
+  // allocator only fires once per slider drag.
+  const [previewKey, setPreviewKey] = useState(0);
 
-  // Step 2 live distribution preview — same debounced pattern as the
-  // main Promote tab so it doesn't hammer the allocator on slider drag.
   useEffect(() => {
-    if (step !== 2) return;
+    if (step !== 2) return undefined;
+    const t = setTimeout(() => setPreviewKey((k) => k + 1), 250);
+    return () => clearTimeout(t);
+  }, [step, budgetCents, goal]);
+
+  // Actual fetch — same IIFE pattern as PromoteThemesCard.
+  useEffect(() => {
+    if (step !== 2) return undefined;
     let cancelled = false;
-    setPreviewLoading(true);
-    const t = setTimeout(async () => {
+    (async () => {
+      setPreviewLoading(true);
       try {
         const r = await previewPromoteCampaign({
           budget_cents: budgetCents, goal, channels: ["internal"],
           auto_allocate: true,
         });
         if (!cancelled) setPreview(r.allocations || []);
-      } catch { if (!cancelled) setPreview([]); }
-      finally { if (!cancelled) setPreviewLoading(false); }
-    }, 250);
-    return () => { cancelled = true; clearTimeout(t); };
-  }, [step, budgetCents, goal]);
+      } catch (_e) {
+        if (!cancelled) setPreview([]);
+      } finally {
+        if (!cancelled) setPreviewLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [previewKey, step]);
+  const [busy, setBusy] = useState("");
+  const [applyResult, setApplyResult] = useState(null);
+  // iter335.13 — AI Recommend Budget
+  const [recommendation, setRecommendation] = useState(null);
+  const [recLoading, setRecLoading] = useState(false);
+
+  const onRecommend = async () => {
+    setRecLoading(true);
+    try {
+      const r = await recommendPromoteBudget(goal);
+      setRecommendation(r);
+      setBudgetCents(r.recommended_cents);
+      toast.success(`Recommended ${"$" + Math.round(r.recommended_cents / 100)}/mo · ~${r.expected_orders} order${r.expected_orders === 1 ? "" : "s"}/mo`);
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Couldn't compute recommendation.");
+    } finally { setRecLoading(false); }
+  };
+
+  // Step 2 live distribution preview — same debounced pattern as the
+  // main Promote tab so it doesn't hammer the allocator on slider drag.
+  // (debounced trigger + actual fetch live above, near the state hooks)
 
   const dismiss = () => {
     try {
@@ -275,6 +305,46 @@ export default function PromoteWizard({ onComplete, onDismiss, initialStep = 1, 
                   <span className="text-sm text-[#737373]">/mo</span>
                 </span>
               </div>
+
+              {/* iter335.13 — AI Recommend Budget */}
+              <div className="mb-3">
+                <button
+                  type="button"
+                  onClick={onRecommend}
+                  disabled={recLoading}
+                  className="px-3 py-1.5 border border-cyan-700/50 hover:border-cyan-400 hover:bg-cyan-950/30 text-cyan-300 hover:text-cyan-200 font-mono text-[10px] uppercase tracking-[0.22em] flex items-center gap-1.5 disabled:opacity-50"
+                  data-testid="promote-wizard-recommend"
+                >
+                  {recLoading
+                    ? <><Loader2 size={11} className="animate-spin" /> Computing…</>
+                    : <><Sparkles size={11} /> Recommend a budget for me</>}
+                </button>
+                {recommendation && (
+                  <div className="mt-2 border border-cyan-900/40 bg-cyan-950/20 p-3" data-testid="promote-wizard-recommendation">
+                    <div className="grid grid-cols-3 gap-2 mb-2">
+                      <div className="text-center">
+                        <div className="font-display text-xl text-cyan-200 tabular-nums">~{recommendation.expected_reach.toLocaleString()}</div>
+                        <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-cyan-400/70 mt-0.5">Reach</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="font-display text-xl text-cyan-200 tabular-nums">~{recommendation.expected_clicks.toLocaleString()}</div>
+                        <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-cyan-400/70 mt-0.5">Clicks</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="font-display text-xl text-cyan-200 tabular-nums">~{recommendation.expected_orders}</div>
+                        <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-cyan-400/70 mt-0.5">Orders</div>
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-[#d4d4d4] leading-snug" data-testid="promote-wizard-rec-rationale">
+                      {recommendation.rationale}
+                    </p>
+                    <div className="mt-1.5 font-mono text-[9px] uppercase tracking-[0.22em] text-[#737373]">
+                      Based on {recommendation.basis === "your-data" ? "your historical data" : "marketplace defaults"} · range ${Math.round(recommendation.low_cents/100)}–${Math.round(recommendation.high_cents/100)}/mo
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <input
                 type="range" min={500} max={50000} step={500}
                 value={budgetCents}

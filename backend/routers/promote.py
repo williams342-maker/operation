@@ -32,7 +32,7 @@ from pydantic import BaseModel, Field
 
 from core import STRIPE_API_KEY, db, now_iso, public_host
 from maker_auth import current_maker_slug
-from services import promote_wallet, promote_allocator
+from services import promote_wallet, promote_allocator, promote_recommend
 from services.ads_gateway import (
     get_gateway, GatewayNotEligible, GatewayNotImplemented, GatewayError,
     CreateCampaignSpec,
@@ -307,6 +307,68 @@ async def resume_campaign(maker_slug: str = Depends(current_maker_slug)):
     if r.matched_count == 0:
         raise HTTPException(404, "No campaign found")
     return {"status": "active"}
+
+
+class RecommendBudgetRequest(BaseModel):
+    goal: str = "sales"
+
+
+@router.post("/promote/budget/recommend")
+async def recommend_budget(body: RecommendBudgetRequest,
+                           maker_slug: str = Depends(current_maker_slug)):
+    """iter335.13 — AI Recommend Budget.
+    Returns recommended monthly budget + projected reach/clicks/orders
+    plus a human rationale paragraph. Used by the wizard Step 2 sparkle
+    button and the main Promote tab's "✨ Recommend" CTA."""
+    if body.goal not in PROMOTE_GOALS:
+        raise HTTPException(400, f"goal must be one of {sorted(PROMOTE_GOALS)}")
+    return await promote_recommend.recommend(maker_slug, body.goal)
+
+
+@router.get("/promote/themes/active")
+async def active_themes_for_maker(maker_slug: str = Depends(current_maker_slug)):
+    """iter335.13 — Maker-facing view of cross-maker theme campaigns
+    currently subsidizing any of their published listings. Drives the
+    "Active themes" pill section in the Promote tab so makers know
+    when their boosts are being co-funded."""
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    listings_cur = db.products.find(
+        {"maker_slug": maker_slug, "deleted_at": None,
+         "status": {"$ne": "draft"}},
+        {"_id": 0, "slug": 1, "tags": 1, "categories": 1},
+    )
+    all_tags = set()
+    listing_slugs: list[str] = []
+    async for lst in listings_cur:
+        listing_slugs.append(lst.get("slug"))
+        all_tags |= set((lst.get("tags") or []) + (lst.get("categories") or []))
+
+    themes_out: list[dict] = []
+    async for t in db.theme_campaigns.find({
+        "status": "active",
+        "start_date": {"$lte": today},
+        "end_date": {"$gte": today},
+        "pool_remaining_cents": {"$gt": 0},
+    }):
+        cat = set(t.get("category_filter") or [])
+        matches = (not cat) or bool(cat & all_tags)
+        if not matches:
+            continue
+        # How much has this maker already claimed?
+        per_maker_used = 0
+        async for row in db.theme_contributions.find(
+            {"theme_id": t["_id"], "maker_slug": maker_slug},
+            {"amount_cents": 1},
+        ):
+            per_maker_used += int(row.get("amount_cents") or 0)
+        cap = int(t.get("per_maker_cap_cents") or 0)
+        t.pop("_id", None)
+        themes_out.append({
+            **t,
+            "claimed_by_maker_cents": per_maker_used,
+            "remaining_for_maker_cents": max(0, cap - per_maker_used),
+        })
+    return {"themes": themes_out, "listing_count": len(listing_slugs)}
 
 
 @router.post("/promote/campaign/preview")

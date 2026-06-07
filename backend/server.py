@@ -32,6 +32,7 @@ from routers.og_showcase_prerender import router as og_showcase_prerender_router
 from routers.listing_budgets import router as listing_budgets_router
 from routers.promote import router as promote_router
 from routers.admin_ads_health import router as admin_ads_health_router
+from routers.promote_themes import router as promote_themes_router
 from routers.help_chat import router as help_chat_router
 from routers.settings import router as settings_router
 from routers.shipping import router as shipping_router
@@ -103,6 +104,7 @@ api.include_router(help_chat_router)
 api.include_router(listing_budgets_router)
 api.include_router(promote_router)
 api.include_router(admin_ads_health_router)
+api.include_router(promote_themes_router)
 api.include_router(community_router)
 api.include_router(community_chat_router)
 api.include_router(settings_router)

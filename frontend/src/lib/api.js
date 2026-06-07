@@ -1765,3 +1765,23 @@ export const resumeExternalCampaign = (channel, externalId) =>
 
 export const fetchPromoteAnalytics = () =>
   http.get("/promote/analytics", { headers: authHeaders() }).then((r) => r.data);
+
+// iter335.13 — AI Recommend Budget + Active Theme campaigns
+export const recommendPromoteBudget = (goal = "sales") =>
+  http.post("/promote/budget/recommend", { goal },
+    { headers: authHeaders() }).then((r) => r.data);
+
+export const fetchActivePromoteThemes = () =>
+  http.get("/promote/themes/active", { headers: authHeaders() }).then((r) => r.data);
+
+// iter335.13 — Admin: theme campaign CRUD
+export const adminFetchPromoteThemes = () =>
+  http.get("/admin/promote/themes", { headers: authHeaders() }).then((r) => r.data);
+
+export const adminCreatePromoteTheme = (payload) =>
+  http.post("/admin/promote/themes", payload,
+    { headers: authHeaders() }).then((r) => r.data);
+
+export const adminSetPromoteThemeStatus = (themeId, status) =>
+  http.post(`/admin/promote/themes/${themeId}/status?status=${encodeURIComponent(status)}`,
+    {}, { headers: authHeaders() }).then((r) => r.data);

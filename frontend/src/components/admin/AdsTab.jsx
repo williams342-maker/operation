@@ -13,6 +13,7 @@ import GoogleAdsConnectionCard from "./GoogleAdsConnectionCard";
 import MicrosoftAdsConnectionCard from "./MicrosoftAdsConnectionCard";
 import MetaAdsConnectionCard from "./MetaAdsConnectionCard";
 import AdAttributionHealthCard from "./AdAttributionHealthCard";
+import PromoteThemesCard from "./PromoteThemesCard";
 
 const PLATFORM_TONE = {
   google: "border-blue-700/50 text-blue-300",
@@ -88,6 +89,7 @@ export default function AdsTab() {
     <div data-testid="ads-tab" className="space-y-6">
       {confirmModal}
       <AdAttributionHealthCard />
+      <PromoteThemesCard />
       <GoogleAdsConnectionCard />
       <MicrosoftAdsConnectionCard />
       <MetaAdsConnectionCard />

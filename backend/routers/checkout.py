@@ -1186,6 +1186,28 @@ async def _dispatch_promote_wallet_events(body: bytes, sig: str, secret: str):
                         {"_id": data.get("id")},
                         {"$set": {"status": "paid", "paid_at": now_iso()}},
                     )
+                    # iter335.11 — Auto-apply allocator on top-up. If the
+                    # maker already has an active campaign, fire the
+                    # allocator immediately so boosts land in seconds,
+                    # not tomorrow's 04:45 cron. Best-effort — failures
+                    # don't block the credit (allocator retries daily).
+                    try:
+                        camp = await db.campaign_groups.find_one({
+                            "maker_slug": maker_slug,
+                            "deleted_at": None, "status": "active",
+                        })
+                        if camp:
+                            from services.promote_allocator import apply_allocations
+                            r = await apply_allocations(
+                                maker_slug, camp["campaign_id"],
+                                int(camp.get("budget_cents") or 0),
+                                explicit_listing_slugs=camp.get("explicit_listing_slugs") or None,
+                            )
+                            logger.info("[promote] auto-apply post-topup %s: %s",
+                                        maker_slug, {"boosts": r.get("boosts_applied"),
+                                                     "spent_cents": r.get("cents_spent")})
+                    except Exception as e:
+                        logger.exception("[promote] auto-apply failed: %s", e)
         elif meta.get("promote_kind") == "subscription":
             # First-time subscription created. Persist the sub id on the
             # wallet so the maker can cancel later. The actual credit
@@ -1234,6 +1256,22 @@ async def _dispatch_promote_wallet_events(body: bytes, sig: str, secret: str):
                 idempotency_key=f"sub_invoice:{invoice_id}",
                 note=f"Stripe subscription · ${cents/100:.2f}/mo",
             )
+            # iter335.11 — Same auto-apply on monthly renewal so the
+            # newly-credited funds boost listings immediately.
+            try:
+                camp = await db.campaign_groups.find_one({
+                    "maker_slug": maker_slug,
+                    "deleted_at": None, "status": "active",
+                })
+                if camp:
+                    from services.promote_allocator import apply_allocations
+                    await apply_allocations(
+                        maker_slug, camp["campaign_id"],
+                        int(camp.get("budget_cents") or 0),
+                        explicit_listing_slugs=camp.get("explicit_listing_slugs") or None,
+                    )
+            except Exception as e:
+                logger.exception("[promote] auto-apply on renewal failed: %s", e)
 
     elif etype == "customer.subscription.deleted":
         sub_id = data.get("id")

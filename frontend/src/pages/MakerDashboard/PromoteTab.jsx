@@ -27,6 +27,7 @@ import {
   fetchPromoteAnalytics,
   fetchPromoteChannels, fetchExternalCampaigns,
   launchExternalCampaign, pauseExternalCampaign, resumeExternalCampaign,
+  fetchActivePromoteThemes,
 } from "../../lib/api";
 import PromoteWizard, { shouldShowWizard, shouldShowSuccessStep } from "./PromoteWizard";
 
@@ -48,6 +49,7 @@ export default function PromoteTab() {
   const [analytics, setAnalytics] = useState(null);
   const [channels, setChannels] = useState([]);
   const [extCampaigns, setExtCampaigns] = useState([]);
+  const [activeThemes, setActiveThemes] = useState([]);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [wizardStep, setWizardStep] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -69,9 +71,10 @@ export default function PromoteTab() {
     const wantSuccessStep = shouldShowSuccessStep();
     (async () => {
       try {
-        const [w, c, a, ch, ext] = await Promise.all([
+        const [w, c, a, ch, ext, themes] = await Promise.all([
           fetchPromoteWallet(), fetchPromoteCampaign(), fetchPromoteAnalytics(),
           fetchPromoteChannels(), fetchExternalCampaigns(),
+          fetchActivePromoteThemes().catch(() => ({ themes: [] })),
         ]);
         if (cancelled) return;
         setWallet(w);
@@ -80,6 +83,7 @@ export default function PromoteTab() {
         setAnalytics(a);
         setChannels(ch.channels || []);
         setExtCampaigns(ext.campaigns || []);
+        setActiveThemes(themes.themes || []);
         // iter335.9 — Post-fund return: re-open at step 4 ("You're live")
         // takes precedence over the regular first-time-empty trigger.
         if (wantSuccessStep) {
@@ -134,9 +138,10 @@ export default function PromoteTab() {
   }, [budgetCents, goal, autoAllocate, loading]);
 
   const refresh = async () => {
-    const [w, c, a, ch, ext] = await Promise.all([
+    const [w, c, a, ch, ext, themes] = await Promise.all([
       fetchPromoteWallet(), fetchPromoteCampaign(), fetchPromoteAnalytics(),
       fetchPromoteChannels(), fetchExternalCampaigns(),
+      fetchActivePromoteThemes().catch(() => ({ themes: [] })),
     ]);
     setWallet(w);
     setCampaign(c.campaign || null);
@@ -144,6 +149,7 @@ export default function PromoteTab() {
     setAnalytics(a);
     setChannels(ch.channels || []);
     setExtCampaigns(ext.campaigns || []);
+    setActiveThemes(themes.themes || []);
   };
 
   const onTopup = async (amount) => {
@@ -300,6 +306,53 @@ export default function PromoteTab() {
           </button>
         </div>
       </header>
+
+      {/* iter335.13 — Active marketplace theme campaigns (cross-maker subsidies) */}
+      {activeThemes.length > 0 && (
+        <section
+          className="border border-cyan-900/40 bg-cyan-950/10 p-4"
+          data-testid="promote-active-themes"
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <Sparkles size={14} className="text-cyan-300" />
+            <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-cyan-300">
+              Active marketplace themes · subsidizing your boosts
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {activeThemes.map((t) => {
+              const usedPct = Math.min(100, Math.round(((t.pool_total_cents - t.pool_remaining_cents) / Math.max(1, t.pool_total_cents)) * 100));
+              return (
+                <div
+                  key={t.theme_id || t.slug}
+                  className="border border-cyan-700/40 bg-[#050505] px-3 py-2 min-w-[200px]"
+                  data-testid={`promote-theme-${t.slug}`}
+                >
+                  <div className="font-mono text-xs text-cyan-100 truncate">{t.name}</div>
+                  <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#737373] mt-0.5">
+                    {t.start_date} → {t.end_date}
+                  </div>
+                  <div className="mt-1.5 h-1 bg-[#1f1f1f]">
+                    <div
+                      className="h-1 bg-gradient-to-r from-cyan-600 to-cyan-300"
+                      style={{ width: `${usedPct}%` }}
+                    />
+                  </div>
+                  <div className="mt-1 font-mono text-[9px] text-[#a3a3a3] flex justify-between">
+                    <span>Pool ${(t.pool_remaining_cents / 100).toFixed(0)} left</span>
+                    {t.remaining_for_maker_cents > 0 && (
+                      <span className="text-cyan-300">+${(t.remaining_for_maker_cents / 100).toFixed(0)} for you</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <p className="mt-2 text-[10px] text-[#737373] leading-snug">
+            When the daily allocator boosts a matching listing, these pools chip in first — reducing the spend on your own wallet.
+          </p>
+        </section>
+      )}
 
       {/* ── Wallet ─────────────────────────────────────────────────── */}
       <section className="border border-[#262626] bg-[#0a0a0a] p-5" data-testid="promote-wallet-card">
