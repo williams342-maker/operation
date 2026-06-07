@@ -23,6 +23,13 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - Admin: `/admin/login|verify|dashboard`
 
 ## What's Implemented (cumulative)
+- ✅ **Admin Quick Edit Modal for Feed Health (iter338b, 2026-06-07):**
+  • **`PATCH /api/admin/feeds/design-files/{file_id}`** — allow-listed patch (`thumbnail_url`, `primary_url`, `title`, `description`, `file_type`) for stuck design-file rows. Uses header-only `current_admin` + inline capability check (content/marketplace) to dodge FastAPI body/Depends collision. Stamps `admin_patched_at` for audit.
+  • **Frontend `QuickEditDesignFile` modal** in `FeedHealthCard.jsx` — "Edit" pill next to each blocked design-file example opens a pre-filled modal (title + thumb URL with live preview + primary URL) with "* MISSING" indicators on the blocker fields. Saves only changed fields → parent reloads feed-health snapshot so counters update immediately.
+  • **Smoke-tested live:** ESLint clean, modal renders + opens, PATCH round-trip verified via curl (`updated_fields: ["admin_patched_at","title"]`).
+  • Files MODIFIED: `backend/routers/admin_feeds_health.py`, `frontend/src/components/admin/FeedHealthCard.jsx`.
+
+
 - ✅ **Maker rank widget + parallel eligibility + monthly leaderboard rewards (iter335.17, 2026-06-07):**
   • **`GET /api/maker/leaderboard-rank`** (maker JWT) — refactored `routers/leaderboard.compute_ranked(end_iso, window_days, limit)` so the endpoint can call it twice (current + 7-days-ago) and report week-over-week delta. Returns `{on_leaderboard, rank, score, badge, delta, prev_rank, prev_score, orders, revenue_cents, reviews, total_makers}`. `delta = prev_rank - current_rank` (positive = climbing); brand-new entrants get `delta=null` so the UI shows a cyan **NEW** pill instead of fabricating a number. 503 when admin disabled the leaderboard.
   • **Frontend `MakerRankCard.jsx`** mounted on `DashboardTab` right after the KPI strip. Trophy icon + amber-glow card showing rank (`#12 of 21`), Score + prev-Score line, delta pill (↑3 green / ↓2 red / "held" gray / "NEW" cyan), and a "See full board →" CTA to `/makers`. Zero-activity makers get a `maker-rank-card-empty` variant nudging them to make their first sale.

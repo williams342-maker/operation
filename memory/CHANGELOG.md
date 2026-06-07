@@ -1,3 +1,28 @@
+## 2026-06-07 — Admin Quick Edit Modal for Feed Health (iter338b)
+
+### What shipped
+Admins can now patch individual blocked design-file rows directly from the Feed Health card drill-down — no DB shell, no leaving the panel.
+
+### Backend
+- `routers/admin_feeds_health.py::admin_patch_design_file` — `PATCH /api/admin/feeds/design-files/{file_id}` with allow-listed fields (`thumbnail_url`, `primary_url`, `title`, `description`, `file_type`). Uses header-only `current_admin` dependency + inline capability check (`content` or `marketplace`) to dodge the FastAPI quirk where `claims: dict = Depends(...)` shadows the JSON body.
+- Stamps `admin_patched_at` for audit.
+
+### Frontend
+- `components/admin/FeedHealthCard.jsx`:
+  - New `QuickEditDesignFile` modal component (in-file, ~140 lines).
+  - "Edit" pill button next to each blocked design-file example row (only when `ex.id` is present).
+  - Modal pre-fills title + thumbnail + primary URLs from the example dict, shows live preview of the thumbnail URL, flags "* MISSING" on blocker-relevant fields, and PATCHes only changed fields.
+  - On save, parent reloads `/api/admin/feeds/health` so counters update immediately.
+
+### Smoke test (post-deploy verification)
+- ✅ Modal renders with pre-filled fields (screenshot validated)
+- ✅ "* MISSING" indicator appears on blocked fields
+- ✅ PATCH round-trip succeeds (`{"ok":true,"file_id":"…","updated_fields":["admin_patched_at","title"]}`)
+- ✅ ESLint clean (0 advisory findings)
+
+---
+
+
 ## 2026-06-01 — Per-listing marketing budgets (iter315)
 
 ### What shipped
