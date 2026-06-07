@@ -120,11 +120,11 @@ export default function Hero() {
         >
           Built for{" "}
           <strong className="text-white font-normal">independent makers</strong>,{" "}
-          <strong className="text-white font-normal">growers</strong> and{" "}
+          <strong className="text-white font-normal">growers</strong>, and{" "}
           <strong className="text-white font-normal">creators</strong> —
-          from workshops and studios to orchards and home kitchens.
+          from workshops and studios to gardens and small shops.
           Real products from real people — no mass production, no drop-shipping,
-          every shop with a story behind it.
+          just independent businesses with stories behind what they make.
         </motion.p>
 
         <motion.div
