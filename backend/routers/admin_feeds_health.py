@@ -235,8 +235,11 @@ async def _design_files_health() -> dict[str, Any]:
     ).limit(5).to_list(5)
     blocked_examples = [
         {
+            "id": e.get("id"),
             "slug": e.get("slug") or e.get("id"),
             "title": e.get("title"),
+            "thumbnail_url": e.get("thumbnail_url") or "",
+            "primary_url": e.get("primary_url") or "",
             "maker_slug": "—",
             "blockers": [
                 *(["missing_preview"] if not e.get("thumbnail_url") else []),
