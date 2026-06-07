@@ -23,14 +23,15 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - Admin: `/admin/login|verify|dashboard`
 
 ## What's Implemented (cumulative)
-- ✅ **Admin Quick Edit Modal for Feed Health (iter338b/c, 2026-06-07):**
-  • **`PATCH /api/admin/feeds/design-files/{file_id}`** — allow-listed patch (`thumbnail_url`, `primary_url`, `title`, `description`, `file_type`) for stuck design-file rows. Uses header-only `current_admin` + inline capability check (content/marketplace) to dodge FastAPI body/Depends collision. Stamps `admin_patched_at` for audit.
-  • **`PATCH /api/admin/feeds/showcase/{post_id}`** (iter338c) — sibling endpoint, allow-listed fields `image_url`, `caption`, `title`. Same auth + audit pattern.
-  • **Frontend `QuickEditDesignFile` modal** (`components/admin/QuickEditDesignFile.jsx`, 161 lines) — "Edit" pill next to each blocked design-file example opens a pre-filled modal (title + thumb URL with live preview + primary URL) with "* MISSING" indicators. Cyan accent.
-  • **Frontend `QuickEditShowcase` modal** (`components/admin/QuickEditShowcase.jsx`, iter338c, ~155 lines) — sibling modal with image URL (live preview), caption textarea, title. Emerald accent to differentiate channel.
-  • **`FeedHealthCard.jsx`** holds parallel `editing` (design-files) + `editingShowcase` states; renders the correct modal based on which Edit pill was clicked. Refactored from 599 → 454 lines after extracting modals to separate files.
-  • **Smoke-tested live:** ESLint clean, both modals render + open, PATCH round-trips verified via curl on both endpoints, allow-list rejection verified.
-  • Files NEW: `frontend/src/components/admin/QuickEditDesignFile.jsx`, `frontend/src/components/admin/QuickEditShowcase.jsx`. Files MODIFIED: `backend/routers/admin_feeds_health.py`, `frontend/src/components/admin/FeedHealthCard.jsx`.
+- ✅ **Admin Quick Edit Modal for Feed Health (iter338b/c/d, 2026-06-07):**
+  • **`PATCH /api/admin/feeds/design-files/{file_id}`** — allow-listed patch. Fields: `thumbnail_url`, `primary_url`, `title`, `description`, `file_type`, plus iter338d SEO fields `seo_title`, `seo_description`, `seo_tags`, `alt_text`. Header-only `current_admin` + inline capability check (content/marketplace) to dodge FastAPI body/Depends collision. Stamps `admin_patched_at`.
+  • **`PATCH /api/admin/feeds/showcase/{post_id}`** — sibling endpoint, allow-listed fields `image_url`, `caption`, `title`, `seo_title`, `seo_description`, `seo_tags`, `alt_text`.
+  • **`_normalize_seo_tags()` helper** (iter338d) — accepts list[str] or CSV str, returns trimmed/deduped/≤12-item list[str] (each ≤40 chars).
+  • **Frontend `QuickEditDesignFile` + `QuickEditShowcase` modals** in dedicated files (`components/admin/QuickEditDesignFile.jsx` + `QuickEditShowcase.jsx`). Modal pre-fills all known fields, surfaces "* MISSING" indicators on blocker fields, lives preview on URL fields, diff-only PATCH on save → parent reloads feed-health.
+  • **Shared `SeoFieldsSection.jsx`** (iter338d) — collapsible SEO subsection used by both modals. "N/4 set" header badge, live char counter on description, CSV tags input. Distinct accent color per channel (cyan for design files, emerald for showcase).
+  • **`FeedHealthCard.jsx`** parallel `editing` + `editingShowcase` states, channel-specific Edit pills, both modals mounted conditionally. Refactored 599 → 454 lines via component extraction.
+  • **Smoke-tested live:** ESLint clean (on all 4 new files), modal renders + opens + pre-fills SEO from existing values, PATCH round-trips verified via curl on both endpoints, CSV→list normalization confirmed (`['laser','walnut','modern']`), empty payload + unknown-field rejection works.
+  • Files NEW: `frontend/src/components/admin/QuickEditDesignFile.jsx`, `frontend/src/components/admin/QuickEditShowcase.jsx`, `frontend/src/components/admin/SeoFieldsSection.jsx`. Files MODIFIED: `backend/routers/admin_feeds_health.py`, `frontend/src/components/admin/FeedHealthCard.jsx`.
 
 
 - ✅ **Maker rank widget + parallel eligibility + monthly leaderboard rewards (iter335.17, 2026-06-07):**

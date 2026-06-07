@@ -50,6 +50,33 @@ def _has_description(p: dict, *, min_chars: int = 50) -> bool:
     return len(p.get("description") or "") >= min_chars
 
 
+def _normalize_seo_tags(v: Any) -> list[str]:
+    """iter338d — accept either a list[str] or a CSV string from the
+    Quick Edit modals and return a deduped, trimmed list[str] (max 12
+    tags, each ≤40 chars). Returns [] for None/empty.
+    """
+    if isinstance(v, list):
+        raw = [str(x) for x in v]
+    elif isinstance(v, str):
+        raw = v.split(",")
+    else:
+        return []
+    out: list[str] = []
+    seen: set[str] = set()
+    for t in raw:
+        t = t.strip()[:40]
+        if not t:
+            continue
+        key = t.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(t)
+        if len(out) >= 12:
+            break
+    return out
+
+
 def _has_gpc_3plus(p: dict) -> bool:
     """Pinterest alert 126 trips on paths < 3 levels. We trust the
     backend `_resolve_gpc` mapper to always emit ≥3 — but a maker-
@@ -167,7 +194,8 @@ async def _showcase_health() -> dict[str, Any]:
             {"image_urls.0": {"$exists": True}},
         ]},
         {"_id": 0, "id": 1, "slug": 1, "title": 1, "caption": 1,
-         "maker_slug": 1, "image_url": 1, "image_urls": 1},
+         "maker_slug": 1, "image_url": 1, "image_urls": 1,
+         "seo_title": 1, "seo_description": 1, "seo_tags": 1, "alt_text": 1},
     ).limit(5).to_list(5)
     blocked_examples = [
         {
@@ -177,6 +205,10 @@ async def _showcase_health() -> dict[str, Any]:
             "caption": e.get("caption") or "",
             "image_url": e.get("image_url") or "",
             "maker_slug": e.get("maker_slug") or "—",
+            "seo_title": e.get("seo_title") or "",
+            "seo_description": e.get("seo_description") or "",
+            "seo_tags": e.get("seo_tags") or [],
+            "alt_text": e.get("alt_text") or "",
             "blockers": ["missing_image"],
         }
         for e in examples_raw
@@ -234,16 +266,22 @@ async def _design_files_health() -> dict[str, Any]:
             {"thumbnail_url": {"$in": [None, ""]}},
             {"primary_url": {"$in": [None, ""]}},
         ]},
-        {"_id": 0, "id": 1, "slug": 1, "title": 1, "thumbnail_url": 1, "primary_url": 1},
+        {"_id": 0, "id": 1, "slug": 1, "title": 1, "thumbnail_url": 1, "primary_url": 1,
+         "description": 1, "seo_title": 1, "seo_description": 1, "seo_tags": 1, "alt_text": 1},
     ).limit(5).to_list(5)
     blocked_examples = [
         {
             "id": e.get("id"),
             "slug": e.get("slug") or e.get("id"),
             "title": e.get("title"),
+            "description": e.get("description") or "",
             "thumbnail_url": e.get("thumbnail_url") or "",
             "primary_url": e.get("primary_url") or "",
             "maker_slug": "—",
+            "seo_title": e.get("seo_title") or "",
+            "seo_description": e.get("seo_description") or "",
+            "seo_tags": e.get("seo_tags") or [],
+            "alt_text": e.get("alt_text") or "",
             "blockers": [
                 *(["missing_preview"] if not e.get("thumbnail_url") else []),
                 *(["missing_file_url"] if not e.get("primary_url") else []),
@@ -583,8 +621,11 @@ async def admin_patch_design_file(
         payload = {}
     if not isinstance(payload, dict):
         payload = {}
-    ALLOWED = {"thumbnail_url", "primary_url", "title", "description", "file_type"}
+    ALLOWED = {"thumbnail_url", "primary_url", "title", "description", "file_type",
+               "seo_title", "seo_description", "seo_tags", "alt_text"}
     updates = {k: v for k, v in payload.items() if k in ALLOWED}
+    if "seo_tags" in updates:
+        updates["seo_tags"] = _normalize_seo_tags(updates["seo_tags"])
     if not updates:
         raise HTTPException(400, f"No allowed fields in payload. Allowed: {sorted(ALLOWED)}")
     from datetime import datetime, timezone
@@ -621,8 +662,11 @@ async def admin_patch_showcase_post(
         payload = {}
     if not isinstance(payload, dict):
         payload = {}
-    ALLOWED = {"image_url", "caption", "title"}
+    ALLOWED = {"image_url", "caption", "title",
+               "seo_title", "seo_description", "seo_tags", "alt_text"}
     updates = {k: v for k, v in payload.items() if k in ALLOWED}
+    if "seo_tags" in updates:
+        updates["seo_tags"] = _normalize_seo_tags(updates["seo_tags"])
     if not updates:
         raise HTTPException(400, f"No allowed fields in payload. Allowed: {sorted(ALLOWED)}")
     from datetime import datetime, timezone

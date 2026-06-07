@@ -1,3 +1,28 @@
+## 2026-06-07 — Per-row SEO field editing in Quick Edit modals (iter338d)
+
+### What shipped
+Admins can now manually override the four canonical SEO fields (`seo_title`, `seo_description`, `seo_tags`, `alt_text`) on individual blocked rows — the per-row counterpart to the existing "Auto-tag SEO" batch LLM button.
+
+### Backend
+- `routers/admin_feeds_health.py`:
+  - Extended ALLOWED set on both PATCH endpoints (design-files + showcase) to include the four SEO fields.
+  - New `_normalize_seo_tags()` helper coerces either `list[str]` or CSV `str` payloads into a trimmed, deduped, lowercased-deduped, ≤12-item list. Each tag capped at 40 chars.
+  - `_design_files_health()` and `_showcase_health()` now project + return existing SEO field values in `blocked_examples` so the modals can pre-fill them.
+
+### Frontend
+- `components/admin/SeoFieldsSection.jsx` (new, ~95 lines) — shared collapsible SEO section reused by both modals. Header shows live "N/4 set" badge so admins can see at-a-glance how filled-out a row is. Description field shows live char counter (150-160 ideal). Tags field is a CSV input (server normalizes).
+- `QuickEditDesignFile` + `QuickEditShowcase` — both import and mount `SeoFieldsSection` after their primary fields. State is local, payload is diff-only so unchanged fields don't get re-sent.
+
+### Smoke test (curl + playwright)
+- ✅ `blocked_examples` returns `seo_title`, `seo_description`, `seo_tags[]`, `alt_text` on both channels
+- ✅ PATCH CSV `"laser, walnut, modern"` → server stored as `['laser', 'walnut', 'modern']`
+- ✅ PATCH empty CSV `""` → server stored as `[]`
+- ✅ Frontend modal opens, "SEO FIELDS · 4/4 SET" header renders, all four fields pre-filled with existing values
+- ✅ ESLint clean on all 3 new/modified frontend files
+
+---
+
+
 ## 2026-06-07 — Quick Edit modal for showcase posts (iter338c)
 
 ### What shipped

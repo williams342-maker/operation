@@ -19,6 +19,7 @@
 import React, { useState } from "react";
 import { toast } from "sonner";
 import axios from "axios";
+import SeoFieldsSection from "./SeoFieldsSection";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -26,6 +27,11 @@ export default function QuickEditDesignFile({ example, onClose, onSaved }) {
   const [thumbnailUrl, setThumbnailUrl] = useState(example.thumbnail_url || "");
   const [primaryUrl, setPrimaryUrl] = useState(example.primary_url || "");
   const [title, setTitle] = useState(example.title || "");
+  // iter338d — SEO fields (collapsible section)
+  const [seoTitle, setSeoTitle] = useState(example.seo_title || "");
+  const [seoDescription, setSeoDescription] = useState(example.seo_description || "");
+  const [seoTagsCsv, setSeoTagsCsv] = useState((example.seo_tags || []).join(", "));
+  const [altText, setAltText] = useState(example.alt_text || "");
   const [saving, setSaving] = useState(false);
 
   const save = async () => {
@@ -33,6 +39,11 @@ export default function QuickEditDesignFile({ example, onClose, onSaved }) {
     if (thumbnailUrl !== (example.thumbnail_url || "")) payload.thumbnail_url = thumbnailUrl.trim();
     if (primaryUrl !== (example.primary_url || "")) payload.primary_url = primaryUrl.trim();
     if (title !== (example.title || "")) payload.title = title.trim();
+    if (seoTitle !== (example.seo_title || "")) payload.seo_title = seoTitle.trim();
+    if (seoDescription !== (example.seo_description || "")) payload.seo_description = seoDescription.trim();
+    const originalTagsCsv = (example.seo_tags || []).join(", ");
+    if (seoTagsCsv !== originalTagsCsv) payload.seo_tags = seoTagsCsv; // server normalizes
+    if (altText !== (example.alt_text || "")) payload.alt_text = altText.trim();
     if (Object.keys(payload).length === 0) {
       toast.info("No changes to save.");
       return;
@@ -137,6 +148,13 @@ export default function QuickEditDesignFile({ example, onClose, onSaved }) {
             />
           </label>
         </div>
+
+        <SeoFieldsSection
+          values={{ seoTitle, seoDescription, seoTagsCsv, altText }}
+          setters={{ setSeoTitle, setSeoDescription, setSeoTagsCsv, setAltText }}
+          testidPrefix="quick-edit"
+          focusBorder="focus:border-cyan-400"
+        />
 
         <div className="flex justify-end gap-2 mt-5">
           <button
