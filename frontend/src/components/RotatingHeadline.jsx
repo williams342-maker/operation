@@ -100,7 +100,7 @@ export default function RotatingHeadline({ testId = "hero-rotating-headline" }) 
       data-headline-source={current.source}
     >
       <h1
-        className="font-display text-[56px] sm:text-[80px] md:text-[120px] lg:text-[148px] leading-[0.9] tracking-tighter drop-shadow-[0_8px_32px_rgba(0,0,0,0.7)]"
+        className="font-display text-[48px] sm:text-[68px] md:text-[102px] lg:text-[126px] leading-[0.9] tracking-tighter drop-shadow-[0_8px_32px_rgba(0,0,0,0.7)]"
         aria-live="polite"
       >
         <AnimatePresence mode="wait" initial={false}>
