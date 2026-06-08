@@ -160,7 +160,8 @@ export const CONDITIONS = [
 export const DIM_UNITS = ["in", "cm"];
 export const COLORS = [
   "Black", "White", "Gray", "Silver", "Gold", "Bronze", "Copper", "Red", "Orange",
-  "Yellow", "Green", "Blue", "Purple", "Brown", "Beige", "Natural", "Multi-color",
+  "Yellow", "Green", "Blue", "Purple", "Pink", "Brown", "Beige", "Natural",
+  "Multi-color", "Rainbow", "Custom color",
 ];
 export const OCCASIONS = [
   "Birthday", "Wedding", "Anniversary", "Housewarming", "Christmas", "Father's Day",

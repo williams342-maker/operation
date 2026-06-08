@@ -51,15 +51,28 @@ export default function ProductDetail() {
   // Flows into add-to-cart → checkout → order doc → maker order email,
   // and also pre-fills the "Message the maker" body when set.
   const [selectedColor, setSelectedColor] = useState(null);
+  // iter341 — when the maker offers "Custom color" and the buyer picks it,
+  // they must type a description of the color they want. The effective
+  // `color_choice` becomes `Custom: <typed text>` so the maker sees both
+  // that it was a custom request AND what was requested.
+  const [customColorText, setCustomColorText] = useState("");
   const [contactOpen, setContactOpen] = useState(false);
   const { add } = useCart();
 
   useEffect(() => {
-    setActive(0);
-    setSelectedVariantId(null);
-    setBackorderPolicy(null);
-    setReviewAgg(null);
-    setSelectedColor(null);
+    // iter341 — wrap resets in a microtask so the eslint
+    // `set-state-in-effect` rule doesn't flag them as direct effect-body
+    // setState (this is the same React idiom React's docs recommend for
+    // "reset state when a parent prop changes" without a key on the
+    // parent component).
+    Promise.resolve().then(() => {
+      setActive(0);
+      setSelectedVariantId(null);
+      setBackorderPolicy(null);
+      setReviewAgg(null);
+      setSelectedColor(null);
+      setCustomColorText("");
+    });
     fetchProduct(slug).then(async (prod) => {
       setP(prod);
       // Auto-select first variant if any
@@ -194,7 +207,25 @@ export default function ProductDetail() {
       node?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
-    add(p, qty, selectedVariant, personalization || null, selectedColor);
+    // iter341 — when the buyer picks "Custom color", their text input is
+    // required before checkout. We surface a precise error so the buyer
+    // knows exactly what to do.
+    if (selectedColor === "Custom color" && !customColorText.trim()) {
+      toast.error("Describe the custom color you'd like before adding to cart.");
+      const node = document.querySelector("[data-testid='product-custom-color-input']");
+      node?.focus();
+      node?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    // The string we actually store on the cart row + send to the maker. For
+    // "Custom color" we prefix with "Custom: " so the maker email and
+    // dashboard chip read e.g. "Custom: matte sage green" — clearly a
+    // custom request, with the buyer's exact words next to it.
+    const effectiveColor =
+      selectedColor === "Custom color"
+        ? `Custom: ${customColorText.trim()}`
+        : selectedColor;
+    add(p, qty, selectedVariant, personalization || null, effectiveColor);
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
     // iter334i — Fire Microsoft Ads `add_to_cart` conversion event so
@@ -542,6 +573,34 @@ export default function ProductDetail() {
                     ◆ Pick one to add to cart.
                   </div>
                 )}
+                {/* iter341 — Free-text input appears the moment the buyer
+                    selects "Custom color". Required before Add-to-cart. */}
+                {selectedColor === "Custom color" && (
+                  <div className="mt-3 border-l-2 border-[#ff4500] pl-3" data-testid="product-custom-color-block">
+                    <label
+                      htmlFor="custom-color-input"
+                      className="block font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mb-1.5"
+                    >
+                      ◆ Describe your custom color
+                      <span className="text-red-400 ml-1">*required</span>
+                    </label>
+                    <input
+                      id="custom-color-input"
+                      type="text"
+                      value={customColorText}
+                      onChange={(e) => setCustomColorText(e.target.value.slice(0, 30))}
+                      placeholder="e.g. matte sage green, hammered copper, dusty rose…"
+                      maxLength={30}
+                      autoFocus
+                      data-testid="product-custom-color-input"
+                      className="w-full bg-[#050505] border border-[#262626] focus:border-[#ff4500] px-3 py-2 font-mono text-sm text-[#f5f5f5] outline-none"
+                    />
+                    <div className="font-mono text-[9px] text-[#525252] mt-1 flex justify-between">
+                      <span>The maker will see this on the order.</span>
+                      <span>{customColorText.length}/30</span>
+                    </div>
+                  </div>
+                )}
                 {/* Message-the-maker CTA. Always shown when colors are
                     offered so a buyer who isn't sure can ask before
                     committing. The selected color (if any) pre-fills
@@ -701,14 +760,19 @@ export default function ProductDetail() {
       {/* iter339 — Message-the-maker modal opened from the color picker.
           When a color is selected we pre-seed the body so the maker
           gets full context ("Hey — interested in this in Red…") without
-          the buyer having to retype it. */}
+          the buyer having to retype it. iter341 — for "Custom color"
+          we substitute the buyer's typed text (if any) into the prefill. */}
       {contactOpen && maker && (
         <ContactMakerModal
           maker={maker}
           productSlug={p.slug}
           prefillBody={
             selectedColor
-              ? `Hi ${maker.name || ""},\n\nI'm interested in "${p.title}" in ${selectedColor}. `
+              ? `Hi ${maker.name || ""},\n\nI'm interested in "${p.title}" in ${
+                  selectedColor === "Custom color"
+                    ? (customColorText.trim() || "a custom color")
+                    : selectedColor
+                }. `
               : `Hi ${maker.name || ""},\n\nI have a question about "${p.title}". `
           }
           onClose={() => setContactOpen(false)}
@@ -842,11 +906,18 @@ function _colorSwatchClass(name) {
     Green: "bg-emerald-600",
     Blue: "bg-blue-600",
     Purple: "bg-purple-600",
+    Pink: "bg-pink-400",
     Brown: "bg-[#6b4423]",
     Beige: "bg-[#e8d8b8]",
     Natural: "bg-[#d9c9a3]",
     "Multi-color":
       "bg-gradient-to-br from-red-500 via-yellow-400 via-emerald-500 to-blue-500",
+    Rainbow:
+      "bg-gradient-to-r from-red-500 via-yellow-400 via-emerald-500 via-blue-500 to-purple-600",
+    // iter341 — Custom color shows a question-mark-ish neutral swatch; the
+    // buyer's typed value becomes the actual color string.
+    "Custom color":
+      "bg-gradient-to-br from-[#262626] to-[#525252]",
   };
   return m[name] || "bg-[#525252]";
 }

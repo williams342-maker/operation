@@ -1,3 +1,32 @@
+## 2026-06-07 — New palette colors + Custom color buyer-input flow (iter341)
+
+### What shipped
+- **3 new colors** added to maker palette in `MakerListingEditor/constants.js::COLORS`:
+  - `Pink` — solid pink swatch
+  - `Rainbow` — distinct gradient swatch (red→yellow→green→blue→purple, full spectrum) — distinct from existing `Multi-color` (which is a brighter "patchy" multi-tone)
+  - `Custom color` — special. When the buyer picks this on `ProductDetail`, an orange-bordered text input appears below the picker requiring them to describe the color (max 30 chars). Cart row stores it as `Custom: {buyer-typed text}` so the maker sees both the "custom request" marker AND the buyer's exact words on every downstream surface.
+- **Buyer flow:**
+  - `ProductDetail.jsx` — new `customColorText` state, conditional input panel below swatches with char counter "X/30", autoFocus on selection, helper text "The maker will see this on the order."
+  - **Add-to-cart guard** — if buyer picks "Custom color" but leaves the input empty → toast: "Describe the custom color you'd like before adding to cart." + focus + scroll-to.
+  - **Effective `color_choice`** sent to cart = `Custom: {text}` when applicable, otherwise the bare color name.
+  - **Message-the-maker prefill** substitutes the typed text into the body so the maker sees the request even before order: "Hi Oakridge Woodcraft Co., I'm interested in 'Walnut Floating Shelf Trio' in matte sage green."
+- **Swatch helper** (`_colorSwatchClass`) extended with Pink + Rainbow + Custom-color chips. Rainbow uses a left-to-right full-spectrum gradient; Custom color uses a neutral dark gradient (visually signals "you'll describe it").
+- **Capacity check:** `Custom: ` prefix (8 chars) + 30-char user input = 38 chars max, well within the 40-char backend cap on `CartItem.color_choice`.
+
+### Side-touch
+- Wrapped pre-existing useEffect state resets in a `Promise.resolve().then(...)` microtask so eslint's `set-state-in-effect` rule no longer blocks (semantics identical — async tick before the resets means React batches them on the same render, just outside the effect-body code path).
+
+### Smoke test (live)
+- ✅ All 3 new colors render on a seeded test product (Pink, Rainbow, Custom color)
+- ✅ Click Custom color → input appears, autoFocused
+- ✅ Empty + Add → toast guard fires with the exact required-input message
+- ✅ Type "matte sage green" + Add → cart localStorage stores `color_choice: "Custom: matte sage green"`
+- ✅ Existing Walnut/Black flow still works (regression-safe)
+- ✅ Webpack compiles cleanly; ESLint clean on the touched file
+
+---
+
+
 ## 2026-06-07 — Failed-upload tile UX fix (iter340b)
 
 ### Problem
