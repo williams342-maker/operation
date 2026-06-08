@@ -36,7 +36,19 @@ DEFAULT_PING_BUDGET = 50  # how many catalog URLs to submit by default
 
 
 async def _get_or_create_key() -> str:
-    """Return the persisted IndexNow key, generating one on first use."""
+    """Return the IndexNow key. Precedence:
+       1. `INDEXNOW_KEY` env var (lets ops register a key with Bing / Yandex
+          via their Webmaster Tools and pin our app to that exact value
+          without a DB migration — fastest path when the search engine
+          generated the key for us).
+       2. Persisted `system_state/{_id: 'indexnow'}` doc (DB-generated on
+          first use; shared across pods).
+    iter338e — added env override so prod can adopt a Bing-issued key
+    without touching the DB.
+    """
+    env_key = (os.environ.get("INDEXNOW_KEY") or "").strip().lower()
+    if env_key and all(c in "0123456789abcdef" for c in env_key) and 8 <= len(env_key) <= 128:
+        return env_key
     doc = await db.system_state.find_one({"_id": STATE_KEY}, {"_id": 0, "key": 1})
     if doc and doc.get("key"):
         return doc["key"]

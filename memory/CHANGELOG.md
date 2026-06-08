@@ -1,3 +1,31 @@
+## 2026-06-07 — Maker color visibility + Bing IndexNow key env override (iter339+338e)
+
+### Maker color visibility on dashboard orders
+- `routers/maker.py` — both the orders-list endpoint AND the order-detail endpoint now project `color_choice` on each line.
+- `MakerDashboard/OrdersList.jsx`:
+  - **Collapsed list row** — adds a small cyan chip "COLOR · {value}" next to the existing "◆ Personalization attached" chip (both wrap onto a flex row).
+  - **Expanded order detail** — adds a prominent cyan card directly under the price block: "COLOR — {value}" so makers see the chosen color the moment they expand the order, even when there's no free-text personalization.
+- Backward-compatible: rows without `color_choice` render nothing extra.
+
+### Bing IndexNow key — `INDEXNOW_KEY` env override (iter338e)
+- `seo_indexnow.py::_get_or_create_key()` — precedence is now:
+  1. `INDEXNOW_KEY` env var (hex, 8-128 chars). Lowercased + validated.
+  2. Persisted `system_state/{_id: 'indexnow'}` doc.
+  3. Lazy-generated 32-char hex on first use.
+- Lets ops register a Bing-issued key (via Bing Webmaster Tools → IndexNow tab) and pin the app to that exact value without a DB migration. Hot-reload on env change picks it up automatically.
+- Both routes (`/api/indexnow-key.txt` legacy + `/api/indexnow/{key}.txt` canonical) reflect the env value when set.
+
+### Smoke test (preview)
+- ✅ Seeded order with `color_choice: "walnut"` → maker dashboard renders both chips
+- ✅ Set `INDEXNOW_KEY=348a067bf8d04e22be01313c6e982303` → both key-file routes return that exact value
+- ✅ ESLint + ruff clean
+
+### What still needs production action
+- Set `INDEXNOW_KEY=348a067bf8d04e22be01313c6e982303` in prod env vars + redeploy. Then IndexNow pings from prod will be signed with the Bing-registered key → 422s should clear.
+
+---
+
+
 ## 2026-06-07 — Buyer color selection + Message-the-maker on product detail (iter339)
 
 ### What shipped
