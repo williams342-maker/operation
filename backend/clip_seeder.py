@@ -78,6 +78,85 @@ PROMPTS: dict[str, list[dict]] = {
         {"title": "Bare Wood to Engraved Plaque",
          "prompt": "Time-lapse split showing a blank walnut block on the left and a finished laser-engraved family monogram plaque on the right, vertical 9:16, photoreal warm lighting, no text overlay."},
     ],
+    # iter344 — Broader handmade-craft categories added so the daily clip
+    # feed stops looking like a metal-shop tutorial. Same prompt shape
+    # (vertical 9:16, photoreal, no text overlay) so the rendered videos
+    # plug straight into the existing feed/showcase rails without any
+    # downstream code changes.
+    "textiles": [
+        {"title": "Loom Weaving Cotton",
+         "prompt": "Top-down close-up of an artisan's hands on a wooden floor loom weaving natural cotton thread into a striped pattern, warm afternoon light streaming through a window, vertical 9:16, photoreal, no text."},
+        {"title": "Hand Embroidery Hoop",
+         "prompt": "Close-up of an artisan's hands embroidering a wildflower onto natural linen stretched in a wooden hoop, slow methodical stitches, soft window light, vertical 9:16, photoreal, no text."},
+        {"title": "Macramé Knot Pattern",
+         "prompt": "Top-down macro of fingers tying a square knot in natural cotton macramé rope, beige tones, vertical 9:16, slow-motion, photoreal, no text."},
+    ],
+    "pottery": [
+        {"title": "Wheel Throwing a Bowl",
+         "prompt": "Cinematic close-up of an artisan's wet hands centering and opening a clay bowl on a spinning pottery wheel, soft studio light, vertical 9:16, photoreal, no text."},
+        {"title": "Trimming the Foot",
+         "prompt": "Top-down close-up of a trimming tool shaving a clean foot ring on an upside-down leather-hard ceramic bowl on a spinning wheel, vertical 9:16, photoreal, satisfying, no text."},
+        {"title": "Brushing Glaze on Mug",
+         "prompt": "Close-up of a soft brush applying glossy cobalt blue glaze to a bisque-fired stoneware mug on a banding wheel, vertical 9:16, photoreal, warm studio lighting, no text."},
+    ],
+    "jewelry": [
+        {"title": "Silver Soldering a Ring",
+         "prompt": "Macro shot of a small butane torch flowing solder along the seam of a sterling silver ring on a soldering pad, brief glow, vertical 9:16, photoreal, no text."},
+        {"title": "Wire-Wrap Crystal Pendant",
+         "prompt": "Close-up of fine pliers shaping copper wire around a clear quartz crystal pendant on a leather mat, vertical 9:16, photoreal, soft natural light, no text."},
+        {"title": "Polishing Brass Earrings",
+         "prompt": "Top-down close-up of a microfiber cloth polishing a pair of geometric brass earrings on a wooden block, warm reflections, vertical 9:16, photoreal, no text."},
+    ],
+    "leather": [
+        {"title": "Saddle Stitch a Wallet",
+         "prompt": "Close-up of two needles saddle-stitching waxed thread through a tan vegetable-tanned leather wallet held in a stitching pony, vertical 9:16, photoreal, warm shop light, no text."},
+        {"title": "Tooling a Floral Pattern",
+         "prompt": "Top-down macro of a swivel knife tracing a floral pattern into damp veg-tanned leather, fine curl of leather lifting, vertical 9:16, photoreal, no text."},
+        {"title": "Burnishing the Edge",
+         "prompt": "Close-up of a wooden slicker burnishing the edge of a leather belt to a glossy finish, vertical 9:16, photoreal, satisfying, no text."},
+    ],
+    "candles-soap": [
+        {"title": "Pouring Soy Wax Candle",
+         "prompt": "Slow-motion close-up of warm soy wax pouring from a stainless pitcher into an amber glass jar with a centered wick, vertical 9:16, photoreal, soft kitchen light, no text."},
+        {"title": "Cutting Cold-Process Soap",
+         "prompt": "Top-down close-up of a wire soap cutter slicing a loaf of layered handmade cold-process soap into clean bars on a wooden board, vertical 9:16, photoreal, no text."},
+        {"title": "Embedding Dried Flowers",
+         "prompt": "Macro of tweezers placing a dried calendula petal onto the surface of a freshly poured soy candle, wax setting, vertical 9:16, photoreal, no text."},
+    ],
+    "glass": [
+        {"title": "Lampworking a Glass Bead",
+         "prompt": "Cinematic macro of a torch flame softening a rod of cobalt blue glass while it's rolled onto a steel mandrel to form a bead, vertical 9:16, photoreal, dark studio, no text."},
+        {"title": "Stained Glass Soldering",
+         "prompt": "Top-down close-up of a soldering iron drawing a bead of solder along the foiled edge of a stained-glass leaf panel, vertical 9:16, photoreal, no text."},
+        {"title": "Fused Glass Dichroic Pendant",
+         "prompt": "Close-up of a dichroic fused-glass pendant cooling on a kiln shelf, iridescent rainbow flashes catching the light, vertical 9:16, photoreal, no text."},
+    ],
+    "knife-making": [
+        {"title": "Forging a Blade Tip",
+         "prompt": "Cinematic close-up of a blacksmith's hammer tapering the tip of a glowing orange steel blade on an anvil, scale flaking off, vertical 9:16, photoreal, no text."},
+        {"title": "Wrapping a Handle in Cord",
+         "prompt": "Top-down close-up of hands wrapping black paracord around a finished knife handle in a tight ranger weave, vertical 9:16, photoreal, no text."},
+    ],
+    "paper": [
+        {"title": "Calligraphy in Walnut Ink",
+         "prompt": "Top-down macro of a pointed dip pen drawing a flourished capital letter in warm walnut ink across cream paper, vertical 9:16, photoreal, soft window light, no text overlay other than the letter being drawn."},
+        {"title": "Pulling a Screen Print",
+         "prompt": "Top-down close-up of a squeegee pulling forest-green ink across a silkscreen onto a natural canvas tote bag, vertical 9:16, photoreal, no text."},
+        {"title": "Letterpress Card Printing",
+         "prompt": "Cinematic close-up of a vintage letterpress platen pressing onto cotton card stock, leaving a deep impression of a botanical illustration, vertical 9:16, photoreal, no text overlay other than the printed illustration."},
+    ],
+    "resin": [
+        {"title": "Resin River Table Pour",
+         "prompt": "Slow-motion close-up of clear teal-tinted epoxy resin pouring between two live-edge walnut slabs in a workshop, vertical 9:16, photoreal, satisfying, no text."},
+        {"title": "Pressed Flower Coaster",
+         "prompt": "Top-down close-up of clear resin curing around a pressed daisy in a round silicone mold on a wooden bench, vertical 9:16, photoreal, soft natural light, no text."},
+    ],
+    "florals": [
+        {"title": "Building a Dried Wreath",
+         "prompt": "Top-down close-up of an artisan's hands wiring dried lavender and pampas grass onto a grapevine wreath base on a linen surface, vertical 9:16, photoreal, warm light, no text."},
+        {"title": "Arranging Eucalyptus",
+         "prompt": "Close-up of hands tucking fresh eucalyptus stems into a hand-tied bouquet wrapped in natural twine, vertical 9:16, photoreal, soft studio light, no text."},
+    ],
 }
 
 

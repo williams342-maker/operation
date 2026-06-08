@@ -1,3 +1,69 @@
+## 2026-06-07 — Broadened daily-video library + clip categories (iter344)
+
+### What shipped
+The daily Sora 2 clip seeder was metal/wood-shop heavy (CNC plasma, MIG/TIG welding, powder coat, diamond drag engraver). Library was 14 prompts across 6 categories — visually one-note for a marketplace positioned as "broaden the tent" for makers.
+
+### Backend
+- **`clip_seeder.py::PROMPTS`** expanded from 14 → **41 prompts** across **16 categories**. 10 new categories added with 2-3 photoreal vertical 9:16 prompts each:
+  - **textiles** — floor loom weaving cotton, hand embroidery hoop, macramé knot
+  - **pottery** — wheel-throwing a bowl, trimming the foot, brushing cobalt glaze
+  - **jewelry** — silver soldering ring, wire-wrap quartz pendant, polishing brass earrings
+  - **leather** — saddle-stitch wallet, swivel-knife floral tooling, edge burnishing
+  - **candles-soap** — soy wax pour, cold-process soap loaf cutting, embedding dried calendula
+  - **glass** — lampworking a bead, stained-glass soldering, dichroic fused pendant cooling
+  - **knife-making** — forging a blade tip, paracord ranger-weave handle wrap
+  - **paper** — calligraphy in walnut ink, pulling a screen print, vintage letterpress
+  - **resin** — teal-tinted river table pour, pressed-daisy coaster
+  - **florals** — dried lavender wreath build, eucalyptus bouquet wrap
+- **`routers/clips.py::CATEGORIES`** updated to the matching 16 categories with labels + emojis (✦ textiles, ◍ pottery, ◇ jewelry, ▰ leather, ❋ candles & soap, ❖ glass, ▲ knife making, ▤ paper & print, ◐ resin, ✿ florals).
+- Round-robin picker in `_pick_next()` naturally favors the new categories first (zero usage in the existing combo counts), so the next ~20 cron runs will diversify the visible feed.
+
+### Frontend
+- **`MakerDashboard/Settings/ClipsPanel.jsx::FALLBACK_CATS`** kept in sync — makers uploading their own clips can now categorize into the 10 new buckets too.
+- **`ClipFeedPage.jsx`** empty-state copy updated: "first workshop clips" → "first craft clips — pottery wheels turning, looms clicking, sparks flying" (matches the broader scope).
+
+### Smoke test (live)
+- ✅ `/api/clips/categories` returns all 16 categories with correct labels + emojis + live counts
+- ✅ Round-robin picker still works correctly (no breakage with new categories)
+- ✅ Linters clean on touched files
+- ✅ Empty state copy renders correctly on /clips
+
+---
+
+
+## 2026-06-07 — Conversion Upload Log card in Admin → Ads (iter343c)
+
+### What shipped
+A live feed of server-side conversion uploads to Meta CAPI / Google Enhanced Conversions / Microsoft UET Offline Conversions, mounted right under the existing Attribution Health card in Admin → Ads.
+
+### Backend (`routers/admin_ads_health.py`)
+- New `GET /api/admin/ads/conversion-log` endpoint.
+- Params: `?limit=N` (1-200, default 50), `?channel=meta|google|microsoft` (optional filter).
+- Returns:
+  - `rollup_24h` — per-channel ok/err counts + total revenue uploaded in the last 24h (Mongo aggregation grouped by channel × ok-status).
+  - `rows` — last N upload rows from `conversion_upload_log`, newest first, projected to `session_id`/`channel`/`status`/`amount_cents`/`currency`/`uploaded_at`.
+  - `total_in_db` — count of rows matching the filter (for the "X total in DB" indicator).
+
+### Frontend (`components/admin/ConversionUploadLogCard.jsx`, new ~210 lines)
+- 24h rollup cards across Meta / Google / Microsoft with distinct color schemes (blue/yellow/emerald) showing `N ok · $X uploaded` plus `N err` in red when failures exist.
+- Channel filter pills (ALL / META / GOOGLE / MICROSOFT) — clicking re-queries with the channel filter.
+- Live feed table with When-ago / Channel chip / Status (✓ok green / ✗err red with error message) / Amount / Session ID columns.
+- Auto-polls every 30s — when ads start running, conversion uploads will visibly land in real time without needing manual refresh.
+- Empty state copy explains why it stays empty until ads start ("Only fires on orders carrying a click ID").
+- `data-testid`s on every interactive element.
+
+### Smoke test (live)
+- ✅ Empty state renders correctly when no uploads exist
+- ✅ Seeded 3 fake log rows (meta ok / google ok / microsoft err with `GOAL_NAME_NOT_FOUND`) → all 3 surfaces work:
+  - Rollup chips show correct ok/err/$ aggregates
+  - Filter pills functional
+  - Table renders all 3 rows with right styling (emerald ✓ vs red ✗ + truncated error)
+- ✅ Auto-poll fires every 30s (interval cleaned on unmount via cancellation flag)
+- ✅ ESLint + ruff clean
+
+---
+
+
 ## 2026-06-07 — Listings pagination chrome now top + bottom (iter343b)
 
 ### What changed

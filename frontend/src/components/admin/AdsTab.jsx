@@ -13,6 +13,7 @@ import GoogleAdsConnectionCard from "./GoogleAdsConnectionCard";
 import MicrosoftAdsConnectionCard from "./MicrosoftAdsConnectionCard";
 import MetaAdsConnectionCard from "./MetaAdsConnectionCard";
 import AdAttributionHealthCard from "./AdAttributionHealthCard";
+import ConversionUploadLogCard from "./ConversionUploadLogCard";
 import ChannelWeightsCard from "./ChannelWeightsCard";
 import PromoteThemesCard from "./PromoteThemesCard";
 
@@ -90,6 +91,7 @@ export default function AdsTab() {
     <div data-testid="ads-tab" className="space-y-6">
       {confirmModal}
       <AdAttributionHealthCard />
+      <ConversionUploadLogCard />
       <ChannelWeightsCard />
       <PromoteThemesCard />
       <GoogleAdsConnectionCard />

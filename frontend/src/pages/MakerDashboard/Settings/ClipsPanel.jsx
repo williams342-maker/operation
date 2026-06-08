@@ -12,12 +12,25 @@ import { RowsSkeleton } from "../../../components/Skeleton";
 import IncentiveBanner from "../../../components/ClipsIncentiveBanner";
 
 const FALLBACK_CATS = [
-  { id: "workshop",     label: "Workshop clips",  emoji: "◆" },
-  { id: "cuts",         label: "Satisfying cuts", emoji: "✕" },
-  { id: "welding",      label: "Welding sparks",  emoji: "⚡" },
-  { id: "powder-coat",  label: "Powder coating",  emoji: "▣" },
-  { id: "engraving",    label: "Engraving",       emoji: "✎" },
-  { id: "before-after", label: "Before / after",  emoji: "↺" },
+  // iter344 — kept in sync with backend `routers/clips.py::CATEGORIES`.
+  // This is the fallback for when fetchClipCategories() hasn't responded
+  // yet; the live list always wins (`setCats(r.categories)` below).
+  { id: "workshop",      label: "Workshop clips",       emoji: "◆" },
+  { id: "cuts",          label: "Satisfying cuts",      emoji: "✕" },
+  { id: "welding",       label: "Welding sparks",       emoji: "⚡" },
+  { id: "powder-coat",   label: "Powder coating",       emoji: "▣" },
+  { id: "engraving",     label: "Engraving",            emoji: "✎" },
+  { id: "before-after",  label: "Before / after",       emoji: "↺" },
+  { id: "textiles",      label: "Textiles & fiber",     emoji: "✦" },
+  { id: "pottery",       label: "Pottery & ceramics",   emoji: "◍" },
+  { id: "jewelry",       label: "Jewelry",              emoji: "◇" },
+  { id: "leather",       label: "Leatherwork",          emoji: "▰" },
+  { id: "candles-soap",  label: "Candles & soap",       emoji: "❋" },
+  { id: "glass",         label: "Glass",                emoji: "❖" },
+  { id: "knife-making",  label: "Knife making",         emoji: "▲" },
+  { id: "paper",         label: "Paper & print",        emoji: "▤" },
+  { id: "resin",         label: "Resin",                emoji: "◐" },
+  { id: "florals",       label: "Florals & botanicals", emoji: "✿" },
 ];
 
 /**

@@ -49,12 +49,26 @@ from routers.maker_workshop_videos import parse_video_url
 router = APIRouter()
 
 CATEGORIES = [
-    {"id": "workshop", "label": "Workshop clips",    "emoji": "◆"},
-    {"id": "cuts",       "label": "Satisfying cuts",   "emoji": "✕"},
-    {"id": "welding",    "label": "Welding sparks",    "emoji": "⚡"},
-    {"id": "powder-coat","label": "Powder coating",    "emoji": "▣"},
-    {"id": "engraving",  "label": "Engraving",         "emoji": "✎"},
-    {"id": "before-after","label": "Before / after",    "emoji": "↺"},
+    # iter344 — Broadened from 6 industrial-skewed categories to 16 covering
+    # the full handmade-craft spectrum (matches `clip_seeder.PROMPTS`).
+    # Original 6 kept first so legacy clips and their counts stay grouped
+    # the same way in the feed.
+    {"id": "workshop",      "label": "Workshop clips",    "emoji": "◆"},
+    {"id": "cuts",          "label": "Satisfying cuts",   "emoji": "✕"},
+    {"id": "welding",       "label": "Welding sparks",    "emoji": "⚡"},
+    {"id": "powder-coat",   "label": "Powder coating",    "emoji": "▣"},
+    {"id": "engraving",     "label": "Engraving",         "emoji": "✎"},
+    {"id": "before-after",  "label": "Before / after",    "emoji": "↺"},
+    {"id": "textiles",      "label": "Textiles & fiber",  "emoji": "✦"},
+    {"id": "pottery",       "label": "Pottery & ceramics", "emoji": "◍"},
+    {"id": "jewelry",       "label": "Jewelry",           "emoji": "◇"},
+    {"id": "leather",       "label": "Leatherwork",       "emoji": "▰"},
+    {"id": "candles-soap",  "label": "Candles & soap",    "emoji": "❋"},
+    {"id": "glass",         "label": "Glass",             "emoji": "❖"},
+    {"id": "knife-making",  "label": "Knife making",      "emoji": "▲"},
+    {"id": "paper",         "label": "Paper & print",     "emoji": "▤"},
+    {"id": "resin",         "label": "Resin",             "emoji": "◐"},
+    {"id": "florals",       "label": "Florals & botanicals", "emoji": "✿"},
 ]
 VALID_CATEGORIES = {c["id"] for c in CATEGORIES}
 MAX_TITLE = 120

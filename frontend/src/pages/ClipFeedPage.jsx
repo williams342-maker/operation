@@ -144,7 +144,7 @@ export default function ClipFeedPage() {
               <p className="font-mono text-sm text-[#a3a3a3] max-w-md mx-auto">
                 {activeCat
                   ? "No clips in this category yet — try another tab or check back soon."
-                  : "Makers are uploading their first workshop clips. Are you a maker? Share yours."}
+                  : "Makers are uploading their first craft clips — pottery wheels turning, looms clicking, sparks flying. Are you a maker? Share yours."}
               </p>
               <Link
                 to="/maker/dashboard?tab=settings"

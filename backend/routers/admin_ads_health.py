@@ -129,3 +129,64 @@ async def channel_weights_recompute(_: dict = Depends(current_admin)):
     Useful right after a backfill to pull in fresh data."""
     from services import channel_attribution
     return await channel_attribution.recompute_and_persist()
+
+
+
+# ── iter343c: Recent conversion-upload log surface ───────────────────
+@router.get("/admin/ads/conversion-log")
+async def conversion_log(
+    limit: int = 50,
+    channel: str | None = None,
+    _: dict = Depends(current_admin),
+):
+    """Last N conversion-upload rows from `conversion_upload_log`,
+    newest first. Surfaced as the "Live upload feed" card in
+    Admin → Ads so the team can sanity-check that Stripe purchases
+    are actually flowing into each platform's offline-conversion API.
+
+    Each row carries: session_id, channel, status, amount_cents,
+    currency, uploaded_at. `status` is either `"ok"` or `"err:..."`
+    (truncated message). Filter by `?channel=meta|google|microsoft`
+    when one platform is suspect.
+
+    Also returns a 24h roll-up by channel so the admin sees the
+    big picture before scrolling the table.
+    """
+    limit = max(1, min(int(limit), 200))
+    query: dict = {}
+    if channel and channel in {"meta", "google", "microsoft"}:
+        query["channel"] = channel
+
+    # Roll-up: ok / err counts in the last 24 hours, per channel.
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+    rollup_pipeline = [
+        {"$match": {"uploaded_at": {"$gte": cutoff}}},
+        {"$group": {
+            "_id": {"channel": "$channel", "ok": {"$eq": ["$status", "ok"]}},
+            "n": {"$sum": 1},
+            "total_value": {"$sum": "$amount_cents"},
+        }},
+    ]
+    rollup: dict[str, dict] = {}
+    async for r in db.conversion_upload_log.aggregate(rollup_pipeline):
+        ch = r["_id"]["channel"] or "?"
+        if ch not in rollup:
+            rollup[ch] = {"ok": 0, "err": 0, "total_value_cents": 0}
+        bucket = "ok" if r["_id"]["ok"] else "err"
+        rollup[ch][bucket] = r["n"]
+        if bucket == "ok":
+            rollup[ch]["total_value_cents"] += r["total_value"] or 0
+
+    rows: list[dict] = []
+    async for row in db.conversion_upload_log.find(
+        query,
+        {"_id": 0, "session_id": 1, "channel": 1, "status": 1,
+         "amount_cents": 1, "currency": 1, "uploaded_at": 1},
+    ).sort("uploaded_at", -1).limit(limit):
+        rows.append(row)
+
+    return {
+        "rollup_24h": rollup,
+        "rows": rows,
+        "total_in_db": await db.conversion_upload_log.count_documents(query),
+    }
