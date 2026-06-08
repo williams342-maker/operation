@@ -1,3 +1,25 @@
+## 2026-06-07 — Failed-upload tile UX fix (iter340b)
+
+### Problem
+In the maker listing editor's photo grid, when a photo upload failed:
+- The hover-state overlay (Set as cover / Crop / Trash buttons) rendered ON TOP of the error overlay → "Set as cover" awkwardly covered the failed UI on hover.
+- The Retry control was a small bordered-link sized exactly like the other action buttons → easy to miss, hard to tell it was the primary action.
+- Nothing prevented "Set as cover" from being clicked on a failed upload (the URL wouldn't be valid as a cover image).
+
+### Fix — `pages/MakerListingEditor/MediaSection.jsx`
+- **Error overlay z-index bump** (`z-10`) so it always wins over hover state.
+- **Promoted Retry to the primary action**: full-tile-width (up to 140px), solid red bg, "Retry upload" with rotate icon. Impossible to miss.
+- **Remove is the secondary recovery action** below Retry — still bordered/subtle so it doesn't compete.
+- **Hover overlay is now gated on `!isError`** — the Set-as-cover / Crop / Trash row simply doesn't render on failed tiles, since those actions are meaningless without a successful upload.
+
+### Smoke test
+- ✅ ESLint clean
+- ✅ Editor still loads + renders the empty state (verified live in preview)
+- (Manual upload-failure reproduction needed to visually confirm the new error state, but the structural diff is small and the logic gating is straightforward.)
+
+---
+
+
 ## 2026-06-07 — Color on cart row + 3-tier shipping at Stripe checkout (iter340)
 
 ### Cart row shows color choice

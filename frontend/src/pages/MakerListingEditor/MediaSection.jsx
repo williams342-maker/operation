@@ -221,50 +221,68 @@ export default function MediaSection({
               )}
               {isError && !isUploading && (
                 <div
-                  className="absolute inset-0 bg-red-950/85 flex flex-col items-center justify-center gap-2 px-2"
+                  className="absolute inset-0 bg-red-950/85 flex flex-col items-center justify-center gap-3 px-3 z-10"
                   data-testid={`editor-image-error-${i}`}
                 >
-                  <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-red-300 text-center leading-tight">
-                    Upload failed
+                  <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-red-200 text-center leading-tight">
+                    ◆ Upload failed
                   </span>
+                  {/* iter340b — Retry promoted to the PRIMARY action on a
+                      failed-upload tile. Big, clearly clickable, full-tile
+                      width. Remove sits beneath as the recovery option. */}
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); retryImageUpload?.(i); }}
-                    className="px-2 py-1 border border-red-400 text-red-200 hover:bg-red-500/20 font-mono text-[9px] uppercase tracking-[0.22em] inline-flex items-center gap-1"
+                    className="w-full max-w-[140px] px-3 py-2 bg-red-500 hover:bg-red-400 text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center justify-center gap-1.5"
                     data-testid={`editor-image-retry-${i}`}
                   >
-                    <RotateCw size={10} /> Retry
+                    <RotateCw size={11} /> Retry upload
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); removeImage(i); }}
+                    className="px-2 py-1 border border-red-400/60 text-red-200 hover:bg-red-500/20 font-mono text-[9px] uppercase tracking-[0.22em] inline-flex items-center gap-1"
+                    data-testid={`editor-image-error-remove-${i}`}
+                  >
+                    <Trash2 size={10} /> Remove
                   </button>
                 </div>
               )}
-              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-2">
-                {i !== 0 && (
+              {/* iter340b — Suppress the hover-state overlay (Set as cover /
+                  Crop / Trash) on error tiles. Those actions are meaningless
+                  on a failed upload (you can't make a failed URL the cover
+                  image), and rendering them on top of the error overlay was
+                  visually clobbering the Retry button. */}
+              {!isError && (
+                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-2">
+                  {i !== 0 && (
+                    <button
+                      onClick={() => promoteCover(i)}
+                      className="px-2 py-1 border border-[#ff4500] text-[#ff4500] font-mono text-[9px] uppercase tracking-[0.18em] hover:bg-[#ff4500]/10"
+                      data-testid={`editor-set-cover-${i}`}
+                    >
+                      Set as cover
+                    </button>
+                  )}
                   <button
-                    onClick={() => promoteCover(i)}
-                    className="px-2 py-1 border border-[#ff4500] text-[#ff4500] font-mono text-[9px] uppercase tracking-[0.18em] hover:bg-[#ff4500]/10"
-                    data-testid={`editor-set-cover-${i}`}
+                    onClick={() => recropImage(i)}
+                    className="p-1.5 border border-[#262626] hover:border-[#ff4500] text-[#a3a3a3] hover:text-[#ff4500]"
+                    data-testid={`editor-recrop-image-${i}`}
+                    aria-label="Crop or rotate"
+                    title="Crop / rotate"
                   >
-                    Set as cover
+                    <Crop size={12} />
                   </button>
-                )}
-                <button
-                  onClick={() => recropImage(i)}
-                  className="p-1.5 border border-[#262626] hover:border-[#ff4500] text-[#a3a3a3] hover:text-[#ff4500]"
-                  data-testid={`editor-recrop-image-${i}`}
-                  aria-label="Crop or rotate"
-                  title="Crop / rotate"
-                >
-                  <Crop size={12} />
-                </button>
-                <button
-                  onClick={() => removeImage(i)}
-                  className="p-1.5 border border-[#262626] hover:border-red-500 text-red-400"
-                  data-testid={`editor-remove-image-${i}`}
-                  aria-label="Remove"
-                >
-                  <Trash2 size={12} />
-                </button>
-              </div>
+                  <button
+                    onClick={() => removeImage(i)}
+                    className="p-1.5 border border-[#262626] hover:border-red-500 text-red-400"
+                    data-testid={`editor-remove-image-${i}`}
+                    aria-label="Remove"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              )}
             </div>
           );
         })}
