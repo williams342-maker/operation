@@ -315,11 +315,30 @@ async def clips_seed_status(_: dict = Depends(current_admin)):
             {"video_url": {"$regex": "^/seed-clips/"}},
         ],
     }
+    # iter344b — per-category counts of visible (non-quarantined) clips so
+    # the Admin "Variety health" indicator can spot a feed silently
+    # re-skewing to one or two categories (e.g. Sora's content mod
+    # repeatedly rejecting "knife-making" so the round-robin never lands
+    # a successful render in that bucket).
+    from routers.clips import CATEGORIES
+    pipeline = [
+        {"$match": {"quarantined_at": None}},
+        {"$group": {"_id": "$category", "n": {"$sum": 1}}},
+    ]
+    cat_counts: dict[str, int] = {}
+    async for row in db.clips.aggregate(pipeline):
+        if row["_id"]:
+            cat_counts[row["_id"]] = row["n"]
+    category_health = [
+        {"id": c["id"], "label": c["label"], "emoji": c["emoji"], "count": cat_counts.get(c["id"], 0)}
+        for c in CATEGORIES
+    ]
     return {
         "seeded_clips": await db.clips.count_documents({"is_seed": True}),
         "ai_clips": await db.clips.count_documents({"ai_generated": True}),
         "total_clips": await db.clips.count_documents({"quarantined_at": None}),
         "orphan_seeds": await db.clips.count_documents(orphan_q),
+        "category_health": category_health,
     }
 
 

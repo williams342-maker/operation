@@ -733,8 +733,10 @@ function ClipsSeedCard() {
       <div className="font-display text-lg uppercase">Short-form video seed</div>
       <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed mt-1 mb-3">
         Generates one Sora-2 rendered vertical clip (9:16, 8s) per click, picked from the least-used
-        (category × prompt) combo across 6 categories (workshop · cuts · welding · powder-coat ·
-        engraving · before-after). Files land in <code className="text-emerald-300">/seed-clips/&lt;slug&gt;/</code>
+        (category × prompt) combo across <strong className="text-purple-300">16 craft categories</strong>{" "}
+        (workshop, cuts, welding, powder-coat, engraving, before-after, textiles, pottery, jewelry,
+        leather, candles-soap, glass, knife-making, paper, resin, florals).
+        Files land in <code className="text-emerald-300">/seed-clips/&lt;slug&gt;/</code>{" "}
         and are attributed to the <span className="text-purple-300">Workshop Team</span>.
         ⚠ Each render takes <strong>2–5 minutes</strong> — keep the tab open.
       </p>
@@ -757,6 +759,56 @@ function ClipsSeedCard() {
             <div className={`uppercase tracking-[0.2em] text-[9px] ${status.orphan_seeds > 0 ? "text-red-400" : "text-[#525252]"}`}>Orphans</div>
             <div className={`text-base ${status.orphan_seeds > 0 ? "text-red-300" : "text-purple-300"}`}>{status.orphan_seeds ?? 0}</div>
           </div>
+        </div>
+      )}
+
+      {/* iter344b — Variety health: per-category clip counts so the admin
+          can spot if Sora's content moderation keeps rejecting renders
+          in one bucket (e.g. "knife-making") and the live feed silently
+          re-skews to the others. Empty categories highlighted in amber. */}
+      {status?.category_health?.length > 0 && (
+        <div className="mb-4" data-testid="clips-variety-health">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-purple-300 mb-2">
+            ◆ Variety health · live feed by category
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5">
+            {(() => {
+              const max = Math.max(1, ...status.category_health.map((c) => c.count));
+              return status.category_health.map((c) => {
+                const pct = max === 0 ? 0 : (c.count / max) * 100;
+                const empty = c.count === 0;
+                return (
+                  <div
+                    key={c.id}
+                    className={`relative border px-2 py-1.5 overflow-hidden ${empty ? "border-amber-900/50" : "border-[#262626]"}`}
+                    data-testid={`variety-${c.id}`}
+                    title={`${c.label} · ${c.count} clip${c.count === 1 ? "" : "s"} in live feed`}
+                  >
+                    {/* Bar fill behind the label */}
+                    <div
+                      className={`absolute inset-y-0 left-0 ${empty ? "bg-amber-900/15" : "bg-purple-900/25"}`}
+                      style={{ width: `${pct}%` }}
+                    />
+                    <div className="relative flex items-center justify-between gap-2">
+                      <span className={`font-mono text-[10px] uppercase tracking-[0.16em] truncate ${empty ? "text-amber-300/80" : "text-[#e5e5e5]"}`}>
+                        <span className="mr-1">{c.emoji}</span>{c.label}
+                      </span>
+                      <span className={`font-mono text-[11px] tabular-nums ${empty ? "text-amber-400" : "text-purple-300"}`}>
+                        {c.count}
+                      </span>
+                    </div>
+                  </div>
+                );
+              });
+            })()}
+          </div>
+          {status.category_health.filter((c) => c.count === 0).length > 0 && (
+            <div className="font-mono text-[9px] text-amber-300/80 mt-2">
+              ⚠ {status.category_health.filter((c) => c.count === 0).length}{" "}
+              categor{status.category_health.filter((c) => c.count === 0).length === 1 ? "y has" : "ies have"} no clips yet —
+              the next round-robin picks will land here first.
+            </div>
+          )}
         </div>
       )}
 

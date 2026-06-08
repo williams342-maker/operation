@@ -1,3 +1,29 @@
+## 2026-06-07 — Variety health indicator on Admin → Clips seed card (iter344b)
+
+### What shipped
+A 4×4 grid of per-category bars on the Sora-2 Clip Seed admin card showing how the live feed is distributed across the 16 craft categories. Empty categories highlighted in amber so the admin can immediately see if Sora's content moderation is repeatedly rejecting renders in one bucket (e.g. "knife-making") and the round-robin is silently re-skewing.
+
+### Backend (`routers/seed_admin.py::clips_seed_status`)
+- Extended the existing `/api/admin/seed/clips/status` response with `category_health: [{id, label, emoji, count}, ...]`
+- Mongo aggregation: `{category: $category}` grouped count of non-quarantined clips
+- Returns all 16 canonical categories (sourced from `routers/clips.py::CATEGORIES`) — categories with zero clips returned with `count: 0` so the UI always renders the full grid
+
+### Frontend (`components/admin/SettingsTab.jsx`, in the clips-seed-card section)
+- New "◆ VARIETY HEALTH · LIVE FEED BY CATEGORY" block with `data-testid="clips-variety-health"`
+- Each category renders as a small horizontal bar: emoji + label + count, with a purple-tinted bar fill proportional to max-normalized count (so the most-represented category gets a full bar, empty categories get just the outline)
+- Empty categories rendered in amber border + amber count text + amber-tinted bar fill
+- Footer warning: `⚠ N categories have no clips yet — the next round-robin picks will land here first.` (only shows when at least one category is empty)
+- Each bar has `data-testid="variety-{id}"` and `title="{label} · N clip(s) in live feed"` for tooltip + e2e addressability
+- Description text in the card updated from the old "6 categories" copy to "**16 craft categories** (workshop, cuts, welding, powder-coat, engraving, before-after, textiles, pottery, jewelry, leather, candles-soap, glass, knife-making, paper, resin, florals)"
+
+### Smoke test (live preview)
+- ✅ Empty state — all 16 categories render with 0 counts in amber + footer warning fires
+- ✅ Seeded 4 clips (workshop ×2, pottery ×1, textiles ×1) → bar fills scale proportionally, those 3 categories render in purple, other 13 stay amber, footer correctly says "13 categories have no clips yet"
+- ✅ ESLint + ruff clean
+
+---
+
+
 ## 2026-06-07 — Broadened daily-video library + clip categories (iter344)
 
 ### What shipped
