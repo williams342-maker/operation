@@ -1,3 +1,33 @@
+## 2026-06-07 — IndexNow root key file (FINAL fix — 422 → 200 across all 4 endpoints) (iter343)
+
+### Root cause finally identified
+The IndexNow protocol §2.4 mandates: *"All URLs submitted via IndexNow must be in the same directory as the key file, or under a sub-directory of it."*
+
+Our previous setup hosted the key file at `/api/indexnow/<key>.txt`, which restricted submissions to URLs under `/api/indexnow/*`. The homepage `/` and product pages `/shop/*` all violated this directory rule → all 4 IndexNow endpoints rejected with `InvalidRequestParameters · "URLs not related to your site verified through the keylocation parameter"` even though the key file content matched the payload key exactly.
+
+### Fix
+- **Static file at frontend root**: `frontend/public/348a067bf8d04e22be01313c6e982303.txt` containing just the key value. Served by the React SPA's static asset path (not under `/api/*`), so it's at `https://craftersmarket.org/348a067bf8d04e22be01313c6e982303.txt` — the protocol's preferred default location.
+- **`seo_indexnow.py`** — keyLocation builder now produces `${site}/${key}.txt` (root path) instead of `${site}/api/indexnow/${key}.txt` (subdirectory). Both the ping function AND the `key_location` field in the status endpoint updated.
+- **Backend `/api/indexnow/{key}.txt` route kept** for backwards-compat — anything that hardcoded the old path still works.
+
+### Verified live (preview, all 4 IndexNow endpoints)
+- ✅ `api.indexnow.org/indexnow` → **HTTP 200**
+- ✅ `www.bing.com/IndexNow` → **HTTP 200**
+- ✅ `yandex.com/indexnow` → **HTTP 202 + `"success": true`**
+- ✅ `search.seznam.cz/indexnow` → **HTTP 200**
+
+(All 4 endpoints previously returned 422 with the same payload pointing at the subdirectory keyLocation.)
+
+### What still needs production action
+1. Redeploy production so:
+   - Frontend bundle includes the new static `<key>.txt` file
+   - Backend serves the new root keyLocation in payloads
+2. After redeploy, hit **Admin → SEO → Notify Search Engines → Ping Now**. Should return ok with row counts on all 4 endpoints.
+3. Confirm IndexNow tab in Bing Webmaster Tools starts showing accepted submissions within 24h.
+
+---
+
+
 ## 2026-06-07 — Maker dashboard listings: 12 per page (iter342)
 
 ### What shipped
