@@ -72,6 +72,7 @@ export default function CartPage() {
         variant_id: i.variant_id || undefined,
         personalization_text: i.personalization_text || undefined,
         personalization_image_url: i.personalization_image_url || undefined,
+        color_choice: i.color_choice || undefined,
       })),
       appliedCode || null,
     )
@@ -136,6 +137,7 @@ export default function CartPage() {
           variant_id: i.variant_id || undefined,
           personalization_text: i.personalization_text || undefined,
           personalization_image_url: i.personalization_image_url || undefined,
+          color_choice: i.color_choice || undefined,
         })),
         origin_url: window.location.origin,
         customer_email: email,
@@ -205,7 +207,7 @@ export default function CartPage() {
           <div className="grid lg:grid-cols-12 gap-10">
             <ul className="lg:col-span-8 border-y border-[#262626] divide-y divide-[#262626]">
               {items.map((i) => (
-                <li key={`${i.id}::${i.variant_id || ""}`} className="grid grid-cols-12 gap-4 py-6 items-center" data-testid={`cart-item-${i.slug}`}>
+                <li key={`${i.id}::${i.variant_id || ""}::${i.color_choice || ""}::${i.personalization_text || ""}`} className="grid grid-cols-12 gap-4 py-6 items-center" data-testid={`cart-item-${i.slug}`}>
                   <Link to={`/shop/${i.slug}`} className="col-span-3 sm:col-span-2 aspect-square overflow-hidden border border-[#262626]">
                     <img src={i.image} alt={i.title} className="w-full h-full object-cover" />
                   </Link>
@@ -217,6 +219,19 @@ export default function CartPage() {
                         data-testid={`cart-variant-${i.slug}`}
                       >
                         ◆ {i.variant_label}
+                      </div>
+                    )}
+                    {/* iter339 — buyer's chosen color from the maker's
+                        offered palette. Shown right under the title (and
+                        variant if any) so the buyer can verify it before
+                        paying AND so it visually stays grouped with the
+                        line item, not the personalization block. */}
+                    {i.color_choice && (
+                      <div
+                        className="font-mono text-[10px] uppercase tracking-[0.22em] text-cyan-300 mt-1"
+                        data-testid={`cart-color-${i.slug}`}
+                      >
+                        ◆ Color · {i.color_choice}
                       </div>
                     )}
                     <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#a3a3a3] mt-1">${i.price.toFixed(2)} ea</div>
@@ -284,6 +299,14 @@ export default function CartPage() {
                   }
                   testId="row-shipping"
                 />
+                {!quote?.digital_only && shipping != null && (
+                  <div
+                    className="font-mono text-[10px] text-[#525252] tracking-normal normal-case -mt-1.5"
+                    data-testid="cart-shipping-tiers-hint"
+                  >
+                    Expedited (+$9.99) and overnight (+$24.99) options at checkout.
+                  </div>
+                )}
                 <Row k="Tax" v="At checkout" testId="row-tax" />
                 {quote?.discount_code && (quote?.discount || 0) > 0 && (
                   <Row

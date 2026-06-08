@@ -414,33 +414,63 @@ async def create_checkout(req: CheckoutRequest, http_request: Request):
             "quantity": r["quantity"],
         })
 
-    if quote["shipping"] > 0:
-        shipping_options = [{
+    # iter340 — Three shipping tiers on the Stripe-hosted checkout.
+    # Stripe renders these as a radio group and includes the chosen rate
+    # in the final total. Standard uses whatever the cart quote computed
+    # (which may already be $0 via free-shipping promo or `free_shipping`
+    # on every item); Expedited and Overnight are tiered upgrades that
+    # apply on TOP of the standard rate so the buyer pays for the
+    # carrier upgrade even when the standard rate was free. Per-carrier
+    # selection isn't needed: Stripe presents this as "speed of delivery"
+    # which is what buyers actually care about; the maker picks the
+    # carrier when buying the label.
+    base = float(quote["shipping"])
+    expedited_addon = 9.99   # 2-3 business days (Priority Mail / UPS Ground+)
+    overnight_addon = 24.99  # 1 business day (Express / UPS Next Day Saver)
+    shipping_options = [
+        {
             "shipping_rate_data": {
-                "display_name": "Standard shipping",
+                "display_name": "Standard" if base > 0 else "Standard · Free",
                 "type": "fixed_amount",
                 "fixed_amount": {
-                    "amount": int(round(quote["shipping"] * 100)),
+                    "amount": int(round(base * 100)),
                     "currency": "usd",
                 },
                 "delivery_estimate": {
                     "minimum": {"unit": "business_day", "value": 5},
                     "maximum": {"unit": "business_day", "value": 10},
                 },
-            }
-        }]
-    else:
-        shipping_options = [{
+            },
+        },
+        {
             "shipping_rate_data": {
-                "display_name": "Free shipping",
+                "display_name": "Expedited · 2-3 business days",
                 "type": "fixed_amount",
-                "fixed_amount": {"amount": 0, "currency": "usd"},
-                "delivery_estimate": {
-                    "minimum": {"unit": "business_day", "value": 5},
-                    "maximum": {"unit": "business_day", "value": 10},
+                "fixed_amount": {
+                    "amount": int(round((base + expedited_addon) * 100)),
+                    "currency": "usd",
                 },
-            }
-        }]
+                "delivery_estimate": {
+                    "minimum": {"unit": "business_day", "value": 2},
+                    "maximum": {"unit": "business_day", "value": 3},
+                },
+            },
+        },
+        {
+            "shipping_rate_data": {
+                "display_name": "Overnight · 1 business day",
+                "type": "fixed_amount",
+                "fixed_amount": {
+                    "amount": int(round((base + overnight_addon) * 100)),
+                    "currency": "usd",
+                },
+                "delivery_estimate": {
+                    "minimum": {"unit": "business_day", "value": 1},
+                    "maximum": {"unit": "business_day", "value": 1},
+                },
+            },
+        },
+    ]
 
     line_summary = " | ".join(f"{r['product']['title']} × {r['quantity']}" for r in resolved)
 

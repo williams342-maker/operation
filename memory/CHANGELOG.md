@@ -1,3 +1,28 @@
+## 2026-06-07 — Color on cart row + 3-tier shipping at Stripe checkout (iter340)
+
+### Cart row shows color choice
+- `pages/CartPage.jsx`:
+  - Added cyan `◆ COLOR · {value}` chip directly under the title on each cart line (`data-testid="cart-color-{slug}"`), matching the maker dashboard styling.
+  - React `key` now includes `color_choice` so two of the same item in different colors stay as separate cart rows.
+  - `fetchCartQuote` + `createCheckout` payloads now forward `color_choice` to the backend (previously dropped on the way out of the cart page even though `cart.js add()` stored it on the row).
+
+### Three shipping tiers at Stripe checkout
+- `routers/checkout.py` — replaced single shipping_options entry with three tiers:
+  - **Standard** — uses computed cart rate (may be $0 via free-shipping promo or per-product flag), 5-10 business days.
+  - **Expedited** — base + $9.99, 2-3 business days.
+  - **Overnight** — base + $24.99, 1 business day.
+- Stripe renders these as a radio group on the hosted checkout page; the buyer picks one and the total updates automatically. The chosen rate's metadata flows back via the existing webhook so no maker/admin order plumbing changed.
+- Cart page now shows a small subtle hint under the Shipping row: "Expedited (+$9.99) and overnight (+$24.99) options at checkout." so buyers know to expect the choice.
+
+### Smoke test (live preview + Stripe)
+- ✅ Cart row renders color chip (verified screenshot)
+- ✅ Shipping tier hint renders under the Shipping row
+- ✅ Stripe Checkout Session API returns `shipping_options: [3]` — verified by GET'ing the session via Stripe REST + expanding each rate (Standard $25.00 / Expedited $34.99 / Overnight $49.99 — math correct).
+- ✅ ESLint clean on lines we touched (pre-existing `no-empty` + `set-state-in-effect` errors are from April-May commits and unrelated)
+
+---
+
+
 ## 2026-06-07 — Maker color visibility + Bing IndexNow key env override (iter339+338e)
 
 ### Maker color visibility on dashboard orders
