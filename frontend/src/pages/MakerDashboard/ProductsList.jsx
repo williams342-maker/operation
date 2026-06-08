@@ -308,6 +308,22 @@ function ViewSwitcher({ view, setView, counts }) {
 }
 
 function Bucket({ items, testId, empty, onChanged, onBudgetChanged, cardProps = {}, banner = null, showStats = false, statsMap = {}, indexingMap = {}, budgetMap = {}, comparisonsMap = {} }) {
+  // iter342 — Paginate at 12 per page (matches the dense 4-col xl grid
+  // exactly = 3 full rows). Anything more felt like a wall of cards on
+  // the listings tab and made the page sluggish once a maker had 50+
+  // listings (each card lazily loads images + stats + budget pills).
+  const PAGE_SIZE = 12;
+  const [page, setPage] = useState(0);
+  const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
+  // iter342 — Derive the effective page index instead of writing it back
+  // via useEffect (avoids react-hooks/set-state-in-effect). If the
+  // underlying list shrinks (e.g. archiving on the last page), we just
+  // clamp the index used for slicing — the next user click on Prev/Next
+  // re-snaps the state to a valid index.
+  const safePage = Math.min(page, totalPages - 1);
+  const start = safePage * PAGE_SIZE;
+  const visible = items.slice(start, start + PAGE_SIZE);
+
   if (items.length === 0) {
     return (
       <section data-testid={testId} className="border border-dashed border-[#262626] p-8">
@@ -319,7 +335,7 @@ function Bucket({ items, testId, empty, onChanged, onBudgetChanged, cardProps = 
     <section data-testid={testId}>
       {banner}
       <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {items.map((p) => {
+        {visible.map((p) => {
           // Decorate the product row with the maker's saved marketing
           // budget (if any) so the ProductEditCard pill renders the
           // current cap + auto-renew state without a per-card fetch.
@@ -363,6 +379,39 @@ function Bucket({ items, testId, empty, onChanged, onBudgetChanged, cardProps = 
           );
         })}
       </div>
+      {/* iter342 — Pagination footer. Only rendered when items > PAGE_SIZE
+          so single-page buckets don't carry visual chrome they don't need. */}
+      {totalPages > 1 && (
+        <div
+          className="mt-6 flex items-center justify-between border-t border-[#262626] pt-4"
+          data-testid={`${testId}-pagination`}
+        >
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.max(0, Math.min(p, totalPages - 1) - 1))}
+            disabled={safePage === 0}
+            className="px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] disabled:opacity-30 disabled:cursor-not-allowed font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]"
+            data-testid={`${testId}-page-prev`}
+          >
+            ← Prev
+          </button>
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]" data-testid={`${testId}-page-indicator`}>
+            Page {safePage + 1} of {totalPages}
+            <span className="text-[#525252] ml-2 normal-case tracking-normal">
+              · showing {start + 1}-{Math.min(start + PAGE_SIZE, items.length)} of {items.length}
+            </span>
+          </span>
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.min(totalPages - 1, Math.min(p, totalPages - 1) + 1))}
+            disabled={safePage >= totalPages - 1}
+            className="px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] disabled:opacity-30 disabled:cursor-not-allowed font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]"
+            data-testid={`${testId}-page-next`}
+          >
+            Next →
+          </button>
+        </div>
+      )}
     </section>
   );
 }

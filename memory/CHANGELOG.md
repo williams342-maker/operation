@@ -1,3 +1,20 @@
+## 2026-06-07 — Maker dashboard listings: 12 per page (iter342)
+
+### What shipped
+- `pages/MakerDashboard/ProductsList.jsx::Bucket` — now paginates at **12 listings per page** (exactly 3 full rows on the xl 4-col grid).
+- Pagination footer renders only when `items.length > 12` (single-page buckets stay clean — no chrome).
+- Footer shows: `← Prev | Page X of Y · showing N-M of Total | Next →` with `data-testid`s for each sub-element.
+- Page index uses a derived `safePage = Math.min(page, totalPages - 1)` so list shrinking (archive/delete) doesn't strand the user on an empty page — no useEffect side-effects, no lint warnings.
+- All three bucket views (Live / Drafts / Archived… well, Live + Drafts since Archived has its own ArchivedView component) inherit the same pagination behavior automatically.
+
+### Smoke test (live preview, screenshot-validated)
+- Seeded 10 additional clone products under oakridge-woodcraft → 15 total → verified page indicator reads `Page 1 of 2 · showing 1-12 of 15` end-to-end.
+- Cleaned up the 10 seeded clones after verification.
+- ESLint clean on `ProductsList.jsx` for my edits (pre-existing `no-empty` + `no-unescaped-entities` errors from May commits unrelated).
+
+---
+
+
 ## 2026-06-07 — New palette colors + Custom color buyer-input flow (iter341)
 
 ### What shipped
