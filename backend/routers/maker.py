@@ -1782,6 +1782,11 @@ async def maker_orders(slug: str = Depends(current_maker_slug)):
                 # the detail drawer without re-checking the email.
                 "personalization_text": ci.get("personalization_text"),
                 "personalization_image_url": ci.get("personalization_image_url"),
+                # iter339 — buyer's chosen color from the maker's offered
+                # palette (`Listing.colors`). ≤40 chars. Surfaced as a chip
+                # next to the personalization flag on both the collapsed
+                # list and the expanded order detail.
+                "color_choice": ci.get("color_choice"),
             })
         if not my_lines:
             continue
@@ -1844,6 +1849,8 @@ async def maker_order_detail(session_id: str, slug: str = Depends(current_maker_
             # glance without re-reading the email.
             "personalization_text": ci.get("personalization_text"),
             "personalization_image_url": ci.get("personalization_image_url"),
+            # iter339 — buyer-selected color from the maker's offered palette
+            "color_choice": ci.get("color_choice"),
         })
     if not lines:
         raise HTTPException(404, "Order not found.")

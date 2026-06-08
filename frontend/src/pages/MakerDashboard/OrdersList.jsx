@@ -210,16 +210,27 @@ function OrderRow({ order, onChange }) {
                 </span>
                 <span className="text-[#a3a3a3]">${it.subtotal.toFixed(2)}</span>
               </div>
-              {/* iter150 — Inline personalization hint so the maker spots
-                  custom orders at a glance from the collapsed list. */}
-              {(it.personalization_text || it.personalization_image_url) && (
-                <div
-                  className="mt-1 ml-2 inline-flex items-center gap-1.5 px-2 py-0.5 border border-[#ff4500]/40 text-[#ff4500] text-[10px] uppercase tracking-[0.18em]"
-                  data-testid={`order-personalization-flag-${it.product_slug}`}
-                >
-                  ◆ Personalization attached
-                </div>
-              )}
+              {/* iter150/339 — Inline personalization + color hints so the
+                  maker spots custom orders + chosen color at a glance from
+                  the collapsed list. */}
+              <div className="mt-1 ml-2 flex flex-wrap items-center gap-1.5">
+                {(it.personalization_text || it.personalization_image_url) && (
+                  <span
+                    className="inline-flex items-center gap-1.5 px-2 py-0.5 border border-[#ff4500]/40 text-[#ff4500] text-[10px] uppercase tracking-[0.18em]"
+                    data-testid={`order-personalization-flag-${it.product_slug}`}
+                  >
+                    ◆ Personalization attached
+                  </span>
+                )}
+                {it.color_choice && (
+                  <span
+                    className="inline-flex items-center gap-1.5 px-2 py-0.5 border border-cyan-700/50 text-cyan-300 text-[10px] uppercase tracking-[0.18em]"
+                    data-testid={`order-color-flag-${it.product_slug}`}
+                  >
+                    Color · {it.color_choice}
+                  </span>
+                )}
+              </div>
             </li>
           ))}
         </ul>
@@ -369,6 +380,21 @@ function OrderRow({ order, onChange }) {
                           ${it.subtotal.toFixed(2)}
                         </div>
                       </div>
+                      {/* iter339 — buyer's chosen color shown as a
+                          prominent chip RIGHT under the price row so the
+                          maker sees it at a glance, regardless of whether
+                          the order also has free-text personalization. */}
+                      {it.color_choice && (
+                        <div
+                          className="ml-[68px] inline-flex items-center gap-2 px-3 py-1.5 border border-cyan-700/60 bg-cyan-500/[0.06] text-cyan-200"
+                          data-testid={`order-color-detail-${it.product_slug}`}
+                        >
+                          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-cyan-300">
+                            Color
+                          </span>
+                          <span className="font-display text-sm">{it.color_choice}</span>
+                        </div>
+                      )}
                       {/* iter150 — full personalization detail per line.
                           The maker sees exactly what to build, with the
                           buyer's reference image clickable for full-size. */}
