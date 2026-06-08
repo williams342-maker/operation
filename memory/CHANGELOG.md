@@ -1,3 +1,23 @@
+## 2026-06-07 — Listings pagination chrome now top + bottom (iter343b)
+
+### What changed
+- `ProductsList.jsx` — extracted the pagination chunk into a new top-level `BucketPagination` component (was inline before).
+- Rendered TWICE per bucket: once above the grid (`position="top"`, border-bottom separator + `mb-4 pb-3`), once below (`position="bottom"`, border-top separator + `mt-6 pt-4`).
+- Each instance gets `data-testid="*-pagination-{position}"`, `*-page-prev-{position}`, `*-page-indicator-{position}`, `*-page-next-{position}` so e2e tests can address top and bottom independently.
+- Same render-only-when-totalPages > 1 gating — single-page buckets show no chrome at all (top OR bottom).
+
+### Why
+Maker complained that on long listings pages they had to scroll all the way down just to jump to the next page. Now they can navigate from the moment the grid loads.
+
+### Smoke test (live preview, screenshot validated)
+- ✅ Top chrome renders above the grid: "← PREV · PAGE 1 OF 2 · showing 1-12 of 15 · NEXT →"
+- ✅ Bottom chrome still renders below the grid (verified pre-existing)
+- ✅ Page-state syncs between top and bottom (same `page` state in parent `Bucket`)
+- ✅ ESLint clean on my edits (pre-existing `no-empty` + `no-unescaped-entities` errors from May commits remain — unrelated)
+
+---
+
+
 ## 2026-06-07 — IndexNow root key file (FINAL fix — 422 → 200 across all 4 endpoints) (iter343)
 
 ### Root cause finally identified

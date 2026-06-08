@@ -331,9 +331,20 @@ function Bucket({ items, testId, empty, onChanged, onBudgetChanged, cardProps = 
       </section>
     );
   }
+
   return (
     <section data-testid={testId}>
       {banner}
+      <BucketPagination
+        position="top"
+        testId={testId}
+        page={safePage}
+        totalPages={totalPages}
+        start={start}
+        pageSize={PAGE_SIZE}
+        total={items.length}
+        onChange={setPage}
+      />
       <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {visible.map((p) => {
           // Decorate the product row with the maker's saved marketing
@@ -379,40 +390,61 @@ function Bucket({ items, testId, empty, onChanged, onBudgetChanged, cardProps = 
           );
         })}
       </div>
-      {/* iter342 — Pagination footer. Only rendered when items > PAGE_SIZE
-          so single-page buckets don't carry visual chrome they don't need. */}
-      {totalPages > 1 && (
-        <div
-          className="mt-6 flex items-center justify-between border-t border-[#262626] pt-4"
-          data-testid={`${testId}-pagination`}
-        >
-          <button
-            type="button"
-            onClick={() => setPage((p) => Math.max(0, Math.min(p, totalPages - 1) - 1))}
-            disabled={safePage === 0}
-            className="px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] disabled:opacity-30 disabled:cursor-not-allowed font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]"
-            data-testid={`${testId}-page-prev`}
-          >
-            ← Prev
-          </button>
-          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]" data-testid={`${testId}-page-indicator`}>
-            Page {safePage + 1} of {totalPages}
-            <span className="text-[#525252] ml-2 normal-case tracking-normal">
-              · showing {start + 1}-{Math.min(start + PAGE_SIZE, items.length)} of {items.length}
-            </span>
-          </span>
-          <button
-            type="button"
-            onClick={() => setPage((p) => Math.min(totalPages - 1, Math.min(p, totalPages - 1) + 1))}
-            disabled={safePage >= totalPages - 1}
-            className="px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] disabled:opacity-30 disabled:cursor-not-allowed font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]"
-            data-testid={`${testId}-page-next`}
-          >
-            Next →
-          </button>
-        </div>
-      )}
+      <BucketPagination
+        position="bottom"
+        testId={testId}
+        page={safePage}
+        totalPages={totalPages}
+        start={start}
+        pageSize={PAGE_SIZE}
+        total={items.length}
+        onChange={setPage}
+      />
     </section>
+  );
+}
+
+// iter343b — Top + bottom pagination chrome shared by every Bucket. Hoisted
+// out of `Bucket` so React's reconciler treats it as a stable component
+// (avoids `react/no-unstable-nested-components` and the associated remount
+// thrash on every parent re-render).
+function BucketPagination({ position, testId, page, totalPages, start, pageSize, total, onChange }) {
+  if (totalPages <= 1) return null;
+  const onPrev = () => onChange((p) => Math.max(0, Math.min(p, totalPages - 1) - 1));
+  const onNext = () => onChange((p) => Math.min(totalPages - 1, Math.min(p, totalPages - 1) + 1));
+  const wrapperCls = position === "top"
+    ? "flex items-center justify-between border-b border-[#262626] mb-4 pb-3"
+    : "flex items-center justify-between border-t border-[#262626] mt-6 pt-4";
+  return (
+    <div className={wrapperCls} data-testid={`${testId}-pagination-${position}`}>
+      <button
+        type="button"
+        onClick={onPrev}
+        disabled={page === 0}
+        className="px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] disabled:opacity-30 disabled:cursor-not-allowed font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]"
+        data-testid={`${testId}-page-prev-${position}`}
+      >
+        ← Prev
+      </button>
+      <span
+        className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]"
+        data-testid={`${testId}-page-indicator-${position}`}
+      >
+        Page {page + 1} of {totalPages}
+        <span className="text-[#525252] ml-2 normal-case tracking-normal">
+          · showing {start + 1}-{Math.min(start + pageSize, total)} of {total}
+        </span>
+      </span>
+      <button
+        type="button"
+        onClick={onNext}
+        disabled={page >= totalPages - 1}
+        className="px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] disabled:opacity-30 disabled:cursor-not-allowed font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]"
+        data-testid={`${testId}-page-next-${position}`}
+      >
+        Next →
+      </button>
+    </div>
   );
 }
 
