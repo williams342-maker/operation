@@ -1,3 +1,29 @@
+## 2026-06-07 — Public price-comparison table on /apply (iter345)
+
+### What shipped
+A side-by-side fee comparison vs Etsy and Shopify, mounted directly under the existing `MakerFeeTable` on `/apply`. Reads top-to-bottom as: "(1) here's what you'll pay if approved → (2) here's how that compares to Etsy + Shopify."
+
+### Component (`components/PricingComparisonTable.jsx`, new ~165 lines)
+- Data-driven `FEATURES` array (9 rows) so future fee changes are a one-line edit, not JSX hunting.
+- 4-column responsive table (Feature / Crafters Market / Etsy / Shopify) with `min-w-[700px]` + `overflow-x-auto` so it scrolls on mobile.
+- Each cell has a `tone` (`good` / `bad` / `neutral`) → tiny colored dot beside the value. Crafters Market is green-dot heavy across 7 of 9 rows.
+- Citation refs `[1]`-`[4]` render as small orange superscript anchors that open in a new tab. Full citation list rendered as `<ol>` below the table.
+- Auto-updates "Fees current as of {Month Year}" footer using `toLocaleDateString` so the table doesn't feel stale.
+- `data-testid="pricing-comparison-table"` + per-row testids (`compare-row-{slug}`) for e2e addressability.
+
+### Data sourced from user request
+1. Crafters Market — Free during beta, 3% founder transaction fee, no listing fees
+2. Etsy — $0.20/listing + 6.5% transaction (per official policy)
+3. Shopify — $39/mo basic, 2.9% + $0.30 payment processing (per official pricing)
+
+### Smoke test
+- ✅ Renders correctly on /apply (live preview, screenshot validated)
+- ✅ All 9 rows present, color dots correct, citations clickable
+- ✅ ESLint clean
+
+---
+
+
 ## 2026-06-07 — Variety health indicator on Admin → Clips seed card (iter344b)
 
 ### What shipped

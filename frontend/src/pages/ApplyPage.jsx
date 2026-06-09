@@ -4,6 +4,7 @@ import { useSiteSettings } from "../hooks/useSiteSettings";
 import { useStructuredData } from "../lib/seo";
 import { uetTrack } from "../lib/consent";
 import MakerFeeTable from "../components/MakerFeeTable";
+import PricingComparisonTable from "../components/PricingComparisonTable";
 
 const TECH = ["PLASMA", "LASER", "ROUTER", "CUSTOM"];
 
@@ -107,6 +108,14 @@ export default function ApplyPage() {
             the fee" support tickets and improves activation post-approval. */}
         <div className="mb-12">
           <MakerFeeTable title="What you'll pay if approved" />
+        </div>
+
+        {/* iter345 — Side-by-side price comparison vs Etsy and Shopify.
+            Sits right after the fee table so a prospective maker reads
+            (1) our exact fees, then (2) how they compare to the two
+            biggest alternatives. Honest, line-for-line, with citations. */}
+        <div className="mb-12">
+          <PricingComparisonTable />
         </div>
 
         <form onSubmit={submit} className="grid md:grid-cols-2 gap-6 border-y border-[#262626] py-8" data-testid="apply-form" autoComplete="on">
