@@ -247,9 +247,18 @@ export default function SignInPage() {
           </button>
         )}
 
+        {role === "buyer" && (
+          <p
+            className="font-mono text-[10px] text-[#737373] -mt-4 mb-6 leading-relaxed"
+            data-testid="signin-any-email-hint"
+          >
+            Google is optional — any email works (Outlook, Yahoo, ProtonMail, your own domain).
+          </p>
+        )}
+
         <div className="flex items-center gap-3 my-6 font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252]">
           <div className="flex-1 border-t border-[#262626]" />
-          {role === "buyer" ? "or with email" : "with email"}
+          {role === "buyer" ? "or use any email" : "with email"}
           <div className="flex-1 border-t border-[#262626]" />
         </div>
 

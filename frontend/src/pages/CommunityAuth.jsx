@@ -114,9 +114,16 @@ export function CommunityLogin() {
           Sign in with Google
         </button>
 
+        <p
+          className="font-mono text-[10px] text-[#737373] mt-3 leading-relaxed"
+          data-testid="community-any-email-hint"
+        >
+          Google is optional — any email works (Outlook, Yahoo, ProtonMail, your own domain).
+        </p>
+
         <div className="my-6 flex items-center gap-3">
           <div className="flex-1 h-px bg-[#262626]" />
-          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252]">or magic link</span>
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252]">or use any email</span>
           <div className="flex-1 h-px bg-[#262626]" />
         </div>
 

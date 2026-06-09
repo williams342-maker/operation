@@ -1,3 +1,23 @@
+## 2026-06-09 — Clarified "any email works" on sign-in pages (iter345d)
+
+User asked: "when signing up are you required to have a google email?" Answer is no, but the UI didn't make that clear — Google button was visually dominant with the email option appearing only as a secondary divider.
+
+### Changes (2 files, ~18 lines)
+- **`pages/SignInPage.jsx`** (buyer-only block, behind role tab):
+  - Added small caption under Continue-with-Google: *"Google is optional — any email works (Outlook, Yahoo, ProtonMail, your own domain)."* (`data-testid="signin-any-email-hint"`)
+  - Updated divider text: `or with email` → `or use any email`
+- **`pages/CommunityAuth.jsx`** (legacy community sign-in):
+  - Same caption under "Sign in with Google" (`data-testid="community-any-email-hint"`)
+  - Updated divider text: `or magic link` → `or use any email`
+
+### Smoke test (live)
+- ✅ Screenshot confirms hint copy renders correctly under Google button
+- ✅ Divider now reads "OR USE ANY EMAIL"
+- Diff is scoped to additive UI copy — no logic, no API changes
+
+---
+
+
 ## 2026-06-09 — Dedicated /pricing SEO route shipped (iter345c)
 
 ### What shipped
