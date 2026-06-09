@@ -1,3 +1,24 @@
+## 2026-06-07 — Price comparison expanded to 5 platforms (iter345b)
+
+### Added 2 high-relevance competitors
+- **Amazon Handmade** — the biggest "but I could reach more buyers on Amazon" objection now answered. Highlights the **15% referral fee** vs our 3% — a 5× spread.
+- **Faire** — wholesale-only B2B competitor. Clearly marked as "wholesale" in header + "no consumer DTC" callout under marketplace traffic so makers understand it's a different funnel.
+
+### Updates to `PricingComparisonTable.jsx`
+- `FEATURES` data extended with `amazon` + `faire` cells across all 9 rows (transaction fees, payment processing, traffic source, community, competition, SEO, ads).
+- Table header now has 6 columns (Feature + 5 platforms); min-width bumped 700px → 1000px for horizontal scroll on narrower screens.
+- 2 new citations added (Amazon Handmade pricing page + Faire's selling page) → 6 total.
+- Disclaimer updated: "Etsy & Shopify pricing" → "Third-party pricing" since 3 third parties are now compared.
+
+### Smoke test (live)
+- ✅ 6 columns × 9 rows = 54 cells render
+- ✅ 6 citations clickable in footer
+- ✅ ESLint clean
+- Crafters Market column ends up with green dots on 7 of 9 rows — visually dominant
+
+---
+
+
 ## 2026-06-07 — Public price-comparison table on /apply (iter345)
 
 ### What shipped
