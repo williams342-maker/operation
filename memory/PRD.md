@@ -23,6 +23,14 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - Admin: `/admin/login|verify|dashboard`
 
 ## What's Implemented (cumulative)
+- ✅ **Dedicated /pricing SEO route (iter345c, 2026-06-09):**
+  • `pages/PricingPage.jsx` (new) — hero ("What it actually costs to sell here.") + MakerFeeTable + 5-column PricingComparisonTable + 6-question FAQ + CTA section.
+  • SEO scaffolding: `document.title` + meta description set on mount; `application/ld+json` FAQPage schema embedded for rich-result eligibility.
+  • Aliases registered: `/pricing-vs-etsy`, `/pricing-vs-shopify`, `/pricing-vs-amazon-handmade` → `<Navigate to="/pricing" replace />`.
+  • Files MODIFIED: `frontend/src/pages/PricingPage.jsx` (new), `frontend/src/App.js` (route + 3 aliases).
+  • Smoke-tested live on preview — all 5 sections render correctly, ESLint clean.
+
+
 - ✅ **Buyer color selection + Message-the-maker on product detail (iter339, 2026-06-07):**
   • **Color picker** on ProductDetail when listing has `colors[]` — Tailwind-JIT-safe swatch chips per color name, "maker offers N" hint, single-color = informational, ≥2 colors = required-pick guard before Add-to-cart.
   • **"Question for {maker} about color" CTA** opens the existing `ContactMakerModal` with a new `prefillBody` prop pre-seeded with `Hi {maker}, I'm interested in "{title}" in {color}.` so the buyer can hit Send in two clicks.

@@ -47,6 +47,7 @@ import BuyerMessagesPage from "./pages/BuyerMessagesPage";
 import MakerListingEditor from "./pages/MakerListingEditor";
 import BetaPage from "./pages/BetaPage";
 import PressPage from "./pages/PressPage";
+import PricingPage from "./pages/PricingPage";
 import SEOLandingPage from "./pages/SEOLandingPage";
 import HowCustomOrdersWorkPage from "./pages/HowCustomOrdersWorkPage";
 import FreeSvgPackPage from "./pages/FreeSvgPackPage";
@@ -240,6 +241,10 @@ function App() {
                 <Route path="/founders" element={<BetaPage />} />
                 <Route path="/founder" element={<Navigate to="/founders" replace />} />
                 <Route path="/press" element={<PressPage />} />
+                <Route path="/pricing" element={<PricingPage />} />
+                <Route path="/pricing-vs-etsy" element={<Navigate to="/pricing" replace />} />
+                <Route path="/pricing-vs-shopify" element={<Navigate to="/pricing" replace />} />
+                <Route path="/pricing-vs-amazon-handmade" element={<Navigate to="/pricing" replace />} />
 
                 {/* SEO landing pages — keyword-targeted, single source of
                     truth in seoLandingConfig.js so we don't duplicate

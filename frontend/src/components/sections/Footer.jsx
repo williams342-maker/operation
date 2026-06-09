@@ -227,6 +227,7 @@ export default function Footer() {
             <Link to="/policy#buyer-protection" className="hover:text-[#ff4500]" data-testid="footer-buyer-protection">Buyer Protection</Link>
             <Link to="/policy#maker-agreement" className="hover:text-[#ff4500]" data-testid="footer-maker-agreement">Maker Agreement</Link>
             <Link to="/contact" className="hover:text-[#ff4500]" data-testid="footer-contact">Contact</Link>
+            <Link to="/pricing" className="hover:text-[#ff4500]" data-testid="footer-pricing">Pricing</Link>
             <Link to="/press" className="hover:text-[#ff4500]" data-testid="footer-press">Press</Link>
             {/* iter334e — Re-opens the GDPR cookie banner so users can
                 change their analytics + ads consent any time. */}

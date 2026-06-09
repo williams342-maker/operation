@@ -131,6 +131,9 @@ async def sitemap_xml(http_request: Request):
         ("/updates",       "weekly",  "0.6"),
         ("/custom-order",  "monthly", "0.6"),
         ("/apply",         "monthly", "0.5"),
+        # iter345c — Dedicated /pricing comparison page. High SEO value
+        # (target query "crafters market vs etsy fees") so we boost to 0.7.
+        ("/pricing",       "monthly", "0.7"),
         ("/contact",       "monthly", "0.4"),
         ("/policy",        "yearly",  "0.2"),
     ]

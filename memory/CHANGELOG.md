@@ -1,3 +1,28 @@
+## 2026-06-09 — Dedicated /pricing SEO route shipped (iter345c)
+
+### What shipped
+Promoted `PricingComparisonTable` to its own SEO-optimized landing page at `/pricing` so search queries like "crafters market vs etsy" / "crafters market fees" land on a page built for that intent (vs being trapped on `/apply`).
+
+### `pages/PricingPage.jsx` (new, 183 lines)
+- **Hero**: h1 "What it actually costs to sell here." + plain-English summary of 3% founder pricing.
+- **MakerFeeTable** — full founder fee breakdown.
+- **PricingComparisonTable** — 5-column / 9-row comparison vs Etsy, Shopify, Amazon Handmade, Faire.
+- **FAQ** — 6 SEO-shaped questions (Etsy fee diff, Amazon Handmade, monthly subscription, ads necessity, Shopify diff).
+- **CTA section** — Apply / Browse marketplace / Founders slots.
+
+### SEO scaffolding
+- Sets `document.title` + meta description on mount (codebase doesn't use Helmet — matches PressPage pattern).
+- `application/ld+json` **FAQPage schema** embedded for rich-result eligibility.
+- Aliases registered in `App.js`: `/pricing-vs-etsy`, `/pricing-vs-shopify`, `/pricing-vs-amazon-handmade` → redirect to `/pricing`.
+
+### Smoke test (live preview)
+- ✅ Page title set correctly
+- ✅ Hero, MakerFeeTable, 5-column comparison, FAQ, CTA all render
+- ✅ ESLint clean on `PricingPage.jsx` + `App.js`
+
+---
+
+
 ## 2026-06-07 — Price comparison expanded to 5 platforms (iter345b)
 
 ### Added 2 high-relevance competitors
