@@ -293,7 +293,7 @@ export default function ProductDetail() {
                   />
                   {/* Zoom hint pill — fades in on hover so it doesn't
                       compete with the image at rest. */}
-                  <span className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 px-2 py-1 bg-black/70 backdrop-blur border border-line font-mono text-[9px] uppercase tracking-[0.22em] text-ink opacity-0 group-hover:opacity-100 transition">
+                  <span className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 px-2 py-1 bg-paper/70 backdrop-blur border border-line font-mono text-[9px] uppercase tracking-[0.22em] text-ink opacity-0 group-hover:opacity-100 transition">
                     <ZoomIn size={10} /> Zoom
                   </span>
                 </button>

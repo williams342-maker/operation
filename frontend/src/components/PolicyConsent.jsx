@@ -33,7 +33,7 @@ export default function PolicyConsent({
 }) {
   return (
     <label
-      className="flex gap-3 items-start cursor-pointer select-none border border-[#262626] bg-[#0f0f0f] p-4 hover:border-[#525252] transition"
+      className="flex gap-3 items-start cursor-pointer select-none border border-line bg-[#0f0f0f] p-4 hover:border-[#525252] transition"
       data-testid={testId}
     >
       <input
@@ -44,20 +44,20 @@ export default function PolicyConsent({
         className="mt-0.5 w-4 h-4 accent-[#ff4500] flex-shrink-0"
         data-testid={`${testId}-checkbox`}
       />
-      <span className="font-mono text-xs text-[#d4d4d4] leading-relaxed">
+      <span className="font-mono text-xs text-ink leading-relaxed">
         I agree to the Crafters Market{" "}
         <Link
           to="/policy"
           target="_blank"
           rel="noreferrer"
-          className="text-[#ff4500] hover:underline"
+          className="text-brand hover:underline"
           data-testid={`${testId}-link`}
         >
           Site Policies
         </Link>{" "}
         — including shipping, returns, custom-order non-refund terms, and the
         seller / buyer conduct rules.{" "}
-        <span className="block mt-1 text-[10px] uppercase tracking-[0.22em] text-[#525252]">
+        <span className="block mt-1 text-[10px] uppercase tracking-[0.22em] text-ink-muted">
           ◆ Policy v{consent.version}
         </span>
       </span>

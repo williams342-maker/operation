@@ -84,11 +84,11 @@ export default function MakerFeeTable({ variant = "full", title }) {
 
   return (
     <div
-      className="border border-[#262626] bg-[#0a0a0a] p-6 md:p-7"
+      className="border border-line bg-paper p-6 md:p-7"
       data-testid="maker-fee-table"
     >
       <div className="flex items-center justify-between gap-4 mb-5">
-        <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#ff4500]">
+        <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-brand">
           ◆ {title || "What you'll pay"}
         </div>
         <div className="flex items-center gap-3">
@@ -96,7 +96,7 @@ export default function MakerFeeTable({ variant = "full", title }) {
             href="/fees.pdf"
             target="_blank"
             rel="noopener"
-            className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] transition"
+            className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand transition"
             data-testid="maker-fee-table-pdf-link"
           >
             ↓ PDF
@@ -105,7 +105,7 @@ export default function MakerFeeTable({ variant = "full", title }) {
             href="/policy#marketplace"
             target="_blank"
             rel="noreferrer"
-            className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] transition"
+            className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand transition"
             data-testid="maker-fee-table-policy-link"
           >
             Full policy ↗
@@ -120,17 +120,17 @@ export default function MakerFeeTable({ variant = "full", title }) {
             className="py-3 grid grid-cols-1 md:grid-cols-[200px_1fr] gap-1 md:gap-6"
             data-testid={`maker-fee-row-${r.k.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
           >
-            <div className="font-mono text-[11px] uppercase tracking-[0.18em] text-[#a3a3a3]">
+            <div className="font-mono text-[11px] uppercase tracking-[0.18em] text-ink-muted">
               {r.k}
             </div>
-            <div className={`font-mono text-xs leading-relaxed ${r.emphasis ? "text-[#ff4500]" : "text-[#e5e5e5]"}`}>
+            <div className={`font-mono text-xs leading-relaxed ${r.emphasis ? "text-brand" : "text-ink"}`}>
               {r.v}
             </div>
           </li>
         ))}
       </ul>
 
-      <p className="font-mono text-[10px] text-[#525252] mt-5 leading-relaxed">
+      <p className="font-mono text-[10px] text-ink-muted mt-5 leading-relaxed">
         Fees are calculated on the item subtotal (excluding shipping &amp; sales tax)
         and deducted automatically from each payout via Stripe Connect. Listing-fee
         charges accrue and settle against your next payout — never billed to a card.

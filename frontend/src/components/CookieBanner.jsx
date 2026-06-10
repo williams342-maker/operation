@@ -57,26 +57,26 @@ export default function CookieBanner() {
 
   return (
     <div
-      className="fixed bottom-0 inset-x-0 z-[60] bg-[#0a0a0a]/95 backdrop-blur border-t border-[#262626] shadow-[0_-8px_24px_-12px_rgba(0,0,0,0.8)]"
+      className="fixed bottom-0 inset-x-0 z-[60] bg-paper/95 backdrop-blur border-t border-line shadow-[0_-8px_24px_-12px_rgba(0,0,0,0.8)]"
       data-testid="cookie-banner"
       role="dialog"
       aria-label="Cookie consent"
       aria-live="polite"
     >
       <div className="max-w-[1300px] mx-auto px-4 md:px-8 py-4 md:py-5 flex flex-col md:flex-row items-start md:items-center gap-4 md:gap-6">
-        <Cookie size={22} className="text-[#ff4500] shrink-0 hidden sm:block" />
+        <Cookie size={22} className="text-brand shrink-0 hidden sm:block" />
         <div className="flex-1 min-w-0">
-          <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#ff4500] mb-1.5">
+          <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-brand mb-1.5">
             ◆ Cookies & Privacy
           </p>
-          <p className="font-mono text-[12px] text-[#e5e5e5] leading-relaxed">
+          <p className="font-mono text-[12px] text-ink leading-relaxed">
             We use cookies for analytics (Google Analytics) and advertising (Microsoft Ads).
             You can accept all, reject all, customize, or read our{" "}
-            <Link to="/policy#privacy" className="text-[#ff4500] hover:underline" data-testid="cookie-banner-policy-link">
+            <Link to="/policy#privacy" className="text-brand hover:underline" data-testid="cookie-banner-policy-link">
               privacy policy
             </Link>
             . You can change this any time via the footer's{" "}
-            <em className="text-[#a3a3a3] not-italic">Cookie preferences</em> link.
+            <em className="text-ink-muted not-italic">Cookie preferences</em> link.
           </p>
         </div>
         <div className="flex items-stretch gap-2 shrink-0 w-full md:w-auto">
@@ -89,7 +89,7 @@ export default function CookieBanner() {
             onClick={() => setCustomize((s) => !s)}
             aria-expanded={customize}
             aria-controls="cookie-banner-customize-panel"
-            className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2.5 border border-[#262626] hover:border-[#525252] text-[#a3a3a3] hover:text-[#e5e5e5] font-mono text-[10px] uppercase tracking-[0.22em] transition"
+            className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2.5 border border-line hover:border-[#525252] text-ink-muted hover:text-ink font-mono text-[10px] uppercase tracking-[0.22em] transition"
             data-testid="cookie-banner-customize"
           >
             Customize
@@ -98,7 +98,7 @@ export default function CookieBanner() {
           <button
             type="button"
             onClick={onReject}
-            className="px-4 py-2.5 border border-[#262626] hover:border-[#525252] text-[#a3a3a3] hover:text-[#e5e5e5] font-mono text-[10px] uppercase tracking-[0.22em] transition flex-1 md:flex-none"
+            className="px-4 py-2.5 border border-line hover:border-[#525252] text-ink-muted hover:text-ink font-mono text-[10px] uppercase tracking-[0.22em] transition flex-1 md:flex-none"
             data-testid="cookie-banner-reject"
           >
             Reject all
@@ -106,7 +106,7 @@ export default function CookieBanner() {
           <button
             type="button"
             onClick={onAccept}
-            className="px-5 py-2.5 bg-[#ff4500] hover:bg-[#cc3700] text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] font-bold transition flex-1 md:flex-none"
+            className="px-5 py-2.5 bg-brand hover:bg-[#cc3700] text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] font-bold transition flex-1 md:flex-none"
             data-testid="cookie-banner-accept"
           >
             Accept all
@@ -115,7 +115,7 @@ export default function CookieBanner() {
             type="button"
             onClick={onReject}
             aria-label="Close (treats as reject all)"
-            className="hidden md:inline-flex items-center justify-center w-9 px-0 border border-[#262626] hover:border-[#ff4500] text-[#737373] hover:text-[#ff4500] transition"
+            className="hidden md:inline-flex items-center justify-center w-9 px-0 border border-line hover:border-brand text-ink-muted hover:text-brand transition"
             data-testid="cookie-banner-close"
           >
             <X size={14} />
@@ -130,14 +130,14 @@ export default function CookieBanner() {
       {customize && (
         <div
           id="cookie-banner-customize-panel"
-          className="border-t border-[#262626] bg-[#0d0d0d]"
+          className="border-t border-line bg-[#0d0d0d]"
           data-testid="cookie-banner-customize-panel"
         >
           <div className="max-w-[1300px] mx-auto px-4 md:px-8 py-4 md:py-5 flex flex-col md:flex-row items-start md:items-center gap-4 md:gap-6">
             <div className="flex-1 grid sm:grid-cols-2 gap-3 w-full">
               <label
                 htmlFor="cookie-toggle-analytics"
-                className="flex items-start gap-3 p-3 border border-[#262626] hover:border-[#525252] cursor-pointer transition"
+                className="flex items-start gap-3 p-3 border border-line hover:border-[#525252] cursor-pointer transition"
                 data-testid="cookie-customize-analytics-row"
               >
                 <input
@@ -149,17 +149,17 @@ export default function CookieBanner() {
                   data-testid="cookie-customize-analytics"
                 />
                 <div className="min-w-0">
-                  <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#e5e5e5] mb-0.5">
+                  <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink mb-0.5">
                     Analytics
                   </div>
-                  <div className="font-mono text-[10px] text-[#a3a3a3] leading-relaxed">
+                  <div className="font-mono text-[10px] text-ink-muted leading-relaxed">
                     Google Analytics 4. Pageviews + clicks. No ad targeting.
                   </div>
                 </div>
               </label>
               <label
                 htmlFor="cookie-toggle-ads"
-                className="flex items-start gap-3 p-3 border border-[#262626] hover:border-[#525252] cursor-pointer transition"
+                className="flex items-start gap-3 p-3 border border-line hover:border-[#525252] cursor-pointer transition"
                 data-testid="cookie-customize-ads-row"
               >
                 <input
@@ -171,10 +171,10 @@ export default function CookieBanner() {
                   data-testid="cookie-customize-ads"
                 />
                 <div className="min-w-0">
-                  <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#e5e5e5] mb-0.5">
+                  <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink mb-0.5">
                     Advertising
                   </div>
-                  <div className="font-mono text-[10px] text-[#a3a3a3] leading-relaxed">
+                  <div className="font-mono text-[10px] text-ink-muted leading-relaxed">
                     Microsoft Ads (Bing). Conversion tracking + remarketing.
                   </div>
                 </div>

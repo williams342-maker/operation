@@ -56,14 +56,14 @@ const cols = [
 
 export default function Footer() {
   return (
-    <footer className="relative w-full bg-[#0a0a0a] border-t border-[#262626]">
+    <footer className="relative w-full bg-paper border-t border-line">
       {/* Grow With Us cinematic CTA band — recruiting surface for
           founding sellers / partners / press. Sits at the top of the
           footer so every page exit funnel touches it. Cyan accent
           matches the /grow page's secondary palette. */}
       <Link
         to="/grow"
-        className="group block border-b border-[#262626] hover:border-[#00ffff] transition-colors"
+        className="group block border-b border-line hover:border-[#00ffff] transition-colors"
         data-testid="footer-grow-cta"
       >
         <div className="w-full max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12 py-8 md:py-10 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -71,12 +71,12 @@ export default function Footer() {
             <span className="font-mono text-[10px] sm:text-[11px] uppercase tracking-[0.32em] text-[#00ffff]">
               ◆ The Build Log
             </span>
-            <span className="hidden md:inline-block w-px h-4 bg-[#262626]" />
+            <span className="hidden md:inline-block w-px h-4 bg-line" />
             <span className="font-display text-2xl md:text-3xl lg:text-4xl leading-none tracking-tight group-hover:text-[#00ffff] transition-colors">
               See where we&apos;re going
             </span>
           </div>
-          <span className="font-mono text-[11px] uppercase tracking-[0.28em] text-[#a3a3a3] group-hover:text-[#00ffff] transition-colors flex items-center gap-2">
+          <span className="font-mono text-[11px] uppercase tracking-[0.28em] text-ink-muted group-hover:text-[#00ffff] transition-colors flex items-center gap-2">
             Public roadmap &amp; founder letter
             <span aria-hidden="true" className="text-[#00ffff] transition-transform group-hover:translate-x-1 inline-block">→</span>
           </span>
@@ -87,8 +87,8 @@ export default function Footer() {
         <div className="grid md:grid-cols-12 gap-10 mb-16">
           <div className="md:col-span-5">
             <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 border border-[#ff4500] flex items-center justify-center">
-                <span className="font-display text-[#ff4500] text-lg">CM</span>
+              <div className="w-10 h-10 border border-brand flex items-center justify-center">
+                <span className="font-display text-brand text-lg">CM</span>
               </div>
               <span className="font-display text-2xl">Crafters Market</span>
             </div>
@@ -97,7 +97,7 @@ export default function Footer() {
               <br />
               <span className="text-outline-orange">Delivered.</span>
             </h3>
-            <p className="font-mono text-sm text-[#a3a3a3] max-w-md leading-relaxed">
+            <p className="font-mono text-sm text-ink-muted max-w-md leading-relaxed">
               A marketplace connecting buyers with approved CNC artisan makers. Built in workshops.
               Shipped to doorsteps.
             </p>
@@ -106,37 +106,37 @@ export default function Footer() {
                 Surfaces the same message we publish in /fees.pdf so the
                 value prop is visible without a click. */}
             <div
-              className="mt-6 border border-[#ff4500]/40 bg-[#ff4500]/[0.06] p-4 max-w-md"
+              className="mt-6 border border-brand/40 bg-brand/[0.06] p-4 max-w-md"
               data-testid="footer-business-model"
             >
-              <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#ff4500] mb-2">
+              <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-brand mb-2">
                 ◆ How we make money
               </div>
-              <p className="font-mono text-xs text-[#e5e5e5] leading-relaxed">
-                <span className="text-white font-bold">Makers keep 95%.</span>{" "}
-                We take a flat <span className="text-white font-bold">5% platform fee</span> — no
+              <p className="font-mono text-xs text-ink leading-relaxed">
+                <span className="text-ink font-bold">Makers keep 95%.</span>{" "}
+                We take a flat <span className="text-ink font-bold">5% platform fee</span> — no
                 listing fees, no setup costs, no hidden surcharges. Plus &amp; Founder makers pay
                 even less.{" "}
                 <a
                   href="/fees.pdf"
                   target="_blank"
                   rel="noopener"
-                  className="text-[#ff4500] hover:text-white underline underline-offset-2"
+                  className="text-brand hover:text-ink underline underline-offset-2"
                   data-testid="footer-fees-pdf-link"
                 >
                   See the full pricing PDF →
                 </a>
               </p>
             </div>
-            <ul className="mt-8 space-y-2 font-mono text-xs uppercase tracking-[0.22em] text-[#a3a3a3]">
+            <ul className="mt-8 space-y-2 font-mono text-xs uppercase tracking-[0.22em] text-ink-muted">
               <li className="flex items-center gap-3">
-                <Mail size={14} className="text-[#ff4500]" /> team@craftersmarket.org
+                <Mail size={14} className="text-brand" /> team@craftersmarket.org
               </li>
               <li className="flex items-center gap-3">
-                <MapPin size={14} className="text-[#ff4500]" /> Continental US · Ships nationwide
+                <MapPin size={14} className="text-brand" /> Continental US · Ships nationwide
               </li>
               <li className="flex items-center gap-3">
-                <Instagram size={14} className="text-[#ff4500]" /> @craftersmarket
+                <Instagram size={14} className="text-brand" /> @craftersmarket
               </li>
             </ul>
           </div>
@@ -144,7 +144,7 @@ export default function Footer() {
           <div className="md:col-span-7 grid grid-cols-2 md:grid-cols-4 gap-8">
             {cols.map((c) => (
               <div key={c.title}>
-                <h4 className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-5">
+                <h4 className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-5">
                   {c.title}
                 </h4>
                 <ul className="space-y-3">
@@ -153,7 +153,7 @@ export default function Footer() {
                       {l.href.startsWith("mailto:") ? (
                         <a
                           href={l.href}
-                          className="industrial-link font-mono text-xs uppercase tracking-[0.2em] text-[#e5e5e5] hover:text-[#ff4500]"
+                          className="industrial-link font-mono text-xs uppercase tracking-[0.2em] text-ink hover:text-brand"
                           data-testid={`footer-link-${l.label.toLowerCase().replace(/\s/g, "-")}`}
                         >
                           {l.label}
@@ -161,7 +161,7 @@ export default function Footer() {
                       ) : (
                         <Link
                           to={l.href}
-                          className="industrial-link font-mono text-xs uppercase tracking-[0.2em] text-[#e5e5e5] hover:text-[#ff4500]"
+                          className="industrial-link font-mono text-xs uppercase tracking-[0.2em] text-ink hover:text-brand"
                           data-testid={`footer-link-${l.label.toLowerCase().replace(/\s/g, "-")}`}
                         >
                           {l.label}
@@ -176,13 +176,13 @@ export default function Footer() {
         </div>
 
         {/* Massive type */}
-        <div className="border-t border-[#262626] py-12 -mx-4 md:-mx-8 xl:-mx-12 px-4 md:px-8 xl:px-12">
+        <div className="border-t border-line py-12 -mx-4 md:-mx-8 xl:-mx-12 px-4 md:px-8 xl:px-12">
           <div className="font-display text-[18vw] leading-[0.85] text-outline">
             CRAFTERS MARKET
           </div>
         </div>
 
-        <div className="border-t border-[#262626] pt-8 flex flex-col md:flex-row md:items-center justify-between gap-4 font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+        <div className="border-t border-line pt-8 flex flex-col md:flex-row md:items-center justify-between gap-4 font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted">
           <div className="flex items-center gap-3">
             <span>© {new Date().getFullYear()} Crafters Market · All rights reserved</span>
             {/* Discreet ◆ glyph next to the copyright = admin staff entry
@@ -195,7 +195,7 @@ export default function Footer() {
               to="/admin/login"
               aria-label="Admin login"
               title="Admin"
-              className="text-[#262626] hover:text-[#ff4500] transition-colors text-[10px] leading-none select-none"
+              className="text-[#262626] hover:text-brand transition-colors text-[10px] leading-none select-none"
               data-testid="footer-admin"
             >
               ◆
@@ -205,36 +205,36 @@ export default function Footer() {
             <button
               type="button"
               onClick={() => window.dispatchEvent(new CustomEvent("cm:open-live-chat", { detail: { channel: "help" } }))}
-              className="hover:text-[#ff4500] cursor-pointer"
+              className="hover:text-brand cursor-pointer"
               data-testid="footer-live-chat"
             >
               Live chat
             </button>
-            <Link to="/updates" className="hover:text-[#ff4500]" data-testid="footer-updates">What's New</Link>
+            <Link to="/updates" className="hover:text-brand" data-testid="footer-updates">What's New</Link>
             <a
               href="/fees.pdf"
               target="_blank"
               rel="noopener"
-              className="hover:text-[#ff4500]"
+              className="hover:text-brand"
               data-testid="footer-pricing"
             >
               Transparent pricing
             </a>
-            <Link to="/policy#privacy" className="hover:text-[#ff4500]" data-testid="footer-privacy">Privacy</Link>
-            <Link to="/policy#terms" className="hover:text-[#ff4500]" data-testid="footer-terms">Terms</Link>
-            <Link to="/policy#returns" className="hover:text-[#ff4500]" data-testid="footer-returns">Returns</Link>
-            <Link to="/policy#shipping" className="hover:text-[#ff4500]" data-testid="footer-shipping">Shipping</Link>
-            <Link to="/policy#buyer-protection" className="hover:text-[#ff4500]" data-testid="footer-buyer-protection">Buyer Protection</Link>
-            <Link to="/policy#maker-agreement" className="hover:text-[#ff4500]" data-testid="footer-maker-agreement">Maker Agreement</Link>
-            <Link to="/contact" className="hover:text-[#ff4500]" data-testid="footer-contact">Contact</Link>
-            <Link to="/pricing" className="hover:text-[#ff4500]" data-testid="footer-pricing">Pricing</Link>
-            <Link to="/press" className="hover:text-[#ff4500]" data-testid="footer-press">Press</Link>
+            <Link to="/policy#privacy" className="hover:text-brand" data-testid="footer-privacy">Privacy</Link>
+            <Link to="/policy#terms" className="hover:text-brand" data-testid="footer-terms">Terms</Link>
+            <Link to="/policy#returns" className="hover:text-brand" data-testid="footer-returns">Returns</Link>
+            <Link to="/policy#shipping" className="hover:text-brand" data-testid="footer-shipping">Shipping</Link>
+            <Link to="/policy#buyer-protection" className="hover:text-brand" data-testid="footer-buyer-protection">Buyer Protection</Link>
+            <Link to="/policy#maker-agreement" className="hover:text-brand" data-testid="footer-maker-agreement">Maker Agreement</Link>
+            <Link to="/contact" className="hover:text-brand" data-testid="footer-contact">Contact</Link>
+            <Link to="/pricing" className="hover:text-brand" data-testid="footer-pricing">Pricing</Link>
+            <Link to="/press" className="hover:text-brand" data-testid="footer-press">Press</Link>
             {/* iter334e — Re-opens the GDPR cookie banner so users can
                 change their analytics + ads consent any time. */}
             <button
               type="button"
               onClick={reopenBanner}
-              className="hover:text-[#ff4500] cursor-pointer bg-transparent border-none p-0 font-inherit text-inherit text-left"
+              className="hover:text-brand cursor-pointer bg-transparent border-none p-0 font-inherit text-inherit text-left"
               data-testid="footer-cookie-preferences"
             >
               Cookie preferences

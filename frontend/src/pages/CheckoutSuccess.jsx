@@ -95,13 +95,13 @@ export default function CheckoutSuccess() {
 
   return (
     <div className="pt-40 pb-24 min-h-screen grain text-center px-4" data-testid="checkout-success">
-      <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-4">
+      <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-4">
         ◆ {paid ? "Payment Confirmed" : state.status === "error" ? "Issue" : "Confirming…"}
       </div>
       <h1 className="font-display text-[56px] md:text-[100px] leading-[0.88] mb-6">
         {paid ? "Thank You." : state.status === "error" ? "Something Went Sideways." : "Hold Tight…"}
       </h1>
-      <p className="font-mono text-sm text-[#a3a3a3] max-w-lg mx-auto mb-10">
+      <p className="font-mono text-sm text-ink-muted max-w-lg mx-auto mb-10">
         {paid
           ? `Your makers have been notified. You'll receive a confirmation email shortly. Order total: $${(state.amount_total / 100).toFixed(2)}.`
           : state.status === "error"
@@ -122,7 +122,7 @@ export default function CheckoutSuccess() {
           <div className="font-mono text-[11px] uppercase tracking-[0.28em] text-cyan-300 mb-3">
             ◆ Your downloads ({state.digital_downloads.length})
           </div>
-          <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed mb-4">
+          <p className="font-mono text-xs text-ink-muted leading-relaxed mb-4">
             Files are ready right now. Links also went to your email — they stay
             valid for 30 days. Save them locally; all digital sales are final.
           </p>
@@ -136,14 +136,14 @@ export default function CheckoutSuccess() {
               return (
                 <li
                   key={d.file_id}
-                  className="flex items-center gap-3 p-3 border border-[#262626] bg-[#0a0a0a]"
+                  className="flex items-center gap-3 p-3 border border-line bg-paper"
                   data-testid={`success-download-row-${d.file_id}`}
                 >
                   <div className="min-w-0 flex-1 text-left">
-                    <div className="font-mono text-[11.5px] text-[#e5e5e5] truncate">
+                    <div className="font-mono text-[11.5px] text-ink truncate">
                       {d.filename}
                     </div>
-                    <div className="font-mono text-[9.5px] text-[#525252] mt-1 uppercase tracking-[0.18em]">
+                    <div className="font-mono text-[9.5px] text-ink-muted mt-1 uppercase tracking-[0.18em]">
                       {(d.ext || "").toUpperCase()} · {sizeH}
                     </div>
                   </div>
@@ -151,7 +151,7 @@ export default function CheckoutSuccess() {
                     href={href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="shrink-0 px-4 py-2 bg-[#ff4500] hover:bg-[#ff5a1f] text-black font-mono text-[10px] uppercase tracking-[0.22em] font-bold transition"
+                    className="shrink-0 px-4 py-2 bg-brand hover:bg-[#ff5a1f] text-black font-mono text-[10px] uppercase tracking-[0.22em] font-bold transition"
                     data-testid={`success-download-btn-${d.file_id}`}
                   >
                     Download →
@@ -165,18 +165,18 @@ export default function CheckoutSuccess() {
 
       {canCreateAccount && (
         <div
-          className="max-w-lg mx-auto border border-[#ff4500]/40 bg-[#ff4500]/5 p-6 mb-10 text-left"
+          className="max-w-lg mx-auto border border-brand/40 bg-brand/5 p-6 mb-10 text-left"
           data-testid="success-create-account"
         >
-          <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#ff4500] mb-2">
+          <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-brand mb-2">
             ◆ Create a free account
           </div>
-          <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed mb-4">
+          <p className="font-mono text-xs text-ink-muted leading-relaxed mb-4">
             Track this order, post a photo of your piece in the Showcase, and join the workshop community —
             free, no password required.
           </p>
           {accountState.kind === "sent" ? (
-            <p className="font-mono text-xs text-[#ff4500]" data-testid="success-account-sent">
+            <p className="font-mono text-xs text-brand" data-testid="success-account-sent">
               ✓ {accountState.message}
             </p>
           ) : (
@@ -191,7 +191,7 @@ export default function CheckoutSuccess() {
               </button>
               <Link
                 to="/shop"
-                className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] self-center"
+                className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand self-center"
                 data-testid="success-skip-account"
               >
                 Continue as guest
@@ -264,7 +264,7 @@ function PostCheckoutNewsletterCard({ initialEmail }) {
         <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-emerald-400 mb-2">
           ◆ Subscribed
         </div>
-        <p className="font-mono text-xs text-[#a3a3a3]">
+        <p className="font-mono text-xs text-ink-muted">
           You're on the list. Expect a roundup of new drops and maker stories — never daily, never spammy.
         </p>
       </div>
@@ -274,13 +274,13 @@ function PostCheckoutNewsletterCard({ initialEmail }) {
   return (
     <form
       onSubmit={submit}
-      className="max-w-lg mx-auto border border-[#262626] p-6 mb-10 text-left"
+      className="max-w-lg mx-auto border border-line p-6 mb-10 text-left"
       data-testid="success-newsletter-card"
     >
-      <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#ff4500] mb-2">
+      <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-brand mb-2">
         ◆ Get the next drop first
       </div>
-      <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed mb-4">
+      <p className="font-mono text-xs text-ink-muted leading-relaxed mb-4">
         New listings, maker stories, and curated collections — once a week. No spam, unsubscribe with a click.
       </p>
       <div className="flex flex-col sm:flex-row gap-2">
@@ -290,7 +290,7 @@ function PostCheckoutNewsletterCard({ initialEmail }) {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="you@email.com"
-          className="flex-1 bg-[#0a0a0a] border border-[#262626] px-3 py-2 font-mono text-sm text-[#e5e5e5] focus:border-[#ff4500] focus:outline-none"
+          className="flex-1 bg-paper border border-line px-3 py-2 font-mono text-sm text-ink focus:border-brand focus:outline-none"
           data-testid="success-newsletter-email"
         />
         <button

@@ -41,13 +41,13 @@ export default function MakerVerify() {
 
   return (
     <div className="pt-40 pb-24 min-h-screen grain text-center px-4" data-testid="maker-verify">
-      <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-4">
+      <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-4">
         ◆ {error ? "Link Issue" : "Verifying…"}
       </div>
       <h1 className="font-display text-[56px] md:text-[100px] leading-[0.88] mb-6 uppercase">
         {error ? "Try Again." : "One Moment."}
       </h1>
-      <p className="font-mono text-sm text-[#a3a3a3] max-w-lg mx-auto mb-10">
+      <p className="font-mono text-sm text-ink-muted max-w-lg mx-auto mb-10">
         {error || "Validating your sign-in link with the workshop."}
       </p>
       {error && (

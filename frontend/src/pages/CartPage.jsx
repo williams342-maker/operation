@@ -195,27 +195,27 @@ export default function CartPage() {
   return (
     <div className="pt-32 pb-24 grain min-h-screen" data-testid="cart-page">
       <div className="w-full max-w-[1400px] mx-auto px-4 md:px-8">
-        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-4">◆ Cart</div>
+        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-4">◆ Cart</div>
         <h1 className="font-display text-[56px] md:text-[100px] leading-[0.88] mb-12">Your <span className="text-outline">Pile</span></h1>
 
         {!items.length ? (
-          <div className="border-y border-[#262626] py-20 text-center">
-            <p className="font-mono text-sm text-[#a3a3a3] mb-6">Cart is empty. Go find something sharp.</p>
+          <div className="border-y border-line py-20 text-center">
+            <p className="font-mono text-sm text-ink-muted mb-6">Cart is empty. Go find something sharp.</p>
             <Link to="/shop" className="btn-industrial btn-primary inline-flex">Browse the shop →</Link>
           </div>
         ) : (
           <div className="grid lg:grid-cols-12 gap-10">
-            <ul className="lg:col-span-8 border-y border-[#262626] divide-y divide-[#262626]">
+            <ul className="lg:col-span-8 border-y border-line divide-y divide-line">
               {items.map((i) => (
                 <li key={`${i.id}::${i.variant_id || ""}::${i.color_choice || ""}::${i.personalization_text || ""}`} className="grid grid-cols-12 gap-4 py-6 items-center" data-testid={`cart-item-${i.slug}`}>
-                  <Link to={`/shop/${i.slug}`} className="col-span-3 sm:col-span-2 aspect-square overflow-hidden border border-[#262626]">
+                  <Link to={`/shop/${i.slug}`} className="col-span-3 sm:col-span-2 aspect-square overflow-hidden border border-line">
                     <img src={i.image} alt={i.title} className="w-full h-full object-cover" />
                   </Link>
                   <div className="col-span-9 sm:col-span-5">
-                    <Link to={`/shop/${i.slug}`} className="font-display text-2xl hover:text-[#ff4500] transition">{i.title}</Link>
+                    <Link to={`/shop/${i.slug}`} className="font-display text-2xl hover:text-brand transition">{i.title}</Link>
                     {i.variant_label && (
                       <div
-                        className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mt-1"
+                        className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mt-1"
                         data-testid={`cart-variant-${i.slug}`}
                       >
                         ◆ {i.variant_label}
@@ -234,20 +234,20 @@ export default function CartPage() {
                         ◆ Color · {i.color_choice}
                       </div>
                     )}
-                    <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#a3a3a3] mt-1">${i.price.toFixed(2)} ea</div>
+                    <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-ink-muted mt-1">${i.price.toFixed(2)} ea</div>
                     {/* iter150 — Personalization summary on the cart line
                         so the buyer can see exactly what they're sending
                         before paying. */}
                     {(i.personalization_text || i.personalization_image_url) && (
                       <div
-                        className="mt-3 border-l-2 border-[#ff4500] pl-3"
+                        className="mt-3 border-l-2 border-brand pl-3"
                         data-testid={`cart-personalization-${i.slug}`}
                       >
-                        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mb-1">
+                        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-1">
                           ◆ Personalization
                         </div>
                         {i.personalization_text && (
-                          <div className="text-xs text-[#e5e5e5] leading-relaxed whitespace-pre-wrap">
+                          <div className="text-xs text-ink leading-relaxed whitespace-pre-wrap">
                             {i.personalization_text}
                           </div>
                         )}
@@ -261,7 +261,7 @@ export default function CartPage() {
                             <img
                               src={i.personalization_image_url}
                               alt="Reference"
-                              className="w-16 h-16 object-cover border border-[#262626]"
+                              className="w-16 h-16 object-cover border border-line"
                             />
                           </a>
                         )}
@@ -269,22 +269,22 @@ export default function CartPage() {
                     )}
                   </div>
                   <div className="col-span-6 sm:col-span-3 flex items-center gap-3">
-                    <div className="flex items-center border border-[#262626]">
-                      <button onClick={() => setQty(i.id, i.quantity - 1, i.variant_id)} className="px-3 py-2 hover:bg-[#1a1a1a]">−</button>
+                    <div className="flex items-center border border-line">
+                      <button onClick={() => setQty(i.id, i.quantity - 1, i.variant_id)} className="px-3 py-2 hover:bg-surface">−</button>
                       <span className="px-3 font-mono text-sm">{i.quantity}</span>
-                      <button onClick={() => setQty(i.id, i.quantity + 1, i.variant_id)} className="px-3 py-2 hover:bg-[#1a1a1a]">+</button>
+                      <button onClick={() => setQty(i.id, i.quantity + 1, i.variant_id)} className="px-3 py-2 hover:bg-surface">+</button>
                     </div>
                   </div>
                   <div className="col-span-4 sm:col-span-1 font-display text-xl text-right">${(i.price * i.quantity).toFixed(2)}</div>
-                  <button onClick={() => remove(i.id, i.variant_id)} className="col-span-2 sm:col-span-1 justify-self-end p-2 text-[#a3a3a3] hover:text-[#ff4500]" data-testid={`cart-remove-${i.slug}`}>
+                  <button onClick={() => remove(i.id, i.variant_id)} className="col-span-2 sm:col-span-1 justify-self-end p-2 text-ink-muted hover:text-brand" data-testid={`cart-remove-${i.slug}`}>
                     <Trash2 size={16} />
                   </button>
                 </li>
               ))}
             </ul>
-            <aside className="lg:col-span-4 bg-[#121212] border border-[#262626] p-8 h-fit">
+            <aside className="lg:col-span-4 bg-surface border border-line p-8 h-fit">
               <h2 className="font-display text-3xl mb-6">Summary</h2>
-              <div className="space-y-3 font-mono text-sm border-y border-[#262626] py-4 mb-6" data-testid="cart-summary">
+              <div className="space-y-3 font-mono text-sm border-y border-line py-4 mb-6" data-testid="cart-summary">
                 <Row k="Subtotal" v={`$${subtotal.toFixed(2)}`} testId="row-subtotal" />
                 <Row
                   k="Shipping"
@@ -301,7 +301,7 @@ export default function CartPage() {
                 />
                 {!quote?.digital_only && shipping != null && (
                   <div
-                    className="font-mono text-[10px] text-[#525252] tracking-normal normal-case -mt-1.5"
+                    className="font-mono text-[10px] text-ink-muted tracking-normal normal-case -mt-1.5"
                     data-testid="cart-shipping-tiers-hint"
                   >
                     Expedited (+$9.99) and overnight (+$24.99) options at checkout.
@@ -331,20 +331,20 @@ export default function CartPage() {
               )}
               {quote && !quote.digital_only && remaining > 0 && (
                 <p
-                  className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mb-4"
+                  className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-4"
                   data-testid="free-shipping-banner"
                 >
                   ◆ Add ${remaining.toFixed(2)} for free shipping
                 </p>
               )}
               {quote && !quote.digital_only && quote.free_shipping_eligible && (
-                <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mb-4">
+                <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-4">
                   ◆ Free shipping unlocked
                 </p>
               )}
               <div className="flex justify-between items-baseline mb-6">
-                <span className="font-mono text-xs uppercase tracking-[0.22em] text-[#a3a3a3]">Total</span>
-                <span className="font-display text-4xl text-[#ff4500]" data-testid="cart-total">
+                <span className="font-mono text-xs uppercase tracking-[0.22em] text-ink-muted">Total</span>
+                <span className="font-display text-4xl text-brand" data-testid="cart-total">
                   ${total.toFixed(2)}
                 </span>
               </div>
@@ -352,26 +352,26 @@ export default function CartPage() {
               {/* Discount code — per-shop maker promo. Only applies to that
                   shop's items in the cart; if the cart has multiple shops it
                   discounts only the matching shop's subtotal. */}
-              <div className="mb-4 pb-4 border-b border-[#262626]" data-testid="cart-discount-block">
+              <div className="mb-4 pb-4 border-b border-line" data-testid="cart-discount-block">
                 {appliedCode && quote?.discount_code ? (
                   <div className="flex items-center justify-between gap-3" data-testid="cart-discount-applied">
                     <div className="min-w-0">
                       <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-400">
                         ✓ Code applied · {quote.discount_code}
                       </div>
-                      <div className="font-mono text-[11px] text-[#a3a3a3] mt-0.5">
+                      <div className="font-mono text-[11px] text-ink-muted mt-0.5">
                         −${(quote.discount || 0).toFixed(2)} off
                       </div>
                     </div>
                     <button onClick={removeCode}
-                      className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500]"
+                      className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand"
                       data-testid="cart-discount-remove">
                       Remove
                     </button>
                   </div>
                 ) : (
                   <div>
-                    <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] block mb-2">
+                    <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted block mb-2">
                       Discount Code
                     </label>
                     <div className="flex gap-2">
@@ -380,12 +380,12 @@ export default function CartPage() {
                         value={discountInput}
                         onChange={(e) => setDiscountInput(e.target.value.toUpperCase())}
                         placeholder="SUMMER15"
-                        className="flex-1 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm uppercase"
+                        className="flex-1 bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm uppercase"
                         data-testid="cart-discount-input"
                         onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); applyCode(); } }}
                       />
                       <button onClick={applyCode} disabled={!discountInput.trim()}
-                        className="px-4 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
+                        className="px-4 py-2 border border-line hover:border-brand font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
                         data-testid="cart-discount-apply">
                         Apply
                       </button>
@@ -400,11 +400,11 @@ export default function CartPage() {
               </div>
 
               <label className="block mb-4">
-                <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#a3a3a3]">Email for receipt</span>
+                <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-ink-muted">Email for receipt</span>
                 <input
                   type="email" value={email} onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com" data-testid="cart-email"
-                  className="w-full mt-2 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-3 font-mono text-sm"
+                  className="w-full mt-2 bg-transparent border border-line focus:border-brand outline-none px-3 py-3 font-mono text-sm"
                 />
               </label>
 
@@ -414,8 +414,8 @@ export default function CartPage() {
                   as a fallback 24h after the abandoned-cart email,
                   reusing the phone the buyer provided for transactional
                   receipts/shipping updates. */}
-              <div className="mb-4 border border-[#262626] p-3" data-testid="cart-sms-block">
-                <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#a3a3a3] mb-2">
+              <div className="mb-4 border border-line p-3" data-testid="cart-sms-block">
+                <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-ink-muted mb-2">
                   ◆ Text me updates (optional)
                 </div>
                 <label className="flex items-start gap-2 cursor-pointer py-1">
@@ -426,7 +426,7 @@ export default function CartPage() {
                     data-testid="cart-sms-consent-receipts"
                     className="mt-1"
                   />
-                  <span className="font-mono text-[11px] text-[#d4d4d4]">
+                  <span className="font-mono text-[11px] text-ink">
                     Text my order receipt confirmations
                   </span>
                 </label>
@@ -438,13 +438,13 @@ export default function CartPage() {
                     data-testid="cart-sms-consent-shipping"
                     className="mt-1"
                   />
-                  <span className="font-mono text-[11px] text-[#d4d4d4]">
+                  <span className="font-mono text-[11px] text-ink">
                     Text me when my order ships (with tracking link)
                   </span>
                 </label>
                 {(smsReceipts || smsShipping) && (
                   <label className="block mt-3">
-                    <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#a3a3a3]">
+                    <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-ink-muted">
                       Mobile number
                     </span>
                     <input
@@ -453,16 +453,16 @@ export default function CartPage() {
                       onChange={(e) => setPhone(e.target.value)}
                       placeholder="+1 555 123 4567"
                       data-testid="cart-phone"
-                      className="w-full mt-1 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm"
+                      className="w-full mt-1 bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm"
                     />
-                    <span className="font-mono text-[9px] text-[#737373] mt-1 block">
+                    <span className="font-mono text-[9px] text-ink-muted mt-1 block">
                       Msg & data rates may apply. Reply STOP to opt out anytime.
                     </span>
                   </label>
                 )}
               </div>
               <label className="block mb-4">
-                <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#a3a3a3]">
+                <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-ink-muted">
                   🎁 Gift note (optional)
                 </span>
                 <textarea
@@ -472,15 +472,15 @@ export default function CartPage() {
                   maxLength={400}
                   placeholder="Sent to the maker · printed on the packing slip"
                   data-testid="cart-gift-note"
-                  className="w-full mt-2 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-3 font-mono text-sm resize-y"
+                  className="w-full mt-2 bg-transparent border border-line focus:border-brand outline-none px-3 py-3 font-mono text-sm resize-y"
                 />
               </label>
               <PolicyConsent consent={consent} testId="cart-policy" />
               <button onClick={checkout} disabled={loading || !consent.accepted} data-testid="cart-checkout-btn" className="btn-industrial btn-primary w-full justify-center mt-4 disabled:opacity-50">
                 {loading ? "Redirecting…" : "Checkout →"}
               </button>
-              {err && <p className="text-[#ff4500] font-mono text-xs mt-3">{err}</p>}
-              <button onClick={clear} className="block mt-4 mx-auto industrial-link font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Clear cart</button>
+              {err && <p className="text-brand font-mono text-xs mt-3">{err}</p>}
+              <button onClick={clear} className="block mt-4 mx-auto industrial-link font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Clear cart</button>
             </aside>
           </div>
         )}
@@ -490,8 +490,8 @@ export default function CartPage() {
 }
 
 const Row = ({ k, v, testId }) => (
-  <div className="flex justify-between text-[#a3a3a3]" data-testid={testId}>
+  <div className="flex justify-between text-ink-muted" data-testid={testId}>
     <span className="font-mono text-xs uppercase tracking-[0.22em]">{k}</span>
-    <span className="text-[#e5e5e5]">{v}</span>
+    <span className="text-ink">{v}</span>
   </div>
 );

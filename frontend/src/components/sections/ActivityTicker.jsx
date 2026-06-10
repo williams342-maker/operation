@@ -31,8 +31,8 @@ export default function ActivityTicker() {
     <div
       className={`w-full border-b font-mono uppercase tracking-[0.22em] py-2.5 px-4 flex items-center gap-3 overflow-hidden ${
         isDrop
-          ? "bg-[#1a0a05] border-[#ff4500]/40 text-[#ff4500] text-[11px] md:text-[12px]"
-          : "bg-[#0a0a0a] border-[#262626] text-[#a3a3a3] text-[10px] md:text-[11px]"
+          ? "bg-surface border-brand/40 text-brand text-[11px] md:text-[12px]"
+          : "bg-paper border-line text-ink-muted text-[10px] md:text-[11px]"
       }`}
       data-testid="activity-ticker"
     >
@@ -42,14 +42,14 @@ export default function ActivityTicker() {
       />
       {isDrop && (
         <span
-          className="font-display text-[10px] md:text-[11px] tracking-[0.3em] text-[#ff4500] flex-shrink-0"
+          className="font-display text-[10px] md:text-[11px] tracking-[0.3em] text-brand flex-shrink-0"
           data-testid="activity-ticker-drop-badge"
         >
           ◆ DROP
         </span>
       )}
       <span
-        className={`truncate ${isDrop ? "text-[#fff] font-bold" : "text-[#e5e5e5]"}`}
+        className={`truncate ${isDrop ? "text-ink font-bold" : "text-ink"}`}
       >
         {e.text}
       </span>

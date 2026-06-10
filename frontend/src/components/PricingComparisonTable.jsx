@@ -123,18 +123,18 @@ function ToneCell({ cell }) {
     : cell.tone === "bad" ? "bg-red-400"
     : "bg-[#525252]";
   return (
-    <td className="px-4 py-4 align-top border-t border-[#1a1a1a]">
+    <td className="px-4 py-4 align-top border-t border-line">
       <div className="flex items-start gap-2">
         <span className={`mt-1.5 inline-block w-1.5 h-1.5 rounded-full shrink-0 ${dotCls}`} />
         <div className="min-w-0">
-          <div className="font-display text-sm text-[#f5f5f5] leading-tight">
+          <div className="font-display text-sm text-ink leading-tight">
             {cell.value}
             {cell.cite && (
               <a
                 href={CITATIONS[cell.cite]?.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="ml-1 font-mono text-[9px] align-super text-[#ff4500] hover:underline"
+                className="ml-1 font-mono text-[9px] align-super text-brand hover:underline"
                 title={CITATIONS[cell.cite]?.label}
               >
                 [{cell.cite}]
@@ -142,7 +142,7 @@ function ToneCell({ cell }) {
             )}
           </div>
           {cell.note && (
-            <div className="font-mono text-[10px] text-[#737373] mt-1">{cell.note}</div>
+            <div className="font-mono text-[10px] text-ink-muted mt-1">{cell.note}</div>
           )}
         </div>
       </div>
@@ -153,14 +153,14 @@ function ToneCell({ cell }) {
 export default function PricingComparisonTable({ title = "How we compare" }) {
   return (
     <section
-      className="border border-[#262626] p-4 md:p-6"
+      className="border border-line p-4 md:p-6"
       data-testid="pricing-comparison-table"
     >
-      <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-2">
+      <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-2">
         ◆ Side by side
       </div>
-      <h2 className="font-display text-3xl md:text-4xl mb-3 text-[#f5f5f5]">{title}</h2>
-      <p className="font-mono text-xs text-[#a3a3a3] max-w-2xl mb-6 leading-relaxed">
+      <h2 className="font-display text-3xl md:text-4xl mb-3 text-ink">{title}</h2>
+      <p className="font-mono text-xs text-ink-muted max-w-2xl mb-6 leading-relaxed">
         Honest, line-for-line. No &ldquo;starting at&rdquo; asterisks — these are the fees you&apos;ll actually pay
         on your first $1,000 sold. Citations below.
       </p>
@@ -168,13 +168,13 @@ export default function PricingComparisonTable({ title = "How we compare" }) {
       <div className="overflow-x-auto">
         <table className="w-full min-w-[1000px] text-left">
           <thead>
-            <tr className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252]">
+            <tr className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted">
               <th className="px-4 py-3 w-[150px]">Feature</th>
-              <th className="px-4 py-3 text-[#ff4500]">Crafters Market</th>
+              <th className="px-4 py-3 text-brand">Crafters Market</th>
               <th className="px-4 py-3">Etsy</th>
               <th className="px-4 py-3">Shopify</th>
               <th className="px-4 py-3">Amazon Handmade</th>
-              <th className="px-4 py-3">Faire <span className="text-[#525252] normal-case tracking-normal">(wholesale)</span></th>
+              <th className="px-4 py-3">Faire <span className="text-ink-muted normal-case tracking-normal">(wholesale)</span></th>
             </tr>
           </thead>
           <tbody>
@@ -184,7 +184,7 @@ export default function PricingComparisonTable({ title = "How we compare" }) {
                 className="hover:bg-[#0c0c0c]"
                 data-testid={`compare-row-${row.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
               >
-                <td className="px-4 py-4 align-top border-t border-[#1a1a1a] font-mono text-[10px] uppercase tracking-[0.18em] text-[#a3a3a3]">
+                <td className="px-4 py-4 align-top border-t border-line font-mono text-[10px] uppercase tracking-[0.18em] text-ink-muted">
                   {row.label}
                 </td>
                 <ToneCell cell={row.cm} />
@@ -198,26 +198,26 @@ export default function PricingComparisonTable({ title = "How we compare" }) {
         </table>
       </div>
 
-      <div className="mt-6 pt-4 border-t border-[#1a1a1a]">
-        <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252] mb-2">
+      <div className="mt-6 pt-4 border-t border-line">
+        <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted mb-2">
           Citations
         </div>
-        <ol className="font-mono text-[10px] text-[#737373] space-y-1">
+        <ol className="font-mono text-[10px] text-ink-muted space-y-1">
           {CITATIONS.slice(1).map((c, idx) => (
             <li key={c.url}>
-              <span className="text-[#525252] mr-1">[{idx + 1}]</span>
+              <span className="text-ink-muted mr-1">[{idx + 1}]</span>
               <a
                 href={c.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="hover:text-[#ff4500] underline-offset-2 hover:underline break-all"
+                className="hover:text-brand underline-offset-2 hover:underline break-all"
               >
                 {c.label}
               </a>
             </li>
           ))}
         </ol>
-        <p className="font-mono text-[10px] text-[#525252] mt-4 leading-relaxed">
+        <p className="font-mono text-[10px] text-ink-muted mt-4 leading-relaxed">
           Fees current as of {new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" })}.
           Third-party pricing may change — we&apos;ll update this table within 30 days of any public fee change.
         </p>

@@ -142,7 +142,7 @@ export default function SignInPage() {
   return (
     <div className="pt-40 pb-24 min-h-screen grain px-4" data-testid="signin-page">
       <div className="max-w-xl mx-auto">
-        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-4">
+        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-4">
           ◆ Sign In
         </div>
         <h1 className="font-display text-[56px] md:text-[88px] leading-[0.88] mb-6 uppercase">
@@ -155,15 +155,15 @@ export default function SignInPage() {
             "you have an account here, just sign in." */}
         {(returningName || returningEmail) && (
           <div
-            className="mb-8 px-4 py-3 border border-[#ff4500] bg-[#ff4500]/5 flex items-center gap-3"
+            className="mb-8 px-4 py-3 border border-brand bg-brand/5 flex items-center gap-3"
             data-testid="signin-welcome-banner"
           >
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">◆</div>
-            <div className="font-mono text-xs text-[#e5e5e5] leading-relaxed flex-1">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">◆</div>
+            <div className="font-mono text-xs text-ink leading-relaxed flex-1">
               {returningName ? (
-                <>Welcome back, <span className="text-[#ff4500]">{returningName}</span>.</>
+                <>Welcome back, <span className="text-brand">{returningName}</span>.</>
               ) : (
-                <>We remember <span className="text-[#ff4500]">{returningEmail}</span>.</>
+                <>We remember <span className="text-brand">{returningEmail}</span>.</>
               )}
               {" "}Sign in to pick up where you left off.
             </div>
@@ -177,7 +177,7 @@ export default function SignInPage() {
                 } catch {}
                 window.location.reload();
               }}
-              className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] transition shrink-0"
+              className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand transition shrink-0"
               data-testid="signin-not-you-btn"
               title="Forget this device — clears the remembered email/name"
             >
@@ -186,7 +186,7 @@ export default function SignInPage() {
           </div>
         )}
 
-        <p className="font-mono text-sm text-[#a3a3a3] mb-8">
+        <p className="font-mono text-sm text-ink-muted mb-8">
           Sign in to shop, manage your shop, or moderate the marketplace.
         </p>
 
@@ -198,15 +198,15 @@ export default function SignInPage() {
               onClick={() => { setRole(r.id); setState({ status: "idle", message: "" }); }}
               className={`p-3 border text-left transition ${
                 role === r.id
-                  ? "border-[#ff4500] bg-[#ff4500]/5"
-                  : "border-[#262626] hover:border-[#525252]"
+                  ? "border-brand bg-brand/5"
+                  : "border-line hover:border-ink-muted"
               }`}
               data-testid={`role-tab-${r.id}`}
             >
               <div className={`font-mono text-[11px] uppercase tracking-[0.18em] ${
-                role === r.id ? "text-[#ff4500]" : "text-[#e5e5e5]"
+                role === r.id ? "text-brand" : "text-ink"
               }`}>{r.label}</div>
-              <div className="font-mono text-[10px] text-[#a3a3a3] mt-1 leading-snug">{r.blurb}</div>
+              <div className="font-mono text-[10px] text-ink-muted mt-1 leading-snug">{r.blurb}</div>
             </button>
           ))}
         </div>
@@ -215,7 +215,7 @@ export default function SignInPage() {
         {role === "buyer" && eua && (
           <label
             className={`flex items-start gap-3 mb-6 p-4 border cursor-pointer transition ${
-              accepted ? "border-[#ff4500]" : "border-[#262626] hover:border-[#525252]"
+              accepted ? "border-brand" : "border-line hover:border-ink-muted"
             }`}
             data-testid="signin-eua"
           >
@@ -223,8 +223,8 @@ export default function SignInPage() {
               type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)}
               className="mt-1 accent-[#ff4500]" data-testid="signin-eua-checkbox"
             />
-            <span className="font-mono text-[11px] text-[#a3a3a3] leading-relaxed">
-              I agree to the <Link to="/community/terms" target="_blank" className="text-[#ff4500] hover:underline">Community Terms</Link>
+            <span className="font-mono text-[11px] text-ink-muted leading-relaxed">
+              I agree to the <Link to="/community/terms" target="_blank" className="text-brand hover:underline">Community Terms</Link>
               {eua?.version ? ` (v${eua.version})` : ""}.
             </span>
           </label>
@@ -234,7 +234,7 @@ export default function SignInPage() {
         {role === "buyer" && (
           <button
             onClick={() => { if (eua && !accepted) { setState({ status: "error", message: "Please accept the Community Terms to continue." }); return; } googleSignIn(); }}
-            className="w-full flex items-center justify-center gap-3 px-5 py-3 border border-[#262626] hover:border-[#ff4500] bg-[#0a0a0a] font-mono text-xs uppercase tracking-[0.22em] text-[#e5e5e5] mb-6 transition"
+            className="w-full flex items-center justify-center gap-3 px-5 py-3 border border-line hover:border-brand bg-paper font-mono text-xs uppercase tracking-[0.22em] text-ink mb-6 transition"
             data-testid="signin-google-btn"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
@@ -249,17 +249,17 @@ export default function SignInPage() {
 
         {role === "buyer" && (
           <p
-            className="font-mono text-[10px] text-[#737373] -mt-4 mb-6 leading-relaxed"
+            className="font-mono text-[10px] text-ink-muted -mt-4 mb-6 leading-relaxed"
             data-testid="signin-any-email-hint"
           >
             Google is optional — any email works (Outlook, Yahoo, ProtonMail, your own domain).
           </p>
         )}
 
-        <div className="flex items-center gap-3 my-6 font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252]">
-          <div className="flex-1 border-t border-[#262626]" />
+        <div className="flex items-center gap-3 my-6 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
+          <div className="flex-1 border-t border-line" />
           {role === "buyer" ? "or use any email" : "with email"}
-          <div className="flex-1 border-t border-[#262626]" />
+          <div className="flex-1 border-t border-line" />
         </div>
 
         {/* Email magic-link form (default) */}
@@ -270,7 +270,7 @@ export default function SignInPage() {
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@example.com"
             required
-            className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] px-4 py-3 font-mono text-sm outline-none"
+            className="w-full bg-paper border border-line focus:border-brand px-4 py-3 font-mono text-sm outline-none"
             data-testid="signin-email"
           />
           <button
@@ -285,10 +285,10 @@ export default function SignInPage() {
 
         {/* Optional password fallback */}
         {passwordEnabledForRole && (
-          <div className="border-t border-[#262626] pt-6" data-testid="signin-password-block">
+          <div className="border-t border-line pt-6" data-testid="signin-password-block">
             <button
               onClick={() => setShowPassword((s) => !s)}
-              className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] transition"
+              className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand transition"
               data-testid="signin-password-toggle"
             >
               {showPassword ? "− Hide password sign-in" : "+ Or use a password instead"}
@@ -298,7 +298,7 @@ export default function SignInPage() {
                 <input
                   type="password" value={password} onChange={(e) => setPassword(e.target.value)}
                   placeholder="Password" required minLength={1}
-                  className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] px-4 py-3 font-mono text-sm outline-none"
+                  className="w-full bg-paper border border-line focus:border-brand px-4 py-3 font-mono text-sm outline-none"
                   data-testid="signin-password-input"
                 />
                 <button
@@ -310,14 +310,14 @@ export default function SignInPage() {
                 </button>
                 <Link
                   to={`/forgot-password?as=${role}&email=${encodeURIComponent(email)}`}
-                  className="block text-center font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500]"
+                  className="block text-center font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand"
                   data-testid="signin-forgot-link"
                 >
                   Forgot password?
                 </Link>
-                <p className="font-mono text-[10px] text-[#525252] text-center pt-2 leading-relaxed">
+                <p className="font-mono text-[10px] text-ink-muted text-center pt-2 leading-relaxed">
                   Email not arriving? Use your password — or{" "}
-                  <a href="mailto:team@craftersmarket.org" className="text-[#ff4500] hover:underline">contact support</a>.
+                  <a href="mailto:team@craftersmarket.org" className="text-brand hover:underline">contact support</a>.
                 </p>
               </form>
             )}
@@ -330,7 +330,7 @@ export default function SignInPage() {
             className={`mt-6 p-4 border font-mono text-xs leading-relaxed ${
               state.status === "error"
                 ? "border-red-700 bg-red-950/20 text-red-300"
-                : "border-[#ff4500] bg-[#ff4500]/5 text-[#ff4500]"
+                : "border-brand bg-brand/5 text-brand"
             }`}
             data-testid={`signin-${state.status}-msg`}
           >
@@ -364,16 +364,16 @@ export function ForgotPasswordPage() {
   return (
     <div className="pt-40 pb-24 min-h-screen grain px-4" data-testid="forgot-page">
       <div className="max-w-xl mx-auto">
-        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-4">◆ Forgot Password</div>
+        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-4">◆ Forgot Password</div>
         <h1 className="font-display text-[44px] md:text-[64px] leading-[0.88] mb-6 uppercase">Reset Link.</h1>
-        <p className="font-mono text-sm text-[#a3a3a3] mb-10">
+        <p className="font-mono text-sm text-ink-muted mb-10">
           Enter the email tied to your account and we'll send a 30-minute, single-use reset link.
           Your existing password keeps working until you complete the reset.
         </p>
         <form onSubmit={submit} className="space-y-4" data-testid="forgot-form">
           <select
             value={role} onChange={(e) => setRole(e.target.value)}
-            className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] px-4 py-3 font-mono text-sm outline-none"
+            className="w-full bg-paper border border-line focus:border-brand px-4 py-3 font-mono text-sm outline-none"
             data-testid="forgot-role"
           >
             <option value="buyer">Buyer account</option>
@@ -383,7 +383,7 @@ export function ForgotPasswordPage() {
           <input
             type="email" value={email} onChange={(e) => setEmail(e.target.value)}
             placeholder="you@example.com" required
-            className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] px-4 py-3 font-mono text-sm outline-none"
+            className="w-full bg-paper border border-line focus:border-brand px-4 py-3 font-mono text-sm outline-none"
             data-testid="forgot-email"
           />
           <button
@@ -399,14 +399,14 @@ export function ForgotPasswordPage() {
             className={`mt-6 p-4 border font-mono text-xs leading-relaxed ${
               state.status === "error"
                 ? "border-red-700 bg-red-950/20 text-red-300"
-                : "border-[#ff4500] bg-[#ff4500]/5 text-[#ff4500]"
+                : "border-brand bg-brand/5 text-brand"
             }`}
             data-testid={`forgot-${state.status}-msg`}
           >
             {state.message}
           </div>
         )}
-        <Link to="/signin" className="block mt-6 font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500]" data-testid="forgot-back">← Back to sign in</Link>
+        <Link to="/signin" className="block mt-6 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand" data-testid="forgot-back">← Back to sign in</Link>
       </div>
     </div>
   );
@@ -447,8 +447,8 @@ export function ResetPasswordPage() {
       <div className="pt-40 pb-24 min-h-screen grain px-4 max-w-xl mx-auto" data-testid="reset-page-invalid">
         <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-red-500 mb-4">◆ Invalid link</div>
         <h1 className="font-display text-4xl mb-4">This reset link is broken.</h1>
-        <p className="font-mono text-sm text-[#a3a3a3]">
-          Request a fresh link from the <Link to="/forgot-password" className="text-[#ff4500] hover:underline">forgot-password page</Link>.
+        <p className="font-mono text-sm text-ink-muted">
+          Request a fresh link from the <Link to="/forgot-password" className="text-brand hover:underline">forgot-password page</Link>.
         </p>
       </div>
     );
@@ -457,9 +457,9 @@ export function ResetPasswordPage() {
   return (
     <div className="pt-40 pb-24 min-h-screen grain px-4" data-testid="reset-page">
       <div className="max-w-xl mx-auto">
-        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-4">◆ Reset Password</div>
+        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-4">◆ Reset Password</div>
         <h1 className="font-display text-[44px] md:text-[64px] leading-[0.88] mb-6 uppercase">New Password.</h1>
-        <p className="font-mono text-sm text-[#a3a3a3] mb-10">
+        <p className="font-mono text-sm text-ink-muted mb-10">
           Pick a new password — at least 10 characters, no other restrictions.
           This link can only be used once and expires 30 minutes after we sent it.
         </p>
@@ -467,13 +467,13 @@ export function ResetPasswordPage() {
           <input
             type="password" value={pw} onChange={(e) => setPw(e.target.value)}
             placeholder="New password (min 10 chars)" required minLength={10}
-            className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] px-4 py-3 font-mono text-sm outline-none"
+            className="w-full bg-paper border border-line focus:border-brand px-4 py-3 font-mono text-sm outline-none"
             data-testid="reset-pw1"
           />
           <input
             type="password" value={pw2} onChange={(e) => setPw2(e.target.value)}
             placeholder="Confirm new password" required minLength={10}
-            className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] px-4 py-3 font-mono text-sm outline-none"
+            className="w-full bg-paper border border-line focus:border-brand px-4 py-3 font-mono text-sm outline-none"
             data-testid="reset-pw2"
           />
           <button
@@ -489,7 +489,7 @@ export function ResetPasswordPage() {
             className={`mt-6 p-4 border font-mono text-xs leading-relaxed ${
               state.status === "error"
                 ? "border-red-700 bg-red-950/20 text-red-300"
-                : "border-[#ff4500] bg-[#ff4500]/5 text-[#ff4500]"
+                : "border-brand bg-brand/5 text-brand"
             }`}
             data-testid={`reset-${state.status}-msg`}
           >

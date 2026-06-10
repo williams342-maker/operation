@@ -52,8 +52,8 @@ const SECTIONS = [
     },
     outro: (
       <>
-        <span className="text-[#a3a3a3]">Last updated:</span>{" "}
-        <b className="text-[#e5e5e5]">April 2026</b>
+        <span className="text-ink-muted">Last updated:</span>{" "}
+        <b className="text-ink">April 2026</b>
       </>
     ),
   },
@@ -89,8 +89,8 @@ const SECTIONS = [
     outro: (
       <>
         Tracking information is emailed once your order ships. If you haven't
-        received a tracking number within <b className="text-[#ff4500]">4 business days</b> of ordering, please contact
-        us at <a href={`mailto:${SUPPORT_EMAIL}`} className="text-[#ff4500] hover:underline">{SUPPORT_EMAIL}</a>.
+        received a tracking number within <b className="text-brand">4 business days</b> of ordering, please contact
+        us at <a href={`mailto:${SUPPORT_EMAIL}`} className="text-brand hover:underline">{SUPPORT_EMAIL}</a>.
       </>
     ),
   },
@@ -126,7 +126,7 @@ const SECTIONS = [
     outro: (
       <>
         Refunds are issued to the original payment method within{" "}
-        <b className="text-[#ff4500]">3–5 business days</b> of receiving the
+        <b className="text-brand">3–5 business days</b> of receiving the
         returned item in its original condition.
       </>
     ),
@@ -173,7 +173,7 @@ const SECTIONS = [
     title: "Order Processing & Fulfillment",
     intro: (
       <>
-        Most in-stock items ship within <b className="text-[#ff4500]">1–3 business days</b>. Custom and made-to-order
+        Most in-stock items ship within <b className="text-brand">1–3 business days</b>. Custom and made-to-order
         items have longer production windows — estimated times are listed on
         each product page.
       </>
@@ -217,7 +217,7 @@ const SECTIONS = [
         Payment is charged at the time of purchase. For custom orders, full
         payment is due upfront before production begins. For large commercial
         orders or wholesale inquiries, net-30 payment terms may be available
-        — contact <a href={`mailto:${SUPPORT_EMAIL}`} className="text-[#ff4500] hover:underline">{SUPPORT_EMAIL}</a> to discuss options.
+        — contact <a href={`mailto:${SUPPORT_EMAIL}`} className="text-brand hover:underline">{SUPPORT_EMAIL}</a> to discuss options.
       </>
     ),
   },
@@ -421,7 +421,7 @@ const SECTIONS = [
         text: (
           <>
             If you believe content on Crafters Market infringes your
-            copyright, send a DMCA notice to <a href={`mailto:${SUPPORT_EMAIL}`} className="text-[#ff4500] hover:underline">{SUPPORT_EMAIL}</a>{" "}
+            copyright, send a DMCA notice to <a href={`mailto:${SUPPORT_EMAIL}`} className="text-brand hover:underline">{SUPPORT_EMAIL}</a>{" "}
             with: (1) your contact info, (2) a description of the work
             infringed, (3) the URL of the allegedly infringing listing, (4) a
             good-faith statement, and (5) your physical or electronic
@@ -482,7 +482,7 @@ const SECTIONS = [
       text: (
         <>
           If you have an issue with an order, please contact us at{" "}
-          <a href={`mailto:${SUPPORT_EMAIL}`} className="text-[#ff4500] hover:underline">{SUPPORT_EMAIL}</a>{" "}
+          <a href={`mailto:${SUPPORT_EMAIL}`} className="text-brand hover:underline">{SUPPORT_EMAIL}</a>{" "}
           before filing a chargeback. We resolve the vast majority of disputes
           directly with the maker within 5 business days.
         </>
@@ -499,16 +499,16 @@ function Callout({ data }) {
   const cls =
     data.tone === "warn"
       ? "border-amber-700/40 bg-amber-500/5"
-      : "border-[#262626] bg-[#0d0d0d]";
+      : "border-line bg-paper";
   return (
     <div className={`border ${cls} p-4 my-5 flex gap-3 items-start`}>
       {Icon && (
         <Icon
           size={16}
-          className={`flex-shrink-0 mt-0.5 ${data.tone === "warn" ? "text-amber-400" : "text-[#ff4500]"}`}
+          className={`flex-shrink-0 mt-0.5 ${data.tone === "warn" ? "text-amber-400" : "text-brand"}`}
         />
       )}
-      <div className="font-mono text-xs leading-relaxed text-[#d4d4d4]">
+      <div className="font-mono text-xs leading-relaxed text-ink">
         {data.text}
       </div>
     </div>
@@ -527,7 +527,7 @@ function PolicySection({ section, isOpen, onToggle }) {
       // top-of-element on hash-jump, so we keep the wrapper id-bound
       // (the page-level useEffect also force-opens this section).
       id={section.id}
-      className={`border ${isOpen ? "border-[#ff4500]/40" : "border-[#262626]"} transition-colors scroll-mt-32`}
+      className={`border ${isOpen ? "border-brand/40" : "border-line"} transition-colors scroll-mt-32`}
       data-testid={`policy-section-${section.id}`}
     >
       {/* iter318a — alias anchors: footer links to /policy#buyer-protection
@@ -541,14 +541,14 @@ function PolicySection({ section, isOpen, onToggle }) {
         type="button"
         onClick={onToggle}
         aria-expanded={isOpen}
-        className="w-full flex items-center gap-4 p-5 md:p-6 text-left hover:bg-[#0f0f0f] transition"
+        className="w-full flex items-center gap-4 p-5 md:p-6 text-left hover:bg-paper transition"
         data-testid={`policy-toggle-${section.id}`}
       >
         <span
           className={`w-10 h-10 flex items-center justify-center flex-shrink-0 border ${
             isOpen
-              ? "bg-[#ff4500] text-[#0a0a0a] border-[#ff4500]"
-              : "bg-[#1a1a1a] text-[#ff4500] border-[#262626]"
+              ? "bg-brand text-[#0a0a0a] border-brand"
+              : "bg-surface text-brand border-line"
           }`}
         >
           <Icon size={18} />
@@ -558,14 +558,14 @@ function PolicySection({ section, isOpen, onToggle }) {
         </span>
         <ChevronDown
           size={20}
-          className={`flex-shrink-0 text-[#a3a3a3] transition-transform ${isOpen ? "rotate-180" : ""}`}
+          className={`flex-shrink-0 text-ink-muted transition-transform ${isOpen ? "rotate-180" : ""}`}
         />
       </button>
 
       {isOpen && (
         <div className="px-5 md:px-6 pb-6 md:pb-8 pt-0 space-y-5">
           {section.intro && (
-            <p className="font-mono text-sm text-[#d4d4d4] leading-relaxed">
+            <p className="font-mono text-sm text-ink leading-relaxed">
               {section.intro}
             </p>
           )}
@@ -573,22 +573,22 @@ function PolicySection({ section, isOpen, onToggle }) {
           {(section.blocks || []).map((block, i) => (
             <div key={i} className="space-y-3">
               {block.heading && (
-                <h4 className="font-display text-base uppercase tracking-[0.02em] text-[#e5e5e5]">
+                <h4 className="font-display text-base uppercase tracking-[0.02em] text-ink">
                   {block.heading}
                 </h4>
               )}
               {block.text && (
-                <p className="font-mono text-sm text-[#d4d4d4] leading-relaxed">
+                <p className="font-mono text-sm text-ink leading-relaxed">
                   {block.text}
                 </p>
               )}
               {block.list && (
                 <ul className="space-y-2 font-mono text-sm">
                   {block.list.map(([k, v], j) => (
-                    <li key={j} className="flex gap-3 text-[#d4d4d4]">
-                      <span className="text-[#ff4500] mt-1">▪</span>
+                    <li key={j} className="flex gap-3 text-ink">
+                      <span className="text-brand mt-1">▪</span>
                       <span>
-                        <b className="text-[#e5e5e5]">{k}</b> {v}
+                        <b className="text-ink">{k}</b> {v}
                       </span>
                     </li>
                   ))}
@@ -597,8 +597,8 @@ function PolicySection({ section, isOpen, onToggle }) {
               {block.bullets && (
                 <ul className="space-y-2 font-mono text-sm">
                   {block.bullets.map((b, j) => (
-                    <li key={j} className="flex gap-3 text-[#d4d4d4]">
-                      <span className="text-[#ff4500] mt-1">▪</span>
+                    <li key={j} className="flex gap-3 text-ink">
+                      <span className="text-brand mt-1">▪</span>
                       <span>{b}</span>
                     </li>
                   ))}
@@ -610,7 +610,7 @@ function PolicySection({ section, isOpen, onToggle }) {
           {section.callout && <Callout data={section.callout} />}
 
           {section.outro && (
-            <p className="font-mono text-sm text-[#d4d4d4] leading-relaxed">
+            <p className="font-mono text-sm text-ink leading-relaxed">
               {section.outro}
             </p>
           )}
@@ -672,23 +672,23 @@ export default function PolicyPage() {
     <div className="pt-32 pb-24 grain min-h-screen" data-testid="policy-page">
       <div className="w-full max-w-[1100px] mx-auto px-4 md:px-8">
         <header className="mb-12 md:mb-16">
-          <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#ff4500] mb-3">
+          <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand mb-3">
             ◆ Policies
           </div>
           <h1 className="font-display text-5xl md:text-6xl lg:text-7xl leading-[0.92] tracking-[-0.01em] mb-5">
             Site Policies
           </h1>
-          <p className="font-mono text-sm md:text-base text-[#a3a3a3] max-w-2xl leading-relaxed">
+          <p className="font-mono text-sm md:text-base text-ink-muted max-w-2xl leading-relaxed">
             The full operating manual for buying and selling on Crafters
             Market. Each section opens to its full text — please read the ones
             relevant to your transaction. By using this site you agree to all
-            policies below. Last updated <span className="text-[#e5e5e5]">April 2026</span>.
+            policies below. Last updated <span className="text-ink">April 2026</span>.
           </p>
           <div className="inline-flex items-center gap-2 mt-5 px-3 py-1.5 border border-amber-700/40 bg-amber-500/5">
             <span className="font-mono text-[10px] uppercase tracking-[0.28em] text-amber-400">
               ◆ Beta v1
             </span>
-            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
               · Pending legal review
             </span>
           </div>
@@ -706,17 +706,17 @@ export default function PolicyPage() {
         </div>
 
         {/* Contact footer */}
-        <div className="border border-[#262626] mt-12 p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center gap-5 md:gap-8">
-          <span className="w-12 h-12 flex items-center justify-center bg-[#1a1a1a] text-[#ff4500] border border-[#262626] flex-shrink-0">
+        <div className="border border-line mt-12 p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center gap-5 md:gap-8">
+          <span className="w-12 h-12 flex items-center justify-center bg-surface text-brand border border-line flex-shrink-0">
             <Mail size={20} />
           </span>
           <div className="flex-1">
             <div className="font-display text-2xl tracking-[-0.005em]">
               Question we didn't answer?
             </div>
-            <p className="font-mono text-xs text-[#a3a3a3] mt-1 leading-relaxed">
+            <p className="font-mono text-xs text-ink-muted mt-1 leading-relaxed">
               Email us at{" "}
-              <a href={`mailto:${SUPPORT_EMAIL}`} className="text-[#ff4500] hover:underline">
+              <a href={`mailto:${SUPPORT_EMAIL}`} className="text-brand hover:underline">
                 {SUPPORT_EMAIL}
               </a>{" "}
               and we'll respond within 1 business day. For urgent

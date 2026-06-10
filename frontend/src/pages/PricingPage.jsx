@@ -84,7 +84,7 @@ export default function PricingPage() {
   };
 
   return (
-    <div className="bg-[#0a0a0a] text-[#f5f5f5] min-h-screen">
+    <div className="bg-paper text-ink min-h-screen">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
@@ -92,18 +92,18 @@ export default function PricingPage() {
 
       {/* Hero */}
       <section className="max-w-5xl mx-auto px-6 py-16 md:py-24">
-        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-4">
+        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-4">
           ◆ Pricing
         </div>
         <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl leading-[1.05] mb-6">
           What it actually costs to sell here.
         </h1>
-        <p className="font-mono text-base md:text-lg text-[#a3a3a3] max-w-3xl leading-relaxed mb-3">
-          No monthly fees. No per-listing fees. <span className="text-[#ff4500]">3% transaction
+        <p className="font-mono text-base md:text-lg text-ink-muted max-w-3xl leading-relaxed mb-3">
+          No monthly fees. No per-listing fees. <span className="text-brand">3% transaction
           for life</span> if you join the founder cohort. Below: a line-for-line breakdown vs
           Etsy, Shopify, Amazon Handmade, and Faire — with citations.
         </p>
-        <p className="font-mono text-xs text-[#737373] max-w-3xl leading-relaxed">
+        <p className="font-mono text-xs text-ink-muted max-w-3xl leading-relaxed">
           Updated {new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" })}.
         </p>
       </section>
@@ -127,16 +127,16 @@ export default function PricingPage() {
           {FAQ.map((f, i) => (
             <details
               key={f.q}
-              className="border border-[#262626] p-4 md:p-5 group"
+              className="border border-line p-4 md:p-5 group"
               data-testid={`pricing-faq-${i}`}
             >
               <summary className="font-display text-lg md:text-xl cursor-pointer list-none flex items-start justify-between gap-4">
                 <span>{f.q}</span>
-                <span className="font-mono text-[#525252] group-open:rotate-45 transition-transform text-2xl leading-none shrink-0">
+                <span className="font-mono text-ink-muted group-open:rotate-45 transition-transform text-2xl leading-none shrink-0">
                   +
                 </span>
               </summary>
-              <p className="font-mono text-sm text-[#a3a3a3] mt-3 leading-relaxed">{f.a}</p>
+              <p className="font-mono text-sm text-ink-muted mt-3 leading-relaxed">{f.a}</p>
             </details>
           ))}
         </div>
@@ -144,33 +144,33 @@ export default function PricingPage() {
 
       {/* CTA */}
       <section className="max-w-5xl mx-auto px-6 pb-24">
-        <div className="border border-[#ff4500] p-6 md:p-10 bg-gradient-to-br from-[#ff4500]/5 to-transparent">
-          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-3">
+        <div className="border border-brand p-6 md:p-10 bg-gradient-to-br from-[#ff4500]/5 to-transparent">
+          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-3">
             ◆ Ready to apply?
           </div>
           <h2 className="font-display text-3xl md:text-4xl mb-3">Lock in founder pricing.</h2>
-          <p className="font-mono text-sm text-[#a3a3a3] max-w-2xl mb-6 leading-relaxed">
+          <p className="font-mono text-sm text-ink-muted max-w-2xl mb-6 leading-relaxed">
             Apply once. We review applications by hand within 48 hours. Approved makers join the
             founder cohort with 3% transaction pricing for life and dedicated onboarding.
           </p>
           <div className="flex flex-wrap gap-3">
             <Link
               to="/apply"
-              className="inline-flex items-center px-5 py-3 bg-[#ff4500] text-[#0a0a0a] font-mono text-[11px] uppercase tracking-[0.22em] hover:bg-orange-400 transition"
+              className="inline-flex items-center px-5 py-3 bg-brand text-[#0a0a0a] font-mono text-[11px] uppercase tracking-[0.22em] hover:bg-orange-400 transition"
               data-testid="pricing-cta-apply"
             >
               Apply now →
             </Link>
             <Link
               to="/shop"
-              className="inline-flex items-center px-5 py-3 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em] transition"
+              className="inline-flex items-center px-5 py-3 border border-line hover:border-brand hover:text-brand font-mono text-[11px] uppercase tracking-[0.22em] transition"
               data-testid="pricing-cta-shop"
             >
               Browse the marketplace
             </Link>
             <Link
               to="/founders"
-              className="inline-flex items-center px-5 py-3 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em] transition"
+              className="inline-flex items-center px-5 py-3 border border-line hover:border-brand hover:text-brand font-mono text-[11px] uppercase tracking-[0.22em] transition"
               data-testid="pricing-cta-founders"
             >
               See founder slots remaining

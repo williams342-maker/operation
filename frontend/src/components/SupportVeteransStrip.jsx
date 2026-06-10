@@ -18,7 +18,7 @@ import { ArrowRight } from "lucide-react";
 export default function SupportVeteransStrip() {
   return (
     <section
-      className="relative isolate overflow-hidden border-b border-[#1f1f1f] bg-gradient-to-r from-[#0a0e1c] via-[#0d1126] to-[#0a0e1c] pt-[calc(var(--beta-banner-h,0px)+96px)]"
+      className="relative isolate overflow-hidden border-b border-line bg-gradient-to-r from-[#0a0e1c] via-[#0d1126] to-[#0a0e1c] pt-[calc(var(--beta-banner-h,0px)+96px)]"
       data-testid="support-veterans-strip"
     >
       {/* Subtle striped backdrop (American flag stripe motif) */}
@@ -52,7 +52,7 @@ export default function SupportVeteransStrip() {
           <div className="font-mono text-[9px] md:text-[10px] uppercase tracking-[0.3em] text-[#b22234]">
             ◆ Crafters Market salutes
           </div>
-          <h2 className="font-display text-sm md:text-lg uppercase leading-tight text-white truncate inline-flex items-center gap-2">
+          <h2 className="font-display text-sm md:text-lg uppercase leading-tight text-ink truncate inline-flex items-center gap-2">
             <span className="border-b border-transparent group-hover:border-[#b22234] transition-colors">
               Support our <span className="text-[#b22234]">Veteran-Owned</span> Makers.
             </span>

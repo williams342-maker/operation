@@ -1,3 +1,51 @@
+## 2026-06-10 — Phase C of light-theme redesign: Cart + Checkout + Auth + Footer + secondary pages (iter351)
+
+User: "Phase C (next): Cart + Checkout + Auth + Footer + secondary marketing pages (apply, pricing, about, policy)."
+
+### Files swept (token replacement — preserves all logic + data-testids)
+| File | Lines changed |
+|---|---|
+| `pages/CartPage.jsx` | 44 |
+| `pages/CheckoutSuccess.jsx` | 17 |
+| `pages/SignInPage.jsx` | 41 |
+| `pages/CommunityAuth.jsx` | 20 |
+| `pages/AdminVerify.jsx` | 2 |
+| `pages/MakerVerify.jsx` | 2 |
+| `pages/ApplyPage.jsx` | 14 |
+| `pages/PricingPage.jsx` | 14 |
+| `pages/PolicyPage.jsx` | 34 |
+| `components/sections/Footer.jsx` | 34 |
+| `components/sections/Nav.jsx` | 46 |
+| `components/SupportVeteransStrip.jsx` | 1 |
+| `components/BetaBanner.jsx` | 13 |
+| `components/AiDiscoverySearch.jsx` | 21 |
+| `components/PricingComparisonTable.jsx` | 18 |
+| `components/MakerFeeTable.jsx` | 7 |
+| `components/sections/ActivityTicker.jsx` | sweep |
+| `components/CookieBanner.jsx` | sweep |
+| `components/PolicyConsent.jsx` | sweep |
+**Total: ~340 lines changed across 19 files.**
+
+### Token map (same as Phase B + added these)
+- `bg-black/XX`, `bg-black` → `bg-paper`
+- `text-white`, `text-black` → `text-ink`
+- `border-black`, `border-[#0a0a0a]` → `border-line`
+- Plus all the Phase B mappings.
+
+### Smoke tests (live preview)
+- ✅ Sign-in (`/signin`): "WELCOME BACK." display heading in ink black, brand-orange "SIGN IN" eyebrow + "SEND MAGIC LINK" CTA, role tab borders & nav properly tokenized
+- ✅ Cart (`/cart`): "YOUR PILE" outline+filled display heading reads correctly on cream bg, "BROWSE THE SHOP →" CTA in brand orange, ActivityTicker now light cream
+- ✅ Homepage: hero + trust strip + footer all reading correctly in light mode
+- ✅ Lint clean on Nav.jsx; pre-existing warnings on Footer, CartPage, CookieBanner unchanged
+
+### What's left for Phase D + E
+- Maker dashboard (sidebar nav, products list, orders, settings, ads ROAS, leaderboard, AI digest) — Phase D
+- Admin console (30+ tabs incl. AdsTab/Workshop/SitePromos/PromoteThemes/etc.) — Phase E
+- Final pass on any remaining hardcoded darks in below-hero home sections (FeaturedBuildsRail, CinematicMomentsStrip, ProductRail, etc.)
+
+---
+
+
 ## 2026-06-10 — Phase B of light-theme redesign: Shop + PDP + Maker pages (iter350)
 
 User: "Phase B: Shop catalog + Product detail + Maker profile pages."

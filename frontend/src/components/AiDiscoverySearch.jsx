@@ -75,7 +75,7 @@ export default function AiDiscoverySearch({ testId = "home-ai-discovery", compac
 
   return (
     <section
-      className={`w-full ${compact ? "py-8 md:py-10" : "py-14 md:py-20"} bg-[#0a0a0a] ${compact ? "" : "border-b border-amber-900/20"} relative overflow-hidden`}
+      className={`w-full ${compact ? "py-8 md:py-10" : "py-14 md:py-20"} bg-paper ${compact ? "" : "border-b border-amber-900/20"} relative overflow-hidden`}
       data-testid={testId}
     >
       {/* Soft copper/orange ambient glow — signals the "smart" surface
@@ -83,13 +83,13 @@ export default function AiDiscoverySearch({ testId = "home-ai-discovery", compac
           orange dual-glow with a Forge-palette copper-only setup. */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[70%] h-[60%] bg-amber-500 opacity-[0.05] blur-[120px] rounded-full" />
-        <div className="absolute top-1/3 left-1/4 w-[35%] h-[40%] bg-[#ff4500] opacity-[0.06] blur-[100px] rounded-full" />
+        <div className="absolute top-1/3 left-1/4 w-[35%] h-[40%] bg-brand opacity-[0.06] blur-[100px] rounded-full" />
       </div>
 
       <div className={`w-full ${compact ? "max-w-[1100px]" : "max-w-[1100px]"} mx-auto px-4 md:px-8 relative z-10`}>
         <div className={`text-center ${compact ? "mb-4" : "mb-6"}`}>
-          <div className={`font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] ${compact ? "mb-1" : "mb-3"} inline-flex items-center gap-2 justify-center`}>
-            <Sparkles size={12} className="text-[#ff4500]" />
+          <div className={`font-mono text-[11px] uppercase tracking-[0.3em] text-brand ${compact ? "mb-1" : "mb-3"} inline-flex items-center gap-2 justify-center`}>
+            <Sparkles size={12} className="text-brand" />
             ◆ AI Discovery · Beta
           </div>
           {!compact && (
@@ -97,7 +97,7 @@ export default function AiDiscoverySearch({ testId = "home-ai-discovery", compac
               <h2 className="font-display text-3xl md:text-5xl lg:text-6xl mb-3">
                 Describe what you want.
               </h2>
-              <p className="font-mono text-[12px] text-[#a3a3a3] max-w-xl mx-auto">
+              <p className="font-mono text-[12px] text-ink-muted max-w-xl mx-auto">
                 Plain language. No filters to click. Tell us the piece you have in your head —
                 our AI scans the catalog and surfaces the closest matches with a one-line reason for each.
               </p>
@@ -111,22 +111,22 @@ export default function AiDiscoverySearch({ testId = "home-ai-discovery", compac
         </div>
 
         <form onSubmit={handleSubmit} className="relative mb-4" data-testid={`${testId}-form`}>
-          <div className="flex items-center border border-[#262626] focus-within:border-[#ff4500] transition-colors bg-[#0e0e0e]">
-            <Sparkles size={16} className="text-[#ff4500] ml-4 flex-shrink-0" />
+          <div className="flex items-center border border-line focus-within:border-brand transition-colors bg-[#0e0e0e]">
+            <Sparkles size={16} className="text-brand ml-4 flex-shrink-0" />
             <input
               ref={inputRef}
               type="text"
               value={q}
               onChange={(e) => { setQ(e.target.value); setError(""); }}
               placeholder={q ? "" : EXAMPLE_QUERIES[phIdx]}
-              className="flex-1 bg-transparent px-4 py-4 md:py-5 text-base md:text-lg font-display placeholder:text-[#525252] focus:outline-none"
+              className="flex-1 bg-transparent px-4 py-4 md:py-5 text-base md:text-lg font-display placeholder:text-ink-muted focus:outline-none"
               maxLength={300}
               data-testid={`${testId}-input`}
             />
             <button
               type="submit"
               disabled={busy || q.trim().length < 3}
-              className="m-1 px-4 py-3 md:px-5 md:py-3 bg-[#ff4500] hover:bg-[#ff6533] disabled:opacity-40 disabled:cursor-not-allowed text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-2 transition"
+              className="m-1 px-4 py-3 md:px-5 md:py-3 bg-brand hover:bg-[#ff6533] disabled:opacity-40 disabled:cursor-not-allowed text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-2 transition"
               data-testid={`${testId}-submit`}
             >
               {busy ? <Loader2 size={14} className="animate-spin" /> : <ArrowRight size={14} />}
@@ -146,7 +146,7 @@ export default function AiDiscoverySearch({ testId = "home-ai-discovery", compac
               <button
                 key={ex}
                 onClick={() => handleExampleClick(ex)}
-                className="px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] text-[#a3a3a3] font-mono text-[10px] uppercase tracking-[0.18em] transition"
+                className="px-3 py-1.5 border border-line hover:border-brand hover:text-brand text-ink-muted font-mono text-[10px] uppercase tracking-[0.18em] transition"
               >
                 {ex}
               </button>
@@ -167,16 +167,16 @@ export default function AiDiscoverySearch({ testId = "home-ai-discovery", compac
               data-testid={`${testId}-results`}
             >
               {results.length === 0 ? (
-                <div className="text-center py-10 border border-[#262626]" data-testid={`${testId}-empty`}>
-                  <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#a3a3a3] mb-2">◇ Nothing matched</div>
-                  <p className="text-[#737373] text-sm">
+                <div className="text-center py-10 border border-line" data-testid={`${testId}-empty`}>
+                  <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-ink-muted mb-2">◇ Nothing matched</div>
+                  <p className="text-ink-muted text-sm">
                     Try a different angle — material ("walnut"), use case ("wedding gift"),
                     or a style word ("rustic", "industrial", "modern").
                   </p>
                 </div>
               ) : (
                 <>
-                  <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-5 text-center">
+                  <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted mb-5 text-center">
                     ◆ {results.length} match{results.length === 1 ? "" : "es"} for &quot;{q}&quot;
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -200,7 +200,7 @@ function ResultCard({ p, i, testId }) {
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: i * 0.06, duration: 0.4 }}
-      className="bg-[#121212] border border-[#262626] hover:border-[#ff4500] transition-colors duration-500 flex flex-col"
+      className="bg-surface border border-line hover:border-brand transition-colors duration-500 flex flex-col"
       data-testid={testId}
     >
       <Link to={`/shop/${p.slug}`} className="block group">
@@ -212,32 +212,32 @@ function ResultCard({ p, i, testId }) {
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
           {p.featured_example && (
-            <span className="tag absolute top-2 left-2 text-amber-300 border-amber-400/70 bg-black/70 text-[9px]">
+            <span className="tag absolute top-2 left-2 text-amber-300 border-amber-400/70 bg-paper/70 text-[9px]">
               ✦ EXAMPLE
             </span>
           )}
-          <span className="tag absolute top-2 right-2 text-[#ff4500] border-[#ff4500] bg-black/70 text-[9px]">
+          <span className="tag absolute top-2 right-2 text-brand border-brand bg-paper/70 text-[9px]">
             {p.technique}
           </span>
         </div>
         <div className="p-4">
           <div className="font-display text-lg leading-tight line-clamp-2 mb-1">{p.title}</div>
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#737373] mb-3">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-3">
             {p.category} · ${p.price?.toFixed(0)}
           </div>
           {p.match_reason && (
             <div
-              className="border-l-2 border-[#ff4500] pl-3 mb-3 text-[12px] text-[#a3a3a3] leading-relaxed italic"
+              className="border-l-2 border-brand pl-3 mb-3 text-[12px] text-ink-muted leading-relaxed italic"
               data-testid={`${testId}-reason`}
             >
-              <span className="text-[#ff4500] font-mono text-[9px] uppercase tracking-[0.22em] not-italic block mb-1">
+              <span className="text-brand font-mono text-[9px] uppercase tracking-[0.22em] not-italic block mb-1">
                 ◆ Why this matches
               </span>
               {p.match_reason}
             </div>
           )}
-          <div className="flex items-center justify-end pt-2 border-t border-[#262626]">
-            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] inline-flex items-center gap-1 group-hover:gap-2 transition-all">
+          <div className="flex items-center justify-end pt-2 border-t border-line">
+            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand inline-flex items-center gap-1 group-hover:gap-2 transition-all">
               View listing <ArrowUpRight size={12} />
             </span>
           </div>

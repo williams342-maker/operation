@@ -126,19 +126,19 @@ export default function Nav() {
       transition={{ duration: 0.7, ease: [0.22, 0.61, 0.36, 1] }}
       style={{ top: "var(--beta-banner-h, 0px)" }}
       className={`fixed left-0 right-0 z-50 transition-colors duration-500 ${
-        scrolled ? "bg-black/85 backdrop-blur-xl border-b border-[#262626]" : "bg-black/40 backdrop-blur-sm"
+        scrolled ? "bg-paper/85 backdrop-blur-xl border-b border-line" : "bg-paper/40 backdrop-blur-sm"
       }`}
       data-testid="site-nav"
     >
       <ActivityTicker />
       <div className="w-full max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12 flex items-center justify-between py-4">
         <Link to="/" className="flex items-center gap-3 group" data-testid="nav-logo">
-          <div className="w-9 h-9 border border-[#ff4500] flex items-center justify-center">
-            <span className="font-display text-[#ff4500] text-xl">CM</span>
+          <div className="w-9 h-9 border border-brand flex items-center justify-center">
+            <span className="font-display text-brand text-xl">CM</span>
           </div>
           <div className="hidden sm:flex flex-col leading-none">
             <span className="font-display text-lg tracking-wide">Crafters Market</span>
-            <span className="font-mono text-[10px] text-[#a3a3a3] tracking-[0.25em] uppercase mt-1">
+            <span className="font-mono text-[10px] text-ink-muted tracking-[0.25em] uppercase mt-1">
               EST · 2026
             </span>
           </div>
@@ -178,7 +178,7 @@ export default function Nav() {
           ) : (
             <Link
               to={accountHref}
-              className="hidden sm:inline-flex relative items-center gap-2 px-4 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em] transition"
+              className="hidden sm:inline-flex relative items-center gap-2 px-4 py-2 border border-line hover:border-brand font-mono text-[11px] uppercase tracking-[0.22em] transition"
               data-testid="nav-signin-btn"
             >
               <User size={14} /> {signedInRole ? "Account" : "Sign in"}
@@ -187,19 +187,19 @@ export default function Nav() {
           <ThemeToggle className="hidden sm:inline-flex" />
           <Link
             to="/cart"
-            className="relative inline-flex items-center gap-2 px-4 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em] transition"
+            className="relative inline-flex items-center gap-2 px-4 py-2 border border-line hover:border-brand font-mono text-[11px] uppercase tracking-[0.22em] transition"
             data-testid="nav-cart-btn"
           >
             <ShoppingBag size={14} /> Cart
             {count > 0 && (
-              <span className="ml-1 bg-[#ff4500] text-white text-[10px] font-mono px-1.5 py-0.5">
+              <span className="ml-1 bg-brand text-ink text-[10px] font-mono px-1.5 py-0.5">
                 {count}
               </span>
             )}
           </Link>
           <button
             onClick={() => setOpen(true)}
-            className="lg:hidden p-2 border border-[#262626] hover:border-[#ff4500] transition"
+            className="lg:hidden p-2 border border-line hover:border-brand transition"
             aria-label="Open menu"
             data-testid="nav-mobile-open"
           >
@@ -215,10 +215,10 @@ export default function Nav() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[100] bg-black flex flex-col"
+              className="fixed inset-0 z-[100] bg-paper flex flex-col"
               data-testid="mobile-menu"
             >
-            <div className="flex justify-between items-center px-6 py-5 border-b border-[#262626] shrink-0">
+            <div className="flex justify-between items-center px-6 py-5 border-b border-line shrink-0">
               <span className="font-display text-2xl">Crafters Market</span>
               <button onClick={() => setOpen(false)} aria-label="Close menu" data-testid="nav-mobile-close">
                 <X size={24} />
@@ -238,10 +238,10 @@ export default function Nav() {
                 <Link
                   to={accountHref}
                   onClick={() => setOpen(false)}
-                  className="font-display text-3xl sm:text-4xl block hover:text-[#ff4500] transition flex items-center gap-3"
+                  className="font-display text-3xl sm:text-4xl block hover:text-brand transition flex items-center gap-3"
                   data-testid="mobile-nav-signin"
                 >
-                  <User size={22} className="text-[#ff4500]" />
+                  <User size={22} className="text-brand" />
                   {signedInRole ? "Account" : "Sign in"}
                 </Link>
               </motion.li>
@@ -272,7 +272,7 @@ export default function Nav() {
                     to={l.href}
                     onClick={() => setOpen(false)}
                     className={`font-display text-3xl sm:text-4xl block transition ${
-                      l.highlight ? "text-[#00ffff] hover:text-[#ff4500]" : "hover:text-[#ff4500]"
+                      l.highlight ? "text-[#00ffff] hover:text-brand" : "hover:text-brand"
                     }`}
                     data-testid={`mobile-nav-link-${l.label.toLowerCase().replace(/\s/g, "-")}`}
                   >
@@ -315,8 +315,8 @@ function DesktopNav() {
         <Link
           key={l.href}
           to={l.href}
-          className={`industrial-link font-mono text-xs uppercase tracking-[0.22em] hover:text-[#ff4500] inline-flex items-center gap-1.5 ${
-            l.accent === "cyan" ? "text-[#00ffff]" : "text-[#e5e5e5]"
+          className={`industrial-link font-mono text-xs uppercase tracking-[0.22em] hover:text-brand inline-flex items-center gap-1.5 ${
+            l.accent === "cyan" ? "text-[#00ffff]" : "text-ink"
           }`}
           data-testid={`nav-link-${l.label.toLowerCase().replace(/\s/g, "-")}`}
         >
@@ -340,7 +340,7 @@ function DesktopNav() {
       >
         <Link
           to="/community"
-          className="industrial-link font-mono text-xs uppercase tracking-[0.22em] text-[#e5e5e5] hover:text-[#ff4500] inline-flex items-center gap-1"
+          className="industrial-link font-mono text-xs uppercase tracking-[0.22em] text-ink hover:text-brand inline-flex items-center gap-1"
           data-testid="nav-link-community"
           onFocus={handleOpen}
         >
@@ -355,19 +355,19 @@ function DesktopNav() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 8 }}
               transition={{ duration: 0.18, ease: [0.22, 0.61, 0.36, 1] }}
-              className="absolute left-1/2 -translate-x-1/2 top-full mt-3 w-[680px] bg-[#0a0a0a] border border-[#262626] shadow-[0_20px_40px_-10px_rgba(0,0,0,0.8)] z-50"
+              className="absolute left-1/2 -translate-x-1/2 top-full mt-3 w-[680px] bg-paper border border-line shadow-[0_20px_40px_-10px_rgba(0,0,0,0.8)] z-50"
               role="menu"
               data-testid="nav-community-menu"
             >
               {/* Decorative chevron pointing back at the trigger */}
               <div
                 aria-hidden="true"
-                className="absolute -top-[5px] left-1/2 -translate-x-1/2 w-2 h-2 bg-[#0a0a0a] border-l border-t border-[#262626] rotate-45"
+                className="absolute -top-[5px] left-1/2 -translate-x-1/2 w-2 h-2 bg-paper border-l border-t border-line rotate-45"
               />
-              <div className="grid grid-cols-2 divide-x divide-[#262626]">
+              <div className="grid grid-cols-2 divide-x divide-line">
                 {/* LEFT — navigation links */}
                 <div className="p-3">
-                  <div className="font-mono text-[9px] uppercase tracking-[0.32em] text-[#737373] px-3 pt-1 pb-2">
+                  <div className="font-mono text-[9px] uppercase tracking-[0.32em] text-ink-muted px-3 pt-1 pb-2">
                     ◆ Browse
                   </div>
                   <ul>
@@ -375,14 +375,14 @@ function DesktopNav() {
                       <li key={item.href}>
                         <Link
                           to={item.href}
-                          className="block px-3 py-2.5 hover:bg-[#171717] transition group"
+                          className="block px-3 py-2.5 hover:bg-surface transition group"
                           data-testid={`nav-community-${item.label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`}
                         >
                           <div
                             className={`font-mono text-[11px] uppercase tracking-[0.22em] flex items-center gap-2 ${
                               item.accent === "cyan"
-                                ? "text-[#00ffff] group-hover:text-[#ff4500]"
-                                : "text-[#e5e5e5] group-hover:text-[#ff4500]"
+                                ? "text-[#00ffff] group-hover:text-brand"
+                                : "text-ink group-hover:text-brand"
                             }`}
                           >
                             {item.label}
@@ -396,7 +396,7 @@ function DesktopNav() {
                             )}
                             <ArrowUpRight size={11} className="opacity-0 group-hover:opacity-100 transition-opacity" />
                           </div>
-                          <div className="font-mono text-[10px] text-[#737373] mt-0.5">
+                          <div className="font-mono text-[10px] text-ink-muted mt-0.5">
                             {item.blurb}
                           </div>
                         </Link>
@@ -407,7 +407,7 @@ function DesktopNav() {
 
                 {/* RIGHT — live "what's hot" cards */}
                 <div className="p-3">
-                  <div className="font-mono text-[9px] uppercase tracking-[0.32em] text-[#737373] px-3 pt-1 pb-2">
+                  <div className="font-mono text-[9px] uppercase tracking-[0.32em] text-ink-muted px-3 pt-1 pb-2">
                     ◆ What&apos;s hot
                   </div>
                   <MegaMenuHotPreview />
@@ -473,8 +473,8 @@ function MegaMenuHotPreview() {
   if (loading) {
     return (
       <div className="space-y-2 px-3 py-2">
-        <div className="h-16 bg-[#171717] animate-pulse" />
-        <div className="h-16 bg-[#171717] animate-pulse" />
+        <div className="h-16 bg-surface animate-pulse" />
+        <div className="h-16 bg-surface animate-pulse" />
       </div>
     );
   }
@@ -498,19 +498,19 @@ function MegaMenuHotPreview() {
           >
             <Link
               to={`/community?tab=forum&open=${thread.id}`}
-              className="block p-3 hover:bg-[#171717] transition group border border-transparent hover:border-[#262626]"
+              className="block p-3 hover:bg-surface transition group border border-transparent hover:border-line"
               data-testid="megamenu-hot-thread"
             >
               <div className="flex items-center gap-2 mb-1">
-                <MessageSquare size={12} className="text-[#ff4500]" aria-hidden="true" />
-                <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#ff4500]">
+                <MessageSquare size={12} className="text-brand" aria-hidden="true" />
+                <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-brand">
                   Forum · {thread.reply_count} repl{thread.reply_count === 1 ? "y" : "ies"}
                 </span>
               </div>
-              <div className="font-mono text-[11px] text-[#e5e5e5] group-hover:text-white leading-snug line-clamp-2">
+              <div className="font-mono text-[11px] text-ink group-hover:text-ink leading-snug line-clamp-2">
                 {thread.title}
               </div>
-              <div className="font-mono text-[9px] text-[#737373] mt-1 uppercase tracking-[0.18em]">
+              <div className="font-mono text-[9px] text-ink-muted mt-1 uppercase tracking-[0.18em]">
                 {thread.category || "general"}
               </div>
             </Link>
@@ -530,11 +530,11 @@ function MegaMenuHotPreview() {
           >
             <Link
               to={`/community?tab=showcase&open=${showcase.id}`}
-              className="flex gap-3 p-3 hover:bg-[#171717] transition group border border-transparent hover:border-[#262626]"
+              className="flex gap-3 p-3 hover:bg-surface transition group border border-transparent hover:border-line"
               data-testid="megamenu-hot-showcase"
             >
               {showcase.image_url ? (
-                <div className="w-14 h-14 shrink-0 overflow-hidden border border-[#262626] bg-[#0a0a0a]">
+                <div className="w-14 h-14 shrink-0 overflow-hidden border border-line bg-paper">
                   <img
                     src={showcase.image_url}
                     alt=""
@@ -543,8 +543,8 @@ function MegaMenuHotPreview() {
                   />
                 </div>
               ) : (
-                <div className="w-14 h-14 shrink-0 border border-[#262626] bg-[#171717] flex items-center justify-center">
-                  <Camera size={16} className="text-[#525252]" aria-hidden="true" />
+                <div className="w-14 h-14 shrink-0 border border-line bg-surface flex items-center justify-center">
+                  <Camera size={16} className="text-ink-muted" aria-hidden="true" />
                 </div>
               )}
               <div className="min-w-0 flex-1">
@@ -554,10 +554,10 @@ function MegaMenuHotPreview() {
                     Showcase
                   </span>
                 </div>
-                <div className="font-mono text-[11px] text-[#e5e5e5] group-hover:text-white leading-snug line-clamp-2">
+                <div className="font-mono text-[11px] text-ink group-hover:text-ink leading-snug line-clamp-2">
                   {showcase.title || "Untitled post"}
                 </div>
-                <div className="font-mono text-[9px] text-[#737373] mt-1 uppercase tracking-[0.18em] truncate">
+                <div className="font-mono text-[9px] text-ink-muted mt-1 uppercase tracking-[0.18em] truncate">
                   {showcase.maker_slug ? `by ${showcase.maker_slug}` : (showcase.user_name || "Member")}
                 </div>
               </div>
@@ -577,7 +577,7 @@ function MegaMenuHotPreview() {
               aria-label={`Show preview ${i + 1} of ${cycleLen}`}
               onClick={() => setIdx(i)}
               className={`h-1 transition-all duration-300 ${
-                i === idx ? "w-5 bg-[#ff4500]" : "w-2 bg-[#262626] hover:bg-[#525252]"
+                i === idx ? "w-5 bg-brand" : "w-2 bg-line hover:bg-[#525252]"
               }`}
               data-testid={`megamenu-hot-dot-${i}`}
             />
@@ -586,7 +586,7 @@ function MegaMenuHotPreview() {
       )}
 
       {!thread && !showcase && (
-        <div className="px-3 py-4 font-mono text-[10px] text-[#525252] italic">
+        <div className="px-3 py-4 font-mono text-[10px] text-ink-muted italic">
           Community starts here. Check back soon.
         </div>
       )}
@@ -630,7 +630,7 @@ function RoleSwitcher({ roles, activeRole, onSignOutAll }) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex items-center gap-2 px-4 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em] transition"
+        className="inline-flex items-center gap-2 px-4 py-2 border border-line hover:border-brand font-mono text-[11px] uppercase tracking-[0.22em] transition"
         data-testid="nav-role-switcher-btn"
         aria-expanded={open}
         aria-haspopup="menu"
@@ -642,11 +642,11 @@ function RoleSwitcher({ roles, activeRole, onSignOutAll }) {
 
       {open && (
         <div
-          className="absolute right-0 top-[calc(100%+6px)] min-w-[220px] bg-black border border-[#262626] shadow-xl z-50"
+          className="absolute right-0 top-[calc(100%+6px)] min-w-[220px] bg-paper border border-line shadow-xl z-50"
           role="menu"
           data-testid="nav-role-switcher-menu"
         >
-          <div className="px-3 py-2 border-b border-[#262626] font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252]">
+          <div className="px-3 py-2 border-b border-line font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted">
             Switch role
           </div>
           {roles.map((r) => {
@@ -659,8 +659,8 @@ function RoleSwitcher({ roles, activeRole, onSignOutAll }) {
                 key={r}
                 to={meta.href}
                 onClick={() => setOpen(false)}
-                className={`flex items-center gap-2.5 px-3 py-2.5 font-mono text-[11px] uppercase tracking-[0.22em] hover:bg-[#0d0d0d] transition ${
-                  isActive ? "bg-[#0a0a0a] text-white" : "text-[#a3a3a3]"
+                className={`flex items-center gap-2.5 px-3 py-2.5 font-mono text-[11px] uppercase tracking-[0.22em] hover:bg-paper transition ${
+                  isActive ? "bg-paper text-ink" : "text-ink-muted"
                 }`}
                 role="menuitem"
                 data-testid={`nav-role-switcher-${r}`}
@@ -668,7 +668,7 @@ function RoleSwitcher({ roles, activeRole, onSignOutAll }) {
                 <Icon size={13} style={{ color: meta.accent }} />
                 <span className="flex-1">{meta.label}</span>
                 {isActive && (
-                  <span className="font-mono text-[8px] tracking-[0.18em] text-[#525252]">◆ now</span>
+                  <span className="font-mono text-[8px] tracking-[0.18em] text-ink-muted">◆ now</span>
                 )}
               </Link>
             );
@@ -676,7 +676,7 @@ function RoleSwitcher({ roles, activeRole, onSignOutAll }) {
           <button
             type="button"
             onClick={onSignOutAll}
-            className="w-full flex items-center gap-2.5 px-3 py-2.5 border-t border-[#262626] font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] hover:bg-[#0d0d0d] transition"
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 border-t border-line font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand hover:bg-paper transition"
             data-testid="nav-role-switcher-signout"
           >
             <LogOut size={12} /> Sign out of all

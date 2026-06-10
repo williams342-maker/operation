@@ -23,6 +23,9 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - Admin: `/admin/login|verify|dashboard`
 
 ## What's Implemented (cumulative)
+- 🟡 **Light-theme redesign — Phase C (iter351, 2026-06-10):** Token sweep of Cart, CheckoutSuccess, SignIn, CommunityAuth, AdminVerify, MakerVerify, Apply, Pricing, Policy pages + Footer, Nav, BetaBanner, ActivityTicker, AiDiscoverySearch, SupportVeteransStrip, CookieBanner, PolicyConsent, PricingComparisonTable, MakerFeeTable components. ~340 lines across 19 files. Added `bg-black`/`text-white`/`border-black` patterns to the sweep. Cart "YOUR PILE" display heading verified live, sign-in welcome page verified live. Phase D (maker dashboard) + E (admin) pending.
+
+
 - 🟡 **Light-theme redesign — Phase B (iter350, 2026-06-10):** Token sweep of `ShopPage.jsx`, `ProductDetail.jsx`, `MakerDetail.jsx`, `ProductCard.jsx` — 175 hardcoded hex values → theme tokens (`bg-paper`/`bg-surface`/`text-ink`/`text-ink-muted`/`bg-brand`/`border-line`). Fixed critical `.App` wrapper in `App.css` that was forcing dark background across the whole SPA. Fixed `.text-outline` utility for cream contrast. Dark mode toggle verified working both ways. Phase C–E pending.
 
 

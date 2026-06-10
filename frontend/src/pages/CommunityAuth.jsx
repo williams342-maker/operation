@@ -62,13 +62,13 @@ export function CommunityLogin() {
   return (
     <div className="pt-40 pb-24 min-h-screen grain px-4" data-testid="community-login">
       <div className="max-w-xl mx-auto">
-        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-4">
+        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-4">
           ◆ Community Access
         </div>
         <h1 className="font-display text-[56px] md:text-[88px] leading-[0.88] mb-6 uppercase">
           Sign In.
         </h1>
-        <p className="font-mono text-sm text-[#a3a3a3] mb-10">
+        <p className="font-mono text-sm text-ink-muted mb-10">
           Join the conversation — showcase your pieces, swap design files, post in the forum,
           chat live with makers.
         </p>
@@ -77,7 +77,7 @@ export function CommunityLogin() {
         {eua && (
           <label
             className={`flex items-start gap-3 mb-6 p-4 border cursor-pointer transition ${
-              accepted ? "border-[#ff4500]" : "border-[#262626] hover:border-[#525252]"
+              accepted ? "border-brand" : "border-line hover:border-ink-muted"
             }`}
             data-testid="community-eua-row"
           >
@@ -88,13 +88,13 @@ export function CommunityLogin() {
               className="mt-1 accent-[#ff4500]"
               data-testid="community-eua-checkbox"
             />
-            <div className="font-mono text-xs text-[#e5e5e5] leading-relaxed">
+            <div className="font-mono text-xs text-ink leading-relaxed">
               I agree to the{" "}
-              <Link to={eua.links?.policy || "/policy"} target="_blank" className="text-[#ff4500] underline">
+              <Link to={eua.links?.policy || "/policy"} target="_blank" className="text-brand underline">
                 {eua.title}
               </Link>{" "}
-              <span className="text-[#525252]">(v{eua.version})</span>.
-              <div className="mt-1 text-[10px] text-[#a3a3a3] leading-snug">{eua.summary}</div>
+              <span className="text-ink-muted">(v{eua.version})</span>.
+              <div className="mt-1 text-[10px] text-ink-muted leading-snug">{eua.summary}</div>
             </div>
           </label>
         )}
@@ -102,7 +102,7 @@ export function CommunityLogin() {
         <button
           onClick={onGoogle}
           disabled={!accepted}
-          className="w-full bg-[#fff] text-black border border-[#fff] hover:bg-[#e5e5e5] py-3 px-5 font-mono text-[11px] uppercase tracking-[0.22em] flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full bg-[#fff] text-ink border border-[#fff] hover:bg-ink-muted py-3 px-5 font-mono text-[11px] uppercase tracking-[0.22em] flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
           data-testid="community-google-btn"
         >
           <svg width="18" height="18" viewBox="0 0 18 18">
@@ -115,16 +115,16 @@ export function CommunityLogin() {
         </button>
 
         <p
-          className="font-mono text-[10px] text-[#737373] mt-3 leading-relaxed"
+          className="font-mono text-[10px] text-ink-muted mt-3 leading-relaxed"
           data-testid="community-any-email-hint"
         >
           Google is optional — any email works (Outlook, Yahoo, ProtonMail, your own domain).
         </p>
 
         <div className="my-6 flex items-center gap-3">
-          <div className="flex-1 h-px bg-[#262626]" />
-          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252]">or use any email</span>
-          <div className="flex-1 h-px bg-[#262626]" />
+          <div className="flex-1 h-px bg-line" />
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">or use any email</span>
+          <div className="flex-1 h-px bg-line" />
         </div>
 
         <form onSubmit={onSubmit} className="space-y-3" data-testid="community-magic-form">
@@ -135,7 +135,7 @@ export function CommunityLogin() {
             onChange={(e) => setEmail(e.target.value)}
             disabled={state.status !== "idle" && state.status !== "error"}
             placeholder="you@example.com"
-            className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-4 py-3 font-mono text-sm text-[#e5e5e5]"
+            className="w-full bg-transparent border border-line focus:border-brand outline-none px-4 py-3 font-mono text-sm text-ink"
             data-testid="community-email"
           />
           <button
@@ -148,7 +148,7 @@ export function CommunityLogin() {
           </button>
         </form>
         {state.status === "sent" && (
-          <p className="mt-4 font-mono text-xs text-[#a3a3a3]" data-testid="community-magic-sent">
+          <p className="mt-4 font-mono text-xs text-ink-muted" data-testid="community-magic-sent">
             ◆ Check your inbox: {state.message}
           </p>
         )}
@@ -157,8 +157,8 @@ export function CommunityLogin() {
             {state.message || "Couldn't send. Try again."}
           </p>
         )}
-        <p className="mt-10 font-mono text-[11px] text-[#525252] uppercase tracking-[0.22em]">
-          Maker? <Link to="/maker/login" className="text-[#ff4500]">Sign in to your shop →</Link>
+        <p className="mt-10 font-mono text-[11px] text-ink-muted uppercase tracking-[0.22em]">
+          Maker? <Link to="/maker/login" className="text-brand">Sign in to your shop →</Link>
         </p>
       </div>
     </div>
@@ -193,13 +193,13 @@ export function CommunityVerify() {
   }, [params, navigate]);
   return (
     <div className="pt-40 pb-24 min-h-screen grain text-center px-4" data-testid="community-verify">
-      <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-4">
+      <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-4">
         ◆ {error ? "Issue" : "Verifying…"}
       </div>
       <h1 className="font-display text-[56px] md:text-[100px] leading-[0.88] mb-6 uppercase">
         {error ? "Try Again." : "Welcome."}
       </h1>
-      <p className="font-mono text-sm text-[#a3a3a3] max-w-lg mx-auto">{error || "Validating your link…"}</p>
+      <p className="font-mono text-sm text-ink-muted max-w-lg mx-auto">{error || "Validating your link…"}</p>
       {error && (
         <Link to="/community/login" className="btn-industrial btn-primary inline-flex mt-8" data-testid="community-verify-back">
           Try again →
@@ -243,13 +243,13 @@ export function CommunityAuthCallback() {
   }, [navigate]);
   return (
     <div className="pt-40 pb-24 min-h-screen grain text-center px-4" data-testid="community-auth-callback">
-      <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-4">
+      <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-4">
         ◆ {error ? "Issue" : "Signing you in…"}
       </div>
       <h1 className="font-display text-[56px] md:text-[100px] leading-[0.88] mb-6 uppercase">
         {error ? "Try Again." : "One Moment."}
       </h1>
-      <p className="font-mono text-sm text-[#a3a3a3] max-w-lg mx-auto">{error || "Talking to Google…"}</p>
+      <p className="font-mono text-sm text-ink-muted max-w-lg mx-auto">{error || "Talking to Google…"}</p>
       {error && <Link to="/community/login" className="btn-industrial btn-primary inline-flex mt-8">Back to sign-in →</Link>}
     </div>
   );

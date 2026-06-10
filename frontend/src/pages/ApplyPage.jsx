@@ -79,9 +79,9 @@ export default function ApplyPage() {
   if (settings && settings.allow_maker_applications === false) {
     return (
       <div className="pt-40 pb-24 min-h-screen text-center grain px-4" data-testid="apply-closed">
-        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-4">◆ Applications · Paused</div>
+        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-4">◆ Applications · Paused</div>
         <h1 className="font-display text-6xl md:text-8xl mb-6 leading-[0.9]">We're at <span className="text-outline-orange">capacity.</span></h1>
-        <p className="font-mono text-sm text-[#a3a3a3] max-w-md mx-auto leading-relaxed">
+        <p className="font-mono text-sm text-ink-muted max-w-md mx-auto leading-relaxed">
           {settings.applications_closed_message || "We're at capacity for new makers right now. Applications will reopen soon."}
         </p>
       </div>
@@ -90,18 +90,18 @@ export default function ApplyPage() {
 
   if (state === "done") return (
     <div className="pt-40 pb-24 min-h-screen text-center grain px-4">
-      <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-4">◆ Application Received</div>
+      <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-4">◆ Application Received</div>
       <h1 className="font-display text-6xl md:text-8xl mb-6">Welcome To The Roster.</h1>
-      <p className="font-mono text-sm text-[#a3a3a3] max-w-md mx-auto">We review every application personally. Expect a reply in 3–5 business days.</p>
+      <p className="font-mono text-sm text-ink-muted max-w-md mx-auto">We review every application personally. Expect a reply in 3–5 business days.</p>
     </div>
   );
 
   return (
     <div className="pt-32 pb-24 grain min-h-screen" data-testid="apply-page">
       <div className="w-full max-w-[1100px] mx-auto px-4 md:px-8">
-        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-4">◆ Maker Application</div>
+        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-4">◆ Maker Application</div>
         <h1 className="font-display text-[56px] md:text-[120px] leading-[0.88] mb-4">Apply To <span className="text-outline-orange">Sell</span></h1>
-        <p className="font-mono text-sm text-[#a3a3a3] max-w-xl mb-8">Approved makers only. Tell us about your shop and what you build — we'll handle storefront, payouts, and audience.</p>
+        <p className="font-mono text-sm text-ink-muted max-w-xl mb-8">Approved makers only. Tell us about your shop and what you build — we'll handle storefront, payouts, and audience.</p>
 
         {/* Transparent fee disclosure — every applicant sees exactly what
             they'll be charged BEFORE submitting. Cuts "I didn't know about
@@ -118,7 +118,7 @@ export default function ApplyPage() {
           <PricingComparisonTable />
         </div>
 
-        <form onSubmit={submit} className="grid md:grid-cols-2 gap-6 border-y border-[#262626] py-8" data-testid="apply-form" autoComplete="on">
+        <form onSubmit={submit} className="grid md:grid-cols-2 gap-6 border-y border-line py-8" data-testid="apply-form" autoComplete="on">
           {/* iter324 — Honeypot. Hidden from real users with tab/screen
               readers via aria-hidden + off-screen positioning + tabIndex=-1.
               Bots that scrape <form> elements fill everything; the server
@@ -142,36 +142,36 @@ export default function ApplyPage() {
           </div>
           {[["Your name", "name", true, "name"], ["Email", "email", true, "email"], ["Studio name", "studio_name", true, "organization"], ["City, State", "location", true, "address-level2"], ["Portfolio URL (optional)", "portfolio_url", false, "url"]].map(([label, k, req, autoComp]) => (
             <label key={k} className={`block ${k === "portfolio_url" ? "md:col-span-2" : ""}`}>
-              <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#a3a3a3]">{label}</span>
+              <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-ink-muted">{label}</span>
               <input required={req} type={k === "email" ? "email" : k === "portfolio_url" ? "url" : "text"}
                 name={k} autoComplete={autoComp}
                 value={f[k]} onChange={set(k)} data-testid={`apply-${k}`}
-                className="w-full mt-2 bg-transparent border-b border-[#262626] focus:border-[#ff4500] outline-none py-3 font-mono text-sm" />
+                className="w-full mt-2 bg-transparent border-b border-line focus:border-brand outline-none py-3 font-mono text-sm" />
             </label>
           ))}
           <div className="md:col-span-2">
-            <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#a3a3a3]">Techniques</span>
+            <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-ink-muted">Techniques</span>
             <div className="flex flex-wrap gap-2 mt-3" data-testid="apply-tech">
               {TECH.map((t) => (
                 <button type="button" key={t} onClick={() => toggle(t)}
                   className={`px-3 py-2 font-mono text-[10px] uppercase tracking-[0.2em] border transition ${
-                    f.techniques.includes(t) ? "bg-[#ff4500] border-[#ff4500] text-white" : "border-[#262626] text-[#a3a3a3] hover:border-[#ff4500]"
+                    f.techniques.includes(t) ? "bg-brand border-brand text-ink" : "border-line text-ink-muted hover:border-brand"
                   }`}>{t}</button>
               ))}
             </div>
           </div>
           <label className="md:col-span-2 block">
-            <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#a3a3a3]">About your shop</span>
+            <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-ink-muted">About your shop</span>
             <textarea required rows={5} value={f.about} onChange={set("about")} data-testid="apply-about"
               name="about" autoComplete="off"
-              className="w-full mt-2 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none p-4 font-mono text-sm resize-none" />
+              className="w-full mt-2 bg-transparent border border-line focus:border-brand outline-none p-4 font-mono text-sm resize-none" />
           </label>
           <div className="md:col-span-2 flex justify-end pt-4">
             <button type="submit" disabled={state === "sending"} data-testid="apply-submit" className="btn-industrial btn-primary">
               {state === "sending" ? "Submitting…" : "Submit Application →"}
             </button>
           </div>
-          {state === "error" && <div className="md:col-span-2 text-[#ff4500] font-mono text-xs">{errMsg || "Something went wrong. Try again."}</div>}
+          {state === "error" && <div className="md:col-span-2 text-brand font-mono text-xs">{errMsg || "Something went wrong. Try again."}</div>}
         </form>
       </div>
     </div>

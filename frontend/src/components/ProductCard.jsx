@@ -14,7 +14,7 @@ function PromotedBadge({ until, slug }) {
   if (expired) return null;
   return (
     <span
-      className="tag absolute bottom-4 left-4 text-emerald-300 border-emerald-400 bg-black/70 inline-flex items-center gap-1.5"
+      className="tag absolute bottom-4 left-4 text-emerald-300 border-emerald-400 bg-paper/70 inline-flex items-center gap-1.5"
       data-testid={`product-card-promoted-${slug}`}
     >
       <span>★ Featured</span>
@@ -71,7 +71,7 @@ export default function ProductCard({ p, i = 0 }) {
           )}
           {p.maker_is_plus && (
             <span
-              className="tag absolute top-12 left-4 text-brand border-brand bg-black/70 inline-flex items-center gap-1 text-[9px]"
+              className="tag absolute top-12 left-4 text-brand border-brand bg-paper/70 inline-flex items-center gap-1 text-[9px]"
               data-testid={`product-card-plus-${p.slug}`}
               title="Crafters Plus maker"
             >
@@ -83,7 +83,7 @@ export default function ProductCard({ p, i = 0 }) {
           )}
           {p.featured_example && (
             <span
-              className="tag absolute bottom-4 left-4 text-amber-300 border-amber-400/70 bg-black/80 text-[9px]"
+              className="tag absolute bottom-4 left-4 text-amber-300 border-amber-400/70 bg-paper/80 text-[9px]"
               data-testid={`product-card-featured-example-${p.slug}`}
               title="Platform showcase — example listing curated by Crafters Market"
             >
@@ -91,9 +91,9 @@ export default function ProductCard({ p, i = 0 }) {
             </span>
           )}
           <div className="absolute bottom-4 right-4 flex items-end justify-end gap-3">
-            <div className="font-display text-3xl text-white drop-shadow-md">{formatPriceDisplay(p)}</div>
+            <div className="font-display text-3xl text-ink drop-shadow-md">{formatPriceDisplay(p)}</div>
             <div className="w-10 h-10 border border-white/40 group-hover:bg-brand group-hover:border-brand transition flex items-center justify-center">
-              <ArrowUpRight size={18} className="text-white" />
+              <ArrowUpRight size={18} className="text-ink" />
             </div>
           </div>
         </div>

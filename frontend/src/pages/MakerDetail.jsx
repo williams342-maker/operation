@@ -137,7 +137,7 @@ export default function MakerDetail() {
             <GoogleAdsFeaturedBadge maker={m} testId="maker-google-ads-badge" />
             {m.featured_example && (
               <span
-                className="tag text-amber-300 border-amber-400/70 bg-black/80 text-[9px]"
+                className="tag text-amber-300 border-amber-400/70 bg-paper/80 text-[9px]"
                 data-testid="maker-featured-example-badge"
                 title="Founding Maker · Platform Showcase — curated by Crafters Market"
               >
@@ -166,7 +166,7 @@ export default function MakerDetail() {
             >
               {m.location ? (
                 <span
-                  className="inline-flex items-center gap-2 px-3 py-1.5 border border-line bg-black/40 backdrop-blur font-mono text-[10px] uppercase tracking-[0.22em] text-ink"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 border border-line bg-paper/40 backdrop-blur font-mono text-[10px] uppercase tracking-[0.22em] text-ink"
                   data-testid="maker-trust-location"
                 >
                   <span className="text-brand">◆</span> Workshop · {m.location}
@@ -174,7 +174,7 @@ export default function MakerDetail() {
               ) : null}
               {m.years_crafting ? (
                 <span
-                  className="inline-flex items-center gap-2 px-3 py-1.5 border border-line bg-black/40 backdrop-blur font-mono text-[10px] uppercase tracking-[0.22em] text-ink"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 border border-line bg-paper/40 backdrop-blur font-mono text-[10px] uppercase tracking-[0.22em] text-ink"
                   data-testid="maker-trust-years"
                 >
                   <span className="text-brand">◆</span> {m.years_crafting}+ Years Active
@@ -191,7 +191,7 @@ export default function MakerDetail() {
               ) : null}
               {m.machinery && m.machinery.length > 0 ? (
                 <span
-                  className="inline-flex items-center gap-2 px-3 py-1.5 border border-line bg-black/40 backdrop-blur font-mono text-[10px] uppercase tracking-[0.22em] text-ink"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 border border-line bg-paper/40 backdrop-blur font-mono text-[10px] uppercase tracking-[0.22em] text-ink"
                   data-testid="maker-trust-machines"
                 >
                   <span className="text-brand">◆</span> {m.machinery.length} CNC machine{m.machinery.length > 1 ? "s" : ""}
