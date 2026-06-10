@@ -216,10 +216,22 @@ export default function ShopPage() {
           ]}
           testId="shop-breadcrumbs"
         />
-        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-4">◆ SHOP</div>
-        <h1 className="font-display text-[64px] md:text-[140px] leading-[0.88] mb-12">
-          The <span className="text-outline">Marketplace</span>
+        <div className="flex items-center gap-3 mb-4">
+          <span className="h-px w-8 bg-brand" />
+          <span className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand">
+            Shop · The Marketplace
+          </span>
+        </div>
+        <h1
+          className="font-heading uppercase text-5xl sm:text-7xl lg:text-8xl leading-[0.92] tracking-tight text-ink mb-6"
+          data-testid="shop-h1"
+        >
+          The <span className="text-brand">Marketplace</span>
+          <span className="text-ink">.</span>
         </h1>
+        <p className="font-body text-base sm:text-lg leading-relaxed text-ink-muted max-w-2xl mb-12">
+          Every listing is touched by a human — measured, cut, hammered, stitched, fired, finished. Browse what real American makers are putting out into the world this week.
+        </p>
 
         {onlyExamples && (
           <div

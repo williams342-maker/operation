@@ -1,3 +1,28 @@
+## 2026-06-10 — Shop "Marketplace" banner aligned with homepage hero aesthetic (iter359)
+
+User screenshot showed the shop H1 "The Marketplace" using the legacy `.text-outline` style (thin skeletal outline on cream) which didn't match the bold filled aesthetic of the homepage hero ("BIG POTENTIAL.").
+
+### Change
+Rewrote the shop H1 to mirror the homepage hero pattern exactly:
+- Eyebrow gained the brand-divider treatment: `▬ SHOP · The Marketplace ▬` with `bg-brand` divider line + brand-orange text
+- H1 swapped from `.text-outline` to solid bold:
+  ```jsx
+  <h1 className="font-heading uppercase text-5xl sm:text-7xl lg:text-8xl ...">
+    The <span className="text-brand">Marketplace</span><span className="text-ink">.</span>
+  </h1>
+  ```
+- Added a body paragraph in ink-muted: "Every listing is touched by a human — measured, cut, hammered, stitched, fired, finished. Browse what real American makers are putting out into the world this week."
+- Removed the giant `text-[140px]` hardcoded size in favor of the brand's standard h1 scale.
+
+### Smoke test (live preview · `/shop`)
+- ✅ H1 reads "THE MARKETPLACE." with "MARKETPLACE" in brand orange, ink-black "THE" and trailing "."
+- ✅ Computed color of H1 root = `rgb(26, 26, 26)` (ink black) — text-brand span overrides for the highlight
+- ✅ AI Discovery search bar renders cleanly on the white surface card (iter358 fix verified live too)
+- ✅ Pre-existing lint warnings on unrelated lines (42/58/123/246) untouched
+
+---
+
+
 ## 2026-06-10 — AI Discovery search bar + WhyWeExist contrast fixes (iter358)
 
 User circled two more dark-on-dark contrast pockets: the AI Discovery search input + the "Why we exist" section below.
