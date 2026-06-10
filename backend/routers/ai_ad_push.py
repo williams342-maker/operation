@@ -179,6 +179,12 @@ async def push_draft_to_google(draft_id: str, body: GooglePushRequest,
 # ── Phase 4b — push to Meta Ads ────────────────────────────────────────
 class MetaPushRequest(BaseModel):
     daily_budget_cents: int = Field(..., ge=500, le=20000)  # $5-$200/day
+    # iter355 — Optional workshop video asset to push as a VIDEO creative
+    # instead of a link creative. Asset must already be uploaded via
+    # POST /admin/ad-creative/uploads and be of `kind=video`.
+    video_asset_id: Optional[str] = None
+    # Optional explicit thumbnail URL; falls back to the listing image.
+    video_thumbnail_url: Optional[str] = None
 
 
 @router.get("/admin/ad-creative/push/meta/preflight")
@@ -197,7 +203,15 @@ async def push_draft_to_meta(draft_id: str, body: MetaPushRequest,
     Maps `meta_feed.headlines[0]` → `link_data.name` (40 char limit)
     and `meta_feed.primary_texts[0]` → `link_data.message` (125 char
     limit). Campaign + AdSet + Creative + Ad all land PAUSED — admin
-    must activate inside Meta Ads Manager to spend."""
+    must activate inside Meta Ads Manager to spend.
+
+    iter355 — When `body.video_asset_id` is supplied and references an
+    uploaded workshop video asset, the gateway chunk-uploads the local
+    MP4/MOV to Meta's `advideos` edge, polls until ready, then builds a
+    video ad creative (`object_story_spec.video_data`) instead of a
+    link creative. Same copy mapping applies (`headlines[0]` → title,
+    `primary_texts[0]` → message).
+    """
     draft = await db.ad_creative_drafts.find_one({"_id": draft_id})
     if not draft:
         raise HTTPException(404, "Draft not found.")
@@ -213,6 +227,27 @@ async def push_draft_to_meta(draft_id: str, body: MetaPushRequest,
 
     (maker_slug, listing_title, listing_description,
      listing_url, listing_image_url) = await _resolve_subject_for_push(draft)
+
+    # iter355 — resolve optional video asset.
+    video_asset_path: Optional[str] = None
+    video_asset_mime: Optional[str] = None
+    if body.video_asset_id:
+        asset = await db.ad_workshop_assets.find_one({"_id": body.video_asset_id})
+        if not asset:
+            raise HTTPException(404, f"Video asset {body.video_asset_id} not found.")
+        if (asset.get("kind") or "").lower() != "video":
+            raise HTTPException(
+                400,
+                f"Asset {body.video_asset_id} is a {asset.get('kind')!r}, not a "
+                "video. Pick a video upload or omit video_asset_id to push a "
+                "static link creative.",
+            )
+        video_asset_path = asset.get("stored_path")
+        video_asset_mime = asset.get("mime")
+        if not video_asset_path:
+            raise HTTPException(
+                410, f"Video asset {body.video_asset_id} has no stored file."
+            )
 
     from services.ads_gateway import get_gateway, CreateCampaignSpec
     from services.ads_gateway.base import GatewayError, GatewayNotEligible
@@ -230,6 +265,9 @@ async def push_draft_to_meta(draft_id: str, body: MetaPushRequest,
         # name and `descriptions[0]` as the primary text (message).
         headlines=headlines,
         descriptions=primary_texts,
+        video_asset_path=video_asset_path,
+        video_asset_mime=video_asset_mime,
+        video_thumbnail_url=body.video_thumbnail_url,
     )
     gw = get_gateway("meta")
     try:
@@ -253,6 +291,8 @@ async def push_draft_to_meta(draft_id: str, body: MetaPushRequest,
         "daily_budget_cents": int(body.daily_budget_cents),
         "headline_count": len(headlines),
         "primary_text_count": len(primary_texts),
+        "creative_kind": "video" if video_asset_path else "link",
+        "video_asset_id": body.video_asset_id,
         "pushed_by": (admin or {}).get("email") or "admin",
         "pushed_at": now_iso(),
     }
@@ -272,7 +312,8 @@ async def push_draft_to_meta(draft_id: str, body: MetaPushRequest,
         "push": push_doc,
         "meta_ads_url": meta_ads_url,
         "message": (
-            f"Created Meta campaign {handle.external_id} in PAUSED state. "
+            f"Created Meta campaign {handle.external_id} in PAUSED state "
+            f"({'video' if video_asset_path else 'link'} creative). "
             "Activate inside Meta Ads Manager when ready — no spend until then."
         ),
     }

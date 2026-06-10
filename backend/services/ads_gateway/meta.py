@@ -24,9 +24,11 @@ Review" message — no surprises, no leaked SOAP errors.
 SAFETY: campaigns land with `status=PAUSED`. Maker activates explicitly.
 """
 from __future__ import annotations
+import asyncio
 import logging
 import os
 import re
+from pathlib import Path
 from typing import Optional
 
 import httpx
@@ -41,6 +43,14 @@ logger = logging.getLogger("crafters.promote.gateway.meta")
 
 GRAPH_VERSION = os.environ.get("META_API_VERSION", "v20.0")
 GRAPH_BASE = f"https://graph.facebook.com/{GRAPH_VERSION}"
+# Video uploads MUST go to graph-video.facebook.com per Graph API docs.
+GRAPH_VIDEO_BASE = f"https://graph-video.facebook.com/{GRAPH_VERSION}"
+
+# Chunked video upload tuning. Meta returns end_offset on each `start`
+# / `transfer` response telling us the next byte boundary — we honor it.
+VIDEO_UPLOAD_TIMEOUT_SEC = 120
+VIDEO_PROCESS_POLL_MAX_ATTEMPTS = 36   # 36 × 5s = 3 minutes
+VIDEO_PROCESS_POLL_INTERVAL_SEC = 5.0
 
 MIN_DAILY_USD = 5
 MAX_DAILY_USD = 200
@@ -105,16 +115,26 @@ class MetaGateway(AdsGateway):
             # 1. Campaign — PAUSED. Objective=OUTCOME_TRAFFIC sends
             # users to the listing landing page (cheapest goal that
             # still respects our URL-param attribution).
-            async with httpx.AsyncClient(timeout=30) as http:
+            async with httpx.AsyncClient(timeout=VIDEO_UPLOAD_TIMEOUT_SEC) as http:
                 campaign_id = await _create_campaign(
                     http, ad_account, token, spec,
                 )
                 adset_id = await _create_adset(
                     http, ad_account, token, campaign_id, spec,
                 )
-                creative_id = await _create_creative(
-                    http, ad_account, token, spec,
-                )
+                # iter355 — branch on video vs link creative.
+                if spec.video_asset_path:
+                    video_id = await _upload_advideo_chunked(
+                        http, ad_account, token, spec,
+                    )
+                    await _poll_video_status(http, token, video_id)
+                    creative_id = await _create_video_creative(
+                        http, ad_account, token, spec, video_id,
+                    )
+                else:
+                    creative_id = await _create_creative(
+                        http, ad_account, token, spec,
+                    )
                 ad_id = await _create_ad(
                     http, ad_account, token, adset_id, creative_id, spec,
                 )
@@ -292,6 +312,182 @@ async def _create_ad(http: httpx.AsyncClient, ad_account: str, token: str,
             "adset_id": adset_id,
             "creative": '{"creative_id": "' + creative_id + '"}',
             "status": "PAUSED",
+        },
+    )
+    r.raise_for_status()
+    return r.json()["id"]
+
+
+
+# ── iter355 — Video creative path ─────────────────────────────────────
+async def _upload_advideo_chunked(http: httpx.AsyncClient, ad_account: str,
+                                  token: str,
+                                  spec: CreateCampaignSpec) -> str:
+    """Chunk-upload a local video file to Meta's `advideos` edge.
+
+    Uses Meta's resumable `upload_phase=start|transfer|finish` protocol
+    on `graph-video.facebook.com`. `start` returns the session id and
+    initial byte range; we honor the (start_offset, end_offset) Meta
+    hands back on each transfer until they converge, then call
+    `finish`. Returns the resulting video_id (stable across phases).
+    """
+    path = Path(spec.video_asset_path or "")
+    if not path.exists():
+        raise GatewayError(f"Video file not found on disk: {path}")
+    file_size = path.stat().st_size
+    if file_size <= 0:
+        raise GatewayError("Video file is empty.")
+
+    base_url = f"{GRAPH_VIDEO_BASE}/{ad_account}/advideos"
+    common = {"access_token": token}
+
+    # 1) start phase
+    r = await http.post(
+        base_url,
+        params=common,
+        data={"upload_phase": "start", "file_size": str(file_size)},
+    )
+    r.raise_for_status()
+    body = r.json()
+    upload_session_id = body["upload_session_id"]
+    video_id = body["video_id"]
+    start_offset = int(body["start_offset"])
+    end_offset = int(body["end_offset"])
+
+    # 2) transfer phases
+    with open(path, "rb") as f:
+        while start_offset < end_offset:
+            f.seek(start_offset)
+            chunk = f.read(end_offset - start_offset)
+            files = {
+                "video_file_chunk": (
+                    path.name, chunk,
+                    spec.video_asset_mime or "application/octet-stream",
+                ),
+            }
+            data = {
+                "upload_phase": "transfer",
+                "upload_session_id": upload_session_id,
+                "start_offset": str(start_offset),
+            }
+            tr = await http.post(base_url, params=common, data=data, files=files)
+            tr.raise_for_status()
+            tb = tr.json()
+            new_start = int(tb["start_offset"])
+            new_end = int(tb["end_offset"])
+            # Defensive: bail if Meta stops advancing the cursor.
+            if new_start == start_offset and new_start < end_offset:
+                raise GatewayError(
+                    "Meta chunked upload stalled — server did not advance "
+                    f"start_offset past {start_offset}."
+                )
+            start_offset, end_offset = new_start, new_end
+
+    # 3) finish phase
+    fr = await http.post(
+        base_url,
+        params=common,
+        data={
+            "upload_phase": "finish",
+            "upload_session_id": upload_session_id,
+            "title": _trim(spec.listing_title, 200) or "Crafters Market",
+            "description": _trim(spec.listing_description, 500),
+        },
+    )
+    fr.raise_for_status()
+    logger.info("[meta.gateway] advideo uploaded video_id=%s bytes=%d",
+                video_id, file_size)
+    return video_id
+
+
+async def _poll_video_status(http: httpx.AsyncClient, token: str,
+                             video_id: str) -> None:
+    """Poll the Graph API until the video status becomes 'ready'.
+
+    Raises `GatewayError` on terminal error states or timeout. Meta's
+    processing time for ≤50 MB ad videos typically completes in <60s
+    but we allow up to ~3 minutes before giving up.
+    """
+    url = f"{GRAPH_BASE}/{video_id}"
+    last_status: Optional[str] = None
+    for _ in range(VIDEO_PROCESS_POLL_MAX_ATTEMPTS):
+        r = await http.get(url, params={"access_token": token, "fields": "status"})
+        r.raise_for_status()
+        status_obj = (r.json() or {}).get("status") or {}
+        vstatus = status_obj.get("video_status") or status_obj.get("status")
+        last_status = vstatus
+        if vstatus == "ready":
+            return
+        if vstatus == "error":
+            reason = status_obj.get("processing_phase", {}).get("error") or status_obj
+            raise GatewayError(f"Meta rejected the video: {str(reason)[:200]}")
+        await asyncio.sleep(VIDEO_PROCESS_POLL_INTERVAL_SEC)
+    raise GatewayError(
+        f"Meta video {video_id} still processing after "
+        f"{VIDEO_PROCESS_POLL_MAX_ATTEMPTS * VIDEO_PROCESS_POLL_INTERVAL_SEC:.0f}s "
+        f"(last status: {last_status}). Try again in a minute."
+    )
+
+
+async def _create_video_creative(http: httpx.AsyncClient, ad_account: str,
+                                 token: str, spec: CreateCampaignSpec,
+                                 video_id: str) -> str:
+    """Create an ad creative whose `object_story_spec.video_data`
+    references the freshly uploaded `video_id`.
+
+    Maps the AI Workshop copy the same way `_create_creative` does:
+      • `spec.headlines[0]` → `video_data.title` (40-char hard cap)
+      • `spec.descriptions[0]` → `video_data.message` (125 cap)
+    The thumbnail uses `spec.video_thumbnail_url` if set, otherwise the
+    listing image (Meta requires an image_url for video creatives).
+    """
+    import json as _json
+
+    page_id = os.environ.get("META_DEFAULT_PAGE_ID", "").strip()
+    if not page_id:
+        raise GatewayError("META_DEFAULT_PAGE_ID env var required to create Meta ads.")
+
+    thumb = (spec.video_thumbnail_url or spec.listing_image_url or "").strip()
+    if not thumb:
+        raise GatewayError(
+            "Meta video creatives require a thumbnail. Set the listing image "
+            "or pass video_thumbnail_url."
+        )
+
+    ad_title = (
+        _trim(spec.headlines[0], 40) if spec.headlines and spec.headlines[0]
+        else _trim(spec.listing_title, 40)
+    )
+    primary_text = (
+        _trim(spec.descriptions[0], 125) if spec.descriptions and spec.descriptions[0]
+        else _trim(spec.listing_description, 125)
+    ) or "Handmade by independent artisans."
+    base = spec.listing_url.rstrip("/")
+    sep = "&" if "?" in base else "?"
+    link_url = f"{base}{sep}fbclid={{{{ad.id}}}}"
+
+    object_story_spec = {
+        "page_id": page_id,
+        "video_data": {
+            "video_id": video_id,
+            "image_url": thumb,
+            "title": ad_title,
+            "message": primary_text,
+            "call_to_action": {
+                "type": "SHOP_NOW",
+                "value": {"link": link_url},
+            },
+        },
+    }
+
+    r = await http.post(
+        f"{GRAPH_BASE}/{ad_account}/adcreatives",
+        data={
+            "access_token": token,
+            "name": _trim(
+                f"{CAMPAIGN_NAME_PREFIX} · {spec.listing_slug} video", 200,
+            ),
+            "object_story_spec": _json.dumps(object_story_spec),
         },
     )
     r.raise_for_status()

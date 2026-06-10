@@ -535,6 +535,7 @@ const META_CHANNEL = {
   openLinkField: "meta_ads_url",
   successFields: (push) => [
     ["External campaign ID", push?.external_campaign_id],
+    ["Creative kind", push?.creative_kind || "link"],
     ["Headlines pushed", push?.headline_count],
     ["Primary texts pushed", push?.primary_text_count],
     ["Daily budget", `$${((push?.daily_budget_cents || 0) / 100).toFixed(2)}`],
@@ -581,6 +582,10 @@ function PushToChannelButton({ draft, channel, ready, readyHint, headlineCount }
   const [keywords, setKeywords] = useState("");
   const [pushing, setPushing] = useState(false);
   const [result, setResult] = useState(null);
+  // iter355 — Meta only: optional video creative selection.
+  const [videoAssets, setVideoAssets] = useState([]);
+  const [videoAssetId, setVideoAssetId] = useState(null);
+  const isMetaChannel = channel.id === "meta";
 
   useEffect(() => {
     if (!open) return;
@@ -596,6 +601,30 @@ function PushToChannelButton({ draft, channel, ready, readyHint, headlineCount }
     return () => { cancelled = true; };
   }, [open, channel]);
 
+  // iter355 — fetch uploaded video assets when the Meta push modal opens
+  // so the admin can attach one as a video creative (or leave it null
+  // to push a static link creative as before).
+  useEffect(() => {
+    if (!open || !isMetaChannel) return;
+    const API = process.env.REACT_APP_BACKEND_URL;
+    const token = localStorage.getItem("cm_admin_jwt") || "";
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch(`${API}/api/admin/ad-creative/uploads?limit=50`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!r.ok) return;
+        const j = await r.json();
+        if (cancelled) return;
+        setVideoAssets((j.assets || []).filter((a) => a.kind === "video"));
+      } catch {
+        /* silent — feature degrades to link creative */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [open, isMetaChannel]);
+
   const onSubmit = async (e) => {
     e.preventDefault();
     setPushing(true);
@@ -603,6 +632,9 @@ function PushToChannelButton({ draft, channel, ready, readyHint, headlineCount }
       const payload = { daily_budget_cents: Math.round(budget * 100) };
       if (channel.hasKeywords) {
         payload.keywords = keywords.split(",").map((s) => s.trim()).filter(Boolean);
+      }
+      if (isMetaChannel && videoAssetId) {
+        payload.video_asset_id = videoAssetId;
       }
       const r = await channel.push(draft.draft_id, payload);
       setResult(r);
@@ -701,6 +733,73 @@ function PushToChannelButton({ draft, channel, ready, readyHint, headlineCount }
                       data-testid={`push-${channel.id}-keywords`}
                     />
                   </label>
+                )}
+
+                {isMetaChannel && (
+                  <div data-testid="push-meta-video-picker">
+                    <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-1">
+                      Video creative (optional)
+                      <span className="text-ink-muted/60"> · pick a video from Workshop uploads to push a VIDEO ad instead of a link ad</span>
+                    </div>
+                    {videoAssets.length === 0 ? (
+                      <p className="font-mono text-[10px] text-ink-muted border border-dashed border-line px-3 py-2">
+                        No videos uploaded yet. Upload an MP4/MOV/WEBM in the
+                        Workshop&rsquo;s <em>Reference assets</em> section to push a video creative.
+                      </p>
+                    ) : (
+                      <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-44 overflow-y-auto">
+                        <button
+                          type="button"
+                          onClick={() => setVideoAssetId(null)}
+                          className={`px-2 py-2 border font-mono text-[10px] uppercase tracking-[0.18em] ${
+                            !videoAssetId
+                              ? "border-cyan-400 text-cyan-200 bg-cyan-950/20"
+                              : "border-line text-ink-muted hover:border-ink-muted"
+                          }`}
+                          data-testid="push-meta-video-none"
+                        >
+                          No video
+                          <div className="text-[9px] mt-0.5 normal-case tracking-normal">link creative</div>
+                        </button>
+                        {videoAssets.map((a) => {
+                          const selected = videoAssetId === a.id;
+                          return (
+                            <button
+                              key={a.id}
+                              type="button"
+                              onClick={() => setVideoAssetId(a.id)}
+                              className={`relative border ${
+                                selected ? "border-cyan-400" : "border-line hover:border-ink-muted"
+                              } overflow-hidden group`}
+                              data-testid={`push-meta-video-${a.id}`}
+                              title={a.original_filename || a.id}
+                            >
+                              <video
+                                src={a.url}
+                                muted
+                                playsInline
+                                preload="metadata"
+                                className="w-full aspect-square object-cover"
+                              />
+                              <div className="absolute inset-x-0 bottom-0 bg-paper/80 px-1 py-0.5 font-mono text-[9px] text-ink truncate">
+                                {(a.original_filename || a.id).slice(0, 22)}
+                              </div>
+                              {selected && (
+                                <div className="absolute top-1 right-1 w-4 h-4 bg-cyan-400 text-ink rounded-full flex items-center justify-center">
+                                  <Check size={10} />
+                                </div>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {videoAssetId && (
+                      <p className="font-mono text-[10px] text-amber-300 mt-1">
+                        ⚠ Video upload + Meta processing can take 1–3 minutes. Keep this tab open.
+                      </p>
+                    )}
+                  </div>
                 )}
 
                 <div className="flex justify-end gap-2 pt-2">

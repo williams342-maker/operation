@@ -38,6 +38,15 @@ class CreateCampaignSpec:
     keywords: list[str] = field(default_factory=list)
     headlines: list[str] = field(default_factory=list)
     descriptions: list[str] = field(default_factory=list)
+    # iter355 — When the admin pushes a video creative from the AI
+    # Workshop, `video_asset_path` is the local file on disk; the Meta
+    # gateway will chunk-upload it to the `advideos` edge before
+    # building a video ad creative. Channels that don't support video
+    # (Google Search, Microsoft RSA) simply ignore these fields.
+    video_asset_path: Optional[str] = None
+    video_asset_mime: Optional[str] = None
+    # Thumbnail for the video ad. Falls back to `listing_image_url`.
+    video_thumbnail_url: Optional[str] = None
 
 
 @dataclass

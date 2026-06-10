@@ -1871,7 +1871,7 @@ export const adminAdCreativeMetaPreflight = () =>
 
 export const adminPushDraftToMeta = (draftId, payload) =>
   http.post(`/admin/ad-creative/drafts/${draftId}/push/meta`, payload,
-    { headers: adminAuthHeaders(), timeout: 60000 }).then((r) => r.data);
+    { headers: adminAuthHeaders(), timeout: 240000 }).then((r) => r.data);
 
 // iter349 — Phase 4c — Microsoft (Bing) Ads campaign push
 export const adminAdCreativeMicrosoftPreflight = () =>

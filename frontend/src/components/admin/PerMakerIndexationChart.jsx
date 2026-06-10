@@ -16,6 +16,12 @@
  */
 import React, { useEffect, useState } from "react";
 import { LineChart, Line, ResponsiveContainer, Tooltip as RTooltip, YAxis } from "recharts";
+import { fetchAdminApprovedMakers } from "../../lib/api";
+
+// iter357 — module-scope cache so the makers list is only fetched
+// once per page load no matter how many chart instances mount.
+let _MAKER_OPTIONS_CACHE = [];
+
 
 export default function PerMakerIndexationChart({
   initialSlug = "", hideInput = false, height = 80,
@@ -26,6 +32,21 @@ export default function PerMakerIndexationChart({
   const [data, setData] = useState(null);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const [makerOptions, setMakerOptions] = useState(_MAKER_OPTIONS_CACHE);
+
+  const loadOptions = async () => {
+    if (_MAKER_OPTIONS_CACHE.length > 0) return;
+    try {
+      const r = await fetchAdminApprovedMakers();
+      const opts = (r?.makers || r || []).map((m) => ({
+        slug: m.slug, name: m.name || m.slug,
+      }));
+      _MAKER_OPTIONS_CACHE = opts;
+      setMakerOptions(opts);
+    } catch {
+      // Silent — picker still works as free-text input.
+    }
+  };
 
   useEffect(() => {
     if (!submitted) return;
@@ -76,10 +97,20 @@ export default function PerMakerIndexationChart({
             type="text"
             value={slug}
             onChange={(e) => setSlug(e.target.value)}
-            placeholder="maker-slug (e.g. williams-cnc)"
+            onFocus={loadOptions}
+            list="per-maker-slug-options"
+            placeholder={makerOptions.length
+              ? `maker-slug (${makerOptions.length} known)`
+              : "maker-slug (e.g. williams-cnc)"}
             className="flex-1 bg-paper border border-line focus:border-brand outline-none px-3 py-1.5 font-mono text-xs text-ink"
             data-testid="gsc-per-maker-slug-input"
+            autoComplete="off"
           />
+          <datalist id="per-maker-slug-options">
+            {makerOptions.map((m) => (
+              <option key={m.slug} value={m.slug}>{m.name}</option>
+            ))}
+          </datalist>
           <button
             type="submit"
             disabled={busy || !slug.trim()}
