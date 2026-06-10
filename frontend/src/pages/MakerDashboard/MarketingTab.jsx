@@ -65,13 +65,13 @@ export default function MarketingTab() {
   return (
     <div className="space-y-8" data-testid="marketing-tab">
       <div>
-        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-3">
+        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-3">
           ◆ Shop Manager · Marketing
         </div>
         <h1 className="font-display text-3xl md:text-5xl uppercase leading-[0.95]">
           Marketing.
         </h1>
-        <p className="font-mono text-sm text-[#a3a3a3] mt-2 max-w-2xl">
+        <p className="font-mono text-sm text-ink-muted mt-2 max-w-2xl">
           Reach more buyers with promoted listings, discount codes, social shares, and referral links.
         </p>
       </div>
@@ -119,16 +119,16 @@ function SubNav({ sections, activeId, onPick, open, onToggleOpen }) {
         <button
           type="button"
           onClick={onToggleOpen}
-          className="w-full flex items-center justify-between border border-[#262626] px-3 py-2 font-mono text-xs uppercase tracking-[0.22em]"
+          className="w-full flex items-center justify-between border border-line px-3 py-2 font-mono text-xs uppercase tracking-[0.22em]"
           data-testid="marketing-subnav-toggle"
           aria-expanded={open}
         >
-          <span className="text-[#a3a3a3]">Section · {sections.find((s) => s.id === activeId)?.label}</span>
-          <ChevronDown size={14} className={`text-[#525252] transition ${open ? "rotate-180" : ""}`} />
+          <span className="text-ink-muted">Section · {sections.find((s) => s.id === activeId)?.label}</span>
+          <ChevronDown size={14} className={`text-ink-muted transition ${open ? "rotate-180" : ""}`} />
         </button>
       </div>
 
-      <nav className={`border border-[#262626] bg-[#0a0a0a] p-2 lg:block ${open ? "block" : "hidden"}`}
+      <nav className={`border border-line bg-paper p-2 lg:block ${open ? "block" : "hidden"}`}
         data-testid="marketing-subnav">
         <ul className="space-y-0.5">
           {sections.map((s) => {
@@ -141,8 +141,8 @@ function SubNav({ sections, activeId, onPick, open, onToggleOpen }) {
                   onClick={() => onPick(s.id)}
                   className={`w-full flex items-center gap-3 px-3 py-2 font-mono text-xs uppercase tracking-[0.18em] text-left transition ${
                     active
-                      ? "bg-[#ff4500]/10 text-[#ff4500] border-l-2 border-[#ff4500]"
-                      : "text-[#a3a3a3] hover:text-[#e5e5e5] hover:bg-[#0f0f0f] border-l-2 border-transparent"
+                      ? "bg-brand/10 text-brand border-l-2 border-brand"
+                      : "text-ink-muted hover:text-ink hover:bg-paper border-l-2 border-transparent"
                   }`}
                   data-testid={`marketing-subnav-${s.id}`}
                 >
@@ -181,7 +181,7 @@ function StoryTemplates() {
 
   return (
     <Section title="Instagram & TikTok story templates" testId="story-templates">
-      <p className="font-mono text-xs text-[#a3a3a3] mb-5 max-w-2xl leading-relaxed">
+      <p className="font-mono text-xs text-ink-muted mb-5 max-w-2xl leading-relaxed">
         One-click 1080×1920 PNG with your hero shot, price, and a scan-to-shop QR code baked in.
         Save it, drop it on your IG or TikTok story, and you're done — every scan lands buyers
         on your listing with UTM credit back to you.
@@ -190,21 +190,21 @@ function StoryTemplates() {
       {products === null ? (
         <div data-testid="story-templates-loading"><RowsSkeleton count={4} /></div>
       ) : products.length === 0 ? (
-        <p className="font-mono text-xs text-[#525252]">Publish a listing first — story templates only generate for live products.</p>
+        <p className="font-mono text-xs text-ink-muted">Publish a listing first — story templates only generate for live products.</p>
       ) : (
-        <ul className="border border-[#1f1f1f] divide-y divide-[#1f1f1f]" data-testid="story-templates-list">
+        <ul className="border border-line divide-y divide-[#1f1f1f]" data-testid="story-templates-list">
           {products.slice(0, 24).map((p) => (
             <li key={p.id} className="flex items-center gap-3 px-3 py-2">
               {p.images?.[0] && (
                 <img src={p.images[0]} alt="" className="w-10 h-10 object-cover" loading="lazy" />
               )}
               <div className="flex-1 min-w-0">
-                <div className="font-mono text-xs text-[#e5e5e5] truncate">{p.title}</div>
-                <div className="font-mono text-[10px] text-[#525252]">${p.price.toFixed(0)} · {p.category}</div>
+                <div className="font-mono text-xs text-ink truncate">{p.title}</div>
+                <div className="font-mono text-[10px] text-ink-muted">${p.price.toFixed(0)} · {p.category}</div>
               </div>
               <button
                 onClick={() => grab(p.slug)}
-                className="px-3 py-1.5 border border-[#ff4500]/40 text-[#ff4500] hover:bg-[#ff4500]/10 font-mono text-[10px] uppercase tracking-[0.22em] transition flex items-center gap-1.5"
+                className="px-3 py-1.5 border border-brand/40 text-brand hover:bg-brand/10 font-mono text-[10px] uppercase tracking-[0.22em] transition flex items-center gap-1.5"
                 data-testid={`story-template-download-${p.slug}`}
               >
                 <Download size={11} /> Story
@@ -233,7 +233,7 @@ function ShareAndSave() {
   return (
     <div className="space-y-6">
       <Section title="Your shop link" testId="share-shop">
-        <p className="font-mono text-xs text-[#a3a3a3] mb-4 max-w-2xl leading-relaxed">
+        <p className="font-mono text-xs text-ink-muted mb-4 max-w-2xl leading-relaxed">
           The simplest way to drive sales — drop your shop link in your IG bio, email signature, or business card.
         </p>
         <ShareLinkRow
@@ -245,7 +245,7 @@ function ShareAndSave() {
       </Section>
 
       <Section title="Refer a maker · earn rewards" testId="share-referral">
-        <p className="font-mono text-xs text-[#a3a3a3] mb-4 max-w-2xl leading-relaxed">
+        <p className="font-mono text-xs text-ink-muted mb-4 max-w-2xl leading-relaxed">
           Invite a fellow maker to Crafters Market. When they publish their first paid listing, you both get a free week of promoted-listings credit.
         </p>
         <ShareLinkRow
@@ -254,7 +254,7 @@ function ShareAndSave() {
           onCopy={() => copy(`${origin}/beta?r=share`, "Referral link")}
           testid="share-referral-url"
         />
-        <p className="font-mono text-[10px] text-[#525252] mt-3">
+        <p className="font-mono text-[10px] text-ink-muted mt-3">
           ◇ Tracking automatic on signup. Credit posted within 24h of their first sale.
         </p>
       </Section>
@@ -264,13 +264,13 @@ function ShareAndSave() {
 
 function ShareLinkRow({ label, value, onCopy, testid }) {
   return (
-    <div className="border border-[#262626] flex items-center" data-testid={testid}>
-      <span className="px-3 py-2 font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252] border-r border-[#262626] shrink-0">
+    <div className="border border-line flex items-center" data-testid={testid}>
+      <span className="px-3 py-2 font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted border-r border-line shrink-0">
         {label}
       </span>
-      <code className="flex-1 px-3 py-2 font-mono text-xs text-[#e5e5e5] truncate">{value}</code>
+      <code className="flex-1 px-3 py-2 font-mono text-xs text-ink truncate">{value}</code>
       <button onClick={onCopy}
-        className="px-3 py-2 border-l border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition flex items-center gap-1.5"
+        className="px-3 py-2 border-l border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] transition flex items-center gap-1.5"
         data-testid={`${testid}-copy`}>
         <Copy size={11} /> Copy
       </button>
@@ -293,19 +293,19 @@ const TIPS = [
 function MarketingTips() {
   return (
     <section data-testid="marketing-tips">
-      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-3">
+      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-3">
         ◆ Tactics that compound
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {TIPS.map((t) => {
           const Icon = t.icon;
           return (
-            <div key={t.title} className="border border-[#1f1f1f] bg-[#0d0d0d] p-5 flex gap-4"
+            <div key={t.title} className="border border-line bg-paper p-5 flex gap-4"
               data-testid={`tip-${t.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}>
-              <Icon size={20} className="text-[#ff4500] shrink-0 mt-0.5" />
+              <Icon size={20} className="text-brand shrink-0 mt-0.5" />
               <div>
                 <h4 className="font-display text-base uppercase mb-1.5">{t.title}</h4>
-                <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed">{t.body}</p>
+                <p className="font-mono text-xs text-ink-muted leading-relaxed">{t.body}</p>
               </div>
             </div>
           );

@@ -99,17 +99,17 @@ export default function CreditPacksCard() {
 
   return (
     <>
-    <div className="border border-[#262626] p-6" data-testid="credit-packs-card">
+    <div className="border border-line p-6" data-testid="credit-packs-card">
       <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
         <div>
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-1">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-1">
             Pre-paid listing credits
           </div>
           <div className="font-display text-3xl">
             {credits.current_credits}
-            <span className="text-[#525252] text-xl"> credit{credits.current_credits === 1 ? "" : "s"}</span>
+            <span className="text-ink-muted text-xl"> credit{credits.current_credits === 1 ? "" : "s"}</span>
           </div>
-          <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#525252] mt-1">
+          <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted mt-1">
             Burned before cash fees · never expire
           </p>
         </div>
@@ -120,7 +120,7 @@ export default function CreditPacksCard() {
                 ? "text-emerald-400 border-emerald-400/40"
                 : msg.kind === "err"
                   ? "text-red-400 border-red-400/40"
-                  : "text-[#a3a3a3] border-[#262626]"
+                  : "text-ink-muted border-line"
             }`}
             data-testid="credit-packs-msg"
           >
@@ -134,20 +134,20 @@ export default function CreditPacksCard() {
             key={p.id}
             onClick={() => onBuyCredits(p.id, p.label)}
             disabled={busy}
-            className="text-left border border-[#262626] hover:border-[#ff4500] p-4 transition disabled:opacity-50 disabled:cursor-not-allowed group"
+            className="text-left border border-line hover:border-brand p-4 transition disabled:opacity-50 disabled:cursor-not-allowed group"
             data-testid={`credit-packs-pack-${p.id}`}
           >
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
               {p.id} pack
             </div>
-            <div className="font-display text-3xl mt-2 group-hover:text-[#ff4500] transition">
+            <div className="font-display text-3xl mt-2 group-hover:text-brand transition">
               {p.credits}
             </div>
-            <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#525252] mb-3">
+            <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted mb-3">
               listings
             </div>
-            <div className="flex items-baseline justify-between border-t border-[#262626] pt-3">
-              <div className="font-display text-2xl text-[#ff4500]">
+            <div className="flex items-baseline justify-between border-t border-line pt-3">
+              <div className="font-display text-2xl text-brand">
                 ${p.price_usd.toFixed(2)}
               </div>
               <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-emerald-400">
@@ -158,7 +158,7 @@ export default function CreditPacksCard() {
           </button>
         ))}
       </div>
-      <p className="font-mono text-[10px] text-[#525252] mt-4 leading-relaxed">
+      <p className="font-mono text-[10px] text-ink-muted mt-4 leading-relaxed">
         Credits stack on top of your free quota. They're consumed before any
         cash fee accrues to your next payout — so a bulk pack at 30–40% off
         cash rates is the cheapest way to grow your shop past the free 10.

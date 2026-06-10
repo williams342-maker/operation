@@ -36,9 +36,9 @@ export default function StatsTab() {
 
   return (
     <div className="space-y-8" data-testid="stats-tab">
-      <header className="pb-6 border-b border-[#262626]">
+      <header className="pb-6 border-b border-line">
         <h2 className="font-display text-3xl md:text-4xl uppercase">Stats.</h2>
-        <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-xl">
+        <p className="font-mono text-xs text-ink-muted mt-2 max-w-xl">
           Quick health check on your shop. Numbers update in real time.
         </p>
       </header>
@@ -59,14 +59,14 @@ export default function StatsTab() {
               size="lg" testid="stat-30d" />
       </div>
 
-      <div className="border border-[#1f1f1f] bg-[#0d0d0d] p-5" data-testid="stat-net">
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">
+      <div className="border border-line bg-paper p-5" data-testid="stat-net">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
           ◆ Estimated take-home (after fees)
         </div>
-        <div className="font-display text-3xl text-[#ff4500]">
+        <div className="font-display text-3xl text-brand">
           ${netRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </div>
-        <p className="font-mono text-[10px] text-[#525252] mt-2 leading-relaxed">
+        <p className="font-mono text-[10px] text-ink-muted mt-2 leading-relaxed">
           Based on Free-tier rate ({(platformBps / 100).toFixed(0)}% combined commission + processing).
           Plus subscribers keep more — see Upgrade tab.
         </p>
@@ -87,13 +87,13 @@ export default function StatsTab() {
 function Tile({ label, value, accent, size = "md", testid }) {
   return (
     <div
-      className={`border border-[#1f1f1f] bg-[#0d0d0d] p-4 md:p-5 ${accent ? "border-[#ff4500]" : ""}`}
+      className={`border border-line bg-paper p-4 md:p-5 ${accent ? "border-brand" : ""}`}
       data-testid={testid}
     >
-      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2 truncate">
+      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2 truncate">
         {label}
       </div>
-      <div className={`font-display ${size === "lg" ? "text-4xl md:text-5xl" : "text-3xl"} text-[#e5e5e5]`}>
+      <div className={`font-display ${size === "lg" ? "text-4xl md:text-5xl" : "text-3xl"} text-ink`}>
         {value}
       </div>
     </div>

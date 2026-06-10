@@ -176,13 +176,13 @@ export default function ProductEditCard({ product, archived = false, draft = fal
     <>
     <div
       className={`border transition group ${
-        archived ? "border-[#262626] opacity-60" :
+        archived ? "border-line opacity-60" :
         draft ? "border-amber-400/40 hover:border-amber-400" :
-        "border-[#262626] hover:border-[#ff4500]"
+        "border-line hover:border-brand"
       }`}
       data-testid={`product-edit-${p.slug}`}
     >
-      <div className="aspect-square overflow-hidden bg-[#121212] relative">
+      <div className="aspect-square overflow-hidden bg-surface relative">
         {p.images?.[0] && (
           <img
             src={p.images[0]}
@@ -191,21 +191,21 @@ export default function ProductEditCard({ product, archived = false, draft = fal
           />
         )}
         {archived && (
-          <div className="absolute top-3 left-3 bg-black/80 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.22em] text-red-400 border border-red-400/40">
+          <div className="absolute top-3 left-3 bg-paper/80 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.22em] text-red-400 border border-red-400/40">
             ◇ Archived
           </div>
         )}
         {draft && (
-          <div className="absolute top-3 left-3 bg-black/80 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.22em] text-amber-400 border border-amber-400/40">
+          <div className="absolute top-3 left-3 bg-paper/80 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.22em] text-amber-400 border border-amber-400/40">
             ✎ Draft
           </div>
         )}
       </div>
       <div className="p-3">
-        <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-[#a3a3a3] truncate">
+        <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-ink-muted truncate">
           {p.category} · {p.technique}
-          {p.model_url && <span className="text-[#ff4500] ml-1.5">· 3D</span>}
-          {p.variants?.length > 0 && <span className="text-[#ff4500] ml-1.5">· {p.variants.length} var</span>}
+          {p.model_url && <span className="text-brand ml-1.5">· 3D</span>}
+          {p.variants?.length > 0 && <span className="text-brand ml-1.5">· {p.variants.length} var</span>}
           {p.promoted_until && new Date(p.promoted_until) > new Date() && (
             <span className="text-emerald-400 ml-1.5" data-testid={`product-promoted-${p.slug}`}>· Promoted</span>
           )}
@@ -213,7 +213,7 @@ export default function ProductEditCard({ product, archived = false, draft = fal
         {indexing && <IndexingBadge indexing={indexing} slug={p.slug} />}
         <div className="font-display text-base mt-1.5 leading-tight line-clamp-2 min-h-[2.4em]">{p.title}</div>
         <div className="flex items-center justify-between mt-2">
-          <span className="font-display text-lg text-[#ff4500]" data-testid={`product-price-${p.slug}`}>
+          <span className="font-display text-lg text-brand" data-testid={`product-price-${p.slug}`}>
             {(() => {
               // iter334r+ — When base price is 0 but variants carry
               // absolute prices, surface the variant range so makers
@@ -226,7 +226,7 @@ export default function ProductEditCard({ product, archived = false, draft = fal
               return `$${Math.round(min)} – $${Math.round(max)}`;
             })()}
           </span>
-          <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-[#a3a3a3]">
+          <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-ink-muted">
             {p.in_stock} in stock
           </span>
         </div>
@@ -237,29 +237,29 @@ export default function ProductEditCard({ product, archived = false, draft = fal
             noise on every card. */}
         {comparison && <PricingVerdictBadge comparison={comparison} slug={p.slug} />}
         {p.expires_at && !archived && (
-          <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-[#525252] mt-1" data-testid={`product-expires-${p.slug}`}>
+          <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-ink-muted mt-1" data-testid={`product-expires-${p.slug}`}>
             {p.renewal_option === "automatic" ? "Auto-renews" : "Expires"} {new Date(p.expires_at).toLocaleDateString()}
           </div>
         )}
 
         {stats && !archived && (
           <div
-            className="mt-2 border-t border-[#1a1a1a] pt-2 space-y-1.5"
+            className="mt-2 border-t border-line pt-2 space-y-1.5"
             data-testid={`product-stats-${p.slug}`}
           >
-            <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+            <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted">
               ◆ Last 30 days
             </div>
-            <div className="font-mono text-[11px] text-[#e5e5e5]">
+            <div className="font-mono text-[11px] text-ink">
               {stats.visits_30d} {stats.visits_30d === 1 ? "visit" : "visits"}
             </div>
-            <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#a3a3a3] pt-1">
+            <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted pt-1">
               ◆ All time
             </div>
-            <div className="font-mono text-[11px] text-[#e5e5e5]">
+            <div className="font-mono text-[11px] text-ink">
               {stats.sales_all} {stats.sales_all === 1 ? "sale" : "sales"} · ${stats.revenue_all.toFixed(0)} revenue
             </div>
-            <div className="font-mono text-[10px] text-[#525252]">
+            <div className="font-mono text-[10px] text-ink-muted">
               {stats.renewals} {stats.renewals === 1 ? "renewal" : "renewals"}
             </div>
           </div>
@@ -278,7 +278,7 @@ export default function ProductEditCard({ product, archived = false, draft = fal
           <>
             <Link
               to={`/maker/listings/${p.slug}/edit`}
-              className="mt-3 w-full block text-center bg-[#ff4500] hover:bg-[#ff5f1f] text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] py-2 transition"
+              className="mt-3 w-full block text-center bg-brand hover:bg-[#ff5f1f] text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] py-2 transition"
               data-testid={`product-edit-link-${p.slug}`}
             >
               ✎ Edit listing
@@ -407,13 +407,13 @@ export default function ProductEditCard({ product, archived = false, draft = fal
                 <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-cyan-400">
                   ◆ Marketing budget · /{p.slug}
                 </div>
-                <p className="font-mono text-[10px] text-[#a3a3a3] leading-relaxed">
+                <p className="font-mono text-[10px] text-ink-muted leading-relaxed">
                   Crafters Market auto-renews the $5/week boost until your
                   monthly cap is hit. Resets on the 1st. Set to $0 to pause.
                 </p>
                 <div className="flex flex-wrap items-center gap-3">
                   <div className="flex items-center gap-1">
-                    <span className="font-mono text-[10px] text-[#525252]">$</span>
+                    <span className="font-mono text-[10px] text-ink-muted">$</span>
                     <input
                       type="number"
                       min="0"
@@ -422,10 +422,10 @@ export default function ProductEditCard({ product, archived = false, draft = fal
                       value={budgetCap}
                       onChange={(e) => setBudgetCap(e.target.value)}
                       disabled={budgetBusy}
-                      className="w-20 bg-[#0a0a0a] border border-[#262626] focus:border-cyan-500 font-mono text-[12px] text-[#fafafa] px-2 py-1.5"
+                      className="w-20 bg-paper border border-line focus:border-cyan-500 font-mono text-[12px] text-[#fafafa] px-2 py-1.5"
                       data-testid={`product-budget-cap-${p.slug}`}
                     />
-                    <span className="font-mono text-[10px] text-[#525252]">/ mo</span>
+                    <span className="font-mono text-[10px] text-ink-muted">/ mo</span>
                   </div>
                   <label className="inline-flex items-center gap-2 cursor-pointer">
                     <input
@@ -436,7 +436,7 @@ export default function ProductEditCard({ product, archived = false, draft = fal
                       className="accent-cyan-500"
                       data-testid={`product-budget-autorenew-${p.slug}`}
                     />
-                    <span className="font-mono text-[10px] text-[#a3a3a3]">Auto-renew</span>
+                    <span className="font-mono text-[10px] text-ink-muted">Auto-renew</span>
                   </label>
                   <button
                     type="button"
@@ -479,7 +479,7 @@ export default function ProductEditCard({ product, archived = false, draft = fal
                     type="button"
                     onClick={() => setBudgetOpen(false)}
                     disabled={budgetBusy}
-                    className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#525252] hover:text-[#a3a3a3] transition"
+                    className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-muted hover:text-ink-muted transition"
                   >
                     Cancel
                   </button>
@@ -496,7 +496,7 @@ export default function ProductEditCard({ product, archived = false, draft = fal
               </p>
             )}
             {open && (
-              <form onSubmit={save} className="mt-3 space-y-2 border-t border-[#262626] pt-3" data-testid={`product-edit-form-${p.slug}`}>
+              <form onSubmit={save} className="mt-3 space-y-2 border-t border-line pt-3" data-testid={`product-edit-form-${p.slug}`}>
                 <input
                   ref={modelInputRef}
                   type="file"
@@ -527,8 +527,8 @@ export default function ProductEditCard({ product, archived = false, draft = fal
                     disabled={uploadingModel}
                     className={`w-full border border-dashed px-3 py-2 text-left font-mono text-[10px] transition disabled:opacity-50 ${
                       modelDrag
-                        ? "border-[#ff4500] text-[#ff4500] bg-[#ff4500]/5"
-                        : "border-[#262626] hover:border-[#ff4500]/60 text-[#a3a3a3] hover:text-[#ff4500]"
+                        ? "border-brand text-brand bg-brand/5"
+                        : "border-line hover:border-brand/60 text-ink-muted hover:text-brand"
                     }`}
                     data-testid={`product-model-upload-${p.slug}`}
                   >
@@ -546,7 +546,7 @@ export default function ProductEditCard({ product, archived = false, draft = fal
                   value={modelUrl}
                   onChange={(e) => setModelUrl(e.target.value)}
                   placeholder="…or paste a public model URL"
-                  className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-[10px] text-[#e5e5e5]"
+                  className="w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-[10px] text-ink"
                   data-testid={`product-model-url-${p.slug}`}
                 />
                 {modelErr && (
@@ -562,7 +562,7 @@ export default function ProductEditCard({ product, archived = false, draft = fal
                     {busy ? "Saving…" : "Save URL"}
                   </button>
                   {saved && (
-                    <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]" data-testid={`product-saved-${p.slug}`}>
+                    <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand" data-testid={`product-saved-${p.slug}`}>
                       ✓ Saved
                     </span>
                   )}
@@ -571,7 +571,7 @@ export default function ProductEditCard({ product, archived = false, draft = fal
                       href={`/shop/${p.slug}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] ml-auto"
+                      className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand ml-auto"
                     >
                       Preview ↗
                     </a>
@@ -617,13 +617,13 @@ const TONES = {
     hoverBg: "hover:bg-cyan-500/10",
   },
   neutral: {
-    border: "border-[#262626] hover:border-[#ff4500]",
-    text: "text-[#a3a3a3] hover:text-[#ff4500]",
-    hoverBg: "hover:bg-[#ff4500]/5",
+    border: "border-line hover:border-brand",
+    text: "text-ink-muted hover:text-brand",
+    hoverBg: "hover:bg-brand/5",
   },
   danger: {
-    border: "border-[#262626] hover:border-red-400",
-    text: "text-[#525252] hover:text-red-400",
+    border: "border-line hover:border-red-400",
+    text: "text-ink-muted hover:text-red-400",
     hoverBg: "hover:bg-red-500/5",
   },
 };
@@ -675,14 +675,14 @@ function OverflowMenu({ onModel, modelLabel, onDelete, deleteLabel, deleteDisabl
       </button>
       {open && (
         <div
-          className="absolute right-0 top-full mt-1 z-20 w-44 bg-[#0d0d0d] border border-[#262626] shadow-xl"
+          className="absolute right-0 top-full mt-1 z-20 w-44 bg-paper border border-line shadow-xl"
           role="menu"
           data-testid={`${testid}-menu`}
         >
           <button
             type="button"
             onClick={() => { setOpen(false); onModel(); }}
-            className="w-full text-left px-3 py-2 font-mono text-[10px] uppercase tracking-[0.18em] text-[#a3a3a3] hover:text-[#ff4500] hover:bg-[#ff4500]/5 transition"
+            className="w-full text-left px-3 py-2 font-mono text-[10px] uppercase tracking-[0.18em] text-ink-muted hover:text-brand hover:bg-brand/5 transition"
             role="menuitem"
             data-testid={`${testid}-3d`}
           >
@@ -692,7 +692,7 @@ function OverflowMenu({ onModel, modelLabel, onDelete, deleteLabel, deleteDisabl
             type="button"
             onClick={() => { setOpen(false); onDelete(); }}
             disabled={deleteDisabled}
-            className="w-full text-left px-3 py-2 font-mono text-[10px] uppercase tracking-[0.18em] text-red-400 hover:text-red-300 hover:bg-red-500/10 transition disabled:opacity-50 border-t border-[#1f1f1f]"
+            className="w-full text-left px-3 py-2 font-mono text-[10px] uppercase tracking-[0.18em] text-red-400 hover:text-red-300 hover:bg-red-500/10 transition disabled:opacity-50 border-t border-line"
             role="menuitem"
             data-testid={`${testid}-delete`}
           >
@@ -742,7 +742,7 @@ function IndexingBadge({ indexing, slug }) {
     not_in_sitemap: {
       dot: "bg-[#525252]",
       label: "Not in sitemap",
-      text: "text-[#a3a3a3]",
+      text: "text-ink-muted",
       title: "Draft / archived / test listing — won't surface in search until published.",
     },
   };
@@ -817,7 +817,7 @@ function PricingVerdictBadge({ comparison, slug }) {
   const intensity = abs >= 20 ? "strong" : "soft";
   const tone = isAbove
     ? (intensity === "strong"
-        ? { color: "text-[#ff4500]", dot: "bg-[#ff4500]", weight: "font-bold" }
+        ? { color: "text-brand", dot: "bg-brand", weight: "font-bold" }
         : { color: "text-amber-400", dot: "bg-amber-400", weight: "" })
     : { color: "text-cyan-400", dot: "bg-cyan-400", weight: intensity === "strong" ? "font-bold" : "" };
   const arrow = isAbove ? "\u2191" : "\u2193";
@@ -914,16 +914,16 @@ function PricingVerdictBadge({ comparison, slug }) {
       </button>
       {open && (
         <div
-          className="absolute z-20 left-0 top-full mt-2 w-64 bg-[#0a0a0a] border border-[#262626] shadow-2xl p-3 space-y-2"
+          className="absolute z-20 left-0 top-full mt-2 w-64 bg-paper border border-line shadow-2xl p-3 space-y-2"
           data-testid={`pricing-verdict-popover-${slug}`}
         >
-          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-[#a3a3a3]">
+          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-ink-muted">
             AI-suggested median
           </p>
-          <p className="font-mono text-xl text-[#e5e5e5] font-bold">
+          <p className="font-mono text-xl text-ink font-bold">
             ${suggestedPrice.toFixed(2)}
           </p>
-          <p className="font-mono text-[10px] text-[#737373] leading-relaxed">
+          <p className="font-mono text-[10px] text-ink-muted leading-relaxed">
             {isAbove
               ? `Your current price is ${pct}% above. Lower to the median to test elasticity.`
               : `Your current price is ${pct}% below. Raise to the median to capture upside.`}
@@ -933,7 +933,7 @@ function PricingVerdictBadge({ comparison, slug }) {
               type="button"
               onClick={onApply}
               disabled={busy}
-              className="flex-1 px-2 py-2 bg-[#ff4500] hover:bg-[#cc3700] text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.2em] font-bold disabled:opacity-60 disabled:cursor-wait transition"
+              className="flex-1 px-2 py-2 bg-brand hover:bg-[#cc3700] text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.2em] font-bold disabled:opacity-60 disabled:cursor-wait transition"
               data-testid={`pricing-verdict-apply-${slug}`}
             >
               {busy ? "Saving…" : "Apply"}
@@ -941,7 +941,7 @@ function PricingVerdictBadge({ comparison, slug }) {
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="px-3 py-2 border border-[#262626] hover:border-[#525252] text-[#a3a3a3] hover:text-[#e5e5e5] font-mono text-[10px] uppercase tracking-[0.2em] transition"
+              className="px-3 py-2 border border-line hover:border-ink-muted text-ink-muted hover:text-ink font-mono text-[10px] uppercase tracking-[0.2em] transition"
               data-testid={`pricing-verdict-cancel-${slug}`}
             >
               Cancel

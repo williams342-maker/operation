@@ -89,19 +89,19 @@ export default function FounderCardSection() {
 
   return (
     <Section title="Founder card · share your number" testId="founder-card-share">
-      <p className="font-mono text-xs text-[#a3a3a3] mb-5 max-w-2xl leading-relaxed">
-        You're <span className="text-[#ff4500]">Founder #{num}</span>. Brag about it.
+      <p className="font-mono text-xs text-ink-muted mb-5 max-w-2xl leading-relaxed">
+        You're <span className="text-brand">Founder #{num}</span>. Brag about it.
         One-click post to X, Facebook, or LinkedIn — or download the card and attach
-        it to anything. Every share drives recruiting traffic back to <code className="text-[#ff4500]">/founders</code>.
+        it to anything. Every share drives recruiting traffic back to <code className="text-brand">/founders</code>.
       </p>
 
       <div className="grid md:grid-cols-[280px_1fr] gap-6 items-start">
         {/* Card preview */}
-        <div className="border border-[#262626] bg-black p-3" data-testid="founder-card-preview">
+        <div className="border border-line bg-paper p-3" data-testid="founder-card-preview">
           {imgError ? (
             <div className="aspect-square flex flex-col items-center justify-center text-center px-4">
-              <div className="font-display text-3xl text-[#ff4500]">#{num}</div>
-              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] mt-2">
+              <div className="font-display text-3xl text-brand">#{num}</div>
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mt-2">
                 Card generating — refresh in ~10s
               </div>
             </div>
@@ -122,7 +122,7 @@ export default function FounderCardSection() {
             href={tweetHref}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center justify-between border border-[#ff4500] text-[#ff4500] hover:bg-[#ff4500] hover:text-black transition px-4 py-3 font-mono text-[11px] uppercase tracking-[0.22em]"
+            className="flex items-center justify-between border border-brand text-brand hover:bg-brand hover:text-ink transition px-4 py-3 font-mono text-[11px] uppercase tracking-[0.22em]"
             data-testid="founder-card-tweet"
           >
             <span className="flex items-center gap-2">
@@ -135,7 +135,7 @@ export default function FounderCardSection() {
             href={fbHref}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center justify-between border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] transition px-4 py-3 font-mono text-[11px] uppercase tracking-[0.22em]"
+            className="flex items-center justify-between border border-line hover:border-brand hover:text-brand transition px-4 py-3 font-mono text-[11px] uppercase tracking-[0.22em]"
             data-testid="founder-card-facebook"
           >
             <span className="flex items-center gap-2">
@@ -148,7 +148,7 @@ export default function FounderCardSection() {
             href={liHref}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center justify-between border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] transition px-4 py-3 font-mono text-[11px] uppercase tracking-[0.22em]"
+            className="flex items-center justify-between border border-line hover:border-brand hover:text-brand transition px-4 py-3 font-mono text-[11px] uppercase tracking-[0.22em]"
             data-testid="founder-card-linkedin"
           >
             <span className="flex items-center gap-2">
@@ -160,21 +160,21 @@ export default function FounderCardSection() {
           <div className="grid grid-cols-2 gap-3 pt-2">
             <button
               onClick={downloadCard}
-              className="flex items-center justify-center gap-2 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] transition px-4 py-3 font-mono text-[11px] uppercase tracking-[0.22em]"
+              className="flex items-center justify-center gap-2 border border-line hover:border-brand hover:text-brand transition px-4 py-3 font-mono text-[11px] uppercase tracking-[0.22em]"
               data-testid="founder-card-download"
             >
               <Download size={14} /> Download card
             </button>
             <button
               onClick={copyText}
-              className="flex items-center justify-center gap-2 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] transition px-4 py-3 font-mono text-[11px] uppercase tracking-[0.22em]"
+              className="flex items-center justify-center gap-2 border border-line hover:border-brand hover:text-brand transition px-4 py-3 font-mono text-[11px] uppercase tracking-[0.22em]"
               data-testid="founder-card-copy-text"
             >
               <Copy size={14} /> Copy text
             </button>
           </div>
 
-          <p className="font-mono text-[10px] text-[#525252] leading-relaxed pt-2">
+          <p className="font-mono text-[10px] text-ink-muted leading-relaxed pt-2">
             ◇ Tip: X strips images from web-intent posts — hit "Download card" first,
             then paste it into the composer after it opens.
           </p>

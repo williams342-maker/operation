@@ -31,7 +31,7 @@ export default function ChannelsPanel({ maker }) {
     fetchFeedsHealth().then(setData).catch(() => setData({ error: true }));
 
   if (!data) {
-    return <p className="font-mono text-xs text-[#525252] py-6">Loading channel health…</p>;
+    return <p className="font-mono text-xs text-ink-muted py-6">Loading channel health…</p>;
   }
   if (data.error) {
     return <p className="font-mono text-xs text-red-400 py-6">Could not load channel health.</p>;
@@ -40,19 +40,19 @@ export default function ChannelsPanel({ maker }) {
   return (
     <div className="space-y-6" data-testid="settings-channels">
       {/* Hero / explainer */}
-      <div className="border border-[#262626] bg-[#0d0d0d] p-6">
+      <div className="border border-line bg-paper p-6">
         <div className="flex items-start gap-4">
-          <div className="w-10 h-10 border border-[#ff4500] bg-[#1a0a05] flex items-center justify-center shrink-0">
-            <Globe size={18} className="text-[#ff4500]" />
+          <div className="w-10 h-10 border border-brand bg-[#1a0a05] flex items-center justify-center shrink-0">
+            <Globe size={18} className="text-brand" />
           </div>
           <div className="min-w-0">
             <h2 className="font-display text-2xl md:text-3xl mb-1">Off-site product channels</h2>
-            <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed max-w-2xl">
+            <p className="font-mono text-xs text-ink-muted leading-relaxed max-w-2xl">
               Sync your full marketplace catalog to Facebook, Instagram, Pinterest,
               and Google Merchant Center. Paste the feed URL once into each platform's
               catalog manager — we regenerate the file on every fetch with your latest
               published, in-stock listings.
-              <span className="block mt-2 text-[#525252]">
+              <span className="block mt-2 text-ink-muted">
                 ⚠️ Meta discontinued US Shops checkout in April 2024. Buyers click through
                 to your Crafters Market storefront to finish the sale, but the catalog
                 still powers tagged Reels, Story stickers, and dynamic ads.
@@ -64,28 +64,28 @@ export default function ChannelsPanel({ maker }) {
 
       {/* Live row count */}
       <div className="grid sm:grid-cols-2 gap-4">
-        <div className="border border-[#262626] bg-[#0d0d0d] p-5" data-testid="channels-rowcount">
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">
+        <div className="border border-line bg-paper p-5" data-testid="channels-rowcount">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
             Listings in next sync
           </div>
-          <div className="font-display text-3xl md:text-4xl text-[#ff4500] leading-none">
+          <div className="font-display text-3xl md:text-4xl text-brand leading-none">
             {data.row_count}
           </div>
-          <div className="font-mono text-[10px] text-[#525252] mt-2">
+          <div className="font-mono text-[10px] text-ink-muted mt-2">
             published · in-stock · marketplace-wide
           </div>
         </div>
-        <div className="border border-[#262626] bg-[#0d0d0d] p-5">
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">
+        <div className="border border-line bg-paper p-5">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
             Feed regeneration
           </div>
           <div className="font-display text-2xl text-emerald-300 leading-none">Live</div>
-          <div className="font-mono text-[10px] text-[#525252] mt-2">
+          <div className="font-mono text-[10px] text-ink-muted mt-2">
             fetched on demand · 1-hour CDN cache
           </div>
           <button
             onClick={reload}
-            className="mt-3 px-2.5 py-1 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition inline-flex items-center gap-1.5"
+            className="mt-3 px-2.5 py-1 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] transition inline-flex items-center gap-1.5"
             data-testid="channels-refresh"
           >
             <RefreshCw size={11} /> Refresh stats
@@ -101,16 +101,16 @@ export default function ChannelsPanel({ maker }) {
       </div>
 
       {/* Footer note */}
-      <div className="border border-dashed border-[#262626] p-5">
-        <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#ff4500] mb-2">
+      <div className="border border-dashed border-line p-5">
+        <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-brand mb-2">
           ◆ Feed format
         </div>
-        <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed">
+        <p className="font-mono text-xs text-ink-muted leading-relaxed">
           Each feed uses Google Merchant Center column names — same schema accepted
           by Meta Commerce and Pinterest Catalogs, so one upload powers all three.
           Custom labels (`custom_label_0` = technique, `custom_label_1` = maker slug)
           let you build campaign segments by plasma vs. laser, or by individual shop.
-          {maker?.slug ? <> Filter to your shop in any platform with <code className="font-mono text-[#ff4500]">custom_label_1 = {maker.slug}</code>.</> : null}
+          {maker?.slug ? <> Filter to your shop in any platform with <code className="font-mono text-brand">custom_label_1 = {maker.slug}</code>.</> : null}
         </p>
       </div>
     </div>
@@ -129,12 +129,12 @@ function FeedRow({ feed }) {
   };
   return (
     <div
-      className="border border-[#262626] bg-[#0d0d0d] p-4 hover:border-[#ff4500]/60 transition-colors"
+      className="border border-line bg-paper p-4 hover:border-brand/60 transition-colors"
       data-testid={`channel-row-${feed.channel}`}
     >
       <div className="flex items-start gap-3">
-        <div className="w-9 h-9 border border-[#262626] flex items-center justify-center shrink-0">
-          <Icon size={16} className="text-[#ff4500]" />
+        <div className="w-9 h-9 border border-line flex items-center justify-center shrink-0">
+          <Icon size={16} className="text-brand" />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-baseline gap-2 flex-wrap">
@@ -142,14 +142,14 @@ function FeedRow({ feed }) {
           </div>
           <div className="mt-1 flex items-center gap-2">
             <code
-              className="flex-1 font-mono text-[10px] text-[#a3a3a3] bg-[#0a0a0a] px-2 py-1.5 border border-[#262626] truncate"
+              className="flex-1 font-mono text-[10px] text-ink-muted bg-paper px-2 py-1.5 border border-line truncate"
               data-testid={`channel-url-${feed.channel}`}
             >
               {feed.url}
             </code>
             <button
               onClick={copy}
-              className="px-2.5 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.22em] transition shrink-0"
+              className="px-2.5 py-1.5 border border-line hover:border-brand hover:text-brand inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.22em] transition shrink-0"
               data-testid={`channel-copy-${feed.channel}`}
               title="Copy feed URL"
             >
@@ -159,14 +159,14 @@ function FeedRow({ feed }) {
               href={feed.manager_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="px-2.5 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.22em] transition shrink-0"
+              className="px-2.5 py-1.5 border border-line hover:border-brand hover:text-brand inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.22em] transition shrink-0"
               data-testid={`channel-manager-${feed.channel}`}
               title="Open the platform's Catalog/Commerce Manager"
             >
               Open <ExternalLink size={11} />
             </a>
           </div>
-          <p className="font-mono text-[11px] text-[#525252] mt-2 leading-relaxed">{feed.instructions}</p>
+          <p className="font-mono text-[11px] text-ink-muted mt-2 leading-relaxed">{feed.instructions}</p>
         </div>
       </div>
     </div>

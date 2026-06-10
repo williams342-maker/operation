@@ -17,11 +17,11 @@ export default function MessagesTab() {
   return (
     <div className="space-y-4" data-testid="messages-tab">
       <header>
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">
           ◆ Messages
         </div>
         <h2 className="font-display text-2xl uppercase">Inbox</h2>
-        <p className="font-mono text-[11px] text-[#a3a3a3] mt-1">
+        <p className="font-mono text-[11px] text-ink-muted mt-1">
           Buyer enquiries, custom-order discussions, and order help requests.
         </p>
       </header>

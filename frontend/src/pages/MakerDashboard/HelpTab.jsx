@@ -370,13 +370,13 @@ export default function HelpTab() {
   return (
     <div className="space-y-8" data-testid="help-tab">
       <div>
-        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-3">
+        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-3">
           ◆ Shop Manager · Help
         </div>
         <h1 className="font-display text-3xl md:text-5xl uppercase leading-[0.95]">
           Help Center.
         </h1>
-        <p className="font-mono text-sm text-[#a3a3a3] mt-2 max-w-2xl">
+        <p className="font-mono text-sm text-ink-muted mt-2 max-w-2xl">
           Everything we wish we'd known before opening our first shop. Pick a topic
           on the left, or search across every article.
         </p>
@@ -432,7 +432,7 @@ function HelpSubNav({ categories, activeId, openCategories, onToggleCategory, on
       {/* Search box — Cmd/Ctrl+K to focus, Esc to clear. Live-filters
           categories AND right-pane content match-count messaging. */}
       <div className="relative" data-testid="help-search-wrap">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#525252] pointer-events-none" />
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted pointer-events-none" />
         <input
           ref={searchRef}
           type="search"
@@ -440,28 +440,28 @@ function HelpSubNav({ categories, activeId, openCategories, onToggleCategory, on
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search help…"
           aria-label="Search help articles"
-          className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none pl-9 pr-16 py-2.5 font-mono text-xs text-[#e5e5e5] placeholder:text-[#525252]"
+          className="w-full bg-paper border border-line focus:border-brand outline-none pl-9 pr-16 py-2.5 font-mono text-xs text-ink placeholder:text-ink-muted"
           data-testid="help-search-input"
         />
         {query ? (
           <button
             type="button"
             onClick={() => setQuery("")}
-            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-[#a3a3a3] hover:text-[#ff4500] transition"
+            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-ink-muted hover:text-brand transition"
             aria-label="Clear search"
             data-testid="help-search-clear"
           >
             <X size={14} />
           </button>
         ) : (
-          <kbd className="hidden md:inline-flex absolute right-2 top-1/2 -translate-y-1/2 px-1.5 py-0.5 border border-[#262626] font-mono text-[9px] uppercase tracking-[0.18em] text-[#525252]">
+          <kbd className="hidden md:inline-flex absolute right-2 top-1/2 -translate-y-1/2 px-1.5 py-0.5 border border-line font-mono text-[9px] uppercase tracking-[0.18em] text-ink-muted">
             ⌘K
           </kbd>
         )}
       </div>
       {isSearching && (
         <div
-          className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] px-1"
+          className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand px-1"
           data-testid="help-search-result-count"
         >
           ◆ {matchCount} match{matchCount === 1 ? "" : "es"}
@@ -478,7 +478,7 @@ function HelpSubNav({ categories, activeId, openCategories, onToggleCategory, on
               .find((ch) => ch.id === e.target.value);
             if (leaf) onPick(leaf);
           }}
-          className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-4 py-3 font-mono text-sm text-[#e5e5e5]"
+          className="w-full bg-paper border border-line focus:border-brand outline-none px-4 py-3 font-mono text-sm text-ink"
           data-testid="help-subnav-mobile"
         >
           {categories.map((c) => (
@@ -493,11 +493,11 @@ function HelpSubNav({ categories, activeId, openCategories, onToggleCategory, on
 
       {/* Desktop: collapsible categories */}
       <nav
-        className="hidden lg:block bg-[#0d0d0d] border border-[#1f1f1f] p-2 self-start"
+        className="hidden lg:block bg-paper border border-line p-2 self-start"
         data-testid="help-subnav"
       >
         {categories.length === 0 ? (
-          <div className="px-3 py-6 text-center font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252]" data-testid="help-subnav-empty">
+          <div className="px-3 py-6 text-center font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted" data-testid="help-subnav-empty">
             No matches.
           </div>
         ) : (
@@ -513,8 +513,8 @@ function HelpSubNav({ categories, activeId, openCategories, onToggleCategory, on
                   aria-expanded={isOpen}
                   className={`w-full text-left px-3 py-2.5 flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.18em] transition border-l-2 ${
                     containsActive
-                      ? "border-[#ff4500] text-[#e5e5e5]"
-                      : "border-transparent text-[#a3a3a3] hover:text-[#e5e5e5] hover:bg-[#161616]"
+                      ? "border-brand text-ink"
+                      : "border-transparent text-ink-muted hover:text-ink hover:bg-surface"
                   }`}
                   data-testid={`help-cat-${c.id}-toggle`}
                 >
@@ -536,8 +536,8 @@ function HelpSubNav({ categories, activeId, openCategories, onToggleCategory, on
                             onClick={() => onPick(ch)}
                             className={`w-full text-left pl-10 pr-3 py-2 font-mono text-[11px] tracking-[0.04em] transition ${
                               isActive
-                                ? "bg-[#ff4500]/10 text-[#ff4500]"
-                                : "text-[#a3a3a3] hover:text-[#e5e5e5] hover:bg-[#161616]"
+                                ? "bg-brand/10 text-brand"
+                                : "text-ink-muted hover:text-ink hover:bg-surface"
                             }`}
                             data-testid={`help-leaf-link-${ch.id}`}
                           >
@@ -561,16 +561,16 @@ function HelpSubNav({ categories, activeId, openCategories, onToggleCategory, on
 function NoResults({ query, onClear }) {
   return (
     <div
-      className="border border-dashed border-[#262626] p-10 text-center"
+      className="border border-dashed border-line p-10 text-center"
       data-testid="help-no-results"
     >
-      <Search size={28} className="mx-auto text-[#525252] mb-3" />
+      <Search size={28} className="mx-auto text-ink-muted mb-3" />
       <h2 className="font-display text-2xl uppercase mb-2">
-        No help articles match "<span className="text-[#ff4500]">{query}</span>"
+        No help articles match "<span className="text-brand">{query}</span>"
       </h2>
-      <p className="font-mono text-xs text-[#a3a3a3] max-w-md mx-auto mb-5 leading-relaxed">
+      <p className="font-mono text-xs text-ink-muted max-w-md mx-auto mb-5 leading-relaxed">
         Try a broader term, or email{" "}
-        <a href="mailto:team@craftersmarket.org" className="text-[#ff4500] hover:underline">
+        <a href="mailto:team@craftersmarket.org" className="text-brand hover:underline">
           team@craftersmarket.org
         </a>{" "}
         — we usually reply within a business day.
@@ -578,7 +578,7 @@ function NoResults({ query, onClear }) {
       <button
         type="button"
         onClick={onClear}
-        className="px-4 py-2 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition"
+        className="px-4 py-2 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] transition"
         data-testid="help-no-results-clear"
       >
         Clear search →
@@ -593,13 +593,13 @@ function NoResults({ query, onClear }) {
 function ArticlePane({ leaf, query, onAction }) {
   const { body, kind } = leaf;
   return (
-    <article className="border border-[#262626] p-5 md:p-7 space-y-5">
-      <header className="border-b border-[#1f1f1f] pb-4">
+    <article className="border border-line p-5 md:p-7 space-y-5">
+      <header className="border-b border-line pb-4">
         <h2 className="font-display text-2xl md:text-3xl uppercase leading-[1.05]">
           <Highlight text={body?.title || leaf.label} query={query} />
         </h2>
         {body?.intro && (
-          <p className="font-mono text-xs text-[#a3a3a3] mt-2 leading-relaxed">
+          <p className="font-mono text-xs text-ink-muted mt-2 leading-relaxed">
             <Highlight text={body.intro} query={query} />
           </p>
         )}
@@ -608,8 +608,8 @@ function ArticlePane({ leaf, query, onAction }) {
       {body?.steps?.length > 0 && (
         <ul className="space-y-2.5" data-testid="help-article-steps">
           {body.steps.map((line, i) => (
-            <li key={i} className="font-mono text-xs text-[#e5e5e5] leading-relaxed flex gap-3">
-              <span className="text-[#ff4500] shrink-0 font-bold">
+            <li key={i} className="font-mono text-xs text-ink leading-relaxed flex gap-3">
+              <span className="text-brand shrink-0 font-bold">
                 {String(i + 1).padStart(2, "0")}
               </span>
               <span><Highlight text={line} query={query} /></span>
@@ -642,11 +642,11 @@ function ArticlePane({ leaf, query, onAction }) {
         </div>
       )}
 
-      <footer className="border-t border-[#1f1f1f] pt-4 font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] flex items-center gap-2">
+      <footer className="border-t border-line pt-4 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted flex items-center gap-2">
         <span>◇ Was this helpful?</span>
         <a
           href={`mailto:team@craftersmarket.org?subject=Help%20feedback%20%E2%80%94%20${encodeURIComponent(body?.title || leaf.label)}`}
-          className="text-[#a3a3a3] hover:text-[#ff4500] transition"
+          className="text-ink-muted hover:text-brand transition"
           data-testid={`help-feedback-${leaf.id}`}
         >
           Send feedback →
@@ -667,7 +667,7 @@ function Highlight({ text, query }) {
     <>
       {parts.map((p, i) =>
         p && p.toLowerCase() === q ? (
-          <mark key={i} className="bg-[#ff4500]/30 text-[#ffe5d6] px-0.5 rounded-sm">
+          <mark key={i} className="bg-brand/30 text-[#ffe5d6] px-0.5 rounded-sm">
             {p}
           </mark>
         ) : (

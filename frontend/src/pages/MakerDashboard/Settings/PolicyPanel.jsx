@@ -50,8 +50,8 @@ export default function PolicyPanel({ maker, onSaved }) {
       </div>
 
       {acceptsAny && (
-        <div className="border border-[#262626] bg-[#0a0a0a] p-4 space-y-4" data-testid="policy-rules-block">
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+        <div className="border border-line bg-paper p-4 space-y-4" data-testid="policy-rules-block">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
             ◆ Your return / exchange rules
           </div>
           <Field label="Return window (days)" hint="How long after delivery a buyer can request a return.">
@@ -103,8 +103,8 @@ export default function PolicyPanel({ maker, onSaved }) {
         <textarea rows={6} className={`${inputCls} resize-none leading-relaxed`} value={form.returns_policy || ""} onChange={(e) => set("returns_policy")(e.target.value)} data-testid="policy-returns-notes" />
       </Field>
 
-      <div className="border border-[#262626] bg-[#0a0a0a] p-4 space-y-4" data-testid="policy-custom-orders-block">
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+      <div className="border border-line bg-paper p-4 space-y-4" data-testid="policy-custom-orders-block">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
           ◆ Custom &amp; personalized orders
         </div>
         <ToggleRow
@@ -126,26 +126,26 @@ export default function PolicyPanel({ maker, onSaved }) {
         </Field>
       </div>
 
-      <div className="border border-[#262626] bg-[#0d0d0d] p-4">
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-1">
+      <div className="border border-line bg-paper p-4">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-1">
           ◆ Buyer will see
         </div>
-        <p className="font-mono text-xs text-[#e5e5e5] leading-relaxed" data-testid="policy-buyer-preview">
+        <p className="font-mono text-xs text-ink leading-relaxed" data-testid="policy-buyer-preview">
           {acceptsAny ? (
             <>
               This shop accepts {[
                 form.accepts_returns_default && "returns",
                 form.accepts_exchanges_default && "exchanges",
               ].filter(Boolean).join(" and ")} within{" "}
-              <span className="text-white">{form.return_window_days ?? 14} days</span> of delivery.{" "}
+              <span className="text-ink">{form.return_window_days ?? 14} days</span> of delivery.{" "}
               {form.return_shipping_paid_by === "seller"
                 ? "The seller covers return shipping."
                 : "The buyer pays return shipping."}{" "}
               {form.restocking_fee_pct > 0 && (
-                <>A <span className="text-white">{form.restocking_fee_pct}%</span> restocking fee applies. </>
+                <>A <span className="text-ink">{form.restocking_fee_pct}%</span> restocking fee applies. </>
               )}
               {form.non_returnable_items && (
-                <>Excluded: <span className="text-white">{form.non_returnable_items}</span></>
+                <>Excluded: <span className="text-ink">{form.non_returnable_items}</span></>
               )}
             </>
           ) : (

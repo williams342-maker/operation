@@ -122,10 +122,10 @@ export default function AdsSection() {
       <Section title="Crafters Market Ads" testId="ads-hero">
         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
           <div className="max-w-xl">
-            <p className="font-mono text-xs text-[#e5e5e5] leading-relaxed">
-              Pin your listings to the top of category search & the home-page showcase row for <b className="text-[#ff4500]">$5 per week, per listing</b>. Pause anytime — charges stop at the end of the current week.
+            <p className="font-mono text-xs text-ink leading-relaxed">
+              Pin your listings to the top of category search & the home-page showcase row for <b className="text-brand">$5 per week, per listing</b>. Pause anytime — charges stop at the end of the current week.
             </p>
-            <ul className="mt-3 space-y-1 font-mono text-[11px] text-[#a3a3a3] leading-relaxed">
+            <ul className="mt-3 space-y-1 font-mono text-[11px] text-ink-muted leading-relaxed">
               <li>◆ Featured placement in /shop?category= search results</li>
               <li>◆ Priority slot in home-page "Featured" showcase row</li>
               <li>◆ "★ Featured" badge on the listing card — drives ~18% higher CTR</li>
@@ -144,11 +144,11 @@ export default function AdsSection() {
         {products === null ? (
           <div data-testid="ads-active-loading"><RowsSkeleton count={3} /></div>
         ) : activePromos.length === 0 ? (
-          <p className="font-mono text-xs text-[#737373] py-3">
+          <p className="font-mono text-xs text-ink-muted py-3">
             No promoted listings right now. Boost one below to pin it to the top of search.
           </p>
         ) : (
-          <ul className="border border-[#1f1f1f] divide-y divide-[#1f1f1f]" data-testid="ads-active-list">
+          <ul className="border border-line divide-y divide-[#1f1f1f]" data-testid="ads-active-list">
             {activePromos.map((p) => (
               <PromotedRow
                 key={p.id}
@@ -177,16 +177,16 @@ export default function AdsSection() {
                 <Gift size={16} className="text-emerald-300" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="font-mono text-xs text-[#e5e5e5]">
+                <div className="font-mono text-xs text-ink">
                   <b className="text-emerald-300 tabular-nums">{creditState.available}</b>{" "}
                   free 24-hour boost credit{creditState.available === 1 ? "" : "s"} ready to spend
                 </div>
-                <p className="font-mono text-[11px] text-[#a3a3a3] leading-relaxed mt-1">
+                <p className="font-mono text-[11px] text-ink-muted leading-relaxed mt-1">
                   Earned by uploading a design file to the community this week.
                   Click <b>Use credit</b> on any listing below to apply 24 hours of
                   promotion — extends an existing boost if the listing is already promoted.
                   {creditState.lifetime_earned > creditState.available && (
-                    <span className="block text-[#525252] mt-1">
+                    <span className="block text-ink-muted mt-1">
                       Lifetime: {creditState.lifetime_earned} credits earned.
                     </span>
                   )}
@@ -200,7 +200,7 @@ export default function AdsSection() {
       {/* Boost picker */}
       <Section title="Boost a listing" testId="ads-boost">
         <div className="flex flex-wrap items-center gap-3 mb-4">
-          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Duration</span>
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Duration</span>
           {[1, 2, 4, 12].map((w) => (
             <button
               key={w}
@@ -209,8 +209,8 @@ export default function AdsSection() {
               data-testid={`ads-weeks-${w}`}
               className={`px-3 py-1.5 border font-mono text-[10px] uppercase tracking-[0.22em] transition ${
                 weeks === w
-                  ? "border-[#ff4500] text-[#ff4500] bg-[#ff4500]/5"
-                  : "border-[#262626] text-[#a3a3a3] hover:border-[#525252] hover:text-[#e5e5e5]"
+                  ? "border-brand text-brand bg-brand/5"
+                  : "border-line text-ink-muted hover:border-ink-muted hover:text-ink"
               }`}
             >
               {w === 1 ? "1 week" : `${w} weeks`} · ${w * WEEKLY_RATE}
@@ -220,19 +220,19 @@ export default function AdsSection() {
         {products === null ? (
           <div data-testid="ads-eligible-loading"><RowsSkeleton count={4} /></div>
         ) : eligible.length === 0 ? (
-          <p className="font-mono text-xs text-[#737373] py-3">
+          <p className="font-mono text-xs text-ink-muted py-3">
             No eligible listings — every published listing is already promoted, or you haven't published yet.
           </p>
         ) : (
-          <ul className="border border-[#1f1f1f] divide-y divide-[#1f1f1f] max-h-[440px] overflow-y-auto" data-testid="ads-eligible-list">
+          <ul className="border border-line divide-y divide-[#1f1f1f] max-h-[440px] overflow-y-auto" data-testid="ads-eligible-list">
             {eligible.slice(0, 50).map((p) => (
               <li key={p.id} className="flex items-center gap-3 px-3 py-2">
                 {p.images?.[0] && (
-                  <img src={p.images[0]} alt="" className="w-12 h-12 object-cover border border-[#1f1f1f]" />
+                  <img src={p.images[0]} alt="" className="w-12 h-12 object-cover border border-line" />
                 )}
                 <div className="flex-1 min-w-0">
-                  <div className="font-mono text-xs text-[#e5e5e5] truncate">{p.title}</div>
-                  <div className="font-mono text-[10px] text-[#525252]">
+                  <div className="font-mono text-xs text-ink truncate">{p.title}</div>
+                  <div className="font-mono text-[10px] text-ink-muted">
                     ${p.price?.toFixed(0) ?? 0} · {p.category} · {p.in_stock ?? 0} in stock
                   </div>
                 </div>
@@ -241,7 +241,7 @@ export default function AdsSection() {
                     <button
                       onClick={() => redeemCredit(creditState.credits[0].id, p.slug)}
                       disabled={busy === `credit:${p.slug}`}
-                      className="px-2.5 py-1.5 border border-emerald-400 text-emerald-300 hover:bg-emerald-400 hover:text-black font-mono text-[10px] uppercase tracking-[0.22em] font-bold transition disabled:opacity-50 inline-flex items-center gap-1.5"
+                      className="px-2.5 py-1.5 border border-emerald-400 text-emerald-300 hover:bg-emerald-400 hover:text-ink font-mono text-[10px] uppercase tracking-[0.22em] font-bold transition disabled:opacity-50 inline-flex items-center gap-1.5"
                       data-testid={`ads-use-credit-${p.slug}`}
                       title="Apply a free 24-hour boost from your community-upload credit balance"
                     >
@@ -251,7 +251,7 @@ export default function AdsSection() {
                   <button
                     onClick={() => boost(p.slug)}
                     disabled={busy === p.slug}
-                    className="px-3 py-1.5 border border-[#ff4500] text-[#ff4500] hover:bg-[#ff4500] hover:text-black font-mono text-[10px] uppercase tracking-[0.22em] font-bold transition disabled:opacity-50 inline-flex items-center gap-1.5"
+                    className="px-3 py-1.5 border border-brand text-brand hover:bg-brand hover:text-ink font-mono text-[10px] uppercase tracking-[0.22em] font-bold transition disabled:opacity-50 inline-flex items-center gap-1.5"
                     data-testid={`ads-boost-${p.slug}`}
                   >
                     <Zap size={11} /> {busy === p.slug ? "…" : `Boost $${weeks * WEEKLY_RATE}`}
@@ -261,7 +261,7 @@ export default function AdsSection() {
             ))}
           </ul>
         )}
-        <p className="font-mono text-[10px] text-[#525252] mt-3">
+        <p className="font-mono text-[10px] text-ink-muted mt-3">
           ◇ ${WEEKLY_RATE} per week · charged to your pending balance · settled from your next payout. No daily cap.
         </p>
       </Section>
@@ -314,19 +314,19 @@ function AutoBoostPanel() {
     <Section title="Auto-boost best-sellers" testId="ads-auto-boost">
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-4">
         <div className="max-w-xl">
-          <p className="font-mono text-xs text-[#e5e5e5] leading-relaxed">
+          <p className="font-mono text-xs text-ink leading-relaxed">
             Once a day we look at your top sellers from the last 30 days. Any listing
-            with <b className="text-[#ff4500]">{data.min_orders_30d}+</b> orders that
-            isn't already promoted gets <b className="text-[#ff4500]">1 week of free promotion</b>.
-            Up to <b className="text-[#ff4500]">{data.max_per_run}</b> listings per run.
+            with <b className="text-brand">{data.min_orders_30d}+</b> orders that
+            isn't already promoted gets <b className="text-brand">1 week of free promotion</b>.
+            Up to <b className="text-brand">{data.max_per_run}</b> listings per run.
           </p>
-          <p className="font-mono text-[10px] text-[#525252] mt-2">
+          <p className="font-mono text-[10px] text-ink-muted mt-2">
             $5/wk per boosted listing — billed to your pending balance.
             {data.last_run_at && ` Last run: ${new Date(data.last_run_at).toLocaleString()}.`}
           </p>
           {data.total_spent_usd > 0 && (
-            <p className="font-mono text-[10px] text-[#525252]">
-              Lifetime auto-boost spend: <b className="text-[#a3a3a3]">${data.total_spent_usd.toFixed(2)}</b>
+            <p className="font-mono text-[10px] text-ink-muted">
+              Lifetime auto-boost spend: <b className="text-ink-muted">${data.total_spent_usd.toFixed(2)}</b>
             </p>
           )}
         </div>
@@ -336,8 +336,8 @@ function AutoBoostPanel() {
           data-testid="auto-boost-toggle"
           className={`shrink-0 px-4 py-2 border font-mono text-[10px] uppercase tracking-[0.22em] font-bold transition disabled:opacity-50 ${
             enabled
-              ? "border-[#ff4500] bg-[#ff4500] text-black hover:bg-[#ff5722]"
-              : "border-[#262626] text-[#a3a3a3] hover:border-[#ff4500] hover:text-[#ff4500]"
+              ? "border-brand bg-brand text-ink hover:bg-[#ff5722]"
+              : "border-line text-ink-muted hover:border-brand hover:text-brand"
           }`}
         >
           {enabled ? "◆ Auto-boost ON" : "◇ Enable auto-boost"}
@@ -345,15 +345,15 @@ function AutoBoostPanel() {
       </div>
 
       {enabled && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4 border-t border-[#1f1f1f] pt-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4 border-t border-line pt-3">
           <div>
-            <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Min orders / 30d to qualify</label>
+            <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Min orders / 30d to qualify</label>
             <select
               value={data.min_orders_30d}
               onChange={(e) => updateField("min_orders_30d", Number(e.target.value))}
               disabled={busy}
               data-testid="auto-boost-threshold"
-              className="w-full mt-1 bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5] disabled:opacity-50"
+              className="w-full mt-1 bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink disabled:opacity-50"
             >
               {[3, 5, 10, 15, 20, 30, 50].map((n) => (
                 <option key={n} value={n}>{n} orders</option>
@@ -361,13 +361,13 @@ function AutoBoostPanel() {
             </select>
           </div>
           <div>
-            <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Max listings per run (cap)</label>
+            <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Max listings per run (cap)</label>
             <select
               value={data.max_per_run}
               onChange={(e) => updateField("max_per_run", Number(e.target.value))}
               disabled={busy}
               data-testid="auto-boost-max-per-run"
-              className="w-full mt-1 bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5] disabled:opacity-50"
+              className="w-full mt-1 bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink disabled:opacity-50"
             >
               {[1, 2, 3, 5, 10].map((n) => (
                 <option key={n} value={n}>{n} (~${n * 5}/wk max)</option>
@@ -378,25 +378,25 @@ function AutoBoostPanel() {
       )}
 
       <div data-testid="auto-boost-preview">
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
           Next-run preview ({candidates.length})
         </div>
         {candidates.length === 0 ? (
-          <p className="font-mono text-xs text-[#525252] py-2">
+          <p className="font-mono text-xs text-ink-muted py-2">
             {enabled
               ? "No listings hit the threshold right now — keep selling and we'll catch the next surge."
               : "Enable auto-boost above to see your candidates."}
           </p>
         ) : (
-          <ul className="border border-[#1f1f1f] divide-y divide-[#1f1f1f]" data-testid="auto-boost-list">
+          <ul className="border border-line divide-y divide-[#1f1f1f]" data-testid="auto-boost-list">
             {candidates.map((c) => (
               <li key={c.slug} className="flex items-center gap-3 px-3 py-2" data-testid={`auto-boost-candidate-${c.slug}`}>
-                {c.thumbnail && <img src={c.thumbnail} alt="" className="w-10 h-10 object-cover border border-[#1f1f1f]" />}
+                {c.thumbnail && <img src={c.thumbnail} alt="" className="w-10 h-10 object-cover border border-line" />}
                 <div className="flex-1 min-w-0">
-                  <div className="font-mono text-xs text-[#e5e5e5] truncate">{c.title}</div>
-                  <div className="font-mono text-[10px] text-[#525252]">{c.orders_30d} orders in 30d</div>
+                  <div className="font-mono text-xs text-ink truncate">{c.title}</div>
+                  <div className="font-mono text-[10px] text-ink-muted">{c.orders_30d} orders in 30d</div>
                 </div>
-                <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] shrink-0">★ Will boost</span>
+                <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand shrink-0">★ Will boost</span>
               </li>
             ))}
           </ul>
@@ -408,9 +408,9 @@ function AutoBoostPanel() {
 
 function AdStat({ label, value, testId, tone }) {
   return (
-    <div className="border border-[#262626] p-2.5 text-center min-w-[84px]" data-testid={testId}>
-      <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#a3a3a3]">{label}</div>
-      <div className={`font-display text-2xl mt-0.5 ${tone === "orange" ? "text-[#ff4500]" : "text-[#e5e5e5]"}`}>{value}</div>
+    <div className="border border-line p-2.5 text-center min-w-[84px]" data-testid={testId}>
+      <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted">{label}</div>
+      <div className={`font-display text-2xl mt-0.5 ${tone === "orange" ? "text-brand" : "text-ink"}`}>{value}</div>
     </div>
   );
 }
@@ -437,15 +437,15 @@ function PromotedRow({ p, isPlus, onExtend, onToggleAutoRenew, busy, renewBusy }
       data-testid={`ads-active-${p.slug}`}
     >
       {p.images?.[0] && (
-        <img src={p.images[0]} alt="" className="w-12 h-12 object-cover border border-[#ff4500]/40" />
+        <img src={p.images[0]} alt="" className="w-12 h-12 object-cover border border-brand/40" />
       )}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-mono text-xs text-[#e5e5e5] truncate">{p.title}</span>
-          <span className="inline-block px-1.5 py-0.5 bg-[#ff4500] text-black text-[9px] font-bold">★ FEATURED</span>
+          <span className="font-mono text-xs text-ink truncate">{p.title}</span>
+          <span className="inline-block px-1.5 py-0.5 bg-brand text-ink text-[9px] font-bold">★ FEATURED</span>
           {urgent && (
             <span
-              className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-[#ff4500]/15 border border-[#ff4500] text-[9px] font-bold uppercase tracking-[0.18em] text-[#ff4500] animate-pulse"
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-brand/15 border border-brand text-[9px] font-bold uppercase tracking-[0.18em] text-brand animate-pulse"
               data-testid={`ads-urgent-${p.slug}`}
             >
               <Flame size={10} /> Ends soon
@@ -460,9 +460,9 @@ function PromotedRow({ p, isPlus, onExtend, onToggleAutoRenew, busy, renewBusy }
             </span>
           )}
         </div>
-        <div className="font-mono text-[10px] text-[#a3a3a3] mt-0.5 flex items-center gap-2">
+        <div className="font-mono text-[10px] text-ink-muted mt-0.5 flex items-center gap-2">
           <Calendar size={10} className="opacity-60" />
-          <span className={urgent ? "text-[#ff4500] font-bold" : ""}>
+          <span className={urgent ? "text-brand font-bold" : ""}>
             {daysLeft}d {hoursLeft}h left
           </span>
           <span>· ends {end.toLocaleDateString()}</span>
@@ -476,7 +476,7 @@ function PromotedRow({ p, isPlus, onExtend, onToggleAutoRenew, busy, renewBusy }
           className={`px-2.5 py-1.5 border font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50 inline-flex items-center gap-1.5 ${
             autoRenew
               ? "border-emerald-400 text-emerald-300 hover:bg-emerald-400/10"
-              : "border-[#262626] text-[#a3a3a3] hover:border-[#525252] hover:text-[#e5e5e5]"
+              : "border-line text-ink-muted hover:border-ink-muted hover:text-ink"
           }`}
           data-testid={`ads-autorenew-${p.slug}`}
           title={
@@ -495,8 +495,8 @@ function PromotedRow({ p, isPlus, onExtend, onToggleAutoRenew, busy, renewBusy }
           disabled={busy}
           className={`px-3 py-1.5 border font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50 inline-flex items-center gap-1.5 ${
             urgent
-              ? "border-[#ff4500] bg-[#ff4500] text-black hover:bg-[#ff5a1a]"
-              : "border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500]"
+              ? "border-brand bg-brand text-ink hover:bg-[#ff5a1a]"
+              : "border-line hover:border-brand hover:text-brand"
           }`}
           data-testid={`ads-extend-${p.slug}`}
           title="Add another week to this promotion"

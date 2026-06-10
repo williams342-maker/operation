@@ -196,21 +196,21 @@ export default function NewListingModal({ onClose, onCreated }) {
 
   return (
     <div
-      className="fixed inset-0 bg-black/85 backdrop-blur-sm z-[100] flex items-start justify-center overflow-y-auto p-4 md:p-12"
+      className="fixed inset-0 bg-paper/85 backdrop-blur-sm z-[100] flex items-start justify-center overflow-y-auto p-4 md:p-12"
       data-testid="new-listing-modal"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <form
         onSubmit={submit}
-        className="bg-[#0a0a0a] border border-[#262626] w-full max-w-3xl"
+        className="bg-paper border border-line w-full max-w-3xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-[#262626] px-6 py-4">
+        <div className="flex items-center justify-between border-b border-line px-6 py-4">
           <h3 className="font-display text-2xl uppercase">New Listing.</h3>
           <button
             type="button"
             onClick={onClose}
-            className="font-mono text-xs text-[#a3a3a3] hover:text-[#ff4500]"
+            className="font-mono text-xs text-ink-muted hover:text-brand"
             data-testid="new-listing-close"
           >
             ✕ Close
@@ -225,7 +225,7 @@ export default function NewListingModal({ onClose, onCreated }) {
             onDrop={onDrop}
             onClick={() => fileInputRef.current?.click()}
             className={`border-2 border-dashed p-8 text-center cursor-pointer transition ${
-              dragOver ? "border-[#ff4500] bg-[#ff4500]/5" : "border-[#262626] hover:border-[#ff4500]"
+              dragOver ? "border-brand bg-brand/5" : "border-line hover:border-brand"
             }`}
             data-testid="new-listing-dropzone"
           >
@@ -238,10 +238,10 @@ export default function NewListingModal({ onClose, onCreated }) {
               onChange={(e) => handleFiles(e.target.files)}
               data-testid="new-listing-file-input"
             />
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
               ◆ Drop up to {MAX_IMAGES} images, or click to browse
             </div>
-            <div className="font-mono text-[10px] text-[#525252] mt-2">
+            <div className="font-mono text-[10px] text-ink-muted mt-2">
               Auto-compressed to ~120KB each · WebP when supported
             </div>
           </div>
@@ -249,18 +249,18 @@ export default function NewListingModal({ onClose, onCreated }) {
           {images.length > 0 && (
             <div className="grid grid-cols-3 md:grid-cols-5 gap-2" data-testid="new-listing-image-grid">
               {images.map((src, i) => (
-                <div key={i} className="relative aspect-square border border-[#262626]">
+                <div key={i} className="relative aspect-square border border-line">
                   <img src={src} alt={`upload-${i}`} className="w-full h-full object-cover" />
                   <button
                     type="button"
                     onClick={() => removeImage(i)}
-                    className="absolute top-1 right-1 bg-black/80 px-1.5 py-0.5 font-mono text-[9px] uppercase text-red-400 hover:text-red-300 border border-red-400/40"
+                    className="absolute top-1 right-1 bg-paper/80 px-1.5 py-0.5 font-mono text-[9px] uppercase text-red-400 hover:text-red-300 border border-red-400/40"
                     data-testid={`new-listing-remove-${i}`}
                   >
                     ✕
                   </button>
                   {i === 0 && (
-                    <div className="absolute bottom-1 left-1 bg-[#ff4500] px-1.5 py-0.5 font-mono text-[9px] uppercase text-black">
+                    <div className="absolute bottom-1 left-1 bg-brand px-1.5 py-0.5 font-mono text-[9px] uppercase text-ink">
                       Primary
                     </div>
                   )}
@@ -277,7 +277,7 @@ export default function NewListingModal({ onClose, onCreated }) {
                 onChange={(e) => setTitle(e.target.value)}
                 required
                 maxLength={100}
-                className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
+                className="w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink"
                 data-testid="new-listing-title"
               />
             </LabeledField>
@@ -289,7 +289,7 @@ export default function NewListingModal({ onClose, onCreated }) {
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
                 required
-                className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
+                className="w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink"
                 data-testid="new-listing-price"
               />
             </LabeledField>
@@ -297,11 +297,11 @@ export default function NewListingModal({ onClose, onCreated }) {
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
+                className="w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink"
                 data-testid="new-listing-category"
               >
                 {CATEGORIES.map((c) => (
-                  <option key={c} className="bg-[#0a0a0a]">{c}</option>
+                  <option key={c} className="bg-paper">{c}</option>
                 ))}
               </select>
             </LabeledField>
@@ -309,11 +309,11 @@ export default function NewListingModal({ onClose, onCreated }) {
               <select
                 value={technique}
                 onChange={(e) => setTechnique(e.target.value)}
-                className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
+                className="w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink"
                 data-testid="new-listing-technique"
               >
                 {TECHNIQUES.map((t) => (
-                  <option key={t} className="bg-[#0a0a0a]">{t}</option>
+                  <option key={t} className="bg-paper">{t}</option>
                 ))}
               </select>
             </LabeledField>
@@ -323,7 +323,7 @@ export default function NewListingModal({ onClose, onCreated }) {
                 min="0"
                 value={stock}
                 onChange={(e) => setStock(e.target.value)}
-                className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
+                className="w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink"
                 data-testid="new-listing-stock"
               />
             </LabeledField>
@@ -332,7 +332,7 @@ export default function NewListingModal({ onClose, onCreated }) {
                 value={dimensions}
                 onChange={(e) => setDimensions(e.target.value)}
                 placeholder='24" × 36" × 0.25"'
-                className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
+                className="w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink"
                 data-testid="new-listing-dimensions"
               />
             </LabeledField>
@@ -344,7 +344,7 @@ export default function NewListingModal({ onClose, onCreated }) {
               onChange={(e) => setDescription(e.target.value)}
               required
               rows={4}
-              className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5] resize-y"
+              className="w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink resize-y"
               data-testid="new-listing-description"
             />
           </LabeledField>
@@ -354,7 +354,7 @@ export default function NewListingModal({ onClose, onCreated }) {
               value={materials}
               onChange={(e) => setMaterials(e.target.value)}
               placeholder="Mild steel, Powder coat, Walnut"
-              className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
+              className="w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink"
               data-testid="new-listing-materials"
             />
           </LabeledField>
@@ -373,7 +373,7 @@ export default function NewListingModal({ onClose, onCreated }) {
                 type="button"
                 onClick={() => modelFileRef.current?.click()}
                 disabled={uploadingModel}
-                className="w-full border border-dashed border-[#262626] hover:border-[#ff4500]/60 px-3 py-3 text-left font-mono text-[11px] text-[#a3a3a3] hover:text-[#ff4500] transition disabled:opacity-50"
+                className="w-full border border-dashed border-line hover:border-brand/60 px-3 py-3 text-left font-mono text-[11px] text-ink-muted hover:text-brand transition disabled:opacity-50"
                 data-testid="new-listing-model-upload"
               >
                 {uploadingModel
@@ -387,7 +387,7 @@ export default function NewListingModal({ onClose, onCreated }) {
                 value={modelUrl}
                 onChange={(e) => setModelUrl(e.target.value)}
                 placeholder="…or paste a public model URL"
-                className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
+                className="w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink"
                 data-testid="new-listing-model-url"
               />
             </div>
@@ -396,13 +396,13 @@ export default function NewListingModal({ onClose, onCreated }) {
           {/* Variants section */}
           <div data-testid="new-listing-variants">
             <div className="flex items-center justify-between mb-2">
-              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
                 Options / variants (optional)
               </div>
               <button
                 type="button"
                 onClick={addVariantRow}
-                className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] hover:text-[#ff6a2c]"
+                className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand hover:text-[#ff6a2c]"
                 data-testid="new-listing-variant-add"
               >
                 + Add option
@@ -415,21 +415,21 @@ export default function NewListingModal({ onClose, onCreated }) {
                   value={axis1Name}
                   onChange={(e) => setAxis1Name(e.target.value)}
                   placeholder="Axis 1 name (e.g. Size)"
-                  className="bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+                  className="bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs"
                   data-testid="new-listing-axis1-name"
                 />
                 <input
                   value={axis2Name}
                   onChange={(e) => setAxis2Name(e.target.value)}
                   placeholder="Axis 2 name (e.g. Finish · optional)"
-                  className="bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+                  className="bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs"
                   data-testid="new-listing-axis2-name"
                 />
               </div>
             )}
 
             {variants.length === 0 ? (
-              <p className="font-mono text-[10px] text-[#525252]">
+              <p className="font-mono text-[10px] text-ink-muted">
                 Skip if this piece has no choices. Add rows for sizes, finishes, or colors — each with its own price delta and stock. Need a 2D grid (size × finish)? Fill both axis names + per-variant axis cells.
               </p>
             ) : (
@@ -437,7 +437,7 @@ export default function NewListingModal({ onClose, onCreated }) {
                 {variants.map((v, i) => (
                   <div
                     key={i}
-                    className="border border-[#262626] p-3 space-y-2"
+                    className="border border-line p-3 space-y-2"
                     data-testid={`new-listing-variant-row-${i}`}
                   >
                     <div className="grid grid-cols-12 gap-2">
@@ -445,7 +445,7 @@ export default function NewListingModal({ onClose, onCreated }) {
                         value={v.label}
                         onChange={(e) => updateVariant(i, "label", e.target.value)}
                         placeholder='Display label e.g. 24" Walnut'
-                        className="col-span-6 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+                        className="col-span-6 bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs"
                         data-testid={`new-listing-variant-label-${i}`}
                       />
                       <input
@@ -453,7 +453,7 @@ export default function NewListingModal({ onClose, onCreated }) {
                         value={v.price_delta}
                         onChange={(e) => updateVariant(i, "price_delta", e.target.value)}
                         placeholder="+$"
-                        className="col-span-3 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+                        className="col-span-3 bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs"
                         data-testid={`new-listing-variant-delta-${i}`}
                       />
                       <input
@@ -462,13 +462,13 @@ export default function NewListingModal({ onClose, onCreated }) {
                         value={v.in_stock}
                         onChange={(e) => updateVariant(i, "in_stock", e.target.value)}
                         placeholder="Qty"
-                        className="col-span-2 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+                        className="col-span-2 bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs"
                         data-testid={`new-listing-variant-stock-${i}`}
                       />
                       <button
                         type="button"
                         onClick={() => removeVariant(i)}
-                        className="col-span-1 font-mono text-[11px] text-[#525252] hover:text-red-400"
+                        className="col-span-1 font-mono text-[11px] text-ink-muted hover:text-red-400"
                         data-testid={`new-listing-variant-remove-${i}`}
                         aria-label="Remove variant"
                       >
@@ -481,14 +481,14 @@ export default function NewListingModal({ onClose, onCreated }) {
                           value={v.axis1 || ""}
                           onChange={(e) => updateVariant(i, "axis1", e.target.value)}
                           placeholder={axis1Name ? `${axis1Name} value` : "Axis 1 value"}
-                          className="bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+                          className="bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs"
                           data-testid={`new-listing-variant-axis1-${i}`}
                         />
                         <input
                           value={v.axis2 || ""}
                           onChange={(e) => updateVariant(i, "axis2", e.target.value)}
                           placeholder={axis2Name ? `${axis2Name} value` : "Axis 2 value (optional)"}
-                          className="bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+                          className="bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs"
                           data-testid={`new-listing-variant-axis2-${i}`}
                         />
                       </div>
@@ -498,11 +498,11 @@ export default function NewListingModal({ onClose, onCreated }) {
                         <img
                           src={v.image}
                           alt={`variant-${i}`}
-                          className="w-12 h-12 object-cover border border-[#262626]"
+                          className="w-12 h-12 object-cover border border-line"
                           data-testid={`new-listing-variant-image-${i}`}
                         />
                       )}
-                      <label className="cursor-pointer font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] transition">
+                      <label className="cursor-pointer font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand transition">
                         <input
                           type="file"
                           accept="image/*"
@@ -520,7 +520,7 @@ export default function NewListingModal({ onClose, onCreated }) {
                         <button
                           type="button"
                           onClick={() => updateVariant(i, "image", "")}
-                          className="font-mono text-[10px] text-[#525252] hover:text-red-400"
+                          className="font-mono text-[10px] text-ink-muted hover:text-red-400"
                         >
                           remove img
                         </button>
@@ -537,11 +537,11 @@ export default function NewListingModal({ onClose, onCreated }) {
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-3 border-t border-[#262626] px-6 py-4">
+        <div className="flex items-center justify-end gap-3 border-t border-line px-6 py-4">
           <button
             type="button"
             onClick={onClose}
-            className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500]"
+            className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand"
             data-testid="new-listing-cancel"
           >
             Cancel

@@ -63,27 +63,27 @@ export default function TrialBanner() {
   return (
     <div
       className={`mb-5 border ${
-        urgent ? "border-[#ff4500] bg-[#ff4500]/10" : "border-emerald-700/60 bg-emerald-900/15"
+        urgent ? "border-brand bg-brand/10" : "border-emerald-700/60 bg-emerald-900/15"
       } px-4 py-3 md:px-5 md:py-4 flex items-center gap-3 flex-wrap`}
       data-testid="plus-trial-banner"
     >
-      <div className={`shrink-0 ${urgent ? "text-[#ff4500]" : "text-emerald-300"}`}>
+      <div className={`shrink-0 ${urgent ? "text-brand" : "text-emerald-300"}`}>
         <Sparkles size={18} />
       </div>
       <div className="flex-1 min-w-[200px]">
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-1">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-1">
           ◆ Crafters Plus · free trial
         </div>
-        <div className="font-mono text-xs md:text-sm text-[#e5e5e5] leading-relaxed">
+        <div className="font-mono text-xs md:text-sm text-ink leading-relaxed">
           {typeof days === "number" ? (
             <>
-              <strong className={urgent ? "text-[#ff4500]" : "text-emerald-300"}>
+              <strong className={urgent ? "text-brand" : "text-emerald-300"}>
                 {days} day{days === 1 ? "" : "s"} left
               </strong>{" "}
               on your 3-month trial.{" "}
               {endDate && (
-                <span className="text-[#a3a3a3]">
-                  Converts to $12/mo on <span className="text-[#e5e5e5]">{endDate}</span>.
+                <span className="text-ink-muted">
+                  Converts to $12/mo on <span className="text-ink">{endDate}</span>.
                 </span>
               )}
             </>
@@ -102,7 +102,7 @@ export default function TrialBanner() {
       </button>
       <button
         onClick={handleDismiss}
-        className="text-[#737373] hover:text-[#e5e5e5] transition shrink-0"
+        className="text-ink-muted hover:text-ink transition shrink-0"
         aria-label="Dismiss trial reminder"
         data-testid="plus-trial-dismiss-btn"
       >

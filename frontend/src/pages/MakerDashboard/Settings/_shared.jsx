@@ -20,23 +20,23 @@ import { updateMakerProfile } from "../../../lib/api";
  *   inputCls       — common <input>/<textarea> class string
  */
 export const inputCls =
-  "w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2.5 font-mono text-sm text-[#e5e5e5]";
+  "w-full bg-paper border border-line focus:border-brand outline-none px-3 py-2.5 font-mono text-sm text-ink";
 
 export function FormShell({ title, blurb, children, onSubmit, dirty, busy, testId }) {
   return (
     <form
       onSubmit={onSubmit}
-      className="border border-[#262626] p-5 md:p-6 space-y-5"
+      className="border border-line p-5 md:p-6 space-y-5"
       data-testid={testId}
     >
       <div>
         <h2 className="font-display text-2xl md:text-3xl uppercase">{title}</h2>
         {blurb && (
-          <p className="font-mono text-xs text-[#a3a3a3] mt-2 leading-relaxed">{blurb}</p>
+          <p className="font-mono text-xs text-ink-muted mt-2 leading-relaxed">{blurb}</p>
         )}
       </div>
       <div className="space-y-4">{children}</div>
-      <div className="flex items-center justify-end gap-3 border-t border-[#1f1f1f] pt-4">
+      <div className="flex items-center justify-end gap-3 border-t border-line pt-4">
         {dirty && (
           <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-amber-400" data-testid={`${testId}-dirty`}>
             ◇ Unsaved changes
@@ -58,12 +58,12 @@ export function FormShell({ title, blurb, children, onSubmit, dirty, busy, testI
 export function Field({ label, hint, children, testId }) {
   return (
     <label className="block" data-testid={testId}>
-      <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+      <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
         {label}
       </span>
       <div className="mt-1.5">{children}</div>
       {hint && (
-        <span className="font-mono text-[10px] text-[#525252] mt-1.5 block">{hint}</span>
+        <span className="font-mono text-[10px] text-ink-muted mt-1.5 block">{hint}</span>
       )}
     </label>
   );
@@ -71,10 +71,10 @@ export function Field({ label, hint, children, testId }) {
 
 export function ToggleRow({ label, hint, value, onChange, testId }) {
   return (
-    <div className="flex items-start justify-between gap-3 border border-[#262626] p-3" data-testid={testId}>
+    <div className="flex items-start justify-between gap-3 border border-line p-3" data-testid={testId}>
       <div className="min-w-0">
-        <div className="font-mono text-xs text-[#e5e5e5]">{label}</div>
-        {hint && <div className="font-mono text-[10px] text-[#a3a3a3] mt-1 leading-relaxed">{hint}</div>}
+        <div className="font-mono text-xs text-ink">{label}</div>
+        {hint && <div className="font-mono text-[10px] text-ink-muted mt-1 leading-relaxed">{hint}</div>}
       </div>
       <button
         type="button"
@@ -82,11 +82,11 @@ export function ToggleRow({ label, hint, value, onChange, testId }) {
         aria-checked={!!value}
         onClick={() => onChange(!value)}
         className={`relative inline-flex h-6 w-11 shrink-0 border transition-colors ${
-          value ? "bg-[#ff4500] border-[#ff4500]" : "bg-[#0a0a0a] border-[#262626]"
+          value ? "bg-brand border-brand" : "bg-paper border-line"
         }`}
         data-testid={`${testId}-toggle`}
       >
-        <span className={`inline-block h-4 w-4 mt-0.5 bg-black transition-transform ${value ? "translate-x-6" : "translate-x-1"}`} />
+        <span className={`inline-block h-4 w-4 mt-0.5 bg-paper transition-transform ${value ? "translate-x-6" : "translate-x-1"}`} />
       </button>
     </div>
   );
@@ -131,8 +131,8 @@ export function ImageDropzone({ value, onUploaded, uploadFn, kind, testId }) {
   return (
     <div data-testid={testId}>
       <div
-        className={`${aspect} relative border-2 border-dashed transition-colors overflow-hidden bg-[#0a0a0a] ${
-          drag ? "border-[#ff4500] bg-[#ff4500]/5" : "border-[#262626]"
+        className={`${aspect} relative border-2 border-dashed transition-colors overflow-hidden bg-paper ${
+          drag ? "border-brand bg-brand/5" : "border-line"
         }`}
         onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
         onDragLeave={() => setDrag(false)}
@@ -148,11 +148,11 @@ export function ImageDropzone({ value, onUploaded, uploadFn, kind, testId }) {
             <button
               type="button"
               onClick={() => onUploaded("")}
-              className="absolute top-2 right-2 bg-black/70 hover:bg-black border border-[#262626] p-1.5"
+              className="absolute top-2 right-2 bg-paper/70 hover:bg-paper border border-line p-1.5"
               data-testid={`${testId}-remove`}
               aria-label="Remove image"
             >
-              <X className="w-3.5 h-3.5 text-[#e5e5e5]" />
+              <X className="w-3.5 h-3.5 text-ink" />
             </button>
             {/* iter313d — "Drop to replace" affordance. Previously the
                 visual cue disappeared once an image was set, making
@@ -160,19 +160,19 @@ export function ImageDropzone({ value, onUploaded, uploadFn, kind, testId }) {
                 two cues: a persistent bottom hint, and a full overlay
                 while a drag is active. */}
             {drag && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#ff4500]/85 text-black pointer-events-none">
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-brand/85 text-ink pointer-events-none">
                 <Upload className="w-6 h-6 mb-2" />
                 <div className="font-mono text-[11px] uppercase tracking-[0.22em] font-bold">Drop to replace</div>
               </div>
             )}
             {busy && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/60">
-                <Loader2 className="w-6 h-6 text-[#ff4500] animate-spin" />
+              <div className="absolute inset-0 flex items-center justify-center bg-paper/60">
+                <Loader2 className="w-6 h-6 text-brand animate-spin" />
               </div>
             )}
             <label
               htmlFor={inputId}
-              className="absolute bottom-0 inset-x-0 bg-black/70 hover:bg-black/85 cursor-pointer py-1.5 text-center font-mono text-[9px] uppercase tracking-[0.22em] text-[#e5e5e5] transition-colors"
+              className="absolute bottom-0 inset-x-0 bg-paper/70 hover:bg-paper/85 cursor-pointer py-1.5 text-center font-mono text-[9px] uppercase tracking-[0.22em] text-ink transition-colors"
               data-testid={`${testId}-replace`}
             >
               Drop or click to replace
@@ -184,14 +184,14 @@ export function ImageDropzone({ value, onUploaded, uploadFn, kind, testId }) {
             className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer text-center px-4"
           >
             {busy ? (
-              <Loader2 className="w-5 h-5 text-[#ff4500] animate-spin" />
+              <Loader2 className="w-5 h-5 text-brand animate-spin" />
             ) : (
               <>
-                <Upload className="w-5 h-5 text-[#a3a3a3] mb-2" />
-                <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#e5e5e5]">
+                <Upload className="w-5 h-5 text-ink-muted mb-2" />
+                <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink">
                   Drop image or click
                 </div>
-                <div className="font-mono text-[10px] text-[#a3a3a3] mt-1">PNG · JPG · WebP · ≤10MB</div>
+                <div className="font-mono text-[10px] text-ink-muted mt-1">PNG · JPG · WebP · ≤10MB</div>
               </>
             )}
           </label>

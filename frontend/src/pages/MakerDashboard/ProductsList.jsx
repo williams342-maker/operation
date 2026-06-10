@@ -31,7 +31,7 @@ import {
  * re-managing its own checkbox.
  */
 const VIEWS = [
-  { key: "live", label: "Live", color: "text-[#e5e5e5]" },
+  { key: "live", label: "Live", color: "text-ink" },
   { key: "drafts", label: "Drafts", color: "text-amber-400" },
   { key: "archived", label: "Archived", color: "text-red-400" },
 ];
@@ -149,34 +149,34 @@ export default function ProductsList({ products, onChanged, onRefresh }) {
     <div className="space-y-8" data-testid="products-list">
       {restockDemand && restockDemand.total_pending > 0 && (
         <div
-          className="border border-[#ff4500]/40 bg-[#ff4500]/5 px-4 py-3 flex items-start gap-3"
+          className="border border-brand/40 bg-brand/5 px-4 py-3 flex items-start gap-3"
           data-testid="restock-demand-banner"
         >
-          <Mail size={16} className="text-[#ff4500] mt-0.5 shrink-0" />
+          <Mail size={16} className="text-brand mt-0.5 shrink-0" />
           <div className="min-w-0 flex-1">
-            <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#ff4500]">
+            <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-brand">
               ◆ Restock demand · {restockDemand.total_pending} {restockDemand.total_pending === 1 ? "buyer" : "buyers"} waiting
             </div>
-            <div className="font-mono text-xs text-[#e5e5e5] mt-1.5 leading-relaxed">
+            <div className="font-mono text-xs text-ink mt-1.5 leading-relaxed">
               {restockDemand.products.slice(0, 3).map((p, i) => (
                 <span key={p.product_id}>
                   {i > 0 && " · "}
-                  <span className="text-[#e5e5e5]">{p.product_title}</span>
-                  <span className="text-[#a3a3a3]"> ({p.count})</span>
+                  <span className="text-ink">{p.product_title}</span>
+                  <span className="text-ink-muted"> ({p.count})</span>
                 </span>
               ))}
               {restockDemand.products.length > 3 && (
-                <span className="text-[#525252]"> +{restockDemand.products.length - 3} more</span>
+                <span className="text-ink-muted"> +{restockDemand.products.length - 3} more</span>
               )}
             </div>
-            <p className="font-mono text-[10px] text-[#a3a3a3] mt-1.5 leading-relaxed">
+            <p className="font-mono text-[10px] text-ink-muted mt-1.5 leading-relaxed">
               Raise stock on any of these listings → every waitlisted buyer gets an automatic "back in stock" email.
             </p>
           </div>
         </div>
       )}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+        <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted">
           ◆ {counts.live} live
           {counts.drafts > 0 && ` · ${counts.drafts} draft${counts.drafts > 1 ? "s" : ""}`}
           {counts.archived > 0 && ` · ${counts.archived} archived`}
@@ -190,8 +190,8 @@ export default function ProductsList({ products, onChanged, onRefresh }) {
             onClick={toggleStats}
             className={`inline-flex items-center gap-1.5 px-3 py-1.5 border font-mono text-[10px] uppercase tracking-[0.22em] transition ${
               showStats
-                ? "border-[#ff4500] bg-[#ff4500] text-[#0a0a0a]"
-                : "border-[#262626] text-[#a3a3a3] hover:border-[#ff4500] hover:text-[#ff4500]"
+                ? "border-brand bg-brand text-[#0a0a0a]"
+                : "border-line text-ink-muted hover:border-brand hover:text-brand"
             }`}
             data-testid="products-stats-toggle"
             aria-pressed={showStats}
@@ -230,7 +230,7 @@ export default function ProductsList({ products, onChanged, onRefresh }) {
               items={live}
               testId="live-section"
               empty={
-                <p className="font-mono text-xs text-[#525252]" data-testid="live-empty">
+                <p className="font-mono text-xs text-ink-muted" data-testid="live-empty">
                   No live listings yet — publish a draft or create a new one.
                 </p>
               }
@@ -248,7 +248,7 @@ export default function ProductsList({ products, onChanged, onRefresh }) {
               items={drafts}
               testId="drafts-section"
               empty={
-                <p className="font-mono text-xs text-[#525252]" data-testid="drafts-empty">
+                <p className="font-mono text-xs text-ink-muted" data-testid="drafts-empty">
                   No drafts. New listings save here automatically until you publish.
                 </p>
               }
@@ -279,7 +279,7 @@ export default function ProductsList({ products, onChanged, onRefresh }) {
 function ViewSwitcher({ view, setView, counts }) {
   return (
     <div
-      className="inline-flex border border-[#262626] divide-x divide-[#262626] overflow-x-auto"
+      className="inline-flex border border-line divide-x divide-line overflow-x-auto"
       role="tablist"
       data-testid="products-view-switcher"
     >
@@ -295,8 +295,8 @@ function ViewSwitcher({ view, setView, counts }) {
             data-testid={`products-view-${v.key}`}
             className={`px-4 py-2 font-mono text-[10px] uppercase tracking-[0.22em] transition ${
               isActive
-                ? "bg-[#ff4500] text-black"
-                : `bg-transparent ${v.color} hover:text-[#ff4500]`
+                ? "bg-brand text-ink"
+                : `bg-transparent ${v.color} hover:text-brand`
             }`}
           >
             {v.label} <span className="opacity-60">· {count}</span>
@@ -326,7 +326,7 @@ function Bucket({ items, testId, empty, onChanged, onBudgetChanged, cardProps = 
 
   if (items.length === 0) {
     return (
-      <section data-testid={testId} className="border border-dashed border-[#262626] p-8">
+      <section data-testid={testId} className="border border-dashed border-line p-8">
         {empty}
       </section>
     );
@@ -413,25 +413,25 @@ function BucketPagination({ position, testId, page, totalPages, start, pageSize,
   const onPrev = () => onChange((p) => Math.max(0, Math.min(p, totalPages - 1) - 1));
   const onNext = () => onChange((p) => Math.min(totalPages - 1, Math.min(p, totalPages - 1) + 1));
   const wrapperCls = position === "top"
-    ? "flex items-center justify-between border-b border-[#262626] mb-4 pb-3"
-    : "flex items-center justify-between border-t border-[#262626] mt-6 pt-4";
+    ? "flex items-center justify-between border-b border-line mb-4 pb-3"
+    : "flex items-center justify-between border-t border-line mt-6 pt-4";
   return (
     <div className={wrapperCls} data-testid={`${testId}-pagination-${position}`}>
       <button
         type="button"
         onClick={onPrev}
         disabled={page === 0}
-        className="px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] disabled:opacity-30 disabled:cursor-not-allowed font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]"
+        className="px-3 py-1.5 border border-line hover:border-brand hover:text-brand disabled:opacity-30 disabled:cursor-not-allowed font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted"
         data-testid={`${testId}-page-prev-${position}`}
       >
         ← Prev
       </button>
       <span
-        className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]"
+        className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted"
         data-testid={`${testId}-page-indicator-${position}`}
       >
         Page {page + 1} of {totalPages}
-        <span className="text-[#525252] ml-2 normal-case tracking-normal">
+        <span className="text-ink-muted ml-2 normal-case tracking-normal">
           · showing {start + 1}-{Math.min(start + pageSize, total)} of {total}
         </span>
       </span>
@@ -439,7 +439,7 @@ function BucketPagination({ position, testId, page, totalPages, start, pageSize,
         type="button"
         onClick={onNext}
         disabled={page >= totalPages - 1}
-        className="px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] disabled:opacity-30 disabled:cursor-not-allowed font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]"
+        className="px-3 py-1.5 border border-line hover:border-brand hover:text-brand disabled:opacity-30 disabled:cursor-not-allowed font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted"
         data-testid={`${testId}-page-next-${position}`}
       >
         Next →
@@ -459,9 +459,9 @@ function ArchivedView({ items, selected, setSelected, onChanged }) {
     return (
       <section
         data-testid="archived-section"
-        className="border border-dashed border-[#262626] p-8"
+        className="border border-dashed border-line p-8"
       >
-        <p className="font-mono text-xs text-[#525252]" data-testid="archived-empty">
+        <p className="font-mono text-xs text-ink-muted" data-testid="archived-empty">
           Nothing archived. Listings you delete from the Live or Drafts views move here so you can restore them later.
         </p>
       </section>
@@ -572,31 +572,31 @@ function BulkToolbar({
     <div
       className={`sticky z-20 flex flex-wrap items-center gap-3 px-4 py-3 border transition ${
         anySelected
-          ? "border-[#ff4500] bg-[#ff4500]/5 top-[calc(var(--beta-banner-h,0px)+72px)]"
-          : "border-[#262626] bg-[#0d0d0d]"
+          ? "border-brand bg-brand/5 top-[calc(var(--beta-banner-h,0px)+72px)]"
+          : "border-line bg-paper"
       }`}
       data-testid="archived-bulk-toolbar"
     >
       <button
         type="button"
         onClick={onToggleAll}
-        className="inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] transition"
+        className="inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand transition"
         data-testid="archived-select-all"
       >
         <span
           className={`w-4 h-4 inline-flex items-center justify-center border ${
-            allSelected ? "bg-[#ff4500] border-[#ff4500]" : "border-[#404040]"
+            allSelected ? "bg-brand border-brand" : "border-line"
           }`}
           aria-hidden="true"
         >
-          {allSelected && <Check size={10} className="text-black" />}
+          {allSelected && <Check size={10} className="text-ink" />}
         </span>
         {allSelected ? "Clear all" : `Select all (${total})`}
       </button>
 
       {anySelected && (
         <>
-          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]" data-testid="archived-selected-count">
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand" data-testid="archived-selected-count">
             {selectedCount} selected
           </span>
           <div className="ml-auto flex gap-2">
@@ -622,7 +622,7 @@ function BulkToolbar({
               type="button"
               onClick={onClear}
               disabled={!!busy}
-              className="px-3 py-1.5 border border-[#262626] text-[#a3a3a3] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+              className="px-3 py-1.5 border border-line text-ink-muted hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
               data-testid="archived-bulk-clear"
             >
               Clear
@@ -649,14 +649,14 @@ function SelectableCard({ product, selected, onToggle, onChanged }) {
         }}
         className={`absolute top-3 right-3 z-10 w-7 h-7 inline-flex items-center justify-center border-2 transition ${
           selected
-            ? "bg-[#ff4500] border-[#ff4500]"
-            : "bg-black/70 border-[#525252] hover:border-[#ff4500]"
+            ? "bg-brand border-brand"
+            : "bg-paper/70 border-[#525252] hover:border-brand"
         }`}
         aria-label={selected ? "Deselect" : "Select"}
         aria-pressed={selected}
         data-testid={`archived-select-${product.slug}`}
       >
-        {selected && <Check size={14} className="text-black" />}
+        {selected && <Check size={14} className="text-ink" />}
       </button>
       <div className={selected ? "ring-2 ring-[#ff4500]" : ""}>
         <ProductEditCard product={product} archived onChanged={onChanged} />

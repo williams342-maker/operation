@@ -162,18 +162,18 @@ export default function ShippingLabelModal({ sessionId, onClose, onSuccess }) {
 
   return (
     <div
-      className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-start md:items-center justify-center px-3 py-8 overflow-y-auto"
+      className="fixed inset-0 z-[60] bg-paper/80 backdrop-blur-sm flex items-start md:items-center justify-center px-3 py-8 overflow-y-auto"
       onClick={handleClose}
       data-testid="shipping-label-modal"
     >
       <div
-        className="w-full max-w-3xl bg-[#0a0a0a] border border-[#ff4500] text-[#e5e5e5] shadow-2xl"
+        className="w-full max-w-3xl bg-paper border border-brand text-ink shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#262626]">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-line">
           <div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#ff4500] flex items-center gap-2">
+            <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand flex items-center gap-2">
               <Truck size={12} /> Create Shipping Label
               {testMode && (
                 <span className="px-1.5 py-0.5 border border-yellow-400/50 text-yellow-400 text-[9px]">
@@ -181,7 +181,7 @@ export default function ShippingLabelModal({ sessionId, onClose, onSuccess }) {
                 </span>
               )}
             </div>
-            <div className="font-mono text-[11px] text-[#525252] mt-1">
+            <div className="font-mono text-[11px] text-ink-muted mt-1">
               {step === "review" && "① Review addresses + parcel"}
               {step === "rates" && "② Pick a carrier & service"}
               {step === "done" && "③ Label ready"}
@@ -189,7 +189,7 @@ export default function ShippingLabelModal({ sessionId, onClose, onSuccess }) {
           </div>
           <button
             onClick={handleClose}
-            className="p-2 text-[#a3a3a3] hover:text-[#ff4500]"
+            className="p-2 text-ink-muted hover:text-brand"
             data-testid="shipping-modal-close"
             title="Close"
           >
@@ -216,8 +216,8 @@ export default function ShippingLabelModal({ sessionId, onClose, onSuccess }) {
           )}
 
           {loading && !purchased && (
-            <div className="flex items-center gap-2 text-xs text-[#a3a3a3] font-mono">
-              <Loader2 size={14} className="animate-spin text-[#ff4500]" />
+            <div className="flex items-center gap-2 text-xs text-ink-muted font-mono">
+              <Loader2 size={14} className="animate-spin text-brand" />
               Loading…
             </div>
           )}
@@ -245,7 +245,7 @@ export default function ShippingLabelModal({ sessionId, onClose, onSuccess }) {
                   <ValidationInline v={toValidation} onApply={() => applySuggestion("to")} testId="ship-to-validation" />
                 </div>
               </div>
-              <label className="flex items-center gap-2 font-mono text-[11px] text-[#a3a3a3]">
+              <label className="flex items-center gap-2 font-mono text-[11px] text-ink-muted">
                 <input
                   type="checkbox"
                   checked={saveDefaultFrom}
@@ -297,7 +297,7 @@ export default function ShippingLabelModal({ sessionId, onClose, onSuccess }) {
                 </div>
               ) : (
                 <>
-                  <div className="font-mono text-[11px] text-[#525252] uppercase tracking-[0.22em]">
+                  <div className="font-mono text-[11px] text-ink-muted uppercase tracking-[0.22em]">
                     Cheapest is auto-selected · tap another to override
                   </div>
                   <div className="max-h-[380px] overflow-y-auto space-y-2 pr-1">
@@ -307,32 +307,32 @@ export default function ShippingLabelModal({ sessionId, onClose, onSuccess }) {
                         onClick={() => setSelectedRate(r.rate_id)}
                         className={`w-full text-left p-3 border transition flex items-center justify-between gap-4 ${
                           selectedRate === r.rate_id
-                            ? "border-[#ff4500] bg-[#ff4500]/5"
-                            : "border-[#262626] hover:border-[#525252]"
+                            ? "border-brand bg-brand/5"
+                            : "border-line hover:border-ink-muted"
                         }`}
                         data-testid={`rate-option-${i}`}
                       >
                         <div className="flex-1 min-w-0">
-                          <div className="font-mono text-xs text-[#e5e5e5] truncate">
-                            <span className="text-[#ff4500]">{r.provider}</span> · {r.servicelevel_name}
+                          <div className="font-mono text-xs text-ink truncate">
+                            <span className="text-brand">{r.provider}</span> · {r.servicelevel_name}
                             {i === 0 && (
                               <span className="ml-2 px-1.5 py-0.5 border border-emerald-400/40 text-emerald-400 text-[9px] uppercase tracking-wider">
                                 Cheapest
                               </span>
                             )}
                           </div>
-                          <div className="font-mono text-[10px] text-[#525252] mt-1 truncate">
+                          <div className="font-mono text-[10px] text-ink-muted mt-1 truncate">
                             {r.estimated_days ? `${r.estimated_days} day${r.estimated_days === 1 ? "" : "s"} · ` : ""}
                             {r.duration_terms}
                           </div>
                         </div>
                         <div className="flex flex-col items-end shrink-0">
-                          <div className="font-display text-2xl text-[#ff4500]">
+                          <div className="font-display text-2xl text-brand">
                             ${(r.billed_amount ?? r.amount).toFixed(2)}
                           </div>
                           {r.markup_amount > 0 && (
                             <div
-                              className="font-mono text-[9px] text-[#525252] uppercase tracking-wider mt-0.5"
+                              className="font-mono text-[9px] text-ink-muted uppercase tracking-wider mt-0.5"
                               title={`Carrier rate $${r.amount.toFixed(2)} + ${(r.markup_pct * 100).toFixed(1)}% platform handling`}
                               data-testid={`rate-markup-${i}`}
                             >
@@ -347,8 +347,8 @@ export default function ShippingLabelModal({ sessionId, onClose, onSuccess }) {
               )}
 
               {shipmentMessages.length > 0 && (
-                <details className="font-mono text-[10px] text-[#525252]">
-                  <summary className="cursor-pointer hover:text-[#a3a3a3]">
+                <details className="font-mono text-[10px] text-ink-muted">
+                  <summary className="cursor-pointer hover:text-ink-muted">
                     Shippo messages ({shipmentMessages.length})
                   </summary>
                   <ul className="mt-2 space-y-1 pl-4 list-disc">
@@ -388,7 +388,7 @@ export default function ShippingLabelModal({ sessionId, onClose, onSuccess }) {
                   <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-emerald-400">
                     Label purchased
                   </div>
-                  <div className="font-mono text-[10px] text-[#a3a3a3] mt-1">
+                  <div className="font-mono text-[10px] text-ink-muted mt-1">
                     {purchased.provider} · {purchased.servicelevel_name} · ${Number(purchased.amount || 0).toFixed(2)} {purchased.currency}
                     {purchased.test_mode && " · TEST"}
                   </div>
@@ -463,7 +463,7 @@ function ValidationInline({ v, onApply, testId }) {
         <AlertTriangle size={11} /> Address needs attention
       </div>
       {(v.messages || []).slice(0, 2).map((m, i) => (
-        <div key={i} className="font-mono text-[10px] text-[#a3a3a3]">{m.text}</div>
+        <div key={i} className="font-mono text-[10px] text-ink-muted">{m.text}</div>
       ))}
       {hasSuggestion && (
         <button
@@ -483,7 +483,7 @@ function AddressCard({ label, value, onChange, testIdPrefix }) {
   const set = (k) => (e) => onChange({ ...value, [k]: e.target.value });
   return (
     <section className="space-y-2">
-      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] flex items-center gap-2">
+      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted flex items-center gap-2">
         <MapPin size={11} /> {label}
       </div>
       <Field testId={`${testIdPrefix}-name`} placeholder="Name" value={value.name} onChange={set("name")} />
@@ -506,7 +506,7 @@ function ParcelCard({ value, onChange }) {
   const set = (k) => (e) => onChange({ ...value, [k]: parseFloat(e.target.value) || 0 });
   return (
     <section className="space-y-2">
-      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] flex items-center gap-2">
+      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted flex items-center gap-2">
         <Package size={11} /> Parcel (inches / pounds) · pre-filled from listing
       </div>
       <div className="grid grid-cols-4 gap-2">
@@ -526,7 +526,7 @@ function Field({ testId, placeholder, value, onChange }) {
       placeholder={placeholder}
       value={value ?? ""}
       onChange={onChange}
-      className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
+      className="w-full bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink"
       data-testid={testId}
     />
   );
@@ -535,14 +535,14 @@ function Field({ testId, placeholder, value, onChange }) {
 function NumField({ testId, label, value, onChange }) {
   return (
     <label className="block">
-      <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252]">{label}</span>
+      <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted">{label}</span>
       <input
         type="number"
         step="0.01"
         min="0"
         value={value ?? 0}
         onChange={onChange}
-        className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5] mt-1"
+        className="w-full bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink mt-1"
         data-testid={testId}
       />
     </label>
@@ -559,10 +559,10 @@ function CopyField({ label, value, testId }) {
     } catch (_) { /* ignore */ }
   };
   return (
-    <div className="flex items-center gap-2 p-3 border border-[#262626] bg-[#0e0e0e]">
+    <div className="flex items-center gap-2 p-3 border border-line bg-[#0e0e0e]">
       <div className="flex-1">
-        <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252]">{label}</div>
-        <div className="font-mono text-sm text-[#e5e5e5] break-all" data-testid={testId}>{value}</div>
+        <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted">{label}</div>
+        <div className="font-mono text-sm text-ink break-all" data-testid={testId}>{value}</div>
       </div>
       <button
         onClick={copy}

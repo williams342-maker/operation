@@ -51,28 +51,28 @@ export function useConfirm() {
   }, [open, close]);
 
   const toneClasses = {
-    primary: "bg-[#ff4500] text-black border-[#ff4500] hover:bg-[#ff6a2c]",
-    danger: "bg-red-500 text-black border-red-500 hover:bg-red-400",
-    warn: "bg-amber-400 text-black border-amber-400 hover:bg-amber-300",
+    primary: "bg-brand text-ink border-brand hover:bg-[#ff6a2c]",
+    danger: "bg-red-500 text-ink border-red-500 hover:bg-red-400",
+    warn: "bg-amber-400 text-ink border-amber-400 hover:bg-amber-300",
   };
 
   const accentClasses = {
-    primary: "text-[#ff4500]",
+    primary: "text-brand",
     danger: "text-red-400",
     warn: "text-amber-400",
   };
 
   const modal = open ? (
     <div
-      className="fixed inset-0 z-[200] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4"
+      className="fixed inset-0 z-[200] bg-paper/85 backdrop-blur-sm flex items-center justify-center p-4"
       data-testid={opts.testId}
       onClick={(e) => { if (e.target === e.currentTarget) close(false); }}
     >
       <div
-        className="bg-[#0a0a0a] border border-[#262626] w-full max-w-md"
+        className="bg-paper border border-line w-full max-w-md"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between px-6 py-5 border-b border-[#262626]">
+        <div className="flex items-start justify-between px-6 py-5 border-b border-line">
           <div>
             <div className={`font-mono text-[10px] uppercase tracking-[0.3em] ${accentClasses[opts.tone] || accentClasses.primary} mb-2`}>
               ◆ Confirm
@@ -84,7 +84,7 @@ export function useConfirm() {
           <button
             onClick={() => close(false)}
             aria-label="Close"
-            className="font-mono text-xs text-[#525252] hover:text-[#ff4500] transition pl-3"
+            className="font-mono text-xs text-ink-muted hover:text-brand transition pl-3"
             data-testid={`${opts.testId}-close`}
           >
             ✕
@@ -92,15 +92,15 @@ export function useConfirm() {
         </div>
 
         {opts.body && (
-          <div className="px-6 py-5 font-mono text-xs text-[#a3a3a3] leading-relaxed" data-testid={`${opts.testId}-body`}>
+          <div className="px-6 py-5 font-mono text-xs text-ink-muted leading-relaxed" data-testid={`${opts.testId}-body`}>
             {opts.body}
           </div>
         )}
 
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[#262626]">
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-line">
           <button
             onClick={() => close(false)}
-            className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] transition px-3 py-2"
+            className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand transition px-3 py-2"
             data-testid={`${opts.testId}-cancel`}
           >
             {opts.cancelLabel}

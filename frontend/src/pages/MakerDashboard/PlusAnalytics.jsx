@@ -48,7 +48,7 @@ export default function PlusAnalytics() {
   if (!data) {
     return (
       <div
-        className="border border-[#1f1f1f] bg-[#0d0d0d] p-5 font-mono text-xs text-[#737373]"
+        className="border border-line bg-paper p-5 font-mono text-xs text-ink-muted"
         data-testid="plus-analytics-loading"
       >
         Loading Plus analytics…
@@ -61,11 +61,11 @@ export default function PlusAnalytics() {
 
   return (
     <section className="space-y-5" data-testid="plus-analytics-section">
-      <header className="flex items-center justify-between gap-4 flex-wrap pb-4 border-b border-[#262626]">
+      <header className="flex items-center justify-between gap-4 flex-wrap pb-4 border-b border-line">
         <div className="flex items-center gap-3">
-          <Sparkles size={18} className="text-[#ff4500]" />
+          <Sparkles size={18} className="text-brand" />
           <div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">
               ◆ Crafters Plus · advanced analytics
             </div>
             <h3 className="font-display text-2xl uppercase mt-1">Deep stats.</h3>
@@ -78,8 +78,8 @@ export default function PlusAnalytics() {
               onClick={() => setWindow(w)}
               className={`px-3 py-1.5 border transition ${
                 window === w
-                  ? "border-[#ff4500] text-[#ff4500] bg-[#ff4500]/10"
-                  : "border-[#262626] text-[#a3a3a3] hover:border-[#525252]"
+                  ? "border-brand text-brand bg-brand/10"
+                  : "border-line text-ink-muted hover:border-ink-muted"
               }`}
               data-testid={`plus-analytics-window-${w}`}
             >
@@ -116,13 +116,13 @@ export default function PlusAnalytics() {
       </div>
 
       {/* Revenue sparkline */}
-      <div className="border border-[#1f1f1f] bg-[#0d0d0d] p-5" data-testid="plus-revenue-sparkline">
+      <div className="border border-line bg-paper p-5" data-testid="plus-revenue-sparkline">
         <div className="flex items-center justify-between mb-3">
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
             ◆ Revenue trend · {window === "30d" ? "30 days" : "90 days"}
           </div>
           {series.length > 0 && (
-            <div className="font-mono text-[10px] text-[#525252]">
+            <div className="font-mono text-[10px] text-ink-muted">
               {series[0].date} → {series[series.length - 1].date}
             </div>
           )}
@@ -131,12 +131,12 @@ export default function PlusAnalytics() {
       </div>
 
       {/* Traffic sources */}
-      <div className="border border-[#1f1f1f] bg-[#0d0d0d] p-5" data-testid="plus-traffic-sources">
-        <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-4">
+      <div className="border border-line bg-paper p-5" data-testid="plus-traffic-sources">
+        <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-4">
           <Globe size={12} /> ◆ Traffic source breakdown · 30 days
         </div>
         {data.traffic_sources.length === 0 ? (
-          <p className="font-mono text-xs text-[#737373]">
+          <p className="font-mono text-xs text-ink-muted">
             No visits to your listing pages in the last 30 days yet.
           </p>
         ) : (
@@ -145,16 +145,16 @@ export default function PlusAnalytics() {
               const pct = totalTraffic > 0 ? (row.count / totalTraffic) * 100 : 0;
               return (
                 <li key={row.medium} className="font-mono text-xs" data-testid={`plus-traffic-row-${row.medium}`}>
-                  <div className="flex justify-between text-[#e5e5e5] mb-1">
+                  <div className="flex justify-between text-ink mb-1">
                     <span className="uppercase tracking-wider">{row.medium}</span>
                     <span>
-                      <span className="text-[#ff4500]">{row.count.toLocaleString()}</span>
-                      <span className="text-[#525252] ml-2">{pct.toFixed(1)}%</span>
+                      <span className="text-brand">{row.count.toLocaleString()}</span>
+                      <span className="text-ink-muted ml-2">{pct.toFixed(1)}%</span>
                     </span>
                   </div>
-                  <div className="h-1.5 bg-[#1a1a1a]">
+                  <div className="h-1.5 bg-surface">
                     <div
-                      className="h-full bg-[#ff4500]"
+                      className="h-full bg-brand"
                       style={{ width: `${Math.max(2, pct)}%` }}
                     />
                   </div>
@@ -170,13 +170,13 @@ export default function PlusAnalytics() {
 
 function MetricCard({ icon, label, value, sub, testid }) {
   return (
-    <div className="border border-[#1f1f1f] bg-[#0d0d0d] p-5" data-testid={testid}>
-      <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">
-        <span className="text-[#ff4500]">{icon}</span>
+    <div className="border border-line bg-paper p-5" data-testid={testid}>
+      <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
+        <span className="text-brand">{icon}</span>
         {label}
       </div>
-      <div className="font-display text-3xl md:text-4xl text-[#e5e5e5]">{value}</div>
-      {sub && <div className="font-mono text-[10px] text-[#525252] mt-2">{sub}</div>}
+      <div className="font-display text-3xl md:text-4xl text-ink">{value}</div>
+      {sub && <div className="font-mono text-[10px] text-ink-muted mt-2">{sub}</div>}
     </div>
   );
 }
@@ -185,7 +185,7 @@ function MetricCard({ icon, label, value, sub, testid }) {
 function Sparkline({ series }) {
   if (!series || series.length === 0) {
     return (
-      <p className="font-mono text-xs text-[#737373] py-8 text-center">
+      <p className="font-mono text-xs text-ink-muted py-8 text-center">
         No revenue yet in this window.
       </p>
     );
@@ -218,16 +218,16 @@ function Sparkline({ series }) {
 function PlusLockedCard() {
   return (
     <section
-      className="border-2 border-dashed border-[#ff4500]/40 bg-[#ff4500]/5 p-6 md:p-8 text-center"
+      className="border-2 border-dashed border-brand/40 bg-brand/5 p-6 md:p-8 text-center"
       data-testid="plus-analytics-locked"
     >
-      <div className="inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mb-3">
+      <div className="inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-3">
         <Lock size={12} /> Plus subscribers only
       </div>
       <h3 className="font-display text-2xl md:text-3xl uppercase mb-2">
         Advanced analytics.
       </h3>
-      <p className="font-mono text-xs text-[#a3a3a3] mb-5 max-w-md mx-auto leading-relaxed">
+      <p className="font-mono text-xs text-ink-muted mb-5 max-w-md mx-auto leading-relaxed">
         Conversion rate, repeat-buyer share, revenue trends, and a traffic
         source breakdown — surfaced only on the Plus plan so you can
         course-correct in real time.

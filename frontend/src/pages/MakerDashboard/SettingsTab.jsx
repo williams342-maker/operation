@@ -74,13 +74,13 @@ export default function SettingsTab({ maker = {}, onMakerUpdated, onTabChange, i
   return (
     <div className="space-y-8" data-testid="settings-tab">
       <div>
-        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-3">
+        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-3">
           ◆ Shop Manager · Settings
         </div>
         <h1 className="font-display text-3xl md:text-5xl uppercase leading-[0.95]">
           Configure Your Shop.
         </h1>
-        <p className="font-mono text-sm text-[#a3a3a3] mt-2 max-w-2xl">
+        <p className="font-mono text-sm text-ink-muted mt-2 max-w-2xl">
           Profile, policies, and storefront options — every knob in one place.
         </p>
       </div>
@@ -142,7 +142,7 @@ function SubNav({ sections, activeId, onPick }) {
         <select
           value={activeId}
           onChange={(e) => onPick(sections.find((s) => s.id === e.target.value))}
-          className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-4 py-3 font-mono text-sm text-[#e5e5e5]"
+          className="w-full bg-paper border border-line focus:border-brand outline-none px-4 py-3 font-mono text-sm text-ink"
           data-testid="settings-subnav-mobile"
         >
           {sections.map((s) => (
@@ -151,7 +151,7 @@ function SubNav({ sections, activeId, onPick }) {
         </select>
       </div>
       <nav
-        className="hidden lg:block bg-[#0d0d0d] border border-[#1f1f1f] p-2 self-start"
+        className="hidden lg:block bg-paper border border-line p-2 self-start"
         data-testid="settings-subnav"
       >
         {sections.map((s) => {
@@ -163,8 +163,8 @@ function SubNav({ sections, activeId, onPick }) {
               onClick={() => onPick(s)}
               className={`w-full text-left px-3 py-2.5 mb-1 flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.18em] transition border-l-2 ${
                 isActive
-                  ? "bg-[#ff4500]/10 border-[#ff4500] text-[#ff4500]"
-                  : "border-transparent text-[#a3a3a3] hover:text-[#e5e5e5] hover:bg-[#161616]"
+                  ? "bg-brand/10 border-brand text-brand"
+                  : "border-transparent text-ink-muted hover:text-ink hover:bg-surface"
               }`}
               data-testid={`settings-subnav-${s.id}`}
             >
@@ -174,7 +174,7 @@ function SubNav({ sections, activeId, onPick }) {
                 <ChevronRight size={12} className="opacity-60 shrink-0" />
               )}
               {s.kind === "soon" && (
-                <span className="text-[8px] tracking-[0.18em] text-[#525252] shrink-0">SOON</span>
+                <span className="text-[8px] tracking-[0.18em] text-ink-muted shrink-0">SOON</span>
               )}
             </button>
           );
@@ -187,10 +187,10 @@ function SubNav({ sections, activeId, onPick }) {
 function ComingSoon({ section }) {
   const Icon = section.icon;
   return (
-    <div className="border border-dashed border-[#262626] p-10 text-center" data-testid="settings-soon">
-      <Icon size={28} className="mx-auto text-[#525252] mb-3" />
+    <div className="border border-dashed border-line p-10 text-center" data-testid="settings-soon">
+      <Icon size={28} className="mx-auto text-ink-muted mb-3" />
       <h2 className="font-display text-2xl uppercase mb-2">{section.label}</h2>
-      <p className="font-mono text-xs text-[#a3a3a3] max-w-md mx-auto">
+      <p className="font-mono text-xs text-ink-muted max-w-md mx-auto">
         Coming soon — we'll wire this up as we onboard the founding-seller cohort.
         Drop us a note in the Help tab if you need this sooner than later.
       </p>
@@ -389,14 +389,14 @@ function Shipping({ maker, onSaved, onTabChange }) {
           <input className={inputCls} value={form.processing_time} onChange={(e) => set("processing_time")(e.target.value)} placeholder="1-3 business days" />
         </Field>
       </FormShell>
-      <div className="border border-[#262626] bg-[#0d0d0d] p-4 flex items-center justify-between gap-3 flex-wrap">
-        <div className="font-mono text-xs text-[#a3a3a3]">
+      <div className="border border-line bg-paper p-4 flex items-center justify-between gap-3 flex-wrap">
+        <div className="font-mono text-xs text-ink-muted">
           ◆ Per-listing shipping rates are managed inside each listing's editor.
         </div>
         <button
           type="button"
           onClick={() => onTabChange?.("listings")}
-          className="px-3 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition"
+          className="px-3 py-2 border border-line hover:border-brand font-mono text-[10px] uppercase tracking-[0.22em] transition"
           data-testid="settings-shipping-listings-link"
         >
           Open Listings →

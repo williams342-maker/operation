@@ -159,13 +159,13 @@ export default function FinancialsTab() {
   return (
     <div className="space-y-8" data-testid="financials-tab">
       <div>
-        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-3">
+        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-3">
           ◆ Shop Manager · Finances
         </div>
         <h1 className="font-display text-3xl md:text-5xl uppercase leading-[0.95]">
           Financials.
         </h1>
-        <p className="font-mono text-sm text-[#a3a3a3] mt-2 max-w-2xl">
+        <p className="font-mono text-sm text-ink-muted mt-2 max-w-2xl">
           Payouts, statements, accounting exports, and tax docs — every penny in one place.
         </p>
       </div>
@@ -220,7 +220,7 @@ function FinSubNav({
     <div className="space-y-3">
       {/* Search box — Cmd/Ctrl+K to focus, Esc to clear. Mirrors HelpTab. */}
       <div className="relative" data-testid="financials-search-wrap">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#525252] pointer-events-none" />
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted pointer-events-none" />
         <input
           ref={searchRef}
           type="search"
@@ -228,28 +228,28 @@ function FinSubNav({
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search finances…"
           aria-label="Search financial sections"
-          className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none pl-9 pr-16 py-2.5 font-mono text-xs text-[#e5e5e5] placeholder:text-[#525252]"
+          className="w-full bg-paper border border-line focus:border-brand outline-none pl-9 pr-16 py-2.5 font-mono text-xs text-ink placeholder:text-ink-muted"
           data-testid="financials-search-input"
         />
         {query ? (
           <button
             type="button"
             onClick={() => setQuery("")}
-            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-[#a3a3a3] hover:text-[#ff4500] transition"
+            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-ink-muted hover:text-brand transition"
             aria-label="Clear search"
             data-testid="financials-search-clear"
           >
             <X size={14} />
           </button>
         ) : (
-          <kbd className="hidden md:inline-flex absolute right-2 top-1/2 -translate-y-1/2 px-1.5 py-0.5 border border-[#262626] font-mono text-[9px] uppercase tracking-[0.18em] text-[#525252]">
+          <kbd className="hidden md:inline-flex absolute right-2 top-1/2 -translate-y-1/2 px-1.5 py-0.5 border border-line font-mono text-[9px] uppercase tracking-[0.18em] text-ink-muted">
             ⌘K
           </kbd>
         )}
       </div>
       {isSearching && (
         <div
-          className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] px-1"
+          className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand px-1"
           data-testid="financials-search-result-count"
         >
           ◆ {matchCount} match{matchCount === 1 ? "" : "es"}
@@ -261,7 +261,7 @@ function FinSubNav({
         <select
           value={activeId}
           onChange={(e) => onPick(e.target.value)}
-          className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-4 py-3 font-mono text-sm text-[#e5e5e5]"
+          className="w-full bg-paper border border-line focus:border-brand outline-none px-4 py-3 font-mono text-sm text-ink"
           data-testid="financials-subnav-mobile"
           disabled={sections.length === 0}
         >
@@ -277,12 +277,12 @@ function FinSubNav({
 
       {/* Desktop: collapsible */}
       <nav
-        className="hidden lg:block bg-[#0d0d0d] border border-[#1f1f1f] p-2 self-start"
+        className="hidden lg:block bg-paper border border-line p-2 self-start"
         data-testid="financials-subnav"
       >
         {sections.length === 0 ? (
           <div
-            className="px-3 py-6 text-center font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252]"
+            className="px-3 py-6 text-center font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted"
             data-testid="financials-subnav-empty"
           >
             No matches.
@@ -293,7 +293,7 @@ function FinSubNav({
               type="button"
               onClick={onToggleOpen}
               aria-expanded={open || isSearching}
-              className="w-full text-left px-3 py-2.5 flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.18em] transition border-l-2 border-[#ff4500] text-[#e5e5e5] hover:bg-[#161616]"
+              className="w-full text-left px-3 py-2.5 flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.18em] transition border-l-2 border-brand text-ink hover:bg-surface"
               data-testid="financials-cat-toggle"
             >
               <Wallet size={14} className="shrink-0" />
@@ -314,8 +314,8 @@ function FinSubNav({
                         onClick={() => onPick(s.id)}
                         className={`w-full text-left pl-10 pr-3 py-2 font-mono text-[11px] tracking-[0.04em] transition ${
                           isActive
-                            ? "bg-[#ff4500]/10 text-[#ff4500]"
-                            : "text-[#a3a3a3] hover:text-[#e5e5e5] hover:bg-[#161616]"
+                            ? "bg-brand/10 text-brand"
+                            : "text-ink-muted hover:text-ink hover:bg-surface"
                         }`}
                         data-testid={`financials-subnav-${s.id}`}
                       >
@@ -337,22 +337,22 @@ function FinSubNav({
 function NoResults({ query, onClear }) {
   return (
     <div
-      className="border border-dashed border-[#262626] p-10 text-center"
+      className="border border-dashed border-line p-10 text-center"
       data-testid="financials-no-results"
     >
-      <Search size={28} className="mx-auto text-[#525252] mb-3" />
+      <Search size={28} className="mx-auto text-ink-muted mb-3" />
       <h2 className="font-display text-2xl uppercase mb-2">
-        No financial sections match "<span className="text-[#ff4500]">{query}</span>"
+        No financial sections match "<span className="text-brand">{query}</span>"
       </h2>
-      <p className="font-mono text-xs text-[#a3a3a3] max-w-md mx-auto mb-5 leading-relaxed">
-        Try terms like <span className="text-[#e5e5e5]">stripe</span>, <span className="text-[#e5e5e5]">1099</span>,{" "}
-        <span className="text-[#e5e5e5]">quickbooks</span>, or{" "}
-        <span className="text-[#e5e5e5]">payout</span>.
+      <p className="font-mono text-xs text-ink-muted max-w-md mx-auto mb-5 leading-relaxed">
+        Try terms like <span className="text-ink">stripe</span>, <span className="text-ink">1099</span>,{" "}
+        <span className="text-ink">quickbooks</span>, or{" "}
+        <span className="text-ink">payout</span>.
       </p>
       <button
         type="button"
         onClick={onClear}
-        className="px-4 py-2 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition"
+        className="px-4 py-2 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] transition"
         data-testid="financials-no-results-clear"
       >
         Clear search →
@@ -434,7 +434,7 @@ function PaymentAccount({ payouts, status, txns, onRefresh, query }) {
         {!status?.connected ? (
           <>
             <h3 className="font-display text-2xl mb-2 uppercase">Get paid directly.</h3>
-            <p className="font-mono text-xs text-[#a3a3a3] mb-4 max-w-xl leading-relaxed">
+            <p className="font-mono text-xs text-ink-muted mb-4 max-w-xl leading-relaxed">
               Connect a Stripe account so each sale routes straight to your bank.
               Onboarding takes about 5 minutes.
             </p>
@@ -449,10 +449,10 @@ function PaymentAccount({ payouts, status, txns, onRefresh, query }) {
         ) : (
           <div className="grid md:grid-cols-2 gap-5">
             <div>
-              <div className="font-display text-3xl text-[#ff4500] mb-1">
+              <div className="font-display text-3xl text-brand mb-1">
                 ${(payouts?.pending || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
-              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
                 Pending payout
               </div>
             </div>
@@ -470,19 +470,19 @@ function PaymentAccount({ payouts, status, txns, onRefresh, query }) {
 
       <Section title="Transaction history" testId="payment-account-txns">
         {!txns.length ? (
-          <p className="font-mono text-xs text-[#737373] py-6">
+          <p className="font-mono text-xs text-ink-muted py-6">
             No transactions yet — they'll appear here after your first sale.
           </p>
         ) : filteredTxns.length === 0 ? (
           <p
-            className="font-mono text-xs text-[#737373] py-6"
+            className="font-mono text-xs text-ink-muted py-6"
             data-testid="financials-txns-empty"
           >
-            No transactions match "<span className="text-[#ff4500]">{query}</span>".
+            No transactions match "<span className="text-brand">{query}</span>".
           </p>
         ) : (
-          <div className="border border-[#1f1f1f]">
-            <div className="grid grid-cols-[1fr_auto_auto] gap-4 px-4 py-3 border-b border-[#1f1f1f] font-mono text-[9px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+          <div className="border border-line">
+            <div className="grid grid-cols-[1fr_auto_auto] gap-4 px-4 py-3 border-b border-line font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted">
               <div>Description</div><div className="text-right">Amount</div><div className="text-right">Date</div>
             </div>
             {filteredTxns.map((t, i) => (
@@ -492,17 +492,17 @@ function PaymentAccount({ payouts, status, txns, onRefresh, query }) {
                 data-testid={`txn-row-${i}`}
               >
                 <div className="min-w-0">
-                  <div className="text-[#e5e5e5] uppercase tracking-[0.18em] text-[10px]">
+                  <div className="text-ink uppercase tracking-[0.18em] text-[10px]">
                     <Highlight text={t.kind} query={query} />{t.items_count ? ` · ${t.items_count} items` : ""}
                   </div>
-                  <div className="text-[#737373] text-[10px] truncate">
+                  <div className="text-ink-muted text-[10px] truncate">
                     <Highlight text={t.reference} query={query} />
                   </div>
                 </div>
-                <div className={`text-right font-display text-base ${t.direction === "credit" ? "text-emerald-400" : "text-[#ff4500]"}`}>
+                <div className={`text-right font-display text-base ${t.direction === "credit" ? "text-emerald-400" : "text-brand"}`}>
                   {t.direction === "credit" ? "+" : "−"}${t.amount.toFixed(2)}
                 </div>
-                <div className="text-right text-[10px] text-[#737373]">
+                <div className="text-right text-[10px] text-ink-muted">
                   {(t.created_at || "").slice(0, 10)}
                 </div>
               </div>
@@ -557,36 +557,36 @@ function MonthlyStatements({ txns, query }) {
 
   return (
     <Section title="Monthly statements" testId="monthly-statements">
-      <p className="font-mono text-xs text-[#a3a3a3] mb-5 leading-relaxed max-w-xl">
+      <p className="font-mono text-xs text-ink-muted mb-5 leading-relaxed max-w-xl">
         Download a CSV summary for any month — pairs nicely with your accounting software.
       </p>
       {allMonths.length === 0 ? (
-        <p className="font-mono text-xs text-[#737373] py-6">
+        <p className="font-mono text-xs text-ink-muted py-6">
           No statements yet — your first month will appear after your first sale.
         </p>
       ) : months.length === 0 ? (
         <p
-          className="font-mono text-xs text-[#737373] py-6"
+          className="font-mono text-xs text-ink-muted py-6"
           data-testid="financials-statements-empty"
         >
-          No months match "<span className="text-[#ff4500]">{query}</span>".
+          No months match "<span className="text-brand">{query}</span>".
         </p>
       ) : (
-        <div className="border border-[#1f1f1f]">
+        <div className="border border-line">
           {months.map(([ym, m]) => (
             <div
               key={ym}
               className="grid grid-cols-[1fr_auto_auto_auto] gap-4 px-4 py-3 border-b border-[#161616] items-center"
               data-testid={`statement-${ym}`}
             >
-              <div className="font-mono text-xs text-[#e5e5e5] uppercase tracking-[0.18em]">
+              <div className="font-mono text-xs text-ink uppercase tracking-[0.18em]">
                 <Highlight text={ym} query={query} />
               </div>
               <div className="font-display text-base text-emerald-400 text-right">+${m.credits.toFixed(2)}</div>
-              <div className="font-display text-base text-[#ff4500] text-right">−${m.debits.toFixed(2)}</div>
+              <div className="font-display text-base text-brand text-right">−${m.debits.toFixed(2)}</div>
               <button
                 onClick={() => downloadCsv(ym)}
-                className="px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition"
+                className="px-3 py-1.5 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] transition"
                 data-testid={`statement-download-${ym}`}
               >
                 Download CSV
@@ -659,24 +659,24 @@ function PaymentSettings({ status, query }) {
           isn't connected yet. */}
       {schedule && (
         <div
-          className="mb-6 border border-[#262626] bg-[#0f0f0f] p-4"
+          className="mb-6 border border-line bg-paper p-4"
           data-testid="payment-settings-payout-schedule"
         >
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div>
-              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
                 Your payout schedule
               </div>
               <div className="font-display text-2xl mt-1 capitalize">
                 {schedule.interval}
                 {schedule.weekly_anchor && (
-                  <span className="text-[#a3a3a3]"> · {schedule.weekly_anchor}</span>
+                  <span className="text-ink-muted"> · {schedule.weekly_anchor}</span>
                 )}
                 {schedule.monthly_anchor != null && (
-                  <span className="text-[#a3a3a3]"> · day {schedule.monthly_anchor}</span>
+                  <span className="text-ink-muted"> · day {schedule.monthly_anchor}</span>
                 )}
               </div>
-              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] mt-1">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mt-1">
                 {schedule.delay_days}-day rolling delay · funds settle{" "}
                 {schedule.delay_days <= 2
                   ? "almost immediately"
@@ -686,7 +686,7 @@ function PaymentSettings({ status, query }) {
                 )}
               </div>
             </div>
-            <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252]">
+            <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted">
               {schedule.source === "stripe" ? "Live from Stripe" : "Default schedule"}
             </div>
           </div>
@@ -698,18 +698,18 @@ function PaymentSettings({ status, query }) {
           through sale payouts). */}
       {billing && (
         <div
-          className="mb-6 border border-[#262626] bg-[#0f0f0f] p-4"
+          className="mb-6 border border-line bg-paper p-4"
           data-testid="payment-settings-pending"
         >
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div>
-              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
                 Pending listing / promo charges
               </div>
-              <div className="font-display text-2xl mt-1 text-[#ff4500]">
+              <div className="font-display text-2xl mt-1 text-brand">
                 {dollars(billing.pending_charges_cents)}
               </div>
-              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] mt-1">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mt-1">
                 {isPlus
                   ? "Auto-billed to your card · 1st of every month"
                   : "Auto-deducted from your next payout"}
@@ -720,7 +720,7 @@ function PaymentSettings({ status, query }) {
                 type="button"
                 onClick={onSettleNow}
                 disabled={busy}
-                className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] hover:bg-[#ff4500]/10 border border-[#ff4500]/60 px-4 py-2 transition disabled:opacity-50 self-start"
+                className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand hover:bg-brand/10 border border-brand/60 px-4 py-2 transition disabled:opacity-50 self-start"
                 data-testid="payment-settings-settle-now"
                 title="Charge your card on file now instead of waiting for the 1st-of-month sweep"
               >
@@ -741,13 +741,13 @@ function PaymentSettings({ status, query }) {
         </div>
       )}
 
-      <p className="font-mono text-xs text-[#a3a3a3] mb-4 leading-relaxed max-w-xl">
+      <p className="font-mono text-xs text-ink-muted mb-4 leading-relaxed max-w-xl">
         <Highlight
           text="Bank account routing is managed inside your Stripe dashboard — Crafters Market never touches your banking details. Use the buttons below to change cadence or update payment info."
           query={query}
         />
       </p>
-      <ul className="space-y-2 mb-5 font-mono text-xs text-[#e5e5e5]">
+      <ul className="space-y-2 mb-5 font-mono text-xs text-ink">
         <li>• <Highlight text="Switch payout cadence (daily/weekly/monthly with any anchor day) inside Stripe" query={query} /></li>
         <li>• <Highlight text="Update your bank account, routing, or debit card from the same dashboard" query={query} /></li>
         <li>• <Highlight text="Plus members: card on file is also used for monthly listing-fee invoices" query={query} /></li>
@@ -860,15 +860,15 @@ function ExportPanel({ format, txns, query }) {
 
   return (
     <Section title={cfg.title} testId={`export-${format}`}>
-      <p className="font-mono text-xs text-[#a3a3a3] mb-5 leading-relaxed max-w-xl">
+      <p className="font-mono text-xs text-ink-muted mb-5 leading-relaxed max-w-xl">
         <Highlight text={cfg.blurb} query={query} />
       </p>
-      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">
+      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
         ◆ Columns
       </div>
-      <div className="border border-[#1f1f1f] p-3 mb-5 font-mono text-[11px] text-[#e5e5e5] flex flex-wrap gap-2">
+      <div className="border border-line p-3 mb-5 font-mono text-[11px] text-ink flex flex-wrap gap-2">
         {cfg.columns.map((c) => (
-          <code key={c} className="px-2 py-1 bg-[#161616] text-[#a3a3a3]">{c}</code>
+          <code key={c} className="px-2 py-1 bg-surface text-ink-muted">{c}</code>
         ))}
       </div>
       <button
@@ -880,7 +880,7 @@ function ExportPanel({ format, txns, query }) {
         Download {cfg.title.replace(" export", "")} CSV
       </button>
       {txns.length === 0 && (
-        <p className="font-mono text-xs text-[#737373] mt-3">
+        <p className="font-mono text-xs text-ink-muted mt-3">
           You'll be able to export once you have your first transaction.
         </p>
       )}
@@ -912,17 +912,17 @@ function LegalTax({ query }) {
   ];
   return (
     <Section title="Legal & tax information" testId="legal-tax">
-      <ul className="space-y-4 font-mono text-xs text-[#e5e5e5] leading-relaxed">
+      <ul className="space-y-4 font-mono text-xs text-ink leading-relaxed">
         {items.map((it) => (
           <li key={it.heading}>
-            <div className="text-[#ff4500] uppercase tracking-[0.22em] text-[10px] mb-1">
+            <div className="text-brand uppercase tracking-[0.22em] text-[10px] mb-1">
               ◆ <Highlight text={it.heading} query={query} />
             </div>
             <Highlight text={it.body} query={query} />
           </li>
         ))}
       </ul>
-      <p className="font-mono text-[10px] text-[#525252] mt-6 leading-relaxed">
+      <p className="font-mono text-[10px] text-ink-muted mt-6 leading-relaxed">
         ◇ This isn't tax advice — for anything specific to your situation, talk to a CPA.
       </p>
     </Section>
@@ -934,8 +934,8 @@ function LegalTax({ query }) {
 // ============================================================================
 function Section({ title, testId, children }) {
   return (
-    <section className="border border-[#1f1f1f] bg-[#0d0d0d] p-5 md:p-6" data-testid={testId}>
-      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mb-3">
+    <section className="border border-line bg-paper p-5 md:p-6" data-testid={testId}>
+      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-3">
         ◆ {title}
       </div>
       {children}
@@ -993,7 +993,7 @@ function ShippingPanel({ query }) {
 
   return (
     <Section title="Shipping labels" testId="financials-shipping">
-      <p className="font-mono text-xs text-[#a3a3a3] mb-5 leading-relaxed max-w-xl">
+      <p className="font-mono text-xs text-ink-muted mb-5 leading-relaxed max-w-xl">
         Crafters Market pays the carrier when you buy a label from the Orders tab.
         On your next invoice run (see cadence below) we'll charge your on-file
         card for the labels you've used.
@@ -1040,19 +1040,19 @@ function ShippingPanel({ query }) {
 
           {/* Cadence toggle */}
           <div
-            className="border border-[#1f1f1f] bg-[#0a0a0a] p-4 mb-4 flex items-center justify-between gap-4 flex-wrap"
+            className="border border-line bg-paper p-4 mb-4 flex items-center justify-between gap-4 flex-wrap"
             data-testid="shipping-cadence-row"
           >
             <div className="min-w-0">
-              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-1">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-1">
                 Invoice cadence
               </div>
-              <p className="font-mono text-xs text-[#525252] leading-relaxed">
+              <p className="font-mono text-xs text-ink-muted leading-relaxed">
                 Weekly runs every Monday · biweekly runs every other Monday.
                 Missed a charge? We'll retry automatically for up to 3 days.
               </p>
             </div>
-            <div className="flex border border-[#262626]" role="group" aria-label="Cadence">
+            <div className="flex border border-line" role="group" aria-label="Cadence">
               {["weekly", "biweekly"].map((c) => (
                 <button
                   key={c}
@@ -1060,8 +1060,8 @@ function ShippingPanel({ query }) {
                   disabled={savingCadence}
                   className={`px-4 py-2 font-mono text-[11px] uppercase tracking-[0.22em] transition ${
                     data.cadence === c
-                      ? "bg-[#ff4500] text-black"
-                      : "text-[#a3a3a3] hover:text-[#ff4500]"
+                      ? "bg-brand text-ink"
+                      : "text-ink-muted hover:text-brand"
                   }`}
                   data-testid={`shipping-cadence-${c}`}
                 >
@@ -1079,14 +1079,14 @@ function ShippingPanel({ query }) {
 
           {/* Ledger table */}
           {rows.length === 0 ? (
-            <p className="font-mono text-xs text-[#737373] py-6" data-testid="shipping-ledger-empty">
+            <p className="font-mono text-xs text-ink-muted py-6" data-testid="shipping-ledger-empty">
               {q
-                ? <>No labels match "<span className="text-[#ff4500]">{query}</span>".</>
+                ? <>No labels match "<span className="text-brand">{query}</span>".</>
                 : "No shipping labels yet. Head to Orders to buy your first one."}
             </p>
           ) : (
-            <div className="border border-[#1f1f1f]" data-testid="shipping-ledger-table">
-              <div className="hidden md:grid grid-cols-[1fr_1fr_1fr_100px_110px_80px] gap-3 px-4 py-2 border-b border-[#1f1f1f] font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252]">
+            <div className="border border-line" data-testid="shipping-ledger-table">
+              <div className="hidden md:grid grid-cols-[1fr_1fr_1fr_100px_110px_80px] gap-3 px-4 py-2 border-b border-line font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
                 <span>Date</span>
                 <span>Carrier · Service</span>
                 <span>Tracking</span>
@@ -1097,19 +1097,19 @@ function ShippingPanel({ query }) {
               {rows.map((r) => (
                 <div
                   key={r.id}
-                  className="grid md:grid-cols-[1fr_1fr_1fr_100px_110px_80px] gap-3 px-4 py-3 border-b border-[#1f1f1f] last:border-b-0 font-mono text-xs text-[#e5e5e5] items-center"
+                  className="grid md:grid-cols-[1fr_1fr_1fr_100px_110px_80px] gap-3 px-4 py-3 border-b border-line last:border-b-0 font-mono text-xs text-ink items-center"
                   data-testid={`shipping-row-${r.id}`}
                 >
-                  <span className="text-[#a3a3a3]">{new Date(r.created_at).toLocaleDateString()}</span>
+                  <span className="text-ink-muted">{new Date(r.created_at).toLocaleDateString()}</span>
                   <span className="truncate">
-                    <span className="text-[#ff4500]">{r.provider}</span>
-                    <span className="text-[#525252]"> · </span>
+                    <span className="text-brand">{r.provider}</span>
+                    <span className="text-ink-muted"> · </span>
                     {r.servicelevel_name}
                   </span>
                   <span className="truncate">
                     {r.tracking_url_provider ? (
                       <a href={r.tracking_url_provider} target="_blank" rel="noopener noreferrer"
-                         className="underline hover:text-[#ff4500]">{r.tracking_number}</a>
+                         className="underline hover:text-brand">{r.tracking_number}</a>
                     ) : r.tracking_number}
                   </span>
                   <span className="text-right">${((r.billed_cents || 0) / 100).toFixed(2)}</span>
@@ -1129,7 +1129,7 @@ function ShippingPanel({ query }) {
                       <a
                         href={r.label_url}
                         target="_blank" rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-[#ff4500] hover:underline"
+                        className="inline-flex items-center gap-1 text-brand hover:underline"
                         data-testid={`shipping-row-pdf-${r.id}`}
                       >
                         <FileText size={11} /> PDF
@@ -1149,17 +1149,17 @@ function ShippingPanel({ query }) {
 function MetricCard({ label, value, hint, accent, testId }) {
   return (
     <div
-      className={`border p-4 ${accent ? "border-[#ff4500]/50 bg-[#ff4500]/5" : "border-[#1f1f1f] bg-[#0a0a0a]"}`}
+      className={`border p-4 ${accent ? "border-brand/50 bg-brand/5" : "border-line bg-paper"}`}
       data-testid={testId}
     >
-      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-1">
+      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-1">
         {label}
       </div>
-      <div className={`font-display text-3xl ${accent ? "text-[#ff4500]" : "text-[#e5e5e5]"}`}>
+      <div className={`font-display text-3xl ${accent ? "text-brand" : "text-ink"}`}>
         {value}
       </div>
       {hint && (
-        <div className="font-mono text-[10px] text-[#525252] mt-1">{hint}</div>
+        <div className="font-mono text-[10px] text-ink-muted mt-1">{hint}</div>
       )}
     </div>
   );
@@ -1192,40 +1192,40 @@ function CapRow({ data, reload }) {
 
   return (
     <div
-      className="border border-[#1f1f1f] bg-[#0a0a0a] p-4 mb-6 flex items-center justify-between gap-4 flex-wrap"
+      className="border border-line bg-paper p-4 mb-6 flex items-center justify-between gap-4 flex-wrap"
       data-testid="shipping-cap-row"
     >
       <div className="min-w-0 flex-1">
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-1">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-1">
           Monthly spend cap
         </div>
-        <p className="font-mono text-xs text-[#525252] leading-relaxed">
+        <p className="font-mono text-xs text-ink-muted leading-relaxed">
           Set a safety limit on label spend — we'll block label purchases once
-          this month's shipping exceeds it. <span className="text-[#a3a3a3]">Set to 0 to disable.</span>
+          this month's shipping exceeds it. <span className="text-ink-muted">Set to 0 to disable.</span>
         </p>
         <div className="mt-2 font-mono text-[11px]">
-          <span className="text-[#a3a3a3]">This month: </span>
-          <span className={overCap ? "text-red-400" : near ? "text-yellow-400" : "text-[#e5e5e5]"}>
+          <span className="text-ink-muted">This month: </span>
+          <span className={overCap ? "text-red-400" : near ? "text-yellow-400" : "text-ink"}>
             ${monthSpent.toFixed(2)}
           </span>
           {cap > 0 && (
-            <span className="text-[#525252]"> / ${(cap / 100).toFixed(2)}</span>
+            <span className="text-ink-muted"> / ${(cap / 100).toFixed(2)}</span>
           )}
         </div>
       </div>
       <div className="flex items-center gap-2">
-        <div className="flex items-center border border-[#262626] bg-[#0e0e0e]">
-          <span className="px-2 font-mono text-xs text-[#525252]">$</span>
+        <div className="flex items-center border border-line bg-[#0e0e0e]">
+          <span className="px-2 font-mono text-xs text-ink-muted">$</span>
           <input
             type="number"
             min="0"
             step="0.01"
             value={capInput}
             onChange={(e) => setCapInput(e.target.value)}
-            className="w-24 bg-transparent outline-none px-2 py-2 font-mono text-xs text-[#e5e5e5]"
+            className="w-24 bg-transparent outline-none px-2 py-2 font-mono text-xs text-ink"
             data-testid="shipping-cap-input"
           />
-          <span className="px-2 font-mono text-[10px] text-[#525252]">/mo</span>
+          <span className="px-2 font-mono text-[10px] text-ink-muted">/mo</span>
         </div>
         <button
           onClick={save}
@@ -1281,15 +1281,15 @@ function ShippingAnalyticsCard() {
 
   return (
     <div
-      className="border border-[#1f1f1f] bg-[#0a0a0a] p-4 mb-6"
+      className="border border-line bg-paper p-4 mb-6"
       data-testid="shipping-analytics-card"
     >
       <div className="flex items-baseline justify-between mb-3 flex-wrap gap-3">
         <div>
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
             ◆ Shipping volume · last {windowDays} days
           </div>
-          <div className="font-mono text-[11px] text-[#525252] mt-1">
+          <div className="font-mono text-[11px] text-ink-muted mt-1">
             {totals.count > 0 ? (
               <>
                 {totals.count} label{totals.count === 1 ? "" : "s"} · $
@@ -1308,15 +1308,15 @@ function ShippingAnalyticsCard() {
           </div>
         </div>
         {/* Window toggle */}
-        <div className="flex border border-[#262626]" role="group" aria-label="Window">
+        <div className="flex border border-line" role="group" aria-label="Window">
           {[7, 30, 90].map((d) => (
             <button
               key={d}
               onClick={() => setWindowDays(d)}
               className={`px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.22em] transition ${
                 windowDays === d
-                  ? "bg-[#ff4500] text-black"
-                  : "text-[#a3a3a3] hover:text-[#ff4500]"
+                  ? "bg-brand text-ink"
+                  : "text-ink-muted hover:text-brand"
               }`}
               data-testid={`shipping-analytics-window-${d}`}
             >
@@ -1368,7 +1368,7 @@ function ShippingAnalyticsCard() {
 
       {/* Axis labels — first + middle + last */}
       {series.length > 0 && (
-        <div className="flex justify-between font-mono text-[9px] text-[#525252] mt-1">
+        <div className="flex justify-between font-mono text-[9px] text-ink-muted mt-1">
           <span>{_fmtDay(series[0].date)}</span>
           {series.length > 2 && <span>{_fmtDay(series[Math.floor(series.length / 2)].date)}</span>}
           <span>{_fmtDay(series[series.length - 1].date)}</span>
@@ -1384,7 +1384,7 @@ function ShippingAnalyticsCard() {
             return (
               <div
                 key={k}
-                className="flex items-center gap-1.5 font-mono text-[10px] text-[#a3a3a3]"
+                className="flex items-center gap-1.5 font-mono text-[10px] text-ink-muted"
                 data-testid={`shipping-analytics-legend-${k}`}
               >
                 <span
@@ -1422,7 +1422,7 @@ function Highlight({ text, query }) {
     <>
       {parts.map((p, i) =>
         p && p.toLowerCase() === q ? (
-          <mark key={i} className="bg-[#ff4500]/30 text-[#ffe5d6] px-0.5 rounded-sm">
+          <mark key={i} className="bg-brand/30 text-[#ffe5d6] px-0.5 rounded-sm">
             {p}
           </mark>
         ) : (

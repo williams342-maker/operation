@@ -132,7 +132,7 @@ export default function FounderEmailSignature() {
 
   return (
     <Section title="Founder email signature" testId="founder-email-signature">
-      <p className="font-mono text-xs text-[#a3a3a3] mb-5 max-w-2xl leading-relaxed">
+      <p className="font-mono text-xs text-ink-muted mb-5 max-w-2xl leading-relaxed">
         A branded signature with your Founder card and shop link baked in.
         Every email you send becomes a quiet recruiting touch — and every reply
         confirms you ship.
@@ -141,7 +141,7 @@ export default function FounderEmailSignature() {
       <div className="grid lg:grid-cols-[1fr_320px] gap-6 items-start">
         {/* Live preview — render the HTML inside a sandbox-ish wrapper that
             visually approximates a white-background email client. */}
-        <div className="border border-[#262626] bg-white p-5 rounded-sm overflow-x-auto"
+        <div className="border border-line bg-white p-5 rounded-sm overflow-x-auto"
           data-testid="founder-sig-preview">
           <div
             // eslint-disable-next-line react/no-danger
@@ -153,7 +153,7 @@ export default function FounderEmailSignature() {
         <div className="space-y-2">
           <button
             onClick={copyRich}
-            className="w-full flex items-center justify-between border border-[#ff4500] text-[#ff4500] hover:bg-[#ff4500] hover:text-black transition px-4 py-3 font-mono text-[11px] uppercase tracking-[0.22em]"
+            className="w-full flex items-center justify-between border border-brand text-brand hover:bg-brand hover:text-ink transition px-4 py-3 font-mono text-[11px] uppercase tracking-[0.22em]"
             data-testid="founder-sig-copy-rich"
           >
             <span className="flex items-center gap-2">
@@ -164,7 +164,7 @@ export default function FounderEmailSignature() {
 
           <button
             onClick={copyHtml}
-            className="w-full flex items-center justify-between border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] transition px-4 py-3 font-mono text-[11px] uppercase tracking-[0.22em]"
+            className="w-full flex items-center justify-between border border-line hover:border-brand hover:text-brand transition px-4 py-3 font-mono text-[11px] uppercase tracking-[0.22em]"
             data-testid="founder-sig-copy-html"
           >
             <span className="flex items-center gap-2">
@@ -175,7 +175,7 @@ export default function FounderEmailSignature() {
 
           <button
             onClick={copyText}
-            className="w-full flex items-center justify-between border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] transition px-4 py-3 font-mono text-[11px] uppercase tracking-[0.22em]"
+            className="w-full flex items-center justify-between border border-line hover:border-brand hover:text-brand transition px-4 py-3 font-mono text-[11px] uppercase tracking-[0.22em]"
             data-testid="founder-sig-copy-text"
           >
             <span className="flex items-center gap-2">
@@ -186,7 +186,7 @@ export default function FounderEmailSignature() {
 
           <button
             onClick={downloadHtm}
-            className="w-full flex items-center justify-between border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] transition px-4 py-3 font-mono text-[11px] uppercase tracking-[0.22em]"
+            className="w-full flex items-center justify-between border border-line hover:border-brand hover:text-brand transition px-4 py-3 font-mono text-[11px] uppercase tracking-[0.22em]"
             data-testid="founder-sig-download"
           >
             <span className="flex items-center gap-2">
@@ -195,8 +195,8 @@ export default function FounderEmailSignature() {
             <span className="text-[10px] opacity-70">desktop</span>
           </button>
 
-          <div className="pt-3 space-y-2 font-mono text-[10px] text-[#525252] leading-relaxed">
-            <div className="text-[#a3a3a3] uppercase tracking-[0.22em] font-bold">
+          <div className="pt-3 space-y-2 font-mono text-[10px] text-ink-muted leading-relaxed">
+            <div className="text-ink-muted uppercase tracking-[0.22em] font-bold">
               ◇ Where to paste
             </div>
             <div>• Gmail → ⚙ Settings → General → Signature → paste rich.</div>

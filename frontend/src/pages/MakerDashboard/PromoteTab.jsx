@@ -262,7 +262,7 @@ export default function PromoteTab() {
   if (loading) {
     return (
       <div className="py-16 text-center">
-        <Loader2 className="inline animate-spin text-[#ff4500]" size={28} />
+        <Loader2 className="inline animate-spin text-brand" size={28} />
       </div>
     );
   }
@@ -279,14 +279,14 @@ export default function PromoteTab() {
       )}
 
       {/* ── Header ─────────────────────────────────────────────────── */}
-      <header className="flex flex-wrap items-end justify-between gap-3 border-b border-[#262626] pb-4">
+      <header className="flex flex-wrap items-end justify-between gap-3 border-b border-line pb-4">
         <div>
           <div className="flex items-center gap-2">
-            <Rocket size={22} className="text-[#ff4500]" />
-            <h1 className="font-display text-3xl text-[#f5f5f5]">Promote</h1>
+            <Rocket size={22} className="text-brand" />
+            <h1 className="font-display text-3xl text-ink">Promote</h1>
             <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-cyan-400 border border-cyan-400/40 px-1.5 py-0.5">Beta</span>
           </div>
-          <p className="text-sm text-[#a3a3a3] mt-1 max-w-xl">
+          <p className="text-sm text-ink-muted mt-1 max-w-xl">
             Set one budget. We pick which listings to boost based on your goal — no campaign manager, no per-listing micromanaging.
           </p>
         </div>
@@ -297,7 +297,7 @@ export default function PromoteTab() {
               setWizardStep(1);
               setWizardOpen(true);
             }}
-            className="px-3 py-2 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] flex items-center gap-1.5"
+            className="px-3 py-2 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] flex items-center gap-1.5"
             data-testid="promote-rerun-wizard-btn"
             title="Re-open the 3-step setup wizard"
           >
@@ -305,7 +305,7 @@ export default function PromoteTab() {
           </button>
           <button
             onClick={refresh}
-            className="px-3 py-2 border border-[#262626] hover:border-cyan-400 font-mono text-[10px] uppercase tracking-[0.22em] flex items-center gap-1.5"
+            className="px-3 py-2 border border-line hover:border-cyan-400 font-mono text-[10px] uppercase tracking-[0.22em] flex items-center gap-1.5"
             data-testid="promote-refresh-btn"
           >
             <RefreshCw size={11} /> Refresh
@@ -331,20 +331,20 @@ export default function PromoteTab() {
               return (
                 <div
                   key={t.theme_id || t.slug}
-                  className="border border-cyan-700/40 bg-[#050505] px-3 py-2 min-w-[200px]"
+                  className="border border-cyan-700/40 bg-paper px-3 py-2 min-w-[200px]"
                   data-testid={`promote-theme-${t.slug}`}
                 >
                   <div className="font-mono text-xs text-cyan-100 truncate">{t.name}</div>
-                  <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#737373] mt-0.5">
+                  <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted mt-0.5">
                     {t.start_date} → {t.end_date}
                   </div>
-                  <div className="mt-1.5 h-1 bg-[#1f1f1f]">
+                  <div className="mt-1.5 h-1 bg-surface">
                     <div
                       className="h-1 bg-gradient-to-r from-cyan-600 to-cyan-300"
                       style={{ width: `${usedPct}%` }}
                     />
                   </div>
-                  <div className="mt-1 font-mono text-[9px] text-[#a3a3a3] flex justify-between">
+                  <div className="mt-1 font-mono text-[9px] text-ink-muted flex justify-between">
                     <span>Pool ${(t.pool_remaining_cents / 100).toFixed(0)} left</span>
                     {t.remaining_for_maker_cents > 0 && (
                       <span className="text-cyan-300">+${(t.remaining_for_maker_cents / 100).toFixed(0)} for you</span>
@@ -354,30 +354,30 @@ export default function PromoteTab() {
               );
             })}
           </div>
-          <p className="mt-2 text-[10px] text-[#737373] leading-snug">
+          <p className="mt-2 text-[10px] text-ink-muted leading-snug">
             When the daily allocator boosts a matching listing, these pools chip in first — reducing the spend on your own wallet.
           </p>
         </section>
       )}
 
       {/* ── Wallet ─────────────────────────────────────────────────── */}
-      <section className="border border-[#262626] bg-[#0a0a0a] p-5" data-testid="promote-wallet-card">
+      <section className="border border-line bg-paper p-5" data-testid="promote-wallet-card">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <div className="flex items-center gap-2 text-[#a3a3a3] font-mono text-[10px] uppercase tracking-[0.25em]">
+            <div className="flex items-center gap-2 text-ink-muted font-mono text-[10px] uppercase tracking-[0.25em]">
               <Wallet size={12} /> Wallet
             </div>
-            <div className="font-display text-5xl text-[#f5f5f5] mt-1" data-testid="promote-wallet-balance">
+            <div className="font-display text-5xl text-ink mt-1" data-testid="promote-wallet-balance">
               {dollars(balance)}
             </div>
-            <div className="text-xs text-[#737373] mt-1">
+            <div className="text-xs text-ink-muted mt-1">
               Lifetime funded {dollars(lifetimeFunded)} · spent {dollars(lifetimeSpent)}
             </div>
           </div>
           {hasActiveSub && (
             <div className="text-right">
               <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-emerald-400">Subscription active</div>
-              <div className="text-sm text-[#a3a3a3] mt-1">{dollarsRound(sub.monthly_cents)}/mo · auto-renews</div>
+              <div className="text-sm text-ink-muted mt-1">{dollarsRound(sub.monthly_cents)}/mo · auto-renews</div>
               <button
                 onClick={onCancelSub}
                 disabled={busy === "cancel-sub"}
@@ -392,7 +392,7 @@ export default function PromoteTab() {
 
         <div className="mt-5 grid sm:grid-cols-2 gap-4">
           <div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2 flex items-center gap-1.5">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2 flex items-center gap-1.5">
               <Plus size={11} /> One-time top-up
             </div>
             <div className="flex flex-wrap gap-1.5">
@@ -401,7 +401,7 @@ export default function PromoteTab() {
                   key={c}
                   onClick={() => onTopup(c)}
                   disabled={busy === `topup-${c}`}
-                  className="px-3 py-2 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-xs disabled:opacity-50"
+                  className="px-3 py-2 border border-line hover:border-brand hover:text-brand font-mono text-xs disabled:opacity-50"
                   data-testid={`promote-topup-${c}`}
                 >
                   {busy === `topup-${c}` ? <Loader2 size={11} className="animate-spin inline" /> : dollarsRound(c)}
@@ -411,7 +411,7 @@ export default function PromoteTab() {
           </div>
           {!hasActiveSub && (
             <div>
-              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2 flex items-center gap-1.5">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2 flex items-center gap-1.5">
                 <CreditCard size={11} /> Monthly auto-refill
               </div>
               <div className="flex flex-wrap gap-1.5">
@@ -420,7 +420,7 @@ export default function PromoteTab() {
                     key={c}
                     onClick={() => onSubscribe(c)}
                     disabled={busy === `sub-${c}`}
-                    className="px-3 py-2 border border-[#262626] hover:border-cyan-400 hover:text-cyan-400 font-mono text-xs disabled:opacity-50"
+                    className="px-3 py-2 border border-line hover:border-cyan-400 hover:text-cyan-400 font-mono text-xs disabled:opacity-50"
                     data-testid={`promote-subscribe-${c}`}
                   >
                     {busy === `sub-${c}` ? <Loader2 size={11} className="animate-spin inline" /> : `${dollarsRound(c)}/mo`}
@@ -433,19 +433,19 @@ export default function PromoteTab() {
 
         {wallet?.transactions?.length > 0 && (
           <details className="mt-4">
-            <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#f5f5f5] flex items-center gap-1.5">
+            <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-ink flex items-center gap-1.5">
               <History size={11} /> Recent activity ({wallet.transactions.length})
             </summary>
             <table className="w-full mt-3 text-xs">
               <tbody>
                 {wallet.transactions.slice(0, 10).map((t, i) => (
-                  <tr key={i} className="border-b border-[#1f1f1f]" data-testid="promote-txn-row">
-                    <td className="py-1.5 font-mono text-[10px] text-[#737373]">{(t.created_at || "").slice(0, 10)}</td>
-                    <td className="py-1.5 text-[#a3a3a3] capitalize">{t.kind}</td>
+                  <tr key={i} className="border-b border-line" data-testid="promote-txn-row">
+                    <td className="py-1.5 font-mono text-[10px] text-ink-muted">{(t.created_at || "").slice(0, 10)}</td>
+                    <td className="py-1.5 text-ink-muted capitalize">{t.kind}</td>
                     <td className={`py-1.5 text-right font-mono ${t.delta_cents > 0 ? "text-emerald-400" : "text-red-300"}`}>
                       {t.delta_cents > 0 ? "+" : ""}{dollars(t.delta_cents)}
                     </td>
-                    <td className="py-1.5 text-right text-[#737373] font-mono">{dollars(t.balance_after_cents)}</td>
+                    <td className="py-1.5 text-right text-ink-muted font-mono">{dollars(t.balance_after_cents)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -455,14 +455,14 @@ export default function PromoteTab() {
       </section>
 
       {/* ── Plan ───────────────────────────────────────────────────── */}
-      <section className="border border-[#262626] bg-[#0a0a0a] p-5" data-testid="promote-plan-card">
+      <section className="border border-line bg-paper p-5" data-testid="promote-plan-card">
         <div className="flex items-center justify-between mb-4">
-          <div className="font-display text-xl text-[#f5f5f5]">Your Promotion Plan</div>
+          <div className="font-display text-xl text-ink">Your Promotion Plan</div>
           {campaign && (
             <button
               onClick={onPauseResume}
               disabled={busy === "pause"}
-              className="px-3 py-1.5 border border-[#262626] hover:border-cyan-400 font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50 flex items-center gap-1.5"
+              className="px-3 py-1.5 border border-line hover:border-cyan-400 font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50 flex items-center gap-1.5"
               data-testid="promote-pause-btn"
             >
               {campaign.status === "active" ? <><Pause size={11} /> Pause</> : <><Play size={11} /> Resume</>}
@@ -473,9 +473,9 @@ export default function PromoteTab() {
         {/* Budget slider */}
         <div className="mb-5">
           <div className="flex items-baseline justify-between mb-1">
-            <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Budget per month</label>
-            <span className="font-display text-2xl text-[#ff4500]" data-testid="promote-budget-display">
-              {dollarsRound(budgetCents)}<span className="text-sm text-[#737373]">/mo</span>
+            <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Budget per month</label>
+            <span className="font-display text-2xl text-brand" data-testid="promote-budget-display">
+              {dollarsRound(budgetCents)}<span className="text-sm text-ink-muted">/mo</span>
             </span>
           </div>
           <input
@@ -490,7 +490,7 @@ export default function PromoteTab() {
               <button
                 key={c}
                 onClick={() => setBudgetCents(c)}
-                className={`px-2 py-1 border font-mono text-[10px] ${budgetCents === c ? "border-[#ff4500] text-[#ff4500]" : "border-[#262626] text-[#a3a3a3] hover:border-[#525252]"}`}
+                className={`px-2 py-1 border font-mono text-[10px] ${budgetCents === c ? "border-brand text-brand" : "border-line text-ink-muted hover:border-ink-muted"}`}
                 data-testid={`promote-budget-preset-${c}`}
               >
                 {dollarsRound(c)}
@@ -501,17 +501,17 @@ export default function PromoteTab() {
 
         {/* Goal */}
         <div className="mb-5">
-          <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] block mb-2">Goal</label>
+          <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted block mb-2">Goal</label>
           <div className="grid sm:grid-cols-3 gap-2">
             {GOAL_OPTIONS.map((g) => (
               <button
                 key={g.id}
                 onClick={() => setGoal(g.id)}
-                className={`text-left p-3 border ${goal === g.id ? "border-[#ff4500] bg-[#1a0e08]" : "border-[#262626] hover:border-[#525252]"}`}
+                className={`text-left p-3 border ${goal === g.id ? "border-brand bg-[#1a0e08]" : "border-line hover:border-ink-muted"}`}
                 data-testid={`promote-goal-${g.id}`}
               >
-                <div className="font-mono text-xs text-[#f5f5f5]">{g.label}</div>
-                <div className="text-[10px] text-[#737373] mt-1 leading-snug">{g.desc}</div>
+                <div className="font-mono text-xs text-ink">{g.label}</div>
+                <div className="text-[10px] text-ink-muted mt-1 leading-snug">{g.desc}</div>
               </button>
             ))}
           </div>
@@ -519,7 +519,7 @@ export default function PromoteTab() {
 
         {/* Channels — iter335.5 */}
         <div className="mb-5">
-          <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] block mb-2">Channels</label>
+          <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted block mb-2">Channels</label>
           <div className="grid sm:grid-cols-2 gap-2">
             <ChannelChip
               label="Crafters Market"
@@ -539,7 +539,7 @@ export default function PromoteTab() {
               />
             ))}
           </div>
-          <p className="text-[10px] text-[#737373] mt-2">
+          <p className="text-[10px] text-ink-muted mt-2">
             External channels are opt-in per listing. New campaigns always start paused — review before activating.
           </p>
 
@@ -567,10 +567,10 @@ export default function PromoteTab() {
                     className="flex items-center gap-3"
                     data-testid={`promote-channel-split-row-${c.channel}`}
                   >
-                    <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] w-20 shrink-0">
+                    <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted w-20 shrink-0">
                       {c.channel === "microsoft" ? "Microsoft" : c.channel === "google" ? "Google" : "Meta"}
                     </span>
-                    <div className="flex-1 h-1.5 bg-[#1f1f1f]">
+                    <div className="flex-1 h-1.5 bg-surface">
                       <div
                         className="h-1.5 bg-gradient-to-r from-emerald-700 to-emerald-300 transition-all"
                         style={{ width: `${Math.max(3, c.weight * 100)}%` }}
@@ -582,7 +582,7 @@ export default function PromoteTab() {
                   </div>
                 ))}
               </div>
-              <p className="text-[10px] text-[#737373] mt-2 leading-snug">
+              <p className="text-[10px] text-ink-muted mt-2 leading-snug">
                 {channelSplit.cold_start
                   ? "Not enough paid-channel data on the marketplace yet — split is even across your eligible channels until orders start landing."
                   : "Based on the marketplace's last-30-day ROAS across all makers. Use this as a starting point when funding multiple paid channels."}
@@ -591,7 +591,7 @@ export default function PromoteTab() {
           )}
         </div>
 
-        <label className="flex items-center gap-2 text-sm text-[#a3a3a3] mb-5 cursor-pointer">
+        <label className="flex items-center gap-2 text-sm text-ink-muted mb-5 cursor-pointer">
           <input
             type="checkbox" checked={autoAllocate}
             onChange={(e) => setAutoAllocate(e.target.checked)}
@@ -605,7 +605,7 @@ export default function PromoteTab() {
           <button
             onClick={onSave}
             disabled={busy === "save"}
-            className="px-4 py-2.5 bg-[#ff4500] text-[#0a0a0a] font-mono text-xs uppercase tracking-[0.22em] disabled:opacity-50 flex items-center gap-1.5"
+            className="px-4 py-2.5 bg-brand text-[#0a0a0a] font-mono text-xs uppercase tracking-[0.22em] disabled:opacity-50 flex items-center gap-1.5"
             data-testid="promote-save-btn"
           >
             {busy === "save" ? <Loader2 size={12} className="animate-spin" /> : <Zap size={12} />}
@@ -615,7 +615,7 @@ export default function PromoteTab() {
             <button
               onClick={onApply}
               disabled={busy === "apply" || balance < 500}
-              className="px-4 py-2.5 border border-[#ff4500] text-[#ff4500] hover:bg-[#1a0e08] font-mono text-xs uppercase tracking-[0.22em] disabled:opacity-50 flex items-center gap-1.5"
+              className="px-4 py-2.5 border border-brand text-brand hover:bg-[#1a0e08] font-mono text-xs uppercase tracking-[0.22em] disabled:opacity-50 flex items-center gap-1.5"
               data-testid="promote-apply-btn"
               title={balance < 500 ? "Wallet needs at least $5 to apply a boost." : ""}
             >
@@ -633,17 +633,17 @@ export default function PromoteTab() {
       </section>
 
       {/* ── Distribution preview ───────────────────────────────────── */}
-      <section className="border border-[#262626] bg-[#0a0a0a] p-5" data-testid="promote-distribution-card">
+      <section className="border border-line bg-paper p-5" data-testid="promote-distribution-card">
         <div className="flex items-center justify-between mb-3">
-          <div className="font-display text-xl text-[#f5f5f5] flex items-center gap-2">
+          <div className="font-display text-xl text-ink flex items-center gap-2">
             <TrendingUp size={18} className="text-cyan-400" />
             Smart distribution
           </div>
-          <span className="font-mono text-[10px] text-[#737373]">live preview · {preview.length} listings</span>
+          <span className="font-mono text-[10px] text-ink-muted">live preview · {preview.length} listings</span>
         </div>
         {preview.length === 0 && (
-          <p className="text-sm text-[#a3a3a3]">
-            No published listings yet — list something in <span className="text-[#ff4500]">Listings</span> first and we&apos;ll start allocating.
+          <p className="text-sm text-ink-muted">
+            No published listings yet — list something in <span className="text-brand">Listings</span> first and we&apos;ll start allocating.
           </p>
         )}
         {preview.length > 0 && (
@@ -651,8 +651,8 @@ export default function PromoteTab() {
             {preview.slice(0, 8).map((a) => (
               <div key={a.slug} className="flex items-center gap-3" data-testid={`promote-alloc-row-${a.slug}`}>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm text-[#f5f5f5] truncate">{a.title}</div>
-                  <div className="h-1.5 mt-1 bg-[#1f1f1f] rounded">
+                  <div className="text-sm text-ink truncate">{a.title}</div>
+                  <div className="h-1.5 mt-1 bg-surface rounded">
                     <div
                       className="h-1.5 bg-gradient-to-r from-[#ff4500] to-[#ff8800] rounded"
                       style={{ width: `${Math.round((a.weight || 0) * 100)}%` }}
@@ -660,8 +660,8 @@ export default function PromoteTab() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="font-mono text-xs text-[#f5f5f5]">{dollars(a.allocated_cents)}</div>
-                  <div className="font-mono text-[9px] text-[#737373]">{Math.round((a.weight || 0) * 100)}%</div>
+                  <div className="font-mono text-xs text-ink">{dollars(a.allocated_cents)}</div>
+                  <div className="font-mono text-[9px] text-ink-muted">{Math.round((a.weight || 0) * 100)}%</div>
                 </div>
               </div>
             ))}
@@ -671,23 +671,23 @@ export default function PromoteTab() {
 
       {/* ── External campaigns (iter335.5) ─────────────────────────── */}
       {(extCampaigns.length > 0 || channels.some((c) => c.eligible)) && (
-        <section className="border border-[#262626] bg-[#0a0a0a] p-5" data-testid="promote-external-card">
-          <div className="font-display text-xl text-[#f5f5f5] mb-1">External channels</div>
-          <p className="text-xs text-[#737373] mb-4">
+        <section className="border border-line bg-paper p-5" data-testid="promote-external-card">
+          <div className="font-display text-xl text-ink mb-1">External channels</div>
+          <p className="text-xs text-ink-muted mb-4">
             Launch real campaigns on supported ad networks. Each campaign starts <span className="text-amber-300">paused</span> — activate manually when you&apos;re ready to spend.
           </p>
 
           {/* Per-listing launch row — show only listings above the $35 floor. */}
           {channels.filter((c) => c.eligible).length > 0 && preview.length > 0 && (
             <div className="mb-5">
-              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
                 Launch new (listings allocated ≥ $35)
               </div>
               <div className="space-y-1">
                 {preview.filter((p) => p.allocated_cents >= 3500).slice(0, 5).map((p) => (
-                  <div key={p.slug} className="flex items-center gap-2 text-sm border border-[#1f1f1f] px-3 py-2" data-testid={`promote-ext-launch-${p.slug}`}>
-                    <span className="flex-1 truncate text-[#f5f5f5]">{p.title}</span>
-                    <span className="font-mono text-[10px] text-[#737373]">{dollars(p.allocated_cents)}/mo</span>
+                  <div key={p.slug} className="flex items-center gap-2 text-sm border border-line px-3 py-2" data-testid={`promote-ext-launch-${p.slug}`}>
+                    <span className="flex-1 truncate text-ink">{p.title}</span>
+                    <span className="font-mono text-[10px] text-ink-muted">{dollars(p.allocated_cents)}/mo</span>
                     {channels.filter((c) => c.eligible).map((c) => (
                       <button
                         key={c.channel}
@@ -702,7 +702,7 @@ export default function PromoteTab() {
                   </div>
                 ))}
                 {preview.filter((p) => p.allocated_cents >= 3500).length === 0 && (
-                  <div className="text-xs text-[#737373] py-2">
+                  <div className="text-xs text-ink-muted py-2">
                     No listings are allocated $35/mo or more yet. Bump your monthly budget or focus on fewer listings to qualify for external channels.
                   </div>
                 )}
@@ -713,12 +713,12 @@ export default function PromoteTab() {
           {/* Existing external campaigns */}
           {extCampaigns.length > 0 && (
             <div>
-              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
                 Your external campaigns ({extCampaigns.length})
               </div>
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="border-b border-[#262626] font-mono text-[9px] uppercase tracking-[0.22em] text-[#737373]">
+                  <tr className="border-b border-line font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted">
                     <th className="text-left py-1.5">Listing</th>
                     <th className="text-left py-1.5">Channel</th>
                     <th className="text-right py-1.5">Daily</th>
@@ -728,10 +728,10 @@ export default function PromoteTab() {
                 </thead>
                 <tbody>
                   {extCampaigns.map((row) => (
-                    <tr key={`${row.channel}-${row.external_id}`} className="border-b border-[#1f1f1f]" data-testid={`promote-ext-row-${row.external_id}`}>
-                      <td className="py-2 text-[#f5f5f5] truncate max-w-[12rem]">{row.listing_slug}</td>
-                      <td className="py-2 text-[#a3a3a3] capitalize">{row.channel}</td>
-                      <td className="py-2 text-right font-mono text-[#a3a3a3]">{dollars(row.daily_budget_cents)}</td>
+                    <tr key={`${row.channel}-${row.external_id}`} className="border-b border-line" data-testid={`promote-ext-row-${row.external_id}`}>
+                      <td className="py-2 text-ink truncate max-w-[12rem]">{row.listing_slug}</td>
+                      <td className="py-2 text-ink-muted capitalize">{row.channel}</td>
+                      <td className="py-2 text-right font-mono text-ink-muted">{dollars(row.daily_budget_cents)}</td>
                       <td className={`py-2 text-right font-mono uppercase tracking-[0.18em] text-[10px] ${row.status === "active" ? "text-emerald-400" : "text-amber-300"}`}>
                         {row.status}
                       </td>
@@ -739,7 +739,7 @@ export default function PromoteTab() {
                         <button
                           onClick={() => onToggleExternal(row)}
                           disabled={busy === `ext-${row.external_id}`}
-                          className="px-2 py-1 border border-[#262626] hover:border-cyan-400 font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50"
+                          className="px-2 py-1 border border-line hover:border-cyan-400 font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50"
                           data-testid={`promote-ext-toggle-${row.external_id}`}
                         >
                           {busy === `ext-${row.external_id}` ? <Loader2 size={10} className="animate-spin" /> : (row.status === "active" ? "Pause" : "Activate")}
@@ -756,8 +756,8 @@ export default function PromoteTab() {
 
       {/* ── Analytics ──────────────────────────────────────────────── */}
       {analytics && (
-        <section className="border border-[#262626] bg-[#0a0a0a] p-5" data-testid="promote-analytics-card">
-          <div className="font-display text-xl text-[#f5f5f5] mb-3">Performance</div>
+        <section className="border border-line bg-paper p-5" data-testid="promote-analytics-card">
+          <div className="font-display text-xl text-ink mb-3">Performance</div>
           <div className="grid sm:grid-cols-4 gap-3">
             <Stat label="Spent" value={dollars(analytics.spend_cents)} testid="promote-stat-spend" />
             <Stat label="Revenue (boosted listings, last 30d)" value={dollars(analytics.revenue_cents)} testid="promote-stat-revenue" />
@@ -773,7 +773,7 @@ export default function PromoteTab() {
             <div className="mt-4 overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="border-b border-[#262626] font-mono text-[9px] uppercase tracking-[0.22em] text-[#737373]">
+                  <tr className="border-b border-line font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted">
                     <th className="text-left py-1.5">Listing</th>
                     <th className="text-right py-1.5">Boosts</th>
                     <th className="text-right py-1.5">Spent</th>
@@ -782,11 +782,11 @@ export default function PromoteTab() {
                 </thead>
                 <tbody>
                   {analytics.per_listing.slice(0, 10).map((row) => (
-                    <tr key={row.slug} className="border-b border-[#1f1f1f]" data-testid={`promote-analytics-row-${row.slug}`}>
-                      <td className="py-2 text-[#f5f5f5] truncate max-w-[14rem]">{row.title}</td>
-                      <td className="py-2 text-right font-mono text-[#a3a3a3]">{row.total_boosts || 0}</td>
-                      <td className="py-2 text-right font-mono text-[#a3a3a3]">{dollars(row.total_spent_cents)}</td>
-                      <td className="py-2 text-right font-mono text-[10px] text-[#737373]">{(row.promoted_until || "—").slice(0, 10)}</td>
+                    <tr key={row.slug} className="border-b border-line" data-testid={`promote-analytics-row-${row.slug}`}>
+                      <td className="py-2 text-ink truncate max-w-[14rem]">{row.title}</td>
+                      <td className="py-2 text-right font-mono text-ink-muted">{row.total_boosts || 0}</td>
+                      <td className="py-2 text-right font-mono text-ink-muted">{dollars(row.total_spent_cents)}</td>
+                      <td className="py-2 text-right font-mono text-[10px] text-ink-muted">{(row.promoted_until || "—").slice(0, 10)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -801,9 +801,9 @@ export default function PromoteTab() {
 
 function Stat({ label, value, accent = "", testid }) {
   return (
-    <div className="border border-[#262626] p-3" data-testid={testid}>
-      <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#737373]">{label}</div>
-      <div className={`font-display text-2xl mt-1 ${accent || "text-[#f5f5f5]"}`}>{value}</div>
+    <div className="border border-line p-3" data-testid={testid}>
+      <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted">{label}</div>
+      <div className={`font-display text-2xl mt-1 ${accent || "text-ink"}`}>{value}</div>
     </div>
   );
 }
@@ -813,9 +813,9 @@ function ChannelChip({ label, sublabel, state, testId }) {
   //        "available" (external channel ready to launch),
   //        "blocked" (pending approval / connect required)
   const tone =
-    state === "active"    ? "border-[#ff4500] text-[#ff4500] bg-[#1a0e08]" :
+    state === "active"    ? "border-brand text-brand bg-[#1a0e08]" :
     state === "available" ? "border-cyan-400/60 text-cyan-300 bg-cyan-400/5" :
-                            "border-[#262626] text-[#525252]";
+                            "border-line text-ink-muted";
   return (
     <div className={`px-3 py-2 border ${tone}`} data-testid={testId}>
       <div className="font-mono text-[11px] uppercase tracking-[0.22em] flex items-center gap-1.5">

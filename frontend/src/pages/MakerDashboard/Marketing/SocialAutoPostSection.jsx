@@ -55,7 +55,7 @@ export default function SocialAutoPostSection() {
   if (!data) {
     return (
       <Section title="Crafters Market Social" testId="social-auto-post-section">
-        <p className="font-mono text-xs text-[#525252]">Loading…</p>
+        <p className="font-mono text-xs text-ink-muted">Loading…</p>
       </Section>
     );
   }
@@ -69,7 +69,7 @@ export default function SocialAutoPostSection() {
       title="Crafters Market Social"
       testId="social-auto-post-section"
     >
-      <p className="font-mono text-xs text-[#a3a3a3] mb-5 max-w-2xl leading-relaxed">
+      <p className="font-mono text-xs text-ink-muted mb-5 max-w-2xl leading-relaxed">
         When you publish a listing, Crafters Market can auto-post it to our
         branded Instagram, Pinterest, and Facebook accounts — buyer reach
         without you lifting a finger.
@@ -77,23 +77,23 @@ export default function SocialAutoPostSection() {
 
       {/* Eligibility status pill */}
       <div
-        className="border border-[#262626] bg-[#0a0a0a] p-4 mb-5 flex items-start gap-3"
+        className="border border-line bg-paper p-4 mb-5 flex items-start gap-3"
         data-testid="social-auto-post-status-pill"
       >
         {elig.eligible ? (
           <Sparkles size={18} style={{ color: tierColor }} className="mt-0.5 shrink-0" />
         ) : (
-          <Lock size={18} className="text-[#737373] mt-0.5 shrink-0" />
+          <Lock size={18} className="text-ink-muted mt-0.5 shrink-0" />
         )}
         <div className="flex-1 min-w-0">
           <div className="font-mono text-[10px] uppercase tracking-[0.22em]" style={{ color: tierColor }}>
             ◆ {tierLabel}
           </div>
-          <div className="text-[#e5e5e5] mt-1 text-sm" data-testid="social-auto-post-reason">
+          <div className="text-ink mt-1 text-sm" data-testid="social-auto-post-reason">
             {elig.reason}
           </div>
           {!elig.eligible && elig.upsell && (
-            <div className="font-mono text-[11px] text-[#a3a3a3] mt-2 leading-relaxed" data-testid="social-auto-post-upsell">
+            <div className="font-mono text-[11px] text-ink-muted mt-2 leading-relaxed" data-testid="social-auto-post-upsell">
               {elig.upsell}
             </div>
           )}
@@ -102,17 +102,17 @@ export default function SocialAutoPostSection() {
 
       {/* Channels we post to (always shown so makers see the value prop) */}
       <div className="mb-5">
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#737373] mb-2">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
           ◆ Channels we'll post to
         </div>
         <div className="flex flex-wrap gap-2 font-mono text-[11px]">
-          <span className="px-2.5 py-1 border border-[#262626] text-[#d4d4d4] flex items-center gap-1.5">
+          <span className="px-2.5 py-1 border border-line text-ink flex items-center gap-1.5">
             <Instagram size={11} /> @crafters_market1
           </span>
-          <span className="px-2.5 py-1 border border-[#262626] text-[#d4d4d4] flex items-center gap-1.5">
+          <span className="px-2.5 py-1 border border-line text-ink flex items-center gap-1.5">
             <ExternalLink size={11} /> Pinterest · team2598
           </span>
-          <span className="px-2.5 py-1 border border-[#262626] text-[#d4d4d4] flex items-center gap-1.5">
+          <span className="px-2.5 py-1 border border-line text-ink flex items-center gap-1.5">
             <Facebook size={11} /> Crafters Market
           </span>
         </div>
@@ -129,8 +129,8 @@ export default function SocialAutoPostSection() {
 
       {/* Eligible: list recent pending posts */}
       {elig.eligible && data.recent_pending?.length > 0 && (
-        <div className="border border-[#262626] divide-y divide-[#262626]" data-testid="social-auto-post-pending-list">
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#737373] px-3 py-2 bg-[#0d0d0d]">
+        <div className="border border-line divide-y divide-line" data-testid="social-auto-post-pending-list">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted px-3 py-2 bg-paper">
             ◆ Up next on our socials
           </div>
           {data.recent_pending.map((p) => (
@@ -139,8 +139,8 @@ export default function SocialAutoPostSection() {
                 <img src={p.image_url} alt="" className="w-10 h-10 object-cover" loading="lazy" />
               )}
               <div className="flex-1 min-w-0">
-                <div className="font-mono text-xs text-[#e5e5e5] truncate">{p.product_title}</div>
-                <div className="font-mono text-[10px] text-[#525252]">
+                <div className="font-mono text-xs text-ink truncate">{p.product_title}</div>
+                <div className="font-mono text-[10px] text-ink-muted">
                   Queued {new Date(p.queued_at).toLocaleString()}
                 </div>
               </div>
@@ -154,14 +154,14 @@ export default function SocialAutoPostSection() {
         <div className="flex flex-wrap gap-3 mt-2" data-testid="social-auto-post-upgrade-ctas">
           <Link
             to="/maker/dashboard?tab=upgrade"
-            className="px-4 py-2 border border-[#ff4500] text-[#ff4500] hover:bg-[#ff4500] hover:text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] transition"
+            className="px-4 py-2 border border-brand text-brand hover:bg-brand hover:text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] transition"
             data-testid="social-auto-post-upgrade-to-plus"
           >
             Upgrade to Plus · $12/mo →
           </Link>
           <Link
             to="/founder"
-            className="px-4 py-2 border border-[#262626] text-[#e5e5e5] hover:border-[#525252] font-mono text-[10px] uppercase tracking-[0.22em] transition"
+            className="px-4 py-2 border border-line text-ink hover:border-ink-muted font-mono text-[10px] uppercase tracking-[0.22em] transition"
             data-testid="social-auto-post-claim-founder"
           >
             Claim a Founder slot →
@@ -174,11 +174,11 @@ export default function SocialAutoPostSection() {
 
 function CountTile({ label, value, color }) {
   return (
-    <div className="border border-[#262626] bg-[#0a0a0a] p-3 text-center">
-      <div className="font-display text-2xl text-[#e5e5e5] leading-none" style={{ color: value ? color : undefined }}>
+    <div className="border border-line bg-paper p-3 text-center">
+      <div className="font-display text-2xl text-ink leading-none" style={{ color: value ? color : undefined }}>
         {value}
       </div>
-      <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#737373] mt-1.5">
+      <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted mt-1.5">
         {label}
       </div>
     </div>

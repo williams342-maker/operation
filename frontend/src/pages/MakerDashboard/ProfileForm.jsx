@@ -130,14 +130,14 @@ export default function ProfileForm({ maker, onSaved }) {
 
       {/* Plus-only: custom shop banner upload */}
       <div className="md:col-span-2" data-testid="profile-banner-section">
-        <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2 flex items-center gap-2">
+        <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted mb-2 flex items-center gap-2">
           Custom shop banner
           {!isPlus && (
-            <span className="text-[#ff4500] text-[10px]">★ Plus-only</span>
+            <span className="text-brand text-[10px]">★ Plus-only</span>
           )}
         </div>
         {bannerUrl && (
-          <div className="aspect-[4/1] overflow-hidden border border-[#262626] mb-2 bg-[#121212]">
+          <div className="aspect-[4/1] overflow-hidden border border-line mb-2 bg-surface">
             <img
               src={bannerUrl}
               alt="Shop banner"
@@ -176,10 +176,10 @@ export default function ProfileForm({ maker, onSaved }) {
             disabled={!isPlus || bannerBusy}
             className={`w-full border border-dashed px-4 py-3 text-left font-mono text-[11px] transition ${
               bannerDrag
-                ? "border-[#ff4500] text-[#ff4500] bg-[#ff4500]/5"
+                ? "border-brand text-brand bg-brand/5"
                 : isPlus
-                ? "border-[#262626] hover:border-[#ff4500] text-[#a3a3a3] hover:text-[#ff4500]"
-                : "border-[#1a1a1a] text-[#525252] cursor-not-allowed"
+                ? "border-line hover:border-brand text-ink-muted hover:text-brand"
+                : "border-line text-ink-muted cursor-not-allowed"
             }`}
             data-testid="profile-banner-upload"
           >
@@ -200,14 +200,14 @@ export default function ProfileForm({ maker, onSaved }) {
       </div>
 
       <label className="block md:col-span-2">
-        <span className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+        <span className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted">
           Bio
         </span>
         <textarea
           value={form.bio}
           onChange={change("bio")}
           rows={5}
-          className="mt-2 w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-4 py-3 font-mono text-sm text-[#e5e5e5] resize-y transition"
+          className="mt-2 w-full bg-transparent border border-line focus:border-brand outline-none px-4 py-3 font-mono text-sm text-ink resize-y transition"
           data-testid="profile-bio"
         />
       </label>
@@ -223,7 +223,7 @@ export default function ProfileForm({ maker, onSaved }) {
         </button>
         {status.kind === "saved" && (
           <span
-            className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#ff4500]"
+            className="font-mono text-[11px] uppercase tracking-[0.22em] text-brand"
             data-testid="profile-saved-msg"
           >
             ✓ {status.message}

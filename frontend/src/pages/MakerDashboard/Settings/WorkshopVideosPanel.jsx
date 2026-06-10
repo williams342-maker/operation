@@ -94,16 +94,16 @@ export default function WorkshopVideosPanel() {
     <section className="space-y-6" data-testid="workshop-videos-panel">
       {/* Header */}
       <header>
-        <h3 className="font-display text-2xl text-[#e5e5e5] flex items-center gap-2">
-          <Video size={20} className="text-[#ff4500]" />
+        <h3 className="font-display text-2xl text-ink flex items-center gap-2">
+          <Video size={20} className="text-brand" />
           Workshop Videos
         </h3>
-        <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-2xl leading-relaxed">
-          Add up to <b className="text-[#e5e5e5]">{maxCount}</b> short videos from your YouTube
+        <p className="font-mono text-xs text-ink-muted mt-2 max-w-2xl leading-relaxed">
+          Add up to <b className="text-ink">{maxCount}</b> short videos from your YouTube
           or Vimeo channel — process shots, time-lapses, behind-the-scenes. They render
           as a grid at the top of your public shop page.
         </p>
-        <p className="font-mono text-[11px] text-[#525252] mt-2">
+        <p className="font-mono text-[11px] text-ink-muted mt-2">
           <b>{items.length}</b> / {maxCount} added · {remaining} slot{remaining === 1 ? "" : "s"} left
         </p>
       </header>
@@ -111,11 +111,11 @@ export default function WorkshopVideosPanel() {
       {/* Add form */}
       <form
         onSubmit={onAdd}
-        className="border border-[#262626] p-4 space-y-3"
+        className="border border-line p-4 space-y-3"
         data-testid="workshop-videos-add-form"
       >
         <div>
-          <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] block mb-1.5">
+          <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted block mb-1.5">
             Video URL
           </label>
           <input
@@ -124,13 +124,13 @@ export default function WorkshopVideosPanel() {
             onChange={(e) => setUrl(e.target.value)}
             placeholder="https://www.youtube.com/watch?v=… or https://vimeo.com/…"
             disabled={atCap || busy}
-            className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5] disabled:opacity-50"
+            className="w-full bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink disabled:opacity-50"
             data-testid="workshop-videos-url"
           />
         </div>
         <div>
-          <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] block mb-1.5">
-            Title <span className="text-[#525252] normal-case">(optional, max 120 chars)</span>
+          <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted block mb-1.5">
+            Title <span className="text-ink-muted normal-case">(optional, max 120 chars)</span>
           </label>
           <input
             type="text"
@@ -138,7 +138,7 @@ export default function WorkshopVideosPanel() {
             onChange={(e) => setTitle(e.target.value.slice(0, 120))}
             placeholder="e.g. Plasma-cutting a custom ranch sign"
             disabled={atCap || busy}
-            className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5] disabled:opacity-50"
+            className="w-full bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink disabled:opacity-50"
             data-testid="workshop-videos-title"
           />
         </div>
@@ -163,14 +163,14 @@ export default function WorkshopVideosPanel() {
 
       {/* Past videos list */}
       <div>
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-3">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-3">
           Your videos
         </div>
         {loading ? (
-          <p className="font-mono text-xs text-[#525252]">Loading…</p>
+          <p className="font-mono text-xs text-ink-muted">Loading…</p>
         ) : items.length === 0 ? (
           <p
-            className="font-mono text-xs text-[#525252] italic border border-dashed border-[#262626] p-6 text-center"
+            className="font-mono text-xs text-ink-muted italic border border-dashed border-line p-6 text-center"
             data-testid="workshop-videos-empty"
           >
             No videos yet. Paste your first URL above to get started.
@@ -180,11 +180,11 @@ export default function WorkshopVideosPanel() {
             {items.map((v, i) => (
               <li
                 key={v.id}
-                className="flex items-start gap-3 p-3 border border-[#262626] hover:border-[#525252] transition"
+                className="flex items-start gap-3 p-3 border border-line hover:border-ink-muted transition"
                 data-testid={`workshop-videos-row-${v.id}`}
               >
                 {/* Thumbnail */}
-                <div className="shrink-0 w-32 h-20 bg-[#0a0a0a] border border-[#1a1a1a] flex items-center justify-center overflow-hidden">
+                <div className="shrink-0 w-32 h-20 bg-paper border border-line flex items-center justify-center overflow-hidden">
                   {v.thumbnail ? (
                     <img
                       src={v.thumbnail}
@@ -193,27 +193,27 @@ export default function WorkshopVideosPanel() {
                       loading="lazy"
                     />
                   ) : (
-                    <Video size={24} className="text-[#525252]" />
+                    <Video size={24} className="text-ink-muted" />
                   )}
                 </div>
                 {/* Meta */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="px-1.5 py-0.5 border border-[#262626] font-mono text-[9px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+                    <span className="px-1.5 py-0.5 border border-line font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted">
                       {v.provider}
                     </span>
                     <a
                       href={v.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="font-mono text-[11px] text-[#a3a3a3] hover:text-[#ff4500] truncate inline-flex items-center gap-1 max-w-[280px]"
+                      className="font-mono text-[11px] text-ink-muted hover:text-brand truncate inline-flex items-center gap-1 max-w-[280px]"
                     >
                       {v.url}
                       <ExternalLink size={10} />
                     </a>
                   </div>
                   {v.title && (
-                    <p className="font-mono text-sm text-[#e5e5e5] mt-1 leading-snug">
+                    <p className="font-mono text-sm text-ink mt-1 leading-snug">
                       {v.title}
                     </p>
                   )}
@@ -224,7 +224,7 @@ export default function WorkshopVideosPanel() {
                     type="button"
                     onClick={() => move(i, -1)}
                     disabled={i === 0}
-                    className="p-1.5 border border-[#262626] hover:border-[#ff4500] text-[#a3a3a3] hover:text-[#ff4500] disabled:opacity-30 disabled:hover:border-[#262626] disabled:hover:text-[#a3a3a3] transition"
+                    className="p-1.5 border border-line hover:border-brand text-ink-muted hover:text-brand disabled:opacity-30 disabled:hover:border-line disabled:hover:text-ink-muted transition"
                     data-testid={`workshop-videos-up-${v.id}`}
                     aria-label="Move up"
                   >
@@ -234,7 +234,7 @@ export default function WorkshopVideosPanel() {
                     type="button"
                     onClick={() => move(i, 1)}
                     disabled={i === items.length - 1}
-                    className="p-1.5 border border-[#262626] hover:border-[#ff4500] text-[#a3a3a3] hover:text-[#ff4500] disabled:opacity-30 disabled:hover:border-[#262626] disabled:hover:text-[#a3a3a3] transition"
+                    className="p-1.5 border border-line hover:border-brand text-ink-muted hover:text-brand disabled:opacity-30 disabled:hover:border-line disabled:hover:text-ink-muted transition"
                     data-testid={`workshop-videos-down-${v.id}`}
                     aria-label="Move down"
                   >

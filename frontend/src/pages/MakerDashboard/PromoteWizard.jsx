@@ -222,15 +222,15 @@ export default function PromoteWizard({ onComplete, onDismiss, initialStep = 1, 
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-paper/80 backdrop-blur-sm p-4"
       data-testid="promote-wizard"
       onClick={(e) => e.target === e.currentTarget && dismiss()}
     >
-      <div className="relative w-full max-w-2xl bg-[#0a0a0a] border border-[#262626] shadow-2xl shadow-[#ff4500]/10">
+      <div className="relative w-full max-w-2xl bg-paper border border-line shadow-2xl shadow-[#ff4500]/10">
         {/* Close */}
         <button
           onClick={dismiss}
-          className="absolute top-3 right-3 text-[#525252] hover:text-[#f5f5f5] p-1"
+          className="absolute top-3 right-3 text-ink-muted hover:text-ink p-1"
           data-testid="promote-wizard-close"
           aria-label="Close wizard"
         >
@@ -240,12 +240,12 @@ export default function PromoteWizard({ onComplete, onDismiss, initialStep = 1, 
         {/* Header / progress */}
         <header className="px-6 pt-6 pb-3">
           <div className="flex items-center gap-2 mb-1">
-            <Rocket size={16} className="text-[#ff4500]" />
-            <span className="font-mono text-[9px] uppercase tracking-[0.28em] text-[#ff4500]">
+            <Rocket size={16} className="text-brand" />
+            <span className="font-mono text-[9px] uppercase tracking-[0.28em] text-brand">
               {step === 4 ? "Promote · live" : `Set up Promote · ${step}/3`}
             </span>
           </div>
-          <h2 className="font-display text-3xl text-[#f5f5f5]">
+          <h2 className="font-display text-3xl text-ink">
             {step === 1 && "What's your goal?"}
             {step === 2 && "How much per month?"}
             {step === 3 && "Fund your wallet to launch"}
@@ -255,7 +255,7 @@ export default function PromoteWizard({ onComplete, onDismiss, initialStep = 1, 
             {[1, 2, 3, 4].map((n) => (
               <div
                 key={n}
-                className={`h-1 flex-1 ${n <= step ? "bg-[#ff4500]" : "bg-[#262626]"}`}
+                className={`h-1 flex-1 ${n <= step ? "bg-brand" : "bg-line"}`}
                 data-testid={`promote-wizard-progress-${n}`}
               />
             ))}
@@ -275,21 +275,21 @@ export default function PromoteWizard({ onComplete, onDismiss, initialStep = 1, 
                     onClick={() => setGoal(g.id)}
                     className={`w-full text-left p-4 border flex items-start gap-3 transition-colors ${
                       active
-                        ? "border-[#ff4500] bg-[#1a0e08]"
-                        : "border-[#262626] hover:border-[#525252]"
+                        ? "border-brand bg-[#1a0e08]"
+                        : "border-line hover:border-ink-muted"
                     }`}
                     data-testid={`promote-wizard-goal-${g.id}`}
                   >
-                    <Icon size={20} className={active ? "text-[#ff4500] shrink-0 mt-0.5" : "text-[#a3a3a3] shrink-0 mt-0.5"} />
+                    <Icon size={20} className={active ? "text-brand shrink-0 mt-0.5" : "text-ink-muted shrink-0 mt-0.5"} />
                     <div className="min-w-0">
-                      <div className={`font-mono text-xs uppercase tracking-[0.18em] ${active ? "text-[#ff4500]" : "text-[#f5f5f5]"}`}>
+                      <div className={`font-mono text-xs uppercase tracking-[0.18em] ${active ? "text-brand" : "text-ink"}`}>
                         {g.label}
                       </div>
-                      <div className="text-[11px] text-[#a3a3a3] mt-1 leading-snug">
+                      <div className="text-[11px] text-ink-muted mt-1 leading-snug">
                         {g.blurb}
                       </div>
                     </div>
-                    {active && <Sparkles size={14} className="text-[#ff4500] shrink-0 mt-1 ml-auto" />}
+                    {active && <Sparkles size={14} className="text-brand shrink-0 mt-1 ml-auto" />}
                   </button>
                 );
               })}
@@ -299,10 +299,10 @@ export default function PromoteWizard({ onComplete, onDismiss, initialStep = 1, 
           {step === 2 && (
             <div data-testid="promote-wizard-step-2">
               <div className="flex items-baseline justify-between mb-2">
-                <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Monthly budget</span>
-                <span className="font-display text-4xl text-[#ff4500]" data-testid="promote-wizard-budget-value">
+                <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Monthly budget</span>
+                <span className="font-display text-4xl text-brand" data-testid="promote-wizard-budget-value">
                   {dollarsRound(budgetCents)}
-                  <span className="text-sm text-[#737373]">/mo</span>
+                  <span className="text-sm text-ink-muted">/mo</span>
                 </span>
               </div>
 
@@ -335,10 +335,10 @@ export default function PromoteWizard({ onComplete, onDismiss, initialStep = 1, 
                         <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-cyan-400/70 mt-0.5">Orders</div>
                       </div>
                     </div>
-                    <p className="text-[11px] text-[#d4d4d4] leading-snug" data-testid="promote-wizard-rec-rationale">
+                    <p className="text-[11px] text-ink leading-snug" data-testid="promote-wizard-rec-rationale">
                       {recommendation.rationale}
                     </p>
-                    <div className="mt-1.5 font-mono text-[9px] uppercase tracking-[0.22em] text-[#737373]">
+                    <div className="mt-1.5 font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted">
                       Based on {recommendation.basis === "your-data" ? "your historical data" : "marketplace defaults"} · range ${Math.round(recommendation.low_cents/100)}–${Math.round(recommendation.high_cents/100)}/mo
                     </div>
                   </div>
@@ -359,8 +359,8 @@ export default function PromoteWizard({ onComplete, onDismiss, initialStep = 1, 
                     onClick={() => setBudgetCents(c)}
                     className={`px-2 py-1 border font-mono text-[10px] ${
                       budgetCents === c
-                        ? "border-[#ff4500] text-[#ff4500]"
-                        : "border-[#262626] text-[#a3a3a3] hover:border-[#525252]"
+                        ? "border-brand text-brand"
+                        : "border-line text-ink-muted hover:border-ink-muted"
                     }`}
                     data-testid={`promote-wizard-preset-${c}`}
                   >
@@ -369,18 +369,18 @@ export default function PromoteWizard({ onComplete, onDismiss, initialStep = 1, 
                 ))}
               </div>
 
-              <div className="border border-[#262626] p-3 bg-[#050505]">
-                <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#737373] mb-2 flex items-center gap-1.5">
+              <div className="border border-line p-3 bg-paper">
+                <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2 flex items-center gap-1.5">
                   <TrendingUp size={11} className="text-cyan-400" />
                   Smart distribution preview
                 </div>
                 {previewLoading && (
-                  <div className="text-xs text-[#737373] py-2 flex items-center gap-2">
+                  <div className="text-xs text-ink-muted py-2 flex items-center gap-2">
                     <Loader2 size={10} className="animate-spin" /> Scoring listings…
                   </div>
                 )}
                 {!previewLoading && preview.length === 0 && (
-                  <div className="text-xs text-[#737373] py-2">
+                  <div className="text-xs text-ink-muted py-2">
                     No published listings yet. The wizard will still create a plan — once you publish listings, the allocator picks them up automatically.
                   </div>
                 )}
@@ -389,19 +389,19 @@ export default function PromoteWizard({ onComplete, onDismiss, initialStep = 1, 
                     {preview.slice(0, 4).map((a) => (
                       <div key={a.slug} className="flex items-center gap-2 text-xs" data-testid={`promote-wizard-alloc-${a.slug}`}>
                         <div className="flex-1 min-w-0">
-                          <div className="text-[#f5f5f5] truncate">{a.title}</div>
-                          <div className="h-1 mt-0.5 bg-[#1f1f1f] rounded">
+                          <div className="text-ink truncate">{a.title}</div>
+                          <div className="h-1 mt-0.5 bg-surface rounded">
                             <div
                               className="h-1 bg-gradient-to-r from-[#ff4500] to-[#ff8800] rounded"
                               style={{ width: `${Math.round((a.weight || 0) * 100)}%` }}
                             />
                           </div>
                         </div>
-                        <span className="font-mono text-[10px] text-[#a3a3a3] tabular-nums w-16 text-right">{dollars(a.allocated_cents)}</span>
+                        <span className="font-mono text-[10px] text-ink-muted tabular-nums w-16 text-right">{dollars(a.allocated_cents)}</span>
                       </div>
                     ))}
                     {preview.length > 4 && (
-                      <div className="text-[10px] text-[#737373] pt-1">
+                      <div className="text-[10px] text-ink-muted pt-1">
                         + {preview.length - 4} more listing{preview.length - 4 === 1 ? "" : "s"}
                       </div>
                     )}
@@ -409,8 +409,8 @@ export default function PromoteWizard({ onComplete, onDismiss, initialStep = 1, 
                 )}
               </div>
 
-              <div className="mt-3 text-[10px] text-[#737373] leading-snug">
-                Goal: <span className="text-[#a3a3a3]">{goalMeta?.label}</span>.
+              <div className="mt-3 text-[10px] text-ink-muted leading-snug">
+                Goal: <span className="text-ink-muted">{goalMeta?.label}</span>.
                 You can change this anytime from the Promote tab.
               </div>
             </div>
@@ -418,11 +418,11 @@ export default function PromoteWizard({ onComplete, onDismiss, initialStep = 1, 
 
           {step === 3 && (
             <div data-testid="promote-wizard-step-3">
-              <p className="text-sm text-[#a3a3a3] mb-4 leading-snug">
+              <p className="text-sm text-ink-muted mb-4 leading-snug">
                 Add credit to your Promote wallet to unlock boosts. Funds carry forward — unused $$ at month-end stays in your wallet.
               </p>
 
-              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
                 One-time top-up
               </div>
               <div className="grid grid-cols-4 gap-1.5 mb-5">
@@ -431,17 +431,17 @@ export default function PromoteWizard({ onComplete, onDismiss, initialStep = 1, 
                     key={c}
                     onClick={() => onTopup(c)}
                     disabled={busy === `topup-${c}`}
-                    className="p-3 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-display text-xl text-[#f5f5f5] disabled:opacity-50 flex flex-col items-center"
+                    className="p-3 border border-line hover:border-brand hover:text-brand font-display text-xl text-ink disabled:opacity-50 flex flex-col items-center"
                     data-testid={`promote-wizard-topup-${c}`}
                   >
                     {busy === `topup-${c}`
                       ? <Loader2 size={14} className="animate-spin" />
-                      : <>{dollarsRound(c)}<span className="font-mono text-[9px] text-[#737373] uppercase tracking-[0.2em] mt-0.5">one-time</span></>}
+                      : <>{dollarsRound(c)}<span className="font-mono text-[9px] text-ink-muted uppercase tracking-[0.2em] mt-0.5">one-time</span></>}
                   </button>
                 ))}
               </div>
 
-              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
                 Or — monthly auto-refill
               </div>
               <div className="grid grid-cols-3 gap-1.5">
@@ -450,17 +450,17 @@ export default function PromoteWizard({ onComplete, onDismiss, initialStep = 1, 
                     key={c}
                     onClick={() => onSubscribe(c)}
                     disabled={busy === `sub-${c}`}
-                    className="p-3 border border-[#262626] hover:border-cyan-400 hover:text-cyan-400 font-display text-lg text-[#f5f5f5] disabled:opacity-50 flex flex-col items-center"
+                    className="p-3 border border-line hover:border-cyan-400 hover:text-cyan-400 font-display text-lg text-ink disabled:opacity-50 flex flex-col items-center"
                     data-testid={`promote-wizard-subscribe-${c}`}
                   >
                     {busy === `sub-${c}`
                       ? <Loader2 size={14} className="animate-spin" />
-                      : <>{dollarsRound(c)}<span className="font-mono text-[9px] text-[#737373] uppercase tracking-[0.2em] mt-0.5">/month</span></>}
+                      : <>{dollarsRound(c)}<span className="font-mono text-[9px] text-ink-muted uppercase tracking-[0.2em] mt-0.5">/month</span></>}
                   </button>
                 ))}
               </div>
 
-              <div className="mt-5 text-[10px] text-[#737373] leading-snug border-l-2 border-[#1f1f1f] pl-3">
+              <div className="mt-5 text-[10px] text-ink-muted leading-snug border-l-2 border-line pl-3">
                 You&apos;ll be redirected to Stripe to complete payment. Funds appear in your wallet within ~30s of checkout completing. Cancel anytime.
               </div>
             </div>
@@ -469,21 +469,21 @@ export default function PromoteWizard({ onComplete, onDismiss, initialStep = 1, 
           {step === 4 && (
             <div data-testid="promote-wizard-step-4">
               <div className="text-center py-2">
-                <div className="font-display text-5xl text-[#ff4500] mb-2" data-testid="promote-wizard-balance">
+                <div className="font-display text-5xl text-brand mb-2" data-testid="promote-wizard-balance">
                   {wallet ? dollars(wallet.balance_cents || 0) : "—"}
                 </div>
-                <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#a3a3a3]">
+                <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-ink-muted">
                   in your Promote wallet
                 </div>
               </div>
 
               {!applyResult && (
-                <div className="mt-5 border border-[#262626] p-4 bg-[#050505]">
-                  <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2 flex items-center gap-1.5">
+                <div className="mt-5 border border-line p-4 bg-paper">
+                  <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2 flex items-center gap-1.5">
                     <Sparkles size={11} className="text-cyan-400" /> Next: boost your listings
                   </div>
-                  <p className="text-xs text-[#a3a3a3] leading-snug">
-                    Click <span className="text-[#ff4500]">Apply now</span> to fire the allocator immediately — your top-scoring listings get a 7-day boost on Crafters Market featured rails. Otherwise it runs automatically at 04:45 UTC tomorrow.
+                  <p className="text-xs text-ink-muted leading-snug">
+                    Click <span className="text-brand">Apply now</span> to fire the allocator immediately — your top-scoring listings get a 7-day boost on Crafters Market featured rails. Otherwise it runs automatically at 04:45 UTC tomorrow.
                   </p>
                 </div>
               )}
@@ -493,12 +493,12 @@ export default function PromoteWizard({ onComplete, onDismiss, initialStep = 1, 
                   <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-300 mb-2 flex items-center gap-1.5">
                     <Sparkles size={11} /> Boosts applied
                   </div>
-                  <div className="text-sm text-[#f5f5f5]">
-                    <span className="font-display text-2xl text-[#ff4500]">{applyResult.boosts_applied || 0}</span>
-                    <span className="text-[#a3a3a3] ml-2">boost-week{applyResult.boosts_applied === 1 ? "" : "s"} applied · {dollars(applyResult.cents_spent || 0)} spent</span>
+                  <div className="text-sm text-ink">
+                    <span className="font-display text-2xl text-brand">{applyResult.boosts_applied || 0}</span>
+                    <span className="text-ink-muted ml-2">boost-week{applyResult.boosts_applied === 1 ? "" : "s"} applied · {dollars(applyResult.cents_spent || 0)} spent</span>
                   </div>
                   {(applyResult.allocations || []).filter((a) => (a.boosts_applied || 0) > 0).slice(0, 4).map((a) => (
-                    <div key={a.slug} className="mt-2 text-xs text-[#a3a3a3] flex justify-between" data-testid={`promote-wizard-applied-${a.slug}`}>
+                    <div key={a.slug} className="mt-2 text-xs text-ink-muted flex justify-between" data-testid={`promote-wizard-applied-${a.slug}`}>
                       <span className="truncate flex-1">{a.title}</span>
                       <span className="font-mono ml-2">{a.boosts_applied}× · {dollars(a.spent_cents)}</span>
                     </div>
@@ -510,10 +510,10 @@ export default function PromoteWizard({ onComplete, onDismiss, initialStep = 1, 
         </div>
 
         {/* Footer / nav */}
-        <footer className="px-6 py-4 border-t border-[#262626] flex items-center justify-between">
+        <footer className="px-6 py-4 border-t border-line flex items-center justify-between">
           <button
             onClick={step === 1 ? dismiss : (step === 4 ? finishSuccess : back)}
-            className="px-3 py-2 font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#f5f5f5] flex items-center gap-1.5"
+            className="px-3 py-2 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-ink flex items-center gap-1.5"
             data-testid="promote-wizard-back"
           >
             {step === 1 ? "Skip for now"
@@ -525,7 +525,7 @@ export default function PromoteWizard({ onComplete, onDismiss, initialStep = 1, 
             <button
               onClick={next}
               disabled={busy === "save"}
-              className="px-5 py-2.5 bg-[#ff4500] text-[#0a0a0a] font-mono text-xs uppercase tracking-[0.22em] disabled:opacity-50 flex items-center gap-1.5"
+              className="px-5 py-2.5 bg-brand text-[#0a0a0a] font-mono text-xs uppercase tracking-[0.22em] disabled:opacity-50 flex items-center gap-1.5"
               data-testid="promote-wizard-next"
             >
               {busy === "save"
@@ -534,7 +534,7 @@ export default function PromoteWizard({ onComplete, onDismiss, initialStep = 1, 
             </button>
           )}
           {step === 3 && (
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] flex items-center gap-1.5">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted flex items-center gap-1.5">
               <Wallet size={11} /> Pick an amount to launch
             </div>
           )}
@@ -542,7 +542,7 @@ export default function PromoteWizard({ onComplete, onDismiss, initialStep = 1, 
             <button
               onClick={onApplyNow}
               disabled={busy === "apply" || !wallet || (wallet.balance_cents || 0) < 500}
-              className="px-5 py-2.5 bg-[#ff4500] text-[#0a0a0a] font-mono text-xs uppercase tracking-[0.22em] disabled:opacity-50 flex items-center gap-1.5"
+              className="px-5 py-2.5 bg-brand text-[#0a0a0a] font-mono text-xs uppercase tracking-[0.22em] disabled:opacity-50 flex items-center gap-1.5"
               data-testid="promote-wizard-apply"
               title={(wallet && (wallet.balance_cents || 0) < 500) ? "Wallet balance below $5 boost threshold" : ""}
             >
@@ -554,7 +554,7 @@ export default function PromoteWizard({ onComplete, onDismiss, initialStep = 1, 
           {step === 4 && applyResult && (
             <button
               onClick={finishSuccess}
-              className="px-5 py-2.5 bg-[#ff4500] text-[#0a0a0a] font-mono text-xs uppercase tracking-[0.22em] flex items-center gap-1.5"
+              className="px-5 py-2.5 bg-brand text-[#0a0a0a] font-mono text-xs uppercase tracking-[0.22em] flex items-center gap-1.5"
               data-testid="promote-wizard-finish"
             >
               View dashboard <ChevronRight size={12} />

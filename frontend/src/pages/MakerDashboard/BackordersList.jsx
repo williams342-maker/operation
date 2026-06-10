@@ -24,9 +24,9 @@ import { daysSince } from "../../lib/timeAgo";
 const STALE_DAYS = 3;
 
 const STATUS_CLASS = {
-  pending:   "border-[#ff4500]/50 text-[#ff4500] bg-[#ff4500]/5",
+  pending:   "border-brand/50 text-brand bg-brand/5",
   accepted:  "border-emerald-400/50 text-emerald-400 bg-emerald-400/5",
-  fulfilled: "border-[#525252]/50 text-[#a3a3a3] bg-[#525252]/5",
+  fulfilled: "border-[#525252]/50 text-ink-muted bg-[#525252]/5",
   declined:  "border-red-500/50 text-red-400 bg-red-500/5",
 };
 
@@ -84,11 +84,11 @@ function BackorderRow({ req, onChange }) {
   // collapsed row header.
   const stale = status === "pending" && (daysSince(req.created_at) ?? 0) >= STALE_DAYS;
   return (
-    <div className="border border-[#262626]" data-testid={`backorder-row-${req.id}`}>
+    <div className="border border-line" data-testid={`backorder-row-${req.id}`}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full px-5 py-4 flex items-center gap-4 text-left hover:bg-[#1a1a1a]/40 transition"
+        className="w-full px-5 py-4 flex items-center gap-4 text-left hover:bg-surface/40 transition"
       >
         <span className={`px-2 py-0.5 border font-mono text-[10px] uppercase tracking-[0.22em] shrink-0 ${STATUS_CLASS[status] || STATUS_CLASS.pending}`}>
           {status}
@@ -102,50 +102,50 @@ function BackorderRow({ req, onChange }) {
             ◆ Stale {daysSince(req.created_at)}d
           </span>
         )}
-        <span className="px-2 py-0.5 border border-[#ff4500] text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] shrink-0">
+        <span className="px-2 py-0.5 border border-brand text-brand font-mono text-[10px] uppercase tracking-[0.22em] shrink-0">
           ◆ Backorder
         </span>
         <div className="flex-1 min-w-0">
-          <div className="font-display text-base text-[#e5e5e5] truncate">{req.product_title}</div>
-          <div className="font-mono text-[11px] text-[#a3a3a3] mt-0.5 truncate">
+          <div className="font-display text-base text-ink truncate">{req.product_title}</div>
+          <div className="font-mono text-[11px] text-ink-muted mt-0.5 truncate">
             {req.buyer_name} · qty {req.quantity} · {formatDate(req.created_at)}
           </div>
         </div>
         <ChevronDown
           size={16}
-          className={`shrink-0 text-[#a3a3a3] transition ${open ? "rotate-180" : ""}`}
+          className={`shrink-0 text-ink-muted transition ${open ? "rotate-180" : ""}`}
         />
       </button>
 
       {open && (
-        <div className="border-t border-[#262626] px-5 py-4 space-y-4">
+        <div className="border-t border-line px-5 py-4 space-y-4">
           <div className="grid sm:grid-cols-2 gap-3 font-mono text-xs">
             <div>
-              <div className="text-[#525252] uppercase tracking-[0.22em] text-[10px] mb-1">Buyer</div>
-              <div className="text-[#e5e5e5]">{req.buyer_name}</div>
-              <a href={`mailto:${req.buyer_email}`} className="text-[#ff4500] hover:underline inline-flex items-center gap-1.5 mt-1">
+              <div className="text-ink-muted uppercase tracking-[0.22em] text-[10px] mb-1">Buyer</div>
+              <div className="text-ink">{req.buyer_name}</div>
+              <a href={`mailto:${req.buyer_email}`} className="text-brand hover:underline inline-flex items-center gap-1.5 mt-1">
                 <Mail size={12} /> {req.buyer_email}
               </a>
             </div>
             <div>
-              <div className="text-[#525252] uppercase tracking-[0.22em] text-[10px] mb-1">Lead time quoted</div>
-              <div className="text-[#e5e5e5]">
+              <div className="text-ink-muted uppercase tracking-[0.22em] text-[10px] mb-1">Lead time quoted</div>
+              <div className="text-ink">
                 ~{req.lead_weeks_quoted || 4} {(req.lead_weeks_quoted || 4) === 1 ? "week" : "weeks"}
               </div>
             </div>
           </div>
           {req.message && (
             <div>
-              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] mb-1.5">Buyer message</div>
-              <div className="font-mono text-xs text-[#e5e5e5] leading-relaxed border-l-2 border-[#ff4500] pl-3 whitespace-pre-line">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-1.5">Buyer message</div>
+              <div className="font-mono text-xs text-ink leading-relaxed border-l-2 border-brand pl-3 whitespace-pre-line">
                 {req.message}
               </div>
             </div>
           )}
           {req.decline_reason && status === "declined" && (
             <div>
-              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] mb-1.5">Your decline note</div>
-              <div className="font-mono text-xs text-[#e5e5e5] leading-relaxed border-l-2 border-red-400 pl-3 whitespace-pre-line">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-1.5">Your decline note</div>
+              <div className="font-mono text-xs text-ink leading-relaxed border-l-2 border-red-400 pl-3 whitespace-pre-line">
                 {req.decline_reason}
               </div>
             </div>
@@ -167,11 +167,11 @@ function BackorderRow({ req, onChange }) {
                 onClick={() => setShowDecline(true)}
                 disabled={busy}
                 data-testid={`backorder-show-decline-${req.id}`}
-                className="px-5 py-3 border border-[#262626] hover:border-red-500 hover:text-red-400 font-mono text-[11px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+                className="px-5 py-3 border border-line hover:border-red-500 hover:text-red-400 font-mono text-[11px] uppercase tracking-[0.22em] transition disabled:opacity-50"
               >
                 ✕ Decline
               </button>
-              <p className="font-mono text-[10px] text-[#525252] basis-full leading-relaxed">
+              <p className="font-mono text-[10px] text-ink-muted basis-full leading-relaxed">
                 Accepting confirms your lead time + emails the buyer. Payment is coordinated directly between you and them.
               </p>
             </div>
@@ -199,7 +199,7 @@ function BackorderRow({ req, onChange }) {
                 <button
                   type="button"
                   onClick={() => { setShowDecline(false); setDeclineReason(""); }}
-                  className="px-5 py-3 border border-[#262626] hover:border-[#525252] font-mono text-[11px] uppercase tracking-[0.22em] transition"
+                  className="px-5 py-3 border border-line hover:border-ink-muted font-mono text-[11px] uppercase tracking-[0.22em] transition"
                 >
                   Cancel
                 </button>
@@ -218,7 +218,7 @@ function BackorderRow({ req, onChange }) {
               >
                 ✓ Mark fulfilled
               </button>
-              <p className="font-mono text-[10px] text-[#525252] basis-full leading-relaxed">
+              <p className="font-mono text-[10px] text-ink-muted basis-full leading-relaxed">
                 Click once you've collected payment + shipped the piece. Buyer doesn't get re-emailed on fulfillment — they already had your contact info from the acceptance email.
               </p>
             </div>

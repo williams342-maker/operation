@@ -154,7 +154,7 @@ export default function WorstPerformersPanel() {
               before={(p.seo_tags || []).join(", ") || "—"}
               after={newTags.join(", ")}
               testid={`refresh-diff-tags-${p.slug}`} />
-            <p className="text-[#525252]">
+            <p className="text-ink-muted">
               Applying replaces title, description, and tags atomically. Open the
               editor afterward to fine-tune anything you want to keep human.
             </p>
@@ -184,21 +184,21 @@ export default function WorstPerformersPanel() {
   if (rows.length < 3) return null;
 
   return (
-    <div className="border border-[#262626] bg-[#0d0d0d] p-5" data-testid="worst-performers">
+    <div className="border border-line bg-paper p-5" data-testid="worst-performers">
       {confirmModal}
       <div className="flex items-start justify-between mb-4 gap-3">
         <div>
-          <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#ff4500] flex items-center gap-2">
+          <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand flex items-center gap-2">
             <TrendingDown size={12} /> ◆ Recovery queue
           </div>
           <h3 className="font-display text-xl uppercase mt-1">Low traffic + forgotten drafts</h3>
-          <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-xl leading-relaxed">
+          <p className="font-mono text-xs text-ink-muted mt-2 max-w-xl leading-relaxed">
             These listings are dragging the shop's discoverability. Underperforming live listings can be refreshed with AI; forgotten drafts can be published in one click.
           </p>
         </div>
         <button
           onClick={load}
-          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 border border-[#262626] hover:border-[#ff4500] text-[#a3a3a3] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em]"
+          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 border border-line hover:border-brand text-ink-muted hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em]"
           data-testid="worst-performers-refresh"
         >
           <RefreshCw size={12} />
@@ -209,7 +209,7 @@ export default function WorstPerformersPanel() {
         <div className="font-mono text-xs text-amber-200 mb-3">{err}</div>
       )}
 
-      <ul className="divide-y divide-[#1a1a1a]">
+      <ul className="divide-y divide-line">
         {rows.map((p) => (
           <li
             key={p.slug}
@@ -220,14 +220,14 @@ export default function WorstPerformersPanel() {
               <img
                 src={p.images[0]}
                 alt=""
-                className="w-12 h-12 object-cover border border-[#262626] shrink-0"
+                className="w-12 h-12 object-cover border border-line shrink-0"
               />
             )}
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <Link
                   to={`/maker/listings/${p.slug}/edit`}
-                  className="font-display text-base truncate hover:text-[#ff4500]"
+                  className="font-display text-base truncate hover:text-brand"
                 >
                   {p.title}
                 </Link>
@@ -240,7 +240,7 @@ export default function WorstPerformersPanel() {
                   </span>
                 )}
               </div>
-              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mt-0.5">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mt-0.5">
                 {p.cohort === "draft" ? (
                   <>Not in sitemap · {(p.seo_tags || []).length}/13 tags{p.created_at ? ` · saved ${new Date(p.created_at).toLocaleDateString()}` : ""}</>
                 ) : (
@@ -265,7 +265,7 @@ export default function WorstPerformersPanel() {
                   <button
                     onClick={() => refreshWithAI(p)}
                     disabled={busy[p.slug]}
-                    className="inline-flex items-center gap-1.5 border border-[#ff4500]/40 bg-[#ff4500]/5 hover:bg-[#ff4500]/20 text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] px-3 py-1.5 disabled:opacity-50 transition"
+                    className="inline-flex items-center gap-1.5 border border-brand/40 bg-brand/5 hover:bg-brand/20 text-brand font-mono text-[10px] uppercase tracking-[0.22em] px-3 py-1.5 disabled:opacity-50 transition"
                     data-testid={`worst-ai-refresh-${p.slug}`}
                     title="Regenerate SEO tags only — fastest fix, merged into existing tags."
                   >
@@ -275,7 +275,7 @@ export default function WorstPerformersPanel() {
                   <button
                     onClick={() => fullRefresh(p)}
                     disabled={busy[p.slug]}
-                    className="inline-flex items-center gap-1.5 border border-[#ff4500] bg-[#ff4500]/10 hover:bg-[#ff4500]/30 text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] px-3 py-1.5 disabled:opacity-50 transition"
+                    className="inline-flex items-center gap-1.5 border border-brand bg-brand/10 hover:bg-brand/30 text-brand font-mono text-[10px] uppercase tracking-[0.22em] px-3 py-1.5 disabled:opacity-50 transition"
                     data-testid={`worst-full-refresh-${p.slug}`}
                     title="Regenerate title, description, AND tags. Side-by-side preview before applying."
                   >
@@ -289,7 +289,7 @@ export default function WorstPerformersPanel() {
                   to={`/shop/${p.slug}`}
                   target="_blank"
                   rel="noopener"
-                  className="inline-flex items-center gap-1 px-2 py-1.5 border border-[#262626] hover:border-[#ff4500] text-[#a3a3a3] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em]"
+                  className="inline-flex items-center gap-1 px-2 py-1.5 border border-line hover:border-brand text-ink-muted hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em]"
                   data-testid={`worst-view-${p.slug}`}
                   title="Preview the public listing"
                 >
@@ -301,8 +301,8 @@ export default function WorstPerformersPanel() {
         ))}
       </ul>
 
-      <p className="font-mono text-[10px] text-[#525252] mt-4 leading-relaxed">
-        <span className="text-[#ff4500]">✨</span> "Refresh with AI" uses Claude to generate up to 13 new high-intent search tags from your title, category, and description — merged with your existing tags (never overwrites). For drafts, "Publish now" flips them live and adds them to the sitemap immediately.
+      <p className="font-mono text-[10px] text-ink-muted mt-4 leading-relaxed">
+        <span className="text-brand">✨</span> "Refresh with AI" uses Claude to generate up to 13 new high-intent search tags from your title, category, and description — merged with your existing tags (never overwrites). For drafts, "Publish now" flips them live and adds them to the sitemap immediately.
       </p>
     </div>
   );
@@ -311,18 +311,18 @@ export default function WorstPerformersPanel() {
 
 export function SkeletonCard({ rows = 3, testId = "skeleton-card" }) {
   return (
-    <div className="border border-[#262626] bg-[#0d0d0d] p-5 animate-pulse" data-testid={testId}>
-      <div className="h-4 w-32 bg-[#1a1a1a] mb-2" />
-      <div className="h-6 w-48 bg-[#1a1a1a] mb-4" />
+    <div className="border border-line bg-paper p-5 animate-pulse" data-testid={testId}>
+      <div className="h-4 w-32 bg-surface mb-2" />
+      <div className="h-6 w-48 bg-surface mb-4" />
       <ul className="space-y-3">
         {Array.from({ length: rows }).map((_, i) => (
           <li key={i} className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-[#1a1a1a] shrink-0" />
+            <div className="w-12 h-12 bg-surface shrink-0" />
             <div className="flex-1 space-y-2">
-              <div className="h-3 w-3/5 bg-[#1a1a1a]" />
-              <div className="h-2 w-2/5 bg-[#1a1a1a]" />
+              <div className="h-3 w-3/5 bg-surface" />
+              <div className="h-2 w-2/5 bg-surface" />
             </div>
-            <div className="h-8 w-24 bg-[#1a1a1a]" />
+            <div className="h-8 w-24 bg-surface" />
           </li>
         ))}
       </ul>
@@ -340,19 +340,19 @@ export function SkeletonCard({ rows = 3, testId = "skeleton-card" }) {
 function DiffBlock({ label, before, after, testid }) {
   return (
     <div data-testid={testid}>
-      <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#ff4500] mb-1.5">
+      <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-brand mb-1.5">
         ◆ {label}
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-        <div className="border border-[#262626] bg-[#0a0a0a] p-2.5">
-          <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252] mb-1">Before</div>
-          <div className="font-mono text-[11px] text-[#a3a3a3] leading-relaxed break-words">
-            {before || <em className="text-[#525252]">— empty —</em>}
+        <div className="border border-line bg-paper p-2.5">
+          <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted mb-1">Before</div>
+          <div className="font-mono text-[11px] text-ink-muted leading-relaxed break-words">
+            {before || <em className="text-ink-muted">— empty —</em>}
           </div>
         </div>
-        <div className="border border-[#ff4500]/40 bg-[#ff4500]/5 p-2.5">
-          <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#ff4500] mb-1">After</div>
-          <div className="font-mono text-[11px] text-[#e5e5e5] leading-relaxed break-words">
+        <div className="border border-brand/40 bg-brand/5 p-2.5">
+          <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-brand mb-1">After</div>
+          <div className="font-mono text-[11px] text-ink leading-relaxed break-words">
             {after}
           </div>
         </div>

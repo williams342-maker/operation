@@ -10,8 +10,8 @@ import { useConfirm } from "./useConfirm";
 // Map backend tier → Tailwind classes. Keep the 4 named tiers in sync
 // with _STATUS_LABEL in backend/routers/shipping.py.
 const TIER_CLASSES = {
-  gray:    "border-[#525252]/50 text-[#a3a3a3] bg-[#525252]/5",
-  orange:  "border-[#ff4500]/50 text-[#ff4500] bg-[#ff4500]/5",
+  gray:    "border-[#525252]/50 text-ink-muted bg-[#525252]/5",
+  orange:  "border-brand/50 text-brand bg-brand/5",
   emerald: "border-emerald-400/50 text-emerald-400 bg-emerald-400/5",
   red:     "border-red-500/50 text-red-400 bg-red-500/5",
 };
@@ -158,7 +158,7 @@ function OrderRow({ order, onChange }) {
 
   return (
     <div
-      className={`border transition ${open ? "border-[#ff4500]" : "border-[#262626] hover:border-[#525252]"}`}
+      className={`border transition ${open ? "border-brand" : "border-line hover:border-ink-muted"}`}
       data-testid={`order-${order.session_id}`}
     >
       {confirmModal}
@@ -172,7 +172,7 @@ function OrderRow({ order, onChange }) {
       >
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
           <div className="flex-1 min-w-0">
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">
               ◆ Paid · {formatDate(order.created_at)}
               {isFulfilled && (
                 <span className="ml-2 px-2 py-0.5 border border-emerald-400/40 text-emerald-400">
@@ -180,21 +180,21 @@ function OrderRow({ order, onChange }) {
                 </span>
               )}
             </div>
-            <div className="font-mono text-xs text-[#a3a3a3] mt-1 flex items-center gap-2 flex-wrap">
+            <div className="font-mono text-xs text-ink-muted mt-1 flex items-center gap-2 flex-wrap">
               <User size={11} className="opacity-50" />
-              <span className="text-[#e5e5e5]">{order.buyer_name || "Buyer"}</span>
-              <span className="text-[#525252]">·</span>
+              <span className="text-ink">{order.buyer_name || "Buyer"}</span>
+              <span className="text-ink-muted">·</span>
               <Mail size={11} className="opacity-50" />
               <span className="truncate">{order.buyer_email || "—"}</span>
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <div className="font-display text-3xl text-[#ff4500]">
+            <div className="font-display text-3xl text-brand">
               ${order.maker_subtotal.toFixed(2)}
             </div>
             <ChevronDown
               size={18}
-              className={`text-[#a3a3a3] transition-transform ${open ? "rotate-180" : ""}`}
+              className={`text-ink-muted transition-transform ${open ? "rotate-180" : ""}`}
             />
           </div>
         </div>
@@ -202,13 +202,13 @@ function OrderRow({ order, onChange }) {
           {order.items.map((it) => (
             <li
               key={it.product_slug}
-              className="font-mono text-xs text-[#e5e5e5]"
+              className="font-mono text-xs text-ink"
             >
               <div className="flex justify-between">
                 <span>
-                  {it.title} <span className="text-[#525252]">× {it.quantity}</span>
+                  {it.title} <span className="text-ink-muted">× {it.quantity}</span>
                 </span>
-                <span className="text-[#a3a3a3]">${it.subtotal.toFixed(2)}</span>
+                <span className="text-ink-muted">${it.subtotal.toFixed(2)}</span>
               </div>
               {/* iter150/339 — Inline personalization + color hints so the
                   maker spots custom orders + chosen color at a glance from
@@ -216,7 +216,7 @@ function OrderRow({ order, onChange }) {
               <div className="mt-1 ml-2 flex flex-wrap items-center gap-1.5">
                 {(it.personalization_text || it.personalization_image_url) && (
                   <span
-                    className="inline-flex items-center gap-1.5 px-2 py-0.5 border border-[#ff4500]/40 text-[#ff4500] text-[10px] uppercase tracking-[0.18em]"
+                    className="inline-flex items-center gap-1.5 px-2 py-0.5 border border-brand/40 text-brand text-[10px] uppercase tracking-[0.18em]"
                     data-testid={`order-personalization-flag-${it.product_slug}`}
                   >
                     ◆ Personalization attached
@@ -239,31 +239,31 @@ function OrderRow({ order, onChange }) {
       {/* Expanded detail drawer */}
       {open && (
         <div
-          className="border-t border-[#262626] p-5 space-y-4 bg-[#0e0e0e]"
+          className="border-t border-line p-5 space-y-4 bg-[#0e0e0e]"
           data-testid={`order-detail-${order.session_id}`}
         >
           {loadingDetail && (
             <div data-testid={`order-detail-skeleton-${order.session_id}`}>
               <div className="grid md:grid-cols-2 gap-6 animate-pulse">
                 <div>
-                  <div className="h-3 w-20 bg-[#262626] mb-3" />
-                  <div className="h-3 w-48 bg-[#1f1f1f] mb-2" />
-                  <div className="h-3 w-40 bg-[#1f1f1f] mb-2" />
-                  <div className="h-3 w-32 bg-[#1f1f1f]" />
+                  <div className="h-3 w-20 bg-line mb-3" />
+                  <div className="h-3 w-48 bg-surface mb-2" />
+                  <div className="h-3 w-40 bg-surface mb-2" />
+                  <div className="h-3 w-32 bg-surface" />
                 </div>
                 <div>
-                  <div className="h-3 w-20 bg-[#262626] mb-3" />
-                  <div className="h-3 w-full bg-[#1f1f1f] mb-2" />
-                  <div className="h-3 w-full bg-[#1f1f1f] mb-2" />
-                  <div className="h-3 w-3/4 bg-[#1f1f1f]" />
+                  <div className="h-3 w-20 bg-line mb-3" />
+                  <div className="h-3 w-full bg-surface mb-2" />
+                  <div className="h-3 w-full bg-surface mb-2" />
+                  <div className="h-3 w-3/4 bg-surface" />
                 </div>
               </div>
               <div className="mt-5 space-y-2 animate-pulse">
                 <div className="flex gap-3 items-center">
-                  <div className="w-14 h-14 bg-[#1f1f1f]" />
+                  <div className="w-14 h-14 bg-surface" />
                   <div className="flex-1 space-y-2">
-                    <div className="h-3 w-2/3 bg-[#1f1f1f]" />
-                    <div className="h-3 w-1/3 bg-[#262626]" />
+                    <div className="h-3 w-2/3 bg-surface" />
+                    <div className="h-3 w-1/3 bg-line" />
                   </div>
                 </div>
               </div>
@@ -274,10 +274,10 @@ function OrderRow({ order, onChange }) {
               {/* Buyer + Shipping grid */}
               <div className="grid md:grid-cols-2 gap-6">
                 <section>
-                  <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">
+                  <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
                     Buyer
                   </div>
-                  <div className="space-y-1 font-mono text-xs text-[#e5e5e5]">
+                  <div className="space-y-1 font-mono text-xs text-ink">
                     <div className="flex items-center gap-2">
                       <User size={12} className="opacity-50" />
                       {detail.buyer_name || detail.shipping?.name || "—"}
@@ -286,7 +286,7 @@ function OrderRow({ order, onChange }) {
                       <Mail size={12} className="opacity-50" />
                       <a
                         href={`mailto:${detail.buyer_email}`}
-                        className="underline hover:text-[#ff4500]"
+                        className="underline hover:text-brand"
                       >
                         {detail.buyer_email}
                       </a>
@@ -296,7 +296,7 @@ function OrderRow({ order, onChange }) {
                         <Phone size={12} className="opacity-50" />
                         <a
                           href={`tel:${detail.shipping.phone}`}
-                          className="underline hover:text-[#ff4500]"
+                          className="underline hover:text-brand"
                         >
                           {detail.shipping.phone}
                         </a>
@@ -306,11 +306,11 @@ function OrderRow({ order, onChange }) {
                 </section>
 
                 <section>
-                  <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">
+                  <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
                     Ship to
                   </div>
                   {detail.shipping?.address ? (
-                    <div className="font-mono text-xs text-[#e5e5e5] leading-relaxed">
+                    <div className="font-mono text-xs text-ink leading-relaxed">
                       <div className="flex items-start gap-2">
                         <MapPin size={12} className="opacity-50 mt-0.5" />
                         <address className="not-italic">
@@ -326,14 +326,14 @@ function OrderRow({ order, onChange }) {
                           [detail.shipping.address.line1, detail.shipping.address.line2, detail.shipping.address.city, detail.shipping.address.state, detail.shipping.address.postal_code].filter(Boolean).join(", "),
                         )}`}
                         target="_blank" rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 mt-2 text-[11px] text-[#ff4500] hover:underline"
+                        className="inline-flex items-center gap-1 mt-2 text-[11px] text-brand hover:underline"
                         data-testid={`order-map-${order.session_id}`}
                       >
                         <ExternalLink size={10} /> Open in Maps
                       </a>
                     </div>
                   ) : (
-                    <p className="font-mono text-[11px] text-[#525252]">
+                    <p className="font-mono text-[11px] text-ink-muted">
                       Shipping address not yet collected from Stripe.
                     </p>
                   )}
@@ -346,7 +346,7 @@ function OrderRow({ order, onChange }) {
                   <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-yellow-400 mb-1">
                     Buyer note
                   </div>
-                  <p className="font-mono text-xs text-[#e5e5e5] leading-relaxed whitespace-pre-wrap">
+                  <p className="font-mono text-xs text-ink leading-relaxed whitespace-pre-wrap">
                     {detail.buyer_note}
                   </p>
                 </section>
@@ -354,7 +354,7 @@ function OrderRow({ order, onChange }) {
 
               {/* Line items with images */}
               <section>
-                <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2 flex items-center gap-2">
+                <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2 flex items-center gap-2">
                   <Package size={12} /> Items · {detail.items.length}
                 </div>
                 <ul className="space-y-2">
@@ -365,18 +365,18 @@ function OrderRow({ order, onChange }) {
                           <img
                             src={it.image}
                             alt=""
-                            className="w-14 h-14 object-cover border border-[#262626]"
+                            className="w-14 h-14 object-cover border border-line"
                           />
                         ) : (
-                          <div className="w-14 h-14 border border-[#262626] bg-[#0a0a0a]" />
+                          <div className="w-14 h-14 border border-line bg-paper" />
                         )}
                         <div className="flex-1 font-mono text-xs">
-                          <div className="text-[#e5e5e5]">{it.title}</div>
-                          <div className="text-[#525252]">
+                          <div className="text-ink">{it.title}</div>
+                          <div className="text-ink-muted">
                             ${it.price.toFixed(2)} × {it.quantity}
                           </div>
                         </div>
-                        <div className="font-display text-lg text-[#ff4500]">
+                        <div className="font-display text-lg text-brand">
                           ${it.subtotal.toFixed(2)}
                         </div>
                       </div>
@@ -400,14 +400,14 @@ function OrderRow({ order, onChange }) {
                           buyer's reference image clickable for full-size. */}
                       {(it.personalization_text || it.personalization_image_url) && (
                         <div
-                          className="ml-[68px] border-l-2 border-[#ff4500] pl-4 py-2"
+                          className="ml-[68px] border-l-2 border-brand pl-4 py-2"
                           data-testid={`order-personalization-detail-${it.product_slug}`}
                         >
-                          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mb-2">
+                          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-2">
                             ◆ Buyer personalization
                           </div>
                           {it.personalization_text && (
-                            <div className="text-xs text-[#e5e5e5] leading-relaxed whitespace-pre-wrap mb-2">
+                            <div className="text-xs text-ink leading-relaxed whitespace-pre-wrap mb-2">
                               {it.personalization_text}
                             </div>
                           )}
@@ -421,9 +421,9 @@ function OrderRow({ order, onChange }) {
                               <img
                                 src={it.personalization_image_url}
                                 alt="Buyer reference"
-                                className="max-w-[200px] max-h-[160px] border border-[#262626] object-cover"
+                                className="max-w-[200px] max-h-[160px] border border-line object-cover"
                               />
-                              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mt-1">
+                              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mt-1">
                                 ↗ Open full-size
                               </div>
                             </a>
@@ -437,11 +437,11 @@ function OrderRow({ order, onChange }) {
 
               {/* Shipping action */}
               {!isFulfilled ? (
-                <section className="pt-4 border-t border-[#262626] space-y-4">
+                <section className="pt-4 border-t border-line space-y-4">
                   {/* Primary: one-click shipping label via Shippo. */}
                   <div>
-                    <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2 flex items-center gap-2">
-                      <Sparkles size={12} className="text-[#ff4500]" /> Create shipping label
+                    <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2 flex items-center gap-2">
+                      <Sparkles size={12} className="text-brand" /> Create shipping label
                     </div>
                     <button
                       onClick={() => setLabelModalOpen(true)}
@@ -450,7 +450,7 @@ function OrderRow({ order, onChange }) {
                     >
                       <Package size={14} /> Buy a label via Shippo →
                     </button>
-                    <p className="mt-2 font-mono text-[10px] text-[#525252] leading-relaxed">
+                    <p className="mt-2 font-mono text-[10px] text-ink-muted leading-relaxed">
                       Platform pays the carrier — cost is added to your weekly invoice.
                       Tracking # auto-fills on the order once purchased.
                     </p>
@@ -458,13 +458,13 @@ function OrderRow({ order, onChange }) {
 
                   {/* Fallback: manual mark-shipped for hand-dropped / self-purchased labels. */}
                   <details className="group">
-                    <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] flex items-center gap-2 list-none">
+                    <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand flex items-center gap-2 list-none">
                       <Truck size={12} /> Or mark shipped manually
                       <ChevronDown size={12} className="ml-auto transition-transform group-open:rotate-180" />
                     </summary>
                     <div className="mt-3 space-y-2">
-                      <p className="font-mono text-[10px] text-[#a3a3a3] leading-relaxed">
-                        Both <b className="text-[#e5e5e5]">tracking number</b> and <b className="text-[#e5e5e5]">carrier</b> are required
+                      <p className="font-mono text-[10px] text-ink-muted leading-relaxed">
+                        Both <b className="text-ink">tracking number</b> and <b className="text-ink">carrier</b> are required
                         so the buyer can track their package.
                       </p>
                       <div className="grid md:grid-cols-3 gap-2 items-stretch">
@@ -472,7 +472,7 @@ function OrderRow({ order, onChange }) {
                           value={carrier}
                           onChange={(e) => setCarrier(e.target.value)}
                           required
-                          className="bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
+                          className="bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink"
                           data-testid={`order-carrier-${order.session_id}`}
                         >
                           <option value="USPS">USPS</option>
@@ -487,8 +487,8 @@ function OrderRow({ order, onChange }) {
                           onChange={(e) => setTrackingNum(e.target.value)}
                           placeholder="Tracking # (required)"
                           required
-                          className={`bg-transparent border focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5] placeholder:text-[#525252] ${
-                            trackingNum.trim() ? "border-[#262626]" : "border-[#ff4500]/40"
+                          className={`bg-transparent border focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink placeholder:text-ink-muted ${
+                            trackingNum.trim() ? "border-line" : "border-brand/40"
                           }`}
                           data-testid={`order-tracking-${order.session_id}`}
                         />
@@ -507,14 +507,14 @@ function OrderRow({ order, onChange }) {
                 </section>
               ) : (
                 <section
-                  className="pt-4 border-t border-[#262626] space-y-3"
+                  className="pt-4 border-t border-line space-y-3"
                   data-testid={`order-shipped-${order.session_id}`}
                 >
                   <div className="flex items-center flex-wrap gap-3">
                     <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-400 flex items-center gap-2">
                       <Truck size={12} /> Shipped
                       {detail.shipped_at && (
-                        <span className="text-[#a3a3a3] normal-case tracking-normal">
+                        <span className="text-ink-muted normal-case tracking-normal">
                           · {new Date(detail.shipped_at).toLocaleDateString()}
                         </span>
                       )}
@@ -538,7 +538,7 @@ function OrderRow({ order, onChange }) {
                     <button
                       onClick={handleRefreshTracking}
                       disabled={busyRefresh || !detail.tracking_number}
-                      className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] disabled:opacity-40 inline-flex items-center gap-1"
+                      className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand disabled:opacity-40 inline-flex items-center gap-1"
                       data-testid={`order-refresh-tracking-${order.session_id}`}
                       title="Pull latest tracking status from the carrier"
                     >
@@ -547,13 +547,13 @@ function OrderRow({ order, onChange }) {
                   </div>
 
                   {detail.tracking_number && (
-                    <div className="font-mono text-xs text-[#e5e5e5] flex items-center gap-3 flex-wrap">
+                    <div className="font-mono text-xs text-ink flex items-center gap-3 flex-wrap">
                       <span>{detail.tracking_carrier} · {detail.tracking_number}</span>
                       {detail.shippo_label_url && (
                         <a
                           href={detail.shippo_label_url}
                           target="_blank" rel="noopener noreferrer"
-                          className="text-[#ff4500] hover:underline inline-flex items-center gap-1 text-[11px]"
+                          className="text-brand hover:underline inline-flex items-center gap-1 text-[11px]"
                           data-testid={`order-reprint-label-${order.session_id}`}
                         >
                           <Package size={11} /> Reprint label
@@ -562,7 +562,7 @@ function OrderRow({ order, onChange }) {
                       <button
                         onClick={handleResendTracking}
                         disabled={busyResend}
-                        className="text-[#a3a3a3] hover:text-[#ff4500] inline-flex items-center gap-1 text-[11px] disabled:opacity-40"
+                        className="text-ink-muted hover:text-brand inline-flex items-center gap-1 text-[11px] disabled:opacity-40"
                         data-testid={`order-resend-tracking-${order.session_id}`}
                         title="Re-send the shipping + tracking email to the buyer"
                       >
@@ -573,16 +573,16 @@ function OrderRow({ order, onChange }) {
 
                   {Array.isArray(detail.tracking_history) && detail.tracking_history.length > 0 && (
                     <details className="font-mono text-[10px]">
-                      <summary className="cursor-pointer text-[#a3a3a3] hover:text-[#ff4500] uppercase tracking-[0.22em]">
+                      <summary className="cursor-pointer text-ink-muted hover:text-brand uppercase tracking-[0.22em]">
                         Tracking history ({detail.tracking_history.length})
                       </summary>
-                      <ul className="mt-2 space-y-1 pl-3 border-l border-[#262626]">
+                      <ul className="mt-2 space-y-1 pl-3 border-l border-line">
                         {[...detail.tracking_history].reverse().map((h, i) => (
-                          <li key={i} className="text-[#a3a3a3]">
+                          <li key={i} className="text-ink-muted">
                             <span className={`mr-2 ${(TIER_CLASSES[h.tier] || "").split(" ")[1] || ""}`}>●</span>
-                            <span className="text-[#e5e5e5]">{h.label || h.status}</span>
+                            <span className="text-ink">{h.label || h.status}</span>
                             {h.details && <span className="ml-2">· {h.details}</span>}
-                            {h.at && <span className="ml-2 text-[#525252]">· {new Date(h.at).toLocaleString()}</span>}
+                            {h.at && <span className="ml-2 text-ink-muted">· {new Date(h.at).toLocaleString()}</span>}
                           </li>
                         ))}
                       </ul>

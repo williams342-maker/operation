@@ -78,19 +78,19 @@ export default function ReferralCard() {
 
   return (
     <section
-      className="border border-[#ff4500]/30 bg-gradient-to-br from-[#ff4500]/5 via-[#0a0a0a] to-[#0a0a0a] p-5 md:p-6"
+      className="border border-brand/30 bg-gradient-to-br from-[#ff4500]/5 via-[#0a0a0a] to-[#0a0a0a] p-5 md:p-6"
       data-testid="referral-card"
     >
       <div className="flex items-start gap-3 mb-4">
-        <Gift size={18} className="text-[#ff4500] mt-1 shrink-0" />
+        <Gift size={18} className="text-brand mt-1 shrink-0" />
         <div className="flex-1">
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">
             ◆ Refer a maker · earn {data.bonus_days} free trial days
           </div>
           <h3 className="font-display text-xl md:text-2xl uppercase mt-1">
             Invite {data.threshold} makers, get {data.bonus_days} days free.
           </h3>
-          <p className="font-mono text-xs text-[#a3a3a3] mt-2 leading-relaxed max-w-lg">
+          <p className="font-mono text-xs text-ink-muted mt-2 leading-relaxed max-w-lg">
             When {data.threshold} makers sign up via your link and reach
             Crafters Plus, we add {data.bonus_days} days to your current
             trial.{" "}
@@ -104,25 +104,25 @@ export default function ReferralCard() {
       {/* Progress bar */}
       <div className="space-y-2 mb-5" data-testid="referral-progress">
         <div className="flex items-baseline justify-between font-mono text-[10px] uppercase tracking-[0.22em]">
-          <span className="text-[#a3a3a3]">Progress</span>
-          <span className="text-[#e5e5e5]">
-            <span className={awarded ? "text-emerald-400" : "text-[#ff4500]"}>
+          <span className="text-ink-muted">Progress</span>
+          <span className="text-ink">
+            <span className={awarded ? "text-emerald-400" : "text-brand"}>
               {data.completed_count}
             </span>
-            <span className="text-[#525252]"> / {data.threshold}</span>
+            <span className="text-ink-muted"> / {data.threshold}</span>
             {awarded && <span className="text-emerald-400 ml-2">· awarded ✓</span>}
           </span>
         </div>
-        <div className="h-2 bg-[#1a1a1a] border border-[#262626] relative overflow-hidden">
+        <div className="h-2 bg-surface border border-line relative overflow-hidden">
           <div
             className={`h-full transition-all duration-700 ${
-              awarded ? "bg-emerald-500" : "bg-[#ff4500]"
+              awarded ? "bg-emerald-500" : "bg-brand"
             }`}
             style={{ width: `${pct}%` }}
           />
         </div>
         {!awarded && remaining > 0 && (
-          <p className="font-mono text-[10px] text-[#737373]">
+          <p className="font-mono text-[10px] text-ink-muted">
             {remaining} more {remaining === 1 ? "signup" : "signups"} until your{" "}
             {data.bonus_days}-day extension unlocks.
           </p>
@@ -131,15 +131,15 @@ export default function ReferralCard() {
 
       {/* Share link */}
       <div
-        className="bg-[#0d0d0d] border border-[#1f1f1f] p-3 flex items-center gap-2 flex-wrap"
+        className="bg-paper border border-line p-3 flex items-center gap-2 flex-wrap"
         data-testid="referral-share-link"
       >
-        <div className="flex-1 min-w-[180px] font-mono text-[11px] text-[#e5e5e5] break-all">
+        <div className="flex-1 min-w-[180px] font-mono text-[11px] text-ink break-all">
           {data.share_link}
         </div>
         <button
           onClick={copyLink}
-          className="px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition inline-flex items-center gap-1.5"
+          className="px-3 py-1.5 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] transition inline-flex items-center gap-1.5"
           data-testid="referral-copy-btn"
         >
           {copied ? <Check size={11} /> : <Copy size={11} />}
@@ -148,7 +148,7 @@ export default function ReferralCard() {
         <button
           onClick={rotate}
           disabled={busy}
-          className="px-3 py-1.5 border border-[#262626] hover:border-[#525252] font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#e5e5e5] transition inline-flex items-center gap-1.5 disabled:opacity-50"
+          className="px-3 py-1.5 border border-line hover:border-ink-muted font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-ink transition inline-flex items-center gap-1.5 disabled:opacity-50"
           data-testid="referral-rotate-btn"
           title="Rotate to a fresh code"
         >
@@ -157,8 +157,8 @@ export default function ReferralCard() {
         </button>
       </div>
 
-      <p className="font-mono text-[10px] text-[#525252] mt-3 leading-relaxed">
-        Your code: <span className="text-[#a3a3a3]">{data.code}</span>. Anyone
+      <p className="font-mono text-[10px] text-ink-muted mt-3 leading-relaxed">
+        Your code: <span className="text-ink-muted">{data.code}</span>. Anyone
         who applies via your link is auto-credited once they're approved and
         subscribe to Plus.
       </p>
@@ -223,8 +223,8 @@ function ShareRow({ shareLink }) {
   };
 
   return (
-    <div className="mt-4 pt-4 border-t border-[#1f1f1f]" data-testid="referral-share-row">
-      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2.5">
+    <div className="mt-4 pt-4 border-t border-line" data-testid="referral-share-row">
+      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2.5">
         ◆ Share in one tap
       </div>
       <div className="flex flex-wrap items-center gap-2">
@@ -234,7 +234,7 @@ function ShareRow({ shareLink }) {
         {typeof navigator !== "undefined" && "share" in navigator && (
           <button
             onClick={tryNativeShare}
-            className="px-3 py-1.5 border border-[#ff4500] bg-[#ff4500]/10 hover:bg-[#ff4500]/20 text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition"
+            className="px-3 py-1.5 border border-brand bg-brand/10 hover:bg-brand/20 text-brand font-mono text-[10px] uppercase tracking-[0.22em] transition"
             data-testid="referral-share-native"
             title="Open native share sheet"
           >
@@ -247,14 +247,14 @@ function ShareRow({ shareLink }) {
             href={t.href}
             target={t.key === "email" || t.key === "sms" ? undefined : "_blank"}
             rel="noopener noreferrer"
-            className="px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] transition"
+            className="px-3 py-1.5 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted transition"
             data-testid={`referral-share-${t.key}`}
           >
             {t.label}
           </a>
         ))}
       </div>
-      <p className="font-mono text-[9px] text-[#525252] mt-2 leading-relaxed">
+      <p className="font-mono text-[9px] text-ink-muted mt-2 leading-relaxed">
         Each click opens that platform's composer with your link pre-filled.
         Pinterest pins use the Crafters Market brand image.
       </p>

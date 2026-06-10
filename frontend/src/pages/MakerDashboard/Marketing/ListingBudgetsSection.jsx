@@ -32,11 +32,11 @@ function ROAS({ row }) {
   // price-not-known-here. For now show conversions count.
   const conv = row.conversions_mtd ?? 0;
   const imps = row.impressions_mtd ?? 0;
-  if (!imps && !conv) return <span className="text-[#525252]">—</span>;
+  if (!imps && !conv) return <span className="text-ink-muted">—</span>;
   const cvr = imps > 0 ? ((conv / imps) * 100).toFixed(1) : "0.0";
   return (
-    <span className="text-[#a3a3a3]">
-      {conv}/{imps} <span className="text-[#525252]">({cvr}% CVR)</span>
+    <span className="text-ink-muted">
+      {conv}/{imps} <span className="text-ink-muted">({cvr}% CVR)</span>
     </span>
   );
 }
@@ -90,12 +90,12 @@ function BudgetRow({ row, onSaved, onDeleted }) {
 
   return (
     <tr
-      className="border-b border-[#1f1f1f] last:border-b-0"
+      className="border-b border-line last:border-b-0"
       data-testid={`listing-budget-row-${row.product_slug}`}
     >
       <td className="py-3 pr-4">
         <div className="text-[#fafafa] text-sm">{row.product_title || row.product_slug}</div>
-        <div className="font-mono text-[10px] text-[#525252] mt-0.5">
+        <div className="font-mono text-[10px] text-ink-muted mt-0.5">
           /{row.product_slug}
           {promoted && (
             <span
@@ -110,7 +110,7 @@ function BudgetRow({ row, onSaved, onDeleted }) {
 
       <td className="py-3 pr-4">
         <div className="flex items-center gap-1">
-          <span className="font-mono text-[10px] text-[#525252]">$</span>
+          <span className="font-mono text-[10px] text-ink-muted">$</span>
           <input
             type="number"
             min="0"
@@ -119,10 +119,10 @@ function BudgetRow({ row, onSaved, onDeleted }) {
             value={cap}
             onChange={(e) => setCap(e.target.value)}
             disabled={busy}
-            className="w-20 bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] font-mono text-[12px] text-[#fafafa] px-2 py-1.5"
+            className="w-20 bg-paper border border-line focus:border-brand font-mono text-[12px] text-[#fafafa] px-2 py-1.5"
             data-testid={`listing-budget-cap-${row.product_slug}`}
           />
-          <span className="font-mono text-[10px] text-[#525252]">/ mo</span>
+          <span className="font-mono text-[10px] text-ink-muted">/ mo</span>
         </div>
       </td>
 
@@ -136,15 +136,15 @@ function BudgetRow({ row, onSaved, onDeleted }) {
             data-testid={`listing-budget-autorenew-${row.product_slug}`}
             className="accent-[#ff4500]"
           />
-          <span className="font-mono text-[11px] text-[#a3a3a3]">Auto-renew</span>
+          <span className="font-mono text-[11px] text-ink-muted">Auto-renew</span>
         </label>
       </td>
 
       <td className="py-3 pr-4">
         <div className="font-mono text-[11px] text-[#fafafa]">
-          {usd(spent)} <span className="text-[#525252]">/ {usd(cap_cents)}</span>
+          {usd(spent)} <span className="text-ink-muted">/ {usd(cap_cents)}</span>
         </div>
-        <div className="h-1 w-24 bg-[#1a1a1a] mt-1.5">
+        <div className="h-1 w-24 bg-surface mt-1.5">
           <div
             className="h-1"
             style={{
@@ -165,7 +165,7 @@ function BudgetRow({ row, onSaved, onDeleted }) {
             type="button"
             onClick={save}
             disabled={busy}
-            className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#ff4500] hover:bg-[#ff4500] hover:text-[#0a0a0a] border border-[#ff4500] px-2.5 py-1 transition disabled:opacity-50 mr-2"
+            className="font-mono text-[10px] uppercase tracking-[0.18em] text-brand hover:bg-brand hover:text-[#0a0a0a] border border-brand px-2.5 py-1 transition disabled:opacity-50 mr-2"
             data-testid={`listing-budget-save-${row.product_slug}`}
           >
             Save
@@ -176,7 +176,7 @@ function BudgetRow({ row, onSaved, onDeleted }) {
             type="button"
             onClick={remove}
             disabled={busy}
-            className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#525252] hover:text-[#ff4500] transition disabled:opacity-50"
+            className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-muted hover:text-brand transition disabled:opacity-50"
             data-testid={`listing-budget-remove-${row.product_slug}`}
           >
             Remove
@@ -216,35 +216,35 @@ export default function ListingBudgetsSection() {
 
   return (
     <Section title="Per-listing marketing budgets" testId="listing-budgets-section">
-      <p className="font-mono text-[11px] text-[#a3a3a3] mb-4 leading-relaxed">
+      <p className="font-mono text-[11px] text-ink-muted mb-4 leading-relaxed">
         Set a monthly $-cap per listing. Crafters Market auto-renews the $5/week on-site boost
         as long as the listing has budget left. Spend resets on the 1st.{" "}
-        <span className="text-[#525252]">
+        <span className="text-ink-muted">
           External Google/Meta ads will plug into the same controls once brand verification clears.
         </span>
       </p>
 
       {summary && (
-        <div className="flex flex-wrap gap-4 mb-5 pb-4 border-b border-[#1f1f1f] font-mono text-[11px]">
+        <div className="flex flex-wrap gap-4 mb-5 pb-4 border-b border-line font-mono text-[11px]">
           <div data-testid="listing-budgets-total-cap">
-            <div className="text-[#525252] uppercase tracking-[0.18em] text-[9px]">Total cap</div>
+            <div className="text-ink-muted uppercase tracking-[0.18em] text-[9px]">Total cap</div>
             <div className="text-[#fafafa] text-base">{usd(summary.totalCap)}/mo</div>
           </div>
           <div data-testid="listing-budgets-total-spent">
-            <div className="text-[#525252] uppercase tracking-[0.18em] text-[9px]">Spent MTD</div>
-            <div className="text-[#ff4500] text-base">{usd(summary.totalSpent)}</div>
+            <div className="text-ink-muted uppercase tracking-[0.18em] text-[9px]">Spent MTD</div>
+            <div className="text-brand text-base">{usd(summary.totalSpent)}</div>
           </div>
           <div data-testid="listing-budgets-active">
-            <div className="text-[#525252] uppercase tracking-[0.18em] text-[9px]">Auto-renewing</div>
+            <div className="text-ink-muted uppercase tracking-[0.18em] text-[9px]">Auto-renewing</div>
             <div className="text-[#fafafa] text-base">{summary.active}</div>
           </div>
         </div>
       )}
 
       {loading ? (
-        <div className="font-mono text-[11px] text-[#525252]">Loading…</div>
+        <div className="font-mono text-[11px] text-ink-muted">Loading…</div>
       ) : !data?.budgets?.length ? (
-        <div className="font-mono text-[11px] text-[#a3a3a3]">
+        <div className="font-mono text-[11px] text-ink-muted">
           No budgets yet. To add one, open any published listing in your Listings tab and use the
           <span className="text-[#fafafa]"> "Set marketing budget"</span> action. (UI to be added
           inline — for now, set a budget from this table once you have published listings with
@@ -254,7 +254,7 @@ export default function ListingBudgetsSection() {
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead>
-              <tr className="border-b border-[#262626] font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252]">
+              <tr className="border-b border-line font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted">
                 <th className="py-2 pr-4 font-normal">Listing</th>
                 <th className="py-2 pr-4 font-normal">Cap</th>
                 <th className="py-2 pr-4 font-normal">Auto-renew</th>

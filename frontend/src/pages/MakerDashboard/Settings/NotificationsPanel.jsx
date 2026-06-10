@@ -69,7 +69,7 @@ export default function NotificationsPanel() {
   };
 
   if (!data) {
-    return <p className="font-mono text-xs text-[#525252] py-6">Loading notification stats…</p>;
+    return <p className="font-mono text-xs text-ink-muted py-6">Loading notification stats…</p>;
   }
   if (data.error) {
     return <p className="font-mono text-xs text-red-400 py-6">Could not load notification stats. Refresh the page to retry.</p>;
@@ -82,14 +82,14 @@ export default function NotificationsPanel() {
   return (
     <div className="space-y-6" data-testid="settings-notifications">
       {/* Hero — what is this? */}
-      <div className="border border-[#262626] bg-[#0d0d0d] p-6">
+      <div className="border border-line bg-paper p-6">
         <div className="flex items-start gap-4">
-          <div className="w-10 h-10 border border-[#ff4500] bg-[#1a0a05] flex items-center justify-center shrink-0">
-            <Bell size={18} className="text-[#ff4500]" />
+          <div className="w-10 h-10 border border-brand bg-[#1a0a05] flex items-center justify-center shrink-0">
+            <Bell size={18} className="text-brand" />
           </div>
           <div className="min-w-0">
             <h2 className="font-display text-2xl md:text-3xl mb-1">Buyer push notifications</h2>
-            <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed max-w-2xl">
+            <p className="font-mono text-xs text-ink-muted leading-relaxed max-w-2xl">
               When you mark an order shipped, we send a real-time browser push
               notification to the buyer (in addition to the standard email).
               When the package is delivered, a second push fires with a quick
@@ -132,7 +132,7 @@ export default function NotificationsPanel() {
       </div>
 
       {/* Toggle: auto-fire on shipment */}
-      <div className="border border-[#262626] bg-[#0d0d0d]">
+      <div className="border border-line bg-paper">
         <label
           htmlFor="push-on-ship-toggle"
           className="flex items-start gap-4 p-5 cursor-pointer"
@@ -148,10 +148,10 @@ export default function NotificationsPanel() {
             data-testid="push-on-ship-toggle"
           />
           <div className="min-w-0">
-            <div className="font-mono text-sm text-[#e5e5e5] mb-1">
+            <div className="font-mono text-sm text-ink mb-1">
               Auto-send a buyer push when I mark an order shipped
             </div>
-            <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed">
+            <p className="font-mono text-xs text-ink-muted leading-relaxed">
               Default ON. The push includes the item title, carrier, and a deep-link
               to the buyer's order page. Turn this OFF if you'd rather the buyer
               hear from email only — the delivered-confirmation push always fires
@@ -164,7 +164,7 @@ export default function NotificationsPanel() {
       {/* iter334f — Weekly AI pricing digest opt-out. Sits next to the
           push toggle because it's the same shape of decision (an
           outgoing email I might or might not want every Monday). */}
-      <div className="border border-[#262626] bg-[#0d0d0d]" data-testid="pricing-digest-card">
+      <div className="border border-line bg-paper" data-testid="pricing-digest-card">
         <label
           htmlFor="pricing-digest-toggle"
           className="flex items-start gap-4 p-5 cursor-pointer"
@@ -182,13 +182,13 @@ export default function NotificationsPanel() {
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 mb-1">
               <Sparkles size={12} className="text-cyan-400" />
-              <div className="font-mono text-sm text-[#e5e5e5]">
+              <div className="font-mono text-sm text-ink">
                 Weekly AI pricing digest
               </div>
             </div>
-            <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed">
+            <p className="font-mono text-xs text-ink-muted leading-relaxed">
               When ON, you get a single Monday morning email any week where one
-              or more of your listings is priced <strong className="text-[#ff4500]">20%+
+              or more of your listings is priced <strong className="text-brand">20%+
               above the AI-derived market median</strong> (from the ◆ AI Price
               Check tool in the listing editor). Skipped automatically when
               nothing is flagged. Default ON.
@@ -198,11 +198,11 @@ export default function NotificationsPanel() {
       </div>
 
       {/* How buyers subscribe */}
-      <div className="border border-dashed border-[#262626] p-5">
-        <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#ff4500] mb-2">
+      <div className="border border-dashed border-line p-5">
+        <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-brand mb-2">
           ◆ How buyers subscribe
         </div>
-        <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed">
+        <p className="font-mono text-xs text-ink-muted leading-relaxed">
           Buyers see a small "Enable order updates" prompt the first time they
           land on the site after a purchase. They tap allow, and from then on
           every shipped + delivered notification reaches them within seconds —
@@ -220,18 +220,18 @@ function Stat({ icon: Icon, label, value, sub, tone, testId }) {
     : tone === "red"
       ? "text-red-300"
       : tone === "orange"
-        ? "text-[#ff4500]"
-        : "text-[#e5e5e5]";
+        ? "text-brand"
+        : "text-ink";
   return (
-    <div className="border border-[#262626] bg-[#0d0d0d] p-5" data-testid={testId}>
+    <div className="border border-line bg-paper p-5" data-testid={testId}>
       <div className="flex items-center gap-2 mb-2">
-        <Icon size={12} className="text-[#a3a3a3]" />
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+        <Icon size={12} className="text-ink-muted" />
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
           {label}
         </div>
       </div>
       <div className={`font-display text-3xl md:text-4xl leading-none ${accent}`}>{value}</div>
-      <div className="font-mono text-[10px] text-[#525252] mt-2">{sub}</div>
+      <div className="font-mono text-[10px] text-ink-muted mt-2">{sub}</div>
     </div>
   );
 }

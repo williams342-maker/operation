@@ -21,7 +21,7 @@ export default function BriefsTab() {
 
   if (briefs === null) {
     return (
-      <p className="font-mono text-xs text-[#525252]" data-testid="briefs-loading">
+      <p className="font-mono text-xs text-ink-muted" data-testid="briefs-loading">
         Loading briefs…
       </p>
     );
@@ -33,9 +33,9 @@ export default function BriefsTab() {
 
   return (
     <div className="space-y-6" data-testid="briefs-tab">
-      <header className="pb-6 border-b border-[#262626]">
+      <header className="pb-6 border-b border-line">
         <h2 className="font-display text-3xl md:text-4xl uppercase">Custom Briefs.</h2>
-        <p className="font-mono text-xs text-[#a3a3a3] mt-2">
+        <p className="font-mono text-xs text-ink-muted mt-2">
           Custom-order briefs that an admin routed to your shop. Accept the ones you can take
           on; decline the rest so they get routed to another maker.
         </p>
@@ -64,12 +64,12 @@ function Section({ title, testId, children, empty }) {
   const arr = React.Children.toArray(children);
   return (
     <section data-testid={testId}>
-      <h3 className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-3">
-        {title} <span className="text-[#525252]">· {arr.length}</span>
+      <h3 className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-3">
+        {title} <span className="text-ink-muted">· {arr.length}</span>
       </h3>
       {arr.length === 0 ? (
         empty ? (
-          <p className="font-mono text-xs text-[#525252] flex items-center gap-2"
+          <p className="font-mono text-xs text-ink-muted flex items-center gap-2"
              data-testid={`${testId}-empty`}>
             <Inbox size={14} /> {empty}
           </p>
@@ -106,29 +106,29 @@ function BriefCard({ brief, onChange, dim = false }) {
 
   return (
     <article
-      className={`border border-[#262626] hover:border-[#ff4500] transition p-4 md:p-5 ${dim ? "opacity-60" : ""}`}
+      className={`border border-line hover:border-brand transition p-4 md:p-5 ${dim ? "opacity-60" : ""}`}
       data-testid={`brief-${brief.id}`}
     >
-      <header className="flex items-start justify-between gap-3 pb-3 border-b border-[#1f1f1f]">
+      <header className="flex items-start justify-between gap-3 pb-3 border-b border-line">
         <div>
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">
             ◆ {brief.project_type}
           </div>
           <div className="font-display text-xl mt-1">{brief.material} · {brief.size || "size open"}</div>
-          <div className="font-mono text-[11px] text-[#a3a3a3] mt-1">
+          <div className="font-mono text-[11px] text-ink-muted mt-1">
             From {brief.name} ·{" "}
-            <a href={`mailto:${brief.email}`} className="underline hover:text-[#ff4500]">
+            <a href={`mailto:${brief.email}`} className="underline hover:text-brand">
               {brief.email}
             </a>
           </div>
         </div>
         <div className="text-right shrink-0 flex flex-col items-end gap-2">
-          <div className="font-display text-2xl text-[#ff4500]">{brief.budget || "open"}</div>
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252]">
+          <div className="font-display text-2xl text-brand">{brief.budget || "open"}</div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
             Budget · {brief.timeline || "flexible"}
           </div>
           {brief.tracking_number && (
-            <div className="border border-[#1f1f1f] px-2 py-1 bg-[#0a0a0a]" title={`Tracking #${brief.tracking_number}`}>
+            <div className="border border-line px-2 py-1 bg-paper" title={`Tracking #${brief.tracking_number}`}>
               <Barcode
                 value={brief.tracking_number}
                 height={28}
@@ -141,7 +141,7 @@ function BriefCard({ brief, onChange, dim = false }) {
         </div>
       </header>
 
-      <p className="font-mono text-xs text-[#e5e5e5] leading-relaxed mt-3 whitespace-pre-wrap">
+      <p className="font-mono text-xs text-ink leading-relaxed mt-3 whitespace-pre-wrap">
         {brief.description}
       </p>
 
@@ -150,7 +150,7 @@ function BriefCard({ brief, onChange, dim = false }) {
           <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-cyan-400 mb-1">
             Admin note
           </div>
-          <p className="font-mono text-xs text-[#e5e5e5] leading-relaxed">{brief.assignment_note}</p>
+          <p className="font-mono text-xs text-ink leading-relaxed">{brief.assignment_note}</p>
         </div>
       )}
 
@@ -165,8 +165,8 @@ function BriefCard({ brief, onChange, dim = false }) {
         </a>
       )}
 
-      <div className="mt-4 pt-4 border-t border-[#1f1f1f] flex items-center gap-2 flex-wrap">
-        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+      <div className="mt-4 pt-4 border-t border-line flex items-center gap-2 flex-wrap">
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
           Status:
         </span>
         <span
@@ -179,7 +179,7 @@ function BriefCard({ brief, onChange, dim = false }) {
                   ? "border-emerald-400/40 text-emerald-400"
                   : status === "declined"
                     ? "border-red-400/30 text-red-400"
-                    : "border-[#ff4500]/40 text-[#ff4500]"
+                    : "border-brand/40 text-brand"
           }`}
           data-testid={`brief-status-${brief.id}`}
         >
@@ -189,27 +189,27 @@ function BriefCard({ brief, onChange, dim = false }) {
           href={`/maker/briefs/${brief.id}/print`}
           target="_blank"
           rel="noopener noreferrer"
-          className="ml-auto md:ml-0 inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.22em] px-2 py-1 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] transition"
+          className="ml-auto md:ml-0 inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.22em] px-2 py-1 border border-line hover:border-brand hover:text-brand transition"
           data-testid={`brief-print-${brief.id}`}
           title="Open a print-optimised bench sheet (Save as PDF in browser dialog)"
         >
           <Printer size={11} /> Print sheet
         </a>
         {brief.assigned_at && (
-          <span className="font-mono text-[10px] text-[#525252] ml-auto">
+          <span className="font-mono text-[10px] text-ink-muted ml-auto">
             Routed {new Date(brief.assigned_at).toLocaleDateString()}
           </span>
         )}
       </div>
 
       {(status === "pending" || status === "accepted" || status === "in_progress") && (
-        <div className="mt-3 pt-3 border-t border-[#1f1f1f] space-y-2">
+        <div className="mt-3 pt-3 border-t border-line space-y-2">
           <textarea
             value={note}
             onChange={(e) => setNote(e.target.value)}
             rows={2}
             placeholder="Optional note back to the admin / buyer"
-            className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
+            className="w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink"
             data-testid={`brief-note-${brief.id}`}
           />
           <div className="flex gap-2 flex-wrap">
@@ -226,7 +226,7 @@ function BriefCard({ brief, onChange, dim = false }) {
                 <button
                   onClick={() => handleAction("declined")}
                   disabled={!!busy}
-                  className="px-4 py-2 border border-[#262626] hover:border-red-400 hover:text-red-400 font-mono text-[11px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+                  className="px-4 py-2 border border-line hover:border-red-400 hover:text-red-400 font-mono text-[11px] uppercase tracking-[0.22em] transition disabled:opacity-50"
                   data-testid={`brief-decline-${brief.id}`}
                 >
                   {busy === "declined" ? "Declining…" : "Decline"}

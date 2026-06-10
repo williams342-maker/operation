@@ -42,30 +42,30 @@ export default function ClipsIncentiveCard() {
 
   return (
     <section
-      className="relative border border-[#ff4500]/60 bg-[#ff4500]/5 p-4 md:p-5 flex flex-col md:flex-row md:items-center gap-4 md:gap-5"
+      className="relative border border-brand/60 bg-brand/5 p-4 md:p-5 flex flex-col md:flex-row md:items-center gap-4 md:gap-5"
       data-testid="dashboard-clips-incentive"
       aria-label="Founding 50 Featured Clip incentive"
     >
       <button
         onClick={onDismiss}
-        className="absolute top-2 right-2 w-7 h-7 grid place-items-center text-[#a3a3a3] hover:text-white"
+        className="absolute top-2 right-2 w-7 h-7 grid place-items-center text-ink-muted hover:text-ink"
         data-testid="dashboard-clips-incentive-dismiss"
         aria-label="Dismiss"
       >
         <X size={14} />
       </button>
-      <div className="hidden md:grid place-items-center w-12 h-12 border border-[#ff4500] bg-[#ff4500]/10 shrink-0">
-        <Star className="text-[#ff4500] fill-[#ff4500]/30" size={22} />
+      <div className="hidden md:grid place-items-center w-12 h-12 border border-brand bg-brand/10 shrink-0">
+        <Star className="text-brand fill-[#ff4500]/30" size={22} />
       </div>
       <div className="min-w-0 flex-1 pr-6">
-        <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#ff4500] mb-1">
+        <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand mb-1">
           ◆ New · Founding 50 Featured slots — {status.slots_remaining} left
         </div>
         <h2 className="font-display text-xl md:text-2xl uppercase leading-tight">
           Claim a free ★ Featured slot on the new Clips feed.
         </h2>
-        <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-2xl leading-relaxed">
-          The first 50 organic uploads to <Link to="/clips" className="text-[#ff4500] hover:underline">/clips</Link>{" "}
+        <p className="font-mono text-xs text-ink-muted mt-2 max-w-2xl leading-relaxed">
+          The first 50 organic uploads to <Link to="/clips" className="text-brand hover:underline">/clips</Link>{" "}
           get a permanent star badge — for life. Drop a YouTube Shorts link or a 9:16 MP4
           from Settings → Workshop clips. ~2 minutes to claim.
         </p>

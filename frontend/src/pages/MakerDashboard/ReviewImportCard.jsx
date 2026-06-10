@@ -139,35 +139,35 @@ export default function ReviewImportCard({ onImported }) {
 
   return (
     <section
-      className="border border-[#262626] mb-6"
+      className="border border-line mb-6"
       data-testid="review-import-card"
     >
       {/* Header — always visible, click to expand */}
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full px-4 md:px-5 py-4 flex items-center justify-between gap-3 text-left hover:bg-[#0d0d0d] transition"
+        className="w-full px-4 md:px-5 py-4 flex items-center justify-between gap-3 text-left hover:bg-paper transition"
         data-testid="review-import-toggle"
         aria-expanded={open}
       >
         <div className="flex items-center gap-3 min-w-0">
-          <Upload size={16} className="text-[#ff4500] shrink-0" />
+          <Upload size={16} className="text-brand shrink-0" />
           <div className="min-w-0">
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">
               ◆ Import reviews from another platform
             </div>
-            <p className="font-mono text-xs text-[#a3a3a3] mt-1 truncate">
+            <p className="font-mono text-xs text-ink-muted mt-1 truncate">
               Bring over your Etsy or Shopify reviews — we read both CSV and Etsy's native JSON export.
             </p>
           </div>
         </div>
-        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] shrink-0">
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted shrink-0">
           {open ? "Close ▴" : "Open ▾"}
         </span>
       </button>
 
       {open && (
-        <div className="border-t border-[#262626] p-4 md:p-5 space-y-6" data-testid="review-import-body">
+        <div className="border-t border-line p-4 md:p-5 space-y-6" data-testid="review-import-body">
           {/* Walkthrough — tabbed Etsy/Shopify exports */}
           <ExportWalkthrough />
 
@@ -175,7 +175,7 @@ export default function ReviewImportCard({ onImported }) {
           <form onSubmit={submit} className="space-y-4" data-testid="review-import-form">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] block mb-2">
+                <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted block mb-2">
                   Source platform
                 </label>
                 <div className="flex gap-2 flex-wrap">
@@ -186,8 +186,8 @@ export default function ReviewImportCard({ onImported }) {
                       onClick={() => setSource(key)}
                       className={`px-3 py-2 border font-mono text-xs uppercase tracking-[0.18em] transition ${
                         source === key
-                          ? "border-[#ff4500] text-[#ff4500] bg-[#ff4500]/5"
-                          : "border-[#262626] text-[#a3a3a3] hover:border-[#525252]"
+                          ? "border-brand text-brand bg-brand/5"
+                          : "border-line text-ink-muted hover:border-ink-muted"
                       }`}
                       data-testid={`review-import-source-${key}`}
                     >
@@ -198,7 +198,7 @@ export default function ReviewImportCard({ onImported }) {
               </div>
 
               <div>
-                <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] block mb-2">
+                <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted block mb-2">
                   Visibility
                 </label>
                 <label className="inline-flex items-center gap-2 cursor-pointer">
@@ -209,11 +209,11 @@ export default function ReviewImportCard({ onImported }) {
                     className="accent-[#ff4500] w-4 h-4"
                     data-testid="review-import-public-toggle"
                   />
-                  <span className="font-mono text-xs text-[#e5e5e5]">
+                  <span className="font-mono text-xs text-ink">
                     Show imported reviews publicly with an "Imported from {SOURCE_LABELS[source]}" badge
                   </span>
                 </label>
-                <p className="font-mono text-[10px] text-[#525252] mt-2 leading-relaxed">
+                <p className="font-mono text-[10px] text-ink-muted mt-2 leading-relaxed">
                   Off = only you see them in this dashboard. You can flip this later per batch.
                 </p>
               </div>
@@ -226,7 +226,7 @@ export default function ReviewImportCard({ onImported }) {
                 e.preventDefault();
                 handleFile(e.dataTransfer.files?.[0]);
               }}
-              className="border-2 border-dashed border-[#262626] hover:border-[#ff4500]/50 p-6 text-center transition"
+              className="border-2 border-dashed border-line hover:border-brand/50 p-6 text-center transition"
               data-testid="review-import-dropzone"
             >
               <input
@@ -239,9 +239,9 @@ export default function ReviewImportCard({ onImported }) {
               />
               {file ? (
                 <div className="space-y-2">
-                  <FileText size={32} className="mx-auto text-[#ff4500]" />
-                  <p className="font-mono text-sm text-[#e5e5e5]">{file.name}</p>
-                  <p className="font-mono text-[10px] text-[#525252]">
+                  <FileText size={32} className="mx-auto text-brand" />
+                  <p className="font-mono text-sm text-ink">{file.name}</p>
+                  <p className="font-mono text-[10px] text-ink-muted">
                     {(file.size / 1024).toFixed(1)} KB
                   </p>
                   <button
@@ -250,23 +250,23 @@ export default function ReviewImportCard({ onImported }) {
                       setFile(null);
                       if (fileRef.current) fileRef.current.value = "";
                     }}
-                    className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500]"
+                    className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand"
                   >
                     × Choose a different file
                   </button>
                 </div>
               ) : (
                 <>
-                  <Upload size={32} className="mx-auto text-[#525252] mb-2" />
+                  <Upload size={32} className="mx-auto text-ink-muted mb-2" />
                   <button
                     type="button"
                     onClick={() => fileRef.current?.click()}
-                    className="font-mono text-xs uppercase tracking-[0.18em] text-[#ff4500] hover:underline"
+                    className="font-mono text-xs uppercase tracking-[0.18em] text-brand hover:underline"
                     data-testid="review-import-browse-btn"
                   >
                     Browse for CSV or JSON
                   </button>
-                  <p className="font-mono text-[10px] text-[#525252] mt-2">
+                  <p className="font-mono text-[10px] text-ink-muted mt-2">
                     or drop the file here · Etsy ships JSON · max 5 MB / 5000 rows
                   </p>
                 </>
@@ -320,7 +320,7 @@ export default function ReviewImportCard({ onImported }) {
               <p className="text-emerald-400 uppercase tracking-[0.22em] text-[10px]">
                 ◆ Import complete
               </p>
-              <p className="text-[#e5e5e5]">
+              <p className="text-ink">
                 Imported <b>{result.inserted}</b> review{result.inserted === 1 ? "" : "s"}
                 {result.skipped_duplicates > 0 && (
                   <> · skipped <b>{result.skipped_duplicates}</b> duplicate{result.skipped_duplicates === 1 ? "" : "s"}</>
@@ -331,10 +331,10 @@ export default function ReviewImportCard({ onImported }) {
               </p>
               {result.errors && result.errors.length > 0 && (
                 <details className="mt-2">
-                  <summary className="cursor-pointer text-[#a3a3a3] hover:text-[#ff4500]">
+                  <summary className="cursor-pointer text-ink-muted hover:text-brand">
                     ↓ Show row errors ({result.errors.length})
                   </summary>
-                  <ul className="mt-2 space-y-1 text-[10px] text-[#a3a3a3]">
+                  <ul className="mt-2 space-y-1 text-[10px] text-ink-muted">
                     {result.errors.map((e, i) => (
                       <li key={i}>
                         Line {e.line}: {e.error}
@@ -349,14 +349,14 @@ export default function ReviewImportCard({ onImported }) {
           {/* Past imports */}
           <div>
             <div className="flex items-center justify-between mb-3">
-              <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+              <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
                 Past imports
               </p>
               <button
                 type="button"
                 onClick={refreshImports}
                 disabled={importsLoading}
-                className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] hover:text-[#ff4500] disabled:opacity-50"
+                className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand disabled:opacity-50"
                 data-testid="review-import-refresh"
               >
                 <RefreshCw size={10} className="inline mr-1" /> Refresh
@@ -364,13 +364,13 @@ export default function ReviewImportCard({ onImported }) {
             </div>
             {imports.length === 0 ? (
               <p
-                className="font-mono text-xs text-[#525252] italic"
+                className="font-mono text-xs text-ink-muted italic"
                 data-testid="review-import-empty"
               >
                 No imports yet. Upload your first CSV above.
               </p>
             ) : (
-              <div className="border border-[#262626] divide-y divide-[#262626]" data-testid="review-import-history">
+              <div className="border border-line divide-y divide-line" data-testid="review-import-history">
                 {imports.map((b) => (
                   <div
                     key={b.batch_id}
@@ -379,11 +379,11 @@ export default function ReviewImportCard({ onImported }) {
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-mono text-xs text-[#e5e5e5] uppercase tracking-[0.04em]">
+                        <span className="font-mono text-xs text-ink uppercase tracking-[0.04em]">
                           {SOURCE_LABELS[b.source] || b.source}
                         </span>
-                        <span className="font-mono text-[10px] text-[#525252]">·</span>
-                        <span className="font-mono text-[11px] text-[#a3a3a3] truncate">
+                        <span className="font-mono text-[10px] text-ink-muted">·</span>
+                        <span className="font-mono text-[11px] text-ink-muted truncate">
                           {b.filename}
                         </span>
                         {b.published_publicly ? (
@@ -391,12 +391,12 @@ export default function ReviewImportCard({ onImported }) {
                             public
                           </span>
                         ) : (
-                          <span className="px-1.5 py-0.5 border border-[#262626] text-[#737373] font-mono text-[9px] uppercase tracking-[0.22em]">
+                          <span className="px-1.5 py-0.5 border border-line text-ink-muted font-mono text-[9px] uppercase tracking-[0.22em]">
                             hidden
                           </span>
                         )}
                       </div>
-                      <p className="font-mono text-[10px] text-[#525252] mt-1">
+                      <p className="font-mono text-[10px] text-ink-muted mt-1">
                         {b.inserted} imported
                         {b.skipped_duplicates > 0 && <> · {b.skipped_duplicates} skipped</>}
                         {b.error_count > 0 && <> · {b.error_count} errors</>}
@@ -408,7 +408,7 @@ export default function ReviewImportCard({ onImported }) {
                       <button
                         type="button"
                         onClick={() => togglePublic(b.batch_id, !b.published_publicly)}
-                        className="px-2.5 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition flex items-center gap-1.5"
+                        className="px-2.5 py-1.5 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] transition flex items-center gap-1.5"
                         data-testid={`review-import-toggle-public-${b.batch_id}`}
                       >
                         {b.published_publicly ? <EyeOff size={11} /> : <Eye size={11} />}
@@ -515,16 +515,16 @@ function ExportWalkthrough() {
 
   return (
     <div
-      className="border border-[#262626] bg-[#0a0a0a]"
+      className="border border-line bg-paper"
       data-testid="export-walkthrough"
     >
       {/* Header + tabs */}
-      <div className="px-4 md:px-5 pt-4 pb-3 border-b border-[#262626]">
+      <div className="px-4 md:px-5 pt-4 pb-3 border-b border-line">
         <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
             Walkthrough · How to export reviews
           </div>
-          <span className="font-mono text-[10px] text-[#525252]">
+          <span className="font-mono text-[10px] text-ink-muted">
             ~{wt.estimateMin} min
           </span>
         </div>
@@ -538,8 +538,8 @@ function ExportWalkthrough() {
               onClick={() => setPlatform(key)}
               className={`px-3 py-2 border font-mono text-xs uppercase tracking-[0.18em] transition ${
                 platform === key
-                  ? "border-[#ff4500] text-[#ff4500] bg-[#ff4500]/5"
-                  : "border-[#262626] text-[#a3a3a3] hover:border-[#525252]"
+                  ? "border-brand text-brand bg-brand/5"
+                  : "border-line text-ink-muted hover:border-ink-muted"
               }`}
               data-testid={`walkthrough-tab-${key}`}
             >
@@ -561,20 +561,20 @@ function ExportWalkthrough() {
             data-testid={`walkthrough-step-${platform}-${i + 1}`}
           >
             <span
-              className="shrink-0 w-7 h-7 border border-[#ff4500] text-[#ff4500] flex items-center justify-center font-mono text-sm font-bold"
+              className="shrink-0 w-7 h-7 border border-brand text-brand flex items-center justify-center font-mono text-sm font-bold"
               aria-hidden="true"
             >
               {i + 1}
             </span>
             <div className="min-w-0 pt-0.5">
-              <p className="font-mono text-sm text-[#e5e5e5] leading-relaxed">
+              <p className="font-mono text-sm text-ink leading-relaxed">
                 {step.title}
               </p>
-              <p className="font-mono text-xs text-[#a3a3a3] mt-1 leading-relaxed">
+              <p className="font-mono text-xs text-ink-muted mt-1 leading-relaxed">
                 {step.body}
               </p>
               {step.tip && (
-                <p className="font-mono text-[11px] text-[#737373] mt-1.5 italic leading-relaxed">
+                <p className="font-mono text-[11px] text-ink-muted mt-1.5 italic leading-relaxed">
                   Pro tip · {step.tip}
                 </p>
               )}
@@ -589,7 +589,7 @@ function ExportWalkthrough() {
           href={wt.docLink}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 font-mono text-[11px] text-[#a3a3a3] hover:text-[#ff4500] transition"
+          className="inline-flex items-center gap-1.5 font-mono text-[11px] text-ink-muted hover:text-brand transition"
           data-testid={`walkthrough-doclink-${platform}`}
         >
           <ExternalLink size={11} />
@@ -598,20 +598,20 @@ function ExportWalkthrough() {
       </div>
 
       {/* CSV/JSON format reminder — universal across both tabs */}
-      <div className="px-4 md:px-5 py-3 border-t border-[#262626] bg-[#080808]">
-        <p className="font-mono text-[10px] text-[#525252] leading-relaxed">
-          <span className="text-[#737373] uppercase tracking-[0.22em]">Accepted</span>
-          {" "}<b className="text-[#a3a3a3]">.csv</b>{" or "}
-          <b className="text-[#a3a3a3]">.json</b>{". Required fields: "}
-          <code className="text-[#a3a3a3]">date</code>{", "}
-          <code className="text-[#a3a3a3]">name</code>{", "}
-          <code className="text-[#a3a3a3]">rating</code>{", "}
-          <code className="text-[#a3a3a3]">text</code>
+      <div className="px-4 md:px-5 py-3 border-t border-line bg-[#080808]">
+        <p className="font-mono text-[10px] text-ink-muted leading-relaxed">
+          <span className="text-ink-muted uppercase tracking-[0.22em]">Accepted</span>
+          {" "}<b className="text-ink-muted">.csv</b>{" or "}
+          <b className="text-ink-muted">.json</b>{". Required fields: "}
+          <code className="text-ink-muted">date</code>{", "}
+          <code className="text-ink-muted">name</code>{", "}
+          <code className="text-ink-muted">rating</code>{", "}
+          <code className="text-ink-muted">text</code>
           {". Etsy field names ("}
-          <code className="text-[#a3a3a3]">reviewer</code>{", "}
-          <code className="text-[#a3a3a3]">star_rating</code>{", "}
-          <code className="text-[#a3a3a3]">message</code>{", "}
-          <code className="text-[#a3a3a3]">date_reviewed</code>
+          <code className="text-ink-muted">reviewer</code>{", "}
+          <code className="text-ink-muted">star_rating</code>{", "}
+          <code className="text-ink-muted">message</code>{", "}
+          <code className="text-ink-muted">date_reviewed</code>
           {") and Shopify synonyms are auto-mapped — no manual conversion needed."}
         </p>
       </div>
@@ -662,13 +662,13 @@ function PreviewPanel({ preview }) {
       {/* 5-row sample table */}
       {sample.length > 0 ? (
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">
+          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
             First {sample.length} parsed rows (preview only)
           </p>
-          <div className="border border-[#262626] overflow-x-auto" data-testid="review-import-preview-table">
+          <div className="border border-line overflow-x-auto" data-testid="review-import-preview-table">
             <table className="w-full font-mono text-[11px]">
               <thead>
-                <tr className="text-[9px] uppercase tracking-[0.22em] text-[#525252] border-b border-[#262626]">
+                <tr className="text-[9px] uppercase tracking-[0.22em] text-ink-muted border-b border-line">
                   <th className="text-left py-1.5 px-2 w-8">#</th>
                   <th className="text-left py-1.5 px-2">Name</th>
                   <th className="text-left py-1.5 px-2 w-12">★</th>
@@ -680,19 +680,19 @@ function PreviewPanel({ preview }) {
                 {sample.map((row, i) => (
                   <tr
                     key={i}
-                    className="border-b border-[#1a1a1a] last:border-b-0 align-top"
+                    className="border-b border-line last:border-b-0 align-top"
                     data-testid={`review-import-preview-row-${i}`}
                   >
-                    <td className="py-2 px-2 text-[#525252]">{i + 1}</td>
-                    <td className="py-2 px-2 text-[#e5e5e5]">{row.name}</td>
+                    <td className="py-2 px-2 text-ink-muted">{i + 1}</td>
+                    <td className="py-2 px-2 text-ink">{row.name}</td>
                     <td className="py-2 px-2">
                       <span className="text-amber-400">{"★".repeat(row.rating)}</span>
                       <span className="text-[#262626]">{"★".repeat(5 - row.rating)}</span>
                     </td>
-                    <td className="py-2 px-2 text-[#a3a3a3]">{row.date || "—"}</td>
-                    <td className="py-2 px-2 text-[#a3a3a3] leading-snug">
+                    <td className="py-2 px-2 text-ink-muted">{row.date || "—"}</td>
+                    <td className="py-2 px-2 text-ink-muted leading-snug">
                       {row.was_starred_placeholder ? (
-                        <span className="italic text-[#737373]">{row.text}</span>
+                        <span className="italic text-ink-muted">{row.text}</span>
                       ) : (
                         row.text
                       )}
@@ -718,21 +718,21 @@ function PreviewPanel({ preview }) {
           <summary className="cursor-pointer text-amber-400 hover:text-amber-300">
             ⚠ {error_count} row{error_count === 1 ? "" : "s"} would be skipped due to parse errors
           </summary>
-          <ul className="mt-2 space-y-1 text-[10px] text-[#a3a3a3]">
+          <ul className="mt-2 space-y-1 text-[10px] text-ink-muted">
             {errors.slice(0, 10).map((e, i) => (
               <li key={i}>Line {e.line}: {e.error}</li>
             ))}
             {error_count > 10 && (
-              <li className="text-[#525252] italic">…and {error_count - 10} more</li>
+              <li className="text-ink-muted italic">…and {error_count - 10} more</li>
             )}
           </ul>
         </details>
       )}
 
-      <p className="font-mono text-[10px] text-[#525252] leading-relaxed">
-        Numbers look right? Click <b className="text-[#e5e5e5]">Looks good — import all</b> below.
+      <p className="font-mono text-[10px] text-ink-muted leading-relaxed">
+        Numbers look right? Click <b className="text-ink">Looks good — import all</b> below.
         Wrong source platform or weird mapping? Adjust above and re-test, or use{" "}
-        <b className="text-[#e5e5e5]">Stuck? Send your CSV to support</b> at the bottom.
+        <b className="text-ink">Stuck? Send your CSV to support</b> at the bottom.
       </p>
     </div>
   );
@@ -745,9 +745,9 @@ function PreviewStat({ label, value, accent }) {
     amber: "text-amber-400",
   };
   return (
-    <div className="border border-[#262626] bg-[#0a0a0a] p-2">
-      <div className="text-[9px] uppercase tracking-[0.22em] text-[#525252]">{label}</div>
-      <div className={`text-base font-display mt-0.5 ${accent ? colorMap[accent] : "text-[#e5e5e5]"}`}>
+    <div className="border border-line bg-paper p-2">
+      <div className="text-[9px] uppercase tracking-[0.22em] text-ink-muted">{label}</div>
+      <div className={`text-base font-display mt-0.5 ${accent ? colorMap[accent] : "text-ink"}`}>
         {value}
       </div>
     </div>
@@ -797,28 +797,28 @@ function SupportFallback() {
 
   return (
     <div
-      className="border border-[#262626] bg-[#0a0a0a]"
+      className="border border-line bg-paper"
       data-testid="review-import-support-fallback"
     >
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full px-4 py-3 flex items-center justify-between gap-3 text-left hover:bg-[#0d0d0d] transition"
+        className="w-full px-4 py-3 flex items-center justify-between gap-3 text-left hover:bg-paper transition"
         data-testid="support-fallback-toggle"
         aria-expanded={open}
       >
         <div className="flex items-center gap-2.5 min-w-0">
-          <LifeBuoy size={14} className="text-[#a3a3a3] shrink-0" />
+          <LifeBuoy size={14} className="text-ink-muted shrink-0" />
           <div className="min-w-0">
-            <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#e5e5e5]">
+            <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink">
               Stuck? Send your CSV to support
             </div>
-            <p className="font-mono text-[10px] text-[#737373] mt-0.5 truncate">
+            <p className="font-mono text-[10px] text-ink-muted mt-0.5 truncate">
               We'll import it manually and reply within one business day.
             </p>
           </div>
         </div>
-        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#737373] shrink-0">
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted shrink-0">
           {open ? "Close ▴" : "Open ▾"}
         </span>
       </button>
@@ -826,7 +826,7 @@ function SupportFallback() {
       {open && (
         <form
           onSubmit={submit}
-          className="border-t border-[#262626] p-4 space-y-4"
+          className="border-t border-line p-4 space-y-4"
           data-testid="support-fallback-body"
         >
           {sent ? (
@@ -837,7 +837,7 @@ function SupportFallback() {
               <p className="text-emerald-400 uppercase tracking-[0.22em] text-[10px] mb-2">
                 ◆ Sent to support
               </p>
-              <p className="text-[#e5e5e5] leading-relaxed">
+              <p className="text-ink leading-relaxed">
                 Our team has your file. We'll reply to you by email within one
                 business day with either your imported reviews or a request for
                 more info. Thanks for the patience.
@@ -845,21 +845,21 @@ function SupportFallback() {
               <button
                 type="button"
                 onClick={() => setSent(false)}
-                className="mt-3 font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500]"
+                className="mt-3 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand"
               >
                 ← Send another file
               </button>
             </div>
           ) : (
             <>
-              <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed">
+              <p className="font-mono text-xs text-ink-muted leading-relaxed">
                 Attach the CSV (or anything close — XLS, partial export, even
                 a screenshot) and write a quick note about what's going wrong.
                 We'll do the conversion + import on our side.
               </p>
 
               {/* File picker */}
-              <div className="border border-dashed border-[#262626] hover:border-[#a3a3a3]/50 p-4 transition">
+              <div className="border border-dashed border-line hover:border-ink/50 p-4 transition">
                 <input
                   ref={fileRef}
                   type="file"
@@ -870,10 +870,10 @@ function SupportFallback() {
                 />
                 {file ? (
                   <div className="flex items-center gap-3">
-                    <FileText size={18} className="text-[#a3a3a3] shrink-0" />
+                    <FileText size={18} className="text-ink-muted shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <p className="font-mono text-xs text-[#e5e5e5] truncate">{file.name}</p>
-                      <p className="font-mono text-[10px] text-[#525252]">
+                      <p className="font-mono text-xs text-ink truncate">{file.name}</p>
+                      <p className="font-mono text-[10px] text-ink-muted">
                         {(file.size / 1024).toFixed(1)} KB
                       </p>
                     </div>
@@ -883,7 +883,7 @@ function SupportFallback() {
                         setFile(null);
                         if (fileRef.current) fileRef.current.value = "";
                       }}
-                      className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500]"
+                      className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand"
                     >
                       × Remove
                     </button>
@@ -892,7 +892,7 @@ function SupportFallback() {
                   <button
                     type="button"
                     onClick={() => fileRef.current?.click()}
-                    className="font-mono text-xs uppercase tracking-[0.18em] text-[#a3a3a3] hover:text-[#ff4500] transition"
+                    className="font-mono text-xs uppercase tracking-[0.18em] text-ink-muted hover:text-brand transition"
                     data-testid="support-fallback-browse-btn"
                   >
                     + Attach file
@@ -902,7 +902,7 @@ function SupportFallback() {
 
               {/* Note */}
               <div>
-                <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] block mb-2">
+                <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted block mb-2">
                   What's not working? (optional)
                 </label>
                 <textarea
@@ -910,10 +910,10 @@ function SupportFallback() {
                   onChange={(e) => setNote(e.target.value.slice(0, 2000))}
                   rows={3}
                   placeholder="e.g. Etsy gave me a weird format with merged columns, or Judge.me's export is missing dates…"
-                  className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5] resize-y"
+                  className="w-full bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink resize-y"
                   data-testid="support-fallback-note"
                 />
-                <p className="font-mono text-[10px] text-[#525252] mt-1 text-right">
+                <p className="font-mono text-[10px] text-ink-muted mt-1 text-right">
                   {note.length} / 2000
                 </p>
               </div>

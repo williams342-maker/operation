@@ -6,7 +6,7 @@ import { RowsSkeleton } from "../../components/Skeleton";
 const SEVERITY_STYLE = {
   block: "border-red-700 bg-red-900/20 text-red-300",
   warn:  "border-yellow-700 bg-yellow-900/20 text-yellow-300",
-  info:  "border-[#262626] bg-[#0d0d0d] text-[#a3a3a3]",
+  info:  "border-line bg-paper text-ink-muted",
 };
 
 /** Violations tab — read-only audit trail for this maker. */
@@ -24,11 +24,11 @@ export default function ViolationsTab() {
 
   return (
     <div className="space-y-6" data-testid="violations-tab">
-      <header className="pb-6 border-b border-[#262626]">
+      <header className="pb-6 border-b border-line">
         <h2 className="font-display text-3xl md:text-4xl uppercase">Violations.</h2>
-        <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-xl">
+        <p className="font-mono text-xs text-ink-muted mt-2 max-w-xl">
           Anything our auto-moderator or admins flagged on your account. Repeated
-          violations can trigger a freeze — see <a href="/policy#seller-misconduct" target="_blank" rel="noreferrer" className="text-[#ff4500] hover:underline">site policy</a> for the full list.
+          violations can trigger a freeze — see <a href="/policy#seller-misconduct" target="_blank" rel="noreferrer" className="text-brand hover:underline">site policy</a> for the full list.
         </p>
       </header>
 
@@ -36,7 +36,7 @@ export default function ViolationsTab() {
         <div className="border border-emerald-800 bg-emerald-900/10 p-8 text-center" data-testid="violations-empty">
           <ShieldCheck size={32} className="text-emerald-400 mx-auto mb-3" />
           <h3 className="font-display text-2xl uppercase mb-2">All clear.</h3>
-          <p className="font-mono text-xs text-[#a3a3a3]">
+          <p className="font-mono text-xs text-ink-muted">
             No warnings or blocks on your account. Keep building.
           </p>
         </div>
@@ -54,15 +54,15 @@ export default function ViolationsTab() {
                   <span className="font-mono text-[11px] uppercase tracking-[0.22em]">
                     {(v.kind || "").replace(/_/g, " ")}
                   </span>
-                  <span className="font-mono text-[10px] text-[#737373]">·</span>
-                  <span className="font-mono text-[10px] text-[#737373] uppercase tracking-[0.22em]">
+                  <span className="font-mono text-[10px] text-ink-muted">·</span>
+                  <span className="font-mono text-[10px] text-ink-muted uppercase tracking-[0.22em]">
                     {v.source}{v.channel ? ` · ${v.channel}` : ""}
                   </span>
                 </div>
-                <div className="font-mono text-xs leading-relaxed mt-1.5 text-[#e5e5e5]">
+                <div className="font-mono text-xs leading-relaxed mt-1.5 text-ink">
                   {v.reason || "(no reason recorded)"}
                 </div>
-                <div className="font-mono text-[10px] text-[#525252] mt-1">
+                <div className="font-mono text-[10px] text-ink-muted mt-1">
                   {(v.created_at || "").slice(0, 19).replace("T", " · ")}
                 </div>
               </div>

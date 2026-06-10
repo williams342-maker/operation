@@ -171,13 +171,13 @@ export default function ClipsPanel() {
     <section className="space-y-6" data-testid="maker-clips-panel">
       {confirmModal}
       <header>
-        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-1">
+        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-1">
           ◆ Workshop Clip Feed
         </div>
         <h2 className="font-display text-2xl md:text-3xl uppercase">Share short-form clips.</h2>
-        <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-2xl leading-relaxed">
+        <p className="font-mono text-xs text-ink-muted mt-2 max-w-2xl leading-relaxed">
           Paste a YouTube or Vimeo URL (Shorts work great) and we'll surface it in the global{" "}
-          <Link to="/clips" className="text-[#ff4500] hover:underline">Clips</Link> feed.
+          <Link to="/clips" className="text-brand hover:underline">Clips</Link> feed.
           Vertical 9:16 clips look best — think satisfying cuts, weld pulls, powder-coat
           sprays, or finished-piece reveals. Optional: link a listing so viewers can "Shop this".
         </p>
@@ -187,7 +187,7 @@ export default function ClipsPanel() {
 
       <form
         onSubmit={onAdd}
-        className="border border-[#262626] p-4 md:p-5 space-y-3"
+        className="border border-line p-4 md:p-5 space-y-3"
         data-testid="clips-add-form"
       >
         {/* Mode picker — URL embed (fast) vs native upload (R2). */}
@@ -197,8 +197,8 @@ export default function ClipsPanel() {
             onClick={() => setMode("url")}
             className={`px-3 py-1.5 border font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5 ${
               mode === "url"
-                ? "border-[#ff4500] text-[#ff4500] bg-[#ff4500]/10"
-                : "border-[#262626] text-[#a3a3a3] hover:border-[#525252]"
+                ? "border-brand text-brand bg-brand/10"
+                : "border-line text-ink-muted hover:border-ink-muted"
             }`}
             data-testid="clips-mode-url"
           >
@@ -209,8 +209,8 @@ export default function ClipsPanel() {
             onClick={() => setMode("file")}
             className={`px-3 py-1.5 border font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5 ${
               mode === "file"
-                ? "border-[#ff4500] text-[#ff4500] bg-[#ff4500]/10"
-                : "border-[#262626] text-[#a3a3a3] hover:border-[#525252]"
+                ? "border-brand text-brand bg-brand/10"
+                : "border-line text-ink-muted hover:border-ink-muted"
             }`}
             data-testid="clips-mode-file"
           >
@@ -221,25 +221,25 @@ export default function ClipsPanel() {
         {mode === "url" ? (
           <div className="grid md:grid-cols-2 gap-3">
             <label className="block">
-              <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">YouTube / Vimeo URL *</span>
+              <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">YouTube / Vimeo URL *</span>
               <input
                 type="url"
                 value={form.url}
                 onChange={(e) => setForm({ ...form, url: e.target.value })}
                 placeholder="https://youtube.com/shorts/…"
-                className="mt-1 w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+                className="mt-1 w-full bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs"
                 data-testid="clips-add-url"
               />
             </label>
             <label className="block">
-              <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Title *</span>
+              <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Title *</span>
               <input
                 type="text"
                 value={form.title}
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
                 maxLength={120}
                 placeholder="Plasma cutting a mountain sign"
-                className="mt-1 w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+                className="mt-1 w-full bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs"
                 required
                 data-testid="clips-add-title"
               />
@@ -250,26 +250,26 @@ export default function ClipsPanel() {
             <label
               htmlFor="clip-file-input"
               className={`block border-2 border-dashed p-6 text-center cursor-pointer transition ${
-                pickedFile ? "border-[#ff4500] bg-[#ff4500]/5" : "border-[#262626] hover:border-[#525252]"
+                pickedFile ? "border-brand bg-brand/5" : "border-line hover:border-ink-muted"
               }`}
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => { e.preventDefault(); onFilePick(e.dataTransfer.files?.[0]); }}
               data-testid="clips-file-drop"
             >
-              <Upload size={28} className="mx-auto text-[#525252] mb-2" />
+              <Upload size={28} className="mx-auto text-ink-muted mb-2" />
               {pickedFile ? (
                 <>
-                  <div className="font-mono text-xs text-[#e5e5e5] break-all">{pickedFile.name}</div>
-                  <div className="font-mono text-[10px] text-[#737373] mt-1">
+                  <div className="font-mono text-xs text-ink break-all">{pickedFile.name}</div>
+                  <div className="font-mono text-[10px] text-ink-muted mt-1">
                     {(pickedFile.size / 1024 / 1024).toFixed(1)} MB · {pickedFile.type || "video"}
                   </div>
                 </>
               ) : (
                 <>
-                  <div className="font-mono text-xs text-[#a3a3a3]">
+                  <div className="font-mono text-xs text-ink-muted">
                     Drag a vertical MP4 / WebM / MOV here, or click to pick
                   </div>
-                  <div className="font-mono text-[10px] text-[#525252] mt-1">
+                  <div className="font-mono text-[10px] text-ink-muted mt-1">
                     Max 50 MB · ideal 9:16 · ≤60 seconds
                   </div>
                 </>
@@ -285,26 +285,26 @@ export default function ClipsPanel() {
               />
             </label>
             <label className="block">
-              <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Title *</span>
+              <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Title *</span>
               <input
                 type="text"
                 value={form.title}
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
                 maxLength={120}
                 placeholder="Plasma cutting a mountain sign"
-                className="mt-1 w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+                className="mt-1 w-full bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs"
                 required
                 data-testid="clips-add-title"
               />
             </label>
             {busy && uploadProgress > 0 && (
               <div data-testid="clips-upload-progress" className="space-y-1">
-                <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+                <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
                   Uploading… {uploadProgress}%
                 </div>
-                <div className="h-1.5 bg-[#1f1f1f] overflow-hidden">
+                <div className="h-1.5 bg-surface overflow-hidden">
                   <div
-                    className="h-full bg-[#ff4500] transition-[width] duration-200"
+                    className="h-full bg-brand transition-[width] duration-200"
                     style={{ width: `${uploadProgress}%` }}
                   />
                 </div>
@@ -314,11 +314,11 @@ export default function ClipsPanel() {
         )}
         <div className="grid md:grid-cols-2 gap-3">
           <label className="block">
-            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Category</span>
+            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Category</span>
             <select
               value={form.category}
               onChange={(e) => setForm({ ...form, category: e.target.value })}
-              className="mt-1 w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+              className="mt-1 w-full bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs"
               data-testid="clips-add-category"
             >
               {cats.map((c) => (
@@ -327,37 +327,37 @@ export default function ClipsPanel() {
             </select>
           </label>
           <label className="block">
-            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Link a listing (optional)</span>
+            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Link a listing (optional)</span>
             <input
               type="text"
               value={form.product_slug}
               onChange={(e) => setForm({ ...form, product_slug: e.target.value })}
               placeholder="slug-from-your-listing-url"
-              className="mt-1 w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+              className="mt-1 w-full bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs"
               data-testid="clips-add-product-slug"
             />
           </label>
         </div>
         <label className="block">
-          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Tags (comma-separated)</span>
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Tags (comma-separated)</span>
           <input
             type="text"
             value={form.tags}
             onChange={(e) => setForm({ ...form, tags: e.target.value })}
             placeholder="plasma, mountain, steel"
-            className="mt-1 w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+            className="mt-1 w-full bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs"
             data-testid="clips-add-tags"
           />
         </label>
         <label className="block">
-          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Description (optional)</span>
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Description (optional)</span>
           <textarea
             value={form.description}
             onChange={(e) => setForm({ ...form, description: e.target.value })}
             rows={2}
             maxLength={600}
             placeholder="What's happening in this clip — keep it punchy, viewers see this for 2 seconds."
-            className="mt-1 w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs resize-none"
+            className="mt-1 w-full bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs resize-none"
             data-testid="clips-add-description"
           />
         </label>
@@ -374,7 +374,7 @@ export default function ClipsPanel() {
       </form>
 
       <div>
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
           ◇ Your posted clips
         </div>
         {items === null && <RowsSkeleton count={3} />}
@@ -388,7 +388,7 @@ export default function ClipsPanel() {
           />
         )}
         {items?.length > 0 && (
-          <ul className="border border-[#262626] divide-y divide-[#1f1f1f]" data-testid="clips-my-list">
+          <ul className="border border-line divide-y divide-[#1f1f1f]" data-testid="clips-my-list">
             {items.map((c) => (
               <li
                 key={c.id}
@@ -397,13 +397,13 @@ export default function ClipsPanel() {
               >
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#ff4500] px-1.5 py-0.5 border border-[#ff4500]/40">
+                    <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-brand px-1.5 py-0.5 border border-brand/40">
                       {c.category}
                     </span>
-                    <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252]">
+                    <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted">
                       {c.source_type}
                     </span>
-                    <span className="font-mono text-[10px] text-[#525252]">
+                    <span className="font-mono text-[10px] text-ink-muted">
                       {c.views ?? 0} views · {c.likes ?? 0} likes · {c.saves ?? 0} saves
                     </span>
                   </div>
@@ -414,13 +414,13 @@ export default function ClipsPanel() {
                     to={`/clips/${c.slug}`}
                     target="_blank"
                     rel="noopener"
-                    className="px-2.5 py-1 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1"
+                    className="px-2.5 py-1 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1"
                   >
                     <ExternalLink size={12} /> Open
                   </Link>
                   <button
                     onClick={() => onDelete(c)}
-                    className="px-2.5 py-1 border border-[#262626] hover:border-red-500 hover:text-red-400 font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1"
+                    className="px-2.5 py-1 border border-line hover:border-red-500 hover:text-red-400 font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1"
                     data-testid={`clips-my-delete-${c.id}`}
                   >
                     <Trash2 size={12} /> Delete

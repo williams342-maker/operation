@@ -132,8 +132,8 @@ export default function AccountPanel({ maker, onSaved }) {
     <div className="space-y-6" data-testid="settings-account">
       {confirmModal}
       <div>
-        <h2 className="font-display text-2xl text-[#e5e5e5]">Account & Plan</h2>
-        <p className="font-mono text-sm text-[#a3a3a3] mt-2 max-w-2xl">
+        <h2 className="font-display text-2xl text-ink">Account & Plan</h2>
+        <p className="font-mono text-sm text-ink-muted mt-2 max-w-2xl">
           Downgrade your subscription, close your shop, or request account deletion.
         </p>
       </div>
@@ -152,7 +152,7 @@ export default function AccountPanel({ maker, onSaved }) {
           <button
             onClick={cancelDelete}
             disabled={busy === "cancel-delete"}
-            className="mt-3 px-4 py-2 bg-white hover:bg-[#e5e5e5] text-red-700 border border-white font-mono text-[10px] uppercase tracking-[0.22em] font-bold disabled:opacity-50"
+            className="mt-3 px-4 py-2 bg-white hover:bg-ink-muted text-red-700 border border-white font-mono text-[10px] uppercase tracking-[0.22em] font-bold disabled:opacity-50"
             data-testid="account-cancel-deletion-btn"
           >
             {busy === "cancel-delete" ? "…" : "← Cancel deletion — keep my account"}
@@ -161,15 +161,15 @@ export default function AccountPanel({ maker, onSaved }) {
       )}
 
       {/* Plan downgrade */}
-      <section className="border border-[#262626] p-5">
+      <section className="border border-line p-5">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Current plan</div>
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Current plan</div>
             <div className="font-display text-2xl mt-1">
               {isPlus ? (
                 <span className="text-emerald-400">★ Crafters Plus · $12/mo</span>
               ) : (
-                <span className="text-[#a3a3a3]">◇ Free</span>
+                <span className="text-ink-muted">◇ Free</span>
               )}
             </div>
           </div>
@@ -177,7 +177,7 @@ export default function AccountPanel({ maker, onSaved }) {
             <button
               onClick={downgrade}
               disabled={!!busy}
-              className="px-4 py-2 border border-[#262626] hover:border-amber-500 hover:text-amber-400 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+              className="px-4 py-2 border border-line hover:border-amber-500 hover:text-amber-400 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
               data-testid="account-downgrade-btn"
             >
               {busy === "downgrade" ? "…" : "Downgrade to Free"}
@@ -185,7 +185,7 @@ export default function AccountPanel({ maker, onSaved }) {
           ) : (
             <Link
               to="/maker/billing"
-              className="inline-flex items-center justify-center px-4 py-2 bg-[#ff4500] hover:bg-[#ff5722] text-black border border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em] font-bold transition"
+              className="inline-flex items-center justify-center px-4 py-2 bg-brand hover:bg-[#ff5722] text-ink border border-brand font-mono text-[11px] uppercase tracking-[0.22em] font-bold transition"
               data-testid="account-upgrade-btn"
             >
               ★ Upgrade my account →
@@ -199,10 +199,10 @@ export default function AccountPanel({ maker, onSaved }) {
       <CustomUrlPicker />
 
       {/* Close / reopen shop */}
-      <section className="border border-[#262626] p-5">
+      <section className="border border-line p-5">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Shop status</div>
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Shop status</div>
             <div className="font-display text-2xl mt-1">
               {closed ? (
                 <span className="text-amber-400">◆ Closed · No new orders</span>
@@ -210,7 +210,7 @@ export default function AccountPanel({ maker, onSaved }) {
                 <span className="text-emerald-400">◆ Open</span>
               )}
             </div>
-            <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-md">
+            <p className="font-mono text-xs text-ink-muted mt-2 max-w-md">
               Closing hides your shop from search and blocks new orders without deleting data. Reopen anytime.
             </p>
           </div>
@@ -218,7 +218,7 @@ export default function AccountPanel({ maker, onSaved }) {
             <button
               onClick={reopen}
               disabled={!!busy}
-              className="px-4 py-2 border border-emerald-600 text-emerald-400 hover:bg-emerald-600 hover:text-white font-mono text-[10px] uppercase tracking-[0.22em] font-bold transition disabled:opacity-50"
+              className="px-4 py-2 border border-emerald-600 text-emerald-400 hover:bg-emerald-600 hover:text-ink font-mono text-[10px] uppercase tracking-[0.22em] font-bold transition disabled:opacity-50"
               data-testid="account-reopen-btn"
             >
               {busy === "reopen" ? "…" : "Reopen shop"}
@@ -227,7 +227,7 @@ export default function AccountPanel({ maker, onSaved }) {
             <button
               onClick={closeShop}
               disabled={!!busy || !!deletionAt}
-              className="px-4 py-2 border border-amber-600 text-amber-400 hover:bg-amber-600 hover:text-black font-mono text-[10px] uppercase tracking-[0.22em] font-bold transition disabled:opacity-50"
+              className="px-4 py-2 border border-amber-600 text-amber-400 hover:bg-amber-600 hover:text-ink font-mono text-[10px] uppercase tracking-[0.22em] font-bold transition disabled:opacity-50"
               data-testid="account-close-btn"
             >
               {busy === "close" ? "…" : "Close shop"}
@@ -237,19 +237,19 @@ export default function AccountPanel({ maker, onSaved }) {
       </section>
 
       {/* Smart Pause — auto-hide listings with zero pageviews after N days */}
-      <section className="border border-[#262626] p-5" data-testid="account-smart-pause">
+      <section className="border border-line p-5" data-testid="account-smart-pause">
         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
           <div className="flex-1">
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Smart Pause</div>
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Smart Pause</div>
             <div className="font-display text-2xl mt-1">
               {maker?.smart_pause_enabled ? (
                 <span className="text-emerald-400">◆ ON · auto-pauses stale listings</span>
               ) : (
-                <span className="text-[#a3a3a3]">◇ OFF</span>
+                <span className="text-ink-muted">◇ OFF</span>
               )}
             </div>
-            <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-xl leading-relaxed">
-              When ON, listings with <b className="text-[#e5e5e5]">zero pageviews</b> in the last {maker?.smart_pause_threshold_days || 30} days are quietly moved to draft. You'll get an email with the list + tips to optimise before republishing. Healthy listings are never touched.
+            <p className="font-mono text-xs text-ink-muted mt-2 max-w-xl leading-relaxed">
+              When ON, listings with <b className="text-ink">zero pageviews</b> in the last {maker?.smart_pause_threshold_days || 30} days are quietly moved to draft. You'll get an email with the list + tips to optimise before republishing. Healthy listings are never touched.
             </p>
           </div>
           <button
@@ -269,8 +269,8 @@ export default function AccountPanel({ maker, onSaved }) {
             disabled={!!busy}
             className={`px-4 py-2 border font-mono text-[10px] uppercase tracking-[0.22em] font-bold transition disabled:opacity-50 ${
               maker?.smart_pause_enabled
-                ? "border-amber-600 text-amber-400 hover:bg-amber-600 hover:text-black"
-                : "border-emerald-600 text-emerald-400 hover:bg-emerald-600 hover:text-white"
+                ? "border-amber-600 text-amber-400 hover:bg-amber-600 hover:text-ink"
+                : "border-emerald-600 text-emerald-400 hover:bg-emerald-600 hover:text-ink"
             }`}
             data-testid="account-smart-pause-toggle"
           >
@@ -285,8 +285,8 @@ export default function AccountPanel({ maker, onSaved }) {
           <AlertTriangle size={16} className="text-red-500" />
           <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-red-500 font-bold">Danger zone</span>
         </div>
-        <div className="font-display text-xl text-[#e5e5e5] mb-2">Delete my account</div>
-        <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed max-w-2xl">
+        <div className="font-display text-xl text-ink mb-2">Delete my account</div>
+        <p className="font-mono text-xs text-ink-muted leading-relaxed max-w-2xl">
           Starts a <b className="text-red-400">30-day grace period</b>. After 30 days your shop
           and every listing, message, review, and design file is permanently
           removed. Orders and payouts are preserved (required for accounting &
@@ -296,7 +296,7 @@ export default function AccountPanel({ maker, onSaved }) {
         <button
           onClick={requestDelete}
           disabled={!!busy || !!deletionAt}
-          className="mt-4 px-4 py-2 border border-red-600 text-red-400 hover:bg-red-600 hover:text-white font-mono text-[10px] uppercase tracking-[0.22em] font-bold transition disabled:opacity-50"
+          className="mt-4 px-4 py-2 border border-red-600 text-red-400 hover:bg-red-600 hover:text-ink font-mono text-[10px] uppercase tracking-[0.22em] font-bold transition disabled:opacity-50"
           data-testid="account-delete-btn"
         >
           {busy === "delete" ? "…" : deletionAt ? "Deletion pending →" : "Request account deletion"}

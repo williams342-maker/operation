@@ -145,11 +145,11 @@ export default function RenewalsTab() {
       {confirmModal}
 
       <div className="mb-6">
-        <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#ff4500] mb-3">
+        <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-brand mb-3">
           ◆ Lifecycle
         </div>
         <h1 className="font-display text-4xl md:text-5xl uppercase">Renewals</h1>
-        <p className="font-mono text-xs text-[#a3a3a3] mt-3 max-w-2xl leading-relaxed">
+        <p className="font-mono text-xs text-ink-muted mt-3 max-w-2xl leading-relaxed">
           Manage every listing's renewal lifecycle. The widgets below summarise what's coming up; the table lets you renew, pause, or flip modes in bulk.
         </p>
       </div>
@@ -160,7 +160,7 @@ export default function RenewalsTab() {
       </div>
 
       {/* Filter pills + bulk manager */}
-      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-3">
+      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-3">
         ◆ Bulk manager
       </div>
 
@@ -172,8 +172,8 @@ export default function RenewalsTab() {
               onClick={() => { setFilter(f.key); setSelected(new Set()); }}
               className={`px-3 py-1.5 border font-mono text-[10px] uppercase tracking-[0.22em] transition ${
                 filter === f.key
-                  ? "border-[#ff4500] bg-[#ff4500] text-[#0a0a0a]"
-                  : "border-[#262626] text-[#a3a3a3] hover:border-[#ff4500] hover:text-[#ff4500]"
+                  ? "border-brand bg-brand text-[#0a0a0a]"
+                  : "border-line text-ink-muted hover:border-brand hover:text-brand"
               }`}
               data-testid={`renewals-filter-${f.key}`}
             >
@@ -183,7 +183,7 @@ export default function RenewalsTab() {
           <button
             onClick={load}
             disabled={loading}
-            className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] text-[#a3a3a3] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50"
+            className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 border border-line hover:border-brand text-ink-muted hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50"
             data-testid="renewals-refresh"
           >
             <RefreshCw size={12} className={loading ? "animate-spin" : ""} /> Refresh
@@ -199,20 +199,20 @@ export default function RenewalsTab() {
         {loading ? (
           <div className="space-y-2" data-testid="renewals-skeleton">
             {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="border border-[#262626] p-3 flex items-center gap-3 animate-pulse">
-                <div className="w-5 h-5 bg-[#1a1a1a]" />
-                <div className="w-10 h-10 bg-[#1a1a1a] shrink-0" />
+              <div key={i} className="border border-line p-3 flex items-center gap-3 animate-pulse">
+                <div className="w-5 h-5 bg-surface" />
+                <div className="w-10 h-10 bg-surface shrink-0" />
                 <div className="flex-1 space-y-2">
-                  <div className="h-3 w-1/3 bg-[#1a1a1a]" />
-                  <div className="h-2 w-1/4 bg-[#1a1a1a]" />
+                  <div className="h-3 w-1/3 bg-surface" />
+                  <div className="h-2 w-1/4 bg-surface" />
                 </div>
-                <div className="h-3 w-16 bg-[#1a1a1a]" />
+                <div className="h-3 w-16 bg-surface" />
               </div>
             ))}
           </div>
         ) : filtered.length === 0 ? (
-          <div className="border border-dashed border-[#262626] p-10 text-center">
-            <div className="font-mono text-xs text-[#a3a3a3]">
+          <div className="border border-dashed border-line p-10 text-center">
+            <div className="font-mono text-xs text-ink-muted">
               Nothing in this window. Try widening to "All".
             </div>
           </div>
@@ -228,17 +228,17 @@ export default function RenewalsTab() {
       {/* Sticky bulk action bar */}
       {selected.size > 0 && (
         <div
-          className="fixed bottom-0 left-0 right-0 bg-[#0d0d0d] border-t border-[#ff4500] py-3 px-4 md:px-8"
+          className="fixed bottom-0 left-0 right-0 bg-paper border-t border-brand py-3 px-4 md:px-8"
           data-testid="renewals-bulk-bar"
         >
           <div className="max-w-6xl mx-auto flex flex-wrap items-center gap-3">
-            <div className="font-mono text-xs text-[#ff4500] mr-auto">
+            <div className="font-mono text-xs text-brand mr-auto">
               ◆ {selected.size} selected
             </div>
             <button
               onClick={doBulkRenew}
               disabled={!!busy}
-              className="inline-flex items-center gap-1.5 bg-[#ff4500] hover:bg-[#ff5f1f] text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] px-4 py-2 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 bg-brand hover:bg-[#ff5f1f] text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] px-4 py-2 disabled:opacity-50"
               data-testid="bulk-renew-btn"
             >
               <Check size={12} /> {busy === "Renew" ? "Renewing…" : "Renew now"}
@@ -270,7 +270,7 @@ export default function RenewalsTab() {
             <button
               onClick={() => setSelected(new Set())}
               disabled={!!busy}
-              className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] hover:text-[#ff4500]"
+              className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand"
               data-testid="bulk-clear-btn"
             >
               Clear
@@ -286,10 +286,10 @@ export default function RenewalsTab() {
 function RenewalsTable({ rows, selected, toggle, toggleAll }) {
   const allOn = rows.length > 0 && selected.size === rows.length;
   return (
-    <div className="border border-[#262626] overflow-x-auto" data-testid="renewals-table">
+    <div className="border border-line overflow-x-auto" data-testid="renewals-table">
       <table className="w-full text-sm">
         <thead>
-          <tr className="bg-[#0d0d0d] border-b border-[#262626] font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+          <tr className="bg-paper border-b border-line font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
             <th className="px-3 py-2 w-8 text-left">
               <input
                 type="checkbox"
@@ -311,7 +311,7 @@ function RenewalsTable({ rows, selected, toggle, toggleAll }) {
             return (
               <tr
                 key={r.slug}
-                className={`border-b border-[#1a1a1a] ${checked ? "bg-[#ff4500]/5" : "hover:bg-[#121212]"}`}
+                className={`border-b border-line ${checked ? "bg-brand/5" : "hover:bg-surface"}`}
                 data-testid={`renewals-row-${r.slug}`}
               >
                 <td className="px-3 py-2">
@@ -326,9 +326,9 @@ function RenewalsTable({ rows, selected, toggle, toggleAll }) {
                 <td className="px-3 py-2">
                   <div className="flex items-center gap-3 min-w-0">
                     {r.image && (
-                      <img src={r.image} alt="" className="w-10 h-10 object-cover border border-[#262626] shrink-0" />
+                      <img src={r.image} alt="" className="w-10 h-10 object-cover border border-line shrink-0" />
                     )}
-                    <Link to={`/maker/listings/${r.slug}/edit`} className="font-display text-base truncate hover:text-[#ff4500]">
+                    <Link to={`/maker/listings/${r.slug}/edit`} className="font-display text-base truncate hover:text-brand">
                       {r.title}
                     </Link>
                   </div>
@@ -340,12 +340,12 @@ function RenewalsTable({ rows, selected, toggle, toggleAll }) {
                     {r.renewal_mode}
                   </span>
                 </td>
-                <td className="px-3 py-2 font-mono text-xs text-[#a3a3a3]">
+                <td className="px-3 py-2 font-mono text-xs text-ink-muted">
                   {r.expires_at ? new Date(r.expires_at).toLocaleDateString() : "—"}
                 </td>
                 <td className="px-3 py-2 text-right">
                   <span className={`font-mono text-xs ${
-                    r.days_left != null && r.days_left <= 7 ? "text-[#ff4500]" : "text-[#a3a3a3]"
+                    r.days_left != null && r.days_left <= 7 ? "text-brand" : "text-ink-muted"
                   }`}>
                     {r.days_left ?? "—"}{r.days_left != null ? "d" : ""}
                   </span>

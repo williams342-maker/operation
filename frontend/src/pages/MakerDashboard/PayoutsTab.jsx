@@ -86,14 +86,14 @@ export default function PayoutsTab() {
   return (
     <div className="space-y-8" data-testid="payouts-tab">
       {/* Connect status card */}
-      <div className="border border-[#262626] p-6">
-        <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#ff4500] mb-3">
+      <div className="border border-line p-6">
+        <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-brand mb-3">
           ◆ Stripe Connect
         </div>
         {!status?.connected && (
           <>
             <h3 className="font-display text-2xl mb-2 uppercase">Get paid directly.</h3>
-            <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed mb-5 max-w-xl">
+            <p className="font-mono text-xs text-ink-muted leading-relaxed mb-5 max-w-xl">
               Connect a Stripe account so each sale routes straight to your bank.
               Fees below are deducted before payout — no upfront card billing.
               Onboarding takes about 5 minutes — Stripe handles ID verification and bank setup.
@@ -119,13 +119,13 @@ export default function PayoutsTab() {
                 Connected · payouts active
               </span>
             </div>
-            <p className="font-mono text-xs text-[#a3a3a3] mb-5">
-              Stripe account: <span className="text-[#e5e5e5]">{status.stripe_account_id}</span>
+            <p className="font-mono text-xs text-ink-muted mb-5">
+              Stripe account: <span className="text-ink">{status.stripe_account_id}</span>
             </p>
             <button
               onClick={onDashboard}
               disabled={busy === "dashboard"}
-              className="btn-industrial inline-flex border border-[#262626] hover:border-[#ff4500] disabled:opacity-50"
+              className="btn-industrial inline-flex border border-line hover:border-brand disabled:opacity-50"
               data-testid="payouts-dashboard-btn"
             >
               {busy === "dashboard" ? "Opening…" : "Open Stripe dashboard ↗"}
@@ -140,7 +140,7 @@ export default function PayoutsTab() {
                 Onboarding incomplete
               </span>
             </div>
-            <p className="font-mono text-xs text-[#a3a3a3] mb-5 max-w-xl">
+            <p className="font-mono text-xs text-ink-muted mb-5 max-w-xl">
               Stripe needs a few more details before payouts can be enabled.
               Charges enabled: {String(status.charges_enabled)} · Payouts enabled:{" "}
               {String(status.payouts_enabled)} · Details submitted:{" "}
@@ -160,17 +160,17 @@ export default function PayoutsTab() {
       </div>
 
       {/* Payout history */}
-      <div className="border border-[#262626] p-6">
-        <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-4">
+      <div className="border border-line p-6">
+        <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted mb-4">
           ◆ Payout history
         </div>
         {payouts.length === 0 ? (
-          <p className="font-mono text-xs text-[#525252]">
+          <p className="font-mono text-xs text-ink-muted">
             No payouts yet. Each paid order will transfer your share automatically once your
             account is fully onboarded.
           </p>
         ) : (
-          <ul className="divide-y divide-[#262626]" data-testid="payouts-history">
+          <ul className="divide-y divide-line" data-testid="payouts-history">
             {payouts.map((p) => (
               <li
                 key={`${p.session_id}-${p.maker_slug}`}
@@ -178,20 +178,20 @@ export default function PayoutsTab() {
                 data-testid="payout-row"
               >
                 <div className="min-w-0">
-                  <div className="font-mono text-xs text-[#e5e5e5] truncate">
+                  <div className="font-mono text-xs text-ink truncate">
                     {p.session_id}
                   </div>
-                  <div className="font-mono text-[10px] text-[#a3a3a3] mt-1 uppercase tracking-[0.18em]">
+                  <div className="font-mono text-[10px] text-ink-muted mt-1 uppercase tracking-[0.18em]">
                     {p.status}
                     {p.reason ? ` · ${p.reason}` : ""}
                     {p.transfer_id ? ` · ${p.transfer_id}` : ""}
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="font-display text-xl text-[#e5e5e5]">
+                  <div className="font-display text-xl text-ink">
                     ${(Number(p.amount_cents || 0) / 100).toFixed(2)}
                   </div>
-                  <div className="font-mono text-[10px] text-[#525252]">
+                  <div className="font-mono text-[10px] text-ink-muted">
                     of ${Number(p.amount || 0).toFixed(2)}
                   </div>
                 </div>

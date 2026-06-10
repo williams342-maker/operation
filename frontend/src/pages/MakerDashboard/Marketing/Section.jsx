@@ -11,10 +11,10 @@ import React from "react";
 export default function Section({ title, testId, children }) {
   return (
     <section
-      className="border border-[#1f1f1f] bg-[#0d0d0d] p-5 md:p-6"
+      className="border border-line bg-paper p-5 md:p-6"
       data-testid={testId}
     >
-      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mb-3">
+      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-3">
         ◆ {title}
       </div>
       {children}

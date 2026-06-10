@@ -23,6 +23,9 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - Admin: `/admin/login|verify|dashboard`
 
 ## What's Implemented (cumulative)
+- 🟡 **Light-theme redesign — Phase D (iter352, 2026-06-10):** Token sweep of the entire MakerDashboard tree — 53 files in `pages/MakerDashboard/` plus the root `MakerDashboard.jsx`. 1,407 lines changed across 52 of 54 files. Covers sidebar layout, dashboard tab, listings, renewals, orders, briefs, messages, reviews, stats, violations, marketing+sub-panels, promote, financials, help, settings+sub-panels, modals, and cards. Verified live on Iron & Oak Studio session — sidebar nav, status pills, stat cards, welcome H1, all task cards rendering correctly on cream paper. Phase E (admin) pending.
+
+
 - 🟡 **Light-theme redesign — Phase C (iter351, 2026-06-10):** Token sweep of Cart, CheckoutSuccess, SignIn, CommunityAuth, AdminVerify, MakerVerify, Apply, Pricing, Policy pages + Footer, Nav, BetaBanner, ActivityTicker, AiDiscoverySearch, SupportVeteransStrip, CookieBanner, PolicyConsent, PricingComparisonTable, MakerFeeTable components. ~340 lines across 19 files. Added `bg-black`/`text-white`/`border-black` patterns to the sweep. Cart "YOUR PILE" display heading verified live, sign-in welcome page verified live. Phase D (maker dashboard) + E (admin) pending.
 
 

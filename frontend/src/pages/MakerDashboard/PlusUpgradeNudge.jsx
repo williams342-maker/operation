@@ -69,29 +69,29 @@ export default function PlusUpgradeNudge({ maker, orders = [], onUpgrade }) {
 
   return (
     <section
-      className="relative border border-[#ff4500]/60 bg-gradient-to-r from-[#ff4500]/8 via-[#0a0a0a] to-[#0a0a0a] p-5 md:p-6 overflow-hidden"
+      className="relative border border-brand/60 bg-gradient-to-r from-[#ff4500]/8 via-[#0a0a0a] to-[#0a0a0a] p-5 md:p-6 overflow-hidden"
       data-testid="plus-upgrade-nudge"
     >
       {/* Decorative diagonal accent bar */}
-      <div className="absolute top-0 right-0 h-full w-2 bg-[#ff4500]" aria-hidden />
+      <div className="absolute top-0 right-0 h-full w-2 bg-brand" aria-hidden />
 
       <div className="grid md:grid-cols-[1fr_auto] gap-5 items-center">
         <div className="min-w-0">
-          <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.3em] text-[#ff4500] mb-2">
+          <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.3em] text-brand mb-2">
             <Sparkles size={12} />
             <span>Crafters Plus · ${plusPrice}/mo</span>
-            <span className="px-1.5 py-0.5 bg-[#ff4500] text-black font-bold text-[8px] tracking-[0.18em] ml-1">
+            <span className="px-1.5 py-0.5 bg-brand text-ink font-bold text-[8px] tracking-[0.18em] ml-1">
               {trialEligible ? "3 MONTHS FREE" : "MOST POPULAR"}
             </span>
           </div>
           <h3 className="font-display text-2xl md:text-3xl uppercase leading-[1.05]" data-testid="plus-nudge-headline">
             {headline}
           </h3>
-          <p className="font-mono text-xs text-[#a3a3a3] mt-2 leading-relaxed max-w-2xl" data-testid="plus-nudge-subline">
+          <p className="font-mono text-xs text-ink-muted mt-2 leading-relaxed max-w-2xl" data-testid="plus-nudge-subline">
             {subline}
           </p>
 
-          <ul className="mt-4 grid sm:grid-cols-2 gap-x-4 gap-y-1.5 font-mono text-[11px] text-[#e5e5e5]">
+          <ul className="mt-4 grid sm:grid-cols-2 gap-x-4 gap-y-1.5 font-mono text-[11px] text-ink">
             <Feature label={`${(savingsBps / 100).toFixed(0)}% lower commission`} />
             <Feature label={`${plusListings} listings/month free`} />
             <Feature label="Priority placement in feeds" />
@@ -113,7 +113,7 @@ export default function PlusUpgradeNudge({ maker, orders = [], onUpgrade }) {
           </Link>
           <button
             onClick={onUpgrade}
-            className="px-3 py-2 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition"
+            className="px-3 py-2 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] transition"
             data-testid="plus-nudge-compare"
           >
             See full comparison →
@@ -127,7 +127,7 @@ export default function PlusUpgradeNudge({ maker, orders = [], onUpgrade }) {
 function Feature({ label }) {
   return (
     <li className="flex items-center gap-2">
-      <Check size={12} className="text-[#ff4500] shrink-0" />
+      <Check size={12} className="text-brand shrink-0" />
       <span>{label}</span>
     </li>
   );

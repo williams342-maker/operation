@@ -1,3 +1,42 @@
+## 2026-06-10 — Phase D of light-theme redesign: Maker dashboard (iter352)
+
+User: "Phase D: Maker dashboard (sidebar, products list, orders, settings, ads ROAS card, leaderboard, AI pricing digest)."
+
+### Files swept
+- `/app/frontend/src/pages/MakerDashboard.jsx` (root container)
+- `/app/frontend/src/pages/MakerDashboard/*.jsx` — **53 files** including:
+  - `ShopManagerLayout.jsx` (sidebar shell)
+  - `DashboardTab.jsx`, `ProductsList.jsx`, `OrdersTab.jsx`, `SettingsTab.jsx`, `MessagesTab.jsx`, `ReviewsTab.jsx`, `StatsTab.jsx`, `ViolationsTab.jsx`, `MarketingTab.jsx`, `PromoteTab.jsx`, `HelpTab.jsx`, `BriefsTab.jsx`, `BackordersList.jsx`, `RenewalSummary.jsx`
+  - Marketing/* subpanels (`AdsSection`, `ListingBudgetsSection`, `DiscountCodes`, `SocialAutoPostSection`, `AICopyTools`, `FounderCardSection`, `FounderEmailSignature`, `Section`)
+  - Settings/* subpanels (`AccountPanel`, `ChannelsPanel`, `NotificationsPanel`, `PolicyPanel`, `WorkshopVideosPanel`, `ClipsPanel`, `InfoAppearance`, `CustomUrlPicker`, `_shared`)
+  - Modals (`NewListingModal`, `CsvImportModal`, `ShippingLabelModal`, `PromoteWizard`)
+  - Cards (`CreditPacksCard`, `ReferralCard`, `WorstPerformersPanel`, `BatchPriceCheckButton`)
+
+### Magnitude
+- **52 of 54 files updated, 1,407 lines changed.** Same token map as Phase B/C extended (added `bg-[#161616]`, `bg-[#1f1f1f]`, `bg-[#202020]` for the dashboard's nested surface levels).
+
+### Smoke test (live preview)
+- ✅ Maker dashboard at `/maker/dashboard`:
+  - Body bg = `rgb(249, 248, 246)` cream ✓
+  - Sidebar (DASHBOARD/LISTINGS/RENEWALS/ORDERS/BRIEFS/MESSAGES/REVIEWS/STATS/VIOLATIONS/MARKETING/PROMOTE-BETA/FINANCIALS/HELP/SETTINGS) renders correctly with active orange-brand state on "DASHBOARD"
+  - Top breadcrumb "EXIT SHOP MANAGER · IRON & OAK STUDIO" + status pills (APPROVED SELLER, CRAFTERS PLUS, PAYOUTS READY) themed
+  - Stat cards (LIVE 4 / ORDERS 0 / DMS 10 / REVENUE $0) on cream surface
+  - Welcome H1 "WELCOME BACK, IRON & OAK STUDIO" in ink + brand orange
+  - Today's tasks card, Featured slot CTA, Crafters Plus upsell card all clean
+- ✅ Footer page (visible when navigating between routes): "PRECISION CRAFT. DELIVERED." display heading in ink + brand orange, 4-column nav, "HOW WE MAKE MONEY" callout in brand colors
+
+### Legacy `.theme-light` opt-in (now effectively dead)
+`index.css:467` has a `theme-light` class that was the OLD per-maker light-mode opt-in (activated by `maker.appearance_mode === "light"`). Its !important overrides only matched against hardcoded `bg-[#0a0a0a]` etc. — those now no longer exist in the swept files, so the override block is a no-op. Left in place for backward compat; will remove in Phase E cleanup.
+
+### Pending for Phase E
+- Admin console (30+ tabs)
+- Below-hero home sections (FeaturedBuildsRail, CinematicMomentsStrip, ProductRail, etc.)
+- Final cleanup of dead `.theme-light` block in `index.css`
+- Cookie banner final pass (currently uses tokens but visual artifact in screenshots — may be JPEG compression)
+
+---
+
+
 ## 2026-06-10 — Phase C of light-theme redesign: Cart + Checkout + Auth + Footer + secondary pages (iter351)
 
 User: "Phase C (next): Cart + Checkout + Auth + Footer + secondary marketing pages (apply, pricing, about, policy)."

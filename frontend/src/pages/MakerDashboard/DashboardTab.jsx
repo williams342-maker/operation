@@ -139,15 +139,15 @@ export default function DashboardTab({
           single horizontal strip so the checklist / orders / quick links
           land above the fold. */}
       <header
-        className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 pb-5 border-b border-[#1f1f1f]"
+        className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 pb-5 border-b border-line"
         data-testid="dashboard-header"
       >
         <div className="min-w-0">
-          <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#ff4500] mb-1">
+          <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand mb-1">
             ◆ Workshop · Overview
           </div>
           <h1 className="font-display text-xl md:text-2xl uppercase leading-tight truncate">
-            Welcome back, <span className="text-[#ff4500]">{maker?.name || "maker"}</span>
+            Welcome back, <span className="text-brand">{maker?.name || "maker"}</span>
           </h1>
         </div>
         <KpiStrip
@@ -207,19 +207,19 @@ export default function DashboardTab({
       {/* GET STARTED CHECKLIST — collapses to a "✓ Setup complete" badge once done */}
       {remaining.length > 0 ? (
         <section
-          className="border border-[#262626] p-5 md:p-6 space-y-4"
+          className="border border-line p-5 md:p-6 space-y-4"
           data-testid="dashboard-checklist"
         >
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div>
-              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mb-1">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-1">
                 ◆ Get Started
               </div>
               <h2 className="font-display text-xl md:text-2xl uppercase">
                 {remaining.length} step{remaining.length > 1 ? "s" : ""} to a launch-ready shop
               </h2>
             </div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
               {checklist.length - remaining.length} of {checklist.length} done
             </div>
           </div>
@@ -230,21 +230,21 @@ export default function DashboardTab({
                 className={`border p-3 flex items-start gap-3 ${
                   c.done
                     ? "border-emerald-700/50 bg-emerald-900/10 opacity-60"
-                    : "border-[#262626] hover:border-[#ff4500] transition"
+                    : "border-line hover:border-brand transition"
                 }`}
                 data-testid={`checklist-${c.id}`}
               >
-                <span className={`mt-0.5 font-mono text-xs ${c.done ? "text-emerald-400" : "text-[#525252]"}`}>
+                <span className={`mt-0.5 font-mono text-xs ${c.done ? "text-emerald-400" : "text-ink-muted"}`}>
                   {c.done ? "✓" : "○"}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <div className="font-mono text-xs text-[#e5e5e5]">{c.label}</div>
-                  <div className="font-mono text-[10px] text-[#a3a3a3] mt-1">{c.hint}</div>
+                  <div className="font-mono text-xs text-ink">{c.label}</div>
+                  <div className="font-mono text-[10px] text-ink-muted mt-1">{c.hint}</div>
                 </div>
                 {!c.done && c.cta && (
                   <button
                     onClick={() => handleCta(c.cta.target)}
-                    className="shrink-0 px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.2em] transition"
+                    className="shrink-0 px-3 py-1.5 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.2em] transition"
                     data-testid={`checklist-cta-${c.id}`}
                   >
                     {c.cta.label}
@@ -296,7 +296,7 @@ export default function DashboardTab({
 
         <section className="space-y-3" data-testid="dashboard-quicklinks">
           <div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mb-1">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-1">
               ◆ Quick links
             </div>
             <h2 className="font-display text-xl md:text-2xl uppercase">Jump to</h2>
@@ -306,16 +306,16 @@ export default function DashboardTab({
           <QuickLink to="violations" onClick={onTabChange} icon={AlertTriangle} label="Policy violations" testId="ql-violations" />
           <Link
             to="/journal"
-            className="block px-4 py-3 border border-[#262626] hover:border-[#ff4500] transition"
+            className="block px-4 py-3 border border-line hover:border-brand transition"
             data-testid="ql-journal"
           >
             <div className="flex items-center justify-between">
-              <span className="font-mono text-xs text-[#e5e5e5] uppercase tracking-[0.18em]">
+              <span className="font-mono text-xs text-ink uppercase tracking-[0.18em]">
                 ↗ Read the maker journal
               </span>
-              <ArrowUpRight size={14} className="text-[#a3a3a3]" />
+              <ArrowUpRight size={14} className="text-ink-muted" />
             </div>
-            <div className="font-mono text-[10px] text-[#a3a3a3] mt-1">
+            <div className="font-mono text-[10px] text-ink-muted mt-1">
               Tips, case studies, and beta announcements
             </div>
           </Link>
@@ -325,16 +325,16 @@ export default function DashboardTab({
               which just navigate away). */}
           <Link
             to="/maker/journal/new"
-            className="block px-4 py-3 border border-[#ff4500]/40 bg-[#1a0a05] hover:border-[#ff4500] transition"
+            className="block px-4 py-3 border border-brand/40 bg-[#1a0a05] hover:border-brand transition"
             data-testid="ql-journal-write"
           >
             <div className="flex items-center justify-between">
-              <span className="font-mono text-xs text-[#ff4500] uppercase tracking-[0.18em]">
+              <span className="font-mono text-xs text-brand uppercase tracking-[0.18em]">
                 ✏ Write a journal post
               </span>
-              <ArrowUpRight size={14} className="text-[#ff4500]" />
+              <ArrowUpRight size={14} className="text-brand" />
             </div>
-            <div className="font-mono text-[10px] text-[#a3a3a3] mt-1">
+            <div className="font-mono text-[10px] text-ink-muted mt-1">
               Publish a process, technique, or shop story to /journal
             </div>
           </Link>
@@ -349,9 +349,9 @@ export default function DashboardTab({
  *  rows. Tone drives the eyebrow accent: orange for "ship now", emerald
  *  for the audit trail. */
 function OrderColumn({ tone, eyebrow, title, count, orders, emptyText, onTabChange, testId }) {
-  const accent = tone === "emerald" ? "text-emerald-400" : "text-[#ff4500]";
+  const accent = tone === "emerald" ? "text-emerald-400" : "text-brand";
   return (
-    <div className="border border-[#262626] p-5" data-testid={testId}>
+    <div className="border border-line p-5" data-testid={testId}>
       <div className="flex items-center justify-between gap-3 mb-4">
         <div className="min-w-0">
           <div className={`font-mono text-[10px] uppercase tracking-[0.22em] ${accent} mb-1`}>
@@ -363,14 +363,14 @@ function OrderColumn({ tone, eyebrow, title, count, orders, emptyText, onTabChan
         </div>
         <button
           onClick={() => onTabChange?.("orders")}
-          className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] transition shrink-0"
+          className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand transition shrink-0"
           data-testid={`${testId}-all`}
         >
           View all →
         </button>
       </div>
       {orders.length === 0 ? (
-        <div className="font-mono text-xs text-[#525252] py-6 text-center">{emptyText}</div>
+        <div className="font-mono text-xs text-ink-muted py-6 text-center">{emptyText}</div>
       ) : (
         <ul className="divide-y divide-[#1f1f1f]">
           {orders.map((o, idx) => (
@@ -380,10 +380,10 @@ function OrderColumn({ tone, eyebrow, title, count, orders, emptyText, onTabChan
               data-testid={`${testId}-row-${o.session_id || o.id || idx}`}
             >
               <div className="min-w-0 flex-1">
-                <div className="font-mono text-xs text-[#e5e5e5] truncate">
+                <div className="font-mono text-xs text-ink truncate">
                   #{(o.session_id || o.id || "").slice(0, 8)} · {o.buyer_email || "—"}
                 </div>
-                <div className="font-mono text-[10px] text-[#a3a3a3] mt-0.5">
+                <div className="font-mono text-[10px] text-ink-muted mt-0.5">
                   {(o.order_status || "pending").toUpperCase()} · {(o.created_at || "").slice(0, 10)}
                 </div>
               </div>
@@ -401,7 +401,7 @@ function OrderColumn({ tone, eyebrow, title, count, orders, emptyText, onTabChan
 function KpiStrip({ live, drafts, openOrders, totalOrders, unreadMessages, pendingBackorders, totalRevenue, fresh, freshKey, onTabChange }) {
   return (
     <div
-      className="flex items-stretch divide-x divide-[#1f1f1f] border border-[#1f1f1f] overflow-x-auto"
+      className="flex items-stretch divide-x divide-[#1f1f1f] border border-line overflow-x-auto"
       data-testid="dashboard-kpis"
     >
       <KpiPill
@@ -473,29 +473,29 @@ function KpiPill({ icon: Icon, label, value, sub, onClick, testId, accent = fals
       key={pulseKey || testId}
       className={`min-w-[7rem] px-4 py-2.5 text-left transition relative ${
         accent
-          ? "bg-[#ff4500]/10 hover:bg-[#ff4500]/20"
-          : "hover:bg-[#161616]"
+          ? "bg-brand/10 hover:bg-brand/20"
+          : "hover:bg-surface"
       } ${pulseKey ? "kpi-pulse" : ""}`}
       data-testid={testId}
       data-fresh={pulseKey ? "true" : undefined}
     >
-      <div className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+      <div className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted">
         <Icon size={10} />
         <span>{label}</span>
         {pulseKey && (
           <span
-            className="ml-1 px-1 py-0.5 bg-[#ff4500] text-black font-bold text-[8px] tracking-[0.2em] animate-pulse"
+            className="ml-1 px-1 py-0.5 bg-brand text-ink font-bold text-[8px] tracking-[0.2em] animate-pulse"
             data-testid={`${testId}-new-flag`}
           >
             NEW
           </span>
         )}
       </div>
-      <div className={`font-display text-xl leading-tight mt-0.5 ${accent ? "text-[#ff4500]" : ""}`}>
+      <div className={`font-display text-xl leading-tight mt-0.5 ${accent ? "text-brand" : ""}`}>
         {value}
       </div>
       {sub && (
-        <div className="font-mono text-[9px] text-[#525252] truncate">{sub}</div>
+        <div className="font-mono text-[9px] text-ink-muted truncate">{sub}</div>
       )}
     </button>
   );
@@ -505,16 +505,16 @@ function QuickLink({ to, onClick, icon: Icon, label, testId }) {
   return (
     <button
       onClick={() => onClick?.(to)}
-      className="w-full text-left px-4 py-3 border border-[#262626] hover:border-[#ff4500] transition flex items-center justify-between gap-3"
+      className="w-full text-left px-4 py-3 border border-line hover:border-brand transition flex items-center justify-between gap-3"
       data-testid={testId}
     >
       <div className="flex items-center gap-3 min-w-0">
-        <Icon size={14} className="text-[#a3a3a3] shrink-0" />
-        <span className="font-mono text-xs text-[#e5e5e5] uppercase tracking-[0.18em] truncate">
+        <Icon size={14} className="text-ink-muted shrink-0" />
+        <span className="font-mono text-xs text-ink uppercase tracking-[0.18em] truncate">
           {label}
         </span>
       </div>
-      <span className="font-mono text-[10px] text-[#a3a3a3]">→</span>
+      <span className="font-mono text-[10px] text-ink-muted">→</span>
     </button>
   );
 }
@@ -665,13 +665,13 @@ function TodayAlerts({ maker, orders, products, unreadMessages, onTabChange }) {
 
   return (
     <section
-      className={`border ${hasDanger ? "border-red-700/60" : "border-amber-700/40"} bg-[#0d0d0d]`}
+      className={`border ${hasDanger ? "border-red-700/60" : "border-amber-700/40"} bg-paper`}
       data-testid="today-alerts"
     >
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[#161616] transition"
+        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-surface transition"
         aria-expanded={open}
         data-testid="today-alerts-toggle"
       >
@@ -682,19 +682,19 @@ function TodayAlerts({ maker, orders, products, unreadMessages, onTabChange }) {
         >
           ◆ Today
         </span>
-        <span className="font-mono text-[11px] text-[#e5e5e5]">
+        <span className="font-mono text-[11px] text-ink">
           {alerts.length} item{alerts.length > 1 ? "s" : ""} need{alerts.length === 1 ? "s" : ""} you
           {dangerCount > 0 && <span className="text-red-400 ml-2">· {dangerCount} urgent</span>}
           {warnCount > 0 && <span className="text-amber-400 ml-2">· {warnCount} warning{warnCount > 1 ? "s" : ""}</span>}
         </span>
         <ChevronDown
           size={14}
-          className={`ml-auto text-[#a3a3a3] transition-transform ${open ? "rotate-180" : ""}`}
+          className={`ml-auto text-ink-muted transition-transform ${open ? "rotate-180" : ""}`}
         />
       </button>
 
       {open && (
-        <ul className="divide-y divide-[#1f1f1f] border-t border-[#1f1f1f]" data-testid="today-alerts-list">
+        <ul className="divide-y divide-[#1f1f1f] border-t border-line" data-testid="today-alerts-list">
           {alerts.map((a) => (
             <AlertRow key={a.key} alert={a} onTabChange={onTabChange} />
           ))}
@@ -707,7 +707,7 @@ function TodayAlerts({ maker, orders, products, unreadMessages, onTabChange }) {
 const TONE_STYLE = {
   danger: { dot: "bg-red-500", text: "text-red-400" },
   warn: { dot: "bg-amber-500", text: "text-amber-400" },
-  info: { dot: "bg-[#525252]", text: "text-[#a3a3a3]" },
+  info: { dot: "bg-[#525252]", text: "text-ink-muted" },
 };
 
 function AlertRow({ alert, onTabChange }) {
@@ -721,14 +721,14 @@ function AlertRow({ alert, onTabChange }) {
       <span className={`mt-1.5 w-1.5 h-1.5 rounded-full shrink-0 ${style.dot}`} aria-hidden="true" />
       <Icon size={14} className={`mt-0.5 shrink-0 ${style.text}`} />
       <div className="flex-1 min-w-0">
-        <div className="font-mono text-xs text-[#e5e5e5]">{alert.label}</div>
-        <div className="font-mono text-[10px] text-[#737373] mt-0.5">{alert.detail}</div>
+        <div className="font-mono text-xs text-ink">{alert.label}</div>
+        <div className="font-mono text-[10px] text-ink-muted mt-0.5">{alert.detail}</div>
       </div>
       {alert.cta && (
         <button
           type="button"
           onClick={() => onTabChange?.(alert.cta.target)}
-          className="shrink-0 px-3 py-1 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[9px] uppercase tracking-[0.22em] transition"
+          className="shrink-0 px-3 py-1 border border-line hover:border-brand hover:text-brand font-mono text-[9px] uppercase tracking-[0.22em] transition"
           data-testid={`today-alert-cta-${alert.key}`}
         >
           {alert.cta.label}

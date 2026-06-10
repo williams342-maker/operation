@@ -47,18 +47,18 @@ export default function CsvImportModal({ onClose, onImported }) {
 
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center px-4" role="dialog" aria-modal="true">
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
-      <div ref={ref} className="relative bg-[#0a0a0a] border border-[#262626] w-full max-w-3xl max-h-[90vh] overflow-y-auto"
+      <div className="absolute inset-0 bg-paper/80 backdrop-blur-sm" onClick={onClose} />
+      <div ref={ref} className="relative bg-paper border border-line w-full max-w-3xl max-h-[90vh] overflow-y-auto"
            data-testid="csv-import-modal">
-        <div className="sticky top-0 bg-[#0a0a0a] border-b border-[#262626] px-6 py-4 flex items-center justify-between z-10">
+        <div className="sticky top-0 bg-paper border-b border-line px-6 py-4 flex items-center justify-between z-10">
           <div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mb-1">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-1">
               ◆ Migrate from {source === "shopify" ? "Shopify" : "Etsy"}
             </div>
             <h2 className="font-display text-2xl uppercase">CSV Import</h2>
           </div>
           <button onClick={onClose} aria-label="Close" data-testid="csv-modal-close"
-            className="p-2 border border-[#262626] hover:border-[#ff4500]">
+            className="p-2 border border-line hover:border-brand">
             <X size={14} />
           </button>
         </div>
@@ -67,20 +67,20 @@ export default function CsvImportModal({ onClose, onImported }) {
           {stage === "pick" && (
             <div className="space-y-5" data-testid="csv-stage-pick">
               <div>
-                <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">
+                <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
                   Source platform
                 </div>
                 <div className="flex gap-2">
                   <button
                     type="button" onClick={() => setSource("etsy")}
-                    className={`px-4 py-2 border font-mono text-[11px] uppercase tracking-[0.22em] ${source === "etsy" ? "border-[#ff4500] bg-[#ff4500]/10 text-[#ff4500]" : "border-[#262626] text-[#a3a3a3]"}`}
+                    className={`px-4 py-2 border font-mono text-[11px] uppercase tracking-[0.22em] ${source === "etsy" ? "border-brand bg-brand/10 text-brand" : "border-line text-ink-muted"}`}
                     data-testid="csv-source-etsy"
                   >
                     Etsy
                   </button>
                   <button
                     type="button" onClick={() => setSource("shopify")}
-                    className={`px-4 py-2 border font-mono text-[11px] uppercase tracking-[0.22em] ${source === "shopify" ? "border-[#ff4500] bg-[#ff4500]/10 text-[#ff4500]" : "border-[#262626] text-[#a3a3a3]"}`}
+                    className={`px-4 py-2 border font-mono text-[11px] uppercase tracking-[0.22em] ${source === "shopify" ? "border-brand bg-brand/10 text-brand" : "border-line text-ink-muted"}`}
                     data-testid="csv-source-shopify"
                   >
                     Shopify
@@ -88,33 +88,33 @@ export default function CsvImportModal({ onClose, onImported }) {
                 </div>
               </div>
               {source === "etsy" ? (
-                <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed">
+                <p className="font-mono text-xs text-ink-muted leading-relaxed">
                   Export from Etsy: <b>Shop Manager → Settings → Options → Download Data → Currently for sale listings (CSV)</b>.
                   Upload that file. We'll parse it, show you a preview, then commit as drafts (recommended) or publish all at once.
                 </p>
               ) : (
-                <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed">
+                <p className="font-mono text-xs text-ink-muted leading-relaxed">
                   Export from Shopify: <b>Admin → Products → Export → All products → CSV for Excel, Numbers, or other spreadsheet programs</b>.
                   We aggregate variant rows by Handle (combining stock + images), and skip rows without a positive price.
                 </p>
               )}
-              <div className="border border-[#262626] bg-[#0d0d0d] p-4">
-                <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">What we map</div>
+              <div className="border border-line bg-paper p-4">
+                <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">What we map</div>
                 {source === "etsy" ? (
-                  <ul className="font-mono text-[11px] text-[#e5e5e5] space-y-1">
-                    <li>• <span className="text-[#ff4500]">TITLE</span> · <span className="text-[#ff4500]">DESCRIPTION</span> · <span className="text-[#ff4500]">PRICE</span> · <span className="text-[#ff4500]">QUANTITY</span></li>
-                    <li>• <span className="text-[#ff4500]">TAGS</span> (up to 13) · <span className="text-[#ff4500]">MATERIALS</span> (up to 8)</li>
-                    <li>• <span className="text-[#ff4500]">IMAGE1–IMAGE10</span> URLs (kept as-is — host migration is Phase 2.5)</li>
+                  <ul className="font-mono text-[11px] text-ink space-y-1">
+                    <li>• <span className="text-brand">TITLE</span> · <span className="text-brand">DESCRIPTION</span> · <span className="text-brand">PRICE</span> · <span className="text-brand">QUANTITY</span></li>
+                    <li>• <span className="text-brand">TAGS</span> (up to 13) · <span className="text-brand">MATERIALS</span> (up to 8)</li>
+                    <li>• <span className="text-brand">IMAGE1–IMAGE10</span> URLs (kept as-is — host migration is Phase 2.5)</li>
                   </ul>
                 ) : (
-                  <ul className="font-mono text-[11px] text-[#e5e5e5] space-y-1">
-                    <li>• <span className="text-[#ff4500]">Title</span> · <span className="text-[#ff4500]">Body (HTML)</span> stripped to plain text · <span className="text-[#ff4500]">Variant Price</span></li>
-                    <li>• <span className="text-[#ff4500]">Variant Inventory Qty</span> summed across all variants of the Handle</li>
-                    <li>• <span className="text-[#ff4500]">Tags</span> (up to 13) · <span className="text-[#ff4500]">Type</span> → category fallback</li>
-                    <li>• <span className="text-[#ff4500]">Image Src</span> across the Handle's variant rows (up to 10 unique)</li>
+                  <ul className="font-mono text-[11px] text-ink space-y-1">
+                    <li>• <span className="text-brand">Title</span> · <span className="text-brand">Body (HTML)</span> stripped to plain text · <span className="text-brand">Variant Price</span></li>
+                    <li>• <span className="text-brand">Variant Inventory Qty</span> summed across all variants of the Handle</li>
+                    <li>• <span className="text-brand">Tags</span> (up to 13) · <span className="text-brand">Type</span> → category fallback</li>
+                    <li>• <span className="text-brand">Image Src</span> across the Handle's variant rows (up to 10 unique)</li>
                   </ul>
                 )}
-                <div className="font-mono text-[10px] text-[#737373] mt-2 italic">
+                <div className="font-mono text-[10px] text-ink-muted mt-2 italic">
                   Variations, SKUs, custom processing fields are skipped — re-add them inside Crafters Market after import.
                 </div>
               </div>
@@ -131,17 +131,17 @@ export default function CsvImportModal({ onClose, onImported }) {
 
           {stage === "preview" && preview && (
             <div className="space-y-5" data-testid="csv-stage-preview">
-              <div className="border border-[#ff4500] bg-[#ff4500]/5 p-4 flex items-start gap-3">
-                <FileText size={18} className="text-[#ff4500] mt-0.5 shrink-0" />
+              <div className="border border-brand bg-brand/5 p-4 flex items-start gap-3">
+                <FileText size={18} className="text-brand mt-0.5 shrink-0" />
                 <div>
-                  <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#ff4500] mb-1">
+                  <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-brand mb-1">
                     Ready to import
                   </div>
-                  <div className="font-mono text-xs text-[#e5e5e5]">
+                  <div className="font-mono text-xs text-ink">
                     {preview.total_parsed} valid rows · {preview.total_skipped} skipped (missing title or price)
                   </div>
                   {preview.total_parsed > 50 && (
-                    <div className="font-mono text-[10px] text-[#a3a3a3] mt-1.5 italic">
+                    <div className="font-mono text-[10px] text-ink-muted mt-1.5 italic">
                       Note: This pass commits the first 50. Re-upload to import the rest.
                     </div>
                   )}
@@ -149,40 +149,40 @@ export default function CsvImportModal({ onClose, onImported }) {
               </div>
 
               <div>
-                <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">
+                <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
                   Publish status for imported listings
                 </div>
                 <div className="flex gap-2">
                   <button onClick={() => setPublishStatus("draft")}
-                    className={`px-3 py-2 border font-mono text-[11px] uppercase tracking-[0.22em] ${publishStatus === "draft" ? "border-[#ff4500] bg-[#ff4500]/10 text-[#ff4500]" : "border-[#262626] text-[#a3a3a3]"}`}
+                    className={`px-3 py-2 border font-mono text-[11px] uppercase tracking-[0.22em] ${publishStatus === "draft" ? "border-brand bg-brand/10 text-brand" : "border-line text-ink-muted"}`}
                     data-testid="csv-publish-draft">
                     Drafts (recommended)
                   </button>
                   <button onClick={() => setPublishStatus("active")}
-                    className={`px-3 py-2 border font-mono text-[11px] uppercase tracking-[0.22em] ${publishStatus === "active" ? "border-[#ff4500] bg-[#ff4500]/10 text-[#ff4500]" : "border-[#262626] text-[#a3a3a3]"}`}
+                    className={`px-3 py-2 border font-mono text-[11px] uppercase tracking-[0.22em] ${publishStatus === "active" ? "border-brand bg-brand/10 text-brand" : "border-line text-ink-muted"}`}
                     data-testid="csv-publish-active">
                     Publish immediately
                   </button>
                 </div>
-                <div className="font-mono text-[10px] text-[#737373] mt-2">
+                <div className="font-mono text-[10px] text-ink-muted mt-2">
                   Drafts let you review each listing before going live. You can bulk-publish later from the Listings tab.
                 </div>
               </div>
 
               <div>
-                <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">
+                <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
                   Preview · {preview.preview_rows.length} of {preview.total_parsed}
                 </div>
-                <div className="border border-[#262626] max-h-72 overflow-y-auto" data-testid="csv-preview-list">
+                <div className="border border-line max-h-72 overflow-y-auto" data-testid="csv-preview-list">
                   {preview.preview_rows.map((r, i) => (
-                    <div key={i} className="border-b border-[#1f1f1f] px-3 py-2.5 grid grid-cols-[1fr_auto] gap-3 items-center">
+                    <div key={i} className="border-b border-line px-3 py-2.5 grid grid-cols-[1fr_auto] gap-3 items-center">
                       <div className="min-w-0">
-                        <div className="font-mono text-xs text-[#e5e5e5] truncate">{r.title}</div>
-                        <div className="font-mono text-[10px] text-[#737373] mt-0.5">
+                        <div className="font-mono text-xs text-ink truncate">{r.title}</div>
+                        <div className="font-mono text-[10px] text-ink-muted mt-0.5">
                           stock: {r.stock} · {r.tags.length} tags · {r.image_urls.length} images
                         </div>
                       </div>
-                      <div className="font-display text-base text-[#ff4500] shrink-0">${r.price.toFixed(2)}</div>
+                      <div className="font-display text-base text-brand shrink-0">${r.price.toFixed(2)}</div>
                     </div>
                   ))}
                 </div>
@@ -205,7 +205,7 @@ export default function CsvImportModal({ onClose, onImported }) {
 
           {stage === "committing" && (
             <div className="text-center py-12" data-testid="csv-stage-committing">
-              <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500]">
+              <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand">
                 ◆ Importing…
               </div>
             </div>
@@ -215,7 +215,7 @@ export default function CsvImportModal({ onClose, onImported }) {
             <div className="text-center py-12" data-testid="csv-stage-done">
               <CheckCircle2 size={36} className="text-emerald-400 mx-auto mb-3" />
               <h3 className="font-display text-2xl uppercase mb-2">Imported.</h3>
-              <p className="font-mono text-xs text-[#a3a3a3]">
+              <p className="font-mono text-xs text-ink-muted">
                 Refreshing your listings…
               </p>
             </div>
