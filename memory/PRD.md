@@ -968,3 +968,19 @@ visible in scheduler boot logs after restart.
 - Build broke once mid-iter from a malformed insert; caught and fixed via supervisor logs before pushing forward.
 
 
+
+---
+
+## 2026-06-10 — P3 Per-maker indexation chart wired in admin (iter355b)
+
+**DONE · screenshot verified in both states (bootstrap + populated):**
+- New React component `PerMakerIndexationChart` inserted directly inside `GscIndexationCard`, between the bootstrap hint and the tier buckets — keeps the maker drill-down visually adjacent to the platform sparkline above it.
+- Maker-slug input + "Load chart" button (no API call until submitted, no chart until slug is set — keeps the card quiet on initial load).
+- Reuses the same `recharts` `LineChart` setup as the platform sparkline but uses cyan (`#06b6d4`) instead of green so the two charts are visually distinct when stacked.
+- Bootstrap-mode rendering: when fewer than 2 per-maker snapshots exist, shows "Collecting baseline for {slug} (need ≥2 snapshots; have N). Once iter354 has run twice for this maker, the trend renders here."
+- Error rendering: inline red text for 404 / network errors.
+- All `data-testid`s for future testing: `gsc-per-maker-chart-card`, `gsc-per-maker-slug-input`, `gsc-per-maker-load-btn`, `gsc-per-maker-chart`, `gsc-per-maker-bootstrap`, `gsc-per-maker-error`.
+- Backend endpoint untouched (already shipped in iter355) — `GET /api/admin/gsc/snapshots-trend/maker/{maker_slug}?days=30`.
+- Smoke-tested by seeding 14 fake daily per-maker snapshots for `williams-cnc`, verifying the cyan chart renders below the green platform chart, then cleaning up the fake snapshots.
+
+

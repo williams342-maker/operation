@@ -3598,6 +3598,9 @@ function GscIndexationCard() {
         </div>
       )}
 
+      {/* iter355b — per-maker drill-down chart */}
+      <PerMakerIndexationChart />
+
       {/* Tier buckets — the load-bearing visualization */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
         {[
@@ -3685,6 +3688,134 @@ function GscIndexationCard() {
     </section>
   );
 }
+
+
+/**
+ * iter355b — Per-maker indexation chart drill-down.
+ *
+ * Lets the admin type a maker_slug (or pick from the makers index) and
+ * see THAT maker's 30-day indexed-% timeline alongside the platform
+ * one. Backed by `/api/admin/gsc/snapshots-trend/maker/{slug}` which
+ * reads the `per_maker` rollup persisted in `gsc_indexed_snapshots`
+ * since iter354.
+ *
+ * Render policy:
+ *  - empty input → just the picker (no chart, no API call)
+ *  - input set + ≥2 snapshots → sparkline (same look as platform)
+ *  - input set + <2 snapshots → "collecting baseline" hint
+ *  - 404 / other error → red inline error
+ */
+function PerMakerIndexationChart() {
+  const API = process.env.REACT_APP_BACKEND_URL;
+  const [slug, setSlug] = useState("");
+  const [submitted, setSubmitted] = useState("");
+  const [data, setData] = useState(null);
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!submitted) return;
+    let cancelled = false;
+    (async () => {
+      setBusy(true); setErr(""); setData(null);
+      try {
+        const token = localStorage.getItem("cm_admin_jwt") || "";
+        const r = await fetch(
+          `${API}/api/admin/gsc/snapshots-trend/maker/${encodeURIComponent(submitted)}?days=30`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        if (!cancelled) setData(await r.json());
+      } catch (e) {
+        if (!cancelled) setErr(e.message || "Failed to load");
+      } finally {
+        if (!cancelled) setBusy(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [API, submitted]);
+
+  const onSubmit = (e) => {
+    e.preventDefault();
+    setSubmitted(slug.trim().toLowerCase());
+  };
+
+  return (
+    <div className="border border-line bg-paper p-3 mb-3" data-testid="gsc-per-maker-chart-card">
+      <div className="flex items-baseline justify-between gap-2 mb-2 flex-wrap">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
+          ◆ Drill into one maker
+        </div>
+        {data && data.snapshot_count >= 2 && (
+          <div className="font-mono text-[10px] text-ink-muted">
+            {data.snapshot_count} snapshot{data.snapshot_count === 1 ? "" : "s"} ·
+            first {data.first_snapshot_at} ·
+            latest {data.latest_indexed_pct?.toFixed(1)}%
+          </div>
+        )}
+      </div>
+      <form onSubmit={onSubmit} className="flex gap-2 mb-2">
+        <input
+          type="text"
+          value={slug}
+          onChange={(e) => setSlug(e.target.value)}
+          placeholder="maker-slug (e.g. williams-cnc)"
+          className="flex-1 bg-paper border border-line focus:border-brand outline-none px-3 py-1.5 font-mono text-xs text-ink"
+          data-testid="gsc-per-maker-slug-input"
+        />
+        <button
+          type="submit"
+          disabled={busy || !slug.trim()}
+          className="px-3 py-1.5 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+          data-testid="gsc-per-maker-load-btn"
+        >
+          {busy ? "Loading…" : "Load chart"}
+        </button>
+      </form>
+
+      {err && (
+        <p className="font-mono text-xs text-red-400 mb-2" data-testid="gsc-per-maker-error">{err}</p>
+      )}
+
+      {data && data.snapshot_count >= 2 && (
+        <div style={{ width: "100%", height: 80 }} data-testid="gsc-per-maker-chart">
+          <ResponsiveContainer>
+            <LineChart data={data.series} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+              <YAxis type="number" domain={[0, 100]} hide />
+              <RTooltip
+                contentStyle={{
+                  background: "var(--paper)",
+                  border: "1px solid var(--line)",
+                  fontFamily: "JetBrains Mono, monospace",
+                  fontSize: "11px",
+                }}
+                formatter={(v) => (v === null ? ["—", "Indexed %"] : [`${v.toFixed(1)}%`, "Indexed"])}
+                labelFormatter={(d) => d}
+              />
+              <Line
+                type="monotone"
+                dataKey="indexed_pct"
+                stroke="#06b6d4"
+                strokeWidth={2}
+                dot={false}
+                connectNulls
+                isAnimationActive={false}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {data && data.snapshot_count < 2 && submitted && !err && (
+        <div className="font-mono text-[10px] text-ink-muted" data-testid="gsc-per-maker-bootstrap">
+          Collecting baseline for {submitted} (need ≥2 snapshots; have {data.snapshot_count}).
+          Once iter354 has run twice for this maker, the trend renders here.
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 
 // iter354 — Pinterest Catalog Health card. Shows the feed URL, last
