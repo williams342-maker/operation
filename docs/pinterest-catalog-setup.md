@@ -103,3 +103,49 @@ curl -s "https://craftersmarket.org/api/pinterest/catalog/health" | jq
 ```
 
 If `last_pinterest_fetch_at` is still `null` 30 hours after registering the data source, double-check the Pinterest dashboard Diagnostics tab for ingestion errors.
+
+## Real-time sync (optional · iter352)
+
+The TSV feed above handles bulk sync on Pinterest's 24-48h schedule. For **immediate** updates after a price change or new listing, the same `PINTEREST_ACCESS_TOKEN` can call `POST /v5/catalogs/items/batch` to push specific items — provided the token includes the `catalogs:write` scope.
+
+### Scope detection
+
+Hit the admin endpoint to see what your current token can do:
+
+```bash
+curl -H "Authorization: Bearer $ADMIN_JWT" \
+  "https://craftersmarket.org/api/admin/pinterest/catalog-status"
+```
+
+Possible `status` values:
+| status | meaning | action |
+|---|---|---|
+| `ok` | Token has `catalogs:read` + (likely) `catalogs:write` | Real-time sync available. |
+| `no_token` | `PINTEREST_ACCESS_TOKEN` env var is empty | Run OAuth, store the token. |
+| `expired` | 401 from Pinterest | Refresh the token (or re-run OAuth). |
+| `no_read_scope` | 403 with "scope"/"permission" in message | Re-run OAuth with `scope=catalogs:read,catalogs:write`. |
+| `no_catalogs_role` | 403 without scope wording | The Pinterest user lacks an ad-account Catalogs role (Owner/Admin/Catalogs Manager). |
+
+### Manual re-sync the N most-recent products
+
+```bash
+curl -X POST -H "Authorization: Bearer $ADMIN_JWT" -H "Content-Type: application/json" \
+  -d '{"limit":20}' \
+  "https://craftersmarket.org/api/admin/pinterest/catalog-resync"
+```
+
+Pushes the 20 most-recently-updated published products via Pinterest's items-batch API. Useful after a bulk price change so the catalog reflects the new prices in minutes instead of waiting for the next 24h feed ingestion. Audit row written to `pinterest_resync_log`.
+
+### Important — there is NO "force re-fetch feed" endpoint
+
+Per Pinterest's official docs, the v5 API does **not** expose an endpoint to make Pinterest re-download the TSV feed on demand. The two mechanisms complement each other:
+
+- **Feed (TSV)** — nightly bulk truth, no API token required.
+- **Items batch API** — real-time deltas, requires `catalogs:write`.
+
+If `catalogs:write` is missing, the `/admin/pinterest/catalog-resync` endpoint degrades cleanly (returns `{ok:false, reason:"no_write_scope"}`) — the next nightly feed ingestion will still pick up all changes, you just lose the minutes-instead-of-hours latency for the items you change between ingestions.
+
+### Upgrading scope
+
+The OAuth refresh token alone won't add new scopes — Pinterest requires a fresh user consent. Send your business admin through the OAuth flow again with `scope=user_accounts:read,boards:read,pins:read,pins:write,catalogs:read,catalogs:write` so the new token covers both pin publishing (unchanged) and catalog real-time sync (new).
+

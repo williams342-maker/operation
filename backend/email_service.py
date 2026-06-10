@@ -3156,3 +3156,59 @@ async def send_ops_trending_themes_digest(suggestions: list[dict]) -> bool:
     )
     await _send(OPS_EMAIL, subject, html)
     return True
+
+
+
+# ------------------------------------------------------------------
+# iter351 — GSC Indexed-bucket drop-off alert (P3)
+# Fired by the daily 06:15 UTC `_job_gsc_indexed_dropoff_alert` cron
+# when the `established` (= Indexed) tier drops more than 5pp WoW.
+# ------------------------------------------------------------------
+async def send_ops_gsc_indexed_dropoff(*, current_indexed: int, prior_indexed: int,
+                                       current_total: int, prior_total: int,
+                                       current_pct: float, prior_pct: float,
+                                       drop_pp: float, snapshot_ts: str) -> bool:
+    """Sends a single-recipient ops alert when GSC indexed-bucket drops WoW.
+    Returns True if dispatched, False if OPS_EMAIL unset."""
+    if not OPS_EMAIL:
+        return False
+    body = (
+        "<div style='background:#2a0707;border-left:4px solid #ff4500;padding:16px 18px;margin:0 0 18px'>"
+        "<div style='font-size:10px;letter-spacing:0.3em;color:#ff4500;text-transform:uppercase;margin-bottom:8px'>◆ Indexation alert</div>"
+        f"<div style='font-size:18px;color:#ff4500;font-weight:700'>Indexed listings dropped {drop_pp:.1f}pp WoW</div>"
+        f"<div style='font-size:13px;color:#fca5a5;margin-top:6px'>"
+        f"{current_indexed}/{current_total} indexed today · "
+        f"was {prior_indexed}/{prior_total} a week ago "
+        f"({current_pct:.1f}% → from {prior_pct:.1f}%)"
+        "</div>"
+        "</div>"
+        "<p style='font-size:13px;color:#a3a3a3;line-height:1.6;margin:0 0 12px'>"
+        "Google Search Console is reporting fewer of our published listings as "
+        "<em>Indexed</em> than last week. This is usually one of:"
+        "</p>"
+        "<ul style='font-size:13px;color:#e5e5e5;line-height:1.7;padding-left:18px;margin:0 0 16px'>"
+        "<li><strong>Sitemap rot</strong> — verify <code>/api/sitemap.xml</code> still lists the affected slugs.</li>"
+        "<li><strong>Accidental noindex</strong> — recently-edited templates may have shipped a stray <code>noindex</code> meta.</li>"
+        "<li><strong>Algorithm penalty</strong> — check the GSC Manual Actions and Security panels.</li>"
+        "<li><strong>Crawl budget exhaustion</strong> — robots.txt or 4xx surge can starve the crawler.</li>"
+        "</ul>"
+        "<div style='margin-top:24px;text-align:center'>"
+        "<a href='https://craftersmarket.org/admin/dashboard?tab=settings#gsc' "
+        "style='display:inline-block;background:#ff4500;color:#0a0a0a;"
+        "padding:14px 28px;font-family:Impact,Arial Black,sans-serif;"
+        "font-size:13px;letter-spacing:0.18em;text-transform:uppercase;"
+        "text-decoration:none'>Open admin · Indexation Health</a>"
+        "</div>"
+        f"<p style='font-size:11px;color:#525252;margin:20px 0 0;text-align:right'>"
+        f"Snapshot: {snapshot_ts}"
+        "</p>"
+    )
+    html = _shell(
+        f"-{drop_pp:.1f}pp indexed.",
+        "Indexation health regressed week-over-week.",
+        body,
+        "Crafters Market · SEO Watchdog",
+    )
+    subject = f"[Crafters Market] ⚠️ Indexed listings down {drop_pp:.1f}pp WoW"
+    await _send(OPS_EMAIL, subject, html)
+    return True

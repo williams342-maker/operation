@@ -777,3 +777,85 @@ Discovery — the GSC OAuth auth path is already fully wired:
 **Feed currently serving:** 83 products, all valid (all images absolutized, all prices `NNN.NN USD`, all availability `in stock`, all condition `new`).
 
 
+
+---
+
+## 2026-06-10 — P3 GSC Indexed-bucket WoW drop-off alert (6/6 pytest pass)
+
+**Backend (DONE):**
+- New scheduler job `_job_gsc_indexed_dropoff_alert` in `scheduler.py` — fires daily at **06:15 UTC** (45 min after the existing `refresh_gsc_indexing@05:30 UTC` so it reads the freshest tier counts).
+- Persistence:
+  - `gsc_indexed_snapshots` — one row per UTC date with `{indexed_count, indexed_pct, tier_counts, total_published, ts}`. Idempotent on re-run (`replace_one` keyed by date).
+  - `gsc_alert_log` — one row per dispatched alert with snapshot/prior diff + dedup key.
+- Threshold: tunable via `GSC_INDEXED_DROP_THRESHOLD_PP` env (default **5pp**).
+- Guards (all silent skips, no false positives):
+  - `GSC_ENABLED != 1` → skip
+  - catalog `< 10` listings → skip (avoids alarms on empty DB)
+  - no snapshot ≥6 days old yet → skip (bootstrap mode tolerant of one missed day)
+  - drop ≤ threshold → skip
+  - alert already sent in last 24h → skip (dedup)
+- Email: `email_service.send_ops_gsc_indexed_dropoff` (~50 lines, matches existing `send_ops_prod_outage_alert` aesthetic) — single recipient `OPS_EMAIL=williams342@gmail.com`, deep-links to `/admin/dashboard?tab=settings#gsc`, lists 4 common root causes (sitemap rot · stray noindex · algorithm penalty · crawl budget).
+
+**Tests (DONE · 6/6 pass · `/app/backend/tests/test_iter351_gsc_dropoff_alert.py`):**
+- `test_skip_when_gsc_disabled` — silent no-op when `GSC_ENABLED=0`.
+- `test_snapshot_persists_idempotently` — re-running same day overwrites row.
+- `test_alert_fires_on_large_drop` — 80% → 60% = 20pp drop → email captured with correct math + alert log row written.
+- `test_no_alert_within_threshold` — 80% → 78% = 2pp drop → silent skip.
+- `test_no_alert_when_no_prior_snapshot` — bootstrap-mode silent skip.
+- `test_email_renderer_signature` — verifies HTML body contains "Indexation alert" + correct subject.
+
+**Visual smoke (manual via captured render):**
+- Subject: `[Crafters Market] ⚠️ Indexed listings down 26.2pp WoW`
+- Recipient: `williams342@gmail.com`
+- HTML opens with `-26.2pp indexed.` headline, red alert chip, 4-item action list, CTA "Open admin · Indexation Health".
+
+**Scheduler registration confirmed:**
+```
+gsc_indexed_dropoff_alert@cron[hour='6', minute='15']
+```
+visible in scheduler boot logs after restart.
+
+**Tunable knobs (env):**
+- `GSC_INDEXED_DROP_THRESHOLD_PP` — default 5. Raise to 10 if false-positives become noisy; lower to 3 if catastrophic regressions need to fire faster.
+- `OPS_EMAIL` — already set to `williams342@gmail.com`.
+
+
+
+---
+
+## 2026-06-10 — P3 Pinterest Catalog real-time sync (10/10 tests pass)
+
+**Important framing discovery (per Pinterest playbook · integration_playbook_expert_v2):**
+- Pinterest's v5 API does **NOT** expose a "force re-fetch TSV feed" endpoint. The 24-48h feed cadence is the only documented ingestion schedule for the pull-based feed.
+- The intended real-time complement is `POST /v5/catalogs/items/batch` which pushes individual item deltas. This is what the playbook recommends for dynamic catalogs (price changes, new listings).
+- Token scope expansion requires re-running the OAuth flow with the wider scope list — refresh tokens alone won't add `catalogs:read` / `catalogs:write`.
+
+**Backend (DONE):**
+- New `services/pinterest_catalog_sync.py` (~220 lines, lint-clean):
+  - `check_catalog_scope(force=False)` — probes `GET /v5/catalogs`, returns `{read, write, status, reason, raw}`. Recognizes 6 distinct states: `ok`, `no_token`, `expired`, `no_read_scope`, `no_catalogs_role`, `network_error`. 10-min in-memory scope cache auto-invalidated on 403.
+  - `push_items_batch(items, operation="UPDATE")` — calls `POST /v5/catalogs/items/batch`. Never raises — degrades cleanly with structured `{ok, status_code, reason, response}`.
+  - `push_item_update(item_id, price=, availability=, **extra)` — convenience wrapper, formats price as `NNN.NN USD` matching the feed.
+- New admin endpoints in `routers/pinterest_catalog.py`:
+  - `GET /api/admin/pinterest/catalog-status?force=0` → scope detection result (trimmed payload).
+  - `POST /api/admin/pinterest/catalog-resync` with `{limit:N≤500}` → pushes the N most-recently-updated published products to Pinterest, audits to `pinterest_resync_log`.
+- Live preview env probe shows `status:"no_token"` cleanly (PINTEREST_ACCESS_TOKEN empty in preview — production has the bearer set).
+
+**Tests (DONE · 10/10 pass · `/app/backend/tests/test_iter352_pinterest_catalog_sync.py`):**
+- Covers all 6 scope-detection states (no_token, ok, expired, no_read_scope, no_catalogs_role) using mocked `httpx.AsyncClient`.
+- Verifies `push_items_batch` happy path + 403 graceful degradation + auto-invalidation of scope cache.
+- Verifies `push_item_update` empty-attribute guard + correct price/availability/link payload shape.
+- Verifies the 10-min scope cache prevents duplicate HTTP calls.
+
+**Docs (DONE):** Appended to `/app/docs/pinterest-catalog-setup.md`:
+- Scope-detection curl + status table (6 status values × required action).
+- Manual re-sync curl + audit collection name.
+- Explicit "there is no force-re-fetch endpoint" note + clean degradation behavior when `catalogs:write` is missing.
+- OAuth scope upgrade instructions (the user must re-grant consent, refresh tokens won't help).
+
+**User-side actions (only when ready to enable real-time):**
+1. Open Pinterest Business Hub → Settings → API access → reconnect app with `scope=user_accounts:read,boards:read,pins:read,pins:write,catalogs:read,catalogs:write`.
+2. Paste the new bearer token into the production `PINTEREST_ACCESS_TOKEN` env var.
+3. `curl /api/admin/pinterest/catalog-status?force=1` should report `status:"ok"`.
+4. Optionally wire `push_item_update(slug, price=…)` into the product save flow so every price edit auto-syncs.
+
+

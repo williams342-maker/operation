@@ -79,6 +79,130 @@ async def _job_refresh_gsc_indexing() -> None:
         logger.exception("[scheduler] gsc-indexing refresh failed: %s", e)
 
 
+# iter351 — Indexed-bucket drop-off watchdog.
+# Threshold default: alert when (prior_pct - current_pct) > 5 percentage points.
+# Tunable via GSC_INDEXED_DROP_THRESHOLD_PP env var.
+GSC_INDEXED_DROP_THRESHOLD_PP = float(
+    os.environ.get("GSC_INDEXED_DROP_THRESHOLD_PP", "5") or "5"
+)
+
+
+async def _snapshot_gsc_indexation() -> dict:
+    """Compute the current Indexed/Submitted/Not-In-Sitemap/Unchecked buckets
+    across all published listings and persist a daily snapshot to
+    `gsc_indexed_snapshots`. Idempotent per UTC date (re-runs overwrite)."""
+    from datetime import datetime, timezone
+    from core import db
+    pipeline = [
+        {"$match": {"status": "published",
+                    "deleted_at": {"$in": [None, ""]}}},
+        {"$group": {"_id": "$gsc_tier", "n": {"$sum": 1}}},
+    ]
+    tier_counts = {
+        "established": 0, "submitted": 0, "not_in_sitemap": 0, "unchecked": 0,
+    }
+    async for row in db.products.aggregate(pipeline):
+        key = row.get("_id") or "unchecked"
+        if key not in tier_counts:
+            key = "unchecked"
+        tier_counts[key] += int(row.get("n") or 0)
+    total = sum(tier_counts.values())
+    indexed_pct = (
+        round(100 * tier_counts["established"] / total, 2) if total else 0.0
+    )
+    now = datetime.now(timezone.utc)
+    date_key = now.strftime("%Y-%m-%d")
+    doc = {
+        "_id": date_key,
+        "date": date_key,
+        "ts": now.isoformat(),
+        "tier_counts": tier_counts,
+        "total_published": total,
+        "indexed_count": tier_counts["established"],
+        "indexed_pct": indexed_pct,
+    }
+    await db.gsc_indexed_snapshots.replace_one(
+        {"_id": date_key}, doc, upsert=True,
+    )
+    return doc
+
+
+async def _job_gsc_indexed_dropoff_alert() -> None:
+    """Daily 06:15 UTC. Snapshots today's indexed-bucket count and
+    compares against the snapshot from ~7 days ago. Emails OPS_EMAIL
+    when the drop exceeds GSC_INDEXED_DROP_THRESHOLD_PP percentage
+    points. No-ops gracefully when GSC isn't connected, when no prior
+    snapshot exists yet (bootstrap mode), or when an alert was already
+    sent for the same regression in the last 24h (de-dupe via
+    `gsc_alert_log`)."""
+    from datetime import datetime, timedelta, timezone
+    from core import db
+    from email_service import send_ops_gsc_indexed_dropoff
+    try:
+        if (os.environ.get("GSC_ENABLED") or "").strip() != "1":
+            logger.info("[scheduler] gsc-dropoff-alert: GSC_ENABLED!=1, skipping")
+            return
+        current = await _snapshot_gsc_indexation()
+        # Don't alarm-page on an empty catalog (e.g. fresh DB).
+        if (current.get("total_published") or 0) < 10:
+            logger.info("[scheduler] gsc-dropoff-alert: catalog too small "
+                        "(%d listings), skipping", current.get("total_published") or 0)
+            return
+
+        # Find a snapshot from ≥6 days ago (tolerates one missed cron day).
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=6)).isoformat()
+        prior = await db.gsc_indexed_snapshots.find_one(
+            {"ts": {"$lte": cutoff}},
+            sort=[("ts", -1)],
+        )
+        if not prior:
+            logger.info("[scheduler] gsc-dropoff-alert: no prior snapshot yet "
+                        "(bootstrap mode), skipping")
+            return
+
+        drop_pp = float(prior.get("indexed_pct", 0)) - float(current["indexed_pct"])
+        if drop_pp <= GSC_INDEXED_DROP_THRESHOLD_PP:
+            logger.info("[scheduler] gsc-dropoff-alert: ok, drop %.2fpp ≤ "
+                        "threshold %.2fpp", drop_pp, GSC_INDEXED_DROP_THRESHOLD_PP)
+            return
+
+        # De-dupe: skip if we already alerted in the last 24h.
+        last_alert_cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+        recent_alert = await db.gsc_alert_log.find_one(
+            {"kind": "indexed_dropoff", "ts": {"$gte": last_alert_cutoff}},
+        )
+        if recent_alert:
+            logger.info("[scheduler] gsc-dropoff-alert: alert already sent in "
+                        "last 24h (id=%s), skipping", recent_alert.get("_id"))
+            return
+
+        ok = await send_ops_gsc_indexed_dropoff(
+            current_indexed=current["indexed_count"],
+            prior_indexed=prior["indexed_count"],
+            current_total=current["total_published"],
+            prior_total=prior["total_published"],
+            current_pct=current["indexed_pct"],
+            prior_pct=prior["indexed_pct"],
+            drop_pp=drop_pp,
+            snapshot_ts=current["ts"],
+        )
+        await db.gsc_alert_log.insert_one({
+            "_id": f"alert_{current['date']}",
+            "kind": "indexed_dropoff",
+            "ts": current["ts"],
+            "current": current,
+            "prior": prior,
+            "drop_pp": drop_pp,
+            "threshold_pp": GSC_INDEXED_DROP_THRESHOLD_PP,
+            "email_sent": bool(ok),
+        })
+        logger.warning("[scheduler] gsc-dropoff-alert: emailed ops · drop=%.2fpp "
+                       "(%.1f%% → %.1f%%)", drop_pp,
+                       prior["indexed_pct"], current["indexed_pct"])
+    except Exception as e:
+        logger.exception("[scheduler] gsc-dropoff-alert failed: %s", e)
+
+
 async def _job_founders_lifecycle() -> None:
     """Daily Founder maintenance — auto-roll expired Founders to Standard
     and revoke 14-day grace slots that never published a product."""
@@ -1285,6 +1409,12 @@ def start_scheduler() -> AsyncIOScheduler | None:
     # GSC index-status refresh — daily 05:30 UTC. No-ops without GSC creds.
     sched.add_job(_job_refresh_gsc_indexing, CronTrigger(hour=5, minute=30),
                   id="refresh_gsc_indexing", replace_existing=True)
+    # iter351 — Indexed-bucket WoW drop-off alert — daily 06:15 UTC.
+    # Runs 45 min after the GSC refresh so the tier counts it reads are
+    # the freshest possible. No-ops when GSC_ENABLED!=1, catalog<10, or
+    # we already alerted in the last 24h.
+    sched.add_job(_job_gsc_indexed_dropoff_alert, CronTrigger(hour=6, minute=15),
+                  id="gsc_indexed_dropoff_alert", replace_existing=True)
     # Founders lifecycle — runs at 03:15 UTC daily, right after listing expiry.
     # Auto-rolls regular Founders past 12-month window to Standard, and
     # revokes 14-day grace slots that never published anything.

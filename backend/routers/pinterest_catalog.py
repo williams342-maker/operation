@@ -33,10 +33,12 @@ import re
 from io import StringIO
 from typing import AsyncIterator
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
 
 from core import db, now_iso
+from maker_auth import current_admin
 
 router = APIRouter()
 log = logging.getLogger("crafters.pinterest_catalog")
@@ -273,4 +275,90 @@ async def pinterest_catalog_health():
         "last_pinterest_fetch_at": last_pinterest_fetch,
         "currency": DEFAULT_CURRENCY,
         "site_root": PUBLIC_SITE_URL,
+    }
+
+
+
+# ── iter352 — Real-time catalog sync (admin) ───────────────────────────
+@router.get("/admin/pinterest/catalog-status")
+async def admin_pinterest_catalog_status(force: bool = False,
+                                         _: dict = Depends(current_admin)):
+    """Probe the current `PINTEREST_ACCESS_TOKEN` for catalog scopes.
+
+    Returns scope-detection result from `services.pinterest_catalog_sync`
+    so the admin can see at-a-glance whether the token can do real-time
+    item updates (catalogs:write) or whether it's stuck on the 24-48h
+    feed cadence only. Set `?force=1` to skip the 10-min scope cache."""
+    from services.pinterest_catalog_sync import check_catalog_scope
+    result = await check_catalog_scope(force=bool(force))
+    # Trim the raw response to keep this endpoint payload small.
+    raw = result.get("raw") or {}
+    if isinstance(raw, dict) and "items" in raw:
+        raw = {"item_count": len(raw.get("items") or []),
+               "first_catalog_id": (raw.get("items") or [{}])[0].get("id")
+                                   if raw.get("items") else None}
+    return {**result, "raw": raw}
+
+
+class CatalogResyncRequest(BaseModel):
+    limit: int = Field(20, ge=1, le=500)
+
+
+@router.post("/admin/pinterest/catalog-resync")
+async def admin_pinterest_catalog_resync(body: CatalogResyncRequest,
+                                         _: dict = Depends(current_admin)):
+    """Push the most-recently-updated N products as a real-time batch
+    UPDATE to Pinterest (so price changes show within minutes instead
+    of waiting for the next 24h feed ingestion).
+
+    No-ops cleanly when the token lacks `catalogs:write` — caller can
+    inspect `result.reason` and prompt the user to reconnect Pinterest
+    with the expanded scope set. Audit row is logged to
+    `pinterest_resync_log` either way for traceability."""
+    from services.pinterest_catalog_sync import push_items_batch
+
+    # Snapshot the N most-recently-updated published products.
+    cursor = (
+        db.products.find(
+            {"status": "published", "deleted_at": None},
+            {"slug": 1, "title": 1, "price": 1, "in_stock": 1,
+             "images": 1, "image_url": 1, "category": 1, "technique": 1},
+        )
+        .sort([("updated_at", -1), ("created_at", -1)])
+        .limit(body.limit)
+    )
+    items: list[dict] = []
+    async for p in cursor:
+        slug = p.get("slug")
+        if not slug or not p.get("price"):
+            continue
+        attrs: dict = {
+            "price": f"{float(p['price']):.2f} USD",
+            "availability": (
+                "out of stock" if (p.get("in_stock") is not None
+                                   and int(p.get("in_stock") or 0) <= 0)
+                else "in stock"
+            ),
+        }
+        link = f"{PUBLIC_SITE_URL}/shop/{slug}"
+        attrs["link"] = link
+        items.append({"item_id": slug, "attributes": attrs})
+
+    if not items:
+        return {"ok": False, "pushed": 0, "reason": "no eligible products",
+                "result": None}
+
+    result = await push_items_batch(items, operation="UPDATE")
+    await db.pinterest_resync_log.insert_one({
+        "ts": now_iso(),
+        "requested_limit": body.limit,
+        "pushed_count": len(items),
+        "ok": bool(result.get("ok")),
+        "status_code": result.get("status_code"),
+        "reason": result.get("reason"),
+    })
+    return {
+        "ok": bool(result.get("ok")),
+        "pushed": len(items),
+        "result": result,
     }
