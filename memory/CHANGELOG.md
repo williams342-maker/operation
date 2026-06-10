@@ -1,3 +1,27 @@
+## 2026-06-10 — Featured Builds rail readability fix (iter357)
+
+User pointed at the "FEATURED BUILDS · PLATFORM SHOWCASE" section header in a screenshot — the prev/next chevron buttons and the "VIEW ALL EXAMPLES →" link were nearly invisible. The H2 "Built to set the bar." was also barely readable.
+
+### Root cause
+`FeaturedBuildsRail.jsx` uses an INTENTIONAL dark "cinematic" backdrop (`bg-[#0a0705]` + copper-glow + blueprint-grid). The component was originally written for the old dark-theme-everywhere world, so the H2 + chevron-button icons + product titles had NO explicit text color — they relied on inheriting `var(--fg)` which was light gray (`#E5E5E5`) under the old dark theme.
+
+After the Phase A redesign, `var(--fg)` flipped to dark ink (`#1A1A1A`) for light mode. Those uncolored elements suddenly became dark-text-on-dark-background = invisible.
+
+### Fix
+Explicit text colors on the elements that sit ON the intentional dark cinematic backdrop (NOT theme-tokenized — these are intentionally dark regardless of global theme since the section is mood-lit):
+- `h2.Built-to-set-the-bar` → `text-amber-50`
+- Prev/next scroll buttons → added `text-amber-200`
+- Product title `<div>` inside each card → `text-amber-50`
+
+The "VIEW ALL EXAMPLES →" link already had `text-amber-300` so it was readable; the user circled the whole region because the surrounding chevron buttons made it look broken.
+
+### Smoke test
+- Lint clean on the edit (pre-existing line 124 unescaped-quote warning untouched)
+- Hero homepage screenshot confirms set 1 photos rendering pristine (no alt-text leak), nav fully readable, body cream + ink
+
+---
+
+
 ## 2026-06-10 — Hero ↔ SitePromo integration + nav readability fix (iter356)
 
 User: "Tie the active hero set to a matching SitePromo banner" + reported "top banner font is unreadable".

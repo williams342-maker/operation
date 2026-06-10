@@ -89,7 +89,7 @@ export default function FeaturedBuildsRail({ testId = "home-featured-builds" }) 
               <Sparkles size={12} className="text-amber-400" />
               Featured Builds · Platform Showcase
             </div>
-            <h2 className="font-display text-4xl md:text-5xl lg:text-6xl tracking-tighter">
+            <h2 className="font-display text-4xl md:text-5xl lg:text-6xl tracking-tighter text-amber-50">
               Built to set the bar.
             </h2>
           </div>
@@ -97,14 +97,14 @@ export default function FeaturedBuildsRail({ testId = "home-featured-builds" }) 
             <button
               onClick={() => scroll(-1)} aria-label="Scroll left"
               data-testid={`${testId}-scroll-left`}
-              className="hidden md:inline-flex w-10 h-10 border border-amber-700/60 hover:border-amber-400 hover:text-amber-300 hover:bg-amber-500/10 items-center justify-center transition-colors"
+              className="hidden md:inline-flex w-10 h-10 border border-amber-700/60 text-amber-200 hover:border-amber-400 hover:text-amber-300 hover:bg-amber-500/10 items-center justify-center transition-colors"
             >
               <ChevronLeft size={18} />
             </button>
             <button
               onClick={() => scroll(1)} aria-label="Scroll right"
               data-testid={`${testId}-scroll-right`}
-              className="hidden md:inline-flex w-10 h-10 border border-amber-700/60 hover:border-amber-400 hover:text-amber-300 hover:bg-amber-500/10 items-center justify-center transition-colors"
+              className="hidden md:inline-flex w-10 h-10 border border-amber-700/60 text-amber-200 hover:border-amber-400 hover:text-amber-300 hover:bg-amber-500/10 items-center justify-center transition-colors"
             >
               <ChevronRight size={18} />
             </button>
@@ -159,7 +159,7 @@ export default function FeaturedBuildsRail({ testId = "home-featured-builds" }) 
                   </div>
                 </div>
                 <div className="relative z-10 p-5">
-                  <div className="font-display text-xl md:text-2xl mb-1 line-clamp-2 min-h-[3rem] tracking-tight">{p.title}</div>
+                  <div className="font-display text-xl md:text-2xl mb-1 line-clamp-2 min-h-[3rem] tracking-tight text-amber-50">{p.title}</div>
                   <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-zinc-500 mb-3 line-clamp-1">
                     {p.category}
                   </div>
