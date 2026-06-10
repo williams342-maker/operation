@@ -740,3 +740,40 @@ Discovery — the GSC OAuth auth path is already fully wired:
 6. Subsequent "Ping now" clicks auto-submit sitemap to GSC + log to `seo_gsc_audit`. Daily 05:30 UTC sweep starts pulling per-URL index verdicts.
 
 
+
+---
+
+## 2026-06-10 — P3 Pinterest Catalog Sync (19/19 tests pass · iter_84)
+
+**Backend (DONE):**
+- New router `routers/pinterest_catalog.py` (220 lines) exposing:
+  - `GET /api/pinterest/catalog.tsv` (PUBLIC · streaming TSV product feed Pinterest's crawler pulls every 24h)
+  - `GET /api/pinterest/catalog/health` (PUBLIC · diagnostic JSON: product_count + last fetch timestamps)
+- Feed columns (15): `id, title, description, link, image_link, additional_image_link, price, availability, condition, brand, google_product_category, product_type, item_group_id, color, size`
+- All field formatting follows Pinterest spec exactly:
+  - `price` → `NNN.NN USD`
+  - `availability` ∈ {`in stock`, `out of stock`, `preorder`} (defaults to `out of stock` on unparseable input — safer per code-review iter_84 #1)
+  - `condition` → `new`
+  - `image_link` always absolute https (auto-absolutized via `_absolutize` helper)
+  - `_clean()` strips HTML tags + tabs/newlines from descriptions (per code-review iter_84 #4)
+- Pull-based — no Pinterest API token required. Independent of existing `PINTEREST_ACCESS_TOKEN` flow.
+- User-Agent heuristic distinguishes `Pinterestbot` ingestion hits from generic curl tests in the health summary.
+- Unmapped category WARN-once logging surfaces gaps in `GOOGLE_CATEGORY_MAP` to admin logs (per code-review iter_84 #3).
+- Server registration: `server.py` lines 39 + 114.
+
+**Tests (DONE):**
+- HTTP regression suite: `/app/backend/tests/test_iter350_pinterest_catalog_http.py` (created by testing agent · 19/19 pass against live preview).
+- Scaffold tests: `/app/backend/tests/test_iter350_pinterest_catalog_feed.py` (TestClient-based · hits known motor event-loop pollution — each test passes individually).
+- Report: `/app/test_reports/iteration_84.json`.
+
+**Docs (DONE):**
+- Full user-side setup playbook at `/app/docs/pinterest-catalog-setup.md` with verification curl commands, field-mapping table, per-variant breakout instructions, and Pinterest Diagnostics troubleshooting.
+
+**User-side action (~5 min, one-time):**
+1. Pinterest Business Hub → Ads → Catalogs → Add data source.
+2. Feed URL: `https://craftersmarket.org/api/pinterest/catalog.tsv` · Format: TSV · US · en · USD · Daily.
+3. Save. Pinterest ingests within 24 h; verify via `curl /api/pinterest/catalog/health` showing populated `last_pinterest_fetch_at`.
+
+**Feed currently serving:** 83 products, all valid (all images absolutized, all prices `NNN.NN USD`, all availability `in stock`, all condition `new`).
+
+

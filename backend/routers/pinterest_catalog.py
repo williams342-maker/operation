@@ -63,12 +63,17 @@ FIELDNAMES = [
 
 # Pinterest forbids tabs/newlines inside TSV fields. Replace defensively.
 _BAD_CHARS = re.compile(r"[\t\r\n]+")
+# Strip HTML tags from descriptions — Pinterest renders fields as plain
+# text and raw HTML would appear as visible angle brackets in pins.
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+_UNMAPPED_CATEGORIES_SEEN: set[str] = set()
 
 
 def _clean(s: str | None, max_len: int = 5000) -> str:
     if not s:
         return ""
-    out = _BAD_CHARS.sub(" ", str(s)).strip()
+    out = _HTML_TAG_RE.sub("", str(s))
+    out = _BAD_CHARS.sub(" ", out).strip()
     return out[:max_len]
 
 
@@ -83,7 +88,11 @@ def _format_price(price: float | int | None) -> str:
 
 def _availability(in_stock: int | None, status: str | None) -> str:
     """Map our internal stock signals to Pinterest's spec values.
-    Pinterest expects 'in stock' | 'out of stock' | 'preorder'."""
+    Pinterest expects 'in stock' | 'out of stock' | 'preorder'.
+
+    Defaults to 'out of stock' on unparseable input — safer than showing
+    a paused/broken item as in-stock and getting an order we can't fulfill
+    (per code-review note iter_84 #1)."""
     if (status or "").lower() == "draft":
         return "out of stock"
     if in_stock is None:
@@ -91,7 +100,7 @@ def _availability(in_stock: int | None, status: str | None) -> str:
     try:
         return "in stock" if int(in_stock) > 0 else "out of stock"
     except (TypeError, ValueError):
-        return "in stock"
+        return "out of stock"
 
 
 def _absolutize(url: str | None) -> str:
@@ -131,6 +140,17 @@ def _product_to_row(p: dict, maker: dict | None) -> dict:
     )
     category = p.get("category") or "Wall Art"
     google_cat = GOOGLE_CATEGORY_MAP.get(category, "")
+    if not google_cat and category and category not in _UNMAPPED_CATEGORIES_SEEN:
+        # Log once per unmapped category so coverage gaps surface in admin
+        # logs (per code-review note iter_84 #3) — avoid log spam by tracking
+        # what we've already warned about.
+        _UNMAPPED_CATEGORIES_SEEN.add(category)
+        log.warning(
+            "[pinterest-feed] category %r has no GOOGLE_CATEGORY_MAP entry "
+            "— emitting empty google_product_category for affected rows. "
+            "Add it to GOOGLE_CATEGORY_MAP in routers/pinterest_catalog.py.",
+            category,
+        )
     # `product_type` = our own taxonomy path. Gives Pinterest internal grouping
     # for shop tabs and improves search match quality.
     technique = (p.get("technique") or "").upper()
