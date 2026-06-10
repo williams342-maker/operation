@@ -396,3 +396,50 @@ async def gsc_indexation_summary(_: dict = Depends(current_admin)):
         "gsc_connected": bool(await db.gsc_oauth.find_one(
             {"_id": "singleton"}, {"_id": 0, "refresh_token": 1})),
     }
+
+
+
+# ─────────────── iter353 — Indexation trend sparkline ───────────────
+@router.get("/admin/gsc/snapshots-trend")
+async def gsc_snapshots_trend(days: int = 30,
+                              _: dict = Depends(current_admin)):
+    """Return the last N days of `gsc_indexed_snapshots` for charting.
+
+    Snapshots are persisted daily by the iter351 06:15 UTC cron, keyed
+    by UTC date. Sparse runs are gap-filled with `None` so the React
+    chart can render a continuous line without per-point null guards.
+    """
+    from datetime import datetime, timedelta, timezone
+    days = max(7, min(90, int(days)))
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    cursor = db.gsc_indexed_snapshots.find(
+        {"ts": {"$gte": cutoff}},
+        {"_id": 0, "date": 1, "ts": 1, "indexed_count": 1,
+         "indexed_pct": 1, "total_published": 1, "tier_counts": 1},
+    ).sort("date", 1)
+    rows = [r async for r in cursor]
+    # Gap-fill missing days so the chart x-axis renders evenly.
+    by_date = {r["date"]: r for r in rows}
+    today = datetime.now(timezone.utc).date()
+    series: list[dict] = []
+    for offset in range(days, -1, -1):
+        d = (today - timedelta(days=offset)).isoformat()
+        if d in by_date:
+            r = by_date[d]
+            series.append({
+                "date": d,
+                "indexed_count": r.get("indexed_count"),
+                "indexed_pct": r.get("indexed_pct"),
+                "total_published": r.get("total_published"),
+            })
+        else:
+            series.append({"date": d, "indexed_count": None,
+                           "indexed_pct": None, "total_published": None})
+    populated = [s for s in series if s["indexed_pct"] is not None]
+    return {
+        "days_requested": days,
+        "snapshot_count": len(populated),
+        "first_snapshot_at": (populated[0]["date"] if populated else None),
+        "latest_indexed_pct": (populated[-1]["indexed_pct"] if populated else None),
+        "series": series,
+    }

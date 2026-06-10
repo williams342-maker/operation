@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { LineChart, Line, ResponsiveContainer, Tooltip as RTooltip, YAxis } from "recharts";
 import { Stat } from "./_shared";
 import {
   fetchAdminSettings,
@@ -3444,16 +3445,26 @@ function GscIndexationCard() {
   const [data, setData] = useState(null);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const [trend, setTrend] = useState(null); // iter353 — sparkline series
 
   const load = async () => {
     setBusy(true); setErr("");
     try {
       const token = localStorage.getItem("cm_admin_jwt") || "";
-      const r = await fetch(`${API}/api/admin/gsc/indexation-summary`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const [r, tr] = await Promise.all([
+        fetch(`${API}/api/admin/gsc/indexation-summary`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch(`${API}/api/admin/gsc/snapshots-trend?days=30`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       setData(await r.json());
+      if (tr.ok) {
+        const tj = await tr.json();
+        setTrend(tj);
+      }
     } catch (e) {
       setErr(e.message || "Failed to load");
     } finally {
@@ -3529,6 +3540,63 @@ function GscIndexationCard() {
           {busy ? "Refreshing…" : "Refresh"}
         </button>
       </div>
+
+      {/* iter353 — 30-day Indexation Trend sparkline */}
+      {trend && trend.snapshot_count >= 2 && (
+        <div
+          className="border border-line bg-paper p-3 mb-3"
+          data-testid="gsc-indexation-trend"
+        >
+          <div className="flex items-baseline justify-between mb-2">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
+              ◆ 30-day indexed % trend
+            </div>
+            <div className="font-mono text-[10px] text-ink-muted">
+              {trend.snapshot_count} snapshot{trend.snapshot_count === 1 ? "" : "s"} ·
+              first {trend.first_snapshot_at}
+            </div>
+          </div>
+          <div style={{ width: "100%", height: 80 }}>
+            <ResponsiveContainer>
+              <LineChart data={trend.series} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                <YAxis
+                  type="number"
+                  domain={[0, 100]}
+                  hide
+                />
+                <RTooltip
+                  contentStyle={{
+                    background: "var(--paper)",
+                    border: "1px solid var(--line)",
+                    fontFamily: "JetBrains Mono, monospace",
+                    fontSize: "11px",
+                  }}
+                  formatter={(v) => (v === null ? ["—", "Indexed %"] : [`${v.toFixed(1)}%`, "Indexed"])}
+                  labelFormatter={(d) => d}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="indexed_pct"
+                  stroke="#22c55e"
+                  strokeWidth={2}
+                  dot={false}
+                  connectNulls
+                  isAnimationActive={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+      {trend && trend.snapshot_count < 2 && (
+        <div
+          className="border border-line bg-paper p-3 mb-3 font-mono text-[10px] text-ink-muted"
+          data-testid="gsc-indexation-trend-bootstrap"
+        >
+          ◆ 30-day indexed % trend — collecting baseline (need ≥2 snapshots;
+          have {trend.snapshot_count}). Next snapshot fires at 06:15 UTC.
+        </div>
+      )}
 
       {/* Tier buckets — the load-bearing visualization */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">

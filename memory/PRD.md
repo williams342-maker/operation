@@ -859,3 +859,38 @@ visible in scheduler boot logs after restart.
 4. Optionally wire `push_item_update(slug, price=…)` into the product save flow so every price edit auto-syncs.
 
 
+
+---
+
+## 2026-06-10 — P3 Pinterest real-time sync hook + P3 GSC Indexation Trend sparkline
+
+### Pinterest sync hook (iter352b · DONE)
+- New helper `_safe_pinterest_sync_product` in `routers/maker.py` mirrors the existing `_safe_indexnow_ping_product` pattern: re-reads the product from DB, builds the Pinterest item-update payload (price formatted `NNN.NN USD`, availability mapped, canonical product link), and calls `services.pinterest_catalog_sync.push_item_update`. Always wrapped in try/except — a Pinterest outage can never bubble a 500 onto the maker's product save.
+- Audit row written to `pinterest_resync_log` with `source: "product_save"` so admins can see real-time sync coverage alongside the manual resync history.
+- Field filter `_PINTEREST_SYNC_FIELDS = {price, in_stock, status, title, description, images, image_url}` — only fires when one of these Pinterest-visible fields actually changed (no spam on auto-renew toggles, SEO tag edits, etc.).
+- Hooked into 2 call sites:
+  - `PATCH /api/maker/products/{slug}` — only when (a) one of the sync fields changed AND (b) the resulting status is `published`.
+  - `POST /api/maker/products/{slug}/publish` — fires on every publish (first-time + republish).
+- Graceful degradation chain (all live in `services.pinterest_catalog_sync`):
+  - empty `PINTEREST_ACCESS_TOKEN` → `reason:"no PINTEREST_ACCESS_TOKEN"` logged
+  - 401 → `reason:"token expired"`
+  - 403 with scope wording → `reason:"no_write_scope"` + scope cache auto-invalidated so next admin status probe reports reality
+  - 403 without scope wording → `reason:"no_catalogs_role"`
+  - network error → `reason:"network error: ..."`
+- The product save returns 200 in all of the above — the BG task swallows every failure mode.
+
+### GSC Indexation Trend sparkline (iter353 · DONE · screenshot verified)
+- New backend endpoint `GET /api/admin/gsc/snapshots-trend?days=N` (clamped 7-90 · default 30) at `routers/gsc_admin.py` lines 401-444:
+  - Reads `gsc_indexed_snapshots` (persisted daily since iter351 06:15 UTC cron).
+  - Gap-fills missing days with `{date, indexed_pct: null, …}` so the chart x-axis stays even.
+  - Returns `{days_requested, snapshot_count, first_snapshot_at, latest_indexed_pct, series}`.
+- React UI extension in `SettingsTab.jsx::GscIndexationCard`:
+  - Imports `LineChart, Line, ResponsiveContainer, Tooltip, YAxis` from `recharts` (already in `package.json`).
+  - Fires the new endpoint in parallel with the existing summary fetch (`Promise.all`).
+  - Renders a 80px-tall green-on-paper sparkline above the tier-bucket grid when `snapshot_count >= 2`.
+  - Shows a friendly bootstrap-mode hint when `snapshot_count < 2`: "30-day indexed % trend — collecting baseline (need ≥2 snapshots; have N). Next snapshot fires at 06:15 UTC." — preserves the card layout while data accumulates.
+  - Chart features: connectNulls (so gap-fill renders as a continuous line), formatted tooltip ("NN.N% Indexed"), hidden Y axis fixed to 0-100 domain so changes are easy to eyeball.
+- `data-testid`s for testing: `gsc-indexation-trend` (populated) and `gsc-indexation-trend-bootstrap` (collecting).
+- Smoke-tested in both states by seeding 14 fake snapshots, verifying the chart renders, then cleaning up (only today's real snapshot remains).
+
+

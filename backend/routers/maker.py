@@ -1,4 +1,5 @@
 """Maker self-serve portal: magic-link auth + profile / products / orders endpoints."""
+import os
 import re
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -328,6 +329,13 @@ async def maker_update_product(
         await db.products.update_one({"slug": product_slug}, {"$set": updates})
     updated = await db.products.find_one({"slug": product_slug}, {"_id": 0})
 
+    # iter352 — Real-time Pinterest catalog sync. Only fires when one of
+    # the Pinterest-visible fields changed AND the listing is published.
+    # _safe_pinterest_sync_product re-checks both inside the BG task.
+    if updates and _PINTEREST_SYNC_FIELDS & updates.keys() \
+            and (updated or {}).get("status") == "published":
+        bg.add_task(_safe_pinterest_sync_product, product_slug)
+
     # If the maker just raised stock from 0 → positive, drain the
     # restock waitlist and email everyone who asked to be notified.
     if "in_stock" in updates:
@@ -388,6 +396,8 @@ async def maker_publish_product(
     from listing_notify import notify_listing_published
     bg.add_task(_safe_notify_listing_published, product_slug)
     bg.add_task(_safe_indexnow_ping_product, product_slug)
+    # iter352 — Real-time Pinterest catalog sync on first publish or republish.
+    bg.add_task(_safe_pinterest_sync_product, product_slug)
     return updated
 
 
@@ -416,6 +426,69 @@ async def _safe_indexnow_ping_product(product_slug: str) -> None:
             await submit_sitemap()
     except Exception as e:
         logger.exception("[bg/gsc] sitemap submit failed: %s", e)
+
+
+# iter352 — Real-time Pinterest catalog sync.
+async def _safe_pinterest_sync_product(product_slug: str) -> None:
+    """Push the latest price / availability / link for one product to
+    Pinterest's items-batch API so Product Pins reflect changes within
+    minutes instead of waiting for the next 24-48h feed ingestion.
+
+    Always no-ops cleanly when:
+      * PINTEREST_ACCESS_TOKEN env is empty
+      * token lacks `catalogs:write` scope (logged once, scope cache
+        auto-invalidated by the service)
+      * product not found or status != published
+
+    Never raises — wrapped in try/except so a Pinterest outage can
+    never bubble up as a 500 on the maker product save."""
+    try:
+        from services.pinterest_catalog_sync import push_item_update
+        prod = await db.products.find_one(
+            {"slug": product_slug},
+            {"price": 1, "in_stock": 1, "status": 1, "deleted_at": 1},
+        )
+        if not prod:
+            return
+        if prod.get("status") != "published" or prod.get("deleted_at"):
+            return
+        if not prod.get("price"):
+            return
+        availability = (
+            "out of stock" if (prod.get("in_stock") is not None
+                               and int(prod.get("in_stock") or 0) <= 0)
+            else "in stock"
+        )
+        site_root = (os.environ.get("PUBLIC_SITE_URL")
+                     or "https://craftersmarket.org").rstrip("/")
+        link = f"{site_root}/shop/{product_slug}"
+        result = await push_item_update(
+            product_slug,
+            price=float(prod["price"]),
+            availability=availability,
+            link=link,
+        )
+        # Audit every attempt so admins can see Pinterest sync coverage
+        # in `pinterest_resync_log`. Single doc per push keeps the
+        # collection lean (no per-row history blowup).
+        await db.pinterest_resync_log.insert_one({
+            "ts": datetime.now(timezone.utc).isoformat(),
+            "source": "product_save",
+            "slug": product_slug,
+            "ok": bool(result.get("ok")),
+            "status_code": result.get("status_code"),
+            "reason": result.get("reason"),
+        })
+    except Exception as e:
+        logger.exception("[bg/pinterest] catalog sync failed for %s: %s",
+                         product_slug, e)
+
+
+# Fields whose change should fire a Pinterest real-time push. We don't
+# fire on every field — e.g. SEO tags or auto-renew toggles don't affect
+# how the Pin looks, so they wait for the nightly feed instead.
+_PINTEREST_SYNC_FIELDS = {"price", "in_stock", "status", "title",
+                          "description", "images", "image_url"}
 
 
 @router.post("/maker/products/{product_slug}/renew", response_model=Product)
