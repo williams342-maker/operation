@@ -92,16 +92,20 @@ export default function PricingPage() {
 
       {/* Hero */}
       <section className="max-w-5xl mx-auto px-6 py-16 md:py-24">
-        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-4">
-          ◆ Pricing
+        <div className="flex items-center gap-3 mb-4">
+          <span className="h-px w-8 bg-brand" />
+          <span className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand">Pricing &middot; Founder Cohort</span>
         </div>
-        <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl leading-[1.05] mb-6">
-          What it actually costs to sell here.
+        <h1
+          className="font-heading uppercase text-5xl sm:text-7xl lg:text-8xl leading-[0.92] tracking-tight text-ink mb-7"
+          data-testid="pricing-h1"
+        >
+          What it actually <span className="text-brand">costs</span> to sell here<span className="text-ink">.</span>
         </h1>
-        <p className="font-mono text-base md:text-lg text-ink-muted max-w-3xl leading-relaxed mb-3">
-          No monthly fees. No per-listing fees. <span className="text-brand">3% transaction
+        <p className="font-body text-base sm:text-lg text-ink-muted max-w-3xl leading-relaxed mb-3">
+          No monthly fees. No per-listing fees. <span className="text-brand font-semibold">3% transaction
           for life</span> if you join the founder cohort. Below: a line-for-line breakdown vs
-          Etsy, Shopify, Amazon Handmade, and Faire — with citations.
+          Etsy, Shopify, Amazon Handmade, and Faire &mdash; with citations.
         </p>
         <p className="font-mono text-xs text-ink-muted max-w-3xl leading-relaxed">
           Updated {new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" })}.

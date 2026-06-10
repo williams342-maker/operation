@@ -1,3 +1,39 @@
+## 2026-06-10 — Marketing-page H1s aligned with hero brand pattern (iter360)
+
+User: "Apply page, Pricing page, About page, etc."
+
+### Pattern applied to all secondary marketing pages
+Same recipe as the homepage hero + shop `/marketplace` H1 (iter359):
+1. Brand-divider eyebrow: `▬ EYEBROW · SECONDARY ▬` with `bg-brand` lines + brand-orange text
+2. H1: `font-heading uppercase text-5xl sm:text-7xl lg:text-8xl leading-[0.92] tracking-tight text-ink`
+3. Within H1: leading words in ink, one `<span class="text-brand">highlighted</span>` word in brand orange, trailing `<span class="text-ink">.</span>` as anchor
+4. Body: `font-body text-base sm:text-lg leading-relaxed text-ink-muted`
+
+### Pages updated (5 H1 instances across 3 files)
+- **`/pricing`** (`PricingPage.jsx`): "What it actually **costs** to sell here." Eyebrow: "PRICING · FOUNDER COHORT"
+- **`/policy`** (`PolicyPage.jsx`): "Site **policies**." Eyebrow: "POLICIES · THE FINE PRINT"
+- **`/apply`** (`ApplyPage.jsx`):
+  - Main: "Apply to **sell**." Eyebrow: "MAKER APPLICATION"
+  - Done state: "Welcome to the **roster**." Eyebrow: "APPLICATION RECEIVED"
+  - Closed state: "We're at **capacity**." Eyebrow: "APPLICATIONS · PAUSED"
+
+### Removed legacy patterns
+- Stripped all uses of `.text-outline-orange` (thin skeletal orange stroke) — replaced with solid filled `text-brand`
+- Stripped giant hardcoded `text-[120px]` / `text-[140px]` sizes in favor of the brand's standard h1 scale
+- Replaced `font-display` references with the new `font-heading` Tailwind family token (Oswald)
+- Eyebrow `◆` glyphs swapped for the brand-divider treatment matching the homepage hero
+
+### Smoke test (live preview, all 3 pages)
+- ✅ `/pricing` H1: "WHAT IT ACTUALLY COSTS TO SELL HERE." color=`rgb(26,26,26)` ink, `COSTS` overrides to brand-orange
+- ✅ `/policy` H1: "SITE POLICIES." color=`rgb(26,26,26)` ink, `POLICIES` overrides to brand-orange
+- ✅ `/apply` H1: "APPLY TO SELL." color=`rgb(26,26,26)` ink, `SELL` overrides to brand-orange
+- ✅ Lint clean on edited lines (pre-existing warnings on unrelated lines untouched)
+
+Note: No standalone `/about` page exists in the codebase. The "About" intent currently lives in WhyWeExist section on home. If you ever add a dedicated `/about`, follow the same recipe and you're golden.
+
+---
+
+
 ## 2026-06-10 — Shop "Marketplace" banner aligned with homepage hero aesthetic (iter359)
 
 User screenshot showed the shop H1 "The Marketplace" using the legacy `.text-outline` style (thin skeletal outline on cream) which didn't match the bold filled aesthetic of the homepage hero ("BIG POTENTIAL.").

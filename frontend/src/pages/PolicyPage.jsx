@@ -672,17 +672,21 @@ export default function PolicyPage() {
     <div className="pt-32 pb-24 grain min-h-screen" data-testid="policy-page">
       <div className="w-full max-w-[1100px] mx-auto px-4 md:px-8">
         <header className="mb-12 md:mb-16">
-          <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand mb-3">
-            ◆ Policies
+          <div className="flex items-center gap-3 mb-4">
+            <span className="h-px w-8 bg-brand" />
+            <span className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand">Policies &middot; The Fine Print</span>
           </div>
-          <h1 className="font-display text-5xl md:text-6xl lg:text-7xl leading-[0.92] tracking-[-0.01em] mb-5">
-            Site Policies
+          <h1
+            className="font-heading uppercase text-5xl sm:text-7xl lg:text-8xl leading-[0.92] tracking-tight text-ink mb-6"
+            data-testid="policy-h1"
+          >
+            Site <span className="text-brand">policies</span><span className="text-ink">.</span>
           </h1>
-          <p className="font-mono text-sm md:text-base text-ink-muted max-w-2xl leading-relaxed">
+          <p className="font-body text-base sm:text-lg text-ink-muted max-w-2xl leading-relaxed">
             The full operating manual for buying and selling on Crafters
-            Market. Each section opens to its full text — please read the ones
+            Market. Each section opens to its full text &mdash; please read the ones
             relevant to your transaction. By using this site you agree to all
-            policies below. Last updated <span className="text-ink">April 2026</span>.
+            policies below. Last updated <span className="text-ink font-semibold">April 2026</span>.
           </p>
           <div className="inline-flex items-center gap-2 mt-5 px-3 py-1.5 border border-amber-700/40 bg-amber-500/5">
             <span className="font-mono text-[10px] uppercase tracking-[0.28em] text-amber-400">

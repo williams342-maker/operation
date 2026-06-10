@@ -79,9 +79,15 @@ export default function ApplyPage() {
   if (settings && settings.allow_maker_applications === false) {
     return (
       <div className="pt-40 pb-24 min-h-screen text-center grain px-4" data-testid="apply-closed">
-        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-4">◆ Applications · Paused</div>
-        <h1 className="font-display text-6xl md:text-8xl mb-6 leading-[0.9]">We're at <span className="text-outline-orange">capacity.</span></h1>
-        <p className="font-mono text-sm text-ink-muted max-w-md mx-auto leading-relaxed">
+        <div className="inline-flex items-center gap-3 mb-4">
+          <span className="h-px w-8 bg-brand" />
+          <span className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand">Applications · Paused</span>
+          <span className="h-px w-8 bg-brand" />
+        </div>
+        <h1 className="font-heading uppercase text-5xl sm:text-7xl lg:text-8xl leading-[0.92] tracking-tight text-ink mb-6">
+          We&rsquo;re at <span className="text-brand">capacity</span><span className="text-ink">.</span>
+        </h1>
+        <p className="font-body text-base sm:text-lg text-ink-muted max-w-md mx-auto leading-relaxed">
           {settings.applications_closed_message || "We're at capacity for new makers right now. Applications will reopen soon."}
         </p>
       </div>
@@ -90,18 +96,29 @@ export default function ApplyPage() {
 
   if (state === "done") return (
     <div className="pt-40 pb-24 min-h-screen text-center grain px-4">
-      <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-4">◆ Application Received</div>
-      <h1 className="font-display text-6xl md:text-8xl mb-6">Welcome To The Roster.</h1>
-      <p className="font-mono text-sm text-ink-muted max-w-md mx-auto">We review every application personally. Expect a reply in 3–5 business days.</p>
+      <div className="inline-flex items-center gap-3 mb-4">
+        <span className="h-px w-8 bg-brand" />
+        <span className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand">Application Received</span>
+        <span className="h-px w-8 bg-brand" />
+      </div>
+      <h1 className="font-heading uppercase text-5xl sm:text-7xl lg:text-8xl leading-[0.92] tracking-tight text-ink mb-6">
+        Welcome to the <span className="text-brand">roster</span><span className="text-ink">.</span>
+      </h1>
+      <p className="font-body text-base sm:text-lg text-ink-muted max-w-md mx-auto">We review every application personally. Expect a reply in 3&ndash;5 business days.</p>
     </div>
   );
 
   return (
     <div className="pt-32 pb-24 grain min-h-screen" data-testid="apply-page">
       <div className="w-full max-w-[1100px] mx-auto px-4 md:px-8">
-        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-4">◆ Maker Application</div>
-        <h1 className="font-display text-[56px] md:text-[120px] leading-[0.88] mb-4">Apply To <span className="text-outline-orange">Sell</span></h1>
-        <p className="font-mono text-sm text-ink-muted max-w-xl mb-8">Approved makers only. Tell us about your shop and what you build — we'll handle storefront, payouts, and audience.</p>
+        <div className="flex items-center gap-3 mb-4">
+          <span className="h-px w-8 bg-brand" />
+          <span className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand">Maker Application</span>
+        </div>
+        <h1 className="font-heading uppercase text-5xl sm:text-7xl lg:text-8xl leading-[0.92] tracking-tight text-ink mb-6" data-testid="apply-h1">
+          Apply to <span className="text-brand">sell</span><span className="text-ink">.</span>
+        </h1>
+        <p className="font-body text-base sm:text-lg text-ink-muted max-w-2xl leading-relaxed mb-10">Approved makers only. Tell us about your shop and what you build &mdash; we&rsquo;ll handle storefront, payouts, and audience.</p>
 
         {/* Transparent fee disclosure — every applicant sees exactly what
             they'll be charged BEFORE submitting. Cuts "I didn't know about
