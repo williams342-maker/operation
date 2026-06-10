@@ -111,7 +111,7 @@ export default function AiDiscoverySearch({ testId = "home-ai-discovery", compac
         </div>
 
         <form onSubmit={handleSubmit} className="relative mb-4" data-testid={`${testId}-form`}>
-          <div className="flex items-center border border-line focus-within:border-brand transition-colors bg-[#0e0e0e]">
+          <div className="flex items-center border border-line focus-within:border-brand transition-colors bg-surface shadow-sm">
             <Sparkles size={16} className="text-brand ml-4 flex-shrink-0" />
             <input
               ref={inputRef}
@@ -126,7 +126,7 @@ export default function AiDiscoverySearch({ testId = "home-ai-discovery", compac
             <button
               type="submit"
               disabled={busy || q.trim().length < 3}
-              className="m-1 px-4 py-3 md:px-5 md:py-3 bg-brand hover:bg-[#ff6533] disabled:opacity-40 disabled:cursor-not-allowed text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-2 transition"
+              className="m-1 px-4 py-3 md:px-5 md:py-3 bg-brand hover:bg-brand-hover disabled:opacity-40 disabled:cursor-not-allowed text-white font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-2 transition"
               data-testid={`${testId}-submit`}
             >
               {busy ? <Loader2 size={14} className="animate-spin" /> : <ArrowRight size={14} />}

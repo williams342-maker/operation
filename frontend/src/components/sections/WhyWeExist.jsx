@@ -95,7 +95,7 @@ export default function WhyWeExist({ testId = "why-we-exist" }) {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.3 }}
             transition={{ delay: 0.1, duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
-            className="font-display text-5xl md:text-7xl lg:text-8xl tracking-tighter leading-[0.9] max-w-5xl mx-auto"
+            className="font-display text-5xl md:text-7xl lg:text-8xl tracking-tighter leading-[0.9] max-w-5xl mx-auto text-amber-50"
           >
             Big marketplaces<br />
             broke handmade.
@@ -141,7 +141,7 @@ export default function WhyWeExist({ testId = "why-we-exist" }) {
                     <Icon size={16} />
                   </span>
                 </div>
-                <h3 className="font-display text-2xl md:text-3xl text-ink leading-[1.05] tracking-tight mb-3">
+                <h3 className="font-display text-2xl md:text-3xl text-amber-50 leading-[1.05] tracking-tight mb-3">
                   {p.title}
                 </h3>
                 <div className="w-12 h-px bg-amber-500/60 mb-4" />

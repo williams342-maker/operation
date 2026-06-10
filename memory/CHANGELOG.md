@@ -1,3 +1,28 @@
+## 2026-06-10 — AI Discovery search bar + WhyWeExist contrast fixes (iter358)
+
+User circled two more dark-on-dark contrast pockets: the AI Discovery search input + the "Why we exist" section below.
+
+### Fix #1 — AI Discovery search bar (`AiDiscoverySearch.jsx`)
+- Search box wrapper was `bg-[#0e0e0e]` (dark hardcoded) — invisible input text against the cream page bg context, and the "MEMORIAL PLAQUE WITH TREE OF LIFE MOTIF" placeholder unreadable.
+- Fix: `bg-surface shadow-sm` (white elevated card surface with subtle shadow). Input text now reads dark ink on white, placeholder reads ink-muted on white.
+- Submit button text: `text-[#0a0a0a]` → `text-white` (and `hover:bg-[#ff6533]` → `hover:bg-brand-hover`) — the brand-orange button now has white text per design system.
+
+### Fix #2 — WhyWeExist section (`sections/WhyWeExist.jsx`)
+Same root cause as iter357 (FeaturedBuildsRail). The section intentionally uses a dark cinematic backdrop (`bg-[#070707]`) but:
+- H2 "Big marketplaces broke handmade. We're rebuilding it." had no explicit text color → inherited `var(--fg)` = dark ink → invisible.
+- Pillar card h3s used `text-ink` → also dark → invisible on the same backdrop.
+- Fix: added explicit `text-amber-50` on both H2 and h3 elements so they stay light regardless of global theme (this section is intentionally mood-lit and should never flip).
+
+### Smoke test
+- ✅ Live screenshot of homepage confirms FeaturedBuildsRail section reads perfectly post-iter357 fix (H2 in amber-50, chevrons visible, 5 product cards with rich photography)
+- ✅ Both edits lint-clean for the lines I touched (pre-existing unescaped-quote warnings on unrelated lines untouched)
+
+### Anti-pattern noted for future devs
+**Sections with intentional dark mood-lit backdrops** (FeaturedBuildsRail's `#0a0705`, WhyWeExist's `#070707`, etc.) need EXPLICIT light text colors (`text-amber-50`/`text-ink-muted` etc.) on every text-bearing element — NOT a reliance on `var(--fg)` or `text-ink` because those tokens flip with the global theme. The "the section never changes mood" requirement makes them special cases that opt out of the theme system.
+
+---
+
+
 ## 2026-06-10 — Featured Builds rail readability fix (iter357)
 
 User pointed at the "FEATURED BUILDS · PLATFORM SHOWCASE" section header in a screenshot — the prev/next chevron buttons and the "VIEW ALL EXAMPLES →" link were nearly invisible. The H2 "Built to set the bar." was also barely readable.
