@@ -41,7 +41,7 @@ export default function IncentiveBanner({ variant = "feed", className = "" }) {
             <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-300">
               ◆ Founding 50 · all slots claimed
             </div>
-            <div className="font-mono text-xs text-[#a3a3a3] leading-relaxed mt-0.5">
+            <div className="font-mono text-xs text-ink-muted leading-relaxed mt-0.5">
               All {slots_total} Featured slots claimed. New posts still
               welcome — they'll appear in the regular feed.
             </div>
@@ -53,33 +53,33 @@ export default function IncentiveBanner({ variant = "feed", className = "" }) {
 
   return (
     <div
-      className={`border border-[#ff4500]/60 bg-[#ff4500]/5 px-4 py-3 ${className}`}
+      className={`border border-brand/60 bg-brand/5 px-4 py-3 ${className}`}
       data-testid="clips-incentive-banner"
     >
       <div className="flex items-start gap-2.5">
-        <Star className="text-[#ff4500] shrink-0 fill-[#ff4500]/30" size={18} />
+        <Star className="text-brand shrink-0 fill-[#ff4500]/30" size={18} />
         <div className="min-w-0 flex-1">
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">
             ◆ Maker incentive · {slots_remaining} of {slots_total} Featured slots left
           </div>
-          <div className="font-mono text-xs text-[#e5e5e5] leading-relaxed mt-1">
+          <div className="font-mono text-xs text-ink leading-relaxed mt-1">
             {variant === "maker" ? (
               <>
-                The first {slots_total} organic uploads to <span className="text-[#ff4500]">/clips</span> get
-                a permanent <strong className="text-[#ff4500]">Featured</strong> star
+                The first {slots_total} organic uploads to <span className="text-brand">/clips</span> get
+                a permanent <strong className="text-brand">Featured</strong> star
                 badge — free. Post a clip below to claim yours.
               </>
             ) : (
               <>
                 The first {slots_total} organic uploads get a free
-                <strong className="text-[#ff4500]"> Featured</strong> star badge — for life.
+                <strong className="text-brand"> Featured</strong> star badge — for life.
                 Are you a maker? Share your first clip from the dashboard.
               </>
             )}
           </div>
         </div>
         <div
-          className="hidden sm:block shrink-0 font-display text-3xl text-[#ff4500] leading-none ml-2"
+          className="hidden sm:block shrink-0 font-display text-3xl text-brand leading-none ml-2"
           aria-hidden="true"
         >
           {slots_remaining}

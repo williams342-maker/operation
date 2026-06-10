@@ -944,15 +944,15 @@ function ClipsSeedCard() {
                 done: "border-emerald-700 text-emerald-300 bg-emerald-950/30",
                 error: "border-red-700 text-red-300 bg-red-950/30",
                 running: "border-yellow-700 text-yellow-300 bg-yellow-950/30 animate-pulse",
-                queued: "border-[#525252] text-ink-muted bg-neutral-900/30",
-              }[j.status] || "border-[#525252] text-ink-muted";
+                queued: "border-line text-ink-muted bg-neutral-900/30",
+              }[j.status] || "border-line text-ink-muted";
               const kindBadge = {
                 budget: { label: "BUDGET", cls: "border-amber-700 text-amber-300 bg-amber-950/40" },
                 moderation: { label: "BLOCKED", cls: "border-pink-700 text-pink-300 bg-pink-950/40" },
                 rate: { label: "RATE", cls: "border-orange-700 text-orange-300 bg-orange-950/40" },
                 timeout: { label: "TIMEOUT", cls: "border-red-800/70 text-red-300/80 bg-red-950/20" },
                 rejected: { label: "INSTANT-FAIL", cls: "border-rose-700 text-rose-200 bg-rose-950/40" },
-                other: { label: "OTHER", cls: "border-[#525252] text-ink-muted" },
+                other: { label: "OTHER", cls: "border-line text-ink-muted" },
               }[kind];
               const startedLabel = startedMs
                 ? new Date(startedMs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
@@ -1528,7 +1528,7 @@ function HeroHeadlinesCard() {
   };
 
   if (!data) return (
-    <div className="border border-amber-700/30 bg-[#0a0805] p-5">
+    <div className="border border-amber-700/30 bg-surface p-5">
       <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-amber-400 mb-3">◆ Hero Headlines · Rotating Pool</div>
       <RowsSkeleton count={4} />
     </div>
@@ -1538,7 +1538,7 @@ function HeroHeadlinesCard() {
   const archived = data.items.filter((i) => i.status === "archived");
 
   return (
-    <div className="border border-amber-700/30 bg-[#0a0805] p-5 space-y-4" data-testid="hero-headlines-card">
+    <div className="border border-amber-700/30 bg-surface p-5 space-y-4" data-testid="hero-headlines-card">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-amber-400 mb-1">◆ Hero Headlines · Rotating Pool</div>
@@ -1824,7 +1824,7 @@ function OpsRow({
   const dot =
     status === "ok"   ? "bg-emerald-400 text-emerald-400"
     : status === "fail" ? "bg-red-400 text-red-400"
-                        : "bg-[#525252] text-ink-muted";
+                        : "bg-ink-muted text-ink-muted";
   return (
     <div
       className="border border-line bg-paper/40 p-3 flex items-start gap-3"
@@ -3125,7 +3125,7 @@ function SalesChannelFeedsCard() {
 
               <div className="flex flex-wrap items-center gap-2 mb-2">
                 <code
-                  className="font-mono text-[11px] text-cyan-300 bg-[#080808] border border-line px-2 py-1 break-all flex-1 min-w-0"
+                  className="font-mono text-[11px] text-cyan-300 bg-paper border border-line px-2 py-1 break-all flex-1 min-w-0"
                   data-testid={`sales-feed-${c.key}-url`}
                 >
                   {c.url}
@@ -3170,7 +3170,7 @@ function SalesChannelFeedsCard() {
                   </div>
                   <div className="grid sm:grid-cols-[120px_1fr_auto] gap-2 items-center mb-2">
                     <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">username</div>
-                    <code className="font-mono text-[11px] text-cyan-300 bg-[#080808] border border-line px-2 py-1">
+                    <code className="font-mono text-[11px] text-cyan-300 bg-paper border border-line px-2 py-1">
                       {creds.pinterest.username}
                     </code>
                     <button
@@ -3183,7 +3183,7 @@ function SalesChannelFeedsCard() {
                   </div>
                   <div className="grid sm:grid-cols-[120px_1fr_auto] gap-2 items-center mb-2">
                     <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">password</div>
-                    <code className="font-mono text-[11px] text-amber-300 bg-[#080808] border border-line px-2 py-1 break-all">
+                    <code className="font-mono text-[11px] text-amber-300 bg-paper border border-line px-2 py-1 break-all">
                       {showPw[c.key]
                         ? creds.pinterest.password
                         : "•".repeat(Math.min(creds.pinterest.password?.length || 0, 32))}
@@ -3734,7 +3734,7 @@ function GscConnectionCard() {
           <button
             onClick={connect}
             disabled={!!busy}
-            className="inline-flex items-center gap-1.5 bg-brand hover:bg-[#ff5f1f] text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] px-4 py-2 disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 bg-brand hover:bg-brand-hover text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] px-4 py-2 disabled:opacity-50"
             data-testid="gsc-connect-btn"
           >
             {busy === "connect" ? "Opening…" : "Connect Google account"}
@@ -3805,7 +3805,7 @@ function ConnectionPill({ connected, email }) {
       }`}
       data-testid="gsc-connection-pill"
     >
-      <span className={`w-1.5 h-1.5 rounded-full ${connected ? "bg-emerald-400" : "bg-[#525252]"}`} />
+      <span className={`w-1.5 h-1.5 rounded-full ${connected ? "bg-emerald-400" : "bg-ink-muted"}`} />
       {connected ? (email ? `Connected · ${email}` : "Connected") : "Not connected"}
     </div>
   );
@@ -5159,7 +5159,7 @@ function CaptionEditorPanel({ row }) {
 
   return (
     <div
-      className="mt-3 border border-line bg-[#070707] p-3 space-y-3"
+      className="mt-3 border border-line bg-surface p-3 space-y-3"
       data-testid={`caption-editor-${row.id}`}
     >
       <div className="flex items-center justify-between gap-2">
@@ -5207,7 +5207,7 @@ function CaptionEditorPanel({ row }) {
             rows={c.key === "instagram" ? 7 : c.key === "pinterest" ? 5 : 4}
             value={drafts[c.key]}
             onChange={(e) => setDrafts((d) => ({ ...d, [c.key]: e.target.value }))}
-            className="w-full bg-paper border border-line focus:border-[#525252] outline-none px-2.5 py-2 font-mono text-[11px] text-ink leading-relaxed resize-y"
+            className="w-full bg-paper border border-line focus:border-line outline-none px-2.5 py-2 font-mono text-[11px] text-ink leading-relaxed resize-y"
             data-testid={`caption-editor-textarea-${row.id}-${c.key}`}
           />
           <div className="font-mono text-[9px] text-ink-muted mt-0.5 text-right">

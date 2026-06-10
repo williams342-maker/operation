@@ -299,7 +299,7 @@ export default function UpdatesAdminTab() {
 function Stat({ label, value, highlight, testId }) {
   return (
     <div
-      className={`border ${highlight ? "border-brand bg-[#1a0a05]" : "border-line bg-paper"} p-4`}
+      className={`border ${highlight ? "border-brand bg-brand/10" : "border-line bg-paper"} p-4`}
       data-testid={testId}
     >
       <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-1">{label}</div>

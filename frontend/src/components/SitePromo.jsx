@@ -20,13 +20,13 @@ import { X } from "lucide-react";
 import { fetchActiveSitePromo } from "../lib/api";
 
 const TONE_STYLES = {
-  default:     "border-[#ff4500] bg-gradient-to-r from-[#ff4500]/15 to-transparent text-[#f5f5f5]",
+  default:     "border-brand bg-gradient-to-r from-[#ff4500]/15 to-transparent text-ink",
   celebration: "border-amber-400 bg-gradient-to-r from-amber-400/15 to-transparent text-amber-50",
   warning:     "border-red-500 bg-gradient-to-r from-red-500/15 to-transparent text-red-50",
 };
 
 const TONE_ACCENT = {
-  default:     "text-[#ff4500]",
+  default:     "text-brand",
   celebration: "text-amber-300",
   warning:     "text-red-300",
 };
@@ -89,7 +89,7 @@ export default function SitePromo({ placement }) {
             {promo.title}
           </div>
           {promo.body && (
-            <div className="font-mono text-xs md:text-sm text-[#d4d4d4] mt-1 leading-relaxed">
+            <div className="font-mono text-xs md:text-sm text-ink mt-1 leading-relaxed">
               {promo.body}
             </div>
           )}
@@ -100,7 +100,7 @@ export default function SitePromo({ placement }) {
         {promo.dismissible && (
           <button
             onClick={onDismiss}
-            className="p-1.5 text-[#a3a3a3] hover:text-[#f5f5f5] transition shrink-0"
+            className="p-1.5 text-ink-muted hover:text-ink transition shrink-0"
             data-testid={`site-promo-dismiss-${placement}`}
             aria-label="Dismiss promo"
           >
@@ -116,7 +116,7 @@ export default function SitePromo({ placement }) {
 function PromoCta({ url, label, placement }) {
   const isExternal = /^https?:\/\//i.test(url);
   const cls =
-    "inline-flex items-center px-4 py-2 bg-[#0a0a0a] hover:bg-[#1a1a1a] border border-current font-mono text-[11px] uppercase tracking-[0.22em] transition shrink-0";
+    "inline-flex items-center px-4 py-2 bg-paper hover:bg-surface border border-current font-mono text-[11px] uppercase tracking-[0.22em] transition shrink-0";
   if (isExternal) {
     return (
       <a

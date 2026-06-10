@@ -12,7 +12,7 @@ function StarRow({ value, onSelect, size = 24 }) {
           onClick={() => onSelect?.(n)}
           className={`leading-none transition ${
             onSelect ? "cursor-pointer hover:scale-110" : "cursor-default"
-          } ${n <= value ? "text-[#ff4500]" : "text-[#3a3a3a]"}`}
+          } ${n <= value ? "text-brand" : "text-[#3a3a3a]"}`}
           style={{ fontSize: size }}
           data-testid={onSelect ? `review-star-${n}` : undefined}
         >
@@ -27,23 +27,23 @@ function ReviewCard({ r }) {
   const date = (r.created_at || "").slice(0, 10);
   return (
     <article
-      className="border border-[#262626] hover:border-[#ff4500]/40 transition p-5 space-y-3"
+      className="border border-line hover:border-brand/40 transition p-5 space-y-3"
       data-testid={`review-card-${r.id}`}
     >
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="font-display text-lg uppercase">{r.name}</div>
           {r.location && (
-            <div className="font-mono text-[10px] text-[#a3a3a3] uppercase tracking-[0.22em]">
+            <div className="font-mono text-[10px] text-ink-muted uppercase tracking-[0.22em]">
               {r.location}
             </div>
           )}
         </div>
         <StarRow value={r.rating || 0} size={16} />
       </div>
-      <p className="font-mono text-sm text-[#e5e5e5] leading-relaxed">{r.text}</p>
+      <p className="font-mono text-sm text-ink leading-relaxed">{r.text}</p>
       {date && (
-        <div className="font-mono text-[10px] text-[#525252] uppercase tracking-[0.22em] flex items-center gap-2 flex-wrap">
+        <div className="font-mono text-[10px] text-ink-muted uppercase tracking-[0.22em] flex items-center gap-2 flex-wrap">
           <span>◆ {date}</span>
           {r.source && (
             <span
@@ -135,10 +135,10 @@ export default function MakerReviews({ makerSlug, makerName }) {
   };
 
   return (
-    <section className="mt-20 pt-12 border-t border-[#262626]" data-testid="maker-reviews">
+    <section className="mt-20 pt-12 border-t border-line" data-testid="maker-reviews">
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
         <div>
-          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-2">
+          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-2">
             ◆ Reviews
           </div>
           <h2 className="font-display text-4xl md:text-6xl uppercase">
@@ -148,7 +148,7 @@ export default function MakerReviews({ makerSlug, makerName }) {
         {summary.count > 0 && (
           <div className="text-right" data-testid="reviews-summary">
             <StarRow value={Math.round(summary.avg)} size={20} />
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mt-1">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mt-1">
               {summary.avg.toFixed(1)} from {summary.count} review{summary.count === 1 ? "" : "s"}
             </div>
           </div>
@@ -156,9 +156,9 @@ export default function MakerReviews({ makerSlug, makerName }) {
       </div>
 
       {loading ? (
-        <p className="font-mono text-sm text-[#a3a3a3]" data-testid="reviews-loading">Loading reviews…</p>
+        <p className="font-mono text-sm text-ink-muted" data-testid="reviews-loading">Loading reviews…</p>
       ) : reviews.length === 0 ? (
-        <p className="font-mono text-sm text-[#a3a3a3] mb-10" data-testid="reviews-empty">
+        <p className="font-mono text-sm text-ink-muted mb-10" data-testid="reviews-empty">
           No reviews yet. Be the first to share your experience with {makerName}.
         </p>
       ) : (
@@ -167,8 +167,8 @@ export default function MakerReviews({ makerSlug, makerName }) {
         </div>
       )}
 
-      <div id="leave-review" className="scroll-mt-32 border border-[#262626] bg-[#0d0d0d] p-6 md:p-8" data-testid="leave-review-card">
-        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-3">
+      <div id="leave-review" className="scroll-mt-32 border border-line bg-surface p-6 md:p-8" data-testid="leave-review-card">
+        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-3">
           ◆ Leave a Review
         </div>
         <h3 className="font-display text-2xl md:text-3xl uppercase mb-6">
@@ -190,14 +190,14 @@ export default function MakerReviews({ makerSlug, makerName }) {
         ) : (
           <form onSubmit={onSubmit} className="space-y-4" data-testid="leave-review-form">
             <div>
-              <label className="block font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">
+              <label className="block font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
                 Your rating
               </label>
               <StarRow value={form.rating} onSelect={(n) => setForm({ ...form, rating: n })} size={32} />
             </div>
             <div className="grid md:grid-cols-2 gap-4">
               <label className="block">
-                <span className="block font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-1">
+                <span className="block font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-1">
                   Name
                 </span>
                 <input
@@ -205,25 +205,25 @@ export default function MakerReviews({ makerSlug, makerName }) {
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                   placeholder="Your name"
-                  className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm text-[#e5e5e5]"
+                  className="w-full bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm text-ink"
                   data-testid="review-name"
                 />
               </label>
               <label className="block">
-                <span className="block font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-1">
-                  Location <span className="text-[#525252]">(optional)</span>
+                <span className="block font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-1">
+                  Location <span className="text-ink-muted">(optional)</span>
                 </span>
                 <input
                   value={form.location}
                   onChange={(e) => setForm({ ...form, location: e.target.value })}
                   placeholder="City, State"
-                  className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm text-[#e5e5e5]"
+                  className="w-full bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm text-ink"
                   data-testid="review-location"
                 />
               </label>
             </div>
             <label className="block">
-              <span className="block font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-1">
+              <span className="block font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-1">
                 Your review
               </span>
               <textarea
@@ -233,10 +233,10 @@ export default function MakerReviews({ makerSlug, makerName }) {
                 onChange={(e) => setForm({ ...form, text: e.target.value })}
                 placeholder="What did you order? How was the craftsmanship, communication, packaging, timing?"
                 maxLength={1500}
-                className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm text-[#e5e5e5]"
+                className="w-full bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm text-ink"
                 data-testid="review-text"
               />
-              <div className="font-mono text-[10px] text-[#525252] text-right mt-1">
+              <div className="font-mono text-[10px] text-ink-muted text-right mt-1">
                 {form.text.length}/1500
               </div>
             </label>

@@ -121,7 +121,7 @@ function ToneCell({ cell }) {
   const dotCls =
     cell.tone === "good" ? "bg-emerald-400"
     : cell.tone === "bad" ? "bg-red-400"
-    : "bg-[#525252]";
+    : "bg-ink-muted";
   return (
     <td className="px-4 py-4 align-top border-t border-line">
       <div className="flex items-start gap-2">
@@ -181,7 +181,7 @@ export default function PricingComparisonTable({ title = "How we compare" }) {
             {FEATURES.map((row) => (
               <tr
                 key={row.label}
-                className="hover:bg-[#0c0c0c]"
+                className="hover:bg-surface"
                 data-testid={`compare-row-${row.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
               >
                 <td className="px-4 py-4 align-top border-t border-line font-mono text-[10px] uppercase tracking-[0.18em] text-ink-muted">

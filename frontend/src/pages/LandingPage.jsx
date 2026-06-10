@@ -27,21 +27,21 @@ export default function LandingPage() {
   });
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-[#e5e5e5] grain" data-testid="landing-page">
+    <div className="min-h-screen bg-paper text-ink grain" data-testid="landing-page">
       {/* ============================================================
           HERO — single-viewport punch
        ============================================================ */}
       <section className="min-h-screen flex items-center justify-center px-6 pt-24 pb-16 relative overflow-hidden">
         {/* Orange glow behind the headline — sells "something's happening here" */}
         <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[900px] h-[900px] rounded-full bg-[#ff4500]/10 blur-[160px]" />
+          <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[900px] h-[900px] rounded-full bg-brand/10 blur-[160px]" />
         </div>
 
         <div className="relative max-w-5xl mx-auto text-center">
           <motion.div
             initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4 }}
-            className="font-mono text-[11px] uppercase tracking-[0.35em] text-[#ff4500] mb-8"
+            className="font-mono text-[11px] uppercase tracking-[0.35em] text-brand mb-8"
           >
             ◆ Crafters Market · Free Beta
           </motion.div>
@@ -53,7 +53,7 @@ export default function LandingPage() {
             data-testid="landing-hero-headline"
           >
             Stop Paying<br />
-            <span className="text-[#ff4500]">Fees.</span><br />
+            <span className="text-brand">Fees.</span><br />
             Start Owning<br />
             Your Craft.
           </motion.h1>
@@ -61,7 +61,7 @@ export default function LandingPage() {
           <motion.p
             initial={{ opacity: 0 }} animate={{ opacity: 1 }}
             transition={{ duration: 0.6, delay: 0.35 }}
-            className="font-mono text-sm md:text-base text-[#a3a3a3] max-w-2xl mx-auto mb-12 leading-relaxed"
+            className="font-mono text-sm md:text-base text-ink-muted max-w-2xl mx-auto mb-12 leading-relaxed"
           >
             A marketplace built for CNC creators, woodworkers, and makers who are done with Etsy.
           </motion.p>
@@ -80,7 +80,7 @@ export default function LandingPage() {
             </Link>
             <Link
               to="/shop"
-              className="font-mono text-[11px] uppercase tracking-[0.28em] text-[#a3a3a3] hover:text-[#ff4500] transition px-4 py-4"
+              className="font-mono text-[11px] uppercase tracking-[0.28em] text-ink-muted hover:text-brand transition px-4 py-4"
               data-testid="landing-hero-secondary"
             >
               Or browse the catalog →
@@ -90,7 +90,7 @@ export default function LandingPage() {
           <motion.p
             initial={{ opacity: 0 }} animate={{ opacity: 1 }}
             transition={{ duration: 0.6, delay: 0.75 }}
-            className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#525252] mt-16"
+            className="font-mono text-[10px] uppercase tracking-[0.3em] text-ink-muted mt-16"
           >
             Built by a CNC maker · Designed for real sellers · Launching now
           </motion.p>
@@ -100,14 +100,14 @@ export default function LandingPage() {
       {/* ============================================================
           PROBLEM — why makers are leaving
        ============================================================ */}
-      <section className="py-24 md:py-32 px-6 border-t border-[#1a1a1a]">
+      <section className="py-24 md:py-32 px-6 border-t border-line">
         <div className="max-w-6xl mx-auto">
-          <div className="font-mono text-[10px] uppercase tracking-[0.32em] text-[#525252] mb-4 text-center">
+          <div className="font-mono text-[10px] uppercase tracking-[0.32em] text-ink-muted mb-4 text-center">
             ◆ The problem
           </div>
           <h2 className="font-display text-4xl sm:text-5xl md:text-6xl uppercase leading-[0.95] text-center mb-16 tracking-[-0.01em]">
             Why makers are<br />
-            <span className="text-[#ff4500]">leaving marketplaces.</span>
+            <span className="text-brand">leaving marketplaces.</span>
           </h2>
 
           <div className="grid md:grid-cols-3 gap-6">
@@ -130,14 +130,14 @@ export default function LandingPage() {
       {/* ============================================================
           SOLUTION — what we do differently
        ============================================================ */}
-      <section className="py-24 md:py-32 px-6 bg-[#0f0f0f] border-t border-[#1a1a1a]">
+      <section className="py-24 md:py-32 px-6 bg-paper border-t border-line">
         <div className="max-w-6xl mx-auto">
-          <div className="font-mono text-[10px] uppercase tracking-[0.32em] text-[#ff4500] mb-4 text-center">
+          <div className="font-mono text-[10px] uppercase tracking-[0.32em] text-brand mb-4 text-center">
             ◆ The fix
           </div>
           <h2 className="font-display text-4xl sm:text-5xl md:text-6xl uppercase leading-[0.95] text-center mb-16 tracking-[-0.01em]">
             A platform that<br />
-            actually works <span className="text-[#ff4500]">for you.</span>
+            actually works <span className="text-brand">for you.</span>
           </h2>
 
           <div className="grid md:grid-cols-3 gap-6">
@@ -160,18 +160,18 @@ export default function LandingPage() {
       {/* ============================================================
           CTA — final push
        ============================================================ */}
-      <section className="py-32 px-6 border-t border-[#1a1a1a] text-center relative overflow-hidden">
+      <section className="py-32 px-6 border-t border-line text-center relative overflow-hidden">
         <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] rounded-full bg-[#ff4500]/10 blur-[140px]" />
+          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] rounded-full bg-brand/10 blur-[140px]" />
         </div>
         <div className="relative max-w-3xl mx-auto">
-          <div className="font-mono text-[10px] uppercase tracking-[0.35em] text-[#ff4500] mb-6">
+          <div className="font-mono text-[10px] uppercase tracking-[0.35em] text-brand mb-6">
             ◆ Early Access · Free
           </div>
           <h2 className="font-display text-5xl sm:text-7xl md:text-8xl uppercase leading-[0.92] tracking-[-0.02em] mb-8">
-            Claim Your<br /><span className="text-[#ff4500]">Spot.</span>
+            Claim Your<br /><span className="text-brand">Spot.</span>
           </h2>
-          <p className="font-mono text-sm text-[#a3a3a3] max-w-xl mx-auto mb-10 leading-relaxed">
+          <p className="font-mono text-sm text-ink-muted max-w-xl mx-auto mb-10 leading-relaxed">
             We're opening a limited number of beta spots for makers. No fees. No risk. Just early access.
           </p>
           <Link
@@ -187,11 +187,11 @@ export default function LandingPage() {
       {/* ============================================================
           FOUNDER NOTE — trust signal
        ============================================================ */}
-      <section className="py-16 px-6 border-t border-[#1a1a1a] text-center">
-        <p className="font-mono text-xs text-[#525252] max-w-xl mx-auto leading-relaxed italic">
+      <section className="py-16 px-6 border-t border-line text-center">
+        <p className="font-mono text-xs text-ink-muted max-w-xl mx-auto leading-relaxed italic">
           Built by a maker who got tired of platform fees.
         </p>
-        <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#525252] mt-4">
+        <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-ink-muted mt-4">
           ◇ craftersmarket.org
         </p>
       </section>
@@ -203,12 +203,12 @@ export default function LandingPage() {
 function ProblemCard({ title, body }) {
   return (
     <div
-      className="border border-[#1a1a1a] bg-[#0f0f0f] p-8 hover:border-[#ff4500]/40 transition-colors"
+      className="border border-line bg-paper p-8 hover:border-brand/40 transition-colors"
       data-testid="landing-problem-card"
     >
-      <XCircle size={28} className="text-[#ff4500]/70 mb-5" />
+      <XCircle size={28} className="text-brand/70 mb-5" />
       <h3 className="font-display text-2xl uppercase leading-tight mb-3">{title}</h3>
-      <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed">{body}</p>
+      <p className="font-mono text-xs text-ink-muted leading-relaxed">{body}</p>
     </div>
   );
 }
@@ -216,12 +216,12 @@ function ProblemCard({ title, body }) {
 function SolutionCard({ title, body }) {
   return (
     <div
-      className="border border-[#ff4500]/30 bg-gradient-to-br from-[#1a0a05] to-[#0f0f0f] p-8 hover:border-[#ff4500] transition-colors"
+      className="border border-brand/30 bg-gradient-to-br from-[#1a0a05] to-[#0f0f0f] p-8 hover:border-brand transition-colors"
       data-testid="landing-solution-card"
     >
-      <CheckCircle2 size={28} className="text-[#ff4500] mb-5" />
+      <CheckCircle2 size={28} className="text-brand mb-5" />
       <h3 className="font-display text-2xl uppercase leading-tight mb-3">{title}</h3>
-      <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed">{body}</p>
+      <p className="font-mono text-xs text-ink-muted leading-relaxed">{body}</p>
     </div>
   );
 }

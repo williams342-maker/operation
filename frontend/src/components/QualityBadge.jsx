@@ -16,7 +16,7 @@ import { Star } from "lucide-react";
 
 const TIER_META = {
   excellent:   { icon: "⭐", label: "Excellent", cls: "border-emerald-400/60 text-emerald-400 bg-emerald-400/10" },
-  good:        { icon: "✦", label: "Good",      cls: "border-[#ff4500]/60 text-[#ff4500] bg-[#ff4500]/10" },
+  good:        { icon: "✦", label: "Good",      cls: "border-brand/60 text-brand bg-brand/10" },
   basic:       { icon: "○", label: "Basic",     cls: "border-amber-400/60 text-amber-400 bg-amber-400/10" },
   incomplete:  { icon: "△", label: "Incomplete", cls: "border-red-500/60 text-red-400 bg-red-500/10" },
 };
@@ -39,24 +39,24 @@ export default function QualityBadge({ quality, size = "sm", showTier = true }) 
       </span>
       {hover && quality.breakdown?.length > 0 && (
         <div
-          className="absolute z-30 top-full left-0 mt-1.5 w-72 bg-[#0a0a0a] border border-[#262626] p-3 shadow-2xl"
+          className="absolute z-30 top-full left-0 mt-1.5 w-72 bg-paper border border-line p-3 shadow-2xl"
           data-testid="quality-tooltip"
         >
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] mb-2">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
             ◆ Bundle Quality · {meta.label}
           </div>
           <ul className="space-y-1.5">
             {quality.breakdown.map((b) => (
               <li key={b.label} className="font-mono text-[11px] flex gap-2 items-start">
-                <span className={`shrink-0 inline-block w-3 ${b.earned ? "text-emerald-400" : "text-[#525252]"}`}>
+                <span className={`shrink-0 inline-block w-3 ${b.earned ? "text-emerald-400" : "text-ink-muted"}`}>
                   {b.earned ? "✓" : "○"}
                 </span>
                 <span className="flex-1">
-                  <span className={b.earned ? "text-[#e5e5e5]" : "text-[#a3a3a3]"}>
-                    {b.label} <span className="text-[#525252]">+{b.points}</span>
+                  <span className={b.earned ? "text-ink" : "text-ink-muted"}>
+                    {b.label} <span className="text-ink-muted">+{b.points}</span>
                   </span>
                   {!b.earned && b.hint && (
-                    <span className="block text-[10px] text-[#525252] leading-relaxed mt-0.5">
+                    <span className="block text-[10px] text-ink-muted leading-relaxed mt-0.5">
                       {b.hint}
                     </span>
                   )}

@@ -73,23 +73,23 @@ function Stepper({ current }) {
         const active = s.id === current;
         return (
           <div key={s.id} className="flex flex-col items-stretch">
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2 truncate">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2 truncate">
               {s.label}
             </div>
             <div className="relative flex items-center">
               <div
                 className={`w-9 h-9 flex items-center justify-center font-mono text-xs ${
                   done
-                    ? "bg-[#ff4500] text-[#0a0a0a]"
+                    ? "bg-brand text-[#0a0a0a]"
                     : active
-                    ? "bg-[#1a1a1a] text-[#ff4500] border border-[#ff4500]"
-                    : "bg-transparent text-[#525252] border border-[#262626]"
+                    ? "bg-surface text-brand border border-brand"
+                    : "bg-transparent text-ink-muted border border-line"
                 }`}
                 data-testid={`step-marker-${s.id}`}
               >
                 {done ? <CheckCircle2 size={16} /> : s.id}
               </div>
-              <div className={`flex-1 h-px ml-2 ${done ? "bg-[#ff4500]" : "bg-[#262626]"}`} />
+              <div className={`flex-1 h-px ml-2 ${done ? "bg-brand" : "bg-surface"}`} />
             </div>
           </div>
         );
@@ -105,7 +105,7 @@ function StepCategory({ value, onPick }) {
   return (
     <div data-testid="step-category">
       <Headline eyebrow="Step 1 of 5" title="What are you making?" />
-      <p className="font-mono text-sm text-[#a3a3a3] max-w-2xl mb-10">
+      <p className="font-mono text-sm text-ink-muted max-w-2xl mb-10">
         What kind of custom piece are you looking to create? Pick the category
         that best describes your vision — you can refine the brief on the next step.
       </p>
@@ -120,25 +120,25 @@ function StepCategory({ value, onPick }) {
               onClick={() => onPick(c)}
               className={`text-left border p-6 transition-all duration-200 ${
                 selected
-                  ? "border-[#ff4500] bg-[#1a0a05]"
-                  : "border-[#262626] hover:border-[#525252] bg-[#0f0f0f]"
+                  ? "border-brand bg-brand/10"
+                  : "border-line hover:border-line bg-paper"
               }`}
               data-testid={`category-card-${c.id.replace(/[\s/]/g, "-").toLowerCase()}`}
             >
               <div
                 className={`w-12 h-12 flex items-center justify-center mb-5 ${
-                  selected ? "bg-[#ff4500] text-[#0a0a0a]" : "bg-[#1a1a1a] text-[#ff4500]"
+                  selected ? "bg-brand text-[#0a0a0a]" : "bg-surface text-brand"
                 }`}
               >
                 <Icon size={20} />
               </div>
               <div className="font-display text-2xl mb-2 leading-tight">{c.id}</div>
-              <div className="font-mono text-xs text-[#a3a3a3] mb-5 leading-relaxed">{c.blurb}</div>
+              <div className="font-mono text-xs text-ink-muted mb-5 leading-relaxed">{c.blurb}</div>
               <div className="flex flex-wrap gap-2">
                 {c.materials.map((m) => (
                   <span
                     key={m}
-                    className="font-mono text-[10px] uppercase tracking-[0.22em] px-2.5 py-1 border border-[#262626] text-[#a3a3a3]"
+                    className="font-mono text-[10px] uppercase tracking-[0.22em] px-2.5 py-1 border border-line text-ink-muted"
                   >
                     {m}
                   </span>
@@ -173,9 +173,9 @@ function StepDescribe({ category, form, setForm }) {
   return (
     <div data-testid="step-describe">
       <Headline eyebrow="Step 2 of 5" title="Describe your piece" />
-      <p className="font-mono text-sm text-[#a3a3a3] max-w-2xl mb-10">
+      <p className="font-mono text-sm text-ink-muted max-w-2xl mb-10">
         Tell us about your{" "}
-        <span className="text-[#ff4500]">{category}</span>. The more detail you
+        <span className="text-brand">{category}</span>. The more detail you
         give, the better makers can quote and plan your project.
       </p>
 
@@ -183,7 +183,7 @@ function StepDescribe({ category, form, setForm }) {
         <textarea
           required rows={6} value={form.description} onChange={set("description")}
           placeholder="Describe what you want — size, style, text, finish, purpose, reference images…"
-          className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none p-4 font-mono text-sm text-[#e5e5e5] placeholder:text-[#525252] resize-none"
+          className="w-full bg-transparent border border-line focus:border-brand outline-none p-4 font-mono text-sm text-ink placeholder:text-ink-muted resize-none"
           data-testid="co-description"
         />
       </Field>
@@ -192,7 +192,7 @@ function StepDescribe({ category, form, setForm }) {
         <Field label="Preferred material">
           <select
             value={form.material} onChange={set("material")}
-            className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-3 font-mono text-sm text-[#e5e5e5]"
+            className="w-full bg-paper border border-line focus:border-brand outline-none px-3 py-3 font-mono text-sm text-ink"
             data-testid="co-material"
           >
             <option value="">— Any / Maker's choice —</option>
@@ -205,7 +205,7 @@ function StepDescribe({ category, form, setForm }) {
           <input
             value={form.size} onChange={set("size")}
             placeholder='e.g. 24" × 36" or "roughly A2"'
-            className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-3 font-mono text-sm text-[#e5e5e5] placeholder:text-[#525252]"
+            className="w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-3 font-mono text-sm text-ink placeholder:text-ink-muted"
             data-testid="co-size"
           />
         </Field>
@@ -213,7 +213,7 @@ function StepDescribe({ category, form, setForm }) {
         <Field label="Quantity">
           <select
             value={form.quantity} onChange={set("quantity")}
-            className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-3 font-mono text-sm text-[#e5e5e5]"
+            className="w-full bg-paper border border-line focus:border-brand outline-none px-3 py-3 font-mono text-sm text-ink"
             data-testid="co-quantity"
           >
             {QUANTITIES.map((q) => <option key={q} value={q}>{q}</option>)}
@@ -223,7 +223,7 @@ function StepDescribe({ category, form, setForm }) {
         <Field label="Budget range">
           <select
             value={form.budget} onChange={set("budget")}
-            className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-3 font-mono text-sm text-[#e5e5e5]"
+            className="w-full bg-paper border border-line focus:border-brand outline-none px-3 py-3 font-mono text-sm text-ink"
             data-testid="co-budget"
           >
             {BUDGETS.map((b) => <option key={b} value={b === BUDGETS[0] ? "" : b}>{b}</option>)}
@@ -232,7 +232,7 @@ function StepDescribe({ category, form, setForm }) {
       </div>
 
       <div className="mt-8">
-        <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#a3a3a3] mb-3">Timeline</div>
+        <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-ink-muted mb-3">Timeline</div>
         <div className="flex flex-wrap gap-2">
           {TIMELINES.map((t) => (
             <button
@@ -240,8 +240,8 @@ function StepDescribe({ category, form, setForm }) {
               onClick={() => setForm({ ...form, timeline: t })}
               className={`font-mono text-[11px] uppercase tracking-[0.22em] px-4 py-2 border transition ${
                 form.timeline === t
-                  ? "bg-[#ff4500] text-[#0a0a0a] border-[#ff4500]"
-                  : "border-[#262626] text-[#a3a3a3] hover:border-[#ff4500]"
+                  ? "bg-brand text-[#0a0a0a] border-brand"
+                  : "border-line text-ink-muted hover:border-brand"
               }`}
               data-testid={`co-timeline-${t.toLowerCase().replace(/[\s+]/g, "-")}`}
             >
@@ -302,7 +302,7 @@ function StepMaker({ value, onPick, description, projectType }) {
   return (
     <div data-testid="step-maker">
       <Headline eyebrow="Step 3 of 5" title="Choose a maker" />
-      <p className="font-mono text-sm text-[#a3a3a3] max-w-2xl mb-10">
+      <p className="font-mono text-sm text-ink-muted max-w-2xl mb-10">
         Pick a specific maker to send your request to — or leave it open and
         we'll match you with the best fit.
       </p>
@@ -310,17 +310,17 @@ function StepMaker({ value, onPick, description, projectType }) {
       {/* Filters */}
       <div className="grid md:grid-cols-2 gap-4 mb-8">
         <div className="relative">
-          <Search size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#525252]" />
+          <Search size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-ink-muted" />
           <input
             value={q} onChange={(e) => setQ(e.target.value)}
             placeholder="Search makers by name, specialty, location…"
-            className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none pl-10 pr-4 py-3 font-mono text-xs uppercase tracking-[0.18em] text-[#e5e5e5] placeholder:text-[#525252]"
+            className="w-full bg-transparent border border-line focus:border-brand outline-none pl-10 pr-4 py-3 font-mono text-xs uppercase tracking-[0.18em] text-ink placeholder:text-ink-muted"
             data-testid="co-maker-search"
           />
         </div>
         <select
           value={specialty} onChange={(e) => setSpecialty(e.target.value)}
-          className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-3 font-mono text-xs uppercase tracking-[0.18em] text-[#e5e5e5]"
+          className="w-full bg-paper border border-line focus:border-brand outline-none px-3 py-3 font-mono text-xs uppercase tracking-[0.18em] text-ink"
           data-testid="co-maker-specialty"
         >
           <option value="">All Specialties</option>
@@ -333,14 +333,14 @@ function StepMaker({ value, onPick, description, projectType }) {
           picks are the first faces the visitor sees. */}
       {(aiBusy || (aiMatches && aiMatches.length > 0)) && (
         <div
-          className="border border-[#ff4500]/40 bg-[#1a0a05]/40 p-5 mb-6"
+          className="border border-brand/40 bg-brand/5 p-5 mb-6"
           data-testid="co-ai-maker-suggestions"
         >
-          <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#ff4500] mb-3 inline-flex items-center gap-2">
+          <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand mb-3 inline-flex items-center gap-2">
             ◆ AI-suggested makers for your brief
           </div>
           {aiBusy && (
-            <div className="font-mono text-[11px] text-[#a3a3a3]">Reading your brief…</div>
+            <div className="font-mono text-[11px] text-ink-muted">Reading your brief…</div>
           )}
           {!aiBusy && aiMatches?.length > 0 && (
             <div className="grid md:grid-cols-3 gap-3">
@@ -353,28 +353,28 @@ function StepMaker({ value, onPick, description, projectType }) {
                     onClick={() => onPick(m.slug)}
                     className={`text-left border p-4 transition ${
                       picked
-                        ? "border-[#ff4500] bg-[#1a0a05]"
-                        : "border-[#262626] hover:border-[#ff4500] bg-[#0a0a0a]"
+                        ? "border-brand bg-brand/10"
+                        : "border-line hover:border-brand bg-paper"
                     }`}
                     data-testid={`co-ai-suggested-${m.slug}`}
                   >
                     <div className="flex items-center gap-3 mb-2">
-                      <div className="w-12 h-12 bg-[#1a1a1a] overflow-hidden flex-shrink-0">
+                      <div className="w-12 h-12 bg-surface overflow-hidden flex-shrink-0">
                         {m.portrait
                           ? <img src={m.portrait} alt="" className="w-full h-full object-cover" />
                           : <div className="w-full h-full bg-gradient-to-br from-[#ff4500] to-[#cc3700] flex items-center justify-center text-white font-display">{(m.name || "").slice(0, 2).toUpperCase()}</div>}
                       </div>
                       <div className="min-w-0">
                         <div className="font-display text-base leading-tight line-clamp-1">{m.name}</div>
-                        <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#a3a3a3] line-clamp-1">
+                        <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-ink-muted line-clamp-1">
                           {m.location || ""}
                         </div>
                       </div>
-                      {picked && <CheckCircle2 size={18} className="text-[#ff4500] ml-auto flex-shrink-0" />}
+                      {picked && <CheckCircle2 size={18} className="text-brand ml-auto flex-shrink-0" />}
                     </div>
                     {m.match_reason && (
                       <div
-                        className="border-l-2 border-[#ff4500] pl-2 text-[11px] text-[#a3a3a3] leading-snug italic"
+                        className="border-l-2 border-brand pl-2 text-[11px] text-ink-muted leading-snug italic"
                         data-testid={`co-ai-suggested-${m.slug}-reason`}
                       >
                         {m.match_reason}
@@ -394,23 +394,23 @@ function StepMaker({ value, onPick, description, projectType }) {
         onClick={() => onPick(null)}
         className={`w-full text-left border p-6 mb-6 flex items-center gap-5 transition ${
           value === null
-            ? "border-[#ff4500] bg-[#1a0a05]"
-            : "border-[#262626] hover:border-[#525252] bg-[#0f0f0f]"
+            ? "border-brand bg-brand/10"
+            : "border-line hover:border-line bg-paper"
         }`}
         data-testid="co-maker-any"
       >
         <div className={`w-12 h-12 flex items-center justify-center ${
-          value === null ? "bg-[#ff4500] text-[#0a0a0a]" : "bg-[#1a1a1a] text-[#ff4500]"
+          value === null ? "bg-brand text-[#0a0a0a]" : "bg-surface text-brand"
         }`}>
           <Star size={20} />
         </div>
         <div className="flex-1">
           <div className="font-display text-2xl">Let Any Maker Respond</div>
-          <div className="font-mono text-xs text-[#a3a3a3] mt-1">
+          <div className="font-mono text-xs text-ink-muted mt-1">
             Post to all makers — we'll match you with the best fit
           </div>
         </div>
-        {value === null && <CheckCircle2 size={22} className="text-[#ff4500]" />}
+        {value === null && <CheckCircle2 size={22} className="text-brand" />}
       </button>
 
       {/* Maker cards */}
@@ -425,34 +425,34 @@ function StepMaker({ value, onPick, description, projectType }) {
               onClick={() => onPick(m.slug)}
               className={`text-left border p-5 transition ${
                 selected
-                  ? "border-[#ff4500] bg-[#1a0a05]"
-                  : "border-[#262626] hover:border-[#525252] bg-[#0f0f0f]"
+                  ? "border-brand bg-brand/10"
+                  : "border-line hover:border-line bg-paper"
               }`}
               data-testid={`co-maker-${m.slug}`}
             >
               <div className="flex items-start gap-4 mb-3">
-                <div className="w-12 h-12 rounded-full border border-[#262626] flex items-center justify-center font-mono text-sm text-[#a3a3a3] flex-shrink-0">
+                <div className="w-12 h-12 rounded-full border border-line flex items-center justify-center font-mono text-sm text-ink-muted flex-shrink-0">
                   {initials || "M"}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-display text-xl truncate">{m.name}</div>
-                  <div className="font-mono text-[11px] text-[#a3a3a3] mt-1">◇ {m.location || "—"}</div>
+                  <div className="font-mono text-[11px] text-ink-muted mt-1">◇ {m.location || "—"}</div>
                 </div>
-                {selected && <CheckCircle2 size={20} className="text-[#ff4500] flex-shrink-0" />}
+                {selected && <CheckCircle2 size={20} className="text-brand flex-shrink-0" />}
               </div>
               <div className="flex flex-wrap gap-2 mb-2">
                 {(m.specialties || []).slice(0, 2).map((s) => (
-                  <span key={s} className="font-mono text-[10px] uppercase tracking-[0.18em] px-2 py-0.5 bg-[#1a1a1a] text-[#a3a3a3]">
+                  <span key={s} className="font-mono text-[10px] uppercase tracking-[0.18em] px-2 py-0.5 bg-surface text-ink-muted">
                     {s}
                   </span>
                 ))}
               </div>
-              {m.bio && <p className="font-mono text-[11px] text-[#525252] mt-2 line-clamp-2">{m.bio}</p>}
+              {m.bio && <p className="font-mono text-[11px] text-ink-muted mt-2 line-clamp-2">{m.bio}</p>}
             </button>
           );
         })}
         {filtered.length === 0 && (
-          <div className="md:col-span-2 text-center py-12 font-mono text-xs text-[#525252]">
+          <div className="md:col-span-2 text-center py-12 font-mono text-xs text-ink-muted">
             No makers match those filters.
           </div>
         )}
@@ -488,16 +488,16 @@ function StepUpload({ value, onPick }) {
   return (
     <div data-testid="step-upload">
       <Headline eyebrow="Step 4 of 5" title="Upload your design" />
-      <p className="font-mono text-sm text-[#a3a3a3] max-w-2xl mb-10">
+      <p className="font-mono text-sm text-ink-muted max-w-2xl mb-10">
         Upload your design file, sketch, or reference image. Supported formats:
-        {" "}<span className="text-[#ff4500]">JPG · PNG · SVG · PDF · DXF</span> — max 10 MB.
+        {" "}<span className="text-brand">JPG · PNG · SVG · PDF · DXF</span> — max 10 MB.
       </p>
 
       {value ? (
-        <div className="border border-[#262626] p-8 text-center" data-testid="co-upload-success">
+        <div className="border border-line p-8 text-center" data-testid="co-upload-success">
           <CheckCircle2 size={40} className="mx-auto text-emerald-400 mb-4" />
           <div className="font-display text-2xl mb-2">Design uploaded</div>
-          <div className="font-mono text-xs text-[#a3a3a3] mb-6 break-all">{value.name}</div>
+          <div className="font-mono text-xs text-ink-muted mb-6 break-all">{value.name}</div>
           <div className="flex gap-3 justify-center">
             <a
               href={value.url} target="_blank" rel="noreferrer"
@@ -508,7 +508,7 @@ function StepUpload({ value, onPick }) {
             <button
               type="button"
               onClick={() => onPick(null)}
-              className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500]"
+              className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand"
               data-testid="co-upload-replace"
             >
               ✕ Replace
@@ -522,7 +522,7 @@ function StepUpload({ value, onPick }) {
         />
       )}
 
-      <p className="font-mono text-[11px] text-[#525252] mt-6 italic">
+      <p className="font-mono text-[11px] text-ink-muted mt-6 italic">
         No design file? No problem — you can describe everything in words and the maker will work with you from there.
       </p>
     </div>
@@ -551,19 +551,19 @@ function CoDropZone({ uploading, onFile }) {
       }}
       className={`block border-2 border-dashed transition cursor-pointer p-12 md:p-16 text-center ${
         dragOver
-          ? "border-[#ff4500] bg-[#ff4500]/5"
-          : "border-[#262626] hover:border-[#ff4500]"
+          ? "border-brand bg-brand/5"
+          : "border-line hover:border-brand"
       }`}
       data-testid="co-upload-zone"
     >
-      <div className="w-16 h-16 mx-auto mb-5 flex items-center justify-center bg-[#1a1a1a] text-[#ff4500]">
+      <div className="w-16 h-16 mx-auto mb-5 flex items-center justify-center bg-surface text-brand">
         <UploadIcon size={24} />
       </div>
       <div className="font-display text-2xl mb-1">
         {uploading ? "Uploading…" : dragOver ? "Release to upload" : "Drop your file here"}
       </div>
-      <div className="font-mono text-xs text-[#a3a3a3] mb-4">or click to browse</div>
-      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252]">
+      <div className="font-mono text-xs text-ink-muted mb-4">or click to browse</div>
+      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
         JPG · PNG · SVG · PDF · DXF · Max 10 MB
       </div>
       <input
@@ -591,7 +591,7 @@ function StepContact({ form, setForm, summary, consent }) {
   return (
     <div data-testid="step-contact">
       <Headline eyebrow="Step 5 of 5" title="Contact information" />
-      <p className="font-mono text-sm text-[#a3a3a3] max-w-2xl mb-10">
+      <p className="font-mono text-sm text-ink-muted max-w-2xl mb-10">
         Almost there — how should the maker reach you?
       </p>
 
@@ -601,7 +601,7 @@ function StepContact({ form, setForm, summary, consent }) {
             required value={form.name} onChange={set("name")}
             name="name" autoComplete="name"
             placeholder="Jane Smith"
-            className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-3 font-mono text-sm text-[#e5e5e5] placeholder:text-[#525252]"
+            className="w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-3 font-mono text-sm text-ink placeholder:text-ink-muted"
             data-testid="co-name"
           />
         </Field>
@@ -610,7 +610,7 @@ function StepContact({ form, setForm, summary, consent }) {
             required type="email" value={form.email} onChange={set("email")}
             name="email" autoComplete="email"
             placeholder="jane@example.com"
-            className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-3 font-mono text-sm text-[#e5e5e5] placeholder:text-[#525252]"
+            className="w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-3 font-mono text-sm text-ink placeholder:text-ink-muted"
             data-testid="co-email"
           />
         </Field>
@@ -619,15 +619,15 @@ function StepContact({ form, setForm, summary, consent }) {
             type="tel" value={form.phone} onChange={set("phone")}
             name="phone" autoComplete="tel"
             placeholder="(555) 123-4567"
-            className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-3 font-mono text-sm text-[#e5e5e5] placeholder:text-[#525252]"
+            className="w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-3 font-mono text-sm text-ink placeholder:text-ink-muted"
             data-testid="co-phone"
           />
         </Field>
       </div>
 
       {/* Order summary */}
-      <div className="border border-[#262626] bg-[#0f0f0f] p-6 mt-10" data-testid="co-summary">
-        <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#a3a3a3] mb-4">Order Summary</div>
+      <div className="border border-line bg-paper p-6 mt-10" data-testid="co-summary">
+        <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-ink-muted mb-4">Order Summary</div>
         <dl className="grid grid-cols-[100px_1fr] gap-y-3 gap-x-6 font-mono text-xs">
           <SummaryRow label="Type" value={summary.type} />
           <SummaryRow label="Material" value={summary.material} />
@@ -650,8 +650,8 @@ function StepContact({ form, setForm, summary, consent }) {
 function SummaryRow({ label, value }) {
   return (
     <>
-      <dt className="text-[#525252] uppercase tracking-[0.22em] text-[10px]">{label}</dt>
-      <dd className="text-[#e5e5e5]">{value || "—"}</dd>
+      <dt className="text-ink-muted uppercase tracking-[0.22em] text-[10px]">{label}</dt>
+      <dd className="text-ink">{value || "—"}</dd>
     </>
   );
 }
@@ -662,7 +662,7 @@ function SummaryRow({ label, value }) {
 function Headline({ eyebrow, title }) {
   return (
     <div className="mb-2">
-      <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#525252] mb-3">
+      <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-ink-muted mb-3">
         {eyebrow}
       </div>
       <h1 className="font-display text-5xl md:text-6xl lg:text-7xl leading-[0.92] tracking-[-0.01em]">
@@ -675,7 +675,7 @@ function Headline({ eyebrow, title }) {
 function Field({ label, children, full }) {
   return (
     <label className={`block ${full ? "md:col-span-2" : ""}`}>
-      <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#a3a3a3]">{label}</span>
+      <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-ink-muted">{label}</span>
       <div className="mt-2">{children}</div>
     </label>
   );
@@ -790,9 +790,9 @@ export default function CustomOrderPage() {
   if (done) {
     return (
       <div className="pt-40 pb-24 grain min-h-screen text-center px-4" data-testid="custom-order-done">
-        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-4">◆ Order Received</div>
+        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-4">◆ Order Received</div>
         <h1 className="font-display text-6xl md:text-8xl mb-6">We've Got It.</h1>
-        <p className="font-mono text-sm text-[#a3a3a3] max-w-md mx-auto">
+        <p className="font-mono text-sm text-ink-muted max-w-md mx-auto">
           Expect a free quote in your inbox within 24 hours. Until then — keep dreaming up sharp things.
         </p>
       </div>
@@ -856,19 +856,19 @@ export default function CustomOrderPage() {
         {/* Footer nav — sticky so the Continue button follows the user
             through every step (each "window" always has a visible CTA).
             Backdrop blur + solid fallback keeps content legible behind. */}
-        <div className="sticky bottom-0 -mx-4 md:-mx-8 mt-16 z-30 bg-[#0a0a0a]/95 supports-[backdrop-filter]:bg-[#0a0a0a]/80 backdrop-blur-md border-t border-[#262626]">
+        <div className="sticky bottom-0 -mx-4 md:-mx-8 mt-16 z-30 bg-paper/95 supports-[backdrop-filter]:bg-paper/80 backdrop-blur-md border-t border-line">
           <div className="flex items-center justify-between gap-4 px-4 md:px-8 py-4">
             <button
               type="button"
               onClick={back}
               disabled={step === 1}
-              className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] disabled:opacity-30 disabled:hover:text-[#a3a3a3] transition"
+              className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand disabled:opacity-30 disabled:hover:text-ink-muted transition"
               data-testid="co-back"
             >
               <ArrowLeft size={14} /> Back
             </button>
 
-            <div className="hidden sm:block font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252]">
+            <div className="hidden sm:block font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
               Step {step} of 5
             </div>
 
@@ -940,17 +940,17 @@ function ComingSoonCard({ category }) {
   if (done) {
     return (
       <div
-        className="text-left border border-[#ff4500]/40 bg-gradient-to-br from-[#1a0a05] to-[#0f0f0f] p-6 relative"
+        className="text-left border border-brand/40 bg-gradient-to-br from-[#1a0a05] to-[#0f0f0f] p-6 relative"
         data-testid={`category-card-coming-soon-${slugId}-done`}
       >
-        <span className="absolute top-3 right-3 font-mono text-[9px] uppercase tracking-[0.22em] px-2 py-0.5 border border-[#ff4500]/40 text-[#ff4500] bg-[#ff4500]/10">
+        <span className="absolute top-3 right-3 font-mono text-[9px] uppercase tracking-[0.22em] px-2 py-0.5 border border-brand/40 text-brand bg-brand/10">
           On the list
         </span>
-        <div className="w-12 h-12 flex items-center justify-center mb-5 bg-[#ff4500]/15 text-[#ff4500]">
+        <div className="w-12 h-12 flex items-center justify-center mb-5 bg-brand/15 text-brand">
           <Icon size={20} />
         </div>
-        <div className="font-display text-2xl mb-2 leading-tight text-[#e5e5e5]">{category.id}</div>
-        <div className="font-mono text-xs text-[#a3a3a3] mb-1 leading-relaxed">
+        <div className="font-display text-2xl mb-2 leading-tight text-ink">{category.id}</div>
+        <div className="font-mono text-xs text-ink-muted mb-1 leading-relaxed">
           You'll be the first to hear when this ships.
         </div>
       </div>
@@ -959,25 +959,25 @@ function ComingSoonCard({ category }) {
 
   return (
     <div
-      className={`text-left border ${open ? "border-[#ff4500]/60" : "border-dashed border-[#262626]"} bg-[#0a0a0a]/70 p-6 ${open ? "" : "opacity-70 hover:opacity-95 hover:border-[#525252]"} transition-all duration-200 relative`}
+      className={`text-left border ${open ? "border-brand/60" : "border-dashed border-line"} bg-paper/70 p-6 ${open ? "" : "opacity-70 hover:opacity-95 hover:border-line"} transition-all duration-200 relative`}
       data-testid={`category-card-coming-soon-${slugId}`}
     >
-      <span className="absolute top-3 right-3 font-mono text-[9px] uppercase tracking-[0.22em] px-2 py-0.5 border border-[#ff4500]/40 text-[#ff4500]/80 bg-[#ff4500]/5">
+      <span className="absolute top-3 right-3 font-mono text-[9px] uppercase tracking-[0.22em] px-2 py-0.5 border border-brand/40 text-brand/80 bg-brand/5">
         Coming Soon
       </span>
-      <div className="w-12 h-12 flex items-center justify-center mb-5 bg-[#1a1a1a] text-[#525252]">
+      <div className="w-12 h-12 flex items-center justify-center mb-5 bg-surface text-ink-muted">
         <Icon size={20} />
       </div>
-      <div className="font-display text-2xl mb-2 leading-tight text-[#a3a3a3]">{category.id}</div>
-      <div className="font-mono text-xs text-[#525252] mb-3 leading-relaxed">{category.blurb}</div>
-      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]/60 italic mb-4">
+      <div className="font-display text-2xl mb-2 leading-tight text-ink-muted">{category.id}</div>
+      <div className="font-mono text-xs text-ink-muted mb-3 leading-relaxed">{category.blurb}</div>
+      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand/60 italic mb-4">
         ◇ {category.tease}
       </div>
       {!open ? (
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] hover:text-[#ff6633] transition border-b border-[#ff4500]/40 pb-1"
+          className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand hover:text-brand-hover transition border-b border-brand/40 pb-1"
           data-testid={`coming-soon-notify-btn-${slugId}`}
         >
           Notify me →
@@ -992,7 +992,7 @@ function ComingSoonCard({ category }) {
             required
             disabled={busy}
             maxLength={200}
-            className="bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5] placeholder:text-[#525252]"
+            className="bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink placeholder:text-ink-muted"
             data-testid={`coming-soon-email-${slugId}`}
             autoFocus
           />

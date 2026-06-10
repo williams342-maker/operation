@@ -22,11 +22,11 @@ export default function WorkshopVideoGrid({ videos = [] }) {
       <div className="flex items-baseline justify-between gap-3 flex-wrap mb-6">
         <h2
           id="maker-workshop-videos-heading"
-          className="font-display text-3xl md:text-5xl text-[#e5e5e5]"
+          className="font-display text-3xl md:text-5xl text-ink"
         >
           From the workshop floor
         </h2>
-        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
           {videos.length} video{videos.length === 1 ? "" : "s"}
         </span>
       </div>
@@ -63,10 +63,10 @@ function VideoCard({ video }) {
 
   return (
     <article
-      className="border border-[#262626] hover:border-[#ff4500]/50 transition group"
+      className="border border-line hover:border-brand/50 transition group"
       data-testid={`workshop-video-card-${video.id || video.video_id}`}
     >
-      <div className="aspect-video bg-[#0a0a0a] relative">
+      <div className="aspect-video bg-paper relative">
         {playing ? (
           <iframe
             src={embedSrc}
@@ -93,12 +93,12 @@ function VideoCard({ video }) {
                 className="w-full h-full object-cover group-hover/btn:scale-[1.02] transition duration-500"
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-[#525252]">
+              <div className="w-full h-full flex items-center justify-center text-ink-muted">
                 <VideoIcon size={40} />
               </div>
             )}
             <div className="absolute inset-0 bg-black/30 group-hover/btn:bg-black/20 transition flex items-center justify-center">
-              <div className="w-16 h-16 bg-[#ff4500] flex items-center justify-center group-hover/btn:scale-110 transition shadow-2xl shadow-[#ff4500]/40">
+              <div className="w-16 h-16 bg-brand flex items-center justify-center group-hover/btn:scale-110 transition shadow-2xl shadow-[#ff4500]/40">
                 <Play size={28} className="text-white ml-1" fill="currentColor" />
               </div>
             </div>
@@ -107,10 +107,10 @@ function VideoCard({ video }) {
       </div>
       {video.title && (
         <div className="p-3 md:p-4">
-          <p className="font-mono text-xs md:text-sm text-[#e5e5e5] leading-snug line-clamp-2">
+          <p className="font-mono text-xs md:text-sm text-ink leading-snug line-clamp-2">
             {video.title}
           </p>
-          <p className="font-mono text-[10px] text-[#525252] mt-1.5 uppercase tracking-[0.22em]">
+          <p className="font-mono text-[10px] text-ink-muted mt-1.5 uppercase tracking-[0.22em]">
             via {provider}
           </p>
         </div>

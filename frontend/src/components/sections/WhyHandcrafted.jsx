@@ -129,7 +129,7 @@ function Pillar({ icon: Icon, eyebrow, title, body, testId }) {
       className="bg-surface border border-line hover:border-brand/60 transition-colors p-7"
       data-testid={testId}
     >
-      <div className="w-10 h-10 border border-brand bg-[#1a0a05] flex items-center justify-center mb-5">
+      <div className="w-10 h-10 border border-brand bg-brand/10 flex items-center justify-center mb-5">
         <Icon size={18} className="text-brand" />
       </div>
       <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-ink-muted mb-2">

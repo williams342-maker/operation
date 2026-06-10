@@ -10,7 +10,7 @@ import { useConfirm } from "./useConfirm";
 // Map backend tier → Tailwind classes. Keep the 4 named tiers in sync
 // with _STATUS_LABEL in backend/routers/shipping.py.
 const TIER_CLASSES = {
-  gray:    "border-[#525252]/50 text-ink-muted bg-[#525252]/5",
+  gray:    "border-line/50 text-ink-muted bg-ink-muted/5",
   orange:  "border-brand/50 text-brand bg-brand/5",
   emerald: "border-emerald-400/50 text-emerald-400 bg-emerald-400/5",
   red:     "border-red-500/50 text-red-400 bg-red-500/5",
@@ -239,7 +239,7 @@ function OrderRow({ order, onChange }) {
       {/* Expanded detail drawer */}
       {open && (
         <div
-          className="border-t border-line p-5 space-y-4 bg-[#0e0e0e]"
+          className="border-t border-line p-5 space-y-4 bg-paper"
           data-testid={`order-detail-${order.session_id}`}
         >
           {loadingDetail && (

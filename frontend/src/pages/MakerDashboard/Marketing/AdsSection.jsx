@@ -336,7 +336,7 @@ function AutoBoostPanel() {
           data-testid="auto-boost-toggle"
           className={`shrink-0 px-4 py-2 border font-mono text-[10px] uppercase tracking-[0.22em] font-bold transition disabled:opacity-50 ${
             enabled
-              ? "border-brand bg-brand text-ink hover:bg-[#ff5722]"
+              ? "border-brand bg-brand text-ink hover:bg-brand-hover"
               : "border-line text-ink-muted hover:border-brand hover:text-brand"
           }`}
         >
@@ -432,7 +432,7 @@ function PromotedRow({ p, isPlus, onExtend, onToggleAutoRenew, busy, renewBusy }
   return (
     <li
       className={`flex items-center gap-3 px-3 py-2.5 transition-colors ${
-        urgent ? "bg-[#1a0a05] border-l-2 border-l-[#ff4500]" : ""
+        urgent ? "bg-brand/10 border-l-2 border-l-[#ff4500]" : ""
       }`}
       data-testid={`ads-active-${p.slug}`}
     >
@@ -495,7 +495,7 @@ function PromotedRow({ p, isPlus, onExtend, onToggleAutoRenew, busy, renewBusy }
           disabled={busy}
           className={`px-3 py-1.5 border font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50 inline-flex items-center gap-1.5 ${
             urgent
-              ? "border-brand bg-brand text-ink hover:bg-[#ff5a1a]"
+              ? "border-brand bg-brand text-ink hover:bg-brand-hover"
               : "border-line hover:border-brand hover:text-brand"
           }`}
           data-testid={`ads-extend-${p.slug}`}

@@ -109,7 +109,7 @@ export default function CinematicMomentsStrip({ testId = "home-cinematic-moments
         </div>
 
         <p
-          className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#737373] mt-10 text-center"
+          className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted mt-10 text-center"
           data-testid={`${testId}-footer-note`}
         >
           ✦ Real footage from vetted maker workshops · curated weekly

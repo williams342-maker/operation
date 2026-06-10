@@ -153,7 +153,7 @@ export default function BetaBanner({ message, position = "top" }) {
                   <button
                     type="submit"
                     disabled={status === "sending"}
-                    className="px-4 py-2 bg-brand hover:bg-[#ff5722] text-[#0a0a0a] border border-brand font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
+                    className="px-4 py-2 bg-brand hover:bg-brand-hover text-[#0a0a0a] border border-brand font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
                     data-testid="beta-feedback-submit"
                   >
                     {status === "sending" ? "Sending…" : "Send feedback"}

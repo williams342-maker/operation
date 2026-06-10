@@ -26,7 +26,7 @@ export default function Breadcrumbs({ items, testId = "breadcrumbs" }) {
   return (
     <nav
       aria-label="Breadcrumb"
-      className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#737373] mb-6 overflow-hidden"
+      className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-6 overflow-hidden"
       data-testid={testId}
     >
       <ol className="flex items-center flex-wrap gap-x-1.5 gap-y-1">
@@ -37,14 +37,14 @@ export default function Breadcrumbs({ items, testId = "breadcrumbs" }) {
               {item.to && !isLast ? (
                 <Link
                   to={item.to}
-                  className="text-[#a3a3a3] hover:text-[#ff4500] transition truncate"
+                  className="text-ink-muted hover:text-brand transition truncate"
                   data-testid={`${testId}-link-${idx}`}
                 >
                   {item.name}
                 </Link>
               ) : (
                 <span
-                  className="text-[#ff4500] truncate max-w-[280px]"
+                  className="text-brand truncate max-w-[280px]"
                   aria-current={isLast ? "page" : undefined}
                   data-testid={`${testId}-current`}
                 >
@@ -54,7 +54,7 @@ export default function Breadcrumbs({ items, testId = "breadcrumbs" }) {
               {!isLast && (
                 <ChevronRight
                   size={10}
-                  className="text-[#525252] shrink-0"
+                  className="text-ink-muted shrink-0"
                   aria-hidden="true"
                 />
               )}

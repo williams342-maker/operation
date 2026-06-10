@@ -21,7 +21,7 @@ import { useConfirm } from "../../hooks/useConfirm";
 const DISPUTE_BADGE = {
   open:   { label: "DISPUTED · OPEN", cls: "border-amber-500/60 text-amber-400 bg-amber-500/10" },
   upheld: { label: "DISPUTE UPHELD",  cls: "border-emerald-500/60 text-emerald-400 bg-emerald-500/10" },
-  denied: { label: "DISPUTE DENIED",  cls: "border-[#525252]/60 text-ink-muted bg-surface" },
+  denied: { label: "DISPUTE DENIED",  cls: "border-line/60 text-ink-muted bg-surface" },
 };
 
 const FILTERS = [

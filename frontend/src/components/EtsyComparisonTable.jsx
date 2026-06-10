@@ -72,18 +72,18 @@ export default function EtsyComparisonTable({ testId = "etsy-comparison" }) {
 
   return (
     <section
-      className="border border-[#262626] bg-[#0a0a0a] p-6 md:p-10 my-12"
+      className="border border-line bg-paper p-6 md:p-10 my-12"
       data-testid={testId}
     >
       <div className="mb-6">
-        <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#ff4500] mb-2">
+        <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand mb-2">
           ◆ The Math · Etsy vs CraftersMarket
         </div>
-        <h2 className="font-display text-3xl md:text-4xl lg:text-5xl leading-[0.95] text-[#fafafa]">
+        <h2 className="font-display text-3xl md:text-4xl lg:text-5xl leading-[0.95] text-ink">
           You keep more.<br />
           Year after year.
         </h2>
-        <p className="text-[#a3a3a3] mt-4 text-sm leading-relaxed max-w-2xl">
+        <p className="text-ink-muted mt-4 text-sm leading-relaxed max-w-2xl">
           Below is what each shop pays in platform fees on a typical year.
           CraftersMarket Founder numbers are calculated live from our current
           fee policy. Etsy numbers are based on their published fee schedule
@@ -98,26 +98,26 @@ export default function EtsyComparisonTable({ testId = "etsy-comparison" }) {
           return (
             <div
               key={r.gmv}
-              className="border border-[#262626] bg-black p-5"
+              className="border border-line bg-surface p-5"
               data-testid={`etsy-row-${r.gmv}`}
             >
-              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-1">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-1">
                 {r.label}
               </div>
-              <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#525252] mb-4">
+              <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-ink-muted mb-4">
                 {r.sublabel}
               </div>
 
               <div className="space-y-3">
                 <div className="flex items-baseline justify-between">
-                  <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-[#737373]">Etsy fees</span>
-                  <span className="font-display text-2xl text-[#525252] line-through">${c.etsy_total.toLocaleString()}</span>
+                  <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-ink-muted">Etsy fees</span>
+                  <span className="font-display text-2xl text-ink-muted line-through">${c.etsy_total.toLocaleString()}</span>
                 </div>
                 <div className="flex items-baseline justify-between">
-                  <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-[#ff4500]">CraftersMarket</span>
-                  <span className="font-display text-3xl text-[#ff4500]">${c.us_total.toLocaleString()}</span>
+                  <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-brand">CraftersMarket</span>
+                  <span className="font-display text-3xl text-brand">${c.us_total.toLocaleString()}</span>
                 </div>
-                <div className="border-t border-[#262626] pt-3 mt-3">
+                <div className="border-t border-line pt-3 mt-3">
                   <div className="flex items-baseline justify-between">
                     <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-emerald-400">You save</span>
                     <span className="font-display text-3xl text-emerald-400">${c.you_save.toLocaleString()}</span>
@@ -128,7 +128,7 @@ export default function EtsyComparisonTable({ testId = "etsy-comparison" }) {
           );
         })}
       </div>
-      <div className="mt-6 font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] text-center">
+      <div className="mt-6 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted text-center">
         Founder rate locked for life · After Founder #100, 12-month window then auto-rolls to Standard
       </div>
     </section>

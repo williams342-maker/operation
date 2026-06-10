@@ -613,3 +613,34 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - Mailtrap DNS verification in Cloudflare (Postmark covers 100% of mail in the meantime — no buyer impact).
 - Google Ads Developer Token (22-char) for off-site ad spend integration.
 
+
+---
+
+## 2026-06-10 — Contrast audit + seeder hardening
+**P0 — Contrast audit (DONE):**
+- Site-wide `sed` sweep across `/app/frontend/src/pages/**` and `/app/frontend/src/components/**` converting legacy hardcoded dark hexes to theme-aware semantic tokens:
+  - `bg-[#0a0a0a|0f0f0f|101010|050505|080808|0e0e0e|0d0d0d|121212]` → `bg-paper`
+  - `bg-[#141414|1a1a1a|1c1c1c|1f1f1f|171717|181818|222|262626|070707|0c0c0c|0a0805]` → `bg-surface`
+  - `bg-[#1a0a05|1a0e08]` → `bg-brand/10` (selected-state highlight)
+  - `border-[#262626|1a1a1a|1f1f1f|404040|525252|171717]` → `border-line`
+  - `text-[#e5e5e5|fafafa|f5f5f5|d4d4d4]` → `text-ink`
+  - `text-[#a3a3a3|737373|525252|9ca3af]` → `text-ink-muted`
+  - `text-[#ff4500]` / `bg-[#ff4500]` / `border-[#ff4500]` → `text-brand` / `bg-brand` / `border-brand`
+  - `hover:bg-[#ff6a2a|ff5a1a|ff5722|ff5f1f|ff5e1f|cc3700|ff6a2c]` → `hover:bg-brand-hover`
+  - `hover:text-[#fff|ff6633|ff5a1a|ff6a2c]` → `hover:text-ink` / `hover:text-brand-hover`
+  - Hardcoded `bg-black` on EtsyComparisonTable, FoundersWall, PressPage `<main>` → `bg-surface` / `bg-paper`
+  - CommunityAuth Google sign-in fixed: was `bg-[#fff] text-ink` (invisible in dark mode) → `bg-white text-[#1f1f1f] border-line`
+- Intentional hexes preserved:
+  - ProductDetail color-swatch map (`Gold #c9a227`, etc.)
+  - AdminShowcaseModTab badge ink (`text-[#0a0a0a]` on yellow/green status pills — high contrast on bright backgrounds)
+  - Social brand tints (#1d9bf0 Twitter, #1877f2 Facebook, #e1306c Instagram, #e60023 Pinterest, #b22234 US-flag-red veteran badge)
+  - Cinematic strips (`CinematicMomentsStrip`, `FeaturedBuildsRail`) — intentionally dark/cinematic regardless of theme
+  - Video-player chrome / overlay scrims (`bg-black/XX` for modals + image lightbox)
+  - SVG preview canvas backgrounds (`bg-white` on KitPage, MakerStudio brief preview, print pages)
+- Verified visually in BOTH themes on /beta, /community, and footer.
+
+**P1 — `/api/products` 500 from missing required fields (DONE):**
+- `backend/models.py::Product` — added safe defaults `category="Wall Art"` and `technique="CUSTOM"` so legacy/test docs missing these fields no longer trigger `ResponseValidationError` on the public catalog.
+- Verified: `GET /api/products?limit=5` returns 200 with 83 items.
+
+

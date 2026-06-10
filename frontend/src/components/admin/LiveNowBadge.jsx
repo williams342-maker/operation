@@ -29,7 +29,7 @@ export default function LiveNowBadge() {
 
   if (err) return null;
   const pulse = data.live_1m > 0;
-  const dotCls = pulse ? "bg-emerald-400 animate-pulse" : "bg-[#525252]";
+  const dotCls = pulse ? "bg-emerald-400 animate-pulse" : "bg-ink-muted";
   return (
     <div
       className="hidden md:flex items-center gap-2 px-3 py-2 border border-line"

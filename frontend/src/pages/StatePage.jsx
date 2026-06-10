@@ -135,7 +135,7 @@ export default function StatePage() {
           ]}
           testId="state-breadcrumbs"
         />
-        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-4">
+        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-4">
           ◆ Makers in {state.name} · {state.maker_count} vetted shops
         </div>
         <h1
@@ -145,13 +145,13 @@ export default function StatePage() {
           CNC, Plasma &amp; Laser Makers in {state.name}.
         </h1>
 
-        <p className="font-mono text-base text-[#e5e5e5] max-w-3xl leading-relaxed mb-6">
+        <p className="font-mono text-base text-ink max-w-3xl leading-relaxed mb-6">
           {state.maker_count} vetted independent CNC, plasma, and laser makers are based
           in {state.name} and ship handmade metal signs, custom wood pieces, and
           made-to-order commissions across the United States. Every shop below has been
           hand-verified — real workshop, real machines, real past work.
         </p>
-        <p className="font-mono text-sm text-[#a3a3a3] max-w-3xl leading-relaxed mb-8">
+        <p className="font-mono text-sm text-ink-muted max-w-3xl leading-relaxed mb-8">
           Supporting a local {state.name} maker keeps precision-craft skills alive in
           the towns the big retailers ignore, and gets you a piece with a story you can
           actually trace. Most of the makers below offer in-state pickup or local
@@ -172,8 +172,8 @@ export default function StatePage() {
         </div>
 
         {/* Maker grid */}
-        <div className="border-t border-[#262626] pt-12">
-          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-3">
+        <div className="border-t border-line pt-12">
+          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-3">
             ◆ Approved makers
           </div>
           <h2 className="font-display text-3xl md:text-5xl uppercase mb-8">
@@ -184,7 +184,7 @@ export default function StatePage() {
               <Link
                 key={m.slug}
                 to={`/makers/${m.slug}`}
-                className="group border border-[#262626] hover:border-[#ff4500] transition overflow-hidden bg-[#0a0a0a]"
+                className="group border border-line hover:border-brand transition overflow-hidden bg-paper"
                 data-testid={`state-${state.slug}-maker-${m.slug}`}
               >
                 {(m.banner_image_url || m.cover || m.portrait) ? (
@@ -195,24 +195,24 @@ export default function StatePage() {
                     loading="lazy"
                   />
                 ) : (
-                  <div className="aspect-[4/3] w-full bg-[#121212] grid place-items-center font-display text-5xl text-[#525252]">
+                  <div className="aspect-[4/3] w-full bg-surface grid place-items-center font-display text-5xl text-ink-muted">
                     {(m.name || "?").slice(0, 1)}
                   </div>
                 )}
                 <div className="p-5">
                   <div className="flex items-start justify-between gap-3 mb-2">
-                    <div className="font-display text-xl group-hover:text-[#ff4500] transition leading-tight">
+                    <div className="font-display text-xl group-hover:text-brand transition leading-tight">
                       {m.name}
                     </div>
                     {m.is_veteran_owned && <VeteranBadge size="xs" />}
                   </div>
                   {m.location && (
-                    <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#737373] mb-2">
+                    <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
                       ◆ {m.location}
                     </div>
                   )}
                   {(m.tagline || m.headline) && (
-                    <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed line-clamp-2">
+                    <p className="font-mono text-xs text-ink-muted leading-relaxed line-clamp-2">
                       {m.tagline || m.headline}
                     </p>
                   )}
@@ -221,7 +221,7 @@ export default function StatePage() {
                       {m.techniques.slice(0, 4).map((t) => (
                         <span
                           key={t}
-                          className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#525252] border border-[#262626] px-2 py-0.5"
+                          className="font-mono text-[9px] uppercase tracking-[0.18em] text-ink-muted border border-line px-2 py-0.5"
                         >
                           {t}
                         </span>
@@ -236,8 +236,8 @@ export default function StatePage() {
 
         {/* Cross-link to other states with makers */}
         {siblings.length > 0 && (
-          <div className="border-t border-[#262626] mt-20 pt-12" data-testid="state-siblings">
-            <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-3">
+          <div className="border-t border-line mt-20 pt-12" data-testid="state-siblings">
+            <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-3">
               ◆ Makers in other states
             </div>
             <h2 className="font-display text-3xl md:text-5xl uppercase mb-8">
@@ -248,13 +248,13 @@ export default function StatePage() {
                 <Link
                   key={s.code}
                   to={`/makers/state/${s.slug}`}
-                  className="group border border-[#262626] hover:border-[#ff4500] p-4 transition block"
+                  className="group border border-line hover:border-brand p-4 transition block"
                   data-testid={`state-sibling-${s.slug}`}
                 >
-                  <div className="font-display text-lg group-hover:text-[#ff4500] transition">
+                  <div className="font-display text-lg group-hover:text-brand transition">
                     {s.name}
                   </div>
-                  <div className="font-mono text-[10px] text-[#737373] mt-1">
+                  <div className="font-mono text-[10px] text-ink-muted mt-1">
                     {s.maker_count} {s.maker_count === 1 ? "maker" : "makers"}
                   </div>
                 </Link>

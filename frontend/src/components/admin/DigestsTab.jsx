@@ -78,7 +78,7 @@ export default function DigestsTab() {
           <button
             onClick={() => setConfirmSend(true)}
             disabled={!data || !data.candidate_count || sending || loading}
-            className="px-4 py-2 bg-brand hover:bg-[#ff5722] text-[#0a0a0a] border border-brand font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-30 disabled:cursor-not-allowed"
+            className="px-4 py-2 bg-brand hover:bg-brand-hover text-[#0a0a0a] border border-brand font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-30 disabled:cursor-not-allowed"
             data-testid="digest-send-btn"
           >
             {sending ? "Sending…" : `Send digest${data?.candidate_count ? ` (${data.candidate_count})` : ""}`}
@@ -179,7 +179,7 @@ export default function DigestsTab() {
               </button>
               <button
                 onClick={apply}
-                className="px-4 py-2 bg-brand hover:bg-[#ff5722] text-[#0a0a0a] border border-brand font-mono text-[11px] uppercase tracking-[0.22em]"
+                className="px-4 py-2 bg-brand hover:bg-brand-hover text-[#0a0a0a] border border-brand font-mono text-[11px] uppercase tracking-[0.22em]"
                 data-testid="digest-confirm-send"
               >
                 Confirm send

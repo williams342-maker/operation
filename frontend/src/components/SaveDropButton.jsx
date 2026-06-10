@@ -67,7 +67,7 @@ export default function SaveDropButton({ makerSlug, makerName, productSlug, know
     return (
       <form
         onSubmit={(e) => { e.preventDefault(); sendSave(email); }}
-        className="border border-[#ff4500]/40 bg-[#1a0a05] p-3 flex gap-2 items-center"
+        className="border border-brand/40 bg-brand/10 p-3 flex gap-2 items-center"
         data-testid="save-drop-form"
       >
         <input
@@ -77,13 +77,13 @@ export default function SaveDropButton({ makerSlug, makerName, productSlug, know
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="you@workshop.org"
-          className="flex-1 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5] placeholder:text-[#525252]"
+          className="flex-1 bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink placeholder:text-ink-muted"
           data-testid="save-drop-email"
         />
         <button
           type="submit"
           disabled={submitting}
-          className="px-3 py-2 bg-[#ff4500] text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50"
+          className="px-3 py-2 bg-brand text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50"
           data-testid="save-drop-submit"
         >
           {submitting ? "…" : "Save"}
@@ -91,7 +91,7 @@ export default function SaveDropButton({ makerSlug, makerName, productSlug, know
         <button
           type="button"
           onClick={() => setShowInput(false)}
-          className="px-2 py-2 font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500]"
+          className="px-2 py-2 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand"
         >
           ✕
         </button>
@@ -106,8 +106,8 @@ export default function SaveDropButton({ makerSlug, makerName, productSlug, know
       title={saved ? "Saved — you'll be emailed on the next drop" : "Save this drop — get notified next time this maker drops a high-value piece"}
       className={`px-4 py-3 border transition-colors flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.22em] ${
         saved
-          ? "border-[#ff4500] bg-[#1a0a05] text-[#ff4500]"
-          : "border-[#262626] hover:border-[#ff4500] text-[#a3a3a3] hover:text-[#ff4500]"
+          ? "border-brand bg-brand/10 text-brand"
+          : "border-line hover:border-brand text-ink-muted hover:text-brand"
       }`}
       data-testid="save-drop-btn"
     >

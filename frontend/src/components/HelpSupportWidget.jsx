@@ -126,7 +126,7 @@ export default function HelpSupportWidget() {
         onClick={() => setOpen((o) => !o)}
         aria-label={open ? "Close help" : "Open help & support"}
         data-testid="help-widget-toggle"
-        className="fixed bottom-24 right-24 z-[60] bg-[#0a0a0a] text-cyan-300 w-12 h-12 flex items-center justify-center border-2 border-cyan-700/70 hover:border-cyan-400 hover:rotate-3 transition-all shadow-[0_0_20px_rgba(34,211,238,0.25)]"
+        className="fixed bottom-24 right-24 z-[60] bg-paper text-cyan-300 w-12 h-12 flex items-center justify-center border-2 border-cyan-700/70 hover:border-cyan-400 hover:rotate-3 transition-all shadow-[0_0_20px_rgba(34,211,238,0.25)]"
       >
         {open ? <X size={20} /> : <HelpCircle size={20} />}
       </button>
@@ -138,7 +138,7 @@ export default function HelpSupportWidget() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 30, scale: 0.96 }}
             transition={{ duration: 0.18 }}
-            className="fixed bottom-44 right-4 sm:right-24 z-[60] w-[min(92vw,400px)] h-[min(70vh,560px)] bg-[#0a0a0a] border border-cyan-900/60 flex flex-col"
+            className="fixed bottom-44 right-4 sm:right-24 z-[60] w-[min(92vw,400px)] h-[min(70vh,560px)] bg-paper border border-cyan-900/60 flex flex-col"
             data-testid="help-widget-panel"
           >
             <div className="flex items-center justify-between px-4 py-3 border-b border-cyan-900/60 bg-cyan-950/20">
@@ -148,14 +148,14 @@ export default function HelpSupportWidget() {
                   <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-cyan-400">
                     Help &amp; Support
                   </div>
-                  <div className="font-mono text-[9px] text-[#737373] uppercase tracking-[0.18em]">
+                  <div className="font-mono text-[9px] text-ink-muted uppercase tracking-[0.18em]">
                     Role: {role}
                   </div>
                 </div>
               </div>
               <button
                 onClick={resetChat}
-                className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#737373] hover:text-cyan-300"
+                className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-muted hover:text-cyan-300"
                 data-testid="help-widget-reset"
                 title="Start a new chat"
               >
@@ -174,7 +174,7 @@ export default function HelpSupportWidget() {
                   className={`max-w-[88%] font-mono text-[12px] leading-relaxed ${
                     m.role === "user"
                       ? "ml-auto bg-cyan-900/30 border border-cyan-800/60 text-cyan-50 px-3 py-2"
-                      : "mr-auto bg-[#141414] border border-[#262626] text-[#d4d4d4] px-3 py-2 whitespace-pre-wrap"
+                      : "mr-auto bg-surface border border-line text-ink px-3 py-2 whitespace-pre-wrap"
                   }`}
                   data-testid={`help-msg-${m.role}`}
                 >
@@ -183,7 +183,7 @@ export default function HelpSupportWidget() {
               ))}
               {busy && (
                 <div
-                  className="mr-auto bg-[#141414] border border-[#262626] text-[#737373] font-mono text-[12px] px-3 py-2 animate-pulse"
+                  className="mr-auto bg-surface border border-line text-ink-muted font-mono text-[12px] px-3 py-2 animate-pulse"
                   data-testid="help-msg-thinking"
                 >
                   Thinking…
@@ -193,7 +193,7 @@ export default function HelpSupportWidget() {
               {/* Starter hints — only show when conversation is fresh */}
               {messages.length === 1 && (
                 <div className="pt-2 space-y-1.5" data-testid="help-widget-hints">
-                  <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252] mb-1">
+                  <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted mb-1">
                     Try asking
                   </div>
                   {hints.map((h, i) => (
@@ -212,14 +212,14 @@ export default function HelpSupportWidget() {
 
             <form
               onSubmit={(e) => { e.preventDefault(); send(); }}
-              className="border-t border-cyan-900/60 px-3 py-2.5 flex items-center gap-2 bg-[#080808]"
+              className="border-t border-cyan-900/60 px-3 py-2.5 flex items-center gap-2 bg-paper"
             >
               <input
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 placeholder="Ask anything…"
                 disabled={busy}
-                className="flex-1 bg-transparent font-mono text-[12px] text-[#e5e5e5] placeholder:text-[#525252] focus:outline-none disabled:opacity-50"
+                className="flex-1 bg-transparent font-mono text-[12px] text-ink placeholder:text-ink-muted focus:outline-none disabled:opacity-50"
                 data-testid="help-widget-input"
               />
               <button

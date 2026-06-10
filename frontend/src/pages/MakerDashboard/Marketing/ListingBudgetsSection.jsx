@@ -94,7 +94,7 @@ function BudgetRow({ row, onSaved, onDeleted }) {
       data-testid={`listing-budget-row-${row.product_slug}`}
     >
       <td className="py-3 pr-4">
-        <div className="text-[#fafafa] text-sm">{row.product_title || row.product_slug}</div>
+        <div className="text-ink text-sm">{row.product_title || row.product_slug}</div>
         <div className="font-mono text-[10px] text-ink-muted mt-0.5">
           /{row.product_slug}
           {promoted && (
@@ -119,7 +119,7 @@ function BudgetRow({ row, onSaved, onDeleted }) {
             value={cap}
             onChange={(e) => setCap(e.target.value)}
             disabled={busy}
-            className="w-20 bg-paper border border-line focus:border-brand font-mono text-[12px] text-[#fafafa] px-2 py-1.5"
+            className="w-20 bg-paper border border-line focus:border-brand font-mono text-[12px] text-ink px-2 py-1.5"
             data-testid={`listing-budget-cap-${row.product_slug}`}
           />
           <span className="font-mono text-[10px] text-ink-muted">/ mo</span>
@@ -141,7 +141,7 @@ function BudgetRow({ row, onSaved, onDeleted }) {
       </td>
 
       <td className="py-3 pr-4">
-        <div className="font-mono text-[11px] text-[#fafafa]">
+        <div className="font-mono text-[11px] text-ink">
           {usd(spent)} <span className="text-ink-muted">/ {usd(cap_cents)}</span>
         </div>
         <div className="h-1 w-24 bg-surface mt-1.5">
@@ -228,7 +228,7 @@ export default function ListingBudgetsSection() {
         <div className="flex flex-wrap gap-4 mb-5 pb-4 border-b border-line font-mono text-[11px]">
           <div data-testid="listing-budgets-total-cap">
             <div className="text-ink-muted uppercase tracking-[0.18em] text-[9px]">Total cap</div>
-            <div className="text-[#fafafa] text-base">{usd(summary.totalCap)}/mo</div>
+            <div className="text-ink text-base">{usd(summary.totalCap)}/mo</div>
           </div>
           <div data-testid="listing-budgets-total-spent">
             <div className="text-ink-muted uppercase tracking-[0.18em] text-[9px]">Spent MTD</div>
@@ -236,7 +236,7 @@ export default function ListingBudgetsSection() {
           </div>
           <div data-testid="listing-budgets-active">
             <div className="text-ink-muted uppercase tracking-[0.18em] text-[9px]">Auto-renewing</div>
-            <div className="text-[#fafafa] text-base">{summary.active}</div>
+            <div className="text-ink text-base">{summary.active}</div>
           </div>
         </div>
       )}
@@ -246,7 +246,7 @@ export default function ListingBudgetsSection() {
       ) : !data?.budgets?.length ? (
         <div className="font-mono text-[11px] text-ink-muted">
           No budgets yet. To add one, open any published listing in your Listings tab and use the
-          <span className="text-[#fafafa]"> "Set marketing budget"</span> action. (UI to be added
+          <span className="text-ink"> "Set marketing budget"</span> action. (UI to be added
           inline — for now, set a budget from this table once you have published listings with
           existing boosts.)
         </div>

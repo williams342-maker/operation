@@ -82,22 +82,22 @@ export default function PriceComparePanel({ open, onClose, listingSlug, listedPr
       />
       {/* Panel */}
       <aside
-        className="fixed top-0 right-0 z-50 h-full w-full sm:w-[480px] bg-[#0a0a0a] border-l border-[#262626] shadow-2xl flex flex-col"
+        className="fixed top-0 right-0 z-50 h-full w-full sm:w-[480px] bg-paper border-l border-line shadow-2xl flex flex-col"
         data-testid="price-compare-panel"
         role="dialog"
         aria-label="AI price comparison"
       >
         {/* Header */}
-        <header className="px-5 py-4 border-b border-[#262626] flex items-center justify-between">
+        <header className="px-5 py-4 border-b border-line flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Sparkles size={16} className="text-cyan-400" />
-            <h3 className="font-mono text-[12px] uppercase tracking-[0.22em] text-[#e5e5e5]">
+            <h3 className="font-mono text-[12px] uppercase tracking-[0.22em] text-ink">
               AI Price Check
             </h3>
           </div>
           <button
             onClick={onClose}
-            className="text-[#737373] hover:text-[#ff4500] transition"
+            className="text-ink-muted hover:text-brand transition"
             data-testid="price-compare-close"
             aria-label="Close panel"
           >
@@ -112,12 +112,12 @@ export default function PriceComparePanel({ open, onClose, listingSlug, listedPr
               <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-cyan-400 flex items-center gap-2">
                 <RefreshCw size={12} className="animate-spin" /> Searching the web for comparable items…
               </div>
-              <div className="font-mono text-[10px] text-[#737373] leading-relaxed">
+              <div className="font-mono text-[10px] text-ink-muted leading-relaxed">
                 Pulling Etsy, Amazon, and handmade marketplace listings · ~10–20 seconds.
               </div>
               <div className="space-y-2 mt-4">
                 {[0, 1, 2, 3].map((i) => (
-                  <div key={i} className="h-12 bg-[#171717] animate-pulse" />
+                  <div key={i} className="h-12 bg-surface animate-pulse" />
                 ))}
               </div>
             </div>
@@ -128,7 +128,7 @@ export default function PriceComparePanel({ open, onClose, listingSlug, listedPr
               <AlertTriangle size={16} className="text-amber-400 shrink-0 mt-0.5" />
               <div>
                 <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-amber-400">Couldn't analyze</p>
-                <p className="font-mono text-[11px] text-[#a3a3a3] mt-1 leading-relaxed">{error}</p>
+                <p className="font-mono text-[11px] text-ink-muted mt-1 leading-relaxed">{error}</p>
                 <button
                   onClick={() => run(false)}
                   className="mt-3 px-3 py-1.5 border border-amber-400/40 hover:border-amber-300 text-amber-300 font-mono text-[10px] uppercase tracking-[0.22em]"
@@ -150,7 +150,7 @@ export default function PriceComparePanel({ open, onClose, listingSlug, listedPr
                     <div className={`font-mono text-[11px] uppercase tracking-[0.22em] ${verdict.color}`}>
                       Your price: ${parseFloat(listedPrice).toFixed(2)} · {verdict.label}
                     </div>
-                    <div className="font-mono text-[10px] text-[#a3a3a3] mt-0.5">
+                    <div className="font-mono text-[10px] text-ink-muted mt-0.5">
                       Market median: ${data.price_median.toFixed(2)}
                     </div>
                   </div>
@@ -159,17 +159,17 @@ export default function PriceComparePanel({ open, onClose, listingSlug, listedPr
 
               {/* Price range */}
               <div data-testid="price-compare-range">
-                <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#737373] mb-2">
+                <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
                   ◆ Comparable price range
                 </p>
                 <div className="grid grid-cols-3 gap-2">
                   {[
                     { label: "Low", value: data.price_low, color: "text-cyan-400" },
-                    { label: "Median", value: data.price_median, color: "text-[#e5e5e5]" },
+                    { label: "Median", value: data.price_median, color: "text-ink" },
                     { label: "High", value: data.price_high, color: "text-amber-400" },
                   ].map((b) => (
-                    <div key={b.label} className="border border-[#262626] bg-[#0f0f0f] px-3 py-3 text-center">
-                      <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#737373]">{b.label}</div>
+                    <div key={b.label} className="border border-line bg-paper px-3 py-3 text-center">
+                      <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted">{b.label}</div>
                       <div className={`font-mono text-[16px] font-bold ${b.color} mt-1`}>
                         ${b.value.toFixed(2)}
                       </div>
@@ -180,37 +180,37 @@ export default function PriceComparePanel({ open, onClose, listingSlug, listedPr
 
               {/* Recommendation */}
               {data.recommendation && (
-                <div className="border border-[#ff4500]/30 bg-[#ff4500]/[0.04] px-4 py-3" data-testid="price-compare-recommendation">
-                  <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mb-1.5">
+                <div className="border border-brand/30 bg-brand/[0.04] px-4 py-3" data-testid="price-compare-recommendation">
+                  <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-1.5">
                     ◆ Recommendation
                   </p>
-                  <p className="font-mono text-[11px] text-[#e5e5e5] leading-relaxed">{data.recommendation}</p>
+                  <p className="font-mono text-[11px] text-ink leading-relaxed">{data.recommendation}</p>
                 </div>
               )}
 
               {/* Comparables */}
               {data.comparables && data.comparables.length > 0 && (
                 <div data-testid="price-compare-comparables">
-                  <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#737373] mb-2">
+                  <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
                     ◆ Comparable listings ({data.comparables.length})
                   </p>
                   <ul className="space-y-2">
                     {data.comparables.map((c, i) => (
                       <li
                         key={i}
-                        className="border border-[#262626] hover:border-[#ff4500]/40 bg-[#0f0f0f] px-3 py-2.5 transition"
+                        className="border border-line hover:border-brand/40 bg-paper px-3 py-2.5 transition"
                         data-testid={`price-compare-item-${i}`}
                       >
                         <div className="flex items-baseline justify-between gap-3">
-                          <div className="font-mono text-[11px] text-[#e5e5e5] leading-relaxed flex-1 min-w-0">
+                          <div className="font-mono text-[11px] text-ink leading-relaxed flex-1 min-w-0">
                             {c.title || "Untitled listing"}
                           </div>
-                          <div className="font-mono text-[12px] text-[#ff4500] shrink-0 font-bold">
+                          <div className="font-mono text-[12px] text-brand shrink-0 font-bold">
                             ${c.price.toFixed(2)}
                           </div>
                         </div>
                         <div className="flex items-center justify-between mt-1.5">
-                          <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#737373]">
+                          <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted">
                             {c.source}
                           </span>
                           {c.url && (
@@ -231,8 +231,8 @@ export default function PriceComparePanel({ open, onClose, listingSlug, listedPr
               )}
 
               {data.comparables && data.comparables.length === 0 && (
-                <div className="border border-[#262626] bg-[#0f0f0f] px-4 py-4" data-testid="price-compare-no-comparables">
-                  <p className="font-mono text-[11px] text-[#a3a3a3] leading-relaxed">
+                <div className="border border-line bg-paper px-4 py-4" data-testid="price-compare-no-comparables">
+                  <p className="font-mono text-[11px] text-ink-muted leading-relaxed">
                     No solid comparables found — the AI couldn't anchor the price to specific
                     listings. The range above is an estimate; consider searching Etsy + Amazon
                     yourself to confirm.
@@ -241,8 +241,8 @@ export default function PriceComparePanel({ open, onClose, listingSlug, listedPr
               )}
 
               {/* Footer meta */}
-              <div className="border-t border-[#262626] pt-3 mt-2 flex items-center justify-between">
-                <div className="font-mono text-[9px] text-[#525252]">
+              <div className="border-t border-line pt-3 mt-2 flex items-center justify-between">
+                <div className="font-mono text-[9px] text-ink-muted">
                   {data.from_cache ? "From cache · ≤24h old" : "Just generated"}
                   {typeof data.remaining_today === "number" && (
                     <> · {data.remaining_today} fresh runs left today</>
@@ -251,7 +251,7 @@ export default function PriceComparePanel({ open, onClose, listingSlug, listedPr
                 <button
                   onClick={() => run(true)}
                   disabled={loading || (data.remaining_today === 0)}
-                  className="px-3 py-1.5 border border-[#262626] hover:border-cyan-400 text-cyan-400 font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="px-3 py-1.5 border border-line hover:border-cyan-400 text-cyan-400 font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
                   data-testid="price-compare-refresh"
                 >
                   <RefreshCw size={11} /> Refresh
@@ -261,7 +261,7 @@ export default function PriceComparePanel({ open, onClose, listingSlug, listedPr
           )}
         </div>
 
-        <footer className="px-5 py-3 border-t border-[#262626] font-mono text-[9px] text-[#525252] leading-relaxed">
+        <footer className="px-5 py-3 border-t border-line font-mono text-[9px] text-ink-muted leading-relaxed">
           Powered by Jina Reader (live web search) + Claude Sonnet 4.5. Not financial advice — use as a starting point.
         </footer>
       </aside>

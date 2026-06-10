@@ -282,7 +282,7 @@ export default function FeedHealthCard() {
                 </div>
               </button>
               {isOpen && (
-                <div className="border-t border-line px-4 py-3 space-y-3 bg-[#080808]">
+                <div className="border-t border-line px-4 py-3 space-y-3 bg-paper">
                   {c.top_blockers.length === 0 ? (
                     <p className="font-mono text-[10px] text-emerald-400" data-testid={`feed-health-${c.channel}-clean`}>
                       ✓ No blockers — every eligible listing is ready to publish.

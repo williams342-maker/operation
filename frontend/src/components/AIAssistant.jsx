@@ -116,7 +116,7 @@ export default function AIAssistant() {
       {/* Floating launcher — positioned above the Emergent badge so it doesn't get covered */}
       <button
         onClick={() => setOpen((o) => !o)}
-        className="fixed bottom-24 right-6 z-[60] bg-[#ff4500] text-black w-14 h-14 flex items-center justify-center border-2 border-[#ff4500] hover:rotate-3 transition-transform shadow-[0_0_24px_rgba(255,69,0,0.45)]"
+        className="fixed bottom-24 right-6 z-[60] bg-brand text-black w-14 h-14 flex items-center justify-center border-2 border-brand hover:rotate-3 transition-transform shadow-[0_0_24px_rgba(255,69,0,0.45)]"
         aria-label={open ? "Close assistant" : "Open assistant"}
         data-testid="ai-launcher"
       >
@@ -130,12 +130,12 @@ export default function AIAssistant() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 24, scale: 0.96 }}
             transition={{ duration: 0.18 }}
-            className="fixed bottom-44 right-4 sm:right-6 z-[60] w-[min(92vw,420px)] h-[min(70vh,580px)] bg-[#0a0a0a] border border-[#262626] flex flex-col"
+            className="fixed bottom-44 right-4 sm:right-6 z-[60] w-[min(92vw,420px)] h-[min(70vh,580px)] bg-paper border border-line flex flex-col"
             data-testid="ai-panel"
           >
-            <div className="px-5 py-4 border-b border-[#262626] flex items-center justify-between">
+            <div className="px-5 py-4 border-b border-line flex items-center justify-between">
               <div>
-                <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#ff4500]">
+                <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand">
                   ◆ AI Assistant · online
                 </div>
                 <div className="font-display text-xl mt-1">Workshop Helper</div>
@@ -158,7 +158,7 @@ export default function AIAssistant() {
                   }
                 }}
                 aria-label="Reset"
-                className="text-[#525252] hover:text-[#ff4500] mr-3 font-mono text-[10px] uppercase tracking-[0.22em]"
+                className="text-ink-muted hover:text-brand mr-3 font-mono text-[10px] uppercase tracking-[0.22em]"
                 data-testid="ai-reset"
               >
                 reset
@@ -166,7 +166,7 @@ export default function AIAssistant() {
               <button
                 onClick={() => setOpen(false)}
                 aria-label="Close"
-                className="text-[#a3a3a3] hover:text-[#ff4500]"
+                className="text-ink-muted hover:text-brand"
               >
                 <X size={18} />
               </button>
@@ -179,11 +179,11 @@ export default function AIAssistant() {
                   key={i}
                   className={`max-w-[85%] ${
                     m.role === "user"
-                      ? "ml-auto bg-[#ff4500]/10 border-[#ff4500]/30"
+                      ? "ml-auto bg-brand/10 border-brand/30"
                       : m.system
-                      ? "border-[#ff4500]/40 bg-[#ff4500]/5 mx-auto text-center"
-                      : "border-[#262626] bg-[#121212]"
-                  } border px-3 py-2 font-mono text-[13px] text-[#e5e5e5] leading-relaxed whitespace-pre-wrap`}
+                      ? "border-brand/40 bg-brand/5 mx-auto text-center"
+                      : "border-line bg-surface"
+                  } border px-3 py-2 font-mono text-[13px] text-ink leading-relaxed whitespace-pre-wrap`}
                 >
                   {m.text}
                 </div>
@@ -199,19 +199,19 @@ export default function AIAssistant() {
                     window.dispatchEvent(new CustomEvent("cm:open-live-chat", { detail: { channel: "help" } }));
                   }}
                   data-testid="ai-talk-to-human"
-                  className="block mx-auto mt-2 px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] text-[#a3a3a3] font-mono text-[10px] uppercase tracking-[0.22em] transition"
+                  className="block mx-auto mt-2 px-3 py-1.5 border border-line hover:border-brand hover:text-brand text-ink-muted font-mono text-[10px] uppercase tracking-[0.22em] transition"
                 >
                   ◆ Talk to a real person →
                 </button>
               )}
               {busy && (
-                <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#525252]">
+                <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted">
                   ◆ thinking…
                 </div>
               )}
             </div>
 
-            <div className="border-t border-[#262626] p-3 flex gap-2">
+            <div className="border-t border-line p-3 flex gap-2">
               <textarea
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
@@ -219,13 +219,13 @@ export default function AIAssistant() {
                 rows={2}
                 placeholder="Ask anything — products, custom orders, shipping…"
                 disabled={busy}
-                className="flex-1 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5] resize-none"
+                className="flex-1 bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink resize-none"
                 data-testid="ai-input"
               />
               <button
                 onClick={send}
                 disabled={busy || !draft.trim()}
-                className="self-stretch bg-[#ff4500] text-black px-4 disabled:opacity-50"
+                className="self-stretch bg-brand text-black px-4 disabled:opacity-50"
                 aria-label="Send"
                 data-testid="ai-send"
               >

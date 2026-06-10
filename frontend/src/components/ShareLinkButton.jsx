@@ -100,14 +100,14 @@ export default function ShareLinkButton({
       type="button"
       onClick={onClick}
       title="Copy a share-friendly link. When you paste it in Slack / iMessage / Facebook / Discord, it unfurls with a rich card."
-      className="px-4 py-3 border border-[#262626] hover:border-[#ff4500] text-[#a3a3a3] hover:text-[#ff4500] transition-colors flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.22em]"
+      className="px-4 py-3 border border-line hover:border-brand text-ink-muted hover:text-brand transition-colors flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.22em]"
       data-testid={testId || `share-link-${kind}-${slug}`}
     >
       <Link2 size={14} />
       <span>{label}</span>
       {showBadge && (
         <span
-          className="text-[#525252] group-hover:text-[#ff4500]"
+          className="text-ink-muted group-hover:text-brand"
           data-testid={`${testId || `share-link-${kind}-${slug}`}-count`}
         >
           · {count}

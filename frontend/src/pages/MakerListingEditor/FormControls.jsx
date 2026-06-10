@@ -10,14 +10,14 @@ import { Copy, Eye, Save, Send, Check, Loader2, AlertCircle } from "lucide-react
 
 export function Section({ eyebrow, title, subtitle, counter, right, children }) {
   return (
-    <section className="grid md:grid-cols-[280px_1fr] gap-6 md:gap-12 pb-12 border-b border-[#1f1f1f]">
+    <section className="grid md:grid-cols-[280px_1fr] gap-6 md:gap-12 pb-12 border-b border-line">
       <div>
-        <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#ff4500] mb-3">
+        <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand mb-3">
           {eyebrow}
         </div>
         <h2 className="font-display text-2xl md:text-3xl uppercase">{title}</h2>
-        {subtitle && <p className="font-mono text-xs text-[#a3a3a3] mt-3 leading-relaxed">{subtitle}</p>}
-        {counter && <p className="font-mono text-[10px] text-[#525252] mt-3 uppercase tracking-[0.22em]">{counter}</p>}
+        {subtitle && <p className="font-mono text-xs text-ink-muted mt-3 leading-relaxed">{subtitle}</p>}
+        {counter && <p className="font-mono text-[10px] text-ink-muted mt-3 uppercase tracking-[0.22em]">{counter}</p>}
       </div>
       <div className="space-y-1">
         {right && <div className="flex justify-end mb-3">{right}</div>}
@@ -29,7 +29,7 @@ export function Section({ eyebrow, title, subtitle, counter, right, children }) 
 
 export function Label({ children }) {
   return (
-    <label className="block font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-1.5">
+    <label className="block font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-1.5">
       {children}
     </label>
   );
@@ -47,7 +47,7 @@ export function NumInput({ value, onChange, placeholder, testid }) {
       type="number" step="any" value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm"
+      className="w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm"
       data-testid={testid}
     />
   );
@@ -57,7 +57,7 @@ export function Select({ value, onChange, options, testid }) {
   return (
     <select
       value={value} onChange={(e) => onChange(e.target.value)}
-      className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm"
+      className="w-full bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm"
       data-testid={testid}
     >
       {options.map(([v, label]) => (
@@ -77,8 +77,8 @@ export function ChipGrid({ options, selected, onToggle, testidPrefix }) {
             key={opt} type="button" onClick={() => onToggle(opt)}
             className={`px-3 py-1.5 border font-mono text-[11px] transition ${
               on
-                ? "border-[#ff4500] bg-[#ff4500]/10 text-[#ff4500]"
-                : "border-[#262626] text-[#a3a3a3] hover:border-[#525252]"
+                ? "border-brand bg-brand/10 text-brand"
+                : "border-line text-ink-muted hover:border-line"
             }`}
             data-testid={`${testidPrefix}-${opt.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
           >
@@ -97,20 +97,20 @@ export function Toggle({ on, onChange, label, testid }) {
       className="inline-flex items-center gap-3"
       data-testid={testid}
     >
-      <span className={`w-9 h-5 border ${on ? "border-[#ff4500] bg-[#ff4500]/20" : "border-[#262626] bg-[#1a1a1a]"} relative transition`}>
-        <span className={`absolute top-0.5 transition-all ${on ? "right-0.5 bg-[#ff4500]" : "left-0.5 bg-[#525252]"} w-3.5 h-3.5`} />
+      <span className={`w-9 h-5 border ${on ? "border-brand bg-brand/20" : "border-line bg-surface"} relative transition`}>
+        <span className={`absolute top-0.5 transition-all ${on ? "right-0.5 bg-brand" : "left-0.5 bg-ink-muted"} w-3.5 h-3.5`} />
       </span>
-      <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">{label}</span>
+      <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">{label}</span>
     </button>
   );
 }
 
 export function ToggleRow({ label, hint, on, onChange, testid }) {
   return (
-    <div className="flex items-start justify-between gap-4 border border-[#1f1f1f] p-4">
+    <div className="flex items-start justify-between gap-4 border border-line p-4">
       <div className="min-w-0">
-        <div className="font-mono text-xs uppercase tracking-[0.22em] text-[#e5e5e5]">{label}</div>
-        {hint && <p className="font-mono text-[11px] text-[#737373] mt-1">{hint}</p>}
+        <div className="font-mono text-xs uppercase tracking-[0.22em] text-ink">{label}</div>
+        {hint && <p className="font-mono text-[11px] text-ink-muted mt-1">{hint}</p>}
       </div>
       <Toggle on={on} onChange={onChange} testid={testid} label="" />
     </div>
@@ -141,7 +141,7 @@ export function ActionButtons({ isEdit, saving, canPublish, errors, autoStatus, 
       {isEdit && (
         <button
           type="button" onClick={onClone}
-          className="hidden sm:inline-flex px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] items-center gap-2"
+          className="hidden sm:inline-flex px-3 py-1.5 border border-line hover:border-brand font-mono text-[10px] uppercase tracking-[0.22em] items-center gap-2"
           data-testid="editor-clone-btn"
         >
           <Copy size={12} /> Clone
@@ -149,7 +149,7 @@ export function ActionButtons({ isEdit, saving, canPublish, errors, autoStatus, 
       )}
       <button
         type="button" onClick={onPreview}
-        className="hidden sm:inline-flex px-3 py-1.5 border border-[#ff4500] text-[#ff4500] hover:bg-[#ff4500]/10 font-mono text-[10px] uppercase tracking-[0.22em] items-center gap-2"
+        className="hidden sm:inline-flex px-3 py-1.5 border border-brand text-brand hover:bg-brand/10 font-mono text-[10px] uppercase tracking-[0.22em] items-center gap-2"
         data-testid="editor-preview-btn"
       >
         <Eye size={12} /> Preview
@@ -208,7 +208,7 @@ export function AutoSaveIndicator({ status, lastSavedAt, agoTick }) {
   if (status === "saving") {
     return (
       <span
-        className="hidden md:inline-flex items-center gap-1.5 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-[#a3a3a3]"
+        className="hidden md:inline-flex items-center gap-1.5 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-ink-muted"
         data-testid="editor-autosave-saving"
       >
         <Loader2 size={11} className="animate-spin" />

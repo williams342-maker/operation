@@ -132,7 +132,7 @@ export default function ProcessingProfilePicker({ value, onChange, maker, onMake
       {/* Currently applied highlight */}
       {applied && (
         <div className="space-y-2">
-          <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#a3a3a3]">
+          <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-ink-muted">
             ◆ Currently applied
           </div>
           <ProfileCard p={applied} applied onClick={() => apply(applied)} testIdSuffix="current" />
@@ -142,14 +142,14 @@ export default function ProcessingProfilePicker({ value, onChange, maker, onMake
       {/* All profiles, grouped */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#a3a3a3]">
+          <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-ink-muted">
             ◆ All profiles
           </div>
           {!creating && (
             <button
               type="button"
               onClick={() => setCreating(true)}
-              className="px-2.5 py-1 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5 transition"
+              className="px-2.5 py-1 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5 transition"
               data-testid="processing-profile-create"
             >
               <Plus size={11} /> Create new
@@ -159,12 +159,12 @@ export default function ProcessingProfilePicker({ value, onChange, maker, onMake
 
         {/* Inline create form */}
         {creating && (
-          <div className="border border-[#ff4500]/40 bg-[#1a0a05] p-4 space-y-3" data-testid="processing-profile-form">
+          <div className="border border-brand/40 bg-brand/10 p-4 space-y-3" data-testid="processing-profile-form">
             <div className="grid grid-cols-2 gap-3">
               <select
                 value={draft.kind}
                 onChange={(e) => setDraft({ ...draft, kind: e.target.value })}
-                className="bg-[#0a0a0a] border border-[#262626] px-3 py-2 font-mono text-xs text-[#e5e5e5]"
+                className="bg-paper border border-line px-3 py-2 font-mono text-xs text-ink"
                 data-testid="processing-profile-kind"
               >
                 <option value="Made to order">Made to order</option>
@@ -176,7 +176,7 @@ export default function ProcessingProfilePicker({ value, onChange, maker, onMake
                 value={draft.range}
                 onChange={(e) => setDraft({ ...draft, range: e.target.value })}
                 placeholder="e.g. 5-7 business days"
-                className="bg-[#0a0a0a] border border-[#262626] px-3 py-2 font-mono text-xs text-[#e5e5e5] placeholder:text-[#525252]"
+                className="bg-paper border border-line px-3 py-2 font-mono text-xs text-ink placeholder:text-ink-muted"
                 data-testid="processing-profile-range"
               />
             </div>
@@ -185,7 +185,7 @@ export default function ProcessingProfilePicker({ value, onChange, maker, onMake
                 type="button"
                 onClick={addCustom}
                 disabled={!draft.kind.trim() || !draft.range.trim()}
-                className="px-3 py-1.5 border border-[#ff4500] bg-[#ff4500] text-black hover:bg-[#ff5a1a] font-mono text-[10px] uppercase tracking-[0.22em] font-bold transition disabled:opacity-50"
+                className="px-3 py-1.5 border border-brand bg-brand text-black hover:bg-brand-hover font-mono text-[10px] uppercase tracking-[0.22em] font-bold transition disabled:opacity-50"
                 data-testid="processing-profile-save"
               >
                 Save & apply
@@ -193,7 +193,7 @@ export default function ProcessingProfilePicker({ value, onChange, maker, onMake
               <button
                 type="button"
                 onClick={() => setCreating(false)}
-                className="px-3 py-1.5 border border-[#262626] hover:border-[#525252] font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5"
+                className="px-3 py-1.5 border border-line hover:border-line font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5"
               >
                 <X size={11} /> Cancel
               </button>
@@ -204,7 +204,7 @@ export default function ProcessingProfilePicker({ value, onChange, maker, onMake
         {/* Grid */}
         {Object.entries(byKind).map(([kind, list]) => (
           <div key={kind} className="space-y-2">
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252]">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
               {kind}
             </div>
             <div className="grid sm:grid-cols-2 gap-2">
@@ -222,7 +222,7 @@ export default function ProcessingProfilePicker({ value, onChange, maker, onMake
         ))}
       </div>
 
-      <p className="font-mono text-[10px] text-[#525252]">
+      <p className="font-mono text-[10px] text-ink-muted">
         ◆ Custom or made-to-order items often need longer processing time than ready-to-ship inventory.
       </p>
     </div>
@@ -236,14 +236,14 @@ function ProfileCard({ p, applied, onClick, onRemove, testIdSuffix }) {
       className={`relative flex items-center justify-between gap-3 px-4 py-3 border transition cursor-pointer ${
         applied
           ? "border-emerald-400 bg-emerald-500/10"
-          : "border-[#262626] bg-[#0d0d0d] hover:border-[#ff4500]/60"
+          : "border-line bg-surface hover:border-brand/60"
       }`}
       onClick={onClick}
       data-testid={`processing-profile-card-${tid}`}
     >
       <div className="min-w-0">
-        <div className="font-mono text-sm text-[#e5e5e5] font-bold">{p.kind}</div>
-        <div className="font-mono text-[11px] text-[#a3a3a3] mt-0.5">{p.range}</div>
+        <div className="font-mono text-sm text-ink font-bold">{p.kind}</div>
+        <div className="font-mono text-[11px] text-ink-muted mt-0.5">{p.range}</div>
       </div>
       <div className="flex items-center gap-2 shrink-0">
         {applied ? (
@@ -251,7 +251,7 @@ function ProfileCard({ p, applied, onClick, onRemove, testIdSuffix }) {
             <Check size={12} /> Applied
           </span>
         ) : (
-          <span className="px-2.5 py-1 border border-[#262626] font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+          <span className="px-2.5 py-1 border border-line font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
             Apply
           </span>
         )}
@@ -259,7 +259,7 @@ function ProfileCard({ p, applied, onClick, onRemove, testIdSuffix }) {
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onRemove(); }}
-            className="text-[#525252] hover:text-red-400 transition"
+            className="text-ink-muted hover:text-red-400 transition"
             title="Delete this custom profile"
             data-testid={`processing-profile-delete-${tid}`}
           >

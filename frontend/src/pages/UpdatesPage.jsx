@@ -55,21 +55,21 @@ export default function UpdatesPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-[#e5e5e5] grain pt-24 pb-32" data-testid="updates-page">
+    <div className="min-h-screen bg-paper text-ink grain pt-24 pb-32" data-testid="updates-page">
       <div className="max-w-4xl mx-auto px-6">
         {/* Header */}
         <div className="mb-16 md:mb-20">
-          <div className="font-mono text-[10px] uppercase tracking-[0.32em] text-[#ff4500] mb-4 flex items-center gap-2">
+          <div className="font-mono text-[10px] uppercase tracking-[0.32em] text-brand mb-4 flex items-center gap-2">
             <Sparkles size={12} /> Updates &amp; Improvements
           </div>
           <h1 className="font-display text-5xl sm:text-7xl md:text-8xl uppercase leading-[0.92] tracking-[-0.02em] mb-6">
-            What's<br /><span className="text-[#ff4500]">New.</span>
+            What's<br /><span className="text-brand">New.</span>
           </h1>
-          <p className="font-mono text-sm text-[#a3a3a3] max-w-xl leading-relaxed">
+          <p className="font-mono text-sm text-ink-muted max-w-xl leading-relaxed">
             Recent improvements to Crafters Market. New features, bug fixes, and quality-of-life updates — refreshed automatically on every release.
           </p>
           {updatedAt && (
-            <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#525252] mt-6 flex items-center gap-2">
+            <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-ink-muted mt-6 flex items-center gap-2">
               <RefreshCw size={10} />
               Last refreshed {new Date(updatedAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}
             </div>
@@ -81,14 +81,14 @@ export default function UpdatesPage() {
         <SubscribeCard />
 
         {loading && (
-          <div className="font-mono text-xs text-[#525252]" data-testid="updates-loading">Loading…</div>
+          <div className="font-mono text-xs text-ink-muted" data-testid="updates-loading">Loading…</div>
         )}
         {err && (
           <div className="font-mono text-xs text-red-400" data-testid="updates-error">{err}</div>
         )}
 
         {!loading && !err && entries.length === 0 && (
-          <div className="font-mono text-xs text-[#525252]">No updates yet.</div>
+          <div className="font-mono text-xs text-ink-muted">No updates yet.</div>
         )}
 
         {/* Timeline */}
@@ -110,15 +110,15 @@ export default function UpdatesPage() {
                   <span
                     className={`absolute left-0 top-2 w-[15px] h-[15px] border-2 ${
                       i === 0
-                        ? "bg-[#ff4500] border-[#ff4500] shadow-[0_0_18px_#ff4500]"
-                        : "bg-[#0a0a0a] border-[#ff4500]/60"
+                        ? "bg-brand border-brand shadow-[0_0_18px_#ff4500]"
+                        : "bg-paper border-brand/60"
                     }`}
                     aria-hidden="true"
                   />
-                  <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#a3a3a3] mb-2">
+                  <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-ink-muted mb-2">
                     {fmtDate(e.date)}
                     {i === 0 && (
-                      <span className="ml-3 px-2 py-0.5 bg-[#ff4500]/15 border border-[#ff4500]/40 text-[#ff4500] tracking-[0.22em]">
+                      <span className="ml-3 px-2 py-0.5 bg-brand/15 border border-brand/40 text-brand tracking-[0.22em]">
                         Latest
                       </span>
                     )}
@@ -127,7 +127,7 @@ export default function UpdatesPage() {
                     {e.title}
                   </h2>
                   {e.blurb && (
-                    <p className="font-mono text-[13px] text-[#a3a3a3] leading-relaxed">
+                    <p className="font-mono text-[13px] text-ink-muted leading-relaxed">
                       {e.blurb}
                     </p>
                   )}
@@ -138,8 +138,8 @@ export default function UpdatesPage() {
         )}
 
         {/* Footer CTA — pull traffic into the beta funnel */}
-        <div className="mt-20 pt-12 border-t border-[#1a1a1a] text-center">
-          <p className="font-mono text-xs text-[#525252] mb-6">
+        <div className="mt-20 pt-12 border-t border-line text-center">
+          <p className="font-mono text-xs text-ink-muted mb-6">
             Got an idea or a bug to report?
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
@@ -191,13 +191,13 @@ function SubscribeCard() {
   if (done) {
     return (
       <div
-        className="mb-16 border border-[#ff4500]/40 bg-gradient-to-br from-[#1a0a05] to-[#0f0f0f] p-6 md:p-8 flex items-center gap-4"
+        className="mb-16 border border-brand/40 bg-gradient-to-br from-[#1a0a05] to-[#0f0f0f] p-6 md:p-8 flex items-center gap-4"
         data-testid="updates-subscribe-success"
       >
-        <CheckCircle2 size={28} className="text-[#ff4500] shrink-0" />
+        <CheckCircle2 size={28} className="text-brand shrink-0" />
         <div>
           <div className="font-display text-xl uppercase leading-tight mb-1">You're on the list.</div>
-          <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed">
+          <p className="font-mono text-xs text-ink-muted leading-relaxed">
             We'll only email you when something new ships. No filler. Unsubscribe in one click any time.
           </p>
         </div>
@@ -207,16 +207,16 @@ function SubscribeCard() {
 
   return (
     <div
-      className="mb-16 border border-[#262626] bg-[#0f0f0f] p-6 md:p-8"
+      className="mb-16 border border-line bg-paper p-6 md:p-8"
       data-testid="updates-subscribe-card"
     >
-      <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.32em] text-[#ff4500] mb-3">
+      <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.32em] text-brand mb-3">
         <Mail size={12} /> Stay in the loop
       </div>
       <h3 className="font-display text-2xl md:text-3xl uppercase leading-tight mb-2">
         Get an email when we ship something new.
       </h3>
-      <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed mb-5 max-w-xl">
+      <p className="font-mono text-xs text-ink-muted leading-relaxed mb-5 max-w-xl">
         One short digest only when there's a real update. No marketing. One-click unsubscribe.
       </p>
       <form onSubmit={submit} className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3" data-testid="updates-subscribe-form">
@@ -228,7 +228,7 @@ function SubscribeCard() {
             onChange={(e) => setName(e.target.value)}
             disabled={busy}
             maxLength={120}
-            className="bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-4 py-3 font-mono text-sm text-[#e5e5e5] placeholder:text-[#525252]"
+            className="bg-paper border border-line focus:border-brand outline-none px-4 py-3 font-mono text-sm text-ink placeholder:text-ink-muted"
             data-testid="updates-subscribe-name"
           />
           <input
@@ -239,7 +239,7 @@ function SubscribeCard() {
             required
             disabled={busy}
             maxLength={200}
-            className="bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-4 py-3 font-mono text-sm text-[#e5e5e5] placeholder:text-[#525252]"
+            className="bg-paper border border-line focus:border-brand outline-none px-4 py-3 font-mono text-sm text-ink placeholder:text-ink-muted"
             data-testid="updates-subscribe-email"
           />
         </div>

@@ -21,22 +21,22 @@ export default function EmptyState({
 }) {
   return (
     <div
-      className="border border-[#262626] bg-[#0f0f0f] p-10 md:p-16 text-center"
+      className="border border-line bg-paper p-10 md:p-16 text-center"
       data-testid={testId}
     >
       {Icon && (
-        <div className="w-16 h-16 mx-auto mb-6 flex items-center justify-center bg-[#1a1a1a] text-[#ff4500] border border-[#262626]">
+        <div className="w-16 h-16 mx-auto mb-6 flex items-center justify-center bg-surface text-brand border border-line">
           <Icon size={24} />
         </div>
       )}
-      <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#525252] mb-3">
+      <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-ink-muted mb-3">
         {eyebrow}
       </div>
       <h3 className="font-display text-3xl md:text-5xl tracking-[-0.01em] leading-[0.95] mb-4">
         {title}
       </h3>
       {body && (
-        <p className="font-mono text-sm text-[#a3a3a3] max-w-[42ch] mx-auto mb-8 leading-relaxed">
+        <p className="font-mono text-sm text-ink-muted max-w-[42ch] mx-auto mb-8 leading-relaxed">
           {body}
         </p>
       )}
@@ -73,7 +73,7 @@ function CTAButton({ href, onClick, children, testId }) {
 
 function CTALink({ href, onClick, children }) {
   const cls =
-    "font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] transition";
+    "font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand transition";
   if (href) return <Link to={href} className={cls}>{children}</Link>;
   return <button onClick={onClick} className={cls}>{children}</button>;
 }

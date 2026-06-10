@@ -76,22 +76,22 @@ export default function InstallPwaButton() {
   return (
     <div
       data-testid="pwa-install-banner"
-      className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-3 border border-[#ff4500] bg-[#0a0a0a] shadow-[0_8px_24px_rgba(0,0,0,0.6)] px-4 py-3 max-w-[92vw]"
+      className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-3 border border-brand bg-paper shadow-[0_8px_24px_rgba(0,0,0,0.6)] px-4 py-3 max-w-[92vw]"
     >
-      <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">
+      <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">
         ◆ Install
       </span>
-      <span className="font-mono text-xs text-[#e5e5e5] hidden sm:inline">
+      <span className="font-mono text-xs text-ink hidden sm:inline">
         Add Crafters Market to your home screen — full-screen, push notifications, faster load.
       </span>
-      <span className="font-mono text-xs text-[#e5e5e5] sm:hidden">
+      <span className="font-mono text-xs text-ink sm:hidden">
         Add to home screen
       </span>
       <button
         type="button"
         onClick={handleInstall}
         data-testid="pwa-install-btn"
-        className="px-3 py-1.5 border border-[#ff4500] text-[#ff4500] hover:bg-[#ff4500] hover:text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] transition"
+        className="px-3 py-1.5 border border-brand text-brand hover:bg-brand hover:text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] transition"
       >
         Install →
       </button>
@@ -100,7 +100,7 @@ export default function InstallPwaButton() {
         onClick={handleDismiss}
         data-testid="pwa-install-dismiss"
         aria-label="Dismiss install prompt"
-        className="font-mono text-[14px] text-[#525252] hover:text-[#e5e5e5] px-2 leading-none"
+        className="font-mono text-[14px] text-ink-muted hover:text-ink px-2 leading-none"
       >
         ×
       </button>

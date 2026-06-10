@@ -38,14 +38,14 @@ export default function KitPage() {
 
   if (error === "not_found") {
     return (
-      <div className="min-h-screen bg-[#0a0a0a] text-[#e5e5e5] pt-32 pb-24 flex items-center">
+      <div className="min-h-screen bg-paper text-ink pt-32 pb-24 flex items-center">
         <div className="max-w-md mx-auto px-4 text-center" data-testid="kit-not-found">
-          <div className="font-mono text-[10px] uppercase tracking-[0.32em] text-[#525252] mb-3">◆ 404</div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.32em] text-ink-muted mb-3">◆ 404</div>
           <h1 className="font-display text-3xl mb-3">Kit not found</h1>
-          <p className="font-mono text-sm text-[#a3a3a3] mb-6">
+          <p className="font-mono text-sm text-ink-muted mb-6">
             This kit either doesn't exist or is unlisted.
           </p>
-          <Link to="/studio" className="font-mono text-xs uppercase tracking-[0.22em] text-[#00ffff] hover:text-[#ff4500]">
+          <Link to="/studio" className="font-mono text-xs uppercase tracking-[0.22em] text-[#00ffff] hover:text-brand">
             Browse the Studio →
           </Link>
         </div>
@@ -55,8 +55,8 @@ export default function KitPage() {
 
   if (!kit) {
     return (
-      <div className="min-h-screen bg-[#0a0a0a] text-[#a3a3a3] pt-32 pb-24 flex items-center justify-center">
-        <Loader2 size={20} className="animate-spin text-[#ff4500]" />
+      <div className="min-h-screen bg-paper text-ink-muted pt-32 pb-24 flex items-center justify-center">
+        <Loader2 size={20} className="animate-spin text-brand" />
       </div>
     );
   }
@@ -73,7 +73,7 @@ export default function KitPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-[#e5e5e5] pt-32 pb-24">
+    <div className="min-h-screen bg-paper text-ink pt-32 pb-24">
       <div className="max-w-6xl mx-auto px-4 md:px-8">
         {/* Header */}
         <div className="mb-12 max-w-3xl">
@@ -84,25 +84,25 @@ export default function KitPage() {
             {kit.title}
           </h1>
           {kit.description && (
-            <p className="font-mono text-sm text-[#a3a3a3] leading-relaxed mb-6">
+            <p className="font-mono text-sm text-ink-muted leading-relaxed mb-6">
               {kit.description}
             </p>
           )}
           <div className="flex items-center gap-5 flex-wrap font-mono text-[10px] uppercase tracking-[0.22em]">
-            <span className="text-[#525252]">
-              Curated by <span className="text-[#e5e5e5]">{kit.owner_name}</span>
+            <span className="text-ink-muted">
+              Curated by <span className="text-ink">{kit.owner_name}</span>
             </span>
             <button
               type="button"
               onClick={copyShare}
-              className="inline-flex items-center gap-1.5 text-[#a3a3a3] hover:text-[#ff4500] transition"
+              className="inline-flex items-center gap-1.5 text-ink-muted hover:text-brand transition"
               data-testid="kit-share-btn"
             >
               <Share2 size={11} /> Copy share URL
             </button>
             <Link
               to="/studio"
-              className="inline-flex items-center gap-1.5 text-[#00ffff] hover:text-[#ff4500] transition"
+              className="inline-flex items-center gap-1.5 text-[#00ffff] hover:text-brand transition"
               data-testid="kit-studio-cta"
             >
               <Sparkles size={11} /> Make your own
@@ -113,13 +113,13 @@ export default function KitPage() {
             <div className="mt-6">
               <a
                 href={bundleUrl}
-                className="inline-flex items-center gap-2 px-5 py-3 bg-[#ff4500] text-[#0a0a0a] hover:bg-[#ff6a2a] font-mono text-[11px] uppercase tracking-[0.22em] font-bold transition"
+                className="inline-flex items-center gap-2 px-5 py-3 bg-brand text-[#0a0a0a] hover:bg-brand-hover font-mono text-[11px] uppercase tracking-[0.22em] font-bold transition"
                 data-testid="kit-bundle-download"
                 download
               >
                 <Download size={14} /> Download bundle (ZIP · {kit.files.length} {kit.files.length === 1 ? "file" : "files"})
               </a>
-              <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252] mt-2">
+              <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted mt-2">
                 ◆ SVG + DXF + README · ready for laser, plasma, router
               </div>
             </div>
@@ -134,7 +134,7 @@ export default function KitPage() {
             ))}
           </div>
         ) : (
-          <div className="border border-[#262626] bg-[#0a0a0a] p-12 text-center font-mono text-sm text-[#525252]">
+          <div className="border border-line bg-paper p-12 text-center font-mono text-sm text-ink-muted">
             This kit is empty — its creator hasn't added designs yet.
           </div>
         )}
@@ -150,7 +150,7 @@ function KitFileCard({ file, index }) {
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: index * 0.05 }}
-      className="border border-[#262626] hover:border-[#ff4500] transition group bg-[#0a0a0a]"
+      className="border border-line hover:border-brand transition group bg-paper"
       data-testid={`kit-file-${file.id}`}
     >
       <div className="aspect-[2/1] bg-white overflow-hidden flex items-center justify-center [&_svg]:max-w-full [&_svg]:max-h-full [&_svg]:w-auto [&_svg]:h-auto">
@@ -174,11 +174,11 @@ function KitFileCard({ file, index }) {
               ◆ AI
             </span>
           )}
-          <div className="font-mono text-[11px] text-[#e5e5e5] line-clamp-1 flex-1">
+          <div className="font-mono text-[11px] text-ink line-clamp-1 flex-1">
             {file.title}
           </div>
         </div>
-        <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252]">
+        <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted">
           by {file.maker_name || file.maker_slug || "Studio Member"}
         </div>
         <div className="flex items-center gap-2 pt-1">
@@ -193,7 +193,7 @@ function KitFileCard({ file, index }) {
           )}
           <Link
             to={`/community?tab=files&open=${file.id}`}
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 border border-[#262626] hover:border-[#ff4500] font-mono text-[9px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#fff]"
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 border border-line hover:border-brand font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted hover:text-ink"
             data-testid={`kit-open-${file.id}`}
           >
             <Download size={11} /> Open

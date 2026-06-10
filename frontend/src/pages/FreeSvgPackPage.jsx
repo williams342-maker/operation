@@ -182,7 +182,7 @@ export default function FreeSvgPackPage() {
           ]}
           testId="lead-magnet-breadcrumbs"
         />
-        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-4">
+        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-4">
           ◆ Free Download · Starter Pack
         </div>
         <h1
@@ -192,12 +192,12 @@ export default function FreeSvgPackPage() {
           10 Free CNC Designs. SVG &amp; DXF.
         </h1>
 
-        <p className="font-mono text-base text-[#e5e5e5] max-w-3xl leading-relaxed mb-4">
+        <p className="font-mono text-base text-ink max-w-3xl leading-relaxed mb-4">
           Hand-picked from the Crafters Market design library. Ready for plasma
           tables, fiber lasers, CO2 lasers, and CNC routers. Commercial use
           included — cut them, sell them, modify them.
         </p>
-        <p className="font-mono text-sm text-[#a3a3a3] max-w-3xl leading-relaxed mb-10">
+        <p className="font-mono text-sm text-ink-muted max-w-3xl leading-relaxed mb-10">
           Drop your email below and we&apos;ll unlock the ~{preview?.approx_size_mb || 2} MB ZIP
           right here on this page. No fluff, no spam — just the files.
         </p>
@@ -205,23 +205,23 @@ export default function FreeSvgPackPage() {
         {/* Email gate */}
         <div
           id="download-form"
-          className="border border-[#262626] bg-[#0a0a0a] p-6 md:p-8 max-w-2xl mb-16"
+          className="border border-line bg-paper p-6 md:p-8 max-w-2xl mb-16"
           data-testid="lead-magnet-form-wrap"
         >
           {downloadUrl ? (
             <div data-testid="lead-magnet-success">
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 bg-[#ff4500] grid place-items-center">
+                <div className="w-10 h-10 bg-brand grid place-items-center">
                   <Check size={20} className="text-black" strokeWidth={3} />
                 </div>
                 <div>
-                  <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">
+                  <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">
                     ◆ Unlocked
                   </div>
                   <div className="font-display text-2xl">Your pack is downloading.</div>
                 </div>
               </div>
-              <p className="font-mono text-sm text-[#a3a3a3] mb-4 leading-relaxed">
+              <p className="font-mono text-sm text-ink-muted mb-4 leading-relaxed">
                 If the download didn&apos;t start automatically, click below.
                 Bookmark this page — the link stays valid so you can come back.
               </p>
@@ -237,7 +237,7 @@ export default function FreeSvgPackPage() {
             <form onSubmit={submit} data-testid="lead-magnet-form">
               <label
                 htmlFor="lm-email"
-                className="block font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2"
+                className="block font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2"
               >
                 Email address
               </label>
@@ -248,7 +248,7 @@ export default function FreeSvgPackPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
-                className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-3 font-mono text-sm mb-4"
+                className="w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-3 font-mono text-sm mb-4"
                 data-testid="lead-magnet-email-input"
               />
               <label className="flex items-start gap-2 mb-5 cursor-pointer" data-testid="lead-magnet-consent-wrap">
@@ -259,7 +259,7 @@ export default function FreeSvgPackPage() {
                   className="mt-1 accent-[#ff4500]"
                   data-testid="lead-magnet-consent"
                 />
-                <span className="font-mono text-[11px] text-[#a3a3a3] leading-relaxed">
+                <span className="font-mono text-[11px] text-ink-muted leading-relaxed">
                   Send me occasional updates about new free packs and maker features. (Unsubscribe anytime; no spam.)
                 </span>
               </label>
@@ -287,7 +287,7 @@ export default function FreeSvgPackPage() {
                   </>
                 )}
               </button>
-              <p className="font-mono text-[10px] text-[#525252] mt-4">
+              <p className="font-mono text-[10px] text-ink-muted mt-4">
                 ◆ One-click download · No payment · Commercial use included
               </p>
             </form>
@@ -295,24 +295,24 @@ export default function FreeSvgPackPage() {
         </div>
 
         {/* What's inside — file grid */}
-        <div className="border-t border-[#262626] pt-12 mb-20">
-          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-3">
+        <div className="border-t border-line pt-12 mb-20">
+          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-3">
             ◆ Inside the pack
           </div>
           <h2 className="font-display text-3xl md:text-5xl uppercase mb-8">
             {preview?.file_count || 10} designs · 2 formats each
           </h2>
           {!preview ? (
-            <div className="font-mono text-sm text-[#a3a3a3]">Loading file list…</div>
+            <div className="font-mono text-sm text-ink-muted">Loading file list…</div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
               {preview.files.map((f, idx) => (
                 <div
                   key={idx}
-                  className="border border-[#262626] bg-[#0a0a0a] overflow-hidden"
+                  className="border border-line bg-paper overflow-hidden"
                   data-testid={`lead-magnet-file-${idx}`}
                 >
-                  <div className="aspect-square bg-[#121212] overflow-hidden">
+                  <div className="aspect-square bg-surface overflow-hidden">
                     <img
                       src={f.preview_image}
                       alt={`${f.title} — SVG and DXF design preview`}
@@ -324,10 +324,10 @@ export default function FreeSvgPackPage() {
                     <div className="font-display text-sm leading-tight mb-1">
                       {f.title}
                     </div>
-                    <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-[#525252] mb-1">
+                    <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-ink-muted mb-1">
                       SVG · DXF
                     </div>
-                    <div className="font-mono text-[10px] text-[#737373] leading-relaxed line-clamp-2">
+                    <div className="font-mono text-[10px] text-ink-muted leading-relaxed line-clamp-2">
                       {f.use_case}
                     </div>
                   </div>
@@ -338,8 +338,8 @@ export default function FreeSvgPackPage() {
         </div>
 
         {/* HowTo */}
-        <div className="border-t border-[#262626] pt-12 mb-20" data-testid="lead-magnet-howto">
-          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-3">
+        <div className="border-t border-line pt-12 mb-20" data-testid="lead-magnet-howto">
+          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-3">
             ◆ How to use these files
           </div>
           <h2 className="font-display text-3xl md:text-5xl uppercase mb-10">
@@ -352,14 +352,14 @@ export default function FreeSvgPackPage() {
                 className="grid grid-cols-[70px_1fr] md:grid-cols-[110px_1fr] gap-6"
                 data-testid={`lead-magnet-step-${s.n}`}
               >
-                <div className="font-display text-4xl md:text-6xl text-[#ff4500] leading-none">
+                <div className="font-display text-4xl md:text-6xl text-brand leading-none">
                   {s.n}
                 </div>
                 <div>
                   <h3 className="font-display text-xl md:text-3xl uppercase mb-2">
                     {s.title}
                   </h3>
-                  <p className="font-mono text-sm md:text-base text-[#a3a3a3] leading-relaxed max-w-2xl">
+                  <p className="font-mono text-sm md:text-base text-ink-muted leading-relaxed max-w-2xl">
                     {s.body}
                   </p>
                 </div>
@@ -369,8 +369,8 @@ export default function FreeSvgPackPage() {
         </div>
 
         {/* FAQ */}
-        <div className="border-t border-[#262626] pt-12 mb-20" data-testid="lead-magnet-faq">
-          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-3">
+        <div className="border-t border-line pt-12 mb-20" data-testid="lead-magnet-faq">
+          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-3">
             ◆ FAQ
           </div>
           <h2 className="font-display text-3xl md:text-5xl uppercase mb-8">
@@ -380,14 +380,14 @@ export default function FreeSvgPackPage() {
             {FAQS.map(({ q, a }, idx) => (
               <details
                 key={idx}
-                className="border border-[#262626] bg-[#0a0a0a] open:border-[#ff4500] transition"
+                className="border border-line bg-paper open:border-brand transition"
                 data-testid={`lead-magnet-faq-item-${idx}`}
               >
-                <summary className="cursor-pointer list-none p-4 flex items-start justify-between gap-4 font-mono text-sm text-[#e5e5e5] hover:text-[#ff4500]">
+                <summary className="cursor-pointer list-none p-4 flex items-start justify-between gap-4 font-mono text-sm text-ink hover:text-brand">
                   <span className="flex-1">{q}</span>
                   <span className="font-display text-xl shrink-0">+</span>
                 </summary>
-                <div className="px-4 pb-4 pt-2 border-t border-[#262626] font-mono text-sm text-[#a3a3a3] leading-relaxed">
+                <div className="px-4 pb-4 pt-2 border-t border-line font-mono text-sm text-ink-muted leading-relaxed">
                   {a}
                 </div>
               </details>
@@ -396,11 +396,11 @@ export default function FreeSvgPackPage() {
         </div>
 
         {/* Bottom CTA */}
-        <div className="border-t border-[#262626] pt-12 text-center">
+        <div className="border-t border-line pt-12 text-center">
           <h2 className="font-display text-3xl md:text-5xl uppercase mb-4">
             Want a custom piece?
           </h2>
-          <p className="font-mono text-sm text-[#a3a3a3] max-w-xl mx-auto mb-8 leading-relaxed">
+          <p className="font-mono text-sm text-ink-muted max-w-xl mx-auto mb-8 leading-relaxed">
             The starter pack is a great way to break in your machine. When you&apos;re
             ready for something built to your spec by a vetted American maker,
             the marketplace is one click away.

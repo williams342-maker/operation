@@ -91,12 +91,12 @@ export default function RecentShowcaseStrip({
     return (
       <section className="w-full max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12 py-14" data-testid={`${testId}-loading`}>
         <header className="mb-6">
-          <p className="font-mono text-[11px] uppercase tracking-[0.32em] text-[#525252]">{eyebrow}</p>
-          <h2 className="font-display text-3xl text-[#262626]">{title}</h2>
+          <p className="font-mono text-[11px] uppercase tracking-[0.32em] text-ink-muted">{eyebrow}</p>
+          <h2 className="font-display text-3xl text-ink-muted/40">{title}</h2>
         </header>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[...Array(limit)].map((_, i) => (
-            <div key={i} className="aspect-square bg-[#121212] border border-[#1a1a1a]" />
+            <div key={i} className="aspect-square bg-surface border border-line" />
           ))}
         </div>
       </section>
@@ -113,15 +113,15 @@ export default function RecentShowcaseStrip({
     >
       <header className="mb-6 flex items-end justify-between gap-4">
         <div>
-          <p className="font-mono text-[11px] uppercase tracking-[0.32em] text-[#ff4500]">{eyebrow}</p>
-          <h2 className="font-display text-3xl text-[#e5e5e5]">{title}</h2>
-          <p className="font-mono text-xs text-[#a3a3a3] mt-1.5 max-w-xl">
+          <p className="font-mono text-[11px] uppercase tracking-[0.32em] text-brand">{eyebrow}</p>
+          <h2 className="font-display text-3xl text-ink">{title}</h2>
+          <p className="font-mono text-xs text-ink-muted mt-1.5 max-w-xl">
             Real installs from real buyers. No staged photos, no marketing — just where the pieces ended up.
           </p>
         </div>
         <Link
           to="/community"
-          className="hidden md:inline-flex shrink-0 px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] transition"
+          className="hidden md:inline-flex shrink-0 px-3 py-1.5 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted transition"
           data-testid={`${testId}-view-all`}
         >
           View all →
@@ -138,7 +138,7 @@ export default function RecentShowcaseStrip({
               to={`/community#post-${post.id}`}
               onClick={() => recordShowcaseClick(post.id, resolvedSource)}
               data-post-id={post.id}
-              className="group relative aspect-square bg-[#121212] border border-[#262626] hover:border-[#ff4500] overflow-hidden transition"
+              className="group relative aspect-square bg-surface border border-line hover:border-brand overflow-hidden transition"
               data-testid={`${testId}-item-${post.id}`}
               title={post.title}
             >
@@ -150,7 +150,7 @@ export default function RecentShowcaseStrip({
                   className="w-full h-full object-cover group-hover:scale-105 transition duration-700"
                 />
               ) : (
-                <div className="w-full h-full grid place-items-center font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252]">
+                <div className="w-full h-full grid place-items-center font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
                   No image
                 </div>
               )}
@@ -159,17 +159,17 @@ export default function RecentShowcaseStrip({
                   read as a clean tile on first paint and reveal context
                   on intent. */}
               <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-[#0a0a0a]/95 via-[#0a0a0a]/55 to-transparent opacity-0 group-hover:opacity-100 transition duration-300">
-                <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#ff4500] mb-0.5 truncate">
+                <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-brand mb-0.5 truncate">
                   {post.user_name || "buyer"}
                 </p>
-                <p className="font-display text-base text-[#e5e5e5] leading-tight line-clamp-2">
+                <p className="font-display text-base text-ink leading-tight line-clamp-2">
                   {post.title}
                 </p>
               </div>
 
               {post.video_url && (
                 <span
-                  className="absolute top-2 left-2 bg-[#ff4500] text-[#0a0a0a] font-mono text-[8px] uppercase tracking-[0.18em] px-1.5 py-0.5 font-bold"
+                  className="absolute top-2 left-2 bg-brand text-[#0a0a0a] font-mono text-[8px] uppercase tracking-[0.18em] px-1.5 py-0.5 font-bold"
                   data-testid={`${testId}-video-${post.id}`}
                 >
                   ◆ Video
@@ -186,7 +186,7 @@ export default function RecentShowcaseStrip({
                 </span>
               )}
               {extra > 0 && (
-                <span className="absolute top-2 right-2 bg-[#0a0a0a]/85 border border-[#262626] text-[#e5e5e5] font-mono text-[9px] uppercase tracking-[0.18em] px-1.5 py-0.5">
+                <span className="absolute top-2 right-2 bg-paper/85 border border-line text-ink font-mono text-[9px] uppercase tracking-[0.18em] px-1.5 py-0.5">
                   +{extra}
                 </span>
               )}

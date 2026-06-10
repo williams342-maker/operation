@@ -107,22 +107,22 @@ export default function PersonalizationPanel({
 
   return (
     <div
-      className="border border-[#ff4500]/30 bg-[#1a0a05] p-5 mt-6"
+      className="border border-brand/30 bg-brand/10 p-5 mt-6"
       data-testid={`${testIdPrefix}-panel`}
     >
-      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mb-3 inline-flex items-center gap-1.5">
+      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-3 inline-flex items-center gap-1.5">
         <Info size={11} /> Personalization required
       </div>
       {instructions && (
         <div
-          className="text-sm text-[#e5e5e5] leading-relaxed mb-4 whitespace-pre-wrap"
+          className="text-sm text-ink leading-relaxed mb-4 whitespace-pre-wrap"
           data-testid={`${testIdPrefix}-instructions`}
         >
           {instructions}
         </div>
       )}
 
-      <label className="block font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-1.5">
+      <label className="block font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-1.5">
         Your message to the maker
       </label>
       <textarea
@@ -130,13 +130,13 @@ export default function PersonalizationPanel({
         value={text}
         onChange={onTextChange}
         placeholder="Names, dates, placement notes, anything the maker needs to know…"
-        className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] text-sm text-[#fafafa] p-3 outline-none transition-colors"
+        className="w-full bg-paper border border-line focus:border-brand text-sm text-ink p-3 outline-none transition-colors"
         data-testid={`${testIdPrefix}-text`}
         maxLength={2000}
       />
 
       <div className="mt-4">
-        <label className="block font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">
+        <label className="block font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
           Reference image (optional)
         </label>
         {imageUrl ? (
@@ -144,14 +144,14 @@ export default function PersonalizationPanel({
             <img
               src={imageUrl}
               alt="Reference"
-              className="w-24 h-24 object-cover border border-[#262626]"
+              className="w-24 h-24 object-cover border border-line"
             />
             <div className="flex-1">
-              <div className="text-xs text-[#a3a3a3] mb-2 break-all">{imageUrl.split("/").slice(-1)[0]}</div>
+              <div className="text-xs text-ink-muted mb-2 break-all">{imageUrl.split("/").slice(-1)[0]}</div>
               <button
                 type="button"
                 onClick={onRemoveImage}
-                className="inline-flex items-center gap-1.5 px-2 py-1 border border-[#525252] hover:border-red-500/50 text-[#a3a3a3] hover:text-red-400 font-mono text-[10px] uppercase tracking-[0.22em]"
+                className="inline-flex items-center gap-1.5 px-2 py-1 border border-line hover:border-red-500/50 text-ink-muted hover:text-red-400 font-mono text-[10px] uppercase tracking-[0.22em]"
                 data-testid={`${testIdPrefix}-image-remove`}
               >
                 <X size={11} /> Remove
@@ -170,7 +170,7 @@ export default function PersonalizationPanel({
               if (f) processFile(f);
             }}
             className={`border-2 border-dashed transition-colors p-4 ${
-              dragOver ? "border-[#ff4500] bg-[#ff4500]/5" : "border-[#262626]"
+              dragOver ? "border-brand bg-brand/5" : "border-line"
             }`}
           >
             <input
@@ -185,7 +185,7 @@ export default function PersonalizationPanel({
               type="button"
               onClick={onPick}
               disabled={uploading}
-              className="inline-flex items-center gap-2 px-4 py-2 border border-[#262626] hover:border-[#ff4500] text-[#a3a3a3] hover:text-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
+              className="inline-flex items-center gap-2 px-4 py-2 border border-line hover:border-brand text-ink-muted hover:text-brand font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
               data-testid={`${testIdPrefix}-image-pick`}
             >
               {uploading ? (
@@ -196,7 +196,7 @@ export default function PersonalizationPanel({
                 <><ImageIcon size={13} /> ↑ Drop or click to attach reference</>
               )}
             </button>
-            <div className="font-mono text-[10px] text-[#525252] mt-2">
+            <div className="font-mono text-[10px] text-ink-muted mt-2">
               PNG · JPG · WEBP · HEIC · GIF · max 5 MB
             </div>
           </div>

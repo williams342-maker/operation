@@ -42,7 +42,7 @@ export default function MakerBriefPrintPage() {
   if (!brief) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center px-4">
-        <p className="font-mono text-xs text-[#525252]" data-testid="print-loading">Loading brief…</p>
+        <p className="font-mono text-xs text-ink-muted" data-testid="print-loading">Loading brief…</p>
       </div>
     );
   }
@@ -50,10 +50,10 @@ export default function MakerBriefPrintPage() {
   return (
     <div className="brief-print bg-white text-black min-h-screen" data-testid="brief-print-page">
       {/* Print + Back controls — hidden on print */}
-      <div className="no-print sticky top-0 z-10 bg-[#0a0a0a] text-[#e5e5e5] border-b border-[#262626] px-6 py-3 flex items-center justify-between">
+      <div className="no-print sticky top-0 z-10 bg-paper text-ink border-b border-line px-6 py-3 flex items-center justify-between">
         <button
           onClick={() => navigate(-1)}
-          className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] inline-flex items-center gap-2"
+          className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand inline-flex items-center gap-2"
           data-testid="brief-print-back"
         >
           <ArrowLeft size={14} /> Back to dashboard

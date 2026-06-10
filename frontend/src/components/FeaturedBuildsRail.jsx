@@ -151,7 +151,7 @@ export default function FeaturedBuildsRail({ testId = "home-featured-builds" }) 
                   <span className="absolute top-3 left-3 px-2 py-1 bg-amber-500 text-black font-mono text-[9px] uppercase tracking-[0.28em] font-bold">
                     ✦ Example
                   </span>
-                  <span className="absolute top-3 right-3 px-2 py-1 bg-black/70 backdrop-blur-sm border border-[#ff4500]/60 text-[#ff4500] font-mono text-[9px] uppercase tracking-[0.22em]">
+                  <span className="absolute top-3 right-3 px-2 py-1 bg-black/70 backdrop-blur-sm border border-brand/60 text-brand font-mono text-[9px] uppercase tracking-[0.22em]">
                     {p.technique}
                   </span>
                   <div className="absolute bottom-3 right-3 w-10 h-10 border border-amber-300/60 bg-black/40 backdrop-blur-sm group-hover:bg-amber-500 group-hover:border-amber-500 transition-colors flex items-center justify-center">

@@ -72,7 +72,7 @@ export default function SecretsRotationBanner({ onJumpToTab }) {
           {worst.map((s) => (
             <span
               key={s.id}
-              className="inline-flex items-center gap-1.5 px-2 py-0.5 border border-red-500/40 bg-[#1a0a0a] text-red-300"
+              className="inline-flex items-center gap-1.5 px-2 py-0.5 border border-red-500/40 bg-red-500/10 text-red-300"
               data-testid={`secrets-rotation-overdue-${s.id}`}
             >
               <Key size={10} /> {s.label}

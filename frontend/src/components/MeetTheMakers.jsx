@@ -61,7 +61,7 @@ export default function MeetTheMakers({ testId = "home-meet-makers" }) {
   if (ordered.length < 3) return null;
   return (
     <section
-      className="relative w-full py-16 md:py-20 overflow-hidden bg-[#0a0a0a] border-b border-[#1a1a1a]"
+      className="relative w-full py-16 md:py-20 overflow-hidden bg-paper border-b border-line"
       data-testid={testId}
     >
       <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
@@ -188,7 +188,7 @@ function MakerCard({ m, i, testId }) {
         <div className="px-5 pt-0 pb-5 -mt-10 relative z-10">
           {/* Portrait + name row. */}
           <div className="flex items-end gap-3 mb-4">
-            <div className="w-20 h-20 flex-shrink-0 border-2 border-[#0a0a0a] bg-[#0a0a0a] overflow-hidden shadow-[0_4px_24px_-6px_rgba(0,0,0,0.9)] ring-1 ring-amber-500/20 group-hover:ring-amber-400/60 transition-shadow">
+            <div className="w-20 h-20 flex-shrink-0 border-2 border-[#0a0a0a] bg-paper overflow-hidden shadow-[0_4px_24px_-6px_rgba(0,0,0,0.9)] ring-1 ring-amber-500/20 group-hover:ring-amber-400/60 transition-shadow">
               {portraitFailed || !portraitSrc ? (
                 <div
                   className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#ff4500] to-[#8a2400] text-white font-display text-2xl"

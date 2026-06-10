@@ -102,7 +102,7 @@ export function CommunityLogin() {
         <button
           onClick={onGoogle}
           disabled={!accepted}
-          className="w-full bg-[#fff] text-ink border border-[#fff] hover:bg-ink-muted py-3 px-5 font-mono text-[11px] uppercase tracking-[0.22em] flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full bg-white text-[#1f1f1f] border border-line hover:bg-[#f5f5f5] py-3 px-5 font-mono text-[11px] uppercase tracking-[0.22em] flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
           data-testid="community-google-btn"
         >
           <svg width="18" height="18" viewBox="0 0 18 18">

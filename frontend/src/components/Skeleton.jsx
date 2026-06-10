@@ -8,7 +8,7 @@ import React from "react";
 export function Skeleton({ className = "", height = "h-6", width = "w-full" }) {
   return (
     <div
-      className={`relative overflow-hidden bg-[#1a1a1a] ${height} ${width} ${className}`}
+      className={`relative overflow-hidden bg-surface ${height} ${width} ${className}`}
       data-testid="skeleton"
     >
       <div
@@ -64,7 +64,7 @@ export function RowsSkeleton({ count = 6 }) {
   return (
     <div className="space-y-3" data-testid="rows-skeleton">
       {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="flex items-center gap-4 border border-[#262626] p-4">
+        <div key={i} className="flex items-center gap-4 border border-line p-4">
           <Skeleton height="h-10" width="w-10" />
           <div className="flex-1 space-y-2">
             <Skeleton height="h-3" width="w-1/3" />
@@ -85,7 +85,7 @@ export function StatsSkeleton({ count = 4 }) {
       data-testid="stats-skeleton"
     >
       {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="border border-[#262626] p-4 space-y-3">
+        <div key={i} className="border border-line p-4 space-y-3">
           <Skeleton height="h-3" width="w-1/2" />
           <Skeleton height="h-8" width="w-3/4" />
         </div>

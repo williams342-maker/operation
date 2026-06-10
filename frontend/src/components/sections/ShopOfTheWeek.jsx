@@ -53,7 +53,7 @@ export default function ShopOfTheWeek() {
           </div>
           {!expired && countdownLabel && (
             <div
-              className="ml-auto inline-flex items-center gap-1.5 px-2.5 py-1 border border-brand/40 bg-[#1a0a05] font-mono text-[10px] uppercase tracking-[0.22em] text-brand"
+              className="ml-auto inline-flex items-center gap-1.5 px-2.5 py-1 border border-brand/40 bg-brand/10 font-mono text-[10px] uppercase tracking-[0.22em] text-brand"
               data-testid="sotw-countdown"
             >
               <Clock size={11} className="opacity-80" />

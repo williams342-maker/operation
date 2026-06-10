@@ -27,8 +27,8 @@ export default function PricingSection({
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
             <Label>Price *</Label>
-            <div className="flex items-center border border-[#262626] focus-within:border-[#ff4500]">
-              <span className="px-3 font-mono text-sm text-[#a3a3a3]">$</span>
+            <div className="flex items-center border border-line focus-within:border-brand">
+              <span className="px-3 font-mono text-sm text-ink-muted">$</span>
               <input
                 type="number" min="0" step="0.01" value={form.price}
                 onChange={(e) => set({ price: e.target.value })}
@@ -53,7 +53,7 @@ export default function PricingSection({
               <Sparkles size={11} /> AI Price Check
             </button>
             {!canPriceCheck && (
-              <p className="font-mono text-[9px] text-[#525252] mt-1.5 leading-relaxed">
+              <p className="font-mono text-[9px] text-ink-muted mt-1.5 leading-relaxed">
                 Save the draft once to unlock — the AI compares against your listing's title, category &amp; specs.
               </p>
             )}
@@ -63,19 +63,19 @@ export default function PricingSection({
             <input
               type="number" min="0" step="1" value={form.in_stock}
               onChange={(e) => set({ in_stock: e.target.value })}
-              className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm"
+              className="w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm"
               data-testid="editor-quantity"
             />
-            <p className="font-mono text-[10px] text-[#525252] mt-1">units available</p>
+            <p className="font-mono text-[10px] text-ink-muted mt-1">units available</p>
           </div>
         </div>
 
         {/* Backorder controls — only relevant once the listing might hit
             0 stock. Three states: inherit (null) / on (true) / off (false).
             Lead-time is shown only when on, since `off` will never need it. */}
-        <div className="mt-5 border-t border-[#262626] pt-5">
+        <div className="mt-5 border-t border-line pt-5">
           <Label>Backorders</Label>
-          <p className="font-mono text-[10px] text-[#525252] mb-3 leading-relaxed">
+          <p className="font-mono text-[10px] text-ink-muted mb-3 leading-relaxed">
             When this listing hits 0 stock, should buyers be able to submit a
             backorder request? Default uses your shop-wide setting.
           </p>
@@ -94,8 +94,8 @@ export default function PricingSection({
                   data-testid={`editor-backorder-${opt.v === null ? "inherit" : opt.v ? "on" : "off"}`}
                   className={`px-3 py-2 border font-mono text-[11px] uppercase tracking-[0.22em] transition ${
                     active
-                      ? "border-[#ff4500] bg-[#ff4500]/10 text-[#ff4500]"
-                      : "border-[#262626] text-[#a3a3a3] hover:border-[#ff4500]/50"
+                      ? "border-brand bg-brand/10 text-brand"
+                      : "border-line text-ink-muted hover:border-brand/50"
                   }`}
                 >
                   {opt.label}
@@ -111,10 +111,10 @@ export default function PricingSection({
                 value={form.backorder_lead_weeks ?? ""}
                 onChange={(e) => set({ backorder_lead_weeks: e.target.value === "" ? null : parseInt(e.target.value, 10) })}
                 placeholder="4"
-                className="w-32 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm"
+                className="w-32 bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm"
                 data-testid="editor-backorder-lead"
               />
-              <p className="font-mono text-[10px] text-[#525252] mt-1 leading-relaxed">
+              <p className="font-mono text-[10px] text-ink-muted mt-1 leading-relaxed">
                 Shown to buyers as &ldquo;~N weeks after acceptance&rdquo;. Default 4 weeks if blank.
               </p>
             </div>
@@ -129,14 +129,14 @@ export default function PricingSection({
         subtitle="Add options buyers can choose — like size, color, or finish. Each variation can have its own price. If you leave the base price at $0, the listing shows a range ($min – $max) on shop cards."
       >
         {form.variants.length === 0 ? (
-          <div className="border border-dashed border-[#262626] p-8 text-center" data-testid="editor-variants-empty">
-            <p className="font-mono text-xs text-[#737373] mb-1">No variations yet.</p>
-            <p className="font-mono text-[10px] text-[#525252]">e.g. Size: Small, Medium, Large</p>
+          <div className="border border-dashed border-line p-8 text-center" data-testid="editor-variants-empty">
+            <p className="font-mono text-xs text-ink-muted mb-1">No variations yet.</p>
+            <p className="font-mono text-[10px] text-ink-muted">e.g. Size: Small, Medium, Large</p>
           </div>
         ) : (
           <div className="space-y-3" data-testid="editor-variants">
             {/* iter334r — Column headers so the absolute price column reads clearly.  */}
-            <div className="grid grid-cols-12 gap-2 font-mono text-[9px] uppercase tracking-[0.22em] text-[#737373] px-1">
+            <div className="grid grid-cols-12 gap-2 font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted px-1">
               <div className="col-span-6">Label</div>
               <div className="col-span-3">Price ($)</div>
               <div className="col-span-2">Qty</div>
@@ -145,14 +145,14 @@ export default function PricingSection({
             {form.variants.map((v, i) => (
               <div key={i} className="grid grid-cols-12 gap-2 items-center" data-testid={`editor-variant-${i}`}>
                 <input
-                  className="col-span-6 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm"
+                  className="col-span-6 bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm"
                   placeholder="Label (e.g. Large · Walnut)"
                   value={v.label}
                   onChange={(e) => updateVariant(i, { label: e.target.value })}
                 />
                 <input
                   type="number" min="0" step="0.01"
-                  className="col-span-3 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm"
+                  className="col-span-3 bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm"
                   placeholder={form.price ? `${Number(form.price).toFixed(2)}` : "0.00"}
                   value={v.price ?? ""}
                   onChange={(e) => updateVariant(i, { price: e.target.value })}
@@ -160,14 +160,14 @@ export default function PricingSection({
                 />
                 <input
                   type="number" min="0" step="1"
-                  className="col-span-2 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm"
+                  className="col-span-2 bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm"
                   placeholder="Qty"
                   value={v.in_stock}
                   onChange={(e) => updateVariant(i, { in_stock: e.target.value })}
                 />
                 <button
                   onClick={() => removeVariant(i)}
-                  className="col-span-1 p-2 text-[#737373] hover:text-red-400 justify-self-center"
+                  className="col-span-1 p-2 text-ink-muted hover:text-red-400 justify-self-center"
                   aria-label="Remove variant"
                   data-testid={`editor-variant-remove-${i}`}
                 >
@@ -179,7 +179,7 @@ export default function PricingSection({
         )}
         <button
           type="button" onClick={addVariant}
-          className="mt-4 px-4 py-2 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-2"
+          className="mt-4 px-4 py-2 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-2"
           data-testid="editor-add-variant"
         >
           <Plus size={12} /> Add variation

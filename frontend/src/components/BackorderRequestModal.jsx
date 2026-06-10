@@ -51,17 +51,17 @@ export default function BackorderRequestModal({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-[520px] bg-[#0a0a0a] border border-[#262626] max-h-[92vh] overflow-y-auto"
+        className="w-full max-w-[520px] bg-paper border border-line max-h-[92vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-6 py-5 border-b border-[#262626] flex items-start justify-between gap-4">
+        <div className="px-6 py-5 border-b border-line flex items-start justify-between gap-4">
           <div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">
               ◆ Backorder request
             </div>
             <div className="font-display text-2xl mt-1">{productTitle}</div>
-            <div className="font-mono text-xs text-[#a3a3a3] mt-1">
+            <div className="font-mono text-xs text-ink-muted mt-1">
               by {makerName} · ~{leadWeeks} {leadWeeks === 1 ? "week" : "weeks"} after acceptance
             </div>
           </div>
@@ -69,7 +69,7 @@ export default function BackorderRequestModal({
             type="button"
             onClick={onClose}
             data-testid="backorder-close"
-            className="px-2.5 py-1 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition shrink-0"
+            className="px-2.5 py-1 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] transition shrink-0"
           >
             ✕
           </button>
@@ -78,17 +78,17 @@ export default function BackorderRequestModal({
         {/* Body */}
         {done ? (
           <div className="p-6 space-y-4 text-center" data-testid="backorder-done">
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">◆ Sent</div>
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">◆ Sent</div>
             <div className="font-display text-3xl">Request received.</div>
-            <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed">
+            <p className="font-mono text-xs text-ink-muted leading-relaxed">
               {makerName} will review and reach out within 2 business days.
-              We sent a copy to <span className="text-[#e5e5e5]">{buyerEmail}</span>.
+              We sent a copy to <span className="text-ink">{buyerEmail}</span>.
               No charge today.
             </p>
             <button
               type="button"
               onClick={onClose}
-              className="px-5 py-3 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em] transition mt-2"
+              className="px-5 py-3 border border-line hover:border-brand hover:text-brand font-mono text-[11px] uppercase tracking-[0.22em] transition mt-2"
               data-testid="backorder-close-after-send"
             >
               ✕ Close
@@ -138,11 +138,11 @@ export default function BackorderRequestModal({
                 placeholder="e.g. Need by mid-July, ideally in matte black finish."
               />
             </Field>
-            <div className="border border-[#262626] p-3 font-mono text-[11px] text-[#a3a3a3] leading-relaxed">
-              <div className="text-[10px] uppercase tracking-[0.22em] text-[#525252] mb-1.5">◆ How this works</div>
+            <div className="border border-line p-3 font-mono text-[11px] text-ink-muted leading-relaxed">
+              <div className="text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-1.5">◆ How this works</div>
               The maker reviews your request and emails you within 2 business
               days. If they accept, payment + shipping are handled directly
-              between you and them. <b className="text-[#e5e5e5]">No charge today.</b>
+              between you and them. <b className="text-ink">No charge today.</b>
             </div>
             <button
               type="submit"
@@ -162,12 +162,12 @@ export default function BackorderRequestModal({
 function Field({ label, hint, children }) {
   return (
     <label className="block">
-      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] mb-1.5">{label}</div>
+      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-1.5">{label}</div>
       {children}
-      {hint && <div className="font-mono text-[10px] text-[#525252] mt-1 leading-relaxed">{hint}</div>}
+      {hint && <div className="font-mono text-[10px] text-ink-muted mt-1 leading-relaxed">{hint}</div>}
     </label>
   );
 }
 
 const inputCls =
-  "w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2.5 font-mono text-xs text-[#e5e5e5] placeholder:text-[#525252]";
+  "w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-2.5 font-mono text-xs text-ink placeholder:text-ink-muted";

@@ -156,24 +156,24 @@ export default function MakerJournalEditor() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-[#e5e5e5] grain pt-24 pb-32" data-testid="maker-journal-editor">
+    <div className="min-h-screen bg-paper text-ink grain pt-24 pb-32" data-testid="maker-journal-editor">
       <div className="max-w-4xl mx-auto px-6">
         <Link
           to="/maker/dashboard"
-          className="inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] transition mb-8"
+          className="inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand transition mb-8"
           data-testid="back-to-dashboard"
         >
           <ArrowLeft size={12} /> Back to dashboard
         </Link>
 
-        <div className="font-mono text-[10px] uppercase tracking-[0.32em] text-[#ff4500] mb-3 flex items-center gap-2">
+        <div className="font-mono text-[10px] uppercase tracking-[0.32em] text-brand mb-3 flex items-center gap-2">
           <Sparkles size={12} /> Write For The Journal
         </div>
         <h1 className="font-display text-4xl sm:text-5xl md:text-6xl uppercase leading-[0.95] mb-4">
-          Tell your<br /><span className="text-[#ff4500]">story.</span>
+          Tell your<br /><span className="text-brand">story.</span>
         </h1>
-        <p className="font-mono text-sm text-[#a3a3a3] max-w-2xl leading-relaxed mb-12">
-          Posts publish straight to <span className="text-[#e5e5e5]">/journal</span> under your shop name —
+        <p className="font-mono text-sm text-ink-muted max-w-2xl leading-relaxed mb-12">
+          Posts publish straight to <span className="text-ink">/journal</span> under your shop name —
           {maker?.name ? ` "${maker.name}"` : ""}.
           Buyers find you organically. The strongest entries share a build process,
           a finishing technique, or what made you choose this craft.
@@ -216,14 +216,14 @@ export default function MakerJournalEditor() {
               textarea ref + insertAtCursor utility to abstract cleanly. */}
           <div className="space-y-2">
             <div className="flex items-baseline justify-between gap-3 flex-wrap">
-              <label className="block font-mono text-[10px] uppercase tracking-[0.28em] text-[#a3a3a3]">
+              <label className="block font-mono text-[10px] uppercase tracking-[0.28em] text-ink-muted">
                 Body
               </label>
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploading}
-                className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] inline-flex items-center gap-1.5 disabled:opacity-50 transition"
+                className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand inline-flex items-center gap-1.5 disabled:opacity-50 transition"
                 data-testid="journal-image-button"
               >
                 {uploading ? <Loader2 size={11} className="animate-spin" /> : <ImagePlus size={11} />}
@@ -258,7 +258,7 @@ export default function MakerJournalEditor() {
                 value={form.body}
                 onChange={(e) => set({ body: e.target.value })}
                 rows={16}
-                className="w-full bg-[#0d0d0d] border border-[#262626] focus:border-[#ff4500] outline-none px-4 py-3 font-mono text-sm text-[#e5e5e5] placeholder:text-[#525252] resize-y leading-relaxed transition"
+                className="w-full bg-surface border border-line focus:border-brand outline-none px-4 py-3 font-mono text-sm text-ink placeholder:text-ink-muted resize-y leading-relaxed transition"
                 placeholder="Open with the question your buyer is wondering, then walk through the answer like you're talking shop."
                 data-testid="journal-body"
                 onPaste={(e) => {
@@ -269,14 +269,14 @@ export default function MakerJournalEditor() {
                 }}
               />
               {dragOver && (
-                <div className="absolute inset-0 bg-[#1a0a05]/90 flex items-center justify-center pointer-events-none">
-                  <div className="font-mono text-xs uppercase tracking-[0.22em] text-[#ff4500] flex items-center gap-2">
+                <div className="absolute inset-0 bg-brand/10 backdrop-blur-sm flex items-center justify-center pointer-events-none">
+                  <div className="font-mono text-xs uppercase tracking-[0.22em] text-brand flex items-center gap-2">
                     <ImagePlus size={14} /> Drop image to insert
                   </div>
                 </div>
               )}
             </div>
-            <p className="font-mono text-[10px] text-[#525252]">
+            <p className="font-mono text-[10px] text-ink-muted">
               Full post. Blank lines = new paragraph. Drop or paste images to embed inline. {wordCount} words · ~{readMin} min read · min {MIN_BODY} chars.
             </p>
           </div>
@@ -286,7 +286,7 @@ export default function MakerJournalEditor() {
               type="button"
               onClick={submit}
               disabled={saving || issues.length > 0}
-              className="px-5 py-3 border border-[#ff4500] bg-[#ff4500] text-black font-mono text-xs uppercase tracking-[0.22em] font-bold inline-flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#ff5a1a] transition"
+              className="px-5 py-3 border border-brand bg-brand text-black font-mono text-xs uppercase tracking-[0.22em] font-bold inline-flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-brand-hover transition"
               data-testid="journal-submit"
             >
               <Save size={13} /> {saving ? "Publishing…" : "Publish post"}
@@ -301,11 +301,11 @@ export default function MakerJournalEditor() {
 
         {/* ---------- Existing posts ---------- */}
         {posts.length > 0 && (
-          <section className="mt-20 pt-10 border-t border-[#262626]" data-testid="journal-mine">
-            <div className="font-mono text-[10px] uppercase tracking-[0.32em] text-[#a3a3a3] mb-6">
+          <section className="mt-20 pt-10 border-t border-line" data-testid="journal-mine">
+            <div className="font-mono text-[10px] uppercase tracking-[0.32em] text-ink-muted mb-6">
               ◆ Your published posts ({posts.length})
             </div>
-            <ul className="divide-y divide-[#1f1f1f] border border-[#1f1f1f]">
+            <ul className="divide-y divide-[#1f1f1f] border border-line">
               {posts.map((p) => (
                 <li
                   key={p.slug}
@@ -313,14 +313,14 @@ export default function MakerJournalEditor() {
                   data-testid={`journal-mine-row-${p.slug}`}
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="font-mono text-sm text-[#e5e5e5] truncate">{p.title}</div>
-                    <div className="font-mono text-[10px] text-[#525252] mt-0.5">
+                    <div className="font-mono text-sm text-ink truncate">{p.title}</div>
+                    <div className="font-mono text-[10px] text-ink-muted mt-0.5">
                       {(p.created_at || "").slice(0, 10)} · {p.read_min || "—"} min read
                     </div>
                   </div>
                   <Link
                     to={`/journal/${p.slug}`}
-                    className="px-2.5 py-1.5 border border-[#262626] hover:border-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5"
+                    className="px-2.5 py-1.5 border border-line hover:border-brand font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5"
                     data-testid={`journal-mine-view-${p.slug}`}
                   >
                     <ExternalLink size={11} /> View
@@ -343,10 +343,10 @@ export default function MakerJournalEditor() {
 }
 
 function Field({ label, hint, value, onChange, testId, placeholder, multiline, rows = 3 }) {
-  const cls = "w-full bg-[#0d0d0d] border border-[#262626] focus:border-[#ff4500] outline-none px-4 py-3 font-mono text-sm text-[#e5e5e5] placeholder:text-[#525252] transition";
+  const cls = "w-full bg-surface border border-line focus:border-brand outline-none px-4 py-3 font-mono text-sm text-ink placeholder:text-ink-muted transition";
   return (
     <div className="space-y-2">
-      <label className="block font-mono text-[10px] uppercase tracking-[0.28em] text-[#a3a3a3]">
+      <label className="block font-mono text-[10px] uppercase tracking-[0.28em] text-ink-muted">
         {label}
       </label>
       {multiline ? (
@@ -368,7 +368,7 @@ function Field({ label, hint, value, onChange, testId, placeholder, multiline, r
           data-testid={testId}
         />
       )}
-      {hint && <p className="font-mono text-[10px] text-[#525252]">{hint}</p>}
+      {hint && <p className="font-mono text-[10px] text-ink-muted">{hint}</p>}
     </div>
   );
 }

@@ -131,7 +131,7 @@ export default function SEOLandingPage({ config }) {
           ]}
           testId={`seo-breadcrumbs-${slug}`}
         />
-        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-4">
+        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-4">
           ◆ {eyebrow}
         </div>
         <h1
@@ -141,14 +141,14 @@ export default function SEOLandingPage({ config }) {
           {h1}
         </h1>
 
-        <p className="font-mono text-base text-[#e5e5e5] max-w-3xl leading-relaxed mb-6">
+        <p className="font-mono text-base text-ink max-w-3xl leading-relaxed mb-6">
           {intro}
         </p>
 
         {paragraphs?.map((p, i) => (
           <p
             key={i}
-            className="font-mono text-sm text-[#a3a3a3] max-w-3xl leading-relaxed mb-4"
+            className="font-mono text-sm text-ink-muted max-w-3xl leading-relaxed mb-4"
             data-testid={`seo-paragraph-${slug}-${i}`}
           >
             {p}
@@ -174,7 +174,7 @@ export default function SEOLandingPage({ config }) {
         {/* Body extras (iter300) — additional H2 sections with deep
             content. Renders only when the config supplies them. */}
         {bodyExtras.length > 0 && (
-          <div className="border-t border-[#262626] pt-12 mb-16 space-y-12">
+          <div className="border-t border-line pt-12 mb-16 space-y-12">
             {bodyExtras.map((section, idx) => (
               <section
                 key={idx}
@@ -190,7 +190,7 @@ export default function SEOLandingPage({ config }) {
                 {section.paragraphs.map((p, pi) => (
                   <p
                     key={pi}
-                    className="font-mono text-sm text-[#a3a3a3] leading-relaxed mb-4"
+                    className="font-mono text-sm text-ink-muted leading-relaxed mb-4"
                   >
                     {p}
                   </p>
@@ -201,8 +201,8 @@ export default function SEOLandingPage({ config }) {
         )}
 
         {/* Live grid — products or makers depending on mode. */}
-        <div className="border-t border-[#262626] pt-12">
-          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-3">
+        <div className="border-t border-line pt-12">
+          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-3">
             ◆ {mode === "makers" ? "Featured shops" : "Live listings"}
           </div>
           <h2 className="font-display text-3xl md:text-5xl uppercase mb-8">
@@ -214,8 +214,8 @@ export default function SEOLandingPage({ config }) {
               {Array.from({ length: 8 }).map((_, i) => <CardSkeleton key={i} />)}
             </div>
           ) : grid.length === 0 ? (
-            <div className="border border-dashed border-[#262626] p-8 text-center" data-testid={`seo-empty-${slug}`}>
-              <p className="font-mono text-sm text-[#a3a3a3]">
+            <div className="border border-dashed border-line p-8 text-center" data-testid={`seo-empty-${slug}`}>
+              <p className="font-mono text-sm text-ink-muted">
                 Nothing live in this category yet. Browse the full marketplace or commission a custom piece below.
               </p>
             </div>
@@ -225,7 +225,7 @@ export default function SEOLandingPage({ config }) {
                 <Link
                   key={m.slug}
                   to={`/makers/${m.slug}`}
-                  className="group border border-[#262626] hover:border-[#ff4500] transition overflow-hidden"
+                  className="group border border-line hover:border-brand transition overflow-hidden"
                   data-testid={`seo-${slug}-maker-${m.slug}`}
                 >
                   {m.cover || m.banner_image_url ? (
@@ -236,16 +236,16 @@ export default function SEOLandingPage({ config }) {
                       loading="lazy"
                     />
                   ) : (
-                    <div className="aspect-[4/3] w-full bg-[#121212] grid place-items-center font-display text-3xl text-[#525252]">
+                    <div className="aspect-[4/3] w-full bg-surface grid place-items-center font-display text-3xl text-ink-muted">
                       {(m.name || "?").slice(0, 1)}
                     </div>
                   )}
                   <div className="p-4">
-                    <div className="font-display text-xl mb-1 group-hover:text-[#ff4500] transition">
+                    <div className="font-display text-xl mb-1 group-hover:text-brand transition">
                       {m.name}
                     </div>
                     {m.location && (
-                      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252]">
+                      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
                         {m.location}
                       </div>
                     )}
@@ -263,8 +263,8 @@ export default function SEOLandingPage({ config }) {
         {/* FAQ section (iter300) — visible to users + ranked by Google
             via FAQPage schema above. */}
         {faqs.length > 0 && (
-          <div className="border-t border-[#262626] mt-20 pt-12" data-testid={`seo-faq-${slug}`}>
-            <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-3">
+          <div className="border-t border-line mt-20 pt-12" data-testid={`seo-faq-${slug}`}>
+            <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-3">
               ◆ FAQ
             </div>
             <h2 className="font-display text-3xl md:text-5xl uppercase mb-8">
@@ -274,14 +274,14 @@ export default function SEOLandingPage({ config }) {
               {faqs.map(({ q, a }, idx) => (
                 <details
                   key={idx}
-                  className="border border-[#262626] bg-[#0a0a0a] open:border-[#ff4500] transition"
+                  className="border border-line bg-paper open:border-brand transition"
                   data-testid={`seo-faq-item-${slug}-${idx}`}
                 >
-                  <summary className="cursor-pointer list-none p-4 flex items-start justify-between gap-4 font-mono text-sm text-[#e5e5e5] hover:text-[#ff4500]">
+                  <summary className="cursor-pointer list-none p-4 flex items-start justify-between gap-4 font-mono text-sm text-ink hover:text-brand">
                     <span className="flex-1">{q}</span>
                     <span className="font-display text-xl shrink-0">+</span>
                   </summary>
-                  <div className="px-4 pb-4 pt-2 border-t border-[#262626] font-mono text-sm text-[#a3a3a3] leading-relaxed">
+                  <div className="px-4 pb-4 pt-2 border-t border-line font-mono text-sm text-ink-muted leading-relaxed">
                     {a}
                   </div>
                 </details>
@@ -293,8 +293,8 @@ export default function SEOLandingPage({ config }) {
         {/* Related landing pages (iter300) — internal-link grid for
             crawler equity flow between sibling keyword pages. */}
         {relatedLinks.length > 0 && (
-          <div className="border-t border-[#262626] mt-20 pt-12" data-testid={`seo-related-${slug}`}>
-            <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-3">
+          <div className="border-t border-line mt-20 pt-12" data-testid={`seo-related-${slug}`}>
+            <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-3">
               ◆ Related categories
             </div>
             <h2 className="font-display text-3xl md:text-5xl uppercase mb-8">
@@ -305,14 +305,14 @@ export default function SEOLandingPage({ config }) {
                 <Link
                   key={idx}
                   to={to}
-                  className="group border border-[#262626] hover:border-[#ff4500] p-5 transition block"
+                  className="group border border-line hover:border-brand p-5 transition block"
                   data-testid={`seo-related-link-${slug}-${idx}`}
                 >
-                  <div className="font-display text-xl mb-2 group-hover:text-[#ff4500] transition">
+                  <div className="font-display text-xl mb-2 group-hover:text-brand transition">
                     {label} →
                   </div>
                   {blurb && (
-                    <p className="font-mono text-[11px] text-[#737373] leading-relaxed">
+                    <p className="font-mono text-[11px] text-ink-muted leading-relaxed">
                       {blurb}
                     </p>
                   )}

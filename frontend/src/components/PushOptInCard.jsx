@@ -58,7 +58,7 @@ export default function PushOptInCard({ role = null, email = null, compact = fal
         onClick={enable}
         disabled={busy}
         data-testid="push-optin-compact"
-        className="px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+        className="px-3 py-1.5 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
       >
         {busy ? "…" : "◆ Enable notifications"}
       </button>
@@ -67,13 +67,13 @@ export default function PushOptInCard({ role = null, email = null, compact = fal
 
   return (
     <div
-      className="max-w-lg mx-auto border border-[#262626] hover:border-[#ff4500] transition p-6 mb-10 text-left"
+      className="max-w-lg mx-auto border border-line hover:border-brand transition p-6 mb-10 text-left"
       data-testid="push-optin-card"
     >
-      <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">
+      <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted mb-2">
         ◆ Order updates · push notifications
       </div>
-      <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed mb-4">
+      <p className="font-mono text-xs text-ink-muted leading-relaxed mb-4">
         Get a ping the moment your maker accepts the brief, ships the package, or posts a photo of your build.
         No spam — only your orders and rare new-drop alerts.
       </p>
@@ -91,7 +91,7 @@ export default function PushOptInCard({ role = null, email = null, compact = fal
             onClick={disable}
             disabled={busy}
             data-testid="push-optin-disable"
-            className="px-3 py-1.5 border border-[#262626] hover:border-rose-500 hover:text-rose-400 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+            className="px-3 py-1.5 border border-line hover:border-rose-500 hover:text-rose-400 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
           >
             Turn off
           </button>

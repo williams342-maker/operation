@@ -68,7 +68,7 @@ export default function MakersPage() {
           ]}
           testId="makers-breadcrumbs"
         />
-        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-4">◆ APPROVED MAKERS</div>
+        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-4">◆ APPROVED MAKERS</div>
         <h1 className="font-display text-[64px] md:text-[120px] leading-[0.88] mb-8">
           The <span className="text-outline-orange">Workshop</span><br />Roster
         </h1>
@@ -78,13 +78,13 @@ export default function MakersPage() {
 
         {/* Veteran-owned filter pills */}
         <div className="flex flex-wrap items-center gap-2 mb-12" data-testid="makers-filters">
-          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#737373] mr-1">Filter:</span>
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mr-1">Filter:</span>
           <button
             onClick={() => setParams({})}
             className={`px-3 py-1.5 border font-mono text-[10px] uppercase tracking-[0.22em] transition ${
               !veteranOnly
-                ? "border-[#ff4500] text-[#ff4500] bg-[#ff4500]/5"
-                : "border-[#262626] text-[#a3a3a3] hover:border-[#525252]"
+                ? "border-brand text-brand bg-brand/5"
+                : "border-line text-ink-muted hover:border-line"
             }`}
             data-testid="makers-filter-all"
           >
@@ -95,7 +95,7 @@ export default function MakersPage() {
             className={`px-3 py-1.5 border font-mono text-[10px] uppercase tracking-[0.22em] transition inline-flex items-center gap-2 ${
               veteranOnly
                 ? "border-[#b22234] text-white bg-[#b22234]"
-                : "border-[#262626] text-[#a3a3a3] hover:border-[#525252]"
+                : "border-line text-ink-muted hover:border-line"
             }`}
             data-testid="makers-filter-veteran"
           >
@@ -129,7 +129,7 @@ export default function MakersPage() {
           ) : (
             filtered.map((m) => (
             <Link key={m.id} to={`/makers/${m.slug}`} data-testid={`maker-card-${m.slug}`}
-              className="group bg-[#121212] border border-[#262626] hover:border-[#ff4500] transition overflow-hidden">
+              className="group bg-surface border border-line hover:border-brand transition overflow-hidden">
               <div className="aspect-[4/3] overflow-hidden relative">
                 <img src={m.cover} alt={m.name} className="w-full h-full object-cover media-img group-hover:scale-105 transition duration-700" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
@@ -151,13 +151,13 @@ export default function MakersPage() {
                 <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between">
                   <div>
                     <div className="font-display text-3xl text-white">{m.name}</div>
-                    <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3] mt-1">{m.location}</div>
+                    <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted mt-1">{m.location}</div>
                   </div>
-                  <div className="tag text-[#ff4500] border-[#ff4500]">{m.listings_count} listings</div>
+                  <div className="tag text-brand border-brand">{m.listings_count} listings</div>
                 </div>
               </div>
-              <div className="p-6 border-t border-[#262626]">
-                <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed mb-4">{m.bio}</p>
+              <div className="p-6 border-t border-line">
+                <p className="font-mono text-xs text-ink-muted leading-relaxed mb-4">{m.bio}</p>
                 <div className="flex gap-2">{m.techniques.map((t) => <span key={t} className="tag">{t}</span>)}</div>
               </div>
             </Link>

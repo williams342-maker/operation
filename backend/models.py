@@ -36,8 +36,8 @@ class Product(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     slug: str
     title: str
-    category: str          # "Wall Art", "Custom Signs", "Outdoor Art"
-    technique: str         # PLASMA, LASER, ROUTER, CUSTOM
+    category: str = "Wall Art"          # "Wall Art", "Custom Signs", "Outdoor Art"
+    technique: str = "CUSTOM"            # PLASMA, LASER, ROUTER, CUSTOM
     price: float
     description: str = ""           # safe default — older seed docs may be missing this
     materials: List[str] = []

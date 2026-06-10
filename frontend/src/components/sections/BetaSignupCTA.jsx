@@ -40,13 +40,13 @@ export default function BetaSignupCTA() {
             <span>◆ Founders Tier · Limited inaugural spots</span>
             <FounderSlotCounter variant="compact" testId="home-cta-slot-counter" />
           </div>
-          <h2 className="font-display text-4xl sm:text-5xl lg:text-6xl leading-[0.95] text-[#fafafa]">
+          <h2 className="font-display text-4xl sm:text-5xl lg:text-6xl leading-[0.95] text-ink">
             Build your shop<br />
             with the founding 100.
           </h2>
           <p className="text-ink-muted mt-5 max-w-xl text-sm md:text-base leading-relaxed">
             We&apos;re hand-picking 100 CNC, woodworking and laser makers to launch
-            CraftersMarket alongside us. Founders get <span className="text-[#fafafa]">3%
+            CraftersMarket alongside us. Founders get <span className="text-ink">3%
             commission for life</span>, 50 free listings every month, no subscription,
             and a permanent ◆ Founding Maker badge on every product page.
           </p>
@@ -54,7 +54,7 @@ export default function BetaSignupCTA() {
         <div className="flex flex-col items-stretch md:items-end gap-3">
           <Link
             to="/founders"
-            className="inline-flex items-center justify-center gap-2 px-7 py-4 bg-brand hover:bg-[#ff5722] text-ink font-mono text-[12px] font-bold uppercase tracking-[0.3em] transition shadow-[0_0_0_2px_rgba(255,69,0,0.18)]"
+            className="inline-flex items-center justify-center gap-2 px-7 py-4 bg-brand hover:bg-brand-hover text-ink font-mono text-[12px] font-bold uppercase tracking-[0.3em] transition shadow-[0_0_0_2px_rgba(255,69,0,0.18)]"
             data-testid="home-beta-signup-btn"
           >
             ◆ Apply to be a Founder

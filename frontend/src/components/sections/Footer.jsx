@@ -186,7 +186,7 @@ export default function Footer() {
           <div className="flex items-center gap-3">
             <span>© {new Date().getFullYear()} Crafters Market · All rights reserved</span>
             {/* Discreet ◆ glyph next to the copyright = admin staff entry
-                point. Painted text-[#262626] on the near-black footer so
+                point. Painted text-ink-muted/40 on the near-black footer so
                 it's effectively invisible to visitors but instantly
                 recognizable / clickable for the admin team who knows it's
                 here. Restored in iter153 after a brief stint as a labeled
@@ -195,7 +195,7 @@ export default function Footer() {
               to="/admin/login"
               aria-label="Admin login"
               title="Admin"
-              className="text-[#262626] hover:text-brand transition-colors text-[10px] leading-none select-none"
+              className="text-ink-muted/40 hover:text-brand transition-colors text-[10px] leading-none select-none"
               data-testid="footer-admin"
             >
               ◆

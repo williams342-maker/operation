@@ -78,27 +78,27 @@ export default function GuideCrossLinkCard({ product }) {
   return (
     <Link
       to={`/guides/${guide.slug}`}
-      className="group block border border-[#262626] hover:border-[#ff4500] bg-[#0a0a0a] p-5 transition mb-8"
+      className="group block border border-line hover:border-brand bg-paper p-5 transition mb-8"
       data-testid={`pdp-guide-cross-link-${guide.slug}`}
     >
       <div className="flex items-start gap-4">
-        <div className="shrink-0 w-10 h-10 border border-[#262626] grid place-items-center group-hover:border-[#ff4500] group-hover:bg-[#ff4500]/5 transition">
-          <BookOpen size={16} className="text-[#ff4500]" />
+        <div className="shrink-0 w-10 h-10 border border-line grid place-items-center group-hover:border-brand group-hover:bg-brand/5 transition">
+          <BookOpen size={16} className="text-brand" />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mb-1">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-1">
             ◆ Learn the technique
           </div>
-          <div className="font-display text-xl mb-1 group-hover:text-[#ff4500] transition">
+          <div className="font-display text-xl mb-1 group-hover:text-brand transition">
             {guide.title}
           </div>
-          <p className="font-mono text-[11px] text-[#a3a3a3] leading-relaxed">
+          <p className="font-mono text-[11px] text-ink-muted leading-relaxed">
             {guide.blurb}
           </p>
         </div>
         <ArrowRight
           size={18}
-          className="shrink-0 text-[#525252] group-hover:text-[#ff4500] group-hover:translate-x-1 transition"
+          className="shrink-0 text-ink-muted group-hover:text-brand group-hover:translate-x-1 transition"
         />
       </div>
     </Link>

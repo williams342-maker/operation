@@ -230,7 +230,7 @@ export default function LeadMagnetTab() {
             <tbody className="divide-y divide-line">
               {subs.subscribers.map((s) => (
                 <tr key={s.email} className="hover:bg-paper transition" data-testid={`lead-magnet-row-${s.email}`}>
-                  <td className="px-3 py-2.5 text-[#fafafa]">{s.email}</td>
+                  <td className="px-3 py-2.5 text-ink">{s.email}</td>
                   <td className="px-3 py-2.5 text-ink-muted">{s.first_seen_at ? new Date(s.first_seen_at).toLocaleDateString() : "—"}</td>
                   <td className="px-3 py-2.5 text-ink-muted">
                     {s.source || "direct"}
@@ -270,7 +270,7 @@ function Stat({ label, value, accent, testid }) {
     cyan: "text-cyan-300 border-cyan-500/30",
     amber: "text-amber-400 border-amber-500/30",
   };
-  const tone = tones[accent] || "text-[#fafafa] border-line";
+  const tone = tones[accent] || "text-ink border-line";
   return (
     <div className={`border bg-paper p-4 ${tone.split(" ")[1]}`} data-testid={testid}>
       <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted">{label}</div>

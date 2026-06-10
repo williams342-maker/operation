@@ -21,7 +21,7 @@ import React from "react";
 export function FounderBadge({ number, testId = "founder-badge", className = "" }) {
   return (
     <span
-      className={`inline-flex items-center gap-1.5 border border-[#ff4500]/50 bg-[#ff4500]/10 text-[#ff7a45] px-2 py-0.5 text-[10px] uppercase tracking-[0.22em] font-mono ${className}`}
+      className={`inline-flex items-center gap-1.5 border border-brand/50 bg-brand/10 text-[#ff7a45] px-2 py-0.5 text-[10px] uppercase tracking-[0.22em] font-mono ${className}`}
       data-testid={testId}
       title={
         number

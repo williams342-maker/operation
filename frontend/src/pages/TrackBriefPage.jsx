@@ -46,14 +46,14 @@ export default function TrackBriefPage() {
   };
 
   return (
-    <div className="min-h-[70vh] bg-[#0a0a0a] text-[#e5e5e5] grain px-4 py-12 md:py-16" data-testid="track-page">
+    <div className="min-h-[70vh] bg-paper text-ink grain px-4 py-12 md:py-16" data-testid="track-page">
       <div className="max-w-2xl mx-auto">
         <header className="mb-8">
-          <Link to="/" className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500]">
+          <Link to="/" className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand">
             ← Back to Crafters Market
           </Link>
           <h1 className="font-display text-4xl md:text-5xl mt-3 uppercase">Track your brief.</h1>
-          <p className="font-mono text-xs text-[#a3a3a3] mt-2 leading-relaxed">
+          <p className="font-mono text-xs text-ink-muted mt-2 leading-relaxed">
             Enter the 10-digit tracking number from your custom-order confirmation email
             to see where your project stands.
           </p>
@@ -66,7 +66,7 @@ export default function TrackBriefPage() {
             placeholder="0123456789"
             inputMode="numeric"
             maxLength={10}
-            className="flex-1 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-4 py-3 font-mono text-sm tracking-widest"
+            className="flex-1 bg-transparent border border-line focus:border-brand outline-none px-4 py-3 font-mono text-sm tracking-widest"
             data-testid="track-input"
           />
           <button
@@ -79,7 +79,7 @@ export default function TrackBriefPage() {
         </form>
 
         {loading && (
-          <p className="font-mono text-xs text-[#525252]" data-testid="track-loading">
+          <p className="font-mono text-xs text-ink-muted" data-testid="track-loading">
             Looking up brief…
           </p>
         )}
@@ -115,18 +115,18 @@ function BriefStatusCard({ data }) {
   const declined = data.status === "declined";
 
   return (
-    <div className="border border-[#262626] p-5 md:p-6" data-testid="track-card">
-      <div className="flex items-start justify-between gap-3 pb-4 border-b border-[#1f1f1f] mb-5">
+    <div className="border border-line p-5 md:p-6" data-testid="track-card">
+      <div className="flex items-start justify-between gap-3 pb-4 border-b border-line mb-5">
         <div>
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">
             ◆ {data.project_type}
           </div>
           <div className="font-display text-2xl mt-1">{data.material}</div>
-          <div className="font-mono text-[11px] text-[#a3a3a3] mt-2">
+          <div className="font-mono text-[11px] text-ink-muted mt-2">
             Submitted {new Date(data.submitted_at).toLocaleDateString()}
           </div>
         </div>
-        <div className="border border-[#1f1f1f] px-3 py-2 bg-[#0a0a0a]" title={`Tracking #${data.tracking_number}`}>
+        <div className="border border-line px-3 py-2 bg-paper" title={`Tracking #${data.tracking_number}`}>
           <Barcode value={data.tracking_number} height={36} width={1.5} fontSize={11} testId={`track-barcode-${data.tracking_number}`} />
         </div>
       </div>
@@ -139,20 +139,20 @@ function BriefStatusCard({ data }) {
             <li key={s.key} className="flex items-start gap-3" data-testid={`track-stage-${s.key}`}>
               <span className={`mt-1 inline-block w-3 h-3 rounded-full shrink-0 ${
                 current
-                  ? "bg-[#ff4500] ring-2 ring-[#ff4500]/40"
+                  ? "bg-brand ring-2 ring-[#ff4500]/40"
                   : reached
                     ? "bg-emerald-400"
-                    : "bg-[#262626]"
+                    : "bg-surface"
               }`} />
               <div className="flex-1">
                 <div className={`font-mono text-xs uppercase tracking-[0.22em] ${
-                  reached ? "text-[#e5e5e5]" : "text-[#525252]"
+                  reached ? "text-ink" : "text-ink-muted"
                 }`}>
                   {s.label}
-                  {current && <span className="text-[#ff4500] ml-2">· current</span>}
+                  {current && <span className="text-brand ml-2">· current</span>}
                 </div>
                 {reached && s.at && (
-                  <div className="font-mono text-[10px] text-[#a3a3a3] mt-0.5">
+                  <div className="font-mono text-[10px] text-ink-muted mt-0.5">
                     {new Date(s.at).toLocaleString()}
                   </div>
                 )}
@@ -170,7 +170,7 @@ function BriefStatusCard({ data }) {
               <div className="font-mono text-xs uppercase tracking-[0.22em] text-red-400">
                 Maker declined
               </div>
-              <div className="font-mono text-[10px] text-[#a3a3a3] mt-0.5">
+              <div className="font-mono text-[10px] text-ink-muted mt-0.5">
                 We're routing your brief to another maker — stand by.
               </div>
             </div>
@@ -182,7 +182,7 @@ function BriefStatusCard({ data }) {
         <a
           href={data.reddit_post_url}
           target="_blank" rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 mt-5 pt-5 border-t border-[#1f1f1f] font-mono text-[11px] text-orange-400 hover:underline"
+          className="inline-flex items-center gap-1 mt-5 pt-5 border-t border-line font-mono text-[11px] text-orange-400 hover:underline"
           data-testid="track-reddit-link"
         >
           ↗ Also broadcasted on r/{data.reddit_subreddit}

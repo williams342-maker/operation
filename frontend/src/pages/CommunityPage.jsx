@@ -96,27 +96,27 @@ export default function CommunityPage() {
   return (
     <div className="pt-32 pb-24 grain min-h-screen" data-testid="community-page">
       <div className="max-w-[1200px] mx-auto px-4 md:px-8">
-        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 pb-6 border-b border-[#262626] mb-10">
+        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 pb-6 border-b border-line mb-10">
           <div>
-            <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-3">
+            <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-3">
               ◆ The Workshop Floor
             </div>
             <h1 className="font-display text-[44px] md:text-[80px] leading-[0.9] uppercase">
               Community.
             </h1>
-            <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-lg">
+            <p className="font-mono text-xs text-ink-muted mt-2 max-w-lg">
               Buyers, makers, and the workshop crew — sharing pieces, swapping design files, and talking shop.
             </p>
           </div>
           {me ? (
             <div className="flex items-center gap-3">
               <AvatarPicker me={me} setMe={setMe} />
-              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
-                Signed in as<br /><span className="text-[#e5e5e5]">{me.email}</span>
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
+                Signed in as<br /><span className="text-ink">{me.email}</span>
               </div>
               <button
                 onClick={logout}
-                className="px-3 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em]"
+                className="px-3 py-2 border border-line hover:border-brand font-mono text-[10px] uppercase tracking-[0.22em]"
                 data-testid="community-logout-btn"
               >
                 Sign Out
@@ -133,13 +133,13 @@ export default function CommunityPage() {
           )}
         </div>
 
-        <div className="flex border-b border-[#262626] mb-8 overflow-x-auto" data-testid="community-tabs">
+        <div className="flex border-b border-line mb-8 overflow-x-auto" data-testid="community-tabs">
           {TABS.filter((t) => t.id !== "chat" || liveChatEnabled).map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
               className={`px-5 py-3 font-mono text-[11px] uppercase tracking-[0.22em] border-b-2 transition whitespace-nowrap ${
-                tab === t.id ? "border-[#ff4500] text-[#ff4500]" : "border-transparent text-[#a3a3a3] hover:text-[#e5e5e5]"
+                tab === t.id ? "border-brand text-brand" : "border-transparent text-ink-muted hover:text-ink"
               }`}
               data-testid={`community-tab-${t.id}`}
             >
@@ -153,9 +153,9 @@ export default function CommunityPage() {
         {tab === "forum" && <ForumTab me={me} />}
         {tab === "chat" && liveChatEnabled && <ChatTab me={me} />}
         {tab === "chat" && !liveChatEnabled && (
-          <div className="border border-[#262626] p-8 text-center" data-testid="chat-disabled">
-            <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-3">◆ Chat Offline</div>
-            <p className="font-mono text-sm text-[#a3a3a3]">
+          <div className="border border-line p-8 text-center" data-testid="chat-disabled">
+            <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-3">◆ Chat Offline</div>
+            <p className="font-mono text-sm text-ink-muted">
               Live chat is temporarily disabled by the workshop crew. Forum threads still work and are a great place to ask questions.
             </p>
           </div>
@@ -196,14 +196,14 @@ function AvatarPicker({ me, setMe }) {
         type="button"
         onClick={() => ref.current?.click()}
         disabled={busy}
-        className="w-10 h-10 rounded-full border border-[#262626] hover:border-[#ff4500] overflow-hidden flex items-center justify-center bg-[#121212]"
+        className="w-10 h-10 rounded-full border border-line hover:border-brand overflow-hidden flex items-center justify-center bg-surface"
         data-testid="avatar-upload-btn"
         title="Click to upload an avatar"
       >
         {me.picture ? (
           <img src={me.picture} alt="" className="w-full h-full object-cover" />
         ) : (
-          <span className="font-mono text-[10px] uppercase text-[#a3a3a3]">
+          <span className="font-mono text-[10px] uppercase text-ink-muted">
             {(me.name || me.email)[0]?.toUpperCase() || "?"}
           </span>
         )}
@@ -257,7 +257,7 @@ function ShowcaseTab({ me }) {
     <div data-testid="showcase-tab">
       {me && (
         <div className="mb-6 flex justify-between items-center">
-          <p className="font-mono text-xs text-[#a3a3a3]">{posts.length} pieces in the wild.</p>
+          <p className="font-mono text-xs text-ink-muted">{posts.length} pieces in the wild.</p>
           <button onClick={() => setShowForm((s) => !s)} className="btn-industrial btn-primary inline-flex items-center gap-2" data-testid="showcase-new-btn">
             <Plus size={14} /> {showForm ? "Cancel" : "Post a piece"}
           </button>
@@ -267,7 +267,7 @@ function ShowcaseTab({ me }) {
         <ShowcaseForm onSaved={() => { setShowForm(false); refresh(); }} />
       )}
       {!posts.length ? (
-        <p className="font-mono text-sm text-[#a3a3a3]" data-testid="showcase-empty">No posts yet — be the first to show off your piece.</p>
+        <p className="font-mono text-sm text-ink-muted" data-testid="showcase-empty">No posts yet — be the first to show off your piece.</p>
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6" data-testid="showcase-grid">
           {posts.map((p) => (
@@ -467,18 +467,18 @@ function ShowcaseForm({ onSaved }) {
   };
 
   return (
-    <form onSubmit={submit} className="border border-[#262626] p-5 mb-6 grid md:grid-cols-2 gap-3" data-testid="showcase-form">
+    <form onSubmit={submit} className="border border-line p-5 mb-6 grid md:grid-cols-2 gap-3" data-testid="showcase-form">
       <input
         required placeholder="Title" value={form.title}
         onChange={(e) => setForm({ ...form, title: e.target.value })}
-        className="md:col-span-2 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+        className="md:col-span-2 bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs"
         data-testid="showcase-title"
       />
 
       {/* Multi-image picker — drag-drop + click */}
       <div
         className={`md:col-span-2 border border-dashed p-4 transition-colors ${
-          imgDrag ? "border-[#ff4500] bg-[#ff4500]/5" : "border-[#262626]"
+          imgDrag ? "border-brand bg-brand/5" : "border-line"
         }`}
         data-testid="showcase-image-picker"
         onDragOver={(e) => {
@@ -508,7 +508,7 @@ function ShowcaseForm({ onSaved }) {
               ? "↓ Release to upload"
               : images.length === 0 ? "Drop or click to add photos" : `Add more (${images.length}/${SHOWCASE_MAX_IMAGES})`}
           </button>
-          <p className="font-mono text-[10px] text-[#525252]">
+          <p className="font-mono text-[10px] text-ink-muted">
             JPG/PNG/WebP, ≤ 8MB each. First photo becomes the cover. Drag &amp; drop or click.
           </p>
           <input
@@ -517,7 +517,7 @@ function ShowcaseForm({ onSaved }) {
           />
         </div>
         {uploading && (
-          <p className="font-mono text-[10px] text-[#ff4500] mb-2" data-testid="showcase-image-uploading">
+          <p className="font-mono text-[10px] text-brand mb-2" data-testid="showcase-image-uploading">
             Uploading…
           </p>
         )}
@@ -525,19 +525,19 @@ function ShowcaseForm({ onSaved }) {
           <div className="grid grid-cols-4 gap-2" data-testid="showcase-image-list">
             {images.map((img, i) => (
               <div
-                key={img.url} className="relative group border border-[#262626]"
+                key={img.url} className="relative group border border-line"
                 data-testid={`showcase-image-tile-${i}`}
               >
                 <img src={img.url} alt={img.name} className="w-full aspect-square object-cover" />
                 {i === 0 && (
-                  <span className="absolute top-1 left-1 bg-[#ff4500] text-[#0a0a0a] font-mono text-[8px] uppercase tracking-[0.18em] px-1.5 py-0.5 font-bold">
+                  <span className="absolute top-1 left-1 bg-brand text-[#0a0a0a] font-mono text-[8px] uppercase tracking-[0.18em] px-1.5 py-0.5 font-bold">
                     Cover
                   </span>
                 )}
                 <button
                   type="button"
                   onClick={() => removeImage(i)}
-                  className="absolute top-1 right-1 bg-[#0a0a0a]/80 text-[#a3a3a3] hover:text-red-400 w-6 h-6 inline-flex items-center justify-center font-mono text-xs border border-[#262626]"
+                  className="absolute top-1 right-1 bg-paper/80 text-ink-muted hover:text-red-400 w-6 h-6 inline-flex items-center justify-center font-mono text-xs border border-line"
                   aria-label={`Remove photo ${i + 1}`}
                   data-testid={`showcase-image-remove-${i}`}
                 >
@@ -553,7 +553,7 @@ function ShowcaseForm({ onSaved }) {
       {isMaker && (
         <div
           className={`md:col-span-2 border border-dashed p-4 transition-colors ${
-            videoDrag ? "border-[#ff4500] bg-[#ff4500]/5" : "border-[#262626]"
+            videoDrag ? "border-brand bg-brand/5" : "border-line"
           }`}
           data-testid="showcase-video-picker"
           onDragOver={(e) => {
@@ -581,7 +581,7 @@ function ShowcaseForm({ onSaved }) {
               <Film size={14} />
               {videoDrag ? "↓ Release to upload" : video ? "Clip attached" : "Drop or click to add video"}
             </button>
-            <p className="font-mono text-[10px] text-[#525252]">
+            <p className="font-mono text-[10px] text-ink-muted">
               MP4 / WebM / MOV · ≤ 50MB · ~60s. Maker-only feature.
             </p>
             <input
@@ -590,26 +590,26 @@ function ShowcaseForm({ onSaved }) {
             />
           </div>
           {videoUploading && (
-            <p className="font-mono text-[10px] text-[#ff4500] mb-2" data-testid="showcase-video-uploading">
+            <p className="font-mono text-[10px] text-brand mb-2" data-testid="showcase-video-uploading">
               Uploading… {videoProgress}%
             </p>
           )}
           {video && !videoUploading && (
-            <div className="relative border border-[#262626] bg-black" data-testid="showcase-video-preview">
+            <div className="relative border border-line bg-black" data-testid="showcase-video-preview">
               <video
                 src={video.url}
                 controls
                 preload="metadata"
                 className="w-full max-h-72 object-contain"
               />
-              <div className="flex items-center justify-between px-3 py-2 border-t border-[#262626]">
-                <span className="font-mono text-[10px] text-[#a3a3a3] truncate">
+              <div className="flex items-center justify-between px-3 py-2 border-t border-line">
+                <span className="font-mono text-[10px] text-ink-muted truncate">
                   ◆ {video.name} · {(video.size / 1024 / 1024).toFixed(1)}MB
                 </span>
                 <button
                   type="button"
                   onClick={removeVideo}
-                  className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#a3a3a3] hover:text-red-400"
+                  className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-muted hover:text-red-400"
                   data-testid="showcase-video-remove"
                 >
                   Remove
@@ -622,7 +622,7 @@ function ShowcaseForm({ onSaved }) {
 
       <select
         value={form.product_slug} onChange={(e) => setForm({ ...form, product_slug: e.target.value })}
-        className="bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+        className="bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs"
         data-testid="showcase-product"
       >
         <option value="">— Tag a product (optional) —</option>
@@ -630,7 +630,7 @@ function ShowcaseForm({ onSaved }) {
       </select>
       <select
         value={form.maker_slug} onChange={(e) => setForm({ ...form, maker_slug: e.target.value })}
-        className="bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+        className="bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs"
         data-testid="showcase-maker"
       >
         <option value="">— Tag a maker (optional) —</option>
@@ -640,14 +640,14 @@ function ShowcaseForm({ onSaved }) {
       {/* Description + AI assist */}
       <div className="md:col-span-2">
         <div className="flex items-center justify-between mb-1">
-          <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+          <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
             Tell us about it
           </label>
           <button
             type="button"
             onClick={runAiDescribe}
             disabled={aiBusy || !form.title.trim()}
-            className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] hover:text-[#e5e5e5] disabled:opacity-40 disabled:cursor-not-allowed transition"
+            className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand hover:text-ink disabled:opacity-40 disabled:cursor-not-allowed transition"
             data-testid="showcase-ai-describe"
             title={form.title.trim() ? "Let AI draft a description from your title and tags" : "Add a title first"}
           >
@@ -658,12 +658,12 @@ function ShowcaseForm({ onSaved }) {
           required placeholder="What stands out, where it lives, why you love it…"
           rows={3} value={form.description}
           onChange={(e) => setForm({ ...form, description: e.target.value })}
-          className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs resize-y"
+          className="w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs resize-y"
           data-testid="showcase-description"
         />
         {aiVisionMeta && (
           <p
-            className="font-mono text-[10px] text-[#525252] mt-1"
+            className="font-mono text-[10px] text-ink-muted mt-1"
             data-testid="showcase-ai-vision-badge"
           >
             {aiVisionMeta.vision
@@ -835,10 +835,10 @@ function ShowcaseCard({ post, onLike, canLike, me, onChanged }) {
     <div
       ref={cardRef}
       id={`showcase-${post.id}`}
-      className="border border-[#262626] hover:border-[#ff4500] transition group"
+      className="border border-line hover:border-brand transition group"
       data-testid={`showcase-${post.id}`}
     >
-      <div className="aspect-[4/3] overflow-hidden bg-[#121212] relative">
+      <div className="aspect-[4/3] overflow-hidden bg-surface relative">
         {hasVideo ? (
           <video
             src={post.video_url}
@@ -856,7 +856,7 @@ function ShowcaseCard({ post, onLike, canLike, me, onChanged }) {
         )}
         {hasVideo && (
           <span
-            className="absolute top-2 left-2 bg-[#ff4500] text-[#0a0a0a] font-mono text-[9px] uppercase tracking-[0.18em] px-2 py-1 font-bold pointer-events-none"
+            className="absolute top-2 left-2 bg-brand text-[#0a0a0a] font-mono text-[9px] uppercase tracking-[0.18em] px-2 py-1 font-bold pointer-events-none"
             data-testid={`showcase-${post.id}-video-badge`}
           >
             ◆ Video
@@ -864,7 +864,7 @@ function ShowcaseCard({ post, onLike, canLike, me, onChanged }) {
         )}
         {!hasVideo && extraCount > 0 && (
           <span
-            className="absolute bottom-2 right-2 bg-[#0a0a0a]/85 border border-[#262626] text-[#e5e5e5] font-mono text-[10px] uppercase tracking-[0.18em] px-2 py-1"
+            className="absolute bottom-2 right-2 bg-paper/85 border border-line text-ink font-mono text-[10px] uppercase tracking-[0.18em] px-2 py-1"
             data-testid={`showcase-${post.id}-image-count`}
           >
             +{extraCount} more
@@ -886,14 +886,14 @@ function ShowcaseCard({ post, onLike, canLike, me, onChanged }) {
             <input
               value={draft.title}
               onChange={(e) => setDraft({ ...draft, title: e.target.value })}
-              className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+              className="w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs"
               data-testid={`showcase-${post.id}-edit-title`}
             />
             <textarea
               value={draft.description}
               onChange={(e) => setDraft({ ...draft, description: e.target.value })}
               rows={3}
-              className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs resize-y"
+              className="w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs resize-y"
               data-testid={`showcase-${post.id}-edit-description`}
             />
             {editErr && (
@@ -923,26 +923,26 @@ function ShowcaseCard({ post, onLike, canLike, me, onChanged }) {
         ) : (
           <>
             <div className="font-display text-xl mb-1">{post.title}</div>
-            <p className="font-mono text-[11px] text-[#a3a3a3] leading-relaxed mb-3">{post.description}</p>
+            <p className="font-mono text-[11px] text-ink-muted leading-relaxed mb-3">{post.description}</p>
             {(post.product_slug || post.maker_slug) && (
               <div className="flex flex-wrap gap-2 mb-3" data-testid={`showcase-tags-${post.id}`}>
                 {post.product_slug && (
-                  <Link to={`/shop/${post.product_slug}`} className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] border border-[#ff4500]/40 px-2 py-1 hover:bg-[#ff4500]/10">
+                  <Link to={`/shop/${post.product_slug}`} className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand border border-brand/40 px-2 py-1 hover:bg-brand/10">
                     ◆ {post.product_slug}
                   </Link>
                 )}
                 {post.maker_slug && (
-                  <Link to={`/makers/${post.maker_slug}`} className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] border border-[#262626] px-2 py-1 hover:border-[#ff4500] hover:text-[#ff4500]">
+                  <Link to={`/makers/${post.maker_slug}`} className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted border border-line px-2 py-1 hover:border-brand hover:text-brand">
                     @ {post.maker_slug}
                   </Link>
                 )}
               </div>
             )}
-            <div className="flex justify-between items-center text-[10px] font-mono uppercase tracking-[0.22em] text-[#525252]">
+            <div className="flex justify-between items-center text-[10px] font-mono uppercase tracking-[0.22em] text-ink-muted">
               <span><AuthorLabel name={post.user_name} email={post.user_email} /></span>
               <div className="flex items-center gap-3">
                 <span
-                  className="flex items-center gap-1 text-[#737373]"
+                  className="flex items-center gap-1 text-ink-muted"
                   title={`${views} ${views === 1 ? "view" : "views"} in the last 24h window`}
                   data-testid={`showcase-${post.id}-views`}
                 >
@@ -950,7 +950,7 @@ function ShowcaseCard({ post, onLike, canLike, me, onChanged }) {
                 </span>
                 <button
                   onClick={() => setShareOpen(true)}
-                  className="flex items-center gap-1 text-[#525252] hover:text-[#ff4500] transition"
+                  className="flex items-center gap-1 text-ink-muted hover:text-brand transition"
                   title="Share this piece"
                   data-testid={`showcase-${post.id}-share-btn`}
                 >
@@ -959,7 +959,7 @@ function ShowcaseCard({ post, onLike, canLike, me, onChanged }) {
                 {!isOwner && (canLike || (typeof window !== "undefined" && localStorage.getItem("cm_maker_jwt"))) && (
                   <button
                     onClick={() => setReportOpen(true)}
-                    className="flex items-center gap-1 text-[#525252] hover:text-red-400"
+                    className="flex items-center gap-1 text-ink-muted hover:text-red-400"
                     title="Report this post"
                     data-testid={`showcase-${post.id}-report-btn`}
                   >
@@ -969,7 +969,7 @@ function ShowcaseCard({ post, onLike, canLike, me, onChanged }) {
                 <button
                   onClick={async () => { if (canLike && !liked) { await likeShowcase(post.id); setLiked(true); onLike(); } }}
                   disabled={!canLike}
-                  className={`flex items-center gap-1 ${liked ? "text-[#ff4500]" : "hover:text-[#ff4500]"} disabled:opacity-50`}
+                  className={`flex items-center gap-1 ${liked ? "text-brand" : "hover:text-brand"} disabled:opacity-50`}
                   data-testid={`showcase-like-${post.id}`}
                 >
                   <Heart size={12} fill={liked ? "currentColor" : "none"} /> {post.likes + (liked ? 1 : 0)}
@@ -977,10 +977,10 @@ function ShowcaseCard({ post, onLike, canLike, me, onChanged }) {
               </div>
             </div>
             {isOwner && (
-              <div className="flex gap-3 mt-3 pt-3 border-t border-[#262626]" data-testid={`showcase-${post.id}-owner-controls`}>
+              <div className="flex gap-3 mt-3 pt-3 border-t border-line" data-testid={`showcase-${post.id}-owner-controls`}>
                 <button
                   onClick={() => setEditing(true)}
-                  className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] flex items-center gap-1"
+                  className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand flex items-center gap-1"
                   data-testid={`showcase-${post.id}-edit-btn`}
                 >
                   <Pencil size={11} /> Edit
@@ -988,7 +988,7 @@ function ShowcaseCard({ post, onLike, canLike, me, onChanged }) {
                 <button
                   onClick={handleDelete}
                   disabled={busy}
-                  className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-red-400 flex items-center gap-1 disabled:opacity-50"
+                  className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-red-400 flex items-center gap-1 disabled:opacity-50"
                   data-testid={`showcase-${post.id}-delete-btn`}
                 >
                   <Trash2 size={11} /> Delete
@@ -1091,13 +1091,13 @@ function ShowcaseShareDialog({ post, onClose }) {
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-[#0a0a0a] border border-[#262626] w-full max-w-md p-6 space-y-4"
+        className="bg-paper border border-line w-full max-w-md p-6 space-y-4"
       >
         <div className="flex items-center justify-between">
           <h3 className="font-display text-xl uppercase">Share this piece.</h3>
           <button
             onClick={onClose}
-            className="text-[#737373] hover:text-[#e5e5e5]"
+            className="text-ink-muted hover:text-ink"
             data-testid={`showcase-share-close-${post.id}`}
             aria-label="Close share dialog"
           >
@@ -1106,11 +1106,11 @@ function ShowcaseShareDialog({ post, onClose }) {
         </div>
 
         {/* URL preview + copy */}
-        <div className="bg-[#0d0d0d] border border-[#1f1f1f] p-3 flex items-center gap-2">
-          <div className="flex-1 font-mono text-[11px] text-[#e5e5e5] break-all">{url}</div>
+        <div className="bg-surface border border-line p-3 flex items-center gap-2">
+          <div className="flex-1 font-mono text-[11px] text-ink break-all">{url}</div>
           <button
             onClick={handleCopy}
-            className="px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition inline-flex items-center gap-1.5"
+            className="px-3 py-1.5 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] transition inline-flex items-center gap-1.5"
             data-testid={`showcase-share-copy-${post.id}`}
           >
             <Copy size={11} /> {copied ? "Copied" : "Copy"}
@@ -1136,7 +1136,7 @@ function ShowcaseShareDialog({ post, onClose }) {
               href={l.href}
               target="_blank"
               rel="noopener noreferrer"
-              className="px-3 py-2 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] text-center transition"
+              className="px-3 py-2 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted text-center transition"
               data-testid={`showcase-share-${l.key}-${post.id}`}
             >
               {l.label}
@@ -1144,7 +1144,7 @@ function ShowcaseShareDialog({ post, onClose }) {
           ))}
         </div>
 
-        <p className="font-mono text-[10px] text-[#525252] leading-relaxed">
+        <p className="font-mono text-[10px] text-ink-muted leading-relaxed">
           {post.product_slug
             ? "Pinterest pins and X posts will preview the linked product."
             : "Add a product tag when posting to make shares link buyers straight to the shop."}
@@ -1196,18 +1196,18 @@ function ShowcaseReportDialog({ post, onClose, onSubmitted }) {
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-[#0a0a0a] border border-[#262626] w-full max-w-md p-6 space-y-4"
+        className="bg-paper border border-line w-full max-w-md p-6 space-y-4"
       >
         <div className="flex items-center justify-between">
           <div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#ff4500] mb-1">
+            <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand mb-1">
               ◆ Report post
             </div>
             <div className="font-display text-lg">{post.title}</div>
           </div>
           <button
             onClick={onClose}
-            className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500]"
+            className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand"
             data-testid={`showcase-report-close-${post.id}`}
           >
             Cancel
@@ -1215,15 +1215,15 @@ function ShowcaseReportDialog({ post, onClose, onSubmitted }) {
         </div>
 
         <div className="space-y-2">
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252]">Reason</div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Reason</div>
           <div className="space-y-1.5">
             {reasons.map((r) => (
               <label
                 key={r.id}
                 className={`flex items-start gap-3 border px-3 py-2 cursor-pointer transition ${
                   reason === r.id
-                    ? "border-[#ff4500] bg-[#ff4500]/5"
-                    : "border-[#262626] hover:border-[#525252]"
+                    ? "border-brand bg-brand/5"
+                    : "border-line hover:border-line"
                 }`}
                 data-testid={`showcase-report-reason-${r.id}`}
               >
@@ -1233,7 +1233,7 @@ function ShowcaseReportDialog({ post, onClose, onSubmitted }) {
                   onChange={() => setReason(r.id)}
                   className="mt-0.5 accent-[#ff4500]"
                 />
-                <span className="font-mono text-xs text-[#e5e5e5]">{r.label}</span>
+                <span className="font-mono text-xs text-ink">{r.label}</span>
               </label>
             ))}
           </div>
@@ -1245,7 +1245,7 @@ function ShowcaseReportDialog({ post, onClose, onSubmitted }) {
           placeholder="Optional — extra context that helps the moderator (max 1000 chars)."
           rows={3}
           maxLength={1000}
-          className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs resize-y"
+          className="w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs resize-y"
           data-testid={`showcase-report-details-${post.id}`}
         />
 
@@ -1263,7 +1263,7 @@ function ShowcaseReportDialog({ post, onClose, onSubmitted }) {
         >
           {busy ? "Sending…" : "Submit report"}
         </button>
-        <p className="font-mono text-[10px] text-[#525252] leading-relaxed">
+        <p className="font-mono text-[10px] text-ink-muted leading-relaxed">
           Reports are private. The poster is not notified. Submitting false reports may result in your account being restricted.
         </p>
       </div>
@@ -1323,13 +1323,13 @@ function TrendingFilesRail({ me, onRefresh }) {
     <section className="mb-8" data-testid="trending-files-rail">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <TrendingUp size={14} className="text-[#ff4500]" />
-          <h3 className="font-mono text-[11px] uppercase tracking-[0.32em] text-[#ff4500]">
+          <TrendingUp size={14} className="text-brand" />
+          <h3 className="font-mono text-[11px] uppercase tracking-[0.32em] text-brand">
             ◆ {isFallback ? "All-time downloads" : "Trending this week"}
           </h3>
         </div>
         {!isFallback && (
-          <span className="font-mono text-[10px] text-[#525252] uppercase tracking-[0.22em]">
+          <span className="font-mono text-[10px] text-ink-muted uppercase tracking-[0.22em]">
             last 7 days
           </span>
         )}
@@ -1353,10 +1353,10 @@ function TrendingFilesRail({ me, onRefresh }) {
 function TrendingFileCard({ rank, file, busy, onDownload, isFallback }) {
   return (
     <div
-      className="border border-[#262626] bg-[#0d0d0d] p-3 flex items-center gap-3 hover:border-[#ff4500]/60 transition-colors"
+      className="border border-line bg-surface p-3 flex items-center gap-3 hover:border-brand/60 transition-colors"
       data-testid={`trending-file-${file.id}`}
     >
-      <div className="font-display text-3xl text-[#ff4500] leading-none w-8 shrink-0 tabular-nums">
+      <div className="font-display text-3xl text-brand leading-none w-8 shrink-0 tabular-nums">
         {rank.toString().padStart(2, "0")}
       </div>
       {file.thumbnail_url ? (
@@ -1364,33 +1364,33 @@ function TrendingFileCard({ rank, file, busy, onDownload, isFallback }) {
           src={file.thumbnail_url}
           alt=""
           loading="lazy"
-          className="w-14 h-14 object-cover border border-[#262626] shrink-0"
+          className="w-14 h-14 object-cover border border-line shrink-0"
         />
       ) : (
-        <div className="w-14 h-14 border border-[#262626] bg-[#0a0a0a] shrink-0 flex items-center justify-center font-mono text-[9px] uppercase text-[#525252]">
+        <div className="w-14 h-14 border border-line bg-paper shrink-0 flex items-center justify-center font-mono text-[9px] uppercase text-ink-muted">
           {file.file_type?.toUpperCase() || "FILE"}
         </div>
       )}
       <div className="flex-1 min-w-0">
-        <div className="font-mono text-xs text-[#e5e5e5] truncate font-bold">
+        <div className="font-mono text-xs text-ink truncate font-bold">
           {file.title}
         </div>
-        <div className="font-mono text-[10px] text-[#a3a3a3] mt-0.5 inline-flex items-center gap-1.5">
-          <Download size={10} className="text-[#ff4500]" />
+        <div className="font-mono text-[10px] text-ink-muted mt-0.5 inline-flex items-center gap-1.5">
+          <Download size={10} className="text-brand" />
           <span className="tabular-nums" data-testid={`trending-file-count-${file.id}`}>
             {isFallback
               ? `${(file.lifetime_downloads ?? 0).toLocaleString()} all-time`
               : `${(file.recent_downloads ?? 0).toLocaleString()} this week`}
           </span>
           {!isFallback && file.lifetime_downloads ? (
-            <span className="text-[#525252]">· {file.lifetime_downloads.toLocaleString()} lifetime</span>
+            <span className="text-ink-muted">· {file.lifetime_downloads.toLocaleString()} lifetime</span>
           ) : null}
         </div>
       </div>
       <button
         onClick={onDownload}
         disabled={busy}
-        className="px-2.5 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50 inline-flex items-center gap-1.5 shrink-0"
+        className="px-2.5 py-1.5 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50 inline-flex items-center gap-1.5 shrink-0"
         data-testid={`trending-file-download-${file.id}`}
         title="Download this file"
       >
@@ -1411,21 +1411,21 @@ function ContributorLeaderboard() {
   }, []);
   if (!rows.length) return null;
   return (
-    <div className="border border-[#262626] mb-6" data-testid="files-leaderboard">
+    <div className="border border-line mb-6" data-testid="files-leaderboard">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between gap-3 px-5 py-3 hover:bg-[#1a1a1a]/40 transition"
+        className="w-full flex items-center justify-between gap-3 px-5 py-3 hover:bg-surface/40 transition"
       >
-        <span className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">
+        <span className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-brand">
           <Trophy size={14} /> Top Contributors
         </span>
-        <span className="font-mono text-[10px] text-[#525252]">
+        <span className="font-mono text-[10px] text-ink-muted">
           {open ? "Hide" : `Show top ${rows.length}`}
         </span>
       </button>
       {open && (
-        <ol className="border-t border-[#262626] divide-y divide-[#1a1a1a]" data-testid="files-leaderboard-list">
+        <ol className="border-t border-line divide-y divide-[#1a1a1a]" data-testid="files-leaderboard-list">
           {rows.map((r, i) => (
             <li
               key={`${r.kind}:${r.handle}`}
@@ -1433,29 +1433,29 @@ function ContributorLeaderboard() {
               data-testid={`leaderboard-row-${i + 1}`}
             >
               <span className={`font-display text-2xl shrink-0 w-7 text-right ${
-                i === 0 ? "text-[#ff4500]" : i < 3 ? "text-[#e5e5e5]" : "text-[#525252]"
+                i === 0 ? "text-brand" : i < 3 ? "text-ink" : "text-ink-muted"
               }`}>{i + 1}</span>
               {r.avatar ? (
-                <img src={r.avatar} alt="" className="w-8 h-8 object-cover border border-[#262626] shrink-0" />
+                <img src={r.avatar} alt="" className="w-8 h-8 object-cover border border-line shrink-0" />
               ) : (
-                <div className="w-8 h-8 border border-[#262626] bg-[#0a0a0a] shrink-0" />
+                <div className="w-8 h-8 border border-line bg-paper shrink-0" />
               )}
               <div className="flex-1 min-w-0">
-                <div className="font-mono text-xs text-[#e5e5e5] truncate">
+                <div className="font-mono text-xs text-ink truncate">
                   {r.kind === "maker" ? (
-                    <Link to={`/makers/${r.handle}`} className="hover:text-[#ff4500]">
+                    <Link to={`/makers/${r.handle}`} className="hover:text-brand">
                       {r.display_name}
                     </Link>
                   ) : r.display_name}
-                  <span className="ml-2 px-1.5 py-0.5 border border-[#262626] text-[#a3a3a3] text-[9px] uppercase tracking-[0.2em]">
+                  <span className="ml-2 px-1.5 py-0.5 border border-line text-ink-muted text-[9px] uppercase tracking-[0.2em]">
                     {r.kind}
                   </span>
                 </div>
-                <div className="font-mono text-[10px] text-[#a3a3a3] mt-0.5">
+                <div className="font-mono text-[10px] text-ink-muted mt-0.5">
                   {r.uploads} upload{r.uploads === 1 ? "" : "s"} · {r.downloads} download{r.downloads === 1 ? "" : "s"}
                 </div>
               </div>
-              <div className="font-display text-xl text-[#ff4500] shrink-0" title="Contribution score (uploads × 5 + downloads)">
+              <div className="font-display text-xl text-brand shrink-0" title="Contribution score (uploads × 5 + downloads)">
                 {r.score}
               </div>
             </li>
@@ -1481,11 +1481,11 @@ function FilesTab({ me }) {
     <div data-testid="files-tab">
       <div className="mb-6 flex flex-col sm:flex-row justify-between gap-3">
         <div>
-          <p className="font-mono text-xs text-[#a3a3a3]">
+          <p className="font-mono text-xs text-ink-muted">
             {files.length} community files
           </p>
           {!isSignedIn && (
-            <p className="font-mono text-[10px] text-[#525252] mt-1" data-testid="files-signin-hint">
+            <p className="font-mono text-[10px] text-ink-muted mt-1" data-testid="files-signin-hint">
               Sign in to upload a bundle — pick multiple formats (jpg, stl, dxf, dwg, svg, g-code, pdf, zip…) for the same design.
             </p>
           )}
@@ -1511,7 +1511,7 @@ function FilesTab({ me }) {
       <TrendingFilesRail me={me} onRefresh={refresh} />
       <ContributorLeaderboard />
       {!files.length ? (
-        <p className="font-mono text-sm text-[#a3a3a3]" data-testid="files-empty">
+        <p className="font-mono text-sm text-ink-muted" data-testid="files-empty">
           No design files yet — be the first to share a bundle.
         </p>
       ) : (
@@ -1706,13 +1706,13 @@ function FileUploadForm({ onSaved }) {
   return (
     <form
       onSubmit={submit}
-      className="border border-[#262626] p-5 mb-6 space-y-4"
+      className="border border-line p-5 mb-6 space-y-4"
       data-testid="file-upload-form"
     >
       {/* Mode switcher — only makers see the URL-paste option (they're the
           ones with existing cloud storage). Buyers get a single upload path. */}
       {isMaker && (
-        <div className="flex gap-2 pb-2 border-b border-[#262626]" data-testid="file-upload-mode">
+        <div className="flex gap-2 pb-2 border-b border-line" data-testid="file-upload-mode">
           {[
             { id: "upload", label: "Upload a file" },
             { id: "url", label: "Paste a link" },
@@ -1724,8 +1724,8 @@ function FileUploadForm({ onSaved }) {
               data-testid={`file-mode-${m.id}`}
               className={`px-3 py-1.5 border font-mono text-[10px] uppercase tracking-[0.22em] transition ${
                 mode === m.id
-                  ? "border-[#ff4500] text-[#ff4500] bg-[#ff4500]/5"
-                  : "border-[#262626] text-[#a3a3a3] hover:border-[#525252] hover:text-[#e5e5e5]"
+                  ? "border-brand text-brand bg-brand/5"
+                  : "border-line text-ink-muted hover:border-line hover:text-ink"
               }`}
             >
               {m.label}
@@ -1736,8 +1736,8 @@ function FileUploadForm({ onSaved }) {
 
       <div className="grid md:grid-cols-2 gap-3">
         <label className="block">
-          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
-            Title <span className="text-[#ff4500]">*</span>
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
+            Title <span className="text-brand">*</span>
           </span>
           <input
             required
@@ -1746,19 +1746,19 @@ function FileUploadForm({ onSaved }) {
             autoComplete="off"
             value={f.title}
             onChange={(e) => { const v = e.target.value; setF((c) => ({ ...c, title: v })); }}
-            className="mt-1 w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+            className="mt-1 w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs"
             data-testid="file-title"
           />
-          <span className="font-mono text-[10px] text-[#525252]">
+          <span className="font-mono text-[10px] text-ink-muted">
             Short, descriptive — this is what shows up in search results.
           </span>
         </label>
         <label className="block">
-          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
             {mode === "url" ? (
-              <>File format <span className="text-[#ff4500]">*</span></>
+              <>File format <span className="text-brand">*</span></>
             ) : (
-              <>Files <span className="text-[#ff4500]">*</span></>
+              <>Files <span className="text-brand">*</span></>
             )}
           </span>
           {mode === "url" ? (
@@ -1767,22 +1767,22 @@ function FileUploadForm({ onSaved }) {
                 value={f.file_type}
                 name="file_type"
                 onChange={(e) => { const v = e.target.value; setF((c) => ({ ...c, file_type: v })); }}
-                className="mt-1 w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+                className="mt-1 w-full bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs"
                 data-testid="file-type"
               >
                 {["DXF", "SVG", "STL", "GLB", "OTHER"].map((t) => (
                   <option key={t} value={t}>{t}</option>
                 ))}
               </select>
-              <span className="font-mono text-[10px] text-[#525252]">
+              <span className="font-mono text-[10px] text-ink-muted">
                 What format is the file you're linking to?
               </span>
             </>
           ) : (
             <>
               <div
-                className={`mt-1 relative flex items-center border focus-within:border-[#ff4500] px-3 py-2 transition-colors ${
-                  fileDrag ? "border-[#ff4500] bg-[#ff4500]/5" : "border-[#262626]"
+                className={`mt-1 relative flex items-center border focus-within:border-brand px-3 py-2 transition-colors ${
+                  fileDrag ? "border-brand bg-brand/5" : "border-line"
                 }`}
                 onDragOver={(e) => { if (!busy) { e.preventDefault(); setFileDrag(true); } }}
                 onDragLeave={() => setFileDrag(false)}
@@ -1803,10 +1803,10 @@ function FileUploadForm({ onSaved }) {
                   onChange={onFileChange}
                   data-testid="file-picker"
                   disabled={busy}
-                  className="w-full font-mono text-xs text-[#e5e5e5] file:mr-3 file:py-1 file:px-3 file:border file:border-[#ff4500] file:text-[#ff4500] file:bg-transparent file:font-mono file:text-[10px] file:uppercase file:tracking-[0.22em] hover:file:bg-[#ff4500]/10 file:cursor-pointer cursor-pointer disabled:opacity-50"
+                  className="w-full font-mono text-xs text-ink file:mr-3 file:py-1 file:px-3 file:border file:border-brand file:text-brand file:bg-transparent file:font-mono file:text-[10px] file:uppercase file:tracking-[0.22em] hover:file:bg-brand/10 file:cursor-pointer cursor-pointer disabled:opacity-50"
                 />
               </div>
-              <span className="font-mono text-[10px] text-[#525252]">
+              <span className="font-mono text-[10px] text-ink-muted">
                 {fileDrag ? "↓ Release to add to the bundle" : "Pick one or several files — or drag &amp; drop. The first is the primary preview."}
               </span>
             </>
@@ -1816,9 +1816,9 @@ function FileUploadForm({ onSaved }) {
 
       {/* Multi-file picker hint — only for upload mode. */}
       {mode === "upload" && (
-        <p className="font-mono text-[10px] text-[#525252] -mt-2" data-testid="file-multi-hint">
-          Tip: <strong className="text-[#a3a3a3]">click the picker again</strong> to add another format to the same bundle —
-          e.g. <span className="text-[#ff4500]">hero.jpg + model.stl + cut.dxf + program.gcode</span>.
+        <p className="font-mono text-[10px] text-ink-muted -mt-2" data-testid="file-multi-hint">
+          Tip: <strong className="text-ink-muted">click the picker again</strong> to add another format to the same bundle —
+          e.g. <span className="text-brand">hero.jpg + model.stl + cut.dxf + program.gcode</span>.
           The first file picked is the primary; the rest become variants. Up to {MAX_VARIANTS_PER_BUNDLE} per bundle, ≤ 25 MB each.
         </p>
       )}
@@ -1831,14 +1831,14 @@ function FileUploadForm({ onSaved }) {
           autoComplete="url"
           value={f.download_url}
           onChange={(e) => { const v = e.target.value; setF((c) => ({ ...c, download_url: v })); }}
-          className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+          className="w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs"
           data-testid="file-url"
         />
       )}
 
       <label className="block">
-        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
-          Thumbnail URL <span className="text-[#525252] normal-case">(optional)</span>
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
+          Thumbnail URL <span className="text-ink-muted normal-case">(optional)</span>
         </span>
         <input
           placeholder="https://… (skip this — we auto-generate one from any image you upload)"
@@ -1846,18 +1846,18 @@ function FileUploadForm({ onSaved }) {
           autoComplete="url"
           value={f.thumbnail_url}
           onChange={(e) => { const v = e.target.value; setF((c) => ({ ...c, thumbnail_url: v })); }}
-          className="mt-1 w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+          className="mt-1 w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs"
           data-testid="file-thumb"
         />
-        <span className="font-mono text-[10px] text-[#525252] leading-relaxed">
+        <span className="font-mono text-[10px] text-ink-muted leading-relaxed">
           Want to use a hosted image as the card cover? Paste its URL.
           Otherwise, leave this blank — we'll auto-pick the first jpg/png/webp in your bundle, or render an STL into a preview for you.
         </span>
       </label>
 
       <label className="block">
-        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
-          Description <span className="text-[#ff4500]">*</span>
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
+          Description <span className="text-brand">*</span>
         </span>
         <textarea
           required
@@ -1874,16 +1874,16 @@ function FileUploadForm({ onSaved }) {
           autoComplete="off"
           value={f.description}
           onChange={(e) => { const v = e.target.value; setF((c) => ({ ...c, description: v })); }}
-          className="mt-1 w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs resize-y leading-relaxed"
+          className="mt-1 w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs resize-y leading-relaxed"
           data-testid="file-description"
         />
         <div className="flex items-center justify-between gap-3 mt-1">
-          <span className="font-mono text-[10px] text-[#525252] leading-relaxed">
+          <span className="font-mono text-[10px] text-ink-muted leading-relaxed">
             Tip: clear, scannable descriptions get downloaded 2× more. Hit each bullet above if you can.
           </span>
           <span
             className={`font-mono text-[10px] shrink-0 ${
-              f.description.length >= 750 ? "text-[#ff4500]" : "text-[#525252]"
+              f.description.length >= 750 ? "text-brand" : "text-ink-muted"
             }`}
             data-testid="file-description-counter"
           >
@@ -1905,12 +1905,12 @@ function FileUploadForm({ onSaved }) {
             return (
               <li
                 key={`${file.name}-${i}`}
-                className="flex items-stretch gap-3 px-3 py-2 border border-[#262626] bg-[#0f0f0f]"
+                className="flex items-stretch gap-3 px-3 py-2 border border-line bg-paper"
                 data-testid={`file-preview-${i}`}
               >
                 {/* Thumb / pictogram column — fixed 64px square so the row
                     height stays predictable across mixed bundles. */}
-                <div className="w-16 h-16 shrink-0 border border-[#262626] bg-[#050505] flex items-center justify-center overflow-hidden">
+                <div className="w-16 h-16 shrink-0 border border-line bg-paper flex items-center justify-center overflow-hidden">
                   {preview?.kind === "image" ? (
                     <img
                       src={preview.url}
@@ -1925,15 +1925,15 @@ function FileUploadForm({ onSaved }) {
                       data-testid={`file-preview-svg-${i}`}
                     />
                   ) : preview?.kind === "svg-loading" ? (
-                    <span className="font-mono text-[9px] text-[#525252]">…</span>
+                    <span className="font-mono text-[9px] text-ink-muted">…</span>
                   ) : (
                     <span
-                      className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#a3a3a3] text-center px-1 leading-tight"
+                      className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-muted text-center px-1 leading-tight"
                       data-testid={`file-preview-placeholder-${i}`}
                     >
                       {preview?.ext || fmt}
                       <br />
-                      <span className="text-[#525252] text-[8px]">no preview</span>
+                      <span className="text-ink-muted text-[8px]">no preview</span>
                     </span>
                   )}
                 </div>
@@ -1942,20 +1942,20 @@ function FileUploadForm({ onSaved }) {
                   <div className="flex items-center gap-2">
                     <span
                       className={`font-mono text-[10px] uppercase tracking-[0.22em] px-1.5 py-0.5 border ${
-                        i === 0 ? "border-[#ff4500] text-[#ff4500] bg-[#ff4500]/5" : "border-[#525252] text-[#a3a3a3]"
+                        i === 0 ? "border-brand text-brand bg-brand/5" : "border-line text-ink-muted"
                       }`}
                       title={i === 0 ? "Primary format (drives the card header)" : "Variant"}
                     >
                       {fmt}
                     </span>
                     {i === 0 && (
-                      <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#ff4500]">Primary</span>
+                      <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-brand">Primary</span>
                     )}
-                    <span className="font-mono text-[10px] text-[#a3a3a3] shrink-0 ml-auto">
+                    <span className="font-mono text-[10px] text-ink-muted shrink-0 ml-auto">
                       {(file.size / 1024 / 1024).toFixed(2)} MB
                     </span>
                   </div>
-                  <span className="font-mono text-xs text-[#e5e5e5] truncate" title={file.name}>
+                  <span className="font-mono text-xs text-ink truncate" title={file.name}>
                     {file.name}
                   </span>
                 </div>
@@ -1963,7 +1963,7 @@ function FileUploadForm({ onSaved }) {
                 <button
                   type="button"
                   onClick={() => removePicked(i)}
-                  className="font-mono text-[10px] text-[#525252] hover:text-red-400 self-start"
+                  className="font-mono text-[10px] text-ink-muted hover:text-red-400 self-start"
                   data-testid={`file-preview-remove-${i}`}
                   title="Remove from bundle"
                 >
@@ -1981,7 +1981,7 @@ function FileUploadForm({ onSaved }) {
               <button
                 type="button"
                 onClick={() => pickerRef.current?.click()}
-                className="w-full px-3 py-2 border border-dashed border-[#ff4500]/50 hover:border-[#ff4500] hover:bg-[#ff4500]/5 font-mono text-[11px] uppercase tracking-[0.18em] text-[#ff4500] flex items-center justify-center gap-2 transition"
+                className="w-full px-3 py-2 border border-dashed border-brand/50 hover:border-brand hover:bg-brand/5 font-mono text-[11px] uppercase tracking-[0.18em] text-brand flex items-center justify-center gap-2 transition"
                 data-testid="file-add-another"
               >
                 <Plus size={12} /> Add another format ({MAX_VARIANTS_PER_BUNDLE - picked.length} slots left)
@@ -1998,7 +1998,7 @@ function FileUploadForm({ onSaved }) {
           owners can always remove the generated SVG later. */}
       {mode === "upload" && offerAutoSvg && !busy && (
         <label
-          className="flex items-start gap-2 px-3 py-2 border border-dashed border-[#ff4500]/40 bg-[#ff4500]/5 cursor-pointer"
+          className="flex items-start gap-2 px-3 py-2 border border-dashed border-brand/40 bg-brand/5 cursor-pointer"
           data-testid="file-auto-svg-toggle"
         >
           <input
@@ -2009,10 +2009,10 @@ function FileUploadForm({ onSaved }) {
             data-testid="file-auto-svg-checkbox"
           />
           <div className="flex-1">
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">
               ✦ Auto-generate SVG preview
             </div>
-            <p className="font-mono text-[10px] text-[#a3a3a3] mt-0.5 leading-relaxed">
+            <p className="font-mono text-[10px] text-ink-muted mt-0.5 leading-relaxed">
               Renders your DXF as an SVG so it previews in browsers + adds an extra download format. Free, runs after upload completes. Uncheck if you'd rather upload your own SVG separately.
             </p>
           </div>
@@ -2022,13 +2022,13 @@ function FileUploadForm({ onSaved }) {
       {/* Upload progress bar — only shown during an in-flight upload. */}
       {busy && mode === "upload" && (
         <div className="space-y-1" data-testid="file-progress">
-          <div className="h-1 bg-[#1a1a1a] overflow-hidden">
+          <div className="h-1 bg-surface overflow-hidden">
             <div
-              className="h-full bg-[#ff4500] transition-[width] duration-200"
+              className="h-full bg-brand transition-[width] duration-200"
               style={{ width: `${progress}%` }}
             />
           </div>
-          <div className="font-mono text-[10px] text-[#a3a3a3]">
+          <div className="font-mono text-[10px] text-ink-muted">
             Uploading {picked.length === 1 ? picked[0].name : `${picked.length} files`}… {progress}%
           </div>
         </div>
@@ -2157,13 +2157,13 @@ function FileCard({ file, canDownload, me, onRefresh }) {
     window.location.href = r.url;
   };
   return (
-    <div className="border border-[#262626] hover:border-[#ff4500] transition flex flex-col overflow-hidden" data-testid={`file-${file.id}`}>
+    <div className="border border-line hover:border-brand transition flex flex-col overflow-hidden" data-testid={`file-${file.id}`}>
       {/* Optional gallery preview — auto-promoted from a raster variant
           on upload, OR rendered later via STL→PNG. The orange "✦ generated"
           ribbon flags the trust signal so buyers don't think they're seeing
           a hand-shot studio photo. */}
       {file.thumbnail_url && (
-        <div className="relative aspect-[4/3] bg-[#0a0a0a] overflow-hidden border-b border-[#262626]">
+        <div className="relative aspect-[4/3] bg-paper overflow-hidden border-b border-line">
           <img
             src={file.thumbnail_url}
             alt={file.title}
@@ -2173,7 +2173,7 @@ function FileCard({ file, canDownload, me, onRefresh }) {
           />
           {file.thumbnail_auto_generated && (
             <span
-              className="absolute top-2 left-2 px-1.5 py-0.5 border border-[#ff4500]/60 bg-[#0a0a0a]/80 text-[#ff4500] font-mono text-[9px] uppercase tracking-[0.22em]"
+              className="absolute top-2 left-2 px-1.5 py-0.5 border border-brand/60 bg-paper/80 text-brand font-mono text-[9px] uppercase tracking-[0.22em]"
               title="Rendered automatically from your STL"
             >
               ✦ rendered
@@ -2187,7 +2187,7 @@ function FileCard({ file, canDownload, me, onRefresh }) {
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-1.5 flex-wrap">
           <span
-            className="font-mono text-[10px] uppercase tracking-[0.22em] px-1.5 py-0.5 border border-[#ff4500] text-[#ff4500]"
+            className="font-mono text-[10px] uppercase tracking-[0.22em] px-1.5 py-0.5 border border-brand text-brand"
             title="Primary format"
           >
             ◆ {file.file_type}
@@ -2197,8 +2197,8 @@ function FileCard({ file, canDownload, me, onRefresh }) {
               key={v.format + (v.url || "")}
               className={`font-mono text-[10px] uppercase tracking-[0.22em] px-1.5 py-0.5 border inline-flex items-center gap-1 ${
                 v.auto_generated
-                  ? "border-[#ff4500]/50 text-[#ff4500] bg-[#ff4500]/5"
-                  : "border-[#525252] text-[#a3a3a3]"
+                  ? "border-brand/50 text-brand bg-brand/5"
+                  : "border-line text-ink-muted"
               }`}
               title={
                 v.auto_generated
@@ -2265,7 +2265,7 @@ function FileCard({ file, canDownload, me, onRefresh }) {
                 type="button"
                 onClick={() => variantInputRef.current?.click()}
                 disabled={variantUploading}
-                className="font-mono text-[10px] uppercase tracking-[0.22em] px-1.5 py-0.5 border border-dashed border-[#ff4500]/60 text-[#ff4500] hover:bg-[#ff4500]/10 inline-flex items-center gap-1 disabled:opacity-50"
+                className="font-mono text-[10px] uppercase tracking-[0.22em] px-1.5 py-0.5 border border-dashed border-brand/60 text-brand hover:bg-brand/10 inline-flex items-center gap-1 disabled:opacity-50"
                 title="Owner only — add another format (DXF, SVG, STL, F3D, GCODE, JPG, PNG, PDF)"
                 data-testid={`file-add-variant-${file.id}`}
               >
@@ -2274,7 +2274,7 @@ function FileCard({ file, canDownload, me, onRefresh }) {
             </>
           )}
         </div>
-        <span className="font-mono text-[10px] text-[#525252] shrink-0">{file.downloads} downloads</span>
+        <span className="font-mono text-[10px] text-ink-muted shrink-0">{file.downloads} downloads</span>
       </div>
       {isOwner && variantErr && (
         <p className="font-mono text-[10px] text-red-400" data-testid={`file-variant-err-${file.id}`}>
@@ -2285,7 +2285,7 @@ function FileCard({ file, canDownload, me, onRefresh }) {
         <div className="font-display text-xl leading-tight flex-1 min-w-0">{file.title}</div>
         {file.quality && <QualityBadge quality={file.quality} />}
       </div>
-      <p className="font-mono text-[11px] text-[#a3a3a3] leading-relaxed">{file.description}</p>
+      <p className="font-mono text-[11px] text-ink-muted leading-relaxed">{file.description}</p>
 
       {/* SEO tag chips — auto-generated from title+description on upload.
           Visible text doubles as a search-engine signal and makes the
@@ -2298,7 +2298,7 @@ function FileCard({ file, canDownload, me, onRefresh }) {
           {file.seo_tags.slice(0, 8).map((t) => (
             <span
               key={t}
-              className="font-mono text-[9px] uppercase tracking-[0.18em] px-1.5 py-0.5 border border-[#262626] text-[#a3a3a3] hover:text-[#ff4500] hover:border-[#ff4500]/40 transition cursor-default"
+              className="font-mono text-[9px] uppercase tracking-[0.18em] px-1.5 py-0.5 border border-line text-ink-muted hover:text-brand hover:border-brand/40 transition cursor-default"
               title={`Auto-tag: ${t}`}
             >
               #{t}
@@ -2322,14 +2322,14 @@ function FileCard({ file, canDownload, me, onRefresh }) {
           for downloaders). */}
       {canConvertDxfToSvg && (
         <div
-          className="border border-dashed border-[#ff4500]/40 bg-[#ff4500]/5 px-3 py-2 flex items-center justify-between gap-3"
+          className="border border-dashed border-brand/40 bg-brand/5 px-3 py-2 flex items-center justify-between gap-3"
           data-testid={`file-prompt-missing-svg-${file.id}`}
         >
           <div className="min-w-0">
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] flex items-center gap-1">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand flex items-center gap-1">
               <Sparkles size={11} /> Missing an SVG preview
             </div>
-            <p className="font-mono text-[10px] text-[#a3a3a3] mt-0.5 leading-relaxed">
+            <p className="font-mono text-[10px] text-ink-muted mt-0.5 leading-relaxed">
               We can render your DXF as a clean SVG so it shows in browsers.
             </p>
           </div>
@@ -2346,14 +2346,14 @@ function FileCard({ file, canDownload, me, onRefresh }) {
 
       {canRenderStlThumb && (
         <div
-          className="border border-dashed border-[#ff4500]/40 bg-[#ff4500]/5 px-3 py-2 flex items-center justify-between gap-3"
+          className="border border-dashed border-brand/40 bg-brand/5 px-3 py-2 flex items-center justify-between gap-3"
           data-testid={`file-prompt-missing-thumb-${file.id}`}
         >
           <div className="min-w-0">
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] flex items-center gap-1">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand flex items-center gap-1">
               <Sparkles size={11} /> Missing a thumbnail
             </div>
-            <p className="font-mono text-[10px] text-[#a3a3a3] mt-0.5 leading-relaxed">
+            <p className="font-mono text-[10px] text-ink-muted mt-0.5 leading-relaxed">
               We'll render your STL into a gallery-ready preview image.
             </p>
           </div>
@@ -2368,12 +2368,12 @@ function FileCard({ file, canDownload, me, onRefresh }) {
         </div>
       )}
       <div className="flex items-center justify-between">
-        <div className="font-mono text-[10px] text-[#525252] uppercase tracking-[0.22em]">by {file.maker_name}</div>
+        <div className="font-mono text-[10px] text-ink-muted uppercase tracking-[0.22em]">by {file.maker_name}</div>
         <div className="flex items-center gap-3">
           {isOwner && (
             <button
               onClick={() => setEditOpen(true)}
-              className="font-mono text-[10px] text-[#525252] hover:text-[#ff4500] inline-flex items-center gap-1 transition"
+              className="font-mono text-[10px] text-ink-muted hover:text-brand inline-flex items-center gap-1 transition"
               data-testid={`file-edit-btn-${file.id}`}
               title="Edit title, description, or thumbnail (owner only)"
             >
@@ -2383,7 +2383,7 @@ function FileCard({ file, canDownload, me, onRefresh }) {
           {canReport && (
             <button
               onClick={() => setReportOpen(true)}
-              className="font-mono text-[10px] text-[#525252] hover:text-red-400 inline-flex items-center gap-1 transition"
+              className="font-mono text-[10px] text-ink-muted hover:text-red-400 inline-flex items-center gap-1 transition"
               data-testid={`file-report-btn-${file.id}`}
               title="Flag this file for admin review"
             >
@@ -2414,7 +2414,7 @@ function FileCard({ file, canDownload, me, onRefresh }) {
         // iter262 — when not signed in, clicking the button must send the
         // visitor to the community login (was a no-op `disabled` button).
         <button onClick={() => canDownload ? onDownload(null) : navigate("/community/login")}
-                className="btn-industrial inline-flex items-center justify-center gap-2 border border-[#262626] hover:border-[#ff4500]"
+                className="btn-industrial inline-flex items-center justify-center gap-2 border border-line hover:border-brand"
                 data-testid={`file-download-${file.id}`}>
           <Download size={14} /> {canDownload ? "Download" : "Sign in to download"}
         </button>
@@ -2424,7 +2424,7 @@ function FileCard({ file, canDownload, me, onRefresh }) {
         <div className="relative" data-testid={`file-download-bundle-${file.id}`}>
           <button
             onClick={() => canDownload ? setDownloadOpen((s) => !s) : navigate("/community/login")}
-            className="btn-industrial w-full inline-flex items-center justify-center gap-2 border border-[#262626] hover:border-[#ff4500]"
+            className="btn-industrial w-full inline-flex items-center justify-center gap-2 border border-line hover:border-brand"
             data-testid={`file-download-${file.id}`}
           >
             <Download size={14} />
@@ -2432,28 +2432,28 @@ function FileCard({ file, canDownload, me, onRefresh }) {
           </button>
           {downloadOpen && canDownload && (
             <div
-              className="absolute left-0 right-0 top-full mt-1 z-20 border border-[#262626] bg-[#0a0a0a] shadow-xl"
+              className="absolute left-0 right-0 top-full mt-1 z-20 border border-line bg-paper shadow-xl"
               data-testid={`file-download-menu-${file.id}`}
               onClick={(e) => e.stopPropagation()}
             >
               <button
                 onClick={() => onDownload(null)}
-                className="w-full text-left px-3 py-2 font-mono text-xs text-[#e5e5e5] hover:bg-[#1a1a1a] flex items-center justify-between"
+                className="w-full text-left px-3 py-2 font-mono text-xs text-ink hover:bg-surface flex items-center justify-between"
                 data-testid={`file-download-fmt-${file.id}-${file.file_type}`}
               >
-                <span><span className="text-[#ff4500]">◆ {file.file_type}</span> <span className="text-[#525252]">· primary</span></span>
+                <span><span className="text-brand">◆ {file.file_type}</span> <span className="text-ink-muted">· primary</span></span>
                 <Download size={12} />
               </button>
               {variants.map((v) => (
                 <button
                   key={v.format + (v.url || "")}
                   onClick={() => onDownload(v.url)}
-                  className="w-full text-left px-3 py-2 font-mono text-xs text-[#e5e5e5] hover:bg-[#1a1a1a] flex items-center justify-between border-t border-[#1a1a1a]"
+                  className="w-full text-left px-3 py-2 font-mono text-xs text-ink hover:bg-surface flex items-center justify-between border-t border-line"
                   data-testid={`file-download-fmt-${file.id}-${v.format}`}
                 >
                   <span>
                     {v.format}
-                    {v.size_bytes && <span className="text-[#525252] ml-2">{(v.size_bytes / 1024 / 1024).toFixed(2)} MB</span>}
+                    {v.size_bytes && <span className="text-ink-muted ml-2">{(v.size_bytes / 1024 / 1024).toFixed(2)} MB</span>}
                   </span>
                   <Download size={12} />
                 </button>
@@ -2532,13 +2532,13 @@ function EditFileModal({ file, onClose, onSaved }) {
     >
       <form
         onSubmit={submit}
-        className="w-full max-w-md bg-[#0a0a0a] border border-[#ff4500]/50 p-6 space-y-4"
+        className="w-full max-w-md bg-paper border border-brand/50 p-6 space-y-4"
       >
         <div className="flex items-start justify-between gap-4">
           <div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">◆ Edit design</div>
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">◆ Edit design</div>
             <h3 className="font-display text-xl mt-1">Update bundle details</h3>
-            <p className="font-mono text-[11px] text-[#a3a3a3] mt-1">
+            <p className="font-mono text-[11px] text-ink-muted mt-1">
               Files themselves stay intact — use × on a chip or "+ Add format" to change formats.
             </p>
           </div>
@@ -2546,7 +2546,7 @@ function EditFileModal({ file, onClose, onSaved }) {
             type="button"
             onClick={onClose}
             disabled={busy}
-            className="text-[#525252] hover:text-[#e5e5e5] disabled:opacity-50"
+            className="text-ink-muted hover:text-ink disabled:opacity-50"
             data-testid="edit-file-close"
             aria-label="Close edit modal"
           >
@@ -2555,36 +2555,36 @@ function EditFileModal({ file, onClose, onSaved }) {
         </div>
 
         <label className="block">
-          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Title</span>
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Title</span>
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             maxLength={120}
             disabled={busy}
-            className="mt-1 w-full bg-[#050505] border border-[#262626] px-3 py-2 font-mono text-sm text-[#e5e5e5] focus:border-[#ff4500] outline-none"
+            className="mt-1 w-full bg-paper border border-line px-3 py-2 font-mono text-sm text-ink focus:border-brand outline-none"
             data-testid="edit-file-title"
           />
         </label>
 
         <label className="block">
-          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Description</span>
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Description</span>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             maxLength={800}
             rows={4}
             disabled={busy}
-            className="mt-1 w-full bg-[#050505] border border-[#262626] px-3 py-2 font-mono text-sm text-[#e5e5e5] focus:border-[#ff4500] outline-none resize-y"
+            className="mt-1 w-full bg-paper border border-line px-3 py-2 font-mono text-sm text-ink focus:border-brand outline-none resize-y"
             data-testid="edit-file-description"
           />
-          <span className="font-mono text-[10px] text-[#525252]">
+          <span className="font-mono text-[10px] text-ink-muted">
             {description.length}/800
           </span>
         </label>
 
         <label className="block">
-          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
-            Thumbnail URL <span className="text-[#525252] normal-case">(optional)</span>
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
+            Thumbnail URL <span className="text-ink-muted normal-case">(optional)</span>
           </span>
           <input
             value={thumbUrl}
@@ -2592,10 +2592,10 @@ function EditFileModal({ file, onClose, onSaved }) {
             maxLength={600}
             disabled={busy}
             placeholder="https://…"
-            className="mt-1 w-full bg-[#050505] border border-[#262626] px-3 py-2 font-mono text-sm text-[#e5e5e5] focus:border-[#ff4500] outline-none"
+            className="mt-1 w-full bg-paper border border-line px-3 py-2 font-mono text-sm text-ink focus:border-brand outline-none"
             data-testid="edit-file-thumb-url"
           />
-          <span className="font-mono text-[10px] text-[#525252]">
+          <span className="font-mono text-[10px] text-ink-muted">
             Clear this field to fall back to an auto-generated thumbnail (if available).
           </span>
         </label>
@@ -2609,7 +2609,7 @@ function EditFileModal({ file, onClose, onSaved }) {
             type="button"
             onClick={onClose}
             disabled={busy}
-            className="font-mono text-xs uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#e5e5e5] disabled:opacity-50"
+            className="font-mono text-xs uppercase tracking-[0.22em] text-ink-muted hover:text-ink disabled:opacity-50"
             data-testid="edit-file-cancel"
           >
             Cancel
@@ -2704,13 +2704,13 @@ function ShareFileRow({ file }) {
       className="flex items-center gap-1.5 flex-wrap"
       data-testid={`file-share-row-${file.id}`}
     >
-      <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252] mr-1">
+      <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted mr-1">
         Promote ↗
       </span>
       <button
         type="button"
         onClick={onPinterest}
-        className="font-mono text-[10px] uppercase tracking-[0.22em] px-2 py-1 border border-[#262626] hover:border-[#e60023] hover:text-[#e60023] transition"
+        className="font-mono text-[10px] uppercase tracking-[0.22em] px-2 py-1 border border-line hover:border-[#e60023] hover:text-[#e60023] transition"
         data-testid={`file-share-pinterest-${file.id}`}
         title="Share to Pinterest — your boards drive long-tail SEO traffic for years"
       >
@@ -2719,7 +2719,7 @@ function ShareFileRow({ file }) {
       <button
         type="button"
         onClick={onTwitter}
-        className="font-mono text-[10px] uppercase tracking-[0.22em] px-2 py-1 border border-[#262626] hover:border-[#1d9bf0] hover:text-[#1d9bf0] transition"
+        className="font-mono text-[10px] uppercase tracking-[0.22em] px-2 py-1 border border-line hover:border-[#1d9bf0] hover:text-[#1d9bf0] transition"
         data-testid={`file-share-twitter-${file.id}`}
         title="Post on X / Twitter"
       >
@@ -2728,7 +2728,7 @@ function ShareFileRow({ file }) {
       <button
         type="button"
         onClick={onFacebook}
-        className="font-mono text-[10px] uppercase tracking-[0.22em] px-2 py-1 border border-[#262626] hover:border-[#1877f2] hover:text-[#1877f2] transition"
+        className="font-mono text-[10px] uppercase tracking-[0.22em] px-2 py-1 border border-line hover:border-[#1877f2] hover:text-[#1877f2] transition"
         data-testid={`file-share-facebook-${file.id}`}
         title="Share to Facebook"
       >
@@ -2737,7 +2737,7 @@ function ShareFileRow({ file }) {
       <button
         type="button"
         onClick={onCopyInstagramCaption}
-        className="font-mono text-[10px] uppercase tracking-[0.22em] px-2 py-1 border border-[#262626] hover:border-[#e1306c] hover:text-[#e1306c] transition"
+        className="font-mono text-[10px] uppercase tracking-[0.22em] px-2 py-1 border border-line hover:border-[#e1306c] hover:text-[#e1306c] transition"
         data-testid={`file-share-instagram-${file.id}`}
         title="Copy a ready-to-paste Instagram caption + link to your clipboard"
       >
@@ -2746,7 +2746,7 @@ function ShareFileRow({ file }) {
       <button
         type="button"
         onClick={onCopyLink}
-        className="font-mono text-[10px] uppercase tracking-[0.22em] px-2 py-1 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] transition"
+        className="font-mono text-[10px] uppercase tracking-[0.22em] px-2 py-1 border border-line hover:border-brand hover:text-brand transition"
         data-testid={`file-share-copy-${file.id}`}
         title="Copy the public share link"
       >
@@ -2797,19 +2797,19 @@ function ReportFileModal({ file, onClose }) {
       data-testid="report-file-modal"
       onClick={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}
     >
-      <div className="w-full max-w-md bg-[#0a0a0a] border border-red-500/50 p-6 space-y-4">
+      <div className="w-full max-w-md bg-paper border border-red-500/50 p-6 space-y-4">
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-red-400">◆ Report file</div>
             <h3 className="font-display text-xl mt-1">Flag for admin review</h3>
-            <p className="font-mono text-[11px] text-[#a3a3a3] mt-1 truncate">{file.title}</p>
+            <p className="font-mono text-[11px] text-ink-muted mt-1 truncate">{file.title}</p>
           </div>
           <button
             onClick={onClose}
             disabled={busy}
             aria-label="Close"
             data-testid="report-file-close"
-            className="font-mono text-xl text-[#a3a3a3] hover:text-red-400 disabled:opacity-50"
+            className="font-mono text-xl text-ink-muted hover:text-red-400 disabled:opacity-50"
           >✕</button>
         </div>
 
@@ -2832,12 +2832,12 @@ function ReportFileModal({ file, onClose }) {
         ) : (
           <form onSubmit={submit} className="space-y-3" autoComplete="off">
             <div>
-              <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Reason</label>
+              <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Reason</label>
               <select
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 data-testid="report-file-reason"
-                className="w-full mt-1.5 bg-[#0a0a0a] border border-[#262626] focus:border-red-400 outline-none px-3 py-2 font-mono text-sm text-[#e5e5e5]"
+                className="w-full mt-1.5 bg-paper border border-line focus:border-red-400 outline-none px-3 py-2 font-mono text-sm text-ink"
               >
                 {REPORT_REASON_OPTIONS.map((r) => (
                   <option key={r.id} value={r.id}>{r.label}</option>
@@ -2845,7 +2845,7 @@ function ReportFileModal({ file, onClose }) {
               </select>
             </div>
             <div>
-              <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Details (optional)</label>
+              <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Details (optional)</label>
               <textarea
                 value={details}
                 onChange={(e) => setDetails(e.target.value)}
@@ -2853,7 +2853,7 @@ function ReportFileModal({ file, onClose }) {
                 maxLength={1000}
                 placeholder="Link to the original, context, anything that helps us verify…"
                 data-testid="report-file-details"
-                className="w-full mt-1.5 bg-transparent border border-[#262626] focus:border-red-400 outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5] resize-none"
+                className="w-full mt-1.5 bg-transparent border border-line focus:border-red-400 outline-none px-3 py-2 font-mono text-xs text-ink resize-none"
               />
             </div>
             {err && <div className="font-mono text-xs text-red-400" data-testid="report-file-error">{err}</div>}
@@ -2865,7 +2865,7 @@ function ReportFileModal({ file, onClose }) {
             >
               {busy ? "Sending…" : "Submit report →"}
             </button>
-            <p className="font-mono text-[10px] text-[#525252] leading-relaxed">
+            <p className="font-mono text-[10px] text-ink-muted leading-relaxed">
               Reports are reviewed by Crafters Market admins. Misuse of this
               tool (mass/false reports) may suspend your account.
             </p>
@@ -2907,11 +2907,11 @@ function ForumTab({ me }) {
   return (
     <div data-testid="forum-tab">
       {/* Category tab strip */}
-      <div className="border-b border-[#262626] mb-5 flex gap-1 overflow-x-auto" data-testid="forum-categories">
+      <div className="border-b border-line mb-5 flex gap-1 overflow-x-auto" data-testid="forum-categories">
         <button
           onClick={() => setActiveCat("")}
           className={`px-4 py-2 font-mono text-[11px] uppercase tracking-[0.22em] border-b-2 transition whitespace-nowrap ${
-            activeCat === "" ? "border-[#ff4500] text-[#ff4500]" : "border-transparent text-[#a3a3a3] hover:text-[#e5e5e5]"
+            activeCat === "" ? "border-brand text-brand" : "border-transparent text-ink-muted hover:text-ink"
           }`}
           data-testid="forum-cat-all"
         >
@@ -2922,7 +2922,7 @@ function ForumTab({ me }) {
             key={c.id}
             onClick={() => setActiveCat(c.id)}
             className={`px-4 py-2 font-mono text-[11px] uppercase tracking-[0.22em] border-b-2 transition whitespace-nowrap ${
-              activeCat === c.id ? "border-[#ff4500] text-[#ff4500]" : "border-transparent text-[#a3a3a3] hover:text-[#e5e5e5]"
+              activeCat === c.id ? "border-brand text-brand" : "border-transparent text-ink-muted hover:text-ink"
             }`}
             data-testid={`forum-cat-${c.id}`}
           >
@@ -2932,7 +2932,7 @@ function ForumTab({ me }) {
       </div>
 
       <div className="mb-6 flex justify-between items-center">
-        <p className="font-mono text-xs text-[#a3a3a3]">
+        <p className="font-mono text-xs text-ink-muted">
           {threads.length} thread{threads.length === 1 ? "" : "s"}
           {activeCat && ` in ${(categories.find((c) => c.id === activeCat) || {}).label}`}
         </p>
@@ -2950,7 +2950,7 @@ function ForumTab({ me }) {
         />
       )}
       {!threads.length ? (
-        <p className="font-mono text-sm text-[#a3a3a3]" data-testid="forum-empty">
+        <p className="font-mono text-sm text-ink-muted" data-testid="forum-empty">
           {activeCat
             ? "Nothing here yet — be the first to start a thread."
             : "No threads yet — start the first conversation."}
@@ -2961,21 +2961,21 @@ function ForumTab({ me }) {
             const cat = categories.find((c) => c.id === (t.category || t.tag));
             return (
               <li key={t.id} onClick={() => setActive(t.id)}
-                  className="border border-[#262626] hover:border-[#ff4500] p-4 cursor-pointer transition"
+                  className="border border-line hover:border-brand p-4 cursor-pointer transition"
                   data-testid={`forum-thread-${t.id}`}>
                 <div className="flex flex-wrap justify-between gap-2">
                   <span className="font-display text-xl">{t.title}</span>
-                  <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
                     {t.reply_count} replies · {(cat?.label) || (t.category || t.tag || "general")}
                   </span>
                 </div>
-                <p className="font-mono text-[11px] text-[#a3a3a3] mt-2 line-clamp-2">{t.body}</p>
+                <p className="font-mono text-[11px] text-ink-muted mt-2 line-clamp-2">{t.body}</p>
                 <div className="flex justify-between items-center mt-2">
-                  <div className="font-mono text-[10px] text-[#525252] uppercase tracking-[0.22em]">
+                  <div className="font-mono text-[10px] text-ink-muted uppercase tracking-[0.22em]">
                     started by {t.user_name || t.user_email}
                   </div>
                   {(t.attachments?.length || 0) > 0 && (
-                    <span className="font-mono text-[10px] text-[#ff4500]">📎 {t.attachments.length}</span>
+                    <span className="font-mono text-[10px] text-brand">📎 {t.attachments.length}</span>
                   )}
                 </div>
               </li>
@@ -3030,7 +3030,7 @@ function ForumAttachmentPicker({ value, onChange, busy, onBusy }) {
         type="button"
         onClick={() => inputRef.current?.click()}
         disabled={busy}
-        className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] border border-dashed border-[#262626] hover:border-[#ff4500] px-4 py-2 transition disabled:opacity-50"
+        className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand border border-dashed border-line hover:border-brand px-4 py-2 transition disabled:opacity-50"
         data-testid="forum-attach-btn"
       >
         {busy ? "Uploading…" : "+ Attach file"}
@@ -3041,24 +3041,24 @@ function ForumAttachmentPicker({ value, onChange, busy, onBusy }) {
           {value.map((a, i) => (
             <li
               key={a.url}
-              className="flex items-center gap-3 border border-[#262626] p-2"
+              className="flex items-center gap-3 border border-line p-2"
               data-testid={`forum-attachment-${i}`}
             >
               {a.mime?.startsWith("image/") ? (
                 <img src={a.url} alt={a.filename} className="w-12 h-12 object-cover" />
               ) : (
-                <div className="w-12 h-12 bg-[#1a1a1a] flex items-center justify-center font-mono text-[10px] text-[#ff4500]">
+                <div className="w-12 h-12 bg-surface flex items-center justify-center font-mono text-[10px] text-brand">
                   {(a.filename || "").split(".").pop()?.toUpperCase() || "FILE"}
                 </div>
               )}
               <div className="flex-1 min-w-0">
-                <div className="font-mono text-xs text-[#e5e5e5] truncate">{a.filename}</div>
-                <div className="font-mono text-[10px] text-[#525252]">{Math.round((a.size || 0) / 1024)} KB</div>
+                <div className="font-mono text-xs text-ink truncate">{a.filename}</div>
+                <div className="font-mono text-[10px] text-ink-muted">{Math.round((a.size || 0) / 1024)} KB</div>
               </div>
               <button
                 type="button"
                 onClick={() => onChange(value.filter((_, j) => j !== i))}
-                className="font-mono text-[10px] text-[#525252] hover:text-red-400"
+                className="font-mono text-[10px] text-ink-muted hover:text-red-400"
                 aria-label="Remove attachment"
               >
                 ✕
@@ -3086,20 +3086,20 @@ function NewThreadForm({ onSaved, categories = FORUM_CATEGORY_FALLBACK, defaultC
     finally { setBusy(false); }
   };
   return (
-    <form onSubmit={submit} className="border border-[#262626] p-5 mb-6 space-y-3" data-testid="thread-new-form">
+    <form onSubmit={submit} className="border border-line p-5 mb-6 space-y-3" data-testid="thread-new-form">
       <div className="grid md:grid-cols-3 gap-3">
         <input required placeholder="Title" value={t.title} onChange={(e) => setT({ ...t, title: e.target.value })}
-               className="md:col-span-2 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+               className="md:col-span-2 bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs"
                data-testid="thread-title" />
         <select value={t.category} onChange={(e) => setT({ ...t, category: e.target.value })}
-                className="bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+                className="bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs"
                 data-testid="thread-category">
           {categories.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
         </select>
       </div>
       <textarea required rows={4} placeholder="What do you want to talk about?" value={t.body}
                 onChange={(e) => setT({ ...t, body: e.target.value })}
-                className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs resize-y"
+                className="w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs resize-y"
                 data-testid="thread-body" />
       <ForumAttachmentPicker value={attachments} onChange={setAttachments} busy={uploading} onBusy={setUploading} />
       {err && <p className="font-mono text-xs text-red-400" data-testid="thread-error">{err}</p>}
@@ -3115,18 +3115,18 @@ function AttachmentsList({ items, testIdPrefix = "attachment" }) {
   return (
     <ul className="mt-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2" data-testid={`${testIdPrefix}-list`}>
       {items.map((a, i) => (
-        <li key={a.url} className="border border-[#262626] hover:border-[#ff4500] transition" data-testid={`${testIdPrefix}-${i}`}>
+        <li key={a.url} className="border border-line hover:border-brand transition" data-testid={`${testIdPrefix}-${i}`}>
           {a.mime?.startsWith("image/") || /\.(png|jpe?g|webp|gif)$/i.test(a.filename || "") ? (
             <a href={a.url} target="_blank" rel="noreferrer" className="block">
               <img src={a.url} alt={a.filename} className="w-full aspect-square object-cover" />
             </a>
           ) : (
             <a href={a.url} target="_blank" rel="noreferrer"
-               className="block aspect-square flex flex-col items-center justify-center bg-[#1a1a1a] hover:bg-[#222] transition">
-              <span className="font-display text-2xl text-[#ff4500]">
+               className="block aspect-square flex flex-col items-center justify-center bg-surface hover:bg-surface transition">
+              <span className="font-display text-2xl text-brand">
                 {(a.filename || "FILE").split(".").pop()?.toUpperCase().slice(0, 4) || "FILE"}
               </span>
-              <span className="font-mono text-[9px] text-[#a3a3a3] mt-1 px-2 truncate w-full text-center">
+              <span className="font-mono text-[9px] text-ink-muted mt-1 px-2 truncate w-full text-center">
                 {a.filename}
               </span>
             </a>
@@ -3220,7 +3220,7 @@ function ThreadDetail({ id, me, onBack }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
 
-  if (!data) return <p className="font-mono text-sm text-[#a3a3a3]">Loading…</p>;
+  if (!data) return <p className="font-mono text-sm text-ink-muted">Loading…</p>;
   const { thread, replies } = data;
   const reply = async (e) => {
     e.preventDefault();
@@ -3265,13 +3265,13 @@ function ThreadDetail({ id, me, onBack }) {
   return (
     <div className="space-y-6" data-testid="thread-detail">
       {confirmModal}
-      <button onClick={onBack} className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]" data-testid="thread-back">
+      <button onClick={onBack} className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand" data-testid="thread-back">
         ← back to threads
       </button>
-      <div className="border border-[#262626] p-5">
+      <div className="border border-line p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
               ◆ {thread.tag || "general"} · started by <AuthorLabel name={thread.user_name} email={thread.user_email} />
             </div>
             <h2 className="font-display text-3xl mt-2">{thread.title}</h2>
@@ -3283,7 +3283,7 @@ function ThreadDetail({ id, me, onBack }) {
           )}
         </div>
         <p className={`font-mono text-sm leading-relaxed mt-4 whitespace-pre-wrap ${
-          isMention(thread.body) ? "border-l-2 border-[#ff4500] pl-3 bg-[#ff4500]/5 text-[#e5e5e5]" : "text-[#e5e5e5]"
+          isMention(thread.body) ? "border-l-2 border-brand pl-3 bg-brand/5 text-ink" : "text-ink"
         }`}>{thread.body}</p>
         <AttachmentsList items={thread.attachments} testIdPrefix={`thread-${thread.id}-attachment`} />
       </div>
@@ -3291,10 +3291,10 @@ function ThreadDetail({ id, me, onBack }) {
         const mentioned = isMention(r.body);
         return (
           <div key={r.id}
-               className={`border border-[#262626] p-4 ml-6 ${mentioned ? "border-l-2 border-l-[#ff4500] bg-[#ff4500]/5" : ""}`}
+               className={`border border-line p-4 ml-6 ${mentioned ? "border-l-2 border-l-[#ff4500] bg-brand/5" : ""}`}
                data-testid={mentioned ? "forum-reply-mentioned" : `reply-${r.id}`}>
             <div className="flex items-center justify-between gap-2">
-              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
                 <AuthorLabel name={r.user_name} email={r.user_email} />
               </div>
               {isMod && (
@@ -3303,7 +3303,7 @@ function ThreadDetail({ id, me, onBack }) {
                 </button>
               )}
             </div>
-            <p className="font-mono text-xs text-[#e5e5e5] leading-relaxed mt-2 whitespace-pre-wrap">{r.body}</p>
+            <p className="font-mono text-xs text-ink leading-relaxed mt-2 whitespace-pre-wrap">{r.body}</p>
             <AttachmentsList items={r.attachments} testIdPrefix={`reply-${r.id}-attachment`} />
           </div>
         );
@@ -3313,7 +3313,7 @@ function ThreadDetail({ id, me, onBack }) {
           <textarea rows={3} placeholder={postAsTeam ? "Reply as the Crafters Market Workshop Team…" : "Reply… (use @name to mention someone)"} value={body}
                     onChange={(e) => setBody(e.target.value)}
                     className={`w-full bg-transparent border outline-none px-3 py-2 font-mono text-xs resize-y ${
-                      postAsTeam ? "border-[#00ffff] focus:border-[#00ffff]" : "border-[#262626] focus:border-[#ff4500]"
+                      postAsTeam ? "border-[#00ffff] focus:border-[#00ffff]" : "border-line focus:border-brand"
                     }`}
                     data-testid="reply-body" />
           <ForumAttachmentPicker value={replyAttachments} onChange={setReplyAttachments} busy={replyUploading} onBusy={setReplyUploading} />
@@ -3332,7 +3332,7 @@ function ThreadDetail({ id, me, onBack }) {
                   className="accent-[#00ffff] disabled:opacity-60"
                   data-testid="reply-as-team-checkbox"
                 />
-                <span className={postAsTeam ? "text-[#00ffff]" : "text-[#a3a3a3]"}>
+                <span className={postAsTeam ? "text-[#00ffff]" : "text-ink-muted"}>
                   ◆ Post as Workshop Team
                 </span>
               </label>
@@ -3563,8 +3563,8 @@ function ChatTab({ me }) {
 
   if (!tokenForChannel(channel)) {
     return (
-      <p className="font-mono text-sm text-[#a3a3a3]" data-testid="chat-locked">
-        Sign in to join the live chat. <Link to="/community/login" className="text-[#ff4500]">Sign in →</Link>
+      <p className="font-mono text-sm text-ink-muted" data-testid="chat-locked">
+        Sign in to join the live chat. <Link to="/community/login" className="text-brand">Sign in →</Link>
       </p>
     );
   }
@@ -3573,11 +3573,11 @@ function ChatTab({ me }) {
       <div className="space-y-4" data-testid="chat-tab">
         <ChannelSelector channel={channel} setChannel={setChannel} unread={unread} mentions={mentions} />
         <div
-          className="border border-[#ff4500]/40 bg-[#ff4500]/5 p-5"
+          className="border border-brand/40 bg-brand/5 p-5"
           data-testid="chat-makers-only-blocked"
         >
-          <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#ff4500] mb-2">◆ Makers only</div>
-          <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed">
+          <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-brand mb-2">◆ Makers only</div>
+          <p className="font-mono text-xs text-ink-muted leading-relaxed">
             This channel is restricted to verified makers. Sign in to your maker portal to join the conversation.
           </p>
           <Link to="/maker/login" className="btn-industrial btn-primary inline-flex mt-4" data-testid="chat-makers-signin-cta">
@@ -3610,7 +3610,7 @@ function ChatTab({ me }) {
         {notifPermission === "default" && (
           <button
             onClick={requestNotifPermission}
-            className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] border border-[#ff4500]/40 px-3 py-1.5 hover:bg-[#ff4500]/10"
+            className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand border border-brand/40 px-3 py-1.5 hover:bg-brand/10"
             data-testid="chat-enable-notifs"
           >
             Enable desktop notifications →
@@ -3619,31 +3619,31 @@ function ChatTab({ me }) {
       </div>
 
       <div className="grid lg:grid-cols-12 gap-4">
-        <aside className="lg:col-span-3 lg:order-2 border border-[#262626] p-3 bg-[#0a0a0a] lg:max-h-[480px] overflow-y-auto" data-testid="chat-buddies">
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mb-3">
+        <aside className="lg:col-span-3 lg:order-2 border border-line p-3 bg-paper lg:max-h-[480px] overflow-y-auto" data-testid="chat-buddies">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-3">
             ◆ Buddy list · {buddies.length}
           </div>
           <ul className="space-y-2">
             {!buddies.length && (
-              <li className="font-mono text-[10px] text-[#525252]" data-testid="chat-buddies-empty">
+              <li className="font-mono text-[10px] text-ink-muted" data-testid="chat-buddies-empty">
                 No one's online — start the conversation.
               </li>
             )}
             {buddies.map((b) => (
               <li key={b.user_email} className="flex items-center gap-2" data-testid={`chat-buddy-${b.user_email}`}>
-                <span className={`w-2 h-2 rounded-full ${b.role === "maker" ? "bg-[#ff4500]" : "bg-emerald-400"}`} />
-                {b.picture && <img src={b.picture} alt="" className="w-5 h-5 rounded-full object-cover border border-[#262626]" />}
-                <span className="font-mono text-[11px] text-[#e5e5e5] truncate">{b.user_name}</span>
+                <span className={`w-2 h-2 rounded-full ${b.role === "maker" ? "bg-brand" : "bg-emerald-400"}`} />
+                {b.picture && <img src={b.picture} alt="" className="w-5 h-5 rounded-full object-cover border border-line" />}
+                <span className="font-mono text-[11px] text-ink truncate">{b.user_name}</span>
                 {b.role === "maker" && (
-                  <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-[#ff4500] ml-auto">M</span>
+                  <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-brand ml-auto">M</span>
                 )}
               </li>
             ))}
           </ul>
-          <div className="mt-4 pt-3 border-t border-[#262626]">
+          <div className="mt-4 pt-3 border-t border-line">
             <button
               onClick={() => setMuted((m) => !m)}
-              className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500]"
+              className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand"
               data-testid="chat-mute-toggle"
             >
               {muted ? "🔇 Sound off" : "🔔 Sound on"}
@@ -3652,7 +3652,7 @@ function ChatTab({ me }) {
         </aside>
 
         <div className="lg:col-span-9 lg:order-1 space-y-3">
-          <div ref={scrollRef} className="border border-[#262626] h-[420px] overflow-y-auto p-4 space-y-2 bg-[#0a0a0a]" data-testid="chat-stream">
+          <div ref={scrollRef} className="border border-line h-[420px] overflow-y-auto p-4 space-y-2 bg-paper" data-testid="chat-stream">
             {messages.map((m, i) => (
               <ChatLine
                 key={m.id || i}
@@ -3684,10 +3684,10 @@ function ChatTab({ me }) {
             ))}
           </div>
 
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] h-4" data-testid="chat-typing">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted h-4" data-testid="chat-typing">
             {otherTypers.length > 0 && (
               <span>
-                <span className="text-[#ff4500]">●</span>{" "}
+                <span className="text-brand">●</span>{" "}
                 {otherTypers.map((t) => t.user_name).join(", ")} {otherTypers.length === 1 ? "is" : "are"} typing
                 <TypingDots />
               </span>
@@ -3703,10 +3703,10 @@ function ChatTab({ me }) {
               }}
               onBlur={() => sendTyping(false)}
               placeholder={`Message #${channel}… (use @name to mention someone)`}
-              className="flex-1 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+              className="flex-1 bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs"
               data-testid="chat-input"
             />
-            <button type="submit" className="bg-[#ff4500] text-black px-4" data-testid="chat-send">
+            <button type="submit" className="bg-brand text-black px-4" data-testid="chat-send">
               <Send size={16} />
             </button>
           </form>
@@ -3718,19 +3718,19 @@ function ChatTab({ me }) {
 
 function ChatLine({ m, mentioned, onDelete }) {
   if (m.kind === "system") {
-    return <div className="font-mono text-[12px] text-[#525252] italic">— {m.text} —</div>;
+    return <div className="font-mono text-[12px] text-ink-muted italic">— {m.text} —</div>;
   }
   return (
     <div
-      className={`font-mono text-[12px] flex items-start gap-1 group ${mentioned ? "border-l-2 border-[#ff4500] pl-2 bg-[#ff4500]/5" : "text-[#e5e5e5]"}`}
+      className={`font-mono text-[12px] flex items-start gap-1 group ${mentioned ? "border-l-2 border-brand pl-2 bg-brand/5" : "text-ink"}`}
       data-testid={mentioned ? "chat-line-mentioned" : "chat-line"}
     >
       <span className="flex-1 min-w-0">
-        <span className={`font-bold ${m.role === "maker" ? "text-[#ff4500]" : "text-emerald-400"}`}>
+        <span className={`font-bold ${m.role === "maker" ? "text-brand" : "text-emerald-400"}`}>
           {m.user_name || m.user_email}
         </span>
-        <span className="text-[#525252] mx-1">›</span>
-        <span className="text-[#e5e5e5]">{m.text}</span>
+        <span className="text-ink-muted mx-1">›</span>
+        <span className="text-ink">{m.text}</span>
       </span>
       {onDelete && (
         <button
@@ -3768,7 +3768,7 @@ function ChannelSelector({ channel, setChannel, unread, mentions }) {
             key={c}
             onClick={() => setChannel(c)}
             className={`px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.22em] border transition relative ${
-              channel === c ? "border-[#ff4500] text-[#ff4500]" : "border-[#262626] text-[#a3a3a3] hover:border-[#ff4500]/40"
+              channel === c ? "border-brand text-brand" : "border-line text-ink-muted hover:border-brand/40"
             }`}
             data-testid={`chat-channel-${c}`}
           >
@@ -3776,7 +3776,7 @@ function ChannelSelector({ channel, setChannel, unread, mentions }) {
             {showBadge && (
               <span
                 className={`absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center font-mono text-[9px] ${
-                  ment > 0 ? "bg-[#ff4500] text-black ring-2 ring-[#ff4500]/40" : "bg-[#ff4500] text-black"
+                  ment > 0 ? "bg-brand text-black ring-2 ring-[#ff4500]/40" : "bg-brand text-black"
                 }`}
                 data-testid={`chat-unread-${c}`}
                 title={ment > 0 ? `${ment} mention${ment > 1 ? "s" : ""}` : `${cnt} new`}

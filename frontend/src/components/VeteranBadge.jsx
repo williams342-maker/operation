@@ -46,7 +46,7 @@ export default function VeteranBadge({ size = "sm", testId = "veteran-badge", cl
   // Default: pill with flag + text label.
   return (
     <span
-      className={`inline-flex items-center gap-1.5 px-2 py-0.5 border border-[#b22234]/60 bg-[#b22234]/5 font-mono text-[10px] uppercase tracking-[0.22em] text-[#e5e5e5] ${className}`}
+      className={`inline-flex items-center gap-1.5 px-2 py-0.5 border border-[#b22234]/60 bg-[#b22234]/5 font-mono text-[10px] uppercase tracking-[0.22em] text-ink ${className}`}
       title="Veteran-Owned business — supporting US veterans who make"
       data-testid={testId}
     >

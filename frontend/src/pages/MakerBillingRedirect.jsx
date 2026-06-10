@@ -87,15 +87,15 @@ export default function MakerBillingRedirect() {
   }, [navigate]);
 
   return (
-    <div className="min-h-[70vh] flex items-center justify-center px-4 py-16 bg-[#0a0a0a] text-[#e5e5e5]" data-testid="maker-billing-redirect">
-      <div className="max-w-md w-full border border-[#262626] p-8 text-center">
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mb-3">
+    <div className="min-h-[70vh] flex items-center justify-center px-4 py-16 bg-paper text-ink" data-testid="maker-billing-redirect">
+      <div className="max-w-md w-full border border-line p-8 text-center">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-3">
           ◆ Crafters Plus
         </div>
         {!err ? (
           <>
             <h1 className="font-display text-3xl uppercase mb-3">Opening checkout…</h1>
-            <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed mb-4">
+            <p className="font-mono text-xs text-ink-muted leading-relaxed mb-4">
               Redirecting to Stripe to complete your upgrade. If nothing happens in
               a few seconds, try the button below.
             </p>
@@ -123,7 +123,7 @@ export default function MakerBillingRedirect() {
             <p className="font-mono text-xs text-red-400 leading-relaxed mb-4" data-testid="billing-error">
               {err}
             </p>
-            <p className="font-mono text-[10px] text-[#737373] leading-relaxed mb-5">
+            <p className="font-mono text-[10px] text-ink-muted leading-relaxed mb-5">
               If this keeps happening, sign out and back in to refresh your maker
               session, then try the Upgrade button again from your dashboard.
             </p>

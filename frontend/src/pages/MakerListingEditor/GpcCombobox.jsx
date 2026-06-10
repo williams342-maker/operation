@@ -124,7 +124,7 @@ export default function GpcCombobox({
               ? `Inherit auto-derived path · ${autoPlaceholder}`
               : "e.g. Home & Garden > Decor > Signs"
           }
-          className="flex-1 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm"
+          className="flex-1 bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm"
           data-testid={`${testid}-input`}
           autoComplete="off"
           spellCheck="false"
@@ -133,7 +133,7 @@ export default function GpcCombobox({
           <button
             type="button"
             onClick={() => commit("")}
-            className="px-3 py-2 border border-[#262626] text-[#525252] hover:text-[#ff4500] hover:border-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition"
+            className="px-3 py-2 border border-line text-ink-muted hover:text-brand hover:border-brand font-mono text-[10px] uppercase tracking-[0.22em] transition"
             data-testid={`${testid}-clear`}
             title="Clear override — feeds will auto-derive the path."
           >
@@ -144,7 +144,7 @@ export default function GpcCombobox({
 
       {open && filtered.length > 0 && (
         <div
-          className="absolute left-0 right-0 mt-1 z-30 max-h-[280px] overflow-y-auto bg-[#0d0d0d] border border-[#262626] shadow-2xl"
+          className="absolute left-0 right-0 mt-1 z-30 max-h-[280px] overflow-y-auto bg-surface border border-line shadow-2xl"
           role="listbox"
           data-testid={`${testid}-list`}
         >
@@ -160,19 +160,19 @@ export default function GpcCombobox({
                   e.preventDefault();
                   commit(p);
                 }}
-                className={`w-full text-left px-3 py-2 font-mono text-[11px] hover:bg-[#ff4500]/10 transition flex items-center gap-2 ${
-                  selected ? "bg-[#ff4500]/10 text-[#ff4500]" : "text-[#e5e5e5]"
+                className={`w-full text-left px-3 py-2 font-mono text-[11px] hover:bg-brand/10 transition flex items-center gap-2 ${
+                  selected ? "bg-brand/10 text-brand" : "text-ink"
                 }`}
                 role="option"
                 aria-selected={selected}
                 data-testid={`${testid}-option-${p}`}
               >
-                {selected && <Check size={12} className="text-[#ff4500] shrink-0" />}
+                {selected && <Check size={12} className="text-brand shrink-0" />}
                 <span className="truncate">{p}</span>
               </button>
             );
           })}
-          <div className="px-3 py-2 border-t border-[#1f1f1f] font-mono text-[9px] uppercase tracking-[0.2em] text-[#525252]">
+          <div className="px-3 py-2 border-t border-line font-mono text-[9px] uppercase tracking-[0.2em] text-ink-muted">
             ◆ Or type / paste any path from Google&apos;s taxonomy
           </div>
         </div>

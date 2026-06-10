@@ -40,17 +40,17 @@ export default function PressPage() {
   }, []);
 
   return (
-    <main className="bg-black text-[#fafafa] min-h-screen" data-testid="press-page">
+    <main className="bg-paper text-ink min-h-screen" data-testid="press-page">
       <div className="max-w-6xl mx-auto px-4 md:px-8 pt-32 pb-24">
         {/* HERO */}
         <header className="mb-16">
-          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-3">
+          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-3">
             ◆ Press Kit
           </div>
           <h1 className="font-display text-5xl sm:text-6xl lg:text-7xl leading-[0.95]">
             For journalists,<br />podcasts, and<br />newsletter writers.
           </h1>
-          <p className="text-[#a3a3a3] mt-6 text-base md:text-lg max-w-2xl leading-relaxed">
+          <p className="text-ink-muted mt-6 text-base md:text-lg max-w-2xl leading-relaxed">
             Everything you need to write about CraftersMarket — the independent
             marketplace built for CNC, woodworking, and laser-cut makers leaving
             Etsy behind.
@@ -58,19 +58,19 @@ export default function PressPage() {
         </header>
 
         {/* PULL QUOTE */}
-        <blockquote className="border-l-4 border-[#ff4500] pl-6 my-12">
-          <p className="font-display text-2xl md:text-3xl leading-tight text-[#fafafa]">
+        <blockquote className="border-l-4 border-brand pl-6 my-12">
+          <p className="font-display text-2xl md:text-3xl leading-tight text-ink">
             "I built this because makers shouldn't have to choose between $1,250
             a year in Etsy fees and not selling online at all."
           </p>
-          <footer className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#525252] mt-4">
+          <footer className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted mt-4">
             — Mike Williams, Founder, CraftersMarket
           </footer>
         </blockquote>
 
         {/* FACT SHEET */}
         <section className="my-16" data-testid="press-facts">
-          <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#ff4500] mb-3">
+          <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand mb-3">
             ◆ Fact Sheet
           </div>
           <h2 className="font-display text-3xl md:text-4xl mb-8">By the numbers.</h2>
@@ -85,9 +85,9 @@ export default function PressPage() {
               { num: "$0.30", label: "Stripe Flat (per order)" },
               { num: "Veteran-Owned", label: "Platform Ownership" },
             ].map((s) => (
-              <div key={s.label} className="border border-[#262626] bg-[#0a0a0a] p-5">
-                <div className="font-display text-3xl md:text-4xl text-[#ff4500]">{s.num}</div>
-                <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#a3a3a3] mt-2">
+              <div key={s.label} className="border border-line bg-paper p-5">
+                <div className="font-display text-3xl md:text-4xl text-brand">{s.num}</div>
+                <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted mt-2">
                   {s.label}
                 </div>
               </div>
@@ -97,7 +97,7 @@ export default function PressPage() {
 
         {/* STORY ANGLES */}
         <section className="my-16" data-testid="press-angles">
-          <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#ff4500] mb-3">
+          <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand mb-3">
             ◆ Story Angles
           </div>
           <h2 className="font-display text-3xl md:text-4xl mb-8">Three ways to tell it.</h2>
@@ -122,12 +122,12 @@ export default function PressPage() {
                   "The platform is recruiting exactly 100 inaugural Founders who lock in lifetime rates. After #100, the offer closes forever. Real scarcity, real lifetime locked-in pricing.",
               },
             ].map((a) => (
-              <div key={a.tag} className="border border-[#262626] bg-[#0a0a0a] p-6">
-                <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#ff4500] mb-2">
+              <div key={a.tag} className="border border-line bg-paper p-6">
+                <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand mb-2">
                   ◆ {a.tag}
                 </div>
-                <h3 className="font-display text-xl md:text-2xl text-[#fafafa] mb-2">{a.hook}</h3>
-                <p className="text-sm text-[#a3a3a3] leading-relaxed">{a.body}</p>
+                <h3 className="font-display text-xl md:text-2xl text-ink mb-2">{a.hook}</h3>
+                <p className="text-sm text-ink-muted leading-relaxed">{a.body}</p>
               </div>
             ))}
           </div>
@@ -135,29 +135,29 @@ export default function PressPage() {
 
         {/* BRAND ASSETS */}
         <section className="my-16" data-testid="press-assets">
-          <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#ff4500] mb-3">
+          <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand mb-3">
             ◆ Brand Assets
           </div>
           <h2 className="font-display text-3xl md:text-4xl mb-8">Logos · colors.</h2>
           <div className="grid md:grid-cols-2 gap-6">
-            <div className="border border-[#262626] bg-[#0a0a0a] p-6">
-              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-4">
+            <div className="border border-line bg-paper p-6">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-4">
                 ◆ Primary Mark
               </div>
-              <div className="bg-black border border-[#262626] py-8 flex items-center justify-center">
+              <div className="bg-black border border-line py-8 flex items-center justify-center">
                 <img src="/downloads/cnc-garage-builders.png" alt="CraftersMarket logo" className="max-h-24" />
               </div>
               <a
                 href="/downloads/cnc-garage-builders.png"
                 download
-                className="inline-flex items-center gap-2 mt-4 text-sm text-[#ff4500] hover:underline font-mono text-[11px] uppercase tracking-[0.22em]"
+                className="inline-flex items-center gap-2 mt-4 text-sm text-brand hover:underline font-mono text-[11px] uppercase tracking-[0.22em]"
                 data-testid="press-download-logo"
               >
                 <Download size={12} /> Download PNG
               </a>
             </div>
-            <div className="border border-[#262626] bg-[#0a0a0a] p-6">
-              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-4">
+            <div className="border border-line bg-paper p-6">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-4">
                 ◆ Brand Colors
               </div>
               <div className="space-y-3">
@@ -169,12 +169,12 @@ export default function PressPage() {
                 ].map((c) => (
                   <div key={c.hex} className="flex items-center gap-3">
                     <div
-                      className="w-10 h-10 border border-[#262626] shrink-0"
+                      className="w-10 h-10 border border-line shrink-0"
                       style={{ background: c.hex }}
                     />
                     <div className="flex-1">
-                      <div className="font-mono text-[12px] text-[#fafafa]">{c.hex}</div>
-                      <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252]">{c.name}</div>
+                      <div className="font-mono text-[12px] text-ink">{c.hex}</div>
+                      <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted">{c.name}</div>
                     </div>
                   </div>
                 ))}
@@ -185,23 +185,23 @@ export default function PressPage() {
 
         {/* CONTACT */}
         <section className="my-16" data-testid="press-contact">
-          <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#ff4500] mb-3">
+          <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand mb-3">
             ◆ Press Contact
           </div>
-          <div className="border-2 border-[#ff4500] bg-[#0a0a0a] p-6 md:p-8">
+          <div className="border-2 border-brand bg-paper p-6 md:p-8">
             <div className="grid md:grid-cols-[2fr_1fr] gap-6 items-center">
               <div>
-                <div className="font-display text-2xl md:text-3xl text-[#fafafa] mb-1">Mike Williams</div>
-                <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#a3a3a3] mb-3">
+                <div className="font-display text-2xl md:text-3xl text-ink mb-1">Mike Williams</div>
+                <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-ink-muted mb-3">
                   Founder · CraftersMarket
                 </div>
-                <p className="text-sm text-[#a3a3a3]">
+                <p className="text-sm text-ink-muted">
                   Available for interviews, podcasts, and quotes. Response within 24 hours.
                 </p>
               </div>
               <a
                 href="mailto:team@craftersmarket.org?subject=Press%20Inquiry"
-                className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-[#ff4500] hover:bg-[#ff5722] text-black font-mono text-[11px] uppercase tracking-[0.22em] font-bold transition"
+                className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-brand hover:bg-brand-hover text-black font-mono text-[11px] uppercase tracking-[0.22em] font-bold transition"
                 data-testid="press-email-cta"
               >
                 <Mail size={14} /> team@craftersmarket.org
@@ -213,7 +213,7 @@ export default function PressPage() {
         <div className="text-center mt-12">
           <Link
             to="/founders"
-            className="inline-flex items-center gap-1 text-sm text-[#a3a3a3] hover:text-[#ff4500] font-mono uppercase tracking-[0.22em]"
+            className="inline-flex items-center gap-1 text-sm text-ink-muted hover:text-brand font-mono uppercase tracking-[0.22em]"
             data-testid="press-founders-link"
           >
             View the Founders page <ExternalLink size={12} />

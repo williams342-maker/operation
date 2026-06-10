@@ -325,7 +325,7 @@ export default function DashboardTab({
               which just navigate away). */}
           <Link
             to="/maker/journal/new"
-            className="block px-4 py-3 border border-brand/40 bg-[#1a0a05] hover:border-brand transition"
+            className="block px-4 py-3 border border-brand/40 bg-brand/10 hover:border-brand transition"
             data-testid="ql-journal-write"
           >
             <div className="flex items-center justify-between">
@@ -707,7 +707,7 @@ function TodayAlerts({ maker, orders, products, unreadMessages, onTabChange }) {
 const TONE_STYLE = {
   danger: { dot: "bg-red-500", text: "text-red-400" },
   warn: { dot: "bg-amber-500", text: "text-amber-400" },
-  info: { dot: "bg-[#525252]", text: "text-ink-muted" },
+  info: { dot: "bg-ink-muted", text: "text-ink-muted" },
 };
 
 function AlertRow({ alert, onTabChange }) {

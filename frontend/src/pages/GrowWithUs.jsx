@@ -60,7 +60,7 @@ function GridOverlay({ opacity = 0.05 }) {
 // Repeating section label (◆ TAG · STYLE).
 function SectionTag({ children, accent = "orange" }) {
   const colorMap = {
-    orange: "text-[#ff4500]",
+    orange: "text-brand",
     cyan: "text-[#00ffff]",
     amber: "text-[#ffb000]",
   };
@@ -83,12 +83,12 @@ function Hero() {
   const y3 = useTransform(scrollYProgress, [0, 1], [0, -40]);
 
   return (
-    <section ref={ref} className="relative min-h-[100vh] flex items-center overflow-hidden bg-[#0a0a0a] pt-24 pb-32" data-testid="grow-hero">
+    <section ref={ref} className="relative min-h-[100vh] flex items-center overflow-hidden bg-paper pt-24 pb-32" data-testid="grow-hero">
       {/* Backdrop gradient + grid */}
       <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a0a] via-[#0a0a0a] to-[#0e0e0e]" />
       <GridOverlay opacity={0.06} />
       {/* Ambient color blooms */}
-      <div className="absolute top-[20%] -left-32 w-[500px] h-[500px] rounded-full bg-[#ff4500] opacity-[0.18] blur-[120px]" />
+      <div className="absolute top-[20%] -left-32 w-[500px] h-[500px] rounded-full bg-brand opacity-[0.18] blur-[120px]" />
       <div className="absolute bottom-[10%] -right-32 w-[600px] h-[600px] rounded-full bg-[#00ffff] opacity-[0.12] blur-[140px]" />
 
       <div className="relative max-w-7xl mx-auto px-6 lg:px-12 w-full">
@@ -113,7 +113,7 @@ function Hero() {
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
-              className="mt-8 max-w-[58ch] text-[#a3a3a3] text-base sm:text-lg leading-relaxed"
+              className="mt-8 max-w-[58ch] text-ink-muted text-base sm:text-lg leading-relaxed"
             >
               Crafters Market is building a creator-first ecosystem for CNC makers, artisans, designers, and modern handmade brands — combining commerce, community, and AI-powered growth tools into one platform.
             </motion.p>
@@ -126,7 +126,7 @@ function Hero() {
             >
               <Link
                 to="/maker/apply"
-                className="group inline-flex items-center gap-3 px-7 py-4 bg-[#ff4500] hover:bg-[#ff5a1a] text-black font-mono text-xs uppercase tracking-[0.22em] font-semibold transition shadow-[0_0_30px_rgba(255,69,0,0.35)] hover:shadow-[0_0_40px_rgba(255,69,0,0.55)]"
+                className="group inline-flex items-center gap-3 px-7 py-4 bg-brand hover:bg-brand-hover text-black font-mono text-xs uppercase tracking-[0.22em] font-semibold transition shadow-[0_0_30px_rgba(255,69,0,0.35)] hover:shadow-[0_0_40px_rgba(255,69,0,0.55)]"
                 data-testid="grow-hero-primary-cta"
               >
                 Join as a Founding Seller
@@ -134,7 +134,7 @@ function Hero() {
               </Link>
               <a
                 href="#roadmap"
-                className="inline-flex items-center gap-3 px-7 py-4 border border-[#262626] hover:border-[#00ffff] text-white font-mono text-xs uppercase tracking-[0.22em] transition hover:text-[#00ffff]"
+                className="inline-flex items-center gap-3 px-7 py-4 border border-line hover:border-[#00ffff] text-white font-mono text-xs uppercase tracking-[0.22em] transition hover:text-[#00ffff]"
                 data-testid="grow-hero-secondary-cta"
               >
                 View Roadmap
@@ -149,11 +149,11 @@ function Hero() {
               initial={{ opacity: 0, x: 24 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 1, delay: 0.4 }}
-              className="absolute top-0 right-0 w-[280px] backdrop-blur-xl bg-[#141414]/70 border border-[#262626] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.6)]"
+              className="absolute top-0 right-0 w-[280px] backdrop-blur-xl bg-surface/70 border border-line p-5 shadow-[0_20px_60px_rgba(0,0,0,0.6)]"
             >
               <div className="font-mono text-[9px] uppercase tracking-[0.28em] text-[#00ffff] mb-2">◆ Seller Analytics</div>
               <div className="font-display text-3xl text-white">$8,420</div>
-              <div className="font-mono text-[10px] text-[#a3a3a3] mt-1">Revenue · last 30d</div>
+              <div className="font-mono text-[10px] text-ink-muted mt-1">Revenue · last 30d</div>
               <div className="flex items-end gap-1 mt-4 h-12">
                 {[40, 55, 35, 70, 60, 85, 75, 90].map((h, i) => (
                   <div
@@ -170,12 +170,12 @@ function Hero() {
               initial={{ opacity: 0, x: 24 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 1, delay: 0.55 }}
-              className="absolute top-[40%] left-0 w-[260px] backdrop-blur-xl bg-[#141414]/70 border border-[#262626] p-4 shadow-[0_20px_60px_rgba(0,0,0,0.6)]"
+              className="absolute top-[40%] left-0 w-[260px] backdrop-blur-xl bg-surface/70 border border-line p-4 shadow-[0_20px_60px_rgba(0,0,0,0.6)]"
             >
               <div className="font-mono text-[9px] uppercase tracking-[0.28em] text-[#ffb000] mb-2">◆ AI Suggestions</div>
               <div className="space-y-2">
                 {["Rewrite listing copy", "Optimize 3 SEO tags", "Pinterest schedule ready"].map((s) => (
-                  <div key={s} className="flex items-center gap-2 font-mono text-[11px] text-[#e5e5e5]">
+                  <div key={s} className="flex items-center gap-2 font-mono text-[11px] text-ink">
                     <span className="w-1.5 h-1.5 rounded-full bg-[#00ffff]" />
                     {s}
                   </div>
@@ -188,11 +188,11 @@ function Hero() {
               initial={{ opacity: 0, x: 24 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 1, delay: 0.7 }}
-              className="absolute bottom-0 right-8 w-[240px] backdrop-blur-xl bg-[#141414]/70 border border-[#262626] p-4 shadow-[0_20px_60px_rgba(0,0,0,0.6)]"
+              className="absolute bottom-0 right-8 w-[240px] backdrop-blur-xl bg-surface/70 border border-line p-4 shadow-[0_20px_60px_rgba(0,0,0,0.6)]"
             >
-              <div className="font-mono text-[9px] uppercase tracking-[0.28em] text-[#ff4500] mb-2">◆ Community</div>
+              <div className="font-mono text-[9px] uppercase tracking-[0.28em] text-brand mb-2">◆ Community</div>
               <div className="font-display text-2xl text-white">+12 makers</div>
-              <div className="font-mono text-[10px] text-[#a3a3a3] mt-1">joined this week</div>
+              <div className="font-mono text-[10px] text-ink-muted mt-1">joined this week</div>
             </motion.div>
           </div>
         </div>
@@ -206,14 +206,14 @@ function Hero() {
 // ═════════════════════════════════════════════════════════════════════
 function Problem() {
   return (
-    <section className="relative bg-[#0a0a0a] py-24 lg:py-32 border-t border-[#1a1a1a]" data-testid="grow-problem">
+    <section className="relative bg-paper py-24 lg:py-32 border-t border-line" data-testid="grow-problem">
       <div className="max-w-7xl mx-auto px-6 lg:px-12">
         <div className="max-w-3xl">
           <SectionTag>The Problem</SectionTag>
           <h2 className="font-display font-bold text-white text-3xl sm:text-4xl lg:text-5xl tracking-tight leading-[1.1]">
             Makers Deserve Better Platforms
           </h2>
-          <p className="mt-6 text-[#a3a3a3] text-base sm:text-lg max-w-[58ch] leading-relaxed">
+          <p className="mt-6 text-ink-muted text-base sm:text-lg max-w-[58ch] leading-relaxed">
             The existing marketplaces weren't designed for working makers. They were designed for buyers who don't know the difference between hand-fabricated and mass-produced — until they do.
           </p>
         </div>
@@ -225,10 +225,10 @@ function Problem() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-80px" }}
             transition={{ duration: 0.6 }}
-            className="border border-[#262626] bg-[#141414]/50 p-8 relative"
+            className="border border-line bg-surface/50 p-8 relative"
           >
-            <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#737373] mb-6">◇ Status quo</div>
-            <ul className="space-y-4 text-[#a3a3a3]">
+            <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-ink-muted mb-6">◇ Status quo</div>
+            <ul className="space-y-4 text-ink-muted">
               {[
                 "Oversaturated marketplaces · 100 listings per niche",
                 "Buried by mass-produced dropshipping",
@@ -238,7 +238,7 @@ function Problem() {
                 "No growth tools — you're on your own with marketing",
               ].map((s) => (
                 <li key={s} className="flex items-start gap-3">
-                  <span className="mt-2 w-1 h-1 bg-[#525252] flex-shrink-0" />
+                  <span className="mt-2 w-1 h-1 bg-ink-muted flex-shrink-0" />
                   <span className="leading-relaxed">{s}</span>
                 </li>
               ))}
@@ -251,10 +251,10 @@ function Problem() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-80px" }}
             transition={{ duration: 0.6, delay: 0.15 }}
-            className="border border-[#ff4500]/30 bg-gradient-to-br from-[#1a0d05] to-[#0a0a0a] p-8 relative shadow-[0_0_40px_rgba(255,69,0,0.08)]"
+            className="border border-brand/30 bg-gradient-to-br from-[#1a0d05] to-[#0a0a0a] p-8 relative shadow-[0_0_40px_rgba(255,69,0,0.08)]"
           >
             <div className="absolute -top-px -right-px w-24 h-px bg-gradient-to-r from-transparent to-[#ff4500]" />
-            <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#ff4500] mb-6">◆ Crafters Market</div>
+            <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-brand mb-6">◆ Crafters Market</div>
             <ul className="space-y-4 text-white/90">
               {[
                 "Curated maker ecosystem · founding seller tiers",
@@ -265,7 +265,7 @@ function Problem() {
                 "AI listing copy, SEO, social tools — included",
               ].map((s) => (
                 <li key={s} className="flex items-start gap-3">
-                  <span className="mt-2 w-1 h-1 bg-[#ff4500] flex-shrink-0" />
+                  <span className="mt-2 w-1 h-1 bg-brand flex-shrink-0" />
                   <span className="leading-relaxed">{s}</span>
                 </li>
               ))}
@@ -291,7 +291,7 @@ const VISION_BLOCKS = [
 
 function Vision() {
   return (
-    <section className="relative bg-[#0a0a0a] py-24 lg:py-32 border-t border-[#1a1a1a] overflow-hidden" data-testid="grow-vision">
+    <section className="relative bg-paper py-24 lg:py-32 border-t border-line overflow-hidden" data-testid="grow-vision">
       <GridOverlay opacity={0.04} />
       <div className="relative max-w-7xl mx-auto px-6 lg:px-12">
         <div className="max-w-3xl mb-16">
@@ -303,12 +303,12 @@ function Vision() {
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {VISION_BLOCKS.map((b, i) => {
             const glowMap = {
-              orange: "hover:border-[#ff4500]/40 hover:shadow-[0_0_30px_rgba(255,69,0,0.15)]",
+              orange: "hover:border-brand/40 hover:shadow-[0_0_30px_rgba(255,69,0,0.15)]",
               cyan: "hover:border-[#00ffff]/40 hover:shadow-[0_0_30px_rgba(0,255,255,0.15)]",
               amber: "hover:border-[#ffb000]/40 hover:shadow-[0_0_30px_rgba(255,176,0,0.15)]",
             };
             const dotMap = {
-              orange: "bg-[#ff4500]",
+              orange: "bg-brand",
               cyan: "bg-[#00ffff]",
               amber: "bg-[#ffb000]",
             };
@@ -319,14 +319,14 @@ function Vision() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-60px" }}
                 transition={{ duration: 0.5, delay: i * 0.08 }}
-                className={`group border border-[#262626] bg-gradient-to-br from-[#141414] to-[#0e0e0e] p-7 transition-all duration-300 ${glowMap[b.accent]} hover:-translate-y-0.5`}
+                className={`group border border-line bg-gradient-to-br from-[#141414] to-[#0e0e0e] p-7 transition-all duration-300 ${glowMap[b.accent]} hover:-translate-y-0.5`}
                 data-testid={`grow-vision-${b.title.toLowerCase()}`}
               >
                 <div className="flex items-center gap-3 mb-4">
                   <span className={`w-1.5 h-1.5 rounded-full ${dotMap[b.accent]}`} />
                   <h3 className="font-display text-xl text-white tracking-tight">{b.title}</h3>
                 </div>
-                <p className="text-[#a3a3a3] text-sm leading-relaxed">{b.body}</p>
+                <p className="text-ink-muted text-sm leading-relaxed">{b.body}</p>
               </motion.div>
             );
           })}
@@ -355,17 +355,17 @@ function Roadmap() {
     DONE:        { tag: "text-emerald-400 border-emerald-700/60 bg-emerald-950/30", dot: "bg-emerald-400" },
     "IN PROGRESS": { tag: "text-[#00ffff] border-[#00ffff]/40 bg-[#00ffff]/10",      dot: "bg-[#00ffff] animate-pulse" },
     UPCOMING:    { tag: "text-[#ffb000] border-[#ffb000]/40 bg-[#ffb000]/10",       dot: "bg-[#ffb000]" },
-    FUTURE:      { tag: "text-[#737373] border-[#262626] bg-[#141414]",             dot: "bg-[#525252]" },
+    FUTURE:      { tag: "text-ink-muted border-line bg-surface",             dot: "bg-ink-muted" },
   };
   return (
-    <section id="roadmap" className="relative bg-[#0a0a0a] py-24 lg:py-32 border-t border-[#1a1a1a]" data-testid="grow-roadmap">
+    <section id="roadmap" className="relative bg-paper py-24 lg:py-32 border-t border-line" data-testid="grow-roadmap">
       <div className="max-w-7xl mx-auto px-6 lg:px-12">
         <div className="max-w-3xl mb-16">
           <SectionTag accent="amber">Public Roadmap</SectionTag>
           <h2 className="font-display font-bold text-white text-3xl sm:text-4xl lg:text-5xl tracking-tight leading-[1.1]">
             What We're Building Next
           </h2>
-          <p className="mt-6 text-[#a3a3a3] max-w-[58ch] leading-relaxed">
+          <p className="mt-6 text-ink-muted max-w-[58ch] leading-relaxed">
             Public, dated, honest. Founding sellers see new tools the day they ship.
           </p>
         </div>
@@ -396,8 +396,8 @@ function Roadmap() {
                   <h3 className="font-display text-xl text-white mb-4 tracking-tight">{p.name}</h3>
                   <ul className="space-y-2">
                     {p.items.map((item) => (
-                      <li key={item} className="flex items-start gap-2 font-mono text-[12px] text-[#a3a3a3] leading-relaxed">
-                        <span className="text-[#525252] mt-0.5">›</span>
+                      <li key={item} className="flex items-start gap-2 font-mono text-[12px] text-ink-muted leading-relaxed">
+                        <span className="text-ink-muted mt-0.5">›</span>
                         {item}
                       </li>
                     ))}
@@ -432,26 +432,26 @@ const AUDIENCE = [
 
 function Audience() {
   return (
-    <section className="relative bg-[#0a0a0a] py-24 lg:py-32 border-t border-[#1a1a1a]" data-testid="grow-audience">
+    <section className="relative bg-paper py-24 lg:py-32 border-t border-line" data-testid="grow-audience">
       <div className="max-w-7xl mx-auto px-6 lg:px-12">
         <div className="max-w-3xl mb-16">
           <SectionTag>Who We're Looking For</SectionTag>
           <h2 className="font-display font-bold text-white text-3xl sm:text-4xl lg:text-5xl tracking-tight leading-[1.1]">
             Early matters.
           </h2>
-          <p className="mt-6 text-[#a3a3a3] max-w-[58ch] leading-relaxed">
+          <p className="mt-6 text-ink-muted max-w-[58ch] leading-relaxed">
             The first 100 makers shape this platform's voice, its tools, its fee structure. If any of these sound like you, we want to talk.
           </p>
         </div>
         <div className="grid md:grid-cols-2 gap-5">
           {AUDIENCE.map((a, i) => {
             const borderMap = {
-              orange: "hover:border-[#ff4500]/50",
+              orange: "hover:border-brand/50",
               cyan: "hover:border-[#00ffff]/50",
               amber: "hover:border-[#ffb000]/50",
             };
             const ctaMap = {
-              orange: "text-[#ff4500] hover:text-[#ff5a1a]",
+              orange: "text-brand hover:text-brand-hover",
               cyan: "text-[#00ffff] hover:text-cyan-200",
               amber: "text-[#ffb000] hover:text-amber-300",
             };
@@ -462,11 +462,11 @@ function Audience() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-60px" }}
                 transition={{ duration: 0.5, delay: i * 0.08 }}
-                className={`border border-[#262626] bg-gradient-to-br from-[#141414] to-[#0e0e0e] p-8 transition-all duration-300 hover:-translate-y-0.5 ${borderMap[a.accent]}`}
+                className={`border border-line bg-gradient-to-br from-[#141414] to-[#0e0e0e] p-8 transition-all duration-300 hover:-translate-y-0.5 ${borderMap[a.accent]}`}
                 data-testid={`grow-audience-${a.title.toLowerCase().replace(/[^a-z]/g,'-')}`}
               >
                 <h3 className="font-display text-2xl text-white tracking-tight mb-4">{a.title}</h3>
-                <p className="text-[#a3a3a3] text-sm leading-relaxed mb-6">{a.body}</p>
+                <p className="text-ink-muted text-sm leading-relaxed mb-6">{a.body}</p>
                 {a.to.startsWith("mailto:") ? (
                   <a href={a.to} className={`inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.22em] ${ctaMap[a.accent]} transition`}>
                     {a.cta} <span>→</span>
@@ -507,7 +507,7 @@ function Traction() {
     : [];
 
   return (
-    <section className="relative bg-[#0a0a0a] py-24 lg:py-32 border-t border-[#1a1a1a] overflow-hidden" data-testid="grow-traction">
+    <section className="relative bg-paper py-24 lg:py-32 border-t border-line overflow-hidden" data-testid="grow-traction">
       {/* Cyan bloom */}
       <div className="absolute top-[20%] left-1/2 -translate-x-1/2 w-[800px] h-[400px] rounded-full bg-[#00ffff] opacity-[0.06] blur-[120px]" />
       <div className="relative max-w-7xl mx-auto px-6 lg:px-12">
@@ -516,14 +516,14 @@ function Traction() {
           <h2 className="font-display font-bold text-white text-3xl sm:text-4xl lg:text-5xl tracking-tight leading-[1.1]">
             Built in public.<br />Real numbers, live.
           </h2>
-          <p className="mt-6 text-[#a3a3a3] max-w-[58ch] leading-relaxed">
+          <p className="mt-6 text-ink-muted max-w-[58ch] leading-relaxed">
             We refuse to inflate stats. Every number below is queried live from the platform — refreshed every minute. If you see "0" somewhere, it means we haven't shipped that yet.
           </p>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {stats.length === 0
             ? Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="border border-[#262626] bg-[#141414] p-6 animate-pulse h-[120px]" />
+                <div key={i} className="border border-line bg-surface p-6 animate-pulse h-[120px]" />
               ))
             : stats.map((s, i) => (
                 <motion.div
@@ -532,13 +532,13 @@ function Traction() {
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true, margin: "-60px" }}
                   transition={{ duration: 0.4, delay: i * 0.06 }}
-                  className="border border-[#262626] bg-gradient-to-br from-[#141414] to-[#0e0e0e] p-6 group hover:border-[#00ffff]/40 transition"
+                  className="border border-line bg-gradient-to-br from-[#141414] to-[#0e0e0e] p-6 group hover:border-[#00ffff]/40 transition"
                   data-testid={`grow-stat-${s.label.toLowerCase().replace(/[^a-z]/g,'-')}`}
                 >
                   <div className="font-display text-4xl sm:text-5xl bg-gradient-to-r from-white via-[#00ffff] to-white bg-clip-text text-transparent">
                     <CountUp to={s.value} suffix={s.suffix} />
                   </div>
-                  <div className="mt-3 font-mono text-[10px] uppercase tracking-[0.24em] text-[#a3a3a3]">{s.label}</div>
+                  <div className="mt-3 font-mono text-[10px] uppercase tracking-[0.24em] text-ink-muted">{s.label}</div>
                 </motion.div>
               ))
           }
@@ -553,7 +553,7 @@ function Traction() {
 // ═════════════════════════════════════════════════════════════════════
 function FounderLetter() {
   return (
-    <section className="relative bg-[#0a0a0a] py-24 lg:py-32 border-t border-[#1a1a1a]" data-testid="grow-founder">
+    <section className="relative bg-paper py-24 lg:py-32 border-t border-line" data-testid="grow-founder">
       <div className="max-w-7xl mx-auto px-6 lg:px-12">
         <div className="grid lg:grid-cols-12 gap-12 items-start">
           {/* Founder image / silhouette card (no real photo on file yet — we
@@ -562,15 +562,15 @@ function FounderLetter() {
               when we have one — drop the file at /public/founder.jpg and
               point the <img> src at it. */}
           <div className="lg:col-span-5">
-            <div className="relative aspect-[4/5] border border-[#262626] bg-gradient-to-br from-[#1a0d05] via-[#141414] to-[#0a0a0a] overflow-hidden">
+            <div className="relative aspect-[4/5] border border-line bg-gradient-to-br from-[#1a0d05] via-[#141414] to-[#0a0a0a] overflow-hidden">
               <GridOverlay opacity={0.08} />
               <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center">
-                <div className="text-7xl font-display text-[#ff4500] mb-6">MW</div>
+                <div className="text-7xl font-display text-brand mb-6">MW</div>
                 <div className="font-display text-2xl text-white">Michael Williams</div>
-                <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#a3a3a3] mt-2">Founder · Crafters Market</div>
-                <div className="mt-8 inline-flex items-center gap-2 px-3 py-1.5 border border-[#ff4500]/40 bg-[#ff4500]/5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#ff4500] animate-pulse" />
-                  <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">Williams CNC · Active maker</span>
+                <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-ink-muted mt-2">Founder · Crafters Market</div>
+                <div className="mt-8 inline-flex items-center gap-2 px-3 py-1.5 border border-brand/40 bg-brand/5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-brand animate-pulse" />
+                  <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">Williams CNC · Active maker</span>
                 </div>
               </div>
             </div>
@@ -582,7 +582,7 @@ function FounderLetter() {
             <h2 className="font-display font-bold text-white text-3xl sm:text-4xl lg:text-5xl tracking-tight leading-[1.1] mb-8">
               I built this for makers like us.
             </h2>
-            <div className="prose prose-invert space-y-5 text-[#d4d4d4] text-base sm:text-lg leading-relaxed max-w-[64ch]">
+            <div className="prose prose-invert space-y-5 text-ink text-base sm:text-lg leading-relaxed max-w-[64ch]">
               <p>
                 I run Williams CNC out of a small shop. Every weekend I cut, weld, and sand for buyers I meet on platforms that take 15-30% off the top and then bury my listings under mass-produced lookalikes.
               </p>
@@ -596,8 +596,8 @@ function FounderLetter() {
                 Build with me. The maker economy is bigger than any single platform — and the next decade belongs to creators with real tools and real visibility.
               </p>
             </div>
-            <div className="mt-10 font-display text-2xl text-[#ff4500] italic">— Michael</div>
-            <div className="mt-1 font-mono text-[10px] uppercase tracking-[0.28em] text-[#a3a3a3]">Founder · Crafters Market · Williams CNC</div>
+            <div className="mt-10 font-display text-2xl text-brand italic">— Michael</div>
+            <div className="mt-1 font-mono text-[10px] uppercase tracking-[0.28em] text-ink-muted">Founder · Crafters Market · Williams CNC</div>
           </div>
         </div>
       </div>
@@ -610,10 +610,10 @@ function FounderLetter() {
 // ═════════════════════════════════════════════════════════════════════
 function FinalCTA() {
   return (
-    <section className="relative bg-[#0a0a0a] py-24 lg:py-32 border-t border-[#1a1a1a] overflow-hidden" data-testid="grow-final-cta">
+    <section className="relative bg-paper py-24 lg:py-32 border-t border-line overflow-hidden" data-testid="grow-final-cta">
       {/* Big atmospheric bloom */}
       <div className="absolute inset-0 bg-gradient-radial from-[#ff4500]/[0.08] via-transparent to-transparent" />
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[400px] rounded-full bg-[#ff4500] opacity-[0.10] blur-[140px]" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[400px] rounded-full bg-brand opacity-[0.10] blur-[140px]" />
       <GridOverlay opacity={0.04} />
 
       <div className="relative max-w-5xl mx-auto px-6 lg:px-12 text-center">
@@ -629,14 +629,14 @@ function FinalCTA() {
             Help Shape the Future.
           </span>
         </motion.h2>
-        <p className="mt-8 text-[#a3a3a3] text-base sm:text-lg leading-relaxed max-w-[58ch] mx-auto">
+        <p className="mt-8 text-ink-muted text-base sm:text-lg leading-relaxed max-w-[58ch] mx-auto">
           The next decade of the maker economy is being built right now. The first 100 sellers lock in lifetime founding status.
         </p>
 
         <div className="mt-12 flex flex-wrap items-center justify-center gap-4">
           <Link
             to="/maker/apply"
-            className="group inline-flex items-center gap-3 px-7 py-4 bg-[#ff4500] hover:bg-[#ff5a1a] text-black font-mono text-xs uppercase tracking-[0.22em] font-semibold transition shadow-[0_0_40px_rgba(255,69,0,0.45)] hover:shadow-[0_0_60px_rgba(255,69,0,0.65)]"
+            className="group inline-flex items-center gap-3 px-7 py-4 bg-brand hover:bg-brand-hover text-black font-mono text-xs uppercase tracking-[0.22em] font-semibold transition shadow-[0_0_40px_rgba(255,69,0,0.45)] hover:shadow-[0_0_60px_rgba(255,69,0,0.65)]"
             data-testid="grow-final-cta-primary"
           >
             Apply as a Founding Seller
@@ -644,14 +644,14 @@ function FinalCTA() {
           </Link>
           <a
             href="mailto:partners@craftersmarket.org"
-            className="inline-flex items-center gap-3 px-7 py-4 border border-[#262626] hover:border-[#00ffff] text-white font-mono text-xs uppercase tracking-[0.22em] transition hover:text-[#00ffff]"
+            className="inline-flex items-center gap-3 px-7 py-4 border border-line hover:border-[#00ffff] text-white font-mono text-xs uppercase tracking-[0.22em] transition hover:text-[#00ffff]"
             data-testid="grow-final-cta-partner"
           >
             Partner With Us
           </a>
           <Link
             to="/community"
-            className="inline-flex items-center gap-3 px-7 py-4 border border-[#262626] hover:border-[#ffb000] text-white font-mono text-xs uppercase tracking-[0.22em] transition hover:text-[#ffb000]"
+            className="inline-flex items-center gap-3 px-7 py-4 border border-line hover:border-[#ffb000] text-white font-mono text-xs uppercase tracking-[0.22em] transition hover:text-[#ffb000]"
             data-testid="grow-final-cta-community"
           >
             Join the Community
@@ -668,7 +668,7 @@ function FinalCTA() {
 // ═════════════════════════════════════════════════════════════════════
 export default function GrowWithUs() {
   return (
-    <div className="bg-[#0a0a0a] text-white min-h-screen" data-testid="grow-with-us-page">
+    <div className="bg-paper text-white min-h-screen" data-testid="grow-with-us-page">
       <Hero />
       <Problem />
       <Vision />

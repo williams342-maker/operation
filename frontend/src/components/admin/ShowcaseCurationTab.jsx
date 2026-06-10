@@ -180,7 +180,7 @@ function Row({ item, index, total, busyId, canReorder, dimmed, onPin, onHide, on
       className={`grid grid-cols-[64px_1fr_auto] gap-3 items-center p-3 border ${dimmed ? "border-line bg-paper opacity-60" : "border-line bg-paper"} ${busy ? "animate-pulse" : ""}`}
       data-testid={`showcase-row-${item.id}`}
     >
-      <div className="w-16 h-16 bg-[#1c1c1c] overflow-hidden flex items-center justify-center">
+      <div className="w-16 h-16 bg-surface overflow-hidden flex items-center justify-center">
         {item.image_url ? (
           <img src={item.image_url} alt="" className="w-full h-full object-cover" />
         ) : (

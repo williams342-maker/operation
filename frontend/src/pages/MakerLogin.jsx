@@ -89,13 +89,13 @@ export default function MakerLogin() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
         >
-          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-4">
+          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-4">
             ◆ Maker Portal
           </div>
           <h1 className="font-display text-[56px] md:text-[88px] leading-[0.88] mb-6 uppercase">
             Sign In.
           </h1>
-          <p className="font-mono text-sm text-[#a3a3a3] leading-relaxed mb-6">
+          <p className="font-mono text-sm text-ink-muted leading-relaxed mb-6">
             Enter the email on file with Crafters Market. We'll send you a one-click sign-in link
             — no password, good for 15 minutes.
           </p>
@@ -106,18 +106,18 @@ export default function MakerLogin() {
               magic-link flow. The banner makes the Founding-Seller path
               discoverable without fragmenting the surface. */}
           <div
-            className="mb-10 border border-[#ff4500]/40 bg-[#ff4500]/5 px-4 py-3 flex items-start gap-3"
+            className="mb-10 border border-brand/40 bg-brand/5 px-4 py-3 flex items-start gap-3"
             data-testid="maker-login-founding-banner"
           >
-            <span className="font-mono text-[#ff4500] text-lg leading-none shrink-0">◆</span>
+            <span className="font-mono text-brand text-lg leading-none shrink-0">◆</span>
             <div className="flex-1">
-              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mb-1">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-1">
                 Founding Seller?
               </div>
-              <p className="font-mono text-[11px] text-[#a3a3a3] leading-relaxed">
+              <p className="font-mono text-[11px] text-ink-muted leading-relaxed">
                 Sign in here with the same email you used when you applied to the beta.
                 Not yet a Founding Seller?{" "}
-                <Link to="/beta" className="text-[#ff4500] underline hover:no-underline" data-testid="maker-login-beta-link">
+                <Link to="/beta" className="text-brand underline hover:no-underline" data-testid="maker-login-beta-link">
                   Claim a spot →
                 </Link>
               </p>
@@ -126,13 +126,13 @@ export default function MakerLogin() {
 
           <form onSubmit={onSubmit} className="space-y-4" data-testid="maker-login-form">
             <label className="block">
-              <span className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3] flex items-center justify-between gap-3">
+              <span className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted flex items-center justify-between gap-3">
                 <span>Email</span>
                 {rememberedEmail && state.status === "idle" && (
                   <button
                     type="button"
                     onClick={resetIdentity}
-                    className="normal-case tracking-normal text-[11px] text-[#a3a3a3] hover:text-[#ff4500] underline"
+                    className="normal-case tracking-normal text-[11px] text-ink-muted hover:text-brand underline"
                     data-testid="maker-login-not-you"
                   >
                     Not {rememberedEmail}? Use a different email
@@ -146,7 +146,7 @@ export default function MakerLogin() {
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={state.status === "loading" || state.status === "sent"}
                 placeholder="you@studio.com"
-                className="mt-2 w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-4 py-3 font-mono text-sm text-[#e5e5e5] transition"
+                className="mt-2 w-full bg-transparent border border-line focus:border-brand outline-none px-4 py-3 font-mono text-sm text-ink transition"
                 data-testid="maker-login-email"
               />
             </label>
@@ -167,10 +167,10 @@ export default function MakerLogin() {
                 data-testid="maker-login-keep-signed-in"
               />
               <span className="flex-1">
-                <span className="block font-mono text-[11px] uppercase tracking-[0.22em] text-[#e5e5e5] group-hover:text-[#ff4500] transition">
+                <span className="block font-mono text-[11px] uppercase tracking-[0.22em] text-ink group-hover:text-brand transition">
                   Keep me signed in for 30 days
                 </span>
-                <span className="block font-mono text-[10px] text-[#525252] mt-1 normal-case tracking-normal leading-relaxed">
+                <span className="block font-mono text-[10px] text-ink-muted mt-1 normal-case tracking-normal leading-relaxed">
                   {keepSignedIn
                     ? "You'll stay signed in on this device until you sign out."
                     : "You'll be signed out automatically after ~8 hours — good for shared or public computers."}
@@ -194,28 +194,28 @@ export default function MakerLogin() {
 
           {state.status === "sent" && (
             <div
-              className="mt-8 border border-[#ff4500]/40 bg-[#ff4500]/5 p-5"
+              className="mt-8 border border-brand/40 bg-brand/5 p-5"
               data-testid="maker-login-sent"
             >
-              <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#ff4500] mb-2">
+              <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-brand mb-2">
                 ◆ Check your inbox
               </div>
-              <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed">{state.message}</p>
-              <div className="mt-4 pt-4 border-t border-[#ff4500]/20 flex flex-wrap gap-3">
+              <p className="font-mono text-xs text-ink-muted leading-relaxed">{state.message}</p>
+              <div className="mt-4 pt-4 border-t border-brand/20 flex flex-wrap gap-3">
                 <button
                   type="button"
                   onClick={resendLink}
-                  className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#ff4500] hover:underline"
+                  className="font-mono text-[11px] uppercase tracking-[0.22em] text-brand hover:underline"
                   data-testid="maker-login-resend"
                   title="Re-send the magic link to the same email"
                 >
                   ↻ Resend link
                 </button>
-                <span className="text-[#525252]">·</span>
+                <span className="text-ink-muted">·</span>
                 <button
                   type="button"
                   onClick={resetIdentity}
-                  className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] hover:underline"
+                  className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand hover:underline"
                   data-testid="maker-login-switch-user"
                   title="Sign in with a different email"
                 >
@@ -236,30 +236,30 @@ export default function MakerLogin() {
             </div>
           )}
 
-          <p className="mt-12 font-mono text-[11px] text-[#525252] uppercase tracking-[0.22em]">
-            Not a maker yet? <Link to="/apply" className="text-[#ff4500]">Apply to the program →</Link>
+          <p className="mt-12 font-mono text-[11px] text-ink-muted uppercase tracking-[0.22em]">
+            Not a maker yet? <Link to="/apply" className="text-brand">Apply to the program →</Link>
           </p>
 
           {/* Trouble-signing-in expander — handles the 3 cases that
               account for ~80% of "I can't log in" support tickets.
               Collapsed by default so it doesn't clutter the happy path. */}
           <details className="mt-6 font-mono text-[11px]" data-testid="maker-login-troubleshoot">
-            <summary className="cursor-pointer text-[#a3a3a3] hover:text-[#ff4500] uppercase tracking-[0.22em] list-none inline-flex items-center gap-2">
-              <span className="text-[#ff4500]">◆</span> Trouble signing in?
+            <summary className="cursor-pointer text-ink-muted hover:text-brand uppercase tracking-[0.22em] list-none inline-flex items-center gap-2">
+              <span className="text-brand">◆</span> Trouble signing in?
             </summary>
-            <div className="mt-3 space-y-3 text-[#a3a3a3] leading-relaxed border-l-2 border-[#262626] pl-4">
+            <div className="mt-3 space-y-3 text-ink-muted leading-relaxed border-l-2 border-line pl-4">
               <div>
-                <div className="uppercase tracking-[0.22em] text-[#e5e5e5] text-[10px] mb-1">
+                <div className="uppercase tracking-[0.22em] text-ink text-[10px] mb-1">
                   ① Link not arriving?
                 </div>
                 <p className="normal-case tracking-normal">
                   Check spam / promotions / all-mail folders. Add
-                  <code className="text-[#ff4500] mx-1">team@craftersmarket.org</code>
+                  <code className="text-brand mx-1">team@craftersmarket.org</code>
                   to your contacts. Links can take up to 2 minutes to arrive from Mailgun / Postmark.
                 </p>
               </div>
               <div>
-                <div className="uppercase tracking-[0.22em] text-[#e5e5e5] text-[10px] mb-1">
+                <div className="uppercase tracking-[0.22em] text-ink text-[10px] mb-1">
                   ② "Link expired"?
                 </div>
                 <p className="normal-case tracking-normal">
@@ -267,14 +267,14 @@ export default function MakerLogin() {
                 </p>
               </div>
               <div>
-                <div className="uppercase tracking-[0.22em] text-[#e5e5e5] text-[10px] mb-1">
+                <div className="uppercase tracking-[0.22em] text-ink text-[10px] mb-1">
                   ③ "We couldn't find an account"?
                 </div>
                 <p className="normal-case tracking-normal">
                   Make sure you're using the same email you applied with.
                   Approved Founding Sellers received a "Welcome" email — reply-search for it to confirm the right address.
                   Still stuck?{" "}
-                  <a href="mailto:team@craftersmarket.org" className="text-[#ff4500] underline hover:no-underline">
+                  <a href="mailto:team@craftersmarket.org" className="text-brand underline hover:no-underline">
                     team@craftersmarket.org
                   </a>.
                 </p>

@@ -63,25 +63,25 @@ export default function RestockWaitlistModal({ product, onClose }) {
       data-testid="restock-modal"
     >
       <div
-        className="bg-[#0a0a0a] border border-[#262626] w-full max-w-md p-6 relative"
+        className="bg-paper border border-line w-full max-w-md p-6 relative"
         onClick={(e) => e.stopPropagation()}
       >
         <button
           type="button"
           onClick={onClose}
-          className="absolute top-3 right-3 p-1 hover:bg-[#1a1a1a]"
+          className="absolute top-3 right-3 p-1 hover:bg-surface"
           data-testid="restock-modal-close"
           aria-label="Close"
         >
-          <X size={16} className="text-[#a3a3a3]" />
+          <X size={16} className="text-ink-muted" />
         </button>
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">
           ◆ Restock alert
         </div>
-        <h2 className="font-display text-2xl mt-1 text-[#e5e5e5]">
+        <h2 className="font-display text-2xl mt-1 text-ink">
           {done ? "You're on the list." : "Notify when restocked"}
         </h2>
-        <p className="font-mono text-xs text-[#a3a3a3] mt-2 leading-relaxed">
+        <p className="font-mono text-xs text-ink-muted mt-2 leading-relaxed">
           {done
             ? `We'll let you know the moment ${product.title} is back in stock — no marketing, no follow-ups.`
             : `We'll send you exactly one alert the moment ${product.title} is back in stock. No marketing, no follow-ups.`}
@@ -90,7 +90,7 @@ export default function RestockWaitlistModal({ product, onClose }) {
         {!done && (
           <form onSubmit={submit} className="mt-5 space-y-3">
             <label className="block">
-              <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+              <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
                 Email *
               </span>
               <input
@@ -98,27 +98,27 @@ export default function RestockWaitlistModal({ product, onClose }) {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full mt-1 bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2.5 font-mono text-sm text-[#e5e5e5]"
+                className="w-full mt-1 bg-paper border border-line focus:border-brand outline-none px-3 py-2.5 font-mono text-sm text-ink"
                 placeholder="you@studio.com"
                 data-testid="restock-modal-email"
               />
             </label>
             <label className="block">
-              <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+              <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
                 Name (optional)
               </span>
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full mt-1 bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2.5 font-mono text-sm text-[#e5e5e5]"
+                className="w-full mt-1 bg-paper border border-line focus:border-brand outline-none px-3 py-2.5 font-mono text-sm text-ink"
                 placeholder="So we can address you nicely"
                 data-testid="restock-modal-name"
               />
             </label>
 
             {/* iter266 — SMS opt-in (collapsed by default) */}
-            <div className="border border-[#262626] p-3" data-testid="restock-modal-sms-block">
+            <div className="border border-line p-3" data-testid="restock-modal-sms-block">
               <label className="flex items-start gap-2 cursor-pointer">
                 <input
                   type="checkbox"
@@ -127,24 +127,24 @@ export default function RestockWaitlistModal({ product, onClose }) {
                   className="mt-1 accent-[#ff4500]"
                   data-testid="restock-modal-sms-optin"
                 />
-                <span className="font-mono text-xs text-[#e5e5e5] leading-snug">
+                <span className="font-mono text-xs text-ink leading-snug">
                   Also text me — they sell out faster than email reads.
                 </span>
               </label>
               {smsOptIn && (
                 <div className="mt-3">
-                  <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
                     Mobile number *
                   </span>
                   <input
                     type="tel"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    className="w-full mt-1 bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2.5 font-mono text-sm text-[#e5e5e5]"
+                    className="w-full mt-1 bg-paper border border-line focus:border-brand outline-none px-3 py-2.5 font-mono text-sm text-ink"
                     placeholder="+1 555 123 4567"
                     data-testid="restock-modal-phone"
                   />
-                  <p className="font-mono text-[10px] text-[#737373] mt-1 leading-relaxed">
+                  <p className="font-mono text-[10px] text-ink-muted mt-1 leading-relaxed">
                     Msg & data rates may apply. One text per restock event. Reply STOP to opt out anytime.
                   </p>
                 </div>

@@ -507,7 +507,7 @@ export default function PromoteTab() {
               <button
                 key={g.id}
                 onClick={() => setGoal(g.id)}
-                className={`text-left p-3 border ${goal === g.id ? "border-brand bg-[#1a0e08]" : "border-line hover:border-ink-muted"}`}
+                className={`text-left p-3 border ${goal === g.id ? "border-brand bg-brand/10" : "border-line hover:border-ink-muted"}`}
                 data-testid={`promote-goal-${g.id}`}
               >
                 <div className="font-mono text-xs text-ink">{g.label}</div>
@@ -615,7 +615,7 @@ export default function PromoteTab() {
             <button
               onClick={onApply}
               disabled={busy === "apply" || balance < 500}
-              className="px-4 py-2.5 border border-brand text-brand hover:bg-[#1a0e08] font-mono text-xs uppercase tracking-[0.22em] disabled:opacity-50 flex items-center gap-1.5"
+              className="px-4 py-2.5 border border-brand text-brand hover:bg-brand/10 font-mono text-xs uppercase tracking-[0.22em] disabled:opacity-50 flex items-center gap-1.5"
               data-testid="promote-apply-btn"
               title={balance < 500 ? "Wallet needs at least $5 to apply a boost." : ""}
             >
@@ -813,7 +813,7 @@ function ChannelChip({ label, sublabel, state, testId }) {
   //        "available" (external channel ready to launch),
   //        "blocked" (pending approval / connect required)
   const tone =
-    state === "active"    ? "border-brand text-brand bg-[#1a0e08]" :
+    state === "active"    ? "border-brand text-brand bg-brand/10" :
     state === "available" ? "border-cyan-400/60 text-cyan-300 bg-cyan-400/5" :
                             "border-line text-ink-muted";
   return (

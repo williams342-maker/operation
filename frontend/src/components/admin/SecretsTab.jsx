@@ -20,7 +20,7 @@ const STATUS_STYLES = {
   ok:        { border: "border-emerald-500/40", bg: "bg-emerald-500/5",  text: "text-emerald-400", icon: <CheckCircle2 size={14} />, label: "OK" },
   due_soon:  { border: "border-yellow-500/50", bg: "bg-yellow-500/5",   text: "text-yellow-400",  icon: <Clock size={14} />,         label: "Due soon" },
   overdue:   { border: "border-red-500/50",    bg: "bg-red-500/5",      text: "text-red-400",     icon: <AlertTriangle size={14} />, label: "Overdue" },
-  missing:   { border: "border-[#525252]/40",  bg: "bg-[#525252]/5",    text: "text-ink-muted",   icon: <ShieldOff size={14} />,     label: "Not configured" },
+  missing:   { border: "border-line/40",  bg: "bg-ink-muted/5",    text: "text-ink-muted",   icon: <ShieldOff size={14} />,     label: "Not configured" },
 };
 
 function authHeaders() {
@@ -264,7 +264,7 @@ function SummaryStat({ label, value, tone, testId }) {
     neutral: "border-line text-ink",
     emerald: "border-emerald-500/40 text-emerald-400",
     red: "border-red-500/40 text-red-400",
-    gray: "border-[#525252]/40 text-ink-muted",
+    gray: "border-line/40 text-ink-muted",
   }[tone] || "border-line";
   return (
     <div className={`border ${toneClass} p-4`} data-testid={testId}>
@@ -308,7 +308,7 @@ function SecretRow({ secret, onMarkRotated, busy, pendingRotation, onAutoRotate,
             <button
               onClick={onCancelRotation}
               disabled={!!autoRotateBusy}
-              className="px-3 py-1.5 border border-[#525252] text-ink-muted hover:border-red-500/40 hover:text-red-400 font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-30"
+              className="px-3 py-1.5 border border-line text-ink-muted hover:border-red-500/40 hover:text-red-400 font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-30"
               data-testid={`cancel-rotation-${secret.id}`}
             >
               {autoRotateBusy === "cancel" ? "Cancelling…" : "Cancel rotation"}
@@ -359,7 +359,7 @@ function SecretRow({ secret, onMarkRotated, busy, pendingRotation, onAutoRotate,
             <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand inline-block">
               ◆ How to rotate ↓
             </summary>
-            <div className="mt-3 p-3 border border-line bg-[#0c0c0c] font-mono text-xs text-ink-muted leading-relaxed">
+            <div className="mt-3 p-3 border border-line bg-surface font-mono text-xs text-ink-muted leading-relaxed">
               {secret.rotation_notes}
               <div className="mt-3">
                 <a
@@ -391,7 +391,7 @@ function SecretRow({ secret, onMarkRotated, busy, pendingRotation, onAutoRotate,
           <button
             onClick={onMarkRotated}
             disabled={busy || !secret.is_set}
-            className="px-3 py-2 border border-[#525252] text-ink-muted hover:border-brand/40 hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-30 disabled:cursor-not-allowed"
+            className="px-3 py-2 border border-line text-ink-muted hover:border-brand/40 hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-30 disabled:cursor-not-allowed"
             data-testid={`mark-rotated-${secret.id}`}
             title={!secret.is_set ? "Secret is not currently configured in env" : "Manually mark rotated (no Stripe API call)"}
           >
@@ -438,7 +438,7 @@ function RevealedSecretModal({ info, onClose }) {
           the secrets tab — that protects in-flight events during the redeploy.
         </p>
 
-        <div className="border border-line bg-[#0c0c0c] p-3 mb-3">
+        <div className="border border-line bg-surface p-3 mb-3">
           <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted mb-1">env var name</div>
           <code className="font-mono text-sm text-ink">{info.env_var}</code>
         </div>
@@ -467,7 +467,7 @@ function RevealedSecretModal({ info, onClose }) {
           </button>
           <button
             onClick={onClose}
-            className="px-3 py-2 border border-[#525252] text-ink-muted hover:border-brand/40 font-mono text-[10px] uppercase tracking-[0.22em]"
+            className="px-3 py-2 border border-line text-ink-muted hover:border-brand/40 font-mono text-[10px] uppercase tracking-[0.22em]"
             data-testid="revealed-secret-dismiss"
           >
             I've saved it

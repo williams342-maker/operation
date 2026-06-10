@@ -48,7 +48,7 @@ function PhotoTipsCard() {
         <button
           type="button"
           onClick={reopen}
-          className="inline-flex items-center gap-2 px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] text-[#737373] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition"
+          className="inline-flex items-center gap-2 px-3 py-1.5 border border-line hover:border-brand text-ink-muted hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] transition"
           data-testid="editor-photo-tips-reopen"
         >
           <Lightbulb size={11} /> Show photo tips
@@ -59,32 +59,32 @@ function PhotoTipsCard() {
 
   return (
     <div
-      className="mb-4 border border-[#262626] bg-gradient-to-br from-[#1a1208] to-[#0f0a05]"
+      className="mb-4 border border-line bg-gradient-to-br from-[#1a1208] to-[#0f0a05]"
       data-testid="editor-photo-tips-card"
     >
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between gap-3 px-4 py-3 hover:bg-[#ff4500]/[0.04] transition"
+        className="w-full flex items-center justify-between gap-3 px-4 py-3 hover:bg-brand/[0.04] transition"
         data-testid="editor-photo-tips-toggle"
       >
         <span className="inline-flex items-center gap-2">
-          <Lightbulb size={14} className="text-[#ff4500]" />
-          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">
+          <Lightbulb size={14} className="text-brand" />
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">
             ◆ Photo tips — shoot listings that sell
           </span>
         </span>
         <span className="inline-flex items-center gap-2">
           <ChevronDown
             size={14}
-            className={`text-[#737373] transition-transform ${open ? "rotate-180" : ""}`}
+            className={`text-ink-muted transition-transform ${open ? "rotate-180" : ""}`}
           />
           <span
             role="button"
             tabIndex={0}
             onClick={(e) => { e.stopPropagation(); dismiss(); }}
             onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); dismiss(); } }}
-            className="text-[#525252] hover:text-red-400 transition cursor-pointer"
+            className="text-ink-muted hover:text-red-400 transition cursor-pointer"
             aria-label="Dismiss photo tips"
             data-testid="editor-photo-tips-dismiss"
           >
@@ -97,13 +97,13 @@ function PhotoTipsCard() {
           {PHOTO_TIPS.map((tip, idx) => (
             <div
               key={tip.title}
-              className="border border-[#262626] bg-[#0a0a0a]/60 p-3"
+              className="border border-line bg-paper/60 p-3"
               data-testid={`editor-photo-tip-${idx}`}
             >
-              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#ff4500] mb-1.5">
+              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-brand mb-1.5">
                 ◇ {tip.title}
               </p>
-              <p className="text-[12px] text-[#a3a3a3] leading-relaxed">
+              <p className="text-[12px] text-ink-muted leading-relaxed">
                 {tip.body}
               </p>
             </div>
@@ -195,16 +195,16 @@ export default function MediaSection({
                 isError
                   ? "border-red-500 border-2 ring-2 ring-red-500/40"
                   : isOver
-                    ? "border-[#ff4500] border-2 ring-2 ring-[#ff4500]/40"
+                    ? "border-brand border-2 ring-2 ring-[#ff4500]/40"
                     : i === 0
-                      ? "border-[#ff4500]"
-                      : "border-[#262626]"
+                      ? "border-brand"
+                      : "border-line"
               } ${isDragging ? "opacity-40" : ""}`}
               data-testid={`editor-image-${i}`}
             >
               <img src={src} alt="" className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
               {i === 0 && (
-                <span className="absolute top-1 left-1 bg-[#ff4500] text-[#0a0a0a] text-[9px] font-mono px-1.5 py-0.5 uppercase tracking-[0.18em]">
+                <span className="absolute top-1 left-1 bg-brand text-[#0a0a0a] text-[9px] font-mono px-1.5 py-0.5 uppercase tracking-[0.18em]">
                   ◆ Cover
                 </span>
               )}
@@ -213,8 +213,8 @@ export default function MediaSection({
                   className="absolute inset-0 bg-black/55 flex flex-col items-center justify-center gap-2 pointer-events-none"
                   data-testid={`editor-image-uploading-${i}`}
                 >
-                  <Loader2 size={18} className="text-[#ff4500] animate-spin" />
-                  <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#ff4500]">
+                  <Loader2 size={18} className="text-brand animate-spin" />
+                  <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-brand">
                     Uploading…
                   </span>
                 </div>
@@ -258,7 +258,7 @@ export default function MediaSection({
                   {i !== 0 && (
                     <button
                       onClick={() => promoteCover(i)}
-                      className="px-2 py-1 border border-[#ff4500] text-[#ff4500] font-mono text-[9px] uppercase tracking-[0.18em] hover:bg-[#ff4500]/10"
+                      className="px-2 py-1 border border-brand text-brand font-mono text-[9px] uppercase tracking-[0.18em] hover:bg-brand/10"
                       data-testid={`editor-set-cover-${i}`}
                     >
                       Set as cover
@@ -266,7 +266,7 @@ export default function MediaSection({
                   )}
                   <button
                     onClick={() => recropImage(i)}
-                    className="p-1.5 border border-[#262626] hover:border-[#ff4500] text-[#a3a3a3] hover:text-[#ff4500]"
+                    className="p-1.5 border border-line hover:border-brand text-ink-muted hover:text-brand"
                     data-testid={`editor-recrop-image-${i}`}
                     aria-label="Crop or rotate"
                     title="Crop / rotate"
@@ -275,7 +275,7 @@ export default function MediaSection({
                   </button>
                   <button
                     onClick={() => removeImage(i)}
-                    className="p-1.5 border border-[#262626] hover:border-red-500 text-red-400"
+                    className="p-1.5 border border-line hover:border-red-500 text-red-400"
                     data-testid={`editor-remove-image-${i}`}
                     aria-label="Remove"
                   >
@@ -290,7 +290,7 @@ export default function MediaSection({
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
-            className="aspect-square border border-dashed border-[#404040] hover:border-[#ff4500] hover:text-[#ff4500] text-[#737373] flex flex-col items-center justify-center gap-2 transition"
+            className="aspect-square border border-dashed border-line hover:border-brand hover:text-brand text-ink-muted flex flex-col items-center justify-center gap-2 transition"
             data-testid="editor-add-photo"
           >
             <Upload size={20} />
@@ -306,20 +306,20 @@ export default function MediaSection({
       />
       {errors.images && <FieldError msg={errors.images} />}
 
-      <div className="mt-6 pt-6 border-t border-[#262626]">
-        <Label>Video <span className="text-[#525252]">(optional · MP4 / WebM / MOV up to 50MB)</span></Label>
+      <div className="mt-6 pt-6 border-t border-line">
+        <Label>Video <span className="text-ink-muted">(optional · MP4 / WebM / MOV up to 50MB)</span></Label>
 
         {form.video_url ? (
-          <div className="border border-[#262626] p-3" data-testid="editor-video-preview">
+          <div className="border border-line p-3" data-testid="editor-video-preview">
             <video
               src={form.video_url} controls preload="metadata"
               className="w-full max-h-64 bg-black"
             />
             <div className="flex items-center justify-between mt-3 gap-3">
-              <span className="font-mono text-[10px] text-[#737373] truncate">{form.video_url}</span>
+              <span className="font-mono text-[10px] text-ink-muted truncate">{form.video_url}</span>
               <button
                 type="button" onClick={removeVideo}
-                className="px-2 py-1 border border-[#262626] hover:border-red-400 hover:text-red-400 font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1"
+                className="px-2 py-1 border border-line hover:border-red-400 hover:text-red-400 font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1"
                 data-testid="editor-video-remove"
               >
                 <Trash2 size={10} /> Remove
@@ -332,7 +332,7 @@ export default function MediaSection({
               <button
                 type="button" onClick={() => videoFileRef.current?.click()}
                 disabled={!!videoUploading}
-                className="border border-dashed border-[#404040] hover:border-[#ff4500] hover:text-[#ff4500] text-[#a3a3a3] flex items-center justify-center gap-2 py-6 transition disabled:opacity-50"
+                className="border border-dashed border-line hover:border-brand hover:text-brand text-ink-muted flex items-center justify-center gap-2 py-6 transition disabled:opacity-50"
                 data-testid="editor-video-upload"
               >
                 <Upload size={16} />
@@ -340,7 +340,7 @@ export default function MediaSection({
                   {videoUploading ? `Uploading… ${videoUploading}%` : "Upload from computer"}
                 </span>
               </button>
-              <div className="flex items-center justify-center font-mono text-[10px] text-[#525252] uppercase tracking-[0.22em]">
+              <div className="flex items-center justify-center font-mono text-[10px] text-ink-muted uppercase tracking-[0.22em]">
                 — or paste URL —
               </div>
             </div>
@@ -348,7 +348,7 @@ export default function MediaSection({
               type="url" value={form.video_url}
               onChange={(e) => set({ video_url: e.target.value })}
               placeholder="https://… or hosted YouTube/Vimeo link"
-              className="w-full mt-3 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm"
+              className="w-full mt-3 bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm"
               data-testid="editor-video-url"
             />
           </>
@@ -359,7 +359,7 @@ export default function MediaSection({
           onChange={onPickVideo} data-testid="editor-video-input"
         />
         {videoErr && <FieldError msg={videoErr} />}
-        <p className="font-mono text-[10px] text-[#525252] mt-2">
+        <p className="font-mono text-[10px] text-ink-muted mt-2">
           ◆ JPG · PNG · GIF · WEBP · max 5MB per photo. Videos served from R2 CDN — no transcoding.
         </p>
       </div>

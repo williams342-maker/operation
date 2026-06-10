@@ -163,7 +163,7 @@ export default function PlusMembersTab() {
           onClick={handleReplenish}
           disabled={replenishBusy}
           data-testid="plus-replenish-btn"
-          className="shrink-0 inline-flex items-center justify-center px-4 py-2.5 bg-brand hover:bg-[#ff5722] disabled:opacity-50 text-ink font-mono text-[11px] uppercase tracking-[0.22em] font-bold transition"
+          className="shrink-0 inline-flex items-center justify-center px-4 py-2.5 bg-brand hover:bg-brand-hover disabled:opacity-50 text-ink font-mono text-[11px] uppercase tracking-[0.22em] font-bold transition"
         >
           {replenishBusy ? "Replenishing…" : "Replenish now"}
         </button>

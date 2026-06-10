@@ -33,7 +33,7 @@ export default function PolicyConsent({
 }) {
   return (
     <label
-      className="flex gap-3 items-start cursor-pointer select-none border border-line bg-[#0f0f0f] p-4 hover:border-[#525252] transition"
+      className="flex gap-3 items-start cursor-pointer select-none border border-line bg-paper p-4 hover:border-line transition"
       data-testid={testId}
     >
       <input

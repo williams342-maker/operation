@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { fetchFollowersList } from "../lib/api";
 
 const PALETTE = [
-  "bg-[#ff4500]/20 text-[#ff4500] border-[#ff4500]/40",
+  "bg-brand/20 text-brand border-brand/40",
   "bg-emerald-500/15 text-emerald-300 border-emerald-700/40",
   "bg-yellow-500/15 text-yellow-300 border-yellow-700/40",
   "bg-purple-500/15 text-purple-300 border-purple-700/40",
@@ -39,8 +39,8 @@ export default function FollowersList({ makerSlug }) {
   if (loading) return null;
 
   return (
-    <section id="followers" className="mt-20 pt-12 border-t border-[#262626] scroll-mt-32" data-testid="followers-section">
-      <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-3">
+    <section id="followers" className="mt-20 pt-12 border-t border-line scroll-mt-32" data-testid="followers-section">
+      <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-3">
         ◆ Followers
       </div>
       <h2 className="font-display text-3xl md:text-5xl uppercase mb-8">
@@ -52,15 +52,15 @@ export default function FollowersList({ makerSlug }) {
       </h2>
 
       {data.items.length === 0 ? (
-        <p className="font-mono text-sm text-[#a3a3a3]" data-testid="followers-empty">
-          No followers yet. Hit the <span className="text-[#ff4500]">+ Follow</span> button up top to get an email every time this maker drops a new piece.
+        <p className="font-mono text-sm text-ink-muted" data-testid="followers-empty">
+          No followers yet. Hit the <span className="text-brand">+ Follow</span> button up top to get an email every time this maker drops a new piece.
         </p>
       ) : (
         <div className="flex flex-wrap gap-3" data-testid="followers-grid">
           {data.items.map((f, i) => (
             <div
               key={`${f.name}-${i}`}
-              className="flex items-center gap-3 px-3 py-2 border border-[#262626] hover:border-[#ff4500]/40 transition"
+              className="flex items-center gap-3 px-3 py-2 border border-line hover:border-brand/40 transition"
               data-testid={`follower-${i}`}
               title={`Following since ${f.since}`}
             >
@@ -69,11 +69,11 @@ export default function FollowersList({ makerSlug }) {
               >
                 {f.initial}
               </div>
-              <div className="font-mono text-xs text-[#e5e5e5] truncate max-w-[140px]">{f.name}</div>
+              <div className="font-mono text-xs text-ink truncate max-w-[140px]">{f.name}</div>
             </div>
           ))}
           {data.total > data.items.length && (
-            <div className="flex items-center px-3 py-2 border border-[#262626] font-mono text-xs text-[#a3a3a3]">
+            <div className="flex items-center px-3 py-2 border border-line font-mono text-xs text-ink-muted">
               +{data.total - data.items.length} more
             </div>
           )}

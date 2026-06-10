@@ -275,7 +275,7 @@ export default function PromoteWizard({ onComplete, onDismiss, initialStep = 1, 
                     onClick={() => setGoal(g.id)}
                     className={`w-full text-left p-4 border flex items-start gap-3 transition-colors ${
                       active
-                        ? "border-brand bg-[#1a0e08]"
+                        ? "border-brand bg-brand/10"
                         : "border-line hover:border-ink-muted"
                     }`}
                     data-testid={`promote-wizard-goal-${g.id}`}

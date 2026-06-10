@@ -31,13 +31,13 @@ export default function MakerStripeReturn() {
 
   return (
     <div className="pt-40 pb-24 min-h-screen grain text-center px-4" data-testid="stripe-return">
-      <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-4">
+      <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-4">
         ◆ Stripe Connect
       </div>
       <h1 className="font-display text-[56px] md:text-[100px] leading-[0.88] mb-6 uppercase">
         {ready ? "You're In." : status ? "Almost There." : "Checking…"}
       </h1>
-      <p className="font-mono text-sm text-[#a3a3a3] max-w-lg mx-auto mb-10">
+      <p className="font-mono text-sm text-ink-muted max-w-lg mx-auto mb-10">
         {ready
           ? "Your Stripe account is fully connected. Future paid orders will transfer your share automatically (10% platform fee retained)."
           : status

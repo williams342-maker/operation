@@ -577,7 +577,7 @@ function MegaMenuHotPreview() {
               aria-label={`Show preview ${i + 1} of ${cycleLen}`}
               onClick={() => setIdx(i)}
               className={`h-1 transition-all duration-300 ${
-                i === idx ? "w-5 bg-brand" : "w-2 bg-line hover:bg-[#525252]"
+                i === idx ? "w-5 bg-brand" : "w-2 bg-line hover:bg-ink-muted"
               }`}
               data-testid={`megamenu-hot-dot-${i}`}
             />

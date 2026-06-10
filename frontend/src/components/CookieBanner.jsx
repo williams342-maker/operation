@@ -89,7 +89,7 @@ export default function CookieBanner() {
             onClick={() => setCustomize((s) => !s)}
             aria-expanded={customize}
             aria-controls="cookie-banner-customize-panel"
-            className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2.5 border border-line hover:border-[#525252] text-ink-muted hover:text-ink font-mono text-[10px] uppercase tracking-[0.22em] transition"
+            className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2.5 border border-line hover:border-line text-ink-muted hover:text-ink font-mono text-[10px] uppercase tracking-[0.22em] transition"
             data-testid="cookie-banner-customize"
           >
             Customize
@@ -98,7 +98,7 @@ export default function CookieBanner() {
           <button
             type="button"
             onClick={onReject}
-            className="px-4 py-2.5 border border-line hover:border-[#525252] text-ink-muted hover:text-ink font-mono text-[10px] uppercase tracking-[0.22em] transition flex-1 md:flex-none"
+            className="px-4 py-2.5 border border-line hover:border-line text-ink-muted hover:text-ink font-mono text-[10px] uppercase tracking-[0.22em] transition flex-1 md:flex-none"
             data-testid="cookie-banner-reject"
           >
             Reject all
@@ -106,7 +106,7 @@ export default function CookieBanner() {
           <button
             type="button"
             onClick={onAccept}
-            className="px-5 py-2.5 bg-brand hover:bg-[#cc3700] text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] font-bold transition flex-1 md:flex-none"
+            className="px-5 py-2.5 bg-brand hover:bg-brand-hover text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] font-bold transition flex-1 md:flex-none"
             data-testid="cookie-banner-accept"
           >
             Accept all
@@ -130,14 +130,14 @@ export default function CookieBanner() {
       {customize && (
         <div
           id="cookie-banner-customize-panel"
-          className="border-t border-line bg-[#0d0d0d]"
+          className="border-t border-line bg-surface"
           data-testid="cookie-banner-customize-panel"
         >
           <div className="max-w-[1300px] mx-auto px-4 md:px-8 py-4 md:py-5 flex flex-col md:flex-row items-start md:items-center gap-4 md:gap-6">
             <div className="flex-1 grid sm:grid-cols-2 gap-3 w-full">
               <label
                 htmlFor="cookie-toggle-analytics"
-                className="flex items-start gap-3 p-3 border border-line hover:border-[#525252] cursor-pointer transition"
+                className="flex items-start gap-3 p-3 border border-line hover:border-line cursor-pointer transition"
                 data-testid="cookie-customize-analytics-row"
               >
                 <input
@@ -159,7 +159,7 @@ export default function CookieBanner() {
               </label>
               <label
                 htmlFor="cookie-toggle-ads"
-                className="flex items-start gap-3 p-3 border border-line hover:border-[#525252] cursor-pointer transition"
+                className="flex items-start gap-3 p-3 border border-line hover:border-line cursor-pointer transition"
                 data-testid="cookie-customize-ads-row"
               >
                 <input

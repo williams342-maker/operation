@@ -39,7 +39,7 @@ export default function VelocityProofStrip({ testId = "velocity-proof" }) {
       >
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="border border-[#1f1f1f] bg-[#0d0d0d] p-4 md:p-5 h-[90px] animate-pulse" />
+            <div key={i} className="border border-line bg-surface p-4 md:p-5 h-[90px] animate-pulse" />
           ))}
         </div>
       </section>
@@ -113,28 +113,28 @@ export default function VelocityProofStrip({ testId = "velocity-proof" }) {
         {visibleTiles.map((t) => (
           <div
             key={t.key}
-            className="relative border border-[#1f1f1f] bg-[#0d0d0d] p-4 md:p-5 hover:border-[#ff4500]/40 transition group"
+            className="relative border border-line bg-surface p-4 md:p-5 hover:border-brand/40 transition group"
             data-testid={`${testId}-${t.key}`}
           >
             {/* Live-pulse dot — subtle "real time" cue */}
             <span className="absolute top-3 right-3 flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 bg-[#ff4500] animate-pulse" aria-hidden="true" />
-              <span className="font-mono text-[8px] uppercase tracking-[0.22em] text-[#525252]">live</span>
+              <span className="w-1.5 h-1.5 bg-brand animate-pulse" aria-hidden="true" />
+              <span className="font-mono text-[8px] uppercase tracking-[0.22em] text-ink-muted">live</span>
             </span>
             <div className="flex items-baseline gap-2 mb-1.5">
-              <span className="text-[#ff4500] group-hover:scale-110 transition-transform">{t.icon}</span>
+              <span className="text-brand group-hover:scale-110 transition-transform">{t.icon}</span>
               <span
-                className="font-display text-3xl md:text-4xl text-[#e5e5e5] leading-none"
+                className="font-display text-3xl md:text-4xl text-ink leading-none"
                 data-testid={`${testId}-${t.key}-value`}
               >
                 {t.value}
               </span>
             </div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] leading-snug">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted leading-snug">
               {t.label}
             </div>
             {t.sub && (
-              <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#525252] mt-1.5">
+              <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-ink-muted mt-1.5">
                 {t.sub}
               </div>
             )}

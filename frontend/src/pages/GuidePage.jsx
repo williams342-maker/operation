@@ -99,7 +99,7 @@ export default function GuidePage({ config }) {
           ]}
           testId={`guide-breadcrumbs-${slug}`}
         />
-        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-4">
+        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-4">
           ◆ {eyebrow}
         </div>
         <h1
@@ -108,11 +108,11 @@ export default function GuidePage({ config }) {
         >
           {h1}
         </h1>
-        <p className="font-mono text-base text-[#e5e5e5] max-w-3xl leading-relaxed mb-6">
+        <p className="font-mono text-base text-ink max-w-3xl leading-relaxed mb-6">
           {intro}
         </p>
         {publishedAt && (
-          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] mb-12">
+          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-12">
             ◆ Published {new Date(publishedAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
             {updatedAt && updatedAt !== publishedAt && (
               <> · Updated {new Date(updatedAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</>
@@ -122,7 +122,7 @@ export default function GuidePage({ config }) {
 
         {/* Body sections */}
         {sections.length > 0 && (
-          <div className="border-t border-[#262626] pt-12 space-y-14">
+          <div className="border-t border-line pt-12 space-y-14">
             {sections.map((section, idx) => (
               <section
                 key={idx}
@@ -135,7 +135,7 @@ export default function GuidePage({ config }) {
                 {section.paragraphs.map((p, pi) => (
                   <p
                     key={pi}
-                    className="font-mono text-sm md:text-base text-[#a3a3a3] leading-relaxed mb-4"
+                    className="font-mono text-sm md:text-base text-ink-muted leading-relaxed mb-4"
                   >
                     {p}
                   </p>
@@ -145,9 +145,9 @@ export default function GuidePage({ config }) {
                     {section.list.map((li, li_idx) => (
                       <li
                         key={li_idx}
-                        className="font-mono text-sm text-[#e5e5e5] pl-5 relative leading-relaxed"
+                        className="font-mono text-sm text-ink pl-5 relative leading-relaxed"
                       >
-                        <span className="absolute left-0 top-2 w-2 h-2 bg-[#ff4500]" />
+                        <span className="absolute left-0 top-2 w-2 h-2 bg-brand" />
                         {li}
                       </li>
                     ))}
@@ -160,8 +160,8 @@ export default function GuidePage({ config }) {
 
         {/* FAQ */}
         {faqs.length > 0 && (
-          <div className="border-t border-[#262626] mt-20 pt-12" data-testid={`guide-faq-${slug}`}>
-            <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-3">
+          <div className="border-t border-line mt-20 pt-12" data-testid={`guide-faq-${slug}`}>
+            <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-3">
               ◆ FAQ
             </div>
             <h2 className="font-display text-3xl md:text-5xl uppercase mb-8">
@@ -171,14 +171,14 @@ export default function GuidePage({ config }) {
               {faqs.map(({ q, a }, idx) => (
                 <details
                   key={idx}
-                  className="border border-[#262626] bg-[#0a0a0a] open:border-[#ff4500] transition"
+                  className="border border-line bg-paper open:border-brand transition"
                   data-testid={`guide-faq-item-${slug}-${idx}`}
                 >
-                  <summary className="cursor-pointer list-none p-4 flex items-start justify-between gap-4 font-mono text-sm text-[#e5e5e5] hover:text-[#ff4500]">
+                  <summary className="cursor-pointer list-none p-4 flex items-start justify-between gap-4 font-mono text-sm text-ink hover:text-brand">
                     <span className="flex-1">{q}</span>
                     <span className="font-display text-xl shrink-0">+</span>
                   </summary>
-                  <div className="px-4 pb-4 pt-2 border-t border-[#262626] font-mono text-sm text-[#a3a3a3] leading-relaxed">
+                  <div className="px-4 pb-4 pt-2 border-t border-line font-mono text-sm text-ink-muted leading-relaxed">
                     {a}
                   </div>
                 </details>
@@ -188,8 +188,8 @@ export default function GuidePage({ config }) {
         )}
 
         {/* CTAs */}
-        <div className="border-t border-[#262626] mt-20 pt-12">
-          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-3">
+        <div className="border-t border-line mt-20 pt-12">
+          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-3">
             ◆ Ready to commission?
           </div>
           <h2 className="font-display text-3xl md:text-5xl uppercase mb-6 max-w-3xl leading-tight">
@@ -210,8 +210,8 @@ export default function GuidePage({ config }) {
 
         {/* Related links */}
         {relatedLinks.length > 0 && (
-          <div className="border-t border-[#262626] mt-20 pt-12" data-testid={`guide-related-${slug}`}>
-            <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-3">
+          <div className="border-t border-line mt-20 pt-12" data-testid={`guide-related-${slug}`}>
+            <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-3">
               ◆ Related categories &amp; guides
             </div>
             <h2 className="font-display text-3xl md:text-5xl uppercase mb-8">
@@ -222,14 +222,14 @@ export default function GuidePage({ config }) {
                 <Link
                   key={idx}
                   to={to}
-                  className="group border border-[#262626] hover:border-[#ff4500] p-5 transition block"
+                  className="group border border-line hover:border-brand p-5 transition block"
                   data-testid={`guide-related-link-${slug}-${idx}`}
                 >
-                  <div className="font-display text-xl mb-2 group-hover:text-[#ff4500] transition">
+                  <div className="font-display text-xl mb-2 group-hover:text-brand transition">
                     {label} →
                   </div>
                   {blurb && (
-                    <p className="font-mono text-[11px] text-[#737373] leading-relaxed">
+                    <p className="font-mono text-[11px] text-ink-muted leading-relaxed">
                       {blurb}
                     </p>
                   )}

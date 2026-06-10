@@ -107,7 +107,7 @@ function SummaryCard({ counts }) {
       <div className="mt-4 flex items-center justify-between gap-2 text-[10px] font-mono uppercase tracking-[0.22em]">
         <span className="text-ink-muted">
           <span className="text-emerald-400">●</span> {counts.total_auto} auto-renew
-          <span className="mx-2 text-[#262626]">·</span>
+          <span className="mx-2 text-ink-muted/40">·</span>
           <span className="text-amber-400">●</span> {counts.total_manual} manual
         </span>
         <button

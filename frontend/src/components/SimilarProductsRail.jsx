@@ -29,12 +29,12 @@ export default function SimilarProductsRail({ slug, testId = "similar-products-r
   if (!items || items.length === 0) return null;
 
   return (
-    <section className="w-full py-12 md:py-16 border-t border-[#262626]" data-testid={testId}>
+    <section className="w-full py-12 md:py-16 border-t border-line" data-testid={testId}>
       <div className="w-full max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12">
         <div className="flex items-end justify-between mb-8 gap-4 flex-wrap">
           <div>
-            <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-2 inline-flex items-center gap-2">
-              <Sparkles size={12} className="text-[#ff4500]" />
+            <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-2 inline-flex items-center gap-2">
+              <Sparkles size={12} className="text-brand" />
               ◆ More like this · AI-ranked
             </div>
             <h2 className="font-display text-3xl md:text-4xl">
@@ -51,7 +51,7 @@ export default function SimilarProductsRail({ slug, testId = "similar-products-r
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.1 }}
               transition={{ delay: i * 0.06, duration: 0.4 }}
-              className="bg-[#121212] border border-[#262626] hover:border-[#ff4500] transition-colors duration-500 flex flex-col"
+              className="bg-surface border border-line hover:border-brand transition-colors duration-500 flex flex-col"
               data-testid={`${testId}-card-${p.slug}`}
             >
               <Link to={`/shop/${p.slug}`} className="block group">
@@ -67,25 +67,25 @@ export default function SimilarProductsRail({ slug, testId = "similar-products-r
                       ✦ EXAMPLE
                     </span>
                   )}
-                  <span className="tag absolute top-2 right-2 text-[#ff4500] border-[#ff4500] bg-black/70 text-[9px]">
+                  <span className="tag absolute top-2 right-2 text-brand border-brand bg-black/70 text-[9px]">
                     {p.technique}
                   </span>
                 </div>
                 <div className="p-3">
                   <div className="font-display text-base leading-tight line-clamp-2 min-h-[2.5rem] mb-1">{p.title}</div>
-                  <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#737373] mb-3">
+                  <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-3">
                     ${p.price?.toFixed(0)}
                   </div>
                   {p.match_reason && (
                     <div
-                      className="border-l-2 border-[#ff4500] pl-2 text-[11px] text-[#a3a3a3] leading-snug italic mb-2"
+                      className="border-l-2 border-brand pl-2 text-[11px] text-ink-muted leading-snug italic mb-2"
                       data-testid={`${testId}-reason-${p.slug}`}
                     >
                       {p.match_reason}
                     </div>
                   )}
-                  <div className="flex items-center justify-end pt-2 border-t border-[#262626]">
-                    <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] inline-flex items-center gap-1 group-hover:gap-2 transition-all">
+                  <div className="flex items-center justify-end pt-2 border-t border-line">
+                    <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand inline-flex items-center gap-1 group-hover:gap-2 transition-all">
                       View <ArrowUpRight size={11} />
                     </span>
                   </div>

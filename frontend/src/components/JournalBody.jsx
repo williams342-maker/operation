@@ -44,7 +44,7 @@ function renderInline(text, keyPrefix) {
         key={`${keyPrefix}-img-${i++}`}
         src={imgMatch[2]}
         alt={imgMatch[1] || ""}
-        className="block w-full my-6 border border-[#262626]"
+        className="block w-full my-6 border border-line"
         loading="lazy"
       />,
     );
@@ -73,7 +73,7 @@ function renderLinks(text, keyPrefix) {
         href={m[2]}
         target="_blank"
         rel="noopener noreferrer nofollow"
-        className="text-[#ff4500] underline underline-offset-2 hover:text-[#ff8c42]"
+        className="text-brand underline underline-offset-2 hover:text-[#ff8c42]"
       >
         {m[1]}
       </a>,
@@ -108,7 +108,7 @@ function autolink(text, keyPrefix) {
         href={url}
         target="_blank"
         rel="noopener noreferrer nofollow"
-        className="text-[#ff4500] underline underline-offset-2 hover:text-[#ff8c42] break-all"
+        className="text-brand underline underline-offset-2 hover:text-[#ff8c42] break-all"
       >
         {url}
       </a>,
@@ -145,7 +145,7 @@ export default function JournalBody({ body }) {
         return (
           <p
             key={`para-${idx}`}
-            className="font-mono text-base text-[#e5e5e5] leading-relaxed"
+            className="font-mono text-base text-ink leading-relaxed"
           >
             {renderInline(para, `para-${idx}`)}
           </p>

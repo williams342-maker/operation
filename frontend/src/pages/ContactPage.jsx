@@ -43,7 +43,7 @@ export default function ContactPage() {
   return (
     <div className="pt-32 pb-24 grain min-h-screen" data-testid="contact-page">
       <div className="max-w-[1100px] mx-auto px-4 md:px-8">
-        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-4">
+        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-4">
           ◆ Get in Touch
         </div>
         <h1 className="font-display text-[56px] md:text-[100px] leading-[0.88] uppercase mb-12">
@@ -56,8 +56,8 @@ export default function ContactPage() {
             <Block icon={<MapPin />} title="Service area" value="Continental US — ships nationwide" />
             <Block icon={<Instagram />} title="Instagram" value="@craftersmarket" href="https://instagram.com/" />
 
-            <div className="pt-6 border-t border-[#262626]">
-              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">
+            <div className="pt-6 border-t border-line">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
                 Custom orders
               </div>
               <a href="/custom-order" className="btn-industrial btn-primary inline-flex" data-testid="contact-custom-link">
@@ -65,24 +65,24 @@ export default function ContactPage() {
               </a>
             </div>
             <div>
-              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
                 Want to sell?
               </div>
-              <a href="/apply" className="btn-industrial inline-flex border border-[#262626] hover:border-[#ff4500]" data-testid="contact-apply-link">
+              <a href="/apply" className="btn-industrial inline-flex border border-line hover:border-brand" data-testid="contact-apply-link">
                 Apply to the maker program →
               </a>
             </div>
           </div>
 
-          <div className="border border-[#262626] p-6 md:p-10 bg-[#121212] h-fit space-y-6">
+          <div className="border border-line p-6 md:p-10 bg-surface h-fit space-y-6">
             <div>
-              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mb-3">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-3">
                 ◆ Send us a message
               </div>
               <h3 className="font-display text-3xl mb-2 leading-tight">
                 We reply within 24 hours, weekdays.
               </h3>
-              <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed mb-6">
+              <p className="font-mono text-xs text-ink-muted leading-relaxed mb-6">
                 Use the form below — it lands directly in our team inbox and you'll get an instant confirmation reply.
               </p>
             </div>
@@ -132,8 +132,8 @@ function ContactForm() {
         <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-400">
           <Check size={14} /> Message sent
         </div>
-        <p className="font-mono text-sm text-[#e5e5e5] mt-3 leading-relaxed">
-          Thanks {name.split(" ")[0]} — we'll be back at <span className="text-[#ff4500]">{email}</span> within 24 business hours. A confirmation copy is on its way to your inbox now.
+        <p className="font-mono text-sm text-ink mt-3 leading-relaxed">
+          Thanks {name.split(" ")[0]} — we'll be back at <span className="text-brand">{email}</span> within 24 business hours. A confirmation copy is on its way to your inbox now.
         </p>
         <button
           type="button"
@@ -141,7 +141,7 @@ function ContactForm() {
             setDone(false); setName(""); setEmail(""); setTopic("general");
             setSubject(""); setMessage("");
           }}
-          className="mt-4 font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500]"
+          className="mt-4 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand"
           data-testid="contact-form-send-another"
         >
           Send another →
@@ -150,7 +150,7 @@ function ContactForm() {
     );
   }
 
-  const inputCls = "w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2.5 font-mono text-sm text-[#e5e5e5]";
+  const inputCls = "w-full bg-paper border border-line focus:border-brand outline-none px-3 py-2.5 font-mono text-sm text-ink";
   return (
     <form onSubmit={submit} className="space-y-3" data-testid="contact-form" noValidate>
       {/* Honeypot field — hidden via CSS, real users never see it. */}
@@ -165,14 +165,14 @@ function ContactForm() {
       />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <label className="block">
-          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Name *</span>
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Name *</span>
           <input
             type="text" required value={name} onChange={(e) => setName(e.target.value)}
             className={`${inputCls} mt-1`} data-testid="contact-form-name"
           />
         </label>
         <label className="block">
-          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Email *</span>
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Email *</span>
           <input
             type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
             className={`${inputCls} mt-1`} placeholder="you@studio.com" data-testid="contact-form-email"
@@ -180,7 +180,7 @@ function ContactForm() {
         </label>
       </div>
       <label className="block">
-        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Topic</span>
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Topic</span>
         <select
           value={topic} onChange={(e) => setTopic(e.target.value)}
           className={`${inputCls} mt-1`} data-testid="contact-form-topic"
@@ -189,14 +189,14 @@ function ContactForm() {
         </select>
       </label>
       <label className="block">
-        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Subject (optional)</span>
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Subject (optional)</span>
         <input
           type="text" value={subject} onChange={(e) => setSubject(e.target.value)}
           className={`${inputCls} mt-1`} placeholder="Quick summary" data-testid="contact-form-subject"
         />
       </label>
       <label className="block">
-        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Message *</span>
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Message *</span>
         <textarea
           required rows={6} value={message} onChange={(e) => setMessage(e.target.value)}
           className={`${inputCls} mt-1 resize-none leading-relaxed`}
@@ -211,7 +211,7 @@ function ContactForm() {
       >
         {busy ? (<><Loader2 size={14} className="animate-spin" /> Sending…</>) : (<><Send size={14} /> Send message</>)}
       </button>
-      <p className="font-mono text-[10px] text-[#525252] leading-relaxed">
+      <p className="font-mono text-[10px] text-ink-muted leading-relaxed">
         We use this form to reply to you — your email is never shared, sold, or added to any marketing list.
       </p>
     </form>
@@ -221,15 +221,15 @@ function ContactForm() {
 const Block = ({ icon, title, value, href }) => {
   const inner = (
     <>
-      <span className="text-[#ff4500]">{icon}</span>
+      <span className="text-brand">{icon}</span>
       <div>
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">{title}</div>
-        <div className="font-display text-2xl text-[#e5e5e5] mt-1">{value}</div>
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">{title}</div>
+        <div className="font-display text-2xl text-ink mt-1">{value}</div>
       </div>
     </>
   );
   return href ? (
-    <a href={href} className="flex items-start gap-4 hover:text-[#ff4500] transition" data-testid={`contact-${title.toLowerCase()}`}>{inner}</a>
+    <a href={href} className="flex items-start gap-4 hover:text-brand transition" data-testid={`contact-${title.toLowerCase()}`}>{inner}</a>
   ) : (
     <div className="flex items-start gap-4">{inner}</div>
   );

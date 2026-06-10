@@ -51,7 +51,7 @@ export default function BuiltByMakers() {
   return (
     <section
       data-testid="built-by-makers"
-      className="relative border-t border-line bg-[#080808] py-20 md:py-24 px-6"
+      className="relative border-t border-line bg-paper py-20 md:py-24 px-6"
     >
       {/* Subtle radial glow centered behind the title — never distracting */}
       <div className="absolute inset-0 pointer-events-none" aria-hidden="true">

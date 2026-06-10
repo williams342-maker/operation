@@ -559,7 +559,7 @@ function CopyField({ label, value, testId }) {
     } catch (_) { /* ignore */ }
   };
   return (
-    <div className="flex items-center gap-2 p-3 border border-line bg-[#0e0e0e]">
+    <div className="flex items-center gap-2 p-3 border border-line bg-paper">
       <div className="flex-1">
         <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted">{label}</div>
         <div className="font-mono text-sm text-ink break-all" data-testid={testId}>{value}</div>

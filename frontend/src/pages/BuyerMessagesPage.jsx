@@ -36,11 +36,11 @@ export default function BuyerMessagesPage() {
     <div className="pt-32 pb-24 grain min-h-screen" data-testid="buyer-messages-page">
       <div className="w-full max-w-[1500px] mx-auto px-4 md:px-8">
         <header className="mb-6">
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">
             ◆ Messages
           </div>
           <h1 className="font-display text-4xl md:text-5xl uppercase">Inbox</h1>
-          <p className="font-mono text-[11px] text-[#a3a3a3] mt-1">
+          <p className="font-mono text-[11px] text-ink-muted mt-1">
             Conversations with the makers behind your orders + custom requests.
           </p>
         </header>

@@ -131,7 +131,7 @@ function DisputeRow({ dispute, onResolve }) {
         <span className={`px-2 py-0.5 border font-mono text-[9px] uppercase tracking-[0.22em] ${
           dispute.status === "open" ? "border-amber-500/50 text-amber-400 bg-amber-500/10"
           : dispute.status === "upheld" ? "border-emerald-500/50 text-emerald-400 bg-emerald-500/10"
-          : "border-[#525252] text-ink-muted"
+          : "border-line text-ink-muted"
         }`}>
           {dispute.status}
         </span>
@@ -188,7 +188,7 @@ function DisputeRow({ dispute, onResolve }) {
           <button
             type="button"
             onClick={() => onResolve("denied")}
-            className="px-3 py-2 border border-[#525252] text-ink-muted hover:border-ink hover:text-ink font-mono text-[10px] uppercase tracking-[0.22em]"
+            className="px-3 py-2 border border-line text-ink-muted hover:border-ink hover:text-ink font-mono text-[10px] uppercase tracking-[0.22em]"
             data-testid={`dispute-deny-${dispute.id}`}
           >
             <X size={12} className="inline mr-1" />
@@ -222,7 +222,7 @@ function ResolveDialog({ dispute, status, onCancel, onResolved }) {
       setBusy(false);
     }
   };
-  const verdictColor = status === "upheld" ? "border-emerald-500" : "border-[#525252]";
+  const verdictColor = status === "upheld" ? "border-emerald-500" : "border-line";
   return (
     <div
       className="fixed inset-0 z-[100] bg-paper/80 flex items-center justify-center p-4"

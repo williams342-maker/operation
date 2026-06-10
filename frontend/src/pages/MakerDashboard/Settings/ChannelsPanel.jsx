@@ -42,7 +42,7 @@ export default function ChannelsPanel({ maker }) {
       {/* Hero / explainer */}
       <div className="border border-line bg-paper p-6">
         <div className="flex items-start gap-4">
-          <div className="w-10 h-10 border border-brand bg-[#1a0a05] flex items-center justify-center shrink-0">
+          <div className="w-10 h-10 border border-brand bg-brand/10 flex items-center justify-center shrink-0">
             <Globe size={18} className="text-brand" />
           </div>
           <div className="min-w-0">

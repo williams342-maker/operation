@@ -1214,7 +1214,7 @@ function CapRow({ data, reload }) {
         </div>
       </div>
       <div className="flex items-center gap-2">
-        <div className="flex items-center border border-line bg-[#0e0e0e]">
+        <div className="flex items-center border border-line bg-paper">
           <span className="px-2 font-mono text-xs text-ink-muted">$</span>
           <input
             type="number"

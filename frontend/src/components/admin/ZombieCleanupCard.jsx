@@ -122,7 +122,7 @@ export default function ZombieCleanupCard() {
               {items.slice(0, 200).map((it) => (
                 <tr key={it.slug} className="hover:bg-paper transition" data-testid={`zombie-row-${it.slug}`}>
                   <td className="px-3 py-2.5">
-                    <div className="text-[#fafafa] truncate max-w-[280px]">{it.title}</div>
+                    <div className="text-ink truncate max-w-[280px]">{it.title}</div>
                     <a
                       href={`/shop/${it.slug}`}
                       target="_blank"

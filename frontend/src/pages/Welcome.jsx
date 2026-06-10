@@ -145,14 +145,14 @@ export default function Welcome() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-[#e5e5e5] pt-40 md:pt-36 pb-20 px-4 md:px-8 relative">
+    <div className="min-h-screen bg-paper text-ink pt-40 md:pt-36 pb-20 px-4 md:px-8 relative">
       {/* Top progress + skip */}
       <div className="max-w-3xl mx-auto mb-8 flex items-center justify-between">
         <ProgressDots active={step} total={5} />
         <button
           type="button"
           onClick={skip}
-          className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] hover:text-[#ff4500] inline-flex items-center gap-1.5"
+          className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand inline-flex items-center gap-1.5"
           data-testid="welcome-skip"
         >
           Just browsing <X size={11} />
@@ -196,10 +196,10 @@ function ProgressDots({ active, total }) {
           key={i}
           className={`h-1 transition-all ${
             i + 1 === active
-              ? "w-8 bg-[#ff4500]"
+              ? "w-8 bg-brand"
               : i + 1 < active
-                ? "w-4 bg-[#ff4500]/40"
-                : "w-4 bg-[#262626]"
+                ? "w-4 bg-brand/40"
+                : "w-4 bg-line"
           }`}
         />
       ))}
@@ -223,9 +223,9 @@ function Step1Welcome({ onNext }) {
       </div>
       <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl leading-[0.95] mb-6">
         A marketplace where<br />
-        <span className="text-[#ff4500]">makers don’t get buried.</span>
+        <span className="text-brand">makers don’t get buried.</span>
       </h1>
-      <p className="font-mono text-sm text-[#a3a3a3] leading-relaxed mb-10 max-w-xl">
+      <p className="font-mono text-sm text-ink-muted leading-relaxed mb-10 max-w-xl">
         Discover handmade work, share your creations, and build your audience
         without algorithm chaos.
       </p>
@@ -233,7 +233,7 @@ function Step1Welcome({ onNext }) {
         <button
           type="button"
           onClick={onNext}
-          className="inline-flex items-center gap-2 px-5 py-3 bg-[#ff4500] hover:bg-[#ff6a2a] text-black font-mono text-[11px] uppercase tracking-[0.22em] font-bold transition"
+          className="inline-flex items-center gap-2 px-5 py-3 bg-brand hover:bg-brand-hover text-black font-mono text-[11px] uppercase tracking-[0.22em] font-bold transition"
           data-testid="welcome-step1-continue"
         >
           Get started <ArrowRight size={14} />
@@ -252,7 +252,7 @@ function Step2Path({ onPick, onBack, busy }) {
       <h2 className="font-display text-3xl sm:text-4xl mb-3">
         What brings you to Crafters Market?
       </h2>
-      <p className="font-mono text-xs text-[#a3a3a3] mb-8">
+      <p className="font-mono text-xs text-ink-muted mb-8">
         We’ll personalize your next step. You can change paths anytime.
       </p>
       <div className="grid sm:grid-cols-3 gap-4">
@@ -264,12 +264,12 @@ function Step2Path({ onPick, onBack, busy }) {
               type="button"
               disabled={busy}
               onClick={() => onPick(p.id)}
-              className="text-left p-5 border border-[#262626] hover:border-[#ff4500] bg-[#0d0d0d] hover:bg-[#0d0d0d]/80 disabled:opacity-40 transition group"
+              className="text-left p-5 border border-line hover:border-brand bg-surface hover:bg-surface/80 disabled:opacity-40 transition group"
               data-testid={`welcome-path-${p.id}`}
             >
-              <Icon size={20} className="text-[#ff4500] mb-4 group-hover:scale-110 transition-transform" />
+              <Icon size={20} className="text-brand mb-4 group-hover:scale-110 transition-transform" />
               <div className="font-display text-lg mb-2 leading-tight">{p.label}</div>
-              <p className="font-mono text-[11px] text-[#a3a3a3] leading-relaxed">{p.blurb}</p>
+              <p className="font-mono text-[11px] text-ink-muted leading-relaxed">{p.blurb}</p>
             </button>
           );
         })}
@@ -278,7 +278,7 @@ function Step2Path({ onPick, onBack, busy }) {
         <button
           type="button"
           onClick={onBack}
-          className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] hover:text-[#a3a3a3]"
+          className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-ink-muted"
           data-testid="welcome-step2-back"
         >
           <ArrowLeft size={11} /> Back
@@ -296,7 +296,7 @@ function Step3Values({ onNext, onBack }) {
       </div>
       <h2 className="font-display text-3xl sm:text-4xl mb-8">
         Built for makers.<br />
-        <span className="text-[#ff4500]">Loved by creators.</span>
+        <span className="text-brand">Loved by creators.</span>
       </h2>
       <div className="space-y-4">
         {VALUES.map((v, i) => {
@@ -304,13 +304,13 @@ function Step3Values({ onNext, onBack }) {
           return (
             <div
               key={i}
-              className="flex items-start gap-4 p-5 border border-[#262626] bg-[#0d0d0d]"
+              className="flex items-start gap-4 p-5 border border-line bg-surface"
               data-testid={`welcome-value-${i}`}
             >
-              <Icon size={22} className="text-[#ff4500] flex-shrink-0 mt-1" />
+              <Icon size={22} className="text-brand flex-shrink-0 mt-1" />
               <div>
                 <div className="font-display text-lg mb-1">{v.title}</div>
-                <p className="font-mono text-[11px] text-[#a3a3a3] leading-relaxed">{v.blurb}</p>
+                <p className="font-mono text-[11px] text-ink-muted leading-relaxed">{v.blurb}</p>
               </div>
             </div>
           );
@@ -320,7 +320,7 @@ function Step3Values({ onNext, onBack }) {
         <button
           type="button"
           onClick={onBack}
-          className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] hover:text-[#a3a3a3]"
+          className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-ink-muted"
           data-testid="welcome-step3-back"
         >
           <ArrowLeft size={11} /> Back
@@ -328,7 +328,7 @@ function Step3Values({ onNext, onBack }) {
         <button
           type="button"
           onClick={onNext}
-          className="inline-flex items-center gap-2 px-5 py-3 bg-[#ff4500] hover:bg-[#ff6a2a] text-black font-mono text-[11px] uppercase tracking-[0.22em] font-bold transition"
+          className="inline-flex items-center gap-2 px-5 py-3 bg-brand hover:bg-brand-hover text-black font-mono text-[11px] uppercase tracking-[0.22em] font-bold transition"
           data-testid="welcome-step3-continue"
         >
           Continue <ArrowRight size={14} />
@@ -368,7 +368,7 @@ function Step4FirstAction({ path, completed, onMark, onNext, onBack }) {
       <h2 className="font-display text-3xl sm:text-4xl mb-3">
         Let’s get you set up.
       </h2>
-      <p className="font-mono text-xs text-[#a3a3a3] mb-8">
+      <p className="font-mono text-xs text-ink-muted mb-8">
         Complete these quick steps to make your profile come alive — under 5 minutes.
       </p>
 
@@ -387,20 +387,20 @@ function Step4FirstAction({ path, completed, onMark, onNext, onBack }) {
                 type="button"
                 onClick={() => handleAction(it)}
                 className={`w-full text-left flex items-center gap-4 p-4 border ${
-                  done ? "border-emerald-500/60 bg-emerald-500/[0.04]" : "border-[#262626] hover:border-[#ff4500]"
+                  done ? "border-emerald-500/60 bg-emerald-500/[0.04]" : "border-line hover:border-brand"
                 } transition group`}
                 data-testid={`welcome-action-${it.key}`}
               >
                 <span className={`flex-shrink-0 h-8 w-8 border-2 ${
-                  done ? "border-emerald-500 bg-emerald-500/10 text-emerald-400" : "border-[#262626] text-[#525252]"
+                  done ? "border-emerald-500 bg-emerald-500/10 text-emerald-400" : "border-line text-ink-muted"
                 } flex items-center justify-center font-mono text-xs`}>
                   {done ? <Check size={14} /> : i + 1}
                 </span>
                 <div className="flex-1">
                   <div className="font-display text-base leading-tight">{it.label}</div>
-                  <p className="font-mono text-[10px] text-[#a3a3a3] mt-0.5">{it.blurb}</p>
+                  <p className="font-mono text-[10px] text-ink-muted mt-0.5">{it.blurb}</p>
                 </div>
-                <ArrowRight size={14} className="text-[#525252] group-hover:text-[#ff4500] flex-shrink-0" />
+                <ArrowRight size={14} className="text-ink-muted group-hover:text-brand flex-shrink-0" />
               </button>
             </li>
           );
@@ -410,7 +410,7 @@ function Step4FirstAction({ path, completed, onMark, onNext, onBack }) {
         <button
           type="button"
           onClick={onBack}
-          className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] hover:text-[#a3a3a3]"
+          className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-ink-muted"
           data-testid="welcome-step4-back"
         >
           <ArrowLeft size={11} /> Back
@@ -418,7 +418,7 @@ function Step4FirstAction({ path, completed, onMark, onNext, onBack }) {
         <button
           type="button"
           onClick={onNext}
-          className="inline-flex items-center gap-2 px-5 py-3 bg-[#ff4500] hover:bg-[#ff6a2a] text-black font-mono text-[11px] uppercase tracking-[0.22em] font-bold transition"
+          className="inline-flex items-center gap-2 px-5 py-3 bg-brand hover:bg-brand-hover text-black font-mono text-[11px] uppercase tracking-[0.22em] font-bold transition"
           data-testid="welcome-step4-continue"
         >
           {allDone ? "Take the tour" : "Skip ahead to tour"} <ArrowRight size={14} />
@@ -446,14 +446,14 @@ function Step5Tour({ onFinish, onBack }) {
           {idx + 1} / {TOUR_STOPS.length}
         </div>
         <div className="font-display text-2xl mb-2">{stop.title}</div>
-        <p className="font-mono text-[12px] text-[#a3a3a3] leading-relaxed">{stop.blurb}</p>
+        <p className="font-mono text-[12px] text-ink-muted leading-relaxed">{stop.blurb}</p>
       </div>
 
       <div className="mt-6 flex items-center justify-between gap-3">
         <button
           type="button"
           onClick={idx === 0 ? onBack : () => setIdx(idx - 1)}
-          className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] hover:text-[#a3a3a3]"
+          className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-ink-muted"
           data-testid="welcome-tour-prev"
         >
           <ArrowLeft size={11} /> Back
@@ -462,7 +462,7 @@ function Step5Tour({ onFinish, onBack }) {
           <button
             type="button"
             onClick={onFinish}
-            className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] hover:text-[#a3a3a3]"
+            className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-ink-muted"
             data-testid="welcome-tour-skip"
           >
             Skip tour
@@ -470,7 +470,7 @@ function Step5Tour({ onFinish, onBack }) {
           <button
             type="button"
             onClick={last ? onFinish : () => setIdx(idx + 1)}
-            className="inline-flex items-center gap-2 px-5 py-3 bg-[#ff4500] hover:bg-[#ff6a2a] text-black font-mono text-[11px] uppercase tracking-[0.22em] font-bold transition"
+            className="inline-flex items-center gap-2 px-5 py-3 bg-brand hover:bg-brand-hover text-black font-mono text-[11px] uppercase tracking-[0.22em] font-bold transition"
             data-testid="welcome-tour-next"
           >
             {last ? (<><Sparkles size={14}/> You’re all set</>) : "Next"} {!last && <ArrowRight size={14} />}
@@ -536,7 +536,7 @@ function MakerPayoutsPrompt() {
         <CreditCard size={18} className="text-emerald-400 flex-shrink-0" />
         <div className="flex-1">
           <div className="font-display text-base">Payouts ready ✓</div>
-          <p className="font-mono text-[11px] text-[#a3a3a3] mt-0.5">
+          <p className="font-mono text-[11px] text-ink-muted mt-0.5">
             Your Stripe account is verified. Sales will pay out automatically.
           </p>
         </div>
@@ -548,19 +548,19 @@ function MakerPayoutsPrompt() {
     return (
       <a
         href="/maker/login"
-        className="mb-6 block p-4 border border-[#ff4500]/60 bg-[#ff4500]/5 hover:bg-[#ff4500]/10 transition group"
+        className="mb-6 block p-4 border border-brand/60 bg-brand/5 hover:bg-brand/10 transition group"
         data-testid="welcome-stripe-prompt"
       >
         <div className="flex items-center gap-3">
-          <CreditCard size={18} className="text-[#ff4500] flex-shrink-0" />
+          <CreditCard size={18} className="text-brand flex-shrink-0" />
           <div className="flex-1">
             <div className="font-display text-base">Get paid for your work.</div>
-            <p className="font-mono text-[11px] text-[#a3a3a3] mt-0.5">
+            <p className="font-mono text-[11px] text-ink-muted mt-0.5">
               Sign in as a maker and connect Stripe in 2 minutes —
               the moment you make a sale, the money lands in your bank.
             </p>
           </div>
-          <ArrowRight size={14} className="text-[#ff4500] group-hover:translate-x-1 transition-transform" />
+          <ArrowRight size={14} className="text-brand group-hover:translate-x-1 transition-transform" />
         </div>
       </a>
     );
@@ -572,22 +572,22 @@ function MakerPayoutsPrompt() {
       type="button"
       onClick={startStripe}
       disabled={busy}
-      className="mb-6 w-full text-left p-4 border border-[#ff4500]/60 bg-[#ff4500]/5 hover:bg-[#ff4500]/10 disabled:opacity-50 transition group"
+      className="mb-6 w-full text-left p-4 border border-brand/60 bg-brand/5 hover:bg-brand/10 disabled:opacity-50 transition group"
       data-testid="welcome-stripe-prompt"
     >
       <div className="flex items-center gap-3">
-        <CreditCard size={18} className="text-[#ff4500] flex-shrink-0" />
+        <CreditCard size={18} className="text-brand flex-shrink-0" />
         <div className="flex-1">
           <div className="font-display text-base">
             {isFinish ? "Finish your Stripe verification" : "Connect Stripe — get paid in 2 min"}
           </div>
-          <p className="font-mono text-[11px] text-[#a3a3a3] mt-0.5">
+          <p className="font-mono text-[11px] text-ink-muted mt-0.5">
             {isFinish
               ? "You started Stripe onboarding but a couple steps are still open. We'll bounce you back the second it's done."
               : "We use Stripe Express so you can accept cards anywhere in the US and get weekly payouts to your bank automatically."}
           </p>
         </div>
-        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#ff4500] group-hover:bg-[#ff6a2a] text-black font-mono text-[10px] uppercase tracking-[0.22em] font-bold">
+        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand group-hover:bg-brand-hover text-black font-mono text-[10px] uppercase tracking-[0.22em] font-bold">
           {busy ? <Loader2 size={11} className="animate-spin" /> : <ExternalLink size={11} />}
           {isFinish ? "Resume" : "Connect"}
         </span>

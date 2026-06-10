@@ -151,7 +151,7 @@ export default function CheckoutSuccess() {
                     href={href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="shrink-0 px-4 py-2 bg-brand hover:bg-[#ff5a1f] text-black font-mono text-[10px] uppercase tracking-[0.22em] font-bold transition"
+                    className="shrink-0 px-4 py-2 bg-brand hover:bg-brand-hover text-black font-mono text-[10px] uppercase tracking-[0.22em] font-bold transition"
                     data-testid={`success-download-btn-${d.file_id}`}
                   >
                     Download →

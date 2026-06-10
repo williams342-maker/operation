@@ -95,7 +95,7 @@ export default function CacheStatsCard() {
 
       {/* Entries table — collapsible to keep the tile compact. */}
       {data?.entries?.length > 0 && (
-        <details className="border border-line bg-[#080808] px-3 py-2">
+        <details className="border border-line bg-paper px-3 py-2">
           <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-ink">
             ◆ Cached entries ({data.entries.length})
           </summary>

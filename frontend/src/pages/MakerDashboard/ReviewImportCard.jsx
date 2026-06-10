@@ -598,7 +598,7 @@ function ExportWalkthrough() {
       </div>
 
       {/* CSV/JSON format reminder — universal across both tabs */}
-      <div className="px-4 md:px-5 py-3 border-t border-line bg-[#080808]">
+      <div className="px-4 md:px-5 py-3 border-t border-line bg-paper">
         <p className="font-mono text-[10px] text-ink-muted leading-relaxed">
           <span className="text-ink-muted uppercase tracking-[0.22em]">Accepted</span>
           {" "}<b className="text-ink-muted">.csv</b>{" or "}
@@ -687,7 +687,7 @@ function PreviewPanel({ preview }) {
                     <td className="py-2 px-2 text-ink">{row.name}</td>
                     <td className="py-2 px-2">
                       <span className="text-amber-400">{"★".repeat(row.rating)}</span>
-                      <span className="text-[#262626]">{"★".repeat(5 - row.rating)}</span>
+                      <span className="text-ink-muted/40">{"★".repeat(5 - row.rating)}</span>
                     </td>
                     <td className="py-2 px-2 text-ink-muted">{row.date || "—"}</td>
                     <td className="py-2 px-2 text-ink-muted leading-snug">

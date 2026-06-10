@@ -44,16 +44,16 @@ export default function TopShowcaseStrip({ testId = "top-showcase-strip" }) {
         data-testid={`${testId}-loading`}
       >
         <header className="mb-6">
-          <p className="font-mono text-[11px] uppercase tracking-[0.32em] text-[#525252]">
+          <p className="font-mono text-[11px] uppercase tracking-[0.32em] text-ink-muted">
             ◆ Trending this week
           </p>
-          <h2 className="font-display text-3xl text-[#262626]">Most-viewed in the community.</h2>
+          <h2 className="font-display text-3xl text-ink-muted/40">Most-viewed in the community.</h2>
         </header>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           {[...Array(TILE_LIMIT)].map((_, i) => (
             <div
               key={i}
-              className="aspect-square bg-[#121212] border border-[#1a1a1a] animate-pulse"
+              className="aspect-square bg-surface border border-line animate-pulse"
             />
           ))}
         </div>
@@ -70,17 +70,17 @@ export default function TopShowcaseStrip({ testId = "top-showcase-strip" }) {
     >
       <header className="mb-6 flex items-end justify-between gap-4">
         <div>
-          <p className="font-mono text-[11px] uppercase tracking-[0.32em] text-[#ff4500] inline-flex items-center gap-1.5">
+          <p className="font-mono text-[11px] uppercase tracking-[0.32em] text-brand inline-flex items-center gap-1.5">
             <Flame size={12} /> Trending this week
           </p>
-          <h2 className="font-display text-3xl text-[#e5e5e5]">Most-viewed in the community.</h2>
-          <p className="font-mono text-xs text-[#a3a3a3] mt-1.5 max-w-xl">
+          <h2 className="font-display text-3xl text-ink">Most-viewed in the community.</h2>
+          <p className="font-mono text-xs text-ink-muted mt-1.5 max-w-xl">
             What buyers and makers actually clicked into over the last 7 days. Updated continuously.
           </p>
         </div>
         <Link
           to="/community"
-          className="hidden md:inline-flex shrink-0 px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] transition"
+          className="hidden md:inline-flex shrink-0 px-3 py-1.5 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted transition"
           data-testid={`${testId}-view-all`}
         >
           View all →
@@ -95,7 +95,7 @@ export default function TopShowcaseStrip({ testId = "top-showcase-strip" }) {
               key={post.id}
               to={`/community#showcase-${post.id}`}
               onClick={() => recordShowcaseClick(post.id, "home-trending")}
-              className="group relative aspect-square bg-[#121212] border border-[#262626] hover:border-[#ff4500] overflow-hidden transition"
+              className="group relative aspect-square bg-surface border border-line hover:border-brand overflow-hidden transition"
               data-testid={`${testId}-item-${post.id}`}
               title={post.title}
             >
@@ -107,14 +107,14 @@ export default function TopShowcaseStrip({ testId = "top-showcase-strip" }) {
                   className="w-full h-full object-cover group-hover:scale-105 transition duration-700"
                 />
               ) : (
-                <div className="w-full h-full grid place-items-center font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252]">
+                <div className="w-full h-full grid place-items-center font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
                   No image
                 </div>
               )}
 
               {/* Rank chip — top-left, draws the eye to the #1 piece. */}
               <span
-                className="absolute top-2 left-2 bg-[#0a0a0a]/85 border border-[#262626] text-[#ff4500] font-mono text-[9px] uppercase tracking-[0.18em] px-1.5 py-0.5 font-bold pointer-events-none"
+                className="absolute top-2 left-2 bg-paper/85 border border-line text-brand font-mono text-[9px] uppercase tracking-[0.18em] px-1.5 py-0.5 font-bold pointer-events-none"
                 data-testid={`${testId}-rank-${post.id}`}
               >
                 #{idx + 1}
@@ -125,7 +125,7 @@ export default function TopShowcaseStrip({ testId = "top-showcase-strip" }) {
                   (no recent activity) so we don't badge a "0 this week". */}
               {post.views_this_week > 0 && (
                 <span
-                  className="absolute top-2 right-2 bg-[#ff4500]/90 text-[#0a0a0a] font-mono text-[9px] uppercase tracking-[0.18em] px-1.5 py-0.5 font-bold flex items-center gap-1 pointer-events-none"
+                  className="absolute top-2 right-2 bg-brand/90 text-[#0a0a0a] font-mono text-[9px] uppercase tracking-[0.18em] px-1.5 py-0.5 font-bold flex items-center gap-1 pointer-events-none"
                   data-testid={`${testId}-views-${post.id}`}
                 >
                   <Eye size={9} /> {post.views_this_week}
@@ -134,10 +134,10 @@ export default function TopShowcaseStrip({ testId = "top-showcase-strip" }) {
 
               {/* Reveal-on-hover meta */}
               <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-[#0a0a0a]/95 via-[#0a0a0a]/55 to-transparent opacity-0 group-hover:opacity-100 transition duration-300">
-                <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#ff4500] mb-0.5 truncate">
+                <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-brand mb-0.5 truncate">
                   <AuthorLabel name={post.user_name} email="buyer" />
                 </p>
-                <p className="font-display text-base text-[#e5e5e5] leading-tight line-clamp-2">
+                <p className="font-display text-base text-ink leading-tight line-clamp-2">
                   {post.title}
                 </p>
               </div>

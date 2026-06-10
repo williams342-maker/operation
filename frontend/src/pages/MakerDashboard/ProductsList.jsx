@@ -650,7 +650,7 @@ function SelectableCard({ product, selected, onToggle, onChanged }) {
         className={`absolute top-3 right-3 z-10 w-7 h-7 inline-flex items-center justify-center border-2 transition ${
           selected
             ? "bg-brand border-brand"
-            : "bg-paper/70 border-[#525252] hover:border-brand"
+            : "bg-paper/70 border-line hover:border-brand"
         }`}
         aria-label={selected ? "Deselect" : "Select"}
         aria-pressed={selected}

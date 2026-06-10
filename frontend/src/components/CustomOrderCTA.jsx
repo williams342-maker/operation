@@ -37,17 +37,17 @@ export default function CustomOrderCTA({
     return (
       <Link
         to={href}
-        className="block w-full border border-[#ff4500]/40 bg-[#ff4500]/5 hover:bg-[#ff4500]/10 px-4 py-3 transition group"
+        className="block w-full border border-brand/40 bg-brand/5 hover:bg-brand/10 px-4 py-3 transition group"
         data-testid={testId}
       >
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-2 min-w-0">
-            <Wrench size={14} className="text-[#ff4500] shrink-0" />
-            <span className="font-mono text-xs text-[#e5e5e5] truncate">
+            <Wrench size={14} className="text-brand shrink-0" />
+            <span className="font-mono text-xs text-ink truncate">
               {headline || defaultHeadline}
             </span>
           </div>
-          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] inline-flex items-center gap-1 shrink-0">
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand inline-flex items-center gap-1 shrink-0">
             Start brief <ArrowRight size={12} />
           </span>
         </div>
@@ -57,18 +57,18 @@ export default function CustomOrderCTA({
 
   return (
     <section
-      className="border-l-2 border-[#ff4500] bg-gradient-to-r from-[#ff4500]/8 via-[#0d0d0d] to-[#0a0a0a] p-6 md:p-8"
+      className="border-l-2 border-brand bg-gradient-to-r from-[#ff4500]/8 via-[#0d0d0d] to-[#0a0a0a] p-6 md:p-8"
       data-testid={testId}
     >
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5">
         <div className="min-w-0">
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] inline-flex items-center gap-1.5 mb-2">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand inline-flex items-center gap-1.5 mb-2">
             <Wrench size={12} /> Custom Orders
           </div>
-          <h3 className="font-display text-xl md:text-2xl text-[#e5e5e5] leading-tight">
+          <h3 className="font-display text-xl md:text-2xl text-ink leading-tight">
             {headline || defaultHeadline}
           </h3>
-          <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-xl leading-relaxed">
+          <p className="font-mono text-xs text-ink-muted mt-2 max-w-xl leading-relaxed">
             {subhead || defaultSubhead}
           </p>
         </div>

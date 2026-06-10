@@ -51,7 +51,7 @@ export function useConfirm() {
   }, [open, close]);
 
   const toneClasses = {
-    primary: "bg-brand text-ink border-brand hover:bg-[#ff6a2c]",
+    primary: "bg-brand text-ink border-brand hover:bg-brand-hover",
     danger: "bg-red-500 text-ink border-red-500 hover:bg-red-400",
     warn: "bg-amber-400 text-ink border-amber-400 hover:bg-amber-300",
   };

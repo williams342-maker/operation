@@ -878,7 +878,7 @@ export default function MakerListingEditor() {
 
   if (!loaded) {
     return (
-      <div className="pt-40 text-center font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500]">
+      <div className="pt-40 text-center font-mono text-[11px] uppercase tracking-[0.3em] text-brand">
         ◆ Loading editor…
       </div>
     );
@@ -886,7 +886,7 @@ export default function MakerListingEditor() {
 
   // ---------- Render ----------
   return (
-    <div className="min-h-screen grain bg-[#0a0a0a] text-[#e5e5e5]" data-testid="maker-listing-editor">
+    <div className="min-h-screen grain bg-paper text-ink" data-testid="maker-listing-editor">
       {confirmModal}
       {/* iter334 — AI Price Comparison side panel. Triggered from the
           ◆ AI Price Check button in PricingSection. Renders nothing
@@ -899,17 +899,17 @@ export default function MakerListingEditor() {
       />
       <div className="pt-32" />
       {/* Top action bar */}
-      <header className="sticky top-[calc(var(--beta-banner-h,0px)+72px)] z-30 bg-[#0a0a0a]/95 backdrop-blur border-b border-[#262626]">
+      <header className="sticky top-[calc(var(--beta-banner-h,0px)+72px)] z-30 bg-paper/95 backdrop-blur border-b border-line">
         <div className="max-w-[1300px] mx-auto px-4 md:px-8 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <Link
               to="/maker/dashboard#listings"
-              className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] inline-flex items-center gap-2"
+              className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand inline-flex items-center gap-2"
               data-testid="editor-cancel"
             >
               <ArrowLeft size={12} /> Cancel
             </Link>
-            <span className="font-mono text-[10px] text-[#525252]">·</span>
+            <span className="font-mono text-[10px] text-ink-muted">·</span>
             <h1 className="font-display text-base md:text-xl truncate">
               {isEdit ? "Edit Listing" : "Create a New Listing"}
             </h1>
@@ -960,15 +960,15 @@ export default function MakerListingEditor() {
           title="Listing Details"
           subtitle="Tell buyers about your item. Good titles and descriptions help buyers find your listing."
         >
-          <Label>Title * <span className="text-[#525252]">{form.title.length}/100</span></Label>
+          <Label>Title * <span className="text-ink-muted">{form.title.length}/100</span></Label>
           <input
             type="text" value={form.title} maxLength={100}
             onChange={(e) => set({ title: e.target.value })}
             placeholder="e.g. Custom Plasma Cut Metal Wall Art — Large Industrial Sign"
-            className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm"
+            className="w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm"
             data-testid="editor-title"
           />
-          <p className="font-mono text-[10px] text-[#525252] mt-1 leading-relaxed">
+          <p className="font-mono text-[10px] text-ink-muted mt-1 leading-relaxed">
             Lead with what it is, then a hook (size, technique, vibe). Etsy-style: short titles convert better than keyword stuffing.
           </p>
           {errors.title && <FieldError msg={errors.title} />}
@@ -978,7 +978,7 @@ export default function MakerListingEditor() {
               <Label>Category *</Label>
               <Select value={form.category} onChange={(v) => set({ category: v })}
                 options={CATEGORIES.map((c) => [c, c])} testid="editor-category" />
-              <p className="font-mono text-[10px] text-[#525252] mt-1 leading-relaxed">
+              <p className="font-mono text-[10px] text-ink-muted mt-1 leading-relaxed">
                 The single best filter buyers use — pick the closest match.
               </p>
               {/* iter331/332 — Shipping-rate hint chip → clickable
@@ -994,7 +994,7 @@ export default function MakerListingEditor() {
                 form.shipping_domestic_usd != null && form.shipping_domestic_usd !== ""
                   && !presetOpen ? (
                   <div
-                    className="mt-2 inline-flex items-center gap-2 px-2.5 py-1.5 border border-[#ff4500]/40 bg-[#ff4500]/[0.06] font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]"
+                    className="mt-2 inline-flex items-center gap-2 px-2.5 py-1.5 border border-brand/40 bg-brand/[0.06] font-mono text-[10px] uppercase tracking-[0.22em] text-brand"
                     data-testid="editor-shipping-hint-custom"
                   >
                     ◆ Ships at custom rate · ${Number(form.shipping_domestic_usd).toFixed(2)}
@@ -1004,26 +1004,26 @@ export default function MakerListingEditor() {
                     <button
                       type="button"
                       onClick={() => setPresetOpen((v) => !v)}
-                      className="inline-flex items-center gap-2 px-2.5 py-1.5 border border-[#262626] hover:border-[#ff4500] bg-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#e5e5e5] transition"
+                      className="inline-flex items-center gap-2 px-2.5 py-1.5 border border-line hover:border-brand bg-paper font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-ink transition"
                       title="Click to apply a Shippo-ready preset (fills dimensions + weight + ship cost)"
                       data-testid="editor-shipping-hint-default"
                       aria-expanded={presetOpen}
                     >
-                      <span className="text-[#ff4500]">◆</span> Ships in: {shippingHintForCategory(form.category)}
-                      <span className="text-[#525252]">▾</span>
+                      <span className="text-brand">◆</span> Ships in: {shippingHintForCategory(form.category)}
+                      <span className="text-ink-muted">▾</span>
                     </button>
 
                     {presetOpen && (
                       <div
-                        className="absolute z-30 mt-2 left-0 w-[440px] max-w-[calc(100vw-2rem)] border border-[#262626] bg-[#0a0a0a] shadow-2xl"
+                        className="absolute z-30 mt-2 left-0 w-[440px] max-w-[calc(100vw-2rem)] border border-line bg-paper shadow-2xl"
                         data-testid="editor-shipping-preset-picker"
                       >
-                        <div className="px-4 py-3 border-b border-[#262626] font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] flex items-center justify-between">
+                        <div className="px-4 py-3 border-b border-line font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted flex items-center justify-between">
                           <span>◆ One-click carrier preset</span>
                           <button
                             type="button"
                             onClick={() => setPresetOpen(false)}
-                            className="text-[#737373] hover:text-[#ff4500]"
+                            className="text-ink-muted hover:text-brand"
                             aria-label="Close picker"
                             data-testid="editor-shipping-preset-close"
                           >
@@ -1033,8 +1033,8 @@ export default function MakerListingEditor() {
                         {/* iter334 — Get live rates button. Calls Shippo
                             in parallel for all 6 presets and shows the
                             cheapest carrier rate on each row. */}
-                        <div className="px-4 py-2.5 border-b border-[#262626] flex items-center justify-between gap-3 bg-[#0f0f0f]">
-                          <div className="font-mono text-[9.5px] text-[#a3a3a3] leading-tight" data-testid="editor-shipping-preset-header">
+                        <div className="px-4 py-2.5 border-b border-line flex items-center justify-between gap-3 bg-paper">
+                          <div className="font-mono text-[9.5px] text-ink-muted leading-tight" data-testid="editor-shipping-preset-header">
                             {Object.keys(presetRates).length > 0
                               ? (presetRatesOverrides.length > 0
                                   ? `◆ Live rates · using YOUR ${presetRatesOverrides.join(" + ")}`
@@ -1079,14 +1079,14 @@ export default function MakerListingEditor() {
                                         : `Dimensions, weight, and $${p.cost.toFixed(2)} ship rate filled.`,
                                     });
                                   }}
-                                  className="w-full text-left px-4 py-3 hover:bg-[#171717] border-b border-[#171717] transition group"
+                                  className="w-full text-left px-4 py-3 hover:bg-surface border-b border-line transition group"
                                   data-testid={`editor-shipping-preset-${p.id}`}
                                 >
                                   <div className="flex items-baseline justify-between gap-3">
-                                    <div className="font-mono text-[11px] uppercase tracking-[0.18em] text-[#e5e5e5] group-hover:text-[#ff4500] flex items-center gap-2">
+                                    <div className="font-mono text-[11px] uppercase tracking-[0.18em] text-ink group-hover:text-brand flex items-center gap-2">
                                       {p.label}
                                       {isDefault && (
-                                        <span className="px-1 py-px text-[8.5px] font-bold tracking-[0.18em] border border-[#ff4500]/60 text-[#ff4500]">
+                                        <span className="px-1 py-px text-[8.5px] font-bold tracking-[0.18em] border border-brand/60 text-brand">
                                           DEFAULT
                                         </span>
                                       )}
@@ -1097,17 +1097,17 @@ export default function MakerListingEditor() {
                                           <div className="text-[12px] text-cyan-300 font-bold" data-testid={`editor-preset-live-${p.id}`}>
                                             ${live.amount.toFixed(2)} <span className="text-[8px] text-cyan-400/60">LIVE</span>
                                           </div>
-                                          <div className="text-[9px] text-[#737373] line-through">${p.cost.toFixed(2)}</div>
+                                          <div className="text-[9px] text-ink-muted line-through">${p.cost.toFixed(2)}</div>
                                         </>
                                       ) : (
-                                        <div className="text-[12px] text-[#ff4500]">${p.cost.toFixed(2)}</div>
+                                        <div className="text-[12px] text-brand">${p.cost.toFixed(2)}</div>
                                       )}
                                     </div>
                                   </div>
-                                  <div className="font-mono text-[9.5px] text-[#737373] mt-1">
+                                  <div className="font-mono text-[9.5px] text-ink-muted mt-1">
                                     {p.blurb}
                                   </div>
-                                  <div className="font-mono text-[9.5px] text-[#525252] mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5">
+                                  <div className="font-mono text-[9.5px] text-ink-muted mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5">
                                     <span>📦 {p.length}″ × {p.width}″ × {p.height}″</span>
                                     <span>⚖ {p.weight_lbs} lb {p.weight_oz} oz</span>
                                     {live && live.provider && (
@@ -1119,7 +1119,7 @@ export default function MakerListingEditor() {
                             );
                           })}
                         </ul>
-                        <div className="px-4 py-2 border-t border-[#262626] font-mono text-[9.5px] text-[#525252] leading-relaxed">
+                        <div className="px-4 py-2 border-t border-line font-mono text-[9.5px] text-ink-muted leading-relaxed">
                           Applied values populate the Shipping section below — fine-tune any field after picking.
                         </div>
                       </div>
@@ -1132,19 +1132,19 @@ export default function MakerListingEditor() {
               <Label>Technique</Label>
               <Select value={form.technique} onChange={(v) => set({ technique: v })}
                 options={TECHNIQUES.map((t) => [t, t])} testid="editor-technique" />
-              <p className="font-mono text-[10px] text-[#525252] mt-1 leading-relaxed">
+              <p className="font-mono text-[10px] text-ink-muted mt-1 leading-relaxed">
                 How was it made? Powers technique-based discovery in search.
               </p>
             </div>
           </div>
 
           <div className="mt-4">
-            <Label>Materials <span className="text-[#525252] normal-case">(press Enter to add)</span></Label>
+            <Label>Materials <span className="text-ink-muted normal-case">(press Enter to add)</span></Label>
             <div className="flex gap-2 flex-wrap mb-2" data-testid="editor-materials-chips">
               {form.materials.map((m) => (
-                <span key={m} className="inline-flex items-center gap-2 px-2 py-1 border border-[#262626] font-mono text-[11px]">
+                <span key={m} className="inline-flex items-center gap-2 px-2 py-1 border border-line font-mono text-[11px]">
                   {m}
-                  <button onClick={() => removeMaterial(m)} className="text-[#737373] hover:text-red-400" aria-label={`Remove ${m}`}>
+                  <button onClick={() => removeMaterial(m)} className="text-ink-muted hover:text-red-400" aria-label={`Remove ${m}`}>
                     <X size={10} />
                   </button>
                 </span>
@@ -1159,10 +1159,10 @@ export default function MakerListingEditor() {
                 }
               }}
               placeholder="e.g. 14ga mild steel, oak, walnut stain"
-              className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm"
+              className="w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm"
               data-testid="editor-materials-input"
             />
-            <p className="font-mono text-[10px] text-[#525252] mt-1 leading-relaxed">
+            <p className="font-mono text-[10px] text-ink-muted mt-1 leading-relaxed">
               List every material — many buyers filter by "solid wood", "stainless", etc. Add up to 8.
             </p>
           </div>
@@ -1170,7 +1170,7 @@ export default function MakerListingEditor() {
           <div className="mt-4">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <Label>
-                Description * <span className={`text-[10px] ml-1 ${form.description.length >= 1900 ? "text-[#ff4500]" : "text-[#525252]"}`}>
+                Description * <span className={`text-[10px] ml-1 ${form.description.length >= 1900 ? "text-brand" : "text-ink-muted"}`}>
                   {form.description.length}/2000
                 </span>
               </Label>
@@ -1201,7 +1201,7 @@ export default function MakerListingEditor() {
                     set({ description: template });
                   }
                 }}
-                className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] hover:bg-[#ff4500]/10 border border-[#ff4500]/40 px-3 py-1.5 transition"
+                className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand hover:bg-brand/10 border border-brand/40 px-3 py-1.5 transition"
                 data-testid="editor-description-template"
                 title="Pre-fill the box with a 5-bullet structure. Just fill in the blanks."
               >
@@ -1220,12 +1220,12 @@ export default function MakerListingEditor() {
                 + "  • Care notes / mounting hardware included?\n"
                 + "  • The story — why you made it, what makes it yours."
               }
-              className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-3 font-mono text-sm resize-y leading-relaxed"
+              className="w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-3 font-mono text-sm resize-y leading-relaxed"
               data-testid="editor-description"
             />
-            <p className="font-mono text-[10px] text-[#525252] mt-1 leading-relaxed">
+            <p className="font-mono text-[10px] text-ink-muted mt-1 leading-relaxed">
               Tip: listings with 4+ paragraphs convert ~2× better. Hit each bullet above if you can — buyers reward detail.
-              Or click <strong className="text-[#a3a3a3]">✦ Use template</strong> above to pre-fill the structure.
+              Or click <strong className="text-ink-muted">✦ Use template</strong> above to pre-fill the structure.
             </p>
             {errors.description && <FieldError msg={errors.description} />}
           </div>
@@ -1262,7 +1262,7 @@ export default function MakerListingEditor() {
               <Select value={form.dim_unit} onChange={(v) => set({ dim_unit: v })}
                 options={DIM_UNITS.map((u) => [u, u])} testid="editor-dim-unit" />
             </div>
-            <div className="grid grid-cols-4 gap-2 font-mono text-[9px] uppercase tracking-[0.18em] text-[#525252] mt-1 px-1">
+            <div className="grid grid-cols-4 gap-2 font-mono text-[9px] uppercase tracking-[0.18em] text-ink-muted mt-1 px-1">
               <span>L</span><span>W</span><span>H</span><span>Unit</span>
             </div>
           </div>
@@ -1271,20 +1271,20 @@ export default function MakerListingEditor() {
             <Label>Weight</Label>
             <div className="grid grid-cols-4 gap-2 max-w-md">
               <NumInput value={form.weight_lbs} onChange={(v) => set({ weight_lbs: v })} placeholder="0" testid="editor-weight-lbs" />
-              <span className="self-center font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">lbs</span>
+              <span className="self-center font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">lbs</span>
               <NumInput value={form.weight_oz} onChange={(v) => set({ weight_oz: v })} placeholder="0" testid="editor-weight-oz" />
-              <span className="self-center font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">oz</span>
+              <span className="self-center font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">oz</span>
             </div>
           </div>
 
           <div className="mt-5">
-            <Label>Colors <span className="text-[#525252]">(select all that apply)</span></Label>
+            <Label>Colors <span className="text-ink-muted">(select all that apply)</span></Label>
             <ChipGrid options={COLORS} selected={form.colors}
               onToggle={(v) => toggleArr("colors", v)} testidPrefix="editor-color" />
           </div>
 
           <div className="mt-5">
-            <Label>Occasion <span className="text-[#525252]">(select all that apply)</span></Label>
+            <Label>Occasion <span className="text-ink-muted">(select all that apply)</span></Label>
             <ChipGrid options={OCCASIONS} selected={form.occasions}
               onToggle={(v) => toggleArr("occasions", v)} testidPrefix="editor-occasion" />
           </div>
@@ -1329,7 +1329,7 @@ export default function MakerListingEditor() {
                 rows={3} value={form.personalization_instructions}
                 onChange={(e) => set({ personalization_instructions: e.target.value })}
                 placeholder="e.g. Enter the names (max 12 characters each) you'd like carved, separated by commas."
-                className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-3 font-mono text-sm resize-y"
+                className="w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-3 font-mono text-sm resize-y"
                 data-testid="editor-personalization-instructions"
               />
             </>
@@ -1384,11 +1384,11 @@ export default function MakerListingEditor() {
               fee. Weight maps to the same `weight_lbs`/`weight_oz` fields
               from Item Details (single source of truth — typing here
               updates there and vice versa). */}
-          <div className="mt-6 pt-6 border-t border-[#262626]" data-testid="editor-shipping-calc">
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mb-2">
+          <div className="mt-6 pt-6 border-t border-line" data-testid="editor-shipping-calc">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-2">
               ◆ Calculated shipping
             </div>
-            <p className="font-mono text-xs text-[#a3a3a3] mb-5 max-w-2xl leading-relaxed">
+            <p className="font-mono text-xs text-ink-muted mb-5 max-w-2xl leading-relaxed">
               Weight and packed size let carriers quote live rates at checkout instead of the buyer paying your flat fee. Required for USPS / UPS / FedEx calculated profiles.
             </p>
 
@@ -1400,19 +1400,19 @@ export default function MakerListingEditor() {
                   onChange={(v) => set({ weight_lbs: v })}
                   placeholder="0" testid="editor-ship-weight-lbs"
                 />
-                <span className="self-center font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">lb</span>
+                <span className="self-center font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">lb</span>
                 <NumInput
                   value={form.weight_oz}
                   onChange={(v) => set({ weight_oz: v })}
                   placeholder="0" testid="editor-ship-weight-oz"
                 />
-                <span className="self-center font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">oz</span>
+                <span className="self-center font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">oz</span>
               </div>
             </div>
 
             <div>
               <Label>Item size when packed *</Label>
-              <p className="font-mono text-[10px] text-[#525252] mb-2 max-w-2xl">
+              <p className="font-mono text-[10px] text-ink-muted mb-2 max-w-2xl">
                 Size after the item's been prepped for packaging — e.g. folded, rolled, or padded — but before it goes into a box.
               </p>
               <div className="grid grid-cols-4 gap-2 max-w-2xl">
@@ -1431,9 +1431,9 @@ export default function MakerListingEditor() {
                   onChange={(v) => set({ packed_height_in: v })}
                   placeholder="Height" testid="editor-packed-height"
                 />
-                <span className="self-center font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">in</span>
+                <span className="self-center font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">in</span>
               </div>
-              <div className="grid grid-cols-4 gap-2 font-mono text-[9px] uppercase tracking-[0.18em] text-[#525252] mt-1 px-1 max-w-2xl">
+              <div className="grid grid-cols-4 gap-2 font-mono text-[9px] uppercase tracking-[0.18em] text-ink-muted mt-1 px-1 max-w-2xl">
                 <span>L</span><span>W</span><span>H</span><span>Unit</span>
               </div>
             </div>
@@ -1478,11 +1478,11 @@ export default function MakerListingEditor() {
               testid="editor-accept-exchanges"
             />
           </div>
-          <div className="mt-5 border border-[#262626] bg-[#0d0d0d] p-4">
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-1">
+          <div className="mt-5 border border-line bg-surface p-4">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-1">
               ◆ Buyer will see
             </div>
-            <p className="font-mono text-xs text-[#e5e5e5]" data-testid="editor-buyer-will-see">
+            <p className="font-mono text-xs text-ink" data-testid="editor-buyer-will-see">
               {(form.accept_returns || form.accept_exchanges)
                 ? `This seller accepts ${[
                     form.accept_returns && "returns", form.accept_exchanges && "exchanges",
@@ -1519,28 +1519,28 @@ export default function MakerListingEditor() {
                   onClick={() => set({ renewal_option: opt.value })}
                   className={`w-full text-left border p-4 flex gap-3 items-start transition-colors ${
                     active
-                      ? "border-[#ff4500] bg-[#ff4500]/5"
-                      : "border-[#262626] bg-[#0d0d0d] hover:border-[#404040]"
+                      ? "border-brand bg-brand/5"
+                      : "border-line bg-surface hover:border-line"
                   }`}
                   data-testid={`editor-renewal-${opt.value}`}
                   aria-pressed={active}
                 >
                   <span
                     className={`mt-1 inline-block w-4 h-4 rounded-full border-2 flex-shrink-0 ${
-                      active ? "border-[#ff4500]" : "border-[#525252]"
+                      active ? "border-brand" : "border-line"
                     }`}
                   >
                     {active && (
-                      <span className="block w-1.5 h-1.5 rounded-full bg-[#ff4500] m-[3px]" />
+                      <span className="block w-1.5 h-1.5 rounded-full bg-brand m-[3px]" />
                     )}
                   </span>
                   <span className="flex-1">
                     <span className={`block font-display uppercase text-base tracking-wide ${
-                      active ? "text-[#ff4500]" : "text-[#e5e5e5]"
+                      active ? "text-brand" : "text-ink"
                     }`}>
                       {opt.label}
                     </span>
-                    <span className="block font-mono text-xs text-[#a3a3a3] mt-1 leading-relaxed">
+                    <span className="block font-mono text-xs text-ink-muted mt-1 leading-relaxed">
                       {opt.hint}
                     </span>
                   </span>
@@ -1559,30 +1559,30 @@ export default function MakerListingEditor() {
           <button
             type="button" onClick={runSeoAI}
             disabled={seoBusy || !form.title.trim() || form.seo_tags.length >= MAX_TAGS}
-            className="mb-4 inline-flex items-center gap-2 px-4 py-2 border border-[#ff4500] text-[#ff4500] hover:bg-[#ff4500]/10 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
+            className="mb-4 inline-flex items-center gap-2 px-4 py-2 border border-brand text-brand hover:bg-brand/10 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
             data-testid="editor-seo-ai-btn"
           >
             <Sparkles size={14} /> {seoBusy ? "Generating…" : "✦ AI suggest tags"}
           </button>
-          <p className="font-mono text-[10px] text-[#525252] -mt-2 mb-4">
+          <p className="font-mono text-[10px] text-ink-muted -mt-2 mb-4">
             ◆ Uses your current title, category, and description. Won't duplicate tags you've already added.
           </p>
           {aiTagReview.length > 0 && (
             <div
-              className="border border-[#ff4500]/50 bg-[#ff4500]/5 p-4 mb-4 space-y-3"
+              className="border border-brand/50 bg-brand/5 p-4 mb-4 space-y-3"
               data-testid="ai-tag-review"
             >
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div>
-                  <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">
+                  <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">
                     ✦ Review AI suggestions
                   </div>
-                  <p className="font-mono text-[11px] text-[#a3a3a3] mt-1 leading-relaxed">
+                  <p className="font-mono text-[11px] text-ink-muted mt-1 leading-relaxed">
                     Tick the ones that fit your listing — only checked tags get added. {(() => {
                       const kept = aiTagReview.filter((r) => r.kept).length;
                       const slots = MAX_TAGS - form.seo_tags.length;
                       return (
-                        <span className={kept > slots ? "text-amber-400" : "text-[#525252]"}>
+                        <span className={kept > slots ? "text-amber-400" : "text-ink-muted"}>
                           {kept} selected · {slots} slot{slots === 1 ? "" : "s"} available
                           {kept > slots && " — only the first " + slots + " will be applied"}
                         </span>
@@ -1594,7 +1594,7 @@ export default function MakerListingEditor() {
                   <button
                     type="button"
                     onClick={discardAiTagReview}
-                    className="px-3 py-1.5 border border-[#262626] hover:border-[#a3a3a3] font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#e5e5e5]"
+                    className="px-3 py-1.5 border border-line hover:border-[#a3a3a3] font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-ink"
                     data-testid="ai-tag-review-discard"
                   >
                     Discard
@@ -1602,7 +1602,7 @@ export default function MakerListingEditor() {
                   <button
                     type="button"
                     onClick={applyAiTagReview}
-                    className="px-3 py-1.5 border border-[#ff4500] bg-[#ff4500]/10 hover:bg-[#ff4500]/20 font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]"
+                    className="px-3 py-1.5 border border-brand bg-brand/10 hover:bg-brand/20 font-mono text-[10px] uppercase tracking-[0.22em] text-brand"
                     data-testid="ai-tag-review-apply"
                   >
                     Apply selected →
@@ -1618,8 +1618,8 @@ export default function MakerListingEditor() {
                     data-testid={`ai-tag-${row.tag}`}
                     className={`inline-flex items-center gap-2 px-3 py-1.5 border font-mono text-[11px] transition ${
                       row.kept
-                        ? "border-[#ff4500] bg-[#ff4500]/15 text-[#ff4500]"
-                        : "border-[#262626] text-[#525252] line-through hover:text-[#a3a3a3]"
+                        ? "border-brand bg-brand/15 text-brand"
+                        : "border-line text-ink-muted line-through hover:text-ink-muted"
                     }`}
                     aria-pressed={row.kept}
                   >
@@ -1647,7 +1647,7 @@ export default function MakerListingEditor() {
             Add tag{" "}
             <span
               className={`${
-                form.seo_tags.length >= MAX_TAGS ? "text-amber-400 font-bold" : "text-[#525252]"
+                form.seo_tags.length >= MAX_TAGS ? "text-amber-400 font-bold" : "text-ink-muted"
               }`}
               data-testid="editor-seo-counter"
             >
@@ -1669,25 +1669,25 @@ export default function MakerListingEditor() {
                   : "e.g. metal wall art"
               }
               disabled={form.seo_tags.length >= MAX_TAGS}
-              className="flex-1 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm disabled:opacity-50 disabled:cursor-not-allowed"
               data-testid="editor-seo-input"
             />
             <button
               type="button" onClick={() => addTag(form.seo_input)}
               disabled={!form.seo_input.trim() || form.seo_tags.length >= MAX_TAGS}
-              className="px-4 py-2 border border-[#ff4500] text-[#ff4500] hover:bg-[#ff4500]/10 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 border border-brand text-brand hover:bg-brand/10 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50 disabled:cursor-not-allowed"
               data-testid="editor-seo-add"
             >
               Add
             </button>
           </div>
-          <p className="font-mono text-[10px] text-[#525252] mt-1">
+          <p className="font-mono text-[10px] text-ink-muted mt-1">
             Press Enter or comma to add. Max {MAX_TAGS} tags.
           </p>
           {form.seo_tags.length > 0 && (
             <div className="flex flex-wrap gap-2 mt-3" data-testid="editor-seo-chips">
               {form.seo_tags.map((t) => (
-                <span key={t} className="inline-flex items-center gap-2 px-2 py-1 border border-[#ff4500]/50 bg-[#ff4500]/5 text-[#ff4500] font-mono text-[11px]">
+                <span key={t} className="inline-flex items-center gap-2 px-2 py-1 border border-brand/50 bg-brand/5 text-brand font-mono text-[11px]">
                   <Tag size={10} /> {t}
                   <button onClick={() => removeTag(t)} aria-label={`Remove tag ${t}`}>
                     <X size={10} />
@@ -1705,7 +1705,7 @@ export default function MakerListingEditor() {
           subtitle="Google Product Category path used by the Pinterest, Google Merchant, and Meta catalog feeds. Leave blank to inherit the auto-derived path. Override here if Pinterest flags your listing with alert 126 (shallow category)."
         >
           <Label>
-            GPC path <span className="text-[#525252] normal-case">(optional override)</span>
+            GPC path <span className="text-ink-muted normal-case">(optional override)</span>
           </Label>
           <GpcCombobox
             value={form.gpc_path}
@@ -1713,17 +1713,17 @@ export default function MakerListingEditor() {
             autoPlaceholder={_autoGpcHint(form.category)}
             testid="editor-gpc"
           />
-          <p className="font-mono text-[10px] text-[#525252] mt-2 leading-relaxed">
+          <p className="font-mono text-[10px] text-ink-muted mt-2 leading-relaxed">
             Pick a preset or paste any verbatim path from the{" "}
             <a
               href="https://www.google.com/basepages/producttype/taxonomy.en-US.txt"
               target="_blank"
               rel="noreferrer"
-              className="text-[#a3a3a3] hover:text-[#ff4500] underline"
+              className="text-ink-muted hover:text-brand underline"
             >
               Google Product Taxonomy
             </a>
-            . Aim for ≥ 3 levels (e.g. <span className="text-[#a3a3a3]">Home &amp; Garden &gt; Decor &gt; Signs</span>) so Pinterest doesn&apos;t collapse it.
+            . Aim for ≥ 3 levels (e.g. <span className="text-ink-muted">Home &amp; Garden &gt; Decor &gt; Signs</span>) so Pinterest doesn&apos;t collapse it.
           </p>
         </Section>
 
@@ -1737,10 +1737,10 @@ export default function MakerListingEditor() {
           <input
             type="email" value={form.contact_email}
             onChange={(e) => set({ contact_email: e.target.value })}
-            className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm"
+            className="w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm"
             data-testid="editor-contact-email"
           />
-          <p className="font-mono text-[10px] text-[#525252] mt-1">
+          <p className="font-mono text-[10px] text-ink-muted mt-1">
             Only shared with buyers who contact you directly.
           </p>
         </Section>
@@ -1761,7 +1761,7 @@ export default function MakerListingEditor() {
                 downloadProductStoryCard(slug);
                 toast.success("Story template downloading — drop it in IG or TikTok stories.");
               }}
-              className="border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] px-4 py-2.5 font-mono text-xs uppercase tracking-[0.22em] transition flex items-center gap-2"
+              className="border border-line hover:border-brand hover:text-brand px-4 py-2.5 font-mono text-xs uppercase tracking-[0.22em] transition flex items-center gap-2"
               data-testid="editor-download-story-template"
             >
               ↓ Download story template
@@ -1770,10 +1770,10 @@ export default function MakerListingEditor() {
         )}
 
         {/* ---------- Bottom action bar ---------- */}
-        <div className="flex items-center justify-between border-t border-[#262626] pt-6">
+        <div className="flex items-center justify-between border-t border-line pt-6">
           <Link
             to="/maker/dashboard#listings"
-            className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500]"
+            className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand"
             data-testid="editor-cancel-bottom"
           >
             ← Cancel
@@ -1830,7 +1830,7 @@ function ShippingEstimatePreview({ form }) {
         <span className="font-display text-2xl text-emerald-300" data-testid="ship-estimate-cheapest">
           ${cheapest.cost.toFixed(2)}
         </span>
-        <span className="font-mono text-[11px] text-[#a3a3a3]">
+        <span className="font-mono text-[11px] text-ink-muted">
           via {cheapest.carrier} {cheapest.service} · {cheapest.days} days
         </span>
       </div>
@@ -1840,7 +1840,7 @@ function ShippingEstimatePreview({ form }) {
           <div
             key={`${opt.carrier}-${opt.service}`}
             className={`grid grid-cols-[1fr_auto_auto] gap-3 px-2 py-1 font-mono text-[11px] ${
-              i === 0 ? "text-emerald-300" : "text-[#a3a3a3]"
+              i === 0 ? "text-emerald-300" : "text-ink-muted"
             }`}
             data-testid={`ship-estimate-row-${i}`}
           >
@@ -1848,17 +1848,17 @@ function ShippingEstimatePreview({ form }) {
               {i === 0 && "✓ "}
               {opt.carrier} {opt.service}
             </span>
-            <span className="text-[#525252]">{opt.days}d</span>
-            <span className={i === 0 ? "text-emerald-300" : "text-[#e5e5e5]"}>
+            <span className="text-ink-muted">{opt.days}d</span>
+            <span className={i === 0 ? "text-emerald-300" : "text-ink"}>
               ${opt.cost.toFixed(2)}
             </span>
           </div>
         ))}
       </div>
 
-      <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[10px] text-[#737373]">
-        <span>Actual <span className="text-[#a3a3a3]">{est.actualLb} lb</span></span>
-        <span>Dim <span className="text-[#a3a3a3]">{est.dimLb} lb</span></span>
+      <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[10px] text-ink-muted">
+        <span>Actual <span className="text-ink-muted">{est.actualLb} lb</span></span>
+        <span>Dim <span className="text-ink-muted">{est.dimLb} lb</span></span>
         <span>Billable <span className="text-emerald-400">{est.billableLb} lb</span></span>
       </div>
       {padding && (
@@ -1870,7 +1870,7 @@ function ShippingEstimatePreview({ form }) {
           Tighter packaging could lower this estimate.
         </p>
       )}
-      <p className="font-mono text-[9px] text-[#525252] mt-3 leading-relaxed">
+      <p className="font-mono text-[9px] text-ink-muted mt-3 leading-relaxed">
         Estimates are zone-4 averages from public 2026 rate tables — actual checkout costs vary by buyer ZIP. Carriers bill the larger of actual vs. dimensional (L×W×H ÷ 166) weight.
       </p>
     </div>

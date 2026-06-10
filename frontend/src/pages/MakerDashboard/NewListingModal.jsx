@@ -402,7 +402,7 @@ export default function NewListingModal({ onClose, onCreated }) {
               <button
                 type="button"
                 onClick={addVariantRow}
-                className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand hover:text-[#ff6a2c]"
+                className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand hover:text-brand-hover"
                 data-testid="new-listing-variant-add"
               >
                 + Add option

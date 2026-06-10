@@ -57,13 +57,13 @@ export default function GoogleAdsFeaturedBadge({ maker, testId = "google-ads-fea
           data-testid="google-ads-featured-badge-modal"
         >
           <div
-            className="relative w-full max-w-md bg-[#0a0a0a] border border-[#262626] p-8"
+            className="relative w-full max-w-md bg-paper border border-line p-8"
             onClick={(e) => e.stopPropagation()}
           >
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="absolute top-3 right-3 text-[#a3a3a3] hover:text-white"
+              className="absolute top-3 right-3 text-ink-muted hover:text-white"
               aria-label="Close"
               data-testid="google-ads-badge-close"
             >
@@ -81,12 +81,12 @@ export default function GoogleAdsFeaturedBadge({ maker, testId = "google-ads-fea
             <h3 className="font-display text-2xl mb-3">
               {maker?.name || "This maker"} is promoted nationwide.
             </h3>
-            <p className="text-sm text-[#a3a3a3] leading-relaxed mb-4">
+            <p className="text-sm text-ink-muted leading-relaxed mb-4">
               CraftersMarket invests in Google Ads campaigns to bring more buyers to our verified makers' shops.
               Listings from this maker may appear in Google Search, Shopping results, and across the Google
               Display Network — no extra cost to the maker.
             </p>
-            <p className="text-xs text-[#737373] leading-relaxed">
+            <p className="text-xs text-ink-muted leading-relaxed">
               Want your shop here too? Veteran-owned and Plus-tier makers are prioritized in our paid
               campaigns. Upgrade your shop or apply to be featured from your maker dashboard.
             </p>

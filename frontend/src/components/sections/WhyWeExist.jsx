@@ -60,7 +60,7 @@ export default function WhyWeExist({ testId = "why-we-exist" }) {
   return (
     <section
       ref={ref}
-      className="relative w-full py-20 md:py-32 overflow-hidden bg-[#070707] border-y border-amber-900/20"
+      className="relative w-full py-20 md:py-32 overflow-hidden bg-surface border-y border-amber-900/20"
       data-testid={testId}
     >
       {/* Scroll-driven copper glow — the emotional spotlight of the page. */}

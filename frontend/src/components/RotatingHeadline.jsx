@@ -124,7 +124,7 @@ export default function RotatingHeadline({ testId = "hero-rotating-headline" }) 
             transition={{ duration, delay: reduced ? 0 : 0.08, ease: [0.16, 1, 0.3, 1] }}
             data-testid={`${testId}-closer`}
           >
-            <span className="text-[#ff4500]">{current.accent}</span>{" "}
+            <span className="text-brand">{current.accent}</span>{" "}
             <span className="text-outline">{current.closer}.</span>
           </motion.div>
         </AnimatePresence>

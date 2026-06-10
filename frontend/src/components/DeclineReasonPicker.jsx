@@ -88,8 +88,8 @@ export default function DeclineReasonPicker({
               data-testid={`${testIdPrefix}-preset-${p.id}`}
               className={`px-2.5 py-1 border font-mono text-[10px] uppercase tracking-[0.18em] transition ${
                 active
-                  ? "border-[#ff4500] bg-[#ff4500]/10 text-[#ff4500]"
-                  : "border-[#262626] text-[#a3a3a3] hover:border-[#ff4500]/50 hover:text-[#e5e5e5]"
+                  ? "border-brand bg-brand/10 text-brand"
+                  : "border-line text-ink-muted hover:border-brand/50 hover:text-ink"
               }`}
               title={p.body}
             >
@@ -103,8 +103,8 @@ export default function DeclineReasonPicker({
           data-testid={`${testIdPrefix}-preset-custom`}
           className={`px-2.5 py-1 border font-mono text-[10px] uppercase tracking-[0.18em] transition ${
             !value
-              ? "border-[#525252] text-[#525252]"
-              : "border-[#262626] text-[#a3a3a3] hover:border-[#ff4500]/50 hover:text-[#e5e5e5]"
+              ? "border-line text-ink-muted"
+              : "border-line text-ink-muted hover:border-brand/50 hover:text-ink"
           }`}
         >
           ✕ Custom
@@ -116,7 +116,7 @@ export default function DeclineReasonPicker({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         data-testid={`${testIdPrefix}-textarea`}
-        className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5] placeholder:text-[#525252]"
+        className="w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink placeholder:text-ink-muted"
       />
     </div>
   );

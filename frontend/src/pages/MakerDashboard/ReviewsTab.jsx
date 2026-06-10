@@ -158,7 +158,7 @@ function ReviewRow({ rev, composerOpen, disputeOpen, onToggleComposer, onToggleD
               </span>
             )}
             {rev.dispute_status === "denied" && (
-              <span className="px-2 py-0.5 border border-[#525252]/50 text-ink-muted font-mono text-[9px] uppercase tracking-[0.22em]">
+              <span className="px-2 py-0.5 border border-line/50 text-ink-muted font-mono text-[9px] uppercase tracking-[0.22em]">
                 Dispute denied
               </span>
             )}
@@ -166,7 +166,7 @@ function ReviewRow({ rev, composerOpen, disputeOpen, onToggleComposer, onToggleD
               <span
                 className={`px-2 py-0.5 border font-mono text-[9px] uppercase tracking-[0.22em] ${
                   rev.published_publicly === false
-                    ? "border-[#525252]/50 text-ink-muted"
+                    ? "border-line/50 text-ink-muted"
                     : "border-blue-500/40 text-blue-400 bg-blue-500/5"
                 }`}
                 data-testid={`review-source-badge-${rev.id}`}

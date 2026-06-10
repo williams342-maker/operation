@@ -45,7 +45,7 @@ export default function PasswordInput({
         aria-label={shown ? "Hide password" : "Show password"}
         title={shown ? "Hide password" : "Show password"}
         tabIndex={0}
-        className="absolute top-1/2 right-3 -translate-y-1/2 p-1 text-[#a3a3a3] hover:text-[#ff4500] transition"
+        className="absolute top-1/2 right-3 -translate-y-1/2 p-1 text-ink-muted hover:text-brand transition"
         data-testid={inputId ? `${inputId}-toggle` : "password-toggle"}
       >
         {shown ? <EyeOff size={16} /> : <Eye size={16} />}

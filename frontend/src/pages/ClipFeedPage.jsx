@@ -125,7 +125,7 @@ export default function ClipFeedPage() {
         {/* Initial loading state — full-bleed shimmer card */}
         {loading && items.length === 0 && (
           <div className="h-full w-full grid place-items-center" data-testid="clips-loading">
-            <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#525252]">
+            <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-ink-muted">
               ◇ Loading clips…
             </div>
           </div>
@@ -135,13 +135,13 @@ export default function ClipFeedPage() {
         {!loading && items.length === 0 && (
           <div className="h-full w-full grid place-items-center px-6 text-center" data-testid="clips-empty">
             <div>
-              <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#ff4500] mb-3">
+              <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand mb-3">
                 ◇ Nothing here yet
               </div>
               <h2 className="font-display text-3xl md:text-5xl uppercase mb-4">
                 The feed is warming up.
               </h2>
-              <p className="font-mono text-sm text-[#a3a3a3] max-w-md mx-auto">
+              <p className="font-mono text-sm text-ink-muted max-w-md mx-auto">
                 {activeCat
                   ? "No clips in this category yet — try another tab or check back soon."
                   : "Makers are uploading their first craft clips — pottery wheels turning, looms clicking, sparks flying. Are you a maker? Share yours."}
@@ -173,7 +173,7 @@ export default function ClipFeedPage() {
         <div ref={sentinelRef} className="h-1 w-full" data-testid="clips-feed-sentinel" />
 
         {done && items.length > 0 && (
-          <div className="h-32 grid place-items-center font-mono text-[10px] uppercase tracking-[0.3em] text-[#525252]" data-testid="clips-end">
+          <div className="h-32 grid place-items-center font-mono text-[10px] uppercase tracking-[0.3em] text-ink-muted" data-testid="clips-end">
             ◆ End of feed
           </div>
         )}
@@ -188,7 +188,7 @@ export default function ClipFeedPage() {
 function CategoryRail({ items, active, onSelect }) {
   return (
     <div
-      className="border-b border-[#1f1f1f] bg-black sticky top-0 z-30"
+      className="border-b border-line bg-black sticky top-0 z-30"
       data-testid="clips-category-rail"
     >
       <div className="flex gap-2 overflow-x-auto px-4 py-3 scrollbar-thin">
@@ -201,14 +201,14 @@ function CategoryRail({ items, active, onSelect }) {
               data-testid={`clip-cat-${c.id || "all"}`}
               className={`whitespace-nowrap px-3 py-1.5 border font-mono text-[11px] uppercase tracking-[0.22em] transition shrink-0 ${
                 isActive
-                  ? "border-[#ff4500] bg-[#ff4500]/10 text-[#ff4500]"
-                  : "border-[#262626] text-[#a3a3a3] hover:border-[#525252] hover:text-[#e5e5e5]"
+                  ? "border-brand bg-brand/10 text-brand"
+                  : "border-line text-ink-muted hover:border-line hover:text-ink"
               }`}
             >
               <span className="mr-1.5">{c.emoji}</span>
               {c.label}
               {typeof c.count === "number" && c.count > 0 && (
-                <span className={`ml-2 text-[9px] ${isActive ? "text-[#ff4500]" : "text-[#525252]"}`}>
+                <span className={`ml-2 text-[9px] ${isActive ? "text-brand" : "text-ink-muted"}`}>
                   {c.count}
                 </span>
               )}
@@ -312,7 +312,7 @@ function ClipPlayer({ clip, muted, onMuteToggle, onEngagementUpdate }) {
       data-testid={`clip-${clip.slug}`}
     >
       <div
-        className="relative w-full h-full md:w-auto md:h-[88vh] md:aspect-[9/16] md:max-h-[850px] bg-[#0a0a0a] overflow-hidden"
+        className="relative w-full h-full md:w-auto md:h-[88vh] md:aspect-[9/16] md:max-h-[850px] bg-paper overflow-hidden"
         style={{ aspectRatio: "9 / 16" }}
       >
         {isEmbed ? (
@@ -371,14 +371,14 @@ function ClipPlayer({ clip, muted, onMuteToggle, onEngagementUpdate }) {
         {/* Right-rail engagement stack */}
         <div className="absolute right-3 bottom-28 z-10 flex flex-col items-center gap-5">
           <StackButton
-            icon={<Heart size={22} className={clip.i_liked ? "fill-[#ff4500] text-[#ff4500]" : ""} />}
+            icon={<Heart size={22} className={clip.i_liked ? "fill-[#ff4500] text-brand" : ""} />}
             count={clip.likes}
             onClick={onLike}
             testId={`clip-like-${clip.slug}`}
             label={clip.i_liked ? "Liked" : "Like"}
           />
           <StackButton
-            icon={<Bookmark size={22} className={clip.i_saved ? "fill-[#ff4500] text-[#ff4500]" : ""} />}
+            icon={<Bookmark size={22} className={clip.i_saved ? "fill-[#ff4500] text-brand" : ""} />}
             count={clip.saves}
             onClick={onSave}
             testId={`clip-save-${clip.slug}`}
@@ -394,7 +394,7 @@ function ClipPlayer({ clip, muted, onMuteToggle, onEngagementUpdate }) {
           {(clip.maker_slug || clip.product_slug) && (
             <Link
               to={clip.product_slug ? `/listing/${clip.product_slug}` : `/maker/${clip.maker_slug}`}
-              className="grid place-items-center w-12 h-12 border border-[#ff4500] bg-[#ff4500] text-black"
+              className="grid place-items-center w-12 h-12 border border-brand bg-brand text-black"
               data-testid={`clip-shop-${clip.slug}`}
               aria-label={clip.product_slug ? "Shop this listing" : "Shop the maker"}
             >
@@ -406,7 +406,7 @@ function ClipPlayer({ clip, muted, onMuteToggle, onEngagementUpdate }) {
         {/* Bottom-left caption */}
         <div className="absolute left-4 right-20 bottom-6 z-10">
           <div className="flex items-center gap-2">
-            <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#ff4500]">
+            <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand">
               ◆ {clip.category}
             </div>
             {clip.featured && (
@@ -422,25 +422,25 @@ function ClipPlayer({ clip, muted, onMuteToggle, onEngagementUpdate }) {
           <h2 className="font-display text-2xl md:text-3xl uppercase mt-1 leading-tight line-clamp-2">
             {clip.title}
           </h2>
-          <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3] mt-2">
+          <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted mt-2">
             BY{" "}
             {clip.maker_slug ? (
-              <Link to={`/maker/${clip.maker_slug}`} className="text-[#e5e5e5] hover:text-[#ff4500] underline-offset-2 hover:underline">
+              <Link to={`/maker/${clip.maker_slug}`} className="text-ink hover:text-brand underline-offset-2 hover:underline">
                 {clip.maker_name}
               </Link>
             ) : (
-              <span className="text-[#e5e5e5]">{clip.maker_name}</span>
+              <span className="text-ink">{clip.maker_name}</span>
             )}
           </div>
           {clip.description && (
-            <p className="font-mono text-xs text-[#e5e5e5]/80 mt-2 max-w-[80%] line-clamp-2">
+            <p className="font-mono text-xs text-ink/80 mt-2 max-w-[80%] line-clamp-2">
               {clip.description}
             </p>
           )}
           {clip.tags?.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mt-2">
               {clip.tags.slice(0, 4).map((t) => (
-                <span key={t} className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#737373]">
+                <span key={t} className="font-mono text-[9px] uppercase tracking-[0.18em] text-ink-muted">
                   #{t}
                 </span>
               ))}
@@ -503,20 +503,20 @@ function ShareSheet({ clip, shareUrl, onClose, onShare }) {
       data-testid={`clip-share-sheet-${clip.slug}`}
     >
       <div
-        className="bg-[#0a0a0a] border-t border-[#1f1f1f] md:border md:border-[#262626] w-full md:max-w-md p-5 space-y-4"
+        className="bg-paper border-t border-line md:border md:border-line w-full md:max-w-md p-5 space-y-4"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
-          <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#ff4500]">
+          <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand">
             ◆ Share this clip
           </div>
-          <button onClick={onClose} className="text-[#a3a3a3] hover:text-white" aria-label="Close">
+          <button onClick={onClose} className="text-ink-muted hover:text-white" aria-label="Close">
             <X size={18} />
           </button>
         </div>
         <button
           onClick={onCopy}
-          className="w-full text-left px-3 py-2.5 border border-[#262626] hover:border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em] flex items-center justify-between"
+          className="w-full text-left px-3 py-2.5 border border-line hover:border-brand font-mono text-[11px] uppercase tracking-[0.22em] flex items-center justify-between"
           data-testid={`clip-share-copy-${clip.slug}`}
         >
           <span>Copy link</span>
@@ -530,7 +530,7 @@ function ShareSheet({ clip, shareUrl, onClose, onShare }) {
               target="_blank"
               rel="noopener noreferrer"
               onClick={onShare}
-              className="px-3 py-2.5 border border-[#262626] hover:border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em] text-center"
+              className="px-3 py-2.5 border border-line hover:border-brand font-mono text-[11px] uppercase tracking-[0.22em] text-center"
               data-testid={`clip-share-${s.id}-${clip.slug}`}
             >
               {s.label}

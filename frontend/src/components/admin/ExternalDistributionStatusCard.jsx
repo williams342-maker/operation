@@ -120,7 +120,7 @@ export default function ExternalDistributionStatusCard() {
         </div>
         <p className="font-mono text-[11px] text-ink-muted leading-relaxed">
           Probed {cf.probes.length} URLs with Googlebot UA. Active = response contains the
-          <code className="text-[#fafafa] mx-1">og-prerender</code> marker; Not deployed = SPA shell returned.
+          <code className="text-ink mx-1">og-prerender</code> marker; Not deployed = SPA shell returned.
         </p>
         <div className="overflow-x-auto">
           <table className="w-full font-mono text-[10px]">
@@ -159,8 +159,8 @@ export default function ExternalDistributionStatusCard() {
             <div className="text-amber-300">Deploy steps:</div>
             <ol className="list-decimal pl-5 leading-relaxed text-[10px]">
               <li>Cloudflare dashboard → <span className="text-ink">craftersmarket.org</span> → Workers Routes → Create</li>
-              <li>Add <span className="text-ink">two</span> routes: <code className="text-[#fafafa]">craftersmarket.org/*</code> and <code className="text-[#fafafa]">www.craftersmarket.org/*</code> (NOT the wildcard subdomain — it breaks R2 image delivery)</li>
-              <li>Workers → Create application → paste contents of <code className="text-[#fafafa]">/app/cloudflare/prerender-router.worker.js</code></li>
+              <li>Add <span className="text-ink">two</span> routes: <code className="text-ink">craftersmarket.org/*</code> and <code className="text-ink">www.craftersmarket.org/*</code> (NOT the wildcard subdomain — it breaks R2 image delivery)</li>
+              <li>Workers → Create application → paste contents of <code className="text-ink">/app/cloudflare/prerender-router.worker.js</code></li>
               <li>Save and deploy, then click <span className="text-cyan-300">Re-probe</span> above</li>
             </ol>
           </div>

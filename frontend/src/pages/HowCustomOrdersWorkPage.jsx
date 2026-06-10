@@ -161,7 +161,7 @@ export default function HowCustomOrdersWorkPage() {
           ]}
           testId="hcow-breadcrumbs"
         />
-        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-4">
+        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-4">
           ◆ Made-to-Order · Step by Step
         </div>
         <h1
@@ -171,13 +171,13 @@ export default function HowCustomOrdersWorkPage() {
           How Custom Orders Work.
         </h1>
 
-        <p className="font-mono text-base text-[#e5e5e5] max-w-3xl leading-relaxed mb-6">
+        <p className="font-mono text-base text-ink max-w-3xl leading-relaxed mb-6">
           A custom order on Crafters Market is a real conversation with a real American
           maker, not a stamped-and-shipped factory transaction. Here&apos;s exactly what
           happens from the moment you submit a brief to the moment your piece lands on
           your wall, in your kitchen, or over your ranch gate.
         </p>
-        <p className="font-mono text-sm text-[#a3a3a3] max-w-3xl leading-relaxed mb-12">
+        <p className="font-mono text-sm text-ink-muted max-w-3xl leading-relaxed mb-12">
           Every step is checkpointed: you approve the design, you approve the materials,
           you approve the timeline. Stripe holds your payment in escrow until the piece
           actually ships. The maker doesn&apos;t get paid until you get your piece.
@@ -197,8 +197,8 @@ export default function HowCustomOrdersWorkPage() {
         </div>
 
         {/* 5-step process */}
-        <div className="border-t border-[#262626] pt-12 mb-20">
-          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-3">
+        <div className="border-t border-line pt-12 mb-20">
+          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-3">
             ◆ The process
           </div>
           <h2 className="font-display text-3xl md:text-5xl uppercase mb-10">
@@ -211,14 +211,14 @@ export default function HowCustomOrdersWorkPage() {
                 className="grid grid-cols-[80px_1fr] md:grid-cols-[120px_1fr] gap-6 md:gap-10"
                 data-testid={`hcow-step-${s.n}`}
               >
-                <div className="font-display text-5xl md:text-7xl text-[#ff4500] leading-none">
+                <div className="font-display text-5xl md:text-7xl text-brand leading-none">
                   {s.n}
                 </div>
                 <div>
                   <h3 className="font-display text-2xl md:text-4xl uppercase mb-3">
                     {s.title}
                   </h3>
-                  <p className="font-mono text-sm md:text-base text-[#a3a3a3] leading-relaxed max-w-2xl">
+                  <p className="font-mono text-sm md:text-base text-ink-muted leading-relaxed max-w-2xl">
                     {s.body}
                   </p>
                 </div>
@@ -228,53 +228,53 @@ export default function HowCustomOrdersWorkPage() {
         </div>
 
         {/* Cost section */}
-        <div className="border-t border-[#262626] pt-12 mb-20" data-testid="hcow-cost-section">
-          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-3">
+        <div className="border-t border-line pt-12 mb-20" data-testid="hcow-cost-section">
+          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-3">
             ◆ What it costs
           </div>
           <h2 className="font-display text-3xl md:text-5xl uppercase mb-8 leading-tight">
             What you pay reflects the material, the time, and the maker.
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl">
-            <div className="border border-[#262626] p-6 bg-[#0a0a0a]">
-              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mb-2">
+            <div className="border border-line p-6 bg-paper">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-2">
                 Small pieces · $35–$200
               </div>
-              <p className="font-mono text-sm text-[#a3a3a3] leading-relaxed">
+              <p className="font-mono text-sm text-ink-muted leading-relaxed">
                 Engraved cutting boards, monogrammed plaques, custom address numbers,
                 small wall pieces. Most ship in 2-3 weeks.
               </p>
             </div>
-            <div className="border border-[#262626] p-6 bg-[#0a0a0a]">
-              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mb-2">
+            <div className="border border-line p-6 bg-paper">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-2">
                 Medium custom · $200–$800
               </div>
-              <p className="font-mono text-sm text-[#a3a3a3] leading-relaxed">
+              <p className="font-mono text-sm text-ink-muted leading-relaxed">
                 Custom metal signs (24-48&quot;), framed engraved pieces, monogrammed
                 furniture details, business storefront signage. 3-5 weeks.
               </p>
             </div>
-            <div className="border border-[#262626] p-6 bg-[#0a0a0a]">
-              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mb-2">
+            <div className="border border-line p-6 bg-paper">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-2">
                 Large statement · $800–$2,500
               </div>
-              <p className="font-mono text-sm text-[#a3a3a3] leading-relaxed">
+              <p className="font-mono text-sm text-ink-muted leading-relaxed">
                 Ranch entry signs, large-format wall sculptures, custom furniture pieces,
                 multi-piece commissioned art. 5-8 weeks.
               </p>
             </div>
-            <div className="border border-[#262626] p-6 bg-[#0a0a0a]">
-              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mb-2">
+            <div className="border border-line p-6 bg-paper">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-2">
                 Architectural / installation · $2,500+
               </div>
-              <p className="font-mono text-sm text-[#a3a3a3] leading-relaxed">
+              <p className="font-mono text-sm text-ink-muted leading-relaxed">
                 Multi-section ranch gates, full storefront signage systems, large
                 commercial installations. Custom quote, often 8-16 weeks with site
                 coordination.
               </p>
             </div>
           </div>
-          <p className="font-mono text-xs text-[#737373] mt-6 max-w-2xl">
+          <p className="font-mono text-xs text-ink-muted mt-6 max-w-2xl">
             Every quote breaks the cost down line-by-line — materials, machine time,
             finish, hardware, shipping. No hidden marketplace fees, no surprise add-ons.
             What you see in the quote is what you pay.
@@ -282,8 +282,8 @@ export default function HowCustomOrdersWorkPage() {
         </div>
 
         {/* FAQ */}
-        <div className="border-t border-[#262626] pt-12 mb-20" data-testid="hcow-faq">
-          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-3">
+        <div className="border-t border-line pt-12 mb-20" data-testid="hcow-faq">
+          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-3">
             ◆ FAQ
           </div>
           <h2 className="font-display text-3xl md:text-5xl uppercase mb-8">
@@ -293,14 +293,14 @@ export default function HowCustomOrdersWorkPage() {
             {FAQS.map(({ q, a }, idx) => (
               <details
                 key={idx}
-                className="border border-[#262626] bg-[#0a0a0a] open:border-[#ff4500] transition"
+                className="border border-line bg-paper open:border-brand transition"
                 data-testid={`hcow-faq-item-${idx}`}
               >
-                <summary className="cursor-pointer list-none p-4 flex items-start justify-between gap-4 font-mono text-sm text-[#e5e5e5] hover:text-[#ff4500]">
+                <summary className="cursor-pointer list-none p-4 flex items-start justify-between gap-4 font-mono text-sm text-ink hover:text-brand">
                   <span className="flex-1">{q}</span>
                   <span className="font-display text-xl shrink-0">+</span>
                 </summary>
-                <div className="px-4 pb-4 pt-2 border-t border-[#262626] font-mono text-sm text-[#a3a3a3] leading-relaxed">
+                <div className="px-4 pb-4 pt-2 border-t border-line font-mono text-sm text-ink-muted leading-relaxed">
                   {a}
                 </div>
               </details>
@@ -309,8 +309,8 @@ export default function HowCustomOrdersWorkPage() {
         </div>
 
         {/* Cross-links */}
-        <div className="border-t border-[#262626] pt-12" data-testid="hcow-related">
-          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-3">
+        <div className="border-t border-line pt-12" data-testid="hcow-related">
+          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-3">
             ◆ Popular categories
           </div>
           <h2 className="font-display text-3xl md:text-5xl uppercase mb-8">
@@ -321,13 +321,13 @@ export default function HowCustomOrdersWorkPage() {
               <Link
                 key={idx}
                 to={to}
-                className="group border border-[#262626] hover:border-[#ff4500] p-5 transition block"
+                className="group border border-line hover:border-brand p-5 transition block"
                 data-testid={`hcow-related-${idx}`}
               >
-                <div className="font-display text-xl mb-2 group-hover:text-[#ff4500] transition">
+                <div className="font-display text-xl mb-2 group-hover:text-brand transition">
                   {label} →
                 </div>
-                <p className="font-mono text-[11px] text-[#737373] leading-relaxed">
+                <p className="font-mono text-[11px] text-ink-muted leading-relaxed">
                   {blurb}
                 </p>
               </Link>
@@ -336,11 +336,11 @@ export default function HowCustomOrdersWorkPage() {
         </div>
 
         {/* Bottom CTA */}
-        <div className="border-t border-[#262626] mt-20 pt-12 text-center">
+        <div className="border-t border-line mt-20 pt-12 text-center">
           <h2 className="font-display text-3xl md:text-5xl uppercase mb-4">
             Ready to commission?
           </h2>
-          <p className="font-mono text-sm text-[#a3a3a3] max-w-xl mx-auto mb-8 leading-relaxed">
+          <p className="font-mono text-sm text-ink-muted max-w-xl mx-auto mb-8 leading-relaxed">
             Submit your brief — it takes 3-5 minutes. Most makers reply within 24 hours
             with a quote and a design proof. Nothing is binding until you approve.
           </p>

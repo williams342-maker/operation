@@ -49,7 +49,7 @@ function DeltaPill({ delta }) {
   }
   return (
     <span
-      className="inline-flex items-center gap-0.5 px-1.5 py-0.5 border border-[#404040] text-[#a3a3a3] font-mono text-[9px] uppercase tracking-[0.22em]"
+      className="inline-flex items-center gap-0.5 px-1.5 py-0.5 border border-line text-ink-muted font-mono text-[9px] uppercase tracking-[0.22em]"
       data-testid="maker-rank-delta-flat"
     >
       <Minus size={9} /> held
@@ -81,21 +81,21 @@ export default function MakerRankCard() {
   if (!data.on_leaderboard) {
     return (
       <div
-        className="border border-[#262626] bg-gradient-to-br from-[#0a0a0a] to-amber-950/10 p-4 flex items-center gap-4"
+        className="border border-line bg-gradient-to-br from-[#0a0a0a] to-amber-950/10 p-4 flex items-center gap-4"
         data-testid="maker-rank-card-empty"
       >
-        <Trophy size={28} className="text-[#525252] shrink-0" />
+        <Trophy size={28} className="text-ink-muted shrink-0" />
         <div className="flex-1 min-w-0">
-          <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#737373] mb-1">
+          <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-ink-muted mb-1">
             Workshop leaderboard
           </div>
-          <div className="font-display text-base text-[#f5f5f5] leading-tight">
+          <div className="font-display text-base text-ink leading-tight">
             Make your first sale to enter the rankings.
           </div>
         </div>
         <Link
           to="/makers"
-          className="px-3 py-2 border border-[#404040] hover:border-amber-400 text-[#a3a3a3] hover:text-amber-300 font-mono text-[9px] uppercase tracking-[0.22em] whitespace-nowrap"
+          className="px-3 py-2 border border-line hover:border-amber-400 text-ink-muted hover:text-amber-300 font-mono text-[9px] uppercase tracking-[0.22em] whitespace-nowrap"
           data-testid="maker-rank-cta"
         >
           See leaders →
@@ -118,17 +118,17 @@ export default function MakerRankCard() {
           <DeltaPill delta={data.delta} />
         </div>
         <div className="flex items-baseline gap-2">
-          <span className="font-display text-3xl md:text-4xl text-[#f5f5f5] leading-none tabular-nums" data-testid="maker-rank-value">
+          <span className="font-display text-3xl md:text-4xl text-ink leading-none tabular-nums" data-testid="maker-rank-value">
             #{data.rank}
           </span>
-          <span className="font-mono text-[10px] text-[#737373]">
+          <span className="font-mono text-[10px] text-ink-muted">
             of {data.total_makers}
           </span>
         </div>
-        <div className="font-mono text-[10px] text-[#a3a3a3] mt-1">
-          Score <span className="text-[#e5e5e5] tabular-nums">{data.score.toLocaleString()}</span>
+        <div className="font-mono text-[10px] text-ink-muted mt-1">
+          Score <span className="text-ink tabular-nums">{data.score.toLocaleString()}</span>
           {data.prev_score > 0 && (
-            <> · prev <span className="text-[#737373] tabular-nums">{data.prev_score.toLocaleString()}</span></>
+            <> · prev <span className="text-ink-muted tabular-nums">{data.prev_score.toLocaleString()}</span></>
           )}
         </div>
       </div>

@@ -349,7 +349,7 @@ function MarkBilledModal({ row, onClose, onSaved, token }) {
           placeholder="Stripe invoice ID (or 'manual')"
           value={invoiceId}
           onChange={(e) => setInvoiceId(e.target.value)}
-          className="w-full bg-[#0e0e0e] border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink"
+          className="w-full bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink"
           data-testid="admin-mark-billed-invoice"
         />
         <textarea
@@ -357,7 +357,7 @@ function MarkBilledModal({ row, onClose, onSaved, token }) {
           value={note}
           onChange={(e) => setNote(e.target.value)}
           rows={2}
-          className="w-full bg-[#0e0e0e] border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink"
+          className="w-full bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink"
           data-testid="admin-mark-billed-note"
         />
         <div className="flex justify-end gap-2 pt-2">

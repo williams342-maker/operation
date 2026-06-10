@@ -142,12 +142,12 @@ export default function MessageCenter({
 
   return (
     <div
-      className="flex border border-[#262626] bg-[#0a0a0a] min-h-[640px] h-[calc(100vh-220px)] overflow-hidden"
+      className="flex border border-line bg-paper min-h-[640px] h-[calc(100vh-220px)] overflow-hidden"
       data-testid={`message-center-${role}`}
     >
       {/* ── Folder rail ── */}
-      <aside className="w-44 shrink-0 border-r border-[#262626] py-3 overflow-y-auto">
-        <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252] px-4 mb-2">◆ Folders</div>
+      <aside className="w-44 shrink-0 border-r border-line py-3 overflow-y-auto">
+        <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted px-4 mb-2">◆ Folders</div>
         <ul>
           {FOLDERS.map(({ id, label, Icon }) => {
             const active = folder === id;
@@ -158,13 +158,13 @@ export default function MessageCenter({
                   onClick={() => setFolder(id)}
                   data-testid={`mc-folder-${id}`}
                   className={`w-full flex items-center gap-2.5 px-4 py-1.5 font-mono text-[11px] uppercase tracking-[0.18em] transition ${
-                    active ? "bg-[#ff4500]/10 text-[#ff4500] border-l-2 border-[#ff4500]"
-                           : "text-[#a3a3a3] hover:text-[#e5e5e5] hover:bg-[#121212] border-l-2 border-transparent"
+                    active ? "bg-brand/10 text-brand border-l-2 border-brand"
+                           : "text-ink-muted hover:text-ink hover:bg-surface border-l-2 border-transparent"
                   }`}
                 >
                   <Icon size={13} className="shrink-0" />
                   <span className="flex-1 text-left">{label}</span>
-                  {count > 0 && <span className={`text-[9px] ${active ? "text-[#ff4500]" : "text-[#525252]"}`}>{count}</span>}
+                  {count > 0 && <span className={`text-[9px] ${active ? "text-brand" : "text-ink-muted"}`}>{count}</span>}
                 </button>
               </li>
             );
@@ -173,12 +173,12 @@ export default function MessageCenter({
       </aside>
 
       {/* ── Thread list pane ── */}
-      <section className="w-[28rem] shrink-0 border-r border-[#262626] flex flex-col">
-        <div className="border-b border-[#262626] p-2.5 flex items-center gap-2">
+      <section className="w-[28rem] shrink-0 border-r border-line flex flex-col">
+        <div className="border-b border-line p-2.5 flex items-center gap-2">
           {selCount > 0 ? (
             <>
-              <button onClick={clearSelection} className="text-[#a3a3a3] hover:text-[#ff4500]" aria-label="Clear selection">✕</button>
-              <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">{selCount} selected</span>
+              <button onClick={clearSelection} className="text-ink-muted hover:text-brand" aria-label="Clear selection">✕</button>
+              <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">{selCount} selected</span>
               <div className="flex-1" />
               <BulkBtn onClick={() => bulkAction({ starred: true }, "Starred")} title="Star">
                 <Star size={13} />
@@ -195,16 +195,16 @@ export default function MessageCenter({
             </>
           ) : (
             <>
-              <Search size={14} className="text-[#525252] shrink-0 ml-1" />
+              <Search size={14} className="text-ink-muted shrink-0 ml-1" />
               <input
                 value={q} onChange={(e) => setQ(e.target.value)}
                 placeholder="Search messages…"
                 data-testid={`mc-search-${role}`}
-                className="flex-1 bg-transparent border-none outline-none font-mono text-xs placeholder:text-[#525252]"
+                className="flex-1 bg-transparent border-none outline-none font-mono text-xs placeholder:text-ink-muted"
               />
               {threads.length > 0 && (
                 <button onClick={selectAll} title="Select all"
-                  className="text-[#525252] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em]">
+                  className="text-ink-muted hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em]">
                   All
                 </button>
               )}
@@ -233,9 +233,9 @@ export default function MessageCenter({
         </div>
         <div className="flex-1 overflow-y-auto" data-testid={`mc-thread-list-${role}`}>
           {loading ? (
-            <div className="p-6 font-mono text-xs text-[#525252]">Loading…</div>
+            <div className="p-6 font-mono text-xs text-ink-muted">Loading…</div>
           ) : threads.length === 0 ? (
-            <div className="p-6 font-mono text-xs text-[#525252]">
+            <div className="p-6 font-mono text-xs text-ink-muted">
               {folder === "inbox" ? "Nothing yet." : `No ${folder} messages.`}
             </div>
           ) : threads.map((t) => {
@@ -251,8 +251,8 @@ export default function MessageCenter({
                 key={t.id}
                 onClick={() => openThread(t.id)}
                 data-testid={`mc-thread-${t.id}`}
-                className={`group flex items-start gap-2 px-3 py-2.5 border-b border-[#1a1a1a] cursor-pointer transition ${
-                  isOpen ? "bg-[#ff4500]/8" : "hover:bg-[#121212]"
+                className={`group flex items-start gap-2 px-3 py-2.5 border-b border-line cursor-pointer transition ${
+                  isOpen ? "bg-brand/8" : "hover:bg-surface"
                 }`}
               >
                 <input
@@ -267,26 +267,26 @@ export default function MessageCenter({
                   className="mt-0.5 shrink-0"
                   title={starred ? "Unstar" : "Star"}
                 >
-                  <Star size={13} className={starred ? "text-[#ff4500] fill-[#ff4500]" : "text-[#404040] group-hover:text-[#a3a3a3]"} />
+                  <Star size={13} className={starred ? "text-brand fill-[#ff4500]" : "text-[#404040] group-hover:text-ink-muted"} />
                 </button>
                 {/* Avatar disc */}
-                <div className="shrink-0 w-7 h-7 rounded-full bg-[#1f1f1f] border border-[#262626] flex items-center justify-center font-mono text-[10px] text-[#a3a3a3]">
+                <div className="shrink-0 w-7 h-7 rounded-full bg-surface border border-line flex items-center justify-center font-mono text-[10px] text-ink-muted">
                   {initials(counterName)}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline justify-between gap-2">
-                    <span className={`truncate font-mono text-[11px] uppercase tracking-[0.18em] ${unread ? "text-white" : "text-[#a3a3a3]"}`}>
+                    <span className={`truncate font-mono text-[11px] uppercase tracking-[0.18em] ${unread ? "text-white" : "text-ink-muted"}`}>
                       {counterName}
                     </span>
-                    <span className="shrink-0 font-mono text-[9px] text-[#525252]">
+                    <span className="shrink-0 font-mono text-[9px] text-ink-muted">
                       {t.last_message_at ? new Date(t.last_message_at).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : ""}
                     </span>
                   </div>
-                  <div className={`truncate text-xs mt-0.5 ${unread ? "text-[#e5e5e5] font-medium" : "text-[#737373]"}`}>
+                  <div className={`truncate text-xs mt-0.5 ${unread ? "text-ink font-medium" : "text-ink-muted"}`}>
                     {t.subject || "(no subject)"}
                   </div>
                   {t.last_preview && (
-                    <div className="truncate text-[11px] text-[#525252] mt-0.5">{t.last_preview}</div>
+                    <div className="truncate text-[11px] text-ink-muted mt-0.5">{t.last_preview}</div>
                   )}
                 </div>
               </div>
@@ -301,13 +301,13 @@ export default function MessageCenter({
           <EmptyReader counterpartLabel={counterpartLabel} />
         ) : (
           <>
-            <div className="border-b border-[#262626] p-3 flex items-center gap-3">
-              <button onClick={() => setOpenId(null)} className="md:hidden text-[#a3a3a3] hover:text-[#ff4500]" title="Back">
+            <div className="border-b border-line p-3 flex items-center gap-3">
+              <button onClick={() => setOpenId(null)} className="md:hidden text-ink-muted hover:text-brand" title="Back">
                 <ArrowLeft size={16} />
               </button>
               <div className="flex-1 min-w-0">
                 <div className="font-display text-base uppercase truncate">{openThreadObj.subject || "(no subject)"}</div>
-                <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] truncate">
+                <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted truncate">
                   {role === "maker" ? `${openThreadObj.buyer_name || openThreadObj.buyer_email}` : `${openThreadObj.maker_name || openThreadObj.maker_slug}`}
                 </div>
               </div>
@@ -320,10 +320,10 @@ export default function MessageCenter({
                 const fromMe = m.sender_type === role;
                 return (
                   <div key={m.id} className={`flex ${fromMe ? "justify-end" : "justify-start"}`}>
-                    <div className={`max-w-lg p-3 ${fromMe ? "bg-[#ff4500]/10 border border-[#ff4500]/40" : "bg-[#121212] border border-[#262626]"}`}>
-                      <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-1">
+                    <div className={`max-w-lg p-3 ${fromMe ? "bg-brand/10 border border-brand/40" : "bg-surface border border-line"}`}>
+                      <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted mb-1">
                         {fromMe ? "You" : (m.sender_name || m.sender_email)}
-                        <span className="ml-2 text-[#525252]">
+                        <span className="ml-2 text-ink-muted">
                           {m.created_at ? new Date(m.created_at).toLocaleString() : ""}
                         </span>
                       </div>
@@ -333,18 +333,18 @@ export default function MessageCenter({
                 );
               })}
             </div>
-            <div className="border-t border-[#262626] p-3">
+            <div className="border-t border-line p-3">
               <textarea
                 value={reply} onChange={(e) => setReply(e.target.value)}
                 placeholder="Write a reply…" rows={3}
                 data-testid="mc-reply"
-                className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none p-2 font-mono text-xs resize-none"
+                className="w-full bg-transparent border border-line focus:border-brand outline-none p-2 font-mono text-xs resize-none"
               />
               <div className="flex justify-end mt-2">
                 <button
                   onClick={sendReply} disabled={replyBusy || !reply.trim()}
                   data-testid="mc-reply-send"
-                  className="px-4 py-2 bg-[#ff4500] hover:bg-[#ff5722] text-black font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+                  className="px-4 py-2 bg-brand hover:bg-brand-hover text-black font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
                 >
                   <Send size={12} /> {replyBusy ? "Sending…" : "Send"}
                 </button>
@@ -363,7 +363,7 @@ function EmptyReader({ counterpartLabel }) {
       <div className="text-center max-w-sm">
         <Inbox size={28} className="mx-auto text-[#404040] mb-3" />
         <div className="font-display text-xl uppercase mb-1">Pick a conversation</div>
-        <div className="font-mono text-xs text-[#a3a3a3] leading-relaxed">
+        <div className="font-mono text-xs text-ink-muted leading-relaxed">
           Select a thread on the left to read messages from a {counterpartLabel.toLowerCase()} and reply.
         </div>
       </div>
@@ -374,7 +374,7 @@ function EmptyReader({ counterpartLabel }) {
 function ToolBtn({ onClick, title, children }) {
   return (
     <button onClick={onClick} title={title}
-      className="p-2 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] transition">
+      className="p-2 border border-line hover:border-brand hover:text-brand transition">
       {children}
     </button>
   );
@@ -383,7 +383,7 @@ function ToolBtn({ onClick, title, children }) {
 function BulkBtn({ onClick, title, children }) {
   return (
     <button onClick={onClick} title={title}
-      className="p-1.5 hover:bg-[#262626] hover:text-[#ff4500] transition rounded">
+      className="p-1.5 hover:bg-surface hover:text-brand transition rounded">
       {children}
     </button>
   );

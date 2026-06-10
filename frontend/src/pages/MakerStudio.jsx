@@ -338,7 +338,7 @@ export default function MakerStudio() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-[#e5e5e5] pt-32 pb-24">
+    <div className="min-h-screen bg-paper text-ink pt-32 pb-24">
       <div className="max-w-7xl mx-auto px-4 md:px-8">
         {/* Header */}
         <div className="mb-10">
@@ -349,7 +349,7 @@ export default function MakerStudio() {
             From prompt to <span className="text-outline-orange">cut file</span>
             <br /> in seconds.
           </h1>
-          <p className="font-mono text-sm text-[#a3a3a3] max-w-2xl leading-relaxed">
+          <p className="font-mono text-sm text-ink-muted max-w-2xl leading-relaxed">
             Describe your sign. The AI converts it to clean black-on-white silhouette
             geometry. Download print-ready SVG or CNC-ready DXF — or publish it
             straight into the community design files feed.
@@ -367,13 +367,13 @@ export default function MakerStudio() {
           <div className="space-y-6">
             {/* Quota pill */}
             {signedIn && quota && (
-              <div className="flex items-center justify-between border border-[#262626] bg-[#0a0a0a] px-4 py-3"
+              <div className="flex items-center justify-between border border-line bg-paper px-4 py-3"
                    data-testid="studio-quota-pill">
-                <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+                <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
                   ◆ Today
                 </span>
-                <span className="font-mono text-xs text-[#e5e5e5]">
-                  <span className={quota.remaining <= 1 ? "text-[#ff4500]" : ""}>
+                <span className="font-mono text-xs text-ink">
+                  <span className={quota.remaining <= 1 ? "text-brand" : ""}>
                     {quota.remaining}
                   </span>{" "}
                   / {quota.cap} prompts left
@@ -382,13 +382,13 @@ export default function MakerStudio() {
             )}
 
             {!signedIn && (
-              <div className="border border-[#262626] bg-[#0a0a0a] p-4 flex items-start gap-3">
-                <Lock size={16} className="text-[#ff4500] mt-1 shrink-0" />
+              <div className="border border-line bg-paper p-4 flex items-start gap-3">
+                <Lock size={16} className="text-brand mt-1 shrink-0" />
                 <div>
-                  <p className="font-mono text-xs text-[#e5e5e5] mb-2">
+                  <p className="font-mono text-xs text-ink mb-2">
                     Sign in to generate designs (5 free prompts/day).
                   </p>
-                  <Link to="/signin" className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] hover:text-[#fff]" data-testid="studio-signin-link">
+                  <Link to="/signin" className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand hover:text-ink" data-testid="studio-signin-link">
                     Sign in →
                   </Link>
                 </div>
@@ -397,7 +397,7 @@ export default function MakerStudio() {
 
             {/* Prompt input */}
             <div>
-              <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] block mb-2">
+              <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted block mb-2">
                 ◆ Describe your design
               </label>
               <textarea
@@ -406,10 +406,10 @@ export default function MakerStudio() {
                 rows={4}
                 maxLength={400}
                 placeholder="A cabin sign with mountains, pine trees, and the text Lake House"
-                className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#00ffff] outline-none px-3 py-3 font-mono text-sm text-[#e5e5e5] resize-y"
+                className="w-full bg-paper border border-line focus:border-[#00ffff] outline-none px-3 py-3 font-mono text-sm text-ink resize-y"
                 data-testid="studio-prompt-input"
               />
-              <div className="mt-2 flex justify-between text-[10px] font-mono text-[#525252]">
+              <div className="mt-2 flex justify-between text-[10px] font-mono text-ink-muted">
                 <span>{prompt.length} / 400</span>
                 <span>Gemini Flash</span>
               </div>
@@ -443,7 +443,7 @@ export default function MakerStudio() {
                     onChange={(e) => setRefinePrompt(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter" && refinePrompt.trim() && !refining) refine(); }}
                     placeholder="e.g. add a frame · make the heart bigger · change text to Welcome"
-                    className="flex-1 min-w-0 bg-[#0a0a0a] border border-[#262626] focus:border-[#00ffff] outline-none px-2.5 py-2 font-mono text-xs text-[#e5e5e5]"
+                    className="flex-1 min-w-0 bg-paper border border-line focus:border-[#00ffff] outline-none px-2.5 py-2 font-mono text-xs text-ink"
                     maxLength={200}
                     data-testid="studio-refine-input"
                   />
@@ -458,7 +458,7 @@ export default function MakerStudio() {
                     Refine
                   </button>
                 </div>
-                <div className="font-mono text-[9px] text-[#525252] mt-1.5">
+                <div className="font-mono text-[9px] text-ink-muted mt-1.5">
                   Uses 1 prompt · keeps the rest of your design intact · ↵ enter to apply
                 </div>
               </div>
@@ -479,7 +479,7 @@ export default function MakerStudio() {
                   });
                   toast.success("Blank canvas ready — add shapes or text below");
                 }}
-                className="w-full px-4 py-2.5 border border-[#262626] hover:border-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#fff] inline-flex items-center justify-center gap-2"
+                className="w-full px-4 py-2.5 border border-line hover:border-brand font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-ink inline-flex items-center justify-center gap-2"
                 data-testid="studio-blank-canvas-btn"
               >
                 ◇ Or start with a blank canvas
@@ -488,7 +488,7 @@ export default function MakerStudio() {
 
             {/* Example prompts */}
             <div>
-              <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] block mb-2">
+              <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted block mb-2">
                 ◆ Try one
               </label>
               <div className="flex flex-wrap gap-2">
@@ -497,7 +497,7 @@ export default function MakerStudio() {
                     key={i}
                     type="button"
                     onClick={() => setPrompt(p)}
-                    className="px-2.5 py-1.5 border border-[#262626] hover:border-[#ff4500] font-mono text-[10px] text-[#a3a3a3] hover:text-[#fff] text-left"
+                    className="px-2.5 py-1.5 border border-line hover:border-brand font-mono text-[10px] text-ink-muted hover:text-ink text-left"
                     data-testid={`studio-example-${i}`}
                   >
                     {p.length > 40 ? p.slice(0, 38) + "…" : p}
@@ -508,11 +508,11 @@ export default function MakerStudio() {
 
             {/* Size sliders + engrave-only toggle (only useful once a design exists) */}
             {design && (
-              <div className="space-y-4 border-t border-[#262626] pt-5">
+              <div className="space-y-4 border-t border-line pt-5">
                 <div>
-                  <div className="flex justify-between font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">
+                  <div className="flex justify-between font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
                     <span>◆ Width</span>
-                    <span className="text-[#e5e5e5]">{width}″</span>
+                    <span className="text-ink">{width}″</span>
                   </div>
                   <input
                     type="range" min="6" max="36" step="0.5"
@@ -523,9 +523,9 @@ export default function MakerStudio() {
                   />
                 </div>
                 <div>
-                  <div className="flex justify-between font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">
+                  <div className="flex justify-between font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
                     <span>◆ Height</span>
-                    <span className="text-[#e5e5e5]">{height}″</span>
+                    <span className="text-ink">{height}″</span>
                   </div>
                   <input
                     type="range" min="3" max="24" step="0.5"
@@ -541,15 +541,15 @@ export default function MakerStudio() {
                     a dashed grey guide so the user can tell the difference. */}
                 <label
                   className={`flex items-center justify-between cursor-pointer select-none border px-3 py-2.5 transition ${
-                    engraveOnly ? "border-[#00ffff] bg-[#00ffff]/5" : "border-[#262626] hover:border-[#525252]"
+                    engraveOnly ? "border-[#00ffff] bg-[#00ffff]/5" : "border-line hover:border-line"
                   }`}
                   data-testid="studio-engrave-toggle"
                 >
                   <div>
-                    <div className={`font-mono text-[10px] uppercase tracking-[0.22em] ${engraveOnly ? "text-[#00ffff]" : "text-[#e5e5e5]"}`}>
+                    <div className={`font-mono text-[10px] uppercase tracking-[0.22em] ${engraveOnly ? "text-[#00ffff]" : "text-ink"}`}>
                       ◆ Engrave-only mode
                     </div>
-                    <div className="font-mono text-[9px] text-[#737373] mt-0.5">
+                    <div className="font-mono text-[9px] text-ink-muted mt-0.5">
                       Skip outer cut · ENGRAVE layer only
                     </div>
                   </div>
@@ -583,11 +583,11 @@ export default function MakerStudio() {
 
             {/* Export + Publish actions */}
             {design && (
-              <div className="space-y-2 border-t border-[#262626] pt-5">
+              <div className="space-y-2 border-t border-line pt-5">
                 <button
                   type="button"
                   onClick={() => downloadFile("svg")}
-                  className="w-full px-4 py-2.5 border border-[#262626] hover:border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em] flex items-center justify-center gap-2"
+                  className="w-full px-4 py-2.5 border border-line hover:border-brand font-mono text-[11px] uppercase tracking-[0.22em] flex items-center justify-center gap-2"
                   data-testid="studio-download-svg"
                 >
                   <Download size={13} /> Download SVG
@@ -595,7 +595,7 @@ export default function MakerStudio() {
                 <button
                   type="button"
                   onClick={() => downloadFile("dxf")}
-                  className="w-full px-4 py-2.5 border border-[#262626] hover:border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em] flex items-center justify-center gap-2"
+                  className="w-full px-4 py-2.5 border border-line hover:border-brand font-mono text-[11px] uppercase tracking-[0.22em] flex items-center justify-center gap-2"
                   data-testid="studio-download-dxf"
                 >
                   <FileDown size={13} /> Download DXF (CNC)
@@ -604,7 +604,7 @@ export default function MakerStudio() {
                   type="button"
                   onClick={publish}
                   disabled={publishing}
-                  className="w-full px-4 py-2.5 bg-[#ff4500] text-white hover:bg-[#ff5e1f] disabled:opacity-50 font-mono text-[11px] uppercase tracking-[0.22em] flex items-center justify-center gap-2"
+                  className="w-full px-4 py-2.5 bg-brand text-white hover:bg-brand-hover disabled:opacity-50 font-mono text-[11px] uppercase tracking-[0.22em] flex items-center justify-center gap-2"
                   data-testid="studio-publish-btn"
                 >
                   {publishing ? <Loader2 size={13} className="animate-spin" /> : <Share2 size={13} />}
@@ -623,7 +623,7 @@ export default function MakerStudio() {
                       <select
                         onChange={(e) => e.target.value && addToKit(e.target.value)}
                         defaultValue=""
-                        className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#00ffff] outline-none px-2.5 py-2 font-mono text-[11px] text-[#e5e5e5]"
+                        className="w-full bg-paper border border-line focus:border-[#00ffff] outline-none px-2.5 py-2 font-mono text-[11px] text-ink"
                         data-testid="studio-kit-select"
                       >
                         <option value="">Add to an existing kit…</option>
@@ -641,8 +641,8 @@ export default function MakerStudio() {
                       <Sparkles size={11} /> Start a new kit
                     </button>
                     {userKits.length > 0 && (
-                      <div className="font-mono text-[9px] text-[#525252]">
-                        Public kits get shareable URLs at <span className="text-[#a3a3a3]">/kits/&lt;slug&gt;</span>
+                      <div className="font-mono text-[9px] text-ink-muted">
+                        Public kits get shareable URLs at <span className="text-ink-muted">/kits/&lt;slug&gt;</span>
                       </div>
                     )}
                   </div>
@@ -655,7 +655,7 @@ export default function MakerStudio() {
           <div className="space-y-4">
             <div
               ref={previewRef}
-              className="aspect-[2/1] bg-white border border-[#262626] flex items-center justify-center overflow-hidden relative select-none"
+              className="aspect-[2/1] bg-white border border-line flex items-center justify-center overflow-hidden relative select-none"
               data-testid="studio-preview"
             >
               {svg ? (
@@ -668,10 +668,10 @@ export default function MakerStudio() {
                   dangerouslySetInnerHTML={{ __html: svg }}
                 />
               ) : (
-                <div className="text-center text-[#737373] font-mono text-xs uppercase tracking-[0.22em] p-6">
+                <div className="text-center text-ink-muted font-mono text-xs uppercase tracking-[0.22em] p-6">
                   {busy ? (
                     <span className="inline-flex items-center gap-2">
-                      <Loader2 size={14} className="animate-spin text-[#ff4500]" />
+                      <Loader2 size={14} className="animate-spin text-brand" />
                       Generating design…
                     </span>
                   ) : (
@@ -698,7 +698,7 @@ export default function MakerStudio() {
             )}
 
             {design && svg && (
-              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] -mt-2 flex items-center gap-1.5" data-testid="studio-drag-hint">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted -mt-2 flex items-center gap-1.5" data-testid="studio-drag-hint">
                 <Sparkles size={10} className="text-[#00ffff]" /> Drag any element on the canvas to reposition
               </div>
             )}
@@ -727,7 +727,7 @@ function DesignSummary({ design, width, height }) {
   const text = (design.operations || []).find((o) => o.kind === "text")?.content;
   const holes = design.holes?.count || 0;
   return (
-    <div className="border border-[#262626] bg-[#0a0a0a] p-4 grid grid-cols-2 md:grid-cols-4 gap-3 font-mono text-[10px]" data-testid="studio-design-summary">
+    <div className="border border-line bg-paper p-4 grid grid-cols-2 md:grid-cols-4 gap-3 font-mono text-[10px]" data-testid="studio-design-summary">
       <SummaryItem label="Size" value={`${width}″ × ${height}″`} />
       <SummaryItem label="Border" value={design.border || "none"} />
       <SummaryItem label="Text" value={text || "—"} truncate />
@@ -743,8 +743,8 @@ function DesignSummary({ design, width, height }) {
 function SummaryItem({ label, value, truncate }) {
   return (
     <div>
-      <div className="text-[#525252] uppercase tracking-[0.22em] text-[9px] mb-1">{label}</div>
-      <div className={`text-[#e5e5e5] ${truncate ? "truncate" : ""}`}>{value}</div>
+      <div className="text-ink-muted uppercase tracking-[0.22em] text-[9px] mb-1">{label}</div>
+      <div className={`text-ink ${truncate ? "truncate" : ""}`}>{value}</div>
     </div>
   );
 }
@@ -756,10 +756,10 @@ function SummaryItem({ label, value, truncate }) {
 function CamStrategyCard({ cam, machineType, setMachineType }) {
   const MACHINES = ["router", "laser", "plasma"];
   return (
-    <div className="border border-[#262626] bg-[#0a0a0a] p-4 space-y-3" data-testid="studio-cam-card">
+    <div className="border border-line bg-paper p-4 space-y-3" data-testid="studio-cam-card">
       <div className="flex items-center justify-between">
-        <div className="font-mono text-[10px] uppercase tracking-[0.32em] text-[#ff4500]">
-          ◆ CAM Strategy <span className="text-[#525252]">· {cam.tier}</span>
+        <div className="font-mono text-[10px] uppercase tracking-[0.32em] text-brand">
+          ◆ CAM Strategy <span className="text-ink-muted">· {cam.tier}</span>
         </div>
         <div className="flex gap-1">
           {MACHINES.map((m) => (
@@ -769,8 +769,8 @@ function CamStrategyCard({ cam, machineType, setMachineType }) {
               onClick={() => setMachineType(machineType === m ? null : m)}
               className={`px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.22em] border ${
                 (machineType === m || (!machineType && cam.machine === m))
-                  ? "border-[#ff4500] text-[#ff4500]"
-                  : "border-[#262626] text-[#a3a3a3] hover:border-[#525252]"
+                  ? "border-brand text-brand"
+                  : "border-line text-ink-muted hover:border-line"
               }`}
               data-testid={`studio-cam-machine-${m}`}
             >
@@ -792,11 +792,11 @@ function CamStrategyCard({ cam, machineType, setMachineType }) {
       </div>
 
       {cam.notes && (
-        <div className="border-t border-[#262626] pt-3">
-          <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252] mb-1.5">
+        <div className="border-t border-line pt-3">
+          <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted mb-1.5">
             ◆ Operator notes
           </div>
-          <p className="font-mono text-[10px] text-[#a3a3a3] leading-relaxed">
+          <p className="font-mono text-[10px] text-ink-muted leading-relaxed">
             {cam.notes}
           </p>
         </div>
@@ -807,20 +807,20 @@ function CamStrategyCard({ cam, machineType, setMachineType }) {
 
 function ShapeLegend() {
   return (
-    <div className="border border-[#262626] bg-[#0a0a0a] p-4" data-testid="studio-shape-legend">
-      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] mb-3">
+    <div className="border border-line bg-paper p-4" data-testid="studio-shape-legend">
+      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-3">
         ◆ Shape vocabulary the AI can compose ({SHAPE_VOCAB.length})
       </div>
       <div className="flex flex-wrap gap-2">
         {SHAPE_VOCAB.map((s) => (
-          <span key={s} className="px-2 py-1 border border-[#262626] font-mono text-[10px] text-[#a3a3a3] uppercase tracking-[0.18em]">
+          <span key={s} className="px-2 py-1 border border-line font-mono text-[10px] text-ink-muted uppercase tracking-[0.18em]">
             {s.replace(/_/g, " ")}
           </span>
         ))}
-        <span className="px-2 py-1 border border-[#262626] font-mono text-[10px] text-[#a3a3a3] uppercase tracking-[0.18em]">
+        <span className="px-2 py-1 border border-line font-mono text-[10px] text-ink-muted uppercase tracking-[0.18em]">
           + custom text (4 fonts)
         </span>
-        <span className="px-2 py-1 border border-[#262626] font-mono text-[10px] text-[#a3a3a3] uppercase tracking-[0.18em]">
+        <span className="px-2 py-1 border border-line font-mono text-[10px] text-ink-muted uppercase tracking-[0.18em]">
           + 5 border styles
         </span>
         <span className="px-2 py-1 border border-[#00ffff]/60 font-mono text-[10px] text-[#00ffff] uppercase tracking-[0.18em]">
@@ -838,10 +838,10 @@ function TemplateGallery({ templates, onPick }) {
   return (
     <div className="mb-10" data-testid="studio-template-gallery">
       <div className="flex items-baseline justify-between mb-3">
-        <div className="font-mono text-[10px] uppercase tracking-[0.32em] text-[#a3a3a3]">
-          ◆ Start from a template <span className="text-[#525252]">· {templates.length} curated</span>
+        <div className="font-mono text-[10px] uppercase tracking-[0.32em] text-ink-muted">
+          ◆ Start from a template <span className="text-ink-muted">· {templates.length} curated</span>
         </div>
-        <span className="font-mono text-[10px] text-[#525252]">No prompt used · free</span>
+        <span className="font-mono text-[10px] text-ink-muted">No prompt used · free</span>
       </div>
       <div className="flex gap-3 overflow-x-auto pb-3 -mx-4 px-4 snap-x snap-mandatory">
         {templates.map((tpl) => (
@@ -849,15 +849,15 @@ function TemplateGallery({ templates, onPick }) {
             key={tpl.id}
             type="button"
             onClick={() => onPick(tpl)}
-            className="shrink-0 w-[200px] text-left border border-[#262626] hover:border-[#ff4500] bg-[#0a0a0a] p-3 transition group snap-start"
+            className="shrink-0 w-[200px] text-left border border-line hover:border-brand bg-paper p-3 transition group snap-start"
             data-testid={`studio-template-${tpl.id}`}
           >
             <TemplateThumb design={tpl.design} />
             <div className="mt-2.5 space-y-1">
-              <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252]">
+              <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted">
                 {tpl.category}
               </div>
-              <div className="font-mono text-[11px] text-[#e5e5e5] group-hover:text-[#ff4500] line-clamp-1">
+              <div className="font-mono text-[11px] text-ink group-hover:text-brand line-clamp-1">
                 {tpl.name}
               </div>
             </div>
@@ -878,11 +878,11 @@ function ParametricControls({ materials, material, setMaterial, units, setUnits,
     <div className="space-y-3" data-testid="studio-parametric">
       <div>
         <div className="flex items-center justify-between mb-2">
-          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">◆ Material</span>
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">◆ Material</span>
           <button
             type="button"
             onClick={() => setUnits(units === "inches" ? "mm" : "inches")}
-            className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252] hover:text-[#00ffff] border border-[#262626] hover:border-[#00ffff] px-2 py-0.5"
+            className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted hover:text-[#00ffff] border border-line hover:border-[#00ffff] px-2 py-0.5"
             data-testid="studio-units-toggle"
           >
             {units === "inches" ? "in" : "mm"} ↻
@@ -899,7 +899,7 @@ function ParametricControls({ materials, material, setMaterial, units, setUnits,
               }}
               className={`px-2 py-1.5 border font-mono text-[10px] uppercase tracking-[0.18em] ${
                 material === m.key ? "border-[#00ffff] text-[#00ffff] bg-[#00ffff]/5"
-                  : "border-[#262626] text-[#a3a3a3] hover:border-[#525252]"
+                  : "border-line text-ink-muted hover:border-line"
               }`}
               data-testid={`studio-material-${m.key}`}
             >
@@ -910,8 +910,8 @@ function ParametricControls({ materials, material, setMaterial, units, setUnits,
       </div>
       <div>
         <div className="flex items-center justify-between mb-2">
-          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">◆ Depth</span>
-          <span className="font-mono text-[10px] text-[#e5e5e5]">
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">◆ Depth</span>
+          <span className="font-mono text-[10px] text-ink">
             {materialDepth}{units === "inches" ? "″" : "mm"}
           </span>
         </div>
@@ -923,8 +923,8 @@ function ParametricControls({ materials, material, setMaterial, units, setUnits,
               onClick={() => setMaterialDepth(d)}
               className={`px-2 py-1.5 border font-mono text-[10px] ${
                 Math.abs(materialDepth - d) < 0.001
-                  ? "border-[#ff4500] text-[#ff4500] bg-[#ff4500]/5"
-                  : "border-[#262626] text-[#a3a3a3] hover:border-[#525252]"
+                  ? "border-brand text-brand bg-brand/5"
+                  : "border-line text-ink-muted hover:border-line"
               }`}
               data-testid={`studio-depth-${d}`}
             >
@@ -951,7 +951,7 @@ function TemplateThumb({ design }) {
   const shape = (design.operations || []).find((o) => o.kind === "shape");
   const text = (design.operations || []).find((o) => o.kind === "text");
   return (
-    <div className="bg-white aspect-[2/1] flex items-center justify-center overflow-hidden border border-[#171717]">
+    <div className="bg-white aspect-[2/1] flex items-center justify-center overflow-hidden border border-line">
       <svg viewBox={`0 0 ${fitW} ${fitH}`} width={fitW} height={fitH} className="w-full h-full">
         {design.border && design.border !== "none" && (
           <rect x="4" y="4" width={fitW - 8} height={fitH - 8} rx={design.border === "rounded" ? 8 : 0}
@@ -1034,15 +1034,15 @@ function ElementsEditor({ design, setDesign }) {
   return (
     <div className="space-y-3" data-testid="studio-elements-editor">
       <div className="flex items-center justify-between">
-        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
-          ◆ Elements <span className="text-[#525252]">· {opCount}/4</span>
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
+          ◆ Elements <span className="text-ink-muted">· {opCount}/4</span>
         </span>
         <div className="flex gap-1.5">
           <button
             type="button"
             onClick={addShape}
             disabled={atCap}
-            className="inline-flex items-center gap-1 px-2 py-1 border border-[#262626] hover:border-[#00ffff] disabled:opacity-40 font-mono text-[9px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#00ffff]"
+            className="inline-flex items-center gap-1 px-2 py-1 border border-line hover:border-[#00ffff] disabled:opacity-40 font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted hover:text-[#00ffff]"
             data-testid="studio-add-shape"
           >
             <Plus size={10} /> <Square size={10} /> Shape
@@ -1051,7 +1051,7 @@ function ElementsEditor({ design, setDesign }) {
             type="button"
             onClick={addText}
             disabled={atCap}
-            className="inline-flex items-center gap-1 px-2 py-1 border border-[#262626] hover:border-[#00ffff] disabled:opacity-40 font-mono text-[9px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#00ffff]"
+            className="inline-flex items-center gap-1 px-2 py-1 border border-line hover:border-[#00ffff] disabled:opacity-40 font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted hover:text-[#00ffff]"
             data-testid="studio-add-text"
           >
             <Plus size={10} /> <TypeIcon size={10} /> Text
@@ -1060,7 +1060,7 @@ function ElementsEditor({ design, setDesign }) {
       </div>
 
       {ops.length === 0 && (
-        <div className="border border-dashed border-[#262626] p-3 font-mono text-[10px] text-[#525252] text-center">
+        <div className="border border-dashed border-line p-3 font-mono text-[10px] text-ink-muted text-center">
           No elements yet — add a shape or text above.
         </div>
       )}
@@ -1072,19 +1072,19 @@ function ElementsEditor({ design, setDesign }) {
             ? (op.primitive || "shape").replace(/_/g, " ")
             : (op.content || "(empty)");
           return (
-            <div key={idx} className={`border ${isOpen ? "border-[#00ffff]" : "border-[#262626]"} bg-[#0a0a0a]`}>
+            <div key={idx} className={`border ${isOpen ? "border-[#00ffff]" : "border-line"} bg-paper`}>
               <div className="flex items-center gap-2 px-2.5 py-2">
                 <span className={`font-mono text-[9px] uppercase tracking-[0.22em] px-1.5 py-0.5 border ${
-                  op.kind === "shape" ? "border-[#ff4500] text-[#ff4500]" : "border-[#00ffff] text-[#00ffff]"
+                  op.kind === "shape" ? "border-brand text-brand" : "border-[#00ffff] text-[#00ffff]"
                 }`}>
                   {op.kind === "shape" ? <Square size={9} className="inline -mt-0.5 mr-0.5" /> : <TypeIcon size={9} className="inline -mt-0.5 mr-0.5" />}
                   {op.kind}
                 </span>
-                <span className="flex-1 font-mono text-[11px] text-[#e5e5e5] truncate">{label}</span>
+                <span className="flex-1 font-mono text-[11px] text-ink truncate">{label}</span>
                 <button
                   type="button"
                   onClick={() => setOpenIdx(isOpen ? null : idx)}
-                  className="p-1 text-[#a3a3a3] hover:text-[#00ffff]"
+                  className="p-1 text-ink-muted hover:text-[#00ffff]"
                   data-testid={`studio-element-edit-${idx}`}
                   aria-label="Edit element"
                 >
@@ -1093,7 +1093,7 @@ function ElementsEditor({ design, setDesign }) {
                 <button
                   type="button"
                   onClick={() => removeOp(idx)}
-                  className="p-1 text-[#a3a3a3] hover:text-[#ff4500]"
+                  className="p-1 text-ink-muted hover:text-brand"
                   data-testid={`studio-element-delete-${idx}`}
                   aria-label="Delete element"
                 >
@@ -1101,7 +1101,7 @@ function ElementsEditor({ design, setDesign }) {
                 </button>
               </div>
               {isOpen && (
-                <div className="border-t border-[#262626] p-3 space-y-2.5" data-testid={`studio-element-panel-${idx}`}>
+                <div className="border-t border-line p-3 space-y-2.5" data-testid={`studio-element-panel-${idx}`}>
                   {op.kind === "shape" ? (
                     <SelectRow label="Shape" value={op.primitive} options={SHAPE_OPTIONS}
                                onChange={(v) => updateOp(idx, { primitive: v })}
@@ -1109,13 +1109,13 @@ function ElementsEditor({ design, setDesign }) {
                   ) : (
                     <>
                       <label className="block">
-                        <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#a3a3a3] block mb-1">Content</span>
+                        <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted block mb-1">Content</span>
                         <input
                           type="text"
                           value={op.content || ""}
                           onChange={(e) => updateOp(idx, { content: e.target.value.slice(0, 80) })}
                           maxLength={80}
-                          className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#00ffff] outline-none px-2 py-1.5 font-mono text-[11px] text-[#e5e5e5]"
+                          className="w-full bg-paper border border-line focus:border-[#00ffff] outline-none px-2 py-1.5 font-mono text-[11px] text-ink"
                           data-testid={`studio-element-${idx}-content`}
                         />
                       </label>
@@ -1158,12 +1158,12 @@ function ElementsEditor({ design, setDesign }) {
       </div>
 
       {/* Border + Holes — top-level design fields, not operations */}
-      <details className="border border-[#262626] group" data-testid="studio-border-section">
-        <summary className="px-2.5 py-2 cursor-pointer flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#e5e5e5] select-none">
-          <span>◆ Border · <span className="text-[#525252]">{design.border || "none"}</span></span>
+      <details className="border border-line group" data-testid="studio-border-section">
+        <summary className="px-2.5 py-2 cursor-pointer flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-ink select-none">
+          <span>◆ Border · <span className="text-ink-muted">{design.border || "none"}</span></span>
           <ChevronDown size={11} className="group-open:rotate-180 transition-transform" />
         </summary>
-        <div className="border-t border-[#262626] p-3 space-y-2.5">
+        <div className="border-t border-line p-3 space-y-2.5">
           <SelectRow label="Style" value={design.border || "none"} options={BORDER_OPTIONS}
                      onChange={(v) => setBorder({ border: v })}
                      testId="studio-border-style" />
@@ -1176,14 +1176,14 @@ function ElementsEditor({ design, setDesign }) {
         </div>
       </details>
 
-      <details className="border border-[#262626] group" data-testid="studio-holes-section">
-        <summary className="px-2.5 py-2 cursor-pointer flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#e5e5e5] select-none">
-          <span>◆ Mounting holes · <span className="text-[#525252]">{holes.count} × {holes.diameter}″</span></span>
+      <details className="border border-line group" data-testid="studio-holes-section">
+        <summary className="px-2.5 py-2 cursor-pointer flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-ink select-none">
+          <span>◆ Mounting holes · <span className="text-ink-muted">{holes.count} × {holes.diameter}″</span></span>
           <ChevronDown size={11} className="group-open:rotate-180 transition-transform" />
         </summary>
-        <div className="border-t border-[#262626] p-3 space-y-2.5">
+        <div className="border-t border-line p-3 space-y-2.5">
           <div>
-            <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#a3a3a3] block mb-1">Count</span>
+            <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted block mb-1">Count</span>
             <div className="grid grid-cols-5 gap-1.5">
               {[0, 1, 2, 3, 4].map((n) => (
                 <button
@@ -1193,7 +1193,7 @@ function ElementsEditor({ design, setDesign }) {
                   className={`px-2 py-1.5 border font-mono text-[10px] ${
                     holes.count === n
                       ? "border-[#00ffff] text-[#00ffff] bg-[#00ffff]/5"
-                      : "border-[#262626] text-[#a3a3a3] hover:border-[#525252]"
+                      : "border-line text-ink-muted hover:border-line"
                   }`}
                   data-testid={`studio-holes-count-${n}`}
                 >
@@ -1222,11 +1222,11 @@ function ElementsEditor({ design, setDesign }) {
 function SelectRow({ label, value, options, onChange, testId }) {
   return (
     <label className="block">
-      <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#a3a3a3] block mb-1">{label}</span>
+      <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted block mb-1">{label}</span>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#00ffff] outline-none px-2 py-1.5 font-mono text-[11px] text-[#e5e5e5] capitalize"
+        className="w-full bg-paper border border-line focus:border-[#00ffff] outline-none px-2 py-1.5 font-mono text-[11px] text-ink capitalize"
         data-testid={testId}
       >
         {options.map((o) => (
@@ -1241,8 +1241,8 @@ function SliderRow({ label, min, max, step, value, onChange, testId, suffix = ""
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
-        <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#a3a3a3]">{label}</span>
-        <span className="font-mono text-[9px] text-[#e5e5e5]">
+        <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted">{label}</span>
+        <span className="font-mono text-[9px] text-ink">
           {Number(value).toFixed(2)}{suffix}
         </span>
       </div>
@@ -1381,7 +1381,7 @@ function DragOverlay({ design, setDesign, containerRef, svgKey }) {
             key={idx}
             onPointerDown={(e) => onPointerDown(e, idx)}
             className={`absolute group cursor-move touch-none transition-all duration-100 ${
-              isDragging ? "ring-2 ring-[#ff4500] bg-[#ff4500]/5" : "ring-1 ring-transparent hover:ring-[#00ffff] hover:bg-[#00ffff]/5"
+              isDragging ? "ring-2 ring-[#ff4500] bg-brand/5" : "ring-1 ring-transparent hover:ring-[#00ffff] hover:bg-[#00ffff]/5"
             }`}
             style={{
               left: box.left,
@@ -1396,8 +1396,8 @@ function DragOverlay({ design, setDesign, containerRef, svgKey }) {
             title={isShape ? `Drag to move ${(op.primitive || "shape").replace(/_/g, " ")}` : "Drag to move text"}
           >
             <span
-              className={`absolute -top-5 left-0 font-mono text-[9px] uppercase tracking-[0.22em] px-1.5 py-0.5 bg-[#0a0a0a] text-[#00ffff] whitespace-nowrap pointer-events-none transition ${
-                isDragging ? "opacity-100 text-[#ff4500]" : "opacity-0 group-hover:opacity-100"
+              className={`absolute -top-5 left-0 font-mono text-[9px] uppercase tracking-[0.22em] px-1.5 py-0.5 bg-paper text-[#00ffff] whitespace-nowrap pointer-events-none transition ${
+                isDragging ? "opacity-100 text-brand" : "opacity-0 group-hover:opacity-100"
               }`}
             >
               {isShape

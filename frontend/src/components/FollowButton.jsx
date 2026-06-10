@@ -62,7 +62,7 @@ export default function FollowButton({ makerSlug, makerName }) {
   if (loading) {
     return (
       <div
-        className="inline-flex items-center px-4 py-2 border border-[#262626] font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252]"
+        className="inline-flex items-center px-4 py-2 border border-line font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted"
         data-testid="follow-button-loading"
       >
         ◆ Loading…
@@ -72,14 +72,14 @@ export default function FollowButton({ makerSlug, makerName }) {
 
   const isFollowing = !!jwt && status.is_following;
   return (
-    <div className="inline-flex items-stretch border border-[#262626]" data-testid="follow-cluster">
+    <div className="inline-flex items-stretch border border-line" data-testid="follow-cluster">
       <button
         onClick={onClick}
         disabled={busy}
         className={`px-4 py-2 font-mono text-[11px] uppercase tracking-[0.22em] transition disabled:opacity-50 ${
           isFollowing
-            ? "bg-[#0a0a0a] text-[#ff4500] hover:bg-[#1a0d05]"
-            : "bg-[#ff4500] text-[#0a0a0a] hover:bg-[#ff5722]"
+            ? "bg-paper text-brand hover:bg-brand/10"
+            : "bg-brand text-[#0a0a0a] hover:bg-brand-hover"
         }`}
         data-testid={isFollowing ? "follow-btn-following" : "follow-btn-follow"}
       >
@@ -87,7 +87,7 @@ export default function FollowButton({ makerSlug, makerName }) {
       </button>
       <Link
         to={`/makers/${makerSlug}#followers`}
-        className="px-4 py-2 border-l border-[#262626] font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#e5e5e5]"
+        className="px-4 py-2 border-l border-line font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted hover:text-ink"
         data-testid="follow-count"
         title="Followers"
       >

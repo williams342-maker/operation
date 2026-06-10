@@ -176,14 +176,14 @@ export default function LiveChatWidget() {
         onClick={() => setOpen(true)}
         data-testid="live-chat-launcher"
         aria-label="Open live chat"
-        className="fixed bottom-6 left-6 z-[60] flex items-center gap-2 px-4 py-3 bg-[#0a0a0a] border border-[#ff4500] hover:bg-[#ff4500] hover:text-[#0a0a0a] text-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em] transition shadow-[0_8px_24px_rgba(0,0,0,0.5)]"
+        className="fixed bottom-6 left-6 z-[60] flex items-center gap-2 px-4 py-3 bg-paper border border-brand hover:bg-brand hover:text-[#0a0a0a] text-brand font-mono text-[11px] uppercase tracking-[0.22em] transition shadow-[0_8px_24px_rgba(0,0,0,0.5)]"
       >
         <span aria-hidden>◆</span>
         Live chat
         {unread > 0 && (
           <span
             data-testid="live-chat-unread"
-            className="ml-1 px-1.5 py-0.5 bg-[#ff4500] text-[#0a0a0a] text-[10px] leading-none font-bold"
+            className="ml-1 px-1.5 py-0.5 bg-brand text-[#0a0a0a] text-[10px] leading-none font-bold"
           >
             {unread > 9 ? "9+" : unread}
           </span>
@@ -196,16 +196,16 @@ export default function LiveChatWidget() {
   return (
     <div
       data-testid="live-chat-panel"
-      className="fixed bottom-6 left-6 z-[60] w-[min(92vw,360px)] h-[min(72vh,520px)] bg-[#0a0a0a] border border-[#262626] flex flex-col shadow-[0_12px_36px_rgba(0,0,0,0.7)]"
+      className="fixed bottom-6 left-6 z-[60] w-[min(92vw,360px)] h-[min(72vh,520px)] bg-paper border border-line flex flex-col shadow-[0_12px_36px_rgba(0,0,0,0.7)]"
     >
       {/* Header */}
-      <div className="px-4 py-3 border-b border-[#262626]">
+      <div className="px-4 py-3 border-b border-line">
         <div className="flex items-center gap-3">
           <div className="flex-1 min-w-0">
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">
               ◆ Live chat
             </div>
-            <div className="font-mono text-[10px] text-[#a3a3a3] mt-0.5">
+            <div className="font-mono text-[10px] text-ink-muted mt-0.5">
               {connected
                 ? `${buddies.length || 0} online`
                 : token ? "Connecting…" : "Sign in to join"}
@@ -216,7 +216,7 @@ export default function LiveChatWidget() {
               to={`/community?channel=${channel}`}
               data-testid="live-chat-fullview"
               title="Open full chat view"
-              className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] transition px-1"
+              className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand transition px-1"
             >
               Full view →
             </Link>
@@ -226,7 +226,7 @@ export default function LiveChatWidget() {
             onClick={() => setOpen(false)}
             aria-label="Minimise chat"
             data-testid="live-chat-minimise"
-            className="font-mono text-[18px] text-[#525252] hover:text-[#e5e5e5] leading-none px-1"
+            className="font-mono text-[18px] text-ink-muted hover:text-ink leading-none px-1"
             title="Minimise"
           >
             –
@@ -236,7 +236,7 @@ export default function LiveChatWidget() {
             onClick={dismiss}
             aria-label="Hide for 3 days"
             data-testid="live-chat-dismiss"
-            className="font-mono text-[14px] text-[#525252] hover:text-rose-400 leading-none px-1"
+            className="font-mono text-[14px] text-ink-muted hover:text-rose-400 leading-none px-1"
             title="Hide for 3 days"
           >
             ×
@@ -252,8 +252,8 @@ export default function LiveChatWidget() {
                 data-testid={`live-chat-channel-${c.id}`}
                 className={`flex-1 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.18em] border transition ${
                   channel === c.id
-                    ? "border-[#ff4500] text-[#ff4500] bg-[#ff4500]/5"
-                    : "border-[#262626] text-[#a3a3a3] hover:border-[#525252] hover:text-[#e5e5e5]"
+                    ? "border-brand text-brand bg-brand/5"
+                    : "border-line text-ink-muted hover:border-line hover:text-ink"
                 }`}
               >
                 {c.label}
@@ -266,13 +266,13 @@ export default function LiveChatWidget() {
       {/* Body */}
       {!token ? (
         <div className="flex-1 flex flex-col items-center justify-center text-center px-6 gap-3">
-          <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed">
+          <p className="font-mono text-xs text-ink-muted leading-relaxed">
             Sign in to chat with the workshop crew and other shoppers.
           </p>
           <Link
             to="/community/login"
             data-testid="live-chat-signin"
-            className="px-3 py-2 border border-[#ff4500] text-[#ff4500] hover:bg-[#ff4500] hover:text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] transition"
+            className="px-3 py-2 border border-brand text-brand hover:bg-brand hover:text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] transition"
           >
             Sign in →
           </Link>
@@ -285,7 +285,7 @@ export default function LiveChatWidget() {
             data-testid="live-chat-messages"
           >
             {messages.length === 0 && (
-              <div className="font-mono text-[10px] text-[#525252] text-center py-6">
+              <div className="font-mono text-[10px] text-ink-muted text-center py-6">
                 Be the first to say hi.
               </div>
             )}
@@ -299,12 +299,12 @@ export default function LiveChatWidget() {
                   data-testid={`live-chat-msg-${i}`}
                 >
                   {m.kind === "system" ? (
-                    <div className="text-[#525252] italic">— {m.text} —</div>
+                    <div className="text-ink-muted italic">— {m.text} —</div>
                   ) : (
                     <div>
-                      <span className="text-[#ff4500]">{m.user_name || "anon"}</span>
-                      <span className="text-[#525252]"> · </span>
-                      <span className="text-[#e5e5e5]">{m.text}</span>
+                      <span className="text-brand">{m.user_name || "anon"}</span>
+                      <span className="text-ink-muted"> · </span>
+                      <span className="text-ink">{m.text}</span>
                     </div>
                   )}
                 </div>
@@ -312,7 +312,7 @@ export default function LiveChatWidget() {
           </div>
           <form
             onSubmit={send}
-            className="border-t border-[#262626] flex"
+            className="border-t border-line flex"
             data-testid="live-chat-form"
           >
             <input
@@ -322,13 +322,13 @@ export default function LiveChatWidget() {
               disabled={!connected}
               maxLength={500}
               data-testid="live-chat-input"
-              className="flex-1 bg-transparent outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5] placeholder:text-[#525252] disabled:opacity-50"
+              className="flex-1 bg-transparent outline-none px-3 py-2 font-mono text-xs text-ink placeholder:text-ink-muted disabled:opacity-50"
             />
             <button
               type="submit"
               disabled={!connected || !draft.trim()}
               data-testid="live-chat-send"
-              className="px-3 font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] hover:bg-[#ff4500] hover:text-[#0a0a0a] transition border-l border-[#262626] disabled:opacity-30"
+              className="px-3 font-mono text-[10px] uppercase tracking-[0.22em] text-brand hover:bg-brand hover:text-[#0a0a0a] transition border-l border-line disabled:opacity-30"
             >
               Send →
             </button>

@@ -115,19 +115,19 @@ export default function WorkshopAnalyticsDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-[#e5e5e5] pt-32 pb-24" data-testid="workshop-analytics-page">
+    <div className="min-h-screen bg-paper text-ink pt-32 pb-24" data-testid="workshop-analytics-page">
       {/* Header — non-sticky so the global Nav doesn't overlap our tab strip */}
-      <div className="border-b border-[#262626] bg-[#0a0a0a]">
+      <div className="border-b border-line bg-paper">
         <div className="max-w-[1400px] mx-auto px-6 py-5 flex items-center justify-between gap-4 flex-wrap">
           <div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">
               ◆ Workshop · Analytics Dashboard
             </div>
             <h1 className="font-display text-3xl mt-1">Insights, in one place.</h1>
           </div>
           <div className="flex gap-2 shrink-0 items-center">
             {tab === "overview" && (
-              <div className="flex gap-1 border border-[#262626]" data-testid="workshop-range-selector">
+              <div className="flex gap-1 border border-line" data-testid="workshop-range-selector">
                 {[7, 30, 90].map((n) => {
                   const active = rangeDays === n;
                   return (
@@ -137,7 +137,7 @@ export default function WorkshopAnalyticsDashboard() {
                       onClick={() => onPickRange(n)}
                       data-testid={`workshop-range-${n}`}
                       className={`px-3 py-2 font-mono text-[10px] uppercase tracking-[0.22em] transition ${
-                        active ? "bg-[#ff4500] text-black" : "text-[#a3a3a3] hover:text-[#e5e5e5]"
+                        active ? "bg-brand text-black" : "text-ink-muted hover:text-ink"
                       }`}
                     >
                       {n}d
@@ -149,7 +149,7 @@ export default function WorkshopAnalyticsDashboard() {
             <Link
               to="/admin/dashboard"
               data-testid="back-to-admin"
-              className="px-3 py-2 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition"
+              className="px-3 py-2 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] transition"
             >
               ← Admin
             </Link>
@@ -167,8 +167,8 @@ export default function WorkshopAnalyticsDashboard() {
                 data-testid={`workshop-tab-${t.id}`}
                 className={`px-4 py-2.5 font-mono text-[11px] uppercase tracking-[0.22em] transition border-b-2 whitespace-nowrap ${
                   active
-                    ? "border-[#ff4500] text-[#ff4500]"
-                    : "border-transparent text-[#a3a3a3] hover:text-[#e5e5e5]"
+                    ? "border-brand text-brand"
+                    : "border-transparent text-ink-muted hover:text-ink"
                 }`}
               >
                 {t.label}
@@ -181,12 +181,12 @@ export default function WorkshopAnalyticsDashboard() {
       {/* Body */}
       <div className="max-w-[1400px] mx-auto px-6 py-8 space-y-6">
         {loading[tab] && !data[tab] && (
-          <div className="font-mono text-xs text-[#525252] py-12 text-center" data-testid="workshop-loading">
+          <div className="font-mono text-xs text-ink-muted py-12 text-center" data-testid="workshop-loading">
             Loading {tab}…
           </div>
         )}
         {errored[tab] && !data[tab] && (
-          <div className="border border-[#ff4500]/40 bg-[#ff4500]/5 p-5 font-mono text-xs text-[#e5e5e5]" data-testid="workshop-error">
+          <div className="border border-brand/40 bg-brand/5 p-5 font-mono text-xs text-ink" data-testid="workshop-error">
             {errored[tab]}
           </div>
         )}
@@ -221,7 +221,7 @@ function OverviewSection({ d }) {
         { label: "Revenue",       value: `$${k.total_revenue.toLocaleString()}`,                       testId: "kpi-revenue", delta: dl.revenue          },
         { label: "Avg Order",     value: `$${k.avg_order_value.toFixed(2)}`,                            testId: "kpi-aov",     delta: dl.avg_order_value  },
       ]} />
-      <p className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252]" data-testid="delta-explainer">
+      <p className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted" data-testid="delta-explainer">
         ◆ Δ vs prior {d.range_days || 30} days · trailing-window comparison
       </p>
       <div className="grid lg:grid-cols-2 gap-6">
@@ -284,7 +284,7 @@ function SalesSection({ d }) {
           ) : (
             <table className="w-full font-mono text-xs" data-testid="top-products-table">
               <thead>
-                <tr className="text-[10px] uppercase tracking-[0.22em] text-[#525252] border-b border-[#262626]">
+                <tr className="text-[10px] uppercase tracking-[0.22em] text-ink-muted border-b border-line">
                   <th className="text-left py-2 pr-3">Product</th>
                   <th className="text-right py-2 pr-3">Sales</th>
                   <th className="text-right py-2">Revenue</th>
@@ -292,10 +292,10 @@ function SalesSection({ d }) {
               </thead>
               <tbody>
                 {d.top_products.map((p, i) => (
-                  <tr key={i} className="border-b border-[#1a1a1a] hover:bg-[#1a1a1a]/40">
-                    <td className="py-2 pr-3 text-[#e5e5e5] truncate">{p.name}</td>
-                    <td className="py-2 pr-3 text-right text-[#a3a3a3]">{p.sales}</td>
-                    <td className="py-2 text-right text-[#ff4500]">${p.revenue.toLocaleString()}</td>
+                  <tr key={i} className="border-b border-line hover:bg-surface/40">
+                    <td className="py-2 pr-3 text-ink truncate">{p.name}</td>
+                    <td className="py-2 pr-3 text-right text-ink-muted">{p.sales}</td>
+                    <td className="py-2 text-right text-brand">${p.revenue.toLocaleString()}</td>
                   </tr>
                 ))}
               </tbody>
@@ -338,7 +338,7 @@ function SellersSection({ d }) {
         ) : (
           <table className="w-full font-mono text-xs" data-testid="top-sellers-table">
             <thead>
-              <tr className="text-[10px] uppercase tracking-[0.22em] text-[#525252] border-b border-[#262626]">
+              <tr className="text-[10px] uppercase tracking-[0.22em] text-ink-muted border-b border-line">
                 <th className="text-left py-2 pr-3">#</th>
                 <th className="text-left py-2 pr-3">Maker</th>
                 <th className="text-right py-2 pr-3">Orders</th>
@@ -348,14 +348,14 @@ function SellersSection({ d }) {
             </thead>
             <tbody>
               {d.top_sellers.map((s, i) => (
-                <tr key={s.slug || i} className="border-b border-[#1a1a1a] hover:bg-[#1a1a1a]/40">
-                  <td className="py-2 pr-3 text-[#525252]">{i + 1}</td>
-                  <td className="py-2 pr-3 text-[#e5e5e5]">
-                    <Link to={`/makers/${s.slug}`} className="hover:text-[#ff4500]">{s.seller}</Link>
+                <tr key={s.slug || i} className="border-b border-line hover:bg-surface/40">
+                  <td className="py-2 pr-3 text-ink-muted">{i + 1}</td>
+                  <td className="py-2 pr-3 text-ink">
+                    <Link to={`/makers/${s.slug}`} className="hover:text-brand">{s.seller}</Link>
                   </td>
-                  <td className="py-2 pr-3 text-right text-[#a3a3a3]">{s.orders}</td>
-                  <td className="py-2 pr-3 text-right text-[#a3a3a3]">${s.avg_order.toLocaleString()}</td>
-                  <td className="py-2 text-right text-[#ff4500]">${s.revenue.toLocaleString()}</td>
+                  <td className="py-2 pr-3 text-right text-ink-muted">{s.orders}</td>
+                  <td className="py-2 pr-3 text-right text-ink-muted">${s.avg_order.toLocaleString()}</td>
+                  <td className="py-2 text-right text-brand">${s.revenue.toLocaleString()}</td>
                 </tr>
               ))}
             </tbody>
@@ -390,18 +390,18 @@ function UsersSection({ d }) {
       <ChartCard title="Retention Cohorts (real)">
         <div className="grid grid-cols-4 gap-3" data-testid="retention-grid">
           {d.retention.map((c) => (
-            <div key={c.cohort} className="border border-[#262626] p-4">
-              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252]">{c.cohort}</div>
-              <div className="font-display text-3xl text-[#ff4500] mt-1">{c.rate}%</div>
+            <div key={c.cohort} className="border border-line p-4">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">{c.cohort}</div>
+              <div className="font-display text-3xl text-brand mt-1">{c.rate}%</div>
               {typeof c.denom === "number" && (
-                <div className="font-mono text-[10px] text-[#525252] mt-1">
+                <div className="font-mono text-[10px] text-ink-muted mt-1">
                   {c.retained}/{c.denom} eligible
                 </div>
               )}
             </div>
           ))}
         </div>
-        <p className="font-mono text-[10px] text-[#525252] mt-3 leading-relaxed">
+        <p className="font-mono text-[10px] text-ink-muted mt-3 leading-relaxed">
           Denominator is users whose signup is old enough to have been able to come back at week N. A user is "retained" if their last_seen ≥ signup + N weeks.
         </p>
       </ChartCard>
@@ -419,12 +419,12 @@ function LiveSection({ d }) {
   return (
     <div className="space-y-6" data-testid="workshop-live">
       <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-1 border border-[#262626] p-6">
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] flex items-center gap-2">
-            <span className="inline-block w-2 h-2 bg-[#ff4500] rounded-full animate-pulse" />
+        <div className="lg:col-span-1 border border-line p-6">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand flex items-center gap-2">
+            <span className="inline-block w-2 h-2 bg-brand rounded-full animate-pulse" />
             Active Visitors · Now
           </div>
-          <div className="font-display text-6xl text-[#e5e5e5] mt-2" data-testid="active-visitors-count">
+          <div className="font-display text-6xl text-ink mt-2" data-testid="active-visitors-count">
             {d.active_visitors.toLocaleString()}
           </div>
           <div className="mt-4 h-12">
@@ -438,9 +438,9 @@ function LiveSection({ d }) {
         <ChartCard title="Top Active Pages" className="lg:col-span-2">
           <ul className="space-y-2 font-mono text-xs">
             {d.active_pages.map((p) => (
-              <li key={p.page} className="flex items-center justify-between border-b border-[#1a1a1a] py-2">
-                <span className="text-[#e5e5e5]">{p.page}</span>
-                <span className="text-[#ff4500]">{p.visitors} visitor{p.visitors === 1 ? "" : "s"}</span>
+              <li key={p.page} className="flex items-center justify-between border-b border-line py-2">
+                <span className="text-ink">{p.page}</span>
+                <span className="text-brand">{p.visitors} visitor{p.visitors === 1 ? "" : "s"}</span>
               </li>
             ))}
           </ul>
@@ -449,13 +449,13 @@ function LiveSection({ d }) {
       <ChartCard title="Recent Events">
         <ul className="space-y-2 font-mono text-xs">
           {d.recent_events.map((e, i) => (
-            <li key={i} className="flex items-center justify-between border-b border-[#1a1a1a] py-2">
+            <li key={i} className="flex items-center justify-between border-b border-line py-2">
               <span>
-                <span className="text-[#525252] mr-3">{e.time}</span>
-                <span className="text-[#e5e5e5]">{e.event}</span>
-                <span className="text-[#a3a3a3]"> · {e.page}</span>
+                <span className="text-ink-muted mr-3">{e.time}</span>
+                <span className="text-ink">{e.event}</span>
+                <span className="text-ink-muted"> · {e.page}</span>
               </span>
-              <span className="text-[#525252]">{e.location}</span>
+              <span className="text-ink-muted">{e.location}</span>
             </li>
           ))}
         </ul>
@@ -552,7 +552,7 @@ function PageviewsSection({ d }) {
       <ChartCard title="Top Pages">
         <table className="w-full font-mono text-xs" data-testid="top-pages-table">
           <thead>
-            <tr className="text-[10px] uppercase tracking-[0.22em] text-[#525252] border-b border-[#262626]">
+            <tr className="text-[10px] uppercase tracking-[0.22em] text-ink-muted border-b border-line">
               <th className="text-left py-2 pr-3">Page</th>
               <th className="text-right py-2 pr-3">Views</th>
               <th className="text-right py-2 pr-3">Unique</th>
@@ -562,12 +562,12 @@ function PageviewsSection({ d }) {
           </thead>
           <tbody>
             {d.top_pages.map((p, i) => (
-              <tr key={i} className="border-b border-[#1a1a1a] hover:bg-[#1a1a1a]/40">
-                <td className="py-2 pr-3 text-[#e5e5e5]">{p.page}</td>
-                <td className="py-2 pr-3 text-right text-[#a3a3a3]">{p.views.toLocaleString()}</td>
-                <td className="py-2 pr-3 text-right text-[#a3a3a3]">{p.unique.toLocaleString()}</td>
-                <td className="py-2 pr-3 text-right text-[#a3a3a3]">{p.exits ?? p.bounce}%</td>
-                <td className="py-2 text-right text-[#a3a3a3]">{p.avg_time}</td>
+              <tr key={i} className="border-b border-line hover:bg-surface/40">
+                <td className="py-2 pr-3 text-ink">{p.page}</td>
+                <td className="py-2 pr-3 text-right text-ink-muted">{p.views.toLocaleString()}</td>
+                <td className="py-2 pr-3 text-right text-ink-muted">{p.unique.toLocaleString()}</td>
+                <td className="py-2 pr-3 text-right text-ink-muted">{p.exits ?? p.bounce}%</td>
+                <td className="py-2 text-right text-ink-muted">{p.avg_time}</td>
               </tr>
             ))}
           </tbody>
@@ -583,9 +583,9 @@ function KpiGrid({ items }) {
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3" data-testid="kpi-grid">
       {items.map((it) => (
-        <div key={it.label} className="border border-[#262626] p-4 hover:border-[#ff4500] transition" data-testid={it.testId}>
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252]">{it.label}</div>
-          <div className="font-display text-2xl text-[#e5e5e5] mt-1 break-words">{it.value}</div>
+        <div key={it.label} className="border border-line p-4 hover:border-brand transition" data-testid={it.testId}>
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">{it.label}</div>
+          <div className="font-display text-2xl text-ink mt-1 break-words">{it.value}</div>
           {it.delta !== undefined && <DeltaPill delta={it.delta} />}
         </div>
       ))}
@@ -608,7 +608,7 @@ function DeltaPill({ delta }) {
   if (pct === null || pct === undefined) {
     if (current > 0 && (prior === 0 || prior === null)) {
       return (
-        <div className="mt-1.5 inline-flex items-center gap-1 font-mono text-[9px] uppercase tracking-[0.18em] text-[#ff4500]" data-testid="delta-pill-new">
+        <div className="mt-1.5 inline-flex items-center gap-1 font-mono text-[9px] uppercase tracking-[0.18em] text-brand" data-testid="delta-pill-new">
           ◆ NEW
         </div>
       );
@@ -617,7 +617,7 @@ function DeltaPill({ delta }) {
   }
   const up = pct > 0;
   const flat = pct === 0;
-  const color = flat ? "text-[#525252]" : up ? "text-[#7FAF7E]" : "text-[#E8875A]";
+  const color = flat ? "text-ink-muted" : up ? "text-[#7FAF7E]" : "text-[#E8875A]";
   const arrow = flat ? "→" : up ? "▲" : "▼";
   const pctText = flat ? "flat" : `${up ? "+" : ""}${pct}%`;
   return (
@@ -634,8 +634,8 @@ function DeltaPill({ delta }) {
 
 function ChartCard({ title, children, className = "" }) {
   return (
-    <div className={`border border-[#262626] p-5 ${className}`}>
-      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-4">{title}</div>
+    <div className={`border border-line p-5 ${className}`}>
+      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-4">{title}</div>
       {children}
     </div>
   );
@@ -643,6 +643,6 @@ function ChartCard({ title, children, className = "" }) {
 
 function EmptyState({ text }) {
   return (
-    <div className="font-mono text-xs text-[#525252] py-8 text-center">{text}</div>
+    <div className="font-mono text-xs text-ink-muted py-8 text-center">{text}</div>
   );
 }

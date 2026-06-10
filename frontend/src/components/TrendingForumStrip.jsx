@@ -35,23 +35,23 @@ export default function TrendingForumStrip({
 
   return (
     <section
-      className="border-t border-[#262626] bg-[#0a0a0a] py-16 sm:py-20"
+      className="border-t border-line bg-paper py-16 sm:py-20"
       data-testid={testId}
     >
       <div className="max-w-7xl mx-auto px-6">
         <div className="flex items-end justify-between mb-10 flex-wrap gap-3">
           <div>
-            <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500]">
+            <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand">
               ◆ From the forum
             </div>
-            <h2 className="font-display text-3xl sm:text-5xl text-[#e5e5e5] mt-3 leading-[0.9]">
+            <h2 className="font-display text-3xl sm:text-5xl text-ink mt-3 leading-[0.9]">
               Open questions worth your two cents.
             </h2>
           </div>
           <Link
             to="/community?tab=forum"
             data-testid="trending-forum-view-all"
-            className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] transition"
+            className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand transition"
           >
             All threads →
           </Link>
@@ -63,15 +63,15 @@ export default function TrendingForumStrip({
               key={t.id}
               to={`/community?tab=forum&thread=${t.id}`}
               data-testid={`trending-forum-thread-${t.id}`}
-              className="group border border-[#262626] hover:border-[#ff4500] p-5 transition flex flex-col"
+              className="group border border-line hover:border-brand p-5 transition flex flex-col"
             >
-              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mb-3">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-3">
                 ◆ {CATEGORY_LABEL[t.category] || t.category}
               </div>
-              <div className="font-display text-lg text-[#e5e5e5] leading-tight mb-4 line-clamp-3 group-hover:text-[#ff4500] transition">
+              <div className="font-display text-lg text-ink leading-tight mb-4 line-clamp-3 group-hover:text-brand transition">
                 {t.title}
               </div>
-              <div className="mt-auto flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.18em] text-[#525252]">
+              <div className="mt-auto flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.18em] text-ink-muted">
                 <span><AuthorLabel name={t.user_name} email="Anon" /></span>
                 <span>
                   {t.reply_count > 0

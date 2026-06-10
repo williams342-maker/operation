@@ -278,7 +278,7 @@ export default function ProductEditCard({ product, archived = false, draft = fal
           <>
             <Link
               to={`/maker/listings/${p.slug}/edit`}
-              className="mt-3 w-full block text-center bg-brand hover:bg-[#ff5f1f] text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] py-2 transition"
+              className="mt-3 w-full block text-center bg-brand hover:bg-brand-hover text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] py-2 transition"
               data-testid={`product-edit-link-${p.slug}`}
             >
               ✎ Edit listing
@@ -422,7 +422,7 @@ export default function ProductEditCard({ product, archived = false, draft = fal
                       value={budgetCap}
                       onChange={(e) => setBudgetCap(e.target.value)}
                       disabled={budgetBusy}
-                      className="w-20 bg-paper border border-line focus:border-cyan-500 font-mono text-[12px] text-[#fafafa] px-2 py-1.5"
+                      className="w-20 bg-paper border border-line focus:border-cyan-500 font-mono text-[12px] text-ink px-2 py-1.5"
                       data-testid={`product-budget-cap-${p.slug}`}
                     />
                     <span className="font-mono text-[10px] text-ink-muted">/ mo</span>
@@ -740,7 +740,7 @@ function IndexingBadge({ indexing, slug }) {
       title: `Recently added to the sitemap (${days ?? 0}d). Search engines may not have crawled it yet — usually within 7 days.`,
     },
     not_in_sitemap: {
-      dot: "bg-[#525252]",
+      dot: "bg-ink-muted",
       label: "Not in sitemap",
       text: "text-ink-muted",
       title: "Draft / archived / test listing — won't surface in search until published.",
@@ -933,7 +933,7 @@ function PricingVerdictBadge({ comparison, slug }) {
               type="button"
               onClick={onApply}
               disabled={busy}
-              className="flex-1 px-2 py-2 bg-brand hover:bg-[#cc3700] text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.2em] font-bold disabled:opacity-60 disabled:cursor-wait transition"
+              className="flex-1 px-2 py-2 bg-brand hover:bg-brand-hover text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.2em] font-bold disabled:opacity-60 disabled:cursor-wait transition"
               data-testid={`pricing-verdict-apply-${slug}`}
             >
               {busy ? "Saving…" : "Apply"}

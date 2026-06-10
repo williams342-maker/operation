@@ -62,19 +62,19 @@ export default function ContactMakerModal({ maker, productSlug = null, prefillBo
       <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
       <div
         ref={ref}
-        className="relative w-full max-w-xl bg-[#0a0a0a] border border-[#262626] mx-4 max-h-[90vh] overflow-y-auto"
+        className="relative w-full max-w-xl bg-paper border border-line mx-4 max-h-[90vh] overflow-y-auto"
         data-testid="contact-maker-modal"
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#262626]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-line">
           <div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mb-1">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-1">
               ◆ Direct Message
             </div>
             <h2 className="font-display text-2xl uppercase">Message {maker?.name}</h2>
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:text-[#ff4500] text-[#a3a3a3]"
+            className="p-2 hover:text-brand text-ink-muted"
             aria-label="Close"
             data-testid="contact-modal-close"
           >
@@ -109,7 +109,7 @@ export default function ContactMakerModal({ maker, productSlug = null, prefillBo
                 <input
                   type="text" value={name} onChange={(e) => setName(e.target.value)}
                   maxLength={120} placeholder="Casey M."
-                  className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm"
+                  className="w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm"
                   data-testid="contact-name-input"
                 />
               </Field>
@@ -117,7 +117,7 @@ export default function ContactMakerModal({ maker, productSlug = null, prefillBo
                 <input
                   type="email" value={email} onChange={(e) => setEmail(e.target.value)}
                   required maxLength={200} placeholder="you@example.com"
-                  className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm"
+                  className="w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm"
                   data-testid="contact-email-input"
                 />
               </Field>
@@ -126,7 +126,7 @@ export default function ContactMakerModal({ maker, productSlug = null, prefillBo
               <input
                 type="text" value={subject} onChange={(e) => setSubject(e.target.value)}
                 maxLength={140} placeholder={`Question for ${maker?.name || "the maker"}`}
-                className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm"
+                className="w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm"
                 data-testid="contact-subject-input"
               />
             </Field>
@@ -135,18 +135,18 @@ export default function ContactMakerModal({ maker, productSlug = null, prefillBo
                 rows={6} value={body} onChange={(e) => setBody(e.target.value)}
                 maxLength={4000} required
                 placeholder="What would you like to know? Custom sizes, materials, lead time, etc."
-                className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-3 font-mono text-sm resize-y"
+                className="w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-3 font-mono text-sm resize-y"
                 data-testid="contact-body-input"
               />
-              <div className="text-right font-mono text-[10px] text-[#525252] mt-1">{body.length} / 4000</div>
+              <div className="text-right font-mono text-[10px] text-ink-muted mt-1">{body.length} / 4000</div>
             </Field>
-            <p className="font-mono text-[10px] text-[#525252] leading-relaxed">
+            <p className="font-mono text-[10px] text-ink-muted leading-relaxed">
               ◆ Replies arrive at the email above. We deliver via Postmark — check your spam folder if you don&apos;t see one within a day.
             </p>
-            <div className="flex justify-end gap-2 pt-2 border-t border-[#262626]">
+            <div className="flex justify-end gap-2 pt-2 border-t border-line">
               <button
                 type="button" onClick={onClose}
-                className="px-4 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em]"
+                className="px-4 py-2 border border-line hover:border-brand font-mono text-[11px] uppercase tracking-[0.22em]"
                 data-testid="contact-cancel"
               >
                 Cancel
@@ -169,7 +169,7 @@ export default function ContactMakerModal({ maker, productSlug = null, prefillBo
 function Field({ label, children }) {
   return (
     <label className="block">
-      <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] block mb-1">
+      <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted block mb-1">
         {label}
       </span>
       {children}

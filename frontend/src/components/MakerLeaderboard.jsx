@@ -22,7 +22,7 @@ const BADGE_TONE = {
   "Rising":             { c: "border-emerald-400/60 text-emerald-300 bg-emerald-400/5", icon: TrendingUp },
   "On the Rise":        { c: "border-emerald-400/60 text-emerald-300 bg-emerald-400/5", icon: TrendingUp },
   "Workshop Hero":      { c: "border-cyan-400/60 text-cyan-300 bg-cyan-400/5", icon: Sparkles },
-  "New":                { c: "border-[#525252] text-[#a3a3a3] bg-[#262626]/30", icon: Sparkles },
+  "New":                { c: "border-line text-ink-muted bg-surface/30", icon: Sparkles },
 };
 
 const MEDAL_BY_RANK = { 1: "🥇", 2: "🥈", 3: "🥉" };
@@ -80,7 +80,7 @@ export default function MakerLeaderboard() {
           </div>
           <h2 className="font-display text-2xl md:text-3xl uppercase">Top makers · climbing the bench</h2>
         </div>
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#737373]">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
           Ranked by Workshop Score
         </div>
       </div>
@@ -91,7 +91,7 @@ export default function MakerLeaderboard() {
           <Link
             key={m.slug}
             to={`/makers/${m.slug}`}
-            className="group border border-[#262626] hover:border-amber-400/60 bg-[#050505] p-4 transition-all relative overflow-hidden"
+            className="group border border-line hover:border-amber-400/60 bg-paper p-4 transition-all relative overflow-hidden"
             data-testid={`leaderboard-podium-${m.slug}`}
           >
             <div className="absolute top-3 right-3 font-display text-3xl">
@@ -100,7 +100,7 @@ export default function MakerLeaderboard() {
             <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-amber-300 mb-2">
               Rank · #{m.rank}
             </div>
-            <div className="font-display text-xl md:text-2xl text-[#f5f5f5] group-hover:text-amber-200 transition leading-tight pr-10 mb-2">
+            <div className="font-display text-xl md:text-2xl text-ink group-hover:text-amber-200 transition leading-tight pr-10 mb-2">
               {m.name}
             </div>
             <div className="mb-3">
@@ -108,16 +108,16 @@ export default function MakerLeaderboard() {
             </div>
             <div className="grid grid-cols-3 gap-1 text-[10px] font-mono">
               <div>
-                <div className="text-[#f5f5f5] font-display text-lg tabular-nums">{m.orders}</div>
-                <div className="text-[#737373] uppercase tracking-[0.18em] text-[9px]">Orders</div>
+                <div className="text-ink font-display text-lg tabular-nums">{m.orders}</div>
+                <div className="text-ink-muted uppercase tracking-[0.18em] text-[9px]">Orders</div>
               </div>
               <div>
-                <div className="text-[#f5f5f5] font-display text-lg tabular-nums">${dollars(m.revenue_cents)}</div>
-                <div className="text-[#737373] uppercase tracking-[0.18em] text-[9px]">Revenue</div>
+                <div className="text-ink font-display text-lg tabular-nums">${dollars(m.revenue_cents)}</div>
+                <div className="text-ink-muted uppercase tracking-[0.18em] text-[9px]">Revenue</div>
               </div>
               <div>
-                <div className="text-[#f5f5f5] font-display text-lg tabular-nums">{m.reviews}</div>
-                <div className="text-[#737373] uppercase tracking-[0.18em] text-[9px]">Reviews</div>
+                <div className="text-ink font-display text-lg tabular-nums">{m.reviews}</div>
+                <div className="text-ink-muted uppercase tracking-[0.18em] text-[9px]">Reviews</div>
               </div>
             </div>
             <div className="mt-3 font-mono text-[9px] uppercase tracking-[0.22em] text-amber-300/70 flex items-center gap-1">
@@ -137,15 +137,15 @@ export default function MakerLeaderboard() {
             <Link
               key={m.slug}
               to={`/makers/${m.slug}`}
-              className="border border-[#262626] hover:border-amber-400/40 bg-[#050505] p-2.5 transition"
+              className="border border-line hover:border-amber-400/40 bg-paper p-2.5 transition"
               data-testid={`leaderboard-row-${m.slug}`}
             >
               <div className="flex items-baseline justify-between mb-1">
                 <span className="font-mono text-[10px] text-amber-300/80">#{m.rank}</span>
-                <span className="font-mono text-[9px] text-[#737373] tabular-nums">{m.score.toLocaleString()}</span>
+                <span className="font-mono text-[9px] text-ink-muted tabular-nums">{m.score.toLocaleString()}</span>
               </div>
-              <div className="font-display text-sm text-[#f5f5f5] truncate leading-tight">{m.name}</div>
-              <div className="mt-1 flex items-center gap-2 font-mono text-[9px] text-[#737373]">
+              <div className="font-display text-sm text-ink truncate leading-tight">{m.name}</div>
+              <div className="mt-1 flex items-center gap-2 font-mono text-[9px] text-ink-muted">
                 <span className="inline-flex items-center gap-0.5">
                   <ShoppingBag size={8} /> {m.orders}
                 </span>

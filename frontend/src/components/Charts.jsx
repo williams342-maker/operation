@@ -23,13 +23,13 @@ export function Sparkline({ data = [], height = 56, label = "Weekly", testId }) 
   };
 
   return (
-    <div className="border border-[#262626] p-6" data-testid={testId}>
+    <div className="border border-line p-6" data-testid={testId}>
       <div className="flex items-baseline justify-between mb-4">
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
           ◆ {label} GMV · last {data.length} weeks
         </div>
         <div className="flex items-center gap-2">
-          <span className="font-mono text-[10px] text-[#525252] uppercase tracking-[0.22em]">
+          <span className="font-mono text-[10px] text-ink-muted uppercase tracking-[0.22em]">
             ${last.toFixed(0)} this week
           </span>
           {delta === "up" && (
@@ -39,15 +39,15 @@ export function Sparkline({ data = [], height = 56, label = "Weekly", testId }) 
             <span className="font-mono text-[10px] text-red-400">▼</span>
           )}
           {delta === "flat" && (
-            <span className="font-mono text-[10px] text-[#525252]">—</span>
+            <span className="font-mono text-[10px] text-ink-muted">—</span>
           )}
           {delta === "new" && (
-            <span className="font-mono text-[10px] text-[#ff4500]">NEW</span>
+            <span className="font-mono text-[10px] text-brand">NEW</span>
           )}
         </div>
       </div>
       {total === 0 ? (
-        <p className="font-mono text-xs text-[#525252]">
+        <p className="font-mono text-xs text-ink-muted">
           No paid orders in the last {data.length} weeks.
         </p>
       ) : (
@@ -61,7 +61,7 @@ export function Sparkline({ data = [], height = 56, label = "Weekly", testId }) 
                 key={d.week_start}
                 title={`${fmtDate(d.week_start)} · $${v.toFixed(0)}`}
                 className={`flex-1 transition-colors ${
-                  isLast ? "bg-[#ff4500]" : "bg-[#3a3a3a] hover:bg-[#525252]"
+                  isLast ? "bg-brand" : "bg-ink-muted/30 hover:bg-ink-muted"
                 }`}
                 style={{ height: `${h}px` }}
                 data-testid={`sparkline-bar-${i}`}
@@ -84,8 +84,8 @@ export function DeltaBadge({ delta, testId }) {
   const cls =
     direction === "up" ? "text-emerald-400"
     : direction === "down" ? "text-red-400"
-    : direction === "new" ? "text-[#ff4500]"
-    : "text-[#525252]";
+    : direction === "new" ? "text-brand"
+    : "text-ink-muted";
   const arrow =
     direction === "up" ? "▲"
     : direction === "down" ? "▼"

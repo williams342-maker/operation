@@ -29,13 +29,13 @@ export default function TrendingJournalRail() {
 
   return (
     <section
-      className="bg-[#0a0a0a] border-t border-b border-[#1a1a1a] py-20 md:py-24"
+      className="bg-paper border-t border-b border-line py-20 md:py-24"
       data-testid="trending-journal-rail"
     >
       <div className="max-w-7xl mx-auto px-6">
         <div className="flex items-end justify-between gap-4 mb-10 flex-wrap">
           <div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.32em] text-[#ff4500] mb-3 flex items-center gap-2">
+            <div className="font-mono text-[10px] uppercase tracking-[0.32em] text-brand mb-3 flex items-center gap-2">
               <TrendingUp size={12} /> Trending in the journal
             </div>
             <h2 className="font-display text-4xl md:text-5xl lg:text-6xl uppercase leading-[0.95]">
@@ -44,7 +44,7 @@ export default function TrendingJournalRail() {
           </div>
           <Link
             to="/journal"
-            className="inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] transition"
+            className="inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand transition"
             data-testid="trending-journal-rail-all"
           >
             All entries <ArrowUpRight size={12} />
@@ -55,10 +55,10 @@ export default function TrendingJournalRail() {
             <Link
               key={p.slug}
               to={`/journal/${p.slug}`}
-              className="group block border border-[#1f1f1f] hover:border-[#ff4500] transition overflow-hidden bg-[#0d0d0d]"
+              className="group block border border-line hover:border-brand transition overflow-hidden bg-surface"
               data-testid={`trending-journal-post-${p.slug}`}
             >
-              <div className="aspect-[4/3] overflow-hidden bg-[#0a0a0a] relative">
+              <div className="aspect-[4/3] overflow-hidden bg-paper relative">
                 {p.cover ? (
                   <img
                     src={p.cover}
@@ -67,7 +67,7 @@ export default function TrendingJournalRail() {
                     loading="lazy"
                   />
                 ) : (
-                  <div className="w-full h-full grid place-items-center text-[#262626]">
+                  <div className="w-full h-full grid place-items-center text-ink-muted/40">
                     <TrendingUp size={32} />
                   </div>
                 )}
@@ -76,19 +76,19 @@ export default function TrendingJournalRail() {
                     recency fallback. Only shown for the top 3 so it's
                     a genuine signal, not visual clutter. */}
                 {idx < 3 && (
-                  <div className="absolute top-3 left-3 bg-[#ff4500] text-black font-mono text-[10px] uppercase tracking-[0.22em] font-bold px-2 py-1">
+                  <div className="absolute top-3 left-3 bg-brand text-black font-mono text-[10px] uppercase tracking-[0.22em] font-bold px-2 py-1">
                     #{idx + 1}
                   </div>
                 )}
               </div>
               <div className="p-4">
-                <div className="font-mono text-[9px] uppercase tracking-[0.28em] text-[#525252] mb-2 truncate">
+                <div className="font-mono text-[9px] uppercase tracking-[0.28em] text-ink-muted mb-2 truncate">
                   {p.author} · {p.read_min || 4} min read
                 </div>
-                <h3 className="font-display text-base md:text-lg uppercase leading-tight group-hover:text-[#ff4500] transition mb-2 line-clamp-2">
+                <h3 className="font-display text-base md:text-lg uppercase leading-tight group-hover:text-brand transition mb-2 line-clamp-2">
                   {p.title}
                 </h3>
-                <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed line-clamp-3">
+                <p className="font-mono text-xs text-ink-muted leading-relaxed line-clamp-3">
                   {p.excerpt}
                 </p>
               </div>

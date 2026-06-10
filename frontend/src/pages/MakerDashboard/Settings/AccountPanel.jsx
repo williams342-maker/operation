@@ -152,7 +152,7 @@ export default function AccountPanel({ maker, onSaved }) {
           <button
             onClick={cancelDelete}
             disabled={busy === "cancel-delete"}
-            className="mt-3 px-4 py-2 bg-white hover:bg-ink-muted text-red-700 border border-white font-mono text-[10px] uppercase tracking-[0.22em] font-bold disabled:opacity-50"
+            className="mt-3 px-4 py-2 bg-surface hover:bg-paper text-red-700 border border-line font-mono text-[10px] uppercase tracking-[0.22em] font-bold disabled:opacity-50"
             data-testid="account-cancel-deletion-btn"
           >
             {busy === "cancel-delete" ? "…" : "← Cancel deletion — keep my account"}
@@ -185,7 +185,7 @@ export default function AccountPanel({ maker, onSaved }) {
           ) : (
             <Link
               to="/maker/billing"
-              className="inline-flex items-center justify-center px-4 py-2 bg-brand hover:bg-[#ff5722] text-ink border border-brand font-mono text-[11px] uppercase tracking-[0.22em] font-bold transition"
+              className="inline-flex items-center justify-center px-4 py-2 bg-brand hover:bg-brand-hover text-ink border border-brand font-mono text-[11px] uppercase tracking-[0.22em] font-bold transition"
               data-testid="account-upgrade-btn"
             >
               ★ Upgrade my account →

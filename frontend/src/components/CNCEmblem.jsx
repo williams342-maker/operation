@@ -10,7 +10,7 @@ const SRC = "/downloads/cnc-garage-builders.png";
 export default function CNCEmblem() {
   return (
     <section
-      className="py-24 md:py-32 bg-[#0a0a0a] grain border-y border-[#262626]"
+      className="py-24 md:py-32 bg-paper grain border-y border-line"
       data-testid="cnc-emblem-section"
     >
       <div className="max-w-[1400px] mx-auto px-4 md:px-8">
@@ -25,7 +25,7 @@ export default function CNCEmblem() {
           >
             <div className="relative aspect-square">
               {/* Soft orange glow on hover */}
-              <div className="absolute inset-0 bg-[#ff4500] opacity-0 group-hover:opacity-30 blur-3xl transition-opacity duration-500" />
+              <div className="absolute inset-0 bg-brand opacity-0 group-hover:opacity-30 blur-3xl transition-opacity duration-500" />
               <img
                 src={SRC}
                 alt="CNC Garage Builders — All CNC Machines. One Community."
@@ -34,7 +34,7 @@ export default function CNCEmblem() {
                 data-testid="cnc-emblem-img"
               />
               {/* Download chip */}
-              <div className="absolute bottom-3 right-3 px-3 py-2 bg-[#ff4500] text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
+              <div className="absolute bottom-3 right-3 px-3 py-2 bg-brand text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="square">
                   <path d="M12 4v12m0 0l-5-5m5 5l5-5M4 20h16" />
                 </svg>
@@ -45,18 +45,18 @@ export default function CNCEmblem() {
 
           {/* Copy */}
           <div>
-            <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-4">
+            <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-4">
               ◆ Community Emblem
             </div>
             <h2 className="font-display text-5xl md:text-7xl uppercase leading-[0.9] mb-6">
               CNC Garage<br/>
               <span className="text-outline-orange">Builders.</span>
             </h2>
-            <p className="font-mono text-base md:text-lg text-[#a3a3a3] leading-relaxed mb-3 max-w-md">
+            <p className="font-mono text-base md:text-lg text-ink-muted leading-relaxed mb-3 max-w-md">
               Mill, router, plasma, laser, lathe — every machine, one community.
               Stamp it on your shirt, your shop sign, your shipping crate.
             </p>
-            <p className="font-mono text-xs text-[#525252] leading-relaxed mb-8 max-w-md">
+            <p className="font-mono text-xs text-ink-muted leading-relaxed mb-8 max-w-md">
               2048 × 2048 PNG · transparent background · free to use for
               members of the Crafters Market workshop.
             </p>

@@ -24,7 +24,7 @@ export default function AiAssistantSection({
       right={
         <button
           type="button" onClick={() => setAiHidden((v) => !v)}
-          className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500]"
+          className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand"
           data-testid="editor-ai-toggle"
         >
           {aiHidden ? "Show" : "Hide"}
@@ -38,10 +38,10 @@ export default function AiAssistantSection({
             rows={5} value={aiPrompt}
             onChange={(e) => setAiPrompt(e.target.value)}
             placeholder="e.g. Plasma cut Texas longhorn skull from 11ga steel, powder coated matte black, 24x18 inches, ready to hang with keyhole brackets. Great for man caves, ranches, bars."
-            className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-3 font-mono text-sm resize-y"
+            className="w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-3 font-mono text-sm resize-y"
             data-testid="editor-ai-prompt"
           />
-          <p className="font-mono text-[10px] text-[#525252] mt-2">
+          <p className="font-mono text-[10px] text-ink-muted mt-2">
             The more detail you provide, the better the output. Include size, material, finish, and use case.
           </p>
           <button
@@ -51,7 +51,7 @@ export default function AiAssistantSection({
           >
             <Sparkles size={14} /> {aiBusy ? "Generating…" : "Generate Listing"}
           </button>
-          <p className="font-mono text-[10px] text-[#525252] mt-3">
+          <p className="font-mono text-[10px] text-ink-muted mt-3">
             ✦ AI-generated content will fill in Title, Description, Tags, and Price below. You can edit anything before publishing.
           </p>
         </>

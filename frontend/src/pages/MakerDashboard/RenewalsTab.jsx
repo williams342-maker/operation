@@ -238,7 +238,7 @@ export default function RenewalsTab() {
             <button
               onClick={doBulkRenew}
               disabled={!!busy}
-              className="inline-flex items-center gap-1.5 bg-brand hover:bg-[#ff5f1f] text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] px-4 py-2 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 bg-brand hover:bg-brand-hover text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] px-4 py-2 disabled:opacity-50"
               data-testid="bulk-renew-btn"
             >
               <Check size={12} /> {busy === "Renew" ? "Renewing…" : "Renew now"}

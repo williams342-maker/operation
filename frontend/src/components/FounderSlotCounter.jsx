@@ -44,44 +44,44 @@ export default function FounderSlotCounter({
   if (variant === "hero") {
     return (
       <div
-        className="border border-[#262626] bg-[#0a0a0a] p-6 md:p-7"
+        className="border border-line bg-paper p-6 md:p-7"
         data-testid={testId}
       >
         <div className="flex items-baseline justify-between gap-4 mb-3">
           <div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#a3a3a3] mb-1">
+            <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-ink-muted mb-1">
               ◆ Inaugural Founder Slots
             </div>
-            <div className="font-display text-5xl md:text-6xl leading-none text-[#ff4500]">
+            <div className="font-display text-5xl md:text-6xl leading-none text-brand">
               {remaining}
-              <span className="text-[#525252] text-3xl"> / {total}</span>
+              <span className="text-ink-muted text-3xl"> / {total}</span>
             </div>
           </div>
           <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-right">
-            <div className={urgent ? "text-[#ff4500]" : "text-[#a3a3a3]"}>
+            <div className={urgent ? "text-brand" : "text-ink-muted"}>
               {urgent ? "Closing soon" : "Spots remaining"}
             </div>
-            <div className="text-[#525252] mt-1">
+            <div className="text-ink-muted mt-1">
               {taken} taken · lifetime perks
             </div>
           </div>
         </div>
         <div
-          className="h-1 bg-[#262626] overflow-hidden"
+          className="h-1 bg-surface overflow-hidden"
           role="progressbar"
           aria-valuenow={taken}
           aria-valuemin={0}
           aria-valuemax={total}
         >
           <div
-            className="h-full bg-[#ff4500] transition-all duration-700"
+            className="h-full bg-brand transition-all duration-700"
             style={{ width: `${pct}%` }}
           />
         </div>
-        <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] mt-3 leading-relaxed">
-          The first 100 makers ever approved get <span className="text-[#fafafa]">lifetime</span> Founder
+        <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mt-3 leading-relaxed">
+          The first 100 makers ever approved get <span className="text-ink">lifetime</span> Founder
           rates (3% commission · 50 free listings/mo). After #100, applications still
-          accepted as 12-month Founder, but inaugural status closes <span className="text-[#fafafa]">forever</span>.
+          accepted as 12-month Founder, but inaugural status closes <span className="text-ink">forever</span>.
         </p>
       </div>
     );
@@ -90,10 +90,10 @@ export default function FounderSlotCounter({
   // compact
   return (
     <div
-      className="inline-flex items-center gap-2 px-3 py-1.5 border border-[#262626] bg-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]"
+      className="inline-flex items-center gap-2 px-3 py-1.5 border border-line bg-paper font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted"
       data-testid={testId}
     >
-      <span className={urgent ? "text-[#ff4500]" : "text-[#fafafa]"}>
+      <span className={urgent ? "text-brand" : "text-ink"}>
         ◆ {remaining}/{total}
       </span>
       <span>Inaugural spots left</span>

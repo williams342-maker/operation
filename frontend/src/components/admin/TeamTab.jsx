@@ -93,7 +93,7 @@ export default function TeamTab() {
 
       <div className="border border-line" data-testid="team-table">
         {/* Search + filters */}
-        <div className="flex flex-col sm:flex-row gap-2 sm:items-center px-4 py-3 border-b border-line bg-[#0c0c0c]">
+        <div className="flex flex-col sm:flex-row gap-2 sm:items-center px-4 py-3 border-b border-line bg-surface">
           <div className="relative flex-1 min-w-0">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" />
             <input
@@ -241,7 +241,7 @@ function TeamRow({ row, allCaps, onChanged }) {
           </span>
         )}
         {row.is_active === false && (
-          <span className="border border-[#525252] text-ink-muted text-[9px] font-mono px-1.5 py-0.5 uppercase tracking-[0.18em]">
+          <span className="border border-line text-ink-muted text-[9px] font-mono px-1.5 py-0.5 uppercase tracking-[0.18em]">
             Inactive
           </span>
         )}
@@ -438,7 +438,7 @@ function InviteModal({ presets, allCaps, onClose, onInvited }) {
             <button
               type="submit"
               disabled={busy}
-              className="px-5 py-2 bg-brand hover:bg-[#ff5722] text-ink font-mono text-[11px] uppercase tracking-[0.22em] inline-flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_0_1px_#ff4500]"
+              className="px-5 py-2 bg-brand hover:bg-brand-hover text-ink font-mono text-[11px] uppercase tracking-[0.22em] inline-flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_0_1px_#ff4500]"
               data-testid="team-invite-submit"
             >
               <Users size={14} /> {busy ? "Sending…" : "Send Invite"}

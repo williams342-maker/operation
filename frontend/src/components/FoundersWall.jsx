@@ -40,17 +40,17 @@ export default function FoundersWall({ testId = "founders-wall" }) {
 
   return (
     <section
-      className="border border-[#262626] bg-[#0a0a0a] p-6 md:p-10 my-12"
+      className="border border-line bg-paper p-6 md:p-10 my-12"
       data-testid={testId}
     >
       <div className="mb-8">
-        <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#ff4500] mb-2">
+        <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand mb-2">
           ◆ Meet the makers already in
         </div>
-        <h2 className="font-display text-3xl md:text-4xl lg:text-5xl leading-[0.95] text-[#fafafa]">
+        <h2 className="font-display text-3xl md:text-4xl lg:text-5xl leading-[0.95] text-ink">
           The Founders Wall.
         </h2>
-        <p className="text-[#a3a3a3] mt-4 text-sm leading-relaxed max-w-2xl">
+        <p className="text-ink-muted mt-4 text-sm leading-relaxed max-w-2xl">
           Every approved Founder is listed here — numbered, named, badged.
           Click any name to visit their shop and see the ◆ Founding Maker badge
           on every product card.
@@ -62,7 +62,7 @@ export default function FoundersWall({ testId = "founders-wall" }) {
           <Link
             key={f.slug}
             to={`/makers/${f.slug}`}
-            className="group border border-[#262626] bg-black hover:border-[#ff4500] transition-colors p-4 flex flex-col items-start"
+            className="group border border-line bg-surface hover:border-brand transition-colors p-4 flex flex-col items-start"
             data-testid={`founders-wall-${f.slug}`}
           >
             <div className="flex items-center gap-2 mb-3">
@@ -70,10 +70,10 @@ export default function FoundersWall({ testId = "founders-wall" }) {
                 <img
                   src={f.avatar_url}
                   alt={f.name || f.shop_name}
-                  className="w-10 h-10 object-cover bg-[#0a0a0a]"
+                  className="w-10 h-10 object-cover bg-paper"
                 />
               ) : (
-                <div className="w-10 h-10 bg-[#171717] flex items-center justify-center font-display text-lg text-[#525252]">
+                <div className="w-10 h-10 bg-surface flex items-center justify-center font-display text-lg text-ink-muted">
                   {(f.shop_name || f.name || "?").slice(0, 1).toUpperCase()}
                 </div>
               )}
@@ -92,14 +92,14 @@ export default function FoundersWall({ testId = "founders-wall" }) {
                 )}
               </div>
             </div>
-            <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#ff4500]">
+            <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-brand">
               {f.founder_status === "inaugural" ? "Inaugural" : "12-month"} · #{String(f.founder_number || 0).padStart(3, "0")}
             </div>
-            <div className="font-display text-base leading-tight text-[#fafafa] mt-1 group-hover:text-[#ff4500] transition-colors truncate w-full">
+            <div className="font-display text-base leading-tight text-ink mt-1 group-hover:text-brand transition-colors truncate w-full">
               {f.shop_name || f.name}
             </div>
             {f.location && (
-              <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#525252] mt-1 truncate w-full">
+              <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-ink-muted mt-1 truncate w-full">
                 {f.location}
               </div>
             )}

@@ -29,8 +29,8 @@ const PALETTE = {
   ok:       { dot: "bg-emerald-500", text: "text-emerald-300", border: "border-emerald-700/60", bg: "bg-emerald-900/20" },
   degraded: { dot: "bg-yellow-500",  text: "text-yellow-300",  border: "border-yellow-700/60",  bg: "bg-yellow-900/20" },
   down:     { dot: "bg-red-500",     text: "text-red-300",     border: "border-red-700/60",     bg: "bg-red-900/20" },
-  paused:   { dot: "bg-[#525252]",   text: "text-ink-muted",   border: "border-line",      bg: "bg-paper" },
-  unknown:  { dot: "bg-[#525252]",   text: "text-ink-muted",   border: "border-line",      bg: "bg-paper" },
+  paused:   { dot: "bg-ink-muted",   text: "text-ink-muted",   border: "border-line",      bg: "bg-paper" },
+  unknown:  { dot: "bg-ink-muted",   text: "text-ink-muted",   border: "border-line",      bg: "bg-paper" },
 };
 
 const LABEL = {

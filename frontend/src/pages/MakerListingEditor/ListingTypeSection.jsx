@@ -147,19 +147,19 @@ export default function ListingTypeSection({ form, set, productSlug, api }) {
               onClick={() => set({ listing_type: opt.value })}
               className={`text-left p-4 border transition ${
                 selected
-                  ? "border-[#ff4500] bg-[#ff4500]/[0.08]"
-                  : "border-[#262626] hover:border-[#525252]"
+                  ? "border-brand bg-brand/[0.08]"
+                  : "border-line hover:border-line"
               }`}
               data-testid={`editor-listing-type-${opt.value}`}
             >
-              <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#e5e5e5]">
+              <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink">
                 {opt.label}
               </div>
-              <div className="font-mono text-[10px] text-[#737373] mt-1.5">
+              <div className="font-mono text-[10px] text-ink-muted mt-1.5">
                 {opt.blurb}
               </div>
               {selected && (
-                <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#ff4500] mt-2">
+                <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-brand mt-2">
                   ◆ Selected
                 </div>
               )}
@@ -172,10 +172,10 @@ export default function ListingTypeSection({ form, set, productSlug, api }) {
       {isDigital && (
         <div data-testid="editor-digital-files-card">
           <div className="flex items-center justify-between mb-3">
-            <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#e5e5e5]">
+            <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink">
               Digital deliverables
             </div>
-            <div className="font-mono text-[10px] text-[#525252]">
+            <div className="font-mono text-[10px] text-ink-muted">
               {files.length} / {MAX_FILES} files
             </div>
           </div>
@@ -204,23 +204,23 @@ export default function ListingTypeSection({ form, set, productSlug, api }) {
                 type="button"
                 onClick={() => inputRef.current?.click()}
                 disabled={uploading}
-                className="w-full p-6 border border-dashed border-[#262626] hover:border-[#ff4500] disabled:opacity-50 transition flex flex-col items-center gap-2"
+                className="w-full p-6 border border-dashed border-line hover:border-brand disabled:opacity-50 transition flex flex-col items-center gap-2"
                 data-testid="editor-digital-files-upload-btn"
               >
                 {uploading ? (
                   <>
-                    <Loader2 size={20} className="text-[#ff4500] animate-spin" />
-                    <span className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#e5e5e5]">
+                    <Loader2 size={20} className="text-brand animate-spin" />
+                    <span className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink">
                       Uploading…
                     </span>
                   </>
                 ) : (
                   <>
-                    <Upload size={20} className="text-[#737373]" />
-                    <span className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#e5e5e5]">
+                    <Upload size={20} className="text-ink-muted" />
+                    <span className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink">
                       Click to upload digital files
                     </span>
-                    <span className="font-mono text-[9.5px] text-[#525252]">
+                    <span className="font-mono text-[9.5px] text-ink-muted">
                       {ALLOWED_EXTS.map((e) => "." + e).join(" · ")} · ≤ 25 MB each
                     </span>
                   </>
@@ -230,7 +230,7 @@ export default function ListingTypeSection({ form, set, productSlug, api }) {
           )}
 
           {atCap && (
-            <div className="p-3 border border-[#262626] bg-[#0a0a0a] font-mono text-[10.5px] text-[#a3a3a3]">
+            <div className="p-3 border border-line bg-paper font-mono text-[10.5px] text-ink-muted">
               Max {MAX_FILES} files reached. Remove one to upload another.
             </div>
           )}
@@ -241,22 +241,22 @@ export default function ListingTypeSection({ form, set, productSlug, api }) {
               {files.map((f) => (
                 <li
                   key={f.id}
-                  className="flex items-center gap-3 p-3 border border-[#262626] hover:border-[#525252] bg-[#0a0a0a] transition"
+                  className="flex items-center gap-3 p-3 border border-line hover:border-line bg-paper transition"
                   data-testid={`editor-digital-file-row-${f.id}`}
                 >
-                  <FileText size={14} className="text-[#ff4500] shrink-0" />
+                  <FileText size={14} className="text-brand shrink-0" />
                   <div className="min-w-0 flex-1">
-                    <div className="font-mono text-[11px] text-[#e5e5e5] truncate">
+                    <div className="font-mono text-[11px] text-ink truncate">
                       {f.filename}
                     </div>
-                    <div className="font-mono text-[9.5px] text-[#525252] mt-0.5">
+                    <div className="font-mono text-[9.5px] text-ink-muted mt-0.5">
                       {f.ext} · {formatBytes(f.size_bytes)}
                     </div>
                   </div>
                   <button
                     type="button"
                     onClick={() => handleRemove(f)}
-                    className="p-1.5 text-[#525252] hover:text-red-400 transition"
+                    className="p-1.5 text-ink-muted hover:text-red-400 transition"
                     title="Remove file"
                     data-testid={`editor-digital-file-remove-${f.id}`}
                   >
@@ -269,7 +269,7 @@ export default function ListingTypeSection({ form, set, productSlug, api }) {
 
           {/* Buyer-facing reminder */}
           <p
-            className="font-mono text-[10px] text-[#737373] mt-4 leading-relaxed"
+            className="font-mono text-[10px] text-ink-muted mt-4 leading-relaxed"
             data-testid="editor-digital-files-help"
           >
             ◆ Buyers see the file list (names + types) on the listing page. They get

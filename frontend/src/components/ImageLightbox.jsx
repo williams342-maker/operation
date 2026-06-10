@@ -205,7 +205,7 @@ export default function ImageLightbox({ images, startIndex = 0, onClose }) {
       {/* Top bar — close + counter + zoom controls */}
       <div className="absolute top-4 right-4 flex items-center gap-2">
         <span
-          className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mr-2"
+          className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mr-2"
           data-testid="lightbox-counter"
         >
           {index + 1} / {images.length}
@@ -237,10 +237,10 @@ export default function ImageLightbox({ images, startIndex = 0, onClose }) {
       )}
 
       {/* Hint footer — desktop and mobile show different copy. */}
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252] hidden md:block whitespace-nowrap">
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted hidden md:block whitespace-nowrap">
         Wheel to zoom · Drag to pan · ← → to navigate · Esc to close
       </div>
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252] md:hidden whitespace-nowrap">
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted md:hidden whitespace-nowrap">
         Pinch to zoom · Swipe ← → · Swipe down to close
       </div>
     </div>
@@ -253,7 +253,7 @@ function LbButton({ onClick, disabled, children, testid, label }) {
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="p-2 border border-[#262626] text-[#a3a3a3] hover:text-[#ff4500] hover:border-[#ff4500] bg-black/60 backdrop-blur transition disabled:opacity-30 disabled:cursor-not-allowed"
+      className="p-2 border border-line text-ink-muted hover:text-brand hover:border-brand bg-black/60 backdrop-blur transition disabled:opacity-30 disabled:cursor-not-allowed"
       aria-label={label}
       title={label}
       data-testid={testid}
@@ -268,7 +268,7 @@ function LbArrow({ side, onClick, children, testid }) {
     <button
       type="button"
       onClick={onClick}
-      className={`absolute top-1/2 -translate-y-1/2 ${side === "left" ? "left-4" : "right-4"} p-2 text-[#a3a3a3] hover:text-[#ff4500] bg-black/60 backdrop-blur border border-[#262626] hover:border-[#ff4500] transition`}
+      className={`absolute top-1/2 -translate-y-1/2 ${side === "left" ? "left-4" : "right-4"} p-2 text-ink-muted hover:text-brand bg-black/60 backdrop-blur border border-line hover:border-brand transition`}
       aria-label={side === "left" ? "Previous image" : "Next image"}
       data-testid={testid}
     >

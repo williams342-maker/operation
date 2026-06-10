@@ -74,7 +74,7 @@ export default function MakerAnalyticsTab() {
                   ? "border-emerald-400 text-emerald-400"
                   : data.maker.stripe_account_id
                     ? "border-yellow-400 text-yellow-400"
-                    : "border-[#525252] text-ink-muted"
+                    : "border-line text-ink-muted"
               }`} data-testid="maker-an-stripe-status">
                 {data.maker.stripe_payouts_enabled
                   ? "Stripe payouts active"
