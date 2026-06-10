@@ -35,10 +35,10 @@ const SETS = [
     },
     body: "Built for independent makers, woodworkers, leather workers, metal crafters, and creators — from workshops and studios to garages and small shops. Real products from real people. No mass production. No drop-shipping. Just small businesses with stories behind what they make.",
     photos: [
-      { src: "https://images.unsplash.com/photo-1470342495351-a5f90c5011cd?crop=entropy&cs=srgb&fm=jpg&w=900&q=80", alt: "Woodworking plane curling fresh shavings" },
-      { src: "https://images.unsplash.com/photo-1628483211662-9bcc692c46dc?crop=entropy&cs=srgb&fm=jpg&w=900&q=80", alt: "Leather worker hand-tooling a stitched piece" },
-      { src: "https://images.unsplash.com/photo-1504917595217-d4dc5ebe6122?crop=entropy&cs=srgb&fm=jpg&w=900&q=80", alt: "Metal grinder throwing sparks" },
-      { src: "https://images.unsplash.com/photo-1595351298020-038700609878?crop=entropy&cs=srgb&fm=jpg&w=900&q=80", alt: "Hands shaping a ceramic mug on a potter's wheel" },
+      { src: "/hero-photos/0-0.jpg", alt: "Woodworking plane curling fresh shavings" },
+      { src: "/hero-photos/0-1.jpg", alt: "Leather worker hand-tooling a stitched piece" },
+      { src: "/hero-photos/0-2.jpg", alt: "Metal grinder throwing sparks" },
+      { src: "/hero-photos/0-3.jpg", alt: "Hands shaping a ceramic mug on a potter's wheel" },
     ],
   },
   {
@@ -51,10 +51,10 @@ const SETS = [
     },
     body: "Every piece on Crafters Market is touched by a human — measured, cut, hammered, stitched, fired, finished. Behind each listing is one person (or a small crew) sweating over the details. You're not buying a product. You're buying their decade of practice.",
     photos: [
-      { src: "https://images.unsplash.com/photo-1567361808960-dec9cb578182?crop=entropy&cs=srgb&fm=jpg&w=900&q=80", alt: "Hands at work in a busy artisan workshop" },
-      { src: "https://images.unsplash.com/photo-1565193566173-7a0ee3dbe261?crop=entropy&cs=srgb&fm=jpg&w=900&q=80", alt: "Weaver working colored threads on a loom" },
-      { src: "https://images.unsplash.com/photo-1602578577693-6acb8df1f9fa?crop=entropy&cs=srgb&fm=jpg&w=900&q=80", alt: "Blacksmith hammering hot iron on an anvil" },
-      { src: "https://images.unsplash.com/photo-1607583449463-d1422afa6cc1?crop=entropy&cs=srgb&fm=jpg&w=900&q=80", alt: "Glassblower shaping molten glass" },
+      { src: "/hero-photos/1-0.jpg", alt: "Hands at work in a busy artisan workshop" },
+      { src: "/hero-photos/1-1.jpg", alt: "Weaver working colored threads on a loom" },
+      { src: "/hero-photos/1-2.jpg", alt: "Blacksmith hammering hot iron on an anvil" },
+      { src: "/hero-photos/1-3.jpg", alt: "Glassblower shaping molten glass" },
     ],
   },
   {
@@ -67,10 +67,10 @@ const SETS = [
     },
     body: "Heirloom-grade joinery. Full-grain leather that breaks in instead of breaking down. Hand-forged steel that holds an edge for a decade. The makers on this site aren't competing on price with overseas fast goods — they're competing on whether their work outlives them.",
     photos: [
-      { src: "https://images.unsplash.com/photo-1530983900550-edd5d04ab35d?crop=entropy&cs=srgb&fm=jpg&w=900&q=80", alt: "Handcrafted wooden workbench with hand tools" },
-      { src: "https://images.unsplash.com/photo-1605883705077-8d3d3cebe78c?crop=entropy&cs=srgb&fm=jpg&w=900&q=80", alt: "Hand-stitched leather wallet with brass details" },
-      { src: "https://images.unsplash.com/photo-1572883454114-1cf0031ede2a?crop=entropy&cs=srgb&fm=jpg&w=900&q=80", alt: "Hand-forged knife on a wooden surface" },
-      { src: "https://images.unsplash.com/photo-1610701596007-11502861dcfa?crop=entropy&cs=srgb&fm=jpg&w=900&q=80", alt: "Stacked stoneware bowls fresh from the kiln" },
+      { src: "/hero-photos/2-0.jpg", alt: "Handcrafted wooden workbench with hand tools" },
+      { src: "/hero-photos/2-1.jpg", alt: "Hand-stitched leather wallet with brass details" },
+      { src: "/hero-photos/2-2.jpg", alt: "Hand-forged knife on a wooden surface" },
+      { src: "/hero-photos/2-3.jpg", alt: "Stacked stoneware bowls fresh from the kiln" },
     ],
   },
   {
@@ -83,10 +83,10 @@ const SETS = [
     },
     body: "No two pieces ever come out exactly alike. The grain runs different. The hammer marks land different. The glaze pools different. That's not a defect — that's a fingerprint. Pick a maker whose fingerprint you love.",
     photos: [
-      { src: "https://images.unsplash.com/photo-1604754742629-3e5728249d73?crop=entropy&cs=srgb&fm=jpg&w=900&q=80", alt: "Live-edge wood slab showing dramatic grain" },
-      { src: "https://images.unsplash.com/photo-1620207418302-439b387441b0?crop=entropy&cs=srgb&fm=jpg&w=900&q=80", alt: "Handwoven textile with bold geometric pattern" },
-      { src: "https://images.unsplash.com/photo-1582719471384-894fbb16e074?crop=entropy&cs=srgb&fm=jpg&w=900&q=80", alt: "Hand-thrown ceramic with reactive glaze" },
-      { src: "https://images.unsplash.com/photo-1535930891776-0c2dfb7fda1a?crop=entropy&cs=srgb&fm=jpg&w=900&q=80", alt: "Hand-stamped silver jewelry on linen" },
+      { src: "/hero-photos/3-0.jpg", alt: "Live-edge wood slab showing dramatic grain" },
+      { src: "/hero-photos/3-1.jpg", alt: "Handwoven textile with bold geometric pattern" },
+      { src: "/hero-photos/3-2.jpg", alt: "Hand-thrown ceramic with reactive glaze" },
+      { src: "/hero-photos/3-3.jpg", alt: "Hand-stamped silver jewelry on linen" },
     ],
   },
 ];

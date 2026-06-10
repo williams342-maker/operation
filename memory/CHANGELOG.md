@@ -1,3 +1,33 @@
+## 2026-06-10 — Hero photos: swapped Unsplash for Nano Banana (iter355)
+
+User: "Swap Unsplash hero photos for Nano Banana-generated documentary-style craft photography (per your Phase A choice)."
+
+### Approach
+- Built `/app/backend/scripts/generate_hero_photos.py` — one-off batch generator. 4 sets × 4 panels = 16 images via `gemini/gemini-3.1-flash-image-preview` (Nano Banana) using `emergentintegrations.LlmChat.send_message_multimodal_response`.
+- Concurrency capped at 4 parallel calls per batch so we don't slam upstream. Total run time: ~3 minutes for all 16.
+- Each panel got its own carefully-crafted documentary-style prompt with strict guardrails: "No watermarks. No text. No people's faces visible. Magazine quality. Authentic American workshop." System message reinforces avoiding "AI-rendered look."
+- Output: `/app/frontend/public/hero-photos/{set_idx}-{panel_idx}.jpg` — 16 files, 1024×1024 each, ~700KB-1MB. Served by frontend static.
+
+### Hero.jsx update
+- One-off Python sed replaced all 16 `src: "https://images.unsplash.com/..."` references with `src: "/hero-photos/{set_idx}-{panel_idx}.jpg"`. Preserved every `alt:` text.
+- Confirmed in DOM that all 4 visible panels per set now resolve to the local hero-photos paths (1024×1024 each).
+
+### Smoke test (live preview)
+- ✅ Set 1: hand-plane / leather stitching / welder-sparks / potter's-wheel hands — all 4 photos look genuinely documentary, no AI-rendered look
+- ✅ Set 4: live-edge walnut / handwoven textile / copper-red ceramic / hand-stamped silver earrings — beautiful
+- ✅ Pager dots + counter still work correctly (01/04 → 04/04)
+- ✅ Lint clean
+
+### File sizes
+Total 13.3 MB across 16 images. All assets ship with the frontend bundle (no CDN dependency, no external image-hosting cost).
+
+### Future iteration
+- If you want to regenerate any single panel, edit the prompt for that index in `scripts/generate_hero_photos.py` and re-run — the script will overwrite the corresponding `{set}-{panel}.jpg` only.
+- Adding a 5th set means appending to the `SETS` array in both the script (generates new files) and `Hero.jsx` (consumes them). The pager auto-extends.
+
+---
+
+
 ## 2026-06-10 — Rotating hero: headline + photo collage cycle through 4 craft themes (iter354)
 
 User: "have the images rotate to different crafts and the headline continue to rotate."
