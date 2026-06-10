@@ -3211,4 +3211,63 @@ async def send_ops_gsc_indexed_dropoff(*, current_indexed: int, prior_indexed: i
     )
     subject = f"[Crafters Market] ⚠️ Indexed listings down {drop_pp:.1f}pp WoW"
     await _send(OPS_EMAIL, subject, html)
+    # iter354 — also fan out to Slack/Discord webhook when configured.
+    await send_ops_webhook(
+        title=f"⚠️ Indexed listings down {drop_pp:.1f}pp WoW",
+        text=(
+            f"{current_indexed}/{current_total} indexed today · "
+            f"was {prior_indexed}/{prior_total} a week ago "
+            f"({current_pct:.1f}% → from {prior_pct:.1f}%)"
+        ),
+        url="https://craftersmarket.org/admin/dashboard?tab=settings#gsc",
+        color="#ff4500",
+        kind="gsc_dropoff",
+    )
     return True
+
+
+# iter354 — single ops webhook fanout, supports both Slack and Discord
+# incoming-webhook URL formats. Detected by URL substring so the same
+# OPS_WEBHOOK_URL env can point at either. No-op when env unset.
+async def send_ops_webhook(*, title: str, text: str, url: str | None = None,
+                           color: str = "#ff4500", kind: str = "") -> bool:
+    """Post a single-line alert to Slack or Discord. Returns True on
+    dispatch, False if OPS_WEBHOOK_URL is empty or the HTTP call fails.
+    Never raises — caller can fire-and-forget."""
+    hook = (os.environ.get("OPS_WEBHOOK_URL") or "").strip()
+    if not hook:
+        return False
+    import httpx
+    is_discord = "discord.com/api/webhooks" in hook
+    payload: dict
+    if is_discord:
+        # Discord uses an embeds array. Convert hex → int for the
+        # color field (Discord rejects hex strings).
+        try:
+            color_int = int(color.lstrip("#"), 16)
+        except (ValueError, AttributeError):
+            color_int = 0xFF4500
+        embed: dict = {"title": title, "description": text,
+                       "color": color_int}
+        if url:
+            embed["url"] = url
+        payload = {"embeds": [embed]}
+    else:
+        # Slack incoming-webhook attachment format works for both
+        # classic Slack URLs and the newer Block Kit ingestion.
+        attachment: dict = {"color": color, "title": title, "text": text}
+        if url:
+            attachment["title_link"] = url
+        payload = {"attachments": [attachment]}
+    try:
+        async with httpx.AsyncClient(timeout=8.0) as http:
+            r = await http.post(hook, json=payload)
+        if r.status_code >= 400:
+            logger.warning("[ops-webhook] %s rejected %s payload: %s",
+                           "discord" if is_discord else "slack",
+                           kind or "alert", r.text[:200])
+            return False
+        return True
+    except Exception as e:
+        logger.warning("[ops-webhook] dispatch failed (%s): %s", kind, e)
+        return False

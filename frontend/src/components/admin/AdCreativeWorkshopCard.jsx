@@ -339,6 +339,8 @@ function ComposeView(props) {
         )}
       </div>
 
+      <ReferenceAssetUploader />
+
       <button
         onClick={onGenerate}
         disabled={generating || !selected || channels.length === 0}
@@ -846,3 +848,152 @@ function DraftsView({ drafts, loading, onLoad, onDelete }) {
     </div>
   );
 }
+
+
+/**
+ * iter354 — Reference-asset uploader.
+ *
+ * Lets admins drop pre-shot product photos / lifestyle videos into the
+ * workshop so generated ad copy can be informed by the actual creative
+ * that will run. Files persist server-side regardless of whether a
+ * draft has been generated yet (standalone library). Future: attach to
+ * specific drafts via the optional `draft_id` form field.
+ *
+ * Caps: 50 MB per file · MIME-allowlist enforced server-side. The
+ * preview URL is hot-link safe (cryptographically random asset IDs).
+ */
+function ReferenceAssetUploader() {
+  const API = process.env.REACT_APP_BACKEND_URL;
+  const [assets, setAssets] = useState([]);
+  const [uploading, setUploading] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+
+  const adminToken = () => localStorage.getItem("cm_admin_jwt") || "";
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await fetch(`${API}/api/admin/ad-creative/uploads?limit=20`, {
+        headers: { Authorization: `Bearer ${adminToken()}` },
+      });
+      if (r.ok) setAssets((await r.json()).assets || []);
+    } finally { setLoading(false); }
+  }, [API]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const uploadFiles = async (files) => {
+    if (!files || !files.length) return;
+    setUploading(true);
+    try {
+      for (const f of files) {
+        if (f.size > 50 * 1024 * 1024) {
+          toast.error(`${f.name} exceeds the 50 MB cap.`);
+          continue;
+        }
+        const form = new FormData();
+        form.append("file", f);
+        const r = await fetch(`${API}/api/admin/ad-creative/uploads`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${adminToken()}` },
+          body: form,
+        });
+        if (!r.ok) {
+          const j = await r.json().catch(() => ({}));
+          toast.error(`${f.name}: ${j.detail || `HTTP ${r.status}`}`);
+        } else {
+          toast.success(`Uploaded ${f.name}`);
+        }
+      }
+      await load();
+    } finally { setUploading(false); }
+  };
+
+  const onDrop = (e) => {
+    e.preventDefault();
+    setDragOver(false);
+    uploadFiles(e.dataTransfer?.files);
+  };
+
+  const onPick = (e) => {
+    uploadFiles(e.target.files);
+    e.target.value = "";
+  };
+
+  const deleteAsset = async (id) => {
+    const r = await fetch(`${API}/api/admin/ad-creative/uploads/${id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${adminToken()}` },
+    });
+    if (r.ok) {
+      toast.success("Asset deleted.");
+      load();
+    } else {
+      toast.error("Delete failed.");
+    }
+  };
+
+  return (
+    <div className="space-y-2" data-testid="ad-creative-uploads">
+      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
+        4. Reference assets <span className="text-ink-muted/60">(optional · informs generation)</span>
+      </div>
+      <label
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={onDrop}
+        className={[
+          "flex flex-col items-center justify-center gap-1 px-4 py-6 border-2 border-dashed cursor-pointer transition",
+          dragOver ? "border-cyan-400 bg-cyan-950/10" : "border-line hover:border-cyan-400/60",
+          uploading ? "opacity-60 pointer-events-none" : "",
+        ].join(" ")}
+        data-testid="ad-creative-upload-dropzone"
+      >
+        <input
+          type="file" multiple
+          accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/webm,video/mpeg"
+          onChange={onPick}
+          className="hidden"
+          data-testid="ad-creative-upload-input"
+          disabled={uploading}
+        />
+        <ImageIcon size={20} className="text-ink-muted" />
+        <div className="font-mono text-xs text-ink">
+          {uploading ? "Uploading…" : "Drop images or videos here, or click to pick"}
+        </div>
+        <div className="font-mono text-[10px] text-ink-muted">
+          JPG / PNG / WEBP / GIF · MP4 / MOV / WEBM · 50 MB max each
+        </div>
+      </label>
+
+      {(loading || assets.length > 0) && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2 mt-2">
+          {assets.map((a) => (
+            <div key={a.id} className="relative border border-line bg-paper aspect-square overflow-hidden group"
+                 data-testid={`ad-creative-asset-${a.id}`}>
+              {a.kind === "video" ? (
+                <video src={a.url} className="w-full h-full object-cover" muted />
+              ) : (
+                <img src={a.url} alt={a.original_filename || a.id}
+                     className="w-full h-full object-cover" loading="lazy" />
+              )}
+              <div className="absolute inset-x-0 bottom-0 bg-paper/80 backdrop-blur px-2 py-1 font-mono text-[9px] text-ink truncate">
+                {a.kind === "video" ? "▶ " : ""}{a.original_filename || a.id}
+              </div>
+              <button
+                onClick={() => deleteAsset(a.id)}
+                className="absolute top-1 right-1 p-1 bg-paper/70 backdrop-blur border border-line text-red-400 hover:bg-red-500 hover:text-paper transition opacity-0 group-hover:opacity-100"
+                title="Delete asset"
+                data-testid={`ad-creative-asset-delete-${a.id}`}
+              >
+                <Trash2 size={11} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+

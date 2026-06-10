@@ -3686,6 +3686,190 @@ function GscIndexationCard() {
   );
 }
 
+
+// iter354 — Pinterest Catalog Health card. Shows the feed URL, last
+// fetch by Pinterestbot, token scope status, and a deep link straight
+// to the Pinterest Business Hub Diagnostics tab.
+function PinterestCatalogHealthCard() {
+  const API = process.env.REACT_APP_BACKEND_URL;
+  const [health, setHealth] = useState(null);
+  const [scope, setScope] = useState(null);
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [resyncing, setResyncing] = useState(false);
+
+  const load = async () => {
+    setBusy(true); setErr("");
+    try {
+      const token = localStorage.getItem("cm_admin_jwt") || "";
+      const [hr, sr] = await Promise.all([
+        fetch(`${API}/api/pinterest/catalog/health`),
+        fetch(`${API}/api/admin/pinterest/catalog-status`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
+      if (hr.ok) setHealth(await hr.json());
+      if (sr.ok) setScope(await sr.json());
+    } catch (e) {
+      setErr(e.message || "Failed to load");
+    } finally { setBusy(false); }
+  };
+
+  const doResync = async () => {
+    setResyncing(true);
+    try {
+      const token = localStorage.getItem("cm_admin_jwt") || "";
+      const r = await fetch(`${API}/api/admin/pinterest/catalog-resync`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json",
+                   Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ limit: 20 }),
+      });
+      const j = await r.json();
+      if (j.ok) toast.success(`Pinterest re-sync pushed ${j.pushed} items.`);
+      else toast.error(`Re-sync degraded: ${j.result?.reason || "see logs"}`);
+    } catch (e) {
+      toast.error(e.message || "Re-sync failed");
+    } finally {
+      setResyncing(false);
+      load();
+    }
+  };
+
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
+
+  if (!health && !err) {
+    return (
+      <section className="border border-line p-4 md:p-5" data-testid="pinterest-catalog-card">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
+          PINTEREST · CATALOG HEALTH
+        </div>
+        <div className="font-mono text-xs text-ink-muted mt-2">Loading…</div>
+      </section>
+    );
+  }
+
+  const scopeStatus = scope?.status || "unknown";
+  const scopeColor = scopeStatus === "ok" ? "#22c55e"
+    : scopeStatus === "no_token" || scopeStatus === "expired" ? "#ef4444"
+    : "#f59e0b";
+
+  return (
+    <section className="border border-line p-4 md:p-5" data-testid="pinterest-catalog-card">
+      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-3">
+        <div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
+            PINTEREST · CATALOG HEALTH
+          </div>
+          <h3 className="font-display text-xl mt-1 text-ink">
+            {health?.product_count ?? 0} products in feed
+          </h3>
+          <p className="font-mono text-xs text-ink-muted mt-2 max-w-2xl">
+            TSV feed pulled by Pinterest every 24-48 h. Real-time deltas
+            via the items-batch API auto-fire on product save (iter352).
+          </p>
+        </div>
+        <div className="flex gap-2 shrink-0">
+          <button
+            onClick={load}
+            disabled={busy}
+            data-testid="pinterest-refresh-btn"
+            className="px-3 py-1.5 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+          >
+            {busy ? "…" : "Refresh"}
+          </button>
+          <button
+            onClick={doResync}
+            disabled={resyncing || scopeStatus !== "ok"}
+            title={scopeStatus !== "ok" ? "Needs catalogs:write scope" : "Push top 20 items now"}
+            data-testid="pinterest-resync-btn"
+            className="px-3 py-1.5 bg-brand text-paper hover:bg-brand-hover font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {resyncing ? "Pushing…" : "Force re-sync 20"}
+          </button>
+        </div>
+      </div>
+
+      <div className="grid md:grid-cols-3 gap-3 text-[11px] font-mono">
+        <div className="border border-line bg-paper p-3">
+          <div className="text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-1">
+            ◆ Last Pinterest fetch
+          </div>
+          <div className="text-ink">
+            {health?.last_pinterest_fetch_at
+              ? new Date(health.last_pinterest_fetch_at).toLocaleString()
+              : <span className="text-ink-muted">Never (or unidentified UA)</span>}
+          </div>
+          {health?.last_any_fetch_ua && (
+            <div className="text-[10px] text-ink-muted mt-1 truncate" title={health.last_any_fetch_ua}>
+              UA: {health.last_any_fetch_ua.slice(0, 60)}
+            </div>
+          )}
+        </div>
+        <div className="border border-line bg-paper p-3">
+          <div className="text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-1">
+            ◆ Token scope
+          </div>
+          <div className="text-ink flex items-center gap-2">
+            <span style={{ background: scopeColor, width: 8, height: 8, borderRadius: 8, display: "inline-block" }} />
+            <span style={{ color: scopeColor, fontWeight: 700 }}>{scopeStatus}</span>
+          </div>
+          <div className="text-[10px] text-ink-muted mt-1">
+            read: {String(scope?.read ?? "?")} · write: {String(scope?.write ?? "?")}
+          </div>
+          {scope?.reason && (
+            <div className="text-[10px] text-ink-muted mt-1">{scope.reason}</div>
+          )}
+        </div>
+        <div className="border border-line bg-paper p-3">
+          <div className="text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-1">
+            ◆ Feed URL
+          </div>
+          <a
+            href={health?.feed_url}
+            target="_blank" rel="noopener noreferrer"
+            className="text-cyan-400 hover:underline break-all text-[10px]"
+            data-testid="pinterest-feed-url"
+          >
+            {health?.feed_url}
+          </a>
+        </div>
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        <a
+          href="https://www.pinterest.com/business/catalogs/"
+          target="_blank" rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] transition"
+          data-testid="pinterest-catalogs-link"
+        >
+          Open Pinterest Catalogs &rarr;
+        </a>
+        <a
+          href="https://business.pinterest.com/business/business-hub/"
+          target="_blank" rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] transition"
+          data-testid="pinterest-diagnostics-link"
+        >
+          Business Hub Diagnostics &rarr;
+        </a>
+        <a
+          href="https://help.pinterest.com/en/business/article/data-source-ingestion"
+          target="_blank" rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-line font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted transition"
+          data-testid="pinterest-help-link"
+        >
+          Ingestion help docs &rarr;
+        </a>
+      </div>
+
+      {err && <p className="font-mono text-xs text-red-400 mt-3">{err}</p>}
+    </section>
+  );
+}
+
+
+
 function GscConnectionCard() {
   const [status, setStatus] = useState(null);
   const [busy, setBusy] = useState("");
@@ -5418,6 +5602,8 @@ export default function SettingsTab() {
       <GscConnectionCard />
 
       <GscIndexationCard />
+
+      <PinterestCatalogHealthCard />
 
       <StripeWebhookHealthCard />
 

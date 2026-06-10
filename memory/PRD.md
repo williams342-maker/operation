@@ -894,3 +894,47 @@ visible in scheduler boot logs after restart.
 - Smoke-tested in both states by seeding 14 fake snapshots, verifying the chart renders, then cleaning up (only today's real snapshot remains).
 
 
+
+---
+
+## 2026-06-10 — iter354: 4-feature batch ship
+
+### 1. Slack/Discord webhook alongside GSC drop-off email (DONE)
+- New `send_ops_webhook(title, text, url, color, kind)` helper in `email_service.py` that detects Slack vs Discord by URL substring (`discord.com/api/webhooks`). Slack → `attachments` schema. Discord → `embeds` with hex→int color conversion.
+- Wired into `send_ops_gsc_indexed_dropoff` so platform-wide alerts fan out to both email AND webhook in one job.
+- Tunable via `OPS_WEBHOOK_URL` env (currently unset in preview → silent no-op).
+- Never raises — wrapped in try/except. Logs warnings on 4xx/5xx + network errors.
+
+### 2. Per-maker GSC drop-off alerts (DONE)
+- `_snapshot_gsc_indexation()` now also persists a `per_maker` dict: `{maker_slug: {indexed, total, indexed_pct}}` alongside platform totals (additive — no schema break).
+- New `_per_maker_dropoff_sweep(current, prior)` runs immediately after the platform alert. Iterates every maker with ≥5 listings, computes WoW drop, fires `send_ops_webhook` per affected maker (NOT email — keeps volume sane during global events), writes audit row to `gsc_alert_log` with `kind:"indexed_dropoff_maker", maker_slug`.
+- 24h per-maker de-dupe (separate key from platform alert).
+- All 6 prior iter351 tests still pass — pure additive.
+
+### 3. Pinterest Diagnostics deep-link card (DONE · screenshot verified)
+- New `PinterestCatalogHealthCard` in `SettingsTab.jsx` rendered between the GSC card and the Stripe webhook card.
+- 3-column status grid: Last Pinterest fetch (timestamp + UA) · Token scope (color-coded dot + status word + read/write booleans + human reason) · Feed URL (clickable, hot-link safe).
+- "Refresh" + "Force re-sync 20" admin actions. Force button auto-disabled with title-tip when scope ≠ `ok`.
+- 3 deep links: Pinterest Catalogs, Business Hub Diagnostics, Pinterest's official ingestion help docs.
+- All data-testids: `pinterest-catalog-card`, `pinterest-refresh-btn`, `pinterest-resync-btn`, `pinterest-feed-url`, `pinterest-catalogs-link`, `pinterest-diagnostics-link`, `pinterest-help-link`.
+
+### 4. AI Workshop reference-asset uploads (DONE · live tested)
+- 4 new admin endpoints in `routers/ai_ad_creative.py`:
+  - `POST /api/admin/ad-creative/uploads` (multipart `file` + optional `draft_id` → 50 MB cap · MIME allowlist · streams chunks).
+  - `GET /api/admin/ad-creative/uploads?draft_id=…&limit=N`
+  - `GET /api/admin/ad-creative/uploads/{asset_id}` (PUBLIC FileResponse — hot-link safe via crypto-random IDs)
+  - `DELETE /api/admin/ad-creative/uploads/{asset_id}` (also detaches from any draft).
+- Storage: `/app/backend/static/ad_workshop_uploads/` (mkdir on import).
+- Allowed MIMEs: JPG, PNG, WEBP, GIF, MP4, MOV (QuickTime), WEBM, MPEG.
+- Persistence: `ad_workshop_assets` collection (kind/mime/size/filename/url/uploaded_at/draft_id). When uploaded with draft_id, also appends to `ad_creative_drafts.reference_assets[]`.
+- New React component `ReferenceAssetUploader` in `AdCreativeWorkshopCard.jsx`:
+  - Drag-drop or click-pick zone with hover state.
+  - 6-column responsive grid showing thumbnails (`<img>` for images · `<video muted>` for videos).
+  - Hover-revealed Trash2 delete button per asset.
+  - Live re-fetch after every upload/delete (no stale state).
+- Live tested via curl: upload returns asset doc + URL, 415 on text/plain, 200 GET on public URL, full HTML render confirmed via screenshot showing previously-uploaded `tiny.png` thumbnail in the workshop.
+- `data-testid`s: `ad-creative-uploads`, `ad-creative-upload-dropzone`, `ad-creative-upload-input`, `ad-creative-asset-{id}`, `ad-creative-asset-delete-{id}`.
+
+**Tests:** All 16 prior iter351+iter352 tests still pass (pure additive changes). Backend restarted clean, both screenshots verify UI renders correctly.
+
+

@@ -90,7 +90,10 @@ GSC_INDEXED_DROP_THRESHOLD_PP = float(
 async def _snapshot_gsc_indexation() -> dict:
     """Compute the current Indexed/Submitted/Not-In-Sitemap/Unchecked buckets
     across all published listings and persist a daily snapshot to
-    `gsc_indexed_snapshots`. Idempotent per UTC date (re-runs overwrite)."""
+    `gsc_indexed_snapshots`. Idempotent per UTC date (re-runs overwrite).
+
+    iter354 — also persists per-maker counts so the per-maker drop-off
+    sweep can compute WoW deltas just like the platform-wide one."""
     from datetime import datetime, timezone
     from core import db
     pipeline = [
@@ -110,6 +113,31 @@ async def _snapshot_gsc_indexation() -> dict:
     indexed_pct = (
         round(100 * tier_counts["established"] / total, 2) if total else 0.0
     )
+
+    # iter354 — per-maker rollup. Aggregated separately to keep this
+    # snapshot doc small (we don't ship per-maker tier counts, just
+    # indexed + total so the daily alert pass can compute deltas).
+    per_maker_pipeline = [
+        {"$match": {"status": "published",
+                    "deleted_at": {"$in": [None, ""]}}},
+        {"$group": {
+            "_id": "$maker_slug",
+            "total": {"$sum": 1},
+            "indexed": {"$sum": {
+                "$cond": [{"$eq": ["$gsc_tier", "established"]}, 1, 0],
+            }},
+        }},
+    ]
+    per_maker: dict[str, dict] = {}
+    async for row in db.products.aggregate(per_maker_pipeline):
+        slug = row.get("_id") or "unknown"
+        tot = int(row.get("total") or 0)
+        idx = int(row.get("indexed") or 0)
+        per_maker[slug] = {
+            "indexed": idx, "total": tot,
+            "indexed_pct": round(100 * idx / tot, 2) if tot else 0.0,
+        }
+
     now = datetime.now(timezone.utc)
     date_key = now.strftime("%Y-%m-%d")
     doc = {
@@ -120,6 +148,7 @@ async def _snapshot_gsc_indexation() -> dict:
         "total_published": total,
         "indexed_count": tier_counts["established"],
         "indexed_pct": indexed_pct,
+        "per_maker": per_maker,
     }
     await db.gsc_indexed_snapshots.replace_one(
         {"_id": date_key}, doc, upsert=True,
@@ -199,8 +228,76 @@ async def _job_gsc_indexed_dropoff_alert() -> None:
         logger.warning("[scheduler] gsc-dropoff-alert: emailed ops · drop=%.2fpp "
                        "(%.1f%% → %.1f%%)", drop_pp,
                        prior["indexed_pct"], current["indexed_pct"])
+
+        # iter354 — per-maker drop-off sweep. Same threshold + dedup
+        # policy, but each affected maker gets a separate ops alert so
+        # the platform admin can ping individual makers about their
+        # listings. No outbound email TO the maker — just an ops log
+        # row + (if OPS_WEBHOOK_URL is set) a Slack/Discord line per
+        # affected maker. Keeps the volume low when a global event
+        # (e.g. sitemap rot) tanks many makers at once.
+        await _per_maker_dropoff_sweep(current, prior)
     except Exception as e:
         logger.exception("[scheduler] gsc-dropoff-alert failed: %s", e)
+
+
+async def _per_maker_dropoff_sweep(current: dict, prior: dict) -> None:
+    """Find makers whose indexed_pct dropped > threshold WoW and emit
+    a per-maker ops webhook line + audit row. Skips makers with <5
+    listings (noise-prone). De-duplicates against the same alert kind
+    in the last 24h."""
+    from datetime import datetime, timedelta, timezone
+    from core import db
+    from email_service import send_ops_webhook
+
+    cur_pm = (current or {}).get("per_maker") or {}
+    prior_pm = (prior or {}).get("per_maker") or {}
+    if not cur_pm or not prior_pm:
+        return
+
+    last_alert_cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+    fired = 0
+    for slug, cur in cur_pm.items():
+        if cur.get("total", 0) < 5:
+            continue
+        pm_prior = prior_pm.get(slug)
+        if not pm_prior:
+            continue
+        drop = float(pm_prior.get("indexed_pct", 0)) - float(cur.get("indexed_pct", 0))
+        if drop <= GSC_INDEXED_DROP_THRESHOLD_PP:
+            continue
+        # 24h de-dupe per maker
+        existing = await db.gsc_alert_log.find_one(
+            {"kind": "indexed_dropoff_maker", "maker_slug": slug,
+             "ts": {"$gte": last_alert_cutoff}},
+        )
+        if existing:
+            continue
+        await send_ops_webhook(
+            title=f"⚠️ {slug}: indexed down {drop:.1f}pp WoW",
+            text=(
+                f"{cur['indexed']}/{cur['total']} indexed ({cur['indexed_pct']}%) · "
+                f"was {pm_prior['indexed']}/{pm_prior['total']} "
+                f"({pm_prior['indexed_pct']}%) last week"
+            ),
+            url=f"https://craftersmarket.org/admin/dashboard?tab=settings#maker-{slug}",
+            color="#f59e0b",
+            kind="indexed_dropoff_maker",
+        )
+        await db.gsc_alert_log.insert_one({
+            "_id": f"alert_maker_{current['date']}_{slug}",
+            "kind": "indexed_dropoff_maker",
+            "maker_slug": slug,
+            "ts": current["ts"],
+            "current": cur,
+            "prior": pm_prior,
+            "drop_pp": drop,
+            "threshold_pp": GSC_INDEXED_DROP_THRESHOLD_PP,
+        })
+        fired += 1
+    if fired:
+        logger.warning("[scheduler] gsc-dropoff-alert: %d per-maker alerts fired",
+                       fired)
 
 
 async def _job_founders_lifecycle() -> None:

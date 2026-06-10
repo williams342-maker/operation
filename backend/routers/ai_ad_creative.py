@@ -27,7 +27,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel, Field
 
 from core import db, now_iso
@@ -399,4 +399,152 @@ async def delete_draft(draft_id: str, _: dict = Depends(current_admin)):
             pass
     await db.ad_creative_drafts.delete_one({"_id": draft_id})
     return {"deleted": True}
+
+
+
+# ── iter354 — Workshop reference-asset uploads ─────────────────────────
+# Admins can upload pre-shot photos / videos to attach to a draft so the
+# generated ad copy is informed by the actual creative they'll run.
+# Used as Pinterest Ad references, Meta carousel sources, etc.
+UPLOAD_DIR = Path("/app/backend/static/ad_workshop_uploads")
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+ALLOWED_MIMES = {
+    # Images
+    "image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif",
+    # Videos
+    "video/mp4", "video/quicktime", "video/webm", "video/mpeg",
+}
+MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB caps Pinterest's video size
+
+
+@router.post("/admin/ad-creative/uploads")
+async def upload_workshop_asset(
+    file: UploadFile = File(...),
+    draft_id: Optional[str] = Form(None),
+    _: dict = Depends(current_admin),
+):
+    """Accept an image or video file (≤50 MB) and persist it for reuse
+    in the AI Workshop. If `draft_id` is supplied, the asset is attached
+    to that draft's `reference_assets` array. Otherwise it lives in the
+    workshop's standalone library and can be attached later."""
+    ctype = (file.content_type or "").lower()
+    if ctype not in ALLOWED_MIMES:
+        raise HTTPException(
+            415,
+            f"Unsupported type {ctype!r}. Allowed: "
+            "JPG/PNG/WEBP/GIF images, MP4/MOV/WEBM videos.",
+        )
+    # Stream-read so we don't load 50 MB into memory at once.
+    chunks: list[bytes] = []
+    total = 0
+    while True:
+        chunk = await file.read(1 << 20)  # 1 MB
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > MAX_UPLOAD_BYTES:
+            raise HTTPException(413, "File exceeds 50 MB cap.")
+        chunks.append(chunk)
+    blob = b"".join(chunks)
+
+    # Stable id + sniffed extension
+    asset_id = "asset_" + secrets.token_urlsafe(10)
+    ext_map = {
+        "image/jpeg": ".jpg", "image/jpg": ".jpg", "image/png": ".png",
+        "image/webp": ".webp", "image/gif": ".gif",
+        "video/mp4": ".mp4", "video/quicktime": ".mov",
+        "video/webm": ".webm", "video/mpeg": ".mpeg",
+    }
+    ext = ext_map.get(ctype, "")
+    path = UPLOAD_DIR / f"{asset_id}{ext}"
+    path.write_bytes(blob)
+
+    kind = "video" if ctype.startswith("video/") else "image"
+    doc = {
+        "_id": asset_id,
+        "kind": kind,
+        "mime": ctype,
+        "size_bytes": total,
+        "original_filename": (file.filename or "")[:200],
+        "stored_path": str(path),
+        "url": f"{PUBLIC_SITE_URL}/api/admin/ad-creative/uploads/{asset_id}",
+        "uploaded_at": now_iso(),
+        "draft_id": draft_id or None,
+    }
+    await db.ad_workshop_assets.insert_one(doc)
+
+    if draft_id:
+        # Attach to draft for one-click reuse from the generator UI.
+        await db.ad_creative_drafts.update_one(
+            {"_id": draft_id},
+            {"$push": {"reference_assets": asset_id}},
+        )
+
+    out = dict(doc)
+    out.pop("stored_path", None)
+    out.pop("_id", None)
+    out["id"] = asset_id
+    return out
+
+
+@router.get("/admin/ad-creative/uploads")
+async def list_workshop_assets(
+    draft_id: Optional[str] = None, limit: int = 50,
+    _: dict = Depends(current_admin),
+):
+    """List uploaded reference assets. Pass `draft_id` to scope to one
+    draft's library, omit it to see the global workshop library."""
+    limit = max(1, min(200, int(limit)))
+    q: dict = {}
+    if draft_id:
+        q["draft_id"] = draft_id
+    out: list[dict] = []
+    async for d in db.ad_workshop_assets.find(q).sort("uploaded_at", -1).limit(limit):
+        d["id"] = d.pop("_id", None)
+        d.pop("stored_path", None)
+        out.append(d)
+    return {"assets": out}
+
+
+@router.get("/admin/ad-creative/uploads/{asset_id}")
+async def get_workshop_asset(asset_id: str):
+    """Serve a previously-uploaded workshop asset. Intentionally PUBLIC
+    (read-only) so admin-generated ads can hot-link the asset URL into
+    Google Ads / Meta Ads previews without needing admin JWT plumbing
+    on those external platforms. Asset IDs are cryptographically random
+    so enumeration is infeasible."""
+    from fastapi.responses import FileResponse
+    doc = await db.ad_workshop_assets.find_one({"_id": asset_id})
+    if not doc:
+        raise HTTPException(404, "Asset not found")
+    path = Path(doc.get("stored_path") or "")
+    if not path.exists():
+        raise HTTPException(410, "Asset file missing from disk.")
+    return FileResponse(
+        path,
+        media_type=doc.get("mime") or "application/octet-stream",
+        filename=doc.get("original_filename") or asset_id,
+    )
+
+
+@router.delete("/admin/ad-creative/uploads/{asset_id}")
+async def delete_workshop_asset(asset_id: str,
+                                _: dict = Depends(current_admin)):
+    """Delete an uploaded asset + remove the draft attachment if any."""
+    doc = await db.ad_workshop_assets.find_one({"_id": asset_id})
+    if not doc:
+        raise HTTPException(404, "Asset not found")
+    try:
+        Path(doc.get("stored_path") or "").unlink(missing_ok=True)
+    except Exception as e:
+        log.warning("[workshop-upload] file unlink failed for %s: %s",
+                    asset_id, e)
+    await db.ad_workshop_assets.delete_one({"_id": asset_id})
+    # Detach from any drafts.
+    await db.ad_creative_drafts.update_many(
+        {"reference_assets": asset_id},
+        {"$pull": {"reference_assets": asset_id}},
+    )
+    return {"ok": True, "deleted": asset_id}
 
