@@ -3722,6 +3722,15 @@ function GscConnectionCard() {
 
       {err && <p className="font-mono text-xs text-red-400 mb-3">{err}</p>}
 
+      {!status.enabled && (
+        <div className="border border-amber-500/40 bg-amber-500/5 p-3 mb-4 font-mono text-xs text-amber-200 leading-relaxed" data-testid="gsc-disabled-hint">
+          ⚠️ GSC is <strong>disabled</strong> in this environment (<code>GSC_ENABLED ≠ 1</code>). The Connect / Test buttons below will fail until it&rsquo;s turned on.
+          <div className="mt-2 text-ink-muted">
+            <strong>To enable in production:</strong> open <em>Manage Deployments → Secrets</em>, set <code>GSC_ENABLED=1</code>, redeploy. The OAuth client ID / secret / redirect URI are already wired — only this single flag needs to flip.
+          </div>
+        </div>
+      )}
+
       {!oauthAvailable && !status.service_account_configured && (
         <div className="border border-amber-500/40 bg-amber-500/5 p-3 mb-4 font-mono text-xs text-amber-200">
           ⚠️ OAuth is not configured. Set <code>GSC_OAUTH_CLIENT_ID</code>, <code>GSC_OAUTH_CLIENT_SECRET</code>, and{" "}
@@ -3733,8 +3742,9 @@ function GscConnectionCard() {
         {oauthAvailable && !isConnected && (
           <button
             onClick={connect}
-            disabled={!!busy}
-            className="inline-flex items-center gap-1.5 bg-brand hover:bg-brand-hover text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] px-4 py-2 disabled:opacity-50"
+            disabled={!!busy || !status.enabled}
+            title={!status.enabled ? "Set GSC_ENABLED=1 in production env first" : ""}
+            className="inline-flex items-center gap-1.5 bg-brand hover:bg-brand-hover text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
             data-testid="gsc-connect-btn"
           >
             {busy === "connect" ? "Opening…" : "Connect Google account"}

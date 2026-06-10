@@ -705,3 +705,38 @@ User-side actions remaining (estimated 25 min — full playbook at `/app/docs/se
 4. **Pinterest claim** (5 min · optional but high-leverage) — business.pinterest.com → Claim website → DNS TXT. Unlocks Rich Pins which read price + availability from our `Product` JSON-LD automatically.
 
 
+
+---
+
+## 2026-06-10 — P3 GSC enablement preflight + UX polish
+
+**Status: server-side READY · production env flag pending (user-side · 30-second flip).**
+
+Discovery — the GSC OAuth auth path is already fully wired:
+- `GSC_OAUTH_CLIENT_ID`, `GSC_OAUTH_CLIENT_SECRET`, `GSC_OAUTH_REDIRECT_URI` all populated in `/app/backend/.env`.
+- `/admin/gsc/oauth-start`, `/oauth-callback`, `/status`, `/disconnect` endpoints all live in `routers/gsc_admin.py`.
+- Admin `GscConnectionCard` in `SettingsTab.jsx` renders Connect / Disconnect / Test buttons with popup OAuth flow.
+- `/api/admin/seo/gsc-submit-sitemap` already auto-fires alongside IndexNow on the "Ping now" button.
+- The only blocker is the env flag — `/app/backend/.env` deliberately keeps `GSC_ENABLED=0` in preview (per inline comment: "production sets it to 1 via Manage Deployments → Secrets tab").
+
+**Validated end-to-end (temporarily flipped GSC_ENABLED=1 in preview to verify, then restored):**
+- `/admin/gsc/status` → `enabled: true, oauth_configured: true, connected: false` ✅
+- `/admin/seo/gsc-submit-sitemap` → clean fail-soft: `{"ok": false, "error": "GSC client unavailable (not connected)"}` (no 500) ✅
+- `/admin/gsc/oauth-start` → returns valid Google authorization URL ready for popup ✅
+- After restore: preview correctly back to `enabled: false` ✅
+
+**Frontend UX polish (DONE):**
+- `SettingsTab.jsx::GscConnectionCard` — added amber `[data-testid=gsc-disabled-hint]` warning when `status.enabled === false`. Reads:
+  > "GSC is disabled in this environment (GSC_ENABLED ≠ 1). The Connect / Test buttons below will fail until it's turned on. To enable in production: open Manage Deployments → Secrets, set GSC_ENABLED=1, redeploy. The OAuth client ID / secret / redirect URI are already wired — only this single flag needs to flip."
+- Connect button now disabled (with `cursor-not-allowed` + title-tip) while `!status.enabled`.
+- Screenshot verified: hint renders cleanly in admin → Settings → GSC Connection card.
+
+**User-side action (production · ~30 sec):**
+1. Open Manage Deployments → Secrets.
+2. Add `GSC_ENABLED=1`.
+3. Redeploy.
+4. Visit `/admin/dashboard?tab=settings` → scroll to "GSC Connection" → click "Connect Google account".
+5. Google OAuth popup → grant consent → token persists in `db.gsc_oauth`.
+6. Subsequent "Ping now" clicks auto-submit sitemap to GSC + log to `seo_gsc_audit`. Daily 05:30 UTC sweep starts pulling per-URL index verdicts.
+
+
