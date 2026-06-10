@@ -673,6 +673,59 @@ async def maker_products_indexing_status(slug: str = Depends(current_maker_slug)
     return out
 
 
+@router.get("/maker/seo/indexation-trend")
+async def maker_seo_indexation_trend(days: int = 30,
+                                     slug: str = Depends(current_maker_slug)):
+    """iter356 — Maker-facing indexation timeline.
+
+    Same `per_maker` rollup the admin chart uses (persisted in
+    `gsc_indexed_snapshots` since iter354) but scoped to the requesting
+    maker's slug. Lets makers see if their listings are slipping out of
+    Google's index before it costs them traffic.
+
+    Response mirrors `/api/admin/gsc/snapshots-trend/maker/{slug}` so the
+    shared `PerMakerIndexationChart.jsx` component can render either.
+    """
+    days = max(7, min(90, int(days)))
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    cursor = db.gsc_indexed_snapshots.find(
+        {"ts": {"$gte": cutoff}},
+        {"_id": 0, "date": 1, "ts": 1, "per_maker": 1},
+    ).sort("date", 1)
+    rows = [r async for r in cursor]
+    by_date: dict[str, dict] = {}
+    for r in rows:
+        pm = ((r.get("per_maker") or {}).get(slug)) or None
+        if pm:
+            by_date[r["date"]] = pm
+
+    today = datetime.now(timezone.utc).date()
+    series: list[dict] = []
+    for offset in range(days, -1, -1):
+        d = (today - timedelta(days=offset)).isoformat()
+        if d in by_date:
+            pm = by_date[d]
+            series.append({
+                "date": d,
+                "indexed_count": pm.get("indexed"),
+                "indexed_pct": pm.get("indexed_pct"),
+                "total_published": pm.get("total"),
+            })
+        else:
+            series.append({"date": d, "indexed_count": None,
+                           "indexed_pct": None, "total_published": None})
+    populated = [s for s in series if s["indexed_pct"] is not None]
+    return {
+        "maker_slug": slug,
+        "days_requested": days,
+        "snapshot_count": len(populated),
+        "first_snapshot_at": (populated[0]["date"] if populated else None),
+        "latest_indexed_pct": (populated[-1]["indexed_pct"] if populated else None),
+        "series": series,
+    }
+
+
+
 
 @router.get("/maker/renewals/summary")
 async def maker_renewals_summary(slug: str = Depends(current_maker_slug)):

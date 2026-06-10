@@ -30,6 +30,10 @@ import useModalA11y from "../hooks/useModalA11y";
 // Subscription section inside Settings — keeps any bookmarked links working.
 function normalizeTab(id) {
   if (id === "upgrade") return "settings";
+  // iter356 — deep-link `?tab=seo` lands inside the Marketing tab's
+  // SEO Health section. We rewrite the id here so the rest of the
+  // routing treats it as `marketing`.
+  if (id === "seo") return "marketing";
   return id;
 }
 
@@ -58,6 +62,16 @@ function resolveInitialTabFromUrl() {
     if (q) {
       const id = normalizeTab(q);
       const valid = KNOWN_TABS.has(id);
+      // iter356 — `?tab=seo` is sugar for the Marketing tab's SEO
+      // section. Fire the section event after mount completes so
+      // MarketingTab can pre-select its inner sub-nav.
+      if (q === "seo") {
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent("cm:open-marketing-section", {
+            detail: { section: "seo" },
+          }));
+        }, 0);
+      }
       // Always strip the `tab` param — whether valid (rewritten to hash)
       // or invalid (dropped entirely) — so we don't keep junk params in
       // the URL bar after the user shared a mangled link.
@@ -129,6 +143,23 @@ export default function MakerDashboard() {
       window.dispatchEvent(new CustomEvent("cm:open-settings", {
         detail: { section: sectionParam },
       }));
+    } else if (tabParam === "seo") {
+      // iter356 — `?tab=seo` is sugar for the Marketing tab's SEO Health
+      // section. Switch to Marketing, then signal the sub-section after
+      // the tab has had a tick to mount.
+      changeTab("marketing");
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent("cm:open-marketing-section", {
+          detail: { section: "seo" },
+        }));
+      }, 0);
+    } else if (tabParam === "marketing" && sectionParam) {
+      changeTab("marketing");
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent("cm:open-marketing-section", {
+          detail: { section: sectionParam },
+        }));
+      }, 0);
     } else if (tabParam && KNOWN_TABS.has(tabParam)) {
       changeTab(tabParam);  // also rewrites the hash via window.location
     }

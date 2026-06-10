@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import {
   ChevronDown, Megaphone, Tag, Gift, Camera, FileText, Hash,
-  TrendingUp, DollarSign, Copy, Download, Award, Share2,
+  TrendingUp, DollarSign, Copy, Download, Award, Share2, Search,
 } from "lucide-react";
 import { toast } from "sonner";
 import { fetchMakerProducts, downloadProductStoryCard, fetchMakerMe } from "../../lib/api";
@@ -14,6 +14,7 @@ import FounderCardSection from "./Marketing/FounderCardSection";
 import FounderEmailSignature from "./Marketing/FounderEmailSignature";
 import SocialAutoPostSection from "./Marketing/SocialAutoPostSection";
 import ListingBudgetsSection from "./Marketing/ListingBudgetsSection";
+import PerMakerIndexationChart from "../../components/admin/PerMakerIndexationChart";
 
 /**
  * Etsy-parity Marketing hub.
@@ -42,6 +43,7 @@ const SECTIONS_BASE = [
   { id: "ads",      label: "Crafters Market Ads", icon: Megaphone },
   { id: "social",   label: "Social auto-post",    icon: Share2 },
   { id: "sales",    label: "Sales and discounts", icon: Tag },
+  { id: "seo",      label: "SEO health",          icon: Search },
   { id: "stories",  label: "Story templates",     icon: Download },
   { id: "share",    label: "Share & Save",        icon: Gift },
 ];
@@ -58,6 +60,19 @@ export default function MarketingTab() {
     fetchMakerMe()
       .then((m) => setIsFounder(m?.tier === "founder"))
       .catch(() => setIsFounder(false));
+  }, []);
+
+  // iter356 — Honor `?tab=seo` (or `?tab=marketing&section=<id>`) deep
+  // links by switching to the requested sub-section on demand.
+  useEffect(() => {
+    const onOpenSection = (e) => {
+      const id = (e.detail && e.detail.section || "").toLowerCase();
+      if (!id) return;
+      setSection(id);
+      setOpen(true);
+    };
+    window.addEventListener("cm:open-marketing-section", onOpenSection);
+    return () => window.removeEventListener("cm:open-marketing-section", onOpenSection);
   }, []);
 
   const sections = isFounder ? [...SECTIONS_BASE, FOUNDER_SECTION] : SECTIONS_BASE;
@@ -84,6 +99,7 @@ export default function MarketingTab() {
           {section === "ads"     && <AdsAndAITools />}
           {section === "social"  && <SocialAutoPostSection />}
           {section === "sales"   && <DiscountCodes />}
+          {section === "seo"     && <SeoHealthSection />}
           {section === "stories" && <StoryTemplates />}
           {section === "share"   && <ShareAndSave />}
           {section === "founder" && (
@@ -107,6 +123,38 @@ function AdsAndAITools() {
       <ListingBudgetsSection />
       <AICopyTools />
       <MarketingTips />
+    </div>
+  );
+}
+
+// iter356 — Maker-facing SEO Health section. Surfaces the same per-maker
+// indexation timeline admins see, scoped to the requesting maker's slug
+// via the bearer token. Acts as an early-warning system: if the line
+// drops, the maker can investigate (broken images, removed listings,
+// thin descriptions) before traffic vanishes.
+function SeoHealthSection() {
+  return (
+    <div className="space-y-6" data-testid="marketing-seo-section">
+      <Section title="Indexed in Google" testId="marketing-seo-card">
+        <div className="space-y-3">
+          <p className="font-mono text-xs text-ink-muted leading-relaxed">
+            Daily snapshot of how many of your published listings are
+            indexed by Google. A healthy shop usually sits at 70–100 %.
+            Watch this line — sustained drops are an early signal that
+            something on your listings is getting deprioritized (thin
+            descriptions, missing images, duplicate titles).
+          </p>
+          <PerMakerIndexationChart
+            endpoint="maker"
+            hideInput
+            height={140}
+          />
+          <p className="font-mono text-[10px] text-ink-muted">
+            Need to dig deeper? Open the <span className="text-brand">Listings</span> tab and look for
+            the indexation badge on each card. Anything marked “not in sitemap” is invisible to Google.
+          </p>
+        </div>
+      </Section>
     </div>
   );
 }

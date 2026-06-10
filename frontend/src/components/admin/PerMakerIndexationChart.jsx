@@ -9,9 +9,14 @@
  *   initialSlug   — preset the maker_slug (and auto-load if set)
  *   hideInput     — hide the maker-slug picker (when slug comes from props)
  *   height        — chart height in px (default 80)
+ *   endpoint      — `"admin"` (default) hits the admin GSC route;
+ *                   `"maker"` hits the maker-scoped self-serve route at
+ *                   `/api/maker/seo/indexation-trend` (slug is ignored
+ *                   server-side — token derives it).
  *
- * Backed by `/api/admin/gsc/snapshots-trend/maker/{slug}` which reads
- * the `per_maker` rollup persisted in `gsc_indexed_snapshots` since
+ * Backed by `/api/admin/gsc/snapshots-trend/maker/{slug}` (admin) or
+ * `/api/maker/seo/indexation-trend` (maker), both reading the
+ * `per_maker` rollup persisted in `gsc_indexed_snapshots` since
  * iter354.
  */
 import React, { useEffect, useState } from "react";
@@ -24,7 +29,7 @@ let _MAKER_OPTIONS_CACHE = [];
 
 
 export default function PerMakerIndexationChart({
-  initialSlug = "", hideInput = false, height = 80,
+  initialSlug = "", hideInput = false, height = 80, endpoint = "admin",
 }) {
   const API = process.env.REACT_APP_BACKEND_URL;
   const [slug, setSlug] = useState(initialSlug);
@@ -33,6 +38,8 @@ export default function PerMakerIndexationChart({
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const [makerOptions, setMakerOptions] = useState(_MAKER_OPTIONS_CACHE);
+
+  const isMakerMode = endpoint === "maker";
 
   const loadOptions = async () => {
     if (_MAKER_OPTIONS_CACHE.length > 0) return;
@@ -49,16 +56,18 @@ export default function PerMakerIndexationChart({
   };
 
   useEffect(() => {
-    if (!submitted) return;
+    // Maker mode: always auto-load (slug derives from the bearer token).
+    if (!submitted && !isMakerMode) return;
     let cancelled = false;
     (async () => {
       setBusy(true); setErr(""); setData(null);
       try {
-        const token = localStorage.getItem("cm_admin_jwt") || "";
-        const r = await fetch(
-          `${API}/api/admin/gsc/snapshots-trend/maker/${encodeURIComponent(submitted)}?days=30`,
-          { headers: { Authorization: `Bearer ${token}` } },
-        );
+        const tokenKey = isMakerMode ? "cm_maker_jwt" : "cm_admin_jwt";
+        const token = localStorage.getItem(tokenKey) || "";
+        const url = isMakerMode
+          ? `${API}/api/maker/seo/indexation-trend?days=30`
+          : `${API}/api/admin/gsc/snapshots-trend/maker/${encodeURIComponent(submitted)}?days=30`;
+        const r = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         if (!cancelled) setData(await r.json());
       } catch (e) {
@@ -68,7 +77,7 @@ export default function PerMakerIndexationChart({
       }
     })();
     return () => { cancelled = true; };
-  }, [API, submitted]);
+  }, [API, submitted, isMakerMode]);
 
   const onSubmit = (e) => {
     e.preventDefault();
@@ -79,9 +88,11 @@ export default function PerMakerIndexationChart({
     <div className="border border-line bg-paper p-3 mb-3" data-testid="gsc-per-maker-chart-card">
       <div className="flex items-baseline justify-between gap-2 mb-2 flex-wrap">
         <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
-          {hideInput
-            ? `◆ Indexed % trend · ${submitted || "—"}`
-            : "◆ Drill into one maker"}
+          {isMakerMode
+            ? "◆ Your indexed % trend · last 30 days"
+            : hideInput
+              ? `◆ Indexed % trend · ${submitted || "—"}`
+              : "◆ Drill into one maker"}
         </div>
         {data && data.snapshot_count >= 2 && (
           <div className="font-mono text-[10px] text-ink-muted">
@@ -91,7 +102,7 @@ export default function PerMakerIndexationChart({
           </div>
         )}
       </div>
-      {!hideInput && (
+      {!hideInput && !isMakerMode && (
         <form onSubmit={onSubmit} className="flex gap-2 mb-2">
           <input
             type="text"
@@ -127,7 +138,7 @@ export default function PerMakerIndexationChart({
            data-testid="gsc-per-maker-error">{err}</p>
       )}
 
-      {busy && hideInput && (
+      {busy && (hideInput || isMakerMode) && (
         <div className="font-mono text-[10px] text-ink-muted">Loading…</div>
       )}
 
@@ -160,11 +171,12 @@ export default function PerMakerIndexationChart({
         </div>
       )}
 
-      {data && data.snapshot_count < 2 && submitted && !err && (
+      {data && data.snapshot_count < 2 && (submitted || isMakerMode) && !err && (
         <div className="font-mono text-[10px] text-ink-muted"
              data-testid="gsc-per-maker-bootstrap">
-          Collecting baseline for {submitted} (need ≥2 snapshots; have {data.snapshot_count}).
-          Once iter354 has run twice for this maker, the trend renders here.
+          {isMakerMode
+            ? `Collecting baseline for your shop (need ≥2 snapshots; have ${data.snapshot_count}). The daily GSC sweep usually populates this within 48 h of approval.`
+            : `Collecting baseline for ${submitted} (need ≥2 snapshots; have ${data.snapshot_count}). Once iter354 has run twice for this maker, the trend renders here.`}
         </div>
       )}
     </div>
