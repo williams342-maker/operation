@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { fetchAdminApprovedMakers, toggleMakerBeta } from "../../lib/api";
 import { formatDate } from "./_shared";
+import PerMakerIndexationChart from "./PerMakerIndexationChart";
 
 // Directory of every approved maker. Separates the long-tail roster
 // from the daily Applications queue so admins can find / audit sellers
@@ -12,6 +13,10 @@ export default function ApprovedMakersTab() {
   const [filter, setFilter] = useState("all"); // all | beta | plus | veteran
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
+  // iter356 — slug of the currently-expanded row showing the per-maker
+  // GSC indexation sparkline. Only one row expands at a time to keep
+  // the table tidy and avoid simultaneous /snapshots-trend/maker fetches.
+  const [expandedSlug, setExpandedSlug] = useState("");
 
   const refresh = async () => {
     setLoading(true);
@@ -126,7 +131,8 @@ export default function ApprovedMakersTab() {
             </thead>
             <tbody>
               {filtered.map((r) => (
-                <tr key={r.slug} className="border-b border-line hover:bg-surface" data-testid={`approved-row-${r.slug}`}>
+                <React.Fragment key={r.slug}>
+                <tr className="border-b border-line hover:bg-surface" data-testid={`approved-row-${r.slug}`}>
                   <td className="py-3 pr-3">
                     <div className="text-ink">{r.name || r.slug}</div>
                     <div className="text-[9px] text-ink-muted">/{r.slug}</div>
@@ -144,7 +150,19 @@ export default function ApprovedMakersTab() {
                   <td className="py-3 pr-3 text-right text-ink">{r.listings_count || 0}</td>
                   <td className="py-3 pr-3 text-right text-brand">${(r.lifetime_gmv || 0).toFixed(2)}</td>
                   <td className="py-3 pr-3 text-ink-muted">{formatDate(r.approved_at)}</td>
-                  <td className="py-3 text-right">
+                  <td className="py-3 text-right space-x-1 whitespace-nowrap">
+                    <button
+                      onClick={() => setExpandedSlug((cur) => cur === r.slug ? "" : r.slug)}
+                      data-testid={`approved-chart-toggle-${r.slug}`}
+                      title="Toggle 30-day indexation chart"
+                      className={`px-2 py-1 border font-mono text-[10px] uppercase tracking-[0.22em] transition ${
+                        expandedSlug === r.slug
+                          ? "border-cyan-500 text-cyan-400 hover:bg-cyan-500/10"
+                          : "border-line text-ink-muted hover:border-cyan-500 hover:text-cyan-400"
+                      }`}
+                    >
+                      {expandedSlug === r.slug ? "Hide" : "Chart"}
+                    </button>
                     <button
                       onClick={() => flipBeta(r.slug, !r.is_beta)}
                       data-testid={`approved-beta-toggle-${r.slug}`}
@@ -158,6 +176,18 @@ export default function ApprovedMakersTab() {
                     </button>
                   </td>
                 </tr>
+                {expandedSlug === r.slug && (
+                  <tr className="border-b border-line bg-paper" data-testid={`approved-chart-row-${r.slug}`}>
+                    <td colSpan={7} className="p-3">
+                      <PerMakerIndexationChart
+                        initialSlug={r.slug}
+                        hideInput
+                        height={100}
+                      />
+                    </td>
+                  </tr>
+                )}
+                </React.Fragment>
               ))}
             </tbody>
           </table>

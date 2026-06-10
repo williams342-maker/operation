@@ -984,3 +984,22 @@ visible in scheduler boot logs after restart.
 - Smoke-tested by seeding 14 fake daily per-maker snapshots for `williams-cnc`, verifying the cyan chart renders below the green platform chart, then cleaning up the fake snapshots.
 
 
+
+---
+
+## 2026-06-10 — iter356: Per-maker chart in Approved Makers admin tab
+
+**DONE · screenshot verified:**
+- Extracted `PerMakerIndexationChart` from `SettingsTab.jsx` into its own file at `/app/frontend/src/components/admin/PerMakerIndexationChart.jsx` so multiple admin surfaces can render it.
+- New props: `initialSlug` (pre-fill + auto-load), `hideInput` (suppress the picker when slug is passed by parent), `height` (chart px height — defaults 80 in Settings, set to 100 in the makers table).
+- Loads the chart automatically when `initialSlug` is provided.
+- `SettingsTab.jsx` now imports the shared component instead of declaring it inline (deleted ~129 lines of duplicate code from SettingsTab as a result).
+- `ApprovedMakersTab.jsx` extended:
+  - New `expandedSlug` state (single-row expand, avoids parallel API fan-out across the whole table).
+  - Per-row CHART/HIDE toggle button (cyan accent, mirrors the platform sparkline color).
+  - Expanded row renders the chart in a `colSpan=7` sub-row with `initialSlug={r.slug}` + `hideInput` + `height={100}`.
+- Verified via screenshot: clicking the CHART button on `iter315-39629b8f` toggled to HIDE and the chart-card data-testids appeared in the DOM.
+
+**Deferred (task 1):** Meta video-creative push. Requires `integration_playbook_expert_v2` consultation on Meta's async video ingestion + polling cadence before implementation. Scoped for the next session.
+
+
