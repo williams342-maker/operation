@@ -23,6 +23,14 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - Admin: `/admin/login|verify|dashboard`
 
 ## What's Implemented (cumulative)
+- 🟡 **Light-theme redesign — Phase A of 5 complete (iter349, 2026-06-10):**
+  • Foundation: CSS vars (`--paper`, `--surface`, `--ink`, `--ink-muted`, `--brand`, `--line`) for both `:root` (light) and `html.dark`. Tailwind config extended with `paper`/`surface`/`ink`/`ink-muted`/`brand`/`line` color tokens and `font-heading` (Oswald) / `font-body` (Inter) / `bg-texture-grain` utilities.
+  • Theme system: `<ThemeProvider>` (localStorage + prefers-color-scheme + light default), `<ThemeToggle>` (sun/moon) mounted in nav right cluster.
+  • Homepage hero: rebuilt to mockup — eyebrow, big "SMALL SHOPS. BIG POTENTIAL." H1, body, dual CTAs, 4-panel diagonal photo collage, 5-icon trust strip. Staggered fade-up entrance.
+  • Source-of-truth blueprint: `/app/design_guidelines.md` + `.json`.
+  • Phase B (shop+product+maker), C (cart+checkout+auth+footer), D (maker dashboard), E (admin console) — pending.
+
+
 - ✅ **Google Ads campaign push (iter348, 2026-06-10) — Phase 4a of admin-creates-ads roadmap:**
   • Extended `services/ads_gateway/base.py::CreateCampaignSpec` with optional `headlines` + `descriptions`. Backward-compatible — maker auto-allocator unchanged.
   • Extended `services/ads_gateway/google.py::_create_campaign_sync` to prefer AI-generated headlines (≤15 × 30 chars) and descriptions (≤4 × 90 chars) when supplied. Falls back to old 3-headline auto-derive when empty. Pads to RSA minimums.

@@ -1,217 +1,183 @@
-import React, { useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { motion, useScroll, useTransform, useReducedMotion } from "framer-motion";
-import { Search, ArrowDown, Users, Hammer } from "lucide-react";
-import CopperGlowOrb from "../CopperGlowOrb";
-import RotatingHeadline from "../RotatingHeadline";
-import EmberField from "../EmberField";
-import PillTeaser from "./PillTeaser";
-
 /**
- * Cinematic Hero (iter217 redesign).
+ * iter349 — Crafters Market homepage hero (light-theme redesign).
  *
- * Layered composition — every layer is purposeful:
- *   1. Workshop photo (welding-sparks dark frame, .workshop-tone treatment)
- *   2. Black gradient veil (top→bottom) for legibility
- *   3. Faint blueprint grid overlay (mask-radial so it fades at edges)
- *   4. Two ambient copper-glow orbs (slow drift, .copper-drift)
- *   5. Vignette ring (radial darken so the type pops)
- *   6. Copper-shimmer scanline (cinematic lighting, 8s loop)
- *   7. Content (overline + headline + sub + CTAs + search + pills)
+ * Matches the mockup blueprint:
+ *   - Eyebrow ("BUILT BY INDEPENDENT MAKERS · US") in orange small-caps
+ *   - H1 "SMALL SHOPS. BIG POTENTIAL." with "BIG" highlighted in brand
+ *   - Body copy in ink-muted
+ *   - Dual CTAs: solid orange "Browse Makers" + outline "Sell Your Work"
+ *   - 4 diagonal photo panels on the right (clip-path slant)
+ *   - Trust strip beneath with 5 monoline icons
  *
- * All motion respects `prefers-reduced-motion` — parallax + orb drift +
- * shimmer all auto-disable, leaving a clean static hero.
+ * Staggered fade-up entrance per the design brief.
  */
-const HERO_BG =
-  "https://images.unsplash.com/photo-1745448797900-35d08e85e9db?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1NzZ8MHwxfHNlYXJjaHwxfHx3ZWxkaW5nJTIwc3BhcmtzJTIwZGFyayUyMGluZHVzdHJpYWx8ZW58MHx8fHwxNzc3MTU0OTg0fDA&ixlib=rb-4.1.0&q=85";
+import { Link } from "react-router-dom";
+import { motion, useReducedMotion } from "framer-motion";
+import { Users, Hammer, HandHeart, HeartHandshake, Wrench, Leaf } from "lucide-react";
 
-const PILLS = ["Wall Art", "Custom Signs", "Outdoor Art", "Jewelry & Wearables"];
+const HERO_PHOTOS = [
+  {
+    src: "https://images.unsplash.com/photo-1470342495351-a5f90c5011cd?crop=entropy&cs=srgb&fm=jpg&w=900&q=80",
+    alt: "Woodworking plane curling fresh shavings on a workbench",
+  },
+  {
+    src: "https://images.unsplash.com/photo-1628483211662-9bcc692c46dc?crop=entropy&cs=srgb&fm=jpg&w=900&q=80",
+    alt: "Leather worker tooling a hand-stitched piece",
+  },
+  {
+    src: "https://images.unsplash.com/photo-1504917595217-d4dc5ebe6122?crop=entropy&cs=srgb&fm=jpg&w=900&q=80",
+    alt: "Metal grinder throwing sparks in a small fabrication shop",
+  },
+  {
+    src: "https://images.unsplash.com/photo-1595351298020-038700609878?crop=entropy&cs=srgb&fm=jpg&w=900&q=80",
+    alt: "Hands shaping a ceramic mug on a potter's wheel",
+  },
+];
+
+const TRUST_ITEMS = [
+  { Icon: HandHeart,    label: "Support Small",       body: "Every purchase supports independent makers." },
+  { Icon: Users,        label: "Made by Real People", body: "Products crafted in workshops, studios, and home shops across the US." },
+  { Icon: Wrench,       label: "Quality Craftsmanship", body: "Carefully made, sourced, and selected with care." },
+  { Icon: Hammer,       label: "Maker First",         body: "Fair fees, real support, built for makers." },
+  { Icon: HeartHandshake, label: "Real Community",    body: "Join a community that creates and inspires." },
+];
 
 export default function Hero() {
-  const [q, setQ] = useState("");
-  const nav = useNavigate();
-  const onSearch = (e) => {
-    e.preventDefault();
-    nav(q.trim() ? `/shop?q=${encodeURIComponent(q.trim())}` : "/shop");
-  };
+  const reduce = useReducedMotion();
 
-  const sectionRef = useRef(null);
-  const reduced = useReducedMotion();
-  const { scrollYProgress } = useScroll({
-    target: sectionRef,
-    offset: ["start start", "end start"],
-  });
-  const bgY = useTransform(scrollYProgress, [0, 1], reduced ? ["0%", "0%"] : ["0%", "14%"]);
-  const overlayY = useTransform(scrollYProgress, [0, 1], reduced ? ["0%", "0%"] : ["0%", "7%"]);
+  // Fade-up choreography: eyebrow → H1 → body → CTAs.
+  const stagger = (delay) => (reduce
+    ? {}
+    : {
+        initial: { opacity: 0, y: 16 },
+        animate: { opacity: 1, y: 0 },
+        transition: { duration: 0.6, delay, ease: [0.22, 1, 0.36, 1] },
+      });
 
   return (
     <section
-      ref={sectionRef}
-      id="top"
-      className="relative w-full min-h-[78svh] md:min-h-[82svh] overflow-hidden"
-      data-testid="hero-section"
+      className="relative bg-paper text-ink overflow-hidden"
+      data-testid="home-hero"
     >
-      {/* 1 — Workshop photo (parallax) */}
-      <motion.div className="absolute inset-0" style={{ y: bgY }} aria-hidden="true">
-        <img
-          src={HERO_BG}
-          alt=""
-          className="absolute inset-0 w-full h-full object-cover scale-110 workshop-tone"
-        />
-      </motion.div>
+      {/* Subtle paper grain overlay */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 bg-texture-grain opacity-[0.04] mix-blend-multiply dark:opacity-[0.06] dark:mix-blend-screen"
+      />
 
-      {/* 2 — Gradient veil (parallax, slower) */}
-      <motion.div className="absolute inset-0" style={{ y: overlayY }} aria-hidden="true">
-        <div className="absolute inset-0 bg-gradient-to-b from-black/85 via-black/55 to-[#0a0a0a]" />
-      </motion.div>
+      <div className="relative max-w-[1500px] mx-auto px-6 md:px-10 lg:px-14 pt-12 md:pt-20 pb-12 md:pb-20">
+        <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
+          {/* LEFT — Copy block */}
+          <div className="relative z-10">
+            <motion.div
+              {...stagger(0.0)}
+              className="flex items-center gap-3 mb-6"
+            >
+              <span className="h-px w-8 bg-brand" />
+              <span className="font-mono text-xs sm:text-sm font-bold tracking-[0.22em] uppercase text-brand">
+                Built by Independent Makers · US
+              </span>
+              <span className="h-px w-8 bg-brand" />
+            </motion.div>
 
-      {/* 3 — Faint blueprint grid */}
-      <div className="absolute inset-0 blueprint-grid opacity-60 pointer-events-none" aria-hidden="true" />
+            <motion.h1
+              {...stagger(0.12)}
+              className="font-heading text-5xl sm:text-7xl lg:text-8xl uppercase leading-[0.92] tracking-tight text-ink"
+              data-testid="home-hero-h1"
+            >
+              Small Shops.
+              <br />
+              <span className="text-brand">Big</span>{" "}
+              <span className="text-ink">Potential.</span>
+            </motion.h1>
 
-      {/* 4 — Ambient copper orbs (2 staggered) */}
-      <CopperGlowOrb size={700} x="78%" y="32%" intensity={0.65} />
-      <CopperGlowOrb size={520} x="14%" y="78%" intensity={0.4} warm delay={4} />
+            <motion.p
+              {...stagger(0.24)}
+              className="mt-7 font-body text-base sm:text-lg leading-relaxed text-ink-muted max-w-xl"
+            >
+              Built for independent makers, woodworkers, leather workers, metal crafters, and creators — from workshops and studios to garages and small shops. Real products from real people. No mass production. No drop-shipping. Just small businesses with stories behind what they make.
+            </motion.p>
 
-      {/* 5 — Vignette ring */}
-      <div className="absolute inset-0 cinematic-vignette pointer-events-none" aria-hidden="true" />
+            <motion.div
+              {...stagger(0.36)}
+              className="mt-9 flex flex-wrap gap-3"
+            >
+              <Link
+                to="/makers"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-brand hover:bg-brand-hover text-white font-mono text-xs uppercase tracking-[0.22em] transition-colors"
+                data-testid="home-hero-cta-browse"
+              >
+                <Users size={14} />
+                Browse Makers
+              </Link>
+              <Link
+                to="/apply"
+                className="inline-flex items-center gap-2 px-6 py-3 border-2 border-ink hover:bg-ink hover:text-paper text-ink font-mono text-xs uppercase tracking-[0.22em] transition-colors"
+                data-testid="home-hero-cta-sell"
+              >
+                <Hammer size={14} />
+                Sell Your Work
+              </Link>
+            </motion.div>
+          </div>
 
-      {/* 6 — Copper-shimmer (filmic lighting) */}
-      <div className="absolute inset-0 copper-shimmer pointer-events-none opacity-70" aria-hidden="true" />
-
-      {/* 6b — Soft animated embers · CSS-only particle field, drifting up
-         like sparks rising from a forge. Pure decorative — pointer-events
-         none, aria-hidden, auto-stops on prefers-reduced-motion. */}
-      <EmberField count={24} className="absolute inset-0" />
-
-      {/* 7 — Content */}
-      <div className="relative z-10 w-full max-w-[1400px] mx-auto px-4 md:px-8 pt-36 md:pt-44 pb-12 text-center">
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7 }}
-          className="font-mono text-[11px] uppercase tracking-[0.32em] text-amber-400 mb-6 inline-flex items-center gap-3 justify-center"
-        >
-          <span className="inline-block w-8 h-px bg-amber-400" />
-          Built by Independent Makers · US
-          <span className="inline-block w-8 h-px bg-amber-400" />
-        </motion.div>
-
-        {/* Rotating cinematic headline. The motion wrapper is required —
-            it creates a fresh stacking context so the giant type paints
-            cleanly above the workshop-photo bg layer. Animation is
-            opacity-only so a stalled framer-motion frame can't ever
-            orphan the headline at opacity:0 (had that bug pre-iter220
-            when I removed this wrapper). */}
-        <motion.div
-          initial={false}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.6 }}
-          style={{ willChange: "opacity" }}
-          data-testid="hero-headline-wrap"
-        >
-          <RotatingHeadline />
-        </motion.div>
-
-        <motion.p
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.28, duration: 0.7 }}
-          className="font-mono text-sm md:text-base text-zinc-300 max-w-2xl mx-auto mt-6 leading-relaxed"
-        >
-          Built for{" "}
-          <strong className="text-white font-normal">independent makers</strong>,{" "}
-          <strong className="text-white font-normal">growers</strong>, and{" "}
-          <strong className="text-white font-normal">creators</strong> —
-          from workshops and studios to gardens and small shops.
-          Real products from real people — no mass production, no drop-shipping,
-          just small businesses with stories behind what they make.
-        </motion.p>
-
-        <motion.div
-          initial={{ opacity: 0, y: 18 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4, duration: 0.7 }}
-          className="mt-9 flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3"
-          data-testid="hero-ctas"
-        >
-          {/* Primary CTA — Browse Makers (the "discover real workshops"
-              promise the entire site is built around). Routes to /makers
-              instead of /shop because makers-first is the brand position. */}
-          <Link
-            to="/makers"
-            className="btn-industrial btn-primary inline-flex items-center justify-center gap-2 text-sm px-7 py-3.5 shadow-[0_0_24px_-4px_rgba(255,69,0,0.55)] hover:shadow-[0_0_40px_-4px_rgba(255,69,0,0.85)] transition-shadow"
-            data-testid="hero-cta-browse-makers"
+          {/* RIGHT — Diagonal photo collage */}
+          <motion.div
+            initial={reduce ? {} : { opacity: 0, x: 40 }}
+            animate={reduce ? {} : { opacity: 1, x: 0 }}
+            transition={{ duration: 0.8, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+            className="relative w-full aspect-[6/5] lg:aspect-[7/5]"
+            data-testid="home-hero-collage"
           >
-            <Users size={16} /> Browse Makers
-          </Link>
-          {/* Secondary CTA — Sell Your Work (maker application funnel) */}
-          <Link
-            to="/apply"
-            className="inline-flex items-center justify-center gap-2 px-7 py-3.5 border border-amber-500/40 hover:border-amber-400 hover:text-amber-300 backdrop-blur-md bg-black/30 font-mono text-xs uppercase tracking-[0.22em] text-zinc-200 transition-colors"
-            data-testid="hero-cta-sell"
-          >
-            <Hammer size={14} /> Sell Your Work
-          </Link>
-        </motion.div>
+            <div className="absolute inset-0 grid grid-cols-4 gap-0">
+              {HERO_PHOTOS.map((p, i) => (
+                <div
+                  key={p.src}
+                  className="relative overflow-hidden border-x border-paper"
+                  style={{
+                    clipPath: "polygon(15% 0, 100% 0, 85% 100%, 0 100%)",
+                    marginLeft: i === 0 ? "0" : "-12%",
+                    zIndex: HERO_PHOTOS.length - i,
+                  }}
+                >
+                  <img
+                    src={p.src}
+                    alt={p.alt}
+                    className="w-full h-full object-cover"
+                    loading={i < 2 ? "eager" : "lazy"}
+                  />
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        </div>
+      </div>
 
-        <motion.form
-          onSubmit={onSearch}
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.52, duration: 0.7 }}
-          className="mt-10 max-w-2xl mx-auto flex items-stretch border border-amber-500/30 bg-black/70 backdrop-blur-md focus-within:border-amber-400 transition-colors"
-          data-testid="hero-search-form"
-        >
-          <Search size={16} className="ml-4 self-center text-amber-400" />
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search wall art, custom signs, address numbers…"
-            data-testid="hero-search-input"
-            className="flex-1 bg-transparent px-4 py-4 font-mono text-sm outline-none placeholder:text-zinc-500"
-          />
-          <button
-            type="submit"
-            data-testid="hero-search-btn"
-            className="px-6 md:px-8 bg-[#ff4500] text-white font-mono text-xs uppercase tracking-[0.22em] hover:bg-[#cc3700] transition-colors"
+      {/* Trust strip */}
+      <div className="border-t border-line bg-paper relative z-10">
+        <div className="max-w-[1500px] mx-auto px-6 md:px-10 lg:px-14 py-8 md:py-10">
+          <ul
+            className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-y-6 lg:divide-x lg:divide-line"
+            data-testid="home-hero-trust"
           >
-            Search →
-          </button>
-        </motion.form>
-
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.62, duration: 0.6 }}
-          className="mt-6 flex flex-wrap items-center justify-center gap-2"
-          data-testid="hero-pills"
-        >
-          <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500 mr-2">
-            Popular →
-          </span>
-          {PILLS.map((p) => (
-            <PillTeaser key={p} label={p} query={p} />
-          ))}
-        </motion.div>
-
-        <div className="mt-8 flex items-center justify-center gap-4 md:gap-8 font-mono text-[10px] uppercase tracking-[0.28em] text-zinc-500 flex-wrap">
-          <span className="flex items-center gap-2">
-            <span className="w-1.5 h-1.5 bg-amber-400 animate-pulse" /> 12 makers · live now
-          </span>
-          {/* iter321 — Loud business-model proof point. The single
-              clearest reason a maker (or buyer) should pick us over Etsy
-              et al. Sits with the other trust pills so it reads as
-              fact, not advertisement. */}
-          <span
-            className="flex items-center gap-2 text-amber-300"
-            data-testid="hero-trust-95-percent"
-          >
-            <span className="text-amber-400">◆</span> Makers keep 95% · 5% platform fee
-          </span>
-          <span className="hidden md:inline text-amber-500/60">Plasma · Laser · Router</span>
-          <span className="hidden md:flex items-center gap-2">
-            <ArrowDown size={12} /> Scroll
-          </span>
+            {TRUST_ITEMS.map(({ Icon, label, body }, i) => (
+              <li
+                key={label}
+                className="flex items-start gap-3 px-0 lg:px-6 first:lg:pl-0 last:lg:pr-0"
+                data-testid={`home-hero-trust-${i}`}
+              >
+                <Icon size={22} strokeWidth={1.4} className="text-ink shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-heading text-sm uppercase tracking-wide text-ink leading-snug">
+                    {label}
+                  </div>
+                  <div className="font-body text-xs text-ink-muted leading-snug mt-0.5">
+                    {body}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
         </div>
       </div>
     </section>

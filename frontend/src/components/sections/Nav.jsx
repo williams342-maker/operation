@@ -6,6 +6,7 @@ import { Link } from "react-router-dom";
 import { useCart } from "../../lib/cart";
 import { http } from "../../lib/api";
 import ActivityTicker from "./ActivityTicker";
+import ThemeToggle from "../ThemeToggle";
 
 // Primary nav — 3 items only. Studio moved into the Community dropdown
 // (iter323) — it's a content/creation surface, not a commerce path, so
@@ -183,6 +184,7 @@ export default function Nav() {
               <User size={14} /> {signedInRole ? "Account" : "Sign in"}
             </Link>
           )}
+          <ThemeToggle className="hidden sm:inline-flex" />
           <Link
             to="/cart"
             className="relative inline-flex items-center gap-2 px-4 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em] transition"

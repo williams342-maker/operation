@@ -1,3 +1,44 @@
+## 2026-06-10 — Phase A of light-theme redesign: foundation + new hero (iter349)
+
+Sweeping visual direction change from dark/industrial to a **light cream "Organic & Earthy + Swiss-typography"** theme based on user-supplied mockups. **PHASE A complete — Phase B-E pending.**
+
+### Foundation laid
+- **`/app/design_guidelines.md`** + `/app/design_guidelines.json` — locked design source-of-truth (palette, type scale, components, motion, theme-toggle UX).
+- **`frontend/src/index.css`** — replaced dark-only :root vars with light defaults + `html.dark` overrides for both legacy tokens (`--bg`, `--fg`, `--primary`, `--border`, `--card`, etc.) AND new blueprint tokens (`--paper`, `--surface`, `--ink`, `--ink-muted`, `--brand`, `--brand-hover`, `--line`). Body transitions smoothly between modes (240ms). `.font-display` now uses Oswald (was Anton). Scrollbar tokenized too.
+- **`frontend/tailwind.config.js`** — added `paper`, `surface`, `ink`, `ink-muted`, `brand`/`brand-hover`, `line` color tokens. Added `fontFamily.heading` (Oswald), `body` (Inter), `mono` (JetBrains Mono). Added `bg-texture-grain` utility (SVG noise).
+- **`frontend/public/index.html`** — added Oswald + Inter to Google Fonts link (kept Anton + JetBrains for backward-compat).
+
+### Theme system
+- **`components/ThemeProvider.jsx`** — React context. First load: reads `localStorage["cm_theme"]`, falls back to `prefers-color-scheme`, defaults light. Subsequent loads use stored value. Toggles `dark` class on `<html>`.
+- **`components/ThemeToggle.jsx`** — sun/moon button. Mounted in nav right cluster (between Sign-in and Cart). `data-testid="theme-toggle"`.
+- **`index.js`** — wraps `<App />` in `<ThemeProvider>`.
+
+### Homepage hero — REDESIGNED
+- **`components/sections/Hero.jsx`** (rewritten, ~180 lines):
+  - Eyebrow: `—  BUILT BY INDEPENDENT MAKERS · US  —` (brand orange, dividers)
+  - H1: "SMALL SHOPS. <span class=brand>BIG</span> POTENTIAL." (Oswald, text-5xl→8xl)
+  - Body copy + dual CTAs (solid brand "Browse Makers" + outline "Sell Your Work")
+  - 4-panel diagonal photo collage (Unsplash) with `clip-path: polygon(15% 0, 100% 0, 85% 100%, 0 100%)` and -12% margin overlap creating the slant
+  - Trust strip below with 5 monoline lucide icons (HandHeart, Users, Wrench, Hammer, HeartHandshake)
+  - Staggered fade-up entrance (eyebrow → H1 → body → CTAs, 120ms gaps; photo collage slides in from right)
+  - Respects `prefers-reduced-motion`
+
+### Smoke test (live preview)
+- ✅ Homepage body background: `rgb(249, 248, 246)` — cream paper confirmed
+- ✅ Hero H1, trust strip, theme toggle all mounted and visible
+- ✅ Photo collage renders with diagonal clip-path
+- ✅ Lint clean on all three new files (Hero, ThemeProvider, ThemeToggle)
+
+### Known carry-over (Phase B-E will address)
+- Top nav still has hardcoded dark background (Nav.jsx uses `bg-[#0a0a0a]` directly).
+- `SupportVeteransStrip` top ticker still dark.
+- Cookie consent bar at bottom still dark.
+- Below-the-hero sections (FeaturedBuildsRail, CinematicMomentsStrip, ProductRail, etc.) still dark — these need per-section redesign.
+- Maker dashboard, admin console, shop, product, cart, checkout — all pending Phase B-E.
+
+---
+
+
 ## 2026-06-10 — Phase 4a of admin ads roadmap: Google Ads campaign push (iter348)
 
 User asked to wire the Workshop drafts → real Google Ads campaigns. Built end-to-end and verified all happy + sad paths via curl. **HUGE win**: existing `services/ads_gateway/google.py` already does Budget → Campaign (PAUSED) → AdGroup → RSA → Keywords via the official google-ads SDK with OAuth refresh tokens. I only had to extend it to accept the rich AI-generated headlines/descriptions and build the admin-facing bridge.
