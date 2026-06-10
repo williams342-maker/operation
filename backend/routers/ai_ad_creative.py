@@ -81,6 +81,12 @@ class GenerateRequest(BaseModel):
     tone: str = "professional"
     generate_images: bool = False
     num_image_variants: int = Field(default=1, ge=0, le=3)
+    # iter355 — Reference-asset IDs from the Workshop library to use as
+    # style/subject anchors for both copy and image generation. Only image
+    # assets are passed to the image model; video assets are noted in the
+    # copy prompt but ignored by the visual generator (Nano Banana cannot
+    # consume video as a reference).
+    reference_asset_ids: list[str] = Field(default_factory=list, max_length=4)
 
 
 # ── Subject lookup ─────────────────────────────────────────────────────
@@ -184,7 +190,8 @@ def _enforce_limits(channel: str, payload: dict) -> dict:
 
 
 # ── LLM calls ──────────────────────────────────────────────────────────
-async def _generate_copy(subject: dict, channels: list[str], tone: str) -> dict:
+async def _generate_copy(subject: dict, channels: list[str], tone: str,
+                          reference_summary: list[str] | None = None) -> dict:
     if not EMERGENT_LLM_KEY:
         raise HTTPException(503, "EMERGENT_LLM_KEY not set — cannot generate copy.")
     try:
@@ -202,6 +209,15 @@ async def _generate_copy(subject: dict, channels: list[str], tone: str) -> dict:
     ).with_model("anthropic", "claude-sonnet-4-5-20250929")
 
     prompt = _build_copy_prompt(subject, channels, tone)
+    if reference_summary:
+        # iter355 — surface the reference assets so the LLM can align
+        # tone/imagery in headlines (e.g. mention "tactile texture" when
+        # the references are workshop close-ups).
+        prompt += (
+            "\n\nREFERENCE CREATIVE ATTACHED (visual style anchors):\n- "
+            + "\n- ".join(reference_summary[:10])
+            + "\nKeep the copy consistent with these references in tone and subject focus."
+        )
     reply = await chat.send_message(UserMessage(text=prompt))
     text = str(reply or "").strip()
     # Strip code fences if the model adds them despite instructions.
@@ -218,11 +234,19 @@ async def _generate_copy(subject: dict, channels: list[str], tone: str) -> dict:
     return {ch: _enforce_limits(ch, parsed.get(ch) or {}) for ch in channels}
 
 
-async def _generate_image_variant(subject: dict, draft_id: str, idx: int) -> Optional[str]:
+async def _generate_image_variant(subject: dict, draft_id: str, idx: int,
+                                   reference_images: list[dict] | None = None) -> Optional[str]:
+    """Generate one ad image variant via Nano Banana.
+
+    iter355 — when `reference_images` is non-empty, attach each one as a
+    `FileContent` input so Nano Banana uses them as visual style/subject
+    anchors. Each reference is a dict shaped `{content_type, b64}` —
+    callers pass at most 4 to keep the prompt manageable.
+    """
     if not EMERGENT_LLM_KEY:
         return None
     try:
-        from emergentintegrations.llm.chat import LlmChat, UserMessage  # type: ignore
+        from emergentintegrations.llm.chat import LlmChat, UserMessage, FileContent  # type: ignore
     except Exception:
         return None
 
@@ -267,8 +291,20 @@ async def _generate_image_variant(subject: dict, draft_id: str, idx: int) -> Opt
     ).with_model("gemini", "gemini-3.1-flash-image-preview").with_params(modalities=["image", "text"])
 
     prompt = "\n".join(bits) + "\n\nStyle: " + style
+    if reference_images:
+        prompt += (
+            "\n\nReference images are attached. Match their colour palette, "
+            "lighting, and overall mood while keeping the product/subject as "
+            "the focus. Do NOT copy the references — generate a new image "
+            "that feels consistent with them."
+        )
     try:
-        _text, images = await chat.send_message_multimodal_response(UserMessage(text=prompt))
+        file_contents = [
+            FileContent(content_type=ref["content_type"], file_content_base64=ref["b64"])
+            for ref in (reference_images or [])
+        ]
+        user_msg = UserMessage(text=prompt, file_contents=file_contents or None)
+        _text, images = await chat.send_message_multimodal_response(user_msg)
         if not images:
             return None
         img_bytes = base64.b64decode(images[0]["data"])
@@ -332,13 +368,40 @@ async def generate_creative(body: GenerateRequest, admin: dict = Depends(current
     subject = await _find_subject(body.subject_type, body.subject_slug)
     draft_id = "draft_" + secrets.token_urlsafe(10)
 
-    copy = await _generate_copy(subject, body.channels, body.tone)
+    # iter355 — Load reference assets (image bytes for Nano Banana,
+    # filenames for the copy LLM). Caps at 4 image refs to keep the
+    # multimodal prompt under typical token budgets.
+    reference_images: list[dict] = []
+    reference_summary: list[str] = []
+    if body.reference_asset_ids:
+        async for a in db.ad_workshop_assets.find(
+            {"_id": {"$in": list(body.reference_asset_ids)}}
+        ):
+            reference_summary.append(
+                f"{a.get('kind', 'image')} · {a.get('original_filename') or a.get('_id')}"
+            )
+            if a.get("kind") == "image" and len(reference_images) < 4:
+                try:
+                    path = Path(a.get("stored_path") or "")
+                    if path.exists():
+                        b64 = base64.b64encode(path.read_bytes()).decode("ascii")
+                        reference_images.append({
+                            "content_type": a.get("mime") or "image/jpeg",
+                            "b64": b64,
+                        })
+                except Exception as e:
+                    log.warning("[ad-generate] could not load reference asset %s: %s",
+                                a.get("_id"), e)
+
+    copy = await _generate_copy(subject, body.channels, body.tone,
+                                reference_summary=reference_summary)
 
     images: list[str] = []
     if body.generate_images and body.num_image_variants > 0:
         # Generate in parallel but bounded.
         tasks = [
-            _generate_image_variant(subject, draft_id, i)
+            _generate_image_variant(subject, draft_id, i,
+                                    reference_images=reference_images)
             for i in range(body.num_image_variants)
         ]
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -356,6 +419,11 @@ async def generate_creative(body: GenerateRequest, admin: dict = Depends(current
         "tone": body.tone,
         "copy": copy,
         "images": images,
+        # iter355 — persist the reference list so the admin UI can re-render
+        # what was used and the push handlers can include them in audit rows.
+        "reference_asset_ids": list(body.reference_asset_ids),
+        "reference_asset_count": len(body.reference_asset_ids),
+        "reference_images_used": len(reference_images),
         "created_by": (admin or {}).get("email") or "admin",
         "created_at": now_iso(),
     }

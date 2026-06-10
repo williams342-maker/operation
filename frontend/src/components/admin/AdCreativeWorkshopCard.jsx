@@ -91,6 +91,21 @@ export default function AdCreativeWorkshopCard() {
 
   const reloadDrafts = () => setReloadDraftsKey((k) => k + 1);
 
+  // iter355 — Reference-asset selection state. Multi-select up to 4 IDs;
+  // passed to /admin/ad-creative/generate so Nano Banana uses them as
+  // style anchors and the copy LLM aligns its tone with the references.
+  const [selectedAssetIds, setSelectedAssetIds] = useState([]);
+  const toggleAsset = useCallback((id) => {
+    setSelectedAssetIds((cur) => {
+      if (cur.includes(id)) return cur.filter((x) => x !== id);
+      if (cur.length >= 4) {
+        toast.error("Max 4 reference assets per generation.");
+        return cur;
+      }
+      return [...cur, id];
+    });
+  }, []);
+
   const toggleChannel = useCallback((id) => {
     setChannels((arr) => (arr.includes(id) ? arr.filter((x) => x !== id) : [...arr, id]));
   }, []);
@@ -108,9 +123,14 @@ export default function AdCreativeWorkshopCard() {
         tone,
         generate_images: genImages,
         num_image_variants: genImages ? numVariants : 0,
+        reference_asset_ids: selectedAssetIds,
       });
       setResult(r);
-      toast.success(`Generated ${channels.length} channel variants${genImages ? ` + ${r?.draft?.images?.length || 0} images` : ""}.`);
+      toast.success(
+        `Generated ${channels.length} channel variants` +
+        (selectedAssetIds.length ? ` · ${selectedAssetIds.length} ref(s)` : "") +
+        (genImages ? ` + ${r?.draft?.images?.length || 0} images` : "")
+      );
     } catch (e) {
       toast.error(e?.response?.data?.detail || e?.message || "Generation failed.");
     } finally {
@@ -203,6 +223,8 @@ export default function AdCreativeWorkshopCard() {
           onGenerate={onGenerate}
           generating={generating}
           result={result}
+          selectedAssetIds={selectedAssetIds}
+          toggleAsset={toggleAsset}
         />
       )}
 
@@ -224,6 +246,7 @@ function ComposeView(props) {
     channels, toggleChannel, tone, setTone,
     genImages, setGenImages, numVariants, setNumVariants,
     onGenerate, generating, result,
+    selectedAssetIds, toggleAsset,
   } = props;
 
   return (
@@ -339,7 +362,10 @@ function ComposeView(props) {
         )}
       </div>
 
-      <ReferenceAssetUploader />
+      <ReferenceAssetUploader
+        selectedIds={selectedAssetIds}
+        onToggleSelect={toggleAsset}
+      />
 
       <button
         onClick={onGenerate}
@@ -862,7 +888,7 @@ function DraftsView({ drafts, loading, onLoad, onDelete }) {
  * Caps: 50 MB per file · MIME-allowlist enforced server-side. The
  * preview URL is hot-link safe (cryptographically random asset IDs).
  */
-function ReferenceAssetUploader() {
+function ReferenceAssetUploader({ selectedIds = [], onToggleSelect }) {
   const API = process.env.REACT_APP_BACKEND_URL;
   const [assets, setAssets] = useState([]);
   const [uploading, setUploading] = useState(false);
@@ -937,7 +963,7 @@ function ReferenceAssetUploader() {
   return (
     <div className="space-y-2" data-testid="ad-creative-uploads">
       <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
-        4. Reference assets <span className="text-ink-muted/60">(optional · informs generation)</span>
+        4. Reference assets <span className="text-ink-muted/60">(optional · click to use up to 4 as generation anchors)</span>
       </div>
       <label
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
@@ -969,28 +995,42 @@ function ReferenceAssetUploader() {
 
       {(loading || assets.length > 0) && (
         <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2 mt-2">
-          {assets.map((a) => (
-            <div key={a.id} className="relative border border-line bg-paper aspect-square overflow-hidden group"
-                 data-testid={`ad-creative-asset-${a.id}`}>
-              {a.kind === "video" ? (
-                <video src={a.url} className="w-full h-full object-cover" muted />
-              ) : (
-                <img src={a.url} alt={a.original_filename || a.id}
-                     className="w-full h-full object-cover" loading="lazy" />
-              )}
-              <div className="absolute inset-x-0 bottom-0 bg-paper/80 backdrop-blur px-2 py-1 font-mono text-[9px] text-ink truncate">
-                {a.kind === "video" ? "▶ " : ""}{a.original_filename || a.id}
+          {assets.map((a) => {
+            const isSelected = selectedIds.includes(a.id);
+            return (
+              <div key={a.id}
+                   onClick={() => onToggleSelect && onToggleSelect(a.id)}
+                   className={[
+                     "relative border bg-paper aspect-square overflow-hidden group cursor-pointer transition",
+                     isSelected ? "border-brand ring-2 ring-brand/40" : "border-line hover:border-brand/60",
+                   ].join(" ")}
+                   data-testid={`ad-creative-asset-${a.id}`}>
+                {a.kind === "video" ? (
+                  <video src={a.url} className="w-full h-full object-cover" muted />
+                ) : (
+                  <img src={a.url} alt={a.original_filename || a.id}
+                       className="w-full h-full object-cover" loading="lazy" />
+                )}
+                {isSelected && (
+                  <div className="absolute top-1 left-1 px-1.5 py-0.5 bg-brand text-paper font-mono text-[9px] uppercase tracking-[0.18em]"
+                       data-testid={`ad-creative-asset-selected-${a.id}`}>
+                    ◆ Ref {selectedIds.indexOf(a.id) + 1}
+                  </div>
+                )}
+                <div className="absolute inset-x-0 bottom-0 bg-paper/80 backdrop-blur px-2 py-1 font-mono text-[9px] text-ink truncate">
+                  {a.kind === "video" ? "▶ " : ""}{a.original_filename || a.id}
+                </div>
+                <button
+                  onClick={(e) => { e.stopPropagation(); deleteAsset(a.id); }}
+                  className="absolute top-1 right-1 p-1 bg-paper/70 backdrop-blur border border-line text-red-400 hover:bg-red-500 hover:text-paper transition opacity-0 group-hover:opacity-100"
+                  title="Delete asset"
+                  data-testid={`ad-creative-asset-delete-${a.id}`}
+                >
+                  <Trash2 size={11} />
+                </button>
               </div>
-              <button
-                onClick={() => deleteAsset(a.id)}
-                className="absolute top-1 right-1 p-1 bg-paper/70 backdrop-blur border border-line text-red-400 hover:bg-red-500 hover:text-paper transition opacity-0 group-hover:opacity-100"
-                title="Delete asset"
-                data-testid={`ad-creative-asset-delete-${a.id}`}
-              >
-                <Trash2 size={11} />
-              </button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

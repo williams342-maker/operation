@@ -443,3 +443,52 @@ async def gsc_snapshots_trend(days: int = 30,
         "latest_indexed_pct": (populated[-1]["indexed_pct"] if populated else None),
         "series": series,
     }
+
+
+# iter355 — Per-maker Indexation Trend. Same gap-fill pattern as the
+# platform-wide /snapshots-trend endpoint, but scoped to one maker_slug
+# pulled from the daily snapshot's `per_maker` rollup.
+@router.get("/admin/gsc/snapshots-trend/maker/{maker_slug}")
+async def gsc_snapshots_trend_per_maker(maker_slug: str, days: int = 30,
+                                        _: dict = Depends(current_admin)):
+    """Return per-maker indexed-pct timeline for charting. Snapshots
+    persisting since iter354 carry the `per_maker` rollup; older days
+    return `None` for makers that didn't exist at the time."""
+    from datetime import datetime, timedelta, timezone
+    days = max(7, min(90, int(days)))
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    cursor = db.gsc_indexed_snapshots.find(
+        {"ts": {"$gte": cutoff}},
+        {"_id": 0, "date": 1, "ts": 1, "per_maker": 1},
+    ).sort("date", 1)
+    rows = [r async for r in cursor]
+    by_date: dict[str, dict] = {}
+    for r in rows:
+        pm = ((r.get("per_maker") or {}).get(maker_slug)) or None
+        if pm:
+            by_date[r["date"]] = pm
+
+    today = datetime.now(timezone.utc).date()
+    series: list[dict] = []
+    for offset in range(days, -1, -1):
+        d = (today - timedelta(days=offset)).isoformat()
+        if d in by_date:
+            pm = by_date[d]
+            series.append({
+                "date": d,
+                "indexed_count": pm.get("indexed"),
+                "indexed_pct": pm.get("indexed_pct"),
+                "total_published": pm.get("total"),
+            })
+        else:
+            series.append({"date": d, "indexed_count": None,
+                           "indexed_pct": None, "total_published": None})
+    populated = [s for s in series if s["indexed_pct"] is not None]
+    return {
+        "maker_slug": maker_slug,
+        "days_requested": days,
+        "snapshot_count": len(populated),
+        "first_snapshot_at": (populated[0]["date"] if populated else None),
+        "latest_indexed_pct": (populated[-1]["indexed_pct"] if populated else None),
+        "series": series,
+    }

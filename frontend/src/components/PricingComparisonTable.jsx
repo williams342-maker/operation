@@ -181,10 +181,10 @@ export default function PricingComparisonTable({ title = "How we compare" }) {
             {FEATURES.map((row) => (
               <tr
                 key={row.label}
-                className="hover:bg-surface"
+                className="hover:bg-brand/5 transition-colors"
                 data-testid={`compare-row-${row.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
               >
-                <td className="px-4 py-4 align-top border-t border-line font-mono text-[10px] uppercase tracking-[0.18em] text-ink-muted">
+                <td className="px-4 py-4 align-top border-t border-line font-mono text-[10px] uppercase tracking-[0.18em] text-ink font-bold">
                   {row.label}
                 </td>
                 <ToneCell cell={row.cm} />

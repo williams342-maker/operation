@@ -938,3 +938,33 @@ visible in scheduler boot logs after restart.
 **Tests:** All 16 prior iter351+iter352 tests still pass (pure additive changes). Backend restarted clean, both screenshots verify UI renders correctly.
 
 
+
+---
+
+## 2026-06-10 — iter355: contrast fix + reference-anchored generation + per-maker trend
+
+### Bug fix — Marketplace Traffic row on /apply (DONE)
+- Root cause: the `PricingComparisonTable` row hover was `hover:bg-surface`. In dark-mode `--surface = #1E1E1E` is too close to `--paper = #121212` for clear feedback, and in some browser/OS dark-inversion combos the row appeared inverted with low-contrast text. Also the row label was `text-ink-muted` which already had borderline contrast.
+- Fix: `hover:bg-brand/5 transition-colors` (subtle orange tint, theme-aware, never inverts) + `text-ink font-bold` for the label cell (strong contrast on every theme + every hover state).
+- Verified via /apply screenshot: row now reads cleanly with strong cream background + dark label, hover tints to subtle orange.
+
+### Task 1 — Reference-asset selection wired into generate (DONE · live tested)
+- `GenerateRequest` now accepts `reference_asset_ids: list[str]` (max 4).
+- `generate_creative` loads each asset's bytes (cap 4 images) + summary line for the LLM. Image bytes attached as `FileContent` to the Nano Banana multimodal call so the model uses them as style/subject anchors. Copy LLM prompt gets the filename summary so headlines align with reference tone.
+- Both `_generate_image_variant` and `_generate_copy` now accept optional reference args and instruct the model to "match palette/lighting/mood without copying" (image) and "keep copy consistent with these references in tone and subject focus" (text).
+- Saved draft now persists `reference_asset_ids`, `reference_asset_count`, `reference_images_used`.
+- Frontend: state hoisted to parent `AdCreativeWorkshopCard` and passed through `ComposeView` to `ReferenceAssetUploader`. Click-to-toggle on each thumbnail with orange "◆ REF N" badge + orange ring; max-4 guard with toast; payload sent on Generate; success toast mentions ref count.
+- All `data-testid`s preserved + `ad-creative-asset-selected-{id}` added for the selection badge.
+
+### Task 2 — Per-maker Indexation Trend endpoint (DONE)
+- New `GET /api/admin/gsc/snapshots-trend/maker/{maker_slug}?days=30` (clamped 7-90) returns the same gap-filled timeline shape as the platform-wide endpoint but scoped to one maker via the `per_maker` rollup persisted in `gsc_indexed_snapshots` since iter354.
+- Days where the maker didn't have an entry return `{indexed_pct: null, ...}` — the React `<Line connectNulls>` already in the codebase handles those gracefully.
+- Verified via curl: `williams-cnc` returns `snapshots: 1 · latest: 0.0 · series len: 31`.
+- Chart wiring (React) deferred to next iteration — endpoint is the load-bearing piece; existing platform sparkline component is fully reusable with a different fetch URL.
+
+### Regression
+- All 16 prior iter351 + iter352 tests still pass.
+- Live preview verified for /products (200), /pinterest/catalog/health (200), workshop tab (renders + selection works), /apply (table reads cleanly).
+- Build broke once mid-iter from a malformed insert; caught and fixed via supervisor logs before pushing forward.
+
+
