@@ -675,3 +675,33 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 **Test file (re-runnable):** `/app/backend/tests/test_iter347_ads_push_meta_microsoft.py`.
 
 
+
+---
+
+## 2026-06-10 — P3 router split + P2 SEO submission verification
+
+**P3 — `ai_ad_creative.py` split (DONE, 16/16 pytest pass):**
+- Moved all Phase 4 push handlers out of `routers/ai_ad_creative.py` (was 789 lines) into a new dedicated `routers/ai_ad_push.py` module.
+- Result: `ai_ad_creative.py` now 402 lines (generator + drafts CRUD only); `ai_ad_push.py` 397 lines (preflight + push handlers + history endpoint).
+- Extracted shared `_preflight(channel)` helper that logs unexpected exceptions at WARN (addresses testing-agent code-review note #3 about silent eligibility regressions).
+- Shared `_resolve_subject_for_push(draft)` helper lives in `ai_ad_push.py` and is consumed by all three channel handlers (addresses code-review note #2).
+- Both modules registered in `server.py`. All endpoint paths unchanged — zero API contract impact.
+- Regression: `pytest tests/test_iter347_ads_push_meta_microsoft.py` → 16/16 pass.
+
+**P2 — Cloudflare prerender worker + GSC/Bing sitemap submission (server-side READY · user-side ACTIONABLE):**
+
+Server-side preflight (all ✅):
+- `/api/seo/diag` → `resolved_site_root=https://craftersmarket.org`, `preview_domain_leakage=false`, 127 indexable URLs (9 static + 83 products + 26 makers + 9 blog posts), 4 test-maker slugs auto-stripped.
+- `/api/sitemap.xml` → valid XML, canonical apex URLs, dynamic-rebuild from Mongo on every request.
+- `/api/robots.txt` → AI crawlers (GPTBot/ClaudeBot/OAI-SearchBot) explicitly allowed.
+- `/api/og/product/{slug}` → 200 with full OG/Twitter/Schema.org meta (sample: `carved-oak-wedding-monogram`).
+- `/api/indexnow-key.txt` → 200 (IndexNow key file canonically served).
+- IndexNow ping fired fresh from `/admin/seo/ping` → 75 URLs accepted, status 200, no errors. Bing / Yandex / Naver / Seznam / Yep all auto-pinged.
+
+User-side actions remaining (estimated 25 min — full playbook at `/app/docs/seo-submission-checklist.md` and `/app/docs/cloudflare-worker-prerender.md`):
+1. **Cloudflare Worker** (10 min) — Cloudflare → Workers & Pages → Create app → Create Worker → paste the contents of `/app/docs/cloudflare-worker-prerender.md` `crafters-prerender.js` block → bind route `craftersmarket.org/*` → Save. Verifies via the `curl -A "Slackbot-LinkExpanding 1.0"` smoke test in the doc.
+2. **GSC sitemap submission** (5 min) — search.google.com/search-console → Add property → `https://craftersmarket.org/` → verify via DNS TXT → Sitemaps → add `api/sitemap.xml` → Submit. Optional: set `GSC_ENABLED=1` + paste service-account JSON into backend env to enable the auto-`/admin/seo/gsc-submit-sitemap` button instead.
+3. **Bing Webmaster** (5 min) — bing.com/webmasters → add site → "Import from GSC" (one-click copies verification + sitemap) → done. IndexNow is already auto-pinging Bing in real time (see status above), so this just enables the dashboard UI.
+4. **Pinterest claim** (5 min · optional but high-leverage) — business.pinterest.com → Claim website → DNS TXT. Unlocks Rich Pins which read price + availability from our `Product` JSON-LD automatically.
+
+
