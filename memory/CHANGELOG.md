@@ -1,3 +1,36 @@
+## 2026-06-10 — Rotating hero: headline + photo collage cycle through 4 craft themes (iter354)
+
+User: "have the images rotate to different crafts and the headline continue to rotate."
+
+### Implementation
+- `components/sections/Hero.jsx` — replaced single-set hero with a `SETS` array of 4 craft-themed entries. Each set has `{eyebrow, headline:{line1, pre?, highlight, post?}, body, photos:[4]}`.
+- Auto-advance every **6 seconds** unless `prefers-reduced-motion` is set or user is hovering/focused inside the hero (pauses).
+- Headline crossfades via framer-motion `AnimatePresence` (180ms fade + 8px slide).
+- Photo collage crossfades (700ms opacity) between sets while preserving the diagonal clip-path layout.
+- All image URLs are pre-loaded on mount so the first transition isn't blocky.
+- Pager dots below CTAs: active dot extends to `w-10 bg-brand`, inactive dots are `w-5 bg-line`. Click any dot to jump immediately. ARIA: `role="tablist"`/`role="tab"`/`aria-selected`. Tabular-nums counter "01 / 04" beside the dots.
+
+### 4 sets
+1. **"Small Shops. BIG Potential."** — BUILT BY INDEPENDENT MAKERS · US — wood/leather/metal/ceramic
+2. **"Made by Real PEOPLE."** — REAL HANDS · REAL WORKSHOPS — workshop hands/loom/forge/glass
+3. **"Made in America. Made to LAST."** — AMERICAN-MADE · BUILT TO LAST — workbench/leather wallet/forged knife/stoneware
+4. **"One of a kind. Every TIME."** — TACTILE · UNIQUE · YOURS — live-edge wood/handwoven textile/reactive ceramic/silver jewelry
+
+### Smoke test (live preview)
+- ✅ Initial H1: "SMALL SHOPS. / BIG POTENTIAL."
+- ✅ After clicking pager dot index 2 → H1 swaps to "MADE IN AMERICA. / MADE TO LAST."
+- ✅ Photo collage swaps between sets
+- ✅ Pager counter advances "01 / 04" → "03 / 04"
+- ✅ Eyebrow text rotates with each set
+- ✅ CTAs (Browse Makers + Sell Your Work) stay fixed
+- ✅ Lint clean
+
+### Minor note
+One Unsplash URL in set 3 (live-edge workbench photo) returned alt-text only at screenshot time — image either still loading or temporarily 404. User noted in Phase A they'll iterate the hero photos with Nano Banana; straightforward URL swap when ready.
+
+---
+
+
 ## 2026-06-10 — Phase E (final) of light-theme redesign + density toggle bonus (iter353)
 
 User: "go with potential improvment" → Phase E (admin console + cleanup) PLUS the density toggle bonus.
