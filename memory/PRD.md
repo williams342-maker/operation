@@ -644,3 +644,34 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - Verified: `GET /api/products?limit=5` returns 200 with 83 items.
 
 
+
+---
+
+## 2026-06-10 — Phase 4b/4c Ads Push (Meta + Microsoft)
+**Backend (DONE, 16/16 tests passing — iter_83):**
+- `routers/ai_ad_creative.py` — added 4 new admin endpoints:
+  - `GET  /api/admin/ad-creative/push/meta/preflight`
+  - `POST /api/admin/ad-creative/drafts/{draft_id}/push/meta`  (req body: `{daily_budget_cents}`)
+  - `GET  /api/admin/ad-creative/push/microsoft/preflight`
+  - `POST /api/admin/ad-creative/drafts/{draft_id}/push/microsoft` (req body: `{daily_budget_cents, keywords?}`)
+- Shared helper `_resolve_subject_for_push(draft)` for both new push handlers.
+- `services/ads_gateway/meta.py::_create_creative` now honors `spec.headlines[0]` (≤40 chars → Meta `link_data.name`) and `spec.descriptions[0]` (≤125 chars → Meta `link_data.message`). Falls back to listing title/description when called from the allocator (no Workshop draft).
+- `services/ads_gateway/microsoft.py::_create_campaign_sync` now honors `spec.headlines`/`spec.descriptions` lists (deduped, trimmed to 30/90 chars, padded to ≥3/≥2) — same pattern as the Google adapter.
+- Mapping policy:
+  - Meta push consumes `draft.copy.meta_feed` (3 primary_texts × 125 chars + 3 headlines × 40 chars).
+  - Microsoft push consumes `draft.copy.google_search` (same RSA spec as Bing: ≤30 char headlines, ≤90 char descriptions).
+- Safety identical to Google adapter: every campaign lands PAUSED. Admin must manually activate inside Meta Ads Manager / Microsoft Advertising before any spend.
+
+**Frontend (DONE, smoke screenshot clean, no console errors):**
+- `frontend/src/lib/api.js` — added 4 client helpers: `adminAdCreativeMetaPreflight`, `adminPushDraftToMeta`, `adminAdCreativeMicrosoftPreflight`, `adminPushDraftToMicrosoft`.
+- `frontend/src/components/admin/AdCreativeWorkshopCard.jsx` — refactored single-channel `PushToGoogleButton` into a generic `PushToChannelButton` driven by a `CHANNEL` config object (`GOOGLE_CHANNEL`, `META_CHANNEL`, `MICROSOFT_CHANNEL`). All three buttons render side-by-side in the `CreativeResult` toolbar.
+- New `data-testid`s: `ad-creative-push-{google|meta|microsoft}`, `push-{channel}-modal`, `push-{channel}-form`, `push-{channel}-submit`, `push-{channel}-success`, `push-{channel}-open-link`.
+- Channel-specific eligibility gating:
+  - Google + Microsoft buttons disabled until `google_search.headlines.filter(Boolean).length >= 3`.
+  - Meta button disabled until `meta_feed.headlines >= 1 && meta_feed.primary_texts >= 1`.
+- Deep links: `google_ads_url`, `meta_ads_url` (Business Manager), `microsoft_ads_url` (ui.ads.microsoft.com).
+
+**Test report:** `/app/test_reports/iteration_83.json` (16/16 pass).
+**Test file (re-runnable):** `/app/backend/tests/test_iter347_ads_push_meta_microsoft.py`.
+
+
