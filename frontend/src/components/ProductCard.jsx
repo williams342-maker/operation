@@ -33,7 +33,7 @@ export default function ProductCard({ p, i = 0 }) {
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, amount: 0.2 }}
       transition={{ delay: (i % 4) * 0.06, duration: 0.7 }}
-      className="group relative bg-[#121212] border border-[#262626] hover:border-[#ff4500] transition-colors duration-500 overflow-hidden"
+      className="group relative bg-surface border border-line hover:border-brand transition-colors duration-500 overflow-hidden"
       data-testid={`product-card-${p.slug}`}
     >
       <Link to={`/shop/${p.slug}`} className="block" onClick={() => trackPricingLabelClick(p.slug)}>
@@ -60,7 +60,7 @@ export default function ProductCard({ p, i = 0 }) {
             transition={{ duration: 0.9 }}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-          <span className="tag absolute top-4 left-4 text-[#ff4500] border-[#ff4500]">{p.technique}</span>
+          <span className="tag absolute top-4 left-4 text-brand border-brand">{p.technique}</span>
           <span className="tag absolute top-4 right-4">{p.category}</span>
           {p.maker_is_veteran && (
             <VeteranBadge
@@ -71,7 +71,7 @@ export default function ProductCard({ p, i = 0 }) {
           )}
           {p.maker_is_plus && (
             <span
-              className="tag absolute top-12 left-4 text-[#ff4500] border-[#ff4500] bg-black/70 inline-flex items-center gap-1 text-[9px]"
+              className="tag absolute top-12 left-4 text-brand border-brand bg-black/70 inline-flex items-center gap-1 text-[9px]"
               data-testid={`product-card-plus-${p.slug}`}
               title="Crafters Plus maker"
             >
@@ -92,14 +92,14 @@ export default function ProductCard({ p, i = 0 }) {
           )}
           <div className="absolute bottom-4 right-4 flex items-end justify-end gap-3">
             <div className="font-display text-3xl text-white drop-shadow-md">{formatPriceDisplay(p)}</div>
-            <div className="w-10 h-10 border border-white/40 group-hover:bg-[#ff4500] group-hover:border-[#ff4500] transition flex items-center justify-center">
+            <div className="w-10 h-10 border border-white/40 group-hover:bg-brand group-hover:border-brand transition flex items-center justify-center">
               <ArrowUpRight size={18} className="text-white" />
             </div>
           </div>
         </div>
-        <div className="p-4 md:p-5 border-t border-[#262626]">
+        <div className="p-4 md:p-5 border-t border-line">
           <h3 className="font-display text-lg md:text-xl lg:text-2xl mb-2 line-clamp-2">{p.title}</h3>
-          <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-[#a3a3a3]">
+          <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-ink-muted">
             {p.dimensions || "Made to order"}
           </p>
           {/* iter318c — Trust strip: maker location · lead time ·
@@ -109,7 +109,7 @@ export default function ProductCard({ p, i = 0 }) {
               without opening the detail page. */}
           {(p.maker_location || p.lead_time_days || p.accepts_custom_orders) && (
             <div
-              className="mt-3 flex flex-wrap gap-x-3 gap-y-1.5 font-mono text-[10px] text-[#a3a3a3]"
+              className="mt-3 flex flex-wrap gap-x-3 gap-y-1.5 font-mono text-[10px] text-ink-muted"
               data-testid={`product-card-trust-${p.slug}`}
             >
               {p.maker_location && (
@@ -117,7 +117,7 @@ export default function ProductCard({ p, i = 0 }) {
                   className="inline-flex items-center gap-1"
                   data-testid={`product-card-location-${p.slug}`}
                 >
-                  <span className="text-[#525252]">◆</span>
+                  <span className="text-ink-muted">◆</span>
                   {p.maker_location}
                 </span>
               )}
@@ -126,7 +126,7 @@ export default function ProductCard({ p, i = 0 }) {
                   className="inline-flex items-center gap-1"
                   data-testid={`product-card-lead-${p.slug}`}
                 >
-                  <span className="text-[#525252]">◆</span>
+                  <span className="text-ink-muted">◆</span>
                   Ships in {p.lead_time_days}d
                 </span>
               )}

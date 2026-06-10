@@ -216,7 +216,7 @@ export default function ShopPage() {
           ]}
           testId="shop-breadcrumbs"
         />
-        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-4">◆ SHOP</div>
+        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-4">◆ SHOP</div>
         <h1 className="font-display text-[64px] md:text-[140px] leading-[0.88] mb-12">
           The <span className="text-outline">Marketplace</span>
         </h1>
@@ -229,7 +229,7 @@ export default function ShopPage() {
             <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-amber-300 mb-2">
               ✦ Featured Examples · Platform Showcase
             </div>
-            <p className="font-mono text-[12px] text-[#a3a3a3] leading-relaxed">
+            <p className="font-mono text-[12px] text-ink-muted leading-relaxed">
               These are <span className="text-amber-300">curated reference builds</span> staged by the Crafters
               Market workshop team — not for sale. We use them to show what's possible while our
               maker catalog grows. Real listings from approved makers populate the rest of the marketplace.
@@ -259,9 +259,9 @@ export default function ShopPage() {
           onReset={() => { setCat("All"); setTech("All"); setQ(""); }}
         />
 
-        <div className="font-mono text-xs uppercase tracking-[0.22em] text-[#a3a3a3] mb-6 min-h-[1.25rem]" data-testid="shop-count">
+        <div className="font-mono text-xs uppercase tracking-[0.22em] text-ink-muted mb-6 min-h-[1.25rem]" data-testid="shop-count">
           {products === null ? (
-            <span className="inline-block h-3 w-32 bg-[#1a1a1a] animate-pulse" aria-label="Loading count" />
+            <span className="inline-block h-3 w-32 bg-surface animate-pulse" aria-label="Loading count" />
           ) : (
             `${filtered.length} piece${filtered.length === 1 ? "" : "s"}`
           )}
@@ -282,18 +282,18 @@ export default function ShopPage() {
                 {visibleCount < filtered.length ? (
                   <div
                     ref={sentinelRef}
-                    className="flex items-center justify-center py-10 font-mono text-[10px] uppercase tracking-[0.3em] text-[#525252]"
+                    className="flex items-center justify-center py-10 font-mono text-[10px] uppercase tracking-[0.3em] text-ink-muted"
                     data-testid="shop-infinite-loader"
                   >
-                    <span className="inline-block w-2 h-2 bg-[#ff4500] mr-3 animate-pulse" aria-hidden="true" />
+                    <span className="inline-block w-2 h-2 bg-brand mr-3 animate-pulse" aria-hidden="true" />
                     Loading {Math.min(PAGE_SIZE, filtered.length - visibleCount)} more
-                    <span className="ml-2 text-[#737373]">
+                    <span className="ml-2 text-ink-muted">
                       · {visibleCount}/{filtered.length}
                     </span>
                   </div>
                 ) : filtered.length > PAGE_SIZE && (
                   <div
-                    className="flex items-center justify-center py-10 font-mono text-[10px] uppercase tracking-[0.3em] text-[#525252]"
+                    className="flex items-center justify-center py-10 font-mono text-[10px] uppercase tracking-[0.3em] text-ink-muted"
                     data-testid="shop-infinite-end"
                   >
                     ◆ End of catalog · {filtered.length} pieces
@@ -326,24 +326,24 @@ export default function ShopPage() {
 // custom popover.
 function FilterStrip({ q, setQ, cat, setCat, tech, setTech, activeCount, onReset }) {
   return (
-    <div className="border-y border-[#262626] py-3 md:py-3.5 mb-8" data-testid="shop-filters">
+    <div className="border-y border-line py-3 md:py-3.5 mb-8" data-testid="shop-filters">
       <div className="flex flex-wrap items-center gap-2 md:gap-3">
         {/* Search — flex-grows to fill the row */}
         <div className="relative flex-1 min-w-[220px]">
-          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#a3a3a3]" />
+          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" />
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search pieces…"
             data-testid="shop-search"
-            className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none pl-9 pr-9 h-9 font-mono text-[11px] uppercase tracking-[0.2em] placeholder:text-[#525252]"
+            className="w-full bg-transparent border border-line focus:border-brand outline-none pl-9 pr-9 h-9 font-mono text-[11px] uppercase tracking-[0.2em] placeholder:text-ink-muted"
           />
           {q && (
             <button
               type="button"
               onClick={() => setQ("")}
               aria-label="Clear search"
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#a3a3a3] hover:text-[#ff4500] font-mono text-xs"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-muted hover:text-brand font-mono text-xs"
               data-testid="shop-search-clear"
             >
               ✕
@@ -372,7 +372,7 @@ function FilterStrip({ q, setQ, cat, setCat, tech, setTech, activeCount, onReset
           <button
             type="button"
             onClick={onReset}
-            className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] transition shrink-0"
+            className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand transition shrink-0"
             data-testid="shop-filters-reset"
           >
             ↺ Reset {activeCount}
@@ -388,12 +388,12 @@ function FilterSelect({ testid, label, value, options, onChange, accent }) {
   // CSS, so we wrap it with the active styling and let the native
   // chevron sit above (appearance-none).
   const activeCls = accent
-    ? "border-[#ff4500] text-[#ff4500]"
-    : "border-[#262626] text-[#a3a3a3] hover:border-[#525252] hover:text-[#e5e5e5]";
+    ? "border-brand text-brand"
+    : "border-line text-ink-muted hover:border-ink-muted hover:text-ink";
   return (
     <label className={`relative inline-flex items-center h-9 border ${activeCls} transition shrink-0`}
       data-testid={testid}>
-      <span className="px-3 font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252] border-r border-inherit">
+      <span className="px-3 font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted border-r border-inherit">
         {label}
       </span>
       <select
@@ -402,7 +402,7 @@ function FilterSelect({ testid, label, value, options, onChange, accent }) {
         className="appearance-none bg-transparent pl-3 pr-7 h-full font-mono text-[11px] uppercase tracking-[0.18em] outline-none cursor-pointer"
       >
         {options.map((o) => (
-          <option key={o} value={o} className="bg-[#0a0a0a] text-[#e5e5e5]">
+          <option key={o} value={o} className="bg-paper text-ink">
             {o}
           </option>
         ))}

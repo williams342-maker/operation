@@ -261,12 +261,12 @@ export default function ProductDetail() {
           ]}
           testId="product-breadcrumbs"
         />
-        <Link to="/shop" className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] mb-8">
+        <Link to="/shop" className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand mb-8">
           <ArrowLeft size={14} /> Back to shop
         </Link>
         <div className="grid md:grid-cols-12 gap-6">
           <div className="md:col-span-5">
-            <div className="aspect-[4/5] bg-[#121212] border border-[#262626] overflow-hidden mb-3 relative max-w-[340px] mx-auto md:mx-0 group">
+            <div className="aspect-[4/5] bg-surface border border-line overflow-hidden mb-3 relative max-w-[340px] mx-auto md:mx-0 group">
               {active === -1 && p.model_url ? (
                 <model-viewer
                   src={p.model_url}
@@ -293,14 +293,14 @@ export default function ProductDetail() {
                   />
                   {/* Zoom hint pill — fades in on hover so it doesn't
                       compete with the image at rest. */}
-                  <span className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 px-2 py-1 bg-black/70 backdrop-blur border border-[#262626] font-mono text-[9px] uppercase tracking-[0.22em] text-[#e5e5e5] opacity-0 group-hover:opacity-100 transition">
+                  <span className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 px-2 py-1 bg-black/70 backdrop-blur border border-line font-mono text-[9px] uppercase tracking-[0.22em] text-ink opacity-0 group-hover:opacity-100 transition">
                     <ZoomIn size={10} /> Zoom
                   </span>
                 </button>
               )}
-              <span className="tag absolute top-4 left-4 text-[#ff4500] border-[#ff4500]">{p.technique}</span>
+              <span className="tag absolute top-4 left-4 text-brand border-brand">{p.technique}</span>
               {p.model_url && (
-                <span className="tag absolute top-4 right-4 text-[#ff4500] border-[#ff4500] font-mono text-[10px]">
+                <span className="tag absolute top-4 right-4 text-brand border-brand font-mono text-[10px]">
                   3D AVAILABLE
                 </span>
               )}
@@ -310,7 +310,7 @@ export default function ProductDetail() {
                 <button
                   key={i}
                   onClick={() => setActive(i)}
-                  className={`aspect-square overflow-hidden border ${active === i ? "border-[#ff4500]" : "border-[#262626]"}`}
+                  className={`aspect-square overflow-hidden border ${active === i ? "border-brand" : "border-line"}`}
                   data-testid={`product-thumb-${i}`}
                 >
                   <img src={img} alt="" className="w-full h-full object-cover" />
@@ -320,7 +320,7 @@ export default function ProductDetail() {
                 <button
                   onClick={() => setActive(-1)}
                   className={`aspect-square overflow-hidden border flex items-center justify-center font-mono text-[10px] uppercase tracking-[0.22em] ${
-                    active === -1 ? "border-[#ff4500] text-[#ff4500]" : "border-[#262626] text-[#a3a3a3] hover:border-[#ff4500]/40"
+                    active === -1 ? "border-brand text-brand" : "border-line text-ink-muted hover:border-brand/40"
                   }`}
                   data-testid="product-3d-toggle"
                   aria-label="View in 3D"
@@ -331,7 +331,7 @@ export default function ProductDetail() {
             </div>
           </div>
           <div className="md:col-span-7">
-            <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#ff4500] mb-2">{p.category}</div>
+            <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand mb-2">{p.category}</div>
             <h1 className="font-display text-2xl md:text-3xl mb-3 leading-tight">{p.title}</h1>
             {p.featured_example && (
               <div
@@ -359,7 +359,7 @@ export default function ProductDetail() {
                 )}
               </div>
             )}
-            <div className="font-display text-2xl text-[#ff4500] mb-4" data-testid="product-price">
+            <div className="font-display text-2xl text-brand mb-4" data-testid="product-price">
               ${effectivePrice.toFixed(2)}
             </div>
 
@@ -392,8 +392,8 @@ export default function ProductDetail() {
                       data-testid={`product-detail-digital-file-${f.id}`}
                     >
                       <span className="text-cyan-400 shrink-0">▸</span>
-                      <span className="text-[#e5e5e5] truncate">{f.filename}</span>
-                      <span className="text-[#737373] shrink-0 ml-auto">
+                      <span className="text-ink truncate">{f.filename}</span>
+                      <span className="text-ink-muted shrink-0 ml-auto">
                         {f.ext} · {f.size_bytes >= 1024 * 1024
                           ? (f.size_bytes / 1024 / 1024).toFixed(1) + " MB"
                           : Math.max(1, Math.round(f.size_bytes / 1024)) + " KB"}
@@ -416,7 +416,7 @@ export default function ProductDetail() {
 
             {hasVariants && (
               <div className="mb-6" data-testid="product-variants">
-                <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#a3a3a3] mb-3">
+                <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-ink-muted mb-3">
                   {p.variant_axis1_name && p.variant_axis2_name
                     ? `Choose ${p.variant_axis1_name} × ${p.variant_axis2_name}`
                     : p.variant_axis1_name
@@ -440,20 +440,20 @@ export default function ProductDetail() {
                         {ax2.map((b) => (
                           <div
                             key={`h-${b}`}
-                            className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] text-center pb-2"
+                            className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted text-center pb-2"
                           >
                             {b}
                           </div>
                         ))}
                         {ax1.map((a) => (
                           <React.Fragment key={`r-${a}`}>
-                            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] pr-3 self-center">
+                            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted pr-3 self-center">
                               {a}
                             </div>
                             {ax2.map((b) => {
                               const v = p.variants.find((x) => x.axis1 === a && x.axis2 === b);
                               if (!v) {
-                                return <div key={`c-${a}-${b}`} className="border border-[#1a1a1a] m-1" />;
+                                return <div key={`c-${a}-${b}`} className="border border-line m-1" />;
                               }
                               const sel = selectedVariantId === v.id;
                               const oos = v.in_stock <= 0;
@@ -465,11 +465,11 @@ export default function ProductDetail() {
                                   data-testid={`product-variant-${v.id}`}
                                   className={`m-1 border px-3 py-3 transition ${
                                     sel
-                                      ? "border-[#ff4500] bg-[#ff4500]/10"
-                                      : "border-[#262626] hover:border-[#ff4500]/50"
+                                      ? "border-brand bg-brand/10"
+                                      : "border-line hover:border-brand/50"
                                   } ${oos ? "opacity-40 cursor-not-allowed" : ""}`}
                                 >
-                                  <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+                                  <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
                                     {Number(v.price) > 0
                                       ? `$${Number(v.price).toFixed(0)}`
                                       : v.price_delta === 0
@@ -505,12 +505,12 @@ export default function ProductDetail() {
                             data-testid={`product-variant-${v.id}`}
                             className={`text-left border px-4 py-3 transition ${
                               sel
-                                ? "border-[#ff4500] bg-[#ff4500]/10"
-                                : "border-[#262626] hover:border-[#ff4500]/50"
+                                ? "border-brand bg-brand/10"
+                                : "border-line hover:border-brand/50"
                             } ${oos ? "opacity-40 cursor-not-allowed" : ""}`}
                           >
-                            <div className="font-mono text-xs text-[#e5e5e5]">{v.label}</div>
-                            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mt-1">
+                            <div className="font-mono text-xs text-ink">{v.label}</div>
+                            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mt-1">
                               {Number(v.price) > 0
                                 ? `$${Number(v.price).toFixed(0)}`
                                 : v.price_delta === 0
@@ -536,8 +536,8 @@ export default function ProductDetail() {
                 MUST pick before Add to cart fires. */}
             {(p.colors || []).length > 0 && (
               <div className="mb-6" data-testid="product-color-picker">
-                <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-3">
-                  Color <span className="text-[#525252] normal-case tracking-normal">— maker offers {p.colors.length}</span>
+                <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-3">
+                  Color <span className="text-ink-muted normal-case tracking-normal">— maker offers {p.colors.length}</span>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {p.colors.map((c) => {
@@ -556,30 +556,30 @@ export default function ProductDetail() {
                         data-testid={`product-color-${c.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
                         className={`px-3 py-2 border font-mono text-[11px] uppercase tracking-[0.22em] transition ${
                           isSel
-                            ? "border-[#ff4500] bg-[#ff4500]/10 text-[#ff4500]"
+                            ? "border-brand bg-brand/10 text-brand"
                             : isSingle
-                            ? "border-[#262626] text-[#a3a3a3] cursor-default"
-                            : "border-[#262626] text-[#a3a3a3] hover:border-[#ff4500] hover:text-[#ff4500]"
+                            ? "border-line text-ink-muted cursor-default"
+                            : "border-line text-ink-muted hover:border-brand hover:text-brand"
                         }`}
                       >
-                        <span className={`inline-block w-3 h-3 mr-2 align-middle border border-[#262626] ${_colorSwatchClass(c)}`} />
+                        <span className={`inline-block w-3 h-3 mr-2 align-middle border border-line ${_colorSwatchClass(c)}`} />
                         {c}
                       </button>
                     );
                   })}
                 </div>
                 {(p.colors.length >= 2 && !selectedColor) && (
-                  <div className="font-mono text-[10px] text-[#525252] mt-2">
+                  <div className="font-mono text-[10px] text-ink-muted mt-2">
                     ◆ Pick one to add to cart.
                   </div>
                 )}
                 {/* iter341 — Free-text input appears the moment the buyer
                     selects "Custom color". Required before Add-to-cart. */}
                 {selectedColor === "Custom color" && (
-                  <div className="mt-3 border-l-2 border-[#ff4500] pl-3" data-testid="product-custom-color-block">
+                  <div className="mt-3 border-l-2 border-brand pl-3" data-testid="product-custom-color-block">
                     <label
                       htmlFor="custom-color-input"
-                      className="block font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mb-1.5"
+                      className="block font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-1.5"
                     >
                       ◆ Describe your custom color
                       <span className="text-red-400 ml-1">*required</span>
@@ -593,9 +593,9 @@ export default function ProductDetail() {
                       maxLength={30}
                       autoFocus
                       data-testid="product-custom-color-input"
-                      className="w-full bg-[#050505] border border-[#262626] focus:border-[#ff4500] px-3 py-2 font-mono text-sm text-[#f5f5f5] outline-none"
+                      className="w-full bg-paper border border-line focus:border-brand px-3 py-2 font-mono text-sm text-ink outline-none"
                     />
-                    <div className="font-mono text-[9px] text-[#525252] mt-1 flex justify-between">
+                    <div className="font-mono text-[9px] text-ink-muted mt-1 flex justify-between">
                       <span>The maker will see this on the order.</span>
                       <span>{customColorText.length}/30</span>
                     </div>
@@ -640,10 +640,10 @@ export default function ProductDetail() {
               if (!oos) {
                 return (
                   <div className="flex items-center gap-4 mb-6">
-                    <div className="flex items-center border border-[#262626]">
-                      <button onClick={() => setQty(Math.max(1, qty - 1))} className="px-4 py-3 hover:bg-[#1a1a1a]">−</button>
+                    <div className="flex items-center border border-line">
+                      <button onClick={() => setQty(Math.max(1, qty - 1))} className="px-4 py-3 hover:bg-surface">−</button>
                       <span className="px-4 font-mono text-sm" data-testid="product-qty">{qty}</span>
-                      <button onClick={() => setQty(qty + 1)} className="px-4 py-3 hover:bg-[#1a1a1a]">+</button>
+                      <button onClick={() => setQty(qty + 1)} className="px-4 py-3 hover:bg-surface">+</button>
                     </div>
                     <button onClick={onAdd} data-testid="product-add-cart" className="btn-industrial btn-primary flex-1 justify-center">
                       {added ? "Added ✓" : "Add to cart →"}
@@ -657,14 +657,14 @@ export default function ProductDetail() {
               const lead = backorderPolicy?.lead_weeks ?? p.backorder_lead_weeks ?? 4;
               return (
                 <div className="mb-6 space-y-3" data-testid="product-oos-block">
-                  <div className="border border-[#ff4500] bg-[#ff4500]/5 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
+                  <div className="border border-brand bg-brand/5 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
                     <div>
-                      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">◆ Currently out of stock</div>
-                      <div className="font-mono text-xs text-[#a3a3a3] mt-0.5">0 available</div>
+                      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">◆ Currently out of stock</div>
+                      <div className="font-mono text-xs text-ink-muted mt-0.5">0 available</div>
                     </div>
                     {backorderPolicy?.allowed && (
-                      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
-                        Lead time · <span className="text-[#e5e5e5]">~{lead} {lead === 1 ? "week" : "weeks"}</span>
+                      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
+                        Lead time · <span className="text-ink">~{lead} {lead === 1 ? "week" : "weeks"}</span>
                       </div>
                     )}
                   </div>
@@ -701,7 +701,7 @@ export default function ProductDetail() {
                       type="button"
                       onClick={() => setRestockOpen(true)}
                       data-testid="product-notify-restock"
-                      className="px-5 py-3 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em] transition whitespace-nowrap"
+                      className="px-5 py-3 border border-line hover:border-brand hover:text-brand font-mono text-[11px] uppercase tracking-[0.22em] transition whitespace-nowrap"
                       title="One email when this listing is restocked"
                     >
                       ✉ Notify me
@@ -710,7 +710,7 @@ export default function ProductDetail() {
                     <ShareLinkButton kind="product" slug={p.slug} testId="product-share-link-oos" />
                   </div>
                   {backorderPolicy?.allowed && (
-                    <p className="font-mono text-[10px] text-[#525252] leading-relaxed">
+                    <p className="font-mono text-[10px] text-ink-muted leading-relaxed">
                       Maker reviews each request manually. Payment is coordinated
                       after they accept — no charge today.
                     </p>
@@ -720,10 +720,10 @@ export default function ProductDetail() {
             })()}
 
             {maker && (
-              <Link to={`/makers/${maker.slug}`} className="block border border-[#262626] hover:border-[#ff4500] p-5 transition">
-                <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#a3a3a3] mb-2">Maker</div>
+              <Link to={`/makers/${maker.slug}`} className="block border border-line hover:border-brand p-5 transition">
+                <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-ink-muted mb-2">Maker</div>
                 <div className="font-display text-2xl mb-1">{maker.name}</div>
-                <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3]">{maker.location}</div>
+                <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted">{maker.location}</div>
                 {maker.is_veteran_owned && (
                   <div className="mt-2.5">
                     <VeteranBadge testId="product-detail-veteran-badge" />
@@ -845,13 +845,13 @@ function ProductBasics({ product: p, effectiveStock }) {
 
   return (
     <dl
-      className="grid grid-cols-2 gap-x-4 gap-y-1.5 mb-5 border-y border-[#1f1f1f] py-3"
+      className="grid grid-cols-2 gap-x-4 gap-y-1.5 mb-5 border-y border-line py-3"
       data-testid="product-basics"
     >
       {rows.map(([label, value]) => (
         <React.Fragment key={label}>
-          <dt className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">{label}</dt>
-          <dd className="font-mono text-xs text-[#e5e5e5] text-right truncate" title={value}>{value}</dd>
+          <dt className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">{label}</dt>
+          <dd className="font-mono text-xs text-ink text-right truncate" title={value}>{value}</dd>
         </React.Fragment>
       ))}
     </dl>
@@ -867,7 +867,7 @@ function ProductDescription({ description }) {
   return (
     <div className="mb-6" data-testid="product-description">
       <p
-        className={`font-mono text-xs text-[#a3a3a3] leading-relaxed whitespace-pre-line ${
+        className={`font-mono text-xs text-ink-muted leading-relaxed whitespace-pre-line ${
           open ? "" : "line-clamp-2"
         }`}
       >
@@ -876,7 +876,7 @@ function ProductDescription({ description }) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="mt-2 font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] hover:text-[#ff5f1f] transition"
+        className="mt-2 font-mono text-[10px] uppercase tracking-[0.22em] text-brand hover:text-brand transition"
         data-testid="product-description-toggle"
       >
         {open ? "↑ Show less" : "↓ View full description"}
@@ -893,7 +893,7 @@ function ProductDescription({ description }) {
 // still render something rather than disappearing.
 function _colorSwatchClass(name) {
   const m = {
-    Black: "bg-[#111111]",
+    Black: "bg-surface",
     White: "bg-white",
     Gray: "bg-[#737373]",
     Silver: "bg-[#bfbfbf]",
@@ -901,7 +901,7 @@ function _colorSwatchClass(name) {
     Bronze: "bg-[#8c6a3d]",
     Copper: "bg-[#b87333]",
     Red: "bg-red-600",
-    Orange: "bg-[#ff7a2a]",
+    Orange: "bg-brand",
     Yellow: "bg-yellow-400",
     Green: "bg-emerald-600",
     Blue: "bg-blue-600",

@@ -23,6 +23,9 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - Admin: `/admin/login|verify|dashboard`
 
 ## What's Implemented (cumulative)
+- 🟡 **Light-theme redesign — Phase B (iter350, 2026-06-10):** Token sweep of `ShopPage.jsx`, `ProductDetail.jsx`, `MakerDetail.jsx`, `ProductCard.jsx` — 175 hardcoded hex values → theme tokens (`bg-paper`/`bg-surface`/`text-ink`/`text-ink-muted`/`bg-brand`/`border-line`). Fixed critical `.App` wrapper in `App.css` that was forcing dark background across the whole SPA. Fixed `.text-outline` utility for cream contrast. Dark mode toggle verified working both ways. Phase C–E pending.
+
+
 - 🟡 **Light-theme redesign — Phase A of 5 complete (iter349, 2026-06-10):**
   • Foundation: CSS vars (`--paper`, `--surface`, `--ink`, `--ink-muted`, `--brand`, `--line`) for both `:root` (light) and `html.dark`. Tailwind config extended with `paper`/`surface`/`ink`/`ink-muted`/`brand`/`line` color tokens and `font-heading` (Oswald) / `font-body` (Inter) / `bg-texture-grain` utilities.
   • Theme system: `<ThemeProvider>` (localStorage + prefers-color-scheme + light default), `<ThemeToggle>` (sun/moon) mounted in nav right cluster.

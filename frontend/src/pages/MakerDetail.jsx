@@ -89,7 +89,7 @@ export default function MakerDetail() {
     },
   } : { jsonLd: null });
 
-  if (!m) return <div className="pt-40 text-center font-mono text-sm text-[#a3a3a3]">Loading…</div>;
+  if (!m) return <div className="pt-40 text-center font-mono text-sm text-ink-muted">Loading…</div>;
 
   return (
     <div className="pt-32 pb-24 grain min-h-screen" data-testid="maker-detail">
@@ -103,7 +103,7 @@ export default function MakerDetail() {
           testId="maker-breadcrumbs"
         />
       </div>
-      <div className="relative h-[60vh] overflow-hidden border-b border-[#262626] mb-16 -mx-4 md:-mx-8 xl:-mx-12">
+      <div className="relative h-[60vh] overflow-hidden border-b border-line mb-16 -mx-4 md:-mx-8 xl:-mx-12">
         <img
           src={m.banner_image_url || m.cover}
           alt={m.name}
@@ -112,7 +112,7 @@ export default function MakerDetail() {
         />
         <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-black/60 to-transparent" />
         <div className="absolute bottom-10 left-4 md:left-8 xl:left-12 right-4">
-          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-3 flex items-center gap-3">
+          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-3 flex items-center gap-3">
             <span>◆ Approved Maker</span>
             {m.subscription_status === "active" && (
               <span
@@ -148,13 +148,13 @@ export default function MakerDetail() {
           <h1 className="font-display text-[64px] md:text-[120px] leading-[0.88]">{m.name}</h1>
           {m.shop_title && (
             <div
-              className="font-display text-xl md:text-2xl text-[#e5e5e5] mt-2 italic"
+              className="font-display text-xl md:text-2xl text-ink mt-2 italic"
               data-testid="maker-shop-title"
             >
               {m.shop_title}
             </div>
           )}
-          <div className="font-mono text-xs uppercase tracking-[0.22em] text-[#a3a3a3] mt-2">{m.location} · {m.listings_count} listings · ★ {m.rating}</div>
+          <div className="font-mono text-xs uppercase tracking-[0.22em] text-ink-muted mt-2">{m.location} · {m.listings_count} listings · ★ {m.rating}</div>
           {/* iter321 — Trust / proof strip. Loud, scannable, sits above
               the fold so buyers see the credentials before they scroll
               into the bio. Each chip auto-hides when the underlying
@@ -166,18 +166,18 @@ export default function MakerDetail() {
             >
               {m.location ? (
                 <span
-                  className="inline-flex items-center gap-2 px-3 py-1.5 border border-[#262626] bg-black/40 backdrop-blur font-mono text-[10px] uppercase tracking-[0.22em] text-[#e5e5e5]"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 border border-line bg-black/40 backdrop-blur font-mono text-[10px] uppercase tracking-[0.22em] text-ink"
                   data-testid="maker-trust-location"
                 >
-                  <span className="text-[#ff4500]">◆</span> Workshop · {m.location}
+                  <span className="text-brand">◆</span> Workshop · {m.location}
                 </span>
               ) : null}
               {m.years_crafting ? (
                 <span
-                  className="inline-flex items-center gap-2 px-3 py-1.5 border border-[#262626] bg-black/40 backdrop-blur font-mono text-[10px] uppercase tracking-[0.22em] text-[#e5e5e5]"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 border border-line bg-black/40 backdrop-blur font-mono text-[10px] uppercase tracking-[0.22em] text-ink"
                   data-testid="maker-trust-years"
                 >
-                  <span className="text-[#ff4500]">◆</span> {m.years_crafting}+ Years Active
+                  <span className="text-brand">◆</span> {m.years_crafting}+ Years Active
                 </span>
               ) : null}
               {m.response_time_hours ? (
@@ -191,10 +191,10 @@ export default function MakerDetail() {
               ) : null}
               {m.machinery && m.machinery.length > 0 ? (
                 <span
-                  className="inline-flex items-center gap-2 px-3 py-1.5 border border-[#262626] bg-black/40 backdrop-blur font-mono text-[10px] uppercase tracking-[0.22em] text-[#e5e5e5]"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 border border-line bg-black/40 backdrop-blur font-mono text-[10px] uppercase tracking-[0.22em] text-ink"
                   data-testid="maker-trust-machines"
                 >
-                  <span className="text-[#ff4500]">◆</span> {m.machinery.length} CNC machine{m.machinery.length > 1 ? "s" : ""}
+                  <span className="text-brand">◆</span> {m.machinery.length} CNC machine{m.machinery.length > 1 ? "s" : ""}
                 </span>
               ) : null}
             </div>
@@ -204,7 +204,7 @@ export default function MakerDetail() {
             <ShareLinkButton kind="maker" slug={m.slug} testId="maker-share-link" />
             <button
               onClick={() => setContactOpen(true)}
-              className="px-4 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em] inline-flex items-center gap-2 bg-[#0a0a0a]/70 backdrop-blur"
+              className="px-4 py-2 border border-line hover:border-brand font-mono text-[11px] uppercase tracking-[0.22em] inline-flex items-center gap-2 bg-paper/70 backdrop-blur"
               data-testid="contact-maker-btn"
             >
               <Mail size={14} /> Message {m.name?.split(" ")[0] || "Maker"}
@@ -218,10 +218,10 @@ export default function MakerDetail() {
             seen before buyers scroll into listings. */}
         {m.shop_announcement && (
           <div
-            className="border-l-4 border-[#ff4500] bg-[#ff4500]/5 px-4 py-3 mb-10 font-mono text-sm text-[#e5e5e5] leading-relaxed"
+            className="border-l-4 border-brand bg-brand/5 px-4 py-3 mb-10 font-mono text-sm text-ink leading-relaxed"
             data-testid="maker-shop-announcement"
           >
-            <span className="font-bold text-[#ff4500] mr-2 uppercase tracking-[0.22em] text-[10px]">◆ From the shop</span>
+            <span className="font-bold text-brand mr-2 uppercase tracking-[0.22em] text-[10px]">◆ From the shop</span>
             {m.shop_announcement}
           </div>
         )}
@@ -238,7 +238,7 @@ export default function MakerDetail() {
         )}
         <div className="grid md:grid-cols-12 gap-8 mb-16">
           <div className="md:col-span-7">
-            <p className="font-mono text-base text-[#e5e5e5] leading-relaxed">{m.bio}</p>
+            <p className="font-mono text-base text-ink leading-relaxed">{m.bio}</p>
             {/* iter228 — "From the Workshop" intro paragraph. Deeper
                 story than the bio tagline (~120-180 words: origin
                 moment, specific machinery, the one thing the shop
@@ -246,11 +246,11 @@ export default function MakerDetail() {
                 makers without an intro don't get a barren section
                 header. */}
             {m.workshop_intro ? (
-              <div className="mt-8 border-l-2 border-[#ff4500] pl-5" data-testid="maker-workshop-intro">
-                <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#ff4500] mb-3">
+              <div className="mt-8 border-l-2 border-brand pl-5" data-testid="maker-workshop-intro">
+                <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-brand mb-3">
                   ◆ From the Workshop
                 </div>
-                <p className="font-mono text-[13px] text-[#e5e5e5] leading-[1.75] whitespace-pre-line">
+                <p className="font-mono text-[13px] text-ink leading-[1.75] whitespace-pre-line">
                   {m.workshop_intro}
                 </p>
               </div>
@@ -265,24 +265,24 @@ export default function MakerDetail() {
               >
                 {m.years_crafting ? (
                   <div className="col-span-1">
-                    <dt className="text-[#525252] uppercase tracking-[0.22em] text-[10px] mb-1">
+                    <dt className="text-ink-muted uppercase tracking-[0.22em] text-[10px] mb-1">
                       Years crafting
                     </dt>
-                    <dd className="text-[#e5e5e5] text-lg font-display" data-testid="maker-years-crafting">
+                    <dd className="text-ink text-lg font-display" data-testid="maker-years-crafting">
                       {m.years_crafting}+
                     </dd>
                   </div>
                 ) : null}
                 {m.machinery && m.machinery.length > 0 ? (
                   <div className="col-span-2 md:col-span-1">
-                    <dt className="text-[#525252] uppercase tracking-[0.22em] text-[10px] mb-1.5">
+                    <dt className="text-ink-muted uppercase tracking-[0.22em] text-[10px] mb-1.5">
                       Workshop machinery
                     </dt>
                     <dd className="flex flex-wrap gap-1.5" data-testid="maker-machinery">
                       {m.machinery.map((mch) => (
                         <span
                           key={mch}
-                          className="tag text-[10px] text-[#a3a3a3] border-[#262626]"
+                          className="tag text-[10px] text-ink-muted border-line"
                         >
                           {mch}
                         </span>
@@ -294,7 +294,7 @@ export default function MakerDetail() {
             )}
           </div>
           <div className="md:col-span-4 md:col-start-9 flex flex-wrap gap-2 self-start">
-            {m.techniques.map((t) => <span key={t} className="tag text-[#ff4500] border-[#ff4500]">{t}</span>)}
+            {m.techniques.map((t) => <span key={t} className="tag text-brand border-brand">{t}</span>)}
           </div>
         </div>
         <SocialLinks maker={m} />
@@ -309,14 +309,14 @@ export default function MakerDetail() {
           >
             <div className="flex items-end justify-between mb-6">
               <div>
-                <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#ff4500] mb-2">
+                <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-brand mb-2">
                   ◆ Inside the workshop
                 </div>
                 <h2 className="font-display text-3xl md:text-5xl leading-none">
                   Real shop. Real machines.
                 </h2>
               </div>
-              <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] hidden md:inline">
+              <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hidden md:inline">
                 {m.workshop_photos.length} photo{m.workshop_photos.length > 1 ? "s" : ""}
               </span>
             </div>
@@ -327,7 +327,7 @@ export default function MakerDetail() {
                   href={src}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="group block aspect-[4/3] overflow-hidden border border-[#262626] hover:border-[#ff4500] transition-colors bg-[#0a0a0a]"
+                  className="group block aspect-[4/3] overflow-hidden border border-line hover:border-brand transition-colors bg-paper"
                   data-testid={`maker-workshop-photo-${i}`}
                 >
                   <img
@@ -349,17 +349,17 @@ export default function MakerDetail() {
             new piece." Subscribes the buyer to the maker-specific Kit
             segment; new product publishes auto-broadcast to followers. */}
         <div
-          className="mb-16 border border-[#262626] p-6 md:p-7 flex flex-col md:flex-row md:items-center md:justify-between gap-4"
+          className="mb-16 border border-line p-6 md:p-7 flex flex-col md:flex-row md:items-center md:justify-between gap-4"
           data-testid="maker-detail-follow-card"
         >
           <div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">
               ◆ Stay in the loop
             </div>
-            <h3 className="font-display text-xl md:text-2xl text-[#e5e5e5] mt-1">
+            <h3 className="font-display text-xl md:text-2xl text-ink mt-1">
               Get notified when {m.name?.split(" ")[0] || "this maker"} drops a new piece.
             </h3>
-            <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-lg">
+            <p className="font-mono text-xs text-ink-muted mt-2 max-w-lg">
               One email per new listing — no spam, no algorithm. Unsubscribe with a click.
             </p>
           </div>
@@ -443,7 +443,7 @@ function SocialLinks({ maker }) {
           href={l.url}
           target="_blank"
           rel="noreferrer nofollow"
-          className="inline-flex items-center gap-2 px-3 py-2 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition"
+          className="inline-flex items-center gap-2 px-3 py-2 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] transition"
           data-testid={`maker-social-${l.key}`}
         >
           <l.Icon size={12} /> {l.label}
@@ -460,10 +460,10 @@ function SocialLinks({ maker }) {
 // published yet so brand-new shops don't render an empty card row.
 function MakerJournalRail({ maker, posts }) {
   return (
-    <section className="mt-20 pt-10 border-t border-[#262626]" data-testid="maker-journal-rail">
+    <section className="mt-20 pt-10 border-t border-line" data-testid="maker-journal-rail">
       <div className="flex items-end justify-between gap-4 mb-8 flex-wrap">
         <div>
-          <div className="font-mono text-[10px] uppercase tracking-[0.32em] text-[#ff4500] mb-2 flex items-center gap-2">
+          <div className="font-mono text-[10px] uppercase tracking-[0.32em] text-brand mb-2 flex items-center gap-2">
             <BookOpen size={12} /> Words from {maker.name?.split(" ")[0] || "the maker"}
           </div>
           <h2 className="font-display text-3xl md:text-4xl uppercase">
@@ -472,7 +472,7 @@ function MakerJournalRail({ maker, posts }) {
         </div>
         <Link
           to="/journal"
-          className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] transition"
+          className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand transition"
           data-testid="maker-journal-rail-all"
         >
           All journal entries <ArrowUpRight size={11} />
@@ -483,11 +483,11 @@ function MakerJournalRail({ maker, posts }) {
           <Link
             key={p.slug}
             to={`/journal/${p.slug}`}
-            className="group block border border-[#1f1f1f] hover:border-[#ff4500] transition overflow-hidden"
+            className="group block border border-line hover:border-brand transition overflow-hidden"
             data-testid={`maker-journal-rail-post-${p.slug}`}
           >
             {p.cover && (
-              <div className="aspect-[16/10] overflow-hidden bg-[#0d0d0d]">
+              <div className="aspect-[16/10] overflow-hidden bg-paper">
                 <img
                   src={p.cover}
                   alt={p.title ? `${p.title} — ${m.name} journal` : `${m.name} journal post`}
@@ -497,13 +497,13 @@ function MakerJournalRail({ maker, posts }) {
               </div>
             )}
             <div className="p-4">
-              <div className="font-mono text-[9px] uppercase tracking-[0.28em] text-[#525252] mb-2">
+              <div className="font-mono text-[9px] uppercase tracking-[0.28em] text-ink-muted mb-2">
                 {(p.created_at || "").slice(0, 10)} · {p.read_min || 4} min read
               </div>
-              <h3 className="font-display text-lg uppercase leading-tight group-hover:text-[#ff4500] transition mb-2 line-clamp-2">
+              <h3 className="font-display text-lg uppercase leading-tight group-hover:text-brand transition mb-2 line-clamp-2">
                 {p.title}
               </h3>
-              <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed line-clamp-3">
+              <p className="font-mono text-xs text-ink-muted leading-relaxed line-clamp-3">
                 {p.excerpt}
               </p>
             </div>

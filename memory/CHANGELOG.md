@@ -1,3 +1,55 @@
+## 2026-06-10 — Phase B of light-theme redesign: Shop + PDP + Maker pages (iter350)
+
+User: "Phase B: Shop catalog + Product detail + Maker profile pages."
+
+### Approach
+Token sweep (not rewrite) — replace 175+ hardcoded dark hex values across the 4 highest-impact files with the new theme tokens from Phase A. Faster and lower-risk than rewriting 1850 lines of pages.
+
+### Files swept (175 total replacements)
+- `pages/ShopPage.jsx` — 26 hardcoded colors → tokens
+- `pages/ProductDetail.jsx` — 30 (preserved 6 product-swatch hex values: parchment, brass, copper, gold, bronze, etc.)
+- `pages/MakerDetail.jsx` — 12
+- `components/ProductCard.jsx` — 14
+
+### Token map applied
+```
+bg-[#0a0a0a]  → bg-paper
+bg-[#121212]  → bg-surface
+bg-[#1a1a1a]  → bg-surface
+bg-[#050505]  → bg-paper
+bg-[#ff4500]  → bg-brand
+border-[#262626] → border-line
+border-[#1a1a1a] → border-line
+border-[#ff4500] → border-brand
+text-[#f5f5f5] → text-ink
+text-[#e5e5e5] → text-ink
+text-[#d4d4d4] → text-ink
+text-[#a3a3a3] → text-ink-muted
+text-[#737373] → text-ink-muted
+text-[#525252] → text-ink-muted
+text-[#ff4500] → text-brand
+hover:bg-[#1a1a1a] → hover:bg-surface
+divide-[#1a1a1a] → divide-line
+```
+
+### Major bug-fix uncovered + fixed
+- **`/app/frontend/src/App.css`** had `background: #0a0a0a; color: #e5e5e5;` hardcoded on the `.App` wrapper, overriding the new CSS variables for EVERY page (not just the swept ones). Replaced with `background: var(--bg); color: var(--fg);` — this single 2-line change is what unlocked the entire light/dark theme system to actually take effect across the SPA. Without it, all the Phase A foundation work was being visually overridden.
+- **`.text-outline` utility** in `index.css` was hardcoded to `-webkit-text-stroke: 1px #e5e5e5` (cream stroke) which became invisible on the new cream paper bg. Changed to `var(--ink)` so the "MARKETPLACE" outline display heading works in both themes.
+
+### Smoke tests (live preview)
+- ✅ Homepage: hero renders correctly in both themes, theme toggle works, localStorage persists
+- ✅ Shop catalog: cream paper bg confirmed, "THE MARKETPLACE" outline heading visible, H1 color is `rgb(26, 26, 26)` (correct ink)
+- ✅ Product detail (`/shop/mountain-range-silhouette`): title in dark ink, $149.00 in brand orange, sizes/stock in muted ink, all on cream bg
+- ✅ Dark mode toggle: `<html>` gets `.dark` class, body bg flips to `#121212`, ink becomes `#F3F4F6`, brand stays orange. Dark variant looks intentional ("workshop after hours" not inverted-light).
+- ✅ Lint clean on ProductCard.jsx (ShopPage's pre-existing lint warnings on lines 42, 58, 123, 234 untouched by my edits)
+
+### Known carry-over (next phases will sweep)
+Components that still ship hardcoded dark:
+- `BetaBanner`, `Nav`, `SupportVeteransStrip`, `AiDiscoverySearch`, `CookieConsentBar`, `FeaturedExampleBanner`, learn-technique card on PDP — all need per-component sweeps in Phase C or E.
+
+---
+
+
 ## 2026-06-10 — Phase A of light-theme redesign: foundation + new hero (iter349)
 
 Sweeping visual direction change from dark/industrial to a **light cream "Organic & Earthy + Swiss-typography"** theme based on user-supplied mockups. **PHASE A complete — Phase B-E pending.**
