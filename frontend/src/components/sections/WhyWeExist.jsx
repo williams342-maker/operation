@@ -100,7 +100,7 @@ export default function WhyWeExist({ testId = "why-we-exist" }) {
             Big marketplaces<br />
             broke handmade.
             <br />
-            <span className="text-[#ff4500] drop-shadow-[0_0_24px_rgba(255,69,0,0.4)]">
+            <span className="text-brand drop-shadow-[0_0_24px_rgba(255,69,0,0.4)]">
               We're rebuilding it.
             </span>
           </motion.h2>
@@ -141,7 +141,7 @@ export default function WhyWeExist({ testId = "why-we-exist" }) {
                     <Icon size={16} />
                   </span>
                 </div>
-                <h3 className="font-display text-2xl md:text-3xl text-white leading-[1.05] tracking-tight mb-3">
+                <h3 className="font-display text-2xl md:text-3xl text-ink leading-[1.05] tracking-tight mb-3">
                   {p.title}
                 </h3>
                 <div className="w-12 h-px bg-amber-500/60 mb-4" />

@@ -60,27 +60,27 @@ export default function AnalyticsTab() {
           <h3 className="font-display text-2xl mb-4">Top Products</h3>
           {!data.top_products.length ? (
             <div
-              className="border border-[#262626] bg-[#0a0a0a] p-6 text-center"
+              className="border border-line bg-paper p-6 text-center"
               data-testid="an-top-products-empty"
             >
-              <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#525252] mb-2">◇ No revenue yet</div>
-              <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed">
+              <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-ink-muted mb-2">◇ No revenue yet</div>
+              <p className="font-mono text-xs text-ink-muted leading-relaxed">
                 Once paid orders land, the top-grossing listings will rank here.
               </p>
             </div>
           ) : (
             <ul className="space-y-2" data-testid="an-top-products">
               {data.top_products.map((p) => (
-                <li key={p.slug} className="border border-[#262626] p-3 flex justify-between items-center">
+                <li key={p.slug} className="border border-line p-3 flex justify-between items-center">
                   <div>
                     <div className="font-display text-base">{p.title}</div>
-                    <div className="font-mono text-[10px] text-[#a3a3a3] uppercase tracking-[0.22em]">
+                    <div className="font-mono text-[10px] text-ink-muted uppercase tracking-[0.22em]">
                       by {p.maker_slug}
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="font-display text-xl text-[#ff4500]">${p.revenue.toFixed(0)}</div>
-                    <div className="font-mono text-[10px] text-[#525252]">{p.units} sold</div>
+                    <div className="font-display text-xl text-brand">${p.revenue.toFixed(0)}</div>
+                    <div className="font-mono text-[10px] text-ink-muted">{p.units} sold</div>
                   </div>
                 </li>
               ))}
@@ -91,20 +91,20 @@ export default function AnalyticsTab() {
           <h3 className="font-display text-2xl mb-4">Top Makers</h3>
           {!data.top_makers.length ? (
             <div
-              className="border border-[#262626] bg-[#0a0a0a] p-6 text-center"
+              className="border border-line bg-paper p-6 text-center"
               data-testid="an-top-makers-empty"
             >
-              <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#525252] mb-2">◇ No revenue yet</div>
-              <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed">
+              <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-ink-muted mb-2">◇ No revenue yet</div>
+              <p className="font-mono text-xs text-ink-muted leading-relaxed">
                 Once paid orders land, the highest-grossing makers will surface here.
               </p>
             </div>
           ) : (
             <ul className="space-y-2" data-testid="an-top-makers">
               {data.top_makers.map((m) => (
-                <li key={m.slug} className="border border-[#262626] p-3 flex justify-between items-center">
+                <li key={m.slug} className="border border-line p-3 flex justify-between items-center">
                   <div className="font-display text-base">{m.name}</div>
-                  <div className="font-display text-xl text-[#ff4500]">${m.revenue.toFixed(0)}</div>
+                  <div className="font-display text-xl text-brand">${m.revenue.toFixed(0)}</div>
                 </li>
               ))}
             </ul>
@@ -112,7 +112,7 @@ export default function AnalyticsTab() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-6 border-t border-[#262626]">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-6 border-t border-line">
         <Stat label="Pending Apps" value={data.applications_pending} testId="an-pending-apps" />
         <Stat label="Open Briefs" value={data.custom_orders_open} testId="an-pending-custom" />
         <Stat label="Listings" value={data.products_count} testId="an-listings" />

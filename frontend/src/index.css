@@ -450,81 +450,36 @@ body {
 }
 
 
-/* ============================================================================
- * Maker Dashboard · Light Mode
- * ----------------------------------------------------------------------------
- * Per-maker accessibility option. Activated by adding `theme-light` class on
- * the ShopManagerLayout root (or any subtree). The hardcoded brand hex values
- * used across the app (`bg-[#0a0a0a]`, `text-[#e5e5e5]`, etc.) are remapped
- * to a light palette via attribute selectors. Tailwind escapes `[#0a0a0a]`
- * to `\[\#0a0a0a\]` in the compiled CSS, so we match against the same
- * escaped form here.
+/* iter353 — Legacy `.theme-light` block intentionally removed.
+ * It was the OLD per-maker opt-in light mode that matched against
+ * hardcoded `bg-[#0a0a0a]` etc. Now that the entire codebase uses
+ * the theme tokens (`bg-paper`/`bg-surface`/`text-ink`/etc.), there
+ * are no hardcoded hex values left to override and this block was
+ * a no-op. The ShopManagerLayout still conditionally applies the
+ * class but it's harmless.
  *
- * Only the colors that actually appear on the shop manager surface are
- * remapped; the orange `#ff4500` accent stays consistent so brand cues
- * (active tab, primary CTAs, KPI numbers) read on both themes.
- * ============================================================================ */
-.theme-light {
-    /* Page chrome */
-    background: #fafafa !important;
-    color: #1a1a1a !important;
+ * One useful behavior preserved: drop grain texture in light mode
+ * (reads as dirt against cream). */
+html:not(.dark) .grain::before,
+html:not(.dark).grain::before { display: none !important; }
+
+/* iter353 — Admin density toggle.
+ * Mounted in the admin sidebar via `<AdminDensityToggle />`. Reads
+ * `localStorage["cm_admin_density"]` (values: `compact` | `comfortable`)
+ * and applies a class on `<html>`. Compact tightens vertical padding
+ * inside admin tables, lists, and card rows so power-users managing
+ * 30+ tabs can fit more rows per screen during heavy ops days. */
+html.admin-compact [data-testid="admin-dashboard"] table td,
+html.admin-compact [data-testid="admin-dashboard"] table th {
+    padding-top: 0.25rem !important;
+    padding-bottom: 0.25rem !important;
 }
-
-/* Backgrounds */
-.theme-light .bg-\[\#0a0a0a\],
-.theme-light .bg-\[\#0a0a0a\]\/95 { background-color: #fafafa !important; }
-.theme-light .bg-\[\#0d0d0d\]     { background-color: #ffffff !important; }
-.theme-light .bg-\[\#121212\]     { background-color: #ffffff !important; }
-.theme-light .bg-\[\#1a1a1a\]     { background-color: #f0f0f0 !important; }
-.theme-light .bg-\[\#1a1a1a\]\/40 { background-color: rgba(0,0,0,0.04) !important; }
-.theme-light .bg-\[\#161616\]     { background-color: #f5f5f5 !important; }
-
-/* Text — flip light-on-dark to dark-on-light */
-.theme-light .text-\[\#e5e5e5\]   { color: #171717 !important; }
-.theme-light .text-\[\#a3a3a3\]   { color: #525252 !important; }
-.theme-light .text-\[\#525252\]   { color: #737373 !important; }
-.theme-light .text-\[\#737373\]   { color: #525252 !important; }
-
-/* Borders */
-.theme-light .border-\[\#262626\] { border-color: #d4d4d4 !important; }
-.theme-light .border-\[\#1f1f1f\] { border-color: #d4d4d4 !important; }
-.theme-light .border-\[\#1a1a1a\] { border-color: #e5e5e5 !important; }
-.theme-light .divide-\[\#1a1a1a\] > * + * { border-color: #e5e5e5 !important; }
-
-/* Inputs — bump contrast vs the new light page bg */
-.theme-light input[type="text"],
-.theme-light input[type="email"],
-.theme-light input[type="number"],
-.theme-light input[type="url"],
-.theme-light input[type="search"],
-.theme-light input[type="password"],
-.theme-light textarea,
-.theme-light select {
-    background-color: #ffffff !important;
-    color: #171717 !important;
-    border-color: #d4d4d4 !important;
-}
-.theme-light input::placeholder,
-.theme-light textarea::placeholder { color: #a3a3a3 !important; }
-
-/* Hover states with the same dark hex */
-.theme-light .hover\:bg-\[\#1a1a1a\]\/40:hover { background-color: rgba(0,0,0,0.04) !important; }
-.theme-light .hover\:bg-\[\#161616\]:hover     { background-color: #f0f0f0 !important; }
-
-/* Sticky header was using `/95` translucency over a dark bg —
- * replace with a near-opaque light backdrop so the sticky bar still
- * reads above scrolling content. */
-.theme-light header.sticky { background-color: rgba(250, 250, 250, 0.95) !important; }
-
-/* Industrial buttons — flip the default solid black surface to white;
- * primary (orange) is left untouched. */
-.theme-light .btn-industrial:not(.btn-primary) {
-    background-color: #ffffff !important;
-    color: #171717 !important;
-    border-color: #d4d4d4 !important;
-}
-
-/* Drop the noisy grain texture on light bg — it reads as dirt against
- * white. The grain is a brand signal on dark; not needed in light mode. */
-.theme-light.grain::before,
-.theme-light .grain::before { display: none !important; }
+html.admin-compact [data-testid="admin-dashboard"] .p-3 { padding: 0.5rem !important; }
+html.admin-compact [data-testid="admin-dashboard"] .p-4 { padding: 0.75rem !important; }
+html.admin-compact [data-testid="admin-dashboard"] .p-5 { padding: 0.875rem !important; }
+html.admin-compact [data-testid="admin-dashboard"] .py-3 { padding-top: 0.5rem !important; padding-bottom: 0.5rem !important; }
+html.admin-compact [data-testid="admin-dashboard"] .py-4 { padding-top: 0.625rem !important; padding-bottom: 0.625rem !important; }
+html.admin-compact [data-testid="admin-dashboard"] .gap-6 { gap: 1rem !important; }
+html.admin-compact [data-testid="admin-dashboard"] .gap-4 { gap: 0.5rem !important; }
+html.admin-compact [data-testid="admin-dashboard"] .space-y-6 > * + * { margin-top: 0.875rem !important; }
+html.admin-compact [data-testid="admin-dashboard"] .space-y-4 > * + * { margin-top: 0.5rem !important; }

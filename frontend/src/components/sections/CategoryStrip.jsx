@@ -22,14 +22,14 @@ const TILES = [
 
 export default function CategoryStrip() {
   return (
-    <section className="w-full py-10 md:py-12 bg-[#0a0a0a] border-b border-[#262626]" data-testid="category-strip">
+    <section className="w-full py-10 md:py-12 bg-paper border-b border-line" data-testid="category-strip">
       <div className="w-full max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12">
         <div className="flex items-end justify-between mb-8">
           <div>
-            <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-3">◆ Browse</div>
+            <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-3">◆ Browse</div>
             <h2 className="font-display text-3xl md:text-5xl">Shop by Category</h2>
           </div>
-          <Link to="/shop" className="industrial-link font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] hidden md:inline">View all →</Link>
+          <Link to="/shop" className="industrial-link font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand hidden md:inline">View all →</Link>
         </div>
         <div className="grid grid-cols-3 md:grid-cols-9 gap-4 md:gap-5">
           {TILES.map((t, i) => (
@@ -44,10 +44,10 @@ export default function CategoryStrip() {
                 className="group flex flex-col items-center gap-3"
                 data-testid={`cat-tile-${t.label.toLowerCase().replace(/\s|#/g, "-")}`}
               >
-                <div className="relative w-full aspect-square rounded-full overflow-hidden border-2 border-[#262626] group-hover:border-[#ff4500] transition">
+                <div className="relative w-full aspect-square rounded-full overflow-hidden border-2 border-line group-hover:border-brand transition">
                   <img src={t.img} alt={t.label} className="absolute inset-0 w-full h-full object-cover media-img group-hover:scale-110 transition duration-700" />
                 </div>
-                <div className="font-mono text-[10px] md:text-[11px] uppercase tracking-[0.18em] text-[#e5e5e5] group-hover:text-[#ff4500] transition text-center">
+                <div className="font-mono text-[10px] md:text-[11px] uppercase tracking-[0.18em] text-ink group-hover:text-brand transition text-center">
                   {t.label}
                 </div>
               </Link>

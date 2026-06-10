@@ -21,7 +21,7 @@ import { useConfirm } from "../../hooks/useConfirm";
 const DISPUTE_BADGE = {
   open:   { label: "DISPUTED · OPEN", cls: "border-amber-500/60 text-amber-400 bg-amber-500/10" },
   upheld: { label: "DISPUTE UPHELD",  cls: "border-emerald-500/60 text-emerald-400 bg-emerald-500/10" },
-  denied: { label: "DISPUTE DENIED",  cls: "border-[#525252]/60 text-[#a3a3a3] bg-[#1a1a1a]" },
+  denied: { label: "DISPUTE DENIED",  cls: "border-[#525252]/60 text-ink-muted bg-surface" },
 };
 
 const FILTERS = [
@@ -75,20 +75,20 @@ export default function ReviewsTab() {
             <span className="text-amber-400 uppercase tracking-[0.22em] text-[10px] font-bold">
               ◆ {openDisputes} open dispute{openDisputes === 1 ? "" : "s"} waiting
             </span>
-            <span className="text-[#a3a3a3] ml-auto">Open Review Disputes tab →</span>
+            <span className="text-ink-muted ml-auto">Open Review Disputes tab →</span>
           </div>
         </Link>
       )}
 
       <div className="flex justify-between items-center flex-wrap gap-3">
         <div className="flex items-center gap-3 flex-wrap">
-          <p className="font-mono text-xs text-[#a3a3a3]">
+          <p className="font-mono text-xs text-ink-muted">
             {visible.length} of {reviews.length} review{reviews.length === 1 ? "" : "s"}
             {totalDisputed > 0 && (
               <span className="text-amber-400 ml-2">· {totalDisputed} disputed</span>
             )}
           </p>
-          <div className="flex border border-[#262626]" data-testid="reviews-filter">
+          <div className="flex border border-line" data-testid="reviews-filter">
             {FILTERS.map((f) => {
               const active = filter === f.id;
               return (
@@ -97,7 +97,7 @@ export default function ReviewsTab() {
                   type="button"
                   onClick={() => setFilter(f.id)}
                   className={`px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.22em] transition ${
-                    active ? "bg-[#ff4500] text-black" : "text-[#a3a3a3] hover:text-[#e5e5e5]"
+                    active ? "bg-brand text-ink" : "text-ink-muted hover:text-ink"
                   }`}
                   data-testid={`reviews-filter-${f.id}`}
                 >
@@ -115,16 +115,16 @@ export default function ReviewsTab() {
       {showNew && <NewReviewForm onSaved={() => { setShowNew(false); refresh(); }} />}
 
       {visible.length === 0 ? (
-        <p className="font-mono text-xs text-[#525252] italic border border-dashed border-[#262626] p-6 text-center" data-testid="reviews-empty">
+        <p className="font-mono text-xs text-ink-muted italic border border-dashed border-line p-6 text-center" data-testid="reviews-empty">
           No reviews match this filter.
         </p>
       ) : (
         visible.map((r) => (
-          <div key={r.id} className="border border-[#262626] p-4" data-testid={`review-${r.id}`}>
+          <div key={r.id} className="border border-line p-4" data-testid={`review-${r.id}`}>
             <div className="flex justify-between items-baseline gap-3 flex-wrap">
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-display text-lg text-[#e5e5e5]">{r.name}</span>
+                  <span className="font-display text-lg text-ink">{r.name}</span>
                   {r.dispute_status && DISPUTE_BADGE[r.dispute_status] && (
                     <Link
                       to="/admin/dashboard?tab=review-disputes"
@@ -141,7 +141,7 @@ export default function ReviewsTab() {
                     </span>
                   )}
                 </div>
-                <div className="font-mono text-[10px] text-[#a3a3a3] uppercase tracking-[0.22em] mt-1">
+                <div className="font-mono text-[10px] text-ink-muted uppercase tracking-[0.22em] mt-1">
                   {r.location || "—"} · {"★".repeat(r.rating)}
                   {r.maker_slug && <> · /{r.maker_slug}</>}
                 </div>
@@ -166,7 +166,7 @@ export default function ReviewsTab() {
                 ⊗ delete
               </button>
             </div>
-            <p className="font-mono text-xs text-[#e5e5e5] leading-relaxed mt-2">{r.text}</p>
+            <p className="font-mono text-xs text-ink leading-relaxed mt-2">{r.text}</p>
           </div>
         ))
       )}
@@ -184,17 +184,17 @@ function NewReviewForm({ onSaved }) {
     finally { setBusy(false); }
   };
   return (
-    <form onSubmit={submit} className="border border-[#262626] p-4 grid md:grid-cols-2 gap-3" data-testid="review-new-form">
+    <form onSubmit={submit} className="border border-line p-4 grid md:grid-cols-2 gap-3" data-testid="review-new-form">
       <input required placeholder="Reviewer name" value={r.name} onChange={(e) => setR({ ...r, name: e.target.value })}
-             className="bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs" data-testid="review-name" />
+             className="bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs" data-testid="review-name" />
       <input required placeholder="Location (City, ST)" value={r.location} onChange={(e) => setR({ ...r, location: e.target.value })}
-             className="bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs" data-testid="review-location" />
+             className="bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs" data-testid="review-location" />
       <input type="number" min="1" max="5" value={r.rating} onChange={(e) => setR({ ...r, rating: e.target.value })}
-             className="bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs" data-testid="review-rating" />
+             className="bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs" data-testid="review-rating" />
       <input placeholder="Product slug (optional)" value={r.product_slug} onChange={(e) => setR({ ...r, product_slug: e.target.value })}
-             className="bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs" data-testid="review-product" />
+             className="bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs" data-testid="review-product" />
       <textarea required rows={3} placeholder="Review text…" value={r.text} onChange={(e) => setR({ ...r, text: e.target.value })}
-                className="md:col-span-2 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs resize-y"
+                className="md:col-span-2 bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs resize-y"
                 data-testid="review-text" />
       <button type="submit" disabled={busy} className="btn-industrial btn-primary md:col-span-2 disabled:opacity-50" data-testid="review-submit">
         {busy ? "Saving…" : "Add review →"}

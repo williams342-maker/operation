@@ -199,7 +199,7 @@ export default function FeedHealthCard() {
 
   if (loading) {
     return (
-      <div data-testid="feed-health-card-loading" className="font-mono text-xs text-[#a3a3a3] py-3">
+      <div data-testid="feed-health-card-loading" className="font-mono text-xs text-ink-muted py-3">
         Loading feed health…
       </div>
     );
@@ -215,25 +215,25 @@ export default function FeedHealthCard() {
 
   return (
     <section
-      className="border border-[#262626] p-5 md:p-6 space-y-4"
+      className="border border-line p-5 md:p-6 space-y-4"
       data-testid="feed-health-card"
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500]">
+          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand">
             ◆ Feed health · {data.products_fully_ready}/{data.products_total} fully ready
           </div>
           <h3 className="font-display text-xl uppercase mt-1">Catalog distribution status</h3>
         </div>
         <button
           onClick={load}
-          className="px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] transition"
+          className="px-3 py-1.5 border border-line hover:border-brand font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand transition"
           data-testid="feed-health-refresh"
         >
           ↻ Refresh
         </button>
       </div>
-      <p className="font-mono text-xs text-[#a3a3a3] max-w-3xl leading-relaxed">
+      <p className="font-mono text-xs text-ink-muted max-w-3xl leading-relaxed">
         Counts per-channel match the exact eligibility rules used by the live feed routes (`shop_feeds.py`,
         `pinterest_feed.py`, `enrichlabs.py`). A listing showing as <span className="text-emerald-400">ready</span>{" "}
         for one channel may still be <span className="text-amber-400">blocked</span> elsewhere because of stricter
@@ -247,7 +247,7 @@ export default function FeedHealthCard() {
           return (
             <div
               key={c.channel}
-              className="border border-[#1f1f1f] hover:border-[#262626] transition"
+              className="border border-line hover:border-line transition"
               data-testid={`feed-health-${c.channel}`}
             >
               <button
@@ -264,7 +264,7 @@ export default function FeedHealthCard() {
                       : "bg-red-400"
                     }`}
                   />
-                  <span className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#e5e5e5]">
+                  <span className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink">
                     {CHANNEL_LABELS[c.channel] || c.channel}
                   </span>
                 </div>
@@ -277,12 +277,12 @@ export default function FeedHealthCard() {
                       ✗ {c.blocked}
                     </span>
                   )}
-                  <span className="font-mono text-[10px] text-[#525252] w-12 text-right">{pct}%</span>
-                  <span className="font-mono text-[10px] text-[#525252]">{isOpen ? "▾" : "▸"}</span>
+                  <span className="font-mono text-[10px] text-ink-muted w-12 text-right">{pct}%</span>
+                  <span className="font-mono text-[10px] text-ink-muted">{isOpen ? "▾" : "▸"}</span>
                 </div>
               </button>
               {isOpen && (
-                <div className="border-t border-[#1f1f1f] px-4 py-3 space-y-3 bg-[#080808]">
+                <div className="border-t border-line px-4 py-3 space-y-3 bg-[#080808]">
                   {c.top_blockers.length === 0 ? (
                     <p className="font-mono text-[10px] text-emerald-400" data-testid={`feed-health-${c.channel}-clean`}>
                       ✓ No blockers — every eligible listing is ready to publish.
@@ -290,7 +290,7 @@ export default function FeedHealthCard() {
                   ) : (
                     <>
                       <div>
-                        <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-1.5">
+                        <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted mb-1.5">
                           Top blockers
                         </div>
                         <div className="flex flex-wrap gap-2">
@@ -322,7 +322,7 @@ export default function FeedHealthCard() {
                               ? "Quarantining…"
                               : `↯ Quarantine ${c.top_blockers.find((b) => b.reason === "empty_stub")?.count || 0} empty stubs`}
                           </button>
-                          <p className="font-mono text-[10px] text-[#525252] mt-1.5 max-w-xl leading-relaxed">
+                          <p className="font-mono text-[10px] text-ink-muted mt-1.5 max-w-xl leading-relaxed">
                             Empty stubs (no download URL + no thumbnail) are leftover test or AI-generated rows that pollute the count without being distributable. This hides them from the public feed — restorable from the DB.
                           </p>
                         </div>
@@ -343,7 +343,7 @@ export default function FeedHealthCard() {
                               ? "Rendering thumbnails…"
                               : `⟲ Auto-generate up to 25 thumbnails`}
                           </button>
-                          <p className="font-mono text-[10px] text-[#525252] mt-1.5 max-w-xl leading-relaxed">
+                          <p className="font-mono text-[10px] text-ink-muted mt-1.5 max-w-xl leading-relaxed">
                             Renders a PNG preview from the source SVG / DXF / STL / image. Up to 25 per click (each render takes a few seconds). Re-run for the next batch.
                           </p>
                         </div>
@@ -364,7 +364,7 @@ export default function FeedHealthCard() {
                               ? "Attaching maker images…"
                               : `⟲ Auto-attach maker images (up to 100)`}
                           </button>
-                          <p className="font-mono text-[10px] text-[#525252] mt-1.5 max-w-xl leading-relaxed">
+                          <p className="font-mono text-[10px] text-ink-muted mt-1.5 max-w-xl leading-relaxed">
                             For showcase posts missing an image, copies the maker&apos;s shop hero image into the post so it can publish to the showcase / Pinterest feed. Skips posts whose maker has no hero image (those need a manual upload).
                           </p>
                         </div>
@@ -386,14 +386,14 @@ export default function FeedHealthCard() {
                               ? "Tagging…"
                               : `⟲ Auto-tag SEO (up to 25)`}
                           </button>
-                          <p className="font-mono text-[10px] text-[#525252] mt-1.5 max-w-xl leading-relaxed">
+                          <p className="font-mono text-[10px] text-ink-muted mt-1.5 max-w-xl leading-relaxed">
                             Claude Sonnet 4.5 generates SEO title, meta description, keyword tags, and alt-text for any row missing them. ~$0.001 per row. Skips rows that already have all four fields (use ?force=true to re-tag).
                           </p>
                         </div>
                       )}
                       {c.blocked_examples?.length > 0 && (
                         <div>
-                          <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-1.5">
+                          <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted mb-1.5">
                             Example blocked listings (click to copy slug)
                           </div>
                           <ul className="space-y-1">
@@ -407,12 +407,12 @@ export default function FeedHealthCard() {
                                       toast.success(`Slug copied · ${ex.slug}`);
                                     } catch { /* noop */ }
                                   }}
-                                  className="text-[#e5e5e5] hover:text-[#ff4500] transition text-left truncate"
+                                  className="text-ink hover:text-brand transition text-left truncate"
                                 >
                                   {ex.title || ex.slug}
                                 </button>
                                 <div className="flex items-center gap-2 shrink-0">
-                                  <span className="text-[#525252]">
+                                  <span className="text-ink-muted">
                                     {ex.blockers.slice(0, 2).join(" · ")}
                                   </span>
                                   {c.channel === "design_files" && ex.id && (
@@ -450,7 +450,7 @@ export default function FeedHealthCard() {
         })}
       </div>
 
-      <p className="font-mono text-[10px] text-[#525252] pt-2">
+      <p className="font-mono text-[10px] text-ink-muted pt-2">
         Snapshot · {data.as_of ? new Date(data.as_of).toLocaleString() : "—"}
       </p>
 

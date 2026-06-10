@@ -68,7 +68,7 @@ export default function SecretsRotationBanner({ onJumpToTab }) {
         <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-red-400 shrink-0">
           <AlertTriangle size={14} /> {overdue.length} overdue
         </div>
-        <div className="flex-1 font-mono text-xs text-[#e5e5e5] flex flex-wrap items-center gap-2">
+        <div className="flex-1 font-mono text-xs text-ink flex flex-wrap items-center gap-2">
           {worst.map((s) => (
             <span
               key={s.id}
@@ -76,7 +76,7 @@ export default function SecretsRotationBanner({ onJumpToTab }) {
               data-testid={`secrets-rotation-overdue-${s.id}`}
             >
               <Key size={10} /> {s.label}
-              <span className="text-[#a3a3a3]">·</span>
+              <span className="text-ink-muted">·</span>
               <span className="tabular-nums">
                 {s.daysSince !== null ? `${s.daysSince}d since rotation` : "never rotated"}
               </span>
@@ -106,11 +106,11 @@ export default function SecretsRotationBanner({ onJumpToTab }) {
         <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-yellow-400 shrink-0">
           <Clock size={14} /> Rotation due
         </div>
-        <div className="flex-1 font-mono text-xs text-[#e5e5e5]">
+        <div className="flex-1 font-mono text-xs text-ink">
           <b className="text-yellow-300">{next.label}</b> rotates in{" "}
           <span className="tabular-nums text-yellow-300">{next.days_until_due}d</span>
           {dueSoon.length > 1 && (
-            <span className="text-[#a3a3a3]"> · {dueSoon.length - 1} more in the next 30d</span>
+            <span className="text-ink-muted"> · {dueSoon.length - 1} more in the next 30d</span>
           )}
         </div>
         <ChevronRight size={16} className="text-yellow-400 shrink-0" />
@@ -130,15 +130,15 @@ export default function SecretsRotationBanner({ onJumpToTab }) {
       data-testid="secrets-rotation-banner-ok"
     >
       <ShieldCheck size={14} className="text-emerald-400 shrink-0" />
-      <div className="flex-1 font-mono text-xs text-[#e5e5e5]">
+      <div className="flex-1 font-mono text-xs text-ink">
         All <b className="text-emerald-300">{configured.length}</b> credentials within rotation cadence
         {oldest !== null && (
-          <span className="text-[#a3a3a3]">
+          <span className="text-ink-muted">
             {" "}· oldest is <span className="tabular-nums">{oldest}d</span> since last rotation
           </span>
         )}
       </div>
-      <ChevronRight size={14} className="text-[#525252] shrink-0" />
+      <ChevronRight size={14} className="text-ink-muted shrink-0" />
     </button>
   );
 }

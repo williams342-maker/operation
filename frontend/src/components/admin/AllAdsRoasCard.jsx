@@ -36,11 +36,11 @@ export default function AllAdsRoasCard() {
   }, [days]);
 
   const roasColor = (() => {
-    if (!data?.roas || !data?.total_ad_spend_usd) return "text-[#a3a3a3]";
+    if (!data?.roas || !data?.total_ad_spend_usd) return "text-ink-muted";
     if (data.roas >= 4) return "text-emerald-400";
     if (data.roas >= 1.5) return "text-cyan-400";
     if (data.roas >= 1) return "text-amber-400";
-    return "text-[#ff4500]";
+    return "text-brand";
   })();
 
   const platformAccent = {
@@ -54,16 +54,16 @@ export default function AllAdsRoasCard() {
 
   return (
     <div
-      className="border border-[#ff4500]/30 bg-gradient-to-br from-[#1a0f08] to-[#0d0d0d] p-6 space-y-5"
+      className="border border-brand/30 bg-gradient-to-br from-[#1a0f08] to-[#0d0d0d] p-6 space-y-5"
       data-testid="all-ads-roas-card"
     >
       <div className="flex items-start gap-4">
-        <div className="w-10 h-10 border border-[#ff4500]/50 bg-[#ff4500]/[0.08] flex items-center justify-center shrink-0">
-          <Target size={16} className="text-[#ff4500]" />
+        <div className="w-10 h-10 border border-brand/50 bg-brand/[0.08] flex items-center justify-center shrink-0">
+          <Target size={16} className="text-brand" />
         </div>
         <div className="flex-1 min-w-0">
           <h2 className="font-display text-2xl md:text-3xl mb-1">All Paid Channels · ROAS</h2>
-          <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed">
+          <p className="font-mono text-xs text-ink-muted leading-relaxed">
             Combined Microsoft + Google attributed revenue ÷ total ad spend, last {days} days.
           </p>
         </div>
@@ -74,8 +74,8 @@ export default function AllAdsRoasCard() {
               onClick={() => setDays(d)}
               className={`px-2.5 py-1 border font-mono text-[10px] uppercase tracking-[0.22em] transition ${
                 days === d
-                  ? "border-[#ff4500] text-[#ff4500] bg-[#ff4500]/[0.06]"
-                  : "border-[#262626] text-[#a3a3a3] hover:border-[#525252]"
+                  ? "border-brand text-brand bg-brand/[0.06]"
+                  : "border-line text-ink-muted hover:border-ink-muted"
               }`}
               data-testid={`all-roas-window-${d}`}
             >
@@ -85,7 +85,7 @@ export default function AllAdsRoasCard() {
           <button
             onClick={() => { refresh(); setDays((d) => d); }}
             disabled={loading}
-            className="px-2 py-1 border border-[#262626] hover:border-[#525252] text-[#a3a3a3] hover:text-[#e5e5e5] font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1 disabled:opacity-40"
+            className="px-2 py-1 border border-line hover:border-ink-muted text-ink-muted hover:text-ink font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1 disabled:opacity-40"
             data-testid="all-roas-refresh"
             title="Refresh"
           >
@@ -96,12 +96,12 @@ export default function AllAdsRoasCard() {
 
       <div className="grid md:grid-cols-3 gap-4">
         {/* Headline ROAS — spans 1 col, oversized */}
-        <div className="border border-[#262626] bg-[#0a0a0a] p-5 flex flex-col justify-center" data-testid="all-roas-headline">
-          <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#737373]">Combined ROAS</div>
+        <div className="border border-line bg-paper p-5 flex flex-col justify-center" data-testid="all-roas-headline">
+          <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted">Combined ROAS</div>
           <div className={`font-display text-5xl md:text-6xl mt-1 ${roasColor}`}>
             {data?.roas != null ? `${data.roas.toFixed(2)}×` : "—"}
           </div>
-          <div className="font-mono text-[10px] text-[#525252] mt-2">
+          <div className="font-mono text-[10px] text-ink-muted mt-2">
             {data ? (
               <>
                 ${(data.total_attributed_revenue || 0).toFixed(0)} rev / $
@@ -118,14 +118,14 @@ export default function AllAdsRoasCard() {
           {(data?.breakdown || []).map((p) => (
             <div
               key={p.platform}
-              className={`border ${platformAccent[p.platform] || "border-[#262626]"} bg-[#0a0a0a] p-4 space-y-2`}
+              className={`border ${platformAccent[p.platform] || "border-line"} bg-paper p-4 space-y-2`}
               data-testid={`all-roas-platform-${p.platform}`}
             >
               <div className="flex items-baseline justify-between">
                 <div className={`font-mono text-[10px] uppercase tracking-[0.22em] ${platformAccent[p.platform]?.split(" ")[0]}`}>
                   {platformLabel[p.platform] || p.platform}
                 </div>
-                <div className="font-display text-2xl text-[#e5e5e5]">
+                <div className="font-display text-2xl text-ink">
                   {p.roas != null ? `${p.roas.toFixed(2)}×` : "—"}
                 </div>
               </div>
@@ -145,8 +145,8 @@ export default function AllAdsRoasCard() {
 function Stat({ label, value }) {
   return (
     <div>
-      <div className="text-[#737373] uppercase tracking-[0.22em]">{label}</div>
-      <div className="text-[#e5e5e5] mt-0.5 text-sm">{value}</div>
+      <div className="text-ink-muted uppercase tracking-[0.22em]">{label}</div>
+      <div className="text-ink mt-0.5 text-sm">{value}</div>
     </div>
   );
 }

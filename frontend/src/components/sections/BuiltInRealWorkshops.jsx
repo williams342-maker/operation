@@ -37,14 +37,14 @@ export default function BuiltInRealWorkshops({ testId = "real-workshops" }) {
       >
         <div className="grid md:grid-cols-[1fr_1.6fr] gap-8 items-stretch">
           <div className="space-y-3">
-            <div className="h-4 w-40 bg-[#1a1a1a] animate-pulse" />
-            <div className="h-12 w-3/4 bg-[#1a1a1a] animate-pulse" />
-            <div className="h-3 w-full bg-[#1a1a1a] animate-pulse" />
-            <div className="h-3 w-5/6 bg-[#1a1a1a] animate-pulse" />
+            <div className="h-4 w-40 bg-surface animate-pulse" />
+            <div className="h-12 w-3/4 bg-surface animate-pulse" />
+            <div className="h-3 w-full bg-surface animate-pulse" />
+            <div className="h-3 w-5/6 bg-surface animate-pulse" />
           </div>
           <div className="grid grid-cols-2 gap-2">
             {[...Array(4)].map((_, i) => (
-              <div key={i} className="aspect-[4/3] bg-[#1a1a1a] animate-pulse" />
+              <div key={i} className="aspect-[4/3] bg-surface animate-pulse" />
             ))}
           </div>
         </div>
@@ -62,18 +62,18 @@ export default function BuiltInRealWorkshops({ testId = "real-workshops" }) {
       <div className="grid md:grid-cols-[1fr_1.6fr] gap-8 md:gap-14 items-stretch">
         {/* Copy column */}
         <div className="flex flex-col justify-center">
-          <p className="font-mono text-[11px] uppercase tracking-[0.32em] text-[#ff4500] inline-flex items-center gap-1.5">
+          <p className="font-mono text-[11px] uppercase tracking-[0.32em] text-brand inline-flex items-center gap-1.5">
             <Wrench size={12} /> Behind the build
           </p>
-          <h2 className="font-display text-4xl md:text-5xl text-[#e5e5e5] mt-3 leading-[0.95]">
-            Built in <span className="text-[#ff4500]">real workshops.</span>
+          <h2 className="font-display text-4xl md:text-5xl text-ink mt-3 leading-[0.95]">
+            Built in <span className="text-brand">real workshops.</span>
           </h2>
-          <p className="font-mono text-xs md:text-sm text-[#a3a3a3] mt-5 leading-relaxed max-w-md">
+          <p className="font-mono text-xs md:text-sm text-ink-muted mt-5 leading-relaxed max-w-md">
             Sparks flying off plasma cuts. Wood shavings on the bench. Welding
             spatter on the floor. These aren't staged product shots — they're
             the actual workshops where your order will be made.
           </p>
-          <p className="font-mono text-xs md:text-sm text-[#a3a3a3] mt-4 leading-relaxed max-w-md">
+          <p className="font-mono text-xs md:text-sm text-ink-muted mt-4 leading-relaxed max-w-md">
             From raw steel to finished art, every piece on Crafters Market
             passes through one of these benches.
           </p>
@@ -103,7 +103,7 @@ export default function BuiltInRealWorkshops({ testId = "real-workshops" }) {
               <Link
                 key={p.id}
                 to={href}
-                className="group relative aspect-[4/3] bg-[#121212] border border-[#262626] hover:border-[#ff4500] overflow-hidden transition"
+                className="group relative aspect-[4/3] bg-surface border border-line hover:border-brand overflow-hidden transition"
                 data-testid={`${testId}-tile-${p.id}`}
                 title={p.title}
               >
@@ -115,17 +115,17 @@ export default function BuiltInRealWorkshops({ testId = "real-workshops" }) {
                     className="w-full h-full object-cover group-hover:scale-105 transition duration-700"
                   />
                 ) : (
-                  <div className="w-full h-full grid place-items-center font-mono text-[10px] text-[#525252]">
+                  <div className="w-full h-full grid place-items-center font-mono text-[10px] text-ink-muted">
                     No image
                   </div>
                 )}
                 {/* Maker attribution chip on hover */}
                 {(p.user_name || p.maker_slug) && (
                   <div className="absolute bottom-0 inset-x-0 p-3 bg-gradient-to-t from-[#0a0a0a]/95 via-[#0a0a0a]/40 to-transparent opacity-0 group-hover:opacity-100 transition">
-                    <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#ff4500]">
+                    <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-brand">
                       {p.user_name || p.maker_slug}
                     </p>
-                    <p className="font-mono text-xs text-[#e5e5e5] mt-0.5 line-clamp-1">
+                    <p className="font-mono text-xs text-ink mt-0.5 line-clamp-1">
                       {p.title}
                     </p>
                   </div>

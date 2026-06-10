@@ -56,9 +56,9 @@ export default function RejectedAppsTab() {
     <div className="space-y-4" data-testid="rejected-apps-tab">
       {confirmModal}
       <div>
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">◆ Decline Archive</div>
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">◆ Decline Archive</div>
         <h2 className="font-display text-3xl md:text-4xl mt-1">Rejected Applications</h2>
-        <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-2xl">
+        <p className="font-mono text-xs text-ink-muted mt-2 max-w-2xl">
           Historical record of applications that weren't approved. Review, reach out, or clean up audit rows.
         </p>
       </div>
@@ -79,7 +79,7 @@ export default function RejectedAppsTab() {
         {items.map((a) => (
           <div
             key={a.id}
-            className="border border-[#262626] p-4 hover:border-red-500/40 transition"
+            className="border border-line p-4 hover:border-red-500/40 transition"
             data-testid={`rejected-row-${a.id}`}
           >
             <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
@@ -88,14 +88,14 @@ export default function RejectedAppsTab() {
                   ✕ Rejected · {formatDate(a.decided_at || a.created_at)}
                 </div>
                 <div className="font-display text-xl mt-1 break-words">{a.studio_name}</div>
-                <div className="font-mono text-xs text-[#a3a3a3] mt-1 break-words">
+                <div className="font-mono text-xs text-ink-muted mt-1 break-words">
                   {a.name} · {a.location} ·{" "}
-                  <a href={`mailto:${a.email}`} className="underline hover:text-[#ff4500] break-all">
+                  <a href={`mailto:${a.email}`} className="underline hover:text-brand break-all">
                     {a.email}
                   </a>
                 </div>
                 {a.note && (
-                  <div className="mt-2 font-mono text-xs text-[#a3a3a3] border-l-2 border-red-500/60 pl-3">
+                  <div className="mt-2 font-mono text-xs text-ink-muted border-l-2 border-red-500/60 pl-3">
                     {a.note}
                   </div>
                 )}
@@ -104,14 +104,14 @@ export default function RejectedAppsTab() {
                 <button
                   onClick={() => setEmailTarget(a)}
                   data-testid={`rejected-email-${a.id}`}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] transition"
                 >
                   ✉ Email
                 </button>
                 <button
                   onClick={() => remove(a)}
                   data-testid={`rejected-delete-${a.id}`}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 border border-[#262626] hover:border-red-500 hover:text-red-400 font-mono text-[10px] uppercase tracking-[0.22em] transition"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 border border-line hover:border-red-500 hover:text-red-400 font-mono text-[10px] uppercase tracking-[0.22em] transition"
                 >
                   ✕ Delete
                 </button>

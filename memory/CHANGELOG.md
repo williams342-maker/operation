@@ -1,3 +1,45 @@
+## 2026-06-10 — Phase E (final) of light-theme redesign + density toggle bonus (iter353)
+
+User: "go with potential improvment" → Phase E (admin console + cleanup) PLUS the density toggle bonus.
+
+### Phase E token sweep
+- `components/admin/` — **74 files** (every admin card, tab component, modal, settings panel)
+- `components/sections/` — 21 below-hero home section files (FeaturedBuildsRail, CinematicMomentsStrip, ProductRail, BuiltByMakers, BuiltInRealWorkshops, Categories, CategoryStrip, CustomCTA, FeaturedShops, ForMakers, MakerShowcase, PillTeaser, Process, PromoStrip, Reviews, ShopOfTheWeek, WhyHandcrafted, WhyWeExist, BetaSignupCTA, ActivityTicker)
+- `pages/AdminDashboard.jsx` + `pages/AdminDashboard/AdminShowcaseModTab.jsx`
+- **Result: 94 of 97 files updated, 2,151 lines changed.**
+
+### Legacy cleanup
+- Removed the dead `.theme-light` !important block from `index.css` (~80 lines) — it was the OLD per-maker opt-in light theme that matched against hardcoded `bg-[#0a0a0a]` etc. Now that all hardcoded hex are gone via Phases A-D, the override block had no targets to match.
+- Preserved the one useful behavior: grain texture is dropped in light mode (reads as dirt on cream) — rewrote as `html:not(.dark) .grain::before { display: none; }`.
+
+### Density toggle bonus (`AdminDensityToggle.jsx`)
+- New `components/AdminDensityToggle.jsx` — sun/moon-style icon button (`Rows3` ↔ `AlignJustify` lucide icons) with label "Compact"/"Comfortable" on lg+.
+- Reads/writes `localStorage["cm_admin_density"]`. Defaults to `comfortable`.
+- Mounted at the top of the admin content column (above `<AdminTabBoundary>`).
+- CSS rules in `index.css` scope the tightening to `html.admin-compact [data-testid="admin-dashboard"]` so it ONLY affects the admin surface — not buyer or maker pages.
+- Tightens: `.p-3/.p-4/.p-5`, `.py-3/.py-4`, `.gap-4/.gap-6`, `.space-y-4/.space-y-6`, table `td/th` padding. Effective row-height reduction ~30-40% in Compact mode.
+
+### Smoke test (live preview · admin login)
+- ✅ Admin dashboard renders pixel-perfect: "OPERATIONS." display heading, KPI cards, growth heartbeat row, prod-outage banner, applications table with PENDING/BETA/ALL filter chips, sidebar (ADS, ANALYTICS, APPLICATIONS active, APPROVED MAKERS, AUDIT LOG, BROADCAST, COMING SOON, CUSTOM ORDERS)
+- ✅ Density toggle mounted (`data-testid="admin-density-toggle"`), shows "COMFORTABLE" default state with `AlignJustify` icon
+- ✅ Body bg = cream paper, theme tokens propagating
+- ✅ Lint clean on new `AdminDensityToggle.jsx`; pre-existing lint warnings in `AdminDashboard.jsx` untouched
+
+### **REDESIGN COMPLETE** — all 5 phases shipped
+| Phase | Scope | Lines changed |
+|---|---|---|
+| A | Foundation (tokens, fonts, theme provider+toggle, Hero) | ~500 |
+| B | Shop catalog + Product detail + Maker profile + ProductCard | 175 |
+| C | Cart + Checkout + Auth + Footer + secondary marketing | ~340 |
+| D | Maker dashboard (53 files) | 1,407 |
+| E | Admin console + below-hero home sections + cleanup | 2,151 |
+| **TOTAL** | ~135 files touched | **~4,573 lines** |
+
+Theme toggle works site-wide. Light + dark both look intentional. localStorage persists user choice. First-visit fallback respects `prefers-color-scheme: dark`. Admin density toggle works as a power-user option on top of the global theme.
+
+---
+
+
 ## 2026-06-10 — Phase D of light-theme redesign: Maker dashboard (iter352)
 
 User: "Phase D: Maker dashboard (sidebar, products list, orders, settings, ads ROAS card, leaderboard, AI pricing digest)."

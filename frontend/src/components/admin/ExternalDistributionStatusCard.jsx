@@ -66,7 +66,7 @@ export default function ExternalDistributionStatusCard() {
 
   if (loading) {
     return (
-      <div data-testid="distribution-card-loading" className="font-mono text-xs text-[#a3a3a3] py-3">
+      <div data-testid="distribution-card-loading" className="font-mono text-xs text-ink-muted py-3">
         Probing Cloudflare Worker + Meta feed (3s timeout)…
       </div>
     );
@@ -86,7 +86,7 @@ export default function ExternalDistributionStatusCard() {
   const metaVerdict = META_VERDICT_LABELS[meta.verdict] || META_VERDICT_LABELS.unreachable;
 
   return (
-    <section className="border border-[#262626] p-5 md:p-6 space-y-5" data-testid="distribution-status-card">
+    <section className="border border-line p-5 md:p-6 space-y-5" data-testid="distribution-status-card">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-cyan-400">
@@ -96,7 +96,7 @@ export default function ExternalDistributionStatusCard() {
         </div>
         <button
           onClick={load}
-          className="px-3 py-1.5 border border-[#262626] hover:border-cyan-400 font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-cyan-300 transition"
+          className="px-3 py-1.5 border border-line hover:border-cyan-400 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-cyan-300 transition"
           data-testid="distribution-refresh"
         >
           ↻ Re-probe
@@ -104,10 +104,10 @@ export default function ExternalDistributionStatusCard() {
       </div>
 
       {/* Cloudflare Worker ─────────────────────────────────────── */}
-      <div className="border border-[#1f1f1f] p-4 space-y-3" data-testid="distribution-cloudflare">
+      <div className="border border-line p-4 space-y-3" data-testid="distribution-cloudflare">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-3">
-            <span className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#e5e5e5]">
+            <span className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink">
               Cloudflare prerender Worker
             </span>
             <span
@@ -118,13 +118,13 @@ export default function ExternalDistributionStatusCard() {
             </span>
           </div>
         </div>
-        <p className="font-mono text-[11px] text-[#a3a3a3] leading-relaxed">
+        <p className="font-mono text-[11px] text-ink-muted leading-relaxed">
           Probed {cf.probes.length} URLs with Googlebot UA. Active = response contains the
           <code className="text-[#fafafa] mx-1">og-prerender</code> marker; Not deployed = SPA shell returned.
         </p>
         <div className="overflow-x-auto">
           <table className="w-full font-mono text-[10px]">
-            <thead className="text-[#a3a3a3] uppercase tracking-[0.18em]">
+            <thead className="text-ink-muted uppercase tracking-[0.18em]">
               <tr>
                 <th className="text-left py-1.5">URL</th>
                 <th className="text-right py-1.5">Status</th>
@@ -133,33 +133,33 @@ export default function ExternalDistributionStatusCard() {
                 <th className="text-right py-1.5">Bytes</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#1a1a1a]">
+            <tbody className="divide-y divide-line">
               {cf.probes.map((p) => (
-                <tr key={p.url} className="hover:bg-[#0a0a0a] transition">
-                  <td className="py-1.5 text-[#e5e5e5] truncate max-w-[320px]">{p.url}</td>
-                  <td className="py-1.5 text-right text-[#a3a3a3]">{p.status || p.error || "—"}</td>
+                <tr key={p.url} className="hover:bg-paper transition">
+                  <td className="py-1.5 text-ink truncate max-w-[320px]">{p.url}</td>
+                  <td className="py-1.5 text-right text-ink-muted">{p.status || p.error || "—"}</td>
                   <td className="py-1.5 text-right">
                     {p.has_prerender_marker
                       ? <span className="text-emerald-400">✓</span>
-                      : <span className="text-[#525252]">—</span>}
+                      : <span className="text-ink-muted">—</span>}
                   </td>
                   <td className="py-1.5 text-right">
                     {p.is_spa_shell
                       ? <span className="text-amber-400">⚠</span>
-                      : <span className="text-[#525252]">—</span>}
+                      : <span className="text-ink-muted">—</span>}
                   </td>
-                  <td className="py-1.5 text-right text-[#525252]">{p.bytes ?? "—"}</td>
+                  <td className="py-1.5 text-right text-ink-muted">{p.bytes ?? "—"}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
         {cf.verdict !== "active" && (
-          <div className="border-l-2 border-amber-500/40 pl-3 py-1.5 text-[11px] text-[#a3a3a3] font-mono space-y-1.5" data-testid="distribution-cf-runbook">
+          <div className="border-l-2 border-amber-500/40 pl-3 py-1.5 text-[11px] text-ink-muted font-mono space-y-1.5" data-testid="distribution-cf-runbook">
             <div className="text-amber-300">Deploy steps:</div>
             <ol className="list-decimal pl-5 leading-relaxed text-[10px]">
-              <li>Cloudflare dashboard → <span className="text-[#e5e5e5]">craftersmarket.org</span> → Workers Routes → Create</li>
-              <li>Add <span className="text-[#e5e5e5]">two</span> routes: <code className="text-[#fafafa]">craftersmarket.org/*</code> and <code className="text-[#fafafa]">www.craftersmarket.org/*</code> (NOT the wildcard subdomain — it breaks R2 image delivery)</li>
+              <li>Cloudflare dashboard → <span className="text-ink">craftersmarket.org</span> → Workers Routes → Create</li>
+              <li>Add <span className="text-ink">two</span> routes: <code className="text-[#fafafa]">craftersmarket.org/*</code> and <code className="text-[#fafafa]">www.craftersmarket.org/*</code> (NOT the wildcard subdomain — it breaks R2 image delivery)</li>
               <li>Workers → Create application → paste contents of <code className="text-[#fafafa]">/app/cloudflare/prerender-router.worker.js</code></li>
               <li>Save and deploy, then click <span className="text-cyan-300">Re-probe</span> above</li>
             </ol>
@@ -168,10 +168,10 @@ export default function ExternalDistributionStatusCard() {
       </div>
 
       {/* Meta Commerce Manager ─────────────────────────────────── */}
-      <div className="border border-[#1f1f1f] p-4 space-y-3" data-testid="distribution-meta">
+      <div className="border border-line p-4 space-y-3" data-testid="distribution-meta">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-3">
-            <span className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#e5e5e5]">
+            <span className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink">
               Meta Commerce Manager
             </span>
             <span
@@ -181,7 +181,7 @@ export default function ExternalDistributionStatusCard() {
               {metaVerdict.label}
             </span>
             {meta.row_count != null && (
-              <span className="font-mono text-[10px] text-[#a3a3a3]">
+              <span className="font-mono text-[10px] text-ink-muted">
                 {meta.row_count} row{meta.row_count === 1 ? "" : "s"}
               </span>
             )}
@@ -197,25 +197,25 @@ export default function ExternalDistributionStatusCard() {
           </a>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <code className="text-[10px] text-[#e5e5e5] bg-[#0a0a0a] border border-[#1a1a1a] px-2 py-1 truncate max-w-[420px]" data-testid="distribution-meta-feed-url">
+          <code className="text-[10px] text-ink bg-paper border border-line px-2 py-1 truncate max-w-[420px]" data-testid="distribution-meta-feed-url">
             {meta.feed_url}
           </code>
           <button
             onClick={copyFeedUrl}
-            className="px-2.5 py-1 border border-[#262626] hover:border-cyan-400 font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-cyan-300 transition"
+            className="px-2.5 py-1 border border-line hover:border-cyan-400 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-cyan-300 transition"
             data-testid="distribution-meta-copy"
           >
             Copy URL
           </button>
         </div>
         {meta.next_step && (
-          <p className="font-mono text-[11px] text-[#a3a3a3] leading-relaxed">
+          <p className="font-mono text-[11px] text-ink-muted leading-relaxed">
             <span className="text-cyan-300">→ </span>{meta.next_step}
           </p>
         )}
       </div>
 
-      <p className="font-mono text-[10px] text-[#525252]">
+      <p className="font-mono text-[10px] text-ink-muted">
         Snapshot · {data.as_of ? new Date(data.as_of).toLocaleString() : "—"}
       </p>
     </section>

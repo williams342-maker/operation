@@ -141,15 +141,15 @@ export default function PlusMembersTab() {
           This button gives the admin an "I want it NOW" lever during
           launch / testing or after a config change. */}
       <div
-        className="border border-[#262626] bg-[#0a0a0a] p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3"
+        className="border border-line bg-paper p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3"
         data-testid="plus-replenish-card"
       >
         <div className="min-w-0">
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
             ◆ Maintenance · Boost Credit Replenish
           </div>
-          <div className="text-xs text-[#e5e5e5] mt-1.5 leading-relaxed">
-            Tops every Plus subscriber to <span className="text-emerald-400">$15</span> and every veteran-owned maker to <span className="text-[#ff4500]">$10</span> in boost credit.
+          <div className="text-xs text-ink mt-1.5 leading-relaxed">
+            Tops every Plus subscriber to <span className="text-emerald-400">$15</span> and every veteran-owned maker to <span className="text-brand">$10</span> in boost credit.
             Auto-runs monthly on the 1st at 00:05 UTC.
           </div>
           {replenishResult && (
@@ -163,7 +163,7 @@ export default function PlusMembersTab() {
           onClick={handleReplenish}
           disabled={replenishBusy}
           data-testid="plus-replenish-btn"
-          className="shrink-0 inline-flex items-center justify-center px-4 py-2.5 bg-[#ff4500] hover:bg-[#ff5722] disabled:opacity-50 text-black font-mono text-[11px] uppercase tracking-[0.22em] font-bold transition"
+          className="shrink-0 inline-flex items-center justify-center px-4 py-2.5 bg-brand hover:bg-[#ff5722] disabled:opacity-50 text-ink font-mono text-[11px] uppercase tracking-[0.22em] font-bold transition"
         >
           {replenishBusy ? "Replenishing…" : "Replenish now"}
         </button>
@@ -180,7 +180,7 @@ export default function PlusMembersTab() {
         const hasDupes = planned.length > 0;
         return (
           <div
-            className={`border bg-[#0a0a0a] p-4 ${hasDupes ? "border-red-700/60" : "border-[#262626]"}`}
+            className={`border bg-paper p-4 ${hasDupes ? "border-red-700/60" : "border-line"}`}
             data-testid="founders-repair-card"
           >
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
@@ -188,7 +188,7 @@ export default function PlusMembersTab() {
                 <div className="font-mono text-[10px] uppercase tracking-[0.22em] flex items-center gap-2">
                   <span className={hasDupes ? "text-red-400" : "text-emerald-400"}>◆ Founders Wall integrity</span>
                   {repairStatus.loading ? (
-                    <span className="text-[9px] text-[#737373]">checking…</span>
+                    <span className="text-[9px] text-ink-muted">checking…</span>
                   ) : hasDupes ? (
                     <span
                       className="text-[9px] px-1.5 py-px bg-red-950/40 border border-red-700 text-red-300"
@@ -205,12 +205,12 @@ export default function PlusMembersTab() {
                     </span>
                   )}
                 </div>
-                <div className="font-display text-lg mt-1 text-[#e5e5e5]">
+                <div className="font-display text-lg mt-1 text-ink">
                   {hasDupes
                     ? `${planned.length} maker${planned.length === 1 ? " is" : "s are"} sharing slot number${planned.length === 1 ? "" : "s"}`
                     : "Every Founder owns a unique slot number."}
                 </div>
-                <div className="font-mono text-[10px] text-[#737373] mt-1.5 leading-relaxed">
+                <div className="font-mono text-[10px] text-ink-muted mt-1.5 leading-relaxed">
                   {hasDupes
                     ? "Newer collisions will get fresh sequential numbers. Older makers keep their slots. Activity-ticker events stay in sync."
                     : `Counter at #${plan?.counter_will_be_set_to ?? "—"} · ${plan?.total_founders ?? 0} founders total.`}
@@ -222,17 +222,17 @@ export default function PlusMembersTab() {
                 )}
                 {hasDupes && (
                   <details className="mt-2" data-testid="founders-repair-details">
-                    <summary className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] cursor-pointer hover:text-[#ff4500]">
+                    <summary className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted cursor-pointer hover:text-brand">
                       ▸ Show {planned.length} planned change{planned.length === 1 ? "" : "s"}
                     </summary>
-                    <ul className="mt-2 space-y-1 font-mono text-[10px] text-[#a3a3a3]">
+                    <ul className="mt-2 space-y-1 font-mono text-[10px] text-ink-muted">
                       {planned.map((p, i) => (
                         <li key={i} className="flex items-baseline gap-2">
                           <span className="text-red-400">#{String(p.old_number).padStart(3, "0")}</span>
-                          <span className="text-[#525252]">→</span>
+                          <span className="text-ink-muted">→</span>
                           <span className="text-emerald-400">#{String(p.new_number).padStart(3, "0")}</span>
-                          <span className="text-[#e5e5e5] truncate">{p.name || p.slug}</span>
-                          <span className="text-[#525252]">(keeps slot: {p.kept_for_slug})</span>
+                          <span className="text-ink truncate">{p.name || p.slug}</span>
+                          <span className="text-ink-muted">(keeps slot: {p.kept_for_slug})</span>
                         </li>
                       ))}
                     </ul>
@@ -245,7 +245,7 @@ export default function PlusMembersTab() {
                   onClick={fetchRepairPlan}
                   disabled={repairStatus.loading}
                   data-testid="founders-repair-recheck-btn"
-                  className="px-3 py-2 border border-[#262626] hover:border-[#ff4500] disabled:opacity-50 font-mono text-[10px] uppercase tracking-[0.22em] text-[#e5e5e5] transition"
+                  className="px-3 py-2 border border-line hover:border-brand disabled:opacity-50 font-mono text-[10px] uppercase tracking-[0.22em] text-ink transition"
                 >
                   Re-check
                 </button>
@@ -256,8 +256,8 @@ export default function PlusMembersTab() {
                   data-testid="founders-repair-apply-btn"
                   className={`px-4 py-2 font-mono text-[11px] uppercase tracking-[0.22em] font-bold transition ${
                     hasDupes
-                      ? "bg-red-600 hover:bg-red-700 text-white"
-                      : "bg-[#171717] text-[#525252] cursor-not-allowed"
+                      ? "bg-red-600 hover:bg-red-700 text-ink"
+                      : "bg-surface text-ink-muted cursor-not-allowed"
                   } disabled:opacity-60`}
                 >
                   {repairBusy ? "Repairing…" : hasDupes ? `Apply repair (${planned.length})` : "Nothing to repair"}
@@ -269,20 +269,20 @@ export default function PlusMembersTab() {
       })()}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="border border-[#262626] p-4" data-testid="plus-stat-count">
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Active</div>
-          <div className="font-display text-4xl mt-1 text-[#e5e5e5]">{rows.length}</div>
+        <div className="border border-line p-4" data-testid="plus-stat-count">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Active</div>
+          <div className="font-display text-4xl mt-1 text-ink">{rows.length}</div>
         </div>
-        <div className="border border-[#262626] p-4" data-testid="plus-stat-mrr">
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">MRR</div>
+        <div className="border border-line p-4" data-testid="plus-stat-mrr">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">MRR</div>
           <div className="font-display text-4xl mt-1 text-emerald-400">${mrr}</div>
         </div>
-        <div className="border border-[#262626] p-4" data-testid="plus-stat-gmv">
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">30d GMV</div>
-          <div className="font-display text-4xl mt-1 text-[#ff4500]">${totalGmv30.toFixed(0)}</div>
+        <div className="border border-line p-4" data-testid="plus-stat-gmv">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">30d GMV</div>
+          <div className="font-display text-4xl mt-1 text-brand">${totalGmv30.toFixed(0)}</div>
         </div>
-        <div className="border border-[#262626] p-4" data-testid="plus-stat-canceling">
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Canceling</div>
+        <div className="border border-line p-4" data-testid="plus-stat-canceling">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Canceling</div>
           <div className="font-display text-4xl mt-1 text-amber-400">{rows.filter((r) => r.cancel_at_period_end).length}</div>
         </div>
       </div>
@@ -308,7 +308,7 @@ export default function PlusMembersTab() {
         <div className="overflow-x-auto">
           <table className="w-full font-mono text-xs" data-testid="plus-members-table">
             <thead>
-              <tr className="text-[#a3a3a3] uppercase tracking-[0.22em] text-[10px] border-b border-[#262626]">
+              <tr className="text-ink-muted uppercase tracking-[0.22em] text-[10px] border-b border-line">
                 <th className="text-left py-2 pr-3">Studio</th>
                 <th className="text-left py-2 pr-3">Email</th>
                 <th className="text-left py-2 pr-3">Status</th>
@@ -320,13 +320,13 @@ export default function PlusMembersTab() {
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.slug} className="border-b border-[#262626] hover:bg-[#121212]" data-testid={`plus-row-${r.slug}`}>
+                <tr key={r.slug} className="border-b border-line hover:bg-surface" data-testid={`plus-row-${r.slug}`}>
                   <td className="py-3 pr-3">
-                    <div className="text-[#e5e5e5]">{r.name || r.slug}</div>
-                    <div className="text-[9px] text-[#525252]">/{r.slug}</div>
+                    <div className="text-ink">{r.name || r.slug}</div>
+                    <div className="text-[9px] text-ink-muted">/{r.slug}</div>
                   </td>
                   <td className="py-3 pr-3 break-all">
-                    <a href={`mailto:${r.email}`} className="text-[#a3a3a3] hover:text-[#ff4500]">{r.email}</a>
+                    <a href={`mailto:${r.email}`} className="text-ink-muted hover:text-brand">{r.email}</a>
                   </td>
                   <td className="py-3 pr-3">
                     <span className={`inline-block px-1.5 py-0.5 border text-[9px] font-bold ${
@@ -337,17 +337,17 @@ export default function PlusMembersTab() {
                       {r.cancel_at_period_end ? "CANCELING" : r.subscription_status?.toUpperCase() || "ACTIVE"}
                     </span>
                   </td>
-                  <td className="py-3 pr-3 text-[#a3a3a3]">{formatDate(r.started_at)}</td>
-                  <td className="py-3 pr-3 text-[#a3a3a3]">{formatDate(r.current_period_end)}</td>
-                  <td className="py-3 pr-3 text-right text-[#ff4500]">${(r.gmv_30d || 0).toFixed(2)}</td>
-                  <td className={`py-3 text-right ${r.plus_net_value_30d >= 0 ? "text-emerald-400" : "text-[#525252]"}`}>
+                  <td className="py-3 pr-3 text-ink-muted">{formatDate(r.started_at)}</td>
+                  <td className="py-3 pr-3 text-ink-muted">{formatDate(r.current_period_end)}</td>
+                  <td className="py-3 pr-3 text-right text-brand">${(r.gmv_30d || 0).toFixed(2)}</td>
+                  <td className={`py-3 text-right ${r.plus_net_value_30d >= 0 ? "text-emerald-400" : "text-ink-muted"}`}>
                     {r.plus_net_value_30d >= 0 ? "+" : ""}${r.plus_net_value_30d?.toFixed(2)}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-          <p className="font-mono text-[10px] text-[#525252] mt-3">
+          <p className="font-mono text-[10px] text-ink-muted mt-3">
             Net value = 1% commission savings on 30d GMV − $12 monthly cost. Negative means Plus isn't paying off yet.
           </p>
         </div>

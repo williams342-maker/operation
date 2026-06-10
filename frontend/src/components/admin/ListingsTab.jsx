@@ -25,17 +25,17 @@ function ogTargets(slug) {
 function CrawlerPreviewMenu({ slug }) {
   const t = ogTargets(slug);
   const linkCls =
-    "block px-3 py-2 font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] hover:bg-[#1a1a1a] transition";
+    "block px-3 py-2 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand hover:bg-surface transition";
   return (
     <details className="relative" data-testid={`listing-preview-${slug}`}>
       <summary
-        className="list-none cursor-pointer px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.22em] border border-[#262626] text-[#a3a3a3] hover:border-[#ff4500] hover:text-[#ff4500] transition"
+        className="list-none cursor-pointer px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.22em] border border-line text-ink-muted hover:border-brand hover:text-brand transition"
         data-testid={`listing-preview-toggle-${slug}`}
       >
         ↗ Preview
       </summary>
       <div
-        className="absolute right-0 mt-1 z-20 min-w-[220px] border border-[#262626] bg-[#0a0a0a] shadow-xl"
+        className="absolute right-0 mt-1 z-20 min-w-[220px] border border-line bg-paper shadow-xl"
         data-testid={`listing-preview-menu-${slug}`}
       >
         <a href={t.og} target="_blank" rel="noopener noreferrer" className={linkCls}
@@ -125,24 +125,24 @@ function ListingRow({ p, onChange }) {
     <>
       {confirmModal}
     <div
-      className={`border ${p.featured ? "border-[#ff4500]/40" : "border-[#262626]"} hover:border-[#ff4500] transition p-4 flex flex-col md:flex-row md:items-center gap-4`}
+      className={`border ${p.featured ? "border-brand/40" : "border-line"} hover:border-brand transition p-4 flex flex-col md:flex-row md:items-center gap-4`}
       data-testid={`listing-${p.slug}`}
     >
       <img src={p.images?.[0]} alt="" className="w-full md:w-24 h-24 object-cover" />
       <div className="flex-1 min-w-0">
         <div className="font-display text-xl truncate">{p.title}</div>
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mt-1">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mt-1">
           {p.category} · {p.technique} · by {p.maker_slug}
-          {p.model_url && <span className="text-[#ff4500] ml-2">· 3D</span>}
+          {p.model_url && <span className="text-brand ml-2">· 3D</span>}
         </div>
-        <div className="font-display text-2xl text-[#ff4500] mt-2">${p.price.toFixed(0)}</div>
+        <div className="font-display text-2xl text-brand mt-2">${p.price.toFixed(0)}</div>
       </div>
       <div className="flex flex-col gap-2 md:items-end">
         <button
           onClick={toggleFeatured}
           disabled={busy}
           className={`px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.22em] border transition disabled:opacity-50 ${
-            p.featured ? "border-[#ff4500] text-[#ff4500]" : "border-[#262626] text-[#a3a3a3] hover:border-[#ff4500]"
+            p.featured ? "border-brand text-brand" : "border-line text-ink-muted hover:border-brand"
           }`}
           data-testid={`listing-featured-${p.slug}`}
         >
@@ -153,7 +153,7 @@ function ListingRow({ p, onChange }) {
           onClick={recheckGsc}
           disabled={busy}
           title="Force-refresh Google indexation status for this listing — bypasses the daily cron"
-          className="px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.22em] border border-[#262626] text-[#a3a3a3] hover:border-cyan-500 hover:text-cyan-300 transition disabled:opacity-50"
+          className="px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.22em] border border-line text-ink-muted hover:border-cyan-500 hover:text-cyan-300 transition disabled:opacity-50"
           data-testid={`listing-gsc-recheck-${p.slug}`}
         >
           {busy ? "…" : "↺ GSC re-check"}
@@ -180,13 +180,13 @@ function ListingRow({ p, onChange }) {
             value={stock}
             onChange={(e) => setStock(e.target.value)}
             min="0"
-            className="w-16 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-2 py-1 font-mono text-[11px]"
+            className="w-16 bg-transparent border border-line focus:border-brand outline-none px-2 py-1 font-mono text-[11px]"
             data-testid={`listing-stock-${p.slug}`}
           />
           <button
             onClick={saveStock}
             disabled={busy || stock === p.in_stock}
-            className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] disabled:opacity-50"
+            className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand disabled:opacity-50"
             data-testid={`listing-stock-save-${p.slug}`}
           >
             save

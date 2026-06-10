@@ -145,8 +145,8 @@ export default function MicrosoftAdsConnectionCard() {
 
   if (!status) {
     return (
-      <div className="border border-[#262626] p-4 md:p-5" data-testid="microsoft-ads-card-loading">
-        <p className="font-mono text-xs text-[#525252]">Loading Microsoft Ads status…</p>
+      <div className="border border-line p-4 md:p-5" data-testid="microsoft-ads-card-loading">
+        <p className="font-mono text-xs text-ink-muted">Loading Microsoft Ads status…</p>
       </div>
     );
   }
@@ -159,11 +159,11 @@ export default function MicrosoftAdsConnectionCard() {
   const toneCls = {
     emerald: "border-emerald-700/50 text-emerald-300 bg-emerald-900/10",
     amber: "border-amber-700/50 text-amber-300 bg-amber-900/10",
-    neutral: "border-[#404040] text-[#a3a3a3] bg-[#0d0d0d]",
+    neutral: "border-line text-ink-muted bg-paper",
   }[pill.tone];
 
   return (
-    <div className="border border-[#262626] p-4 md:p-5" data-testid="microsoft-ads-card">
+    <div className="border border-line p-4 md:p-5" data-testid="microsoft-ads-card">
       {confirmModal}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="min-w-0">
@@ -171,7 +171,7 @@ export default function MicrosoftAdsConnectionCard() {
             ◆ Microsoft Ads · live integration
           </div>
           <h3 className="font-display text-xl uppercase mb-1">Connect your Bing Ads account</h3>
-          <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed max-w-2xl">
+          <p className="font-mono text-xs text-ink-muted leading-relaxed max-w-2xl">
             Pulls daily account-level spend, clicks, impressions, and conversions
             into the ad_spend ledger. Daily sync runs at 04:30 UTC. Read-only —
             we never modify your campaigns or bidding.
@@ -191,7 +191,7 @@ export default function MicrosoftAdsConnectionCard() {
             ⚠ Env vars required before connecting
           </p>
           <p className="font-mono text-[11px] text-amber-100 leading-relaxed mb-2">
-            Add these to <code className="text-[#ff4500]">/app/backend/.env</code> (or your prod env), then redeploy:
+            Add these to <code className="text-brand">/app/backend/.env</code> (or your prod env), then redeploy:
           </p>
           <ul className="font-mono text-[10px] text-amber-200/90 space-y-0.5">
             {(status.missing_env || []).map((k) => (
@@ -221,7 +221,7 @@ export default function MicrosoftAdsConnectionCard() {
               </p>
               <div className="flex items-stretch gap-2">
                 <code
-                  className="flex-1 bg-[#0a0a0a] border border-[#262626] px-2 py-1.5 font-mono text-[11px] text-[#e5e5e5] break-all"
+                  className="flex-1 bg-paper border border-line px-2 py-1.5 font-mono text-[11px] text-ink break-all"
                   data-testid="microsoft-ads-redirect-uri-value"
                 >
                   {status.redirect_uri}
@@ -258,7 +258,7 @@ export default function MicrosoftAdsConnectionCard() {
               {busy === "connect" ? <Loader2 size={12} className="animate-spin" /> : null}
               Connect Microsoft Ads
             </button>
-            <span className="font-mono text-[10px] text-[#525252]">
+            <span className="font-mono text-[10px] text-ink-muted">
               ↗ opens Microsoft&apos;s consent screen
             </span>
           </div>
@@ -283,15 +283,15 @@ export default function MicrosoftAdsConnectionCard() {
       )}
 
       {status.connected && status.discovered_accounts?.length > 0 && (
-        <div className="mt-3 border border-[#1f1f1f] p-3" data-testid="microsoft-ads-accounts">
-          <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252] mb-2">
+        <div className="mt-3 border border-line p-3" data-testid="microsoft-ads-accounts">
+          <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted mb-2">
             Discovered accounts ({status.discovered_accounts.length})
           </div>
-          <div className="space-y-1 font-mono text-[10px] text-[#a3a3a3]">
+          <div className="space-y-1 font-mono text-[10px] text-ink-muted">
             {status.discovered_accounts.slice(0, 5).map((a, i) => (
               <div key={i} className="flex items-center justify-between gap-3">
                 <span className="truncate">{a.name || "—"}</span>
-                <span className="text-[#525252]">cid {a.customer_id} · aid {a.account_id}</span>
+                <span className="text-ink-muted">cid {a.customer_id} · aid {a.account_id}</span>
               </div>
             ))}
           </div>
@@ -303,7 +303,7 @@ export default function MicrosoftAdsConnectionCard() {
           <button
             onClick={onSync}
             disabled={busy === "sync"}
-            className="px-3 py-2 border border-[#262626] hover:border-cyan-400 font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50 flex items-center gap-1.5"
+            className="px-3 py-2 border border-line hover:border-cyan-400 font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50 flex items-center gap-1.5"
             data-testid="microsoft-ads-sync-btn"
           >
             {busy === "sync" ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />}
@@ -312,7 +312,7 @@ export default function MicrosoftAdsConnectionCard() {
           <button
             onClick={onBackfill}
             disabled={busy === "backfill"}
-            className="px-3 py-2 border border-[#262626] hover:border-cyan-400 font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50 flex items-center gap-1.5"
+            className="px-3 py-2 border border-line hover:border-cyan-400 font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50 flex items-center gap-1.5"
             data-testid="microsoft-ads-backfill-btn"
             title="Pull the last 30 days of spend into the ad_spend ledger. Takes 2–4 min."
           >
@@ -335,10 +335,10 @@ export default function MicrosoftAdsConnectionCard() {
 
 function Stat({ label, value, sub }) {
   return (
-    <div className="border border-[#1f1f1f] p-3">
-      <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252]">{label}</div>
-      <div className="font-display text-base text-[#e5e5e5] mt-1 truncate">{value}</div>
-      {sub && <div className="font-mono text-[10px] text-[#525252] mt-0.5 truncate">{sub}</div>}
+    <div className="border border-line p-3">
+      <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted">{label}</div>
+      <div className="font-display text-base text-ink mt-1 truncate">{value}</div>
+      {sub && <div className="font-mono text-[10px] text-ink-muted mt-0.5 truncate">{sub}</div>}
     </div>
   );
 }

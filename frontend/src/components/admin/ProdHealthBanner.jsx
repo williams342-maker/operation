@@ -51,7 +51,7 @@ export default function ProdHealthBanner({ onJumpToTab }) {
       </div>
       <button
         onClick={() => onJumpToTab?.("prod-health")}
-        className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white border border-red-700 font-mono text-[10px] uppercase tracking-[0.22em] shrink-0 transition"
+        className="px-4 py-2 bg-red-600 hover:bg-red-500 text-ink border border-red-700 font-mono text-[10px] uppercase tracking-[0.22em] shrink-0 transition"
         data-testid="prod-health-banner-view-btn"
       >
         View →

@@ -41,8 +41,8 @@ export default function ApplicationsList({ items, onChange }) {
   return (
     <div className="space-y-4" data-testid="apps-list">
       {/* Filter pills bar */}
-      <div className="flex flex-wrap items-center gap-2 pb-3 border-b border-[#262626]" data-testid="apps-filters">
-        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] mr-1">Filter:</span>
+      <div className="flex flex-wrap items-center gap-2 pb-3 border-b border-line" data-testid="apps-filters">
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mr-1">Filter:</span>
         {FILTERS.map((f) => {
           const active = filter === f.id;
           const count = counts[f.id];
@@ -54,19 +54,19 @@ export default function ApplicationsList({ items, onChange }) {
               data-testid={`apps-filter-${f.id}`}
               className={`px-2.5 py-1.5 border font-mono text-[10px] uppercase tracking-[0.22em] transition inline-flex items-center gap-2 ${
                 active
-                  ? "border-[#ff4500] text-[#ff4500] bg-[#ff4500]/5"
-                  : "border-[#262626] text-[#a3a3a3] hover:border-[#525252] hover:text-[#e5e5e5]"
+                  ? "border-brand text-brand bg-brand/5"
+                  : "border-line text-ink-muted hover:border-ink-muted hover:text-ink"
               }`}
             >
               {f.label}
-              <span className={`text-[9px] ${active ? "text-[#ff4500]" : "text-[#525252]"}`}>{count}</span>
+              <span className={`text-[9px] ${active ? "text-brand" : "text-ink-muted"}`}>{count}</span>
             </button>
           );
         })}
       </div>
 
       {filtered.length === 0 ? (
-        <p className="font-mono text-sm text-[#a3a3a3] py-6" data-testid="apps-empty">
+        <p className="font-mono text-sm text-ink-muted py-6" data-testid="apps-empty">
           {filter === "pending"
             ? "No pending applications — you're all caught up."
             : `No ${filter} applications.`}
@@ -76,7 +76,7 @@ export default function ApplicationsList({ items, onChange }) {
           <ApplicationRow key={a.id} app={a} onChange={onChange} />
         ))
       )}
-      <p className="font-mono text-[10px] text-[#525252] uppercase tracking-[0.22em] pt-2 border-t border-[#262626]">
+      <p className="font-mono text-[10px] text-ink-muted uppercase tracking-[0.22em] pt-2 border-t border-line">
         ◆ Approved makers and rejected applications now live in dedicated tabs.
       </p>
     </div>
@@ -99,23 +99,23 @@ function BetaCountdown({ expiresAt }) {
   const hours = Math.floor((Math.abs(msLeft) / (1000 * 60 * 60)) % 24);
   const pct = Math.max(0, Math.min(100, (msLeft / (90 * 24 * 60 * 60 * 1000)) * 100));
   return (
-    <div className="mt-3 border border-[#ff4500]/40 bg-[#ff4500]/5 p-3" data-testid="beta-countdown">
+    <div className="mt-3 border border-brand/40 bg-brand/5 p-3" data-testid="beta-countdown">
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">
           {expired ? "◆ Beta Expired" : "◆ Founding Seller Beta"}
         </div>
-        <div className="font-display text-xl text-[#ff4500]" data-testid="beta-countdown-value">
+        <div className="font-display text-xl text-brand" data-testid="beta-countdown-value">
           {expired ? `Ended ${days}d ago` : `${days}d ${hours}h left`}
         </div>
       </div>
-      <div className="mt-2 h-1 bg-[#262626] overflow-hidden">
+      <div className="mt-2 h-1 bg-line overflow-hidden">
         <div
-          className="h-full bg-[#ff4500] transition-[width] duration-500"
+          className="h-full bg-brand transition-[width] duration-500"
           style={{ width: `${pct}%` }}
           data-testid="beta-progress-bar"
         />
       </div>
-      <div className="mt-1 font-mono text-[9px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+      <div className="mt-1 font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted">
         Ends {new Date(expiresAt).toLocaleDateString()} · 90-day founding window
       </div>
     </div>
@@ -149,12 +149,12 @@ function BetaToggleSwitch({ slug, initialEnabled, initialExpiresAt, onUpdated })
 
   return (
     <div>
-      <div className="flex items-center justify-between gap-3 border border-[#262626] p-3">
+      <div className="flex items-center justify-between gap-3 border border-line p-3">
         <div className="min-w-0">
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
             Founding Seller Beta
           </div>
-          <div className="font-mono text-xs text-[#e5e5e5] mt-1">
+          <div className="font-mono text-xs text-ink mt-1">
             {enabled ? "Active · 90-day perks & badge enabled" : "Off · regular maker"}
           </div>
         </div>
@@ -167,12 +167,12 @@ function BetaToggleSwitch({ slug, initialEnabled, initialExpiresAt, onUpdated })
           data-testid={`beta-switch-${slug}`}
           className={`relative inline-flex items-center h-7 w-14 shrink-0 border transition-colors disabled:opacity-50 ${
             enabled
-              ? "bg-[#ff4500] border-[#ff4500]"
-              : "bg-[#0a0a0a] border-[#262626]"
+              ? "bg-brand border-brand"
+              : "bg-paper border-line"
           }`}
         >
           <span
-            className={`inline-block h-5 w-5 bg-black transition-transform ${
+            className={`inline-block h-5 w-5 bg-paper transition-transform ${
               enabled ? "translate-x-8" : "translate-x-1"
             }`}
           />
@@ -227,22 +227,22 @@ function ApplicationRow({ app, onChange }) {
     <div
       className={`border transition p-5 ${
         app.is_beta
-          ? "border-[#ff4500]/60 hover:border-[#ff4500]"
-          : "border-[#262626] hover:border-[#ff4500]"
+          ? "border-brand/60 hover:border-brand"
+          : "border-line hover:border-brand"
       }`}
       data-testid={`app-${app.id}`}
     >
       {confirmModal}
-      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 pb-3 border-b border-[#262626]">
+      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 pb-3 border-b border-line">
         <div className="min-w-0">
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] flex flex-wrap items-center gap-2">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand flex flex-wrap items-center gap-2">
             <span>
               ◆ {app.status ? `Decided · ${app.status}` : "Pending"} ·{" "}
               {formatDate(app.created_at)}
             </span>
             {app.is_beta && (
               <span
-                className="px-1.5 py-0.5 bg-[#ff4500] text-black font-bold"
+                className="px-1.5 py-0.5 bg-brand text-ink font-bold"
                 data-testid={`app-beta-badge-${app.id}`}
               >
                 FOUNDING SELLER BETA
@@ -250,14 +250,14 @@ function ApplicationRow({ app, onChange }) {
             )}
           </div>
           <div className="font-display text-2xl mt-1 break-words">{app.studio_name}</div>
-          <div className="font-mono text-xs text-[#a3a3a3] mt-1 break-words">
+          <div className="font-mono text-xs text-ink-muted mt-1 break-words">
             {app.name} · {app.location} ·{" "}
-            <a href={`mailto:${app.email}`} className="underline hover:text-[#ff4500] break-all">
+            <a href={`mailto:${app.email}`} className="underline hover:text-brand break-all">
               {app.email}
             </a>
           </div>
           {app.techniques?.length ? (
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mt-2">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mt-2">
               {app.techniques.join(" · ")}
             </div>
           ) : null}
@@ -267,7 +267,7 @@ function ApplicationRow({ app, onChange }) {
                 href={app.portfolio_url}
                 target="_blank"
                 rel="noreferrer"
-                className="text-[#ff4500] hover:underline"
+                className="text-brand hover:underline"
               >
                 Portfolio ↗
               </a>
@@ -285,7 +285,7 @@ function ApplicationRow({ app, onChange }) {
             aria-label="Email applicant"
             title="Send a direct email to this applicant"
             data-testid={`app-email-${app.id}`}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] transition"
           >
             ✉ Email
           </button>
@@ -296,18 +296,18 @@ function ApplicationRow({ app, onChange }) {
             aria-label="Delete application"
             title="Delete this application"
             data-testid={`app-delete-${app.id}`}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 border border-[#262626] hover:border-red-500 hover:text-red-400 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 border border-line hover:border-red-500 hover:text-red-400 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
           >
             {deleting ? "…" : "✕ Delete"}
           </button>
         </div>
       </div>
-      <p className="font-mono text-xs text-[#e5e5e5] leading-relaxed mt-3">{displayAbout}</p>
+      <p className="font-mono text-xs text-ink leading-relaxed mt-3">{displayAbout}</p>
 
       {!decided && (
         <div className="mt-4 space-y-3">
           {app.is_beta && (
-            <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] leading-relaxed">
+            <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand leading-relaxed">
               ◆ Approving this applicant will grant Founding Seller Beta with a 90-day window.
             </p>
           )}
@@ -325,7 +325,7 @@ function ApplicationRow({ app, onChange }) {
               disabled={busy}
               type="button"
               data-testid={`app-preview-${app.id}`}
-              className="px-5 py-3 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+              className="px-5 py-3 border border-line hover:border-brand hover:text-brand font-mono text-[11px] uppercase tracking-[0.22em] transition disabled:opacity-50"
               title="Preview the email the applicant will receive on approve / reject"
             >
               ▤ Preview email
@@ -341,7 +341,7 @@ function ApplicationRow({ app, onChange }) {
             <button
               onClick={() => decide(false)}
               disabled={busy}
-              className="px-5 py-3 border border-[#262626] hover:border-red-500 hover:text-red-400 font-mono text-[11px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+              className="px-5 py-3 border border-line hover:border-red-500 hover:text-red-400 font-mono text-[11px] uppercase tracking-[0.22em] transition disabled:opacity-50"
               data-testid={`app-reject-${app.id}`}
             >
               Reject
@@ -350,7 +350,7 @@ function ApplicationRow({ app, onChange }) {
         </div>
       )}
       {decided && app.note && (
-        <div className="mt-3 font-mono text-xs text-[#a3a3a3] border-l-2 border-[#ff4500] pl-3">
+        <div className="mt-3 font-mono text-xs text-ink-muted border-l-2 border-brand pl-3">
           {app.note}
         </div>
       )}

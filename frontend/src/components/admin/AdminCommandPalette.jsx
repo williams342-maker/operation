@@ -113,16 +113,16 @@ export default function AdminCommandPalette({ tabs, onPickTab, currentTab, logou
 
   return (
     <div
-      className="fixed inset-0 z-[200] bg-black/70 flex items-start justify-center pt-[15vh] px-4"
+      className="fixed inset-0 z-[200] bg-paper/70 flex items-start justify-center pt-[15vh] px-4"
       onClick={() => setOpen(false)}
       data-testid="admin-cmdk"
     >
       <div
-        className="bg-[#0a0a0a] border border-[#262626] w-full max-w-xl shadow-2xl"
+        className="bg-paper border border-line w-full max-w-xl shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-[#262626]">
-          <Search size={16} className="text-[#a3a3a3]" />
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-line">
+          <Search size={16} className="text-ink-muted" />
           <input
             ref={inputRef}
             value={q}
@@ -140,17 +140,17 @@ export default function AdminCommandPalette({ tabs, onPickTab, currentTab, logou
               }
             }}
             placeholder="Jump to a tab or run a command…"
-            className="flex-1 bg-transparent outline-none font-mono text-sm text-[#e5e5e5] placeholder:text-[#525252]"
+            className="flex-1 bg-transparent outline-none font-mono text-sm text-ink placeholder:text-ink-muted"
             data-testid="admin-cmdk-input"
           />
-          <kbd className="hidden sm:inline px-1.5 py-0.5 border border-[#262626] font-mono text-[9px] text-[#a3a3a3]">
+          <kbd className="hidden sm:inline px-1.5 py-0.5 border border-line font-mono text-[9px] text-ink-muted">
             ESC
           </kbd>
         </div>
 
         <div className="max-h-[50vh] overflow-y-auto" data-testid="admin-cmdk-list">
           {filtered.length === 0 ? (
-            <div className="px-4 py-6 text-center font-mono text-xs text-[#525252]">
+            <div className="px-4 py-6 text-center font-mono text-xs text-ink-muted">
               No matches for "{q}"
             </div>
           ) : (
@@ -165,19 +165,19 @@ export default function AdminCommandPalette({ tabs, onPickTab, currentTab, logou
                   onClick={() => execute(e)}
                   data-testid={`admin-cmdk-item-${e.id}`}
                   className={`w-full flex items-center justify-between gap-3 px-4 py-2.5 text-left transition ${
-                    active ? "bg-[#ff4500]/10 border-l-2 border-[#ff4500]" : "border-l-2 border-transparent hover:bg-[#1a1a1a]/40"
+                    active ? "bg-brand/10 border-l-2 border-brand" : "border-l-2 border-transparent hover:bg-surface/40"
                   }`}
                 >
-                  <span className="font-mono text-xs text-[#e5e5e5] truncate">
+                  <span className="font-mono text-xs text-ink truncate">
                     {e.label}
                   </span>
                   <span className="flex items-center gap-2 shrink-0">
                     {isCurrent && (
-                      <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252]">
+                      <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted">
                         current
                       </span>
                     )}
-                    {active && <ArrowRight size={12} className="text-[#ff4500]" />}
+                    {active && <ArrowRight size={12} className="text-brand" />}
                   </span>
                 </button>
               );
@@ -185,7 +185,7 @@ export default function AdminCommandPalette({ tabs, onPickTab, currentTab, logou
           )}
         </div>
 
-        <div className="px-4 py-2 border-t border-[#262626] flex items-center justify-between text-[#525252] font-mono text-[10px]">
+        <div className="px-4 py-2 border-t border-line flex items-center justify-between text-ink-muted font-mono text-[10px]">
           <span className="flex items-center gap-1">
             <Command size={10} /> ↵ to run · ↑↓ to navigate
           </span>

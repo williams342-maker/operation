@@ -32,13 +32,13 @@ export default function LiveNowBadge() {
   const dotCls = pulse ? "bg-emerald-400 animate-pulse" : "bg-[#525252]";
   return (
     <div
-      className="hidden md:flex items-center gap-2 px-3 py-2 border border-[#262626]"
+      className="hidden md:flex items-center gap-2 px-3 py-2 border border-line"
       title={`${data.live_5m} visitors in last 5 min, ${data.live_1m} active in last 1 min`}
       data-testid="admin-live-now"
     >
       <span className={`inline-block w-2 h-2 rounded-full ${dotCls}`} />
-      <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
-        Live · <span className="text-[#e5e5e5]" data-testid="admin-live-now-count">{data.live_5m}</span>
+      <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
+        Live · <span className="text-ink" data-testid="admin-live-now-count">{data.live_5m}</span>
       </span>
     </div>
   );

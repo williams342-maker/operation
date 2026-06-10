@@ -10,6 +10,7 @@ import {
   fetchAdminOrders,
 } from "../lib/api";
 import { Stat } from "../components/admin/_shared";
+import AdminDensityToggle from "../components/AdminDensityToggle";
 import AnalyticsTab from "../components/admin/AnalyticsTab";
 import WebAnalyticsTab from "../components/admin/WebAnalyticsTab";
 import MakerAnalyticsTab from "../components/admin/MakerAnalyticsTab";
@@ -319,7 +320,7 @@ export default function AdminDashboard() {
   if (loading) {
     return (
       <div className="pt-40 pb-24 min-h-screen grain text-center" data-testid="admin-dashboard-loading">
-        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500]">
+        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand">
           ◆ Loading console…
         </div>
       </div>
@@ -348,10 +349,10 @@ export default function AdminDashboard() {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8 md:mb-10 pb-6 border-b border-[#262626]"
+          className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8 md:mb-10 pb-6 border-b border-line"
         >
           <div className="min-w-0">
-            <div className="font-mono text-[10px] md:text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-3 truncate">
+            <div className="font-mono text-[10px] md:text-[11px] uppercase tracking-[0.3em] text-brand mb-3 truncate">
               ◆ Admin Console · {me?.email}
             </div>
             <h1 className="font-display text-[36px] md:text-[72px] leading-[0.9] uppercase">
@@ -365,7 +366,7 @@ export default function AdminDashboard() {
             <EnableOrderPushButton />
             <Link
               to="/admin/workshop-analytics"
-              className="inline-flex items-center gap-1.5 px-3 md:px-4 py-2 border border-[#ff4500]/40 text-[#ff4500] hover:bg-[#ff4500]/10 hover:border-[#ff4500] font-mono text-[10px] md:text-[11px] uppercase tracking-[0.22em] transition"
+              className="inline-flex items-center gap-1.5 px-3 md:px-4 py-2 border border-brand/40 text-brand hover:bg-brand/10 hover:border-brand font-mono text-[10px] md:text-[11px] uppercase tracking-[0.22em] transition"
               data-testid="admin-workshop-analytics-link"
               title="Full Recharts dashboard with KPIs, cohorts, and time-range pills"
             >
@@ -373,7 +374,7 @@ export default function AdminDashboard() {
             </Link>
             <button
               onClick={logout}
-              className="px-3 md:px-4 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[10px] md:text-[11px] uppercase tracking-[0.22em] transition"
+              className="px-3 md:px-4 py-2 border border-line hover:border-brand font-mono text-[10px] md:text-[11px] uppercase tracking-[0.22em] transition"
               data-testid="admin-logout-btn"
             >
               Sign Out
@@ -418,7 +419,7 @@ export default function AdminDashboard() {
             <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-yellow-400 shrink-0">
               ◆ Security
             </div>
-            <div className="flex-1 font-mono text-xs text-[#e5e5e5] leading-relaxed">
+            <div className="flex-1 font-mono text-xs text-ink leading-relaxed">
               Your password expires in{" "}
               <b className="text-yellow-300" data-testid="password-expiry-days">
                 {me.password_rotation.days_until_required}{" "}
@@ -445,10 +446,10 @@ export default function AdminDashboard() {
               tabs to scroll past the visible viewport. Hidden on lg+
               where the nav becomes a vertical sidebar. */}
           <div
-            className="relative -mx-4 lg:mx-0 mb-6 lg:mb-0 lg:contents sticky top-[64px] lg:top-auto z-20 bg-[#0a0a0a] lg:bg-transparent"
+            className="relative -mx-4 lg:mx-0 mb-6 lg:mb-0 lg:contents sticky top-[64px] lg:top-auto z-20 bg-paper lg:bg-transparent"
           >
             <nav
-              className="px-4 lg:px-0 flex lg:flex-col lg:sticky lg:top-6 lg:self-start lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto border-b lg:border-b-0 lg:border-r border-[#262626] lg:pr-4 overflow-x-auto lg:overflow-x-visible scrollbar-thin"
+              className="px-4 lg:px-0 flex lg:flex-col lg:sticky lg:top-6 lg:self-start lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto border-b lg:border-b-0 lg:border-r border-line lg:pr-4 overflow-x-auto lg:overflow-x-visible scrollbar-thin"
               data-testid="admin-tabs"
               aria-label="Admin sections"
             >
@@ -463,8 +464,8 @@ export default function AdminDashboard() {
                       font-mono text-[10px] md:text-[11px] uppercase tracking-[0.18em] md:tracking-[0.22em] whitespace-nowrap transition
                       px-3 md:px-5 py-3 shrink-0 border-b-2 lg:border-b-0 lg:border-l-2 lg:w-full lg:text-left lg:px-3 lg:py-2.5
                       ${active
-                        ? "border-[#ff4500] text-[#ff4500] lg:bg-[#ff4500]/5"
-                        : "border-transparent text-[#a3a3a3] hover:text-[#e5e5e5] lg:hover:bg-[#121212]"}
+                        ? "border-brand text-brand lg:bg-brand/5"
+                        : "border-transparent text-ink-muted hover:text-ink lg:hover:bg-surface"}
                     `}
                     data-testid={`admin-tab-${t.id}`}
                     aria-current={active ? "page" : undefined}
@@ -478,15 +479,21 @@ export default function AdminDashboard() {
                 Pointer-events disabled so they never block tab clicks. */}
             <div
               aria-hidden="true"
-              className="lg:hidden absolute top-0 left-0 bottom-0 w-8 pointer-events-none bg-gradient-to-r from-[#0a0a0a] to-transparent"
+              className="lg:hidden absolute top-0 left-0 bottom-0 w-8 pointer-events-none bg-gradient-to-r from-paper to-transparent"
             />
             <div
               aria-hidden="true"
-              className="lg:hidden absolute top-0 right-0 bottom-0 w-8 pointer-events-none bg-gradient-to-l from-[#0a0a0a] to-transparent"
+              className="lg:hidden absolute top-0 right-0 bottom-0 w-8 pointer-events-none bg-gradient-to-l from-paper to-transparent"
             />
           </div>
 
           <div className="min-w-0">
+            {/* iter353 — Density toggle pinned to the top of the content
+                column so it's always reachable when scrolling through dense
+                admin tables. */}
+            <div className="hidden lg:flex justify-end mb-3" data-testid="admin-density-toggle-wrap">
+              <AdminDensityToggle />
+            </div>
             <AdminTabBoundary tabId={tab} key={tab}>
             {tab === "analytics" && <AnalyticsTab />}
             {tab === "retention" && <RetentionTab />}

@@ -20,7 +20,7 @@ const STATUS_STYLES = {
   ok:        { border: "border-emerald-500/40", bg: "bg-emerald-500/5",  text: "text-emerald-400", icon: <CheckCircle2 size={14} />, label: "OK" },
   due_soon:  { border: "border-yellow-500/50", bg: "bg-yellow-500/5",   text: "text-yellow-400",  icon: <Clock size={14} />,         label: "Due soon" },
   overdue:   { border: "border-red-500/50",    bg: "bg-red-500/5",      text: "text-red-400",     icon: <AlertTriangle size={14} />, label: "Overdue" },
-  missing:   { border: "border-[#525252]/40",  bg: "bg-[#525252]/5",    text: "text-[#a3a3a3]",   icon: <ShieldOff size={14} />,     label: "Not configured" },
+  missing:   { border: "border-[#525252]/40",  bg: "bg-[#525252]/5",    text: "text-ink-muted",   icon: <ShieldOff size={14} />,     label: "Not configured" },
 };
 
 function authHeaders() {
@@ -177,7 +177,7 @@ export default function SecretsTab() {
 
   if (loading || !data) {
     return (
-      <div className="py-12 text-center font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500]" data-testid="secrets-loading">
+      <div className="py-12 text-center font-mono text-[11px] uppercase tracking-[0.3em] text-brand" data-testid="secrets-loading">
         ◆ Loading rotation status…
       </div>
     );
@@ -194,19 +194,19 @@ export default function SecretsTab() {
 
       <header className="flex items-end justify-between gap-4 flex-wrap">
         <div>
-          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-1 inline-flex items-center gap-2">
+          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-1 inline-flex items-center gap-2">
             <Shield size={12} /> Super admin only
           </div>
           <h2 className="font-display text-3xl uppercase">Secrets Rotation.</h2>
-          <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-[60ch] leading-relaxed">
+          <p className="font-mono text-xs text-ink-muted mt-2 max-w-[60ch] leading-relaxed">
             Tracks rotation cadence for every external credential. We never read or store the secret values —
-            only the audit history of WHEN you rotated each. Click <span className="text-[#ff4500]">Mark rotated</span> after
+            only the audit history of WHEN you rotated each. Click <span className="text-brand">Mark rotated</span> after
             you've actually rotated on the provider's site + updated the env var.
           </p>
         </div>
         <button
           onClick={load}
-          className="px-3 py-2 border border-[#262626] hover:border-[#ff4500]/40 font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5"
+          className="px-3 py-2 border border-line hover:border-brand/40 font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5"
           data-testid="secrets-refresh"
         >
           <RefreshCw size={12} /> Refresh
@@ -224,7 +224,7 @@ export default function SecretsTab() {
       {/* Groups */}
       {Object.entries(groups).map(([category, rows]) => (
         <section key={category} data-testid={`secrets-group-${category.toLowerCase()}`}>
-          <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#ff4500] mb-3">
+          <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand mb-3">
             ◆ {category}
           </div>
           <ul className="space-y-3">
@@ -261,11 +261,11 @@ export default function SecretsTab() {
 
 function SummaryStat({ label, value, tone, testId }) {
   const toneClass = {
-    neutral: "border-[#262626] text-[#e5e5e5]",
+    neutral: "border-line text-ink",
     emerald: "border-emerald-500/40 text-emerald-400",
     red: "border-red-500/40 text-red-400",
-    gray: "border-[#525252]/40 text-[#a3a3a3]",
-  }[tone] || "border-[#262626]";
+    gray: "border-[#525252]/40 text-ink-muted",
+  }[tone] || "border-line";
   return (
     <div className={`border ${toneClass} p-4`} data-testid={testId}>
       <div className="font-mono text-[10px] uppercase tracking-[0.22em] opacity-70">{label}</div>
@@ -288,10 +288,10 @@ function SecretRow({ secret, onMarkRotated, busy, pendingRotation, onAutoRotate,
           <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-yellow-400 inline-flex items-center gap-1.5">
             <Zap size={12} /> Rotation in flight
           </div>
-          <div className="font-mono text-xs text-[#e5e5e5] mt-2 leading-relaxed">
+          <div className="font-mono text-xs text-ink mt-2 leading-relaxed">
             New endpoint <code className="text-yellow-400">{pendingRotation.new_endpoint_id}</code> created
             {pendingRotation.started_at && <> · {timeAgo(pendingRotation.started_at)}</>}
-            {pendingRotation.started_by && <> by <span className="text-[#a3a3a3]">{pendingRotation.started_by}</span></>}
+            {pendingRotation.started_by && <> by <span className="text-ink-muted">{pendingRotation.started_by}</span></>}
             .<br />
             New secret preview: <code className="text-yellow-400">{pendingRotation.new_secret_preview}</code>.
             Once env is updated + redeployed, click <span className="text-emerald-400">Finalize</span> to delete the old endpoint.
@@ -308,7 +308,7 @@ function SecretRow({ secret, onMarkRotated, busy, pendingRotation, onAutoRotate,
             <button
               onClick={onCancelRotation}
               disabled={!!autoRotateBusy}
-              className="px-3 py-1.5 border border-[#525252] text-[#a3a3a3] hover:border-red-500/40 hover:text-red-400 font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-30"
+              className="px-3 py-1.5 border border-[#525252] text-ink-muted hover:border-red-500/40 hover:text-red-400 font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-30"
               data-testid={`cancel-rotation-${secret.id}`}
             >
               {autoRotateBusy === "cancel" ? "Cancelling…" : "Cancel rotation"}
@@ -320,34 +320,34 @@ function SecretRow({ secret, onMarkRotated, busy, pendingRotation, onAutoRotate,
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <Key size={14} className="text-[#a3a3a3] shrink-0" />
+            <Key size={14} className="text-ink-muted shrink-0" />
             <div className="font-display text-lg">{secret.label}</div>
             <span className={`inline-flex items-center gap-1 px-2 py-0.5 border ${style.border} ${style.text} font-mono text-[10px] uppercase tracking-[0.18em]`}>
               {style.icon} {style.label}
             </span>
             {isStripeWebhook && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 border border-[#ff4500]/40 text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.18em]">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 border border-brand/40 text-brand font-mono text-[10px] uppercase tracking-[0.18em]">
                 <Zap size={11} /> Auto-rotate available
               </span>
             )}
           </div>
 
-          <div className="font-mono text-[11px] text-[#737373] mt-2 flex flex-wrap gap-x-4 gap-y-1">
-            <span>env: {secret.env_keys.map((k) => <code key={k} className="text-[#a3a3a3]">{k}</code>).reduce((acc, x, i) => i === 0 ? [x] : [...acc, " | ", x], [])}</span>
+          <div className="font-mono text-[11px] text-ink-muted mt-2 flex flex-wrap gap-x-4 gap-y-1">
+            <span>env: {secret.env_keys.map((k) => <code key={k} className="text-ink-muted">{k}</code>).reduce((acc, x, i) => i === 0 ? [x] : [...acc, " | ", x], [])}</span>
             <span>cadence: {secret.cadence_days}d</span>
             {secret.last_rotated_at ? (
               <span>
                 last rotated:{" "}
-                <span title={`${new Date(secret.last_rotated_at).toLocaleString()} by ${secret.last_rotated_by || "unknown"}`} className="text-[#e5e5e5]">
+                <span title={`${new Date(secret.last_rotated_at).toLocaleString()} by ${secret.last_rotated_by || "unknown"}`} className="text-ink">
                   {timeAgo(secret.last_rotated_at)}
                 </span>
-                {secret.last_rotated_by && <span className="text-[#525252]"> · {secret.last_rotated_by}</span>}
+                {secret.last_rotated_by && <span className="text-ink-muted"> · {secret.last_rotated_by}</span>}
               </span>
             ) : (
-              <span className="text-[#a3a3a3]">last rotated: <span className="text-[#737373]">no record</span></span>
+              <span className="text-ink-muted">last rotated: <span className="text-ink-muted">no record</span></span>
             )}
             {secret.days_until_due !== null && secret.days_until_due !== undefined && (
-              <span className={secret.overdue ? "text-red-400" : (secret.days_until_due < 30 ? "text-yellow-400" : "text-[#a3a3a3]")}>
+              <span className={secret.overdue ? "text-red-400" : (secret.days_until_due < 30 ? "text-yellow-400" : "text-ink-muted")}>
                 {secret.overdue
                   ? `overdue by ${Math.abs(secret.days_until_due)}d`
                   : `due in ${secret.days_until_due}d`}
@@ -356,17 +356,17 @@ function SecretRow({ secret, onMarkRotated, busy, pendingRotation, onAutoRotate,
           </div>
 
           <details className="mt-3 group">
-            <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] inline-block">
+            <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand inline-block">
               ◆ How to rotate ↓
             </summary>
-            <div className="mt-3 p-3 border border-[#262626] bg-[#0c0c0c] font-mono text-xs text-[#a3a3a3] leading-relaxed">
+            <div className="mt-3 p-3 border border-line bg-[#0c0c0c] font-mono text-xs text-ink-muted leading-relaxed">
               {secret.rotation_notes}
               <div className="mt-3">
                 <a
                   href={secret.rotation_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-[#ff4500] hover:underline"
+                  className="inline-flex items-center gap-1 text-brand hover:underline"
                 >
                   <ExternalLink size={11} /> Open provider dashboard
                 </a>
@@ -380,7 +380,7 @@ function SecretRow({ secret, onMarkRotated, busy, pendingRotation, onAutoRotate,
             <button
               onClick={onAutoRotate}
               disabled={!!autoRotateBusy || !secret.is_set}
-              className="px-3 py-2 border border-[#ff4500] bg-[#ff4500]/10 text-[#ff4500] hover:bg-[#ff4500]/20 font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-30 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
+              className="px-3 py-2 border border-brand bg-brand/10 text-brand hover:bg-brand/20 font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-30 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
               data-testid={`auto-rotate-${secret.id}`}
               title={!secret.is_set ? "Secret is not currently configured in env" : "Create a new Stripe webhook endpoint and get a fresh secret"}
             >
@@ -391,7 +391,7 @@ function SecretRow({ secret, onMarkRotated, busy, pendingRotation, onAutoRotate,
           <button
             onClick={onMarkRotated}
             disabled={busy || !secret.is_set}
-            className="px-3 py-2 border border-[#525252] text-[#a3a3a3] hover:border-[#ff4500]/40 hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-30 disabled:cursor-not-allowed"
+            className="px-3 py-2 border border-[#525252] text-ink-muted hover:border-brand/40 hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-30 disabled:cursor-not-allowed"
             data-testid={`mark-rotated-${secret.id}`}
             title={!secret.is_set ? "Secret is not currently configured in env" : "Manually mark rotated (no Stripe API call)"}
           >
@@ -416,58 +416,58 @@ function RevealedSecretModal({ info, onClose }) {
   };
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-6"
+      className="fixed inset-0 z-50 bg-paper/80 backdrop-blur-sm flex items-center justify-center p-6"
       data-testid="revealed-secret-modal"
     >
-      <div className="max-w-2xl w-full border border-[#ff4500]/40 bg-[#0a0a0a] p-6 relative">
+      <div className="max-w-2xl w-full border border-brand/40 bg-paper p-6 relative">
         <button
           onClick={onClose}
-          className="absolute top-3 right-3 text-[#a3a3a3] hover:text-[#ff4500]"
+          className="absolute top-3 right-3 text-ink-muted hover:text-brand"
           data-testid="revealed-secret-close"
           aria-label="Close"
         >
           <X size={18} />
         </button>
-        <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#ff4500] mb-2 inline-flex items-center gap-2">
+        <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand mb-2 inline-flex items-center gap-2">
           <Zap size={12} /> Copy this NOW — shown only once
         </div>
         <h3 className="font-display text-2xl mb-3">New Stripe webhook signing secret</h3>
-        <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed mb-4">
-          Paste this into <code className="text-[#ff4500]">{info.env_var}</code> in your production env,
+        <p className="font-mono text-xs text-ink-muted leading-relaxed mb-4">
+          Paste this into <code className="text-brand">{info.env_var}</code> in your production env,
           then redeploy. The OLD endpoint stays active until you click <span className="text-emerald-400">Finalize</span> on
           the secrets tab — that protects in-flight events during the redeploy.
         </p>
 
-        <div className="border border-[#262626] bg-[#0c0c0c] p-3 mb-3">
-          <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#737373] mb-1">env var name</div>
-          <code className="font-mono text-sm text-[#e5e5e5]">{info.env_var}</code>
+        <div className="border border-line bg-[#0c0c0c] p-3 mb-3">
+          <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted mb-1">env var name</div>
+          <code className="font-mono text-sm text-ink">{info.env_var}</code>
         </div>
 
-        <div className="border border-[#ff4500]/40 bg-[#ff4500]/5 p-3 mb-4">
-          <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#ff4500] mb-1">new signing secret</div>
+        <div className="border border-brand/40 bg-brand/5 p-3 mb-4">
+          <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-brand mb-1">new signing secret</div>
           <code
-            className="block font-mono text-sm text-[#e5e5e5] break-all select-all"
+            className="block font-mono text-sm text-ink break-all select-all"
             data-testid="revealed-secret-value"
           >
             {info.secret}
           </code>
         </div>
 
-        <div className="font-mono text-[10px] text-[#737373] mb-4">
-          New endpoint ID: <code className="text-[#a3a3a3]">{info.endpoint_id}</code>
+        <div className="font-mono text-[10px] text-ink-muted mb-4">
+          New endpoint ID: <code className="text-ink-muted">{info.endpoint_id}</code>
         </div>
 
         <div className="flex gap-2 flex-wrap">
           <button
             onClick={onCopy}
-            className="px-3 py-2 border border-[#ff4500] bg-[#ff4500]/10 text-[#ff4500] hover:bg-[#ff4500]/20 font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5"
+            className="px-3 py-2 border border-brand bg-brand/10 text-brand hover:bg-brand/20 font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5"
             data-testid="revealed-secret-copy"
           >
             <Copy size={11} /> {copied ? "Copied" : "Copy secret"}
           </button>
           <button
             onClick={onClose}
-            className="px-3 py-2 border border-[#525252] text-[#a3a3a3] hover:border-[#ff4500]/40 font-mono text-[10px] uppercase tracking-[0.22em]"
+            className="px-3 py-2 border border-[#525252] text-ink-muted hover:border-brand/40 font-mono text-[10px] uppercase tracking-[0.22em]"
             data-testid="revealed-secret-dismiss"
           >
             I've saved it

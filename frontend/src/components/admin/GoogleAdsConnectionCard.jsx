@@ -141,8 +141,8 @@ export default function GoogleAdsConnectionCard() {
 
   if (!status) {
     return (
-      <div className="border border-[#262626] p-4 md:p-5" data-testid="google-ads-card-loading">
-        <p className="font-mono text-xs text-[#525252]">Loading Google Ads status…</p>
+      <div className="border border-line p-4 md:p-5" data-testid="google-ads-card-loading">
+        <p className="font-mono text-xs text-ink-muted">Loading Google Ads status…</p>
       </div>
     );
   }
@@ -159,19 +159,19 @@ export default function GoogleAdsConnectionCard() {
   const toneCls = {
     emerald: "border-emerald-700/50 text-emerald-300 bg-emerald-900/10",
     amber: "border-amber-700/50 text-amber-300 bg-amber-900/10",
-    neutral: "border-[#404040] text-[#a3a3a3] bg-[#0d0d0d]",
+    neutral: "border-line text-ink-muted bg-paper",
   }[pill.tone];
 
   return (
-    <div className="border border-[#262626] p-4 md:p-5" data-testid="google-ads-card">
+    <div className="border border-line p-4 md:p-5" data-testid="google-ads-card">
       {confirmModal}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="min-w-0">
-          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-2">
+          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-2">
             ◆ Google Ads · live integration
           </div>
           <h3 className="font-display text-xl uppercase mb-1">Connect your Ads account</h3>
-          <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed max-w-2xl">
+          <p className="font-mono text-xs text-ink-muted leading-relaxed max-w-2xl">
             Pulls daily campaign-level spend, clicks, impressions, and conversions into the ad_spend ledger. Daily sync runs at 03:30 UTC. Read-only — we never modify your campaigns or bidding.
           </p>
         </div>
@@ -189,7 +189,7 @@ export default function GoogleAdsConnectionCard() {
             ⚠ Env vars required before connecting
           </p>
           <p className="font-mono text-[11px] text-amber-100 leading-relaxed mb-2">
-            Add these to <code className="text-[#ff4500]">/app/backend/.env</code> (or your prod env), then redeploy:
+            Add these to <code className="text-brand">/app/backend/.env</code> (or your prod env), then redeploy:
           </p>
           <ul className="font-mono text-[10px] text-amber-200/90 space-y-0.5">
             {(status.missing_env || []).map((k) => (
@@ -223,7 +223,7 @@ export default function GoogleAdsConnectionCard() {
               </p>
               <div className="flex items-stretch gap-2">
                 <code
-                  className="flex-1 bg-[#0a0a0a] border border-[#262626] px-2 py-1.5 font-mono text-[11px] text-[#e5e5e5] break-all"
+                  className="flex-1 bg-paper border border-line px-2 py-1.5 font-mono text-[11px] text-ink break-all"
                   data-testid="google-ads-redirect-uri-value"
                 >
                   {status.redirect_uri}
@@ -255,13 +255,13 @@ export default function GoogleAdsConnectionCard() {
             <button
               onClick={onConnect}
               disabled={busy === "connect"}
-              className="px-4 py-2 border border-[#ff4500] text-[#ff4500] hover:bg-[#ff4500] hover:text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50 flex items-center gap-2"
+              className="px-4 py-2 border border-brand text-brand hover:bg-brand hover:text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50 flex items-center gap-2"
               data-testid="google-ads-connect-btn"
             >
               {busy === "connect" ? <Loader2 size={12} className="animate-spin" /> : null}
               Connect Google Ads
             </button>
-            <span className="font-mono text-[10px] text-[#525252]">
+            <span className="font-mono text-[10px] text-ink-muted">
               ↗ opens Google's consent screen
             </span>
           </div>
@@ -290,7 +290,7 @@ export default function GoogleAdsConnectionCard() {
           <button
             onClick={onSync}
             disabled={busy === "sync"}
-            className="px-3 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50 flex items-center gap-1.5"
+            className="px-3 py-2 border border-line hover:border-brand font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50 flex items-center gap-1.5"
             data-testid="google-ads-sync-btn"
           >
             {busy === "sync" ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />}
@@ -299,7 +299,7 @@ export default function GoogleAdsConnectionCard() {
           <button
             onClick={onBackfill}
             disabled={busy === "backfill"}
-            className="px-3 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50 flex items-center gap-1.5"
+            className="px-3 py-2 border border-line hover:border-brand font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50 flex items-center gap-1.5"
             data-testid="google-ads-backfill-btn"
             title="Pull the last 30 days of spend into the ad_spend ledger. Takes 1–3 min."
           >
@@ -322,10 +322,10 @@ export default function GoogleAdsConnectionCard() {
 
 function Stat({ label, value, sub }) {
   return (
-    <div className="border border-[#1f1f1f] p-3">
-      <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252]">{label}</div>
-      <div className="font-display text-base text-[#e5e5e5] mt-1 truncate">{value}</div>
-      {sub && <div className="font-mono text-[10px] text-[#525252] mt-0.5 truncate">{sub}</div>}
+    <div className="border border-line p-3">
+      <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted">{label}</div>
+      <div className="font-display text-base text-ink mt-1 truncate">{value}</div>
+      {sub && <div className="font-mono text-[10px] text-ink-muted mt-0.5 truncate">{sub}</div>}
     </div>
   );
 }

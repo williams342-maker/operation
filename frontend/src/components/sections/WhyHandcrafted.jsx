@@ -20,7 +20,7 @@ import { Hammer, ShieldCheck, Workflow, Sparkles } from "lucide-react";
 export default function WhyHandcrafted() {
   return (
     <section
-      className="w-full py-20 md:py-28 bg-[#0a0a0a] border-b border-[#262626]"
+      className="w-full py-20 md:py-28 bg-paper border-b border-line"
       data-testid="why-handcrafted"
     >
       <div className="w-full max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12">
@@ -32,13 +32,13 @@ export default function WhyHandcrafted() {
           transition={{ duration: 0.6 }}
           className="max-w-3xl mb-10"
         >
-          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-3">
+          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-3">
             ◆ Why find something built by hand?
           </div>
           <h2 className="font-display text-4xl md:text-5xl lg:text-6xl leading-[0.95] mb-5">
             Built by makers,<br />not factories.
           </h2>
-          <p className="font-mono text-sm text-[#d4d4d4] leading-relaxed max-w-2xl">
+          <p className="font-mono text-sm text-ink leading-relaxed max-w-2xl">
             Crafters Market is a curated marketplace for precision CNC
             artisans, plasma-cutting metalworkers, and small woodshops
             shipping handcrafted goods directly from the maker's bench
@@ -79,11 +79,11 @@ export default function WhyHandcrafted() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
-          className="border-t border-[#262626] pt-12"
+          className="border-t border-line pt-12"
         >
           <div className="flex items-center gap-2 mb-6">
-            <Sparkles size={14} className="text-[#ff4500]" />
-            <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500]">
+            <Sparkles size={14} className="text-brand" />
+            <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand">
               ◆ How a Crafters Market order works
             </div>
           </div>
@@ -126,17 +126,17 @@ function Pillar({ icon: Icon, eyebrow, title, body, testId }) {
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, amount: 0.2 }}
       transition={{ duration: 0.6 }}
-      className="bg-[#121212] border border-[#262626] hover:border-[#ff4500]/60 transition-colors p-7"
+      className="bg-surface border border-line hover:border-brand/60 transition-colors p-7"
       data-testid={testId}
     >
-      <div className="w-10 h-10 border border-[#ff4500] bg-[#1a0a05] flex items-center justify-center mb-5">
-        <Icon size={18} className="text-[#ff4500]" />
+      <div className="w-10 h-10 border border-brand bg-[#1a0a05] flex items-center justify-center mb-5">
+        <Icon size={18} className="text-brand" />
       </div>
-      <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#a3a3a3] mb-2">
+      <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-ink-muted mb-2">
         {eyebrow}
       </div>
       <h3 className="font-display text-2xl md:text-3xl leading-tight mb-3">{title}</h3>
-      <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed">{body}</p>
+      <p className="font-mono text-xs text-ink-muted leading-relaxed">{body}</p>
     </motion.div>
   );
 }
@@ -144,9 +144,9 @@ function Pillar({ icon: Icon, eyebrow, title, body, testId }) {
 function Step({ n, title, body, testId }) {
   return (
     <div className="relative pl-1" data-testid={testId}>
-      <div className="font-display text-5xl text-[#ff4500]/70 leading-none mb-3">{n}</div>
+      <div className="font-display text-5xl text-brand/70 leading-none mb-3">{n}</div>
       <h4 className="font-display text-xl mb-2">{title}</h4>
-      <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed">{body}</p>
+      <p className="font-mono text-xs text-ink-muted leading-relaxed">{body}</p>
     </div>
   );
 }

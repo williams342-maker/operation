@@ -23,7 +23,7 @@ const STATUS_TONE = {
   active:    "border-emerald-700/50 text-emerald-300",
   scheduled: "border-cyan-700/50 text-cyan-300",
   paused:    "border-amber-700/50 text-amber-300",
-  ended:     "border-[#404040] text-[#737373]",
+  ended:     "border-line text-ink-muted",
 };
 
 function todayIso() {
@@ -99,14 +99,14 @@ export default function PromoteThemesCard() {
   };
 
   return (
-    <div className="border border-[#262626] p-4 md:p-5" data-testid="promote-themes-card">
+    <div className="border border-line p-4 md:p-5" data-testid="promote-themes-card">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-cyan-300 mb-2 flex items-center gap-1.5">
             <Sparkles size={12} /> ◆ Marketplace Themes
           </div>
           <h3 className="font-display text-2xl uppercase mb-1">Cross-maker Promote Campaigns</h3>
-          <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed max-w-2xl">
+          <p className="font-mono text-xs text-ink-muted leading-relaxed max-w-2xl">
             Shared budget pools that subsidize maker boosts on listings matching a category. Multiple makers benefit from one pool; per-maker + per-listing caps keep allocation fair.
           </p>
         </div>
@@ -144,7 +144,7 @@ export default function PromoteThemesCard() {
             </div>
             <button
               onClick={() => setSuggestions(null)}
-              className="text-[#737373] hover:text-[#a3a3a3]"
+              className="text-ink-muted hover:text-ink-muted"
               data-testid="promote-themes-suggestions-close"
               aria-label="Close suggestions"
             >
@@ -155,11 +155,11 @@ export default function PromoteThemesCard() {
             {suggestions.map((s) => (
               <div
                 key={s.tag}
-                className="border border-amber-700/30 bg-[#050505] p-3"
+                className="border border-amber-700/30 bg-paper p-3"
                 data-testid={`promote-theme-suggestion-${s.tag}`}
               >
                 <div className="font-display text-base text-amber-200 truncate">{s.draft.name}</div>
-                <div className="font-mono text-[10px] text-[#a3a3a3] mt-1">
+                <div className="font-mono text-[10px] text-ink-muted mt-1">
                   <span className="text-amber-300">+{s.growth_pct}%</span>
                   {" · "}{s.recent_orders} orders · {s.distinct_makers} makers
                 </div>
@@ -185,14 +185,14 @@ export default function PromoteThemesCard() {
       )}
 
       <div className="mt-4">
-        {loading && <p className="font-mono text-xs text-[#737373]">Loading themes…</p>}
+        {loading && <p className="font-mono text-xs text-ink-muted">Loading themes…</p>}
         {!loading && themes.length === 0 && (
-          <p className="font-mono text-xs text-[#737373]" data-testid="promote-themes-empty">
+          <p className="font-mono text-xs text-ink-muted" data-testid="promote-themes-empty">
             No themes yet. Click &ldquo;New theme&rdquo; to create the first one.
           </p>
         )}
         {!loading && themes.length > 0 && (
-          <div className="border border-[#262626] divide-y divide-[#1a1a1a]" data-testid="promote-themes-list">
+          <div className="border border-line divide-y divide-line" data-testid="promote-themes-list">
             {themes.map((t) => {
               const used = (t.pool_total_cents - t.pool_remaining_cents);
               const usedPct = Math.min(100, Math.round((used / Math.max(1, t.pool_total_cents)) * 100));
@@ -204,12 +204,12 @@ export default function PromoteThemesCard() {
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-display text-lg text-[#f5f5f5]">{t.name}</span>
+                      <span className="font-display text-lg text-ink">{t.name}</span>
                       <span className={`font-mono text-[9px] uppercase tracking-[0.22em] px-1.5 py-0.5 border ${STATUS_TONE[t.status] || ""}`}>
                         {t.status}
                       </span>
                     </div>
-                    <div className="font-mono text-[10px] text-[#a3a3a3] mt-1 flex flex-wrap gap-3">
+                    <div className="font-mono text-[10px] text-ink-muted mt-1 flex flex-wrap gap-3">
                       <span>{t.start_date} → {t.end_date}</span>
                       <span>${(t.pool_remaining_cents / 100).toFixed(0)} / ${(t.pool_total_cents / 100).toFixed(0)} left</span>
                       <span>per-maker cap ${(t.per_maker_cap_cents / 100).toFixed(0)}</span>
@@ -224,7 +224,7 @@ export default function PromoteThemesCard() {
                         ))}
                       </div>
                     )}
-                    <div className="mt-2 h-1 bg-[#1f1f1f] max-w-md">
+                    <div className="mt-2 h-1 bg-surface max-w-md">
                       <div className="h-1 bg-gradient-to-r from-cyan-600 to-cyan-300" style={{ width: `${usedPct}%` }} />
                     </div>
                   </div>
@@ -253,7 +253,7 @@ export default function PromoteThemesCard() {
                       <button
                         onClick={() => onStatus(t.theme_id, "ended")}
                         disabled={busy === `${t.theme_id}:ended`}
-                        className="px-2 py-1 border border-[#404040] hover:border-red-500 hover:text-red-300 text-[#a3a3a3] font-mono text-[9px] uppercase tracking-[0.22em] flex items-center gap-1 disabled:opacity-50"
+                        className="px-2 py-1 border border-line hover:border-red-500 hover:text-red-300 text-ink-muted font-mono text-[9px] uppercase tracking-[0.22em] flex items-center gap-1 disabled:opacity-50"
                         data-testid={`promote-theme-end-${t.slug}`}
                       >
                         <Square size={10} /> End
@@ -325,7 +325,7 @@ function NewThemeForm({ onCancel, onCreated, seed }) {
       data-testid="promote-themes-form"
     >
       <label className="block sm:col-span-2">
-        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Name</span>
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Name</span>
         <input
           type="text"
           required
@@ -334,13 +334,13 @@ function NewThemeForm({ onCancel, onCreated, seed }) {
           value={name}
           onChange={(e) => onSlugSync(e.target.value)}
           placeholder="Outdoor Decor Week"
-          className="mt-1 w-full bg-[#050505] border border-[#262626] focus:border-cyan-400 px-3 py-2 font-mono text-sm text-[#f5f5f5] outline-none"
+          className="mt-1 w-full bg-paper border border-line focus:border-cyan-400 px-3 py-2 font-mono text-sm text-ink outline-none"
           data-testid="promote-themes-form-name"
         />
       </label>
 
       <label className="block">
-        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Slug</span>
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Slug</span>
         <input
           type="text"
           required
@@ -350,49 +350,49 @@ function NewThemeForm({ onCancel, onCreated, seed }) {
           value={slug}
           onChange={(e) => setSlug(e.target.value.toLowerCase())}
           placeholder="outdoor-decor-week"
-          className="mt-1 w-full bg-[#050505] border border-[#262626] focus:border-cyan-400 px-3 py-2 font-mono text-sm text-[#f5f5f5] outline-none"
+          className="mt-1 w-full bg-paper border border-line focus:border-cyan-400 px-3 py-2 font-mono text-sm text-ink outline-none"
           data-testid="promote-themes-form-slug"
         />
       </label>
 
       <label className="block">
-        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Category filter (comma-sep, empty = all)</span>
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Category filter (comma-sep, empty = all)</span>
         <input
           type="text"
           value={categoryFilter}
           onChange={(e) => setCategoryFilter(e.target.value)}
           placeholder="outdoor, garden, patio"
-          className="mt-1 w-full bg-[#050505] border border-[#262626] focus:border-cyan-400 px-3 py-2 font-mono text-sm text-[#f5f5f5] outline-none"
+          className="mt-1 w-full bg-paper border border-line focus:border-cyan-400 px-3 py-2 font-mono text-sm text-ink outline-none"
           data-testid="promote-themes-form-categories"
         />
       </label>
 
       <label className="block">
-        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Start date</span>
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Start date</span>
         <input
           type="date"
           required
           value={startDate}
           onChange={(e) => setStartDate(e.target.value)}
-          className="mt-1 w-full bg-[#050505] border border-[#262626] focus:border-cyan-400 px-3 py-2 font-mono text-sm text-[#f5f5f5] outline-none"
+          className="mt-1 w-full bg-paper border border-line focus:border-cyan-400 px-3 py-2 font-mono text-sm text-ink outline-none"
           data-testid="promote-themes-form-start"
         />
       </label>
 
       <label className="block">
-        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">End date</span>
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">End date</span>
         <input
           type="date"
           required
           value={endDate}
           onChange={(e) => setEndDate(e.target.value)}
-          className="mt-1 w-full bg-[#050505] border border-[#262626] focus:border-cyan-400 px-3 py-2 font-mono text-sm text-[#f5f5f5] outline-none"
+          className="mt-1 w-full bg-paper border border-line focus:border-cyan-400 px-3 py-2 font-mono text-sm text-ink outline-none"
           data-testid="promote-themes-form-end"
         />
       </label>
 
       <label className="block">
-        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Pool total ($)</span>
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Pool total ($)</span>
         <input
           type="number"
           required
@@ -400,13 +400,13 @@ function NewThemeForm({ onCancel, onCreated, seed }) {
           max={100000}
           value={poolDollars}
           onChange={(e) => setPoolDollars(Number(e.target.value))}
-          className="mt-1 w-full bg-[#050505] border border-[#262626] focus:border-cyan-400 px-3 py-2 font-mono text-sm text-[#f5f5f5] outline-none"
+          className="mt-1 w-full bg-paper border border-line focus:border-cyan-400 px-3 py-2 font-mono text-sm text-ink outline-none"
           data-testid="promote-themes-form-pool"
         />
       </label>
 
       <label className="block">
-        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Per-maker cap ($)</span>
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Per-maker cap ($)</span>
         <input
           type="number"
           required
@@ -414,13 +414,13 @@ function NewThemeForm({ onCancel, onCreated, seed }) {
           max={10000}
           value={perMakerCapDollars}
           onChange={(e) => setPerMakerCapDollars(Number(e.target.value))}
-          className="mt-1 w-full bg-[#050505] border border-[#262626] focus:border-cyan-400 px-3 py-2 font-mono text-sm text-[#f5f5f5] outline-none"
+          className="mt-1 w-full bg-paper border border-line focus:border-cyan-400 px-3 py-2 font-mono text-sm text-ink outline-none"
           data-testid="promote-themes-form-maker-cap"
         />
       </label>
 
       <label className="block">
-        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Per-listing cap ($)</span>
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Per-listing cap ($)</span>
         <input
           type="number"
           required
@@ -428,7 +428,7 @@ function NewThemeForm({ onCancel, onCreated, seed }) {
           max={10000}
           value={perListingCapDollars}
           onChange={(e) => setPerListingCapDollars(Number(e.target.value))}
-          className="mt-1 w-full bg-[#050505] border border-[#262626] focus:border-cyan-400 px-3 py-2 font-mono text-sm text-[#f5f5f5] outline-none"
+          className="mt-1 w-full bg-paper border border-line focus:border-cyan-400 px-3 py-2 font-mono text-sm text-ink outline-none"
           data-testid="promote-themes-form-listing-cap"
         />
       </label>
@@ -437,7 +437,7 @@ function NewThemeForm({ onCancel, onCreated, seed }) {
         <button
           type="button"
           onClick={onCancel}
-          className="px-3 py-2 border border-[#262626] hover:border-[#525252] font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]"
+          className="px-3 py-2 border border-line hover:border-ink-muted font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted"
           data-testid="promote-themes-form-cancel"
         >
           Cancel

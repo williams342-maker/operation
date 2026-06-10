@@ -74,7 +74,7 @@ export default function ShowcaseCurationTab() {
 
   if (loading) {
     return (
-      <div className="font-mono text-sm text-[#a3a3a3]" data-testid="showcase-curation-loading">
+      <div className="font-mono text-sm text-ink-muted" data-testid="showcase-curation-loading">
         Loading showcase posts…
       </div>
     );
@@ -86,20 +86,20 @@ export default function ShowcaseCurationTab() {
 
   return (
     <div className="space-y-8" data-testid="showcase-curation-tab">
-      <div className="flex items-end justify-between gap-3 flex-wrap border-b border-[#262626] pb-4">
+      <div className="flex items-end justify-between gap-3 flex-wrap border-b border-line pb-4">
         <div>
-          <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#ff4500] mb-1">
+          <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-brand mb-1">
             ◆ Showcase Curation
           </div>
           <h2 className="font-display text-3xl">Rotate the Community Showcase</h2>
-          <p className="font-mono text-[11px] text-[#a3a3a3] mt-2 max-w-[68ch] leading-relaxed">
+          <p className="font-mono text-[11px] text-ink-muted mt-2 max-w-[68ch] leading-relaxed">
             Pin the work you want greeting buyers, hide anything that's gone stale, shuffle the rest in one click. Pinned posts stay at the top permanently. The public order on <code className="text-emerald-300">/community</code> updates the moment you click — no redeploy needed.
           </p>
         </div>
         <button
           onClick={onShuffle}
           disabled={shuffling || visible.length === 0}
-          className="px-4 py-2 border border-amber-500 text-amber-300 font-mono text-[11px] uppercase tracking-[0.22em] hover:bg-amber-500 hover:text-black disabled:opacity-50"
+          className="px-4 py-2 border border-amber-500 text-amber-300 font-mono text-[11px] uppercase tracking-[0.22em] hover:bg-amber-500 hover:text-ink disabled:opacity-50"
           data-testid="showcase-shuffle-btn"
         >
           {shuffling ? "Shuffling…" : `🎲 Shuffle ${visible.length} non-pinned`}
@@ -160,12 +160,12 @@ function Section({ title, blurb, empty, testId, children }) {
   const hasChildren = React.Children.count(children) > 0;
   return (
     <section data-testid={testId}>
-      <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#a3a3a3] mb-1">{title}</div>
-      <div className="font-mono text-[11px] text-[#525252] mb-3 max-w-[68ch] leading-relaxed">{blurb}</div>
+      <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-ink-muted mb-1">{title}</div>
+      <div className="font-mono text-[11px] text-ink-muted mb-3 max-w-[68ch] leading-relaxed">{blurb}</div>
       {hasChildren ? (
         <div className="space-y-2">{children}</div>
       ) : (
-        <div className="border border-dashed border-[#262626] px-4 py-6 font-mono text-xs text-[#525252] text-center">
+        <div className="border border-dashed border-line px-4 py-6 font-mono text-xs text-ink-muted text-center">
           {empty}
         </div>
       )}
@@ -177,21 +177,21 @@ function Row({ item, index, total, busyId, canReorder, dimmed, onPin, onHide, on
   const busy = busyId === item.id;
   return (
     <div
-      className={`grid grid-cols-[64px_1fr_auto] gap-3 items-center p-3 border ${dimmed ? "border-[#262626] bg-[#0a0a0a] opacity-60" : "border-[#262626] bg-[#0a0a0a]"} ${busy ? "animate-pulse" : ""}`}
+      className={`grid grid-cols-[64px_1fr_auto] gap-3 items-center p-3 border ${dimmed ? "border-line bg-paper opacity-60" : "border-line bg-paper"} ${busy ? "animate-pulse" : ""}`}
       data-testid={`showcase-row-${item.id}`}
     >
       <div className="w-16 h-16 bg-[#1c1c1c] overflow-hidden flex items-center justify-center">
         {item.image_url ? (
           <img src={item.image_url} alt="" className="w-full h-full object-cover" />
         ) : (
-          <span className="font-mono text-[9px] text-[#525252]">no img</span>
+          <span className="font-mono text-[9px] text-ink-muted">no img</span>
         )}
       </div>
       <div className="min-w-0">
         <div className="font-display text-sm text-zinc-100 truncate" title={item.title}>
           {item.title}
         </div>
-        <div className="font-mono text-[10px] text-[#a3a3a3] mt-0.5 truncate">
+        <div className="font-mono text-[10px] text-ink-muted mt-0.5 truncate">
           {item.maker_slug && <span className="text-emerald-400">@{item.maker_slug}</span>}
           {item.maker_slug && item.user_name && <span> · </span>}
           {item.user_name && <span>{item.user_name}</span>}
@@ -206,7 +206,7 @@ function Row({ item, index, total, busyId, canReorder, dimmed, onPin, onHide, on
         <button
           onClick={onPin}
           disabled={busy}
-          className={`px-2 py-1.5 border font-mono text-[10px] uppercase tracking-[0.22em] hover:bg-yellow-500/15 disabled:opacity-50 ${item.admin_pinned ? "border-yellow-400 text-yellow-300 bg-yellow-500/10" : "border-[#262626] text-[#a3a3a3]"}`}
+          className={`px-2 py-1.5 border font-mono text-[10px] uppercase tracking-[0.22em] hover:bg-yellow-500/15 disabled:opacity-50 ${item.admin_pinned ? "border-yellow-400 text-yellow-300 bg-yellow-500/10" : "border-line text-ink-muted"}`}
           title={item.admin_pinned ? "Unpin" : "Pin to top"}
           data-testid={`showcase-pin-${item.id}`}
         >
@@ -215,7 +215,7 @@ function Row({ item, index, total, busyId, canReorder, dimmed, onPin, onHide, on
         <button
           onClick={onHide}
           disabled={busy}
-          className={`px-2 py-1.5 border font-mono text-[10px] uppercase tracking-[0.22em] hover:bg-red-500/15 disabled:opacity-50 ${item.admin_hidden ? "border-red-400 text-red-300 bg-red-500/10" : "border-[#262626] text-[#a3a3a3]"}`}
+          className={`px-2 py-1.5 border font-mono text-[10px] uppercase tracking-[0.22em] hover:bg-red-500/15 disabled:opacity-50 ${item.admin_hidden ? "border-red-400 text-red-300 bg-red-500/10" : "border-line text-ink-muted"}`}
           title={item.admin_hidden ? "Restore to showcase" : "Hide from showcase"}
           data-testid={`showcase-hide-${item.id}`}
         >
@@ -226,7 +226,7 @@ function Row({ item, index, total, busyId, canReorder, dimmed, onPin, onHide, on
             <button
               onClick={onUp}
               disabled={busy || index === 0}
-              className="px-2 py-1.5 border border-[#262626] text-[#a3a3a3] font-mono text-[10px] hover:bg-[#262626] disabled:opacity-30"
+              className="px-2 py-1.5 border border-line text-ink-muted font-mono text-[10px] hover:bg-line disabled:opacity-30"
               title="Move up"
               data-testid={`showcase-up-${item.id}`}
             >
@@ -235,7 +235,7 @@ function Row({ item, index, total, busyId, canReorder, dimmed, onPin, onHide, on
             <button
               onClick={onDown}
               disabled={busy || index === total - 1}
-              className="px-2 py-1.5 border border-[#262626] text-[#a3a3a3] font-mono text-[10px] hover:bg-[#262626] disabled:opacity-30"
+              className="px-2 py-1.5 border border-line text-ink-muted font-mono text-[10px] hover:bg-line disabled:opacity-30"
               title="Move down"
               data-testid={`showcase-down-${item.id}`}
             >

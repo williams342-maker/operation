@@ -37,8 +37,8 @@ export default function ShowcaseAnalyticsTab() {
     <div className="space-y-6" data-testid="admin-showcase-analytics-tab">
       <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
         <div>
-          <h2 className="font-display text-3xl text-[#e5e5e5]">Showcase analytics</h2>
-          <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-2xl">
+          <h2 className="font-display text-3xl text-ink">Showcase analytics</h2>
+          <p className="font-mono text-xs text-ink-muted mt-2 max-w-2xl">
             Top buyer-posted showcases by views in the rolling window, with click
             count and click-through rate. Source split tells you which strip
             placement (homepage vs. product page) is doing the heavy lifting.
@@ -52,8 +52,8 @@ export default function ShowcaseAnalyticsTab() {
               data-testid={`showcase-analytics-window-${w.days}d`}
               className={`px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.22em] border transition ${
                 days === w.days
-                  ? "border-[#ff4500] text-[#ff4500] bg-[#ff4500]/5"
-                  : "border-[#262626] text-[#a3a3a3] hover:border-[#525252]"
+                  ? "border-brand text-brand bg-brand/5"
+                  : "border-line text-ink-muted hover:border-ink-muted"
               }`}
             >
               {w.label}
@@ -88,14 +88,14 @@ export default function ShowcaseAnalyticsTab() {
 
           {/* Per-post leaderboard */}
           {data.rows.length === 0 ? (
-            <div className="border border-[#262626] p-6 font-mono text-xs text-[#525252]">
+            <div className="border border-line p-6 font-mono text-xs text-ink-muted">
               No tracked views in this window yet. Strip impressions start logging
               the moment iter117 ships to prod and a buyer scrolls past one.
             </div>
           ) : (
             <table className="w-full font-mono text-xs" data-testid="showcase-analytics-table">
               <thead>
-                <tr className="border-b border-[#262626] text-[#a3a3a3]">
+                <tr className="border-b border-line text-ink-muted">
                   <th className="text-left pb-2 font-bold uppercase tracking-[0.22em] text-[10px] w-12">#</th>
                   <th className="text-left pb-2 font-bold uppercase tracking-[0.22em] text-[10px]">Post</th>
                   <th className="text-right pb-2 font-bold uppercase tracking-[0.22em] text-[10px]">Views</th>
@@ -108,33 +108,33 @@ export default function ShowcaseAnalyticsTab() {
                 {data.rows.map((r, i) => (
                   <tr
                     key={r.post_id}
-                    className="border-b border-[#1a1a1a] hover:bg-[#0f0f0f] transition"
+                    className="border-b border-line hover:bg-paper transition"
                     data-testid={`showcase-analytics-row-${r.post_id}`}
                   >
-                    <td className="py-2 pr-2 text-[#525252]">{i + 1}</td>
+                    <td className="py-2 pr-2 text-ink-muted">{i + 1}</td>
                     <td className="py-2">
                       <div className="flex items-center gap-3">
                         {r.image_url ? (
                           <img
                             src={r.image_url} alt=""
-                            className="w-10 h-10 object-cover border border-[#262626]"
+                            className="w-10 h-10 object-cover border border-line"
                           />
                         ) : (
-                          <div className="w-10 h-10 bg-[#0f0f0f] border border-[#262626]" />
+                          <div className="w-10 h-10 bg-paper border border-line" />
                         )}
                         <div className="min-w-0">
-                          <div className="text-[#e5e5e5] truncate">{r.title || "(untitled)"}</div>
-                          <div className="text-[10px] text-[#525252] truncate">
+                          <div className="text-ink truncate">{r.title || "(untitled)"}</div>
+                          <div className="text-[10px] text-ink-muted truncate">
                             {r.user_name || "buyer"}
                             {r.product_slug ? ` · → ${r.product_slug}` : ""}
                           </div>
                         </div>
                       </div>
                     </td>
-                    <td className="py-2 text-right text-[#e5e5e5] font-bold">{r.views.toLocaleString()}</td>
-                    <td className="py-2 text-right text-[#ff4500] font-bold">{r.clicks.toLocaleString()}</td>
-                    <td className="py-2 text-right text-[#a3a3a3]">{r.ctr}%</td>
-                    <td className="py-2 text-[#525252]">
+                    <td className="py-2 text-right text-ink font-bold">{r.views.toLocaleString()}</td>
+                    <td className="py-2 text-right text-brand font-bold">{r.clicks.toLocaleString()}</td>
+                    <td className="py-2 text-right text-ink-muted">{r.ctr}%</td>
+                    <td className="py-2 text-ink-muted">
                       {Object.keys(r.by_source).length === 0
                         ? <span className="opacity-50">—</span>
                         : Object.entries(r.by_source)
@@ -142,9 +142,9 @@ export default function ShowcaseAnalyticsTab() {
                             .map(([k, v]) => (
                               <span
                                 key={k}
-                                className="inline-block mr-2 px-1.5 py-0.5 border border-[#262626] text-[#a3a3a3]"
+                                className="inline-block mr-2 px-1.5 py-0.5 border border-line text-ink-muted"
                               >
-                                {k}: <b className="text-[#e5e5e5]">{v}</b>
+                                {k}: <b className="text-ink">{v}</b>
                               </span>
                             ))}
                     </td>
@@ -161,9 +161,9 @@ export default function ShowcaseAnalyticsTab() {
 
 function DiagStat({ label, value }) {
   return (
-    <div className="border border-[#262626] p-3 text-center">
-      <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#a3a3a3]">{label}</div>
-      <div className="font-display text-2xl text-[#e5e5e5]">{value}</div>
+    <div className="border border-line p-3 text-center">
+      <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted">{label}</div>
+      <div className="font-display text-2xl text-ink">{value}</div>
     </div>
   );
 }

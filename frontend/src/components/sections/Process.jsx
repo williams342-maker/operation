@@ -14,7 +14,7 @@ const steps = [
 
 export default function Process() {
   return (
-    <section id="process" className="relative w-full py-24 md:py-36 bg-[#0a0a0a] overflow-hidden border-y border-[#262626]">
+    <section id="process" className="relative w-full py-24 md:py-36 bg-paper overflow-hidden border-y border-line">
       {/* Marquee backdrop */}
       <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 pointer-events-none select-none">
         <Marquee gradient={false} speed={45} className="opacity-25">
@@ -32,24 +32,24 @@ export default function Process() {
       <div className="relative w-full max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12">
         <div className="grid md:grid-cols-12 gap-8 mb-14">
           <div className="md:col-span-4">
-            <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-4">
+            <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-4">
               ◆ 003 / Our Craft
             </div>
             <h2 className="font-display text-[48px] md:text-[88px] leading-[0.9]">
               Crafted
               <br />
-              <span className="text-[#ff4500]">With</span>
+              <span className="text-brand">With</span>
               <br />
               Precision
             </h2>
           </div>
 
           <div className="md:col-span-7 md:col-start-6 self-end">
-            <p className="font-mono text-sm md:text-base text-[#e5e5e5] leading-relaxed max-w-xl">
+            <p className="font-mono text-sm md:text-base text-ink leading-relaxed max-w-xl">
               Every piece starts as raw material — hardwood, steel, aluminum — and is transformed
               through CNC precision into art that lasts a lifetime. No two pieces are exactly alike.
             </p>
-            <ul className="mt-8 grid sm:grid-cols-2 gap-4 font-mono text-xs uppercase tracking-[0.2em] text-[#a3a3a3]">
+            <ul className="mt-8 grid sm:grid-cols-2 gap-4 font-mono text-xs uppercase tracking-[0.2em] text-ink-muted">
               <li>→ CNC routed & laser-finished hardwoods</li>
               <li>→ Plasma-cut, powder-coated metals</li>
               <li>→ Custom sizing for any space</li>
@@ -65,18 +65,18 @@ export default function Process() {
             whileInView={{ opacity: 1, scale: 1 }}
             viewport={{ once: true }}
             transition={{ duration: 1 }}
-            className="md:col-span-6 relative aspect-[4/5] md:aspect-auto md:min-h-[640px] overflow-hidden border border-[#262626]"
+            className="md:col-span-6 relative aspect-[4/5] md:aspect-auto md:min-h-[640px] overflow-hidden border border-line"
           >
             <img src={PROCESS_IMG} alt="CNC plasma cutting in process" className="absolute inset-0 w-full h-full object-cover media-img" />
             <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-transparent to-transparent" />
-            <div className="absolute top-5 left-5 tag text-[#ff4500] border-[#ff4500]">LIVE FEED</div>
-            <div className="absolute bottom-6 left-6 right-6 flex items-end justify-between font-mono text-xs uppercase tracking-[0.2em] text-[#e5e5e5]">
+            <div className="absolute top-5 left-5 tag text-brand border-brand">LIVE FEED</div>
+            <div className="absolute bottom-6 left-6 right-6 flex items-end justify-between font-mono text-xs uppercase tracking-[0.2em] text-ink">
               <span>Workshop · Bay 03</span>
               <span>Tool: 1/8" carbide</span>
             </div>
           </motion.div>
 
-          <ol className="md:col-span-6 grid grid-cols-1 gap-0 border-t border-[#262626]">
+          <ol className="md:col-span-6 grid grid-cols-1 gap-0 border-t border-line">
             {steps.map((s, i) => (
               <motion.li
                 key={s.no}
@@ -84,18 +84,18 @@ export default function Process() {
                 whileInView={{ opacity: 1, x: 0 }}
                 viewport={{ once: true, amount: 0.4 }}
                 transition={{ duration: 0.6, delay: i * 0.1 }}
-                className="group relative border-b border-[#262626] py-6 md:py-8 grid grid-cols-12 items-center gap-4 hover:bg-[#0f0f0f] transition-colors duration-500"
+                className="group relative border-b border-line py-6 md:py-8 grid grid-cols-12 items-center gap-4 hover:bg-paper transition-colors duration-500"
                 data-testid={`process-step-${s.no}`}
               >
-                <span className="col-span-2 font-mono text-sm text-[#ff4500] tracking-[0.2em]">{s.no}</span>
+                <span className="col-span-2 font-mono text-sm text-brand tracking-[0.2em]">{s.no}</span>
                 <div className="col-span-7">
                   <div className="font-display text-2xl md:text-4xl">{s.label}</div>
-                  <div className="font-mono text-[11px] uppercase tracking-[0.2em] text-[#a3a3a3] mt-2">
+                  <div className="font-mono text-[11px] uppercase tracking-[0.2em] text-ink-muted mt-2">
                     {s.desc}
                   </div>
                 </div>
                 <div className="col-span-3 flex justify-end">
-                  <div className="w-10 h-10 border border-[#262626] group-hover:border-[#ff4500] group-hover:bg-[#ff4500] transition flex items-center justify-center">
+                  <div className="w-10 h-10 border border-line group-hover:border-brand group-hover:bg-brand transition flex items-center justify-center">
                     <span className="font-mono text-xs">→</span>
                   </div>
                 </div>

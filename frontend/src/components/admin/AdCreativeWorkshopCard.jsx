@@ -151,7 +151,7 @@ export default function AdCreativeWorkshopCard() {
   };
 
   return (
-    <div className="border border-[#262626] p-4 md:p-5" data-testid="ad-creative-workshop-card">
+    <div className="border border-line p-4 md:p-5" data-testid="ad-creative-workshop-card">
       {confirmModal}
       <div className="flex items-start justify-between gap-3 flex-wrap mb-4">
         <div>
@@ -159,21 +159,21 @@ export default function AdCreativeWorkshopCard() {
             <Sparkles size={12} /> ◆ AI Ad-Creative Workshop
           </div>
           <h3 className="font-display text-2xl uppercase mb-1">Copy + Image Factory</h3>
-          <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed max-w-2xl">
+          <p className="font-mono text-xs text-ink-muted leading-relaxed max-w-2xl">
             Pick a product or maker → AI writes platform-compliant ad copy (Google/Meta/Pinterest) within their character limits + optional Nano Banana image variants. Click-to-copy any line. Drafts are saved automatically.
           </p>
         </div>
         <div className="flex items-center gap-1">
           <button
             onClick={() => setView("compose")}
-            className={`px-3 py-2 border font-mono text-[10px] uppercase tracking-[0.22em] ${view === "compose" ? "border-cyan-400 text-cyan-300 bg-cyan-950/30" : "border-[#262626] text-[#a3a3a3] hover:border-[#525252]"}`}
+            className={`px-3 py-2 border font-mono text-[10px] uppercase tracking-[0.22em] ${view === "compose" ? "border-cyan-400 text-cyan-300 bg-cyan-950/30" : "border-line text-ink-muted hover:border-ink-muted"}`}
             data-testid="ad-creative-view-compose"
           >
             Compose
           </button>
           <button
             onClick={() => setView("drafts")}
-            className={`px-3 py-2 border font-mono text-[10px] uppercase tracking-[0.22em] flex items-center gap-1 ${view === "drafts" ? "border-cyan-400 text-cyan-300 bg-cyan-950/30" : "border-[#262626] text-[#a3a3a3] hover:border-[#525252]"}`}
+            className={`px-3 py-2 border font-mono text-[10px] uppercase tracking-[0.22em] flex items-center gap-1 ${view === "drafts" ? "border-cyan-400 text-cyan-300 bg-cyan-950/30" : "border-line text-ink-muted hover:border-ink-muted"}`}
             data-testid="ad-creative-view-drafts"
           >
             <History size={11} /> Drafts
@@ -226,7 +226,7 @@ function ComposeView(props) {
     <div className="space-y-4">
       {/* Subject picker */}
       <div>
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
           1. Subject
         </div>
         {selected ? (
@@ -235,14 +235,14 @@ function ComposeView(props) {
               <img src={selected.image_url} alt="" className="w-12 h-12 object-cover" />
             )}
             <div className="flex-1 min-w-0">
-              <div className="font-display text-base text-[#f5f5f5] truncate">{selected.title}</div>
+              <div className="font-display text-base text-ink truncate">{selected.title}</div>
               <div className="font-mono text-[10px] text-cyan-300 uppercase tracking-[0.22em]">
                 {selected.type} · {selected.slug}
               </div>
             </div>
             <button
               onClick={() => setSelected(null)}
-              className="p-1.5 text-[#a3a3a3] hover:text-[#f5f5f5]"
+              className="p-1.5 text-ink-muted hover:text-ink"
               data-testid="ad-creative-clear-subject"
               aria-label="Clear subject"
             >
@@ -252,13 +252,13 @@ function ComposeView(props) {
         ) : (
           <div>
             <div className="relative">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#737373]" />
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" />
               <input
                 type="text"
                 value={subjectQuery}
                 onChange={(e) => setSubjectQuery(e.target.value)}
                 placeholder="Search products or makers…"
-                className="w-full bg-[#050505] border border-[#262626] focus:border-cyan-400 pl-9 pr-3 py-2 font-mono text-sm text-[#f5f5f5] outline-none"
+                className="w-full bg-paper border border-line focus:border-cyan-400 pl-9 pr-3 py-2 font-mono text-sm text-ink outline-none"
                 data-testid="ad-creative-subject-search"
               />
             </div>
@@ -271,7 +271,7 @@ function ComposeView(props) {
       {/* Channels + tone */}
       <div className="grid sm:grid-cols-2 gap-4">
         <div>
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
             2. Channels
           </div>
           <div className="flex flex-wrap gap-2">
@@ -281,7 +281,7 @@ function ComposeView(props) {
                 <button
                   key={ch.id}
                   onClick={() => toggleChannel(ch.id)}
-                  className={`px-3 py-2 border font-mono text-[10px] uppercase tracking-[0.22em] ${on ? "border-cyan-400 text-cyan-300 bg-cyan-950/30" : "border-[#262626] text-[#a3a3a3] hover:border-[#525252]"}`}
+                  className={`px-3 py-2 border font-mono text-[10px] uppercase tracking-[0.22em] ${on ? "border-cyan-400 text-cyan-300 bg-cyan-950/30" : "border-line text-ink-muted hover:border-ink-muted"}`}
                   data-testid={`ad-creative-channel-${ch.id}`}
                 >
                   {ch.label}
@@ -291,13 +291,13 @@ function ComposeView(props) {
           </div>
         </div>
         <div>
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
             3. Tone
           </div>
           <select
             value={tone}
             onChange={(e) => setTone(e.target.value)}
-            className="w-full bg-[#050505] border border-[#262626] focus:border-cyan-400 px-3 py-2 font-mono text-sm text-[#f5f5f5] outline-none"
+            className="w-full bg-paper border border-line focus:border-cyan-400 px-3 py-2 font-mono text-sm text-ink outline-none"
             data-testid="ad-creative-tone"
           >
             {TONES.map((t) => <option key={t} value={t}>{t}</option>)}
@@ -306,7 +306,7 @@ function ComposeView(props) {
       </div>
 
       {/* Image options */}
-      <div className="border border-[#262626] p-3 flex flex-wrap items-center gap-4">
+      <div className="border border-line p-3 flex flex-wrap items-center gap-4">
         <label className="flex items-center gap-2 cursor-pointer">
           <input
             type="checkbox" checked={genImages}
@@ -314,17 +314,17 @@ function ComposeView(props) {
             className="accent-cyan-400"
             data-testid="ad-creative-gen-images"
           />
-          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#d4d4d4] flex items-center gap-1.5">
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink flex items-center gap-1.5">
             <ImageIcon size={11} /> Generate image variants (Nano Banana · adds ~30-60s)
           </span>
         </label>
         {genImages && (
           <label className="flex items-center gap-2">
-            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Variants:</span>
+            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Variants:</span>
             <select
               value={numVariants}
               onChange={(e) => setNumVariants(Number(e.target.value))}
-              className="bg-[#050505] border border-[#262626] focus:border-cyan-400 px-2 py-1 font-mono text-xs text-[#f5f5f5] outline-none"
+              className="bg-paper border border-line focus:border-cyan-400 px-2 py-1 font-mono text-xs text-ink outline-none"
               data-testid="ad-creative-num-variants"
             >
               <option value={1}>1</option>
@@ -354,21 +354,21 @@ function SubjectGrid({ label, items, onPick, testId }) {
   if (!items || items.length === 0) return null;
   return (
     <div className="mt-3">
-      <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#737373] mb-1.5">{label}</div>
+      <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted mb-1.5">{label}</div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {items.map((it) => (
           <button
             key={`${it.type}-${it.slug}`}
             onClick={() => onPick(it)}
-            className="text-left border border-[#262626] hover:border-cyan-400 p-2 flex items-center gap-2 group"
+            className="text-left border border-line hover:border-cyan-400 p-2 flex items-center gap-2 group"
             data-testid={`ad-creative-pick-${testId}-${it.slug}`}
           >
             {it.image_url ? (
               <img src={it.image_url} alt="" className="w-10 h-10 object-cover shrink-0" />
             ) : (
-              <div className="w-10 h-10 bg-[#1a1a1a] shrink-0" />
+              <div className="w-10 h-10 bg-surface shrink-0" />
             )}
-            <div className="font-mono text-[11px] text-[#d4d4d4] truncate group-hover:text-cyan-300">{it.title}</div>
+            <div className="font-mono text-[11px] text-ink truncate group-hover:text-cyan-300">{it.title}</div>
           </button>
         ))}
       </div>
@@ -405,11 +405,11 @@ function CreativeResult({ result }) {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {draft.images.map((src, i) => (
-              <div key={src} className="border border-[#262626] p-2" data-testid={`ad-creative-image-${i}`}>
+              <div key={src} className="border border-line p-2" data-testid={`ad-creative-image-${i}`}>
                 <img src={src} alt={`variant ${i + 1}`} className="w-full aspect-square object-cover" />
                 <a
                   href={src} download
-                  className="mt-2 w-full px-2 py-1 border border-[#262626] hover:border-cyan-400 text-[#a3a3a3] hover:text-cyan-300 font-mono text-[9px] uppercase tracking-[0.22em] flex items-center justify-center gap-1"
+                  className="mt-2 w-full px-2 py-1 border border-line hover:border-cyan-400 text-ink-muted hover:text-cyan-300 font-mono text-[9px] uppercase tracking-[0.22em] flex items-center justify-center gap-1"
                   data-testid={`ad-creative-image-download-${i}`}
                 >
                   <Download size={10} /> Download
@@ -468,7 +468,7 @@ function PushToGoogleButton({ draft, headlineCount }) {
       <button
         onClick={() => { setOpen(true); setResult(null); }}
         disabled={tooFewHeadlines}
-        className="px-3 py-1.5 bg-blue-500 hover:bg-blue-400 text-white font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+        className="px-3 py-1.5 bg-blue-500 hover:bg-blue-400 text-ink font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
         data-testid="ad-creative-push-google"
         title={tooFewHeadlines ? `Need ≥3 Google headlines (have ${headlineCount})` : "Push to Google Ads"}
       >
@@ -476,21 +476,21 @@ function PushToGoogleButton({ draft, headlineCount }) {
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-[200] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" data-testid="push-google-modal">
-          <div className="w-full max-w-lg bg-[#0a0a0a] border border-blue-500/50 p-5">
+        <div className="fixed inset-0 z-[200] bg-paper/70 backdrop-blur-sm flex items-center justify-center p-4" data-testid="push-google-modal">
+          <div className="w-full max-w-lg bg-paper border border-blue-500/50 p-5">
             <div className="flex items-start justify-between mb-3">
               <div>
                 <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-blue-300 mb-1">
                   ◆ Push to Google Ads
                 </div>
                 <h4 className="font-display text-xl uppercase">{draft.subject_title}</h4>
-                <p className="font-mono text-[10px] text-[#a3a3a3] mt-1">
+                <p className="font-mono text-[10px] text-ink-muted mt-1">
                   Campaign will be created in <strong className="text-amber-300">PAUSED</strong> state. No spend until you activate it inside Google Ads.
                 </p>
               </div>
               <button
                 onClick={() => setOpen(false)}
-                className="p-1 text-[#a3a3a3] hover:text-[#f5f5f5]"
+                className="p-1 text-ink-muted hover:text-ink"
                 data-testid="push-google-close"
                 aria-label="Close"
               >
@@ -499,7 +499,7 @@ function PushToGoogleButton({ draft, headlineCount }) {
             </div>
 
             {!preflight && (
-              <p className="font-mono text-xs text-[#737373] py-4">Checking Google Ads eligibility…</p>
+              <p className="font-mono text-xs text-ink-muted py-4">Checking Google Ads eligibility…</p>
             )}
 
             {preflight && !preflight.eligible && (
@@ -508,7 +508,7 @@ function PushToGoogleButton({ draft, headlineCount }) {
                 <div className="font-mono text-xs text-amber-200 leading-relaxed">
                   <div className="font-bold mb-1">Can&rsquo;t push right now</div>
                   <div>{preflight.reason || "Google Ads not connected."}</div>
-                  <div className="mt-2 text-[#a3a3a3]">
+                  <div className="mt-2 text-ink-muted">
                     Fix: open the <strong>Google Ads</strong> connection card below in this same tab, complete OAuth, and confirm your developer token is at Basic or Standard tier.
                   </div>
                 </div>
@@ -517,9 +517,9 @@ function PushToGoogleButton({ draft, headlineCount }) {
 
             {preflight && preflight.eligible && !result && (
               <form onSubmit={onSubmit} className="space-y-3 mt-2" data-testid="push-google-form">
-                <div className="border border-[#262626] p-2 font-mono text-[10px] text-[#a3a3a3]">
+                <div className="border border-line p-2 font-mono text-[10px] text-ink-muted">
                   This will create:
-                  <ul className="mt-1 ml-3 list-disc text-[#d4d4d4]">
+                  <ul className="mt-1 ml-3 list-disc text-ink">
                     <li>1 Campaign (Search, PAUSED)</li>
                     <li>1 Ad Group</li>
                     <li>1 Responsive Search Ad with {headlineCount} headlines from this draft</li>
@@ -528,27 +528,27 @@ function PushToGoogleButton({ draft, headlineCount }) {
                 </div>
 
                 <label className="block">
-                  <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Daily budget (USD)</span>
+                  <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Daily budget (USD)</span>
                   <div className="mt-1 flex items-center gap-2">
-                    <span className="font-mono text-sm text-[#737373]">$</span>
+                    <span className="font-mono text-sm text-ink-muted">$</span>
                     <input
                       type="number" min={5} max={200} step={1}
                       value={budget} onChange={(e) => setBudget(Number(e.target.value))}
-                      className="flex-1 bg-[#050505] border border-[#262626] focus:border-blue-400 px-3 py-2 font-mono text-sm text-[#f5f5f5] outline-none"
+                      className="flex-1 bg-paper border border-line focus:border-blue-400 px-3 py-2 font-mono text-sm text-ink outline-none"
                       required
                       data-testid="push-google-budget"
                     />
-                    <span className="font-mono text-[10px] text-[#737373]">/day · clamps $5-$200</span>
+                    <span className="font-mono text-[10px] text-ink-muted">/day · clamps $5-$200</span>
                   </div>
                 </label>
 
                 <label className="block">
-                  <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Keywords (optional · comma-separated)</span>
+                  <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Keywords (optional · comma-separated)</span>
                   <input
                     type="text" maxLength={500}
                     value={keywords} onChange={(e) => setKeywords(e.target.value)}
                     placeholder="leave empty to auto-derive from product title"
-                    className="mt-1 w-full bg-[#050505] border border-[#262626] focus:border-blue-400 px-3 py-2 font-mono text-sm text-[#f5f5f5] outline-none"
+                    className="mt-1 w-full bg-paper border border-line focus:border-blue-400 px-3 py-2 font-mono text-sm text-ink outline-none"
                     data-testid="push-google-keywords"
                   />
                 </label>
@@ -556,14 +556,14 @@ function PushToGoogleButton({ draft, headlineCount }) {
                 <div className="flex justify-end gap-2 pt-2">
                   <button
                     type="button" onClick={() => setOpen(false)}
-                    className="px-3 py-2 border border-[#262626] hover:border-[#525252] font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]"
+                    className="px-3 py-2 border border-line hover:border-ink-muted font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted"
                     data-testid="push-google-cancel"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit" disabled={pushing}
-                    className="px-4 py-2 bg-blue-500 hover:bg-blue-400 text-white font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50 flex items-center gap-1.5"
+                    className="px-4 py-2 bg-blue-500 hover:bg-blue-400 text-ink font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50 flex items-center gap-1.5"
                     data-testid="push-google-submit"
                   >
                     {pushing ? <Loader2 size={11} className="animate-spin" /> : <Send size={11} />}
@@ -578,8 +578,8 @@ function PushToGoogleButton({ draft, headlineCount }) {
                 <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-300 flex items-center gap-1.5">
                   <Check size={11} /> Campaign created (PAUSED)
                 </div>
-                <div className="font-mono text-xs text-[#d4d4d4]">{result.message}</div>
-                <div className="font-mono text-[10px] text-[#a3a3a3] space-y-0.5">
+                <div className="font-mono text-xs text-ink">{result.message}</div>
+                <div className="font-mono text-[10px] text-ink-muted space-y-0.5">
                   <div>External campaign ID: <span className="text-cyan-300">{result.push?.external_campaign_id}</span></div>
                   <div>Headlines pushed: {result.push?.headline_count}</div>
                   <div>Descriptions pushed: {result.push?.description_count}</div>
@@ -588,7 +588,7 @@ function PushToGoogleButton({ draft, headlineCount }) {
                 {result.google_ads_url && (
                   <a
                     href={result.google_ads_url} target="_blank" rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3 py-2 border border-blue-500 text-blue-300 hover:bg-blue-500 hover:text-white font-mono text-[10px] uppercase tracking-[0.22em] transition"
+                    className="inline-flex items-center gap-1.5 px-3 py-2 border border-blue-500 text-blue-300 hover:bg-blue-500 hover:text-ink font-mono text-[10px] uppercase tracking-[0.22em] transition"
                     data-testid="push-google-open-link"
                   >
                     Open in Google Ads <ExternalLink size={11} />
@@ -596,7 +596,7 @@ function PushToGoogleButton({ draft, headlineCount }) {
                 )}
                 <button
                   onClick={() => setOpen(false)}
-                  className="ml-2 px-3 py-2 border border-[#262626] hover:border-[#525252] font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]"
+                  className="ml-2 px-3 py-2 border border-line hover:border-ink-muted font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted"
                 >
                   Done
                 </button>
@@ -612,12 +612,12 @@ function PushToGoogleButton({ draft, headlineCount }) {
 function ChannelBlock({ channel, fields, spec }) {
   const channelLabel = spec?.label || channel;
   return (
-    <div className="border-t border-[#262626] pt-4 first:border-t-0 first:pt-0">
+    <div className="border-t border-line pt-4 first:border-t-0 first:pt-0">
       <div className="font-display text-lg text-cyan-300 mb-2">{channelLabel}</div>
       <div className="space-y-3">
         {(spec?.fields || []).map((f) => (
           <div key={f.key}>
-            <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#737373] mb-1">
+            <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted mb-1">
               {f.label} · {f.count}× ≤{f.max} chars
             </div>
             <div className="space-y-1">
@@ -649,18 +649,18 @@ function CopyRow({ text, max, testId }) {
   return (
     <div className="flex items-center gap-2 group">
       <div
-        className={`flex-1 px-2 py-1.5 font-mono text-sm border ${isEmpty ? "border-red-900/40 bg-red-950/10 text-red-300 italic" : "border-[#262626] bg-[#050505] text-[#f5f5f5]"}`}
+        className={`flex-1 px-2 py-1.5 font-mono text-sm border ${isEmpty ? "border-red-900/40 bg-red-950/10 text-red-300 italic" : "border-line bg-paper text-ink"}`}
         data-testid={testId}
       >
         {isEmpty ? "(empty — regenerate)" : text}
       </div>
-      <div className={`font-mono text-[9px] tabular-nums w-12 text-right ${over ? "text-red-400" : "text-[#737373]"}`}>
+      <div className={`font-mono text-[9px] tabular-nums w-12 text-right ${over ? "text-red-400" : "text-ink-muted"}`}>
         {(text?.length || 0)}/{max}
       </div>
       <button
         onClick={onCopy}
         disabled={isEmpty}
-        className="px-2 py-1.5 border border-[#262626] hover:border-cyan-400 text-[#a3a3a3] hover:text-cyan-300 disabled:opacity-30 disabled:hover:border-[#262626]"
+        className="px-2 py-1.5 border border-line hover:border-cyan-400 text-ink-muted hover:text-cyan-300 disabled:opacity-30 disabled:hover:border-line"
         title="Copy"
         data-testid={`${testId}-btn`}
       >
@@ -671,24 +671,24 @@ function CopyRow({ text, max, testId }) {
 }
 
 function DraftsView({ drafts, loading, onLoad, onDelete }) {
-  if (loading) return <p className="font-mono text-xs text-[#737373]">Loading drafts…</p>;
+  if (loading) return <p className="font-mono text-xs text-ink-muted">Loading drafts…</p>;
   if (drafts.length === 0) {
     return (
-      <p className="font-mono text-xs text-[#737373]" data-testid="ad-creative-drafts-empty">
+      <p className="font-mono text-xs text-ink-muted" data-testid="ad-creative-drafts-empty">
         No drafts yet. Generate your first one from the Compose tab.
       </p>
     );
   }
   return (
-    <div className="border border-[#262626] divide-y divide-[#1a1a1a]" data-testid="ad-creative-drafts-list">
+    <div className="border border-line divide-y divide-line" data-testid="ad-creative-drafts-list">
       {drafts.map((d) => (
         <div key={d.draft_id} className="p-3 flex items-center gap-3 flex-wrap" data-testid={`ad-creative-draft-row-${d.draft_id}`}>
           {d.subject_image && (
             <img src={d.subject_image} alt="" className="w-10 h-10 object-cover" />
           )}
           <div className="flex-1 min-w-0">
-            <div className="font-display text-base text-[#f5f5f5] truncate">{d.subject_title}</div>
-            <div className="font-mono text-[10px] text-[#a3a3a3] flex flex-wrap gap-2 mt-0.5">
+            <div className="font-display text-base text-ink truncate">{d.subject_title}</div>
+            <div className="font-mono text-[10px] text-ink-muted flex flex-wrap gap-2 mt-0.5">
               <span className="text-cyan-300">{d.subject_type}</span>
               <span>·</span>
               <span>{(d.channels || []).join(", ")}</span>
@@ -701,7 +701,7 @@ function DraftsView({ drafts, loading, onLoad, onDelete }) {
                 </>
               )}
             </div>
-            <div className="font-mono text-[9px] text-[#737373] mt-0.5">{d.created_at}</div>
+            <div className="font-mono text-[9px] text-ink-muted mt-0.5">{d.created_at}</div>
           </div>
           <div className="flex items-center gap-1">
             <button
@@ -713,7 +713,7 @@ function DraftsView({ drafts, loading, onLoad, onDelete }) {
             </button>
             <button
               onClick={() => onDelete(d)}
-              className="px-2 py-1 border border-[#404040] hover:border-red-500 hover:text-red-300 text-[#a3a3a3] font-mono text-[9px] uppercase tracking-[0.22em]"
+              className="px-2 py-1 border border-line hover:border-red-500 hover:text-red-300 text-ink-muted font-mono text-[9px] uppercase tracking-[0.22em]"
               data-testid={`ad-creative-delete-${d.draft_id}`}
               title="Delete"
             >

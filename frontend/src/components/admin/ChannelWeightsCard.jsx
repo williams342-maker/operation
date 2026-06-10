@@ -69,14 +69,14 @@ export default function ChannelWeightsCard() {
   };
 
   return (
-    <div className="border border-[#262626] p-4 md:p-5" data-testid="channel-weights-card">
+    <div className="border border-line p-4 md:p-5" data-testid="channel-weights-card">
       <div className="flex items-start justify-between gap-3 flex-wrap mb-3">
         <div>
           <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-emerald-300 mb-2 flex items-center gap-1.5">
             <TrendingUp size={12} /> ◆ Channel Attribution
           </div>
           <h3 className="font-display text-2xl uppercase mb-1">Paid-Channel Weights · 30 Days</h3>
-          <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed max-w-2xl">
+          <p className="font-mono text-xs text-ink-muted leading-relaxed max-w-2xl">
             Normalized weight per ad platform based on observed ROAS. The allocator uses these to recommend a default split when makers run multi-channel campaigns.
           </p>
         </div>
@@ -93,7 +93,7 @@ export default function ChannelWeightsCard() {
         </button>
       </div>
 
-      {loading && <p className="font-mono text-xs text-[#737373]">Loading…</p>}
+      {loading && <p className="font-mono text-xs text-ink-muted">Loading…</p>}
 
       {!loading && data && (
         <>
@@ -105,7 +105,7 @@ export default function ChannelWeightsCard() {
               No paid attribution yet in the 30-day window — falling back to equal weights ({(100 / data.channels.length).toFixed(0)}% each). Weights will rebalance once paid orders + spend land in the ledger.
             </div>
           )}
-          <div className="border border-[#262626] divide-y divide-[#1a1a1a]" data-testid="channel-weights-list">
+          <div className="border border-line divide-y divide-line" data-testid="channel-weights-list">
             {data.channels.map((c) => (
               <div
                 key={c.channel}
@@ -118,42 +118,42 @@ export default function ChannelWeightsCard() {
                   </span>
                 </div>
                 <div className="flex-1 min-w-[180px]">
-                  <div className="h-2 bg-[#1f1f1f] relative overflow-hidden">
+                  <div className="h-2 bg-surface relative overflow-hidden">
                     <div
                       className="h-2 bg-gradient-to-r from-emerald-700 to-emerald-300 transition-all"
                       style={{ width: `${Math.max(2, (c.weight || 0) * 100)}%` }}
                     />
                   </div>
-                  <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#737373] mt-1">
+                  <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted mt-1">
                     Weight {(c.weight * 100).toFixed(1)}%
                   </div>
                 </div>
                 <div className="text-right min-w-[100px]">
-                  <div className="font-display text-lg text-[#f5f5f5] tabular-nums" data-testid={`channel-weight-orders-${c.channel}`}>
+                  <div className="font-display text-lg text-ink tabular-nums" data-testid={`channel-weight-orders-${c.channel}`}>
                     {c.orders_30d}
                   </div>
-                  <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#737373]">Orders</div>
+                  <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted">Orders</div>
                 </div>
                 <div className="text-right min-w-[100px]">
-                  <div className="font-display text-lg text-[#f5f5f5] tabular-nums">
+                  <div className="font-display text-lg text-ink tabular-nums">
                     ${dollars(c.spend_cents_30d)}
                   </div>
-                  <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#737373]">Spend</div>
+                  <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted">Spend</div>
                 </div>
                 <div className="text-right min-w-[80px]">
                   <div className={`font-display text-lg tabular-nums ${
                     c.roas >= 2 ? "text-emerald-300" :
                     c.roas >= 1 ? "text-amber-300" :
-                    c.roas > 0 ? "text-red-300" : "text-[#737373]"
+                    c.roas > 0 ? "text-red-300" : "text-ink-muted"
                   }`}>
                     {roasFmt(c.roas)}
                   </div>
-                  <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#737373]">ROAS</div>
+                  <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted">ROAS</div>
                 </div>
               </div>
             ))}
           </div>
-          <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#737373] mt-3">
+          <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted mt-3">
             Computed {data.computed_at ? new Date(data.computed_at).toLocaleString() : "—"} · window {data.window_days || 30} days
           </div>
         </>

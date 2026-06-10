@@ -95,13 +95,13 @@ export default function ShippingLedgerTab() {
       {/* Header + actions */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#ff4500] mb-1">
+          <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand mb-1">
             ◆ Shipping Ledger
           </div>
-          <h2 className="font-display text-3xl text-[#e5e5e5]">
+          <h2 className="font-display text-3xl text-ink">
             <Truck className="inline mr-2 mb-1" size={28} /> Shipping Ledger
           </h2>
-          <p className="font-mono text-xs text-[#a3a3a3] mt-1">
+          <p className="font-mono text-xs text-ink-muted mt-1">
             Platform-paid labels · roll up into weekly Stripe invoices per maker.
           </p>
         </div>
@@ -143,21 +143,21 @@ export default function ShippingLedgerTab() {
       {/* Rollup cards — top 5 unbilled makers */}
       {rollup && (
         <div
-          className="border border-[#ff4500]/30 bg-[#ff4500]/5 p-5"
+          className="border border-brand/30 bg-brand/5 p-5"
           data-testid="admin-shipping-rollup"
         >
           <div className="flex items-baseline justify-between mb-3">
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">
               Total unbilled across all makers
             </div>
-            <div className="font-display text-4xl text-[#ff4500]">
+            <div className="font-display text-4xl text-brand">
               ${(rollup.total_unbilled_cents / 100).toFixed(2)}
             </div>
           </div>
           {rollup.makers?.length > 0 ? (
             <table className="w-full font-mono text-xs">
               <thead>
-                <tr className="text-[#525252] uppercase tracking-[0.22em] text-[10px] border-b border-[#1f1f1f]">
+                <tr className="text-ink-muted uppercase tracking-[0.22em] text-[10px] border-b border-line">
                   <th className="text-left py-2">Maker</th>
                   <th className="text-right">Unbilled</th>
                   <th className="text-right"># labels</th>
@@ -166,29 +166,29 @@ export default function ShippingLedgerTab() {
               </thead>
               <tbody>
                 {rollup.makers.slice(0, 10).map((m) => (
-                  <tr key={m.maker_slug} className="border-b border-[#1f1f1f] last:border-b-0 text-[#e5e5e5]">
+                  <tr key={m.maker_slug} className="border-b border-line last:border-b-0 text-ink">
                     <td className="py-2">
                       <button
                         onClick={() => setFilters({ ...filters, maker_slug: m.maker_slug })}
-                        className="underline hover:text-[#ff4500]"
+                        className="underline hover:text-brand"
                       >
                         {m.maker_slug}
                       </button>
                     </td>
-                    <td className="text-right text-[#ff4500]">${(m.unbilled_cents / 100).toFixed(2)}</td>
-                    <td className="text-right text-[#a3a3a3]">{m.unbilled_count}</td>
-                    <td className="text-right text-[#525252]">${(m.billed_cents / 100).toFixed(2)}</td>
+                    <td className="text-right text-brand">${(m.unbilled_cents / 100).toFixed(2)}</td>
+                    <td className="text-right text-ink-muted">{m.unbilled_count}</td>
+                    <td className="text-right text-ink-muted">${(m.billed_cents / 100).toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           ) : (
             <div
-              className="border border-[#1a1a1a] bg-[#0a0a0a] p-6 text-center"
+              className="border border-line bg-paper p-6 text-center"
               data-testid="admin-shipping-summary-empty"
             >
-              <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#525252] mb-2">◇ No shipping activity</div>
-              <p className="font-mono text-[11px] text-[#a3a3a3] leading-relaxed max-w-[42ch] mx-auto">
+              <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-ink-muted mb-2">◇ No shipping activity</div>
+              <p className="font-mono text-[11px] text-ink-muted leading-relaxed max-w-[42ch] mx-auto">
                 Once makers buy a shipping label through the platform, their unbilled balances and reimbursement history will surface here.
               </p>
             </div>
@@ -207,7 +207,7 @@ export default function ShippingLedgerTab() {
           placeholder="Maker slug"
           value={filters.maker_slug}
           onChange={(e) => setFilters({ ...filters, maker_slug: e.target.value })}
-          className="bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+          className="bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs"
           data-testid="admin-shipping-filter-maker"
         />
         <input
@@ -215,13 +215,13 @@ export default function ShippingLedgerTab() {
           placeholder="Tracking #"
           value={filters.tracking}
           onChange={(e) => setFilters({ ...filters, tracking: e.target.value })}
-          className="bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+          className="bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs"
           data-testid="admin-shipping-filter-tracking"
         />
         <select
           value={filters.billed}
           onChange={(e) => setFilters({ ...filters, billed: e.target.value })}
-          className="bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
+          className="bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink"
           data-testid="admin-shipping-filter-billed"
         >
           <option value="">All</option>
@@ -238,8 +238,8 @@ export default function ShippingLedgerTab() {
       </form>
 
       {/* Ledger table */}
-      <div className="border border-[#1f1f1f]" data-testid="admin-shipping-rows">
-        <div className="hidden md:grid grid-cols-[1fr_1.2fr_1fr_1.2fr_100px_110px_120px] gap-2 px-4 py-2 border-b border-[#1f1f1f] font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] bg-[#0a0a0a]">
+      <div className="border border-line" data-testid="admin-shipping-rows">
+        <div className="hidden md:grid grid-cols-[1fr_1.2fr_1fr_1.2fr_100px_110px_120px] gap-2 px-4 py-2 border-b border-line font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted bg-paper">
           <span>Date</span>
           <span>Maker</span>
           <span>Carrier</span>
@@ -250,25 +250,25 @@ export default function ShippingLedgerTab() {
         </div>
         {loading && <div data-testid="shipping-ledger-loading" className="p-3"><RowsSkeleton count={5} /></div>}
         {!loading && rows.length === 0 && (
-          <div className="p-5 font-mono text-xs text-[#737373]">No rows match.</div>
+          <div className="p-5 font-mono text-xs text-ink-muted">No rows match.</div>
         )}
         {!loading && rows.map((r) => (
           <div
             key={r.id}
-            className="grid md:grid-cols-[1fr_1.2fr_1fr_1.2fr_100px_110px_120px] gap-2 px-4 py-3 border-b border-[#1f1f1f] last:border-b-0 font-mono text-xs text-[#e5e5e5] items-center"
+            className="grid md:grid-cols-[1fr_1.2fr_1fr_1.2fr_100px_110px_120px] gap-2 px-4 py-3 border-b border-line last:border-b-0 font-mono text-xs text-ink items-center"
             data-testid={`admin-shipping-row-${r.id}`}
           >
-            <span className="text-[#a3a3a3]">{new Date(r.created_at).toLocaleDateString()}</span>
+            <span className="text-ink-muted">{new Date(r.created_at).toLocaleDateString()}</span>
             <span className="truncate">{r.maker_slug}</span>
             <span className="truncate">
-              <span className="text-[#ff4500]">{r.provider}</span>
-              <span className="text-[#525252]"> · </span>
+              <span className="text-brand">{r.provider}</span>
+              <span className="text-ink-muted"> · </span>
               {r.servicelevel_name}
             </span>
             <span className="truncate">
               {r.tracking_url_provider ? (
                 <a href={r.tracking_url_provider} target="_blank" rel="noopener noreferrer"
-                   className="underline hover:text-[#ff4500]">{r.tracking_number}</a>
+                   className="underline hover:text-brand">{r.tracking_number}</a>
               ) : r.tracking_number}
             </span>
             <span className="text-right">${((r.billed_cents || 0) / 100).toFixed(2)}</span>
@@ -287,7 +287,7 @@ export default function ShippingLedgerTab() {
               {!r.billed_at && (
                 <button
                   onClick={() => setMarkOpen(r)}
-                  className="text-[#ff4500] hover:underline"
+                  className="text-brand hover:underline"
                   data-testid={`admin-shipping-mark-billed-${r.id}`}
                 >
                   Mark billed →
@@ -333,14 +333,14 @@ function MarkBilledModal({ row, onClose, onSaved, token }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center px-3"
+    <div className="fixed inset-0 z-[60] bg-paper/80 backdrop-blur-sm flex items-center justify-center px-3"
          onClick={onClose}>
-      <div className="w-full max-w-md bg-[#0a0a0a] border border-[#ff4500] p-5 space-y-3"
+      <div className="w-full max-w-md bg-paper border border-brand p-5 space-y-3"
            onClick={(e) => e.stopPropagation()}>
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">
           ◆ Mark billed · {row.tracking_number}
         </div>
-        <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed">
+        <p className="font-mono text-xs text-ink-muted leading-relaxed">
           Use this when a maker paid via wire / cheque / offline. For auto-billing,
           the weekly invoice job handles it automatically.
         </p>
@@ -349,7 +349,7 @@ function MarkBilledModal({ row, onClose, onSaved, token }) {
           placeholder="Stripe invoice ID (or 'manual')"
           value={invoiceId}
           onChange={(e) => setInvoiceId(e.target.value)}
-          className="w-full bg-[#0e0e0e] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
+          className="w-full bg-[#0e0e0e] border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink"
           data-testid="admin-mark-billed-invoice"
         />
         <textarea
@@ -357,7 +357,7 @@ function MarkBilledModal({ row, onClose, onSaved, token }) {
           value={note}
           onChange={(e) => setNote(e.target.value)}
           rows={2}
-          className="w-full bg-[#0e0e0e] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
+          className="w-full bg-[#0e0e0e] border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink"
           data-testid="admin-mark-billed-note"
         />
         <div className="flex justify-end gap-2 pt-2">

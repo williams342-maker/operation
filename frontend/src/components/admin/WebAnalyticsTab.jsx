@@ -33,7 +33,7 @@ export default function WebAnalyticsTab() {
 
   return (
     <div className="space-y-8" data-testid="web-analytics-tab">
-      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">
+      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">
         ◆ Pageviews & Visitors — Last {data.window_days} days
       </div>
 
@@ -58,7 +58,7 @@ export default function WebAnalyticsTab() {
       </div>
 
       {/* Engagement subrow: bounce-rate, pages-per-session, bounces */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 pt-6 border-t border-[#262626]">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 pt-6 border-t border-line">
         <Stat
           label="Bounce Rate"
           value={`${(data.bounce_rate_pct ?? 0).toFixed(1)}%`}
@@ -77,8 +77,8 @@ export default function WebAnalyticsTab() {
       </div>
 
       {data.total_views === 0 && (
-        <div className="border border-dashed border-[#262626] p-6 text-center">
-          <p className="font-mono text-xs text-[#a3a3a3]">
+        <div className="border border-dashed border-line p-6 text-center">
+          <p className="font-mono text-xs text-ink-muted">
             No tracked pageviews yet. Browse the public site once and refresh —
             or wait for real visitors to land on the home / shop pages.
           </p>
@@ -119,7 +119,7 @@ export default function WebAnalyticsTab() {
       <SeoLandingPanel />
 
       {/* Privacy footer */}
-      <p className="font-mono text-[10px] text-[#525252] uppercase tracking-[0.22em] pt-4 border-t border-[#262626]">
+      <p className="font-mono text-[10px] text-ink-muted uppercase tracking-[0.22em] pt-4 border-t border-line">
         Privacy · IPs anonymized at ingest (last octet truncated, IPv6 → /48). Geo lookups cached. Bots filtered by UA.
       </p>
     </div>
@@ -137,31 +137,31 @@ function formatDwell(s) {
 function ListPanel({ title, rows, format, secondary, testId, showBar, emptyHint }) {
   const max = rows.reduce((m, r) => Math.max(m, r.count || 0), 0) || 1;
   return (
-    <div className="border border-[#262626] p-6" data-testid={testId}>
-      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-4">
+    <div className="border border-line p-6" data-testid={testId}>
+      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-4">
         ◆ {title}
       </div>
       {rows.length === 0 ? (
-        <p className="font-mono text-xs text-[#525252]" data-testid={`${testId}-empty`}>
+        <p className="font-mono text-xs text-ink-muted" data-testid={`${testId}-empty`}>
           {emptyHint}
         </p>
       ) : (
-        <ul className="divide-y divide-[#262626]">
+        <ul className="divide-y divide-line">
           {rows.map((r, i) => (
             <li key={`${r.key}-${i}`} className="py-2"
                 data-testid={`${testId}-row-${i}`}>
               <div className="flex items-center justify-between gap-3">
-                <span className="font-mono text-xs text-[#e5e5e5] truncate">
+                <span className="font-mono text-xs text-ink truncate">
                   {format ? format(r) : r.key}
                 </span>
-                <span className="font-mono text-[10px] text-[#a3a3a3]">
+                <span className="font-mono text-[10px] text-ink-muted">
                   {secondary ? secondary(r) : r.count.toLocaleString()}
                 </span>
               </div>
               {showBar && (
-                <div className="mt-1 h-1 bg-[#1a1a1a]">
+                <div className="mt-1 h-1 bg-surface">
                   <div
-                    className="h-full bg-[#ff4500]"
+                    className="h-full bg-brand"
                     style={{ width: `${Math.max(2, (r.count / max) * 100)}%` }}
                   />
                 </div>
@@ -203,9 +203,9 @@ function SeoLandingPanel() {
   const dormant = pages.filter((p) => p.views === 0);
 
   return (
-    <div className="pt-8 border-t border-[#262626]" data-testid="seo-landing-panel">
+    <div className="pt-8 border-t border-line" data-testid="seo-landing-panel">
       <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">
           ◆ SEO Landing-Page Performance — Last {days} days
         </div>
         <div className="flex gap-2">
@@ -215,8 +215,8 @@ function SeoLandingPanel() {
               onClick={() => setDays(d)}
               className={`font-mono text-[10px] uppercase tracking-[0.22em] px-3 py-1 border ${
                 days === d
-                  ? "border-[#ff4500] text-[#ff4500]"
-                  : "border-[#262626] text-[#a3a3a3] hover:text-[#e5e5e5]"
+                  ? "border-brand text-brand"
+                  : "border-line text-ink-muted hover:text-ink"
               }`}
               data-testid={`seo-landing-window-${d}`}
             >
@@ -227,7 +227,7 @@ function SeoLandingPanel() {
       </div>
 
       {loading && (
-        <p className="font-mono text-xs text-[#a3a3a3]" data-testid="seo-landing-loading">
+        <p className="font-mono text-xs text-ink-muted" data-testid="seo-landing-loading">
           Loading SEO landing-page analytics…
         </p>
       )}
@@ -261,17 +261,17 @@ function SeoLandingPanel() {
           </div>
 
           {ranked.length === 0 ? (
-            <div className="border border-dashed border-[#262626] p-6 text-center">
-              <p className="font-mono text-xs text-[#a3a3a3]">
+            <div className="border border-dashed border-line p-6 text-center">
+              <p className="font-mono text-xs text-ink-muted">
                 No SEO landing-page traffic in the last {days} days. As Google indexes the new
                 pages and organic visitors arrive, rows will populate here.
               </p>
             </div>
           ) : (
-            <div className="border border-[#262626] overflow-x-auto" data-testid="seo-landing-table">
+            <div className="border border-line overflow-x-auto" data-testid="seo-landing-table">
               <table className="w-full font-mono text-xs">
                 <thead>
-                  <tr className="text-[10px] uppercase tracking-[0.22em] text-[#525252] border-b border-[#262626]">
+                  <tr className="text-[10px] uppercase tracking-[0.22em] text-ink-muted border-b border-line">
                     <th className="text-left py-2 px-3">Keyword / Page</th>
                     <th className="text-right py-2 px-3">Views</th>
                     <th className="text-right py-2 px-3">Visitors</th>
@@ -286,7 +286,7 @@ function SeoLandingPanel() {
                     return (
                       <tr
                         key={p.slug}
-                        className="border-b border-[#1a1a1a] hover:bg-[#0f0f0f]"
+                        className="border-b border-line hover:bg-paper"
                         data-testid={`seo-landing-row-${p.slug}`}
                       >
                         <td className="py-2 px-3">
@@ -294,32 +294,32 @@ function SeoLandingPanel() {
                             href={p.path}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-[#e5e5e5] hover:text-[#ff4500] truncate inline-block max-w-[260px] align-middle"
+                            className="text-ink hover:text-brand truncate inline-block max-w-[260px] align-middle"
                             title={p.path}
                           >
                             {cfg?.keyword || p.slug}
                           </a>
-                          <div className="text-[10px] text-[#525252] truncate">{p.path}</div>
+                          <div className="text-[10px] text-ink-muted truncate">{p.path}</div>
                         </td>
-                        <td className="py-2 px-3 text-right text-[#e5e5e5]">
+                        <td className="py-2 px-3 text-right text-ink">
                           {p.views.toLocaleString()}
                         </td>
-                        <td className="py-2 px-3 text-right text-[#a3a3a3]">
+                        <td className="py-2 px-3 text-right text-ink-muted">
                           {p.unique_visitors.toLocaleString()}
                         </td>
-                        <td className="py-2 px-3 text-right text-[#a3a3a3]">
+                        <td className="py-2 px-3 text-right text-ink-muted">
                           {p.sessions.toLocaleString()}
                         </td>
-                        <td className="py-2 px-3 text-right text-[#a3a3a3]">
+                        <td className="py-2 px-3 text-right text-ink-muted">
                           {formatDwell(p.avg_dwell_s)}
                         </td>
-                        <td className="py-2 px-3 text-[#a3a3a3]">
+                        <td className="py-2 px-3 text-ink-muted">
                           {p.top_referrer === "—" ? (
-                            <span className="text-[#525252]">direct</span>
+                            <span className="text-ink-muted">direct</span>
                           ) : (
                             <span>
                               {p.top_referrer}{" "}
-                              <span className="text-[#525252]">
+                              <span className="text-ink-muted">
                                 ({p.top_referrer_count})
                               </span>
                             </span>
@@ -335,7 +335,7 @@ function SeoLandingPanel() {
 
           {dormant.length > 0 && (
             <details className="mt-4" data-testid="seo-landing-dormant">
-              <summary className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] cursor-pointer hover:text-[#e5e5e5]">
+              <summary className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted cursor-pointer hover:text-ink">
                 {dormant.length} page{dormant.length === 1 ? "" : "s"} with zero traffic ▾
               </summary>
               <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -347,7 +347,7 @@ function SeoLandingPanel() {
                       href={p.path}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="font-mono text-[11px] text-[#525252] hover:text-[#a3a3a3] truncate"
+                      className="font-mono text-[11px] text-ink-muted hover:text-ink-muted truncate"
                       data-testid={`seo-landing-dormant-${p.slug}`}
                     >
                       · {cfg?.keyword || p.slug}

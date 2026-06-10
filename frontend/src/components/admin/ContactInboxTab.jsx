@@ -35,7 +35,7 @@ const TOPIC_LABELS = {
   other: "Other",
 };
 const TOPIC_TONE = {
-  custom_order: "border-[#ff4500]/40 text-[#ff4500]",
+  custom_order: "border-brand/40 text-brand",
   order_help: "border-amber-500/40 text-amber-400",
   bug: "border-red-500/40 text-red-400",
   press: "border-purple-500/40 text-purple-400",
@@ -92,12 +92,12 @@ export default function ContactInboxTab() {
     <div className="space-y-6" data-testid="admin-contact-tab">
       <header className="flex items-end justify-between gap-4 flex-wrap">
         <div>
-          <h2 className="font-display text-3xl text-[#e5e5e5]">Contact Messages</h2>
-          <p className="font-mono text-xs text-[#a3a3a3] mt-1">
-            Submissions from <span className="text-[#e5e5e5]">/contact</span> · newest first
+          <h2 className="font-display text-3xl text-ink">Contact Messages</h2>
+          <p className="font-mono text-xs text-ink-muted mt-1">
+            Submissions from <span className="text-ink">/contact</span> · newest first
           </p>
         </div>
-        <div className="flex border border-[#262626]" data-testid="contact-filter">
+        <div className="flex border border-line" data-testid="contact-filter">
           {FILTERS.map((f) => {
             const active = filter === f.id;
             return (
@@ -107,7 +107,7 @@ export default function ContactInboxTab() {
                 onClick={() => setFilter(f.id)}
                 data-testid={`contact-filter-${f.id}`}
                 className={`px-4 py-2 font-mono text-[10px] uppercase tracking-[0.22em] transition ${
-                  active ? "bg-[#ff4500] text-black" : "text-[#a3a3a3] hover:text-[#e5e5e5]"
+                  active ? "bg-brand text-ink" : "text-ink-muted hover:text-ink"
                 }`}
               >
                 {f.label}
@@ -129,8 +129,8 @@ export default function ContactInboxTab() {
               data-testid={`contact-topic-${tid}`}
               className={`px-3 py-1.5 border font-mono text-[10px] uppercase tracking-[0.22em] transition ${
                 active
-                  ? "border-[#ff4500] text-[#ff4500] bg-[#ff4500]/5"
-                  : "border-[#262626] text-[#a3a3a3] hover:text-[#e5e5e5]"
+                  ? "border-brand text-brand bg-brand/5"
+                  : "border-line text-ink-muted hover:text-ink"
               }`}
             >
               {label}
@@ -150,7 +150,7 @@ export default function ContactInboxTab() {
           icon={MessageSquare}
         />
       ) : (
-        <ol className="border border-[#262626] divide-y divide-[#1a1a1a]" data-testid="contact-list">
+        <ol className="border border-line divide-y divide-line" data-testid="contact-list">
           {items.map((m, idx) => (
             <ContactRow
               key={m.id}
@@ -166,7 +166,7 @@ export default function ContactInboxTab() {
         </ol>
       )}
 
-      <p className="font-mono text-[10px] text-[#525252]">
+      <p className="font-mono text-[10px] text-ink-muted">
         Showing {items.length} message{items.length === 1 ? "" : "s"} ·
         {" "}{counts.pending} pending · {counts.resolved} resolved
       </p>
@@ -175,21 +175,21 @@ export default function ContactInboxTab() {
 }
 
 function ContactRow({ msg, index, isOpen, onToggleReply, onResolve, resolving, onSentReply }) {
-  const tone = TOPIC_TONE[msg.topic] || "border-[#262626] text-[#a3a3a3]";
+  const tone = TOPIC_TONE[msg.topic] || "border-line text-ink-muted";
   return (
     <li className="px-5 py-4" data-testid={`contact-row-${msg.id}`}>
       <div className="flex items-start gap-4">
-        <span className="font-display text-xl text-[#525252] shrink-0 w-8 text-right" title="Received order #">
+        <span className="font-display text-xl text-ink-muted shrink-0 w-8 text-right" title="Received order #">
           #{index}
         </span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-mono text-xs text-[#e5e5e5] font-bold">
+            <span className="font-mono text-xs text-ink font-bold">
               {msg.name || "Anonymous"}
             </span>
             <a
               href={`mailto:${msg.email}`}
-              className="font-mono text-xs text-[#a3a3a3] hover:text-[#ff4500]"
+              className="font-mono text-xs text-ink-muted hover:text-brand"
               data-testid={`contact-email-${msg.id}`}
             >
               {msg.email}
@@ -197,7 +197,7 @@ function ContactRow({ msg, index, isOpen, onToggleReply, onResolve, resolving, o
             {msg.phone && (
               <a
                 href={`tel:${msg.phone}`}
-                className="inline-flex items-center gap-1 font-mono text-[10px] text-[#a3a3a3] hover:text-[#ff4500]"
+                className="inline-flex items-center gap-1 font-mono text-[10px] text-ink-muted hover:text-brand"
               >
                 <Phone size={10} /> {msg.phone}
               </a>
@@ -205,7 +205,7 @@ function ContactRow({ msg, index, isOpen, onToggleReply, onResolve, resolving, o
             <span className={`px-2 py-0.5 border font-mono text-[9px] uppercase tracking-[0.22em] ${tone}`}>
               {TOPIC_LABELS[msg.topic] || msg.topic}
             </span>
-            <span className="font-mono text-[10px] text-[#525252]">· {timeAgo(msg.created_at)}</span>
+            <span className="font-mono text-[10px] text-ink-muted">· {timeAgo(msg.created_at)}</span>
             {msg.resolved && (
               <span className="px-2 py-0.5 border border-emerald-500/40 text-emerald-400 font-mono text-[9px] uppercase tracking-[0.22em]">
                 ✓ Resolved
@@ -221,12 +221,12 @@ function ContactRow({ msg, index, isOpen, onToggleReply, onResolve, resolving, o
             )}
           </div>
           {msg.subject && (
-            <div className="font-mono text-xs text-[#e5e5e5] mt-2 italic">
+            <div className="font-mono text-xs text-ink mt-2 italic">
               Subject: {msg.subject}
             </div>
           )}
           <p
-            className="font-mono text-sm text-[#e5e5e5] mt-2 whitespace-pre-wrap leading-relaxed"
+            className="font-mono text-sm text-ink mt-2 whitespace-pre-wrap leading-relaxed"
             data-testid={`contact-message-${msg.id}`}
           >
             {msg.message}
@@ -245,7 +245,7 @@ function ContactRow({ msg, index, isOpen, onToggleReply, onResolve, resolving, o
               type="button"
               onClick={onToggleReply}
               data-testid={`contact-reply-${msg.id}`}
-              className="px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition"
+              className="px-3 py-1.5 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] transition"
             >
               <Mail size={12} className="inline mr-1" /> {isOpen ? "Cancel" : "Reply"}
             </button>
@@ -254,7 +254,7 @@ function ContactRow({ msg, index, isOpen, onToggleReply, onResolve, resolving, o
               onClick={onResolve}
               disabled={resolving}
               data-testid={`contact-resolve-${msg.id}`}
-              className="px-3 py-1.5 border border-[#262626] hover:border-emerald-500/60 hover:text-emerald-400 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+              className="px-3 py-1.5 border border-line hover:border-emerald-500/60 hover:text-emerald-400 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
             >
               <Check size={12} className="inline mr-1" /> {resolving ? "…" : "Resolve"}
             </button>
@@ -286,17 +286,17 @@ function ReplyComposer({ messageId, onSent, defaultSubject }) {
     }
   };
   return (
-    <div className="mt-3 border border-[#262626] bg-[#0a0a0a] p-3 space-y-2" data-testid={`contact-reply-composer-${messageId}`}>
+    <div className="mt-3 border border-line bg-paper p-3 space-y-2" data-testid={`contact-reply-composer-${messageId}`}>
       <input
         type="text" value={subject} onChange={(e) => setSubject(e.target.value)}
         placeholder="Subject"
-        className="w-full bg-[#0d0d0d] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
+        className="w-full bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink"
         data-testid={`contact-reply-subject-${messageId}`}
       />
       <textarea
         rows={5} value={message} onChange={(e) => setMessage(e.target.value)}
         placeholder="Type your reply…"
-        className="w-full bg-[#0d0d0d] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5] resize-none leading-relaxed"
+        className="w-full bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink resize-none leading-relaxed"
         data-testid={`contact-reply-body-${messageId}`}
       />
       <button

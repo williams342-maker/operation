@@ -53,14 +53,14 @@ export default function DesignFileReportsTab() {
       <div>
         <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-red-400">◆ Moderation Queue</div>
         <h2 className="font-display text-3xl md:text-4xl mt-1">Design-file reports</h2>
-        <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-2xl">
+        <p className="font-mono text-xs text-ink-muted mt-2 max-w-2xl">
           Flags from community users on uploaded design files. Quarantine hides
           the file platform-wide and marks every open report for that file
           as resolved. Dismiss closes just this row.
         </p>
       </div>
 
-      <div className="flex flex-wrap gap-2 pb-3 border-b border-[#262626]">
+      <div className="flex flex-wrap gap-2 pb-3 border-b border-line">
         {STATUS_TABS.map((t) => {
           const active = status === t.id;
           return (
@@ -71,7 +71,7 @@ export default function DesignFileReportsTab() {
               className={`px-2.5 py-1.5 border font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-2 transition ${
                 active
                   ? "border-red-500 text-red-400 bg-red-500/5"
-                  : "border-[#262626] text-[#a3a3a3] hover:border-[#525252] hover:text-[#e5e5e5]"
+                  : "border-line text-ink-muted hover:border-ink-muted hover:text-ink"
               }`}
             >
               {t.label}
@@ -141,7 +141,7 @@ function ReportRow({ report, onChange }) {
 
   return (
     <div
-      className="border border-[#262626] hover:border-red-500/40 transition p-4 md:p-5"
+      className="border border-line hover:border-red-500/40 transition p-4 md:p-5"
       data-testid={`file-report-row-${report.id}`}
     >
       <div className="flex flex-col md:flex-row md:items-start gap-4">
@@ -150,10 +150,10 @@ function ReportRow({ report, onChange }) {
           <img
             src={f.thumbnail_url}
             alt=""
-            className="w-20 h-20 object-cover border border-[#262626] shrink-0"
+            className="w-20 h-20 object-cover border border-line shrink-0"
           />
         ) : (
-          <div className="w-20 h-20 border border-[#262626] flex items-center justify-center font-mono text-[10px] text-[#a3a3a3] shrink-0">
+          <div className="w-20 h-20 border border-line flex items-center justify-center font-mono text-[10px] text-ink-muted shrink-0">
             {f?.file_type || "?"}
           </div>
         )}
@@ -165,38 +165,38 @@ function ReportRow({ report, onChange }) {
               {report.reason_label}
             </span>
             {f?.quarantined_at && (
-              <span className="inline-block px-1.5 py-0.5 bg-red-600 text-white text-[9px] font-bold uppercase tracking-[0.22em]">
+              <span className="inline-block px-1.5 py-0.5 bg-red-600 text-ink text-[9px] font-bold uppercase tracking-[0.22em]">
                 Quarantined
               </span>
             )}
             {f && f.open_reports > 1 && report.status === "open" && (
-              <span className="inline-block px-1.5 py-0.5 bg-amber-600/80 text-black text-[9px] font-bold uppercase tracking-[0.22em]">
+              <span className="inline-block px-1.5 py-0.5 bg-amber-600/80 text-ink text-[9px] font-bold uppercase tracking-[0.22em]">
                 {f.open_reports}× reports
               </span>
             )}
-            <span className="font-mono text-[10px] text-[#525252]">
+            <span className="font-mono text-[10px] text-ink-muted">
               {formatDate(report.created_at)}
             </span>
           </div>
-          <div className="font-display text-lg text-[#e5e5e5] break-words">
+          <div className="font-display text-lg text-ink break-words">
             {report.file_title || "(file removed)"}
           </div>
-          <div className="font-mono text-[11px] text-[#a3a3a3]">
-            Uploader: <span className="text-[#e5e5e5]">{report.file_uploader || "—"}</span>
+          <div className="font-mono text-[11px] text-ink-muted">
+            Uploader: <span className="text-ink">{report.file_uploader || "—"}</span>
             &nbsp;·&nbsp;
-            Reporter: <span className="text-[#e5e5e5]">{report.reported_by}</span>
+            Reporter: <span className="text-ink">{report.reported_by}</span>
             &nbsp;·&nbsp;
-            Role: <span className="text-[#e5e5e5]">{report.reported_role}</span>
+            Role: <span className="text-ink">{report.reported_role}</span>
           </div>
           {report.details && (
-            <div className="font-mono text-[11px] text-[#a3a3a3] border-l-2 border-red-500/60 pl-3 leading-relaxed">
+            <div className="font-mono text-[11px] text-ink-muted border-l-2 border-red-500/60 pl-3 leading-relaxed">
               "{report.details}"
             </div>
           )}
           {report.resolver_note && report.status !== "open" && (
-            <div className="font-mono text-[10px] text-[#525252]">
+            <div className="font-mono text-[10px] text-ink-muted">
               {report.resolution_action === "quarantine" ? "✕ Quarantined" : "◇ Dismissed"} by {report.resolver} · {formatDate(report.resolved_at)}
-              {report.resolver_note && <> · <span className="text-[#a3a3a3]">"{report.resolver_note}"</span></>}
+              {report.resolver_note && <> · <span className="text-ink-muted">"{report.resolver_note}"</span></>}
             </div>
           )}
 
@@ -205,7 +205,7 @@ function ReportRow({ report, onChange }) {
               href={f.download_url}
               target="_blank"
               rel="noreferrer"
-              className="inline-block font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] hover:underline"
+              className="inline-block font-mono text-[10px] uppercase tracking-[0.22em] text-brand hover:underline"
               data-testid={`file-report-preview-${report.id}`}
             >
               → Preview file
@@ -216,7 +216,7 @@ function ReportRow({ report, onChange }) {
 
       {/* Actions */}
       {report.status === "open" && (
-        <div className="mt-4 pt-3 border-t border-[#262626] space-y-2">
+        <div className="mt-4 pt-3 border-t border-line space-y-2">
           {showNote && (
             <textarea
               placeholder="Optional note (logged to audit trail)"
@@ -225,7 +225,7 @@ function ReportRow({ report, onChange }) {
               rows={2}
               maxLength={500}
               data-testid={`file-report-note-${report.id}`}
-              className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-2 py-1.5 font-mono text-[11px] text-[#e5e5e5] resize-none"
+              className="w-full bg-transparent border border-line focus:border-brand outline-none px-2 py-1.5 font-mono text-[11px] text-ink resize-none"
             />
           )}
           <div className="flex flex-wrap gap-2">
@@ -233,7 +233,7 @@ function ReportRow({ report, onChange }) {
               onClick={() => doAction("quarantine")}
               disabled={!!busy}
               data-testid={`file-report-quarantine-${report.id}`}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white font-mono text-[10px] uppercase tracking-[0.22em] font-bold disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-500 text-ink font-mono text-[10px] uppercase tracking-[0.22em] font-bold disabled:opacity-50"
             >
               {busy === "quarantine" ? "…" : "✕ Quarantine file"}
             </button>
@@ -241,7 +241,7 @@ function ReportRow({ report, onChange }) {
               onClick={() => doAction("dismiss")}
               disabled={!!busy}
               data-testid={`file-report-dismiss-${report.id}`}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-[#262626] hover:border-emerald-500 hover:text-emerald-400 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-line hover:border-emerald-500 hover:text-emerald-400 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
             >
               {busy === "dismiss" ? "…" : "◇ Dismiss"}
             </button>
@@ -249,7 +249,7 @@ function ReportRow({ report, onChange }) {
               onClick={() => setShowNote((v) => !v)}
               disabled={!!busy}
               data-testid={`file-report-toggle-note-${report.id}`}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-[#262626] hover:border-[#525252] font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-line hover:border-ink-muted font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
             >
               {showNote ? "− Note" : "+ Note"}
             </button>
@@ -260,7 +260,7 @@ function ReportRow({ report, onChange }) {
       {/* Restore control — shown only on resolved reports whose file is
           still quarantined. Lets admin undo mis-moderation. */}
       {report.status === "resolved" && f?.quarantined_at && (
-        <div className="mt-3 pt-3 border-t border-[#262626]">
+        <div className="mt-3 pt-3 border-t border-line">
           <button
             onClick={restore}
             disabled={!!busy}

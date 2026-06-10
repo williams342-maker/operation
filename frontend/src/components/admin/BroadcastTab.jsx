@@ -140,9 +140,9 @@ export default function BroadcastTab() {
     <div className="space-y-6 max-w-4xl" data-testid="broadcast-tab">
       {confirmModal}
       <div>
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">◆ Announcement Composer</div>
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">◆ Announcement Composer</div>
         <h2 className="font-display text-3xl md:text-4xl mt-1">Site-Wide Email</h2>
-        <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-2xl leading-relaxed">
+        <p className="font-mono text-xs text-ink-muted mt-2 max-w-2xl leading-relaxed">
           Broadcast outages, upcoming events, feature launches, or maker updates via the
           standard transactional fallback chain. Always preview the audience count before sending.
         </p>
@@ -150,7 +150,7 @@ export default function BroadcastTab() {
 
       {/* Template quick-picks */}
       <div>
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">Template</div>
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">Template</div>
         <div className="flex flex-wrap gap-2">
           {TEMPLATES.map((t) => (
             <button
@@ -159,8 +159,8 @@ export default function BroadcastTab() {
               data-testid={`broadcast-template-${t.id}`}
               className={`px-3 py-1.5 border font-mono text-[10px] uppercase tracking-[0.22em] transition ${
                 template === t.id
-                  ? "border-[#ff4500] text-[#ff4500] bg-[#ff4500]/5"
-                  : "border-[#262626] text-[#a3a3a3] hover:border-[#525252] hover:text-[#e5e5e5]"
+                  ? "border-brand text-brand bg-brand/5"
+                  : "border-line text-ink-muted hover:border-ink-muted hover:text-ink"
               }`}
             >
               {t.label}
@@ -171,7 +171,7 @@ export default function BroadcastTab() {
 
       {/* Audience picker */}
       <div>
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">Audience</div>
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">Audience</div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
           {AUDIENCES.map((a) => (
             <button
@@ -180,51 +180,51 @@ export default function BroadcastTab() {
               data-testid={`broadcast-audience-${a.id}`}
               className={`text-left border p-3 transition ${
                 audience === a.id
-                  ? "border-[#ff4500] bg-[#ff4500]/5"
-                  : "border-[#262626] hover:border-[#525252]"
+                  ? "border-brand bg-brand/5"
+                  : "border-line hover:border-ink-muted"
               }`}
             >
-              <div className="font-mono text-xs text-[#e5e5e5] uppercase tracking-[0.22em]">{a.label}</div>
-              <div className="font-mono text-[10px] text-[#a3a3a3] mt-1">{a.hint}</div>
+              <div className="font-mono text-xs text-ink uppercase tracking-[0.22em]">{a.label}</div>
+              <div className="font-mono text-[10px] text-ink-muted mt-1">{a.hint}</div>
             </button>
           ))}
         </div>
       </div>
 
       {/* Compose */}
-      <div className="border border-[#262626] p-5 space-y-4">
+      <div className="border border-line p-5 space-y-4">
         <div>
-          <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Headline (big, top of email)</label>
+          <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Headline (big, top of email)</label>
           <input
             value={headline}
             onChange={(e) => setHeadline(e.target.value)}
             maxLength={120}
             data-testid="broadcast-headline"
-            className="w-full mt-2 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-display text-xl text-[#e5e5e5]"
+            className="w-full mt-2 bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-display text-xl text-ink"
           />
         </div>
         <div>
-          <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Subject line</label>
+          <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Subject line</label>
           <input
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
             maxLength={180}
             placeholder="e.g. Scheduled maintenance tonight 9-11pm ET"
             data-testid="broadcast-subject"
-            className="w-full mt-2 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm text-[#e5e5e5]"
+            className="w-full mt-2 bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm text-ink"
           />
         </div>
         <div>
-          <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Message body (plain text, line breaks preserved)</label>
+          <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Message body (plain text, line breaks preserved)</label>
           <textarea
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             rows={8}
             placeholder="Hey makers — we're pushing a new release tonight..."
             data-testid="broadcast-message"
-            className="w-full mt-2 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-3 font-mono text-sm text-[#e5e5e5] leading-relaxed resize-none"
+            className="w-full mt-2 bg-transparent border border-line focus:border-brand outline-none px-3 py-3 font-mono text-sm text-ink leading-relaxed resize-none"
           />
-          <div className="font-mono text-[10px] text-[#525252] mt-1">{message.length} chars</div>
+          <div className="font-mono text-[10px] text-ink-muted mt-1">{message.length} chars</div>
         </div>
       </div>
 
@@ -234,7 +234,7 @@ export default function BroadcastTab() {
           onClick={doPreview}
           disabled={busy}
           data-testid="broadcast-preview-btn"
-          className="px-4 py-2 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-xs uppercase tracking-[0.22em] transition disabled:opacity-50"
+          className="px-4 py-2 border border-line hover:border-brand hover:text-brand font-mono text-xs uppercase tracking-[0.22em] transition disabled:opacity-50"
         >
           ◆ Preview audience
         </button>
@@ -244,13 +244,13 @@ export default function BroadcastTab() {
           onChange={(e) => setTestEmail(e.target.value)}
           placeholder="test@yourself.com"
           data-testid="broadcast-test-email"
-          className="bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5] w-64"
+          className="bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink w-64"
         />
         <button
           onClick={doTestSend}
           disabled={busy || !testEmail.trim()}
           data-testid="broadcast-test-btn"
-          className="px-4 py-2 border border-[#262626] hover:border-sky-500 hover:text-sky-400 font-mono text-xs uppercase tracking-[0.22em] transition disabled:opacity-50"
+          className="px-4 py-2 border border-line hover:border-sky-500 hover:text-sky-400 font-mono text-xs uppercase tracking-[0.22em] transition disabled:opacity-50"
         >
           Send test →
         </button>
@@ -265,11 +265,11 @@ export default function BroadcastTab() {
       </div>
 
       {preview && (
-        <div className="border border-[#ff4500]/40 bg-[#ff4500]/5 p-4" data-testid="broadcast-preview-box">
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] mb-2">
+        <div className="border border-brand/40 bg-brand/5 p-4" data-testid="broadcast-preview-box">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-2">
             ◆ Resolved audience: {preview.count} recipients
           </div>
-          <div className="font-mono text-xs text-[#e5e5e5] leading-relaxed">
+          <div className="font-mono text-xs text-ink leading-relaxed">
             Sample: {preview.sample.slice(0, 5).join(", ")}
             {preview.count > 5 && ` +${preview.count - 5} more`}
           </div>

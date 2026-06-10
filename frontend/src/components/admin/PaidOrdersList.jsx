@@ -85,7 +85,7 @@ export default function PaidOrdersList({ items }) {
 
   if (!items.length) {
     return (
-      <p className="font-mono text-sm text-[#a3a3a3]" data-testid="orders-empty-admin">
+      <p className="font-mono text-sm text-ink-muted" data-testid="orders-empty-admin">
         No paid orders yet.
       </p>
     );
@@ -98,33 +98,33 @@ export default function PaidOrdersList({ items }) {
         return (
           <div
             key={o.session_id}
-            className={`border border-[#262626] transition p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-2 ${
-              isRefunded ? "opacity-60" : "hover:border-[#ff4500]"
+            className={`border border-line transition p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-2 ${
+              isRefunded ? "opacity-60" : "hover:border-brand"
             }`}
             data-testid={`paid-order-${o.session_id}`}
           >
             <div className="flex-1 min-w-0">
-              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">
                 ◆ {isRefunded ? "Refunded" : "Paid"} · {formatDate(o.created_at)}
               </div>
-              <div className="font-mono text-xs text-[#e5e5e5] mt-1 truncate">{o.summary}</div>
-              <div className="font-mono text-[10px] text-[#a3a3a3] mt-1">
+              <div className="font-mono text-xs text-ink mt-1 truncate">{o.summary}</div>
+              <div className="font-mono text-[10px] text-ink-muted mt-1">
                 {o.customer_email || "no buyer email"} ·{" "}
-                <span className="text-[#525252]">{o.session_id?.slice(0, 16)}…</span>
+                <span className="text-ink-muted">{o.session_id?.slice(0, 16)}…</span>
               </div>
               {err[o.session_id] && (
                 <p className="font-mono text-[10px] text-red-400 mt-1">{err[o.session_id]}</p>
               )}
             </div>
             <div className="flex items-center gap-3">
-              <div className="font-display text-3xl text-[#ff4500]">
+              <div className="font-display text-3xl text-brand">
                 ${(o.amount || 0).toFixed(2)}
               </div>
               {!isRefunded ? (
                 <button
                   onClick={() => refund(o.session_id)}
                   disabled={refunding === o.session_id}
-                  className="font-mono text-[10px] uppercase tracking-[0.22em] px-3 py-2 border border-[#262626] hover:border-red-400 hover:text-red-400 transition disabled:opacity-50"
+                  className="font-mono text-[10px] uppercase tracking-[0.22em] px-3 py-2 border border-line hover:border-red-400 hover:text-red-400 transition disabled:opacity-50"
                   data-testid={`order-refund-btn-${o.session_id}`}
                 >
                   {refunding === o.session_id ? "Refunding…" : "⊗ Refund"}
@@ -141,14 +141,14 @@ export default function PaidOrdersList({ items }) {
                 onClick={() => refire(o.session_id)}
                 disabled={refiring === o.session_id}
                 title="Re-send the buyer receipt + maker order email + ops alert"
-                className="font-mono text-[10px] uppercase tracking-[0.22em] px-3 py-2 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] transition disabled:opacity-50"
+                className="font-mono text-[10px] uppercase tracking-[0.22em] px-3 py-2 border border-line hover:border-brand hover:text-brand transition disabled:opacity-50"
                 data-testid={`order-refire-btn-${o.session_id}`}
               >
                 {refiring === o.session_id ? "Sending…" : "✉ Refire"}
               </button>
               {refireLog[o.session_id] && (
                 <span
-                  className="font-mono text-[10px] text-[#a3a3a3] whitespace-nowrap"
+                  className="font-mono text-[10px] text-ink-muted whitespace-nowrap"
                   data-testid={`order-refire-last-${o.session_id}`}
                   title={`Last refired at ${new Date(refireLog[o.session_id]).toLocaleString()}`}
                 >

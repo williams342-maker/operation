@@ -100,7 +100,7 @@ export default function PillTeaser({ label, query }) {
     >
       <button
         onClick={onClick}
-        className="px-3 py-1.5 border border-amber-500/20 hover:border-amber-400 hover:text-amber-300 font-mono text-[10px] uppercase tracking-[0.22em] text-zinc-300 transition bg-black/30 backdrop-blur-sm"
+        className="px-3 py-1.5 border border-amber-500/20 hover:border-amber-400 hover:text-amber-300 font-mono text-[10px] uppercase tracking-[0.22em] text-zinc-300 transition bg-paper/30 backdrop-blur-sm"
         data-testid={`pill-${label}`}
         aria-haspopup="true"
         aria-expanded={open}
@@ -110,7 +110,7 @@ export default function PillTeaser({ label, query }) {
 
       {open && (
         <div
-          className="absolute z-30 left-1/2 -translate-x-1/2 top-full mt-2 w-[18rem] sm:w-[22rem] bg-[#0a0a0a]/95 border border-amber-500/30 backdrop-blur-md shadow-2xl p-3 animate-[fadeIn_120ms_ease-out]"
+          className="absolute z-30 left-1/2 -translate-x-1/2 top-full mt-2 w-[18rem] sm:w-[22rem] bg-paper/95 border border-amber-500/30 backdrop-blur-md shadow-2xl p-3 animate-[fadeIn_120ms_ease-out]"
           data-testid={`pill-teaser-panel-${label}`}
           role="dialog"
         >
@@ -165,7 +165,7 @@ export default function PillTeaser({ label, query }) {
                   <div className="mt-1.5 font-mono text-[9px] text-zinc-300 truncate group-hover:text-amber-300">
                     {p.title}
                   </div>
-                  <div className="font-mono text-[10px] text-[#ff4500]">
+                  <div className="font-mono text-[10px] text-brand">
                     {formatPriceDisplay(p)}
                   </div>
                 </button>

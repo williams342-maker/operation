@@ -66,7 +66,7 @@ export default function ZombieCleanupCard() {
 
   if (loading) {
     return (
-      <div data-testid="zombie-card-loading" className="font-mono text-xs text-[#a3a3a3] py-3">
+      <div data-testid="zombie-card-loading" className="font-mono text-xs text-ink-muted py-3">
         Loading zombie list…
       </div>
     );
@@ -80,7 +80,7 @@ export default function ZombieCleanupCard() {
   }
 
   return (
-    <section className="border border-[#262626] p-5 md:p-6 space-y-4" data-testid="zombie-cleanup-card">
+    <section className="border border-line p-5 md:p-6 space-y-4" data-testid="zombie-cleanup-card">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-amber-400">
@@ -90,13 +90,13 @@ export default function ZombieCleanupCard() {
         </div>
         <button
           onClick={load}
-          className="px-3 py-1.5 border border-[#262626] hover:border-amber-400 font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-amber-300 transition"
+          className="px-3 py-1.5 border border-line hover:border-amber-400 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-amber-300 transition"
           data-testid="zombie-refresh"
         >
           ↻ Refresh
         </button>
       </div>
-      <p className="font-mono text-xs text-[#a3a3a3] max-w-3xl leading-relaxed">
+      <p className="font-mono text-xs text-ink-muted max-w-3xl leading-relaxed">
         Live products that would fail external catalog-feed validation (missing image, $0 price, empty title or description).
         Soft-delete hides them from every public surface — catalog feeds, search, maker profile — but keeps the row for audit.
         Use <span className="text-emerald-400">Restore</span> from the maker dashboard if a soft-deleted listing comes back to life.
@@ -107,9 +107,9 @@ export default function ZombieCleanupCard() {
           ✓ All published listings have title, description, price &gt; 0, and at least one image. Nothing to clean up.
         </p>
       ) : (
-        <div className="border border-[#1f1f1f] overflow-x-auto">
+        <div className="border border-line overflow-x-auto">
           <table className="w-full font-mono text-[11px]">
-            <thead className="bg-[#0d0d0d] text-[#a3a3a3] uppercase tracking-[0.18em] text-[10px]">
+            <thead className="bg-paper text-ink-muted uppercase tracking-[0.18em] text-[10px]">
               <tr>
                 <th className="text-left px-3 py-2.5">Listing</th>
                 <th className="text-left px-3 py-2.5">Maker</th>
@@ -118,21 +118,21 @@ export default function ZombieCleanupCard() {
                 <th className="text-right px-3 py-2.5">Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#1a1a1a]">
+            <tbody className="divide-y divide-line">
               {items.slice(0, 200).map((it) => (
-                <tr key={it.slug} className="hover:bg-[#0d0d0d] transition" data-testid={`zombie-row-${it.slug}`}>
+                <tr key={it.slug} className="hover:bg-paper transition" data-testid={`zombie-row-${it.slug}`}>
                   <td className="px-3 py-2.5">
                     <div className="text-[#fafafa] truncate max-w-[280px]">{it.title}</div>
                     <a
                       href={`/shop/${it.slug}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-[#525252] hover:text-[#ff4500] transition text-[10px]"
+                      className="text-ink-muted hover:text-brand transition text-[10px]"
                     >
                       /{it.slug}
                     </a>
                   </td>
-                  <td className="px-3 py-2.5 text-[#a3a3a3]">{it.maker_slug || "—"}</td>
+                  <td className="px-3 py-2.5 text-ink-muted">{it.maker_slug || "—"}</td>
                   <td className="px-3 py-2.5">
                     <div className="flex flex-wrap gap-1">
                       {it.issues.map((iss) => (
@@ -146,7 +146,7 @@ export default function ZombieCleanupCard() {
                       ))}
                     </div>
                   </td>
-                  <td className="px-3 py-2.5 text-[#a3a3a3]">{it.status || "—"}</td>
+                  <td className="px-3 py-2.5 text-ink-muted">{it.status || "—"}</td>
                   <td className="px-3 py-2.5 text-right">
                     <button
                       onClick={() => softDelete(it.slug, it.issues.join(","))}
@@ -162,7 +162,7 @@ export default function ZombieCleanupCard() {
             </tbody>
           </table>
           {items.length > 200 && (
-            <p className="font-mono text-[10px] text-[#525252] px-3 py-2 border-t border-[#1f1f1f]">
+            <p className="font-mono text-[10px] text-ink-muted px-3 py-2 border-t border-line">
               Showing first 200 of {items.length} — fix the top batch and refresh.
             </p>
           )}

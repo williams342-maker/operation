@@ -62,16 +62,16 @@ export default function ConversionUploadLogCard() {
 
   return (
     <section
-      className="border border-[#262626] p-4 md:p-5"
+      className="border border-line p-4 md:p-5"
       data-testid="conversion-upload-log-card"
     >
-      <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-2">
+      <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-2">
         ◆ Server-side conversion uploads
       </div>
       <h3 className="font-display text-2xl uppercase mb-1">
         Live upload feed
       </h3>
-      <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed max-w-2xl mb-4">
+      <p className="font-mono text-xs text-ink-muted leading-relaxed max-w-2xl mb-4">
         Real-time view of post-paid conversion pushes to Meta CAPI / Google
         Enhanced Conversions / Microsoft UET Offline. Only fires on orders
         carrying a click ID — so this stays empty until you start running ads.
@@ -91,8 +91,8 @@ export default function ConversionUploadLogCard() {
                 {CHANNEL_LABELS[ch]} · 24h
               </div>
               <div className="flex items-baseline gap-2 mt-1">
-                <span className="font-display text-3xl text-[#f5f5f5]">{r.ok}</span>
-                <span className="font-mono text-[10px] uppercase text-[#a3a3a3]">ok</span>
+                <span className="font-display text-3xl text-ink">{r.ok}</span>
+                <span className="font-mono text-[10px] uppercase text-ink-muted">ok</span>
                 {r.err > 0 && (
                   <>
                     <span className="font-display text-xl text-red-400 ml-2">{r.err}</span>
@@ -100,7 +100,7 @@ export default function ConversionUploadLogCard() {
                   </>
                 )}
               </div>
-              <div className="font-mono text-[10px] text-[#525252] mt-1">
+              <div className="font-mono text-[10px] text-ink-muted mt-1">
                 ${((r.total_value_cents || 0) / 100).toFixed(2)} uploaded
               </div>
             </div>
@@ -110,7 +110,7 @@ export default function ConversionUploadLogCard() {
 
       {/* Channel filter pills */}
       <div className="flex flex-wrap items-center gap-2 mb-3">
-        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252]">
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
           Filter:
         </span>
         {[null, "meta", "google", "microsoft"].map((ch) => (
@@ -120,15 +120,15 @@ export default function ConversionUploadLogCard() {
             onClick={() => setFilter(ch)}
             className={`px-2 py-1 border font-mono text-[10px] uppercase tracking-[0.22em] transition ${
               filter === ch
-                ? "border-[#ff4500] text-[#ff4500] bg-[#ff4500]/10"
-                : "border-[#262626] text-[#a3a3a3] hover:border-[#525252]"
+                ? "border-brand text-brand bg-brand/10"
+                : "border-line text-ink-muted hover:border-ink-muted"
             }`}
             data-testid={`conv-log-filter-${ch || "all"}`}
           >
             {ch ? CHANNEL_LABELS[ch] : "All"}
           </button>
         ))}
-        <span className="font-mono text-[10px] text-[#525252] ml-auto">
+        <span className="font-mono text-[10px] text-ink-muted ml-auto">
           {loading ? "…" : `${data?.total_in_db || 0} total in DB`}
         </span>
       </div>
@@ -140,15 +140,15 @@ export default function ConversionUploadLogCard() {
       )}
 
       {/* Live feed table */}
-      <div className="border border-[#262626] max-h-[480px] overflow-y-auto">
+      <div className="border border-line max-h-[480px] overflow-y-auto">
         {rows.length === 0 ? (
-          <div className="font-mono text-xs text-[#525252] p-6 text-center">
+          <div className="font-mono text-xs text-ink-muted p-6 text-center">
             {loading ? "Loading…" : "No conversion uploads yet. They start landing here once paid traffic with click IDs starts hitting checkout."}
           </div>
         ) : (
           <table className="w-full text-left">
-            <thead className="bg-[#0a0a0a] sticky top-0">
-              <tr className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252]">
+            <thead className="bg-paper sticky top-0">
+              <tr className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted">
                 <th className="px-3 py-2">When</th>
                 <th className="px-3 py-2">Channel</th>
                 <th className="px-3 py-2">Status</th>
@@ -160,14 +160,14 @@ export default function ConversionUploadLogCard() {
               {rows.map((r) => (
                 <tr
                   key={`${r.session_id}::${r.channel}`}
-                  className="border-t border-[#1a1a1a] hover:bg-[#0f0f0f]"
+                  className="border-t border-line hover:bg-paper"
                   data-testid={`conv-log-row-${r.session_id}-${r.channel}`}
                 >
-                  <td className="px-3 py-2 font-mono text-[10px] text-[#a3a3a3] whitespace-nowrap">
+                  <td className="px-3 py-2 font-mono text-[10px] text-ink-muted whitespace-nowrap">
                     {_fmtAgo(r.uploaded_at)}
                   </td>
                   <td className="px-3 py-2">
-                    <span className={`inline-block px-2 py-0.5 border font-mono text-[9px] uppercase tracking-[0.18em] ${CHANNEL_COLORS[r.channel] || "border-[#262626] text-[#a3a3a3]"}`}>
+                    <span className={`inline-block px-2 py-0.5 border font-mono text-[9px] uppercase tracking-[0.18em] ${CHANNEL_COLORS[r.channel] || "border-line text-ink-muted"}`}>
                       {CHANNEL_LABELS[r.channel] || r.channel}
                     </span>
                   </td>
@@ -180,10 +180,10 @@ export default function ConversionUploadLogCard() {
                       </span>
                     )}
                   </td>
-                  <td className="px-3 py-2 font-mono text-[10px] text-[#a3a3a3] text-right whitespace-nowrap">
+                  <td className="px-3 py-2 font-mono text-[10px] text-ink-muted text-right whitespace-nowrap">
                     ${((r.amount_cents || 0) / 100).toFixed(2)}
                   </td>
-                  <td className="px-3 py-2 font-mono text-[10px] text-[#525252] truncate max-w-[180px]" title={r.session_id}>
+                  <td className="px-3 py-2 font-mono text-[10px] text-ink-muted truncate max-w-[180px]" title={r.session_id}>
                     {r.session_id}
                   </td>
                 </tr>

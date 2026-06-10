@@ -25,73 +25,73 @@ export default function SeoFieldsSection({ values, setters, testidPrefix, focusB
   const filled = [seoTitle, seoDescription, seoTagsCsv, altText].filter((v) => (v || "").trim()).length;
 
   return (
-    <div className="mt-4 border-t border-[#1f1f1f] pt-3">
+    <div className="mt-4 border-t border-line pt-3">
       <button
         type="button"
         onClick={() => setOpen((p) => !p)}
-        className="w-full flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#f5f5f5]"
+        className="w-full flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-ink"
         data-testid={`${testidPrefix}-seo-toggle`}
       >
         <span>SEO fields · {filled}/4 set</span>
-        <span className="text-[#525252]">{open ? "▾" : "▸"}</span>
+        <span className="text-ink-muted">{open ? "▾" : "▸"}</span>
       </button>
       {open && (
         <div className="space-y-3 mt-3" data-testid={`${testidPrefix}-seo-section`}>
           <label className="block">
-            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
-              SEO Title <span className="text-[#525252] normal-case tracking-normal">— overrides &lt;title&gt; tag</span>
+            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
+              SEO Title <span className="text-ink-muted normal-case tracking-normal">— overrides &lt;title&gt; tag</span>
             </span>
             <input
               type="text"
               value={seoTitle}
               onChange={(e) => setSeoTitle(e.target.value)}
               placeholder="Defaults to row title"
-              className={`mt-1 w-full bg-[#050505] border border-[#262626] ${focusBorder} px-3 py-2 font-mono text-sm text-[#f5f5f5] outline-none`}
+              className={`mt-1 w-full bg-paper border border-line ${focusBorder} px-3 py-2 font-mono text-sm text-ink outline-none`}
               data-testid={`${testidPrefix}-seo-title`}
             />
           </label>
 
           <label className="block">
-            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
-              SEO Description <span className="text-[#525252] normal-case tracking-normal">— 150-160 chars ideal</span>
+            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
+              SEO Description <span className="text-ink-muted normal-case tracking-normal">— 150-160 chars ideal</span>
             </span>
             <textarea
               value={seoDescription}
               onChange={(e) => setSeoDescription(e.target.value)}
               placeholder="Concise summary for search results…"
               rows={2}
-              className={`mt-1 w-full bg-[#050505] border border-[#262626] ${focusBorder} px-3 py-2 font-mono text-sm text-[#f5f5f5] outline-none resize-none`}
+              className={`mt-1 w-full bg-paper border border-line ${focusBorder} px-3 py-2 font-mono text-sm text-ink outline-none resize-none`}
               data-testid={`${testidPrefix}-seo-description`}
             />
-            <span className="font-mono text-[9px] text-[#525252] mt-0.5 inline-block">
+            <span className="font-mono text-[9px] text-ink-muted mt-0.5 inline-block">
               {(seoDescription || "").length} chars
             </span>
           </label>
 
           <label className="block">
-            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
-              Keyword Tags <span className="text-[#525252] normal-case tracking-normal">— comma-separated, max 12</span>
+            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
+              Keyword Tags <span className="text-ink-muted normal-case tracking-normal">— comma-separated, max 12</span>
             </span>
             <input
               type="text"
               value={seoTagsCsv}
               onChange={(e) => setSeoTagsCsv(e.target.value)}
               placeholder="laser cut, walnut, modern decor"
-              className={`mt-1 w-full bg-[#050505] border border-[#262626] ${focusBorder} px-3 py-2 font-mono text-sm text-[#f5f5f5] outline-none`}
+              className={`mt-1 w-full bg-paper border border-line ${focusBorder} px-3 py-2 font-mono text-sm text-ink outline-none`}
               data-testid={`${testidPrefix}-seo-tags`}
             />
           </label>
 
           <label className="block">
-            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
-              Alt Text <span className="text-[#525252] normal-case tracking-normal">— for image accessibility + image search</span>
+            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
+              Alt Text <span className="text-ink-muted normal-case tracking-normal">— for image accessibility + image search</span>
             </span>
             <input
               type="text"
               value={altText}
               onChange={(e) => setAltText(e.target.value)}
               placeholder="Describe the image briefly"
-              className={`mt-1 w-full bg-[#050505] border border-[#262626] ${focusBorder} px-3 py-2 font-mono text-sm text-[#f5f5f5] outline-none`}
+              className={`mt-1 w-full bg-paper border border-line ${focusBorder} px-3 py-2 font-mono text-sm text-ink outline-none`}
               data-testid={`${testidPrefix}-alt-text`}
             />
           </label>

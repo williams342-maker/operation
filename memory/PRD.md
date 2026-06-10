@@ -23,6 +23,9 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - Admin: `/admin/login|verify|dashboard`
 
 ## What's Implemented (cumulative)
+- ✅ **Light-theme redesign — Phase E + density toggle bonus (iter353, 2026-06-10) — REDESIGN COMPLETE:** Token sweep of 74 admin component files + 21 below-hero home section files + AdminDashboard root + AdminShowcaseModTab. 94 of 97 files updated, 2,151 lines changed. Removed dead `.theme-light` !important block from `index.css`. Added `AdminDensityToggle` (`localStorage["cm_admin_density"]`, scoped to `[data-testid="admin-dashboard"]`) mounted at the top of the admin content column. Admin dashboard verified live — "OPERATIONS." display heading, KPI cards, growth heartbeat, prod-outage banner, sidebar nav, applications table all rendering correctly with density toggle visible. **All 5 phases complete — ~4,573 lines changed across ~135 files. Both themes look intentional.**
+
+
 - 🟡 **Light-theme redesign — Phase D (iter352, 2026-06-10):** Token sweep of the entire MakerDashboard tree — 53 files in `pages/MakerDashboard/` plus the root `MakerDashboard.jsx`. 1,407 lines changed across 52 of 54 files. Covers sidebar layout, dashboard tab, listings, renewals, orders, briefs, messages, reviews, stats, violations, marketing+sub-panels, promote, financials, help, settings+sub-panels, modals, and cards. Verified live on Iron & Oak Studio session — sidebar nav, status pills, stat cards, welcome H1, all task cards rendering correctly on cream paper. Phase E (admin) pending.
 
 

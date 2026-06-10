@@ -37,17 +37,17 @@ export default function AdminEmailModal({
 
   return (
     <div
-      className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+      className="fixed inset-0 z-[100] bg-paper/80 backdrop-blur-sm flex items-center justify-center p-4"
       data-testid="admin-email-modal"
       onClick={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}
     >
-      <div className="w-full max-w-xl bg-[#0a0a0a] border border-[#ff4500] p-6 md:p-8">
-        <div className="flex items-start justify-between gap-4 pb-4 border-b border-[#262626]">
+      <div className="w-full max-w-xl bg-paper border border-brand p-6 md:p-8">
+        <div className="flex items-start justify-between gap-4 pb-4 border-b border-line">
           <div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">◆ Direct Message</div>
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">◆ Direct Message</div>
             <h3 className="font-display text-2xl mt-1">Email applicant</h3>
-            <p className="font-mono text-xs text-[#a3a3a3] mt-1 break-all">
-              To: {recipientName} · <span className="text-[#e5e5e5]">{recipientEmail}</span>
+            <p className="font-mono text-xs text-ink-muted mt-1 break-all">
+              To: {recipientName} · <span className="text-ink">{recipientEmail}</span>
             </p>
           </div>
           <button
@@ -55,7 +55,7 @@ export default function AdminEmailModal({
             disabled={busy}
             aria-label="Close"
             data-testid="admin-email-close"
-            className="font-mono text-xl text-[#a3a3a3] hover:text-[#ff4500] disabled:opacity-50"
+            className="font-mono text-xl text-ink-muted hover:text-brand disabled:opacity-50"
           >
             ✕
           </button>
@@ -63,7 +63,7 @@ export default function AdminEmailModal({
 
         <div className="space-y-4 mt-5">
           <div>
-            <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Subject</label>
+            <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Subject</label>
             <input
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
@@ -71,29 +71,29 @@ export default function AdminEmailModal({
               autoFocus
               placeholder="Quick question about your application"
               data-testid="admin-email-subject"
-              className="w-full mt-2 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm text-[#e5e5e5]"
+              className="w-full mt-2 bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm text-ink"
             />
           </div>
           <div>
-            <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Message</label>
+            <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Message</label>
             <textarea
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               rows={8}
               placeholder="Hi — thanks for applying. We had one quick follow-up..."
               data-testid="admin-email-message"
-              className="w-full mt-2 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-3 font-mono text-sm text-[#e5e5e5] resize-none leading-relaxed"
+              className="w-full mt-2 bg-transparent border border-line focus:border-brand outline-none px-3 py-3 font-mono text-sm text-ink resize-none leading-relaxed"
             />
-            <div className="font-mono text-[10px] text-[#525252] mt-1">{message.length} chars</div>
+            <div className="font-mono text-[10px] text-ink-muted mt-1">{message.length} chars</div>
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-3 mt-5 pt-4 border-t border-[#262626]">
+        <div className="flex items-center justify-end gap-3 mt-5 pt-4 border-t border-line">
           <button
             onClick={onClose}
             disabled={busy}
             data-testid="admin-email-cancel"
-            className="px-4 py-2 border border-[#262626] hover:border-[#525252] font-mono text-xs uppercase tracking-[0.22em] transition disabled:opacity-50"
+            className="px-4 py-2 border border-line hover:border-ink-muted font-mono text-xs uppercase tracking-[0.22em] transition disabled:opacity-50"
           >
             Cancel
           </button>

@@ -59,7 +59,7 @@ function ProductCard({ p, i }) {
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, amount: 0.2 }}
       transition={{ delay: (i % 3) * 0.1, duration: 0.8, ease: [0.22, 0.61, 0.36, 1] }}
-      className={`group relative bg-[#121212] border border-[#262626] hover:border-[#ff4500] transition-colors duration-500 overflow-hidden ${p.span}`}
+      className={`group relative bg-surface border border-line hover:border-brand transition-colors duration-500 overflow-hidden ${p.span}`}
       data-testid={`product-${(p.slug || p.title).toLowerCase().replace(/\s/g, "-")}`}
     >
       <Link to={p.slug ? `/shop/${p.slug}` : "/shop"} className={`block relative overflow-hidden ${p.tall ? "aspect-[4/5]" : "aspect-[4/3]"}`}>
@@ -71,22 +71,22 @@ function ProductCard({ p, i }) {
           transition={{ duration: 0.9, ease: [0.22, 0.61, 0.36, 1] }}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-        <span className="tag absolute top-4 left-4 text-[#ff4500] border-[#ff4500]">
+        <span className="tag absolute top-4 left-4 text-brand border-brand">
           {p.technique}
         </span>
         <span className="tag absolute top-4 right-4">{p.cat}</span>
         <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between">
-          <div className="font-display text-3xl md:text-4xl text-white pr-2">{p.price}</div>
-          <div className="w-10 h-10 border border-white/40 group-hover:bg-[#ff4500] group-hover:border-[#ff4500] transition flex items-center justify-center">
-            <ArrowUpRight size={18} className="text-white" />
+          <div className="font-display text-3xl md:text-4xl text-ink pr-2">{p.price}</div>
+          <div className="w-10 h-10 border border-white/40 group-hover:bg-brand group-hover:border-brand transition flex items-center justify-center">
+            <ArrowUpRight size={18} className="text-ink" />
           </div>
         </div>
       </Link>
-      <div className="p-6 md:p-8 border-t border-[#262626]">
+      <div className="p-6 md:p-8 border-t border-line">
         <h3 className="font-display text-2xl md:text-3xl mb-3">{p.title}</h3>
-        <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed mb-5">{p.desc}</p>
-        <div className="flex items-center gap-3 pt-4 border-t border-[#262626]">
-          <div className="w-9 h-9 bg-[#1a1a1a] border border-[#262626] flex items-center justify-center font-mono text-[10px] text-[#ff4500]">
+        <p className="font-mono text-xs text-ink-muted leading-relaxed mb-5">{p.desc}</p>
+        <div className="flex items-center gap-3 pt-4 border-t border-line">
+          <div className="w-9 h-9 bg-surface border border-line flex items-center justify-center font-mono text-[10px] text-brand">
             {p.maker
               .split(" ")
               .map((n) => n[0])
@@ -94,8 +94,8 @@ function ProductCard({ p, i }) {
               .slice(0, 2)}
           </div>
           <div className="flex-1">
-            <div className="font-mono text-xs uppercase tracking-wide text-[#e5e5e5]">{p.maker}</div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-[#a3a3a3] mt-0.5">
+            <div className="font-mono text-xs uppercase tracking-wide text-ink">{p.maker}</div>
+            <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-ink-muted mt-0.5">
               {p.location}
             </div>
           </div>
@@ -128,15 +128,15 @@ export default function MakerShowcase() {
   }, []);
 
   return (
-    <section id="showcase" className="relative w-full py-24 md:py-32 bg-[#0a0a0a] border-y border-[#262626]">
+    <section id="showcase" className="relative w-full py-24 md:py-32 bg-paper border-y border-line">
       <div className="w-full max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12">
         {/* Section header */}
         <div className="grid md:grid-cols-12 gap-8 mb-16 md:mb-24">
           <div className="md:col-span-3">
-            <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-4">
+            <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-4">
               ◆ 001 / Showcase
             </div>
-            <div className="font-mono text-xs uppercase tracking-[0.25em] text-[#a3a3a3]">
+            <div className="font-mono text-xs uppercase tracking-[0.25em] text-ink-muted">
               From our makers
             </div>
           </div>
@@ -151,7 +151,7 @@ export default function MakerShowcase() {
             <br />
             <span className="text-outline">Showcase</span>
           </motion.h2>
-          <p className="md:col-span-6 md:col-start-7 font-mono text-sm text-[#a3a3a3] max-w-xl">
+          <p className="md:col-span-6 md:col-start-7 font-mono text-sm text-ink-muted max-w-xl">
             Handcrafted work from our approved artisan makers — each piece built to order with
             precision tools and unreasonable care.
           </p>
@@ -165,12 +165,12 @@ export default function MakerShowcase() {
         </div>
 
         {/* Footer CTAs */}
-        <div className="mt-16 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 pt-10 border-t border-[#262626]">
-          <div className="font-mono text-xs uppercase tracking-[0.25em] text-[#a3a3a3]">
+        <div className="mt-16 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 pt-10 border-t border-line">
+          <div className="font-mono text-xs uppercase tracking-[0.25em] text-ink-muted">
             54+ pieces · Updated weekly
           </div>
           <div className="flex flex-wrap gap-4">
-            <Link to="/shop" className="btn-industrial border-[#e5e5e5] text-[#e5e5e5]" data-testid="showcase-browse-all">
+            <Link to="/shop" className="btn-industrial border-[#e5e5e5] text-ink" data-testid="showcase-browse-all">
               Browse all listings →
             </Link>
             <Link to="/custom-order" className="btn-industrial btn-primary" data-testid="showcase-custom-order">

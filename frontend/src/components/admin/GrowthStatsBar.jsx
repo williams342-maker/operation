@@ -29,7 +29,7 @@ export default function GrowthStatsBar() {
   }
   if (!data) {
     return (
-      <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#525252] mb-6" data-testid="growth-stats-loading">
+      <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-ink-muted mb-6" data-testid="growth-stats-loading">
         ◇ Loading growth heartbeat…
       </div>
     );
@@ -39,10 +39,10 @@ export default function GrowthStatsBar() {
   return (
     <div className="mb-8" data-testid="growth-stats-bar">
       <div className="flex items-center justify-between mb-3">
-        <div className="font-mono text-[10px] uppercase tracking-[0.32em] text-[#ff4500]">
+        <div className="font-mono text-[10px] uppercase tracking-[0.32em] text-brand">
           ◆ Growth · 24h heartbeat
         </div>
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252]">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
           {data.as_of ? new Date(data.as_of).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""}
         </div>
       </div>
@@ -59,29 +59,29 @@ function Tile({ stat }) {
   const d1 = stat.d1 || 0;
   const d7 = stat.d7 || 0;
   const Trend = d1 > 0 ? TrendingUp : d1 < 0 ? TrendingDown : Minus;
-  const trendColor = d1 > 0 ? "text-emerald-400" : d1 < 0 ? "text-red-400" : "text-[#525252]";
+  const trendColor = d1 > 0 ? "text-emerald-400" : d1 < 0 ? "text-red-400" : "text-ink-muted";
   const sign = d1 > 0 ? "+" : "";
 
   return (
     <div
-      className="border border-[#262626] bg-[#0a0a0a] hover:border-[#ff4500]/40 transition-colors p-3"
+      className="border border-line bg-paper hover:border-brand/40 transition-colors p-3"
       data-testid={`growth-tile-${stat.key}`}
     >
       <div className="flex items-center justify-between mb-1">
-        <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252] truncate">
+        <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted truncate">
           {stat.label}
         </span>
         <Trend size={11} className={`${trendColor} shrink-0 ml-2`} />
       </div>
       <div className="flex items-baseline gap-2">
-        <div className="font-display text-2xl text-[#e5e5e5]" data-testid={`growth-tile-${stat.key}-total`}>
+        <div className="font-display text-2xl text-ink" data-testid={`growth-tile-${stat.key}-total`}>
           {stat.total}
         </div>
         <div className={`font-mono text-[10px] ${trendColor}`} data-testid={`growth-tile-${stat.key}-d1`}>
           {sign}{d1} 24h
         </div>
       </div>
-      <div className="font-mono text-[9px] text-[#525252] mt-0.5" data-testid={`growth-tile-${stat.key}-d7`}>
+      <div className="font-mono text-[9px] text-ink-muted mt-0.5" data-testid={`growth-tile-${stat.key}-d7`}>
         {d7 > 0 ? "+" : ""}{d7} · 7d
       </div>
     </div>

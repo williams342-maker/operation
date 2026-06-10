@@ -153,24 +153,24 @@ export default function BackupTab() {
   return (
     <div className="space-y-6 max-w-3xl" data-testid="backup-tab">
       <header>
-        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-1 inline-flex items-center gap-2">
+        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-1 inline-flex items-center gap-2">
           <Shield size={12} /> Super admin only
         </div>
         <h2 className="font-display text-3xl uppercase">Database Backup.</h2>
-        <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-2xl leading-relaxed">
-          Streams a full <code className="text-[#ff4500]">mongodump --archive --gzip</code> of the production database
+        <p className="font-mono text-xs text-ink-muted mt-2 max-w-2xl leading-relaxed">
+          Streams a full <code className="text-brand">mongodump --archive --gzip</code> of the production database
           straight to your browser. Nothing is persisted on disk. Every download is audit-logged.
-          Restore with <code className="text-[#ff4500]">mongorestore --gzip --archive=&lt;file&gt;</code>.
+          Restore with <code className="text-brand">mongorestore --gzip --archive=&lt;file&gt;</code>.
         </p>
       </header>
 
       {/* Diag panel — green/red light before the operator clicks */}
-      <div className="border border-[#262626] p-4" data-testid="backup-diag-panel">
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-3">
+      <div className="border border-line p-4" data-testid="backup-diag-panel">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-3">
           ◆ Pre-flight check
         </div>
         {loading ? (
-          <p className="font-mono text-xs text-[#737373]">Checking backend…</p>
+          <p className="font-mono text-xs text-ink-muted">Checking backend…</p>
         ) : diag?.error ? (
           <p className="font-mono text-xs text-red-400" data-testid="backup-diag-error">
             ⊗ Diag failed: {diag.error}. (Are you a super admin?)
@@ -179,25 +179,25 @@ export default function BackupTab() {
           <ul className="font-mono text-xs space-y-1.5">
             <li className={diag.mongodump_present ? "text-emerald-400" : "text-red-400"}>
               {diag.mongodump_present ? "✓" : "⊗"} mongodump binary{" "}
-              <span className="text-[#525252]">({diag.mongodump_path})</span>
+              <span className="text-ink-muted">({diag.mongodump_path})</span>
             </li>
             <li className={diag.mongo_url_set ? "text-emerald-400" : "text-red-400"}>
               {diag.mongo_url_set ? "✓" : "⊗"} MONGO_URL set in backend env
             </li>
-            <li className="text-[#a3a3a3]">
-              ◆ Database: <span className="text-[#e5e5e5]">{diag.db_name || "(unset)"}</span>
+            <li className="text-ink-muted">
+              ◆ Database: <span className="text-ink">{diag.db_name || "(unset)"}</span>
             </li>
           </ul>
         )}
       </div>
 
       {/* Action */}
-      <div className="border border-[#ff4500]/40 bg-[#ff4500]/5 p-5 flex items-center justify-between gap-4 flex-wrap" data-testid="backup-action">
+      <div className="border border-brand/40 bg-brand/5 p-5 flex items-center justify-between gap-4 flex-wrap" data-testid="backup-action">
         <div className="flex items-center gap-3 min-w-0">
-          <Database size={32} className="text-[#ff4500] shrink-0" />
+          <Database size={32} className="text-brand shrink-0" />
           <div className="min-w-0">
             <div className="font-display text-xl">Download full backup</div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mt-1">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mt-1">
               Compressed binary archive · streamed · audit-logged
             </div>
           </div>
@@ -219,14 +219,14 @@ export default function BackupTab() {
       )}
 
       {/* Offsite backup — R2 inventory + manual trigger */}
-      <div className="border border-[#262626] p-5 space-y-4" data-testid="offsite-backup-panel">
+      <div className="border border-line p-5 space-y-4" data-testid="offsite-backup-panel">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3 min-w-0">
             <Cloud size={26} className="text-[#7c8de8] shrink-0" />
             <div className="min-w-0">
               <div className="font-display text-xl">Offsite (R2) backups</div>
-              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mt-1">
-                Nightly @ 03:15 UTC · gated on the <span className="text-[#ff4500]">auto_offsite_backup_enabled</span> toggle in Settings
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mt-1">
+                Nightly @ 03:15 UTC · gated on the <span className="text-brand">auto_offsite_backup_enabled</span> toggle in Settings
               </div>
             </div>
           </div>
@@ -234,7 +234,7 @@ export default function BackupTab() {
             <button
               onClick={loadOffsite}
               disabled={offsiteLoading}
-              className="px-3 py-2 border border-[#262626] hover:border-[#ff4500]/40 font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5 disabled:opacity-50"
+              className="px-3 py-2 border border-line hover:border-brand/40 font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5 disabled:opacity-50"
               data-testid="offsite-refresh-btn"
               title="Refresh inventory"
             >
@@ -259,30 +259,30 @@ export default function BackupTab() {
         )}
 
         {offsiteLoading ? (
-          <p className="font-mono text-xs text-[#737373]" data-testid="offsite-loading">Loading R2 inventory…</p>
+          <p className="font-mono text-xs text-ink-muted" data-testid="offsite-loading">Loading R2 inventory…</p>
         ) : offsite?.error ? (
           <p className="font-mono text-xs text-red-400">⊗ {offsite.error}</p>
         ) : (
           <div data-testid="offsite-inventory">
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
               ◆ {offsite?.count ?? 0} archive{(offsite?.count ?? 0) === 1 ? "" : "s"} in R2
             </div>
             {(offsite?.backups || []).length === 0 ? (
-              <p className="font-mono text-xs text-[#525252]">
+              <p className="font-mono text-xs text-ink-muted">
                 No backups yet. Click "Run now" to seed the first one, or flip the Settings toggle ON to schedule the nightly cron.
               </p>
             ) : (
-              <ul className="divide-y divide-[#1f1f1f] border border-[#1f1f1f]">
+              <ul className="divide-y divide-[#1f1f1f] border border-line">
                 {offsite.backups.slice(0, 10).map((row) => (
                   <li
                     key={row.key}
                     className="grid grid-cols-[1fr_auto_auto] gap-3 items-center px-3 py-2.5 font-mono text-[11px]"
                     data-testid={`offsite-row`}
                   >
-                    <code className="text-[#e5e5e5] truncate" title={row.key}>{row.key.replace("backups/mongo/", "")}</code>
-                    <span className="text-[#a3a3a3] tabular-nums">{row.size_mb} MB</span>
+                    <code className="text-ink truncate" title={row.key}>{row.key.replace("backups/mongo/", "")}</code>
+                    <span className="text-ink-muted tabular-nums">{row.size_mb} MB</span>
                     <span
-                      className="text-[#737373] uppercase tracking-[0.18em]"
+                      className="text-ink-muted uppercase tracking-[0.18em]"
                       title={row.created_at ? new Date(row.created_at).toLocaleString() : ""}
                     >
                       {row.created_at ? timeAgo(row.created_at) : "—"}
@@ -302,8 +302,8 @@ export default function BackupTab() {
             <ShieldCheck size={26} className="text-emerald-400 shrink-0" />
             <div className="min-w-0">
               <div className="font-display text-xl">Recovery drill</div>
-              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mt-1">
-                Quarterly @ Jan/Apr/Jul/Oct 1st 04:30 UTC · gated on the <span className="text-[#ff4500]">auto_recovery_drill_enabled</span> toggle
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mt-1">
+                Quarterly @ Jan/Apr/Jul/Oct 1st 04:30 UTC · gated on the <span className="text-brand">auto_recovery_drill_enabled</span> toggle
               </div>
             </div>
           </div>
@@ -317,10 +317,10 @@ export default function BackupTab() {
             <Play size={14} /> {drillRunning ? "Drilling…" : "Run drill"}
           </button>
         </div>
-        <div className="font-mono text-[11px] text-[#a3a3a3] leading-relaxed">
+        <div className="font-mono text-[11px] text-ink-muted leading-relaxed">
           Downloads the latest R2 archive, restores it into an isolated{" "}
           <code className="text-emerald-300">_dr_drill_&lt;timestamp&gt;</code> namespace on the same Mongo cluster, runs integrity counts (products ≥ {drillResult?.min_products ?? 100}), drops the namespace, and posts the result to your team's Slack/Discord webhook.
-          <strong className="text-[#e5e5e5]"> Production collections are never touched.</strong>
+          <strong className="text-ink"> Production collections are never touched.</strong>
         </div>
         {drillResult && (
           <div

@@ -116,7 +116,7 @@ export default function ChatModTab() {
       {confirmModal}
       {/* Channel selector */}
       <div>
-        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-3">
+        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-3">
           ◆ Per-channel moderation
         </div>
         <div className="flex flex-wrap gap-2">
@@ -126,8 +126,8 @@ export default function ChatModTab() {
               onClick={() => setChannel(c)}
               className={`font-mono text-[11px] uppercase tracking-[0.22em] px-4 py-2 border transition ${
                 channel === c
-                  ? "bg-[#ff4500] text-[#0a0a0a] border-[#ff4500]"
-                  : "border-[#262626] text-[#a3a3a3] hover:border-[#ff4500]"
+                  ? "bg-brand text-[#0a0a0a] border-brand"
+                  : "border-line text-ink-muted hover:border-brand"
               }`}
               data-testid={`chatmod-channel-${c}`}
             >
@@ -138,14 +138,14 @@ export default function ChatModTab() {
       </div>
 
       {/* Recent messages */}
-      <div className="border border-[#262626]" data-testid="chatmod-messages">
-        <div className="px-4 py-3 border-b border-[#262626] flex items-center justify-between">
-          <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+      <div className="border border-line" data-testid="chatmod-messages">
+        <div className="px-4 py-3 border-b border-line flex items-center justify-between">
+          <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted">
             Recent messages · #{channel}
           </div>
           <button
             onClick={() => refreshMessages()}
-            className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500]"
+            className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand"
             data-testid="chatmod-refresh"
           >
             ↻ Refresh
@@ -162,19 +162,19 @@ export default function ChatModTab() {
             body="No recent messages in this channel."
           />
         ) : (
-          <div className="divide-y divide-[#262626]">
+          <div className="divide-y divide-line">
             {messages.map((m) => (
               <div key={m.id} className="p-4 grid grid-cols-1 md:grid-cols-[180px_1fr_240px] gap-3" data-testid={`chatmod-row-${m.id}`}>
                 <div>
-                  <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252]">
+                  <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
                     {(m.created_at || "").slice(0, 16).replace("T", " ")}
                   </div>
-                  <div className="font-mono text-[11px] text-[#a3a3a3] mt-1 truncate">
+                  <div className="font-mono text-[11px] text-ink-muted mt-1 truncate">
                     {m.user_name || "anon"}
                   </div>
-                  <div className="font-mono text-[10px] text-[#525252] truncate">{m.user_email}</div>
+                  <div className="font-mono text-[10px] text-ink-muted truncate">{m.user_email}</div>
                 </div>
-                <div className="font-mono text-xs text-[#e5e5e5] break-words">{m.text}</div>
+                <div className="font-mono text-xs text-ink break-words">{m.text}</div>
                 <div className="flex flex-wrap gap-2 self-start justify-end">
                   <button
                     onClick={() => onDelete(m.id)}
@@ -200,34 +200,34 @@ export default function ChatModTab() {
       {/* Manual mute form */}
       <form
         onSubmit={submitManualMute}
-        className="border border-[#262626] p-4 md:p-5 grid md:grid-cols-[1fr_1fr_180px_auto] gap-3 items-end"
+        className="border border-line p-4 md:p-5 grid md:grid-cols-[1fr_1fr_180px_auto] gap-3 items-end"
         data-testid="chatmod-mute-form"
       >
         <label className="block">
-          <span className="block font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-1">User email</span>
+          <span className="block font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-1">User email</span>
           <input
             type="email" value={muteEmail} onChange={(e) => setMuteEmail(e.target.value)}
             placeholder="user@example.com"
-            className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm text-[#e5e5e5]"
+            className="w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm text-ink"
             data-testid="chatmod-mute-email"
           />
         </label>
         <label className="block">
-          <span className="block font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-1">Channel</span>
+          <span className="block font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-1">Channel</span>
           <select
             value={muteChannel} onChange={(e) => setMuteChannel(e.target.value)}
-            className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm text-[#e5e5e5]"
+            className="w-full bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm text-ink"
             data-testid="chatmod-mute-channel"
           >
             {CHANNELS.map((c) => <option key={c} value={c}>{`#${c}`}</option>)}
           </select>
         </label>
         <label className="block">
-          <span className="block font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-1">Duration</span>
+          <span className="block font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-1">Duration</span>
           <select
             value={muteMinutes ?? ""}
             onChange={(e) => setMuteMinutes(e.target.value === "" ? null : parseInt(e.target.value, 10))}
-            className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm text-[#e5e5e5]"
+            className="w-full bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm text-ink"
             data-testid="chatmod-mute-duration"
           >
             {MUTE_PRESETS.map((p) => (
@@ -239,19 +239,19 @@ export default function ChatModTab() {
           Mute
         </button>
         <label className="md:col-span-4">
-          <span className="block font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-1">Reason (optional)</span>
+          <span className="block font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-1">Reason (optional)</span>
           <input
             value={muteReason} onChange={(e) => setMuteReason(e.target.value)}
             placeholder="Showed up to a knife fight; spam; flame war"
-            className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
+            className="w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink"
             data-testid="chatmod-mute-reason"
           />
         </label>
       </form>
 
       {/* Active mutes */}
-      <div className="border border-[#262626]" data-testid="chatmod-mutes">
-        <div className="px-4 py-3 border-b border-[#262626] font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+      <div className="border border-line" data-testid="chatmod-mutes">
+        <div className="px-4 py-3 border-b border-line font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted">
           Active mutes ({mutes.length})
         </div>
         {loadingMutes ? (
@@ -264,12 +264,12 @@ export default function ChatModTab() {
             body="When you mute a user from a channel, they'll show up here so you can lift it."
           />
         ) : (
-          <div className="divide-y divide-[#262626]">
+          <div className="divide-y divide-line">
             {mutes.map((m) => (
               <div key={`${m.user_email}-${m.channel}`} className="p-4 grid grid-cols-1 md:grid-cols-[1fr_140px_1fr_140px] gap-3 items-center" data-testid={`chatmod-mute-row-${m.user_email}-${m.channel}`}>
-                <div className="font-mono text-xs text-[#e5e5e5]">{m.user_email}</div>
-                <div className="font-mono text-[11px] text-[#a3a3a3]">#{m.channel}</div>
-                <div className="font-mono text-[10px] text-[#525252]">
+                <div className="font-mono text-xs text-ink">{m.user_email}</div>
+                <div className="font-mono text-[11px] text-ink-muted">#{m.channel}</div>
+                <div className="font-mono text-[10px] text-ink-muted">
                   {m.expires_at
                     ? `until ${new Date(m.expires_at).toLocaleString()}`
                     : "indefinite"}

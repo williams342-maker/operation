@@ -80,7 +80,7 @@ export default function LeadMagnetTab() {
 
   if (loading) {
     return (
-      <div data-testid="lead-magnet-tab-loading" className="font-mono text-xs text-[#a3a3a3] py-8">
+      <div data-testid="lead-magnet-tab-loading" className="font-mono text-xs text-ink-muted py-8">
         Loading lead-magnet inbox…
       </div>
     );
@@ -104,7 +104,7 @@ export default function LeadMagnetTab() {
           <div className="flex gap-2">
             <button
               onClick={load}
-              className="px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] transition"
+              className="px-3 py-1.5 border border-line hover:border-brand font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand transition"
               data-testid="lead-magnet-refresh"
             >
               ↻ Refresh
@@ -112,16 +112,16 @@ export default function LeadMagnetTab() {
             <button
               onClick={exportCsv}
               disabled={exporting}
-              className="px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] transition disabled:opacity-50"
+              className="px-3 py-1.5 border border-line hover:border-brand font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand transition disabled:opacity-50"
               data-testid="lead-magnet-export-csv"
             >
               {exporting ? "Exporting…" : "↓ Export CSV"}
             </button>
           </div>
         </div>
-        <p className="font-mono text-xs text-[#a3a3a3] max-w-2xl leading-relaxed">
+        <p className="font-mono text-xs text-ink-muted max-w-2xl leading-relaxed">
           Captures the email address of every visitor who downloads the free CNC starter pack at
-          <span className="text-[#e5e5e5]"> /free-svg-pack</span>. Use the CSV export to import into Kit.com / Mailchimp,
+          <span className="text-ink"> /free-svg-pack</span>. Use the CSV export to import into Kit.com / Mailchimp,
           or run the built-in 3-touch drip below to email opted-in subscribers automatically.
         </p>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
@@ -132,11 +132,11 @@ export default function LeadMagnetTab() {
         </div>
         {(summary.top_sources || []).length > 0 && (
           <div className="mt-3" data-testid="lead-magnet-sources">
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">◆ Top sources</div>
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">◆ Top sources</div>
             <div className="flex flex-wrap gap-2">
               {summary.top_sources.map((s) => (
-                <span key={s.source} className="px-2 py-1 border border-[#262626] font-mono text-[10px] text-[#e5e5e5]">
-                  {s.source} <span className="text-[#525252]">· {s.count}</span>
+                <span key={s.source} className="px-2 py-1 border border-line font-mono text-[10px] text-ink">
+                  {s.source} <span className="text-ink-muted">· {s.count}</span>
                 </span>
               ))}
             </div>
@@ -179,8 +179,8 @@ export default function LeadMagnetTab() {
             </button>
           </div>
         </div>
-        <p className="font-mono text-[11px] text-[#a3a3a3] leading-relaxed max-w-3xl">
-          Cron runs daily at <span className="text-[#e5e5e5]">14:30 UTC</span>. Only sends to subscribers with
+        <p className="font-mono text-[11px] text-ink-muted leading-relaxed max-w-3xl">
+          Cron runs daily at <span className="text-ink">14:30 UTC</span>. Only sends to subscribers with
           <span className="text-cyan-300"> consent_marketing=true</span>. Skips subscribers whose email already matches an approved maker or a pending application.
         </p>
 
@@ -196,13 +196,13 @@ export default function LeadMagnetTab() {
           </p>
         )}
         {summary.drip?.last_tick_at?.last_run_at && (
-          <p className="font-mono text-[10px] text-[#525252]" data-testid="drip-last-run">
+          <p className="font-mono text-[10px] text-ink-muted" data-testid="drip-last-run">
             Last automatic tick · {new Date(summary.drip.last_tick_at.last_run_at).toLocaleString()}
           </p>
         )}
         {dripResult && (
           <pre
-            className="mt-2 border border-cyan-900/40 bg-[#0a0a0a] p-3 font-mono text-[10px] text-[#a3a3a3] overflow-x-auto"
+            className="mt-2 border border-cyan-900/40 bg-paper p-3 font-mono text-[10px] text-ink-muted overflow-x-auto"
             data-testid="drip-result"
           >
 {JSON.stringify({ step1: dripResult.step1, step2: dripResult.step2, dry_run: dripResult.dry_run }, null, 2)}
@@ -215,9 +215,9 @@ export default function LeadMagnetTab() {
         <div className="flex items-center justify-between mb-3">
           <h3 className="font-display text-lg uppercase">Subscribers · latest {subs.subscribers.length} of {subs.total}</h3>
         </div>
-        <div className="border border-[#262626] overflow-x-auto">
+        <div className="border border-line overflow-x-auto">
           <table className="w-full font-mono text-[11px]">
-            <thead className="bg-[#0d0d0d] text-[#a3a3a3] uppercase tracking-[0.18em] text-[10px]">
+            <thead className="bg-paper text-ink-muted uppercase tracking-[0.18em] text-[10px]">
               <tr>
                 <th className="text-left px-3 py-2.5">Email</th>
                 <th className="text-left px-3 py-2.5">When</th>
@@ -227,29 +227,29 @@ export default function LeadMagnetTab() {
                 <th className="text-right px-3 py-2.5">Downloads</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#1a1a1a]">
+            <tbody className="divide-y divide-line">
               {subs.subscribers.map((s) => (
-                <tr key={s.email} className="hover:bg-[#0d0d0d] transition" data-testid={`lead-magnet-row-${s.email}`}>
+                <tr key={s.email} className="hover:bg-paper transition" data-testid={`lead-magnet-row-${s.email}`}>
                   <td className="px-3 py-2.5 text-[#fafafa]">{s.email}</td>
-                  <td className="px-3 py-2.5 text-[#a3a3a3]">{s.first_seen_at ? new Date(s.first_seen_at).toLocaleDateString() : "—"}</td>
-                  <td className="px-3 py-2.5 text-[#a3a3a3]">
+                  <td className="px-3 py-2.5 text-ink-muted">{s.first_seen_at ? new Date(s.first_seen_at).toLocaleDateString() : "—"}</td>
+                  <td className="px-3 py-2.5 text-ink-muted">
                     {s.source || "direct"}
-                    {s.campaign && <span className="text-[#525252]"> · {s.campaign}</span>}
+                    {s.campaign && <span className="text-ink-muted"> · {s.campaign}</span>}
                   </td>
                   <td className="px-3 py-2.5">
                     {s.consent_marketing
                       ? <span className="text-emerald-400">✓ yes</span>
-                      : <span className="text-[#525252]">no</span>}
+                      : <span className="text-ink-muted">no</span>}
                   </td>
                   <td className="px-3 py-2.5 text-right">
                     <DripStepBadge step={s.drip_step ?? 0} />
                   </td>
-                  <td className="px-3 py-2.5 text-right text-[#a3a3a3]">{s.download_count ?? 0}</td>
+                  <td className="px-3 py-2.5 text-right text-ink-muted">{s.download_count ?? 0}</td>
                 </tr>
               ))}
               {subs.subscribers.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-3 py-8 text-center font-mono text-xs text-[#525252]" data-testid="lead-magnet-empty">
+                  <td colSpan={6} className="px-3 py-8 text-center font-mono text-xs text-ink-muted" data-testid="lead-magnet-empty">
                     No subscribers yet — share /free-svg-pack on socials to start the funnel.
                   </td>
                 </tr>
@@ -270,10 +270,10 @@ function Stat({ label, value, accent, testid }) {
     cyan: "text-cyan-300 border-cyan-500/30",
     amber: "text-amber-400 border-amber-500/30",
   };
-  const tone = tones[accent] || "text-[#fafafa] border-[#262626]";
+  const tone = tones[accent] || "text-[#fafafa] border-line";
   return (
-    <div className={`border bg-[#0d0d0d] p-4 ${tone.split(" ")[1]}`} data-testid={testid}>
-      <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#a3a3a3]">{label}</div>
+    <div className={`border bg-paper p-4 ${tone.split(" ")[1]}`} data-testid={testid}>
+      <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted">{label}</div>
       <div className={`font-display text-3xl mt-1 ${tone.split(" ")[0]}`}>{(value ?? 0).toLocaleString()}</div>
     </div>
   );
@@ -284,7 +284,7 @@ function DripStepBadge({ step }) {
     return <span className="text-amber-400 font-mono text-[10px]">suppressed</span>;
   }
   const labels = ["Step 0", "Day 3 ✓", "Day 7 ✓"];
-  const tones = ["text-[#525252]", "text-emerald-400", "text-emerald-300"];
+  const tones = ["text-ink-muted", "text-emerald-400", "text-emerald-300"];
   const s = Math.max(0, Math.min(2, step));
   return <span className={`font-mono text-[10px] ${tones[s]}`}>{labels[s]}</span>;
 }

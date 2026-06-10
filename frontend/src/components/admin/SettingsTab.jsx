@@ -150,7 +150,7 @@ const SWITCHES = [
 ];
 
 const toneClass = (tone, on) => {
-  if (!on) return "bg-[#262626] border-[#262626]";
+  if (!on) return "bg-line border-line";
   if (tone === "danger") return "bg-red-600 border-red-700";
   if (tone === "warn") return "bg-yellow-500 border-yellow-600";
   return "bg-emerald-600 border-emerald-700";
@@ -160,13 +160,13 @@ function ToggleRow({ row, settings, onPatch, busy }) {
   const on = !!settings[row.key];
   return (
     <div
-      className={`border p-4 md:p-5 transition ${on ? "border-[#ff4500]/40 bg-[#ff4500]/5" : "border-[#262626]"}`}
+      className={`border p-4 md:p-5 transition ${on ? "border-brand/40 bg-brand/5" : "border-line"}`}
       data-testid={`setting-row-${row.key}`}
     >
       <div className="flex items-start gap-4">
         <div className="flex-1 min-w-0">
           <div className="font-display text-lg uppercase">{row.label}</div>
-          <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed mt-1">{row.blurb}</p>
+          <p className="font-mono text-xs text-ink-muted leading-relaxed mt-1">{row.blurb}</p>
         </div>
         <button
           role="switch"
@@ -184,14 +184,14 @@ function ToggleRow({ row, settings, onPatch, busy }) {
 
       {on && row.messageKey && (
         <label className="block mt-4">
-          <span className="block font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-1">
+          <span className="block font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-1">
             {row.messageLabel}
           </span>
           <textarea
             rows={2}
             value={settings[row.messageKey] || ""}
             onChange={(e) => onPatch({ [row.messageKey]: e.target.value }, /*debounce*/ true)}
-            className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
+            className="w-full bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink"
             data-testid={`setting-text-${row.messageKey}`}
           />
         </label>
@@ -199,7 +199,7 @@ function ToggleRow({ row, settings, onPatch, busy }) {
 
       {on && row.numericKey && (
         <label className="block mt-4 max-w-xs">
-          <span className="block font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-1">
+          <span className="block font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-1">
             {row.numericLabel}
           </span>
           <input
@@ -211,7 +211,7 @@ function ToggleRow({ row, settings, onPatch, busy }) {
               const n = parseInt(e.target.value, 10);
               if (Number.isFinite(n)) onPatch({ [row.numericKey]: n }, /*debounce*/ true);
             }}
-            className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm text-[#e5e5e5]"
+            className="w-full bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm text-ink"
             data-testid={`setting-num-${row.numericKey}`}
           />
         </label>
@@ -359,7 +359,7 @@ function CommunityDesignsSeedCard() {
         ◆ Community design library seed
       </div>
       <div className="font-display text-lg uppercase">Workshop Team design files</div>
-      <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed mt-1 mb-3">
+      <p className="font-mono text-xs text-ink-muted leading-relaxed mt-1 mb-3">
         10 AI-generated, royalty-free CNC / laser / plasma design bundles (SVG + DXF + JPG preview)
         attributed to <span className="text-amber-300">"Crafters Market Workshop Team"</span>.
         Source files ship with the frontend deploy under <code className="text-emerald-300">/seed-designs/</code> —
@@ -368,19 +368,19 @@ function CommunityDesignsSeedCard() {
 
       {status && (
         <div
-          className="font-mono text-[11px] text-[#a3a3a3] mb-4 grid grid-cols-3 gap-3 max-w-md"
+          className="font-mono text-[11px] text-ink-muted mb-4 grid grid-cols-3 gap-3 max-w-md"
           data-testid="community-designs-seed-counts"
         >
-          <div className="border border-[#262626] px-2 py-1.5">
-            <div className="text-[#525252] uppercase tracking-[0.2em] text-[9px]">Seeded</div>
+          <div className="border border-line px-2 py-1.5">
+            <div className="text-ink-muted uppercase tracking-[0.2em] text-[9px]">Seeded</div>
             <div className="text-amber-300 text-base">{status.seeded_designs}</div>
           </div>
-          <div className="border border-[#262626] px-2 py-1.5">
-            <div className="text-[#525252] uppercase tracking-[0.2em] text-[9px]">All design files</div>
+          <div className="border border-line px-2 py-1.5">
+            <div className="text-ink-muted uppercase tracking-[0.2em] text-[9px]">All design files</div>
             <div className="text-amber-300 text-base">{status.total_designs}</div>
           </div>
-          <div className={`border px-2 py-1.5 ${status.orphan_seeds > 0 ? "border-red-700/60 bg-red-950/15" : "border-[#262626]"}`}>
-            <div className={`uppercase tracking-[0.2em] text-[9px] ${status.orphan_seeds > 0 ? "text-red-400" : "text-[#525252]"}`}>Orphans</div>
+          <div className={`border px-2 py-1.5 ${status.orphan_seeds > 0 ? "border-red-700/60 bg-red-950/15" : "border-line"}`}>
+            <div className={`uppercase tracking-[0.2em] text-[9px] ${status.orphan_seeds > 0 ? "text-red-400" : "text-ink-muted"}`}>Orphans</div>
             <div className={`text-base ${status.orphan_seeds > 0 ? "text-red-300" : "text-amber-300"}`}>{status.orphan_seeds ?? 0}</div>
           </div>
         </div>
@@ -418,7 +418,7 @@ function CommunityDesignsSeedCard() {
         <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-cyan-300 mb-1">
           ◆ Migrate seed designs to R2 (one-click · idempotent)
         </div>
-        <p className="font-mono text-[11px] text-[#a3a3a3] mb-2 leading-relaxed max-w-2xl">
+        <p className="font-mono text-[11px] text-ink-muted mb-2 leading-relaxed max-w-2xl">
           Re-uploads <code>/seed-designs/&lt;slug&gt;/</code> local files to R2 and rewrites the DB rows
           with the absolute CDN URLs. Without this, AI-generated design cards break on every redeploy
           because the local pod disk is ephemeral. Run after the daily cron generates a new design.
@@ -437,7 +437,7 @@ function CommunityDesignsSeedCard() {
         <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-300 mb-1">
           ◆ Install community design seed (one-click · idempotent)
         </div>
-        <p className="font-mono text-[11px] text-[#a3a3a3] mb-2 leading-relaxed max-w-2xl">
+        <p className="font-mono text-[11px] text-ink-muted mb-2 leading-relaxed max-w-2xl">
           Populates the <code className="text-emerald-300">design_files</code> collection with the
           curated 10-design Workshop Team library committed to the repo. Existing download counts
           are preserved on re-install. Use after fresh deploys.
@@ -470,7 +470,7 @@ function CommunityDesignsSeedCard() {
         <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-amber-300 mb-1">
           ◇ AI fresh design · Run now
         </div>
-        <p className="font-mono text-[11px] text-[#a3a3a3] mb-2 leading-relaxed max-w-2xl">
+        <p className="font-mono text-[11px] text-ink-muted mb-2 leading-relaxed max-w-2xl">
           Adds <span className="text-amber-300">1 new design file</span> picked from the parametric
           template bank (Welcome arch, Family EST plaque, Garage sign, Heart quote, Star ornament).
           Gemini Flash picks copy + theme, then we generate real <code className="text-emerald-300">SVG + DXF</code> and a
@@ -493,7 +493,7 @@ function CommunityDesignsSeedCard() {
         >
           {batchBusy ? "Generating 5…" : "Generate 5 at once"}
         </button>
-        <p className="font-mono text-[10px] text-[#525252] mt-2 leading-relaxed max-w-2xl">
+        <p className="font-mono text-[10px] text-ink-muted mt-2 leading-relaxed max-w-2xl">
           ◇ Cron <code className="text-emerald-300">daily_design_file</code> adds 1 fresh design every day at
           08:00 UTC (toggle via <code>SCHEDULER_DAILY_DESIGNS</code> env). The buttons above are for on-demand top-ups.
         </p>
@@ -503,7 +503,7 @@ function CommunityDesignsSeedCard() {
             data-testid="generate-one-community-design-result"
           >
             ◆ &quot;{genResult.design.title}&quot; · template: {genResult.design.template_id} · slug: {genResult.design.slug}
-            <div className="text-[#737373] mt-1 break-all">
+            <div className="text-ink-muted mt-1 break-all">
               svg: {genResult.design.svg_url} · dxf: {genResult.design.dxf_url}
             </div>
           </div>
@@ -515,7 +515,7 @@ function CommunityDesignsSeedCard() {
           >
             ◆ Batch: {batchResult.succeeded}/{batchResult.requested} succeeded
             {batchResult.failed > 0 && <span className="text-red-400"> · {batchResult.failed} failed</span>}
-            <ul className="mt-1 text-[#737373] space-y-0.5">
+            <ul className="mt-1 text-ink-muted space-y-0.5">
               {(batchResult.designs || []).slice(0, 5).map((d) => (
                 <li key={d.slug}>· {d.template_id} → {d.title}</li>
               ))}
@@ -554,7 +554,7 @@ function CommunityDesignsSeedCard() {
           </button>
           <button
             onClick={() => setPurgeStep(0)}
-            className="px-4 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em]"
+            className="px-4 py-2 border border-line hover:border-brand font-mono text-[11px] uppercase tracking-[0.22em]"
           >
             Cancel
           </button>
@@ -572,7 +572,7 @@ function CommunityDesignsSeedCard() {
           </button>
           <button
             onClick={() => setPurgeStep(0)}
-            className="px-4 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em]"
+            className="px-4 py-2 border border-line hover:border-brand font-mono text-[11px] uppercase tracking-[0.22em]"
           >
             Cancel
           </button>
@@ -731,7 +731,7 @@ function ClipsSeedCard() {
         ◆ Workshop Clip Feed seed (Sora 2)
       </div>
       <div className="font-display text-lg uppercase">Short-form video seed</div>
-      <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed mt-1 mb-3">
+      <p className="font-mono text-xs text-ink-muted leading-relaxed mt-1 mb-3">
         Generates one Sora-2 rendered vertical clip (9:16, 8s) per click, picked from the least-used
         (category × prompt) combo across <strong className="text-purple-300">16 craft categories</strong>{" "}
         (workshop, cuts, welding, powder-coat, engraving, before-after, textiles, pottery, jewelry,
@@ -742,21 +742,21 @@ function ClipsSeedCard() {
       </p>
 
       {status && (
-        <div className="font-mono text-[11px] text-[#a3a3a3] mb-4 grid grid-cols-4 gap-2 max-w-md" data-testid="clips-seed-counts">
-          <div className="border border-[#262626] px-2 py-1.5">
-            <div className="text-[#525252] uppercase tracking-[0.2em] text-[9px]">Seeded</div>
+        <div className="font-mono text-[11px] text-ink-muted mb-4 grid grid-cols-4 gap-2 max-w-md" data-testid="clips-seed-counts">
+          <div className="border border-line px-2 py-1.5">
+            <div className="text-ink-muted uppercase tracking-[0.2em] text-[9px]">Seeded</div>
             <div className="text-purple-300 text-base">{status.seeded_clips}</div>
           </div>
-          <div className="border border-[#262626] px-2 py-1.5">
-            <div className="text-[#525252] uppercase tracking-[0.2em] text-[9px]">AI</div>
+          <div className="border border-line px-2 py-1.5">
+            <div className="text-ink-muted uppercase tracking-[0.2em] text-[9px]">AI</div>
             <div className="text-purple-300 text-base">{status.ai_clips}</div>
           </div>
-          <div className="border border-[#262626] px-2 py-1.5">
-            <div className="text-[#525252] uppercase tracking-[0.2em] text-[9px]">All clips</div>
+          <div className="border border-line px-2 py-1.5">
+            <div className="text-ink-muted uppercase tracking-[0.2em] text-[9px]">All clips</div>
             <div className="text-purple-300 text-base">{status.total_clips}</div>
           </div>
-          <div className={`border px-2 py-1.5 ${status.orphan_seeds > 0 ? "border-red-700/60 bg-red-950/15" : "border-[#262626]"}`}>
-            <div className={`uppercase tracking-[0.2em] text-[9px] ${status.orphan_seeds > 0 ? "text-red-400" : "text-[#525252]"}`}>Orphans</div>
+          <div className={`border px-2 py-1.5 ${status.orphan_seeds > 0 ? "border-red-700/60 bg-red-950/15" : "border-line"}`}>
+            <div className={`uppercase tracking-[0.2em] text-[9px] ${status.orphan_seeds > 0 ? "text-red-400" : "text-ink-muted"}`}>Orphans</div>
             <div className={`text-base ${status.orphan_seeds > 0 ? "text-red-300" : "text-purple-300"}`}>{status.orphan_seeds ?? 0}</div>
           </div>
         </div>
@@ -780,7 +780,7 @@ function ClipsSeedCard() {
                 return (
                   <div
                     key={c.id}
-                    className={`relative border px-2 py-1.5 overflow-hidden ${empty ? "border-amber-900/50" : "border-[#262626]"}`}
+                    className={`relative border px-2 py-1.5 overflow-hidden ${empty ? "border-amber-900/50" : "border-line"}`}
                     data-testid={`variety-${c.id}`}
                     title={`${c.label} · ${c.count} clip${c.count === 1 ? "" : "s"} in live feed`}
                   >
@@ -790,7 +790,7 @@ function ClipsSeedCard() {
                       style={{ width: `${pct}%` }}
                     />
                     <div className="relative flex items-center justify-between gap-2">
-                      <span className={`font-mono text-[10px] uppercase tracking-[0.16em] truncate ${empty ? "text-amber-300/80" : "text-[#e5e5e5]"}`}>
+                      <span className={`font-mono text-[10px] uppercase tracking-[0.16em] truncate ${empty ? "text-amber-300/80" : "text-ink"}`}>
                         <span className="mr-1">{c.emoji}</span>{c.label}
                       </span>
                       <span className={`font-mono text-[11px] tabular-nums ${empty ? "text-amber-400" : "text-purple-300"}`}>
@@ -841,12 +841,12 @@ function ClipsSeedCard() {
       )}
 
       <div className="mb-4 pb-4 border-b border-purple-900/40 space-y-2">
-        <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+        <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
           Model
           <select
             value={model}
             onChange={(e) => setModel(e.target.value)}
-            className="ml-2 bg-[#0a0a0a] border border-[#262626] px-2 py-1 font-mono text-xs"
+            className="ml-2 bg-paper border border-line px-2 py-1 font-mono text-xs"
             data-testid="clips-seed-model"
           >
             <option value="sora-2">sora-2 · 1280×720 horizontal (recommended · faster + cheaper)</option>
@@ -887,7 +887,7 @@ function ClipsSeedCard() {
       {recentJobs.length > 0 && (
         <div className="mb-4 pb-4 border-b border-purple-900/40" data-testid="clips-seed-recent">
           <div className="flex items-center justify-between mb-2">
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
               Last {recentJobs.length} render{recentJobs.length === 1 ? "" : "s"}
             </div>
             <button
@@ -944,15 +944,15 @@ function ClipsSeedCard() {
                 done: "border-emerald-700 text-emerald-300 bg-emerald-950/30",
                 error: "border-red-700 text-red-300 bg-red-950/30",
                 running: "border-yellow-700 text-yellow-300 bg-yellow-950/30 animate-pulse",
-                queued: "border-[#525252] text-[#a3a3a3] bg-neutral-900/30",
-              }[j.status] || "border-[#525252] text-[#a3a3a3]";
+                queued: "border-[#525252] text-ink-muted bg-neutral-900/30",
+              }[j.status] || "border-[#525252] text-ink-muted";
               const kindBadge = {
                 budget: { label: "BUDGET", cls: "border-amber-700 text-amber-300 bg-amber-950/40" },
                 moderation: { label: "BLOCKED", cls: "border-pink-700 text-pink-300 bg-pink-950/40" },
                 rate: { label: "RATE", cls: "border-orange-700 text-orange-300 bg-orange-950/40" },
                 timeout: { label: "TIMEOUT", cls: "border-red-800/70 text-red-300/80 bg-red-950/20" },
                 rejected: { label: "INSTANT-FAIL", cls: "border-rose-700 text-rose-200 bg-rose-950/40" },
-                other: { label: "OTHER", cls: "border-[#525252] text-[#a3a3a3]" },
+                other: { label: "OTHER", cls: "border-[#525252] text-ink-muted" },
               }[kind];
               const startedLabel = startedMs
                 ? new Date(startedMs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
@@ -973,7 +973,7 @@ function ClipsSeedCard() {
                     <span className={`uppercase tracking-[0.15em] text-center px-1.5 py-0.5 border ${pillColor}`}>
                       {j.status || "?"}
                     </span>
-                    <span className="text-[#737373]">{startedLabel}</span>
+                    <span className="text-ink-muted">{startedLabel}</span>
                     <span className="text-purple-300/80 truncate" title={j.model}>{(j.model || "").replace("sora-2-", "")}</span>
                     <span
                       className={`uppercase tracking-[0.15em] text-center px-1 py-0.5 border ${kindBadge ? kindBadge.cls : "border-transparent"}`}
@@ -988,7 +988,7 @@ function ClipsSeedCard() {
                       {j.status === "error" && (j.reason || "failed")}
                       {(j.status === "running" || j.status === "queued") && "rendering…"}
                     </span>
-                    <span className="text-[#737373] text-right">{durSec != null ? `${durSec}s` : "—"}</span>
+                    <span className="text-ink-muted text-right">{durSec != null ? `${durSec}s` : "—"}</span>
                   </button>
                   {isOpen && (j.detail || (Array.isArray(j.attempts) && j.attempts.length)) && (
                     <div
@@ -1007,11 +1007,11 @@ function ClipsSeedCard() {
                               className={`border-l-2 pl-2 ${a.ok ? "border-emerald-700 text-emerald-200/90" : "border-red-700 text-red-200/90"}`}
                               data-testid={`clips-seed-recent-attempt-${i}`}
                             >
-                              <span className="text-[#a3a3a3] mr-1.5">
+                              <span className="text-ink-muted mr-1.5">
                                 {a.is_fallback ? "↳ fallback" : "primary"}
                               </span>
                               <span className="text-purple-300/80 mr-1.5">{a.model}</span>
-                              <span className="text-[#737373] mr-1.5">{a.elapsed_s}s</span>
+                              <span className="text-ink-muted mr-1.5">{a.elapsed_s}s</span>
                               <span className="uppercase tracking-[0.18em] text-[9px] mr-1.5">
                                 {a.ok ? "✓ ok" : "✗ fail"}
                               </span>
@@ -1058,7 +1058,7 @@ function ClipsSeedCard() {
           </button>
           <button
             onClick={() => setPurgeStep(0)}
-            className="px-4 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em]"
+            className="px-4 py-2 border border-line hover:border-brand font-mono text-[11px] uppercase tracking-[0.22em]"
           >
             Cancel
           </button>
@@ -1095,7 +1095,7 @@ function StripeDiagCard() {
           <h3 className={`font-display text-xl ${ok ? "text-emerald-200" : "text-red-200"}`}>
             {ok ? "Reachable" : "Unreachable"}
           </h3>
-          <p className="font-mono text-[11px] text-[#a3a3a3] mt-1 max-w-[60ch] leading-relaxed">
+          <p className="font-mono text-[11px] text-ink-muted mt-1 max-w-[60ch] leading-relaxed">
             Probes <code>/api/admin/stripe/diag</code>. If this says Unreachable, makers can't onboard for payouts — usually a STRIPE_API_KEY mismatch or Connect not enabled on the Stripe dashboard.
           </p>
         </div>
@@ -1126,7 +1126,7 @@ function StripeDiagCard() {
       )}
 
       {!ok && data?.reason && (
-        <div className="mt-3 font-mono text-[11px] text-red-200 bg-black/30 border border-red-900/60 p-3 leading-relaxed" data-testid="stripe-diag-reason">
+        <div className="mt-3 font-mono text-[11px] text-red-200 bg-paper/30 border border-red-900/60 p-3 leading-relaxed" data-testid="stripe-diag-reason">
           <strong className="text-red-300">Reason:</strong> {data.reason}
         </div>
       )}
@@ -1136,8 +1136,8 @@ function StripeDiagCard() {
 
 function DiagTile({ label, value, highlight }) {
   return (
-    <div className={`border px-2 py-1.5 ${highlight ? "border-emerald-500/50 bg-emerald-950/30" : "border-[#262626] bg-[#0a0a0a]"}`}>
-      <div className={`uppercase tracking-[0.22em] text-[9px] ${highlight ? "text-emerald-300" : "text-[#525252]"}`}>{label}</div>
+    <div className={`border px-2 py-1.5 ${highlight ? "border-emerald-500/50 bg-emerald-950/30" : "border-line bg-paper"}`}>
+      <div className={`uppercase tracking-[0.22em] text-[9px] ${highlight ? "text-emerald-300" : "text-ink-muted"}`}>{label}</div>
       <div className={`text-base ${highlight ? "text-emerald-200" : "text-zinc-200"}`}>{value}</div>
     </div>
   );
@@ -1198,17 +1198,17 @@ function StripeLinkAccountCard() {
 
   return (
     <section
-      className="border border-[#262626] p-4 md:p-5"
+      className="border border-line p-4 md:p-5"
       data-testid="stripe-link-account-card"
     >
       <div>
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
           Stripe Connect · manual link
         </div>
-        <h3 className="font-display text-xl mt-1 text-[#e5e5e5]">
+        <h3 className="font-display text-xl mt-1 text-ink">
           Link an existing Stripe account to a maker
         </h3>
-        <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-2xl leading-relaxed">
+        <p className="font-mono text-xs text-ink-muted mt-2 max-w-2xl leading-relaxed">
           Use when the Connect account was created directly in the Stripe
           dashboard (instead of via the maker dashboard's onboarding flow).
           We verify the account ID with Stripe, then stamp it + its current
@@ -1218,7 +1218,7 @@ function StripeLinkAccountCard() {
 
       <form onSubmit={submit} className="mt-4 grid gap-3 md:grid-cols-[1fr,1fr,auto] md:items-end">
         <label className="block">
-          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
             Maker slug
           </span>
           <input
@@ -1227,12 +1227,12 @@ function StripeLinkAccountCard() {
             value={slug}
             onChange={(e) => setSlug(e.target.value)}
             placeholder="williams-cnc"
-            className="mt-1 w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm text-[#e5e5e5]"
+            className="mt-1 w-full bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm text-ink"
             data-testid="stripe-link-slug"
           />
         </label>
         <label className="block">
-          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
             Stripe account ID
           </span>
           <input
@@ -1242,21 +1242,21 @@ function StripeLinkAccountCard() {
             value={acctId}
             onChange={(e) => setAcctId(e.target.value)}
             placeholder="acct_1ABCxyz…"
-            className="mt-1 w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm text-[#e5e5e5]"
+            className="mt-1 w-full bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm text-ink"
             data-testid="stripe-link-acct-id"
           />
         </label>
         <button
           type="submit"
           disabled={busy || !slug.trim() || !acctId.trim()}
-          className="h-[42px] px-4 border border-[#ff4500] text-[#ff4500] hover:bg-[#ff4500] hover:text-black font-mono text-[11px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+          className="h-[42px] px-4 border border-brand text-brand hover:bg-brand hover:text-ink font-mono text-[11px] uppercase tracking-[0.22em] transition disabled:opacity-50"
           data-testid="stripe-link-submit"
         >
           {busy ? "Linking…" : "Link account →"}
         </button>
       </form>
 
-      <label className="mt-3 inline-flex items-center gap-2 font-mono text-[11px] text-[#a3a3a3] cursor-pointer">
+      <label className="mt-3 inline-flex items-center gap-2 font-mono text-[11px] text-ink-muted cursor-pointer">
         <input
           type="checkbox"
           checked={overwrite}
@@ -1275,9 +1275,9 @@ function StripeLinkAccountCard() {
       {result && (
         <div className="mt-4 border border-emerald-700/40 bg-emerald-950/15 p-3 font-mono text-xs text-emerald-200" data-testid="stripe-link-result">
           <div className="font-bold mb-1.5">✓ Linked</div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[#a3a3a3]">
-            <div>maker: <span className="text-[#e5e5e5]">{result.maker_slug}</span></div>
-            <div>acct: <span className="text-[#e5e5e5]">…{result.stripe_account_id?.slice(-8)}</span></div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-ink-muted">
+            <div>maker: <span className="text-ink">{result.maker_slug}</span></div>
+            <div>acct: <span className="text-ink">…{result.stripe_account_id?.slice(-8)}</span></div>
             <div>charges: <span className={result.charges_enabled ? "text-emerald-300" : "text-red-300"}>{String(result.charges_enabled)}</span></div>
             <div>payouts: <span className={result.payouts_enabled ? "text-emerald-300" : "text-red-300"}>{String(result.payouts_enabled)}</span></div>
             <div>details_submitted: <span className={result.details_submitted ? "text-emerald-300" : "text-red-300"}>{String(result.details_submitted)}</span></div>
@@ -1388,7 +1388,7 @@ function StripeBulkResetCard() {
       )}
 
       {preview && (
-        <div className="mt-4 border border-amber-700/40 bg-black/30 p-3" data-testid="stripe-reset-preview-panel">
+        <div className="mt-4 border border-amber-700/40 bg-paper/30 p-3" data-testid="stripe-reset-preview-panel">
           <div className="font-mono text-xs text-amber-200">
             <span className="font-bold">{preview.would_reset}</span> maker row(s) currently hold a Stripe Connect account ID.
           </div>
@@ -1415,7 +1415,7 @@ function StripeBulkResetCard() {
                 value={confirmText}
                 onChange={(e) => setConfirmText(e.target.value)}
                 placeholder="RESET ALL"
-                className="mt-1 w-full bg-black border border-amber-700/40 focus:border-amber-400 outline-none px-3 py-2 font-mono text-sm text-amber-100"
+                className="mt-1 w-full bg-paper border border-amber-700/40 focus:border-amber-400 outline-none px-3 py-2 font-mono text-sm text-amber-100"
                 data-testid="stripe-reset-confirm-input"
               />
             </label>
@@ -1431,7 +1431,7 @@ function StripeBulkResetCard() {
               <button
                 onClick={() => { setPreview(null); setConfirmText(""); setErr(""); }}
                 disabled={busy}
-                className="px-4 py-2 border border-[#262626] text-[#a3a3a3] hover:border-[#737373] font-mono text-[11px] uppercase tracking-[0.22em] transition"
+                className="px-4 py-2 border border-line text-ink-muted hover:border-[#737373] font-mono text-[11px] uppercase tracking-[0.22em] transition"
                 data-testid="stripe-reset-cancel"
               >
                 Cancel
@@ -1543,7 +1543,7 @@ function HeroHeadlinesCard() {
         <div>
           <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-amber-400 mb-1">◆ Hero Headlines · Rotating Pool</div>
           <h3 className="font-display text-xl text-amber-200">Rotating Headlines</h3>
-          <p className="font-mono text-[11px] text-[#a3a3a3] mt-1 max-w-[60ch] leading-relaxed">
+          <p className="font-mono text-[11px] text-ink-muted mt-1 max-w-[60ch] leading-relaxed">
             Live pool rotates on the homepage hero every 7s. Daily Gemini cron drafts 5 fresh variants at 09:15 UTC. Pin one to override rotation for a campaign window.
           </p>
         </div>
@@ -1585,14 +1585,14 @@ function HeroHeadlinesCard() {
       <form onSubmit={onCreate} className="border-t border-amber-900/40 pt-4 space-y-2" data-testid="hero-headlines-create-form">
         <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-amber-300">◆ Add manual variant</div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-          <input value={form.statement} onChange={(e) => setForm({ ...form, statement: e.target.value })} placeholder="Statement (≤28)" maxLength={32} required className="bg-[#0a0a0a] border border-[#262626] focus:border-amber-400 px-3 py-2 font-mono text-xs text-zinc-100 outline-none" data-testid="hh-create-statement" />
-          <input value={form.accent} onChange={(e) => setForm({ ...form, accent: e.target.value })} placeholder="Accent word (≤12, 1 word)" maxLength={16} required className="bg-[#0a0a0a] border border-[#262626] focus:border-amber-400 px-3 py-2 font-mono text-xs text-amber-300 outline-none" data-testid="hh-create-accent" />
-          <input value={form.closer} onChange={(e) => setForm({ ...form, closer: e.target.value })} placeholder="Closer (≤16)" maxLength={20} required className="bg-[#0a0a0a] border border-[#262626] focus:border-amber-400 px-3 py-2 font-mono text-xs text-zinc-100 outline-none" data-testid="hh-create-closer" />
+          <input value={form.statement} onChange={(e) => setForm({ ...form, statement: e.target.value })} placeholder="Statement (≤28)" maxLength={32} required className="bg-paper border border-line focus:border-amber-400 px-3 py-2 font-mono text-xs text-zinc-100 outline-none" data-testid="hh-create-statement" />
+          <input value={form.accent} onChange={(e) => setForm({ ...form, accent: e.target.value })} placeholder="Accent word (≤12, 1 word)" maxLength={16} required className="bg-paper border border-line focus:border-amber-400 px-3 py-2 font-mono text-xs text-amber-300 outline-none" data-testid="hh-create-accent" />
+          <input value={form.closer} onChange={(e) => setForm({ ...form, closer: e.target.value })} placeholder="Closer (≤16)" maxLength={20} required className="bg-paper border border-line focus:border-amber-400 px-3 py-2 font-mono text-xs text-zinc-100 outline-none" data-testid="hh-create-closer" />
         </div>
         <div className="flex items-center justify-between">
-          <div className="font-mono text-[11px] text-[#525252]">
+          <div className="font-mono text-[11px] text-ink-muted">
             Preview: <span className="text-zinc-200">{form.statement || "—"}.</span>{" "}
-            <span className="text-[#ff4500]">{form.accent || "—"}</span>{" "}
+            <span className="text-brand">{form.accent || "—"}</span>{" "}
             <span className="text-zinc-200">{form.closer || "—"}.</span>
           </div>
           <button type="submit" disabled={busy} className="btn-industrial btn-primary text-xs disabled:opacity-50" data-testid="hh-create-submit">Add</button>
@@ -1601,11 +1601,11 @@ function HeroHeadlinesCard() {
 
       {archived.length > 0 && (
         <details className="border-t border-amber-900/40 pt-4">
-          <summary className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#737373] cursor-pointer">◇ Archived ({archived.length})</summary>
+          <summary className="font-mono text-[10px] uppercase tracking-[0.28em] text-ink-muted cursor-pointer">◇ Archived ({archived.length})</summary>
           <div className="space-y-1.5 mt-3 max-h-[260px] overflow-y-auto pr-1">
             {archived.map((h) => (
-              <div key={h.id} className="flex items-center justify-between gap-3 border border-[#1a1a1a] bg-[#0a0a0a] px-3 py-2" data-testid={`hh-archived-${h.id}`}>
-                <div className="font-mono text-[11px] text-[#525252] truncate">
+              <div key={h.id} className="flex items-center justify-between gap-3 border border-line bg-paper px-3 py-2" data-testid={`hh-archived-${h.id}`}>
+                <div className="font-mono text-[11px] text-ink-muted truncate">
                   {h.statement}. <span className="text-amber-700">{h.accent}</span> {h.closer}.
                 </div>
                 <div className="flex gap-1.5">
@@ -1623,19 +1623,19 @@ function HeroHeadlinesCard() {
 
 function HeadlineRow({ h, busy, onPin, onArchive, onDelete }) {
   return (
-    <div className={`flex items-center justify-between gap-3 border ${h.pinned ? "border-amber-500/60 bg-amber-950/20" : "border-[#1a1a1a] bg-[#0a0a0a]"} px-3 py-2`} data-testid={`hh-row-${h.id}`}>
+    <div className={`flex items-center justify-between gap-3 border ${h.pinned ? "border-amber-500/60 bg-amber-950/20" : "border-line bg-paper"} px-3 py-2`} data-testid={`hh-row-${h.id}`}>
       <div className="font-mono text-[12px] text-zinc-200 truncate flex-1">
         {h.pinned && <span className="text-amber-400 mr-1.5">◆</span>}
         <span className="text-zinc-100">{h.statement}.</span>{" "}
-        <span className="text-[#ff4500]">{h.accent}</span>{" "}
+        <span className="text-brand">{h.accent}</span>{" "}
         <span className="text-zinc-300">{h.closer}.</span>
-        <span className="ml-2 text-[10px] uppercase tracking-[0.22em] text-[#525252]">{h.source}</span>
+        <span className="ml-2 text-[10px] uppercase tracking-[0.22em] text-ink-muted">{h.source}</span>
       </div>
       <div className="flex gap-1.5 shrink-0">
         {!h.pinned && (
           <button onClick={() => onPin(h.id)} disabled={busy} className="font-mono text-[10px] text-amber-300 hover:text-amber-100 px-2 py-1 border border-amber-700/50 hover:border-amber-400" data-testid={`hh-pin-${h.id}`}>Pin</button>
         )}
-        <button onClick={() => onArchive(h.id)} disabled={busy} className="font-mono text-[10px] text-[#a3a3a3] hover:text-zinc-100 px-2 py-1 border border-[#262626] hover:border-zinc-500" data-testid={`hh-archive-${h.id}`}>Archive</button>
+        <button onClick={() => onArchive(h.id)} disabled={busy} className="font-mono text-[10px] text-ink-muted hover:text-zinc-100 px-2 py-1 border border-line hover:border-zinc-500" data-testid={`hh-archive-${h.id}`}>Archive</button>
         {h.source !== "seed" && (
           <button onClick={() => onDelete(h.id)} disabled={busy} className="font-mono text-[10px] text-red-300 hover:text-red-100 px-2 py-1 border border-red-900/50 hover:border-red-500" data-testid={`hh-delete-${h.id}`}>×</button>
         )}
@@ -1646,8 +1646,8 @@ function HeadlineRow({ h, busy, onPin, onArchive, onDelete }) {
 
 function CountTile({ label, value, highlight }) {
   return (
-    <div className={`border px-2 py-1.5 ${highlight ? "border-amber-500 bg-amber-950/30" : "border-[#262626] bg-[#0a0a0a]"}`}>
-      <div className={`uppercase tracking-[0.22em] text-[9px] ${highlight ? "text-amber-300" : "text-[#525252]"}`}>{label}</div>
+    <div className={`border px-2 py-1.5 ${highlight ? "border-amber-500 bg-amber-950/30" : "border-line bg-paper"}`}>
+      <div className={`uppercase tracking-[0.22em] text-[9px] ${highlight ? "text-amber-300" : "text-ink-muted"}`}>{label}</div>
       <div className={`text-base ${highlight ? "text-amber-200" : "text-zinc-200"}`}>{value}</div>
     </div>
   );
@@ -1721,7 +1721,7 @@ function OperatorOpsChecklistCard() {
         ◆ Operator ops checklist
       </div>
       <div className="font-display text-lg uppercase">Post-deploy 5-minute sweep</div>
-      <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed mt-1 mb-4 max-w-2xl">
+      <p className="font-mono text-xs text-ink-muted leading-relaxed mt-1 mb-4 max-w-2xl">
         One-stop verification panel. Hit each row's button after every prod
         deploy and weekly thereafter. Backing docs live in{" "}
         <code className="text-emerald-300">/app/docs/</code> (Cloudflare
@@ -1824,19 +1824,19 @@ function OpsRow({
   const dot =
     status === "ok"   ? "bg-emerald-400 text-emerald-400"
     : status === "fail" ? "bg-red-400 text-red-400"
-                        : "bg-[#525252] text-[#525252]";
+                        : "bg-[#525252] text-ink-muted";
   return (
     <div
-      className="border border-[#262626] bg-[#0a0a0a]/40 p-3 flex items-start gap-3"
+      className="border border-line bg-paper/40 p-3 flex items-start gap-3"
       data-testid={`${testIdPrefix}-row`}
     >
       <div className="flex flex-col items-center gap-1 pt-1 shrink-0 w-8">
         <span className={`w-2.5 h-2.5 rounded-full ${dot.split(" ")[0]}`} aria-hidden="true" />
-        <span className="font-mono text-[10px] text-[#525252]">{step}</span>
+        <span className="font-mono text-[10px] text-ink-muted">{step}</span>
       </div>
       <div className="min-w-0 flex-1">
-        <div className="font-display text-sm text-[#e5e5e5]">{title}</div>
-        <div className="font-mono text-[10px] text-[#a3a3a3] mt-0.5 leading-relaxed">
+        <div className="font-display text-sm text-ink">{title}</div>
+        <div className="font-mono text-[10px] text-ink-muted mt-0.5 leading-relaxed">
           {subtitle}
         </div>
         <div className={`font-mono text-[10px] mt-1 ${dot.split(" ")[1]}`} data-testid={`${testIdPrefix}-status`}>
@@ -1848,7 +1848,7 @@ function OpsRow({
           onClick={onRun}
           disabled={busy}
           data-testid={`${testIdPrefix}-run`}
-          className="px-2.5 py-1 border border-[#262626] hover:border-cyan-500 hover:text-cyan-300 font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50"
+          className="px-2.5 py-1 border border-line hover:border-cyan-500 hover:text-cyan-300 font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50"
         >
           {busy ? "…" : runLabel}
         </button>
@@ -1966,23 +1966,23 @@ function PurgeFeaturedSeedCard() {
         ◆ Platform seed content
       </div>
       <div className="font-display text-lg uppercase">Purge featured-example content</div>
-      <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed mt-1 mb-3">
+      <p className="font-mono text-xs text-ink-muted leading-relaxed mt-1 mb-3">
         Hard-removes every product tagged "✦ Featured Example" and every maker tagged
         "✦ Founding Maker · Platform Showcase". Use once organic listings fill the
         catalogue. Organic listings (no flag) are <span className="text-emerald-300">not touched</span>.
       </p>
       {status && (
-        <div className="font-mono text-[11px] text-[#a3a3a3] mb-4 grid grid-cols-3 gap-3 max-w-md" data-testid="purge-featured-seed-counts">
-          <div className="border border-[#262626] px-2 py-1.5">
-            <div className="text-[#525252] uppercase tracking-[0.2em] text-[9px]">Makers</div>
+        <div className="font-mono text-[11px] text-ink-muted mb-4 grid grid-cols-3 gap-3 max-w-md" data-testid="purge-featured-seed-counts">
+          <div className="border border-line px-2 py-1.5">
+            <div className="text-ink-muted uppercase tracking-[0.2em] text-[9px]">Makers</div>
             <div className="text-amber-300 text-base">{status.featured_makers}</div>
           </div>
-          <div className="border border-[#262626] px-2 py-1.5">
-            <div className="text-[#525252] uppercase tracking-[0.2em] text-[9px]">Products</div>
+          <div className="border border-line px-2 py-1.5">
+            <div className="text-ink-muted uppercase tracking-[0.2em] text-[9px]">Products</div>
             <div className="text-amber-300 text-base">{status.featured_products}</div>
           </div>
-          <div className="border border-[#262626] px-2 py-1.5">
-            <div className="text-[#525252] uppercase tracking-[0.2em] text-[9px]">Published</div>
+          <div className="border border-line px-2 py-1.5">
+            <div className="text-ink-muted uppercase tracking-[0.2em] text-[9px]">Published</div>
             <div className="text-amber-300 text-base">{status.published_featured_products}</div>
           </div>
         </div>
@@ -2003,7 +2003,7 @@ function PurgeFeaturedSeedCard() {
         <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-300 mb-1">
           ◆ Install seed content (one-click · for fresh deploys)
         </div>
-        <p className="font-mono text-[11px] text-[#a3a3a3] mb-2 leading-relaxed max-w-2xl">
+        <p className="font-mono text-[11px] text-ink-muted mb-2 leading-relaxed max-w-2xl">
           Populates the database from the curated seed fixture committed to the repo —
           <span className="text-emerald-300"> 8 founding makers, 34 featured-example products,
           22 forum threads, 160 replies, 8 showcase posts</span>. Idempotent. Use this on
@@ -2024,7 +2024,7 @@ function PurgeFeaturedSeedCard() {
             data-testid="install-featured-seed-result"
           >
             ◆ Installed {installResult.installed.makers} makers · {installResult.installed.products} products · {installResult.installed.threads} threads · {installResult.installed.replies} replies · {installResult.installed.showcase} showcase
-            <div className="text-[#737373] mt-1">
+            <div className="text-ink-muted mt-1">
               now: {installResult.totals_now.featured_makers}/{installResult.totals_now.featured_products}/{installResult.totals_now.seeded_threads}/{installResult.totals_now.seeded_replies}/{installResult.totals_now.seeded_showcase}
             </div>
           </div>
@@ -2038,7 +2038,7 @@ function PurgeFeaturedSeedCard() {
         <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-amber-300 mb-1">
           ◇ Workshop Team attribution (safe · idempotent)
         </div>
-        <p className="font-mono text-[11px] text-[#a3a3a3] mb-2 leading-relaxed max-w-2xl">
+        <p className="font-mono text-[11px] text-ink-muted mb-2 leading-relaxed max-w-2xl">
           Backfills <span className="text-amber-300">"Crafters Market Workshop Team"</span> as the
           author on every seeded forum thread / reply / showcase post (scoped to <code className="text-emerald-300">is_seed: true</code>).
           Run this once on production after each fresh deploy of the seed data — re-running is a no-op.
@@ -2057,7 +2057,7 @@ function PurgeFeaturedSeedCard() {
             data-testid="attribute-workshop-team-result"
           >
             ◆ Threads: {attrResult.threads_updated} · Replies: {attrResult.replies_updated} · Showcase: {attrResult.showcase_updated}
-            <span className="text-[#737373] ml-2">
+            <span className="text-ink-muted ml-2">
               (total seeded: {attrResult.totals?.forum_threads_tagged}/{attrResult.totals?.forum_replies_tagged}/{attrResult.totals?.showcase_posts_tagged})
             </span>
           </div>
@@ -2072,7 +2072,7 @@ function PurgeFeaturedSeedCard() {
         <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-amber-300 mb-1">
           ◇ Weekly thread seed · Run now
         </div>
-        <p className="font-mono text-[11px] text-[#a3a3a3] mb-2 leading-relaxed max-w-2xl">
+        <p className="font-mono text-[11px] text-ink-muted mb-2 leading-relaxed max-w-2xl">
           Adds <span className="text-amber-300">1 fresh forum thread</span> picked from the curated CNC/maker topic bank,
           plus 1-2 starter replies from generic maker usernames. Auto-runs every Tuesday at 14:00 UTC —
           use this button to trigger one on-demand (e.g., during a slow week or pre-launch).
@@ -2095,7 +2095,7 @@ function PurgeFeaturedSeedCard() {
                 ◆ &quot;{weeklyResult.title}&quot; · {weeklyResult.channel} · {weeklyResult.replies} starter {weeklyResult.replies === 1 ? "reply" : "replies"}
               </span>
             ) : (
-              <span className="text-[#a3a3a3]">◇ Skipped: {weeklyResult.reason}</span>
+              <span className="text-ink-muted">◇ Skipped: {weeklyResult.reason}</span>
             )}
           </div>
         )}
@@ -2122,7 +2122,7 @@ function PurgeFeaturedSeedCard() {
           </button>
           <button
             onClick={() => setStep(0)}
-            className="px-4 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em]"
+            className="px-4 py-2 border border-line hover:border-brand font-mono text-[11px] uppercase tracking-[0.22em]"
           >
             Cancel
           </button>
@@ -2133,14 +2133,14 @@ function PurgeFeaturedSeedCard() {
           <button
             onClick={fire}
             disabled={busy}
-            className="px-4 py-2 bg-amber-700 hover:bg-amber-600 text-white border border-amber-700 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
+            className="px-4 py-2 bg-amber-700 hover:bg-amber-600 text-ink border border-amber-700 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
             data-testid="purge-featured-seed-confirm-2"
           >
             {busy ? "Purging…" : "Yes — remove all seeded content"}
           </button>
           <button
             onClick={() => setStep(0)}
-            className="px-4 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em]"
+            className="px-4 py-2 border border-line hover:border-brand font-mono text-[11px] uppercase tracking-[0.22em]"
           >
             Cancel
           </button>
@@ -2180,7 +2180,7 @@ function HardClearCard({ onCleared }) {
         ◆ Danger zone
       </div>
       <div className="font-display text-lg uppercase">Hard clear all chat rooms</div>
-      <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed mt-1 mb-4">
+      <p className="font-mono text-xs text-ink-muted leading-relaxed mt-1 mb-4">
         Permanently deletes every chat message across every room. Cannot be undone.
         Forum threads and replies are not touched.
       </p>
@@ -2210,7 +2210,7 @@ function HardClearCard({ onCleared }) {
           </button>
           <button
             onClick={() => setStep(0)}
-            className="px-4 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em]"
+            className="px-4 py-2 border border-line hover:border-brand font-mono text-[11px] uppercase tracking-[0.22em]"
           >
             Cancel
           </button>
@@ -2221,14 +2221,14 @@ function HardClearCard({ onCleared }) {
           <button
             onClick={fire}
             disabled={busy}
-            className="px-4 py-2 bg-red-700 hover:bg-red-600 text-white border border-red-700 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
+            className="px-4 py-2 bg-red-700 hover:bg-red-600 text-ink border border-red-700 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
             data-testid="hard-clear-confirm-2"
           >
             {busy ? "Clearing…" : "Yes — wipe everything"}
           </button>
           <button
             onClick={() => setStep(0)}
-            className="px-4 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em]"
+            className="px-4 py-2 border border-line hover:border-brand font-mono text-[11px] uppercase tracking-[0.22em]"
           >
             Cancel
           </button>
@@ -2255,14 +2255,14 @@ function IdleClearNowCard() {
     }
   };
   return (
-    <div className="border border-[#262626] p-4 md:p-5" data-testid="idle-clear-now-card">
+    <div className="border border-line p-4 md:p-5" data-testid="idle-clear-now-card">
       <div className="font-display text-lg uppercase">Run idle-clear now</div>
-      <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed mt-1 mb-4">
+      <p className="font-mono text-xs text-ink-muted leading-relaxed mt-1 mb-4">
         Manually trigger the idle-room cleanup using the configured idle window.
         Useful for spot-checking before relying on the cron.
       </p>
       {result && (
-        <pre className="font-mono text-[10px] text-[#a3a3a3] mb-3 overflow-x-auto bg-[#0d0d0d] border border-[#262626] p-2" data-testid="idle-clear-now-result">
+        <pre className="font-mono text-[10px] text-ink-muted mb-3 overflow-x-auto bg-paper border border-line p-2" data-testid="idle-clear-now-result">
           {JSON.stringify(result, null, 2)}
         </pre>
       )}
@@ -2270,7 +2270,7 @@ function IdleClearNowCard() {
       <button
         onClick={fire}
         disabled={busy}
-        className="px-4 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
+        className="px-4 py-2 border border-line hover:border-brand font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
         data-testid="idle-clear-now-btn"
       >
         {busy ? "Running…" : "Run idle-clear now"}
@@ -2306,16 +2306,16 @@ function FeedbackInbox() {
   };
 
   return (
-    <div className="border border-[#262626] p-4 md:p-5" data-testid="feedback-inbox">
+    <div className="border border-line p-4 md:p-5" data-testid="feedback-inbox">
       <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
         <div className="font-display text-lg uppercase">Beta feedback inbox</div>
-        <div className="flex border border-[#262626]">
+        <div className="flex border border-line">
           {["open", "resolved", "all"].map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className={`px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.22em] border-r border-[#262626] last:border-r-0 ${
-                filter === f ? "bg-[#ff4500] text-[#0a0a0a]" : "text-[#a3a3a3] hover:text-[#e5e5e5]"
+              className={`px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.22em] border-r border-line last:border-r-0 ${
+                filter === f ? "bg-brand text-[#0a0a0a]" : "text-ink-muted hover:text-ink"
               }`}
               data-testid={`feedback-filter-${f}`}
             >
@@ -2325,23 +2325,23 @@ function FeedbackInbox() {
         </div>
       </div>
       {loading ? (
-        <p className="font-mono text-xs text-[#a3a3a3]">Loading…</p>
+        <p className="font-mono text-xs text-ink-muted">Loading…</p>
       ) : !items.length ? (
-        <p className="font-mono text-xs text-[#a3a3a3]" data-testid="feedback-empty">No {filter === "all" ? "" : filter + " "}feedback yet.</p>
+        <p className="font-mono text-xs text-ink-muted" data-testid="feedback-empty">No {filter === "all" ? "" : filter + " "}feedback yet.</p>
       ) : (
         <div className="space-y-2">
           {items.map((it) => (
-            <div key={it.id} className="border border-[#262626] p-3" data-testid={`feedback-${it.id}`}>
+            <div key={it.id} className="border border-line p-3" data-testid={`feedback-${it.id}`}>
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div className="font-display text-base">{it.name}</div>
-                <div className="font-mono text-[10px] text-[#525252]">
+                <div className="font-mono text-[10px] text-ink-muted">
                   {(it.created_at || "").slice(0, 16).replace("T", " ")} · {it.page || "—"}
                 </div>
               </div>
-              <a href={`mailto:${it.email}`} className="font-mono text-[10px] text-[#a3a3a3] hover:text-[#ff4500]">
+              <a href={`mailto:${it.email}`} className="font-mono text-[10px] text-ink-muted hover:text-brand">
                 {it.email}
               </a>
-              <p className="font-mono text-xs text-[#e5e5e5] leading-relaxed mt-2 whitespace-pre-wrap">{it.message}</p>
+              <p className="font-mono text-xs text-ink leading-relaxed mt-2 whitespace-pre-wrap">{it.message}</p>
               {it.replied_at && (
                 <div className="mt-2 font-mono text-[10px] text-emerald-400">
                   ◆ Replied by {it.replied_by} · {(it.replied_at || "").slice(0, 16).replace("T", " ")} · "{it.replied_subject}"
@@ -2359,7 +2359,7 @@ function FeedbackInbox() {
                 )}
                 <button
                   onClick={() => setReplyTarget(it)}
-                  className="px-3 py-1 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5"
+                  className="px-3 py-1 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5"
                   data-testid={`feedback-reply-${it.id}`}
                 >
                   ✉ Reply
@@ -2415,50 +2415,50 @@ function FeedbackReplyModal({ feedback, onClose, onSent }) {
 
   return (
     <div
-      className="fixed inset-0 z-[100] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4"
+      className="fixed inset-0 z-[100] bg-paper/85 backdrop-blur-sm flex items-center justify-center p-4"
       data-testid="feedback-reply-modal"
       onClick={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}
     >
-      <div className="w-full max-w-xl bg-[#0a0a0a] border border-[#ff4500] p-6 md:p-8">
-        <div className="flex items-start justify-between gap-4 pb-4 border-b border-[#262626]">
+      <div className="w-full max-w-xl bg-paper border border-brand p-6 md:p-8">
+        <div className="flex items-start justify-between gap-4 pb-4 border-b border-line">
           <div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">◆ Feedback reply</div>
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">◆ Feedback reply</div>
             <h3 className="font-display text-2xl mt-1">Reply to {feedback.name}</h3>
-            <p className="font-mono text-xs text-[#a3a3a3] mt-1 break-all">{feedback.email}</p>
+            <p className="font-mono text-xs text-ink-muted mt-1 break-all">{feedback.email}</p>
           </div>
           <button
             onClick={onClose}
             disabled={busy}
             data-testid="feedback-reply-close"
-            className="font-mono text-xl text-[#a3a3a3] hover:text-[#ff4500] disabled:opacity-50"
+            className="font-mono text-xl text-ink-muted hover:text-brand disabled:opacity-50"
           >✕</button>
         </div>
-        <div className="mt-4 border-l-2 border-[#262626] pl-3">
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] mb-1">Original</div>
-          <p className="font-mono text-xs text-[#a3a3a3] whitespace-pre-wrap leading-relaxed line-clamp-5">{feedback.message}</p>
+        <div className="mt-4 border-l-2 border-line pl-3">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-1">Original</div>
+          <p className="font-mono text-xs text-ink-muted whitespace-pre-wrap leading-relaxed line-clamp-5">{feedback.message}</p>
         </div>
         <div className="space-y-3 mt-5">
           <div>
-            <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Subject</label>
+            <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Subject</label>
             <input
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
               maxLength={180}
               data-testid="feedback-reply-subject"
-              className="w-full mt-1.5 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm text-[#e5e5e5]"
+              className="w-full mt-1.5 bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm text-ink"
             />
           </div>
           <div>
-            <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Message</label>
+            <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Message</label>
             <textarea
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               rows={7}
               data-testid="feedback-reply-message"
-              className="w-full mt-1.5 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm text-[#e5e5e5] resize-none leading-relaxed"
+              className="w-full mt-1.5 bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm text-ink resize-none leading-relaxed"
             />
           </div>
-          <label className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] cursor-pointer">
+          <label className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted cursor-pointer">
             <input
               type="checkbox"
               checked={autoResolve}
@@ -2468,11 +2468,11 @@ function FeedbackReplyModal({ feedback, onClose, onSent }) {
             Mark as resolved after sending
           </label>
         </div>
-        <div className="flex justify-end gap-3 mt-5 pt-4 border-t border-[#262626]">
+        <div className="flex justify-end gap-3 mt-5 pt-4 border-t border-line">
           <button
             onClick={onClose}
             disabled={busy}
-            className="px-4 py-2 border border-[#262626] hover:border-[#525252] font-mono text-xs uppercase tracking-[0.22em] disabled:opacity-50"
+            className="px-4 py-2 border border-line hover:border-ink-muted font-mono text-xs uppercase tracking-[0.22em] disabled:opacity-50"
           >Cancel</button>
           <button
             onClick={send}
@@ -2503,19 +2503,19 @@ function MaintenanceScheduleCard({ settings, onPatch, busy }) {
   };
 
   return (
-    <div className="border border-[#262626] p-4 md:p-5" data-testid="maintenance-schedule-card">
-      <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-2">
+    <div className="border border-line p-4 md:p-5" data-testid="maintenance-schedule-card">
+      <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-2">
         ◆ Scheduled Maintenance
       </div>
       <div className="font-display text-lg uppercase">Plan a window</div>
-      <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed mt-1 mb-4">
+      <p className="font-mono text-xs text-ink-muted leading-relaxed mt-1 mb-4">
         Set a future time to flip Maintenance Mode on, off, or both. The cron
         runs every minute and clears each schedule once it fires. Leave a field
         blank to skip it.
       </p>
       <div className="grid md:grid-cols-2 gap-4">
         <label className="block">
-          <span className="block font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-1">
+          <span className="block font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-1">
             Turn ON at (local time)
           </span>
           <input
@@ -2525,12 +2525,12 @@ function MaintenanceScheduleCard({ settings, onPatch, busy }) {
               onPatch({ maintenance_scheduled_on: toIso(e.target.value) }, true)
             }
             disabled={busy}
-            className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm text-[#e5e5e5]"
+            className="w-full bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm text-ink"
             data-testid="maintenance-scheduled-on"
           />
         </label>
         <label className="block">
-          <span className="block font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-1">
+          <span className="block font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-1">
             Turn OFF at (local time)
           </span>
           <input
@@ -2540,7 +2540,7 @@ function MaintenanceScheduleCard({ settings, onPatch, busy }) {
               onPatch({ maintenance_scheduled_off: toIso(e.target.value) }, true)
             }
             disabled={busy}
-            className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm text-[#e5e5e5]"
+            className="w-full bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm text-ink"
             data-testid="maintenance-scheduled-off"
           />
         </label>
@@ -2551,7 +2551,7 @@ function MaintenanceScheduleCard({ settings, onPatch, busy }) {
             onPatch({ maintenance_scheduled_on: "", maintenance_scheduled_off: "" })
           }
           disabled={busy}
-          className="mt-4 px-4 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
+          className="mt-4 px-4 py-2 border border-line hover:border-brand font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
           data-testid="maintenance-clear-schedule"
         >
           ✕ Clear schedule
@@ -2594,14 +2594,14 @@ function SeoDiagCard() {
   const healthy = data && !leaked;
 
   return (
-    <section className="border border-[#262626] p-4 md:p-5" data-testid="seo-diag-card">
+    <section className="border border-line p-4 md:p-5" data-testid="seo-diag-card">
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
         <div>
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">SEO · sitemap & robots</div>
-          <h3 className="font-display text-xl mt-1 text-[#e5e5e5]">Indexing health</h3>
-          <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-xl">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">SEO · sitemap & robots</div>
+          <h3 className="font-display text-xl mt-1 text-ink">Indexing health</h3>
+          <p className="font-mono text-xs text-ink-muted mt-2 max-w-xl">
             Confirms `PUBLIC_SITE_URL` is wired correctly and search engines
-            will see <code className="text-[#ff4500]">craftersmarket.org</code>{" "}
+            will see <code className="text-brand">craftersmarket.org</code>{" "}
             URLs (not preview hostnames). Refresh after any deploy.
           </p>
         </div>
@@ -2609,7 +2609,7 @@ function SeoDiagCard() {
           onClick={refresh}
           disabled={busy}
           data-testid="seo-diag-refresh"
-          className="shrink-0 px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+          className="shrink-0 px-3 py-1.5 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
         >
           {busy ? "…" : "↻ Refresh"}
         </button>
@@ -2631,8 +2631,8 @@ function SeoDiagCard() {
             >
               {healthy ? "◆ OK" : "✕ Preview leak"}
             </span>
-            <span className="font-mono text-xs text-[#e5e5e5]">
-              resolved to <code className="text-[#ff4500]">{data.resolved_site_root}</code>
+            <span className="font-mono text-xs text-ink">
+              resolved to <code className="text-brand">{data.resolved_site_root}</code>
             </span>
           </div>
 
@@ -2645,9 +2645,9 @@ function SeoDiagCard() {
           </div>
 
           {/* Env var status */}
-          <div className="font-mono text-[11px] text-[#a3a3a3] space-y-1 border-t border-[#262626] pt-3">
+          <div className="font-mono text-[11px] text-ink-muted space-y-1 border-t border-line pt-3">
             <div>
-              <span className="text-[#525252]">PUBLIC_SITE_URL:</span>{" "}
+              <span className="text-ink-muted">PUBLIC_SITE_URL:</span>{" "}
               {data.public_site_url_env ? (
                 <code className="text-emerald-400">{data.public_site_url_env}</code>
               ) : (
@@ -2655,12 +2655,12 @@ function SeoDiagCard() {
               )}
             </div>
             <div>
-              <span className="text-[#525252]">X-Forwarded-Host:</span>{" "}
-              <code className="text-[#e5e5e5]">{data.x_forwarded_host || "—"}</code>
+              <span className="text-ink-muted">X-Forwarded-Host:</span>{" "}
+              <code className="text-ink">{data.x_forwarded_host || "—"}</code>
             </div>
             <div>
-              <span className="text-[#525252]">Total indexable URLs:</span>{" "}
-              <code className="text-[#ff4500]">{data.total_indexable_urls}</code>
+              <span className="text-ink-muted">Total indexable URLs:</span>{" "}
+              <code className="text-brand">{data.total_indexable_urls}</code>
             </div>
           </div>
 
@@ -2670,7 +2670,7 @@ function SeoDiagCard() {
               href={data.checks.sitemap_endpoint}
               target="_blank"
               rel="noreferrer"
-              className="px-2 py-1 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] transition"
+              className="px-2 py-1 border border-line hover:border-brand hover:text-brand transition"
               data-testid="seo-diag-link-sitemap"
             >
               → sitemap.xml
@@ -2679,7 +2679,7 @@ function SeoDiagCard() {
               href={data.checks.robots_endpoint}
               target="_blank"
               rel="noreferrer"
-              className="px-2 py-1 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] transition"
+              className="px-2 py-1 border border-line hover:border-brand hover:text-brand transition"
               data-testid="seo-diag-link-robots"
             >
               → robots.txt
@@ -2688,7 +2688,7 @@ function SeoDiagCard() {
               href={data.checks.static_index}
               target="_blank"
               rel="noreferrer"
-              className="px-2 py-1 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] transition"
+              className="px-2 py-1 border border-line hover:border-brand hover:text-brand transition"
               data-testid="seo-diag-link-index"
             >
               → static index
@@ -2699,7 +2699,7 @@ function SeoDiagCard() {
             <div className="mt-3 border-l-2 border-red-500 pl-3 font-mono text-[11px] text-red-400 leading-relaxed" data-testid="seo-diag-leak-warning">
               <b>Preview-domain leak detected.</b> Your backend is emitting sitemap
               URLs rooted at a preview hostname. Set{" "}
-              <code className="text-[#e5e5e5]">PUBLIC_SITE_URL=https://craftersmarket.org</code>{" "}
+              <code className="text-ink">PUBLIC_SITE_URL=https://craftersmarket.org</code>{" "}
               in the deployed backend env, redeploy, then refresh.
             </div>
           )}
@@ -2711,9 +2711,9 @@ function SeoDiagCard() {
 
 function DiagStat({ label, value }) {
   return (
-    <div className="border border-[#262626] p-2 text-center">
-      <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#a3a3a3]">{label}</div>
-      <div className="font-display text-2xl text-[#e5e5e5]">{value}</div>
+    <div className="border border-line p-2 text-center">
+      <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted">{label}</div>
+      <div className="font-display text-2xl text-ink">{value}</div>
     </div>
   );
 }
@@ -2790,15 +2790,15 @@ function SearchEnginePingCard() {
   const lastWhen = status?.last_ping_at;
 
   return (
-    <section className="border border-[#262626] p-4 md:p-5" data-testid="seo-ping-card">
+    <section className="border border-line p-4 md:p-5" data-testid="seo-ping-card">
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
         <div>
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">SEO · search-engine ping</div>
-          <h3 className="font-display text-xl mt-1 text-[#e5e5e5]">Notify search engines</h3>
-          <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-xl">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">SEO · search-engine ping</div>
+          <h3 className="font-display text-xl mt-1 text-ink">Notify search engines</h3>
+          <p className="font-mono text-xs text-ink-muted mt-2 max-w-xl">
             Pushes the homepage + ~50 most-recent product / maker / journal
-            URLs to <b className="text-[#e5e5e5]">Bing, Yandex, Naver, Seznam, and Yep</b> via IndexNow
-            <b className="text-[#e5e5e5]"> and re-submits the sitemap to Google</b> Search Console (when GSC is connected).
+            URLs to <b className="text-ink">Bing, Yandex, Naver, Seznam, and Yep</b> via IndexNow
+            <b className="text-ink"> and re-submits the sitemap to Google</b> Search Console (when GSC is connected).
             All search engines re-crawl within hours instead of days. Also fires
             automatically on every product publish, renew, and journal post.
           </p>
@@ -2807,7 +2807,7 @@ function SearchEnginePingCard() {
           onClick={fire}
           disabled={busy}
           data-testid="seo-ping-fire"
-          className="shrink-0 px-4 py-2 border border-[#ff4500] bg-[#ff4500]/5 text-[#ff4500] hover:bg-[#ff4500] hover:text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] font-bold transition disabled:opacity-50"
+          className="shrink-0 px-4 py-2 border border-brand bg-brand/5 text-brand hover:bg-brand hover:text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] font-bold transition disabled:opacity-50"
         >
           {busy ? "Pinging…" : "▶ Ping now"}
         </button>
@@ -2817,11 +2817,11 @@ function SearchEnginePingCard() {
 
       {/* Last-ping audit row */}
       {status && (
-        <div className="mt-4 flex flex-wrap items-center gap-3 font-mono text-[11px] text-[#a3a3a3]">
-          <span className="text-[#525252]">Last ping:</span>
+        <div className="mt-4 flex flex-wrap items-center gap-3 font-mono text-[11px] text-ink-muted">
+          <span className="text-ink-muted">Last ping:</span>
           {lastWhen ? (
             <>
-              <code className="text-[#e5e5e5]">{lastWhen}</code>
+              <code className="text-ink">{lastWhen}</code>
               <span
                 className={`px-2 py-0.5 border font-bold uppercase tracking-[0.22em] text-[10px] ${
                   lastOk
@@ -2832,21 +2832,21 @@ function SearchEnginePingCard() {
               >
                 {lastOk ? `✓ ${status.last_ping_status}` : `✕ ${status.last_ping_status || "err"}`}
               </span>
-              <span className="text-[#525252]">·</span>
+              <span className="text-ink-muted">·</span>
               <span>{status.last_ping_count} URLs</span>
               {status.last_ping_error && (
                 <span className="text-red-400">· {status.last_ping_error}</span>
               )}
             </>
           ) : (
-            <span className="text-[#525252]">never</span>
+            <span className="text-ink-muted">never</span>
           )}
         </div>
       )}
 
       {/* Most-recent ping result */}
       {result && (
-        <div className="mt-4 border-t border-[#262626] pt-4 space-y-3" data-testid="seo-ping-result">
+        <div className="mt-4 border-t border-line pt-4 space-y-3" data-testid="seo-ping-result">
           <div className="flex items-center gap-2">
             <span
               className={`inline-block px-2 py-1 border font-mono text-[10px] uppercase tracking-[0.22em] font-bold ${
@@ -2857,8 +2857,8 @@ function SearchEnginePingCard() {
             >
               {result.ok ? `◆ Submitted · ${result.status}` : `✕ Failed · ${result.status || "err"}`}
             </span>
-            <span className="font-mono text-xs text-[#e5e5e5]">
-              {result.count} URLs sent to <code className="text-[#ff4500]">api.indexnow.org</code>
+            <span className="font-mono text-xs text-ink">
+              {result.count} URLs sent to <code className="text-brand">api.indexnow.org</code>
             </span>
           </div>
 
@@ -2869,14 +2869,14 @@ function SearchEnginePingCard() {
           )}
 
           {result.urls_sample && result.urls_sample.length > 0 && (
-            <details className="font-mono text-[11px] text-[#a3a3a3]">
-              <summary className="cursor-pointer hover:text-[#ff4500]" data-testid="seo-ping-urls-toggle">
+            <details className="font-mono text-[11px] text-ink-muted">
+              <summary className="cursor-pointer hover:text-brand" data-testid="seo-ping-urls-toggle">
                 ↓ {result.count} URL{result.count === 1 ? "" : "s"} submitted (sample)
               </summary>
               <ul className="mt-2 space-y-1 pl-4 max-h-48 overflow-y-auto">
                 {result.urls_sample.map((u) => (
-                  <li key={u} className="text-[#e5e5e5] truncate">
-                    <a href={u} target="_blank" rel="noreferrer" className="hover:text-[#ff4500]">{u}</a>
+                  <li key={u} className="text-ink truncate">
+                    <a href={u} target="_blank" rel="noreferrer" className="hover:text-brand">{u}</a>
                   </li>
                 ))}
               </ul>
@@ -2884,8 +2884,8 @@ function SearchEnginePingCard() {
           )}
 
           {/* Google sitemap-submit result (auto-fired alongside IndexNow). */}
-          <div className="border-t border-[#262626] pt-3">
-            <p className="font-mono text-[11px] text-[#a3a3a3] mb-2">
+          <div className="border-t border-line pt-3">
+            <p className="font-mono text-[11px] text-ink-muted mb-2">
               Google sitemap re-submit:
             </p>
             {result._gsc?.ok ? (
@@ -2909,7 +2909,7 @@ function SearchEnginePingCard() {
                   href={result.google_search_console_url}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-block px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition"
+                  className="inline-block px-3 py-1.5 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] transition"
                   data-testid="seo-ping-gsc-link"
                 >
                   → Open Search Console manually
@@ -3056,38 +3056,38 @@ function SalesChannelFeedsCard() {
 
   if (err && !data) {
     return (
-      <section className="border border-[#262626] p-4 md:p-5" data-testid="sales-feeds-card">
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Sales channel feeds</div>
+      <section className="border border-line p-4 md:p-5" data-testid="sales-feeds-card">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Sales channel feeds</div>
         <div className="font-mono text-xs text-red-400 mt-2">{err}</div>
       </section>
     );
   }
   if (!data) {
     return (
-      <section className="border border-[#262626] p-4 md:p-5" data-testid="sales-feeds-card">
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Sales channel feeds</div>
-        <div className="font-mono text-xs text-[#737373] mt-2">Loading…</div>
+      <section className="border border-line p-4 md:p-5" data-testid="sales-feeds-card">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Sales channel feeds</div>
+        <div className="font-mono text-xs text-ink-muted mt-2">Loading…</div>
       </section>
     );
   }
 
   return (
     <section
-      className="border border-[#262626] p-4 md:p-5"
+      className="border border-line p-4 md:p-5"
       data-testid="sales-feeds-card"
     >
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-3">
         <div>
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
             Sales channel feeds
           </div>
-          <h3 className="font-display text-xl mt-1 text-[#e5e5e5]">
+          <h3 className="font-display text-xl mt-1 text-ink">
             Auto-pull catalog URLs
           </h3>
-          <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-2xl">
+          <p className="font-mono text-xs text-ink-muted mt-2 max-w-2xl">
             Paste each URL into the matching platform's "catalog feed" form.
             All three are public, refresh hourly, and honor each maker's
-            <code className="text-[#ff4500]"> external_ads_opt_out</code> toggle.
+            <code className="text-brand"> external_ads_opt_out</code> toggle.
             The "last crawled" timestamp confirms the platform's crawler is
             actually hitting us.
           </p>
@@ -3096,7 +3096,7 @@ function SalesChannelFeedsCard() {
           onClick={load}
           disabled={busy}
           data-testid="sales-feeds-refresh"
-          className="shrink-0 px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+          className="shrink-0 px-3 py-1.5 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
         >
           {busy ? "Refreshing…" : "Refresh"}
         </button>
@@ -3108,12 +3108,12 @@ function SalesChannelFeedsCard() {
           return (
             <div
               key={c.key}
-              className="border border-[#262626] bg-[#0d0d0d] p-4"
+              className="border border-line bg-paper p-4"
               data-testid={`sales-feed-${c.key}`}
             >
               <div className="flex flex-wrap items-baseline gap-3 mb-2">
-                <div className="font-display text-base text-[#e5e5e5]">{c.name}</div>
-                <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#525252]">{c.format}</span>
+                <div className="font-display text-base text-ink">{c.name}</div>
+                <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted">{c.format}</span>
                 <span
                   className="ml-auto px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.22em] border"
                   style={{ borderColor: verd.color, color: verd.color }}
@@ -3125,14 +3125,14 @@ function SalesChannelFeedsCard() {
 
               <div className="flex flex-wrap items-center gap-2 mb-2">
                 <code
-                  className="font-mono text-[11px] text-cyan-300 bg-[#080808] border border-[#262626] px-2 py-1 break-all flex-1 min-w-0"
+                  className="font-mono text-[11px] text-cyan-300 bg-[#080808] border border-line px-2 py-1 break-all flex-1 min-w-0"
                   data-testid={`sales-feed-${c.key}-url`}
                 >
                   {c.url}
                 </code>
                 <button
                   onClick={() => copy(c.key, c.url)}
-                  className="px-2.5 py-1 border border-[#ff4500]/60 text-[#ff4500] hover:bg-[#ff4500]/10 font-mono text-[9px] uppercase tracking-[0.22em]"
+                  className="px-2.5 py-1 border border-brand/60 text-brand hover:bg-brand/10 font-mono text-[9px] uppercase tracking-[0.22em]"
                   data-testid={`sales-feed-${c.key}-copy`}
                 >
                   {copied === c.key ? "✓ Copied" : "Copy URL"}
@@ -3141,22 +3141,22 @@ function SalesChannelFeedsCard() {
                   href={c.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="px-2.5 py-1 border border-[#262626] text-[#a3a3a3] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[9px] uppercase tracking-[0.22em]"
+                  className="px-2.5 py-1 border border-line text-ink-muted hover:border-brand hover:text-brand font-mono text-[9px] uppercase tracking-[0.22em]"
                   data-testid={`sales-feed-${c.key}-open`}
                 >
                   Open ↗
                 </a>
               </div>
 
-              <div className="font-mono text-[10px] text-[#737373]">
+              <div className="font-mono text-[10px] text-ink-muted">
                 Last crawl:{" "}
-                <span className="text-[#e5e5e5]">{fmtAgo(c.last_hit?.ts)}</span>
+                <span className="text-ink">{fmtAgo(c.last_hit?.ts)}</span>
                 {c.last_hit?.rows != null && (
-                  <span className="text-[#525252]">{" "}· returned <span className="text-[#a3a3a3]">{c.last_hit.rows}</span> rows</span>
+                  <span className="text-ink-muted">{" "}· returned <span className="text-ink-muted">{c.last_hit.rows}</span> rows</span>
                 )}
-                <span className="text-[#525252]">{" "}· {c.hits_7d} hits in 7d</span>
+                <span className="text-ink-muted">{" "}· {c.hits_7d} hits in 7d</span>
                 {c.last_hit?.ua && (
-                  <div className="text-[#525252] truncate" title={c.last_hit.ua}>
+                  <div className="text-ink-muted truncate" title={c.last_hit.ua}>
                     UA: {c.last_hit.ua.slice(0, 80)}
                   </div>
                 )}
@@ -3164,26 +3164,26 @@ function SalesChannelFeedsCard() {
 
               {/* iter293 — Pinterest-only credentials block */}
               {c.key === "pinterest" && creds.pinterest && (
-                <div className="mt-3 pt-3 border-t border-[#1f1f1f]">
-                  <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">
+                <div className="mt-3 pt-3 border-t border-line">
+                  <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
                     ◆ Basic auth credentials (Pinterest enterprise flow)
                   </div>
                   <div className="grid sm:grid-cols-[120px_1fr_auto] gap-2 items-center mb-2">
-                    <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#737373]">username</div>
-                    <code className="font-mono text-[11px] text-cyan-300 bg-[#080808] border border-[#262626] px-2 py-1">
+                    <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">username</div>
+                    <code className="font-mono text-[11px] text-cyan-300 bg-[#080808] border border-line px-2 py-1">
                       {creds.pinterest.username}
                     </code>
                     <button
                       onClick={() => copy(`${c.key}-user`, creds.pinterest.username, "Username")}
-                      className="px-2.5 py-1 border border-[#262626] text-[#a3a3a3] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[9px] uppercase tracking-[0.22em]"
+                      className="px-2.5 py-1 border border-line text-ink-muted hover:border-brand hover:text-brand font-mono text-[9px] uppercase tracking-[0.22em]"
                       data-testid={`sales-feed-${c.key}-copy-user`}
                     >
                       {copied === `${c.key}-user` ? "✓" : "Copy"}
                     </button>
                   </div>
                   <div className="grid sm:grid-cols-[120px_1fr_auto] gap-2 items-center mb-2">
-                    <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#737373]">password</div>
-                    <code className="font-mono text-[11px] text-amber-300 bg-[#080808] border border-[#262626] px-2 py-1 break-all">
+                    <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">password</div>
+                    <code className="font-mono text-[11px] text-amber-300 bg-[#080808] border border-line px-2 py-1 break-all">
                       {showPw[c.key]
                         ? creds.pinterest.password
                         : "•".repeat(Math.min(creds.pinterest.password?.length || 0, 32))}
@@ -3191,14 +3191,14 @@ function SalesChannelFeedsCard() {
                     <div className="flex gap-1">
                       <button
                         onClick={() => setShowPw((s) => ({ ...s, [c.key]: !s[c.key] }))}
-                        className="px-2.5 py-1 border border-[#262626] text-[#a3a3a3] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[9px] uppercase tracking-[0.22em]"
+                        className="px-2.5 py-1 border border-line text-ink-muted hover:border-brand hover:text-brand font-mono text-[9px] uppercase tracking-[0.22em]"
                         data-testid={`sales-feed-${c.key}-toggle-pw`}
                       >
                         {showPw[c.key] ? "Hide" : "Show"}
                       </button>
                       <button
                         onClick={() => copy(`${c.key}-pw`, creds.pinterest.password, "Password")}
-                        className="px-2.5 py-1 border border-[#262626] text-[#a3a3a3] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[9px] uppercase tracking-[0.22em]"
+                        className="px-2.5 py-1 border border-line text-ink-muted hover:border-brand hover:text-brand font-mono text-[9px] uppercase tracking-[0.22em]"
                         data-testid={`sales-feed-${c.key}-copy-pw`}
                       >
                         {copied === `${c.key}-pw` ? "✓" : "Copy"}
@@ -3206,10 +3206,10 @@ function SalesChannelFeedsCard() {
                     </div>
                   </div>
                   <div className="flex items-center justify-between flex-wrap gap-2 mt-2">
-                    <div className="font-mono text-[10px] text-[#525252]">
+                    <div className="font-mono text-[10px] text-ink-muted">
                       Last rotated: {fmtAgo(creds.pinterest.rotated_at)}
                       {creds.pinterest.rotated_by && (
-                        <span> · by <span className="text-[#737373]">{creds.pinterest.rotated_by}</span></span>
+                        <span> · by <span className="text-ink-muted">{creds.pinterest.rotated_by}</span></span>
                       )}
                     </div>
                     <button
@@ -3267,17 +3267,17 @@ function StripeWebhookHealthCard() {
 
   if (err && !data) {
     return (
-      <section className="border border-[#262626] p-4 md:p-5" data-testid="stripe-webhook-health-card">
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Stripe · webhook health</div>
+      <section className="border border-line p-4 md:p-5" data-testid="stripe-webhook-health-card">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Stripe · webhook health</div>
         <div className="font-mono text-xs text-red-400 mt-2">{err}</div>
       </section>
     );
   }
   if (!data) {
     return (
-      <section className="border border-[#262626] p-4 md:p-5" data-testid="stripe-webhook-health-card">
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Stripe · webhook health</div>
-        <div className="font-mono text-xs text-[#737373] mt-2">Loading…</div>
+      <section className="border border-line p-4 md:p-5" data-testid="stripe-webhook-health-card">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Stripe · webhook health</div>
+        <div className="font-mono text-xs text-ink-muted mt-2">Loading…</div>
       </section>
     );
   }
@@ -3302,13 +3302,13 @@ function StripeWebhookHealthCard() {
     const verd = verdict(k);
     return (
       <div
-        className="border border-[#262626] bg-[#0d0d0d] p-4"
+        className="border border-line bg-paper p-4"
         data-testid={`stripe-webhook-${k}`}
       >
         <div className="flex items-center justify-between gap-2 mb-2">
           <div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">{title}</div>
-            <div className="font-mono text-[10px] text-[#525252] mt-0.5">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">{title}</div>
+            <div className="font-mono text-[10px] text-ink-muted mt-0.5">
               {configUrl}
             </div>
           </div>
@@ -3326,24 +3326,24 @@ function StripeWebhookHealthCard() {
             <div className="font-display text-xl" style={{ color: v.ok_24h ? "#22c55e" : "#525252" }}>
               {v.ok_24h || 0}
             </div>
-            <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#737373]">ok · 24h</div>
+            <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-ink-muted">ok · 24h</div>
           </div>
           <div>
-            <div className="font-display text-xl text-[#a3a3a3]">{v.ok_7d || 0}</div>
-            <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#737373]">ok · 7d</div>
+            <div className="font-display text-xl text-ink-muted">{v.ok_7d || 0}</div>
+            <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-ink-muted">ok · 7d</div>
           </div>
           <div>
             <div className="font-display text-xl" style={{ color: v.err_7d ? "#ef4444" : "#525252" }}>
               {v.err_7d || 0}
             </div>
-            <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#737373]">err · 7d</div>
+            <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-ink-muted">err · 7d</div>
           </div>
         </div>
 
-        <div className="font-mono text-[10px] text-[#a3a3a3]">
-          Last event: <span className="text-[#e5e5e5]">{fmtAgo(v.last?.ts)}</span>
+        <div className="font-mono text-[10px] text-ink-muted">
+          Last event: <span className="text-ink">{fmtAgo(v.last?.ts)}</span>
           {v.last?.event_type && (
-            <span className="text-[#525252]"> · <code className="text-cyan-400">{v.last.event_type}</code></span>
+            <span className="text-ink-muted"> · <code className="text-cyan-400">{v.last.event_type}</code></span>
           )}
         </div>
 
@@ -3356,9 +3356,9 @@ function StripeWebhookHealthCard() {
             <ul className="mt-2 space-y-1.5 max-h-48 overflow-auto" data-testid={`stripe-webhook-${k}-errors`}>
               {v.recent_errors.map((e, i) => (
                 <li key={i} className="border-l-2 border-red-500/40 pl-2 py-0.5">
-                  <div className="font-mono text-[10px] text-[#737373]">
+                  <div className="font-mono text-[10px] text-ink-muted">
                     {fmtAgo(e.ts)} · <span className="text-amber-300">{e.status}</span>
-                    {e.event_type && <span className="text-[#525252]"> · {e.event_type}</span>}
+                    {e.event_type && <span className="text-ink-muted"> · {e.event_type}</span>}
                   </div>
                   <div className="font-mono text-[10px] text-red-300 break-words mt-0.5">
                     {e.error || "(no detail)"}
@@ -3374,18 +3374,18 @@ function StripeWebhookHealthCard() {
 
   return (
     <section
-      className="border border-[#262626] p-4 md:p-5"
+      className="border border-line p-4 md:p-5"
       data-testid="stripe-webhook-health-card"
     >
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-3">
         <div>
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
             Stripe · webhook health
           </div>
-          <h3 className="font-display text-xl mt-1 text-[#e5e5e5]">
+          <h3 className="font-display text-xl mt-1 text-ink">
             Are Stripe events actually reaching us?
           </h3>
-          <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-2xl">
+          <p className="font-mono text-xs text-ink-muted mt-2 max-w-2xl">
             Both webhook routes log every hit (signature failures, route 404s,
             handler errors). A red verdict means something is silently broken —
             check the recent errors below or send a test event from the Stripe
@@ -3396,7 +3396,7 @@ function StripeWebhookHealthCard() {
           onClick={load}
           disabled={busy}
           data-testid="stripe-webhook-health-refresh"
-          className="shrink-0 px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+          className="shrink-0 px-3 py-1.5 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
         >
           {busy ? "Refreshing…" : "Refresh"}
         </button>
@@ -3465,17 +3465,17 @@ function GscIndexationCard() {
 
   if (err && !data) {
     return (
-      <section className="border border-[#262626] p-4 md:p-5" data-testid="gsc-indexation-card">
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">SEO · indexation health</div>
+      <section className="border border-line p-4 md:p-5" data-testid="gsc-indexation-card">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">SEO · indexation health</div>
         <div className="font-mono text-xs text-red-400 mt-2">{err}</div>
       </section>
     );
   }
   if (!data) {
     return (
-      <section className="border border-[#262626] p-4 md:p-5" data-testid="gsc-indexation-card">
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">SEO · indexation health</div>
-        <div className="font-mono text-xs text-[#737373] mt-2">Loading…</div>
+      <section className="border border-line p-4 md:p-5" data-testid="gsc-indexation-card">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">SEO · indexation health</div>
+        <div className="font-mono text-xs text-ink-muted mt-2">Loading…</div>
       </section>
     );
   }
@@ -3503,20 +3503,20 @@ function GscIndexationCard() {
 
   return (
     <section
-      className="border border-[#262626] p-4 md:p-5"
+      className="border border-line p-4 md:p-5"
       data-testid="gsc-indexation-card"
     >
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-3">
         <div>
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
             SEO · indexation health
           </div>
-          <h3 className="font-display text-xl mt-1 text-[#e5e5e5]">
+          <h3 className="font-display text-xl mt-1 text-ink">
             {data.indexed_pct}% of published listings indexed by Google
           </h3>
-          <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-2xl">
+          <p className="font-mono text-xs text-ink-muted mt-2 max-w-2xl">
             One-glance "is Google noticing my listings?". Refreshed by the
-            daily 05:30 UTC <code className="text-[#ff4500]">refresh_gsc_indexing</code>{" "}
+            daily 05:30 UTC <code className="text-brand">refresh_gsc_indexing</code>{" "}
             cron + the on-deploy submission hook.
           </p>
         </div>
@@ -3524,7 +3524,7 @@ function GscIndexationCard() {
           onClick={load}
           disabled={busy}
           data-testid="gsc-indexation-refresh"
-          className="shrink-0 px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+          className="shrink-0 px-3 py-1.5 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
         >
           {busy ? "Refreshing…" : "Refresh"}
         </button>
@@ -3540,16 +3540,16 @@ function GscIndexationCard() {
         ].map(([lbl, n, col, key]) => (
           <div
             key={key}
-            className="border border-[#262626] bg-[#0d0d0d] p-3"
+            className="border border-line bg-paper p-3"
             data-testid={`gsc-indexation-tier-${key}`}
           >
             <div className="flex items-baseline gap-2">
               <div className="font-display text-2xl" style={{ color: n ? col : "#525252" }}>
                 {n || 0}
               </div>
-              <div className="font-mono text-[10px] text-[#737373]">· {pct(n)}%</div>
+              <div className="font-mono text-[10px] text-ink-muted">· {pct(n)}%</div>
             </div>
-            <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#a3a3a3] mt-1">
+            <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted mt-1">
               {lbl}
             </div>
           </div>
@@ -3558,11 +3558,11 @@ function GscIndexationCard() {
 
       {/* Stale + submit history strip */}
       <div className="grid md:grid-cols-3 gap-3 text-[11px] font-mono">
-        <div className="border border-[#262626] bg-[#0d0d0d] p-3">
-          <div className="text-[10px] uppercase tracking-[0.22em] text-[#737373] mb-1">
+        <div className="border border-line bg-paper p-3">
+          <div className="text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-1">
             ◆ Refresh backlog
           </div>
-          <div className="text-[#e5e5e5]">
+          <div className="text-ink">
             <span className="font-display text-lg"
                   style={{ color: data.stale_count ? "#f59e0b" : "#22c55e" }}>
               {data.stale_count}
@@ -3570,16 +3570,16 @@ function GscIndexationCard() {
             listings unchecked or {">"}7 days stale
           </div>
         </div>
-        <div className="border border-[#262626] bg-[#0d0d0d] p-3">
-          <div className="text-[10px] uppercase tracking-[0.22em] text-[#737373] mb-1">
+        <div className="border border-line bg-paper p-3">
+          <div className="text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-1">
             ◆ Sitemap submits (7d)
           </div>
-          <div className="text-[#e5e5e5]">
+          <div className="text-ink">
             <span className="font-display text-lg text-[#22d3ee]">{data.sitemap_submits_7d}</span>{" "}
             total · 30d: {data.sitemap_submits_30d_ok} ok / {data.sitemap_submits_30d_err} err
           </div>
           {lastSubmit?.ts && (
-            <div className="text-[10px] text-[#737373] mt-1">
+            <div className="text-[10px] text-ink-muted mt-1">
               Last: {fmtDate(lastSubmit.ts)}{" "}
               <span style={{ color: lastSubmit.ok ? "#22c55e" : "#ef4444" }}>
                 · {lastSubmit.ok ? "ok" : `err ${lastSubmit.status || ""}`}
@@ -3587,17 +3587,17 @@ function GscIndexationCard() {
             </div>
           )}
         </div>
-        <div className="border border-[#262626] bg-[#0d0d0d] p-3">
-          <div className="text-[10px] uppercase tracking-[0.22em] text-[#737373] mb-1">
+        <div className="border border-line bg-paper p-3">
+          <div className="text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-1">
             ◆ On-deploy auto-submit
           </div>
-          <div className="text-[#e5e5e5]">
+          <div className="text-ink">
             {lastStartup?.last_submitted_at
               ? `Fired ${fmtDate(lastStartup.last_submitted_at)}`
               : "Never fired"}
           </div>
           {lastStartup?.last_payload?.indexnow && (
-            <div className="text-[10px] text-[#737373] mt-1">
+            <div className="text-[10px] text-ink-muted mt-1">
               IndexNow: {lastStartup.last_payload.indexnow.submitted ?? "?"} URLs ·
               GSC: {lastStartup.last_payload.gsc?.ok ? "ok"
                   : (lastStartup.last_payload.gsc?.reason || "err")}
@@ -3705,16 +3705,16 @@ function GscConnectionCard() {
   const isConnected = status.connected;
 
   return (
-    <div className="border border-[#262626] p-4 md:p-5" data-testid="gsc-connection-card">
+    <div className="border border-line p-4 md:p-5" data-testid="gsc-connection-card">
       <div className="flex items-start justify-between gap-3 mb-4">
         <div>
-          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-1">
+          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-1">
             ◆ Search Console
           </div>
           <h3 className="font-display text-2xl uppercase">GSC connection</h3>
-          <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-2xl leading-relaxed">
+          <p className="font-mono text-xs text-ink-muted mt-2 max-w-2xl leading-relaxed">
             Powers the "Verified by Google" pill + the real index-status tier on listing cards. Connect a Google account that already has GSC access for{" "}
-            <code className="text-[#e5e5e5]">{status.site_url || "your GSC property"}</code> and the daily 05:30 UTC sweep starts pulling real verdicts.
+            <code className="text-ink">{status.site_url || "your GSC property"}</code> and the daily 05:30 UTC sweep starts pulling real verdicts.
           </p>
         </div>
         <ConnectionPill connected={isConnected} email={status.connection?.connected_email} />
@@ -3734,7 +3734,7 @@ function GscConnectionCard() {
           <button
             onClick={connect}
             disabled={!!busy}
-            className="inline-flex items-center gap-1.5 bg-[#ff4500] hover:bg-[#ff5f1f] text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] px-4 py-2 disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 bg-brand hover:bg-[#ff5f1f] text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] px-4 py-2 disabled:opacity-50"
             data-testid="gsc-connect-btn"
           >
             {busy === "connect" ? "Opening…" : "Connect Google account"}
@@ -3745,7 +3745,7 @@ function GscConnectionCard() {
             <button
               onClick={runTest}
               disabled={!!busy}
-              className="inline-flex items-center gap-1.5 border border-[#ff4500] text-[#ff4500] hover:bg-[#ff4500]/10 font-mono text-[10px] uppercase tracking-[0.22em] px-4 py-2 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 border border-brand text-brand hover:bg-brand/10 font-mono text-[10px] uppercase tracking-[0.22em] px-4 py-2 disabled:opacity-50"
               data-testid="gsc-test-btn"
             >
               {busy === "test" ? "Inspecting…" : "Run test inspection"}
@@ -3774,10 +3774,10 @@ function GscConnectionCard() {
           </div>
           {testResult.ok ? (
             <div className="space-y-1">
-              <div>Verdict: <span className="text-[#e5e5e5]">{testResult.verdict || "—"}</span></div>
-              <div>Coverage: <span className="text-[#e5e5e5]">{testResult.coverage || "—"}</span></div>
-              <div>Last crawl: <span className="text-[#e5e5e5]">{testResult.last_crawl || "—"}</span></div>
-              <div>Tier: <span className="text-[#ff4500] font-bold">{testResult.tier}</span></div>
+              <div>Verdict: <span className="text-ink">{testResult.verdict || "—"}</span></div>
+              <div>Coverage: <span className="text-ink">{testResult.coverage || "—"}</span></div>
+              <div>Last crawl: <span className="text-ink">{testResult.last_crawl || "—"}</span></div>
+              <div>Tier: <span className="text-brand font-bold">{testResult.tier}</span></div>
             </div>
           ) : (
             <div>Reason: {testResult.reason}</div>
@@ -3786,7 +3786,7 @@ function GscConnectionCard() {
       )}
 
       {isConnected && status.connection?.connected_at && (
-        <p className="font-mono text-[10px] text-[#525252] mt-3">
+        <p className="font-mono text-[10px] text-ink-muted mt-3">
           Connected {new Date(status.connection.connected_at).toLocaleString()}
           {status.connection.connected_email && ` · ${status.connection.connected_email}`}
         </p>
@@ -3801,7 +3801,7 @@ function ConnectionPill({ connected, email }) {
       className={`inline-flex items-center gap-1.5 border px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.22em] shrink-0 ${
         connected
           ? "border-emerald-500/50 bg-emerald-500/5 text-emerald-400"
-          : "border-[#262626] bg-[#0a0a0a] text-[#a3a3a3]"
+          : "border-line bg-paper text-ink-muted"
       }`}
       data-testid="gsc-connection-pill"
     >
@@ -3848,33 +3848,33 @@ function EmailProviderAuditCard() {
     primary:    "border-emerald-500/60 text-emerald-400 bg-emerald-500/5",
     fallback:   "border-blue-500/60 text-blue-400 bg-blue-500/5",
     fallback_2: "border-blue-500/40 text-blue-400 bg-blue-500/5",
-    unused:     "border-[#262626] text-[#737373] bg-[#0d0d0d]",
-  }[role] || "border-[#262626] text-[#737373]");
+    unused:     "border-line text-ink-muted bg-paper",
+  }[role] || "border-line text-ink-muted");
 
   return (
     <section
-      className="border border-[#262626] p-4 md:p-5"
+      className="border border-line p-4 md:p-5"
       data-testid="email-provider-audit-card"
     >
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
             Email · provider audit
           </div>
-          <h3 className="font-display text-xl mt-1 text-[#e5e5e5]">
+          <h3 className="font-display text-xl mt-1 text-ink">
             Clean up unused email providers
           </h3>
-          <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-2xl leading-relaxed">
+          <p className="font-mono text-xs text-ink-muted mt-2 max-w-2xl leading-relaxed">
             Lists every provider with an API key still in the environment.
             Providers not in the active{" "}
-            <code className="text-[#e5e5e5]">EMAIL_PROVIDER → EMAIL_FALLBACK_PROVIDER → EMAIL_FALLBACK_PROVIDER_2</code>{" "}
+            <code className="text-ink">EMAIL_PROVIDER → EMAIL_FALLBACK_PROVIDER → EMAIL_FALLBACK_PROVIDER_2</code>{" "}
             chain are dead weight — safe to remove from both env vars and Cloudflare DNS.
           </p>
         </div>
         <button
           onClick={load}
           disabled={loading}
-          className="shrink-0 px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+          className="shrink-0 px-3 py-1.5 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
           data-testid="email-audit-refresh"
         >
           {loading ? "Loading…" : "↻ Refresh"}
@@ -3895,12 +3895,12 @@ function EmailProviderAuditCard() {
             <Stat label="Safe to remove" value={data.summary.safe_to_remove} testId="email-audit-removable-count" />
           </div>
 
-          <div className="mt-5 border border-[#262626] divide-y divide-[#262626]" data-testid="email-audit-rows">
+          <div className="mt-5 border border-line divide-y divide-line" data-testid="email-audit-rows">
             {data.providers.map((p) => (
               <div key={p.provider} className="p-3 md:p-4" data-testid={`email-audit-row-${p.provider}`}>
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <div className="flex items-center gap-3 min-w-0">
-                    <span className="font-display text-base text-[#e5e5e5] uppercase tracking-[0.04em]">
+                    <span className="font-display text-base text-ink uppercase tracking-[0.04em]">
                       {p.provider}
                     </span>
                     <span
@@ -3909,11 +3909,11 @@ function EmailProviderAuditCard() {
                       {p.role}
                     </span>
                     {p.key_configured ? (
-                      <span className="font-mono text-[10px] text-[#737373]">
-                        <code className="text-[#a3a3a3]">{p.key_env}</code> · set
+                      <span className="font-mono text-[10px] text-ink-muted">
+                        <code className="text-ink-muted">{p.key_env}</code> · set
                       </span>
                     ) : (
-                      <span className="font-mono text-[10px] text-[#525252]">
+                      <span className="font-mono text-[10px] text-ink-muted">
                         <code>{p.key_env}</code> · unset
                       </span>
                     )}
@@ -3929,17 +3929,17 @@ function EmailProviderAuditCard() {
                 </div>
 
                 {p.safe_to_remove && p.dns_records.length > 0 && (
-                  <details className="mt-3 font-mono text-[11px] text-[#a3a3a3]">
+                  <details className="mt-3 font-mono text-[11px] text-ink-muted">
                     <summary
-                      className="cursor-pointer hover:text-[#ff4500]"
+                      className="cursor-pointer hover:text-brand"
                       data-testid={`email-audit-dns-toggle-${p.provider}`}
                     >
                       ↓ Cloudflare records to delete ({p.dns_records.length})
                     </summary>
-                    <pre className="mt-2 p-3 bg-[#0a0a0a] border border-[#1a1a1a] overflow-x-auto text-[10.5px] text-[#a3a3a3] leading-relaxed whitespace-pre">
+                    <pre className="mt-2 p-3 bg-paper border border-line overflow-x-auto text-[10.5px] text-ink-muted leading-relaxed whitespace-pre">
 {p.dns_records.join("\n")}
                     </pre>
-                    <p className="mt-2 text-[10px] text-[#525252]">
+                    <p className="mt-2 text-[10px] text-ink-muted">
                       Verify in Cloudflare dashboard first — some operators share SPF includes across multiple providers.
                     </p>
                   </details>
@@ -4022,16 +4022,16 @@ function OpsDigestCard() {
   useEffect(() => { loadPreview(); /* eslint-disable-next-line */ }, []);
 
   return (
-    <section className="border border-[#262626] p-4 md:p-5" data-testid="ops-digest-card">
+    <section className="border border-line p-4 md:p-5" data-testid="ops-digest-card">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
             Daily ops digest · 06:00 UTC cron
           </div>
-          <h3 className="font-display text-xl mt-1 text-[#e5e5e5]">
+          <h3 className="font-display text-xl mt-1 text-ink">
             Yesterday in one email
           </h3>
-          <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-2xl leading-relaxed">
+          <p className="font-mono text-xs text-ink-muted mt-2 max-w-2xl leading-relaxed">
             GMV, makers, catalog, traffic, reliability, community — one
             inbox-worthy summary every morning. Disable via{" "}
             <code>OPS_DIGEST_ENABLED=false</code>.
@@ -4056,30 +4056,30 @@ function OpsDigestCard() {
 
       {data && (
         <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-2" data-testid="ops-digest-tiles">
-          <div className="border border-[#262626] p-3 bg-[#0a0a0a]">
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#737373]">GMV (yest.)</div>
+          <div className="border border-line p-3 bg-paper">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">GMV (yest.)</div>
             <div className="font-mono text-lg text-emerald-300 mt-1">${data.revenue?.gmv?.toLocaleString?.(undefined, { minimumFractionDigits: 2 }) ?? "0.00"}</div>
-            <div className="font-mono text-[10px] text-[#737373] mt-0.5">{data.revenue?.orders ?? 0} orders</div>
+            <div className="font-mono text-[10px] text-ink-muted mt-0.5">{data.revenue?.orders ?? 0} orders</div>
           </div>
-          <div className="border border-[#262626] p-3 bg-[#0a0a0a]">
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#737373]">New makers</div>
+          <div className="border border-line p-3 bg-paper">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">New makers</div>
             <div className="font-mono text-lg text-cyan-300 mt-1">{data.makers?.new_makers ?? 0}</div>
-            <div className="font-mono text-[10px] text-[#737373] mt-0.5">{data.makers?.new_applications ?? 0} applied · {data.makers?.new_plus ?? 0} new Plus</div>
+            <div className="font-mono text-[10px] text-ink-muted mt-0.5">{data.makers?.new_applications ?? 0} applied · {data.makers?.new_plus ?? 0} new Plus</div>
           </div>
-          <div className="border border-[#262626] p-3 bg-[#0a0a0a]">
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#737373]">Pageviews</div>
+          <div className="border border-line p-3 bg-paper">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Pageviews</div>
             <div className="font-mono text-lg text-violet-300 mt-1">{(data.traffic?.pageviews ?? 0).toLocaleString()}</div>
-            <div className="font-mono text-[10px] text-[#737373] mt-0.5">{(data.traffic?.sessions ?? 0).toLocaleString()} sessions · {(data.traffic?.visitors ?? 0).toLocaleString()} visitors</div>
+            <div className="font-mono text-[10px] text-ink-muted mt-0.5">{(data.traffic?.sessions ?? 0).toLocaleString()} sessions · {(data.traffic?.visitors ?? 0).toLocaleString()} visitors</div>
           </div>
-          <div className="border border-[#262626] p-3 bg-[#0a0a0a]">
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#737373]">Reliability</div>
+          <div className="border border-line p-3 bg-paper">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Reliability</div>
             <div className={`font-mono text-lg mt-1 ${
               (data.reliability?.outages?.length || 0) + (data.reliability?.budget_alerts?.length || 0) === 0
                 ? "text-emerald-300" : "text-amber-300"
             }`}>
               {(data.reliability?.outages?.length || 0) + (data.reliability?.budget_alerts?.length || 0) === 0 ? "✓ All clear" : "⚠ Issues"}
             </div>
-            <div className="font-mono text-[10px] text-[#737373] mt-0.5">{data.reliability?.outages?.length ?? 0} outages · {data.reliability?.budget_alerts?.length ?? 0} budget</div>
+            <div className="font-mono text-[10px] text-ink-muted mt-0.5">{data.reliability?.outages?.length ?? 0} outages · {data.reliability?.budget_alerts?.length ?? 0} budget</div>
           </div>
         </div>
       )}
@@ -4087,7 +4087,7 @@ function OpsDigestCard() {
       <div className="mt-4 flex gap-2 flex-wrap items-end">
         <div className="flex-1 min-w-[200px]">
           <label className="block">
-            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
               Send to (defaults to OPS_EMAIL)
             </span>
             <input
@@ -4095,7 +4095,7 @@ function OpsDigestCard() {
               value={recipient}
               onChange={(e) => setRecipient(e.target.value)}
               placeholder="you@example.com"
-              className="mt-1 w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm text-[#e5e5e5]"
+              className="mt-1 w-full bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm text-ink"
               data-testid="ops-digest-recipient"
             />
           </label>
@@ -4103,7 +4103,7 @@ function OpsDigestCard() {
         <button
           onClick={loadPreview}
           disabled={loading}
-          className="h-[42px] px-3 border border-[#262626] hover:border-[#737373] font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] disabled:opacity-50"
+          className="h-[42px] px-3 border border-line hover:border-[#737373] font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted disabled:opacity-50"
           data-testid="ops-digest-refresh"
         >
           {loading ? "Loading…" : "↻ Refresh"}
@@ -4111,7 +4111,7 @@ function OpsDigestCard() {
         <button
           onClick={sendNow}
           disabled={sending}
-          className="h-[42px] px-4 border border-[#ff4500] text-[#ff4500] hover:bg-[#ff4500] hover:text-black font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
+          className="h-[42px] px-4 border border-brand text-brand hover:bg-brand hover:text-ink font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
           data-testid="ops-digest-send"
         >
           {sending ? "Sending…" : "▷ Send now"}
@@ -4185,22 +4185,22 @@ function LlmBudgetAlertsCard() {
 
   return (
     <section
-      className="border border-[#262626] p-4 md:p-5"
+      className="border border-line p-4 md:p-5"
       data-testid="llm-budget-alerts-card"
     >
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
             LLM Universal Key · Budget watchdog
           </div>
-          <h3 className="font-display text-xl mt-1 text-[#e5e5e5]">
+          <h3 className="font-display text-xl mt-1 text-ink">
             Sora-2 budget exhaustion alerts
           </h3>
-          <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-2xl leading-relaxed">
+          <p className="font-mono text-xs text-ink-muted mt-2 max-w-2xl leading-relaxed">
             When the daily Sora-2 clip cron hits an "out of budget" error from
             the Emergent Universal Key, we fire a one-shot admin email + Slack/Discord
             ping (dedup'd 24h) and log it here. Top up at
-            {" "}<span className="text-[#ff4500]">Emergent → Profile → Universal Key</span>.
+            {" "}<span className="text-brand">Emergent → Profile → Universal Key</span>.
           </p>
         </div>
         <div className={`px-2 py-1 border font-mono text-[10px] uppercase tracking-[0.22em] ${
@@ -4211,21 +4211,21 @@ function LlmBudgetAlertsCard() {
       </div>
 
       <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-2">
-        <div className="border border-[#262626] p-3 bg-[#0a0a0a]">
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#737373]">Last alert</div>
-          <div className="font-mono text-sm text-[#e5e5e5] mt-1" data-testid="llm-last-alert">
+        <div className="border border-line p-3 bg-paper">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Last alert</div>
+          <div className="font-mono text-sm text-ink mt-1" data-testid="llm-last-alert">
             {relTime(lastAt)}
           </div>
         </div>
-        <div className="border border-[#262626] p-3 bg-[#0a0a0a]">
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#737373]">Last service</div>
-          <div className="font-mono text-sm text-[#e5e5e5] mt-1 truncate" title={data?.last_service || ""}>
+        <div className="border border-line p-3 bg-paper">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Last service</div>
+          <div className="font-mono text-sm text-ink mt-1 truncate" title={data?.last_service || ""}>
             {data?.last_service || "—"}
           </div>
         </div>
-        <div className="border border-[#262626] p-3 bg-[#0a0a0a]">
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#737373]">History (90d)</div>
-          <div className="font-mono text-sm text-[#e5e5e5] mt-1">{data?.count ?? "—"}</div>
+        <div className="border border-line p-3 bg-paper">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">History (90d)</div>
+          <div className="font-mono text-sm text-ink mt-1">{data?.count ?? "—"}</div>
         </div>
       </div>
 
@@ -4233,7 +4233,7 @@ function LlmBudgetAlertsCard() {
         <button
           onClick={refresh}
           disabled={busy}
-          className="px-3 py-1.5 border border-[#262626] hover:border-[#737373] font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] disabled:opacity-50"
+          className="px-3 py-1.5 border border-line hover:border-[#737373] font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted disabled:opacity-50"
           data-testid="llm-budget-refresh"
         >
           {busy ? "Loading…" : "↻ Refresh"}
@@ -4255,20 +4255,20 @@ function LlmBudgetAlertsCard() {
       )}
 
       {data?.rows && data.rows.length > 0 && (
-        <div className="mt-4 border border-[#262626]" data-testid="llm-budget-history">
-          <div className="px-3 py-2 border-b border-[#262626] font-mono text-[10px] uppercase tracking-[0.22em] text-[#737373]">
+        <div className="mt-4 border border-line" data-testid="llm-budget-history">
+          <div className="px-3 py-2 border-b border-line font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
             Recent alerts (newest first)
           </div>
-          <div className="divide-y divide-[#1a1a1a]">
+          <div className="divide-y divide-line">
             {data.rows.slice(0, 10).map((row, i) => (
               <div key={i} className="px-3 py-2 grid grid-cols-[140px,1fr,auto] gap-3 items-center">
-                <div className="font-mono text-[10px] text-[#737373]">
+                <div className="font-mono text-[10px] text-ink-muted">
                   {relTime(row.created_at)}
                 </div>
-                <div className="font-mono text-xs text-[#e5e5e5] truncate" title={row.error_message}>
+                <div className="font-mono text-xs text-ink truncate" title={row.error_message}>
                   {row.service} — {row.error_message}
                 </div>
-                <div className="font-mono text-[10px] text-[#737373] truncate" title={row.kind}>
+                <div className="font-mono text-[10px] text-ink-muted truncate" title={row.kind}>
                   {row.kind}
                 </div>
               </div>
@@ -4332,18 +4332,18 @@ function CartRecoveryAttributionCard() {
 
   return (
     <section
-      className="border border-[#262626] bg-[#0a0a0a] p-5"
+      className="border border-line bg-paper p-5"
       data-testid="cart-recovery-attribution-card"
     >
       <div className="flex items-start justify-between gap-3 mb-3">
         <div>
-          <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#ff4500]">
+          <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-brand">
             ◆ Cart-recovery attribution
           </div>
-          <div className="text-[#e5e5e5] mt-1">
+          <div className="text-ink mt-1">
             Where the buyers came from when they redeemed a recovery discount code.
           </div>
-          <div className="font-mono text-[11px] text-[#737373] mt-1">
+          <div className="font-mono text-[11px] text-ink-muted mt-1">
             Counts marketplace-wide codes only (per-shop maker codes excluded).
           </div>
         </div>
@@ -4353,7 +4353,7 @@ function CartRecoveryAttributionCard() {
               key={d}
               type="button"
               onClick={() => onDaysChange(d)}
-              className={`font-mono text-[11px] px-2 py-1 border ${days === d ? "border-[#ff4500] text-[#ff4500]" : "border-[#262626] text-[#a3a3a3] hover:text-[#e5e5e5]"}`}
+              className={`font-mono text-[11px] px-2 py-1 border ${days === d ? "border-brand text-brand" : "border-line text-ink-muted hover:text-ink"}`}
               data-testid={`attr-window-${d}d`}
             >
               {d}d
@@ -4369,7 +4369,7 @@ function CartRecoveryAttributionCard() {
       )}
 
       {loading && !data && (
-        <div className="font-mono text-xs text-[#737373]">Loading…</div>
+        <div className="font-mono text-xs text-ink-muted">Loading…</div>
       )}
 
       {data && (
@@ -4381,26 +4381,26 @@ function CartRecoveryAttributionCard() {
               return (
                 <div
                   key={k}
-                  className="border border-[#262626] bg-[#0a0a0a] p-3"
+                  className="border border-line bg-paper p-3"
                   data-testid={`attr-row-${k}`}
                 >
-                  <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+                  <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
                     <span style={{ width: 8, height: 8, background: s.dot, display: "inline-block" }} />
                     {s.label}
                   </div>
-                  <div className="font-display text-[28px] text-[#e5e5e5] mt-2 leading-none" data-testid={`attr-${k}-redemptions`}>
+                  <div className="font-display text-[28px] text-ink mt-2 leading-none" data-testid={`attr-${k}-redemptions`}>
                     {v.redemptions || 0}
                   </div>
-                  <div className="font-mono text-[10px] text-[#737373] mt-1">
+                  <div className="font-mono text-[10px] text-ink-muted mt-1">
                     {v.redemptions === 1 ? "redemption" : "redemptions"}
                   </div>
-                  <div className="font-mono text-[11px] text-[#a3a3a3] mt-3">
-                    Revenue: <span className="text-[#e5e5e5]" data-testid={`attr-${k}-revenue`}>{fmt$(v.total_revenue)}</span>
+                  <div className="font-mono text-[11px] text-ink-muted mt-3">
+                    Revenue: <span className="text-ink" data-testid={`attr-${k}-revenue`}>{fmt$(v.total_revenue)}</span>
                   </div>
-                  <div className="font-mono text-[11px] text-[#a3a3a3]">
-                    AOV: <span className="text-[#e5e5e5]">{fmt$(v.avg_order_value)}</span>
+                  <div className="font-mono text-[11px] text-ink-muted">
+                    AOV: <span className="text-ink">{fmt$(v.avg_order_value)}</span>
                   </div>
-                  <div className="font-mono text-[11px] text-[#a3a3a3]">
+                  <div className="font-mono text-[11px] text-ink-muted">
                     Total discounted: {fmt$(v.total_discount)}
                   </div>
                 </div>
@@ -4408,21 +4408,21 @@ function CartRecoveryAttributionCard() {
             })}
           </div>
 
-          <div className="mt-4 pt-3 border-t border-[#262626] grid md:grid-cols-3 gap-3 font-mono text-[11px]">
-            <div className="text-[#a3a3a3]">
-              <span className="text-[#737373]">Last {data.days}d total · </span>
-              <span className="text-[#e5e5e5]" data-testid="attr-total-redemptions">
+          <div className="mt-4 pt-3 border-t border-line grid md:grid-cols-3 gap-3 font-mono text-[11px]">
+            <div className="text-ink-muted">
+              <span className="text-ink-muted">Last {data.days}d total · </span>
+              <span className="text-ink" data-testid="attr-total-redemptions">
                 {data.totals.redemptions}
               </span>{" "}
               redemptions
             </div>
-            <div className="text-[#a3a3a3]">
-              <span className="text-[#737373]">Revenue: </span>
-              <span className="text-[#e5e5e5]">{fmt$(data.totals.total_revenue)}</span>
+            <div className="text-ink-muted">
+              <span className="text-ink-muted">Revenue: </span>
+              <span className="text-ink">{fmt$(data.totals.total_revenue)}</span>
             </div>
-            <div className="text-[#a3a3a3]">
-              <span className="text-[#737373]">Discounted: </span>
-              <span className="text-[#e5e5e5]">{fmt$(data.totals.total_discount)}</span>
+            <div className="text-ink-muted">
+              <span className="text-ink-muted">Discounted: </span>
+              <span className="text-ink">{fmt$(data.totals.total_discount)}</span>
             </div>
           </div>
         </>
@@ -4498,16 +4498,16 @@ function EnrichLabsFeedCard() {
 
   return (
     <section
-      className="border border-[#262626] bg-[#0a0a0a] p-5"
+      className="border border-line bg-paper p-5"
       data-testid="enrichlabs-feed-card"
     >
-      <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#ff4500]">
+      <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-brand">
         ◆ EnrichLabs product feed
       </div>
-      <div className="text-[#e5e5e5] mt-1">
+      <div className="text-ink mt-1">
         Export {`{product_name, image_url, listing_url}`} for EnrichLabs or any external marketing agent.
       </div>
-      <div className="font-mono text-[11px] text-[#737373] mt-1">
+      <div className="font-mono text-[11px] text-ink-muted mt-1">
         Published listings only · absolute URLs · max 5000 rows
       </div>
 
@@ -4519,7 +4519,7 @@ function EnrichLabsFeedCard() {
           className="accent-[#ff4500]"
           data-testid="enrich-feed-include-oos"
         />
-        <span className="font-mono text-[11px] text-[#d4d4d4]">
+        <span className="font-mono text-[11px] text-ink">
           Include out-of-stock listings
         </span>
       </label>
@@ -4529,7 +4529,7 @@ function EnrichLabsFeedCard() {
           type="button"
           onClick={() => download("csv")}
           disabled={busy === "csv"}
-          className="px-4 py-2 border border-[#ff4500] text-[#ff4500] hover:bg-[#ff4500] hover:text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+          className="px-4 py-2 border border-brand text-brand hover:bg-brand hover:text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
           data-testid="enrich-feed-download-csv"
         >
           {busy === "csv" ? "Downloading…" : "Download CSV"}
@@ -4538,7 +4538,7 @@ function EnrichLabsFeedCard() {
           type="button"
           onClick={() => download("json")}
           disabled={busy === "json"}
-          className="px-4 py-2 border border-[#262626] text-[#e5e5e5] hover:border-[#525252] font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+          className="px-4 py-2 border border-line text-ink hover:border-ink-muted font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
           data-testid="enrich-feed-download-json"
         >
           {busy === "json" ? "Downloading…" : "Download JSON"}
@@ -4547,22 +4547,22 @@ function EnrichLabsFeedCard() {
           type="button"
           onClick={preview}
           disabled={busy === "preview"}
-          className="px-4 py-2 border border-[#262626] text-[#a3a3a3] hover:border-[#525252] hover:text-[#e5e5e5] font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+          className="px-4 py-2 border border-line text-ink-muted hover:border-ink-muted hover:text-ink font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
           data-testid="enrich-feed-preview"
         >
           {busy === "preview" ? "Counting…" : "Count rows"}
         </button>
         {count !== null && (
-          <span className="font-mono text-[11px] text-[#a3a3a3] self-center" data-testid="enrich-feed-count">
+          <span className="font-mono text-[11px] text-ink-muted self-center" data-testid="enrich-feed-count">
             {count} products in current feed
           </span>
         )}
       </div>
 
-      <div className="mt-4 pt-3 border-t border-[#262626] font-mono text-[11px] text-[#737373]">
+      <div className="mt-4 pt-3 border-t border-line font-mono text-[11px] text-ink-muted">
         EnrichLabs can also pull directly via the API:{" "}
-        <code className="text-[#a3a3a3]">GET /api/enrich/v1/feed.csv</code>{" "}
-        (header <code className="text-[#a3a3a3]">X-EnrichLabs-Key</code>).
+        <code className="text-ink-muted">GET /api/enrich/v1/feed.csv</code>{" "}
+        (header <code className="text-ink-muted">X-EnrichLabs-Key</code>).
       </div>
     </section>
   );
@@ -4629,7 +4629,7 @@ function CommunityFeedCard({ kind, title, description, accent }) {
 
   return (
     <section
-      className="border border-[#262626] bg-[#0a0a0a] p-5"
+      className="border border-line bg-paper p-5"
       data-testid={`enrichlabs-${kind}-feed-card`}
     >
       <div
@@ -4638,8 +4638,8 @@ function CommunityFeedCard({ kind, title, description, accent }) {
       >
         ◆ {title}
       </div>
-      <div className="text-[#e5e5e5] mt-1">{description}</div>
-      <div className="font-mono text-[11px] text-[#737373] mt-1">
+      <div className="text-ink mt-1">{description}</div>
+      <div className="font-mono text-[11px] text-ink-muted mt-1">
         Shape: {`{item_name, image_url, permalink}`} · honors maker opt-out · max 5000 rows
       </div>
 
@@ -4658,7 +4658,7 @@ function CommunityFeedCard({ kind, title, description, accent }) {
           type="button"
           onClick={() => download("json")}
           disabled={busy === "json"}
-          className="px-4 py-2 border border-[#262626] text-[#e5e5e5] hover:border-[#525252] font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+          className="px-4 py-2 border border-line text-ink hover:border-ink-muted font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
           data-testid={`enrichlabs-${kind}-download-json`}
         >
           {busy === "json" ? "Downloading…" : "Download JSON"}
@@ -4667,14 +4667,14 @@ function CommunityFeedCard({ kind, title, description, accent }) {
           type="button"
           onClick={preview}
           disabled={busy === "preview"}
-          className="px-4 py-2 border border-[#262626] text-[#a3a3a3] hover:border-[#525252] hover:text-[#e5e5e5] font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+          className="px-4 py-2 border border-line text-ink-muted hover:border-ink-muted hover:text-ink font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
           data-testid={`enrichlabs-${kind}-preview`}
         >
           {busy === "preview" ? "Counting…" : "Count rows"}
         </button>
         {count !== null && (
           <span
-            className="font-mono text-[11px] text-[#a3a3a3] self-center"
+            className="font-mono text-[11px] text-ink-muted self-center"
             data-testid={`enrichlabs-${kind}-count`}
           >
             {count} items in current feed
@@ -4682,10 +4682,10 @@ function CommunityFeedCard({ kind, title, description, accent }) {
         )}
       </div>
 
-      <div className="mt-4 pt-3 border-t border-[#262626] font-mono text-[11px] text-[#737373]">
+      <div className="mt-4 pt-3 border-t border-line font-mono text-[11px] text-ink-muted">
         Partner pull (no admin JWT needed):{" "}
-        <code className="text-[#a3a3a3]">GET /api/enrich/v1/{kind}/feed.csv</code>{" "}
-        (header <code className="text-[#a3a3a3]">X-EnrichLabs-Key</code>).
+        <code className="text-ink-muted">GET /api/enrich/v1/{kind}/feed.csv</code>{" "}
+        (header <code className="text-ink-muted">X-EnrichLabs-Key</code>).
       </div>
     </section>
   );
@@ -4809,18 +4809,18 @@ function SocialAutoPostQueueCard() {
 
   return (
     <section
-      className="border border-[#262626] bg-[#0a0a0a] p-5"
+      className="border border-line bg-paper p-5"
       data-testid="social-auto-post-queue-card"
     >
       <div className="flex items-start justify-between gap-3 mb-3">
         <div>
-          <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#ff4500]">
+          <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-brand">
             ◆ Social auto-post queue
           </div>
-          <div className="text-[#e5e5e5] mt-1">
+          <div className="text-ink mt-1">
             Listings queued for our IG / Pinterest / Facebook accounts.
           </div>
-          <div className="font-mono text-[11px] text-[#737373] mt-1">
+          <div className="font-mono text-[11px] text-ink-muted mt-1">
             Only Founder + Plus makers' listings auto-queue. Free-tier makers must upgrade.
           </div>
         </div>
@@ -4830,12 +4830,12 @@ function SocialAutoPostQueueCard() {
               key={s}
               type="button"
               onClick={() => setStatus(s)}
-              className={`font-mono text-[10px] uppercase tracking-[0.18em] px-2 py-1 border ${status === s ? "border-[#ff4500] text-[#ff4500]" : "border-[#262626] text-[#a3a3a3] hover:text-[#e5e5e5]"}`}
+              className={`font-mono text-[10px] uppercase tracking-[0.18em] px-2 py-1 border ${status === s ? "border-brand text-brand" : "border-line text-ink-muted hover:text-ink"}`}
               data-testid={`social-queue-filter-${s}`}
             >
               {s}
               {data?.summary?.[s] !== undefined && s !== "all" && (
-                <span className="ml-1 text-[#525252]">· {data.summary[s]}</span>
+                <span className="ml-1 text-ink-muted">· {data.summary[s]}</span>
               )}
             </button>
           ))}
@@ -4845,8 +4845,8 @@ function SocialAutoPostQueueCard() {
       {/* Top stats row: queue summary + eligibility breakdown */}
       <div className="grid md:grid-cols-2 gap-3 mb-4">
         {data?.summary && (
-          <div className="border border-[#262626] bg-[#0d0d0d] p-3">
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#737373] mb-2">
+          <div className="border border-line bg-paper p-3">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
               ◆ Queue totals
             </div>
             <div className="grid grid-cols-3 gap-3 text-center">
@@ -4859,15 +4859,15 @@ function SocialAutoPostQueueCard() {
                   <div className="font-display text-2xl leading-none" style={{ color: v ? col : "#525252" }}>
                     {v}
                   </div>
-                  <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#737373] mt-1">{lbl}</div>
+                  <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted mt-1">{lbl}</div>
                 </div>
               ))}
             </div>
           </div>
         )}
         {eligCounts && (
-          <div className="border border-[#262626] bg-[#0d0d0d] p-3">
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#737373] mb-2">
+          <div className="border border-line bg-paper p-3">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
               ◆ Makers by tier ({eligCounts.total} total)
             </div>
             <div className="space-y-1.5 font-mono text-[11px]">
@@ -4887,10 +4887,10 @@ function SocialAutoPostQueueCard() {
       {/* iter273 — Auto-publish credential status banner */}
       {credStatus && (
         <div
-          className="border border-[#262626] bg-[#0d0d0d] p-2.5 mb-3 flex items-center gap-4 flex-wrap"
+          className="border border-line bg-paper p-2.5 mb-3 flex items-center gap-4 flex-wrap"
           data-testid="social-queue-creds-banner"
         >
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#737373]">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
             ◆ Auto-publish
           </div>
           {["instagram", "facebook", "pinterest"].map((ch) => (
@@ -4904,7 +4904,7 @@ function SocialAutoPostQueueCard() {
             </span>
           ))}
           {!Object.values(credStatus).some(Boolean) && (
-            <span className="font-mono text-[10px] text-[#737373] ml-auto">
+            <span className="font-mono text-[10px] text-ink-muted ml-auto">
               Add Meta/Pinterest tokens to /app/backend/.env to enable
               "Publish now" buttons.
             </span>
@@ -4914,13 +4914,13 @@ function SocialAutoPostQueueCard() {
 
       {/* Queue rows */}
       {data?.rows?.length === 0 && (
-        <div className="border border-[#262626] bg-[#0d0d0d] p-6 text-center font-mono text-xs text-[#525252]">
+        <div className="border border-line bg-paper p-6 text-center font-mono text-xs text-ink-muted">
           No rows in the "{status}" bucket.
         </div>
       )}
 
       {data?.rows?.length > 0 && (
-        <div className="border border-[#262626] divide-y divide-[#262626]" data-testid="social-queue-list">
+        <div className="border border-line divide-y divide-line" data-testid="social-queue-list">
           {data.rows.map((row) => (
             <div key={row.id} className="p-3" data-testid={`social-queue-row-${row.id}`}>
               <div className="flex items-start gap-3">
@@ -4934,7 +4934,7 @@ function SocialAutoPostQueueCard() {
                 )}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <div className="font-mono text-xs text-[#e5e5e5] truncate">
+                    <div className="font-mono text-xs text-ink truncate">
                       {row.product_title}
                     </div>
                     <span
@@ -4955,15 +4955,15 @@ function SocialAutoPostQueueCard() {
                       {row.status}
                     </span>
                   </div>
-                  <div className="font-mono text-[10px] text-[#737373] mt-1">
+                  <div className="font-mono text-[10px] text-ink-muted mt-1">
                     by {row.maker_name} · ${(row.price || 0).toFixed(0)} ·{" "}
                     {row.status === "pending" ? "Queued" : "Closed"} {fmtDate(row.published_at || row.queued_at)}
                   </div>
-                  <div className="font-mono text-[10px] text-[#525252] mt-1">
+                  <div className="font-mono text-[10px] text-ink-muted mt-1">
                     {(row.channels || []).join(" · ")}
                   </div>
                   {row.skipped_reason && (
-                    <div className="font-mono text-[10px] text-[#a3a3a3] mt-1 italic">
+                    <div className="font-mono text-[10px] text-ink-muted mt-1 italic">
                       Skip reason: {row.skipped_reason}
                     </div>
                   )}
@@ -4973,7 +4973,7 @@ function SocialAutoPostQueueCard() {
                   <a
                     href={row.product_url}
                     target="_blank" rel="noopener noreferrer"
-                    className="px-2.5 py-1 border border-[#262626] text-[#a3a3a3] hover:text-[#e5e5e5] hover:border-[#525252] font-mono text-[9px] uppercase tracking-[0.22em] text-center"
+                    className="px-2.5 py-1 border border-line text-ink-muted hover:text-ink hover:border-ink-muted font-mono text-[9px] uppercase tracking-[0.22em] text-center"
                     data-testid={`social-queue-open-${row.id}`}
                   >
                     View →
@@ -4993,7 +4993,7 @@ function SocialAutoPostQueueCard() {
                           type="button"
                           onClick={() => publishNow(row.id)}
                           disabled={busy === row.id}
-                          className="px-2.5 py-1 border border-[#ff4500]/70 text-[#ff4500] hover:bg-[#ff4500]/10 font-mono text-[9px] uppercase tracking-[0.22em] disabled:opacity-50"
+                          className="px-2.5 py-1 border border-brand/70 text-brand hover:bg-brand/10 font-mono text-[9px] uppercase tracking-[0.22em] disabled:opacity-50"
                           data-testid={`social-queue-publish-now-${row.id}`}
                           title="Fire the actual external API calls (IG / FB / Pinterest)"
                         >
@@ -5013,7 +5013,7 @@ function SocialAutoPostQueueCard() {
                         type="button"
                         onClick={() => skip(row.id)}
                         disabled={busy === row.id}
-                        className="px-2.5 py-1 border border-[#262626] text-[#737373] hover:text-[#e5e5e5] hover:border-[#525252] font-mono text-[9px] uppercase tracking-[0.22em] disabled:opacity-50"
+                        className="px-2.5 py-1 border border-line text-ink-muted hover:text-ink hover:border-ink-muted font-mono text-[9px] uppercase tracking-[0.22em] disabled:opacity-50"
                         data-testid={`social-queue-skip-${row.id}`}
                       >
                         Skip
@@ -5038,9 +5038,9 @@ function TierRow({ label, count, color, total }) {
   return (
     <div className="flex items-center gap-2">
       <span style={{ width: 6, height: 6, background: color, display: "inline-block" }} />
-      <span className="flex-1 text-[#d4d4d4] truncate">{label}</span>
-      <span className="text-[#e5e5e5]" style={{ color: count ? color : undefined }}>{count}</span>
-      <span className="text-[#525252] w-10 text-right">{pct}%</span>
+      <span className="flex-1 text-ink truncate">{label}</span>
+      <span className="text-ink" style={{ color: count ? color : undefined }}>{count}</span>
+      <span className="text-ink-muted w-10 text-right">{pct}%</span>
     </div>
   );
 }
@@ -5159,18 +5159,18 @@ function CaptionEditorPanel({ row }) {
 
   return (
     <div
-      className="mt-3 border border-[#1f1f1f] bg-[#070707] p-3 space-y-3"
+      className="mt-3 border border-line bg-[#070707] p-3 space-y-3"
       data-testid={`caption-editor-${row.id}`}
     >
       <div className="flex items-center justify-between gap-2">
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#737373]">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
           ◆ Per-channel captions · edit, save, then publish
         </div>
         <button
           type="button"
           onClick={save}
           disabled={saving}
-          className="px-2.5 py-0.5 border border-[#ff4500]/60 text-[#ff4500] hover:bg-[#ff4500]/10 font-mono text-[9px] uppercase tracking-[0.18em] disabled:opacity-50"
+          className="px-2.5 py-0.5 border border-brand/60 text-brand hover:bg-brand/10 font-mono text-[9px] uppercase tracking-[0.18em] disabled:opacity-50"
           data-testid={`caption-editor-save-${row.id}`}
         >
           {saving ? "Saving…" : "Save captions"}
@@ -5186,7 +5186,7 @@ function CaptionEditorPanel({ row }) {
               <button
                 type="button"
                 onClick={() => reset(c.key)}
-                className="px-2 py-0.5 border border-[#262626] text-[#737373] hover:text-[#e5e5e5] hover:border-[#525252] font-mono text-[9px] uppercase tracking-[0.18em]"
+                className="px-2 py-0.5 border border-line text-ink-muted hover:text-ink hover:border-ink-muted font-mono text-[9px] uppercase tracking-[0.18em]"
                 data-testid={`caption-editor-reset-${row.id}-${c.key}`}
               >
                 Reset
@@ -5202,15 +5202,15 @@ function CaptionEditorPanel({ row }) {
               </button>
             </div>
           </div>
-          <div className="font-mono text-[9px] text-[#525252] mb-1">{c.hint}</div>
+          <div className="font-mono text-[9px] text-ink-muted mb-1">{c.hint}</div>
           <textarea
             rows={c.key === "instagram" ? 7 : c.key === "pinterest" ? 5 : 4}
             value={drafts[c.key]}
             onChange={(e) => setDrafts((d) => ({ ...d, [c.key]: e.target.value }))}
-            className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#525252] outline-none px-2.5 py-2 font-mono text-[11px] text-[#e5e5e5] leading-relaxed resize-y"
+            className="w-full bg-paper border border-line focus:border-[#525252] outline-none px-2.5 py-2 font-mono text-[11px] text-ink leading-relaxed resize-y"
             data-testid={`caption-editor-textarea-${row.id}-${c.key}`}
           />
-          <div className="font-mono text-[9px] text-[#525252] mt-0.5 text-right">
+          <div className="font-mono text-[9px] text-ink-muted mt-0.5 text-right">
             {drafts[c.key].length} chars
           </div>
         </div>
@@ -5304,12 +5304,12 @@ export default function SettingsTab() {
       <FeedHealthCard />
       <ExternalDistributionStatusCard />
       <ZombieCleanupCard />
-      <div className="border border-[#262626] p-4 md:p-5">
-        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-2">
+      <div className="border border-line p-4 md:p-5">
+        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-2">
           ◆ Site Switches
         </div>
         <h3 className="font-display text-2xl uppercase mb-1">Operator controls</h3>
-        <p className="font-mono text-xs text-[#a3a3a3]">
+        <p className="font-mono text-xs text-ink-muted">
           All toggles take effect within ~60 seconds for users (frontend polls /api/settings).
           Admin + maker portals always stay accessible — even in maintenance mode — so you can flip switches back.
         </p>

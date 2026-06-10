@@ -66,7 +66,7 @@ export default function MobileAdminTabBar({ visibleTabs = [], current, onPick })
 
   return (
     <nav
-      className="lg:hidden fixed bottom-0 left-0 right-0 bg-[#0d0d0d] border-t border-[#262626] z-30"
+      className="lg:hidden fixed bottom-0 left-0 right-0 bg-paper border-t border-line z-30"
       data-testid="mobile-admin-tab-bar"
       aria-label="Admin quick navigation"
     >
@@ -80,8 +80,8 @@ export default function MobileAdminTabBar({ visibleTabs = [], current, onPick })
               onClick={() => onPick(id)}
               className={`flex flex-col items-center gap-0.5 py-2.5 transition ${
                 active
-                  ? "text-[#ff4500]"
-                  : "text-[#a3a3a3] hover:text-[#e5e5e5]"
+                  ? "text-brand"
+                  : "text-ink-muted hover:text-ink"
               }`}
               aria-current={active ? "page" : undefined}
               data-testid={`mobile-admin-tab-${id}`}
@@ -89,7 +89,7 @@ export default function MobileAdminTabBar({ visibleTabs = [], current, onPick })
               <Icon size={18} strokeWidth={active ? 2.2 : 1.7} />
               <span className="font-mono text-[9px] uppercase tracking-[0.18em]">{label}</span>
               {active && (
-                <span className="absolute bottom-0 h-[2px] w-8 bg-[#ff4500]" aria-hidden />
+                <span className="absolute bottom-0 h-[2px] w-8 bg-brand" aria-hidden />
               )}
             </button>
           );
@@ -97,7 +97,7 @@ export default function MobileAdminTabBar({ visibleTabs = [], current, onPick })
         <button
           type="button"
           onClick={onMore}
-          className="flex flex-col items-center gap-0.5 py-2.5 text-[#a3a3a3] hover:text-[#e5e5e5]"
+          className="flex flex-col items-center gap-0.5 py-2.5 text-ink-muted hover:text-ink"
           data-testid="mobile-admin-tab-more"
           title="Scroll the full tab list into view"
         >

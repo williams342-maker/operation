@@ -53,22 +53,22 @@ export default function MsftRoasCard() {
   };
 
   const roasColor = (() => {
-    if (!data?.roas || !data?.ad_spend_usd) return "text-[#a3a3a3]";
+    if (!data?.roas || !data?.ad_spend_usd) return "text-ink-muted";
     if (data.roas >= 4) return "text-emerald-400";   // 4x+ → strong
     if (data.roas >= 1.5) return "text-cyan-400";    // 1.5x+ → healthy
     if (data.roas >= 1) return "text-amber-400";     // 1x+ → break-even
-    return "text-[#ff4500]";                         // <1x → losing money
+    return "text-brand";                         // <1x → losing money
   })();
 
   return (
-    <div className="border border-[#262626] bg-[#0d0d0d] p-6 space-y-5" data-testid="msft-roas-card">
+    <div className="border border-line bg-paper p-6 space-y-5" data-testid="msft-roas-card">
       <div className="flex items-start gap-4">
         <div className="w-10 h-10 border border-cyan-400/40 bg-cyan-400/[0.06] flex items-center justify-center shrink-0">
           <TrendingUp size={16} className="text-cyan-400" />
         </div>
         <div className="flex-1 min-w-0">
           <h2 className="font-display text-2xl md:text-3xl mb-1">Microsoft Ads ROAS</h2>
-          <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed max-w-2xl">
+          <p className="font-mono text-xs text-ink-muted leading-relaxed max-w-2xl">
             Attributed revenue / ad spend, last {days} days. Revenue auto-tracked via the{" "}
             <code className="text-cyan-300">msclkid</code> URL param on Bing-Ads landings.
             Spend entered manually — copy/paste from your Bing Ads dashboard.
@@ -77,7 +77,7 @@ export default function MsftRoasCard() {
         <button
           onClick={refresh}
           disabled={loading}
-          className="px-2.5 py-1.5 border border-[#262626] hover:border-[#525252] text-[#a3a3a3] hover:text-[#e5e5e5] font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5 disabled:opacity-40 shrink-0"
+          className="px-2.5 py-1.5 border border-line hover:border-ink-muted text-ink-muted hover:text-ink font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5 disabled:opacity-40 shrink-0"
           data-testid="msft-roas-refresh"
         >
           <RefreshCw size={11} className={loading ? "animate-spin" : ""} /> Refresh
@@ -86,7 +86,7 @@ export default function MsftRoasCard() {
 
       {/* Window selector */}
       <div className="flex items-center gap-2">
-        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#737373]">Window:</span>
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Window:</span>
         {[7, 14, 30].map((d) => (
           <button
             key={d}
@@ -94,7 +94,7 @@ export default function MsftRoasCard() {
             className={`px-2.5 py-1 border font-mono text-[10px] uppercase tracking-[0.22em] transition ${
               days === d
                 ? "border-cyan-400 text-cyan-300 bg-cyan-400/[0.06]"
-                : "border-[#262626] text-[#a3a3a3] hover:border-[#525252]"
+                : "border-line text-ink-muted hover:border-ink-muted"
             }`}
             data-testid={`msft-roas-window-${d}`}
           >
@@ -112,17 +112,17 @@ export default function MsftRoasCard() {
       </div>
 
       {/* Spend editor */}
-      <div className="border border-[#262626] bg-[#0a0a0a] px-4 py-3">
+      <div className="border border-line bg-paper px-4 py-3">
         {editing ? (
           <div className="flex items-center gap-3">
-            <DollarSign size={14} className="text-[#737373] shrink-0" />
+            <DollarSign size={14} className="text-ink-muted shrink-0" />
             <input
               type="number"
               step="0.01"
               min="0"
               value={spendInput}
               onChange={(e) => setSpendInput(e.target.value)}
-              className="flex-1 bg-[#0a0a0a] border border-[#262626] focus:border-cyan-400 outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
+              className="flex-1 bg-paper border border-line focus:border-cyan-400 outline-none px-3 py-2 font-mono text-xs text-ink"
               placeholder={`Bing Ads spend, last ${days} days (USD)`}
               autoFocus
               data-testid="msft-roas-spend-input"
@@ -136,7 +136,7 @@ export default function MsftRoasCard() {
             </button>
             <button
               onClick={() => { setEditing(false); setSpendInput(data?.ad_spend_usd ? String(data.ad_spend_usd) : ""); }}
-              className="px-3 py-2 border border-[#262626] text-[#a3a3a3] hover:text-[#e5e5e5] font-mono text-[10px] uppercase tracking-[0.22em]"
+              className="px-3 py-2 border border-line text-ink-muted hover:text-ink font-mono text-[10px] uppercase tracking-[0.22em]"
               data-testid="msft-roas-spend-cancel"
             >
               Cancel
@@ -144,9 +144,9 @@ export default function MsftRoasCard() {
           </div>
         ) : (
           <div className="flex items-center justify-between gap-3">
-            <p className="font-mono text-[11px] text-[#a3a3a3]">
+            <p className="font-mono text-[11px] text-ink-muted">
               {data?.ad_spend_usd
-                ? <>Recorded spend: <strong className="text-[#e5e5e5]">${data.ad_spend_usd.toFixed(2)}</strong></>
+                ? <>Recorded spend: <strong className="text-ink">${data.ad_spend_usd.toFixed(2)}</strong></>
                 : <>No spend recorded yet — enter your Bing Ads {days}-day spend to compute ROAS.</>}
             </p>
             <button
@@ -162,12 +162,12 @@ export default function MsftRoasCard() {
 
       {/* Sample list */}
       {data?.sample?.length > 0 && (
-        <details className="border border-[#262626] bg-[#0a0a0a] px-4 py-3">
-          <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#e5e5e5]">
+        <details className="border border-line bg-paper px-4 py-3">
+          <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-ink">
             ◆ Recent attributed orders ({data.sample.length})
           </summary>
           <table className="w-full font-mono text-[10px] mt-2">
-            <thead className="text-[9px] uppercase tracking-[0.22em] text-[#737373]">
+            <thead className="text-[9px] uppercase tracking-[0.22em] text-ink-muted">
               <tr>
                 <th className="text-left py-2">When</th>
                 <th className="text-left py-2">msclkid</th>
@@ -177,11 +177,11 @@ export default function MsftRoasCard() {
             </thead>
             <tbody>
               {data.sample.map((s, i) => (
-                <tr key={i} className="border-t border-[#1a1a1a]">
-                  <td className="py-1.5 text-[#a3a3a3]">{s.created_at?.slice(0, 16)?.replace("T", " ") || "—"}</td>
-                  <td className="py-1.5 text-[#737373]">{s.msclkid}</td>
-                  <td className="py-1.5 text-right text-[#a3a3a3]">{s.item_count}</td>
-                  <td className="py-1.5 text-right text-[#e5e5e5]">${s.amount.toFixed(2)}</td>
+                <tr key={i} className="border-t border-line">
+                  <td className="py-1.5 text-ink-muted">{s.created_at?.slice(0, 16)?.replace("T", " ") || "—"}</td>
+                  <td className="py-1.5 text-ink-muted">{s.msclkid}</td>
+                  <td className="py-1.5 text-right text-ink-muted">{s.item_count}</td>
+                  <td className="py-1.5 text-right text-ink">${s.amount.toFixed(2)}</td>
                 </tr>
               ))}
             </tbody>
@@ -194,10 +194,10 @@ export default function MsftRoasCard() {
 
 function Kpi({ label, value, sub, accent }) {
   return (
-    <div className="border border-[#262626] p-3">
-      <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#737373]">{label}</div>
-      <div className={`font-display text-2xl mt-1 ${accent || "text-[#e5e5e5]"}`}>{value}</div>
-      {sub && <div className="font-mono text-[9px] text-[#525252] mt-1">{sub}</div>}
+    <div className="border border-line p-3">
+      <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted">{label}</div>
+      <div className={`font-display text-2xl mt-1 ${accent || "text-ink"}`}>{value}</div>
+      {sub && <div className="font-mono text-[9px] text-ink-muted mt-1">{sub}</div>}
     </div>
   );
 }

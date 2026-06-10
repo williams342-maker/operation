@@ -35,7 +35,7 @@ export default function CustomOrdersList({ items, onChange }) {
     <div className="space-y-6">
       {funnel && <FunnelCard funnel={funnel} />}
       {!items.length ? (
-        <p className="font-mono text-sm text-[#a3a3a3]" data-testid="custom-empty">
+        <p className="font-mono text-sm text-ink-muted" data-testid="custom-empty">
           No custom briefs yet.
         </p>
       ) : (
@@ -59,16 +59,16 @@ function FunnelCard({ funnel }) {
   const s = funnel.stages || {};
   const pct = (n) => `${Math.round((n || 0) * 100)}%`;
   return (
-    <div className="border border-[#262626] p-4 md:p-5" data-testid="brief-funnel-card">
+    <div className="border border-line p-4 md:p-5" data-testid="brief-funnel-card">
       <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
           ◆ Brief routing funnel
         </div>
         <div className="flex gap-3 font-mono text-[10px] uppercase tracking-[0.22em]">
-          <span className="text-[#a3a3a3]">
+          <span className="text-ink-muted">
             Win-rate <b className="text-yellow-400">{pct(funnel.win_rate)}</b>
           </span>
-          <span className="text-[#a3a3a3]">
+          <span className="text-ink-muted">
             Reddit-rate <b className="text-orange-400">{pct(funnel.reddit_post_rate)}</b>
           </span>
         </div>
@@ -84,17 +84,17 @@ function FunnelCard({ funnel }) {
         <FunnelStat label="Declined" value={s.declined} />
       </div>
       {(funnel.by_subreddit?.length || funnel.by_maker?.length) ? (
-        <div className="mt-4 pt-4 border-t border-[#1a1a1a] grid md:grid-cols-2 gap-4">
+        <div className="mt-4 pt-4 border-t border-line grid md:grid-cols-2 gap-4">
           {funnel.by_subreddit?.length > 0 && (
             <div data-testid="funnel-by-subreddit">
-              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
                 By subreddit
               </div>
-              <ul className="space-y-1 font-mono text-xs text-[#e5e5e5]">
+              <ul className="space-y-1 font-mono text-xs text-ink">
                 {funnel.by_subreddit.slice(0, 5).map((r) => (
                   <li key={r.subreddit} className="flex justify-between gap-3">
                     <span>r/{r.subreddit}</span>
-                    <span className="text-[#a3a3a3]">{r.posted} posted · {r.won} won · <b className="text-yellow-400">{pct(r.win_rate)}</b></span>
+                    <span className="text-ink-muted">{r.posted} posted · {r.won} won · <b className="text-yellow-400">{pct(r.win_rate)}</b></span>
                   </li>
                 ))}
               </ul>
@@ -102,14 +102,14 @@ function FunnelCard({ funnel }) {
           )}
           {funnel.by_maker?.length > 0 && (
             <div data-testid="funnel-by-maker">
-              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
                 By maker
               </div>
-              <ul className="space-y-1 font-mono text-xs text-[#e5e5e5]">
+              <ul className="space-y-1 font-mono text-xs text-ink">
                 {funnel.by_maker.slice(0, 5).map((r) => (
                   <li key={r.maker_slug} className="flex justify-between gap-3">
                     <span>{r.maker_slug}</span>
-                    <span className="text-[#a3a3a3]">{r.routed} routed · {r.won} won · <b className="text-yellow-400">{pct(r.win_rate)}</b></span>
+                    <span className="text-ink-muted">{r.routed} routed · {r.won} won · <b className="text-yellow-400">{pct(r.win_rate)}</b></span>
                   </li>
                 ))}
               </ul>
@@ -123,9 +123,9 @@ function FunnelCard({ funnel }) {
 
 function FunnelStat({ label, value, accent, highlight }) {
   return (
-    <div className={`px-3 py-2 border ${highlight ? "border-yellow-400/40 bg-yellow-400/5" : accent ? "border-cyan-400/40 bg-cyan-400/5" : "border-[#1f1f1f]"}`}>
+    <div className={`px-3 py-2 border ${highlight ? "border-yellow-400/40 bg-yellow-400/5" : accent ? "border-cyan-400/40 bg-cyan-400/5" : "border-line"}`}>
       <div className="font-display text-2xl">{value || 0}</div>
-      <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#a3a3a3]">{label}</div>
+      <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted">{label}</div>
     </div>
   );
 }
@@ -211,7 +211,7 @@ function CustomOrderRow({ order, makers, reddit, onChange }) {
 
   // Determine top-of-card status pill
   let statusLabel = "Open";
-  let statusColor = "text-[#ff4500]";
+  let statusColor = "text-brand";
   if (order.status === "quoted") {
     statusLabel = `Quoted · $${order.quote}`;
     statusColor = "text-emerald-400";
@@ -222,29 +222,29 @@ function CustomOrderRow({ order, makers, reddit, onChange }) {
 
   return (
     <div
-      className="border border-[#262626] hover:border-[#ff4500] transition p-5"
+      className="border border-line hover:border-brand transition p-5"
       data-testid={`custom-${order.id}`}
     >
-      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 pb-3 border-b border-[#262626]">
+      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 pb-3 border-b border-line">
         <div>
           <div className={`font-mono text-[10px] uppercase tracking-[0.22em] ${statusColor}`}>
             ◆ {statusLabel} · {formatDate(order.created_at)}
           </div>
           <div className="font-display text-2xl mt-1">{order.project_type}</div>
-          <div className="font-mono text-xs text-[#a3a3a3] mt-1">
+          <div className="font-mono text-xs text-ink-muted mt-1">
             {order.name} ·{" "}
-            <a href={`mailto:${order.email}`} className="underline hover:text-[#ff4500]">
+            <a href={`mailto:${order.email}`} className="underline hover:text-brand">
               {order.email}
             </a>{" "}
             {order.phone ? `· ${order.phone}` : ""}
           </div>
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mt-2">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mt-2">
             {order.material} · {order.size || "size n/a"} · {order.budget || "budget n/a"}
           </div>
         </div>
         <div className="flex flex-col gap-2 items-start md:items-end">
           {order.tracking_number && (
-            <div className="border border-[#1f1f1f] px-3 py-2 bg-[#0a0a0a]" title={`Tracking #${order.tracking_number}`}>
+            <div className="border border-line px-3 py-2 bg-paper" title={`Tracking #${order.tracking_number}`}>
               <Barcode
                 value={order.tracking_number}
                 height={32}
@@ -255,7 +255,7 @@ function CustomOrderRow({ order, makers, reddit, onChange }) {
             </div>
           )}
           {isAssigned && makerStatus && (
-            <span className="font-mono text-[10px] uppercase tracking-[0.22em] px-2 py-1 border border-[#262626]"
+            <span className="font-mono text-[10px] uppercase tracking-[0.22em] px-2 py-1 border border-line"
                   data-testid={`brief-maker-status-${order.id}`}>
               Maker: {makerStatus}
             </span>
@@ -272,11 +272,11 @@ function CustomOrderRow({ order, makers, reddit, onChange }) {
           )}
         </div>
       </div>
-      <p className="font-mono text-xs text-[#e5e5e5] leading-relaxed mt-3">{order.description}</p>
+      <p className="font-mono text-xs text-ink leading-relaxed mt-3">{order.description}</p>
 
       {/* ───── Step 1: Quote (existing) ───── */}
-      <div className="mt-5 pt-5 border-t border-[#1a1a1a]">
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-3">
+      <div className="mt-5 pt-5 border-t border-line">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-3">
           Step 1 · Quote the buyer
         </div>
         <div className="grid md:grid-cols-3 gap-3 items-start">
@@ -287,7 +287,7 @@ function CustomOrderRow({ order, makers, reddit, onChange }) {
             placeholder="Quote ($)"
             min="0"
             step="0.01"
-            className="bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
+            className="bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink"
             data-testid={`custom-quote-${order.id}`}
           />
           <textarea
@@ -295,7 +295,7 @@ function CustomOrderRow({ order, makers, reddit, onChange }) {
             onChange={(e) => setMessage(e.target.value)}
             rows={2}
             placeholder="Optional message to buyer"
-            className="md:col-span-2 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
+            className="md:col-span-2 bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink"
             data-testid={`custom-msg-${order.id}`}
           />
         </div>
@@ -310,12 +310,12 @@ function CustomOrderRow({ order, makers, reddit, onChange }) {
       </div>
 
       {/* ───── Step 2: Push to Maker ───── */}
-      <div className="mt-5 pt-5 border-t border-[#1a1a1a]" data-testid={`brief-maker-section-${order.id}`}>
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-3">
+      <div className="mt-5 pt-5 border-t border-line" data-testid={`brief-maker-section-${order.id}`}>
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-3">
           Step 2 · Route to a maker
         </div>
         {suggestions.length > 0 && !order.assigned_maker_slug && (
-          <div className="mb-3 pb-3 border-b border-[#1a1a1a]" data-testid={`brief-suggestions-${order.id}`}>
+          <div className="mb-3 pb-3 border-b border-line" data-testid={`brief-suggestions-${order.id}`}>
             <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-yellow-400 mb-2 flex items-center justify-between gap-2">
               <span>✨ Suggested matches</span>
               <button
@@ -357,16 +357,16 @@ function CustomOrderRow({ order, makers, reddit, onChange }) {
                   className={`text-left px-3 py-2 border transition font-mono text-xs hover:border-yellow-400 ${
                     makerSlug === s.slug
                       ? "border-yellow-400 bg-yellow-400/5"
-                      : "border-[#262626]"
+                      : "border-line"
                   }`}
                   data-testid={`brief-suggestion-${order.id}-${i}`}
                   title={s.reason}
                 >
-                  <div className="text-[#e5e5e5]">
+                  <div className="text-ink">
                     {i === 0 && <span className="text-yellow-400 mr-1">★</span>}
                     {s.name}
                   </div>
-                  <div className="text-[10px] text-[#a3a3a3] mt-0.5">{s.reason}</div>
+                  <div className="text-[10px] text-ink-muted mt-0.5">{s.reason}</div>
                 </button>
               ))}
             </div>
@@ -376,7 +376,7 @@ function CustomOrderRow({ order, makers, reddit, onChange }) {
           <select
             value={makerSlug}
             onChange={(e) => setMakerSlug(e.target.value)}
-            className="bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
+            className="bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink"
             data-testid={`brief-maker-select-${order.id}`}
           >
             <option value="">Pick a maker…</option>
@@ -391,11 +391,11 @@ function CustomOrderRow({ order, makers, reddit, onChange }) {
             onChange={(e) => setAdminNote(e.target.value)}
             rows={2}
             placeholder="Note to the maker (optional)"
-            className="md:col-span-2 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
+            className="md:col-span-2 bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink"
             data-testid={`brief-admin-note-${order.id}`}
           />
         </div>
-        <label className="inline-flex items-center gap-2 mt-3 font-mono text-[11px] text-[#a3a3a3]">
+        <label className="inline-flex items-center gap-2 mt-3 font-mono text-[11px] text-ink-muted">
           <input
             type="checkbox"
             checked={notifyBuyer}
@@ -419,14 +419,14 @@ function CustomOrderRow({ order, makers, reddit, onChange }) {
       </div>
 
       {/* ───── Step 3: Push to Reddit ───── */}
-      <div className="mt-5 pt-5 border-t border-[#1a1a1a]" data-testid={`brief-reddit-section-${order.id}`}>
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-3">
+      <div className="mt-5 pt-5 border-t border-line" data-testid={`brief-reddit-section-${order.id}`}>
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-3">
           Step 3 · Broadcast on Reddit {isOnReddit && <span className="text-emerald-400 ml-2">✓ posted</span>}
         </div>
         {!reddit.can_post ? (
-          <p className="font-mono text-[11px] text-[#a3a3a3]" data-testid={`brief-reddit-disabled-${order.id}`}>
-            Reddit posting needs <code className="text-[#ff4500]">REDDIT_USERNAME</code> +{" "}
-            <code className="text-[#ff4500]">REDDIT_PASSWORD</code> in backend env. Once added,
+          <p className="font-mono text-[11px] text-ink-muted" data-testid={`brief-reddit-disabled-${order.id}`}>
+            Reddit posting needs <code className="text-brand">REDDIT_USERNAME</code> +{" "}
+            <code className="text-brand">REDDIT_PASSWORD</code> in backend env. Once added,
             this section activates and posts a self-text brief to the chosen sub.
           </p>
         ) : (
@@ -435,7 +435,7 @@ function CustomOrderRow({ order, makers, reddit, onChange }) {
               value={redditSub}
               onChange={(e) => setRedditSub(e.target.value)}
               disabled={isOnReddit}
-              className="bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5] disabled:opacity-50"
+              className="bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink disabled:opacity-50"
               data-testid={`brief-reddit-sub-${order.id}`}
             >
               {reddit.subreddits.map((s) => (

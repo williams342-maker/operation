@@ -48,12 +48,12 @@ export default class AdminTabBoundary extends React.Component {
         <h3 className="font-display text-2xl uppercase leading-tight mb-3">
           Something went sideways.
         </h3>
-        <p className="font-mono text-[12px] text-[#a3a3a3] leading-relaxed mb-5">
-          The <b className="text-[#e5e5e5]">{this.props.tabId || "current"}</b> tab failed to render. The rest of the dashboard is still working — you can keep using it. Click retry, or share the error details below with engineering.
+        <p className="font-mono text-[12px] text-ink-muted leading-relaxed mb-5">
+          The <b className="text-ink">{this.props.tabId || "current"}</b> tab failed to render. The rest of the dashboard is still working — you can keep using it. Click retry, or share the error details below with engineering.
         </p>
-        <details className="mb-5 font-mono text-[11px] text-[#525252]" data-testid="admin-tab-error-details">
-          <summary className="cursor-pointer hover:text-[#a3a3a3] mb-2">Error details</summary>
-          <pre className="whitespace-pre-wrap break-words bg-[#0a0a0a] border border-[#262626] p-3 mt-2 max-h-64 overflow-auto">
+        <details className="mb-5 font-mono text-[11px] text-ink-muted" data-testid="admin-tab-error-details">
+          <summary className="cursor-pointer hover:text-ink-muted mb-2">Error details</summary>
+          <pre className="whitespace-pre-wrap break-words bg-paper border border-line p-3 mt-2 max-h-64 overflow-auto">
 {String(this.state.error?.message || this.state.error)}
 {this.state.error?.stack ? "\n\n" + this.state.error.stack : ""}
           </pre>

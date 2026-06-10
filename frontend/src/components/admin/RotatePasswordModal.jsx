@@ -52,7 +52,7 @@ export default function RotatePasswordModal({ email, policyDays, daysSince, onDo
 
   return (
     <div
-      className="fixed inset-0 z-[70] bg-black/95 backdrop-blur-md flex items-center justify-center p-4"
+      className="fixed inset-0 z-[70] bg-paper/95 backdrop-blur-md flex items-center justify-center p-4"
       data-testid="rotate-password-modal"
       onClick={dismissible ? onClose : undefined}
     >
@@ -61,50 +61,50 @@ export default function RotatePasswordModal({ email, policyDays, daysSince, onDo
         role="dialog"
         aria-modal="true"
         aria-labelledby="rotate-pw-headline"
-        className="bg-[#0a0a0a] border border-[#ff4500] max-w-md w-full p-6 space-y-4 relative"
+        className="bg-paper border border-brand max-w-md w-full p-6 space-y-4 relative"
         onClick={(e) => e.stopPropagation()}
       >
         {dismissible && (
           <button
             type="button"
             onClick={onClose}
-            className="absolute top-3 right-3 font-mono text-xs text-[#a3a3a3] hover:text-[#ff4500] px-2 py-1 border border-[#262626] hover:border-[#ff4500] transition"
+            className="absolute top-3 right-3 font-mono text-xs text-ink-muted hover:text-brand px-2 py-1 border border-line hover:border-brand transition"
             data-testid="rotate-pw-close"
             aria-label="Close"
           >
             ✕
           </button>
         )}
-        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500]">
+        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand">
           ◆ Security · {dismissible ? "Rotate early" : "Rotation required"}
         </div>
         <h3 id="rotate-pw-headline" className="font-display text-3xl uppercase leading-[0.95]">
           {dismissible ? "Rotate Your Password." : "Your Password Has Expired."}
         </h3>
-        <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed">
-          Admin passwords must be rotated every <b className="text-[#e5e5e5]">{policyDays} days</b>.
-          Yours was last changed <b className="text-[#e5e5e5]">{daysSince} days ago</b>.
+        <p className="font-mono text-xs text-ink-muted leading-relaxed">
+          Admin passwords must be rotated every <b className="text-ink">{policyDays} days</b>.
+          Yours was last changed <b className="text-ink">{daysSince} days ago</b>.
           {dismissible ? " You can rotate now or come back later." : " Set a new password to continue."}
         </p>
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] border border-[#262626] px-3 py-2">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted border border-line px-3 py-2">
           {email}
         </div>
 
         <form onSubmit={submit} className="space-y-3" data-testid="rotate-pw-form">
           <label className="block">
-            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Current password</span>
+            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Current password</span>
             <PasswordInput
               required
               autoComplete="current-password"
               value={current}
               onChange={(e) => setCurrent(e.target.value)}
-              className="mt-1 w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm text-[#e5e5e5]"
+              className="mt-1 w-full bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm text-ink"
               data-testid="rotate-pw-current"
             />
           </label>
           <label className="block">
-            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
-              New password <span className="text-[#525252]">(min 10 chars)</span>
+            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
+              New password <span className="text-ink-muted">(min 10 chars)</span>
             </span>
             <PasswordInput
               required
@@ -112,19 +112,19 @@ export default function RotatePasswordModal({ email, policyDays, daysSince, onDo
               minLength={10}
               value={next}
               onChange={(e) => setNext(e.target.value)}
-              className="mt-1 w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm text-[#e5e5e5]"
+              className="mt-1 w-full bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm text-ink"
               data-testid="rotate-pw-new"
             />
           </label>
           <label className="block">
-            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Confirm new password</span>
+            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Confirm new password</span>
             <PasswordInput
               required
               autoComplete="new-password"
               minLength={10}
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
-              className="mt-1 w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm text-[#e5e5e5]"
+              className="mt-1 w-full bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm text-ink"
               data-testid="rotate-pw-confirm"
             />
           </label>

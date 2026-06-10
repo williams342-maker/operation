@@ -48,7 +48,7 @@ export default function ProdHealthTab() {
 
   if (loading) {
     return (
-      <div className="font-mono text-xs text-[#525252] p-4" data-testid="prod-health-loading">
+      <div className="font-mono text-xs text-ink-muted p-4" data-testid="prod-health-loading">
         Loading watchdog state…
       </div>
     );
@@ -72,21 +72,21 @@ export default function ProdHealthTab() {
     <div className="space-y-6" data-testid="prod-health-tab">
       <header className="flex items-start md:items-center justify-between gap-3 flex-col md:flex-row">
         <div>
-          <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#ff4500] mb-2">
+          <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand mb-2">
             ◆ Prod Health Watchdog
           </div>
           <h2 className="font-display text-2xl md:text-3xl uppercase leading-none mb-2">Uptime.</h2>
-          <p className="font-mono text-[11px] text-[#a3a3a3] leading-relaxed max-w-2xl">
+          <p className="font-mono text-[11px] text-ink-muted leading-relaxed max-w-2xl">
             Every 5 min we ping critical prod endpoints. After{" "}
-            <b className="text-[#e5e5e5]">{snap?.threshold || 2}</b> consecutive failures we email{" "}
-            <code className="text-[#ff4500]">OPS_EMAIL</code> with a one-shot outage alert, then again on recovery.
+            <b className="text-ink">{snap?.threshold || 2}</b> consecutive failures we email{" "}
+            <code className="text-brand">OPS_EMAIL</code> with a one-shot outage alert, then again on recovery.
             Target:{" "}
             {snap?.target ? (
               <a
                 href={snap.target}
                 target="_blank"
                 rel="noreferrer"
-                className="text-[#ff4500] hover:underline inline-flex items-center gap-1"
+                className="text-brand hover:underline inline-flex items-center gap-1"
                 data-testid="prod-health-target"
               >
                 {snap.target} <ExternalLink size={11} />
@@ -117,9 +117,9 @@ export default function ProdHealthTab() {
       )}
 
       {endpoints.length === 0 ? (
-        <div className="border border-[#262626] bg-[#0a0a0a] px-4 py-8 text-center">
-          <p className="font-mono text-[11px] text-[#525252]">
-            No checks recorded yet. Click <b className="text-[#a3a3a3]">Check Now</b> to run the first probe.
+        <div className="border border-line bg-paper px-4 py-8 text-center">
+          <p className="font-mono text-[11px] text-ink-muted">
+            No checks recorded yet. Click <b className="text-ink-muted">Check Now</b> to run the first probe.
           </p>
         </div>
       ) : (
@@ -180,7 +180,7 @@ function EndpointCard({ e }) {
       <div className="flex items-start justify-between gap-3 mb-2">
         <div className="flex items-center gap-2 min-w-0">
           <Icon size={14} className={textColor} />
-          <code className="text-[#e5e5e5] truncate">{e.endpoint}</code>
+          <code className="text-ink truncate">{e.endpoint}</code>
         </div>
         <span
           className={`px-2 py-0.5 border ${border} ${textColor} text-[10px] uppercase tracking-[0.18em] shrink-0`}
@@ -188,18 +188,18 @@ function EndpointCard({ e }) {
           {alerted ? "Alerted" : ok ? "OK" : "Failing"}
         </span>
       </div>
-      <div className="grid grid-cols-2 gap-y-1 text-[#a3a3a3]">
+      <div className="grid grid-cols-2 gap-y-1 text-ink-muted">
         <div>
-          Status: <span className="text-[#e5e5e5]">{e.last_status || "—"}</span>
+          Status: <span className="text-ink">{e.last_status || "—"}</span>
         </div>
         <div>
-          Latency: <span className="text-[#e5e5e5]">{e.last_latency_ms || 0}ms</span>
+          Latency: <span className="text-ink">{e.last_latency_ms || 0}ms</span>
         </div>
         <div>
-          Fails: <span className="text-[#e5e5e5]">{e.consecutive_failures || 0}</span>
+          Fails: <span className="text-ink">{e.consecutive_failures || 0}</span>
         </div>
         <div>
-          Checked: <span className="text-[#e5e5e5]">{timeAgo(e.last_checked_at)}</span>
+          Checked: <span className="text-ink">{timeAgo(e.last_checked_at)}</span>
         </div>
       </div>
       {e.last_reason && (

@@ -101,22 +101,22 @@ export default function AdsTab() {
       <GoogleAdsConnectionCard />
       <MicrosoftAdsConnectionCard />
       <MetaAdsConnectionCard />
-      <div className="border border-[#262626] p-4 md:p-5">
-        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-2">
+      <div className="border border-line p-4 md:p-5">
+        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-2">
           ◆ Off-site Ad Spend
         </div>
         <h3 className="font-display text-2xl uppercase mb-1">Google + Meta · ROAS</h3>
-        <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed max-w-2xl">
-          Tracks daily spend across paid acquisition channels and cross-references against orders with <code className="text-[#ff4500]">external_attribution=true</code> for true attributed-revenue ROAS. Seed synthetic data to see the dashboard render before live API credentials are wired.
+        <p className="font-mono text-xs text-ink-muted leading-relaxed max-w-2xl">
+          Tracks daily spend across paid acquisition channels and cross-references against orders with <code className="text-brand">external_attribution=true</code> for true attributed-revenue ROAS. Seed synthetic data to see the dashboard render before live API credentials are wired.
         </p>
         <div className="flex flex-wrap items-center gap-2 mt-4">
-          <div className="flex border border-[#262626]">
+          <div className="flex border border-line">
             {[7, 30, 90].map((d) => (
               <button
                 key={d}
                 onClick={() => { setDays(d); load(d); }}
-                className={`px-3 py-2 font-mono text-[10px] uppercase tracking-[0.22em] border-r border-[#262626] last:border-r-0 ${
-                  days === d ? "bg-[#ff4500] text-[#0a0a0a]" : "text-[#a3a3a3] hover:text-[#e5e5e5]"
+                className={`px-3 py-2 font-mono text-[10px] uppercase tracking-[0.22em] border-r border-line last:border-r-0 ${
+                  days === d ? "bg-brand text-[#0a0a0a]" : "text-ink-muted hover:text-ink"
                 }`}
                 data-testid={`ads-range-${d}`}
               >
@@ -127,7 +127,7 @@ export default function AdsTab() {
           <button
             onClick={seedDemo}
             disabled={busy}
-            className="px-3 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50"
+            className="px-3 py-2 border border-line hover:border-brand font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50"
             data-testid="ads-seed-demo"
           >
             {busy ? "…" : "Seed demo"}
@@ -144,13 +144,13 @@ export default function AdsTab() {
       </div>
 
       {loading || !metrics ? (
-        <p className="font-mono text-sm text-[#a3a3a3]" data-testid="ads-loading">Loading ad metrics…</p>
+        <p className="font-mono text-sm text-ink-muted" data-testid="ads-loading">Loading ad metrics…</p>
       ) : metrics.spend === 0 ? (
-        <div className="border border-dashed border-[#262626] p-10 text-center" data-testid="ads-empty">
-          <p className="font-mono text-sm text-[#a3a3a3] mb-3">
+        <div className="border border-dashed border-line p-10 text-center" data-testid="ads-empty">
+          <p className="font-mono text-sm text-ink-muted mb-3">
             No spend data yet for the last {days} days.
           </p>
-          <p className="font-mono text-xs text-[#525252]">
+          <p className="font-mono text-xs text-ink-muted">
             Live Google Ads + Meta SDK wiring is parked until API credentials arrive. Hit "Seed demo" to populate the dashboard with synthetic data so you can review the layout.
           </p>
         </div>
@@ -163,8 +163,8 @@ export default function AdsTab() {
             <Stat label="Clicks" value={metrics.clicks.toLocaleString()} testId="ads-stat-clicks" />
           </div>
 
-          <div className="border border-[#262626] p-4 md:p-5">
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">
+          <div className="border border-line p-4 md:p-5">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
               ◆ Daily spend · last {days} days
             </div>
             {sparkPoints.length > 0 && (
@@ -174,25 +174,25 @@ export default function AdsTab() {
 
           <div className="grid md:grid-cols-2 gap-4">
             <div>
-              <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#a3a3a3] mb-2">
+              <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-ink-muted mb-2">
                 ◆ Top campaigns
               </div>
               {!perf?.campaigns?.length ? (
-                <p className="font-mono text-sm text-[#525252]">None.</p>
+                <p className="font-mono text-sm text-ink-muted">None.</p>
               ) : (
-                <div className="border border-[#262626] divide-y divide-[#1a1a1a]" data-testid="ads-campaigns">
+                <div className="border border-line divide-y divide-line" data-testid="ads-campaigns">
                   {perf.campaigns.slice(0, 8).map((c) => (
                     <div key={`${c.platform}-${c.campaign_id}`} className="p-3 flex items-center justify-between gap-3">
                       <div className="min-w-0">
                         <div className="font-display text-base truncate">{c.campaign_name}</div>
-                        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] flex gap-2 mt-0.5">
+                        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted flex gap-2 mt-0.5">
                           <span className={`px-1 border ${PLATFORM_TONE[c.platform] || ""}`}>{c.platform}</span>
                           {c.category && <span>{c.category}</span>}
                           <span>CTR {c.ctr}%</span>
                           <span>CPC ${c.cpc}</span>
                         </div>
                       </div>
-                      <div className="font-display text-xl text-[#ff4500] shrink-0">${c.spend.toFixed(0)}</div>
+                      <div className="font-display text-xl text-brand shrink-0">${c.spend.toFixed(0)}</div>
                     </div>
                   ))}
                 </div>
@@ -200,17 +200,17 @@ export default function AdsTab() {
             </div>
 
             <div>
-              <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#a3a3a3] mb-2">
+              <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-ink-muted mb-2">
                 ◆ By technique
               </div>
               {!perf?.categories?.length ? (
-                <p className="font-mono text-sm text-[#525252]">None.</p>
+                <p className="font-mono text-sm text-ink-muted">None.</p>
               ) : (
-                <div className="border border-[#262626] divide-y divide-[#1a1a1a]" data-testid="ads-categories">
+                <div className="border border-line divide-y divide-line" data-testid="ads-categories">
                   {perf.categories.map((c) => (
                     <div key={c.category} className="p-3 flex items-center justify-between gap-3">
-                      <div className="font-mono text-sm text-[#e5e5e5]">{c.category}</div>
-                      <div className="font-display text-xl text-[#ff4500]">${c.spend.toFixed(0)}</div>
+                      <div className="font-mono text-sm text-ink">{c.category}</div>
+                      <div className="font-display text-xl text-brand">${c.spend.toFixed(0)}</div>
                     </div>
                   ))}
                 </div>

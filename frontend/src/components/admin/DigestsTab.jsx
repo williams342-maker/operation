@@ -54,12 +54,12 @@ export default function DigestsTab() {
           (weekly vs the Plus ROI cron's monthly cadence). */}
       <PricingDigestHealthCard />
 
-      <div className="border border-[#262626] p-5 md:p-6 space-y-3">
-        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500]">
+      <div className="border border-line p-5 md:p-6 space-y-3">
+        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand">
           ◆ Crafters Plus ROI Digest
         </div>
         <h3 className="font-display text-2xl uppercase">Monthly upsell email</h3>
-        <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed max-w-2xl">
+        <p className="font-mono text-xs text-ink-muted leading-relaxed max-w-2xl">
           Finds free-tier makers grossing more than the threshold over the last 30 days,
           calculates how much Crafters Plus would have saved them in commission, and emails
           a personalised upgrade pitch via MailerSend. Cooldown prevents re-sending within
@@ -70,7 +70,7 @@ export default function DigestsTab() {
           <button
             onClick={dryRun}
             disabled={loading || sending}
-            className="px-4 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
+            className="px-4 py-2 border border-line hover:border-brand font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
             data-testid="digest-preview-btn"
           >
             {loading ? "Computing…" : "Refresh Preview"}
@@ -78,7 +78,7 @@ export default function DigestsTab() {
           <button
             onClick={() => setConfirmSend(true)}
             disabled={!data || !data.candidate_count || sending || loading}
-            className="px-4 py-2 bg-[#ff4500] hover:bg-[#ff5722] text-[#0a0a0a] border border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-30 disabled:cursor-not-allowed"
+            className="px-4 py-2 bg-brand hover:bg-[#ff5722] text-[#0a0a0a] border border-brand font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-30 disabled:cursor-not-allowed"
             data-testid="digest-send-btn"
           >
             {sending ? "Sending…" : `Send digest${data?.candidate_count ? ` (${data.candidate_count})` : ""}`}
@@ -111,16 +111,16 @@ export default function DigestsTab() {
             />
           </div>
 
-          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#a3a3a3]">
+          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-ink-muted">
             ◆ {data.mode === "applied" ? "Just-sent recipients" : "Preview · who would receive this digest"}
           </div>
           {!data.candidates?.length ? (
-            <p className="font-mono text-sm text-[#a3a3a3]" data-testid="digest-empty">
+            <p className="font-mono text-sm text-ink-muted" data-testid="digest-empty">
               No free-tier makers crossed the ${data.threshold_usd}/30d threshold this run.
             </p>
           ) : (
-            <div className="border border-[#262626]" data-testid="digest-candidate-list">
-              <div className="grid grid-cols-12 gap-2 px-3 py-2 border-b border-[#262626] font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] bg-[#0d0d0d]">
+            <div className="border border-line" data-testid="digest-candidate-list">
+              <div className="grid grid-cols-12 gap-2 px-3 py-2 border-b border-line font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted bg-paper">
                 <div className="col-span-4">Maker</div>
                 <div className="col-span-3 text-right">30d gross</div>
                 <div className="col-span-2 text-right">Saved</div>
@@ -129,14 +129,14 @@ export default function DigestsTab() {
               {data.candidates.map((c) => (
                 <div
                   key={c.slug}
-                  className="grid grid-cols-12 gap-2 px-3 py-2 border-b border-[#1a1a1a] last:border-b-0 font-mono text-xs hover:bg-[#0d0d0d]"
+                  className="grid grid-cols-12 gap-2 px-3 py-2 border-b border-line last:border-b-0 font-mono text-xs hover:bg-paper"
                   data-testid={`digest-candidate-${c.slug}`}
                 >
                   <div className="col-span-4 min-w-0">
-                    <div className="text-[#e5e5e5] truncate">{c.name}</div>
-                    <div className="text-[#525252] text-[10px] truncate">{c.email}</div>
+                    <div className="text-ink truncate">{c.name}</div>
+                    <div className="text-ink-muted text-[10px] truncate">{c.email}</div>
                   </div>
-                  <div className="col-span-3 text-right text-[#e5e5e5]">${c.gross_30d.toFixed(2)}</div>
+                  <div className="col-span-3 text-right text-ink">${c.gross_30d.toFixed(2)}</div>
                   <div className="col-span-2 text-right text-emerald-400">+${c.commission_savings.toFixed(2)}</div>
                   <div className={`col-span-3 text-right ${c.net_benefit > 0 ? "text-emerald-400" : "text-yellow-400"}`}>
                     {c.net_benefit > 0 ? "+" : ""}${c.net_benefit.toFixed(2)}
@@ -150,7 +150,7 @@ export default function DigestsTab() {
 
       {confirmSend && (
         <div
-          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-paper/80 backdrop-blur-sm flex items-center justify-center p-4"
           onClick={() => setConfirmSend(false)}
           data-testid="digest-confirm-modal"
         >
@@ -158,28 +158,28 @@ export default function DigestsTab() {
             ref={dialogRef}
             role="dialog"
             aria-modal="true"
-            className="bg-[#0a0a0a] border border-[#262626] max-w-md w-full p-6 space-y-4"
+            className="bg-paper border border-line max-w-md w-full p-6 space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500]">
+            <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand">
               ◆ Send digest
             </div>
             <h3 className="font-display text-2xl uppercase">Send to {data?.candidate_count} maker{data?.candidate_count === 1 ? "" : "s"}?</h3>
-            <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed">
+            <p className="font-mono text-xs text-ink-muted leading-relaxed">
               This will fire {data?.candidate_count} real MailerSend emails and stamp each recipient
               so they aren't re-emailed for {data?.cooldown_days} days. Cannot be undone.
             </p>
             <div className="flex gap-2 justify-end pt-2">
               <button
                 onClick={() => setConfirmSend(false)}
-                className="px-4 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em]"
+                className="px-4 py-2 border border-line hover:border-brand font-mono text-[11px] uppercase tracking-[0.22em]"
                 data-testid="digest-confirm-cancel"
               >
                 Cancel
               </button>
               <button
                 onClick={apply}
-                className="px-4 py-2 bg-[#ff4500] hover:bg-[#ff5722] text-[#0a0a0a] border border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em]"
+                className="px-4 py-2 bg-brand hover:bg-[#ff5722] text-[#0a0a0a] border border-brand font-mono text-[11px] uppercase tracking-[0.22em]"
                 data-testid="digest-confirm-send"
               >
                 Confirm send

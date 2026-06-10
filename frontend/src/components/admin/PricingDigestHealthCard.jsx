@@ -57,14 +57,14 @@ export default function PricingDigestHealthCard() {
   useEffect(() => { loadHistory(); }, []);
 
   return (
-    <div className="border border-[#262626] bg-[#0d0d0d] p-6 space-y-5" data-testid="pricing-digest-health">
+    <div className="border border-line bg-paper p-6 space-y-5" data-testid="pricing-digest-health">
       <div className="flex items-start gap-4">
         <div className="w-10 h-10 border border-cyan-400/40 bg-cyan-400/[0.06] flex items-center justify-center shrink-0">
           <Sparkles size={16} className="text-cyan-400" />
         </div>
         <div className="flex-1 min-w-0">
           <h2 className="font-display text-2xl md:text-3xl mb-1">AI pricing digest health</h2>
-          <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed max-w-2xl">
+          <p className="font-mono text-xs text-ink-muted leading-relaxed max-w-2xl">
             Week-over-week visibility into the Monday pricing digest cron. The "Above market"
             column counts listings priced 20%+ above AI-derived median; "Below market" counts
             opportunities priced 20%+ below (potential upside for the maker).
@@ -85,7 +85,7 @@ export default function PricingDigestHealthCard() {
         <button
           onClick={loadHistory}
           disabled={historyLoading}
-          className="px-3 py-2 border border-[#262626] hover:border-[#525252] text-[#a3a3a3] hover:text-[#e5e5e5] font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5 disabled:opacity-40"
+          className="px-3 py-2 border border-line hover:border-ink-muted text-ink-muted hover:text-ink font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5 disabled:opacity-40"
           data-testid="pricing-digest-refresh-history"
         >
           <RefreshCw size={11} /> Refresh history
@@ -108,7 +108,7 @@ export default function PricingDigestHealthCard() {
               </div>
               {Array.isArray(dryRunResult.details) && dryRunResult.details.length > 0 && (
                 <table className="w-full font-mono text-[11px]">
-                  <thead className="text-[9px] uppercase tracking-[0.22em] text-[#737373]">
+                  <thead className="text-[9px] uppercase tracking-[0.22em] text-ink-muted">
                     <tr>
                       <th className="text-left pb-2">Maker</th>
                       <th className="text-right pb-2">Above</th>
@@ -118,11 +118,11 @@ export default function PricingDigestHealthCard() {
                   </thead>
                   <tbody>
                     {dryRunResult.details.map((d) => (
-                      <tr key={d.maker} className="border-t border-[#1a1a1a]">
-                        <td className="py-1.5 text-[#e5e5e5]">{d.maker}</td>
-                        <td className="py-1.5 text-right text-[#ff4500]">{d.above_count ?? "—"}</td>
+                      <tr key={d.maker} className="border-t border-line">
+                        <td className="py-1.5 text-ink">{d.maker}</td>
+                        <td className="py-1.5 text-right text-brand">{d.above_count ?? "—"}</td>
                         <td className="py-1.5 text-right text-cyan-400">{d.below_count ?? "—"}</td>
-                        <td className="py-1.5 text-right text-[#737373]">{d.would_send_to || "—"}</td>
+                        <td className="py-1.5 text-right text-ink-muted">{d.would_send_to || "—"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -130,7 +130,7 @@ export default function PricingDigestHealthCard() {
               )}
             </>
           ) : (
-            <p className="font-mono text-xs text-[#a3a3a3]">
+            <p className="font-mono text-xs text-ink-muted">
               <strong className="text-cyan-400">{dryRunResult.status}</strong>
               {dryRunResult.reason ? ` — ${dryRunResult.reason}` : ""}
               {typeof dryRunResult.comparisons_scanned === "number" && (
@@ -143,25 +143,25 @@ export default function PricingDigestHealthCard() {
 
       {/* Week-over-week history */}
       <div data-testid="pricing-digest-history">
-        <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#737373] mb-2">
+        <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
           ◆ Last {history?.weeks?.length || 0} weeks
         </p>
         {historyLoading && (
-          <p className="font-mono text-xs text-[#525252] py-4">Loading history…</p>
+          <p className="font-mono text-xs text-ink-muted py-4">Loading history…</p>
         )}
         {!historyLoading && (!history || history.weeks.length === 0) && (
-          <p className="font-mono text-xs text-[#525252] py-4">
+          <p className="font-mono text-xs text-ink-muted py-4">
             No digests sent yet — the cron will fire Mondays at 15:00 UTC.
           </p>
         )}
         {!historyLoading && history?.weeks?.length > 0 && (
-          <table className="w-full font-mono text-[11px] border border-[#262626]">
-            <thead className="text-[9px] uppercase tracking-[0.22em] text-[#a3a3a3] bg-[#171717]">
+          <table className="w-full font-mono text-[11px] border border-line">
+            <thead className="text-[9px] uppercase tracking-[0.22em] text-ink-muted bg-surface">
               <tr>
                 <th className="text-left p-3">Week</th>
                 <th className="text-right p-3">Sent</th>
                 <th className="text-right p-3">
-                  <span className="inline-flex items-center gap-1 text-[#ff4500]">
+                  <span className="inline-flex items-center gap-1 text-brand">
                     <TrendingUp size={10} /> Above
                   </span>
                 </th>
@@ -175,20 +175,20 @@ export default function PricingDigestHealthCard() {
             </thead>
             <tbody>
               {history.weeks.map((w) => (
-                <tr key={w.week_key} className="border-t border-[#1a1a1a]" data-testid={`pricing-digest-week-${w.week_key}`}>
-                  <td className="p-3 text-[#e5e5e5]">{w.week_key}</td>
-                  <td className="p-3 text-right text-[#e5e5e5]">{w.sent}</td>
-                  <td className="p-3 text-right text-[#ff4500] font-bold">{w.above_flagged}</td>
+                <tr key={w.week_key} className="border-t border-line" data-testid={`pricing-digest-week-${w.week_key}`}>
+                  <td className="p-3 text-ink">{w.week_key}</td>
+                  <td className="p-3 text-right text-ink">{w.sent}</td>
+                  <td className="p-3 text-right text-brand font-bold">{w.above_flagged}</td>
                   <td className="p-3 text-right text-cyan-400 font-bold">{w.below_flagged}</td>
-                  <td className="p-3 text-[#a3a3a3] text-[10px]">
+                  <td className="p-3 text-ink-muted text-[10px]">
                     {(w.top_makers || []).slice(0, 3).map((m, i) => (
                       <span key={m.maker_slug}>
                         {i > 0 ? " · " : ""}
-                        <span className="text-[#e5e5e5]">{m.maker_slug}</span>
-                        <span className="text-[#525252]"> ({m.flagged})</span>
+                        <span className="text-ink">{m.maker_slug}</span>
+                        <span className="text-ink-muted"> ({m.flagged})</span>
                       </span>
                     ))}
-                    {(w.top_makers || []).length === 0 && <span className="text-[#525252]">—</span>}
+                    {(w.top_makers || []).length === 0 && <span className="text-ink-muted">—</span>}
                   </td>
                 </tr>
               ))}
@@ -201,10 +201,10 @@ export default function PricingDigestHealthCard() {
 }
 
 function Cell({ label, value, accent }) {
-  const color = accent === "cyan" ? "text-cyan-300" : "text-[#e5e5e5]";
+  const color = accent === "cyan" ? "text-cyan-300" : "text-ink";
   return (
-    <div className="border border-[#262626] p-3">
-      <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#737373]">{label}</div>
+    <div className="border border-line p-3">
+      <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted">{label}</div>
       <div className={`font-display text-2xl mt-1 ${color}`}>{value ?? "—"}</div>
     </div>
   );

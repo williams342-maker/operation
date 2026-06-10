@@ -27,7 +27,7 @@ export default function ShopOfTheWeek() {
 
   return (
     <section
-      className="relative w-full py-20 md:py-28 bg-[#0a0a0a] border-b border-[#262626] overflow-hidden"
+      className="relative w-full py-20 md:py-28 bg-paper border-b border-line overflow-hidden"
       data-testid="shop-of-the-week"
     >
       {/* Ambient backdrop pulled from banner — sets the mood without overpowering the cards. */}
@@ -47,18 +47,18 @@ export default function ShopOfTheWeek() {
           transition={{ duration: 0.6 }}
           className="flex items-center gap-2 mb-3"
         >
-          <Sparkles size={14} className="text-[#ff4500]" />
-          <div className="font-mono text-[11px] uppercase tracking-[0.32em] text-[#ff4500]">
+          <Sparkles size={14} className="text-brand" />
+          <div className="font-mono text-[11px] uppercase tracking-[0.32em] text-brand">
             ◆ Shop of the Week · Crafters Plus
           </div>
           {!expired && countdownLabel && (
             <div
-              className="ml-auto inline-flex items-center gap-1.5 px-2.5 py-1 border border-[#ff4500]/40 bg-[#1a0a05] font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]"
+              className="ml-auto inline-flex items-center gap-1.5 px-2.5 py-1 border border-brand/40 bg-[#1a0a05] font-mono text-[10px] uppercase tracking-[0.22em] text-brand"
               data-testid="sotw-countdown"
             >
               <Clock size={11} className="opacity-80" />
               Spotlight ends in
-              <span className="text-white font-semibold tabular-nums" data-testid="sotw-countdown-value">
+              <span className="text-ink font-semibold tabular-nums" data-testid="sotw-countdown-value">
                 {countdownLabel}
               </span>
             </div>
@@ -77,7 +77,7 @@ export default function ShopOfTheWeek() {
             <Link
               to={`/makers/${m.slug}`}
               data-testid="sotw-maker-card"
-              className="group block relative aspect-[16/10] lg:aspect-[16/11] overflow-hidden border border-[#262626] hover:border-[#ff4500] transition"
+              className="group block relative aspect-[16/10] lg:aspect-[16/11] overflow-hidden border border-line hover:border-brand transition"
             >
               <img
                 src={banner}
@@ -88,37 +88,37 @@ export default function ShopOfTheWeek() {
               <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent" />
 
               <div className="absolute top-5 right-5 flex items-center gap-2">
-                <span className="font-mono text-[10px] uppercase tracking-[0.28em] px-2.5 py-1 bg-[#ff4500] text-black border border-[#ff4500]">
+                <span className="font-mono text-[10px] uppercase tracking-[0.28em] px-2.5 py-1 bg-brand text-ink border border-brand">
                   ★ Plus
                 </span>
               </div>
 
               <div className="absolute bottom-0 left-0 right-0 p-6 md:p-10">
                 <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 bg-[#1a1a1a] border border-[#ff4500] flex items-center justify-center font-mono text-[11px] text-[#ff4500]">
+                  <div className="w-10 h-10 bg-surface border border-brand flex items-center justify-center font-mono text-[11px] text-brand">
                     {m.initials}
                   </div>
-                  <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#a3a3a3]">
+                  <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-ink-muted">
                     {m.location}
                   </div>
                 </div>
-                <h2 className="font-display text-4xl md:text-6xl lg:text-7xl leading-[0.92] text-white mb-3 group-hover:text-[#ff4500] transition">
+                <h2 className="font-display text-4xl md:text-6xl lg:text-7xl leading-[0.92] text-ink mb-3 group-hover:text-brand transition">
                   {m.name}
                 </h2>
                 {m.bio && (
-                  <p className="font-mono text-xs md:text-sm text-[#d4d4d4] max-w-xl leading-relaxed line-clamp-2 md:line-clamp-3">
+                  <p className="font-mono text-xs md:text-sm text-ink max-w-xl leading-relaxed line-clamp-2 md:line-clamp-3">
                     {m.bio}
                   </p>
                 )}
                 <div className="mt-5 flex items-center gap-4 flex-wrap">
-                  <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] inline-flex items-center gap-2">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand inline-flex items-center gap-2">
                     Visit shop <ArrowUpRight size={12} />
                   </span>
                   {(m.techniques || []).slice(0, 3).map((t) => (
                     <span key={t} className="tag !text-[9px] !py-0.5">{t}</span>
                   ))}
                   {data.weekly_gmv > 0 && (
-                    <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+                    <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
                       · ${Math.round(data.weekly_gmv).toLocaleString()} sold this month
                     </span>
                   )}
@@ -140,14 +140,14 @@ export default function ShopOfTheWeek() {
               <Link
                 to={`/shop?maker=${m.slug}`}
                 data-testid="sotw-shop-all"
-                className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500]"
+                className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand"
               >
                 Shop all →
               </Link>
             </div>
 
             {products.length === 0 && (
-              <div className="font-mono text-xs text-[#525252] py-8">
+              <div className="font-mono text-xs text-ink-muted py-8">
                 Fresh listings dropping soon.
               </div>
             )}
@@ -157,9 +157,9 @@ export default function ShopOfTheWeek() {
                 key={p.id || p.slug}
                 to={`/shop/${p.slug}`}
                 data-testid={`sotw-product-${p.slug}`}
-                className="group flex items-stretch gap-4 bg-[#121212] border border-[#262626] hover:border-[#ff4500] transition overflow-hidden"
+                className="group flex items-stretch gap-4 bg-surface border border-line hover:border-brand transition overflow-hidden"
               >
-                <div className="w-28 h-28 md:w-32 md:h-32 shrink-0 overflow-hidden border-r border-[#262626]">
+                <div className="w-28 h-28 md:w-32 md:h-32 shrink-0 overflow-hidden border-r border-line">
                   <img
                     src={p.images?.[0]}
                     alt={p.title}
@@ -168,16 +168,16 @@ export default function ShopOfTheWeek() {
                 </div>
                 <div className="flex-1 flex flex-col justify-between py-3 pr-4">
                   <div>
-                    <div className="font-mono text-[9px] uppercase tracking-[0.25em] text-[#a3a3a3] mb-1">
+                    <div className="font-mono text-[9px] uppercase tracking-[0.25em] text-ink-muted mb-1">
                       #{String(i + 1).padStart(2, "0")} · {p.category}
                     </div>
-                    <div className="font-display text-lg md:text-xl leading-tight group-hover:text-[#ff4500] transition line-clamp-2">
+                    <div className="font-display text-lg md:text-xl leading-tight group-hover:text-brand transition line-clamp-2">
                       {p.title}
                     </div>
                   </div>
                   <div className="flex items-center justify-between mt-2">
-                    <div className="font-display text-2xl text-[#ff4500]">${p.price}</div>
-                    <ArrowUpRight size={16} className="text-[#525252] group-hover:text-[#ff4500] transition" />
+                    <div className="font-display text-2xl text-brand">${p.price}</div>
+                    <ArrowUpRight size={16} className="text-ink-muted group-hover:text-brand transition" />
                   </div>
                 </div>
               </Link>

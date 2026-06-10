@@ -48,11 +48,11 @@ export default function CacheStatsCard() {
     hitRatePct >= 70 ? "text-emerald-400"
     : hitRatePct >= 40 ? "text-cyan-400"
     : hitRatePct >= 15 ? "text-amber-400"
-    : "text-[#a3a3a3]";
+    : "text-ink-muted";
 
   return (
     <div
-      className="border border-[#262626] bg-[#0a0a0a] p-4 space-y-4"
+      className="border border-line bg-paper p-4 space-y-4"
       data-testid="cache-stats-card"
     >
       <div className="flex items-start gap-3">
@@ -61,7 +61,7 @@ export default function CacheStatsCard() {
         </div>
         <div className="flex-1 min-w-0">
           <h3 className="font-display text-lg md:text-xl mb-1">Products Cache</h3>
-          <p className="font-mono text-[10px] text-[#a3a3a3] leading-relaxed">
+          <p className="font-mono text-[10px] text-ink-muted leading-relaxed">
             In-process TTL cache on <code className="text-cyan-300">/api/products</code>.
             Resets on backend restart.
           </p>
@@ -69,7 +69,7 @@ export default function CacheStatsCard() {
         <button
           onClick={load}
           disabled={loading}
-          className="px-2 py-1 border border-[#262626] hover:border-[#525252] text-[#a3a3a3] hover:text-[#e5e5e5] font-mono text-[9px] uppercase tracking-[0.22em] inline-flex items-center gap-1 disabled:opacity-40 shrink-0"
+          className="px-2 py-1 border border-line hover:border-ink-muted text-ink-muted hover:text-ink font-mono text-[9px] uppercase tracking-[0.22em] inline-flex items-center gap-1 disabled:opacity-40 shrink-0"
           data-testid="cache-stats-refresh"
         >
           <RefreshCw size={10} className={loading ? "animate-spin" : ""} /> Refresh
@@ -95,12 +95,12 @@ export default function CacheStatsCard() {
 
       {/* Entries table — collapsible to keep the tile compact. */}
       {data?.entries?.length > 0 && (
-        <details className="border border-[#262626] bg-[#080808] px-3 py-2">
-          <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#e5e5e5]">
+        <details className="border border-line bg-[#080808] px-3 py-2">
+          <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-ink">
             ◆ Cached entries ({data.entries.length})
           </summary>
           <table className="w-full font-mono text-[10px] mt-2">
-            <thead className="text-[9px] uppercase tracking-[0.22em] text-[#737373]">
+            <thead className="text-[9px] uppercase tracking-[0.22em] text-ink-muted">
               <tr>
                 <th className="text-left py-1.5">Key (category·technique·q·featured·example·maker)</th>
                 <th className="text-right py-1.5">Size</th>
@@ -109,10 +109,10 @@ export default function CacheStatsCard() {
             </thead>
             <tbody>
               {data.entries.map((e, i) => (
-                <tr key={i} className="border-t border-[#1a1a1a]">
-                  <td className="py-1 text-[#a3a3a3] truncate max-w-[280px]" title={e.key}>{e.key}</td>
-                  <td className="py-1 text-right text-[#e5e5e5]">{e.size}</td>
-                  <td className="py-1 text-right text-[#a3a3a3]">{e.age_s.toFixed(1)}s</td>
+                <tr key={i} className="border-t border-line">
+                  <td className="py-1 text-ink-muted truncate max-w-[280px]" title={e.key}>{e.key}</td>
+                  <td className="py-1 text-right text-ink">{e.size}</td>
+                  <td className="py-1 text-right text-ink-muted">{e.age_s.toFixed(1)}s</td>
                 </tr>
               ))}
             </tbody>
@@ -125,10 +125,10 @@ export default function CacheStatsCard() {
 
 function Kpi({ label, value, sub, accent }) {
   return (
-    <div className="border border-[#1f1f1f] px-3 py-2">
-      <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#737373]">{label}</div>
-      <div className={`font-display text-xl mt-0.5 ${accent || "text-[#e5e5e5]"}`}>{value}</div>
-      {sub && <div className="font-mono text-[9px] text-[#525252] mt-0.5">{sub}</div>}
+    <div className="border border-line px-3 py-2">
+      <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted">{label}</div>
+      <div className={`font-display text-xl mt-0.5 ${accent || "text-ink"}`}>{value}</div>
+      {sub && <div className="font-mono text-[9px] text-ink-muted mt-0.5">{sub}</div>}
     </div>
   );
 }

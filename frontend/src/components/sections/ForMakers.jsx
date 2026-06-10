@@ -13,7 +13,7 @@ const perks = [
 
 export default function ForMakers() {
   return (
-    <section id="makers" className="relative w-full bg-[#ff4500] text-black overflow-hidden">
+    <section id="makers" className="relative w-full bg-brand text-ink overflow-hidden">
       {/* Diagonal noise */}
       <div className="absolute inset-0 mix-blend-multiply opacity-20 pointer-events-none"
         style={{
@@ -27,15 +27,15 @@ export default function ForMakers() {
           whileInView={{ opacity: 1, x: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.9 }}
-          className="md:col-span-7 relative overflow-hidden border border-black"
+          className="md:col-span-7 relative overflow-hidden border border-line"
         >
           <div className="aspect-[4/5] relative">
             <img src={MAKER_IMG} alt="A maker in their workshop" className="absolute inset-0 w-full h-full object-cover" />
-            <div className="absolute inset-0 bg-black/20 mix-blend-multiply" />
-            <div className="absolute top-5 left-5 tag !text-black !border-black bg-[#ff4500]">
+            <div className="absolute inset-0 bg-paper/20 mix-blend-multiply" />
+            <div className="absolute top-5 left-5 tag !text-ink !border-line bg-brand">
               FOR MAKERS
             </div>
-            <div className="absolute bottom-5 left-5 right-5 flex items-end justify-between font-mono text-[11px] uppercase tracking-[0.25em] text-white">
+            <div className="absolute bottom-5 left-5 right-5 flex items-end justify-between font-mono text-[11px] uppercase tracking-[0.25em] text-ink">
               <span>CNC Garage Builders</span>
               <span>Approved · Vetted · Paid</span>
             </div>
@@ -68,12 +68,12 @@ export default function ForMakers() {
             </p>
           </div>
 
-          <ul className="mt-10 grid grid-cols-1 sm:grid-cols-2 gap-0 border-t border-black/30">
+          <ul className="mt-10 grid grid-cols-1 sm:grid-cols-2 gap-0 border-t border-line/30">
             {perks.map((p) => (
-              <li key={p.k} className="border-b border-black/30 sm:[&:nth-child(odd)]:border-r py-5">
+              <li key={p.k} className="border-b border-line/30 sm:[&:nth-child(odd)]:border-r py-5">
                 <div className="font-mono text-[10px] tracking-[0.25em]">{p.k}</div>
                 <div className="font-display text-xl md:text-2xl mt-1">{p.t}</div>
-                <div className="font-mono text-[11px] uppercase tracking-[0.18em] mt-2 text-black/70">
+                <div className="font-mono text-[11px] uppercase tracking-[0.18em] mt-2 text-ink/70">
                   {p.d}
                 </div>
               </li>
@@ -83,14 +83,14 @@ export default function ForMakers() {
           <div className="mt-10 flex flex-wrap gap-4">
             <a
               href="/apply"
-              className="btn-industrial bg-black text-white border-black hover:bg-white hover:text-black hover:border-black"
+              className="btn-industrial bg-paper text-ink border-line hover:bg-white hover:text-ink hover:border-line"
               data-testid="makers-apply-btn"
             >
               Apply as a Maker →
             </a>
             <a
               href="#how-it-works"
-              className="btn-industrial border-black text-black hover:bg-black hover:text-[#ff4500] hover:border-black"
+              className="btn-industrial border-line text-ink hover:bg-paper hover:text-brand hover:border-line"
               data-testid="makers-how-it-works"
             >
               How it works

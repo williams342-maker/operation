@@ -129,22 +129,22 @@ export default function PushNotificationsTab() {
       {confirmModal}
 
       <div>
-        <h3 className="font-display text-2xl text-[#e5e5e5]">Push notifications</h3>
-        <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-2xl leading-relaxed">
+        <h3 className="font-display text-2xl text-ink">Push notifications</h3>
+        <p className="font-mono text-xs text-ink-muted mt-2 max-w-2xl leading-relaxed">
           Web Push via VAPID. Visitors opt-in from buyer/maker dashboards. Use this tab to
           broadcast to a cohort, view subscriber counts, and inspect send history.
         </p>
       </div>
 
       {/* This device */}
-      <div className="border border-[#262626] p-5 flex flex-wrap items-center gap-3" data-testid="push-self-card">
+      <div className="border border-line p-5 flex flex-wrap items-center gap-3" data-testid="push-self-card">
         <div className="flex-1 min-w-[260px]">
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">This device</div>
-          <div className="font-mono text-sm text-[#e5e5e5] mt-1">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">This device</div>
+          <div className="font-mono text-sm text-ink mt-1">
             {!supported && <span className="text-amber-400">Browser does not support web push.</span>}
             {supported && (mySub
               ? <span className="text-emerald-400">◆ Subscribed — you'll receive admin alerts here.</span>
-              : <span className="text-[#a3a3a3]">Not subscribed yet.</span>
+              : <span className="text-ink-muted">Not subscribed yet.</span>
             )}
           </div>
         </div>
@@ -153,7 +153,7 @@ export default function PushNotificationsTab() {
             onClick={handleEnable}
             disabled={busy}
             data-testid="push-enable-btn"
-            className="px-4 py-2 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-xs uppercase tracking-[0.22em] transition disabled:opacity-50"
+            className="px-4 py-2 border border-line hover:border-brand hover:text-brand font-mono text-xs uppercase tracking-[0.22em] transition disabled:opacity-50"
           >
             Enable browser notifications
           </button>
@@ -164,7 +164,7 @@ export default function PushNotificationsTab() {
               onClick={handleTest}
               disabled={busy}
               data-testid="push-test-btn"
-              className="px-4 py-2 border border-[#262626] hover:border-sky-500 hover:text-sky-400 font-mono text-xs uppercase tracking-[0.22em] transition disabled:opacity-50"
+              className="px-4 py-2 border border-line hover:border-sky-500 hover:text-sky-400 font-mono text-xs uppercase tracking-[0.22em] transition disabled:opacity-50"
             >
               Send test push
             </button>
@@ -172,7 +172,7 @@ export default function PushNotificationsTab() {
               onClick={handleDisable}
               disabled={busy}
               data-testid="push-disable-btn"
-              className="px-4 py-2 border border-[#262626] hover:border-rose-500 hover:text-rose-400 font-mono text-xs uppercase tracking-[0.22em] transition disabled:opacity-50"
+              className="px-4 py-2 border border-line hover:border-rose-500 hover:text-rose-400 font-mono text-xs uppercase tracking-[0.22em] transition disabled:opacity-50"
             >
               Disable
             </button>
@@ -183,9 +183,9 @@ export default function PushNotificationsTab() {
       {/* Stats grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3" data-testid="push-stats-grid">
         {AUDIENCES.map((a) => (
-          <div key={a.id} className="border border-[#262626] p-4">
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">{a.label}</div>
-            <div className="font-display text-3xl text-[#e5e5e5] mt-2" data-testid={`push-count-${a.id}`}>
+          <div key={a.id} className="border border-line p-4">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">{a.label}</div>
+            <div className="font-display text-3xl text-ink mt-2" data-testid={`push-count-${a.id}`}>
               {counts[a.id] ?? 0}
             </div>
           </div>
@@ -193,9 +193,9 @@ export default function PushNotificationsTab() {
       </div>
 
       {/* Compose */}
-      <div className="border border-[#262626] p-5 space-y-4">
+      <div className="border border-line p-5 space-y-4">
         <div>
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">Audience</div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">Audience</div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             {AUDIENCES.map((a) => (
               <button
@@ -204,32 +204,32 @@ export default function PushNotificationsTab() {
                 data-testid={`push-audience-${a.id}`}
                 className={`text-left border p-3 transition ${
                   audience === a.id
-                    ? "border-[#ff4500] bg-[#ff4500]/5"
-                    : "border-[#262626] hover:border-[#525252]"
+                    ? "border-brand bg-brand/5"
+                    : "border-line hover:border-ink-muted"
                 }`}
               >
-                <div className="font-mono text-xs text-[#e5e5e5] uppercase tracking-[0.22em]">
-                  {a.label} <span className="text-[#a3a3a3]">· {counts[a.id] ?? 0}</span>
+                <div className="font-mono text-xs text-ink uppercase tracking-[0.22em]">
+                  {a.label} <span className="text-ink-muted">· {counts[a.id] ?? 0}</span>
                 </div>
-                <div className="font-mono text-[10px] text-[#a3a3a3] mt-1">{a.hint}</div>
+                <div className="font-mono text-[10px] text-ink-muted mt-1">{a.hint}</div>
               </button>
             ))}
           </div>
         </div>
 
         <div>
-          <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Title (max 120)</label>
+          <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Title (max 120)</label>
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             maxLength={120}
             placeholder="New drop is live"
             data-testid="push-title"
-            className="w-full mt-2 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-display text-xl text-[#e5e5e5]"
+            className="w-full mt-2 bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-display text-xl text-ink"
           />
         </div>
         <div>
-          <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Body (max 400)</label>
+          <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Body (max 400)</label>
           <textarea
             value={body}
             onChange={(e) => setBody(e.target.value)}
@@ -237,18 +237,18 @@ export default function PushNotificationsTab() {
             maxLength={400}
             placeholder="50 new pieces from vetted makers — shop the drop before they're gone."
             data-testid="push-body"
-            className="w-full mt-2 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-3 font-mono text-sm text-[#e5e5e5] leading-relaxed resize-none"
+            className="w-full mt-2 bg-transparent border border-line focus:border-brand outline-none px-3 py-3 font-mono text-sm text-ink leading-relaxed resize-none"
           />
-          <div className="font-mono text-[10px] text-[#525252] mt-1">{body.length}/400</div>
+          <div className="font-mono text-[10px] text-ink-muted mt-1">{body.length}/400</div>
         </div>
         <div>
-          <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Click-through URL</label>
+          <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Click-through URL</label>
           <input
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             placeholder="/shop"
             data-testid="push-url"
-            className="w-full mt-2 bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-sm text-[#e5e5e5]"
+            className="w-full mt-2 bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm text-ink"
           />
         </div>
 
@@ -266,28 +266,28 @@ export default function PushNotificationsTab() {
 
       {/* History */}
       <div>
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-3">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-3">
           Broadcast history
         </div>
         {history.length === 0 ? (
-          <div className="border border-[#262626] p-5 font-mono text-xs text-[#a3a3a3]">
+          <div className="border border-line p-5 font-mono text-xs text-ink-muted">
             No broadcasts yet.
           </div>
         ) : (
-          <div className="border border-[#262626]" data-testid="push-history">
+          <div className="border border-line" data-testid="push-history">
             {history.map((h) => (
-              <div key={h.id} className="border-b border-[#262626] last:border-b-0 p-4 flex flex-wrap gap-3">
+              <div key={h.id} className="border-b border-line last:border-b-0 p-4 flex flex-wrap gap-3">
                 <div className="flex-1 min-w-[260px]">
-                  <div className="font-display text-lg text-[#e5e5e5]">{h.title}</div>
-                  <div className="font-mono text-xs text-[#a3a3a3] mt-1 line-clamp-2">{h.body}</div>
-                  <div className="font-mono text-[10px] text-[#525252] mt-2">
+                  <div className="font-display text-lg text-ink">{h.title}</div>
+                  <div className="font-mono text-xs text-ink-muted mt-1 line-clamp-2">{h.body}</div>
+                  <div className="font-mono text-[10px] text-ink-muted mt-2">
                     {h.audience.toUpperCase()} · {new Date(h.created_at).toLocaleString()} · by {h.actor || "—"}
                   </div>
                 </div>
                 <div className="font-mono text-xs text-right">
                   <div className="text-emerald-400">{h.sent} sent</div>
                   {h.failed > 0 && <div className="text-amber-400">{h.failed} failed</div>}
-                  {h.pruned > 0 && <div className="text-[#525252]">{h.pruned} pruned</div>}
+                  {h.pruned > 0 && <div className="text-ink-muted">{h.pruned} pruned</div>}
                 </div>
               </div>
             ))}

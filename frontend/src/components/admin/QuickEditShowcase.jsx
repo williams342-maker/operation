@@ -64,12 +64,12 @@ export default function QuickEditShowcase({ example, onClose, onSaved }) {
 
   return (
     <div
-      className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 bg-paper/80 z-50 flex items-center justify-center p-4"
       onClick={onClose}
       data-testid="quick-edit-showcase-modal"
     >
       <div
-        className="bg-[#0a0a0a] border border-[#262626] max-w-xl w-full p-6 max-h-[90vh] overflow-y-auto"
+        className="bg-paper border border-line max-w-xl w-full p-6 max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between mb-4">
@@ -77,16 +77,16 @@ export default function QuickEditShowcase({ example, onClose, onSaved }) {
             <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-emerald-300 mb-1">
               Quick Edit · Showcase Post
             </div>
-            <div className="font-display text-xl text-[#f5f5f5] truncate">
+            <div className="font-display text-xl text-ink truncate">
               {example.title || example.slug}
             </div>
-            <div className="font-mono text-[10px] text-[#737373] mt-1 truncate">
+            <div className="font-mono text-[10px] text-ink-muted mt-1 truncate">
               maker: {example.maker_slug || "—"} · id: {example.id}
             </div>
           </div>
           <button
             onClick={onClose}
-            className="text-[#737373] hover:text-[#f5f5f5] font-mono text-lg leading-none shrink-0 ml-3"
+            className="text-ink-muted hover:text-ink font-mono text-lg leading-none shrink-0 ml-3"
             data-testid="quick-edit-showcase-close"
             aria-label="Close"
           >
@@ -96,7 +96,7 @@ export default function QuickEditShowcase({ example, onClose, onSaved }) {
 
         <div className="space-y-3">
           <label className="block">
-            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
               Title
             </span>
             <input
@@ -104,13 +104,13 @@ export default function QuickEditShowcase({ example, onClose, onSaved }) {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Untitled"
-              className="mt-1 w-full bg-[#050505] border border-[#262626] focus:border-emerald-400 px-3 py-2 font-mono text-sm text-[#f5f5f5] outline-none"
+              className="mt-1 w-full bg-paper border border-line focus:border-emerald-400 px-3 py-2 font-mono text-sm text-ink outline-none"
               data-testid="quick-edit-showcase-title"
             />
           </label>
 
           <label className="block">
-            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
               Image URL <span className="text-red-400">{example.blockers.includes("missing_image") && "* missing"}</span>
             </span>
             <input
@@ -118,21 +118,21 @@ export default function QuickEditShowcase({ example, onClose, onSaved }) {
               value={imageUrl}
               onChange={(e) => setImageUrl(e.target.value)}
               placeholder="https://…/photo.jpg"
-              className="mt-1 w-full bg-[#050505] border border-[#262626] focus:border-emerald-400 px-3 py-2 font-mono text-sm text-[#f5f5f5] outline-none"
+              className="mt-1 w-full bg-paper border border-line focus:border-emerald-400 px-3 py-2 font-mono text-sm text-ink outline-none"
               data-testid="quick-edit-showcase-image-url"
             />
             {imageUrl && (
               <img
                 src={imageUrl}
                 alt="Preview"
-                className="mt-2 max-h-32 border border-[#262626]"
+                className="mt-2 max-h-32 border border-line"
                 onError={(e) => { e.target.style.display = "none"; }}
               />
             )}
           </label>
 
           <label className="block">
-            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
               Caption
             </span>
             <textarea
@@ -140,7 +140,7 @@ export default function QuickEditShowcase({ example, onClose, onSaved }) {
               onChange={(e) => setCaption(e.target.value)}
               placeholder="Describe the build, materials, or process…"
               rows={3}
-              className="mt-1 w-full bg-[#050505] border border-[#262626] focus:border-emerald-400 px-3 py-2 font-mono text-sm text-[#f5f5f5] outline-none resize-none"
+              className="mt-1 w-full bg-paper border border-line focus:border-emerald-400 px-3 py-2 font-mono text-sm text-ink outline-none resize-none"
               data-testid="quick-edit-showcase-caption"
             />
           </label>
@@ -156,7 +156,7 @@ export default function QuickEditShowcase({ example, onClose, onSaved }) {
         <div className="flex justify-end gap-2 mt-5">
           <button
             onClick={onClose}
-            className="px-3 py-2 border border-[#262626] hover:border-[#525252] font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]"
+            className="px-3 py-2 border border-line hover:border-ink-muted font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted"
             data-testid="quick-edit-showcase-cancel"
           >
             Cancel

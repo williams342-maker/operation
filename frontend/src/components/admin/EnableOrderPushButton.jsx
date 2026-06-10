@@ -123,7 +123,7 @@ export default function EnableOrderPushButton() {
       onClick={enable}
       disabled={busy}
       data-testid="order-push-enable-btn"
-      className="inline-flex items-center gap-2 px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50 transition-colors"
+      className="inline-flex items-center gap-2 px-3 py-1.5 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50 transition-colors"
       title="Send a 💰 ping to this device when a real order lands"
     >
       <Bell size={12} />

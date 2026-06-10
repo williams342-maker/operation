@@ -86,22 +86,22 @@ export default function UsersTab() {
 
   return (
     <div data-testid="users-tab" className="space-y-4">
-      <div className="flex flex-col md:flex-row md:items-center gap-3 pb-4 border-b border-[#262626]">
+      <div className="flex flex-col md:flex-row md:items-center gap-3 pb-4 border-b border-line">
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") refresh(); }}
           placeholder="Search email, name, or user_id…"
-          className="flex-1 bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
+          className="flex-1 bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink"
           data-testid="users-search-input"
         />
-        <div className="flex border border-[#262626]" role="tablist">
+        <div className="flex border border-line" role="tablist">
           {["all", "active", "frozen", "banned"].map((s) => (
             <button
               key={s}
               onClick={() => { setStatus(s); refresh(q, s); }}
-              className={`px-3 py-2 font-mono text-[10px] uppercase tracking-[0.22em] transition border-r border-[#262626] last:border-r-0 ${
-                status === s ? "bg-[#ff4500] text-[#0a0a0a]" : "text-[#a3a3a3] hover:text-[#e5e5e5]"
+              className={`px-3 py-2 font-mono text-[10px] uppercase tracking-[0.22em] transition border-r border-line last:border-r-0 ${
+                status === s ? "bg-brand text-[#0a0a0a]" : "text-ink-muted hover:text-ink"
               }`}
               data-testid={`users-filter-${s}`}
             >
@@ -111,7 +111,7 @@ export default function UsersTab() {
         </div>
         <button
           onClick={() => refresh()}
-          className="px-3 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em]"
+          className="px-3 py-2 border border-line hover:border-brand font-mono text-[10px] uppercase tracking-[0.22em]"
           data-testid="users-refresh-btn"
         >
           Refresh
@@ -125,12 +125,12 @@ export default function UsersTab() {
       {loading ? (
         <div data-testid="users-loading"><RowsSkeleton count={6} /></div>
       ) : !users.length ? (
-        <p className="font-mono text-sm text-[#a3a3a3]" data-testid="users-empty">
+        <p className="font-mono text-sm text-ink-muted" data-testid="users-empty">
           No matching users.
         </p>
       ) : (
         <div className="space-y-2">
-          <p className="font-mono text-xs text-[#a3a3a3]" data-testid="users-count">
+          <p className="font-mono text-xs text-ink-muted" data-testid="users-count">
             {users.length} {status === "all" ? "members" : status}
           </p>
           {users.map((u) => (
@@ -173,13 +173,13 @@ function UserRow({ user: u, busy, onAction }) {
     : "bg-emerald-900/30 text-emerald-300 border-emerald-800";
   return (
     <div
-      className="border border-[#262626] hover:border-[#ff4500] transition p-3 flex flex-col md:flex-row md:items-center gap-3"
+      className="border border-line hover:border-brand transition p-3 flex flex-col md:flex-row md:items-center gap-3"
       data-testid={`user-${u.user_id}`}
     >
       {u.picture ? (
-        <img src={u.picture} alt="" className="w-10 h-10 rounded-full object-cover border border-[#262626]" />
+        <img src={u.picture} alt="" className="w-10 h-10 rounded-full object-cover border border-line" />
       ) : (
-        <div className="w-10 h-10 rounded-full bg-[#121212] border border-[#262626] flex items-center justify-center font-mono text-xs text-[#a3a3a3] shrink-0">
+        <div className="w-10 h-10 rounded-full bg-surface border border-line flex items-center justify-center font-mono text-xs text-ink-muted shrink-0">
           {(u.name || u.email || "?")[0]?.toUpperCase()}
         </div>
       )}
@@ -193,7 +193,7 @@ function UserRow({ user: u, busy, onAction }) {
             {modStatus}
           </span>
         </div>
-        <a href={`mailto:${u.email}`} className="font-mono text-[10px] text-[#a3a3a3] uppercase tracking-[0.22em] hover:text-[#ff4500]">
+        <a href={`mailto:${u.email}`} className="font-mono text-[10px] text-ink-muted uppercase tracking-[0.22em] hover:text-brand">
           {u.email}
         </a>
         {u.moderation_reason && (
@@ -202,7 +202,7 @@ function UserRow({ user: u, busy, onAction }) {
           </div>
         )}
       </div>
-      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252] md:text-right shrink-0">
+      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted md:text-right shrink-0">
         <div>{u.thread_count || 0} threads · {u.reply_count || 0} replies</div>
         <div>joined {(u.created_at || "").slice(0, 10)}</div>
         <div>last seen {(u.last_seen || u.created_at || "").slice(0, 10)}</div>
@@ -270,7 +270,7 @@ function UserRow({ user: u, busy, onAction }) {
         <button
           disabled={busy}
           onClick={() => onAction("delete")}
-          className="px-2 py-1 border border-[#262626] hover:border-red-500 hover:text-red-300 font-mono text-[10px] uppercase tracking-[0.18em] disabled:opacity-50"
+          className="px-2 py-1 border border-line hover:border-red-500 hover:text-red-300 font-mono text-[10px] uppercase tracking-[0.18em] disabled:opacity-50"
           data-testid={`user-delete-${u.user_id}`}
         >
           Delete
@@ -299,14 +299,14 @@ function ModerationConfirmModal({ user, action, onCancel, onConfirm }) {
     delete: "This permanently removes the user record AND scrubs every thread, reply, and chat message they ever posted. Cannot be undone.",
   };
   const ctaClass = isDelete || action === "ban"
-    ? "bg-red-600 hover:bg-red-500 text-white border-red-700"
+    ? "bg-red-600 hover:bg-red-500 text-ink border-red-700"
     : action === "freeze"
     ? "bg-yellow-500 hover:bg-yellow-400 text-[#0a0a0a] border-yellow-600"
-    : "bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-700";
+    : "bg-emerald-600 hover:bg-emerald-500 text-ink border-emerald-700";
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 bg-paper/80 backdrop-blur-sm flex items-center justify-center p-4"
       onClick={onCancel}
       data-testid="user-mod-modal"
     >
@@ -315,34 +315,34 @@ function ModerationConfirmModal({ user, action, onCancel, onConfirm }) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="user-mod-headline"
-        className="bg-[#0a0a0a] border border-[#262626] max-w-md w-full p-6 space-y-4"
+        className="bg-paper border border-line max-w-md w-full p-6 space-y-4"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500]">
+        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand">
           ◆ Moderation
         </div>
         <h3 id="user-mod-headline" className="font-display text-2xl uppercase">{headlines[action]}</h3>
-        <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed">
+        <p className="font-mono text-xs text-ink-muted leading-relaxed">
           {blurbs[action]}
         </p>
-        <div className="border border-[#262626] p-3 space-y-1">
+        <div className="border border-line p-3 space-y-1">
           <div className="font-display text-base truncate">{user.name || user.email.split("@")[0]}</div>
-          <div className="font-mono text-[10px] text-[#a3a3a3] truncate">{user.email}</div>
-          <div className="font-mono text-[10px] text-[#525252]">
+          <div className="font-mono text-[10px] text-ink-muted truncate">{user.email}</div>
+          <div className="font-mono text-[10px] text-ink-muted">
             {user.thread_count || 0} threads · {user.reply_count || 0} replies
           </div>
         </div>
         {requiresReason && (
           <label className="block">
-            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
-              Reason {requiresReason && <span className="text-[#ff4500]">(required)</span>}
+            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
+              Reason {requiresReason && <span className="text-brand">(required)</span>}
             </span>
             <textarea
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               rows={3}
               placeholder={action === "ban" ? "e.g. Repeat policy violation — harassment in #showcase" : "e.g. Spam reports — temporary timeout"}
-              className="mt-1 w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
+              className="mt-1 w-full bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink"
               data-testid="user-mod-reason"
               autoFocus
             />
@@ -351,7 +351,7 @@ function ModerationConfirmModal({ user, action, onCancel, onConfirm }) {
         <div className="flex gap-2 justify-end pt-2">
           <button
             onClick={onCancel}
-            className="px-4 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[11px] uppercase tracking-[0.22em]"
+            className="px-4 py-2 border border-line hover:border-brand font-mono text-[11px] uppercase tracking-[0.22em]"
             data-testid="user-mod-cancel"
           >
             Cancel

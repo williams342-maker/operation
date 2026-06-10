@@ -32,17 +32,17 @@ export default function MakerAnalyticsTab() {
   return (
     <div className="space-y-8" data-testid="maker-analytics-tab">
       <div className="flex flex-wrap gap-2 items-center">
-        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mr-2">
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mr-2">
           ◆ Maker:
         </span>
         <select
           value={selectedSlug}
           onChange={(e) => setSelectedSlug(e.target.value)}
-          className="bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
+          className="bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink"
           data-testid="maker-analytics-select"
         >
           {makers.map((m) => (
-            <option key={m.slug} value={m.slug} className="bg-[#0a0a0a]">
+            <option key={m.slug} value={m.slug} className="bg-paper">
               {m.name} · {m.slug}
             </option>
           ))}
@@ -60,12 +60,12 @@ export default function MakerAnalyticsTab() {
       {data && !loading && (
         <>
           {/* Header */}
-          <div className="border border-[#262626] p-6">
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">
+          <div className="border border-line p-6">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">
               ◆ {data.maker.slug}
             </div>
             <h3 className="font-display text-3xl mt-2 uppercase">{data.maker.name}.</h3>
-            <p className="font-mono text-xs text-[#a3a3a3] mt-2">
+            <p className="font-mono text-xs text-ink-muted mt-2">
               {data.maker.email || "no email on file"} · {data.maker.location || "—"}
             </p>
             <div className="mt-4 flex flex-wrap gap-3 items-center">
@@ -74,7 +74,7 @@ export default function MakerAnalyticsTab() {
                   ? "border-emerald-400 text-emerald-400"
                   : data.maker.stripe_account_id
                     ? "border-yellow-400 text-yellow-400"
-                    : "border-[#525252] text-[#525252]"
+                    : "border-[#525252] text-ink-muted"
               }`} data-testid="maker-an-stripe-status">
                 {data.maker.stripe_payouts_enabled
                   ? "Stripe payouts active"
@@ -83,7 +83,7 @@ export default function MakerAnalyticsTab() {
                     : "No Stripe account"}
               </span>
               {data.maker.stripe_account_id && (
-                <span className="font-mono text-[10px] text-[#525252]">
+                <span className="font-mono text-[10px] text-ink-muted">
                   {data.maker.stripe_account_id}
                 </span>
               )}
@@ -97,7 +97,7 @@ export default function MakerAnalyticsTab() {
             <Stat label="Last 7d" value={`$${data.gross_revenue_7d.toFixed(0)}`} testId="man-7d" />
             <Stat label="Paid Orders" value={data.paid_orders_count} testId="man-orders" />
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-6 border-t border-[#262626]">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-6 border-t border-line">
             <Stat label="Maker Share" value={`$${data.maker_share_gross.toFixed(0)}`} testId="man-share" />
             <Stat label="After Refunds" value={`$${data.maker_share_after_refunds.toFixed(0)}`} testId="man-share-net" />
             <Stat label="Refunded" value={`$${data.refunded_amount.toFixed(0)}`} testId="man-refunded" />
@@ -110,26 +110,26 @@ export default function MakerAnalyticsTab() {
           )}
 
           {/* Top products */}
-          <div className="border border-[#262626] p-6">
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-4">
+          <div className="border border-line p-6">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-4">
               ◆ Top Products
             </div>
             {data.top_products.length === 0 ? (
               <div
-                className="bg-[#0a0a0a] border border-[#1a1a1a] p-4 text-center"
+                className="bg-paper border border-line p-4 text-center"
                 data-testid="man-top-products-empty"
               >
-                <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#525252] mb-1">◇ Nothing yet</div>
-                <p className="font-mono text-[11px] text-[#a3a3a3]">
+                <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-ink-muted mb-1">◇ Nothing yet</div>
+                <p className="font-mono text-[11px] text-ink-muted">
                   Once paid orders land for this maker, their best-selling listings will rank here.
                 </p>
               </div>
             ) : (
-              <ul className="divide-y divide-[#262626]" data-testid="man-top-products">
+              <ul className="divide-y divide-line" data-testid="man-top-products">
                 {data.top_products.map((p) => (
                   <li key={p.slug} className="py-2 flex items-center justify-between gap-3">
-                    <span className="font-mono text-xs text-[#e5e5e5] truncate">{p.title}</span>
-                    <span className="font-mono text-[10px] text-[#a3a3a3]">
+                    <span className="font-mono text-xs text-ink truncate">{p.title}</span>
+                    <span className="font-mono text-[10px] text-ink-muted">
                       × {p.units} · ${p.revenue.toFixed(0)}
                     </span>
                   </li>
@@ -139,8 +139,8 @@ export default function MakerAnalyticsTab() {
           </div>
 
           {/* Payouts summary + recent */}
-          <div className="border border-[#262626] p-6">
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-4">
+          <div className="border border-line p-6">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-4">
               ◆ Payouts
             </div>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6" data-testid="man-payout-totals">
@@ -151,25 +151,25 @@ export default function MakerAnalyticsTab() {
               <Stat label="Cancelled" value={`$${data.payout_totals.cancelled.toFixed(0)}`} testId="man-payout-cancelled" />
             </div>
             {data.recent_payouts.length === 0 ? (
-              <p className="font-mono text-xs text-[#525252]" data-testid="man-recent-payouts-empty">
+              <p className="font-mono text-xs text-ink-muted" data-testid="man-recent-payouts-empty">
                 No payouts yet.
               </p>
             ) : (
-              <ul className="divide-y divide-[#262626]" data-testid="man-recent-payouts">
+              <ul className="divide-y divide-line" data-testid="man-recent-payouts">
                 {data.recent_payouts.map((p) => (
                   <li
                     key={`${p.session_id}-${p.maker_slug}`}
                     className="py-2 flex items-center justify-between gap-3"
                   >
                     <div className="min-w-0">
-                      <div className="font-mono text-xs text-[#e5e5e5] truncate">
+                      <div className="font-mono text-xs text-ink truncate">
                         {p.session_id}
                       </div>
-                      <div className="font-mono text-[10px] text-[#a3a3a3] uppercase tracking-[0.18em]">
+                      <div className="font-mono text-[10px] text-ink-muted uppercase tracking-[0.18em]">
                         {p.status}{p.reason ? ` · ${p.reason}` : ""}
                       </div>
                     </div>
-                    <div className="font-display text-lg text-[#e5e5e5]">
+                    <div className="font-display text-lg text-ink">
                       ${(Number(p.amount_cents || 0) / 100).toFixed(2)}
                     </div>
                   </li>

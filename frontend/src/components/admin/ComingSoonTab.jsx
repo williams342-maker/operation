@@ -97,10 +97,10 @@ export default function ComingSoonTab() {
     <div className="space-y-6" data-testid="admin-coming-soon-tab">
       {confirmModal}
       <header>
-        <h2 className="font-display text-3xl text-[#e5e5e5]">Coming-Soon waitlists</h2>
-        <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-2xl">
+        <h2 className="font-display text-3xl text-ink">Coming-Soon waitlists</h2>
+        <p className="font-mono text-xs text-ink-muted mt-2 max-w-2xl">
           Every category collects email signups via the public Coming-Soon CTA. When
-          you&rsquo;re ready to open one, click <b className="text-[#ff4500]">Launch</b> &mdash; we&rsquo;ll fire one
+          you&rsquo;re ready to open one, click <b className="text-brand">Launch</b> &mdash; we&rsquo;ll fire one
           announcement email to every pending subscriber and stamp them as notified
           so re-clicks don&rsquo;t double-email anyone.
         </p>
@@ -109,7 +109,7 @@ export default function ComingSoonTab() {
       {/* Per-category launch grid */}
       <div className="grid md:grid-cols-2 gap-3" data-testid="coming-soon-categories">
         {cats.length === 0 && (
-          <div className="font-mono text-xs text-[#525252]">No categories configured.</div>
+          <div className="font-mono text-xs text-ink-muted">No categories configured.</div>
         )}
         {cats.map((cat) => {
           const s = stats[cat] || { total: 0, pending: 0, notified: 0 };
@@ -118,19 +118,19 @@ export default function ComingSoonTab() {
           return (
             <div
               key={cat}
-              className="border border-[#262626] p-4 flex flex-col gap-3"
+              className="border border-line p-4 flex flex-col gap-3"
               data-testid={`coming-soon-cat-${cat}`}
             >
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="font-display text-lg text-[#e5e5e5]">{cat}</div>
-                  <div className="mt-1 flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+                  <div className="font-display text-lg text-ink">{cat}</div>
+                  <div className="mt-1 flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
                     <span>{s.total} total</span>
-                    <span className="text-[#525252]">·</span>
-                    <span className={s.pending > 0 ? "text-[#ff4500]" : "text-[#525252]"}>
+                    <span className="text-ink-muted">·</span>
+                    <span className={s.pending > 0 ? "text-brand" : "text-ink-muted"}>
                       {s.pending} pending
                     </span>
-                    <span className="text-[#525252]">·</span>
+                    <span className="text-ink-muted">·</span>
                     <span className="text-emerald-400">{s.notified} notified</span>
                   </div>
                 </div>
@@ -141,8 +141,8 @@ export default function ComingSoonTab() {
                   className={`
                     shrink-0 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.22em] font-bold border transition disabled:opacity-40
                     ${empty
-                      ? "border-[#262626] text-[#525252]"
-                      : "border-[#ff4500] bg-[#ff4500]/5 text-[#ff4500] hover:bg-[#ff4500] hover:text-[#0a0a0a]"}
+                      ? "border-line text-ink-muted"
+                      : "border-brand bg-brand/5 text-brand hover:bg-brand hover:text-[#0a0a0a]"}
                   `}
                   title={empty ? "No pending subscribers — nothing to send" : `Launch ${cat}`}
                 >
@@ -156,8 +156,8 @@ export default function ComingSoonTab() {
 
       {/* Most-recent launch result */}
       {lastResult && (
-        <div className="border border-[#262626] p-4" data-testid="coming-soon-last-result">
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mb-2">
+        <div className="border border-line p-4" data-testid="coming-soon-last-result">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
             Last launch
           </div>
           {lastResult.ok ? (
@@ -166,7 +166,7 @@ export default function ComingSoonTab() {
                 ✓ {lastResult.notified} subscriber{lastResult.notified === 1 ? "" : "s"} notified for <b>{lastResult.category}</b>.
               </div>
             ) : (
-              <div className="font-mono text-sm text-[#a3a3a3]">
+              <div className="font-mono text-sm text-ink-muted">
                 ◆ {lastResult.category} had no pending subscribers — nothing sent.
               </div>
             )
@@ -179,14 +179,14 @@ export default function ComingSoonTab() {
       )}
 
       {/* Recent signups feed */}
-      <details className="border border-[#262626] p-4">
-        <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500]"
+      <details className="border border-line p-4">
+        <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand"
                  data-testid="coming-soon-recent-toggle">
           ↓ Recent signups · {data.total} total
         </summary>
-        <table className="w-full mt-3 font-mono text-xs text-[#a3a3a3]">
+        <table className="w-full mt-3 font-mono text-xs text-ink-muted">
           <thead>
-            <tr className="border-b border-[#262626]">
+            <tr className="border-b border-line">
               <th className="text-left pb-2 font-bold uppercase tracking-[0.22em] text-[10px]">Email</th>
               <th className="text-left pb-2 font-bold uppercase tracking-[0.22em] text-[10px]">Category</th>
               <th className="text-left pb-2 font-bold uppercase tracking-[0.22em] text-[10px]">Joined</th>
@@ -195,14 +195,14 @@ export default function ComingSoonTab() {
           </thead>
           <tbody>
             {(data.recent || []).map((r, i) => (
-              <tr key={`${r.email}-${r.category}-${i}`} className="border-b border-[#1a1a1a]">
-                <td className="py-1.5 text-[#e5e5e5]">{r.email}</td>
+              <tr key={`${r.email}-${r.category}-${i}`} className="border-b border-line">
+                <td className="py-1.5 text-ink">{r.email}</td>
                 <td className="py-1.5">{r.category}</td>
-                <td className="py-1.5 text-[#525252]">{(r.joined_at || "").slice(0, 16).replace("T", " ")}</td>
+                <td className="py-1.5 text-ink-muted">{(r.joined_at || "").slice(0, 16).replace("T", " ")}</td>
                 <td className="py-1.5">
                   {r.notified_at
                     ? <span className="text-emerald-400">✓ notified</span>
-                    : <span className="text-[#ff4500]">pending</span>}
+                    : <span className="text-brand">pending</span>}
                 </td>
               </tr>
             ))}

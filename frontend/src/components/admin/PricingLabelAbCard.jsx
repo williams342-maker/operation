@@ -36,7 +36,7 @@ export default function PricingLabelAbCard() {
 
   return (
     <div
-      className="border border-[#262626] bg-[#0a0a0a] p-4 space-y-4"
+      className="border border-line bg-paper p-4 space-y-4"
       data-testid="pricing-label-ab-card"
     >
       <div className="flex items-start gap-3">
@@ -45,7 +45,7 @@ export default function PricingLabelAbCard() {
         </div>
         <div className="flex-1 min-w-0">
           <h3 className="font-display text-lg md:text-xl mb-1">A/B · Pricing Label</h3>
-          <p className="font-mono text-[10px] text-[#a3a3a3] leading-relaxed">
+          <p className="font-mono text-[10px] text-ink-muted leading-relaxed">
             <code className="text-purple-300">"From $23"</code> vs{" "}
             <code className="text-purple-300">"$23 – $32"</code> headline framing on shop cards.
             First-party click tally only — full impressions in GA4 & Bing UET.
@@ -59,7 +59,7 @@ export default function PricingLabelAbCard() {
               className={`px-2 py-1 font-mono text-[9px] uppercase tracking-[0.22em] border ${
                 days === d
                   ? "border-purple-400 text-purple-300 bg-purple-500/5"
-                  : "border-[#262626] text-[#a3a3a3] hover:border-[#525252]"
+                  : "border-line text-ink-muted hover:border-ink-muted"
               }`}
               data-testid={`ab-window-${d}`}
             >
@@ -69,7 +69,7 @@ export default function PricingLabelAbCard() {
           <button
             onClick={() => load(days)}
             disabled={loading}
-            className="px-2 py-1 border border-[#262626] hover:border-[#525252] text-[#a3a3a3] hover:text-[#e5e5e5] font-mono text-[9px] uppercase tracking-[0.22em] inline-flex items-center gap-1 disabled:opacity-40"
+            className="px-2 py-1 border border-line hover:border-ink-muted text-ink-muted hover:text-ink font-mono text-[9px] uppercase tracking-[0.22em] inline-flex items-center gap-1 disabled:opacity-40"
             data-testid="ab-refresh"
           >
             <RefreshCw size={10} className={loading ? "animate-spin" : ""} />
@@ -97,7 +97,7 @@ export default function PricingLabelAbCard() {
       </div>
 
       {totalClicks === 0 && (
-        <p className="font-mono text-[10px] text-[#737373]" data-testid="ab-empty">
+        <p className="font-mono text-[10px] text-ink-muted" data-testid="ab-empty">
           No click events yet — once buyers click product cards, this'll populate.
         </p>
       )}
@@ -117,11 +117,11 @@ function Variant({ label, accent, clicks, uniqueVisitors, uniqueListings, totalC
       data-testid={`ab-variant-${label}`}
     >
       <div className={`font-mono text-[10px] uppercase tracking-[0.22em] ${aMap.text}`}>{label}</div>
-      <div className="font-display text-3xl mt-1 text-[#e5e5e5]">{clicks}</div>
-      <div className="font-mono text-[9px] text-[#a3a3a3] mt-0.5">clicks · {share}% share</div>
-      <div className="border-t border-[#1a1a1a] mt-2 pt-2 grid grid-cols-2 gap-1 font-mono text-[9px] text-[#737373]">
-        <div>Visitors: <span className="text-[#a3a3a3]">{uniqueVisitors}</span></div>
-        <div>Listings: <span className="text-[#a3a3a3]">{uniqueListings}</span></div>
+      <div className="font-display text-3xl mt-1 text-ink">{clicks}</div>
+      <div className="font-mono text-[9px] text-ink-muted mt-0.5">clicks · {share}% share</div>
+      <div className="border-t border-line mt-2 pt-2 grid grid-cols-2 gap-1 font-mono text-[9px] text-ink-muted">
+        <div>Visitors: <span className="text-ink-muted">{uniqueVisitors}</span></div>
+        <div>Listings: <span className="text-ink-muted">{uniqueListings}</span></div>
       </div>
     </div>
   );

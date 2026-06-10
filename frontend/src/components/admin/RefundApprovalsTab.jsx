@@ -95,17 +95,17 @@ export default function RefundApprovalsTab({ me }) {
       {confirmModal}
       <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
-          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-1">◆ Two-person rule</div>
+          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-1">◆ Two-person rule</div>
           <h2 className="font-display text-3xl uppercase">Refund Approvals.</h2>
-          <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-[60ch]">
-            Refunds at or above <span className="text-[#ff4500]">${data?.threshold_usd ?? 500}</span> require
+          <p className="font-mono text-xs text-ink-muted mt-2 max-w-[60ch]">
+            Refunds at or above <span className="text-brand">${data?.threshold_usd ?? 500}</span> require
             a second admin to approve before they can be executed. The requester cannot approve their own request.
           </p>
         </div>
         <div className="flex items-center gap-2">
           <select
             value={filter} onChange={(e) => setFilter(e.target.value)}
-            className="bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+            className="bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs"
             data-testid="approvals-filter"
           >
             <option value="pending">Pending</option>
@@ -116,7 +116,7 @@ export default function RefundApprovalsTab({ me }) {
           </select>
           <button
             onClick={load}
-            className="px-3 py-2 border border-[#262626] hover:border-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-2"
+            className="px-3 py-2 border border-line hover:border-brand font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-2"
             data-testid="approvals-refresh"
           >
             <RefreshCw size={12} className={loading ? "animate-spin" : ""} /> Refresh
@@ -145,24 +145,24 @@ export default function RefundApprovalsTab({ me }) {
             const canApprove = ap.status === "pending" && !isMine;
             const canExecute = ap.status === "approved";
             return (
-              <div key={ap.id} className="border border-[#262626] p-4 grid md:grid-cols-[1fr_auto] gap-4 items-start" data-testid={`approval-row-${ap.id}`}>
+              <div key={ap.id} className="border border-line p-4 grid md:grid-cols-[1fr_auto] gap-4 items-start" data-testid={`approval-row-${ap.id}`}>
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className={`font-mono text-[10px] uppercase tracking-[0.22em] px-2 py-0.5 border ${
                       ap.status === "pending" ? "border-amber-500 text-amber-400" :
                       ap.status === "approved" ? "border-cyan-500 text-cyan-400" :
                       ap.status === "executed" ? "border-emerald-500 text-emerald-400" :
-                      "border-[#404040] text-[#737373]"
+                      "border-line text-ink-muted"
                     }`}>
                       {ap.status}
                     </span>
-                    <span className="font-display text-3xl text-[#ff4500]">${ap.amount.toFixed(2)}</span>
+                    <span className="font-display text-3xl text-brand">${ap.amount.toFixed(2)}</span>
                   </div>
-                  <div className="font-mono text-xs text-[#e5e5e5] mt-2 truncate">
-                    Session: <span className="text-[#a3a3a3]">{ap.session_id?.slice(0, 32)}…</span>
+                  <div className="font-mono text-xs text-ink mt-2 truncate">
+                    Session: <span className="text-ink-muted">{ap.session_id?.slice(0, 32)}…</span>
                   </div>
-                  <div className="font-mono text-[11px] text-[#737373] mt-1">
-                    {ap.buyer_email || "no buyer email"} · requested by <span className="text-[#a3a3a3]">{ap.requested_by}</span>
+                  <div className="font-mono text-[11px] text-ink-muted mt-1">
+                    {ap.buyer_email || "no buyer email"} · requested by <span className="text-ink-muted">{ap.requested_by}</span>
                     {" · "}{formatDate(ap.requested_at)}
                   </div>
                   {ap.approved_by && (
@@ -198,7 +198,7 @@ export default function RefundApprovalsTab({ me }) {
                       </button>
                       <button
                         onClick={() => onDeny(ap.id)} disabled={busy === ap.id}
-                        className="px-3 py-2 border border-[#262626] text-red-400 hover:bg-red-500/10 font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-2 disabled:opacity-50"
+                        className="px-3 py-2 border border-line text-red-400 hover:bg-red-500/10 font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-2 disabled:opacity-50"
                         data-testid={`approval-deny-${ap.id}`}
                       >
                         <XCircle size={12} /> Deny

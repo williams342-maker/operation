@@ -72,12 +72,12 @@ export default function FeedbackTab() {
     <div className="space-y-6" data-testid="admin-feedback-tab">
       <header className="flex items-end justify-between gap-4 flex-wrap">
         <div>
-          <h2 className="font-display text-3xl text-[#e5e5e5]">Beta Feedback</h2>
-          <p className="font-mono text-xs text-[#a3a3a3] mt-1">
+          <h2 className="font-display text-3xl text-ink">Beta Feedback</h2>
+          <p className="font-mono text-xs text-ink-muted mt-1">
             Submissions from the public Beta Feedback widget · newest first
           </p>
         </div>
-        <div className="flex border border-[#262626]" data-testid="feedback-filter">
+        <div className="flex border border-line" data-testid="feedback-filter">
           {FILTERS.map((f) => {
             const active = filter === f.id;
             return (
@@ -87,7 +87,7 @@ export default function FeedbackTab() {
                 onClick={() => setFilter(f.id)}
                 data-testid={`feedback-filter-${f.id}`}
                 className={`px-4 py-2 font-mono text-[10px] uppercase tracking-[0.22em] transition ${
-                  active ? "bg-[#ff4500] text-black" : "text-[#a3a3a3] hover:text-[#e5e5e5]"
+                  active ? "bg-brand text-ink" : "text-ink-muted hover:text-ink"
                 }`}
               >
                 {f.label}
@@ -108,7 +108,7 @@ export default function FeedbackTab() {
           icon={MessageSquare}
         />
       ) : (
-        <ol className="border border-[#262626] divide-y divide-[#1a1a1a]" data-testid="feedback-list">
+        <ol className="border border-line divide-y divide-line" data-testid="feedback-list">
           {items.map((f, idx) => (
             <FeedbackRow
               key={f.id}
@@ -124,7 +124,7 @@ export default function FeedbackTab() {
         </ol>
       )}
 
-      <p className="font-mono text-[10px] text-[#525252]">
+      <p className="font-mono text-[10px] text-ink-muted">
         Showing {items.length} submission{items.length === 1 ? "" : "s"} ·
         {" "}{counts.pending} pending · {counts.resolved} resolved
       </p>
@@ -136,24 +136,24 @@ function FeedbackRow({ fb, index, isOpen, onToggleReply, onResolve, resolving, o
   return (
     <li className="px-5 py-4" data-testid={`feedback-row-${fb.id}`}>
       <div className="flex items-start gap-4">
-        <span className="font-display text-xl text-[#525252] shrink-0 w-8 text-right" title="Received order #">
+        <span className="font-display text-xl text-ink-muted shrink-0 w-8 text-right" title="Received order #">
           #{index}
         </span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-mono text-xs text-[#e5e5e5] font-bold">
+            <span className="font-mono text-xs text-ink font-bold">
               {fb.name || "Anonymous"}
             </span>
             {fb.email && (
               <a
                 href={`mailto:${fb.email}`}
-                className="font-mono text-xs text-[#a3a3a3] hover:text-[#ff4500]"
+                className="font-mono text-xs text-ink-muted hover:text-brand"
                 data-testid={`feedback-email-${fb.id}`}
               >
                 {fb.email}
               </a>
             )}
-            <span className="font-mono text-[10px] text-[#525252]">
+            <span className="font-mono text-[10px] text-ink-muted">
               · {timeAgo(fb.created_at)}
             </span>
             {fb.resolved && (
@@ -168,7 +168,7 @@ function FeedbackRow({ fb, index, isOpen, onToggleReply, onResolve, resolving, o
             )}
           </div>
           <p
-            className="font-mono text-sm text-[#e5e5e5] mt-2 whitespace-pre-wrap leading-relaxed"
+            className="font-mono text-sm text-ink mt-2 whitespace-pre-wrap leading-relaxed"
             data-testid={`feedback-message-${fb.id}`}
           >
             {fb.message}
@@ -178,7 +178,7 @@ function FeedbackRow({ fb, index, isOpen, onToggleReply, onResolve, resolving, o
               href={fb.page}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 mt-2 font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500]"
+              className="inline-flex items-center gap-1 mt-2 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand"
               data-testid={`feedback-page-${fb.id}`}
             >
               <ExternalLink size={10} /> {fb.page.replace(/^https?:\/\/[^/]+/, "")}
@@ -199,7 +199,7 @@ function FeedbackRow({ fb, index, isOpen, onToggleReply, onResolve, resolving, o
                 type="button"
                 onClick={onToggleReply}
                 data-testid={`feedback-reply-${fb.id}`}
-                className="px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition"
+                className="px-3 py-1.5 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] transition"
               >
                 <Mail size={12} className="inline mr-1" /> {isOpen ? "Cancel" : "Reply"}
               </button>
@@ -209,7 +209,7 @@ function FeedbackRow({ fb, index, isOpen, onToggleReply, onResolve, resolving, o
               onClick={onResolve}
               disabled={resolving}
               data-testid={`feedback-resolve-${fb.id}`}
-              className="px-3 py-1.5 border border-[#262626] hover:border-emerald-500/60 hover:text-emerald-400 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+              className="px-3 py-1.5 border border-line hover:border-emerald-500/60 hover:text-emerald-400 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
             >
               <Check size={12} className="inline mr-1" /> {resolving ? "…" : "Resolve"}
             </button>
@@ -244,7 +244,7 @@ function ReplyComposer({ feedbackId, onSent, defaultSubject }) {
 
   return (
     <div
-      className="mt-3 border border-[#262626] bg-[#0a0a0a] p-3 space-y-2"
+      className="mt-3 border border-line bg-paper p-3 space-y-2"
       data-testid={`feedback-reply-composer-${feedbackId}`}
     >
       <input
@@ -252,7 +252,7 @@ function ReplyComposer({ feedbackId, onSent, defaultSubject }) {
         value={subject}
         onChange={(e) => setSubject(e.target.value)}
         placeholder="Subject"
-        className="w-full bg-[#0d0d0d] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
+        className="w-full bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink"
         data-testid={`feedback-reply-subject-${feedbackId}`}
       />
       <textarea
@@ -260,7 +260,7 @@ function ReplyComposer({ feedbackId, onSent, defaultSubject }) {
         value={message}
         onChange={(e) => setMessage(e.target.value)}
         placeholder="Type your reply…"
-        className="w-full bg-[#0d0d0d] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5] resize-none leading-relaxed"
+        className="w-full bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink resize-none leading-relaxed"
         data-testid={`feedback-reply-body-${feedbackId}`}
       />
       <button

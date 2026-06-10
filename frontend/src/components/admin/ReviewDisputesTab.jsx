@@ -58,16 +58,16 @@ export default function ReviewDisputesTab() {
   return (
     <div className="space-y-5" data-testid="admin-review-disputes-tab">
       <header>
-        <h2 className="font-display text-3xl text-[#e5e5e5]">Review Disputes</h2>
-        <p className="font-mono text-xs text-[#a3a3a3] mt-1 max-w-2xl leading-relaxed">
+        <h2 className="font-display text-3xl text-ink">Review Disputes</h2>
+        <p className="font-mono text-xs text-ink-muted mt-1 max-w-2xl leading-relaxed">
           Maker-filed challenges to reviews they believe are unfair, fake,
-          or against policy. <b className="text-[#e5e5e5]">Upheld</b> = remove
-          the review. <b className="text-[#e5e5e5]">Denied</b> = leave it
+          or against policy. <b className="text-ink">Upheld</b> = remove
+          the review. <b className="text-ink">Denied</b> = leave it
           published. The maker is auto-emailed either way.
         </p>
       </header>
 
-      <div className="flex border border-[#262626] w-fit" data-testid="dispute-filter">
+      <div className="flex border border-line w-fit" data-testid="dispute-filter">
         {FILTERS.map((f) => {
           const active = filter === f.id;
           return (
@@ -77,7 +77,7 @@ export default function ReviewDisputesTab() {
               onClick={() => setFilter(f.id)}
               data-testid={`dispute-filter-${f.id}`}
               className={`px-4 py-2 font-mono text-[10px] uppercase tracking-[0.22em] transition ${
-                active ? "bg-[#ff4500] text-black" : "text-[#a3a3a3] hover:text-[#e5e5e5]"
+                active ? "bg-brand text-ink" : "text-ink-muted hover:text-ink"
               }`}
             >
               {f.label}
@@ -106,7 +106,7 @@ export default function ReviewDisputesTab() {
         </div>
       )}
 
-      <p className="font-mono text-[10px] text-[#525252]">
+      <p className="font-mono text-[10px] text-ink-muted">
         {counts.total} dispute{counts.total === 1 ? "" : "s"} · {counts.open} open
       </p>
 
@@ -126,22 +126,22 @@ function DisputeRow({ dispute, onResolve }) {
   const snap = dispute.review_snapshot || {};
   const stars = "★".repeat(snap.rating || 0) + "☆".repeat(Math.max(0, 5 - (snap.rating || 0)));
   return (
-    <article className="border border-[#262626] bg-[#0a0a0a] p-4 space-y-3" data-testid={`dispute-row-${dispute.id}`}>
+    <article className="border border-line bg-paper p-4 space-y-3" data-testid={`dispute-row-${dispute.id}`}>
       <div className="flex items-center gap-3 flex-wrap">
         <span className={`px-2 py-0.5 border font-mono text-[9px] uppercase tracking-[0.22em] ${
           dispute.status === "open" ? "border-amber-500/50 text-amber-400 bg-amber-500/10"
           : dispute.status === "upheld" ? "border-emerald-500/50 text-emerald-400 bg-emerald-500/10"
-          : "border-[#525252] text-[#a3a3a3]"
+          : "border-[#525252] text-ink-muted"
         }`}>
           {dispute.status}
         </span>
-        <span className="font-mono text-xs text-[#e5e5e5] font-bold">
+        <span className="font-mono text-xs text-ink font-bold">
           {dispute.maker_name || dispute.maker_slug}
         </span>
-        <span className="font-mono text-[10px] text-[#525252]">
+        <span className="font-mono text-[10px] text-ink-muted">
           · disputed {timeAgo(dispute.created_at)}
         </span>
-        <span className="px-2 py-0.5 border border-[#262626] text-[#a3a3a3] font-mono text-[9px] uppercase tracking-[0.22em]">
+        <span className="px-2 py-0.5 border border-line text-ink-muted font-mono text-[9px] uppercase tracking-[0.22em]">
           {REASON_LABEL[dispute.reason] || dispute.reason}
         </span>
         {snap.product_slug && (
@@ -149,27 +149,27 @@ function DisputeRow({ dispute, onResolve }) {
             href={`/shop/${snap.product_slug}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="font-mono text-[10px] text-[#a3a3a3] hover:text-[#ff4500]"
+            className="font-mono text-[10px] text-ink-muted hover:text-brand"
           >
             /shop/{snap.product_slug}
           </a>
         )}
       </div>
 
-      <div className="border border-[#1a1a1a] bg-[#0d0d0d] p-3" data-testid={`dispute-snapshot-${dispute.id}`}>
+      <div className="border border-line bg-paper p-3" data-testid={`dispute-snapshot-${dispute.id}`}>
         <div className="flex items-center gap-2 mb-1">
           <span className="font-display text-base text-amber-400">{stars}</span>
-          <span className="font-mono text-xs text-[#e5e5e5] font-bold">{snap.name || "anonymous"}</span>
-          <span className="font-mono text-[10px] text-[#525252]">· {timeAgo(snap.created_at)}</span>
+          <span className="font-mono text-xs text-ink font-bold">{snap.name || "anonymous"}</span>
+          <span className="font-mono text-[10px] text-ink-muted">· {timeAgo(snap.created_at)}</span>
         </div>
-        <p className="font-mono text-sm text-[#e5e5e5] leading-relaxed whitespace-pre-wrap">{snap.text}</p>
+        <p className="font-mono text-sm text-ink leading-relaxed whitespace-pre-wrap">{snap.text}</p>
       </div>
 
       <div className="border-l-2 border-amber-500 pl-3 ml-1" data-testid={`dispute-explanation-${dispute.id}`}>
         <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-amber-400 mb-1">
           ◆ Maker explanation
         </div>
-        <p className="font-mono text-sm text-[#e5e5e5] leading-relaxed whitespace-pre-wrap">
+        <p className="font-mono text-sm text-ink leading-relaxed whitespace-pre-wrap">
           {dispute.explanation}
         </p>
       </div>
@@ -188,7 +188,7 @@ function DisputeRow({ dispute, onResolve }) {
           <button
             type="button"
             onClick={() => onResolve("denied")}
-            className="px-3 py-2 border border-[#525252] text-[#a3a3a3] hover:border-[#a3a3a3] hover:text-[#e5e5e5] font-mono text-[10px] uppercase tracking-[0.22em]"
+            className="px-3 py-2 border border-[#525252] text-ink-muted hover:border-ink hover:text-ink font-mono text-[10px] uppercase tracking-[0.22em]"
             data-testid={`dispute-deny-${dispute.id}`}
           >
             <X size={12} className="inline mr-1" />
@@ -196,10 +196,10 @@ function DisputeRow({ dispute, onResolve }) {
           </button>
         </div>
       ) : (
-        <div className="font-mono text-[10px] text-[#a3a3a3]">
+        <div className="font-mono text-[10px] text-ink-muted">
           Resolved {timeAgo(dispute.resolved_at)} by {dispute.resolved_by}
           {dispute.admin_note && (<>
-            {" · note: "}<span className="text-[#e5e5e5]">{dispute.admin_note}</span>
+            {" · note: "}<span className="text-ink">{dispute.admin_note}</span>
           </>)}
         </div>
       )}
@@ -225,33 +225,33 @@ function ResolveDialog({ dispute, status, onCancel, onResolved }) {
   const verdictColor = status === "upheld" ? "border-emerald-500" : "border-[#525252]";
   return (
     <div
-      className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4"
+      className="fixed inset-0 z-[100] bg-paper/80 flex items-center justify-center p-4"
       onClick={onCancel}
       data-testid="dispute-resolve-dialog"
     >
       <div
-        className={`bg-[#0a0a0a] border ${verdictColor} w-full max-w-md p-6`}
+        className={`bg-paper border ${verdictColor} w-full max-w-md p-6`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
           ◆ {status === "upheld" ? "Uphold dispute (remove review)" : "Deny dispute (keep review)"}
         </div>
-        <h3 className="font-display text-2xl mt-2 text-[#e5e5e5]">
+        <h3 className="font-display text-2xl mt-2 text-ink">
           Confirm verdict
         </h3>
-        <p className="font-mono text-xs text-[#a3a3a3] mt-3 leading-relaxed">
+        <p className="font-mono text-xs text-ink-muted mt-3 leading-relaxed">
           The maker ({dispute.maker_name || dispute.maker_slug}) will be emailed with this verdict + your optional note.
           {status === "upheld" && (
             <> The review will be <b className="text-emerald-400">permanently deleted</b> from the public collection.</>
           )}
         </p>
-        <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mt-4">
+        <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mt-4">
           Note for the maker (optional)
         </p>
         <textarea
           rows={3} value={note} maxLength={1000} onChange={(e) => setNote(e.target.value)}
           placeholder="e.g. We confirmed via order records that no purchase was made — review removed."
-          className="w-full mt-2 bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5] resize-none leading-relaxed"
+          className="w-full mt-2 bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink resize-none leading-relaxed"
           data-testid="dispute-resolve-note"
         />
         <div className="flex gap-2 mt-4">
@@ -259,7 +259,7 @@ function ResolveDialog({ dispute, status, onCancel, onResolved }) {
             type="button"
             onClick={onCancel}
             disabled={busy}
-            className="flex-1 px-3 py-2 border border-[#262626] hover:border-[#a3a3a3] font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]"
+            className="flex-1 px-3 py-2 border border-line hover:border-ink font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted"
             data-testid="dispute-resolve-cancel"
           >
             Cancel
@@ -271,7 +271,7 @@ function ResolveDialog({ dispute, status, onCancel, onResolved }) {
             className={`flex-1 px-3 py-2 border font-mono text-[10px] uppercase tracking-[0.22em] ${
               status === "upheld"
                 ? "border-emerald-500 text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20"
-                : "border-[#a3a3a3] text-[#e5e5e5] hover:bg-[#1a1a1a]"
+                : "border-[#a3a3a3] text-ink hover:bg-surface"
             } disabled:opacity-50`}
             data-testid="dispute-resolve-confirm"
           >

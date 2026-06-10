@@ -29,8 +29,8 @@ const PALETTE = {
   ok:       { dot: "bg-emerald-500", text: "text-emerald-300", border: "border-emerald-700/60", bg: "bg-emerald-900/20" },
   degraded: { dot: "bg-yellow-500",  text: "text-yellow-300",  border: "border-yellow-700/60",  bg: "bg-yellow-900/20" },
   down:     { dot: "bg-red-500",     text: "text-red-300",     border: "border-red-700/60",     bg: "bg-red-900/20" },
-  paused:   { dot: "bg-[#525252]",   text: "text-[#a3a3a3]",   border: "border-[#262626]",      bg: "bg-[#0a0a0a]" },
-  unknown:  { dot: "bg-[#525252]",   text: "text-[#a3a3a3]",   border: "border-[#262626]",      bg: "bg-[#0a0a0a]" },
+  paused:   { dot: "bg-[#525252]",   text: "text-ink-muted",   border: "border-line",      bg: "bg-paper" },
+  unknown:  { dot: "bg-[#525252]",   text: "text-ink-muted",   border: "border-line",      bg: "bg-paper" },
 };
 
 const LABEL = {
@@ -111,7 +111,7 @@ export default function DeployHealthPill({ onJumpToTab }) {
       />
       <span>{LABEL[status]}</span>
       {failingCount > 0 && (
-        <span className="text-[#525252]" data-testid="deploy-health-failing-count">
+        <span className="text-ink-muted" data-testid="deploy-health-failing-count">
           · {failingCount} failing
         </span>
       )}

@@ -51,18 +51,18 @@ export default function BuiltByMakers() {
   return (
     <section
       data-testid="built-by-makers"
-      className="relative border-t border-[#1f1f1f] bg-[#080808] py-20 md:py-24 px-6"
+      className="relative border-t border-line bg-[#080808] py-20 md:py-24 px-6"
     >
       {/* Subtle radial glow centered behind the title — never distracting */}
       <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-[#ff4500]/[0.04] blur-[120px]" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-brand/[0.04] blur-[120px]" />
       </div>
 
       <div className="relative max-w-6xl mx-auto">
         {/* Eyebrow + title */}
         <div className="text-center mb-12 md:mb-16">
           <div
-            className="font-mono text-[10px] uppercase tracking-[0.35em] text-[#ff4500] mb-4"
+            className="font-mono text-[10px] uppercase tracking-[0.35em] text-brand mb-4"
             data-testid="built-by-makers-eyebrow"
           >
             ◆ The Network
@@ -72,13 +72,13 @@ export default function BuiltByMakers() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.3 }}
             transition={{ duration: 0.5 }}
-            className="font-display text-3xl sm:text-4xl md:text-5xl leading-tight text-[#e5e5e5]"
+            className="font-display text-3xl sm:text-4xl md:text-5xl leading-tight text-ink"
             data-testid="built-by-makers-title"
           >
             Built by Makers.{" "}
-            <span className="text-[#ff4500]">Powered by Innovation.</span>
+            <span className="text-brand">Powered by Innovation.</span>
           </motion.h2>
-          <p className="mt-4 max-w-xl mx-auto text-sm md:text-base text-[#a3a3a3]">
+          <p className="mt-4 max-w-xl mx-auto text-sm md:text-base text-ink-muted">
             Three sister brands. One mission — give independent fabricators
             the tools, marketplace, and audience to compete with anyone.
           </p>
@@ -96,7 +96,7 @@ export default function BuiltByMakers() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.2 }}
               transition={{ duration: 0.4, delay: i * 0.08 }}
-              className="group relative block border border-[#1f1f1f] bg-[#0d0d0d] p-6 md:p-7 transition-all duration-300 hover:bg-[#111] hover:border-[#333]"
+              className="group relative block border border-line bg-paper p-6 md:p-7 transition-all duration-300 hover:bg-[#111] hover:border-[#333]"
               style={{ "--accent": b.accent }}
               data-testid={`built-by-makers-card-${b.name.toLowerCase().replace(/\s+/g, "-")}`}
             >
@@ -128,10 +128,10 @@ export default function BuiltByMakers() {
               </div>
 
               {/* Brand name + descriptor */}
-              <div className="font-display text-xl md:text-2xl text-[#e5e5e5] mb-2">
+              <div className="font-display text-xl md:text-2xl text-ink mb-2">
                 {b.name}
               </div>
-              <p className="font-mono text-[11px] leading-relaxed text-[#a3a3a3] mb-6 min-h-[2.5rem]">
+              <p className="font-mono text-[11px] leading-relaxed text-ink-muted mb-6 min-h-[2.5rem]">
                 {b.descriptor}
               </p>
 

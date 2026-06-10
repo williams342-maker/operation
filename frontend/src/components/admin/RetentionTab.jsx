@@ -97,13 +97,13 @@ export default function RetentionTab() {
 
       <div className="flex items-center justify-between">
         <div>
-          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-1">
+          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-1">
             ◆ Cohort retention
           </div>
           <div className="font-display text-3xl tracking-[-0.005em]">
             Who comes back?
           </div>
-          <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-[60ch] leading-relaxed">
+          <p className="font-mono text-xs text-ink-muted mt-2 max-w-[60ch] leading-relaxed">
             Each row is a buyer cohort grouped by their first-purchase week.
             Each column shows what % of that cohort placed another paid order
             in week +N. A "10" in column W+4 means 10% of that cohort came
@@ -113,7 +113,7 @@ export default function RetentionTab() {
         <select
           value={weeks}
           onChange={(e) => setWeeks(parseInt(e.target.value, 10))}
-          className="bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs text-[#e5e5e5]"
+          className="bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink"
           data-testid="retention-weeks"
         >
           {[8, 12, 16, 20, 26].map((n) => (
@@ -122,24 +122,24 @@ export default function RetentionTab() {
         </select>
       </div>
 
-      <div className="border border-[#262626] overflow-x-auto" data-testid="retention-grid">
+      <div className="border border-line overflow-x-auto" data-testid="retention-grid">
         <table className="w-full border-collapse font-mono text-[11px]">
           <thead>
-            <tr className="border-b border-[#262626] bg-[#0f0f0f]">
-              <th className="text-left p-3 text-[#a3a3a3] uppercase tracking-[0.22em] text-[10px] sticky left-0 bg-[#0f0f0f]">
+            <tr className="border-b border-line bg-paper">
+              <th className="text-left p-3 text-ink-muted uppercase tracking-[0.22em] text-[10px] sticky left-0 bg-paper">
                 Cohort
               </th>
-              <th className="p-3 text-[#a3a3a3] uppercase tracking-[0.22em] text-[10px]">Size</th>
+              <th className="p-3 text-ink-muted uppercase tracking-[0.22em] text-[10px]">Size</th>
               {(rows[0]?.cells || []).map((_, i) => (
-                <th key={i} className="p-2 text-[#525252] tracking-[0.2em] text-[10px]">W+{i}</th>
+                <th key={i} className="p-2 text-ink-muted tracking-[0.2em] text-[10px]">W+{i}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.cohort} className="border-b border-[#1a1a1a]" data-testid={`retention-row-${r.cohort}`}>
-                <td className="p-3 text-[#e5e5e5] sticky left-0 bg-[#0a0a0a]">{r.cohort}</td>
-                <td className="p-3 text-center text-[#a3a3a3]">{r.size}</td>
+              <tr key={r.cohort} className="border-b border-line" data-testid={`retention-row-${r.cohort}`}>
+                <td className="p-3 text-ink sticky left-0 bg-paper">{r.cohort}</td>
+                <td className="p-3 text-center text-ink-muted">{r.size}</td>
                 {r.cells.map((c, i) => (
                   <td
                     key={i}
@@ -155,13 +155,13 @@ export default function RetentionTab() {
           </tbody>
           {colAverages.length > 0 && (
             <tfoot>
-              <tr className="border-t border-[#262626] bg-[#0f0f0f]">
-                <td className="p-3 text-[10px] uppercase tracking-[0.22em] text-[#ff4500] sticky left-0 bg-[#0f0f0f]">
+              <tr className="border-t border-line bg-paper">
+                <td className="p-3 text-[10px] uppercase tracking-[0.22em] text-brand sticky left-0 bg-paper">
                   Average
                 </td>
                 <td />
                 {colAverages.map((avg, i) => (
-                  <td key={i} className="p-2 text-center text-[10px] text-[#a3a3a3]" data-testid={`retention-avg-${i}`}>
+                  <td key={i} className="p-2 text-center text-[10px] text-ink-muted" data-testid={`retention-avg-${i}`}>
                     {avg ? `${avg}%` : "—"}
                   </td>
                 ))}
@@ -171,7 +171,7 @@ export default function RetentionTab() {
         </table>
       </div>
 
-      <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#525252]">
+      <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
         ◆ W+0 is always 100% by definition (cohort = first purchase week).
         ◆ Empty cells mean no orders in that week from this cohort.
         ◆ Heatmap colour scales with retention % — orange brighter = stickier cohort.
@@ -249,23 +249,23 @@ function DormantBuyersPanel() {
   };
 
   return (
-    <div className="border-t border-[#262626] pt-12 mt-12" data-testid="dormant-panel">
+    <div className="border-t border-line pt-12 mt-12" data-testid="dormant-panel">
       {confirmModal}
       <div className="flex items-end justify-between gap-4 flex-wrap mb-6">
         <div>
-          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-1">◆ Win-back</div>
+          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-1">◆ Win-back</div>
           <h2 className="font-display text-3xl uppercase">Dormant Buyers.</h2>
-          <p className="font-mono text-xs text-[#a3a3a3] mt-2 max-w-[60ch] leading-relaxed">
+          <p className="font-mono text-xs text-ink-muted mt-2 max-w-[60ch] leading-relaxed">
             Buyers who placed at least one paid order in the past year but have gone quiet.
             Send each one a one-time site-wide discount code; they're tagged in Kit.com automatically.
             24h cooldown so we never email the same buyer twice in a day.
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Dormant for</label>
+          <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Dormant for</label>
           <select
             value={days} onChange={(e) => setDays(parseInt(e.target.value, 10))}
-            className="bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+            className="bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs"
             data-testid="dormant-days"
           >
             {[30, 60, 90, 120, 180, 365].map((n) => (
@@ -274,7 +274,7 @@ function DormantBuyersPanel() {
           </select>
           <button
             onClick={scan} disabled={scanning}
-            className="px-3 py-2 border border-[#ff4500] text-[#ff4500] hover:bg-[#ff4500]/10 font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-2 disabled:opacity-50"
+            className="px-3 py-2 border border-brand text-brand hover:bg-brand/10 font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-2 disabled:opacity-50"
             data-testid="dormant-scan-btn"
           >
             <RefreshCw size={12} className={scanning ? "animate-spin" : ""} /> Scan
@@ -283,20 +283,20 @@ function DormantBuyersPanel() {
       </div>
 
       {scanned && rows.length === 0 ? (
-        <div className="border border-dashed border-[#262626] p-12 text-center" data-testid="dormant-empty">
-          <Mail size={32} className="text-[#404040] mx-auto mb-3" />
-          <p className="font-mono text-xs text-[#737373]">
+        <div className="border border-dashed border-line p-12 text-center" data-testid="dormant-empty">
+          <Mail size={32} className="text-ink-muted mx-auto mb-3" />
+          <p className="font-mono text-xs text-ink-muted">
             No dormant buyers in the {days}-day window. Either everyone's still active, or there are no paid orders past that threshold yet.
           </p>
         </div>
       ) : !scanned ? (
-        <div className="border border-dashed border-[#262626] p-10 text-center font-mono text-xs text-[#737373]" data-testid="dormant-prompt">
-          Click <span className="text-[#ff4500]">Scan</span> to find dormant buyers.
+        <div className="border border-dashed border-line p-10 text-center font-mono text-xs text-ink-muted" data-testid="dormant-prompt">
+          Click <span className="text-brand">Scan</span> to find dormant buyers.
         </div>
       ) : (
         <>
-          <div className="border border-[#262626]" data-testid="dormant-table">
-            <div className="grid grid-cols-[40px_1fr_140px_100px_120px] gap-3 px-4 py-3 border-b border-[#262626] bg-[#0f0f0f] font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] items-center">
+          <div className="border border-line" data-testid="dormant-table">
+            <div className="grid grid-cols-[40px_1fr_140px_100px_120px] gap-3 px-4 py-3 border-b border-line bg-paper font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted items-center">
               <div>
                 <input
                   type="checkbox" checked={selected.size === rows.length && rows.length > 0}
@@ -312,44 +312,44 @@ function DormantBuyersPanel() {
             {rows.map((r) => {
               const lastDate = r.last_order_at ? new Date(r.last_order_at) : null;
               return (
-                <div key={r.email} className="grid grid-cols-[40px_1fr_140px_100px_120px] gap-3 px-4 py-3 border-b border-[#1a1a1a] items-center" data-testid={`dormant-row-${r.email}`}>
+                <div key={r.email} className="grid grid-cols-[40px_1fr_140px_100px_120px] gap-3 px-4 py-3 border-b border-line items-center" data-testid={`dormant-row-${r.email}`}>
                   <div>
                     <input
                       type="checkbox" checked={selected.has(r.email)}
                       onChange={() => toggleOne(r.email)} className="accent-[#ff4500]"
                     />
                   </div>
-                  <div className="font-mono text-xs text-[#e5e5e5] truncate">{r.email}</div>
-                  <div className="font-mono text-[11px] text-[#a3a3a3]">
+                  <div className="font-mono text-xs text-ink truncate">{r.email}</div>
+                  <div className="font-mono text-[11px] text-ink-muted">
                     {lastDate ? lastDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"}
                   </div>
-                  <div className="font-mono text-[11px] text-[#a3a3a3] text-right">{r.total_orders}</div>
-                  <div className="font-mono text-[11px] text-[#ff4500] text-right">${r.lifetime_value.toFixed(0)}</div>
+                  <div className="font-mono text-[11px] text-ink-muted text-right">{r.total_orders}</div>
+                  <div className="font-mono text-[11px] text-brand text-right">${r.lifetime_value.toFixed(0)}</div>
                 </div>
               );
             })}
           </div>
 
-          <div className="mt-6 border border-[#ff4500]/40 bg-[#ff4500]/5 p-5 grid md:grid-cols-[1fr_auto] gap-4 items-center" data-testid="dormant-send-bar">
+          <div className="mt-6 border border-brand/40 bg-brand/5 p-5 grid md:grid-cols-[1fr_auto] gap-4 items-center" data-testid="dormant-send-bar">
             <div className="flex items-center gap-4 flex-wrap">
-              <div className="font-mono text-xs text-[#e5e5e5]">
-                <strong className="text-[#ff4500]">{selected.size}</strong> selected
+              <div className="font-mono text-xs text-ink">
+                <strong className="text-brand">{selected.size}</strong> selected
               </div>
               <div className="flex items-center gap-2">
-                <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Discount</label>
+                <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Discount</label>
                 <select
                   value={pct} onChange={(e) => setPct(parseInt(e.target.value, 10))}
-                  className="bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-2 py-1 font-mono text-xs"
+                  className="bg-paper border border-line focus:border-brand outline-none px-2 py-1 font-mono text-xs"
                   data-testid="dormant-pct"
                 >
                   {[10, 15, 20, 25, 30].map((n) => <option key={n} value={n}>{n}%</option>)}
                 </select>
               </div>
               <div className="flex items-center gap-2">
-                <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Expires</label>
+                <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Expires</label>
                 <select
                   value={expiry} onChange={(e) => setExpiry(parseInt(e.target.value, 10))}
-                  className="bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none px-2 py-1 font-mono text-xs"
+                  className="bg-paper border border-line focus:border-brand outline-none px-2 py-1 font-mono text-xs"
                   data-testid="dormant-expiry"
                 >
                   {[7, 14, 21, 30, 45, 60].map((n) => <option key={n} value={n}>{n} days</option>)}

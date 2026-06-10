@@ -67,12 +67,12 @@ export default function QuickEditDesignFile({ example, onClose, onSaved }) {
 
   return (
     <div
-      className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 bg-paper/80 z-50 flex items-center justify-center p-4"
       onClick={onClose}
       data-testid="quick-edit-design-file-modal"
     >
       <div
-        className="bg-[#0a0a0a] border border-[#262626] max-w-xl w-full p-6 max-h-[90vh] overflow-y-auto"
+        className="bg-paper border border-line max-w-xl w-full p-6 max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between mb-4">
@@ -80,16 +80,16 @@ export default function QuickEditDesignFile({ example, onClose, onSaved }) {
             <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-cyan-300 mb-1">
               Quick Edit · Design File
             </div>
-            <div className="font-display text-xl text-[#f5f5f5] truncate">
+            <div className="font-display text-xl text-ink truncate">
               {example.title || example.slug}
             </div>
-            <div className="font-mono text-[10px] text-[#737373] mt-1 truncate">
+            <div className="font-mono text-[10px] text-ink-muted mt-1 truncate">
               id: {example.id}
             </div>
           </div>
           <button
             onClick={onClose}
-            className="text-[#737373] hover:text-[#f5f5f5] font-mono text-lg leading-none"
+            className="text-ink-muted hover:text-ink font-mono text-lg leading-none"
             data-testid="quick-edit-close"
             aria-label="Close"
           >
@@ -99,7 +99,7 @@ export default function QuickEditDesignFile({ example, onClose, onSaved }) {
 
         <div className="space-y-3">
           <label className="block">
-            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
               Title
             </span>
             <input
@@ -107,13 +107,13 @@ export default function QuickEditDesignFile({ example, onClose, onSaved }) {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Untitled"
-              className="mt-1 w-full bg-[#050505] border border-[#262626] focus:border-cyan-400 px-3 py-2 font-mono text-sm text-[#f5f5f5] outline-none"
+              className="mt-1 w-full bg-paper border border-line focus:border-cyan-400 px-3 py-2 font-mono text-sm text-ink outline-none"
               data-testid="quick-edit-title"
             />
           </label>
 
           <label className="block">
-            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
               Thumbnail URL <span className="text-red-400">{example.blockers.includes("missing_preview") && "* missing"}</span>
             </span>
             <input
@@ -121,21 +121,21 @@ export default function QuickEditDesignFile({ example, onClose, onSaved }) {
               value={thumbnailUrl}
               onChange={(e) => setThumbnailUrl(e.target.value)}
               placeholder="https://…/preview.png"
-              className="mt-1 w-full bg-[#050505] border border-[#262626] focus:border-cyan-400 px-3 py-2 font-mono text-sm text-[#f5f5f5] outline-none"
+              className="mt-1 w-full bg-paper border border-line focus:border-cyan-400 px-3 py-2 font-mono text-sm text-ink outline-none"
               data-testid="quick-edit-thumbnail-url"
             />
             {thumbnailUrl && (
               <img
                 src={thumbnailUrl}
                 alt="Preview"
-                className="mt-2 max-h-32 border border-[#262626]"
+                className="mt-2 max-h-32 border border-line"
                 onError={(e) => { e.target.style.display = "none"; }}
               />
             )}
           </label>
 
           <label className="block">
-            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
               Primary File URL <span className="text-red-400">{example.blockers.includes("missing_file_url") && "* missing"}</span>
             </span>
             <input
@@ -143,7 +143,7 @@ export default function QuickEditDesignFile({ example, onClose, onSaved }) {
               value={primaryUrl}
               onChange={(e) => setPrimaryUrl(e.target.value)}
               placeholder="https://…/file.svg"
-              className="mt-1 w-full bg-[#050505] border border-[#262626] focus:border-cyan-400 px-3 py-2 font-mono text-sm text-[#f5f5f5] outline-none"
+              className="mt-1 w-full bg-paper border border-line focus:border-cyan-400 px-3 py-2 font-mono text-sm text-ink outline-none"
               data-testid="quick-edit-primary-url"
             />
           </label>
@@ -159,7 +159,7 @@ export default function QuickEditDesignFile({ example, onClose, onSaved }) {
         <div className="flex justify-end gap-2 mt-5">
           <button
             onClick={onClose}
-            className="px-3 py-2 border border-[#262626] hover:border-[#525252] font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]"
+            className="px-3 py-2 border border-line hover:border-ink-muted font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted"
             data-testid="quick-edit-cancel"
           >
             Cancel

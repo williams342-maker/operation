@@ -64,11 +64,11 @@ export default function AdminShowcaseModTab() {
   return (
     <div className="space-y-6" data-testid="admin-showcase-mod-tab">
       <div>
-        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-2">
+        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-2">
           ◆ Community moderation
         </div>
         <h1 className="font-display text-3xl md:text-5xl uppercase leading-none">Showcase</h1>
-        <p className="font-mono text-sm text-[#a3a3a3] mt-2">
+        <p className="font-mono text-sm text-ink-muted mt-2">
           Approve, feature, edit, or remove community showcase posts. Featured posts surface higher in the homepage + product strip feeds.
         </p>
       </div>
@@ -77,31 +77,31 @@ export default function AdminShowcaseModTab() {
 
       {/* Filter chips */}
       <div className="flex flex-wrap items-center gap-2">
-        <Filter size={14} className="text-[#525252]" />
+        <Filter size={14} className="text-ink-muted" />
         {STATUS_OPTIONS.map((s) => (
           <button
             key={s.id}
             onClick={() => { setFilter(s.id); setPage(0); }}
             className={`font-mono text-[10px] uppercase tracking-[0.22em] px-3 py-1.5 border transition ${
               filter === s.id
-                ? "border-[#ff4500] text-[#ff4500] bg-[#ff4500]/10"
-                : "border-[#262626] text-[#a3a3a3] hover:border-[#ff4500] hover:text-[#ff4500]"
+                ? "border-brand text-brand bg-brand/10"
+                : "border-line text-ink-muted hover:border-brand hover:text-brand"
             }`}
             data-testid={`admin-showcase-filter-${s.id}`}
           >
             {s.label}
           </button>
         ))}
-        <span className="font-mono text-[10px] text-[#525252] ml-2" data-testid="admin-showcase-total">
+        <span className="font-mono text-[10px] text-ink-muted ml-2" data-testid="admin-showcase-total">
           {total} total
         </span>
       </div>
 
       {/* Grid */}
       {rows === null ? (
-        <p className="font-mono text-sm text-[#a3a3a3]">Loading…</p>
+        <p className="font-mono text-sm text-ink-muted">Loading…</p>
       ) : rows.length === 0 ? (
-        <p className="font-mono text-sm text-[#a3a3a3]" data-testid="admin-showcase-empty">
+        <p className="font-mono text-sm text-ink-muted" data-testid="admin-showcase-empty">
           No posts match this filter.
         </p>
       ) : (
@@ -114,22 +114,22 @@ export default function AdminShowcaseModTab() {
 
       {/* Pagination */}
       {total > PAGE_SIZE && (
-        <div className="flex justify-between items-center pt-4 border-t border-[#262626]">
+        <div className="flex justify-between items-center pt-4 border-t border-line">
           <button
             onClick={() => setPage((p) => Math.max(0, p - 1))}
             disabled={page === 0}
-            className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] disabled:opacity-30"
+            className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand disabled:opacity-30"
             data-testid="admin-showcase-prev"
           >
             ← Prev
           </button>
-          <span className="font-mono text-[10px] text-[#525252]">
+          <span className="font-mono text-[10px] text-ink-muted">
             Page {page + 1} / {Math.ceil(total / PAGE_SIZE)}
           </span>
           <button
             onClick={() => setPage((p) => p + 1)}
             disabled={(page + 1) * PAGE_SIZE >= total}
-            className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] disabled:opacity-30"
+            className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand disabled:opacity-30"
             data-testid="admin-showcase-next"
           >
             Next →
@@ -180,21 +180,21 @@ function AdminShowcaseCard({ post, onChanged }) {
   };
 
   return (
-    <div className="border border-[#262626] overflow-hidden" data-testid={`admin-showcase-card-${post.id}`}>
-      <div className="aspect-[4/3] bg-[#121212] relative">
+    <div className="border border-line overflow-hidden" data-testid={`admin-showcase-card-${post.id}`}>
+      <div className="aspect-[4/3] bg-surface relative">
         {hasVideo ? (
-          <video src={post.video_url} poster={cover || undefined} controls playsInline preload="metadata" className="w-full h-full object-cover bg-black" />
+          <video src={post.video_url} poster={cover || undefined} controls playsInline preload="metadata" className="w-full h-full object-cover bg-paper" />
         ) : cover ? (
           <img src={cover} alt={post.title} className="w-full h-full object-cover" />
         ) : (
-          <div className="w-full h-full grid place-items-center font-mono text-xs text-[#525252]">no media</div>
+          <div className="w-full h-full grid place-items-center font-mono text-xs text-ink-muted">no media</div>
         )}
         {hasVideo && (
-          <span className="absolute top-2 left-2 bg-[#ff4500] text-[#0a0a0a] font-mono text-[9px] uppercase tracking-[0.18em] px-2 py-1 font-bold">◆ Video</span>
+          <span className="absolute top-2 left-2 bg-brand text-[#0a0a0a] font-mono text-[9px] uppercase tracking-[0.18em] px-2 py-1 font-bold">◆ Video</span>
         )}
         {post.open_reports > 0 && (
           <span
-            className="absolute bottom-2 left-2 bg-red-500 text-white font-mono text-[9px] uppercase tracking-[0.18em] px-2 py-1 font-bold flex items-center gap-1"
+            className="absolute bottom-2 left-2 bg-red-500 text-ink font-mono text-[9px] uppercase tracking-[0.18em] px-2 py-1 font-bold flex items-center gap-1"
             data-testid={`admin-showcase-${post.id}-reports`}
           >
             ⚠ {post.open_reports} report{post.open_reports === 1 ? "" : "s"}
@@ -204,9 +204,9 @@ function AdminShowcaseCard({ post, onChanged }) {
           className={`absolute top-2 right-2 font-mono text-[9px] uppercase tracking-[0.18em] px-2 py-1 font-bold ${
             status === "featured" ? "bg-yellow-500 text-[#0a0a0a]"
             : status === "approved" ? "bg-emerald-500 text-[#0a0a0a]"
-            : status === "quarantined" ? "bg-red-600 text-white"
+            : status === "quarantined" ? "bg-red-600 text-ink"
             : status === "reported" ? "bg-orange-500 text-[#0a0a0a]"
-            : "bg-[#0a0a0a]/85 text-[#a3a3a3] border border-[#262626]"
+            : "bg-paper/85 text-ink-muted border border-line"
           }`}
           data-testid={`admin-showcase-status-${post.id}`}
         >
@@ -219,14 +219,14 @@ function AdminShowcaseCard({ post, onChanged }) {
             <input
               value={draft.title}
               onChange={(e) => setDraft({ ...draft, title: e.target.value })}
-              className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs"
+              className="w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs"
               data-testid={`admin-showcase-${post.id}-edit-title`}
             />
             <textarea
               value={draft.description}
               onChange={(e) => setDraft({ ...draft, description: e.target.value })}
               rows={3}
-              className="w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-3 py-2 font-mono text-xs resize-y"
+              className="w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs resize-y"
               data-testid={`admin-showcase-${post.id}-edit-description`}
             />
             <div className="flex gap-2">
@@ -250,15 +250,15 @@ function AdminShowcaseCard({ post, onChanged }) {
         ) : (
           <>
             <div className="font-display text-lg leading-tight">{post.title}</div>
-            <p className="font-mono text-[11px] text-[#a3a3a3] leading-relaxed line-clamp-3">{post.description}</p>
-            <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#525252]">
+            <p className="font-mono text-[11px] text-ink-muted leading-relaxed line-clamp-3">{post.description}</p>
+            <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-muted">
               <div>By: {post.user_name || post.user_email}</div>
               <div className="mt-1">Role: {post.user_role || "buyer"} · {new Date(post.created_at).toLocaleDateString()}</div>
               {post.maker_slug && <div className="mt-1">Maker: @{post.maker_slug}</div>}
             </div>
 
             {/* Action row */}
-            <div className="flex flex-wrap gap-1.5 pt-2 border-t border-[#262626]">
+            <div className="flex flex-wrap gap-1.5 pt-2 border-t border-line">
               <button
                 onClick={() => doAction("Approved", () => adminApproveShowcase(post.id))}
                 disabled={busy}
@@ -278,7 +278,7 @@ function AdminShowcaseCard({ post, onChanged }) {
               <button
                 onClick={() => setEditing(true)}
                 disabled={busy}
-                className="font-mono text-[10px] uppercase tracking-[0.22em] border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] px-2 py-1 flex items-center gap-1 disabled:opacity-50"
+                className="font-mono text-[10px] uppercase tracking-[0.22em] border border-line hover:border-brand hover:text-brand px-2 py-1 flex items-center gap-1 disabled:opacity-50"
                 data-testid={`admin-showcase-${post.id}-edit`}
               >
                 <Pencil size={11} /> Edit
@@ -334,9 +334,9 @@ function ModStatsBlock({ onFilter }) {
     return (
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2" data-testid="mod-stats-loading">
         {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="border border-[#262626] bg-[#0d0d0d] p-3 animate-pulse">
-            <div className="h-2 w-16 bg-[#1a1a1a] mb-2" />
-            <div className="h-6 w-10 bg-[#1a1a1a]" />
+          <div key={i} className="border border-line bg-paper p-3 animate-pulse">
+            <div className="h-2 w-16 bg-surface mb-2" />
+            <div className="h-6 w-10 bg-surface" />
           </div>
         ))}
       </div>
@@ -362,7 +362,7 @@ function ModStatsBlock({ onFilter }) {
     amber: "text-amber-400 border-amber-500/40",
     red: "text-red-400 border-red-500/50",
     emerald: "text-emerald-400 border-emerald-500/30",
-    neutral: "text-[#a3a3a3] border-[#262626]",
+    neutral: "text-ink-muted border-line",
   };
 
   return (
@@ -370,8 +370,8 @@ function ModStatsBlock({ onFilter }) {
       {cells.map(({ k, label, icon: Icon, tone, filter, testid }) => {
         const n = stats[k] ?? 0;
         const clickable = !!filter;
-        const cls = `border bg-[#0d0d0d] p-3 transition ${toneClasses[tone] || toneClasses.neutral} ${
-          clickable ? "hover:bg-[#ff4500]/5 hover:border-[#ff4500] cursor-pointer" : ""
+        const cls = `border bg-paper p-3 transition ${toneClasses[tone] || toneClasses.neutral} ${
+          clickable ? "hover:bg-brand/5 hover:border-brand cursor-pointer" : ""
         }`;
         const inner = (
           <>
@@ -379,7 +379,7 @@ function ModStatsBlock({ onFilter }) {
               <Icon size={11} />
               <span className="font-mono text-[9px] uppercase tracking-[0.22em]">{label}</span>
             </div>
-            <div className="font-display text-2xl text-[#e5e5e5]">{n}</div>
+            <div className="font-display text-2xl text-ink">{n}</div>
           </>
         );
         return clickable ? (

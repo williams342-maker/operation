@@ -31,7 +31,7 @@ const STATUS_TONE = {
   active:    "border-emerald-700/50 text-emerald-300",
   scheduled: "border-amber-700/50 text-amber-300",
   paused:    "border-orange-700/50 text-orange-300",
-  ended:     "border-[#404040] text-[#737373]",
+  ended:     "border-line text-ink-muted",
 };
 
 const TONES = [
@@ -106,7 +106,7 @@ export default function SitePromosCard() {
   };
 
   return (
-    <div className="border border-[#262626] p-4 md:p-5" data-testid="site-promos-card">
+    <div className="border border-line p-4 md:p-5" data-testid="site-promos-card">
       {confirmModal}
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
@@ -114,7 +114,7 @@ export default function SitePromosCard() {
             <Megaphone size={12} /> ◆ On-site Promos
           </div>
           <h3 className="font-display text-2xl uppercase mb-1">Site Banner CMS</h3>
-          <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed max-w-2xl">
+          <p className="font-mono text-xs text-ink-muted leading-relaxed max-w-2xl">
             Schedule banners that render directly on the public site (homepage hero, /shop top, etc.). Use this for sales, announcements, or seasonal pushes. Visitors can dismiss banners if you mark them dismissible.
           </p>
         </div>
@@ -136,14 +136,14 @@ export default function SitePromosCard() {
       )}
 
       <div className="mt-4">
-        {loading && <p className="font-mono text-xs text-[#737373]">Loading promos…</p>}
+        {loading && <p className="font-mono text-xs text-ink-muted">Loading promos…</p>}
         {!loading && promos.length === 0 && (
-          <p className="font-mono text-xs text-[#737373]" data-testid="site-promos-empty">
+          <p className="font-mono text-xs text-ink-muted" data-testid="site-promos-empty">
             No promos yet. Click &ldquo;New promo&rdquo; to schedule the first one.
           </p>
         )}
         {!loading && promos.length > 0 && (
-          <div className="border border-[#262626] divide-y divide-[#1a1a1a]" data-testid="site-promos-list">
+          <div className="border border-line divide-y divide-line" data-testid="site-promos-list">
             {promos.map((p) => (
               <div
                 key={p.promo_id}
@@ -152,7 +152,7 @@ export default function SitePromosCard() {
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-display text-lg text-[#f5f5f5]">{p.title}</span>
+                    <span className="font-display text-lg text-ink">{p.title}</span>
                     <span className={`font-mono text-[9px] uppercase tracking-[0.22em] px-1.5 py-0.5 border ${STATUS_TONE[p.status] || ""}`}>
                       {p.status}
                     </span>
@@ -160,7 +160,7 @@ export default function SitePromosCard() {
                       {p.placement}
                     </span>
                     {p.tone && p.tone !== "default" && (
-                      <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#a3a3a3] border border-[#262626] px-1.5 py-0.5">
+                      <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-ink-muted border border-line px-1.5 py-0.5">
                         {p.tone}
                       </span>
                     )}
@@ -171,9 +171,9 @@ export default function SitePromosCard() {
                     )}
                   </div>
                   {p.body && (
-                    <div className="font-mono text-xs text-[#d4d4d4] mt-1 line-clamp-2">{p.body}</div>
+                    <div className="font-mono text-xs text-ink mt-1 line-clamp-2">{p.body}</div>
                   )}
-                  <div className="font-mono text-[10px] text-[#a3a3a3] mt-1 flex flex-wrap gap-3">
+                  <div className="font-mono text-[10px] text-ink-muted mt-1 flex flex-wrap gap-3">
                     <span>{p.start_date} → {p.end_date}</span>
                     {p.cta_label && p.cta_url && (
                       <span className="flex items-center gap-1">
@@ -211,7 +211,7 @@ export default function SitePromosCard() {
                     <button
                       onClick={() => onStatus(p.promo_id, "ended")}
                       disabled={busy === `${p.promo_id}:ended`}
-                      className="px-2 py-1 border border-[#404040] hover:border-red-500 hover:text-red-300 text-[#a3a3a3] font-mono text-[9px] uppercase tracking-[0.22em] flex items-center gap-1 disabled:opacity-50"
+                      className="px-2 py-1 border border-line hover:border-red-500 hover:text-red-300 text-ink-muted font-mono text-[9px] uppercase tracking-[0.22em] flex items-center gap-1 disabled:opacity-50"
                       data-testid={`site-promo-end-${p.promo_id}`}
                     >
                       <Square size={10} /> End
@@ -220,7 +220,7 @@ export default function SitePromosCard() {
                   <button
                     onClick={() => onDelete(p)}
                     disabled={busy === `${p.promo_id}:delete`}
-                    className="px-2 py-1 border border-[#404040] hover:border-red-500 hover:text-red-300 text-[#a3a3a3] font-mono text-[9px] uppercase tracking-[0.22em] flex items-center gap-1 disabled:opacity-50"
+                    className="px-2 py-1 border border-line hover:border-red-500 hover:text-red-300 text-ink-muted font-mono text-[9px] uppercase tracking-[0.22em] flex items-center gap-1 disabled:opacity-50"
                     data-testid={`site-promo-delete-${p.promo_id}`}
                     title="Delete promo"
                   >
@@ -281,67 +281,67 @@ function NewPromoForm({ onCancel, onCreated }) {
       data-testid="site-promos-form"
     >
       <label className="block sm:col-span-2">
-        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Headline</span>
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Headline</span>
         <input
           type="text" required minLength={2} maxLength={120}
           value={title} onChange={(e) => setTitle(e.target.value)}
           placeholder="Mother's Day Sale — 20% off"
-          className="mt-1 w-full bg-[#050505] border border-[#262626] focus:border-amber-400 px-3 py-2 font-mono text-sm text-[#f5f5f5] outline-none"
+          className="mt-1 w-full bg-paper border border-line focus:border-amber-400 px-3 py-2 font-mono text-sm text-ink outline-none"
           data-testid="site-promos-form-title"
         />
       </label>
 
       <label className="block sm:col-span-2">
-        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
           Body (optional · max 400 chars)
         </span>
         <textarea
           rows={2} maxLength={400}
           value={body} onChange={(e) => setBody(e.target.value)}
           placeholder="Shop wall art and custom signs through Sunday."
-          className="mt-1 w-full bg-[#050505] border border-[#262626] focus:border-amber-400 px-3 py-2 font-mono text-sm text-[#f5f5f5] outline-none resize-y"
+          className="mt-1 w-full bg-paper border border-line focus:border-amber-400 px-3 py-2 font-mono text-sm text-ink outline-none resize-y"
           data-testid="site-promos-form-body"
         />
       </label>
 
       <label className="block">
-        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">CTA label (optional)</span>
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">CTA label (optional)</span>
         <input
           type="text" maxLength={40}
           value={ctaLabel} onChange={(e) => setCtaLabel(e.target.value)}
           placeholder="Shop the sale"
-          className="mt-1 w-full bg-[#050505] border border-[#262626] focus:border-amber-400 px-3 py-2 font-mono text-sm text-[#f5f5f5] outline-none"
+          className="mt-1 w-full bg-paper border border-line focus:border-amber-400 px-3 py-2 font-mono text-sm text-ink outline-none"
           data-testid="site-promos-form-cta-label"
         />
       </label>
 
       <label className="block">
-        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">CTA URL (optional, relative or full)</span>
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">CTA URL (optional, relative or full)</span>
         <input
           type="text" maxLength={400}
           value={ctaUrl} onChange={(e) => setCtaUrl(e.target.value)}
           placeholder="/shop?category=Wall+Art"
-          className="mt-1 w-full bg-[#050505] border border-[#262626] focus:border-amber-400 px-3 py-2 font-mono text-sm text-[#f5f5f5] outline-none"
+          className="mt-1 w-full bg-paper border border-line focus:border-amber-400 px-3 py-2 font-mono text-sm text-ink outline-none"
           data-testid="site-promos-form-cta-url"
         />
       </label>
 
       <label className="block sm:col-span-2">
-        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Image URL (optional)</span>
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Image URL (optional)</span>
         <input
           type="text" maxLength={500}
           value={imageUrl} onChange={(e) => setImageUrl(e.target.value)}
           placeholder="https://images.unsplash.com/..."
-          className="mt-1 w-full bg-[#050505] border border-[#262626] focus:border-amber-400 px-3 py-2 font-mono text-sm text-[#f5f5f5] outline-none"
+          className="mt-1 w-full bg-paper border border-line focus:border-amber-400 px-3 py-2 font-mono text-sm text-ink outline-none"
           data-testid="site-promos-form-image"
         />
       </label>
 
       <label className="block">
-        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Placement</span>
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Placement</span>
         <select
           value={placement} onChange={(e) => setPlacement(e.target.value)}
-          className="mt-1 w-full bg-[#050505] border border-[#262626] focus:border-amber-400 px-3 py-2 font-mono text-sm text-[#f5f5f5] outline-none"
+          className="mt-1 w-full bg-paper border border-line focus:border-amber-400 px-3 py-2 font-mono text-sm text-ink outline-none"
           data-testid="site-promos-form-placement"
         >
           {PLACEMENTS.map((p) => (
@@ -351,10 +351,10 @@ function NewPromoForm({ onCancel, onCreated }) {
       </label>
 
       <label className="block">
-        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Tone</span>
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Tone</span>
         <select
           value={tone} onChange={(e) => setTone(e.target.value)}
-          className="mt-1 w-full bg-[#050505] border border-[#262626] focus:border-amber-400 px-3 py-2 font-mono text-sm text-[#f5f5f5] outline-none"
+          className="mt-1 w-full bg-paper border border-line focus:border-amber-400 px-3 py-2 font-mono text-sm text-ink outline-none"
           data-testid="site-promos-form-tone"
         >
           {TONES.map((t) => (
@@ -364,31 +364,31 @@ function NewPromoForm({ onCancel, onCreated }) {
       </label>
 
       <label className="block">
-        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Start date</span>
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Start date</span>
         <input
           type="date" required
           value={startDate} onChange={(e) => setStartDate(e.target.value)}
-          className="mt-1 w-full bg-[#050505] border border-[#262626] focus:border-amber-400 px-3 py-2 font-mono text-sm text-[#f5f5f5] outline-none"
+          className="mt-1 w-full bg-paper border border-line focus:border-amber-400 px-3 py-2 font-mono text-sm text-ink outline-none"
           data-testid="site-promos-form-start"
         />
       </label>
 
       <label className="block">
-        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">End date</span>
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">End date</span>
         <input
           type="date" required
           value={endDate} onChange={(e) => setEndDate(e.target.value)}
-          className="mt-1 w-full bg-[#050505] border border-[#262626] focus:border-amber-400 px-3 py-2 font-mono text-sm text-[#f5f5f5] outline-none"
+          className="mt-1 w-full bg-paper border border-line focus:border-amber-400 px-3 py-2 font-mono text-sm text-ink outline-none"
           data-testid="site-promos-form-end"
         />
       </label>
 
       <label className="block">
-        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Priority (higher wins when multiple share a slot)</span>
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Priority (higher wins when multiple share a slot)</span>
         <input
           type="number" min={0} max={100}
           value={priority} onChange={(e) => setPriority(e.target.value)}
-          className="mt-1 w-full bg-[#050505] border border-[#262626] focus:border-amber-400 px-3 py-2 font-mono text-sm text-[#f5f5f5] outline-none"
+          className="mt-1 w-full bg-paper border border-line focus:border-amber-400 px-3 py-2 font-mono text-sm text-ink outline-none"
           data-testid="site-promos-form-priority"
         />
       </label>
@@ -400,7 +400,7 @@ function NewPromoForm({ onCancel, onCreated }) {
           className="accent-amber-400"
           data-testid="site-promos-form-dismissible"
         />
-        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
           Visitors can dismiss this banner
         </span>
       </label>
@@ -408,7 +408,7 @@ function NewPromoForm({ onCancel, onCreated }) {
       <div className="sm:col-span-2 flex justify-end gap-2 pt-2">
         <button
           type="button" onClick={onCancel}
-          className="px-3 py-2 border border-[#262626] hover:border-[#525252] font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]"
+          className="px-3 py-2 border border-line hover:border-ink-muted font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted"
           data-testid="site-promos-form-cancel"
         >
           Cancel

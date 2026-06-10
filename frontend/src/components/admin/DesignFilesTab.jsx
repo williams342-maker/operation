@@ -97,30 +97,30 @@ export default function DesignFilesTab() {
   return (
     <div className="space-y-5" data-testid="admin-design-files-tab">
       <header>
-        <h2 className="font-display text-3xl text-[#e5e5e5]">Design Files</h2>
-        <p className="font-mono text-xs text-[#a3a3a3] mt-1 max-w-2xl leading-relaxed">
+        <h2 className="font-display text-3xl text-ink">Design Files</h2>
+        <p className="font-mono text-xs text-ink-muted mt-1 max-w-2xl leading-relaxed">
           Every community-uploaded design file. Quarantine hides a file
           without destroying it (reversible). <b className="text-red-400">Delete</b>{" "}
           permanently removes the R2 objects + DB rows + every report and
           download record tied to it (irreversible).
         </p>
         <div
-          className="mt-3 inline-flex items-center gap-2 px-3 py-2 border border-[#262626] bg-[#0d0d0d]"
+          className="mt-3 inline-flex items-center gap-2 px-3 py-2 border border-line bg-paper"
           data-testid="design-files-total-downloads"
         >
-          <Download size={14} className="text-[#ff4500]" />
-          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+          <Download size={14} className="text-brand" />
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
             Total downloads
           </span>
-          <span className="font-display text-xl text-[#ff4500] tabular-nums">
+          <span className="font-display text-xl text-brand tabular-nums">
             {totalDownloads.toLocaleString()}
           </span>
-          <span className="font-mono text-[10px] text-[#525252]">across all files</span>
+          <span className="font-mono text-[10px] text-ink-muted">across all files</span>
         </div>
       </header>
 
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex border border-[#262626]" data-testid="design-files-filter">
+        <div className="flex border border-line" data-testid="design-files-filter">
           {FILTERS.map((f) => {
             const active = filter === f.id;
             return (
@@ -130,7 +130,7 @@ export default function DesignFilesTab() {
                 onClick={() => setFilter(f.id)}
                 data-testid={`design-files-filter-${f.id}`}
                 className={`px-4 py-2 font-mono text-[10px] uppercase tracking-[0.22em] transition ${
-                  active ? "bg-[#ff4500] text-black" : "text-[#a3a3a3] hover:text-[#e5e5e5]"
+                  active ? "bg-brand text-ink" : "text-ink-muted hover:text-ink"
                 }`}
               >
                 {f.label}
@@ -139,13 +139,13 @@ export default function DesignFilesTab() {
           })}
         </div>
         <div className="relative flex-1 max-w-md">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#525252]" />
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search title, maker, uploader…"
-            className="w-full pl-9 pr-3 py-2 bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] outline-none font-mono text-xs text-[#e5e5e5]"
+            className="w-full pl-9 pr-3 py-2 bg-paper border border-line focus:border-brand outline-none font-mono text-xs text-ink"
             data-testid="design-files-search"
           />
         </div>
@@ -154,8 +154,8 @@ export default function DesignFilesTab() {
           onClick={() => setSort((s) => (s === "downloads" ? "created_at" : "downloads"))}
           className={`px-3 py-2 border font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5 transition ${
             sort === "downloads"
-              ? "border-[#ff4500] text-[#ff4500] bg-[#ff4500]/10"
-              : "border-[#262626] text-[#a3a3a3] hover:border-[#ff4500] hover:text-[#ff4500]"
+              ? "border-brand text-brand bg-brand/10"
+              : "border-line text-ink-muted hover:border-brand hover:text-brand"
           }`}
           data-testid="design-files-sort"
           title="Sort by total downloads (descending)"
@@ -163,13 +163,13 @@ export default function DesignFilesTab() {
           <ArrowDown size={11} />
           {sort === "downloads" ? "Sorted: Most downloaded" : "Sort by downloads"}
         </button>
-        <span className="font-mono text-[10px] text-[#525252] ml-auto">
+        <span className="font-mono text-[10px] text-ink-muted ml-auto">
           {items.length} file{items.length === 1 ? "" : "s"}
         </span>
       </div>
 
       {loading ? (
-        <div className="flex items-center gap-2 text-[#a3a3a3] font-mono text-xs">
+        <div className="flex items-center gap-2 text-ink-muted font-mono text-xs">
           <Loader2 size={14} className="animate-spin" /> Loading…
         </div>
       ) : !items.length ? (
@@ -179,7 +179,7 @@ export default function DesignFilesTab() {
           icon={Eye}
         />
       ) : (
-        <div className="border border-[#262626] divide-y divide-[#1a1a1a]" data-testid="design-files-list">
+        <div className="border border-line divide-y divide-line" data-testid="design-files-list">
           {items.map((f) => (
             <FileRow
               key={f.id}
@@ -222,26 +222,26 @@ function FileRow({ file, busy, onUnquarantine, onAskDelete, onAskEdit }) {
         <img
           src={file.thumbnail_url}
           alt=""
-          className="w-16 h-16 object-cover border border-[#262626] shrink-0"
+          className="w-16 h-16 object-cover border border-line shrink-0"
         />
       ) : (
-        <div className="w-16 h-16 border border-[#262626] bg-[#0a0a0a] shrink-0 flex items-center justify-center font-mono text-[9px] uppercase text-[#525252]">
+        <div className="w-16 h-16 border border-line bg-paper shrink-0 flex items-center justify-center font-mono text-[9px] uppercase text-ink-muted">
           {file.file_type?.toUpperCase() || "FILE"}
         </div>
       )}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-mono text-xs text-[#e5e5e5] font-bold truncate max-w-md">
+          <span className="font-mono text-xs text-ink font-bold truncate max-w-md">
             {file.title || file.id}
           </span>
           {file.file_type && (
-            <span className="px-2 py-0.5 border border-[#262626] text-[#a3a3a3] font-mono text-[9px] uppercase tracking-[0.22em]">
+            <span className="px-2 py-0.5 border border-line text-ink-muted font-mono text-[9px] uppercase tracking-[0.22em]">
               {file.file_type}
             </span>
           )}
           {(typeof file.downloads === "number" || typeof file.download_count === "number") && (
             <span
-              className="inline-flex items-center gap-1 px-2 py-0.5 border border-[#ff4500]/40 text-[#ff4500] bg-[#ff4500]/10 font-mono text-[9px] uppercase tracking-[0.22em]"
+              className="inline-flex items-center gap-1 px-2 py-0.5 border border-brand/40 text-brand bg-brand/10 font-mono text-[9px] uppercase tracking-[0.22em]"
               data-testid={`design-file-downloads-${file.id}`}
               title={`${file.downloads ?? file.download_count ?? 0} download${(file.downloads ?? file.download_count ?? 0) === 1 ? "" : "s"}`}
             >
@@ -259,17 +259,17 @@ function FileRow({ file, busy, onUnquarantine, onAskDelete, onAskEdit }) {
             </span>
           )}
         </div>
-        <div className="font-mono text-[10px] text-[#a3a3a3] mt-1">
+        <div className="font-mono text-[10px] text-ink-muted mt-1">
           By {file.maker_name || file.uploader_name || file.uploader_id || "anonymous"}
-          <span className="text-[#525252]"> · {timeAgo(file.created_at)}</span>
-          {sizeMB && <span className="text-[#525252]"> · {sizeMB} MB</span>}
+          <span className="text-ink-muted"> · {timeAgo(file.created_at)}</span>
+          {sizeMB && <span className="text-ink-muted"> · {sizeMB} MB</span>}
         </div>
         {file.download_url && (
           <a
             href={file.download_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 mt-1.5 font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500]"
+            className="inline-flex items-center gap-1 mt-1.5 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand"
             data-testid={`design-file-link-${file.id}`}
           >
             <ExternalLink size={10} /> Open file
@@ -281,7 +281,7 @@ function FileRow({ file, busy, onUnquarantine, onAskDelete, onAskEdit }) {
           type="button"
           onClick={onAskEdit}
           disabled={busy}
-          className="px-3 py-1.5 border border-[#262626] hover:border-[#ff4500] hover:text-[#ff4500] font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+          className="px-3 py-1.5 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
           data-testid={`design-file-edit-${file.id}`}
           title="Edit title, description, or thumbnail (admin override on poster's content)"
         >
@@ -292,7 +292,7 @@ function FileRow({ file, busy, onUnquarantine, onAskDelete, onAskEdit }) {
             type="button"
             onClick={onUnquarantine}
             disabled={busy}
-            className="px-3 py-1.5 border border-[#262626] hover:border-emerald-500/60 hover:text-emerald-400 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+            className="px-3 py-1.5 border border-line hover:border-emerald-500/60 hover:text-emerald-400 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
             data-testid={`design-file-restore-${file.id}`}
           >
             <Eye size={12} className="inline mr-1" />Restore
@@ -318,24 +318,24 @@ function DeleteConfirmDialog({ file, busy, onCancel, onConfirm }) {
   const ok = typed === required;
   return (
     <div
-      className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4"
+      className="fixed inset-0 z-[100] bg-paper/80 flex items-center justify-center p-4"
       onClick={onCancel}
       data-testid="design-file-delete-confirm"
     >
       <div
-        className="bg-[#0a0a0a] border border-red-500/40 w-full max-w-md p-6"
+        className="bg-paper border border-red-500/40 w-full max-w-md p-6"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-red-400">
           <AlertTriangle size={14} /> Permanent delete
         </div>
-        <h3 className="font-display text-2xl mt-2 text-[#e5e5e5]">
+        <h3 className="font-display text-2xl mt-2 text-ink">
           Delete "{file.title || file.id}"?
         </h3>
-        <p className="font-mono text-xs text-[#a3a3a3] mt-3 leading-relaxed">
+        <p className="font-mono text-xs text-ink-muted mt-3 leading-relaxed">
           This <b className="text-red-400">cannot be undone</b>. The R2 object, every report tied to this file, and every download record will be purged. If you just want to hide the file from the public list, click <b>Quarantine</b> from the File Reports tab instead.
         </p>
-        <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] mt-5">
+        <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mt-5">
           Type <span className="text-red-400">{required}</span> to confirm:
         </p>
         <input
@@ -343,7 +343,7 @@ function DeleteConfirmDialog({ file, busy, onCancel, onConfirm }) {
           value={typed}
           onChange={(e) => setTyped(e.target.value)}
           autoFocus
-          className="w-full mt-2 bg-[#0a0a0a] border border-[#262626] focus:border-red-500 outline-none px-3 py-2 font-mono text-sm text-[#e5e5e5]"
+          className="w-full mt-2 bg-paper border border-line focus:border-red-500 outline-none px-3 py-2 font-mono text-sm text-ink"
           data-testid="design-file-delete-confirm-input"
         />
         <div className="flex gap-2 mt-5">
@@ -351,7 +351,7 @@ function DeleteConfirmDialog({ file, busy, onCancel, onConfirm }) {
             type="button"
             onClick={onCancel}
             disabled={busy}
-            className="flex-1 px-3 py-2 border border-[#262626] hover:border-[#a3a3a3] font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]"
+            className="flex-1 px-3 py-2 border border-line hover:border-ink font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted"
             data-testid="design-file-delete-cancel"
           >
             Cancel
@@ -415,23 +415,23 @@ function EditFileDialog({ file, onCancel, onSaved }) {
 
   return (
     <div
-      className="fixed inset-0 z-[100] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4"
+      className="fixed inset-0 z-[100] bg-paper/85 backdrop-blur-sm flex items-center justify-center p-4"
       onClick={(e) => { if (e.target === e.currentTarget && !busy) onCancel(); }}
       data-testid="design-file-edit-dialog"
     >
       <form
         onSubmit={submit}
-        className="w-full max-w-lg bg-[#0a0a0a] border border-[#ff4500]/50 p-6 space-y-4"
+        className="w-full max-w-lg bg-paper border border-brand/50 p-6 space-y-4"
       >
         <div className="flex items-start justify-between gap-4">
           <div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500]">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">
               ◆ Admin edit · {file.maker_name || file.uploader_name || file.uploader_id || "anonymous"}
             </div>
-            <h3 className="font-display text-2xl mt-1 text-[#e5e5e5]">
+            <h3 className="font-display text-2xl mt-1 text-ink">
               Edit "{file.title || file.id}"
             </h3>
-            <p className="font-mono text-[11px] text-[#a3a3a3] mt-1">
+            <p className="font-mono text-[11px] text-ink-muted mt-1">
               Updates the poster's listing in place. The file binaries themselves are immutable here — use the variants endpoints for that.
             </p>
           </div>
@@ -439,7 +439,7 @@ function EditFileDialog({ file, onCancel, onSaved }) {
             type="button"
             onClick={onCancel}
             disabled={busy}
-            className="text-[#525252] hover:text-[#e5e5e5] disabled:opacity-50"
+            className="text-ink-muted hover:text-ink disabled:opacity-50"
             data-testid="design-file-edit-close"
             aria-label="Close edit dialog"
           >
@@ -448,36 +448,36 @@ function EditFileDialog({ file, onCancel, onSaved }) {
         </div>
 
         <label className="block">
-          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Title</span>
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Title</span>
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             maxLength={120}
             disabled={busy}
-            className="mt-1 w-full bg-[#050505] border border-[#262626] px-3 py-2 font-mono text-sm text-[#e5e5e5] focus:border-[#ff4500] outline-none"
+            className="mt-1 w-full bg-paper border border-line px-3 py-2 font-mono text-sm text-ink focus:border-brand outline-none"
             data-testid="design-file-edit-title"
           />
         </label>
 
         <label className="block">
-          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Description</span>
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Description</span>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             maxLength={800}
             rows={5}
             disabled={busy}
-            className="mt-1 w-full bg-[#050505] border border-[#262626] px-3 py-2 font-mono text-sm text-[#e5e5e5] focus:border-[#ff4500] outline-none resize-y"
+            className="mt-1 w-full bg-paper border border-line px-3 py-2 font-mono text-sm text-ink focus:border-brand outline-none resize-y"
             data-testid="design-file-edit-description"
           />
-          <span className="font-mono text-[10px] text-[#525252]">
+          <span className="font-mono text-[10px] text-ink-muted">
             {description.length}/800
           </span>
         </label>
 
         <label className="block">
-          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">
-            Thumbnail URL <span className="text-[#525252] normal-case">(optional)</span>
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
+            Thumbnail URL <span className="text-ink-muted normal-case">(optional)</span>
           </span>
           <input
             value={thumbnailUrl}
@@ -485,10 +485,10 @@ function EditFileDialog({ file, onCancel, onSaved }) {
             maxLength={600}
             disabled={busy}
             placeholder="https://…"
-            className="mt-1 w-full bg-[#050505] border border-[#262626] px-3 py-2 font-mono text-sm text-[#e5e5e5] focus:border-[#ff4500] outline-none"
+            className="mt-1 w-full bg-paper border border-line px-3 py-2 font-mono text-sm text-ink focus:border-brand outline-none"
             data-testid="design-file-edit-thumb"
           />
-          <span className="font-mono text-[10px] text-[#525252]">
+          <span className="font-mono text-[10px] text-ink-muted">
             Clear this field to fall back to an auto-generated thumbnail.
           </span>
         </label>
@@ -504,7 +504,7 @@ function EditFileDialog({ file, onCancel, onSaved }) {
             type="button"
             onClick={onCancel}
             disabled={busy}
-            className="font-mono text-xs uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#e5e5e5] disabled:opacity-50"
+            className="font-mono text-xs uppercase tracking-[0.22em] text-ink-muted hover:text-ink disabled:opacity-50"
             data-testid="design-file-edit-cancel"
           >
             Cancel
@@ -512,7 +512,7 @@ function EditFileDialog({ file, onCancel, onSaved }) {
           <button
             type="submit"
             disabled={busy || !dirty}
-            className="px-4 py-2 border border-[#ff4500] bg-[#ff4500]/10 hover:bg-[#ff4500]/20 font-mono text-[10px] uppercase tracking-[0.22em] text-[#ff4500] disabled:opacity-30 disabled:cursor-not-allowed"
+            className="px-4 py-2 border border-brand bg-brand/10 hover:bg-brand/20 font-mono text-[10px] uppercase tracking-[0.22em] text-brand disabled:opacity-30 disabled:cursor-not-allowed"
             data-testid="design-file-edit-save"
           >
             {busy ? "Saving…" : "Save changes →"}

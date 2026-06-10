@@ -86,9 +86,9 @@ export default function GA4LiveCard() {
 
   if (loading && !diag) {
     return (
-      <div className="border border-[#262626] bg-[#0a0a0a] p-6" data-testid="ga4-card-loading">
-        <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#525252] mb-2">◆ GA4 · Live</div>
-        <div className="font-mono text-sm text-[#a3a3a3]">Loading GA4 data…</div>
+      <div className="border border-line bg-paper p-6" data-testid="ga4-card-loading">
+        <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-ink-muted mb-2">◆ GA4 · Live</div>
+        <div className="font-mono text-sm text-ink-muted">Loading GA4 data…</div>
       </div>
     );
   }
@@ -101,7 +101,7 @@ export default function GA4LiveCard() {
           <div>
             <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-amber-300 mb-1">◆ GA4 · Setup needed</div>
             <h3 className="font-display text-2xl text-amber-200">Google Analytics 4 — Not Connected</h3>
-            <p className="font-mono text-[11px] text-[#a3a3a3] mt-1 max-w-[68ch] leading-relaxed">
+            <p className="font-mono text-[11px] text-ink-muted mt-1 max-w-[68ch] leading-relaxed">
               Live traffic metrics are one click away. Once GA4 is wired, this card surfaces realtime active users, 7-day totals, top pages, and top traffic sources right here.
             </p>
           </div>
@@ -114,7 +114,7 @@ export default function GA4LiveCard() {
           </button>
         </div>
         {error && (
-          <div className="mt-3 font-mono text-[11px] text-amber-100 bg-black/30 border border-amber-900/60 p-3 leading-relaxed" data-testid="ga4-card-reason">
+          <div className="mt-3 font-mono text-[11px] text-amber-100 bg-paper/30 border border-amber-900/60 p-3 leading-relaxed" data-testid="ga4-card-reason">
             <strong className="text-amber-300">Reason:</strong>{" "}
             {(() => {
               const url = error.match(/\bhttps?:\/\/\S+/)?.[0];
@@ -134,12 +134,12 @@ export default function GA4LiveCard() {
         )}
         {diag && (
           <div className="grid grid-cols-2 gap-2 font-mono text-[11px] mt-3" data-testid="ga4-card-context">
-            <div className="border border-[#262626] bg-[#0a0a0a] px-2 py-1.5">
-              <div className="uppercase tracking-[0.22em] text-[9px] text-[#525252]">Property ID</div>
+            <div className="border border-line bg-paper px-2 py-1.5">
+              <div className="uppercase tracking-[0.22em] text-[9px] text-ink-muted">Property ID</div>
               <div className="text-base text-zinc-200">{diag.property_id || "—"}</div>
             </div>
-            <div className="border border-[#262626] bg-[#0a0a0a] px-2 py-1.5">
-              <div className="uppercase tracking-[0.22em] text-[9px] text-[#525252]">Service account</div>
+            <div className="border border-line bg-paper px-2 py-1.5">
+              <div className="uppercase tracking-[0.22em] text-[9px] text-ink-muted">Service account</div>
               <div className="text-[11px] text-zinc-200 truncate" title={diag.client_email}>{diag.client_email || "—"}</div>
             </div>
           </div>
@@ -151,14 +151,14 @@ export default function GA4LiveCard() {
   // Happy path — render the live cards.
   return (
     <div className="space-y-4" data-testid="ga4-card-live">
-      <div className="flex items-end justify-between flex-wrap gap-3 border-b border-[#262626] pb-3">
+      <div className="flex items-end justify-between flex-wrap gap-3 border-b border-line pb-3">
         <div>
           <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-emerald-300 mb-1">◆ GA4 · Live</div>
           <h3 className="font-display text-2xl">Google Analytics</h3>
         </div>
         <button
           onClick={loadAll}
-          className="px-3 py-1.5 border border-[#262626] hover:border-emerald-500 hover:text-emerald-300 font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3]"
+          className="px-3 py-1.5 border border-line hover:border-emerald-500 hover:text-emerald-300 font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted"
           data-testid="ga4-card-refresh"
         >
           ↻ Refresh
@@ -177,7 +177,7 @@ export default function GA4LiveCard() {
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" /> Now
           </div>
           <div className="font-display text-4xl text-emerald-200">{realtime?.active_users ?? "—"}</div>
-          <div className="font-mono text-[10px] text-[#a3a3a3] mt-1">active users</div>
+          <div className="font-mono text-[10px] text-ink-muted mt-1">active users</div>
         </motion.div>
         <KpiTile label="Users · 7d" value={summary?.total_users} testId="ga4-kpi-users-7d" />
         <KpiTile label="Sessions · 7d" value={summary?.sessions} testId="ga4-kpi-sessions-7d" />
@@ -186,30 +186,30 @@ export default function GA4LiveCard() {
 
       {/* Top tables */}
       <div className="grid md:grid-cols-2 gap-4">
-        <div className="border border-[#262626] bg-[#0a0a0a] p-4" data-testid="ga4-top-pages">
-          <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#a3a3a3] mb-3">Top pages · 7d</div>
+        <div className="border border-line bg-paper p-4" data-testid="ga4-top-pages">
+          <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-ink-muted mb-3">Top pages · 7d</div>
           {!topPages.length ? (
-            <div className="font-mono text-xs text-[#525252]">No traffic in the last 7 days yet.</div>
+            <div className="font-mono text-xs text-ink-muted">No traffic in the last 7 days yet.</div>
           ) : (
             <ul className="space-y-1.5">
               {topPages.map((p, i) => (
                 <li key={i} className="flex justify-between items-center gap-3 font-mono text-xs">
-                  <span className="text-[#e5e5e5] truncate" title={p.page_path}>{p.page_path}</span>
+                  <span className="text-ink truncate" title={p.page_path}>{p.page_path}</span>
                   <span className="text-emerald-300 shrink-0">{p.page_views.toLocaleString()}</span>
                 </li>
               ))}
             </ul>
           )}
         </div>
-        <div className="border border-[#262626] bg-[#0a0a0a] p-4" data-testid="ga4-top-sources">
-          <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#a3a3a3] mb-3">Top sources · 7d</div>
+        <div className="border border-line bg-paper p-4" data-testid="ga4-top-sources">
+          <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-ink-muted mb-3">Top sources · 7d</div>
           {!topSources.length ? (
-            <div className="font-mono text-xs text-[#525252]">No traffic in the last 7 days yet.</div>
+            <div className="font-mono text-xs text-ink-muted">No traffic in the last 7 days yet.</div>
           ) : (
             <ul className="space-y-1.5">
               {topSources.map((s, i) => (
                 <li key={i} className="flex justify-between items-center gap-3 font-mono text-xs">
-                  <span className="text-[#e5e5e5] truncate" title={s.source_medium}>{s.source_medium}</span>
+                  <span className="text-ink truncate" title={s.source_medium}>{s.source_medium}</span>
                   <span className="text-emerald-300 shrink-0">{s.sessions.toLocaleString()}</span>
                 </li>
               ))}
@@ -223,8 +223,8 @@ export default function GA4LiveCard() {
 
 function KpiTile({ label, value, testId }) {
   return (
-    <div className="border border-[#262626] bg-[#0a0a0a] p-4" data-testid={testId}>
-      <div className="font-mono text-[9px] uppercase tracking-[0.28em] text-[#525252] mb-1">{label}</div>
+    <div className="border border-line bg-paper p-4" data-testid={testId}>
+      <div className="font-mono text-[9px] uppercase tracking-[0.28em] text-ink-muted mb-1">{label}</div>
       <div className="font-display text-4xl text-zinc-100">{value === undefined || value === null ? "—" : value.toLocaleString()}</div>
     </div>
   );

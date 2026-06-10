@@ -104,7 +104,7 @@ export default function Hero() {
             >
               <Link
                 to="/makers"
-                className="inline-flex items-center gap-2 px-6 py-3 bg-brand hover:bg-brand-hover text-white font-mono text-xs uppercase tracking-[0.22em] transition-colors"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-brand hover:bg-brand-hover text-ink font-mono text-xs uppercase tracking-[0.22em] transition-colors"
                 data-testid="home-hero-cta-browse"
               >
                 <Users size={14} />
