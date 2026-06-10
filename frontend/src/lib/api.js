@@ -1864,6 +1864,24 @@ export const adminPushDraftToGoogle = (draftId, payload) =>
   http.post(`/admin/ad-creative/drafts/${draftId}/push/google`, payload,
     { headers: adminAuthHeaders(), timeout: 60000 }).then((r) => r.data);
 
+// iter349 — Phase 4b — Meta Ads campaign push
+export const adminAdCreativeMetaPreflight = () =>
+  http.get("/admin/ad-creative/push/meta/preflight",
+    { headers: adminAuthHeaders() }).then((r) => r.data);
+
+export const adminPushDraftToMeta = (draftId, payload) =>
+  http.post(`/admin/ad-creative/drafts/${draftId}/push/meta`, payload,
+    { headers: adminAuthHeaders(), timeout: 60000 }).then((r) => r.data);
+
+// iter349 — Phase 4c — Microsoft (Bing) Ads campaign push
+export const adminAdCreativeMicrosoftPreflight = () =>
+  http.get("/admin/ad-creative/push/microsoft/preflight",
+    { headers: adminAuthHeaders() }).then((r) => r.data);
+
+export const adminPushDraftToMicrosoft = (draftId, payload) =>
+  http.post(`/admin/ad-creative/drafts/${draftId}/push/microsoft`, payload,
+    { headers: adminAuthHeaders(), timeout: 60000 }).then((r) => r.data);
+
 export const adminListAdCreativePushes = (limit = 30) =>
   http.get(`/admin/ad-creative/pushes?limit=${limit}`,
     { headers: adminAuthHeaders() }).then((r) => r.data);

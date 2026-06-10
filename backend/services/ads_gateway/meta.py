@@ -222,6 +222,13 @@ async def _create_creative(http: httpx.AsyncClient, ad_account: str,
     Per the Phase 1.5 spec (option 2a) we don't ask the maker for
     creative inputs — we pull title/description/image from the listing.
 
+    iter349 — when the admin AI Ad-Creative Workshop pushes a draft,
+    `spec.headlines[0]` carries the AI-chosen Meta headline (≤40 chars,
+    used as `link_data.name`) and `spec.descriptions[0]` carries the
+    AI-chosen Meta primary text (≤125 chars, used as `link_data.message`).
+    When called from the allocator (no Workshop draft), we fall back to
+    the listing title/description.
+
     Meta requires a Facebook Page ID for any link ad. We use the
     META_DEFAULT_PAGE_ID env var (the Crafters Market page) — every
     boosted listing posts as the platform Page, not as the individual
@@ -231,7 +238,14 @@ async def _create_creative(http: httpx.AsyncClient, ad_account: str,
     if not page_id:
         raise GatewayError("META_DEFAULT_PAGE_ID env var required to create Meta ads.")
 
-    desc = _trim(spec.listing_description, 125) or "Handmade by independent artisans."
+    ad_headline = (
+        _trim(spec.headlines[0], 40) if spec.headlines and spec.headlines[0]
+        else _trim(spec.listing_title, 40)
+    )
+    primary_text = (
+        _trim(spec.descriptions[0], 125) if spec.descriptions and spec.descriptions[0]
+        else _trim(spec.listing_description, 125)
+    ) or "Handmade by independent artisans."
     base = spec.listing_url.rstrip("/")
     sep = "&" if "?" in base else "?"
     # Meta will substitute {{ad.id}} and we'll forward to checkout.
@@ -244,8 +258,8 @@ async def _create_creative(http: httpx.AsyncClient, ad_account: str,
             '{"page_id": "' + page_id + '", '
             '"link_data": {'
                 '"link": "' + link_url.replace('"', '\\"') + '", '
-                '"message": "' + desc.replace('"', '\\"') + '", '
-                '"name": "' + _trim(spec.listing_title, 40).replace('"', '\\"') + '", '
+                '"message": "' + primary_text.replace('"', '\\"') + '", '
+                '"name": "' + ad_headline.replace('"', '\\"') + '", '
                 '"description": "Shop on Crafters Market", '
                 '"call_to_action": {"type": "SHOP_NOW"}'
             '}}'

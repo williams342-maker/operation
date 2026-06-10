@@ -231,16 +231,59 @@ def _create_campaign_sync(spec: CreateCampaignSpec, refresh_token: str,
     ag_resp = svc.AddAdGroups(CampaignId=cid, AdGroups=ad_groups, ReturnInheritedBidStrategyTypes=False)
     agid = int(ag_resp.AdGroupIds["long"][0])
 
-    # 3a. ResponsiveSearchAd (3 headlines + 2 descriptions auto-derived).
-    title_short = _trim(spec.listing_title, 30)
-    title_med   = _trim(f"Handmade: {spec.listing_title}", 30)
-    title_cta   = _trim(f"Shop {spec.listing_title}", 30)
-    desc_main = _trim(spec.listing_description, 90) or "Handmade by independent artisans on Crafters Market."
-    desc_cta  = "Free shipping · Made in USA · Crafters Market"
+    # 3a. ResponsiveSearchAd (3-15 headlines + 2-4 descriptions).
+    # iter349 — prefer admin-supplied (AI-generated) RSA assets when
+    # present (same pattern as the Google adapter). Bing RSA limits
+    # match Google: ≤30 chars per headline, ≤90 chars per description.
+    if spec.headlines:
+        seen_h: set[str] = set()
+        rsa_headlines: list[str] = []
+        for raw in spec.headlines:
+            h = _trim(raw, 30)
+            if h and h not in seen_h:
+                rsa_headlines.append(h)
+                seen_h.add(h)
+            if len(rsa_headlines) >= 15:
+                break
+    else:
+        rsa_headlines = [
+            _trim(spec.listing_title, 30),
+            _trim(f"Handmade: {spec.listing_title}", 30),
+            _trim(f"Shop {spec.listing_title}", 30),
+        ]
+    # Bing RSA requires ≥3 headlines.
+    if len(rsa_headlines) < 3:
+        for fallback in (
+            _trim(f"Handmade: {spec.listing_title}", 30),
+            _trim(f"Shop {spec.listing_title}", 30),
+            _trim(spec.listing_title, 30),
+        ):
+            if fallback and fallback not in rsa_headlines:
+                rsa_headlines.append(fallback)
+            if len(rsa_headlines) >= 3:
+                break
+
+    if spec.descriptions:
+        seen_d: set[str] = set()
+        rsa_descriptions: list[str] = []
+        for raw in spec.descriptions:
+            d = _trim(raw, 90)
+            if d and d not in seen_d:
+                rsa_descriptions.append(d)
+                seen_d.add(d)
+            if len(rsa_descriptions) >= 4:
+                break
+    else:
+        rsa_descriptions = [
+            _trim(spec.listing_description, 90) or "Handmade by independent artisans on Crafters Market.",
+            "Free shipping · Made in USA · Crafters Market",
+        ]
+    if len(rsa_descriptions) < 2:
+        rsa_descriptions.append("Free shipping · Made in USA · Crafters Market")
 
     rsa = svc.factory.create("ResponsiveSearchAd")
     headlines = svc.factory.create("ArrayOfAssetLink")
-    for txt in (title_short, title_med, title_cta):
+    for txt in rsa_headlines:
         link = svc.factory.create("AssetLink")
         asset = svc.factory.create("TextAsset")
         asset.Text = txt
@@ -252,7 +295,7 @@ def _create_campaign_sync(spec: CreateCampaignSpec, refresh_token: str,
     rsa.Headlines = headlines
 
     descriptions = svc.factory.create("ArrayOfAssetLink")
-    for txt in (desc_main, desc_cta):
+    for txt in rsa_descriptions:
         link = svc.factory.create("AssetLink")
         asset = svc.factory.create("TextAsset")
         asset.Text = txt
