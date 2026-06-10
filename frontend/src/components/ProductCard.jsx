@@ -91,9 +91,14 @@ export default function ProductCard({ p, i = 0 }) {
             </span>
           )}
           <div className="absolute bottom-4 right-4 flex items-end justify-end gap-3">
-            <div className="font-display text-3xl text-ink drop-shadow-md">{formatPriceDisplay(p)}</div>
-            <div className="w-10 h-10 border border-white/40 group-hover:bg-brand group-hover:border-brand transition flex items-center justify-center">
-              <ArrowUpRight size={18} className="text-ink" />
+            <div
+              className="font-display text-3xl text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.7)]"
+              data-testid={`product-card-price-${p.slug}`}
+            >
+              {formatPriceDisplay(p)}
+            </div>
+            <div className="w-10 h-10 bg-paper/90 border border-line group-hover:bg-brand group-hover:border-brand group-hover:text-white transition flex items-center justify-center text-ink shadow-md">
+              <ArrowUpRight size={18} />
             </div>
           </div>
         </div>

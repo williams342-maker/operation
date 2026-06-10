@@ -1,3 +1,36 @@
+## 2026-06-10 — Product card overlay readability fix (iter361)
+
+User pointed at the production site showing the `PLASMA` / `OUTDOOR ART` badges + `$17` price chip on product cards as unreadable.
+
+### Root cause
+1. **`.tag` class in `index.css`** had `background: rgba(0,0,0,0.6)` (60% black translucent) with NO explicit text color — text inherited `var(--ink)` which became dark in light mode → dark text on dark translucent bg = invisible.
+2. **Price chip in `ProductCard.jsx`** used `text-ink drop-shadow-md` — dark text + subtle shadow on top of dark product photos = invisible.
+3. **Arrow button in same card** used `border-white/40` (subtle) + `text-ink` (dark) icon → unreadable on photos.
+
+### Fix
+**`index.css`** `.tag` class rewritten:
+- `background: var(--paper)` — opaque cream surface (readable on dark + light photos alike)
+- `color: var(--ink)` — explicit dark ink text
+- Added `font-weight: 600` for better legibility at 10px
+- Added `box-shadow: 0 1px 3px rgba(0,0,0,0.15)` for subtle separation from the photo
+- `border: 1px solid var(--line)` (was `--border`) for cleaner theme consistency
+
+**`ProductCard.jsx`** price + arrow:
+- Price: `text-ink` → **`text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.7)]`** (white text + strong shadow for high contrast on any photo)
+- Arrow box: opaque `bg-paper/90` cream with `border-line` + `shadow-md` + ink icon — looks like a tappable button now instead of a transparent ghost
+- Hover still flips to `bg-brand` with white icon (preserved)
+- Added `data-testid="product-card-price-{slug}"` for future testability
+
+### Tested
+- Lint clean on both files
+- Visual confirm in preview blocked by the unrelated `/api/products` 500 (pre-existing test-seed pollution from `themes-test-maker-*` rows) so no products rendered to test on. **Fix WILL apply on craftersmarket.org after next deploy** — production has real products.
+
+### Reminder for user
+- Production currently shows broken card badges (per the screenshot you sent). **Click "Save to Github" → trigger deploy** to push this fix live.
+
+---
+
+
 ## 2026-06-10 — Marketing-page H1s aligned with hero brand pattern (iter360)
 
 User: "Apply page, Pricing page, About page, etc."

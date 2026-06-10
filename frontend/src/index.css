@@ -146,16 +146,21 @@ body {
     white-space: nowrap;
 }
 
-/* Tag pill */
+/* Tag pill — overlays product photos, so must read on dark + light images alike.
+ * Uses opaque paper bg + ink text by default. Override colors per-instance
+ * via `text-brand border-brand` for accent variants. */
 .tag {
     font-family: 'JetBrains Mono', monospace;
     font-size: 10px;
+    font-weight: 600;
     letter-spacing: 0.15em;
     text-transform: uppercase;
     padding: 4px 8px;
-    border: 1px solid var(--border);
-    background: rgba(0,0,0,0.6);
+    border: 1px solid var(--line);
+    background: var(--paper);
+    color: var(--ink);
     backdrop-filter: blur(4px);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.15);
 }
 
 /* Button base */
