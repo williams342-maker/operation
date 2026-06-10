@@ -1,3 +1,56 @@
+## 2026-06-10 — Phase 2 of admin ads roadmap: on-site promo CMS (iter346)
+
+User asked "is there a way to setup admin to create ads for the website" — affirmed a 4-phase build (themes already done; this is Phase 2: internal CMS for site banners).
+
+### New backend router (`/app/backend/routers/site_promos.py`, ~180 lines)
+- `POST /api/admin/site-promos` — create (Pydantic `PromoCreate`, validates dates + enum fields)
+- `GET /api/admin/site-promos` — list all (admin only)
+- `PATCH /api/admin/site-promos/{id}` — partial update incl. status
+- `DELETE /api/admin/site-promos/{id}` — hard delete
+- `GET /api/site-promos?placement=X` — **public** — returns highest-priority active promo for placement (or null), date-window filtered. Strips `created_by` before returning.
+
+### Collections
+- `site_promos` — one doc per banner. Fields: `title`, `body`, `cta_label`, `cta_url`, `image_url`, `placement`, `status` (scheduled|active|paused|ended), `start_date`, `end_date`, `priority`, `dismissible`, `tone` (default|celebration|warning), `created_by`, `created_at`, `updated_at`.
+
+### Placements (5)
+`home_hero` · `shop_top` · `cart_top` · `product_top` · `global_top`
+
+### Public component (`components/SitePromo.jsx`)
+- Single-purpose render component used as `<SitePromo placement="home_hero" />`.
+- Honors `dismissible` flag with localStorage memory per promo id.
+- Internal-link CTAs use `<Link>`; external (http/https) use `<a target="_blank">`.
+- Renders nothing if no active promo for the placement.
+- Hoisted `PromoCta` subcomponent (avoids react/no-unstable-nested-components).
+
+### Admin UI (`components/admin/SitePromosCard.jsx`, ~420 lines)
+- Amber accent (visually distinct from cyan PromoteThemesCard).
+- "New promo" form: title, body, CTA label/URL, image URL, placement, tone, start/end dates, priority (0-100), dismissible toggle.
+- List view: status badge, placement chip, tone chip, dismissible flag, dates, CTA preview, priority.
+- Activate / Pause / End / Delete row controls.
+
+### Mount points
+- Admin: `<SitePromosCard />` at TOP of `AdsTab.jsx`.
+- Public homepage: `<SitePromo placement="home_hero" />` between `<SupportVeteransStrip />` and `<Hero />` in `App.js`.
+- Public shop: `<SitePromo placement="shop_top" />` in `ShopPage.jsx` between `<SupportVeteransStrip />` and the main content.
+
+### Smoke test (curl, end-to-end)
+- ✅ Issued admin magic-link → exchanged for JWT
+- ✅ Create promo → returned in `scheduled` state
+- ✅ Activate promo → status flips to `active`
+- ✅ Public GET surfaces it with `created_by` stripped
+- ✅ List admin returns 1 promo
+- ✅ Pause / Delete clean up cleanly
+- ✅ Invalid placement → 400
+- ✅ Homepage screenshot: SitePromo correctly null-renders when no active promo (no UI breakage)
+
+### What's intentionally NOT done in this phase
+- Inline editing of an existing promo (must delete + recreate for now).
+- A/B variant testing.
+- Click tracking. (Could wire to existing GA4 event hook in Phase 3.)
+
+---
+
+
 ## 2026-06-09 — Clarified "any email works" on sign-in pages (iter345d)
 
 User asked: "when signing up are you required to have a google email?" Answer is no, but the UI didn't make that clear — Google button was visually dominant with the email option appearing only as a secondary divider.

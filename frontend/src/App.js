@@ -88,6 +88,7 @@ import FeaturedBuildsRail from "./components/FeaturedBuildsRail";
 import CinematicMomentsStrip from "./components/CinematicMomentsStrip";
 import MeetTheMakers from "./components/MeetTheMakers";
 import AiDiscoverySearch from "./components/AiDiscoverySearch";
+import SitePromo from "./components/SitePromo";
 import { Toaster } from "sonner";
 import { trackPageview, captureAttribution } from "./lib/analytics";
 import { useSiteSettings } from "./hooks/useSiteSettings";
@@ -103,6 +104,7 @@ const Home = () => {
   return (
     <>
       <SupportVeteransStrip />
+      <SitePromo placement="home_hero" />
       <Hero />
       <div className="cm-glow-divider" aria-hidden="true" />
       <FeaturedBuildsRail testId="home-featured-builds" />

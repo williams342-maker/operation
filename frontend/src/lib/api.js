@@ -1811,3 +1811,23 @@ export const fetchMakerLeaderboard = (params = {}) =>
 export const fetchMakerLeaderboardRank = () =>
   http.get("/maker/leaderboard-rank",
     { headers: authHeaders() }).then((r) => r.data);
+
+// iter346 — Site promos (on-site banner CMS)
+export const fetchActiveSitePromo = (placement) =>
+  http.get(`/site-promos?placement=${encodeURIComponent(placement)}`)
+    .then((r) => r.data);
+
+export const adminFetchSitePromos = () =>
+  http.get("/admin/site-promos", { headers: adminAuthHeaders() }).then((r) => r.data);
+
+export const adminCreateSitePromo = (payload) =>
+  http.post("/admin/site-promos", payload,
+    { headers: adminAuthHeaders() }).then((r) => r.data);
+
+export const adminUpdateSitePromo = (promoId, patch) =>
+  http.patch(`/admin/site-promos/${promoId}`, patch,
+    { headers: adminAuthHeaders() }).then((r) => r.data);
+
+export const adminDeleteSitePromo = (promoId) =>
+  http.delete(`/admin/site-promos/${promoId}`,
+    { headers: adminAuthHeaders() }).then((r) => r.data);

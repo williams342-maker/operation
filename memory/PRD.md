@@ -23,6 +23,14 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - Admin: `/admin/login|verify|dashboard`
 
 ## What's Implemented (cumulative)
+- ✅ **Admin on-site promo CMS (iter346, 2026-06-10) — Phase 2 of admin-creates-ads roadmap:**
+  • New router `backend/routers/site_promos.py` — full CRUD + public GET endpoint at `/api/site-promos?placement=X` (returns top-priority active promo for the slot, date-window filtered).
+  • Collection: `site_promos` with placement enum (`home_hero`, `shop_top`, `cart_top`, `product_top`, `global_top`), status (`scheduled`/`active`/`paused`/`ended`), dates, priority, dismissible, tone (default/celebration/warning).
+  • New components: `components/SitePromo.jsx` (public renderer w/ localStorage dismissal), `components/admin/SitePromosCard.jsx` (admin CRUD UI mounted at top of AdsTab).
+  • Mount points: `<SitePromo placement="home_hero" />` above the Home `<Hero />`, `<SitePromo placement="shop_top" />` on `/shop`.
+  • Curl-tested end-to-end: create → activate → public GET → pause → delete. `created_by` stripped from public payload.
+
+
 - ✅ **Dedicated /pricing SEO route (iter345c, 2026-06-09):**
   • `pages/PricingPage.jsx` (new) — hero ("What it actually costs to sell here.") + MakerFeeTable + 5-column PricingComparisonTable + 6-question FAQ + CTA section.
   • SEO scaffolding: `document.title` + meta description set on mount; `application/ld+json` FAQPage schema embedded for rich-result eligibility.

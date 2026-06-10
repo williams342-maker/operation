@@ -10,6 +10,7 @@ import { CATEGORIES } from "./MakerListingEditor/constants";
 import SupportVeteransStrip from "../components/SupportVeteransStrip";
 import AiDiscoverySearch from "../components/AiDiscoverySearch";
 import Breadcrumbs from "../components/Breadcrumbs";
+import SitePromo from "../components/SitePromo";
 
 // Buyer-facing filter strip. "All" pinned to the front; the rest mirrors
 // the CATEGORIES list makers see in the editor so anything they publish
@@ -205,6 +206,7 @@ export default function ShopPage() {
   return (
     <div className="pb-24 grain min-h-screen" data-testid="shop-page">
       <SupportVeteransStrip />
+      <SitePromo placement="shop_top" />
       <div className="w-full max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12 pt-12 md:pt-16">
         <Breadcrumbs
           items={[

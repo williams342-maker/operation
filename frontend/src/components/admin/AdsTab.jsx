@@ -16,6 +16,7 @@ import AdAttributionHealthCard from "./AdAttributionHealthCard";
 import ConversionUploadLogCard from "./ConversionUploadLogCard";
 import ChannelWeightsCard from "./ChannelWeightsCard";
 import PromoteThemesCard from "./PromoteThemesCard";
+import SitePromosCard from "./SitePromosCard";
 
 const PLATFORM_TONE = {
   google: "border-blue-700/50 text-blue-300",
@@ -90,6 +91,7 @@ export default function AdsTab() {
   return (
     <div data-testid="ads-tab" className="space-y-6">
       {confirmModal}
+      <SitePromosCard />
       <AdAttributionHealthCard />
       <ConversionUploadLogCard />
       <ChannelWeightsCard />
