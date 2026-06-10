@@ -79,20 +79,20 @@ export default function AdminLogin() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
         >
-          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#ff4500] mb-4">
+          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-4">
             ◆ Operator Console
           </div>
           <h1 className="font-display text-[56px] md:text-[88px] leading-[0.88] mb-6 uppercase">
             Admin In.
           </h1>
-          <p className="font-mono text-sm text-[#a3a3a3] leading-relaxed mb-10">
+          <p className="font-mono text-sm text-ink-muted leading-relaxed mb-10">
             Authorized operators only. We'll send a one-click sign-in link
             (15-min expiry) — or use a password if your inbox is unreliable.
           </p>
 
           <form onSubmit={onMagic} className="space-y-4" data-testid="admin-login-form">
             <label className="block">
-              <span className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3]">
+              <span className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted">
                 Operator email
               </span>
               <input
@@ -104,7 +104,7 @@ export default function AdminLogin() {
                 spellCheck={false}
                 disabled={state.status === "loading" || state.status === "sent"}
                 placeholder="you@craftersmarket.org"
-                className="mt-2 w-full bg-transparent border border-[#262626] focus:border-[#ff4500] outline-none px-4 py-3 font-mono text-sm text-[#e5e5e5] transition"
+                className="mt-2 w-full bg-surface border border-line focus:border-brand outline-none px-4 py-3 font-mono text-sm text-ink placeholder:text-ink-muted transition"
                 data-testid="admin-login-email"
               />
             </label>
@@ -125,11 +125,11 @@ export default function AdminLogin() {
 
           {/* Password fallback — only when the env flag is on. */}
           {adminPasswordEnabled && (
-            <div className="border-t border-[#262626] pt-6 mt-8" data-testid="admin-password-block">
+            <div className="border-t border-line pt-6 mt-8" data-testid="admin-password-block">
               <button
                 type="button"
                 onClick={() => setShowPassword((s) => !s)}
-                className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500] transition"
+                className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand transition"
                 data-testid="admin-password-toggle"
               >
                 {showPassword ? "− Hide password sign-in" : "+ Or use a password"}
@@ -142,7 +142,7 @@ export default function AdminLogin() {
                     placeholder="Password"
                     required
                     autoComplete="current-password"
-                    className="w-full bg-[#0a0a0a] border border-[#262626] focus:border-[#ff4500] px-4 py-3 font-mono text-sm outline-none"
+                    className="w-full bg-surface border border-line focus:border-brand px-4 py-3 font-mono text-sm text-ink placeholder:text-ink-muted outline-none"
                     data-testid="admin-password-input"
                   />
                   <button
@@ -155,7 +155,7 @@ export default function AdminLogin() {
                   </button>
                   <a
                     href={`/forgot-password?as=admin&email=${encodeURIComponent(email)}`}
-                    className="block text-center font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3] hover:text-[#ff4500]"
+                    className="block text-center font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand"
                     data-testid="admin-forgot-link"
                   >
                     Forgot password?
@@ -167,13 +167,13 @@ export default function AdminLogin() {
 
           {state.status === "sent" && (
             <div
-              className="mt-8 border border-[#ff4500]/40 bg-[#ff4500]/5 p-5"
+              className="mt-8 border border-brand/40 bg-brand/5 p-5"
               data-testid="admin-login-sent"
             >
-              <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#ff4500] mb-2">
+              <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-brand mb-2">
                 ◆ Check your inbox
               </div>
-              <p className="font-mono text-xs text-[#a3a3a3] leading-relaxed">{state.message}</p>
+              <p className="font-mono text-xs text-ink-muted leading-relaxed">{state.message}</p>
             </div>
           )}
           {state.status === "error" && (

@@ -1,3 +1,34 @@
+## 2026-06-10 — Admin login email input readability fix (iter362)
+
+User screenshot: typed email + placeholder both faint/invisible on the admin login `/admin/login`.
+
+### Root cause
+`AdminLogin.jsx` slipped through earlier Phase C token sweeps (didn't match the regex paths in the batch I ran). The email input had:
+- `bg-transparent` (showed cream paper through)
+- `text-[#e5e5e5]` (near-white text — invisible on cream)
+- `border-[#262626]` (faint dark border)
+- No `placeholder:` color rule
+
+The password input below it had `bg-paper` + no text-color either.
+
+### Fix
+Ran token sweep on `AdminLogin.jsx` + explicit input styling:
+```
+bg-surface (white card) + border-line + text-ink + placeholder:text-ink-muted + focus:border-brand
+```
+
+### Smoke test (live)
+- ✅ DOM probe confirms input bg `rgb(255, 255, 255)` (white), text `rgb(26, 26, 26)` (ink), border `rgb(229, 229, 229)` (line)
+- ✅ Typed "team@craftersmarket.org" fully readable
+- ✅ "ADMIN IN." H1, "OPERATOR CONSOLE" eyebrow, body copy, "SEND SIGN-IN LINK →" CTA all reading correctly
+- ✅ Lint: 2 pre-existing warnings at lines 64/89 — untouched by my edits
+
+### Note on the "98" question
+User asked "how do I keep deployment 98" — I interpreted as "this is iter98 of deployment" or just a typo around the actual readability concern. If they meant pinning a specific deployment version on Emergent, that's outside my reach — they'd need to contact Emergent Support for deploy version management.
+
+---
+
+
 ## 2026-06-10 — Product card overlay readability fix (iter361)
 
 User pointed at the production site showing the `PLASMA` / `OUTDOOR ART` badges + `$17` price chip on product cards as unreadable.
