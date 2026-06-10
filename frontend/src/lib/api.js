@@ -1831,3 +1831,26 @@ export const adminUpdateSitePromo = (promoId, patch) =>
 export const adminDeleteSitePromo = (promoId) =>
   http.delete(`/admin/site-promos/${promoId}`,
     { headers: adminAuthHeaders() }).then((r) => r.data);
+
+// iter347 — AI Ad-Creative Workshop (Phase 3 of admin-creates-ads roadmap)
+export const adminSearchAdSubjects = (q = "", limit = 12) =>
+  http.get(`/admin/ad-creative/subjects?q=${encodeURIComponent(q)}&limit=${limit}`,
+    { headers: adminAuthHeaders() }).then((r) => r.data);
+
+export const adminGenerateAdCreative = (payload) =>
+  http.post("/admin/ad-creative/generate", payload, {
+    headers: adminAuthHeaders(),
+    timeout: 120000,  // image gen can take 30-60s, copy alone ~10s
+  }).then((r) => r.data);
+
+export const adminListAdCreativeDrafts = (limit = 20) =>
+  http.get(`/admin/ad-creative/drafts?limit=${limit}`,
+    { headers: adminAuthHeaders() }).then((r) => r.data);
+
+export const adminGetAdCreativeDraft = (draftId) =>
+  http.get(`/admin/ad-creative/drafts/${draftId}`,
+    { headers: adminAuthHeaders() }).then((r) => r.data);
+
+export const adminDeleteAdCreativeDraft = (draftId) =>
+  http.delete(`/admin/ad-creative/drafts/${draftId}`,
+    { headers: adminAuthHeaders() }).then((r) => r.data);

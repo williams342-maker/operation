@@ -34,6 +34,7 @@ from routers.promote import router as promote_router
 from routers.admin_ads_health import router as admin_ads_health_router
 from routers.promote_themes import router as promote_themes_router
 from routers.site_promos import router as site_promos_router
+from routers.ai_ad_creative import router as ai_ad_creative_router
 from routers.leaderboard import router as leaderboard_router
 from routers.help_chat import router as help_chat_router
 from routers.settings import router as settings_router
@@ -108,6 +109,7 @@ api.include_router(promote_router)
 api.include_router(admin_ads_health_router)
 api.include_router(promote_themes_router)
 api.include_router(site_promos_router)
+api.include_router(ai_ad_creative_router)
 api.include_router(leaderboard_router)
 api.include_router(community_router)
 api.include_router(community_chat_router)

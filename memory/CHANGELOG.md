@@ -1,3 +1,53 @@
+## 2026-06-10 — Phase 3 of admin ads roadmap: AI Ad-Creative Workshop (iter347)
+
+User asked for the AI copy + image factory. Built end-to-end and verified live with a real product (Mountain Range Silhouette by Iron & Oak).
+
+### Backend `routers/ai_ad_creative.py` (~280 lines)
+- `GET /api/admin/ad-creative/subjects?q=` — searches `products` (published + has category) and `makers` (approved). Returns merged list for the admin picker.
+- `POST /api/admin/ad-creative/generate` — body `{subject_type, subject_slug, channels, tone, generate_images, num_image_variants}`.
+  Loads the subject, calls Claude Sonnet 4.5 via emergentintegrations for JSON-formatted ad copy across selected channels, optionally fans out Nano Banana image gen in parallel (capped at 3 variants), persists to `ad_creative_drafts`.
+- `GET /api/admin/ad-creative/drafts` — list (20-item cap, newest first)
+- `GET /api/admin/ad-creative/drafts/{id}` — single draft + channel spec
+- `DELETE /api/admin/ad-creative/drafts/{id}` — also unlinks image files from disk
+
+### Channel char-limit spec (enforced in prompt + post-process)
+- `google_search`: 5 headlines ≤30, 4 descriptions ≤90
+- `meta_feed`:     3 primary texts ≤125, 3 headlines ≤40, 2 descriptions ≤30
+- `pinterest`:     2 titles ≤100, 2 descriptions ≤500
+
+### Tones
+`professional` · `playful` · `rustic` · `premium` · `urgent` · `minimal`
+
+### Admin UI `components/admin/AdCreativeWorkshopCard.jsx` (~530 lines)
+- Mounted at the TOP of `AdsTab.jsx`.
+- Compose tab: live subject search → click to pick → multi-channel toggle → tone select → optional Nano Banana image variants (1-3) → "Generate" button.
+- Result panel: per-channel block with each variant shown in a click-to-copy row (char counter, red if over limit, ✓/Copy button per row).
+- Image variants gallery with Download per variant.
+- Drafts tab: list of past drafts with Open (loads back into Compose) and Delete actions.
+- Cyan accent theme so it's visually distinct from the amber SitePromosCard and orange PromoteThemesCard.
+
+### Image storage
+`/app/frontend/public/ad-creatives/{draft_id}-{idx}.jpg` (served as static by frontend, public URL `/ad-creatives/...`). Deleted on draft delete.
+
+### LLM
+- Text: `anthropic/claude-sonnet-4-5-20250929` via emergentintegrations, single JSON-mode call across all channels.
+- Images: `gemini/gemini-3.1-flash-image-preview` (Nano Banana) with `modalities=["image","text"]`. 3 rotating documentary-style style prompts (lifestyle, hero, hands-at-work).
+
+### Smoke test (live preview, real Iron & Oak product)
+- ✅ Subject search → 8 products found for "mountain"
+- ✅ Generate (google_search + meta_feed, rustic tone, no images) → all 14 variants under char limit, ALL mentioned the Nashville/veteran/14ga specifics from the actual description
+- ✅ List drafts → shows 1 draft with correct metadata
+- ✅ Delete → 1 → 0
+- ✅ Lint clean (`mcp_lint_javascript` no output; `mcp_lint_python` advisory-only)
+
+### What's intentionally NOT done in this phase
+- A/B testing the variants against real ad performance.
+- Direct push to Google/Meta/Microsoft (that's Phase 4).
+- Editing a copy line in place (regenerate or copy-paste-edit for now).
+
+---
+
+
 ## 2026-06-10 — Phase 2 of admin ads roadmap: on-site promo CMS (iter346)
 
 User asked "is there a way to setup admin to create ads for the website" — affirmed a 4-phase build (themes already done; this is Phase 2: internal CMS for site banners).

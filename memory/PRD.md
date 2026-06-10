@@ -23,6 +23,14 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - Admin: `/admin/login|verify|dashboard`
 
 ## What's Implemented (cumulative)
+- ✅ **AI Ad-Creative Workshop (iter347, 2026-06-10) — Phase 3 of admin-creates-ads roadmap:**
+  • New router `backend/routers/ai_ad_creative.py` — subject search, generate, drafts list/get/delete. Uses Claude Sonnet 4.5 for JSON-formatted ad copy + Gemini Nano Banana (`gemini-3.1-flash-image-preview`) for image variants.
+  • Channels: Google Search (5×30/4×90), Meta Feed (3×125/3×40/2×30), Pinterest (2×100/2×500). Char limits enforced in prompt AND post-process.
+  • Collection: `ad_creative_drafts`. Image files served from `/app/frontend/public/ad-creatives/` as static.
+  • Admin UI `components/admin/AdCreativeWorkshopCard.jsx` mounted at TOP of AdsTab — subject picker, channel toggles, tone selector, image variant count, click-to-copy per line, downloadable image variants, drafts history tab.
+  • Curl-tested end-to-end with real Iron & Oak Mountain Range product — all 14 copy variants under limits, mentioned veteran/Nashville/14ga specifics.
+
+
 - ✅ **Admin on-site promo CMS (iter346, 2026-06-10) — Phase 2 of admin-creates-ads roadmap:**
   • New router `backend/routers/site_promos.py` — full CRUD + public GET endpoint at `/api/site-promos?placement=X` (returns top-priority active promo for the slot, date-window filtered).
   • Collection: `site_promos` with placement enum (`home_hero`, `shop_top`, `cart_top`, `product_top`, `global_top`), status (`scheduled`/`active`/`paused`/`ended`), dates, priority, dismissible, tone (default/celebration/warning).
