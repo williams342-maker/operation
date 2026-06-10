@@ -14,7 +14,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
 import {
-  Sparkles, Loader2, Copy, Check, X, Trash2, Download, Search, Image as ImageIcon, History,
+  Sparkles, Loader2, Copy, Check, X, Trash2, Download, Search, Image as ImageIcon, History, Send, ExternalLink, AlertTriangle,
 } from "lucide-react";
 import {
   adminSearchAdSubjects,
@@ -22,6 +22,8 @@ import {
   adminListAdCreativeDrafts,
   adminGetAdCreativeDraft,
   adminDeleteAdCreativeDraft,
+  adminAdCreativeGooglePreflight,
+  adminPushDraftToGoogle,
 } from "../../lib/api";
 import { useConfirm } from "../../hooks/useConfirm";
 
@@ -377,10 +379,19 @@ function SubjectGrid({ label, items, onPick, testId }) {
 function CreativeResult({ result }) {
   const draft = result.draft;
   const spec = result.channel_spec || {};
+  const hasGoogle = (draft.channels || []).includes("google_search");
+  const googleHeadlines = ((draft.copy || {}).google_search || {}).headlines || [];
+  const googleHeadlineCount = googleHeadlines.filter((x) => x).length;
+
   return (
     <div className="mt-2 border border-cyan-900/50 bg-cyan-950/10 p-4 space-y-5" data-testid="ad-creative-result">
-      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-cyan-300">
-        ◆ Generated · draft {draft.draft_id}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-cyan-300">
+          ◆ Generated · draft {draft.draft_id}
+        </div>
+        {hasGoogle && (
+          <PushToGoogleButton draft={draft} headlineCount={googleHeadlineCount} />
+        )}
       </div>
 
       {Object.entries(draft.copy || {}).map(([ch, fields]) => (
@@ -409,6 +420,192 @@ function CreativeResult({ result }) {
         </div>
       )}
     </div>
+  );
+}
+
+function PushToGoogleButton({ draft, headlineCount }) {
+  const [open, setOpen] = useState(false);
+  const [preflight, setPreflight] = useState(null);
+  const [budget, setBudget] = useState(10); // dollars/day
+  const [keywords, setKeywords] = useState("");
+  const [pushing, setPushing] = useState(false);
+  const [result, setResult] = useState(null);
+
+  const tooFewHeadlines = headlineCount < 3;
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await adminAdCreativeGooglePreflight();
+        if (!cancelled) setPreflight(r);
+      } catch (e) {
+        if (!cancelled) setPreflight({ eligible: false, reason: e?.response?.data?.detail || "Preflight failed." });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [open]);
+
+  const onSubmit = async (e) => {
+    e.preventDefault();
+    setPushing(true);
+    try {
+      const kws = keywords.split(",").map((s) => s.trim()).filter(Boolean);
+      const r = await adminPushDraftToGoogle(draft.draft_id, {
+        daily_budget_cents: Math.round(budget * 100),
+        keywords: kws,
+      });
+      setResult(r);
+      toast.success("Campaign created in PAUSED state. Activate it inside Google Ads when ready.");
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || err?.message || "Push failed.");
+    } finally { setPushing(false); }
+  };
+
+  return (
+    <>
+      <button
+        onClick={() => { setOpen(true); setResult(null); }}
+        disabled={tooFewHeadlines}
+        className="px-3 py-1.5 bg-blue-500 hover:bg-blue-400 text-white font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+        data-testid="ad-creative-push-google"
+        title={tooFewHeadlines ? `Need ≥3 Google headlines (have ${headlineCount})` : "Push to Google Ads"}
+      >
+        <Send size={11} /> Push to Google Ads
+      </button>
+
+      {open && (
+        <div className="fixed inset-0 z-[200] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" data-testid="push-google-modal">
+          <div className="w-full max-w-lg bg-[#0a0a0a] border border-blue-500/50 p-5">
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-blue-300 mb-1">
+                  ◆ Push to Google Ads
+                </div>
+                <h4 className="font-display text-xl uppercase">{draft.subject_title}</h4>
+                <p className="font-mono text-[10px] text-[#a3a3a3] mt-1">
+                  Campaign will be created in <strong className="text-amber-300">PAUSED</strong> state. No spend until you activate it inside Google Ads.
+                </p>
+              </div>
+              <button
+                onClick={() => setOpen(false)}
+                className="p-1 text-[#a3a3a3] hover:text-[#f5f5f5]"
+                data-testid="push-google-close"
+                aria-label="Close"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {!preflight && (
+              <p className="font-mono text-xs text-[#737373] py-4">Checking Google Ads eligibility…</p>
+            )}
+
+            {preflight && !preflight.eligible && (
+              <div className="border border-amber-700/50 bg-amber-950/20 p-3 my-3 flex items-start gap-2" data-testid="push-google-not-eligible">
+                <AlertTriangle size={14} className="text-amber-300 mt-0.5 shrink-0" />
+                <div className="font-mono text-xs text-amber-200 leading-relaxed">
+                  <div className="font-bold mb-1">Can&rsquo;t push right now</div>
+                  <div>{preflight.reason || "Google Ads not connected."}</div>
+                  <div className="mt-2 text-[#a3a3a3]">
+                    Fix: open the <strong>Google Ads</strong> connection card below in this same tab, complete OAuth, and confirm your developer token is at Basic or Standard tier.
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {preflight && preflight.eligible && !result && (
+              <form onSubmit={onSubmit} className="space-y-3 mt-2" data-testid="push-google-form">
+                <div className="border border-[#262626] p-2 font-mono text-[10px] text-[#a3a3a3]">
+                  This will create:
+                  <ul className="mt-1 ml-3 list-disc text-[#d4d4d4]">
+                    <li>1 Campaign (Search, PAUSED)</li>
+                    <li>1 Ad Group</li>
+                    <li>1 Responsive Search Ad with {headlineCount} headlines from this draft</li>
+                    <li>{keywords ? keywords.split(",").filter(Boolean).length : "auto-derived"} broad-match keywords</li>
+                  </ul>
+                </div>
+
+                <label className="block">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Daily budget (USD)</span>
+                  <div className="mt-1 flex items-center gap-2">
+                    <span className="font-mono text-sm text-[#737373]">$</span>
+                    <input
+                      type="number" min={5} max={200} step={1}
+                      value={budget} onChange={(e) => setBudget(Number(e.target.value))}
+                      className="flex-1 bg-[#050505] border border-[#262626] focus:border-blue-400 px-3 py-2 font-mono text-sm text-[#f5f5f5] outline-none"
+                      required
+                      data-testid="push-google-budget"
+                    />
+                    <span className="font-mono text-[10px] text-[#737373]">/day · clamps $5-$200</span>
+                  </div>
+                </label>
+
+                <label className="block">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]">Keywords (optional · comma-separated)</span>
+                  <input
+                    type="text" maxLength={500}
+                    value={keywords} onChange={(e) => setKeywords(e.target.value)}
+                    placeholder="leave empty to auto-derive from product title"
+                    className="mt-1 w-full bg-[#050505] border border-[#262626] focus:border-blue-400 px-3 py-2 font-mono text-sm text-[#f5f5f5] outline-none"
+                    data-testid="push-google-keywords"
+                  />
+                </label>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button" onClick={() => setOpen(false)}
+                    className="px-3 py-2 border border-[#262626] hover:border-[#525252] font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]"
+                    data-testid="push-google-cancel"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit" disabled={pushing}
+                    className="px-4 py-2 bg-blue-500 hover:bg-blue-400 text-white font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50 flex items-center gap-1.5"
+                    data-testid="push-google-submit"
+                  >
+                    {pushing ? <Loader2 size={11} className="animate-spin" /> : <Send size={11} />}
+                    {pushing ? "Creating…" : "Create campaign"}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {result && (
+              <div className="space-y-3 mt-2 border border-emerald-700/40 bg-emerald-950/10 p-3" data-testid="push-google-success">
+                <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-300 flex items-center gap-1.5">
+                  <Check size={11} /> Campaign created (PAUSED)
+                </div>
+                <div className="font-mono text-xs text-[#d4d4d4]">{result.message}</div>
+                <div className="font-mono text-[10px] text-[#a3a3a3] space-y-0.5">
+                  <div>External campaign ID: <span className="text-cyan-300">{result.push?.external_campaign_id}</span></div>
+                  <div>Headlines pushed: {result.push?.headline_count}</div>
+                  <div>Descriptions pushed: {result.push?.description_count}</div>
+                  <div>Daily budget: ${((result.push?.daily_budget_cents || 0) / 100).toFixed(2)}</div>
+                </div>
+                {result.google_ads_url && (
+                  <a
+                    href={result.google_ads_url} target="_blank" rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3 py-2 border border-blue-500 text-blue-300 hover:bg-blue-500 hover:text-white font-mono text-[10px] uppercase tracking-[0.22em] transition"
+                    data-testid="push-google-open-link"
+                  >
+                    Open in Google Ads <ExternalLink size={11} />
+                  </a>
+                )}
+                <button
+                  onClick={() => setOpen(false)}
+                  className="ml-2 px-3 py-2 border border-[#262626] hover:border-[#525252] font-mono text-[10px] uppercase tracking-[0.22em] text-[#a3a3a3]"
+                >
+                  Done
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 

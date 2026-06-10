@@ -33,6 +33,8 @@ from pydantic import BaseModel, Field
 from core import db, now_iso
 from maker_auth import current_admin
 
+PUBLIC_SITE_URL = (os.environ.get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
+
 router = APIRouter()
 log = logging.getLogger("crafters.ai_ad_creative")
 
@@ -397,3 +399,146 @@ async def delete_draft(draft_id: str, _: dict = Depends(current_admin)):
             pass
     await db.ad_creative_drafts.delete_one({"_id": draft_id})
     return {"deleted": True}
+
+
+# ── Phase 4a — push to Google Ads ──────────────────────────────────────
+class GooglePushRequest(BaseModel):
+    daily_budget_cents: int = Field(..., ge=500, le=20000)  # $5-$200/day
+    keywords: list[str] = Field(default_factory=list)
+
+
+@router.get("/admin/ad-creative/push/google/preflight")
+async def google_push_preflight(_: dict = Depends(current_admin)):
+    """Returns whether Google Ads is connected + write-eligible right
+    now, plus a human-readable reason if not. Lets the UI grey-out the
+    push button before the admin clicks it."""
+    try:
+        from services.ads_gateway import get_gateway
+        gw = get_gateway("google")
+        # is_eligible takes a maker_slug for per-maker checks, but the
+        # admin push is platform-level — pass a sentinel. The Google
+        # adapter doesn't gate by maker, only by env + OAuth state.
+        ok, reason = await gw.is_eligible("__admin__")
+        return {"eligible": ok, "reason": reason}
+    except Exception as e:
+        return {"eligible": False, "reason": f"Probe failed: {str(e)[:200]}"}
+
+
+@router.post("/admin/ad-creative/drafts/{draft_id}/push/google")
+async def push_draft_to_google(draft_id: str, body: GooglePushRequest,
+                               admin: dict = Depends(current_admin)):
+    """Take a Phase-3 draft and create a real Google Ads campaign in
+    PAUSED state with the AI-generated RSA headlines/descriptions.
+    Admin must explicitly Activate it inside Google Ads UI before any
+    spend happens. We persist the (draft_id ↔ external_campaign_id)
+    link in `admin_ad_pushes` for traceability."""
+    draft = await db.ad_creative_drafts.find_one({"_id": draft_id})
+    if not draft:
+        raise HTTPException(404, "Draft not found.")
+    google_copy = (draft.get("copy") or {}).get("google_search") or {}
+    headlines = [h for h in (google_copy.get("headlines") or []) if h]
+    descriptions = [d for d in (google_copy.get("descriptions") or []) if d]
+    if len(headlines) < 3:
+        raise HTTPException(
+            400,
+            f"This draft only has {len(headlines)} non-empty Google headlines. "
+            "Google RSA requires ≥3. Regenerate the draft with the google_search "
+            "channel selected.",
+        )
+
+    # Pull the original subject to resolve maker_slug + landing URL.
+    subject_type = draft.get("subject_type")
+    subject_slug = draft.get("subject_slug")
+    landing_path = draft.get("landing_path") or "/"
+    listing_url = f"{PUBLIC_SITE_URL}{landing_path}"
+
+    if subject_type == "product":
+        product = await db.products.find_one({"slug": subject_slug})
+        maker_slug = (product or {}).get("maker_slug") or "platform"
+        listing_title = (product or {}).get("title") or subject_slug
+        listing_description = (product or {}).get("description") or ""
+        images = (product or {}).get("images") or []
+        listing_image_url = images[0] if images else (product or {}).get("image_url")
+    else:  # maker
+        maker = await db.makers.find_one({"slug": subject_slug})
+        maker_slug = subject_slug
+        listing_title = (maker or {}).get("shop_title") or (maker or {}).get("name") or subject_slug
+        listing_description = (maker or {}).get("bio") or ""
+        listing_image_url = (maker or {}).get("cover") or (maker or {}).get("portrait")
+
+    from services.ads_gateway import get_gateway, CreateCampaignSpec
+    from services.ads_gateway.base import GatewayError, GatewayNotEligible
+
+    spec = CreateCampaignSpec(
+        maker_slug=maker_slug,
+        listing_slug=subject_slug,
+        listing_title=listing_title,
+        listing_description=listing_description,
+        listing_url=listing_url,
+        listing_image_url=listing_image_url,
+        daily_budget_cents=int(body.daily_budget_cents),
+        keywords=list(body.keywords or []),
+        headlines=headlines,
+        descriptions=descriptions,
+    )
+    gw = get_gateway("google")
+    try:
+        handle = await gw.create_campaign(spec)
+    except GatewayNotEligible as e:
+        raise HTTPException(409, str(e))
+    except GatewayError as e:
+        raise HTTPException(502, str(e))
+
+    push_doc = {
+        "_id": "push_" + secrets.token_urlsafe(10),
+        "draft_id": draft_id,
+        "channel": "google",
+        "external_campaign_id": handle.external_id,
+        "status": handle.status,
+        "note": handle.note,
+        "subject_type": subject_type,
+        "subject_slug": subject_slug,
+        "subject_title": draft.get("subject_title"),
+        "maker_slug": maker_slug,
+        "daily_budget_cents": int(body.daily_budget_cents),
+        "headline_count": len(headlines),
+        "description_count": len(descriptions),
+        "keyword_count": len(body.keywords or []),
+        "pushed_by": (admin or {}).get("email") or "admin",
+        "pushed_at": now_iso(),
+    }
+    await db.admin_ad_pushes.insert_one(push_doc)
+    push_doc.pop("_id", None)
+
+    # Customer-ID for the deep link to Google Ads UI (so admin can
+    # click straight to the paused campaign).
+    cred = await db.integration_credentials.find_one({"_id": "google_ads"})
+    customer_id = (cred or {}).get("customer_id") or ""
+    google_ads_url = None
+    if customer_id and handle.external_id:
+        cid = customer_id.replace("-", "")
+        google_ads_url = (
+            f"https://ads.google.com/aw/campaigns?ocid={cid}"
+            f"&campaignId={handle.external_id}"
+        )
+
+    return {
+        "push": push_doc,
+        "google_ads_url": google_ads_url,
+        "message": (
+            f"Created campaign {handle.external_id} in PAUSED state with "
+            f"{len(headlines)} headlines and {len(descriptions)} descriptions. "
+            "Activate it inside Google Ads when ready — no spend until then."
+        ),
+    }
+
+
+@router.get("/admin/ad-creative/pushes")
+async def list_pushes(limit: int = 30, _: dict = Depends(current_admin)):
+    """List recent admin-initiated campaign pushes across channels."""
+    limit = max(1, min(100, int(limit)))
+    out: list[dict] = []
+    async for d in db.admin_ad_pushes.find({}).sort("pushed_at", -1).limit(limit):
+        d.pop("_id", None)
+        out.append(d)
+    return {"pushes": out}

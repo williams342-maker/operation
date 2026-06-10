@@ -306,16 +306,64 @@ def _create_campaign_sync(spec: CreateCampaignSpec, refresh_token: str,
     a.ad_group = ad_group_resource
     a.ad.final_urls.append(spec.listing_url)
     rsa = a.ad.responsive_search_ad
-    title_short = _trim(spec.listing_title, 30)
-    title_med   = _trim(f"Handmade: {spec.listing_title}", 30)
-    title_cta   = _trim(f"Shop {spec.listing_title}", 30)
-    for h in (title_short, title_med, title_cta):
-        asset = client.get_type("AdTextAsset"); asset.text = h
+    # iter348 — prefer admin-supplied (AI-generated) RSA assets when
+    # present. Google RSA limits: up to 15 headlines × 30 chars and
+    # 4 descriptions × 90 chars. Fall back to the auto-derived trio
+    # when called from the allocator (no Workshop draft).
+    headlines: list[str]
+    descriptions: list[str]
+    if spec.headlines:
+        seen_h: set[str] = set()
+        headlines = []
+        for raw in spec.headlines:
+            h = _trim(raw, 30)
+            if h and h not in seen_h:
+                headlines.append(h)
+                seen_h.add(h)
+            if len(headlines) >= 15:
+                break
+    else:
+        headlines = [
+            _trim(spec.listing_title, 30),
+            _trim(f"Handmade: {spec.listing_title}", 30),
+            _trim(f"Shop {spec.listing_title}", 30),
+        ]
+    # Google RSA requires ≥3 headlines.
+    if len(headlines) < 3:
+        for fallback in (
+            _trim(f"Handmade: {spec.listing_title}", 30),
+            _trim(f"Shop {spec.listing_title}", 30),
+            _trim(spec.listing_title, 30),
+        ):
+            if fallback and fallback not in headlines:
+                headlines.append(fallback)
+            if len(headlines) >= 3:
+                break
+    for h in headlines:
+        asset = client.get_type("AdTextAsset")
+        asset.text = h
         rsa.headlines.append(asset)
-    desc_main = _trim(spec.listing_description, 90) or "Handmade by independent artisans on Crafters Market."
-    desc_cta  = "Free shipping · Made in USA · Crafters Market"
-    for d in (desc_main, desc_cta):
-        asset = client.get_type("AdTextAsset"); asset.text = d
+
+    if spec.descriptions:
+        seen_d: set[str] = set()
+        descriptions = []
+        for raw in spec.descriptions:
+            d = _trim(raw, 90)
+            if d and d not in seen_d:
+                descriptions.append(d)
+                seen_d.add(d)
+            if len(descriptions) >= 4:
+                break
+    else:
+        descriptions = [
+            _trim(spec.listing_description, 90) or "Handmade by independent artisans on Crafters Market.",
+            "Free shipping · Made in USA · Crafters Market",
+        ]
+    if len(descriptions) < 2:
+        descriptions.append("Free shipping · Made in USA · Crafters Market")
+    for d in descriptions:
+        asset = client.get_type("AdTextAsset")
+        asset.text = d
         rsa.descriptions.append(asset)
     ad_svc.mutate_ad_group_ads(
         customer_id=customer_id, operations=[ad_op],

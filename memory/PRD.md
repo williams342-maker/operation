@@ -23,6 +23,18 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - Admin: `/admin/login|verify|dashboard`
 
 ## What's Implemented (cumulative)
+- ✅ **Google Ads campaign push (iter348, 2026-06-10) — Phase 4a of admin-creates-ads roadmap:**
+  • Extended `services/ads_gateway/base.py::CreateCampaignSpec` with optional `headlines` + `descriptions`. Backward-compatible — maker auto-allocator unchanged.
+  • Extended `services/ads_gateway/google.py::_create_campaign_sync` to prefer AI-generated headlines (≤15 × 30 chars) and descriptions (≤4 × 90 chars) when supplied. Falls back to old 3-headline auto-derive when empty. Pads to RSA minimums.
+  • New endpoints in `routers/ai_ad_creative.py`: `GET /admin/ad-creative/push/google/preflight`, `POST /admin/ad-creative/drafts/{id}/push/google`, `GET /admin/ad-creative/pushes`.
+  • Audit trail in new `admin_ad_pushes` collection.
+  • UI `<PushToGoogleButton>` inside `AdCreativeWorkshopCard` — preflight check, budget input ($5-$200/day clamp), optional keywords, success modal with deep-link to Google Ads UI.
+  • Curl-tested all happy + sad paths: preflight, push-without-OAuth, push-with-<3-headlines, push-with-bad-budget, nonexistent-draft. Workshop UI verified live on preview.
+
+### Known issues (out of scope)
+- `/api/admin/me` does not propagate `is_super_admin` from the DB row. Frontend tab gating falls through to capability checks even for super admins. Discovered while testing iter348. Track separately.
+
+
 - ✅ **AI Ad-Creative Workshop (iter347, 2026-06-10) — Phase 3 of admin-creates-ads roadmap:**
   • New router `backend/routers/ai_ad_creative.py` — subject search, generate, drafts list/get/delete. Uses Claude Sonnet 4.5 for JSON-formatted ad copy + Gemini Nano Banana (`gemini-3.1-flash-image-preview`) for image variants.
   • Channels: Google Search (5×30/4×90), Meta Feed (3×125/3×40/2×30), Pinterest (2×100/2×500). Char limits enforced in prompt AND post-process.

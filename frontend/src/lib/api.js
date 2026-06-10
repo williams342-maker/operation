@@ -1854,3 +1854,16 @@ export const adminGetAdCreativeDraft = (draftId) =>
 export const adminDeleteAdCreativeDraft = (draftId) =>
   http.delete(`/admin/ad-creative/drafts/${draftId}`,
     { headers: adminAuthHeaders() }).then((r) => r.data);
+
+// iter348 — Phase 4a — Google Ads campaign push
+export const adminAdCreativeGooglePreflight = () =>
+  http.get("/admin/ad-creative/push/google/preflight",
+    { headers: adminAuthHeaders() }).then((r) => r.data);
+
+export const adminPushDraftToGoogle = (draftId, payload) =>
+  http.post(`/admin/ad-creative/drafts/${draftId}/push/google`, payload,
+    { headers: adminAuthHeaders(), timeout: 60000 }).then((r) => r.data);
+
+export const adminListAdCreativePushes = (limit = 30) =>
+  http.get(`/admin/ad-creative/pushes?limit=${limit}`,
+    { headers: adminAuthHeaders() }).then((r) => r.data);

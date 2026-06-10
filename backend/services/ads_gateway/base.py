@@ -22,6 +22,11 @@ class CreateCampaignSpec:
 
     `daily_budget_cents` comes from the allocator: per-listing
     allocated_cents divided across the 7-day boost window.
+
+    iter348: `headlines` + `descriptions` are optional richer copy
+    (typically from the admin AI Ad-Creative Workshop). When non-empty,
+    the gateway uses them directly instead of auto-deriving 3 headlines
+    from `listing_title`.
     """
     maker_slug: str
     listing_slug: str
@@ -31,6 +36,8 @@ class CreateCampaignSpec:
     listing_image_url: Optional[str]
     daily_budget_cents: int
     keywords: list[str] = field(default_factory=list)
+    headlines: list[str] = field(default_factory=list)
+    descriptions: list[str] = field(default_factory=list)
 
 
 @dataclass
