@@ -1,193 +1,144 @@
 {
-  "project_name": "Crafters Market - Grow With Us Page",
-  "theme": "DARK",
-  "archetype": "Archetype 4 (Swiss & High-Contrast) + Neon Accents (Maker-Industrial)",
-  "emotional_goal": "Something important is being built here early — and I can still become part of it.",
-  "core_strategy": "Selling momentum, vision, belonging, future opportunity, creator empowerment.",
+  "theme": "light",
+  "archetype": "Organic & Earthy (1) with a touch of Swiss High-Contrast (4) for typography",
   "typography": {
-    "headings": {
-      "font_family": "Satoshi, sans-serif",
-      "fallback": "Neue Montreal, Space Grotesk, sans-serif",
-      "classes": "font-display tracking-tight text-white font-bold",
-      "h1": "text-4xl sm:text-5xl lg:text-6xl+",
-      "h2": "text-3xl sm:text-4xl lg:text-5xl",
-      "h3": "text-xl sm:text-2xl"
+    "font_families": {
+      "heading": "'Oswald', sans-serif",
+      "body": "'Inter', sans-serif",
+      "mono": "'JetBrains Mono', monospace"
     },
-    "body": {
-      "font_family": "Inter, sans-serif",
-      "classes": "font-sans text-neutral-300 leading-relaxed",
-      "base": "text-base sm:text-lg",
-      "small": "text-sm text-neutral-400"
-    },
-    "labels": {
-      "font_family": "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-      "classes": "tracking-[0.28em] uppercase text-xs font-medium text-[#ff4500]"
+    "scale": {
+      "h1": "text-5xl sm:text-7xl lg:text-8xl tracking-tighter uppercase leading-none",
+      "h2": "text-4xl sm:text-5xl lg:text-6xl tracking-tight uppercase leading-tight",
+      "h3": "text-2xl sm:text-3xl tracking-tight uppercase",
+      "body": "text-base leading-relaxed text-ink-muted",
+      "eyebrow": "text-sm font-bold tracking-[0.2em] uppercase text-accent"
     }
   },
   "colors": {
-    "background": {
-      "primary": "#0a0a0a",
-      "secondary": "#141414",
-      "tertiary": "#1a1a1a",
-      "surface": "rgba(38, 38, 38, 0.4)"
+    "light": {
+      "bg": "#F9F8F6",
+      "bg_elevated": "#FFFFFF",
+      "ink": "#1A1A1A",
+      "ink_muted": "#4A4A4A",
+      "accent": "#EA580C",
+      "accent_hover": "#C2410C",
+      "border": "#E5E5E5"
     },
-    "border": {
-      "default": "#262626",
-      "highlight": "#333333",
-      "glow_cyan": "rgba(0, 255, 255, 0.3)",
-      "glow_orange": "rgba(255, 69, 0, 0.3)"
-    },
-    "text": {
-      "primary": "#ffffff",
-      "secondary": "#a3a3a3",
-      "muted": "#737373"
-    },
-    "accent": {
-      "orange": "#ff4500",
-      "cyan": "#00ffff",
-      "blue": "#007aff",
-      "amber": "#ffb000"
+    "dark": {
+      "bg": "#121212",
+      "bg_elevated": "#1E1E1E",
+      "ink": "#F3F4F6",
+      "ink_muted": "#9CA3AF",
+      "accent": "#F97316",
+      "accent_hover": "#EA580C",
+      "border": "#374151"
     }
   },
-  "visual_features": {
-    "surfaces": "Frosted glass cards with backdrop-blur-xl and 1px border-white/10.",
-    "hover_states": "Hover depth via slight negative Y translation (-translate-y-1) and enhanced border glow.",
-    "motion": "Subtle particle movement, staggered Framer Motion reveals for sections, smooth parallax scrolling.",
-    "accents": "Glowing borders and animated gradients using cyan and orange.",
-    "backgrounds": "Grid overlays, blueprint/CNC visual language, dark matte background."
+  "css_variables": {
+    "light": {
+      "--bg": "249, 248, 246",
+      "--bg-elevated": "255, 255, 255",
+      "--ink": "26, 26, 26",
+      "--ink-muted": "74, 74, 74",
+      "--accent": "234, 88, 12",
+      "--accent-hover": "194, 65, 12",
+      "--border": "229, 229, 229",
+      "--success": "22, 163, 74",
+      "--warn": "234, 179, 8",
+      "--danger": "220, 38, 38"
+    },
+    "dark": {
+      "--bg": "18, 18, 18",
+      "--bg-elevated": "30, 30, 30",
+      "--ink": "243, 244, 246",
+      "--ink-muted": "156, 163, 175",
+      "--accent": "249, 115, 22",
+      "--accent-hover": "234, 88, 12",
+      "--border": "55, 65, 81",
+      "--success": "34, 197, 94",
+      "--warn": "250, 204, 21",
+      "--danger": "239, 68, 68"
+    }
+  },
+  "tailwind_config": {
+    "theme": {
+      "extend": {
+        "colors": {
+          "bg": "rgba(var(--bg), <alpha-value>)",
+          "bg-elevated": "rgba(var(--bg-elevated), <alpha-value>)",
+          "ink": "rgba(var(--ink), <alpha-value>)",
+          "ink-muted": "rgba(var(--ink-muted), <alpha-value>)",
+          "accent": "rgba(var(--accent), <alpha-value>)",
+          "accent-hover": "rgba(var(--accent-hover), <alpha-value>)",
+          "border": "rgba(var(--border), <alpha-value>)",
+          "success": "rgba(var(--success), <alpha-value>)",
+          "warn": "rgba(var(--warn), <alpha-value>)",
+          "danger": "rgba(var(--danger), <alpha-value>)"
+        },
+        "fontFamily": {
+          "heading": ["Oswald", "sans-serif"],
+          "body": ["Inter", "sans-serif"],
+          "mono": ["JetBrains Mono", "monospace"]
+        },
+        "backgroundImage": {
+          "texture-grain": "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E\")"
+        }
+      }
+    }
+  },
+  "layout_and_spacing": {
+    "grid": "Bento-style grids with generous gaps (gap-8 to gap-12).",
+    "spacing": "Use p-8 to p-16 for main sections. Ensure generous white-space for editorial feel.",
+    "corners": "Sharp corners (rounded-none or max rounded-sm) to match the heavy/brutalist structural elements.",
+    "clip_path": "For hero photo panels, use a slanted clip path (e.g., clip-path: polygon(10% 0, 100% 0, 90% 100%, 0 100%)) or rotate elements slightly.",
+    "texture": "Subtle grain overlay using the texture-grain background class on a fixed pseudo-element with opacity-50 over the body."
+  },
+  "components": {
+    "promo_bar": "Centered text, light grey bg in light mode (dark grey in dark mode), small truck icon. Very subtle.",
+    "nav": "Wordmark centered with orange square logo. Left/Right balanced links. Sharp pill/button for Sign In/Cart.",
+    "hero": "Eyebrow text uppercase tracking wide. H1 massive, black, condensed, with 'BIG' highlighted in accent color. Solid orange CTA and Outline CTA (sharp corners). 4 diagonal photo panels on the right.",
+    "trust_strip": "5 hand-drawn monoline icons (Lucide or custom SVG) with 1-line label and sub-label. Thin vertical dividers between items. Use Flex with divide-x.",
+    "category_tiles": "Flat cards, no drop shadow. 1px border. Icon + Label + 'Shop Now ->' in accent color. Hover: border accent color, slight bg tint.",
+    "built_different": "H2 left aligned, large. Right side: large photo of workshop tools/pegboard.",
+    "stats_row": "4 columns. Large numbers, monoline icon, thin bottom border.",
+    "product_card": "Image aspect 4:3 or 1:1, sharp corners, no card shadow. Clean typography below: Maker name (muted), Product name, Price (bold). Badges (e.g. 'Veteran Owned') as sharp outline tags.",
+    "dashboard_sidebar": "Dense but legible. Dark mode should use '--bg-elevated' for the sidebar and '--bg' for the main content area, with 1px borders separating them.",
+    "buttons": "Primary: bg-accent text-white hover:bg-accent-hover. Secondary/Outline: border-2 border-ink text-ink hover:bg-ink hover:text-white. Sharp corners (rounded-none).",
+    "inputs": "Shadcn defaults but customized with sharp corners, --bg-elevated background, and --border borders. Focus state uses ring-accent.",
+    "theme_toggle": "Sun/Moon icon in the Top Nav right section. Clicking it toggles 'dark' class on <html> and saves preference to localStorage, checking window.matchMedia('(prefers-color-scheme: dark)') on first load."
+  },
+  "motion": {
+    "hover": "Buttons fill/slide effects. Category cards slight border color transition.",
+    "page_load_choreography": "Staggered fade up for hero: 1. Eyebrow -> 2. H1 -> 3. Body -> 4. CTAs. Hero photo panels slide in diagonally from the right.",
+    "icons": "Monoline icons can have a slight draw-in or bounce on hover (using framer-motion)."
   },
   "image_urls": [
     {
-      "category": "hero_background",
-      "url": "https://static.prod-images.emergentagent.com/jobs/ad0439ad-da94-4caf-a818-28a88417ad46/images/64b2aa078705ccfaf640acea24c0cb10071a1056c74ce16ae11b59801fc4bc1a.png",
-      "description": "Abstract cinematic background with amber and cyan glowing sparks and subtle technical grid lines."
+      "category": "hero_collage_1",
+      "url": "https://images.unsplash.com/photo-1470342495351-a5f90c5011cd?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2MzR8MHwxfHNlYXJjaHwxfHx3b29kd29ya2luZyUyMHBsYW5lJTIwc2hhdmluZ3N8ZW58MHx8fHwxNzgxMTA0NjkxfDA&ixlib=rb-4.1.0&q=85",
+      "description": "Woodworking plane in shavings"
     },
     {
-      "category": "hero_dashboard_mockup",
-      "url": "https://static.prod-images.emergentagent.com/jobs/ad0439ad-da94-4caf-a818-28a88417ad46/images/4c0a2f0df212bb01eb0a16a4e7c51c63d34688b417bc6a0ff17c264be9c31165.png",
-      "description": "Modern sleek dashboard UI mockup for creators in dark mode with neon accents."
+      "category": "hero_collage_2",
+      "url": "https://images.unsplash.com/photo-1628483211662-9bcc692c46dc?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMjh8MHwxfHNlYXJjaHwxfHxsZWF0aGVyJTIwdG9vbGluZyUyMGNyYWZ0aW5nfGVufDB8fHx8MTc4MTEwNDY5MHww&ixlib=rb-4.1.0&q=85",
+      "description": "Leather tooling close-up"
     },
     {
-      "category": "vision_ecosystem_background",
-      "url": "https://static.prod-images.emergentagent.com/jobs/ad0439ad-da94-4caf-a818-28a88417ad46/images/2ee076d337ad698561a99dc8e80abf7b4536440e2388dc340ef40dfa53519b6a.png",
-      "description": "Abstract futuristic maker ecosystem with connected nodes and glowing lines."
+      "category": "hero_collage_3",
+      "url": "https://images.unsplash.com/photo-1504917595217-d4dc5ebe6122?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzV8MHwxfHNlYXJjaHwxfHxtZXRhbCUyMGdyaW5kZXIlMjBzcGFya3N8ZW58MHx8fHwxNzgxMTA0NjkwfDA&ixlib=rb-4.1.0&q=85",
+      "description": "Metal grinder sparks"
     },
     {
-      "category": "founder_photo",
-      "url": "https://images.unsplash.com/photo-1584940120505-117038d90b05?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzZ8MHwxfHNlYXJjaHwyfHxtYWxlJTIwZm91bmRlciUyMHBvcnRyYWl0JTIwcHJvZmVzc2lvbmFsJTIwbGlnaHRpbmclMjBkYXJrJTIwYmFja2dyb3VuZHxlbnwwfHx8fDE3Nzk4MDc5OTJ8MA&ixlib=rb-4.1.0&q=85",
-      "description": "Portrait of the founder, Michael Williams, professional lighting, dark background."
+      "category": "hero_collage_4",
+      "url": "https://images.unsplash.com/photo-1595351298020-038700609878?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzF8MHwxfHNlYXJjaHwxfHxjZXJhbWljJTIwbXVnJTIwd2hlZWx8ZW58MHx8fHwxNzgxMTA0NjkwfDA&ixlib=rb-4.1.0&q=85",
+      "description": "Ceramic mug on wheel"
     },
     {
-      "category": "cnc_manufacturing",
-      "url": "https://images.unsplash.com/photo-1764114235896-034c8772de01?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODl8MHwxfHNlYXJjaHwxfHxjbmMlMjByb3V0ZXIlMjBtYWNoaW5lJTIwc3BhcmtzJTIwbWFudWZhY3R1cmluZ3xlbnwwfHx8fDE3Nzk4MDc5OTJ8MA&ixlib=rb-4.1.0&q=85",
-      "description": "Industrial laser cutter working on metal sheet, sparks."
+      "category": "built_different_section",
+      "url": "https://images.unsplash.com/photo-1426927308491-6380b6a9936f?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNzl8MHwxfHNlYXJjaHwxfHxhcnRpc2FuJTIwd29ya3Nob3AlMjB0b29sc3xlbnwwfHx8fDE3ODExMDQ2OTh8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Workshop tools pegboard"
     }
   ],
-  "layout_strategy": {
-    "spacing": "Generous spacing. Use p-8, p-12, py-24, py-32 to create breathing room.",
-    "grid": "Bento grids for Vision and Who We're Looking For. Asymmetrical layouts for high visual interest.",
-    "container": "Max width 7xl for content, edge-to-edge for backgrounds."
-  },
-  "sections": [
-    {
-      "id": "hero",
-      "title": "Hero",
-      "description": "Cinematic introduction.",
-      "headline": "The Next Generation Marketplace for Independent Creators",
-      "supporting_copy": "Crafters Market is building a creator-first ecosystem for CNC makers, artisans, designers, and modern handmade brands — combining commerce, community, and AI-powered growth tools into one platform.",
-      "visual": "Layered floating panels showing dashboard mockups over an ambient CNC/sparks/laser footage backdrop. Use Framer Motion for parallax and 3D floating effect.",
-      "ctas": [
-        {"label": "Join as a Founding Seller", "type": "primary", "color": "orange"},
-        {"label": "View Roadmap", "type": "secondary", "color": "transparent_border"}
-      ],
-      "brand_cues": "Include '◆ GROW WITH US' as monospace tracking-[0.28em] orange label above headline."
-    },
-    {
-      "id": "problem",
-      "title": "The Problem",
-      "headline": "Makers Deserve Better Platforms",
-      "layout": "Split-screen comparison.",
-      "content": "LEFT: Oversaturated marketplace (cluttered, low visibility, generic listings, rising fees). RIGHT: Curated maker ecosystem (AI-assisted growth, community visibility, transparent fees).",
-      "visual": "Use contrasting UI blocks or stylized text/metrics to represent the chaos vs. the curated ecosystem."
-    },
-    {
-      "id": "vision",
-      "title": "The Vision",
-      "headline": "A New Ecosystem for Modern Makers",
-      "layout": "6-block Bento Grid (grid-cols-1 md:grid-cols-2 lg:grid-cols-3, gap-6).",
-      "blocks": [
-        {"title": "Marketplace", "description": "Curated, high-quality listings for discerning buyers."},
-        {"title": "Community", "description": "Connect, collaborate, and grow with fellow makers."},
-        {"title": "AI Tools", "description": "Smart SEO and automated product descriptions."},
-        {"title": "Education", "description": "Resources and guides to scale your artisan business."},
-        {"title": "Partnerships", "description": "Exclusive deals with tool brands and suppliers."},
-        {"title": "Exposure", "description": "Dedicated spotlight campaigns for emerging creators."}
-      ],
-      "visual": "Use frosted glass cards with subtle cyan/orange glowing borders on hover. Incorporate vision_ecosystem_background subtly."
-    },
-    {
-      "id": "roadmap",
-      "title": "Roadmap",
-      "headline": "Public Roadmap",
-      "layout": "Horizontal timeline UI, scrollable on mobile.",
-      "phases": [
-        {"name": "Phase 1: Foundation", "status": "DONE", "details": "Marketplace launch, seller onboarding, core listings, shipping/payment"},
-        {"name": "Phase 2: Creator Growth", "status": "IN PROGRESS", "details": "AI product descriptions, smart SEO, social integrations, analytics", "highlight": true},
-        {"name": "Phase 3: Community Expansion", "status": "UPCOMING", "details": "Creator profiles, following, groups/forums, collaborations"},
-        {"name": "Phase 4: AI Commerce Platform", "status": "FUTURE", "details": "AI storefront assistant, automated marketing, predictive recs"}
-      ],
-      "visual": "Connecting line with glowing nodes. 'In Progress' phase pulses with electric blue or orange glow."
-    },
-    {
-      "id": "audience",
-      "title": "Who We're Looking For",
-      "layout": "Grid of 4 cards.",
-      "cards": [
-        {"title": "Founding Sellers", "description": "Early creators shaping the platform with feedback and premium listings."},
-        {"title": "Strategic Partners", "description": "Tool manufacturers, material brands, and educators."},
-        {"title": "Investors & Advisors", "description": "People who believe in the future of creator commerce."},
-        {"title": "Community Builders", "description": "Creators passionate about helping others grow in the ecosystem."}
-      ],
-      "visual": "Deep charcoal cards with 1px border-white/10, lifting on hover with a cyan/amber drop shadow."
-    },
-    {
-      "id": "traction",
-      "title": "Traction",
-      "headline": "Momentum",
-      "layout": "Grid of stat cards.",
-      "features": "Glowing stat cards with animated counters (use Framer Motion useInView).",
-      "stats": [
-        {"label": "Creators Onboarded", "value": "500+"},
-        {"label": "Products Listed", "value": "12,400+"},
-        {"label": "Community Members", "value": "3,200+"},
-        {"label": "Roadmap Progress", "value": "45%"}
-      ],
-      "visual": "Use electric blue and neon cyan accents for the numbers."
-    },
-    {
-      "id": "founder_letter",
-      "title": "Founder Letter",
-      "layout": "Two columns: Photo on left, text on right.",
-      "content": "Personal message from Michael Williams discussing CNC background, Etsy frustrations, and the vision for a better maker economy. Builds trust.",
-      "visual": "Use founder_photo. Add a stylized signature image or cursive font for the sign-off."
-    },
-    {
-      "id": "cta",
-      "title": "Final CTA",
-      "headline": "Join Early. Help Shape the Future.",
-      "layout": "Centered massive CTA block.",
-      "ctas": [
-        {"label": "Apply as a Founding Seller", "type": "primary", "color": "orange"},
-        {"label": "Partner With Us", "type": "secondary", "color": "transparent"},
-        {"label": "Join the Community", "type": "secondary", "color": "transparent"}
-      ],
-      "visual": "Heavy grain texture or subtle animated gradient background to make it feel impactful."
-    }
-  ],
-  "implementation_instructions": {
-    "file_structure": "Create as a single page component at `/src/pages/GrowWithUs.jsx` or equivalent router component, and break complex sections (like Hero mockups and Roadmap timeline) into smaller local components.",
-    "styling": "Use Tailwind CSS extensively. For glassmorphism, use `bg-white/5 backdrop-blur-xl border border-white/10`. For glowing accents, use `shadow-[0_0_15px_rgba(255,69,0,0.5)]` or similar.",
-    "animations": "Use Framer Motion for section reveals (`initial={{ opacity: 0, y: 20 }}` -> `animate={{ opacity: 1, y: 0 }}`). Implement parallax using `useScroll` and `useTransform` on the hero dashboard mockups.",
-    "testing": "Ensure all buttons and links have `data-testid` attributes (e.g., `data-testid=\"hero-primary-cta\"`)."
-  }
+  "instructions_to_main_agent": "Implement these guidelines across the Crafters Market React + Tailwind + Shadcn application. 1. Apply the CSS variables to the global stylesheet. 2. Update `tailwind.config.js` to use the CSS variable colors and new fonts. 3. Modify Shadcn component defaults (border-radius, colors) to match the sharp, editorial look. 4. Redesign the Homepage using the specific component instructions and image URLs provided. 5. Ensure the Theme Toggle is functional and switches the 'dark' class on the HTML tag. 6. Maintain all existing `data-testid` attributes."
 }
