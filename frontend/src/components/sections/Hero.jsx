@@ -23,9 +23,12 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { Users, Hammer, HandHeart, HeartHandshake, Wrench } from "lucide-react";
+import SitePromo from "../SitePromo";
 
 const SETS = [
   {
+    name: "small-shops",
+    promo_placement: "hero_set_0",
     eyebrow: "Built by Independent Makers · US",
     headline: {
       line1: "Small Shops.",
@@ -42,6 +45,8 @@ const SETS = [
     ],
   },
   {
+    name: "real-people",
+    promo_placement: "hero_set_1",
     eyebrow: "Real Hands · Real Workshops",
     headline: {
       line1: "Made by",
@@ -58,6 +63,8 @@ const SETS = [
     ],
   },
   {
+    name: "american-made",
+    promo_placement: "hero_set_2",
     eyebrow: "American-Made · Built to Last",
     headline: {
       line1: "Made in America.",
@@ -74,6 +81,8 @@ const SETS = [
     ],
   },
   {
+    name: "one-of-a-kind",
+    promo_placement: "hero_set_3",
     eyebrow: "Tactile · Unique · Yours",
     headline: {
       line1: "One of a kind.",
@@ -303,6 +312,17 @@ export default function Hero() {
           </ul>
         </div>
       </div>
+
+      {/* iter356 — Per-set SitePromo banner. When admin schedules a promo
+          for placement `hero_set_{N}`, it surfaces here ONLY while that
+          hero set is active. Keyed by idx so it re-mounts (refetches +
+          re-evaluates dismissal) when the rotation advances. Renders
+          nothing if no active promo exists for the current placement. */}
+      <SitePromo
+        key={set.promo_placement}
+        placement={set.promo_placement}
+        data-testid={`hero-promo-${set.promo_placement}`}
+      />
     </section>
   );
 }

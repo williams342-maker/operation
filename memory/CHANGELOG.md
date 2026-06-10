@@ -1,3 +1,38 @@
+## 2026-06-10 — Hero ↔ SitePromo integration + nav readability fix (iter356)
+
+User: "Tie the active hero set to a matching SitePromo banner" + reported "top banner font is unreadable".
+
+### Fix #1 — Nav readability
+Root cause: `bg-paper/85` opacity modifier with `var(--paper)` color renders broken because Tailwind's opacity-modifier syntax needs the `<alpha-value>` placeholder format on CSS-var-based colors. Result: Nav rendered translucent, falling through to whatever sat behind, making text unreadable.
+
+Fix: `Nav.jsx` line 129 — replaced `bg-paper/85 backdrop-blur-xl` / `bg-paper/40 backdrop-blur-sm` with solid `bg-paper backdrop-blur-xl shadow-sm` (scrolled state) / `bg-paper border-b border-line/50` (top). Verified DOM: nav wordmark color now `rgb(26, 26, 26)` = ink black on cream paper. Fully readable.
+
+### Fix #2 — Hero ↔ SitePromo integration
+- **Backend** (`routers/site_promos.py`): Added 4 new placement enums — `hero_set_0`, `hero_set_1`, `hero_set_2`, `hero_set_3`.
+- **Admin UI** (`components/admin/SitePromosCard.jsx`): Added labels for the 4 new placements to the dropdown ("Hero rotation · Set 1 (Small Shops · Big Potential)", etc.).
+- **Hero.jsx**: Each entry in the `SETS` array now has a `promo_placement` field. Below the trust strip, a `<SitePromo key={set.promo_placement} placement={set.promo_placement} />` is mounted. The `key` forces a remount on rotation so the SitePromo refetches + re-evaluates dismissal state per set.
+
+### End-to-end smoke test (live preview)
+- ✅ Seeded a `hero_set_2` promo via API: "Heirloom-grade goods on sale · Shop maker-stamped pieces meant to outlive their owners — through Sunday."
+- ✅ Activated → public GET `/api/site-promos?placement=hero_set_2` returns it
+- ✅ `/api/site-promos?placement=hero_set_0` returns `null` (correctly scoped)
+- ✅ Loaded homepage, clicked pager to set 3 → DOM confirms `[data-testid="site-promo-hero_set_2"]` is present with the seeded title + body
+- ✅ Set 3 hero photos confirmed visually: chisels/workbench, leather wallet w/ brass corner-rivets, hand-forged knife, stacked stoneware bowls
+- ✅ All 16 hero photos verified HTTP 200 with healthy file sizes (700KB-1MB)
+- ✅ Lint clean (JS + Python)
+
+### Admin workflow
+Admin can now schedule "co-promotion" banners that surface only while their matching hero set is on screen. Example:
+- Set 1 (Small Shops · Big Potential) → "20% off all small-batch listings →"
+- Set 2 (Real Hands · Real Workshops) → "Read maker stories on the journal →"
+- Set 3 (American-Made · Built to Last) → "Heirloom-grade goods on sale →" *(seeded for demo)*
+- Set 4 (Tactile · Unique · Yours) → "Browse one-of-one pieces →"
+
+Admin → Ads tab → "Site Banner CMS" → New promo → pick "Hero rotation · Set N" placement.
+
+---
+
+
 ## 2026-06-10 — Hero photos: swapped Unsplash for Nano Banana (iter355)
 
 User: "Swap Unsplash hero photos for Nano Banana-generated documentary-style craft photography (per your Phase A choice)."

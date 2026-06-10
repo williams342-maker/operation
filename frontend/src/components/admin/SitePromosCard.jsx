@@ -24,6 +24,10 @@ const PLACEMENT_LABELS = {
   cart_top:     "Cart page (top)",
   product_top:  "Product page (top)",
   global_top:   "Site-wide (every page, above nav)",
+  hero_set_0:   "Hero rotation · Set 1 (Small Shops · Big Potential)",
+  hero_set_1:   "Hero rotation · Set 2 (Real Hands · Real Workshops)",
+  hero_set_2:   "Hero rotation · Set 3 (American-Made · Built to Last)",
+  hero_set_3:   "Hero rotation · Set 4 (Tactile · Unique · Yours)",
 };
 const PLACEMENTS = Object.keys(PLACEMENT_LABELS);
 

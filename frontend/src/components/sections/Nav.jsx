@@ -126,7 +126,7 @@ export default function Nav() {
       transition={{ duration: 0.7, ease: [0.22, 0.61, 0.36, 1] }}
       style={{ top: "var(--beta-banner-h, 0px)" }}
       className={`fixed left-0 right-0 z-50 transition-colors duration-500 ${
-        scrolled ? "bg-paper/85 backdrop-blur-xl border-b border-line" : "bg-paper/40 backdrop-blur-sm"
+        scrolled ? "bg-paper backdrop-blur-xl border-b border-line shadow-sm" : "bg-paper border-b border-line/50"
       }`}
       data-testid="site-nav"
     >

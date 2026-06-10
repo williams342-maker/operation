@@ -39,7 +39,8 @@ from maker_auth import current_admin
 router = APIRouter()
 log = logging.getLogger("crafters.site_promos")
 
-VALID_PLACEMENTS = {"home_hero", "shop_top", "cart_top", "product_top", "global_top"}
+VALID_PLACEMENTS = {"home_hero", "shop_top", "cart_top", "product_top", "global_top",
+                    "hero_set_0", "hero_set_1", "hero_set_2", "hero_set_3"}
 VALID_TONES = {"default", "celebration", "warning"}
 VALID_STATUSES = {"scheduled", "active", "paused", "ended"}
 
