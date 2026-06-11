@@ -181,7 +181,7 @@ export default function Footer() {
             wrapped to two harsh lines and read as leftover dark-industrial
             branding. Mono caption above ties it to the site's ◆ label
             language. */}
-        <div className="border-t border-line py-10 -mx-4 md:-mx-8 xl:-mx-12 px-4 md:px-8 xl:px-12 overflow-hidden">
+        <div className="border-t border-line py-10 -mx-4 md:-mx-8 xl:-mx-12 px-4 md:px-8 xl:px-12 overflow-hidden text-center">
           <div className="font-mono text-[10px] uppercase tracking-[0.32em] text-ink-muted mb-4">
             ◆ Est · 2026 — Built in workshops · Shipped to doorsteps
           </div>
