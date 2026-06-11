@@ -352,8 +352,8 @@ function Options({ maker, onSaved }) {
         testId="settings-offsite-optout"
       />
       <ToggleRow
-        label="Mute the weekly Restock digest email"
-        hint="By default you get one email every Sunday morning summarizing the buyers waiting on each of your back-ordered listings. Turn this ON to stop those emails — the waitlist data is still visible in your dashboard either way."
+        label="Mute the weekly Shop Health digest email"
+        hint="By default you get one email every Sunday morning bundling everything actionable: paid orders awaiting shipment, buyers waiting on restocks, and listings that could rank better on Google Shopping. Turn this ON to stop those emails — all the same data stays visible in your dashboard."
         value={!!form.restock_digest_opt_out}
         onChange={set("restock_digest_opt_out")}
         testId="settings-restock-digest-optout"

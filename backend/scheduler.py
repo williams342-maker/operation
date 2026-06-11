@@ -825,20 +825,20 @@ async def _job_updates_digest() -> None:
         logger.exception("[scheduler] updates_digest failed: %s", e)
 
 
-async def _job_maker_restock_digest() -> None:
-    """Sundays 09:00 UTC — one digest email per maker with an open
-    waitlist queue. Idempotent per ISO week. See
-    /app/backend/maker_restock_digest.py for full logic."""
+async def _job_shop_health_digest() -> None:
+    """Sundays 09:00 UTC — one bundled "Shop health" email per maker:
+    pending orders + restock demand + Google feed quality. Quiet makers
+    get nothing. Idempotent per ISO week. See shop_health_digest.py."""
     try:
-        from maker_restock_digest import run_weekly_restock_digest
-        r = await run_weekly_restock_digest(trigger="cron")
+        from shop_health_digest import run_weekly_shop_health_digest
+        r = await run_weekly_shop_health_digest(trigger="cron")
         if r.get("makers_notified"):
             logger.info(
-                "[scheduler] maker_restock_digest week=%s notified=%d",
+                "[scheduler] shop_health_digest week=%s notified=%d",
                 r.get("week"), r["makers_notified"],
             )
     except Exception as e:
-        logger.exception("[scheduler] maker_restock_digest failed: %s", e)
+        logger.exception("[scheduler] shop_health_digest failed: %s", e)
 
 
 async def _job_auto_dormant_reengage() -> None:
@@ -1619,11 +1619,12 @@ def start_scheduler() -> AsyncIOScheduler | None:
     sched.add_job(_job_updates_digest,
                   CronTrigger(hour=9, minute=0),
                   id="updates_digest", replace_existing=True)
-    # Maker restock weekly digest — Sundays 09:00 UTC. One email per
-    # maker summarising open waitlist queues. Idempotent per ISO week.
-    sched.add_job(_job_maker_restock_digest,
+    # Weekly "Shop health" digest — Sundays 09:00 UTC (iter367). One
+    # bundled email per maker: pending orders + restock demand + Google
+    # feed quality. Supersedes the restock-only digest in this slot.
+    sched.add_job(_job_shop_health_digest,
                   CronTrigger(day_of_week="sun", hour=9, minute=0),
-                  id="maker_restock_digest", replace_existing=True)
+                  id="shop_health_digest", replace_existing=True)
     # Maker social-momentum digest — Mondays 14:30 UTC (30 min after the
     # journal digest so the two emails don't land in the same delivery
     # batch and overwhelm a maker's inbox on Monday afternoon). Quiet

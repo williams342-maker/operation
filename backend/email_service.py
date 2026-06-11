@@ -2744,6 +2744,87 @@ async def send_maker_restock_digest(*, email: str, name: str,
 
 
 # ------------------------------------------------------------------
+# Weekly "Shop health" digest (iter367) — bundles pending orders,
+# restock demand, and Google feed quality into ONE maker email.
+# Replaces the restock-only digest in the Sunday cron slot.
+# ------------------------------------------------------------------
+async def send_maker_shop_health_digest(*, email: str, name: str,
+                                        pending_orders: list, restock: list,
+                                        restock_total: int, feed_quality: list):
+    site = (os.environ.get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
+    if site.lower().endswith(".emergentagent.com") or "preview." in site.lower():
+        site = "https://craftersmarket.org"
+
+    def _section(title: str, inner: str) -> str:
+        return (
+            f"<div style='margin:0 0 26px'>"
+            f"<div style='font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:#ff4500;margin:0 0 10px'>{title}</div>"
+            f"{inner}</div>"
+        )
+
+    sections: list[str] = []
+
+    if pending_orders:
+        n = len(pending_orders)
+        sections.append(_section(
+            f"◆ {n} order{'s' if n != 1 else ''} awaiting shipment",
+            "<div style='font-size:13px;color:#a3a3a3;line-height:1.6'>"
+            f"You have <b style='color:#e5e5e5'>{n}</b> paid order{'s' if n != 1 else ''} "
+            "that haven't shipped yet. Buyers who get fast shipping leave better reviews — "
+            f"<a href='{site}/maker/dashboard?tab=orders' style='color:#ff4500'>print labels from the Orders tab</a>."
+            "</div>",
+        ))
+
+    if restock:
+        items = "".join(
+            "<div style='border-left:2px solid #ff4500;padding:4px 0 4px 12px;margin:0 0 10px'>"
+            f"<span style='font-size:13px;color:#e5e5e5'>"
+            f"<a href='{site}/shop/{r.get('product_slug', '')}' style='color:#e5e5e5;text-decoration:none'>{(r.get('product_title') or r.get('product_slug') or '').strip()}</a></span>"
+            f" <span style='font-size:12px;color:#a3a3a3'>— <b style='color:#ff4500'>{r.get('count', 0)}</b> waiting</span>"
+            "</div>"
+            for r in restock[:10]
+        )
+        sections.append(_section(
+            f"◆ {restock_total} buyer{'s' if restock_total != 1 else ''} waiting on restocks",
+            items + "<div style='font-size:12px;color:#a3a3a3'>Raise stock and every waitlisted buyer gets an automatic back-in-stock email.</div>",
+        ))
+
+    if feed_quality:
+        items = "".join(
+            "<div style='margin:0 0 8px'>"
+            f"<span style='font-size:13px;color:#e5e5e5'>"
+            f"<a href='{site}/maker/listings/{f.get('slug', '')}/edit' style='color:#e5e5e5;text-decoration:underline'>{(f.get('title') or f.get('slug') or '').strip()}</a></span>"
+            f" <span style='font-size:12px;color:#a3a3a3'>— {'; '.join(f.get('warnings', []))}</span>"
+            "</div>"
+            for f in feed_quality[:8]
+        )
+        sections.append(_section(
+            f"◆ {len(feed_quality)} listing{'s' if len(feed_quality) != 1 else ''} could rank better on Google",
+            items + "<div style='font-size:12px;color:#a3a3a3'>Add a materials list (or mention the wood/metal in the title) and the Google feed fills in color &amp; material automatically.</div>",
+        ))
+
+    body = (
+        f"<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 22px'>Hey {name},</p>"
+        "<p style='font-size:14px;color:#a3a3a3;line-height:1.6;margin:0 0 26px'>"
+        "Your weekly shop check-in — everything actionable in one place.</p>"
+        + "".join(sections)
+        + f"<div style='text-align:center;margin:32px 0 10px'>"
+        f"<a href='{site}/maker/dashboard' style='display:inline-block;background:#ff4500;color:#0a0a0a;text-decoration:none;font-weight:700;padding:14px 24px;font-size:13px;letter-spacing:0.15em;text-transform:uppercase'>Open Dashboard →</a>"
+        "</div>"
+    )
+    highlights = []
+    if pending_orders:
+        highlights.append(f"{len(pending_orders)} to ship")
+    if restock_total:
+        highlights.append(f"{restock_total} waiting on restocks")
+    if feed_quality:
+        highlights.append(f"{len(feed_quality)} feed fix{'es' if len(feed_quality) != 1 else ''}")
+    summary = " · ".join(highlights) or "All clear"
+    html = _shell("Shop health.", summary, body, "Maker · weekly")
+    return await _send(email, f"[Crafters Market] Shop health: {summary}", html)
+
+
+# ------------------------------------------------------------------
 # Coming-Soon waitlist confirmation (iter103) — fired from the
 # /api/coming-soon/waitlist endpoint when a NEW signup goes through.
 # Skipped on already-on-list re-submissions (handled by the caller).

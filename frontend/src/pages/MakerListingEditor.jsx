@@ -120,7 +120,15 @@ export default function MakerListingEditor() {
   // re-rendering on every keystroke.
   const [agoTick, setAgoTick] = useState(0);
 
-  const set = (patch) => setForm((f) => ({ ...f, ...patch }));
+  // iter367 bug fix — autosave fired on the hydration `setForm` itself,
+  // PATCHing `status:"draft"` and silently UNPUBLISHING any published
+  // listing whose editor was merely opened. `dirtyRef` flips true only
+  // on real user mutations; hydration resets it.
+  const dirtyRef = useRef(false);
+  const set = (patch) => {
+    dirtyRef.current = true;
+    setForm((f) => ({ ...f, ...patch }));
+  };
 
   // Auth gate + initial data load
   useEffect(() => {
@@ -142,6 +150,7 @@ export default function MakerListingEditor() {
             navigate("/maker/dashboard#listings", { replace: true });
             return;
           }
+          dirtyRef.current = false;  // hydration is not a user edit
           setForm({
             ...emptyForm(),
             ...found,
@@ -279,6 +288,7 @@ export default function MakerListingEditor() {
           });
           return;
         }
+        dirtyRef.current = true;  // persist the swapped R2 URL on next autosave
         setForm((f) => ({
           ...f,
           images: f.images.map((s) => (s === dataUrl ? url : s)),
@@ -355,6 +365,7 @@ export default function MakerListingEditor() {
   };
 
   const onCropConfirm = (croppedDataUrl) => {
+    dirtyRef.current = true;
     setForm((f) => {
       // If the queue head was tagged with a target index, replace that
       // photo in-place (re-crop flow). Otherwise append (initial upload).
@@ -792,10 +803,17 @@ export default function MakerListingEditor() {
     if (saving) return;
     if (imageUploads > 0) return;
     if (!effectiveSlug && !form.title.trim()) return;
+    // iter367 — only autosave after a REAL user mutation. The hydration
+    // setForm used to trip this effect and demote published → draft.
+    if (!dirtyRef.current) return;
     const t = setTimeout(async () => {
       try {
         setAutoStatus("saving");
-        const payload = buildPayload("draft");
+        dirtyRef.current = false;
+        // No status override — autosave preserves the listing's current
+        // status (published listings stay published). Brand-new sessions
+        // still create as draft below.
+        const payload = buildPayload();
         if (effectiveSlug) {
           await updateMakerProduct(effectiveSlug, payload);
         } else {
@@ -807,6 +825,7 @@ export default function MakerListingEditor() {
       } catch (e) {
         // Swallow — silent failures show as a yellow indicator pill, the
         // maker still has the manual Save Draft button as a fallback.
+        dirtyRef.current = true;  // retry the unsaved changes next tick
         setAutoStatus("error");
       }
     }, 1500);
