@@ -16,6 +16,7 @@ module.exports = {
                         // iter349 — Crafters Market design tokens (light/dark via CSS vars).
                         paper: 'var(--paper)',
                         surface: 'var(--surface)',
+                        'surface-2': 'var(--surface-2)',
                         ink: 'var(--ink)',
                         'ink-muted': 'var(--ink-muted)',
                         brand: {

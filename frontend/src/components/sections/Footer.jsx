@@ -56,7 +56,7 @@ const cols = [
 
 export default function Footer() {
   return (
-    <footer className="relative w-full bg-paper border-t border-line">
+    <footer className="relative w-full cm-footer-dark bg-paper border-t border-line">
       {/* Grow With Us cinematic CTA band — recruiting surface for
           founding sellers / partners / press. Sits at the top of the
           footer so every page exit funnel touches it. Cyan accent

@@ -29,14 +29,14 @@ const SETS = [
   {
     name: "small-shops",
     promo_placement: "hero_set_0",
-    eyebrow: "Built by Independent Makers · US",
+    eyebrow: "Built by Makers · Real Workshops",
     headline: {
-      line1: "Small Shops.",
+      line1: "Built by Makers.",
       pre: null,
-      highlight: "Big",
-      post: "Potential.",
+      highlight: "Crafted",
+      post: "to Last.",
     },
-    body: "Built for independent makers, woodworkers, leather workers, metal crafters, and creators — from workshops and studios to garages and small shops. Real products from real people. No mass production. No drop-shipping. Just small businesses with stories behind what they make.",
+    body: "Real workshops. Real makers. Handmade goods with stories behind every piece. Woodworkers, leather workers, metal crafters, and creators — no mass production, no drop-shipping. Just small businesses doing honest work.",
     photos: [
       { src: "/hero-photos/0-0.jpg", alt: "Woodworking plane curling fresh shavings" },
       { src: "/hero-photos/0-1.jpg", alt: "Leather worker hand-tooling a stitched piece" },
@@ -147,7 +147,7 @@ export default function Hero() {
 
   return (
     <section
-      className="relative bg-paper text-ink overflow-hidden"
+      className="relative cm-hero-wash bg-paper text-ink overflow-hidden"
       data-testid="home-hero"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}

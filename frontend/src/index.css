@@ -3,30 +3,32 @@
 @tailwind utilities;
 
 :root {
-    /* iter349 — Light theme defaults (Crafters Market redesign).
-       Existing legacy tokens (--bg, --fg, --primary, --border) are kept
-       so legacy dark-styled components still resolve; new components
-       should prefer the new tokens below. */
-    --bg: #F9F8F6;
-    --fg: #1A1A1A;
-    --primary: #EA580C;
-    --primary-hover: #C2410C;
-    --secondary: #FFFFFF;
-    --border: #E5E5E5;
-    --muted: #F3F2EF;
-    --muted-fg: #4A4A4A;
-    --card: #FFFFFF;
+    /* iter363 — "Aged Canvas" warm workshop light theme.
+       Light neutral backgrounds + aged materials. Legacy tokens
+       (--bg, --fg, --primary, --border) kept so legacy components
+       still resolve; new components prefer the new tokens below. */
+    --bg: #ECE6DA;
+    --fg: #38342E;
+    --primary: #B76437;
+    --primary-hover: #9B4F2A;
+    --secondary: #F5F0E7;
+    --border: #BDB5AA;
+    --muted: #DDD4C5;
+    --muted-fg: #6E665D;
+    --card: #F5F0E7;
 
     /* New blueprint tokens — preferred for all new work. */
-    --paper: #F9F8F6;          /* page background */
-    --surface: #FFFFFF;        /* cards, modals, elevated surfaces */
-    --ink: #1A1A1A;            /* primary text */
-    --ink-muted: #4A4A4A;      /* secondary text */
-    --brand: #EA580C;          /* accent orange */
-    --brand-hover: #C2410C;
-    --line: #E5E5E5;           /* borders, dividers */
+    --paper: #ECE6DA;          /* page background — Aged Canvas */
+    --surface: #F5F0E7;        /* cards, modals, elevated — Warm Bone */
+    --surface-2: #DDD4C5;      /* secondary fills — Stone Linen */
+    --ink: #38342E;            /* primary text — Soft Carbon */
+    --ink-muted: #6E665D;      /* secondary text */
+    --brand: #B76437;          /* accent — Burnt Copper */
+    --brand-hover: #9B4F2A;
+    --line: #BDB5AA;           /* borders, dividers — Workshop Steel */
+    --footer-bg: #2D2B28;      /* Forged Charcoal */
     --success: #16A34A;
-    --warn: #EAB308;
+    --warn: #B45309;
     --danger: #DC2626;
 }
 
@@ -44,6 +46,7 @@ html.dark {
 
     --paper: #121212;
     --surface: #1E1E1E;
+    --surface-2: #2A2A2A;
     --ink: #F3F4F6;
     --ink-muted: #9CA3AF;
     --brand: #F97316;
@@ -77,9 +80,9 @@ body {
 /* Typography */
 .font-display {
     font-family: 'Oswald', 'Anton', 'Impact', sans-serif;
-    font-weight: 700;
+    font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: -0.01em;
+    letter-spacing: -0.005em;
     line-height: 0.92;
 }
 .font-mono {
@@ -105,6 +108,87 @@ body {
     opacity: 0.06;
     mix-blend-mode: overlay;
     background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+
+/* iter363 — Aged-canvas atmosphere (light mode only).
+ * 1. Site-wide 3% linen/paper grain (multiply so it darkens, not dirties).
+ * 2. Very-low-opacity vignette pulling the edges down slightly.
+ * Both are fixed, pointer-events-none, and sit above content but are
+ * imperceptible except as texture. Dark mode keeps its own .grain. */
+html:not(.dark) body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 99;
+    opacity: 0.03;
+    mix-blend-mode: multiply;
+    background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+html:not(.dark) body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 98;
+    background: radial-gradient(ellipse 130% 100% at 50% 35%, transparent 60%, rgba(56, 52, 46, 0.05) 100%);
+}
+
+/* iter363 — Homepage hero wash: Stone Linen → Aged Canvas vertical
+ * gradient with a soft top-right light pool. Light mode only; dark
+ * mode falls through to the section's bg-paper. */
+html:not(.dark) .cm-hero-wash {
+    background:
+        radial-gradient(ellipse 70% 55% at 72% 8%, rgba(245, 240, 231, 0.65) 0%, transparent 60%),
+        linear-gradient(180deg, var(--surface-2) 0%, var(--paper) 100%);
+}
+
+/* iter363 — Cards get a whisper of lift instead of hard borders. */
+html:not(.dark) .bg-surface {
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.03);
+}
+
+/* iter363 — Primary CTA hover lift. Scoped to interactive elements
+ * only (pills/badges that share bg-brand stay put). */
+a.bg-brand, button.bg-brand {
+    transition: background-color 0.2s ease, transform 0.15s ease;
+}
+a.bg-brand:hover, button.bg-brand:hover {
+    transform: translateY(-1px);
+}
+
+/* iter363 — Softer headline tone: keep bold, drop from heavy 700 to
+ * 600 on display headings and relax the tightest letter-spacing. */
+h1.font-heading, h2.font-heading {
+    font-weight: 600;
+}
+.font-heading.tracking-tight {
+    letter-spacing: -0.01em;
+}
+
+/* iter363 — Hero imagery treatment (light mode): warmer tones, muted
+ * contrast. Product photos are intentionally NOT filtered — buyers
+ * need color-accurate listings. */
+html:not(.dark) [data-testid="home-hero-collage"] img {
+    filter: sepia(0.1) saturate(0.92) contrast(0.94) brightness(1.02);
+}
+
+/* iter363 — Forged-charcoal footer in light mode. Redefines the local
+ * theme tokens inside the footer scope so every token-driven child
+ * (text-ink, border-line, bg-paper…) adapts without per-element edits.
+ * Dark mode is untouched (footer already sits on the dark palette). */
+html:not(.dark) .cm-footer-dark {
+    --paper: var(--footer-bg);
+    --bg: var(--footer-bg);
+    --surface: #383531;
+    --surface-2: #44403A;
+    --card: #383531;
+    --ink: #EFEAE0;
+    --fg: #EFEAE0;
+    --ink-muted: #A8A096;
+    --muted-fg: #A8A096;
+    --line: #494540;
+    --border: #494540;
 }
 
 /* Outline display text — uses theme tokens so it works on both light + dark. */
