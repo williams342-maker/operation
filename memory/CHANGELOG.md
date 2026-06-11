@@ -8173,3 +8173,407 @@ The new `AccountPanel` "Current plan" section was rendering a dead text label (`
 - **Plus state**: button hidden (`upgrade-btn count=0`), `Downgrade to Free` button present (`downgrade-btn count=1`), header shows green `★ CRAFTERS PLUS · $12/MO` badge.
 - Files: `/app/frontend/src/pages/MakerDashboard/SettingsTab.jsx`, `/app/frontend/src/pages/MakerDashboard/PlusUpgradeNudge.jsx`.
 
+## 2026-06-10 — Contrast audit + seeder hardening
+**P0 — Contrast audit (DONE):**
+- Site-wide `sed` sweep across `/app/frontend/src/pages/**` and `/app/frontend/src/components/**` converting legacy hardcoded dark hexes to theme-aware semantic tokens:
+  - `bg-[#0a0a0a|0f0f0f|101010|050505|080808|0e0e0e|0d0d0d|121212]` → `bg-paper`
+  - `bg-[#141414|1a1a1a|1c1c1c|1f1f1f|171717|181818|222|262626|070707|0c0c0c|0a0805]` → `bg-surface`
+  - `bg-[#1a0a05|1a0e08]` → `bg-brand/10` (selected-state highlight)
+  - `border-[#262626|1a1a1a|1f1f1f|404040|525252|171717]` → `border-line`
+  - `text-[#e5e5e5|fafafa|f5f5f5|d4d4d4]` → `text-ink`
+  - `text-[#a3a3a3|737373|525252|9ca3af]` → `text-ink-muted`
+  - `text-[#ff4500]` / `bg-[#ff4500]` / `border-[#ff4500]` → `text-brand` / `bg-brand` / `border-brand`
+  - `hover:bg-[#ff6a2a|ff5a1a|ff5722|ff5f1f|ff5e1f|cc3700|ff6a2c]` → `hover:bg-brand-hover`
+  - `hover:text-[#fff|ff6633|ff5a1a|ff6a2c]` → `hover:text-ink` / `hover:text-brand-hover`
+  - Hardcoded `bg-black` on EtsyComparisonTable, FoundersWall, PressPage `<main>` → `bg-surface` / `bg-paper`
+  - CommunityAuth Google sign-in fixed: was `bg-[#fff] text-ink` (invisible in dark mode) → `bg-white text-[#1f1f1f] border-line`
+- Intentional hexes preserved:
+  - ProductDetail color-swatch map (`Gold #c9a227`, etc.)
+  - AdminShowcaseModTab badge ink (`text-[#0a0a0a]` on yellow/green status pills — high contrast on bright backgrounds)
+  - Social brand tints (#1d9bf0 Twitter, #1877f2 Facebook, #e1306c Instagram, #e60023 Pinterest, #b22234 US-flag-red veteran badge)
+  - Cinematic strips (`CinematicMomentsStrip`, `FeaturedBuildsRail`) — intentionally dark/cinematic regardless of theme
+  - Video-player chrome / overlay scrims (`bg-black/XX` for modals + image lightbox)
+  - SVG preview canvas backgrounds (`bg-white` on KitPage, MakerStudio brief preview, print pages)
+- Verified visually in BOTH themes on /beta, /community, and footer.
+
+**P1 — `/api/products` 500 from missing required fields (DONE):**
+- `backend/models.py::Product` — added safe defaults `category="Wall Art"` and `technique="CUSTOM"` so legacy/test docs missing these fields no longer trigger `ResponseValidationError` on the public catalog.
+- Verified: `GET /api/products?limit=5` returns 200 with 83 items.
+
+
+
+---
+
+## 2026-06-10 — Phase 4b/4c Ads Push (Meta + Microsoft)
+**Backend (DONE, 16/16 tests passing — iter_83):**
+- `routers/ai_ad_creative.py` — added 4 new admin endpoints:
+  - `GET  /api/admin/ad-creative/push/meta/preflight`
+  - `POST /api/admin/ad-creative/drafts/{draft_id}/push/meta`  (req body: `{daily_budget_cents}`)
+  - `GET  /api/admin/ad-creative/push/microsoft/preflight`
+  - `POST /api/admin/ad-creative/drafts/{draft_id}/push/microsoft` (req body: `{daily_budget_cents, keywords?}`)
+- Shared helper `_resolve_subject_for_push(draft)` for both new push handlers.
+- `services/ads_gateway/meta.py::_create_creative` now honors `spec.headlines[0]` (≤40 chars → Meta `link_data.name`) and `spec.descriptions[0]` (≤125 chars → Meta `link_data.message`). Falls back to listing title/description when called from the allocator (no Workshop draft).
+- `services/ads_gateway/microsoft.py::_create_campaign_sync` now honors `spec.headlines`/`spec.descriptions` lists (deduped, trimmed to 30/90 chars, padded to ≥3/≥2) — same pattern as the Google adapter.
+- Mapping policy:
+  - Meta push consumes `draft.copy.meta_feed` (3 primary_texts × 125 chars + 3 headlines × 40 chars).
+  - Microsoft push consumes `draft.copy.google_search` (same RSA spec as Bing: ≤30 char headlines, ≤90 char descriptions).
+- Safety identical to Google adapter: every campaign lands PAUSED. Admin must manually activate inside Meta Ads Manager / Microsoft Advertising before any spend.
+
+**Frontend (DONE, smoke screenshot clean, no console errors):**
+- `frontend/src/lib/api.js` — added 4 client helpers: `adminAdCreativeMetaPreflight`, `adminPushDraftToMeta`, `adminAdCreativeMicrosoftPreflight`, `adminPushDraftToMicrosoft`.
+- `frontend/src/components/admin/AdCreativeWorkshopCard.jsx` — refactored single-channel `PushToGoogleButton` into a generic `PushToChannelButton` driven by a `CHANNEL` config object (`GOOGLE_CHANNEL`, `META_CHANNEL`, `MICROSOFT_CHANNEL`). All three buttons render side-by-side in the `CreativeResult` toolbar.
+- New `data-testid`s: `ad-creative-push-{google|meta|microsoft}`, `push-{channel}-modal`, `push-{channel}-form`, `push-{channel}-submit`, `push-{channel}-success`, `push-{channel}-open-link`.
+- Channel-specific eligibility gating:
+  - Google + Microsoft buttons disabled until `google_search.headlines.filter(Boolean).length >= 3`.
+  - Meta button disabled until `meta_feed.headlines >= 1 && meta_feed.primary_texts >= 1`.
+- Deep links: `google_ads_url`, `meta_ads_url` (Business Manager), `microsoft_ads_url` (ui.ads.microsoft.com).
+
+**Test report:** `/app/test_reports/iteration_83.json` (16/16 pass).
+**Test file (re-runnable):** `/app/backend/tests/test_iter347_ads_push_meta_microsoft.py`.
+
+
+
+---
+
+## 2026-06-10 — P3 router split + P2 SEO submission verification
+
+**P3 — `ai_ad_creative.py` split (DONE, 16/16 pytest pass):**
+- Moved all Phase 4 push handlers out of `routers/ai_ad_creative.py` (was 789 lines) into a new dedicated `routers/ai_ad_push.py` module.
+- Result: `ai_ad_creative.py` now 402 lines (generator + drafts CRUD only); `ai_ad_push.py` 397 lines (preflight + push handlers + history endpoint).
+- Extracted shared `_preflight(channel)` helper that logs unexpected exceptions at WARN (addresses testing-agent code-review note #3 about silent eligibility regressions).
+- Shared `_resolve_subject_for_push(draft)` helper lives in `ai_ad_push.py` and is consumed by all three channel handlers (addresses code-review note #2).
+- Both modules registered in `server.py`. All endpoint paths unchanged — zero API contract impact.
+- Regression: `pytest tests/test_iter347_ads_push_meta_microsoft.py` → 16/16 pass.
+
+**P2 — Cloudflare prerender worker + GSC/Bing sitemap submission (server-side READY · user-side ACTIONABLE):**
+
+Server-side preflight (all ✅):
+- `/api/seo/diag` → `resolved_site_root=https://craftersmarket.org`, `preview_domain_leakage=false`, 127 indexable URLs (9 static + 83 products + 26 makers + 9 blog posts), 4 test-maker slugs auto-stripped.
+- `/api/sitemap.xml` → valid XML, canonical apex URLs, dynamic-rebuild from Mongo on every request.
+- `/api/robots.txt` → AI crawlers (GPTBot/ClaudeBot/OAI-SearchBot) explicitly allowed.
+- `/api/og/product/{slug}` → 200 with full OG/Twitter/Schema.org meta (sample: `carved-oak-wedding-monogram`).
+- `/api/indexnow-key.txt` → 200 (IndexNow key file canonically served).
+- IndexNow ping fired fresh from `/admin/seo/ping` → 75 URLs accepted, status 200, no errors. Bing / Yandex / Naver / Seznam / Yep all auto-pinged.
+
+User-side actions remaining (estimated 25 min — full playbook at `/app/docs/seo-submission-checklist.md` and `/app/docs/cloudflare-worker-prerender.md`):
+1. **Cloudflare Worker** (10 min) — Cloudflare → Workers & Pages → Create app → Create Worker → paste the contents of `/app/docs/cloudflare-worker-prerender.md` `crafters-prerender.js` block → bind route `craftersmarket.org/*` → Save. Verifies via the `curl -A "Slackbot-LinkExpanding 1.0"` smoke test in the doc.
+2. **GSC sitemap submission** (5 min) — search.google.com/search-console → Add property → `https://craftersmarket.org/` → verify via DNS TXT → Sitemaps → add `api/sitemap.xml` → Submit. Optional: set `GSC_ENABLED=1` + paste service-account JSON into backend env to enable the auto-`/admin/seo/gsc-submit-sitemap` button instead.
+3. **Bing Webmaster** (5 min) — bing.com/webmasters → add site → "Import from GSC" (one-click copies verification + sitemap) → done. IndexNow is already auto-pinging Bing in real time (see status above), so this just enables the dashboard UI.
+4. **Pinterest claim** (5 min · optional but high-leverage) — business.pinterest.com → Claim website → DNS TXT. Unlocks Rich Pins which read price + availability from our `Product` JSON-LD automatically.
+
+
+
+---
+
+## 2026-06-10 — P3 GSC enablement preflight + UX polish
+
+**Status: server-side READY · production env flag pending (user-side · 30-second flip).**
+
+Discovery — the GSC OAuth auth path is already fully wired:
+- `GSC_OAUTH_CLIENT_ID`, `GSC_OAUTH_CLIENT_SECRET`, `GSC_OAUTH_REDIRECT_URI` all populated in `/app/backend/.env`.
+- `/admin/gsc/oauth-start`, `/oauth-callback`, `/status`, `/disconnect` endpoints all live in `routers/gsc_admin.py`.
+- Admin `GscConnectionCard` in `SettingsTab.jsx` renders Connect / Disconnect / Test buttons with popup OAuth flow.
+- `/api/admin/seo/gsc-submit-sitemap` already auto-fires alongside IndexNow on the "Ping now" button.
+- The only blocker is the env flag — `/app/backend/.env` deliberately keeps `GSC_ENABLED=0` in preview (per inline comment: "production sets it to 1 via Manage Deployments → Secrets tab").
+
+**Validated end-to-end (temporarily flipped GSC_ENABLED=1 in preview to verify, then restored):**
+- `/admin/gsc/status` → `enabled: true, oauth_configured: true, connected: false` ✅
+- `/admin/seo/gsc-submit-sitemap` → clean fail-soft: `{"ok": false, "error": "GSC client unavailable (not connected)"}` (no 500) ✅
+- `/admin/gsc/oauth-start` → returns valid Google authorization URL ready for popup ✅
+- After restore: preview correctly back to `enabled: false` ✅
+
+**Frontend UX polish (DONE):**
+- `SettingsTab.jsx::GscConnectionCard` — added amber `[data-testid=gsc-disabled-hint]` warning when `status.enabled === false`. Reads:
+  > "GSC is disabled in this environment (GSC_ENABLED ≠ 1). The Connect / Test buttons below will fail until it's turned on. To enable in production: open Manage Deployments → Secrets, set GSC_ENABLED=1, redeploy. The OAuth client ID / secret / redirect URI are already wired — only this single flag needs to flip."
+- Connect button now disabled (with `cursor-not-allowed` + title-tip) while `!status.enabled`.
+- Screenshot verified: hint renders cleanly in admin → Settings → GSC Connection card.
+
+**User-side action (production · ~30 sec):**
+1. Open Manage Deployments → Secrets.
+2. Add `GSC_ENABLED=1`.
+3. Redeploy.
+4. Visit `/admin/dashboard?tab=settings` → scroll to "GSC Connection" → click "Connect Google account".
+5. Google OAuth popup → grant consent → token persists in `db.gsc_oauth`.
+6. Subsequent "Ping now" clicks auto-submit sitemap to GSC + log to `seo_gsc_audit`. Daily 05:30 UTC sweep starts pulling per-URL index verdicts.
+
+
+
+---
+
+## 2026-06-10 — P3 Pinterest Catalog Sync (19/19 tests pass · iter_84)
+
+**Backend (DONE):**
+- New router `routers/pinterest_catalog.py` (220 lines) exposing:
+  - `GET /api/pinterest/catalog.tsv` (PUBLIC · streaming TSV product feed Pinterest's crawler pulls every 24h)
+  - `GET /api/pinterest/catalog/health` (PUBLIC · diagnostic JSON: product_count + last fetch timestamps)
+- Feed columns (15): `id, title, description, link, image_link, additional_image_link, price, availability, condition, brand, google_product_category, product_type, item_group_id, color, size`
+- All field formatting follows Pinterest spec exactly:
+  - `price` → `NNN.NN USD`
+  - `availability` ∈ {`in stock`, `out of stock`, `preorder`} (defaults to `out of stock` on unparseable input — safer per code-review iter_84 #1)
+  - `condition` → `new`
+  - `image_link` always absolute https (auto-absolutized via `_absolutize` helper)
+  - `_clean()` strips HTML tags + tabs/newlines from descriptions (per code-review iter_84 #4)
+- Pull-based — no Pinterest API token required. Independent of existing `PINTEREST_ACCESS_TOKEN` flow.
+- User-Agent heuristic distinguishes `Pinterestbot` ingestion hits from generic curl tests in the health summary.
+- Unmapped category WARN-once logging surfaces gaps in `GOOGLE_CATEGORY_MAP` to admin logs (per code-review iter_84 #3).
+- Server registration: `server.py` lines 39 + 114.
+
+**Tests (DONE):**
+- HTTP regression suite: `/app/backend/tests/test_iter350_pinterest_catalog_http.py` (created by testing agent · 19/19 pass against live preview).
+- Scaffold tests: `/app/backend/tests/test_iter350_pinterest_catalog_feed.py` (TestClient-based · hits known motor event-loop pollution — each test passes individually).
+- Report: `/app/test_reports/iteration_84.json`.
+
+**Docs (DONE):**
+- Full user-side setup playbook at `/app/docs/pinterest-catalog-setup.md` with verification curl commands, field-mapping table, per-variant breakout instructions, and Pinterest Diagnostics troubleshooting.
+
+**User-side action (~5 min, one-time):**
+1. Pinterest Business Hub → Ads → Catalogs → Add data source.
+2. Feed URL: `https://craftersmarket.org/api/pinterest/catalog.tsv` · Format: TSV · US · en · USD · Daily.
+3. Save. Pinterest ingests within 24 h; verify via `curl /api/pinterest/catalog/health` showing populated `last_pinterest_fetch_at`.
+
+**Feed currently serving:** 83 products, all valid (all images absolutized, all prices `NNN.NN USD`, all availability `in stock`, all condition `new`).
+
+
+
+---
+
+## 2026-06-10 — P3 GSC Indexed-bucket WoW drop-off alert (6/6 pytest pass)
+
+**Backend (DONE):**
+- New scheduler job `_job_gsc_indexed_dropoff_alert` in `scheduler.py` — fires daily at **06:15 UTC** (45 min after the existing `refresh_gsc_indexing@05:30 UTC` so it reads the freshest tier counts).
+- Persistence:
+  - `gsc_indexed_snapshots` — one row per UTC date with `{indexed_count, indexed_pct, tier_counts, total_published, ts}`. Idempotent on re-run (`replace_one` keyed by date).
+  - `gsc_alert_log` — one row per dispatched alert with snapshot/prior diff + dedup key.
+- Threshold: tunable via `GSC_INDEXED_DROP_THRESHOLD_PP` env (default **5pp**).
+- Guards (all silent skips, no false positives):
+  - `GSC_ENABLED != 1` → skip
+  - catalog `< 10` listings → skip (avoids alarms on empty DB)
+  - no snapshot ≥6 days old yet → skip (bootstrap mode tolerant of one missed day)
+  - drop ≤ threshold → skip
+  - alert already sent in last 24h → skip (dedup)
+- Email: `email_service.send_ops_gsc_indexed_dropoff` (~50 lines, matches existing `send_ops_prod_outage_alert` aesthetic) — single recipient `OPS_EMAIL=williams342@gmail.com`, deep-links to `/admin/dashboard?tab=settings#gsc`, lists 4 common root causes (sitemap rot · stray noindex · algorithm penalty · crawl budget).
+
+**Tests (DONE · 6/6 pass · `/app/backend/tests/test_iter351_gsc_dropoff_alert.py`):**
+- `test_skip_when_gsc_disabled` — silent no-op when `GSC_ENABLED=0`.
+- `test_snapshot_persists_idempotently` — re-running same day overwrites row.
+- `test_alert_fires_on_large_drop` — 80% → 60% = 20pp drop → email captured with correct math + alert log row written.
+- `test_no_alert_within_threshold` — 80% → 78% = 2pp drop → silent skip.
+- `test_no_alert_when_no_prior_snapshot` — bootstrap-mode silent skip.
+- `test_email_renderer_signature` — verifies HTML body contains "Indexation alert" + correct subject.
+
+**Visual smoke (manual via captured render):**
+- Subject: `[Crafters Market] ⚠️ Indexed listings down 26.2pp WoW`
+- Recipient: `williams342@gmail.com`
+- HTML opens with `-26.2pp indexed.` headline, red alert chip, 4-item action list, CTA "Open admin · Indexation Health".
+
+**Scheduler registration confirmed:**
+```
+gsc_indexed_dropoff_alert@cron[hour='6', minute='15']
+```
+visible in scheduler boot logs after restart.
+
+**Tunable knobs (env):**
+- `GSC_INDEXED_DROP_THRESHOLD_PP` — default 5. Raise to 10 if false-positives become noisy; lower to 3 if catastrophic regressions need to fire faster.
+- `OPS_EMAIL` — already set to `williams342@gmail.com`.
+
+
+
+---
+
+## 2026-06-10 — P3 Pinterest Catalog real-time sync (10/10 tests pass)
+
+**Important framing discovery (per Pinterest playbook · integration_playbook_expert_v2):**
+- Pinterest's v5 API does **NOT** expose a "force re-fetch TSV feed" endpoint. The 24-48h feed cadence is the only documented ingestion schedule for the pull-based feed.
+- The intended real-time complement is `POST /v5/catalogs/items/batch` which pushes individual item deltas. This is what the playbook recommends for dynamic catalogs (price changes, new listings).
+- Token scope expansion requires re-running the OAuth flow with the wider scope list — refresh tokens alone won't add `catalogs:read` / `catalogs:write`.
+
+**Backend (DONE):**
+- New `services/pinterest_catalog_sync.py` (~220 lines, lint-clean):
+  - `check_catalog_scope(force=False)` — probes `GET /v5/catalogs`, returns `{read, write, status, reason, raw}`. Recognizes 6 distinct states: `ok`, `no_token`, `expired`, `no_read_scope`, `no_catalogs_role`, `network_error`. 10-min in-memory scope cache auto-invalidated on 403.
+  - `push_items_batch(items, operation="UPDATE")` — calls `POST /v5/catalogs/items/batch`. Never raises — degrades cleanly with structured `{ok, status_code, reason, response}`.
+  - `push_item_update(item_id, price=, availability=, **extra)` — convenience wrapper, formats price as `NNN.NN USD` matching the feed.
+- New admin endpoints in `routers/pinterest_catalog.py`:
+  - `GET /api/admin/pinterest/catalog-status?force=0` → scope detection result (trimmed payload).
+  - `POST /api/admin/pinterest/catalog-resync` with `{limit:N≤500}` → pushes the N most-recently-updated published products to Pinterest, audits to `pinterest_resync_log`.
+- Live preview env probe shows `status:"no_token"` cleanly (PINTEREST_ACCESS_TOKEN empty in preview — production has the bearer set).
+
+**Tests (DONE · 10/10 pass · `/app/backend/tests/test_iter352_pinterest_catalog_sync.py`):**
+- Covers all 6 scope-detection states (no_token, ok, expired, no_read_scope, no_catalogs_role) using mocked `httpx.AsyncClient`.
+- Verifies `push_items_batch` happy path + 403 graceful degradation + auto-invalidation of scope cache.
+- Verifies `push_item_update` empty-attribute guard + correct price/availability/link payload shape.
+- Verifies the 10-min scope cache prevents duplicate HTTP calls.
+
+**Docs (DONE):** Appended to `/app/docs/pinterest-catalog-setup.md`:
+- Scope-detection curl + status table (6 status values × required action).
+- Manual re-sync curl + audit collection name.
+- Explicit "there is no force-re-fetch endpoint" note + clean degradation behavior when `catalogs:write` is missing.
+- OAuth scope upgrade instructions (the user must re-grant consent, refresh tokens won't help).
+
+**User-side actions (only when ready to enable real-time):**
+1. Open Pinterest Business Hub → Settings → API access → reconnect app with `scope=user_accounts:read,boards:read,pins:read,pins:write,catalogs:read,catalogs:write`.
+2. Paste the new bearer token into the production `PINTEREST_ACCESS_TOKEN` env var.
+3. `curl /api/admin/pinterest/catalog-status?force=1` should report `status:"ok"`.
+4. Optionally wire `push_item_update(slug, price=…)` into the product save flow so every price edit auto-syncs.
+
+
+
+---
+
+## 2026-06-10 — P3 Pinterest real-time sync hook + P3 GSC Indexation Trend sparkline
+
+### Pinterest sync hook (iter352b · DONE)
+- New helper `_safe_pinterest_sync_product` in `routers/maker.py` mirrors the existing `_safe_indexnow_ping_product` pattern: re-reads the product from DB, builds the Pinterest item-update payload (price formatted `NNN.NN USD`, availability mapped, canonical product link), and calls `services.pinterest_catalog_sync.push_item_update`. Always wrapped in try/except — a Pinterest outage can never bubble a 500 onto the maker's product save.
+- Audit row written to `pinterest_resync_log` with `source: "product_save"` so admins can see real-time sync coverage alongside the manual resync history.
+- Field filter `_PINTEREST_SYNC_FIELDS = {price, in_stock, status, title, description, images, image_url}` — only fires when one of these Pinterest-visible fields actually changed (no spam on auto-renew toggles, SEO tag edits, etc.).
+- Hooked into 2 call sites:
+  - `PATCH /api/maker/products/{slug}` — only when (a) one of the sync fields changed AND (b) the resulting status is `published`.
+  - `POST /api/maker/products/{slug}/publish` — fires on every publish (first-time + republish).
+- Graceful degradation chain (all live in `services.pinterest_catalog_sync`):
+  - empty `PINTEREST_ACCESS_TOKEN` → `reason:"no PINTEREST_ACCESS_TOKEN"` logged
+  - 401 → `reason:"token expired"`
+  - 403 with scope wording → `reason:"no_write_scope"` + scope cache auto-invalidated so next admin status probe reports reality
+  - 403 without scope wording → `reason:"no_catalogs_role"`
+  - network error → `reason:"network error: ..."`
+- The product save returns 200 in all of the above — the BG task swallows every failure mode.
+
+### GSC Indexation Trend sparkline (iter353 · DONE · screenshot verified)
+- New backend endpoint `GET /api/admin/gsc/snapshots-trend?days=N` (clamped 7-90 · default 30) at `routers/gsc_admin.py` lines 401-444:
+  - Reads `gsc_indexed_snapshots` (persisted daily since iter351 06:15 UTC cron).
+  - Gap-fills missing days with `{date, indexed_pct: null, …}` so the chart x-axis stays even.
+  - Returns `{days_requested, snapshot_count, first_snapshot_at, latest_indexed_pct, series}`.
+- React UI extension in `SettingsTab.jsx::GscIndexationCard`:
+  - Imports `LineChart, Line, ResponsiveContainer, Tooltip, YAxis` from `recharts` (already in `package.json`).
+  - Fires the new endpoint in parallel with the existing summary fetch (`Promise.all`).
+  - Renders a 80px-tall green-on-paper sparkline above the tier-bucket grid when `snapshot_count >= 2`.
+  - Shows a friendly bootstrap-mode hint when `snapshot_count < 2`: "30-day indexed % trend — collecting baseline (need ≥2 snapshots; have N). Next snapshot fires at 06:15 UTC." — preserves the card layout while data accumulates.
+  - Chart features: connectNulls (so gap-fill renders as a continuous line), formatted tooltip ("NN.N% Indexed"), hidden Y axis fixed to 0-100 domain so changes are easy to eyeball.
+- `data-testid`s for testing: `gsc-indexation-trend` (populated) and `gsc-indexation-trend-bootstrap` (collecting).
+- Smoke-tested in both states by seeding 14 fake snapshots, verifying the chart renders, then cleaning up (only today's real snapshot remains).
+
+
+
+---
+
+## 2026-06-10 — iter354: 4-feature batch ship
+
+### 1. Slack/Discord webhook alongside GSC drop-off email (DONE)
+- New `send_ops_webhook(title, text, url, color, kind)` helper in `email_service.py` that detects Slack vs Discord by URL substring (`discord.com/api/webhooks`). Slack → `attachments` schema. Discord → `embeds` with hex→int color conversion.
+- Wired into `send_ops_gsc_indexed_dropoff` so platform-wide alerts fan out to both email AND webhook in one job.
+- Tunable via `OPS_WEBHOOK_URL` env (currently unset in preview → silent no-op).
+- Never raises — wrapped in try/except. Logs warnings on 4xx/5xx + network errors.
+
+### 2. Per-maker GSC drop-off alerts (DONE)
+- `_snapshot_gsc_indexation()` now also persists a `per_maker` dict: `{maker_slug: {indexed, total, indexed_pct}}` alongside platform totals (additive — no schema break).
+- New `_per_maker_dropoff_sweep(current, prior)` runs immediately after the platform alert. Iterates every maker with ≥5 listings, computes WoW drop, fires `send_ops_webhook` per affected maker (NOT email — keeps volume sane during global events), writes audit row to `gsc_alert_log` with `kind:"indexed_dropoff_maker", maker_slug`.
+- 24h per-maker de-dupe (separate key from platform alert).
+- All 6 prior iter351 tests still pass — pure additive.
+
+### 3. Pinterest Diagnostics deep-link card (DONE · screenshot verified)
+- New `PinterestCatalogHealthCard` in `SettingsTab.jsx` rendered between the GSC card and the Stripe webhook card.
+- 3-column status grid: Last Pinterest fetch (timestamp + UA) · Token scope (color-coded dot + status word + read/write booleans + human reason) · Feed URL (clickable, hot-link safe).
+- "Refresh" + "Force re-sync 20" admin actions. Force button auto-disabled with title-tip when scope ≠ `ok`.
+- 3 deep links: Pinterest Catalogs, Business Hub Diagnostics, Pinterest's official ingestion help docs.
+- All data-testids: `pinterest-catalog-card`, `pinterest-refresh-btn`, `pinterest-resync-btn`, `pinterest-feed-url`, `pinterest-catalogs-link`, `pinterest-diagnostics-link`, `pinterest-help-link`.
+
+### 4. AI Workshop reference-asset uploads (DONE · live tested)
+- 4 new admin endpoints in `routers/ai_ad_creative.py`:
+  - `POST /api/admin/ad-creative/uploads` (multipart `file` + optional `draft_id` → 50 MB cap · MIME allowlist · streams chunks).
+  - `GET /api/admin/ad-creative/uploads?draft_id=…&limit=N`
+  - `GET /api/admin/ad-creative/uploads/{asset_id}` (PUBLIC FileResponse — hot-link safe via crypto-random IDs)
+  - `DELETE /api/admin/ad-creative/uploads/{asset_id}` (also detaches from any draft).
+- Storage: `/app/backend/static/ad_workshop_uploads/` (mkdir on import).
+- Allowed MIMEs: JPG, PNG, WEBP, GIF, MP4, MOV (QuickTime), WEBM, MPEG.
+- Persistence: `ad_workshop_assets` collection (kind/mime/size/filename/url/uploaded_at/draft_id). When uploaded with draft_id, also appends to `ad_creative_drafts.reference_assets[]`.
+- New React component `ReferenceAssetUploader` in `AdCreativeWorkshopCard.jsx`:
+  - Drag-drop or click-pick zone with hover state.
+  - 6-column responsive grid showing thumbnails (`<img>` for images · `<video muted>` for videos).
+  - Hover-revealed Trash2 delete button per asset.
+  - Live re-fetch after every upload/delete (no stale state).
+- Live tested via curl: upload returns asset doc + URL, 415 on text/plain, 200 GET on public URL, full HTML render confirmed via screenshot showing previously-uploaded `tiny.png` thumbnail in the workshop.
+- `data-testid`s: `ad-creative-uploads`, `ad-creative-upload-dropzone`, `ad-creative-upload-input`, `ad-creative-asset-{id}`, `ad-creative-asset-delete-{id}`.
+
+**Tests:** All 16 prior iter351+iter352 tests still pass (pure additive changes). Backend restarted clean, both screenshots verify UI renders correctly.
+
+
+
+---
+
+## 2026-06-10 — iter355: contrast fix + reference-anchored generation + per-maker trend
+
+### Bug fix — Marketplace Traffic row on /apply (DONE)
+- Root cause: the `PricingComparisonTable` row hover was `hover:bg-surface`. In dark-mode `--surface = #1E1E1E` is too close to `--paper = #121212` for clear feedback, and in some browser/OS dark-inversion combos the row appeared inverted with low-contrast text. Also the row label was `text-ink-muted` which already had borderline contrast.
+- Fix: `hover:bg-brand/5 transition-colors` (subtle orange tint, theme-aware, never inverts) + `text-ink font-bold` for the label cell (strong contrast on every theme + every hover state).
+- Verified via /apply screenshot: row now reads cleanly with strong cream background + dark label, hover tints to subtle orange.
+
+### Task 1 — Reference-asset selection wired into generate (DONE · live tested)
+- `GenerateRequest` now accepts `reference_asset_ids: list[str]` (max 4).
+- `generate_creative` loads each asset's bytes (cap 4 images) + summary line for the LLM. Image bytes attached as `FileContent` to the Nano Banana multimodal call so the model uses them as style/subject anchors. Copy LLM prompt gets the filename summary so headlines align with reference tone.
+- Both `_generate_image_variant` and `_generate_copy` now accept optional reference args and instruct the model to "match palette/lighting/mood without copying" (image) and "keep copy consistent with these references in tone and subject focus" (text).
+- Saved draft now persists `reference_asset_ids`, `reference_asset_count`, `reference_images_used`.
+- Frontend: state hoisted to parent `AdCreativeWorkshopCard` and passed through `ComposeView` to `ReferenceAssetUploader`. Click-to-toggle on each thumbnail with orange "◆ REF N" badge + orange ring; max-4 guard with toast; payload sent on Generate; success toast mentions ref count.
+- All `data-testid`s preserved + `ad-creative-asset-selected-{id}` added for the selection badge.
+
+### Task 2 — Per-maker Indexation Trend endpoint (DONE)
+- New `GET /api/admin/gsc/snapshots-trend/maker/{maker_slug}?days=30` (clamped 7-90) returns the same gap-filled timeline shape as the platform-wide endpoint but scoped to one maker via the `per_maker` rollup persisted in `gsc_indexed_snapshots` since iter354.
+- Days where the maker didn't have an entry return `{indexed_pct: null, ...}` — the React `<Line connectNulls>` already in the codebase handles those gracefully.
+- Verified via curl: `williams-cnc` returns `snapshots: 1 · latest: 0.0 · series len: 31`.
+- Chart wiring (React) deferred to next iteration — endpoint is the load-bearing piece; existing platform sparkline component is fully reusable with a different fetch URL.
+
+### Regression
+- All 16 prior iter351 + iter352 tests still pass.
+- Live preview verified for /products (200), /pinterest/catalog/health (200), workshop tab (renders + selection works), /apply (table reads cleanly).
+- Build broke once mid-iter from a malformed insert; caught and fixed via supervisor logs before pushing forward.
+
+
+
+---
+
+## 2026-06-10 — P3 Per-maker indexation chart wired in admin (iter355b)
+
+**DONE · screenshot verified in both states (bootstrap + populated):**
+- New React component `PerMakerIndexationChart` inserted directly inside `GscIndexationCard`, between the bootstrap hint and the tier buckets — keeps the maker drill-down visually adjacent to the platform sparkline above it.
+- Maker-slug input + "Load chart" button (no API call until submitted, no chart until slug is set — keeps the card quiet on initial load).
+- Reuses the same `recharts` `LineChart` setup as the platform sparkline but uses cyan (`#06b6d4`) instead of green so the two charts are visually distinct when stacked.
+- Bootstrap-mode rendering: when fewer than 2 per-maker snapshots exist, shows "Collecting baseline for {slug} (need ≥2 snapshots; have N). Once iter354 has run twice for this maker, the trend renders here."
+- Error rendering: inline red text for 404 / network errors.
+- All `data-testid`s for future testing: `gsc-per-maker-chart-card`, `gsc-per-maker-slug-input`, `gsc-per-maker-load-btn`, `gsc-per-maker-chart`, `gsc-per-maker-bootstrap`, `gsc-per-maker-error`.
+- Backend endpoint untouched (already shipped in iter355) — `GET /api/admin/gsc/snapshots-trend/maker/{maker_slug}?days=30`.
+- Smoke-tested by seeding 14 fake daily per-maker snapshots for `williams-cnc`, verifying the cyan chart renders below the green platform chart, then cleaning up the fake snapshots.
+
+
+
+---
+
+## 2026-06-10 — iter356: Per-maker chart in Approved Makers admin tab
+
+**DONE · screenshot verified:**
+- Extracted `PerMakerIndexationChart` from `SettingsTab.jsx` into its own file at `/app/frontend/src/components/admin/PerMakerIndexationChart.jsx` so multiple admin surfaces can render it.
+- New props: `initialSlug` (pre-fill + auto-load), `hideInput` (suppress the picker when slug is passed by parent), `height` (chart px height — defaults 80 in Settings, set to 100 in the makers table).
+- Loads the chart automatically when `initialSlug` is provided.
+- `SettingsTab.jsx` now imports the shared component instead of declaring it inline (deleted ~129 lines of duplicate code from SettingsTab as a result).
+- `ApprovedMakersTab.jsx` extended:
+  - New `expandedSlug` state (single-row expand, avoids parallel API fan-out across the whole table).
+  - Per-row CHART/HIDE toggle button (cyan accent, mirrors the platform sparkline color).
+  - Expanded row renders the chart in a `colSpan=7` sub-row with `initialSlug={r.slug}` + `hideInput` + `height={100}`.
+- Verified via screenshot: clicking the CHART button on `iter315-39629b8f` toggled to HIDE and the chart-card data-testids appeared in the DOM.
+
+**Deferred (task 1):** Meta video-creative push. Requires `integration_playbook_expert_v2` consultation on Meta's async video ingestion + polling cadence before implementation. Scoped for the next session.
+
+
+
+---
+
+## 2026-06-11 — iter368: DM image attachments (buyer ↔ maker messaging)
+
+**DONE · pytest e2e + live UI flow verified:**
+- `POST /api/messages/attachments` — upload one photo per call (maker OR buyer JWT). 10 MB cap, JPG/PNG/WEBP/GIF/HEIC whitelist, 60/hr sliding-window rate limit per uploader. Bytes → Emergent object storage (`craftersmarket/dm-attachments/{uuid}.{ext}`), metadata → `dm_attachments` collection.
+- `GET /api/messages/attachments/{id}` — public serve via unguessable UUID (same capability model as personalization files).
+- `ReplyIn` now accepts `attachment_ids` (≤4); body optional when photos attached. Attachments are owner-bound (`uploader_key = maker:<slug>|buyer:<email>`) and single-use (`used_in_message_id` stamped on send).
+- Message docs embed `attachments: [{id, filename, content_type, size, url}]`.
+- Email notifications fall back to "📷 Photo attachment" when body is empty.
+- `MessageCenter.jsx`: Paperclip "Photo" button + hidden input, thumbnail chips with remove-X above the reply box, image bubbles (click → full size in new tab) in the reader. Send enabled with photo-only.
+- Wired in both `MessagesTab.jsx` (maker) and `BuyerMessagesPage.jsx` (buyer) via new api.js helpers `uploadMakerDmAttachment` / `uploadBuyerDmAttachment`.
+- data-testids: `mc-attach-btn`, `mc-attach-input`, `mc-attach-chips`, `mc-attach-chip-{id}`, `mc-attach-remove-{id}`, `mc-msg-attachment-{id}`.
+- Test: `/app/backend/tests/test_iter368_dm_attachments.py` (1 e2e test, passes — covers 401 anon, bad ext, photo-only reply, single-use ids, cross-party ownership rejection, byte-exact serve).
+
+**Maintenance:** moved the 2026-06-10 dated entries out of PRD.md into this file (PRD was >1000 lines).

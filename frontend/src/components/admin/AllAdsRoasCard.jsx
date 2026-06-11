@@ -54,7 +54,7 @@ export default function AllAdsRoasCard() {
 
   return (
     <div
-      className="border border-brand/30 bg-gradient-to-br from-[#1a0f08] to-[#0d0d0d] p-6 space-y-5"
+      className="border border-brand/30 bg-gradient-to-br from-brand/10 to-surface p-6 space-y-5"
       data-testid="all-ads-roas-card"
     >
       <div className="flex items-start gap-4">

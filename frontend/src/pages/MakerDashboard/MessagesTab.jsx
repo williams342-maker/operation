@@ -2,6 +2,7 @@ import React from "react";
 import {
   fetchMakerThreads, fetchMakerThread, replyMakerThread,
   patchMakerThread, bulkPatchMakerThreads, emptyMakerTrash,
+  uploadMakerDmAttachment,
 } from "../../lib/api";
 import MessageCenter from "../../components/MessageCenter";
 
@@ -33,6 +34,7 @@ export default function MessagesTab() {
         bulkPatch={bulkPatchMakerThreads}
         replyThread={replyMakerThread}
         emptyTrash={emptyMakerTrash}
+        uploadAttachment={uploadMakerDmAttachment}
         counterpartLabel="Buyer"
       />
     </div>

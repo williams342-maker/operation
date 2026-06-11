@@ -77,7 +77,7 @@ export default function MakerOfTheWeekSpotlight({ testId = "maker-of-week" }) {
         </p>
       </header>
 
-      <div className="border-l-2 border-brand bg-gradient-to-r from-[#ff4500]/8 via-[#0d0d0d] to-[#0a0a0a] p-6 md:p-8">
+      <div className="border-l-2 border-brand bg-gradient-to-r from-brand/10 via-surface to-surface p-6 md:p-8">
         <div className="grid md:grid-cols-[1fr_1.4fr] gap-6 md:gap-10 items-start">
           {/* Maker introduction */}
           <div className="min-w-0">

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   Inbox, Star, AlertCircle, Send, Archive, Trash2, Search,
-  ArrowLeft, MailOpen, Mail,
+  ArrowLeft, MailOpen, Mail, Paperclip, X,
 } from "lucide-react";
 
 /**
@@ -44,6 +44,8 @@ const FOLDERS = [
 ];
 
 const initials = (s) => (s || "?").split(/\s+/).slice(0, 2).map(w => w[0] || "").join("").toUpperCase() || "?";
+const BACKEND = process.env.REACT_APP_BACKEND_URL;
+const MAX_ATTACHMENTS = 4;
 
 export default function MessageCenter({
   role,
@@ -53,6 +55,7 @@ export default function MessageCenter({
   bulkPatch,
   replyThread,
   emptyTrash,
+  uploadAttachment,
   counterpartLabel = "Counterpart",
 }) {
   const [folder, setFolder] = useState("inbox");
@@ -65,6 +68,9 @@ export default function MessageCenter({
   const [selected, setSelected] = useState(new Set());
   const [reply, setReply] = useState("");
   const [replyBusy, setReplyBusy] = useState(false);
+  const [attachments, setAttachments] = useState([]);
+  const [attachBusy, setAttachBusy] = useState(false);
+  const fileInputRef = useRef(null);
   const debounceRef = useRef(null);
 
   // Re-fetch the list whenever the folder or query (debounced) changes.
@@ -90,7 +96,7 @@ export default function MessageCenter({
   }, [q]);  // eslint-disable-line
 
   const openThread = async (id) => {
-    setOpenId(id); setMessages([]); setReply("");
+    setOpenId(id); setMessages([]); setReply(""); setAttachments([]);
     try {
       const data = await fetchThread(id);
       setMessages(data.messages || []);
@@ -106,16 +112,35 @@ export default function MessageCenter({
   };
 
   const sendReply = async () => {
-    if (!openId || !reply.trim()) return;
+    if (!openId || (!reply.trim() && attachments.length === 0)) return;
     setReplyBusy(true);
     try {
-      await replyThread(openId, reply.trim());
-      setReply("");
+      await replyThread(openId, reply.trim(), attachments.map((a) => a.id));
+      setReply(""); setAttachments([]);
       const data = await fetchThread(openId);
       setMessages(data.messages || []);
       reload();
-    } catch { toast.error("Couldn't send reply."); }
+    } catch (e) { toast.error(e?.response?.data?.detail || "Couldn't send reply."); }
     finally { setReplyBusy(false); }
+  };
+
+  const onPickFiles = async (e) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = "";
+    if (!files.length || !uploadAttachment) return;
+    const room = MAX_ATTACHMENTS - attachments.length;
+    if (room <= 0) { toast.error(`Max ${MAX_ATTACHMENTS} photos per message.`); return; }
+    if (files.length > room) toast.warning(`Only ${room} more photo${room === 1 ? "" : "s"} allowed.`);
+    setAttachBusy(true);
+    try {
+      for (const f of files.slice(0, room)) {
+        if (f.size > 10 * 1024 * 1024) { toast.error(`${f.name} is over 10 MB.`); continue; }
+        const r = await uploadAttachment(f);
+        setAttachments((p) => [...p, { id: r.id, filename: r.filename || f.name, url: r.url }]);
+      }
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Photo upload failed.");
+    } finally { setAttachBusy(false); }
   };
 
   const toggleSelect = (id) => {
@@ -327,22 +352,84 @@ export default function MessageCenter({
                           {m.created_at ? new Date(m.created_at).toLocaleString() : ""}
                         </span>
                       </div>
-                      <div className="text-sm whitespace-pre-wrap leading-relaxed">{m.body}</div>
+                      {m.body && (
+                        <div className="text-sm whitespace-pre-wrap leading-relaxed">{m.body}</div>
+                      )}
+                      {(m.attachments || []).length > 0 && (
+                        <div className={`flex flex-wrap gap-2 ${m.body ? "mt-2" : ""}`}>
+                          {m.attachments.map((a) => (
+                            <a
+                              key={a.id}
+                              href={`${BACKEND}${a.url}`}
+                              target="_blank" rel="noreferrer"
+                              data-testid={`mc-msg-attachment-${a.id}`}
+                              title={a.filename}
+                            >
+                              <img
+                                src={`${BACKEND}${a.url}`}
+                                alt={a.filename || "attachment"}
+                                loading="lazy"
+                                className="w-32 h-32 object-cover border border-line hover:border-brand transition"
+                              />
+                            </a>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
               })}
             </div>
             <div className="border-t border-line p-3">
+              {attachments.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-2" data-testid="mc-attach-chips">
+                  {attachments.map((a) => (
+                    <div key={a.id} className="relative" data-testid={`mc-attach-chip-${a.id}`}>
+                      <img
+                        src={`${BACKEND}${a.url}`} alt={a.filename}
+                        className="w-16 h-16 object-cover border border-line"
+                      />
+                      <button
+                        onClick={() => setAttachments((p) => p.filter((x) => x.id !== a.id))}
+                        data-testid={`mc-attach-remove-${a.id}`}
+                        title="Remove photo"
+                        className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-ink text-paper rounded-full flex items-center justify-center hover:bg-brand transition"
+                      >
+                        <X size={10} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
               <textarea
                 value={reply} onChange={(e) => setReply(e.target.value)}
                 placeholder="Write a reply…" rows={3}
                 data-testid="mc-reply"
                 className="w-full bg-transparent border border-line focus:border-brand outline-none p-2 font-mono text-xs resize-none"
               />
-              <div className="flex justify-end mt-2">
+              <div className="flex justify-end items-center gap-2 mt-2">
+                {uploadAttachment && (
+                  <>
+                    <input
+                      ref={fileInputRef} type="file" multiple
+                      accept="image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif"
+                      onChange={onPickFiles} className="hidden"
+                      data-testid="mc-attach-input"
+                    />
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={attachBusy || attachments.length >= MAX_ATTACHMENTS}
+                      data-testid="mc-attach-btn"
+                      title={attachments.length >= MAX_ATTACHMENTS ? `Max ${MAX_ATTACHMENTS} photos` : "Attach photos"}
+                      className="px-3 py-2 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2 transition"
+                    >
+                      <Paperclip size={12} /> {attachBusy ? "Uploading…" : "Photo"}
+                    </button>
+                  </>
+                )}
                 <button
-                  onClick={sendReply} disabled={replyBusy || !reply.trim()}
+                  onClick={sendReply}
+                  disabled={replyBusy || attachBusy || (!reply.trim() && attachments.length === 0)}
                   data-testid="mc-reply-send"
                   className="px-4 py-2 bg-brand hover:bg-brand-hover text-black font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
                 >

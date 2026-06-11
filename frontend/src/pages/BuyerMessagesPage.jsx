@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   fetchBuyerThreads, fetchBuyerThread, replyBuyerThread,
   patchBuyerThread, bulkPatchBuyerThreads, emptyBuyerTrash,
+  uploadBuyerDmAttachment,
 } from "../lib/api";
 import { useStructuredData } from "../lib/seo";
 import MessageCenter from "../components/MessageCenter";
@@ -52,6 +53,7 @@ export default function BuyerMessagesPage() {
           bulkPatch={bulkPatchBuyerThreads}
           replyThread={replyBuyerThread}
           emptyTrash={emptyBuyerTrash}
+          uploadAttachment={uploadBuyerDmAttachment}
           counterpartLabel="Maker"
         />
       </div>

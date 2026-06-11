@@ -57,7 +57,7 @@ export default function CustomOrderCTA({
 
   return (
     <section
-      className="border-l-2 border-brand bg-gradient-to-r from-[#ff4500]/8 via-[#0d0d0d] to-[#0a0a0a] p-6 md:p-8"
+      className="border-l-2 border-brand bg-gradient-to-r from-brand/10 via-surface to-surface p-6 md:p-8"
       data-testid={testId}
     >
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5">

@@ -17,8 +17,14 @@ Notifications:
   - When a maker replies, the buyer is emailed.
   Email links land on the dashboard (maker) or `/messages` (buyer).
 
-Out of scope for v1: file attachments, typing indicators, real-time WS,
-read-receipt timestamps. Those can land later without breaking this schema.
+Image attachments (iter368): replies may carry up to 4 photos. Bytes live
+in Emergent object storage (`craftersmarket/dm-attachments/…`); metadata in
+the `dm_attachments` collection. Upload requires a maker OR buyer JWT;
+serving is public via unguessable UUID (same capability model as
+personalization files).
+
+Out of scope for v1: typing indicators, real-time WS, read-receipt
+timestamps. Those can land later without breaking this schema.
 """
 from __future__ import annotations
 
@@ -27,18 +33,37 @@ import uuid
 import re
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import (
+    APIRouter, BackgroundTasks, Depends, File, Header, HTTPException, UploadFile,
+)
+from fastapi.responses import Response
 from pydantic import BaseModel, EmailStr, Field
 
 from core import db, logger, now_iso
 from email_service import send_dm_to_buyer, send_dm_to_maker
 from maker_auth import current_buyer, current_maker_slug
+from obj_storage import APP_NAME, get_object, put_object
 
 router = APIRouter()
 
 MAX_BODY = 4000     # 4k chars per message — generous, prevents abuse
 MAX_SUBJECT = 140
 MAX_THREADS_PER_DAY = 20  # Anti-spam: per-buyer per-maker per 24h
+
+# ── Attachment limits (iter368) ──
+MAX_ATTACH_BYTES = 10 * 1024 * 1024      # 10 MB per photo
+MAX_ATTACHMENTS_PER_MESSAGE = 4
+ATTACH_RATE_LIMIT_PER_HOUR = 60          # per uploader, sliding window
+ATTACH_TYPES = {
+    "jpg": "image/jpeg",
+    "jpeg": "image/jpeg",
+    "png": "image/png",
+    "webp": "image/webp",
+    "heic": "image/heic",
+    "heif": "image/heif",
+    "gif": "image/gif",
+}
+ATTACH_MIMES = set(ATTACH_TYPES.values()) | {"image/jpg"}
 
 
 def _norm_email(s: str | None) -> str:
@@ -68,7 +93,8 @@ class StartThreadIn(BaseModel):
 
 
 class ReplyIn(BaseModel):
-    body: str = Field(min_length=1, max_length=MAX_BODY)
+    body: str = Field(default="", max_length=MAX_BODY)
+    attachment_ids: list[str] = Field(default_factory=list)
 
 
 # ─────────────────────── Helpers ───────────────────────
@@ -84,7 +110,7 @@ async def _maker_doc(slug: str) -> dict:
 
 async def _create_message(
     thread_id: str, sender_type: str, sender_email: str,
-    sender_name: str, body: str,
+    sender_name: str, body: str, attachments: list[dict] | None = None,
 ) -> dict:
     msg = {
         "id": str(uuid.uuid4()),
@@ -93,11 +119,143 @@ async def _create_message(
         "sender_email": sender_email,
         "sender_name": sender_name or "",
         "body": body,
+        "attachments": attachments or [],
         "created_at": now_iso(),
     }
     await db.dm_messages.insert_one(msg)
     msg.pop("_id", None)
     return msg
+
+
+async def _resolve_attachments(ids: list[str], uploader_key: str) -> list[dict]:
+    """Validate attachment ids for a reply: must exist, belong to the
+    sender, and not already be attached to another message. Returns the
+    embed-ready shape stored on the message doc."""
+    if not ids:
+        return []
+    ids = list(dict.fromkeys(ids))  # de-dupe, preserve order
+    if len(ids) > MAX_ATTACHMENTS_PER_MESSAGE:
+        raise HTTPException(400, f"Max {MAX_ATTACHMENTS_PER_MESSAGE} photos per message.")
+    recs = await db.dm_attachments.find(
+        {"id": {"$in": ids}, "uploader_key": uploader_key,
+         "used_in_message_id": None},
+        {"_id": 0},
+    ).to_list(MAX_ATTACHMENTS_PER_MESSAGE)
+    if len(recs) != len(ids):
+        raise HTTPException(400, "One or more photos are invalid or already sent.")
+    by_id = {r["id"]: r for r in recs}
+    return [{
+        "id": i,
+        "filename": by_id[i].get("original_filename") or "photo",
+        "content_type": by_id[i].get("content_type"),
+        "size": by_id[i].get("size"),
+        "url": f"/api/messages/attachments/{i}",
+    } for i in ids]
+
+
+async def _mark_attachments_used(attachments: list[dict], message_id: str, thread_id: str) -> None:
+    if not attachments:
+        return
+    await db.dm_attachments.update_many(
+        {"id": {"$in": [a["id"] for a in attachments]}},
+        {"$set": {"used_in_message_id": message_id, "thread_id": thread_id}},
+    )
+
+
+# ─────────────────────── Attachments (iter368) ───────────────────────
+async def _dm_sender(authorization: str | None = Header(default=None)) -> dict:
+    """Auth dependency accepting EITHER a maker or buyer Bearer JWT.
+    Returns {'role', 'key'} where key is 'maker:<slug>' or 'buyer:<email>'."""
+    from maker_auth import decode_session_jwt, _check_session_version
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise HTTPException(401, "Missing bearer token.")
+    token = authorization.split(" ", 1)[1].strip()
+    claims = decode_session_jwt(token)
+    role = claims.get("role", "maker")
+    if role not in ("maker", "buyer"):
+        raise HTTPException(403, "Maker or buyer access required.")
+    await _check_session_version(role, claims)
+    key = f"maker:{claims['sub']}" if role == "maker" else f"buyer:{_norm_email(claims.get('email'))}"
+    return {"role": role, "key": key}
+
+
+@router.post("/messages/attachments")
+async def upload_dm_attachment(
+    file: UploadFile = File(...),
+    sender: dict = Depends(_dm_sender),
+):
+    """Upload one photo for a DM reply. Returns an attachment id the
+    client then passes in `attachment_ids` on the reply call."""
+    ext = (file.filename or "").rsplit(".", 1)[-1].lower() if "." in (file.filename or "") else ""
+    mime = (file.content_type or "").lower()
+    if ext not in ATTACH_TYPES and mime not in ATTACH_MIMES:
+        raise HTTPException(400, "Please upload a JPG, PNG, WEBP, GIF, or HEIC photo.")
+    content_type = ATTACH_TYPES.get(ext) or mime or "application/octet-stream"
+
+    # Sliding-window rate limit per uploader.
+    from datetime import datetime, timezone, timedelta
+    now = datetime.now(timezone.utc)
+    cutoff = (now - timedelta(hours=1)).isoformat()
+    recent = await db.dm_attachments.count_documents({
+        "uploader_key": sender["key"], "created_at": {"$gte": cutoff},
+    })
+    if recent >= ATTACH_RATE_LIMIT_PER_HOUR:
+        raise HTTPException(429, "Too many uploads in the last hour. Please try again later.")
+
+    data = await file.read()
+    if len(data) > MAX_ATTACH_BYTES:
+        raise HTTPException(413, "Photo is too large. Max 10 MB per file.")
+    if not data:
+        raise HTTPException(400, "Empty file.")
+
+    file_id = str(uuid.uuid4())
+    storage_path = f"{APP_NAME}/dm-attachments/{file_id}.{ext or 'bin'}"
+    try:
+        result = await put_object(storage_path, data, content_type)
+    except Exception as e:
+        logger.exception("[dm-attachments] storage put failed: %s", e)
+        raise HTTPException(502, "Upload failed. Please try again.")
+
+    await db.dm_attachments.insert_one({
+        "id": file_id,
+        "storage_path": result.get("path") or storage_path,
+        "original_filename": (file.filename or f"photo.{ext or 'bin'}")[:200],
+        "content_type": content_type,
+        "size": len(data),
+        "uploader_key": sender["key"],
+        "uploader_role": sender["role"],
+        "thread_id": None,
+        "used_in_message_id": None,
+        "created_at": now.isoformat(),
+    })
+    return {
+        "id": file_id,
+        "filename": file.filename,
+        "size": len(data),
+        "url": f"/api/messages/attachments/{file_id}",
+    }
+
+
+@router.get("/messages/attachments/{file_id}")
+async def serve_dm_attachment(file_id: str):
+    """Stream an attachment back out. Public — the UUID id is the
+    capability (mirrors the personalization-files model)."""
+    rec = await db.dm_attachments.find_one({"id": file_id}, {"_id": 0})
+    if not rec:
+        raise HTTPException(404, "File not found.")
+    try:
+        data, ct = await get_object(rec["storage_path"])
+    except Exception as e:
+        logger.exception("[dm-attachments] storage get failed: %s", e)
+        raise HTTPException(502, "Could not retrieve the file.")
+    return Response(
+        content=data,
+        media_type=rec.get("content_type") or ct,
+        headers={
+            "Content-Disposition": f"inline; filename=\"{rec.get('original_filename') or file_id}\"",
+            "Cache-Control": "public, max-age=86400",
+        },
+    )
 
 
 def _thread_response(t: dict, last_msg: dict | None = None) -> dict:
@@ -405,14 +563,16 @@ async def maker_reply(
     if not t:
         raise HTTPException(404, "Thread not found.")
     body = _scrub(payload.body, MAX_BODY)
-    if not body:
-        raise HTTPException(400, "Message body is required.")
+    attachments = await _resolve_attachments(payload.attachment_ids, f"maker:{slug}")
+    if not body and not attachments:
+        raise HTTPException(400, "Message body or a photo is required.")
 
     msg = await _create_message(
         thread_id=thread_id, sender_type="maker",
         sender_email=t.get("maker_email", ""), sender_name=t.get("maker_name", ""),
-        body=body,
+        body=body, attachments=attachments,
     )
+    await _mark_attachments_used(attachments, msg["id"], thread_id)
     await db.dm_threads.update_one(
         {"id": thread_id},
         {"$set": {
@@ -427,7 +587,7 @@ async def maker_reply(
         send_dm_to_buyer,
         t["buyer_email"], t.get("buyer_name", ""),
         t.get("maker_name", ""),
-        t.get("subject", ""), body, thread_id,
+        t.get("subject", ""), body or "📷 Photo attachment", thread_id,
     )
     logger.info("[dm] maker→buyer · thread=%s · %s → %s",
                 thread_id, slug, t["buyer_email"])
@@ -598,13 +758,15 @@ async def buyer_reply(
     if not t:
         raise HTTPException(404, "Thread not found.")
     body = _scrub(payload.body, MAX_BODY)
-    if not body:
-        raise HTTPException(400, "Message body is required.")
+    attachments = await _resolve_attachments(payload.attachment_ids, f"buyer:{email}")
+    if not body and not attachments:
+        raise HTTPException(400, "Message body or a photo is required.")
     name = _scrub(claims.get("name", "") or t.get("buyer_name", "") or "", 120)
     msg = await _create_message(
         thread_id=thread_id, sender_type="buyer",
-        sender_email=email, sender_name=name, body=body,
+        sender_email=email, sender_name=name, body=body, attachments=attachments,
     )
+    await _mark_attachments_used(attachments, msg["id"], thread_id)
     await db.dm_threads.update_one(
         {"id": thread_id},
         {"$set": {
@@ -619,6 +781,6 @@ async def buyer_reply(
         send_dm_to_maker,
         t["maker_email"], t.get("maker_name", ""),
         name or email, email,
-        t.get("subject", ""), body, thread_id,
+        t.get("subject", ""), body or "📷 Photo attachment", thread_id,
     )
     return {"message_id": msg["id"]}

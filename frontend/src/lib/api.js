@@ -253,8 +253,15 @@ export const fetchMakerThreads = (folder = "inbox", q = "") =>
   }).then((r) => r.data);
 export const fetchMakerThread = (id) =>
   http.get(`/messages/maker/threads/${id}`, { headers: authHeaders() }).then((r) => r.data);
-export const replyMakerThread = (id, body) =>
-  http.post(`/messages/maker/threads/${id}/reply`, { body }, { headers: authHeaders() }).then((r) => r.data);
+export const replyMakerThread = (id, body, attachment_ids = []) =>
+  http.post(`/messages/maker/threads/${id}/reply`, { body, attachment_ids }, { headers: authHeaders() }).then((r) => r.data);
+export const uploadMakerDmAttachment = (file) => {
+  const fd = new FormData();
+  fd.append("file", file);
+  return http.post("/messages/attachments", fd, {
+    headers: { ...authHeaders(), "Content-Type": "multipart/form-data" },
+  }).then((r) => r.data);
+};
 export const patchMakerThread = (id, patch) =>
   http.patch(`/messages/maker/threads/${id}`, patch, { headers: authHeaders() }).then((r) => r.data);
 export const bulkPatchMakerThreads = (thread_ids, patch) =>
@@ -1281,8 +1288,15 @@ export const fetchBuyerThreads = (folder = "inbox", q = "") =>
   }).then((r) => r.data);
 export const fetchBuyerThread = (id) =>
   http.get(`/messages/buyer/threads/${id}`, { headers: buyerAuthHeaders() }).then((r) => r.data);
-export const replyBuyerThread = (id, body) =>
-  http.post(`/messages/buyer/threads/${id}/reply`, { body }, { headers: buyerAuthHeaders() }).then((r) => r.data);
+export const replyBuyerThread = (id, body, attachment_ids = []) =>
+  http.post(`/messages/buyer/threads/${id}/reply`, { body, attachment_ids }, { headers: buyerAuthHeaders() }).then((r) => r.data);
+export const uploadBuyerDmAttachment = (file) => {
+  const fd = new FormData();
+  fd.append("file", file);
+  return http.post("/messages/attachments", fd, {
+    headers: { ...buyerAuthHeaders(), "Content-Type": "multipart/form-data" },
+  }).then((r) => r.data);
+};
 export const patchBuyerThread = (id, patch) =>
   http.patch(`/messages/buyer/threads/${id}`, patch, { headers: buyerAuthHeaders() }).then((r) => r.data);
 export const bulkPatchBuyerThreads = (thread_ids, patch) =>

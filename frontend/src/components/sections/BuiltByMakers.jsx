@@ -96,7 +96,7 @@ export default function BuiltByMakers() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.2 }}
               transition={{ duration: 0.4, delay: i * 0.08 }}
-              className="group relative block border border-line bg-paper p-6 md:p-7 transition-all duration-300 hover:bg-[#111] hover:border-[#333]"
+              className="group relative block border border-line bg-paper p-6 md:p-7 transition-all duration-300 hover:bg-surface-2 hover:border-line"
               style={{ "--accent": b.accent }}
               data-testid={`built-by-makers-card-${b.name.toLowerCase().replace(/\s+/g, "-")}`}
             >

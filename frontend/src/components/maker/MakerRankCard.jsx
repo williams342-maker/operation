@@ -81,7 +81,7 @@ export default function MakerRankCard() {
   if (!data.on_leaderboard) {
     return (
       <div
-        className="border border-line bg-gradient-to-br from-[#0a0a0a] to-amber-950/10 p-4 flex items-center gap-4"
+        className="border border-line bg-gradient-to-br from-surface to-amber-500/10 p-4 flex items-center gap-4"
         data-testid="maker-rank-card-empty"
       >
         <Trophy size={28} className="text-ink-muted shrink-0" />

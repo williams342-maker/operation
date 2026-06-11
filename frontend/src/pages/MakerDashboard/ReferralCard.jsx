@@ -78,7 +78,7 @@ export default function ReferralCard() {
 
   return (
     <section
-      className="border border-brand/30 bg-gradient-to-br from-[#ff4500]/5 via-[#0a0a0a] to-[#0a0a0a] p-5 md:p-6"
+      className="border border-brand/30 bg-gradient-to-br from-brand/5 via-surface to-surface p-5 md:p-6"
       data-testid="referral-card"
     >
       <div className="flex items-start gap-3 mb-4">
