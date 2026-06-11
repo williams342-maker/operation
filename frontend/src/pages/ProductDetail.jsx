@@ -775,6 +775,29 @@ export default function ProductDetail() {
               </div>
             )}
 
+            {/* iter368b — Occasions the maker tagged in the editor.
+                Informational chips that deep-link into the shop filter
+                (?occasion=…) so buyers can browse similar gift ideas. */}
+            {(p.occasions || []).length > 0 && (
+              <div className="mb-6" data-testid="product-occasions">
+                <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-3">
+                  Perfect for
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {p.occasions.map((o) => (
+                    <Link
+                      key={o}
+                      to={`/shop?occasion=${encodeURIComponent(o)}`}
+                      data-testid={`product-occasion-${String(o).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
+                      className="px-3 py-2 border border-line text-ink-muted hover:border-brand hover:text-brand font-mono text-[11px] uppercase tracking-[0.22em] transition"
+                    >
+                      ◆ {o}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* iter150 — Buyer personalization panel. Renders only when
                 the maker has flagged this listing as personalizable. The
                 buyer can add a message and/or upload a reference image

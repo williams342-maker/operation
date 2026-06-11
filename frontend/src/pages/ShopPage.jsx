@@ -18,6 +18,18 @@ import ShopHeroMosaic from "../components/ShopHeroMosaic";
 // is filterable by buyers from day one.
 const CATS = ["All", ...CATEGORIES];
 const TECHS = ["All", "PLASMA", "LASER", "ROUTER", "3D", "CUSTOM"];
+// iter368b — Buyer-facing filter options, mirroring the maker editor's
+// COLORS/OCCASIONS chip lists (MakerListingEditor/constants.js).
+const SHOP_COLORS = [
+  "Black", "White", "Gray", "Silver", "Gold", "Bronze", "Copper", "Red", "Orange",
+  "Yellow", "Green", "Blue", "Purple", "Pink", "Brown", "Beige", "Natural",
+  "Multi-color", "Rainbow",
+];
+const SHOP_OCCASIONS = [
+  "Birthday", "Wedding", "Anniversary", "Housewarming", "Christmas", "Father's Day",
+  "Mother's Day", "Valentine's Day", "Graduation", "Baby Shower", "Just Because",
+  "Holiday", "Memorial",
+];
 
 export default function ShopPage() {
   const [params, setSearchParams] = useSearchParams();
@@ -25,6 +37,11 @@ export default function ShopPage() {
   const [cat, setCat] = useState(params.get("category") || "All");
   const [tech, setTech] = useState("All");
   const [q, setQ] = useState(params.get("q") || "");
+  // iter368b — Buyer-facing Color / Occasion filters (maker selections
+  // from the listing editor finally surface in the shop). URL-synced so
+  // PDP occasion chips can deep-link (?occasion=Birthday).
+  const [colorF, setColorF] = useState(params.get("color") || "All");
+  const [occF, setOccF] = useState(params.get("occasion") || "All");
   // iter284 — Honor `cm_shop_scroll_memory` on first mount so a buyer
   // who clicks into a listing and hits "back" lands exactly where they
   // left. We only consume the entry once; subsequent route entries
@@ -69,12 +86,23 @@ export default function ShopPage() {
     const urlQ = params.get("q"); const urlC = params.get("category");
     if (urlQ !== null) setQ(urlQ);
     if (urlC) setCat(urlC);
+    setColorF(params.get("color") || "All");
+    setOccF(params.get("occasion") || "All");
   }, [params]);
 
   const onChangeSort = (next) => {
     const sp = new URLSearchParams(params);
     if (next === "best") sp.delete("sort");
     else sp.set("sort", next);
+    setSearchParams(sp);
+  };
+
+  // iter368b — Color/Occasion changes write through to the URL (and the
+  // params effect above mirrors them back into state).
+  const onChangeFilterParam = (key, value) => {
+    const sp = new URLSearchParams(params);
+    if (value === "All") sp.delete(key);
+    else sp.set(key, value);
     setSearchParams(sp);
   };
 
@@ -130,8 +158,12 @@ export default function ShopPage() {
     if (tech !== "All" && p.technique !== tech) return false;
     if (q && !(p.title.toLowerCase().includes(q.toLowerCase()) || p.description.toLowerCase().includes(q.toLowerCase()))) return false;
     if (onlyExamples && !p.featured_example) return false;
+    // iter368b — maker-selected colors/occasions. Color values in older
+    // docs vary in casing ('natural' vs 'Natural') → compare lowered.
+    if (colorF !== "All" && !(p.colors || []).some((c) => String(c).toLowerCase() === colorF.toLowerCase())) return false;
+    if (occF !== "All" && !(p.occasions || []).some((o) => String(o).toLowerCase() === occF.toLowerCase())) return false;
     return true;
-  }), [products, cat, tech, q, onlyExamples]);
+  }), [products, cat, tech, q, onlyExamples, colorF, occF]);
 
   // iter283 — Infinite-scroll pagination. The catalog is already
   // client-cached after `fetchProducts()`, so this is purely a render-
@@ -298,8 +330,8 @@ export default function ShopPage() {
           q={q} setQ={setQ}
           cat={cat} setCat={setCat}
           tech={tech} setTech={setTech}
-          activeCount={(cat !== "All" ? 1 : 0) + (tech !== "All" ? 1 : 0) + (q ? 1 : 0)}
-          onReset={() => { setCat("All"); setTech("All"); setQ(""); }}
+          activeCount={(cat !== "All" ? 1 : 0) + (tech !== "All" ? 1 : 0) + (q ? 1 : 0) + (colorF !== "All" ? 1 : 0) + (occF !== "All" ? 1 : 0)}
+          onReset={() => { setCat("All"); setTech("All"); setQ(""); onChangeFilterParam("color", "All"); onChangeFilterParam("occasion", "All"); }}
         />
 
         <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
@@ -311,23 +343,50 @@ export default function ShopPage() {
             )}
           </div>
           {/* iter360 — Sort dropdown. Default `best` uses the catalog
-              ranker; the rest are deterministic overrides. */}
-          <label className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
-            <span>Sort</span>
-            <select
-              value={safeSort}
-              onChange={(e) => onChangeSort(e.target.value)}
-              className="bg-paper border border-line text-ink font-mono text-[11px] uppercase tracking-[0.18em] px-2.5 py-1.5 focus:border-brand outline-none"
-              data-testid="shop-sort-select"
-            >
-              <option value="best">Best match</option>
-              <option value="newest">Newest</option>
-              <option value="best_selling">Best selling</option>
-              <option value="top_rated">Highest rated</option>
-              <option value="price_asc">Price: low → high</option>
-              <option value="price_desc">Price: high → low</option>
-            </select>
-          </label>
+              ranker; the rest are deterministic overrides. iter368b —
+              Color/Occasion selects surface the maker's editor picks. */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <label className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
+              <span>Color</span>
+              <select
+                value={colorF}
+                onChange={(e) => onChangeFilterParam("color", e.target.value)}
+                className="bg-paper border border-line text-ink font-mono text-[11px] uppercase tracking-[0.18em] px-2.5 py-1.5 focus:border-brand outline-none"
+                data-testid="shop-color-select"
+              >
+                <option value="All">All</option>
+                {SHOP_COLORS.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </label>
+            <label className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
+              <span>Occasion</span>
+              <select
+                value={occF}
+                onChange={(e) => onChangeFilterParam("occasion", e.target.value)}
+                className="bg-paper border border-line text-ink font-mono text-[11px] uppercase tracking-[0.18em] px-2.5 py-1.5 focus:border-brand outline-none"
+                data-testid="shop-occasion-select"
+              >
+                <option value="All">All</option>
+                {SHOP_OCCASIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </label>
+            <label className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
+              <span>Sort</span>
+              <select
+                value={safeSort}
+                onChange={(e) => onChangeSort(e.target.value)}
+                className="bg-paper border border-line text-ink font-mono text-[11px] uppercase tracking-[0.18em] px-2.5 py-1.5 focus:border-brand outline-none"
+                data-testid="shop-sort-select"
+              >
+                <option value="best">Best match</option>
+                <option value="newest">Newest</option>
+                <option value="best_selling">Best selling</option>
+                <option value="top_rated">Highest rated</option>
+                <option value="price_asc">Price: low → high</option>
+                <option value="price_desc">Price: high → low</option>
+              </select>
+            </label>
+          </div>
         </div>
 
         {products === null ? (
