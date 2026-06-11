@@ -8586,3 +8586,11 @@ User: the giant outlined "CRAFTERS MARKET" at the bottom of the home page didn't
 - `Footer.jsx`: replaced the hollow 18vw `.text-outline` wordmark (wrapped to two harsh lines) with a single-line 10vw `text-brand/25` solid fill — reads like a copper maker's stamp pressed into the Forged Charcoal footer.
 - Added mono caption above: "◆ Est · 2026 — Built in workshops · Shipped to doorsteps".
 - data-testid: `footer-wordmark`. Screenshot verified in preview.
+
+---
+
+## 2026-06-11 — iter370: Listings search bar (Maker Shop Manager)
+
+- `ProductsList.jsx`: search input next to the Live/Drafts/Archived view switcher. Filters all three views by title, slug, category, and tags (case-insensitive). Live match-count label, clear-✕ button, search-aware empty states. View-switcher counts reflect the filtered set.
+- data-testids: `listings-search-input`, `listings-search-clear`, `listings-search-count`.
+- Screenshot-verified in preview ("mountain" → 2 matching listings for iron-and-oak).

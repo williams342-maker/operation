@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Hammer, Check, Mail, BarChart3 } from "lucide-react";
+import { Hammer, Check, Mail, BarChart3, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import ProductEditCard from "./ProductEditCard";
 import BatchPriceCheckButton from "./BatchPriceCheckButton";
@@ -123,8 +123,30 @@ export default function ProductsList({ products, onChanged, onRefresh }) {
   const drafts = products.filter((p) => !p.deleted_at && p.status === "draft");
   const archived = products.filter((p) => p.deleted_at);
 
-  const counts = { live: live.length, drafts: drafts.length, archived: archived.length };
-  const totalAll = counts.live + counts.drafts + counts.archived;
+  // iter370 — Listing search. Filters every view (live/drafts/archived) by
+  // title, slug, category, or tags so makers with 50+ listings can jump
+  // straight to the one they want to edit instead of paging through the grid.
+  const [q, setQ] = useState("");
+  const norm = q.trim().toLowerCase();
+  const matchesQuery = (p) => {
+    if (!norm) return true;
+    const haystack = [
+      p.title, p.slug, p.category,
+      ...(Array.isArray(p.tags) ? p.tags : []),
+    ];
+    return haystack.some((f) => (f || "").toLowerCase().includes(norm));
+  };
+  const liveShown = live.filter(matchesQuery);
+  const draftsShown = drafts.filter(matchesQuery);
+  const archivedShown = archived.filter(matchesQuery);
+
+  const counts = {
+    live: liveShown.length,
+    drafts: draftsShown.length,
+    archived: archivedShown.length,
+  };
+  const totalAll = live.length + drafts.length + archived.length;
+  const totalShown = counts.live + counts.drafts + counts.archived;
 
   // Restock waitlist demand — surfaces buyers waiting on 0-stock SKUs
   // so the maker knows which listings to refill. One aggregate banner
@@ -228,14 +250,47 @@ export default function ProductsList({ products, onChanged, onRefresh }) {
         />
       ) : (
         <>
-          <ViewSwitcher view={view} setView={switchView} counts={counts} />
+          <div className="flex flex-col md:flex-row md:items-center gap-3">
+            <ViewSwitcher view={view} setView={switchView} counts={counts} />
+            <div className="relative w-full md:max-w-sm">
+              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted pointer-events-none" />
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search your listings…"
+                data-testid="listings-search-input"
+                className="w-full pl-9 pr-8 py-2 bg-transparent border border-line focus:border-brand outline-none font-mono text-xs placeholder:text-ink-muted"
+              />
+              {q && (
+                <button
+                  type="button"
+                  onClick={() => setQ("")}
+                  title="Clear search"
+                  data-testid="listings-search-clear"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-muted hover:text-brand transition"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+            {norm && (
+              <span
+                className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted whitespace-nowrap"
+                data-testid="listings-search-count"
+              >
+                {totalShown} match{totalShown === 1 ? "" : "es"}
+              </span>
+            )}
+          </div>
           {view === "live" && (
             <Bucket
-              items={live}
+              items={liveShown}
               testId="live-section"
               empty={
                 <p className="font-mono text-xs text-ink-muted" data-testid="live-empty">
-                  No live listings yet — publish a draft or create a new one.
+                  {norm
+                    ? `No live listings match “${q.trim()}”.`
+                    : "No live listings yet — publish a draft or create a new one."}
                 </p>
               }
               onChanged={refresh}
@@ -249,11 +304,13 @@ export default function ProductsList({ products, onChanged, onRefresh }) {
           )}
           {view === "drafts" && (
             <Bucket
-              items={drafts}
+              items={draftsShown}
               testId="drafts-section"
               empty={
                 <p className="font-mono text-xs text-ink-muted" data-testid="drafts-empty">
-                  No drafts. New listings save here automatically until you publish.
+                  {norm
+                    ? `No drafts match “${q.trim()}”.`
+                    : "No drafts. New listings save here automatically until you publish."}
                 </p>
               }
               onChanged={refresh}
@@ -268,7 +325,7 @@ export default function ProductsList({ products, onChanged, onRefresh }) {
           )}
           {view === "archived" && (
             <ArchivedView
-              items={archived}
+              items={archivedShown}
               selected={selected}
               setSelected={setSelected}
               onChanged={refreshAndClear}
