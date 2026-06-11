@@ -111,7 +111,9 @@ async def google_merchant_feed_xml(request: Request) -> Response:
     # listing controls decide whether each row syncs as-is, gets its
     # title/description rewritten, or is dropped. Google feed ONLY.
     from services.merchant_sanitizer import load_category_rules, resolve_merchant_listing
+    from services.merchant_attributes import merchant_attributes
     category_rules = await load_category_rules(db)
+    attr_warnings = 0  # iter366 — internal feed-quality counter
 
     parts: list[str] = []
     parts.append('<?xml version="1.0" encoding="UTF-8"?>')
@@ -180,6 +182,16 @@ async def google_merchant_feed_xml(request: Request) -> Response:
         pt = _truncate(f"{p.get('category') or ''} > {p.get('technique') or ''}".strip(" >"), 750)
         if pt:
             item.append(f"<g:product_type>{xml_escape(pt)}</g:product_type>")
+        # iter366 — Category-aware attributes: send only what the GPC
+        # profile needs (material/color for decor & boxes; full apparel
+        # set incl. unisex/adult defaults for jewelry); suppress the rest
+        # so Merchant Center stops asking for gender on trinket boxes.
+        attr_res = merchant_attributes(p, gpc)
+        for name in ("material", "color", "gender", "age_group", "size"):
+            val = attr_res["attributes"].get(name)
+            if val:
+                item.append(f"<g:{name}>{xml_escape(_truncate(val, 100))}</g:{name}>")
+        attr_warnings += len(attr_res["warnings"])
         # `identifier_exists=false` because handmade pieces have no GTIN/MPN.
         item.append("<g:identifier_exists>false</g:identifier_exists>")
         item.append("</item>")
@@ -189,6 +201,13 @@ async def google_merchant_feed_xml(request: Request) -> Response:
     parts.append("</channel></rss>")
 
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    # iter366 — internal-only feed-quality log (never buyer-facing).
+    if attr_warnings:
+        import logging
+        logging.getLogger("crafters.feeds").info(
+            "[google-feed] %d attribute fallback warning(s) across %d rows",
+            attr_warnings, rows_written,
+        )
     # iter292 — Log the crawler hit for the admin "Sales channel feeds" card.
     try:
         from feed_access_log import record_hit
@@ -202,6 +221,7 @@ async def google_merchant_feed_xml(request: Request) -> Response:
             "Content-Disposition": f'inline; filename="crafters_market_google_{today}.xml"',
             "Cache-Control": "public, max-age=3600",
             "X-Feed-Rows": str(rows_written),
+            "X-Feed-Attr-Warnings": str(attr_warnings),
         },
     )
 

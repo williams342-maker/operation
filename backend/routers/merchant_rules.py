@@ -83,6 +83,10 @@ class MerchantPreviewRequest(BaseModel):
     merchant_title: Optional[str] = Field(default=None, max_length=150)
     merchant_auto_optimize: Optional[bool] = None
     merchant_exclude: bool = False
+    # iter366 — attribute preview inputs
+    materials: Optional[str] = Field(default="", max_length=300)
+    gpc_path: Optional[str] = Field(default="", max_length=300)
+    technique: Optional[str] = Field(default="", max_length=60)
 
 
 @router.post("/maker/merchant/preview")
@@ -90,21 +94,35 @@ async def preview_merchant_listing(
     req: MerchantPreviewRequest, _slug: str = Depends(current_maker_slug),
 ) -> dict:
     rules = await load_category_rules(db)
-    res = resolve_merchant_listing(
-        {
-            "title": req.title,
-            "description": req.description or "",
-            "category": req.category or "",
-            "merchant_title": req.merchant_title,
-            "merchant_auto_optimize": req.merchant_auto_optimize,
-            "merchant_exclude": req.merchant_exclude,
-        },
-        rules,
-    )
+    pseudo = {
+        "title": req.title,
+        "description": req.description or "",
+        "category": req.category or "",
+        "merchant_title": req.merchant_title,
+        "merchant_auto_optimize": req.merchant_auto_optimize,
+        "merchant_exclude": req.merchant_exclude,
+        "materials": req.materials or "",
+        "gpc_path": req.gpc_path or "",
+        "technique": req.technique or "",
+    }
+    res = resolve_merchant_listing(pseudo, rules)
+
+    # iter366 — category-aware attribute preview: exactly what the live
+    # feed row will carry (✓ sent / ✗ suppressed) + internal warnings.
+    from routers.pinterest_feed import _resolve_gpc
+    from services.merchant_attributes import merchant_attributes
+    gpc = _resolve_gpc(pseudo)
+    attr_res = merchant_attributes(pseudo, gpc)
+
     return {
         "include": res["include"],
         "mode": res["mode"],
         "title": res["title"],
         "hits": res["hits"],
         "category_rule": rules.get((req.category or "").strip().lower()),
+        "gpc": gpc,
+        "attribute_profile": attr_res["profile"],
+        "attributes_sent": attr_res["attributes"],
+        "attributes_suppressed": attr_res["suppressed"],
+        "attribute_warnings": attr_res["warnings"],
     }

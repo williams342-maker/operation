@@ -33,10 +33,14 @@ export default function MerchantFeedSection({ form, set }) {
         merchant_title: (form.merchant_title || "").trim() || null,
         merchant_auto_optimize: !!form.merchant_auto_optimize,
         merchant_exclude: !!form.merchant_exclude,
+        // iter366 — attribute preview inputs
+        materials: (form.materials || []).join(", ").slice(0, 300),
+        gpc_path: form.gpc_path || "",
+        technique: form.technique || "",
       }).then(setPreview).catch(() => setPreview(null));
     }, 500);
     return () => clearTimeout(timer.current);
-  }, [form.title, form.description, form.category, form.merchant_title, form.merchant_auto_optimize, form.merchant_exclude]);
+  }, [form.title, form.description, form.category, form.merchant_title, form.merchant_auto_optimize, form.merchant_exclude, form.materials, form.gpc_path, form.technique]);
 
   return (
     <Section
@@ -105,6 +109,34 @@ export default function MerchantFeedSection({ form, set }) {
                       {h}
                     </span>
                   ))}
+                </div>
+              )}
+              {/* iter366 — category-aware attributes: what the feed row
+                  carries (✓) vs. suppresses (✗), so sellers never wonder
+                  why Google isn't asking them for "gender" on a box. */}
+              {preview.attributes_sent && (
+                <div className="mt-3 pt-3 border-t border-line" data-testid="editor-merchant-preview-attributes">
+                  <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-1.5">
+                    Attributes sent
+                  </div>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1">
+                    {Object.entries(preview.attributes_sent).map(([k, v]) => (
+                      <span key={k} className="font-mono text-[11px] text-ink" data-testid={`editor-merchant-attr-${k}`}>
+                        <span className="text-green-600 dark:text-green-400">✓</span> {k}
+                        <span className="text-ink-muted"> · {v}</span>
+                      </span>
+                    ))}
+                    {(preview.attributes_suppressed || []).map((k) => (
+                      <span key={k} className="font-mono text-[11px] text-ink-muted" data-testid={`editor-merchant-attr-${k}-suppressed`}>
+                        ✗ {k}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="font-mono text-[10px] text-ink-muted mt-1.5">
+                    Warnings: {(preview.attribute_warnings || []).length === 0
+                      ? "none"
+                      : preview.attribute_warnings.join(" · ")}
+                  </div>
                 </div>
               )}
             </>
