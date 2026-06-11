@@ -41,6 +41,10 @@ export default function PersonalizationPanel({
   const [uploading, setUploading] = useState(0); // in-flight count
   const [dragOver, setDragOver] = useState(false);
   const fileInput = useRef(null);
+  // Source of truth for concurrent mutations — parallel uploads finishing
+  // near-simultaneously must not clobber each other's setFiles snapshot.
+  const filesRef = useRef([]);
+  const textRef = useRef("");
 
   const pushUp = (nextText, nextFiles) => {
     onChange?.({
@@ -51,10 +55,17 @@ export default function PersonalizationPanel({
     });
   };
 
+  const commitFiles = (next) => {
+    filesRef.current = next;
+    setFiles(next);
+    pushUp(textRef.current, next);
+  };
+
   const onTextChange = (e) => {
     const v = e.target.value;
+    textRef.current = v;
     setText(v);
-    pushUp(v, files);
+    pushUp(v, filesRef.current);
   };
 
   const validFile = (file) => {
@@ -83,7 +94,7 @@ export default function PersonalizationPanel({
     if (!batch.length) return;
 
     setUploading((n) => n + batch.length);
-    let current = files;
+    let added = 0;
     await Promise.all(batch.map(async (file) => {
       try {
         const fd = new FormData();
@@ -95,28 +106,27 @@ export default function PersonalizationPanel({
           throw new Error(body.detail || `Upload failed (HTTP ${r.status}).`);
         }
         const body = await r.json();
-        current = [...current, { id: body.id, url: body.url, name: file.name, size: file.size }];
-        setFiles(current);
-        pushUp(text, current);
+        commitFiles([...filesRef.current, { id: body.id, url: body.url, name: file.name, size: file.size }]);
+        added += 1;
       } catch (err) {
         toast.error(err.message || `Couldn't upload "${file.name}". Please try again.`);
       } finally {
         setUploading((n) => n - 1);
       }
     }));
-    if (current.length > files.length) toast.success("Photo(s) attached.");
+    if (added > 0) toast.success("Photo(s) attached.");
   };
 
   const onFileChange = async (e) => {
-    const list = e.target.files;
+    // FileList is LIVE — snapshot before clearing the input value,
+    // otherwise resetting empties the list we're about to read.
+    const list = Array.from(e.target.files || []);
     e.target.value = "";
     await processFiles(list);
   };
 
   const removeFile = (id) => {
-    const next = files.filter((f) => f.id !== id);
-    setFiles(next);
-    pushUp(text, next);
+    commitFiles(filesRef.current.filter((f) => f.id !== id));
   };
 
   return (
