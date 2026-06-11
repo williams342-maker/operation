@@ -8594,3 +8594,11 @@ User: the giant outlined "CRAFTERS MARKET" at the bottom of the home page didn't
 - `ProductsList.jsx`: search input next to the Live/Drafts/Archived view switcher. Filters all three views by title, slug, category, and tags (case-insensitive). Live match-count label, clear-✕ button, search-aware empty states. View-switcher counts reflect the filtered set.
 - data-testids: `listings-search-input`, `listings-search-clear`, `listings-search-count`.
 - Screenshot-verified in preview ("mountain" → 2 matching listings for iron-and-oak).
+
+---
+
+## 2026-06-11 — iter371: Listings sort dropdown
+
+- `ProductsList.jsx`: sort `<select>` next to the search bar — Newest / Oldest / Best sellers / Price low→high / Price high→low / Lowest stock / Title A–Z. Applies to all three views after the search filter.
+- "Best sellers" auto-fetches the per-listing stats map (sales_all) even when the Stats overlay is off.
+- data-testid: `listings-sort-select`. Verified in preview: price-desc → [$499, $189, $149, $79, $40], price-asc reversed.

@@ -37,6 +37,41 @@ const VIEWS = [
   { key: "archived", label: "Archived", color: "text-red-400" },
 ];
 
+// iter371 — Sort options for the listing grids. "Best sellers" ranks by
+// all-time sales from the stats endpoint; everything else sorts on fields
+// already present on the product rows.
+const SORTS = [
+  { key: "newest", label: "Newest first" },
+  { key: "oldest", label: "Oldest first" },
+  { key: "best-sellers", label: "Best sellers" },
+  { key: "price-asc", label: "Price: low → high" },
+  { key: "price-desc", label: "Price: high → low" },
+  { key: "stock-asc", label: "Lowest stock first" },
+  { key: "title-az", label: "Title A–Z" },
+];
+
+function sortItems(arr, sort, statsMap) {
+  const a = [...arr];
+  switch (sort) {
+    case "oldest":
+      return a.sort((x, y) => (x.created_at || "").localeCompare(y.created_at || ""));
+    case "best-sellers":
+      return a.sort((x, y) =>
+        (statsMap[y.slug]?.sales_all || 0) - (statsMap[x.slug]?.sales_all || 0));
+    case "price-asc":
+      return a.sort((x, y) => (Number(x.price) || 0) - (Number(y.price) || 0));
+    case "price-desc":
+      return a.sort((x, y) => (Number(y.price) || 0) - (Number(x.price) || 0));
+    case "stock-asc":
+      return a.sort((x, y) => (Number(x.in_stock) || 0) - (Number(y.in_stock) || 0));
+    case "title-az":
+      return a.sort((x, y) => (x.title || "").localeCompare(y.title || ""));
+    case "newest":
+    default:
+      return a.sort((x, y) => (y.created_at || "").localeCompare(x.created_at || ""));
+  }
+}
+
 export default function ProductsList({ products, onChanged, onRefresh }) {
   const navigate = useNavigate();
   const refresh = onChanged || onRefresh || (() => {});
@@ -51,14 +86,18 @@ export default function ProductsList({ products, onChanged, onRefresh }) {
     try { return localStorage.getItem("cm_listing_stats_on") === "1"; } catch { return false; }
   });
   const [statsMap, setStatsMap] = useState({});
+  // iter371 — Sort order for the listing grids. "best-sellers" needs the
+  // stats map, so the stats fetch below also fires when that sort is active
+  // even if the Stats overlay is off.
+  const [sort, setSort] = useState("newest");
   useEffect(() => {
-    if (!showStats) return;
+    if (!showStats && sort !== "best-sellers") return;
     let cancelled = false;
     fetchMakerProductsStats()
       .then((d) => { if (!cancelled) setStatsMap(d || {}); })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [showStats, products.length]);
+  }, [showStats, sort, products.length]);
 
   // Indexing status — always fetched (cheap, single call). Drives the small
   // sitemap-status badge on each card so makers can see at a glance which
@@ -136,9 +175,9 @@ export default function ProductsList({ products, onChanged, onRefresh }) {
     ];
     return haystack.some((f) => (f || "").toLowerCase().includes(norm));
   };
-  const liveShown = live.filter(matchesQuery);
-  const draftsShown = drafts.filter(matchesQuery);
-  const archivedShown = archived.filter(matchesQuery);
+  const liveShown = sortItems(live.filter(matchesQuery), sort, statsMap);
+  const draftsShown = sortItems(drafts.filter(matchesQuery), sort, statsMap);
+  const archivedShown = sortItems(archived.filter(matchesQuery), sort, statsMap);
 
   const counts = {
     live: liveShown.length,
@@ -273,6 +312,17 @@ export default function ProductsList({ products, onChanged, onRefresh }) {
                 </button>
               )}
             </div>
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value)}
+              data-testid="listings-sort-select"
+              title="Sort listings"
+              className="px-3 py-2 bg-paper border border-line focus:border-brand outline-none font-mono text-[10px] uppercase tracking-[0.18em] text-ink cursor-pointer"
+            >
+              {SORTS.map((s) => (
+                <option key={s.key} value={s.key}>{s.label}</option>
+              ))}
+            </select>
             {norm && (
               <span
                 className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted whitespace-nowrap"
