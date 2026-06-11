@@ -42,6 +42,10 @@ export default function ProductDetail() {
   const [qty, setQty] = useState(1);
   const [added, setAdded] = useState(false);
   const [selectedVariantId, setSelectedVariantId] = useState(null);
+  // iter364 — variation-group selections: { [groupId]: optionId }. Used
+  // when the listing defines `variant_groups`; the resolved combination
+  // (a flat variant row carrying option_ids) drives price + stock.
+  const [selectedOptions, setSelectedOptions] = useState({});
   // iter150 — buyer personalization captured from PersonalizationPanel
   // and held here until "Add to cart" forwards it into cart.add().
   const [personalization, setPersonalization] = useState(null);
@@ -75,6 +79,7 @@ export default function ProductDetail() {
     Promise.resolve().then(() => {
       setActive(0);
       setSelectedVariantId(null);
+      setSelectedOptions({});
       setBackorderPolicy(null);
       setReviewAgg(null);
       setSelectedColor(null);
@@ -83,8 +88,25 @@ export default function ProductDetail() {
     });
     fetchProduct(slug).then(async (prod) => {
       setP(prod);
-      // Auto-select first variant if any
-      if (prod?.variants?.length) setSelectedVariantId(prod.variants[0].id);
+      // Auto-select first variant if any. iter364 — for grouped listings,
+      // seed the per-group selection from the first in-stock combination
+      // so the buyer starts from a valid, buyable state.
+      if (prod?.variants?.length) {
+        const gs = (prod.variant_groups || []).filter((g) => (g.options || []).length);
+        const grouped = gs.length > 0 && prod.variants.some((v) => (v.option_ids || []).length);
+        if (grouped) {
+          const seed = prod.variants.find((v) => v.in_stock > 0) || prod.variants[0];
+          const sel = {};
+          for (const g of gs) {
+            const o = (g.options || []).find((x) => (seed.option_ids || []).includes(x.id));
+            if (o) sel[g.id] = o.id;
+          }
+          setSelectedOptions(sel);
+          setSelectedVariantId(seed.id);
+        } else {
+          setSelectedVariantId(prod.variants[0].id);
+        }
+      }
       if (prod?.maker_slug) setMaker(await fetchMaker(prod.maker_slug).catch(() => null));
       // iter334k — Fire Microsoft Ads `view_content` UET event once
       // per product. Completes the GA4-style ecommerce funnel
@@ -202,8 +224,30 @@ export default function ProductDetail() {
   if (!p) return <DetailSkeleton />;
 
   const hasVariants = (p.variants || []).length > 0;
-  const selectedVariant = hasVariants
+  // iter364 — variation groups (Color × Engraving …). When present, the
+  // buyer picks one option per group and we resolve the matching combo
+  // row from the flat variants list via its option_ids.
+  const variantGroups = (p.variant_groups || []).filter((g) => (g.options || []).length > 0);
+  const hasGroups = variantGroups.length > 0
+    && (p.variants || []).some((v) => (v.option_ids || []).length > 0);
+  const resolvedCombo = hasGroups && variantGroups.every((g) => selectedOptions[g.id])
+    ? (p.variants || []).find((v) => {
+        const ids = v.option_ids || [];
+        return ids.length === variantGroups.length
+          && variantGroups.every((g) => ids.includes(selectedOptions[g.id]));
+      }) || null
+    : null;
+  const selectedVariant = hasGroups
+    ? resolvedCombo
+    : hasVariants
     ? p.variants.find((v) => v.id === selectedVariantId) || p.variants[0]
+    : null;
+  // Last selected option that carries an image — swaps the gallery.
+  const selectedOptionImage = hasGroups
+    ? variantGroups
+        .map((g) => (g.options || []).find((o) => o.id === selectedOptions[g.id]))
+        .filter((o) => o && o.image)
+        .slice(-1)[0]?.image || null
     : null;
   const effectivePrice = selectedVariant
     ? (Number(selectedVariant.price) > 0
@@ -213,7 +257,23 @@ export default function ProductDetail() {
   const effectiveStock = selectedVariant ? selectedVariant.in_stock : p.in_stock;
 
   const onAdd = () => {
-    if (hasVariants && !selectedVariant) return;
+    if (hasVariants && !selectedVariant) {
+      if (hasGroups) {
+        toast.error("Please choose an option in every category first.");
+        document.querySelector("[data-testid='product-variant-groups']")
+          ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+      return;
+    }
+    // iter364 — required customer photo upload. Hard gate: this listing
+    // is MADE from the buyer's photo(s), so an upload-less order is
+    // unfulfillable.
+    if (p.personalization_requires_upload && !(personalization?.upload_ids?.length)) {
+      toast.error("This item requires your photo(s) — add them in the personalization box first.");
+      const node = document.querySelector("[data-testid='personalization-panel']");
+      node?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
     // iter150 — block "Add to cart" until the buyer either provided
     // personalization or explicitly skipped it. We use a soft check:
     // if the listing requires personalization (`personalization_enabled`
@@ -314,7 +374,7 @@ export default function ProductDetail() {
                   data-testid="product-hero-zoom"
                 >
                   <img
-                    src={(selectedVariant && selectedVariant.image) || p.images[Math.max(0, active)]}
+                    src={(selectedVariant && selectedVariant.image) || selectedOptionImage || p.images[Math.max(0, active)]}
                     alt={p.title}
                     className="w-full h-full object-cover media-img transition-transform duration-300 group-hover:scale-105"
                     data-testid="product-hero-image"
@@ -442,7 +502,76 @@ export default function ProductDetail() {
                 /guides/* pages and reduces buyer hesitation. */}
             <GuideCrossLinkCard product={p} />
 
-            {hasVariants && (
+            {/* iter364 — Grouped variations: one selector per category. */}
+            {hasVariants && hasGroups && (
+              <div className="mb-6" data-testid="product-variant-groups">
+                {variantGroups.map((g) => (
+                  <div key={g.id} className="mb-4">
+                    <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-ink-muted mb-2">
+                      Choose {g.name}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {(g.options || []).map((o) => {
+                        const sel = selectedOptions[g.id] === o.id;
+                        // Dim options that can't form an in-stock combo with
+                        // the OTHER groups' current selections. Still
+                        // clickable — picking one re-routes the combo.
+                        const available = (p.variants || []).some((v) => {
+                          const ids = v.option_ids || [];
+                          if (!ids.includes(o.id) || v.in_stock <= 0) return false;
+                          return variantGroups.every(
+                            (g2) => g2.id === g.id || !selectedOptions[g2.id] || ids.includes(selectedOptions[g2.id]),
+                          );
+                        });
+                        const delta = Number(o.price_delta) || 0;
+                        return (
+                          <button
+                            key={o.id}
+                            onClick={() => setSelectedOptions((cur) => ({ ...cur, [g.id]: o.id }))}
+                            data-testid={`product-option-${o.id}`}
+                            className={`text-left border px-4 py-2.5 transition ${
+                              sel ? "border-brand bg-brand/10" : "border-line hover:border-brand/50"
+                            } ${available ? "" : "opacity-40"}`}
+                          >
+                            <div className="font-mono text-xs text-ink flex items-center gap-2">
+                              {o.image && (
+                                <img src={o.image} alt="" className="w-6 h-6 object-cover border border-line" />
+                              )}
+                              {o.label}
+                            </div>
+                            {delta !== 0 && (
+                              <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-muted mt-0.5">
+                                {delta > 0 ? `+ $${delta.toFixed(0)}` : `− $${Math.abs(delta).toFixed(0)}`}
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+                {selectedVariant ? (
+                  <div
+                    className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted"
+                    data-testid="product-combo-summary"
+                  >
+                    ◆ {selectedVariant.label} · ${Number(effectivePrice).toFixed(2)}
+                    {selectedVariant.in_stock <= 0 && (
+                      <span className="ml-2 text-red-400">· Sold out</span>
+                    )}
+                  </div>
+                ) : (
+                  <div
+                    className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand"
+                    data-testid="product-combo-incomplete"
+                  >
+                    Select {variantGroups.filter((g) => !selectedOptions[g.id]).map((g) => g.name).join(" + ")} to continue
+                  </div>
+                )}
+              </div>
+            )}
+
+            {hasVariants && !hasGroups && (
               <div className="mb-6" data-testid="product-variants">
                 <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-ink-muted mb-3">
                   {p.variant_axis1_name && p.variant_axis2_name
@@ -656,6 +785,8 @@ export default function ProductDetail() {
                 instructions={p.personalization_instructions}
                 onChange={setPersonalization}
                 testIdPrefix="personalization"
+                requiresUpload={!!p.personalization_requires_upload}
+                productSlug={p.slug}
               />
             )}
 

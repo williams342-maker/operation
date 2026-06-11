@@ -176,7 +176,12 @@ export default function MakerListingEditor() {
               // iter334r — variants now carry an absolute `price`;
               // surface "" for the input when not yet set.
               price: v.price != null ? v.price : "",
+              sku: v.sku || "",
+              option_ids: v.option_ids || [],
             })),
+            // iter364 — variation groups + required-upload flag.
+            variant_groups: found.variant_groups || [],
+            personalization_requires_upload: !!found.personalization_requires_upload,
             status: found.status || "draft",
             // Backorders — preserve `null` (inherit from maker default)
             // distinct from explicit `false` (override off)
@@ -633,9 +638,28 @@ export default function MakerListingEditor() {
       price: v.price !== "" && v.price != null ? Number(v.price) : null,
       price_delta: Number(v.price_delta) || 0,
       in_stock: Math.max(0, Number(v.in_stock) || 0),
+      // iter364 — combos carry the composing option ids + optional SKU.
+      sku: (v.sku || "").trim() || null,
+      option_ids: v.option_ids || [],
+      image: v.image || null,
     })).filter((v) => v.label),
     variant_axis1_name: form.variant_axis1_name || null,
     variant_axis2_name: form.variant_axis2_name || null,
+    // iter364 — variation groups (only named groups with ≥1 labeled option).
+    variant_groups: (form.variant_groups || [])
+      .map((g) => ({
+        id: g.id,
+        name: (g.name || "").trim(),
+        options: (g.options || [])
+          .filter((o) => (o.label || "").trim())
+          .map((o) => ({
+            id: o.id,
+            label: o.label.trim(),
+            price_delta: Number(o.price_delta) || 0,
+            image: o.image || null,
+          })),
+      }))
+      .filter((g) => g.name && g.options.length),
     status: statusOverride || form.status,
     who_made_it: form.who_made_it,
     condition: form.condition,
@@ -649,6 +673,7 @@ export default function MakerListingEditor() {
     occasions: form.occasions,
     personalization_enabled: form.personalization_enabled,
     personalization_instructions: form.personalization_instructions || null,
+    personalization_requires_upload: !!form.personalization_requires_upload,
     free_shipping: form.free_shipping,
     shipping_domestic_usd: form.shipping_domestic_usd === "" ? null : Number(form.shipping_domestic_usd),
     shipping_international_usd: form.shipping_international_usd === "" ? null : Number(form.shipping_international_usd),
@@ -1332,6 +1357,28 @@ export default function MakerListingEditor() {
                 className="w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-3 font-mono text-sm resize-y"
                 data-testid="editor-personalization-instructions"
               />
+              {/* iter364 — Required customer photo upload. When on, buyers
+                  can't add to cart until they've attached at least one
+                  photo (fingerprints, pet nose prints, memorial art…). */}
+              <label
+                className="mt-4 flex items-start gap-3 cursor-pointer select-none"
+                data-testid="editor-personalization-requires-upload"
+              >
+                <input
+                  type="checkbox"
+                  checked={!!form.personalization_requires_upload}
+                  onChange={(e) => set({ personalization_requires_upload: e.target.checked })}
+                  className="mt-0.5 accent-[var(--brand)]"
+                  data-testid="editor-personalization-requires-upload-checkbox"
+                />
+                <span>
+                  <span className="block font-mono text-xs text-ink">Requires customer photo upload</span>
+                  <span className="block font-mono text-[10px] text-ink-muted mt-0.5 leading-relaxed">
+                    Buyers must attach 1–10 photos (JPG/PNG/WEBP/HEIC, max 25 MB each) before
+                    adding to cart — ideal for engravings, fingerprints, pet portraits, and memorial pieces.
+                  </span>
+                </span>
+              </label>
             </>
           )}
         </Section>

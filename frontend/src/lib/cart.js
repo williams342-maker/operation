@@ -11,8 +11,9 @@ const rowKey = (i) =>
   // a buyer ordering two of the same product with different engravings
   // doesn't get them merged into one quantity-2 line. iter339 — color
   // choice does the same so two of the same item in different colors
-  // stay as separate cart lines instead of stacking.
-  `${i.id}::${i.variant_id || ""}::${i.color_choice || ""}::${i.personalization_text || ""}::${i.personalization_image_url || ""}`;
+  // stay as separate cart lines instead of stacking. iter364 — photo
+  // upload ids too (two memorial pieces from different photos).
+  `${i.id}::${i.variant_id || ""}::${i.color_choice || ""}::${i.personalization_text || ""}::${i.personalization_image_url || ""}::${(i.personalization_upload_ids || []).join(",")}`;
 
 export function CartProvider({ children }) {
   const [items, setItems] = useState(() => {
@@ -56,6 +57,9 @@ export function CartProvider({ children }) {
         // on the order doc, surfaced in the maker order email.
         personalization_text: personalization?.text || null,
         personalization_image_url: personalization?.image_url || null,
+        // iter364 — customer photo upload ids (≤10). Hydrated server-side
+        // on the maker's order detail; bytes live in object storage.
+        personalization_upload_ids: personalization?.upload_ids || [],
         // iter339 — buyer-selected color from the maker's offered palette.
         // Same path: flows into the resolved cart on checkout, persists on
         // the order doc, surfaces in the maker order email as a chip.

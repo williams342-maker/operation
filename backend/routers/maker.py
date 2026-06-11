@@ -14,7 +14,7 @@ from maker_auth import (
 )
 from models import (
     Maker, MakerLoginRequest, MakerProductCreate, MakerProfileUpdate,
-    MakerVerifyRequest, Product, ProductVariant,
+    MakerVerifyRequest, Product, ProductVariant, VariantGroup,
 )
 
 router = APIRouter()
@@ -188,6 +188,9 @@ class MakerProductUpdate(BaseModel):
     variants: Optional[List["ProductVariantInput"]] = None
     variant_axis1_name: Optional[str] = None
     variant_axis2_name: Optional[str] = None
+    # iter364 — Nested variation categories. Always sent by the editor
+    # (as [] when the maker uses no groups), so exclude_none keeps it.
+    variant_groups: Optional[List[VariantGroup]] = None
     status: Optional[str] = None     # "draft" | "published"
     # Extended fields — all optional so PATCH only updates what's sent.
     who_made_it: Optional[str] = None
@@ -202,6 +205,7 @@ class MakerProductUpdate(BaseModel):
     occasions: Optional[List[str]] = None
     personalization_enabled: Optional[bool] = None
     personalization_instructions: Optional[str] = None
+    personalization_requires_upload: Optional[bool] = None   # iter364
     free_shipping: Optional[bool] = None
     shipping_domestic_usd: Optional[float] = None
     shipping_international_usd: Optional[float] = None
@@ -240,6 +244,8 @@ class ProductVariantInput(BaseModel):
     axis1: Optional[str] = None
     axis2: Optional[str] = None
     image: Optional[str] = None
+    sku: Optional[str] = None          # iter364 — per-combination SKU override
+    option_ids: List[str] = []         # iter364 — composing VariantOption ids
 
 
 MakerProductUpdate.model_rebuild()
@@ -288,6 +294,10 @@ async def maker_update_product(
                 raise HTTPException(400, "Each variant needs a label.")
             if v.in_stock < 0:
                 raise HTTPException(400, "Variant stock must be non-negative.")
+            # iter364 — combos generated client-side may arrive without an
+            # id; assign one server-side so cart/checkout resolution works.
+            if not v.id:
+                v.id = uuid.uuid4().hex[:12]
 
     # If the patch includes new images as data URLs (the editor still
     # ships them as base64 until upload), push them through R2 with the
@@ -323,6 +333,24 @@ async def maker_update_product(
                 except Exception as e:
                     logger.exception("R2 variant upload (patch) failed maker=%s: %s", slug, e)
                     raise HTTPException(502, "Could not upload variant image.")
+
+    # iter364 — Per-option images inside variation groups follow the same
+    # data-URL → R2 pipeline as variant images.
+    if payload.variant_groups is not None:
+        for g in payload.variant_groups:
+            for o in g.options:
+                if o.image and isinstance(o.image, str) and o.image.startswith("data:"):
+                    try:
+                        url = await _upload_listing_image(
+                            o.image, slug, f"products/{slug}/variants",
+                        )
+                        if url:
+                            o.image = url
+                    except HTTPException:
+                        raise
+                    except Exception as e:
+                        logger.exception("R2 option upload (patch) failed maker=%s: %s", slug, e)
+                        raise HTTPException(502, "Could not upload option image.")
 
     updates = {k: v for k, v in payload.model_dump(exclude_none=True).items()}
     if updates:
@@ -1203,6 +1231,22 @@ async def maker_create_product(
                 raise HTTPException(502, "Could not upload variant image.")
         final_variants.append(v)
 
+    # iter364 — Variation-group option images: same R2 pipeline.
+    final_groups: List[VariantGroup] = []
+    for g in (payload.variant_groups or []):
+        for o in g.options:
+            if o.image and isinstance(o.image, str) and o.image.startswith("data:"):
+                try:
+                    url = await _upload_listing_image(o.image, slug, f"products/{slug}/variants")
+                    if url:
+                        o.image = url
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    logger.exception("R2 option-image upload failed maker=%s: %s", slug, e)
+                    raise HTTPException(502, "Could not upload option image.")
+        final_groups.append(g)
+
     product = Product(
         slug=candidate,
         title=payload.title.strip(),
@@ -1220,6 +1264,7 @@ async def maker_create_product(
         variants=final_variants,
         variant_axis1_name=payload.variant_axis1_name,
         variant_axis2_name=payload.variant_axis2_name,
+        variant_groups=final_groups,
         status=payload.status,
         # Extended fields
         who_made_it=payload.who_made_it,
@@ -1234,6 +1279,7 @@ async def maker_create_product(
         occasions=payload.occasions or [],
         personalization_enabled=bool(payload.personalization_enabled),
         personalization_instructions=payload.personalization_instructions,
+        personalization_requires_upload=bool(payload.personalization_requires_upload),
         free_shipping=bool(payload.free_shipping),
         shipping_domestic_usd=payload.shipping_domestic_usd,
         shipping_international_usd=payload.shipping_international_usd,
@@ -1913,6 +1959,9 @@ async def maker_orders(slug: str = Depends(current_maker_slug)):
                 # next to the personalization flag on both the collapsed
                 # list and the expanded order detail.
                 "color_choice": ci.get("color_choice"),
+                # iter364 — count of customer photo uploads on this line so
+                # the collapsed list can flag "N photos attached".
+                "personalization_uploads_count": len(ci.get("personalization_upload_ids") or []),
             })
         if not my_lines:
             continue
@@ -1977,9 +2026,33 @@ async def maker_order_detail(session_id: str, slug: str = Depends(current_maker_
             "personalization_image_url": ci.get("personalization_image_url"),
             # iter339 — buyer-selected color from the maker's offered palette
             "color_choice": ci.get("color_choice"),
+            # iter364 — customer photo uploads, hydrated below.
+            "personalization_upload_ids": ci.get("personalization_upload_ids") or [],
         })
     if not lines:
         raise HTTPException(404, "Order not found.")
+
+    # iter364 — hydrate customer uploads (filenames + sizes) in one query
+    # across all lines so the detail drawer can render thumbnails and the
+    # "Download all" zip button.
+    all_up_ids = [uid for ln in lines for uid in ln["personalization_upload_ids"]]
+    uploads_by_id = {}
+    if all_up_ids:
+        docs = await db.customer_uploads.find(
+            {"id": {"$in": all_up_ids}, "is_deleted": False},
+            {"_id": 0, "id": 1, "original_filename": 1, "size": 1, "content_type": 1},
+        ).to_list(100)
+        uploads_by_id = {d["id"]: d for d in docs}
+    for ln in lines:
+        ln["personalization_uploads"] = [
+            {
+                "id": uid,
+                "filename": uploads_by_id.get(uid, {}).get("original_filename"),
+                "size": uploads_by_id.get(uid, {}).get("size"),
+            }
+            for uid in ln.pop("personalization_upload_ids")
+            if uid in uploads_by_id
+        ]
 
     # Pull shipping address from Stripe when we haven't cached it locally yet.
     # (Webhook doesn't record shipping today.) Best-effort — don't 500 if Stripe

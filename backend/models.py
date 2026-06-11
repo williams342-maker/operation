@@ -29,6 +29,39 @@ class ProductVariant(BaseModel):
     axis1: Optional[str] = None        # e.g. '24"' (size axis)
     axis2: Optional[str] = None        # e.g. 'Walnut' (finish axis)
     image: Optional[str] = None        # optional per-variant image URL
+    # iter364 — Variation groups: when the listing defines `variant_groups`
+    # (e.g. Color × Engraving), each variant row is a generated COMBINATION.
+    # `option_ids` lists the VariantOption ids that compose it (one per
+    # group), `price_delta` holds the summed option adjustments, and `price`
+    # acts as the optional per-combination override.
+    sku: Optional[str] = None          # maker SKU override per combo
+    option_ids: List[str] = []         # composing VariantOption ids
+
+
+class VariantOption(BaseModel):
+    """iter364 — One choice inside a variation group (e.g. 'Tan').
+
+    `price_delta` is the +$ adjustment added to the listing base price
+    when this option is selected. `image` optionally swaps the gallery
+    when the buyer picks the option.
+    """
+    id: str = Field(default_factory=lambda: uuid.uuid4().hex[:12])
+    label: str
+    price_delta: float = 0.0
+    image: Optional[str] = None
+
+
+class VariantGroup(BaseModel):
+    """iter364 — A named variation category (e.g. 'Color', 'Engraving').
+
+    Groups are ordered (drag-reorder in the editor); buyer-facing
+    selectors render one per group in this order. Combinations across
+    groups are generated client-side and stored as flat `variants`
+    rows carrying `option_ids` — see ProductVariant.
+    """
+    id: str = Field(default_factory=lambda: uuid.uuid4().hex[:12])
+    name: str
+    options: List[VariantOption] = []
 
 
 class Product(BaseModel):
@@ -51,6 +84,10 @@ class Product(BaseModel):
     variants: List[ProductVariant] = []
     variant_axis1_name: Optional[str] = None   # e.g. "Size"
     variant_axis2_name: Optional[str] = None   # e.g. "Finish"
+    # iter364 — Nested variation categories (Color × Engraving …). When
+    # non-empty, the buyer page renders one selector per group and the
+    # flat `variants` list holds the generated combinations.
+    variant_groups: List[VariantGroup] = []
     status: str = "published"          # "published" | "draft" — drafts hidden from public catalog
     # ---- Etsy-style economics ----
     # Listings expire 4 months after publish; on expiry, status auto-flips to
@@ -91,6 +128,11 @@ class Product(BaseModel):
     # ---- Personalization ----
     personalization_enabled: bool = False
     personalization_instructions: Optional[str] = None
+    # iter364 — When True, the buyer MUST attach at least one photo in the
+    # personalization panel before the item can be added to the cart
+    # (engraving references, fingerprints, pet nose prints, memorial
+    # artwork…). Uploads flow through /api/personalization/files.
+    personalization_requires_upload: bool = False
     # ---- Shipping ----
     free_shipping: bool = False
     shipping_domestic_usd: Optional[float] = None
@@ -188,6 +230,7 @@ class MakerProductCreate(BaseModel):
     variants: List[ProductVariant] = []
     variant_axis1_name: Optional[str] = None
     variant_axis2_name: Optional[str] = None
+    variant_groups: List[VariantGroup] = []    # iter364 — nested variation categories
     status: str = "published"          # accept "draft" to save without publishing
     # Extended item-detail fields (all optional, backwards compatible)
     who_made_it: Optional[str] = None
@@ -202,6 +245,7 @@ class MakerProductCreate(BaseModel):
     occasions: List[str] = []
     personalization_enabled: bool = False
     personalization_instructions: Optional[str] = None
+    personalization_requires_upload: bool = False   # iter364
     free_shipping: bool = False
     shipping_domestic_usd: Optional[float] = None
     shipping_international_usd: Optional[float] = None
@@ -692,6 +736,12 @@ class CartItem(BaseModel):
     # also write "I'd like the third silver swatch from the left" or
     # similar — the field doubles as a soft attribute and a manual note.
     color_choice: Optional[str] = Field(default=None, max_length=40)
+    # iter364 — ids of customer photo uploads (POST /api/personalization/
+    # files) attached to this line. Max 10 per item; the ids resolve to
+    # `customer_uploads` docs whose bytes live in Emergent object storage.
+    # Persisted verbatim on the tx doc, hydrated for the maker's order
+    # detail view, and marked `referenced` on payment success.
+    personalization_upload_ids: List[str] = Field(default=[], max_length=10)
 
 
 class CheckoutRequest(BaseModel):

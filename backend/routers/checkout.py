@@ -897,6 +897,18 @@ async def checkout_status(session_id: str, http_request: Request, bg: Background
                         )
                     except Exception as e:
                         logger.warning("[personalization] mark-referenced failed: %s", e)
+                # iter364 — same for customer photo uploads: flip referenced
+                # + stamp the order so the orphan sweeper never reaps them
+                # and the maker zip endpoint can find them.
+                up_ids = ci.get("personalization_upload_ids") or []
+                if up_ids:
+                    try:
+                        await db.customer_uploads.update_many(
+                            {"id": {"$in": up_ids}},
+                            {"$set": {"referenced": True, "order_session_id": session_id}},
+                        )
+                    except Exception as e:
+                        logger.warning("[customer-uploads] mark-referenced failed: %s", e)
             buyer = tx.get("customer_email")
             total_amount = float(tx.get("amount", 0))
             bg.add_task(send_ops_new_order, summary, total_amount, email_items, buyer)

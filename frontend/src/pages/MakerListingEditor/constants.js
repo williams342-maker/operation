@@ -383,7 +383,12 @@ export const emptyForm = () => ({
   colors: [], occasions: [],
   materials: [], materials_input: "",
   variants: [], variant_axis1_name: "", variant_axis2_name: "",
+  // iter364 — Nested variation categories (Color × Engraving…). Combos
+  // generated from these land in `variants` with `option_ids` set.
+  variant_groups: [],
   personalization_enabled: false, personalization_instructions: "",
+  // iter364 — buyer MUST attach ≥1 photo before add-to-cart when true.
+  personalization_requires_upload: false,
   free_shipping: false,
   shipping_domestic_usd: "", shipping_international_usd: "",
   shipping_carrier: "", shipping_est_delivery: "",

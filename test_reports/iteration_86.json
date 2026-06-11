@@ -1,0 +1,34 @@
+{
+  "summary": "iter364 — Variation groups + customer photo uploads. Backend APIs verified (GET /api/products/demo-grouped-variations returns 2 variant_groups + 6 combos with correct option_ids/sku/price_delta; /api/cart/quote returns 55.0 for Brown/Both and 40.0 for Tan/Front; /api/personalization/files upload+serve round-trip OK; .txt rejected 400; ZIP endpoint auth-gated (no auth=401, auth+bad-session=404); existing pytest test_iter364 still aligned with prod schema). Buyer PDP UI verified end-to-end: option buttons render with correct labels & deltas, default = first in-stock combo ($40), Brown+Both updates to $55.00, combo summary 'BROWN / BOTH SIDES · $55.00' appears, Black option correctly dims (opacity-40) when Both sides selected because Black/Both is OOS, stock '4 in stock' shown. Personalization panel + required-hint render and Add-to-cart without upload is blocked by a visible toast ('This item requires your photo(s) — add them in the personalization box first.'). Maker editor at /maker/listings/demo-grouped-variations/edit renders both group cards (editor-group-0/1) with options + adjustment $, the combos table (editor-combos with 'COMBINATIONS · 6' label), the personalization-requires-upload-checkbox is CHECKED, and editor-add-option-0 / editor-add-group are clickable. Non-variant PDP + cart quote regression: still works ($79 subtotal).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Buyer personalization upload — Playwright automation only",
+        "issue": "Could not assert end-to-end buyer upload→add-to-cart→cart-line via Playwright. Neither `set_input_files` on the hidden `personalization-image-input` nor the `expect_file_chooser` path on `personalization-image-pick` triggered a network POST to /api/personalization/files (verified with response listener — zero requests fired). Backend endpoint itself is healthy (curl multipart round-trip returns the same bytes, .txt rejected 400). Manual UI verification of the gate toast confirmed the React handler IS wired. This appears to be a Playwright/React hidden-file-input interop limitation in this preview environment, NOT a product bug. Main agent should self-test by uploading a real photo in a browser to confirm thumbnail+cart-line+'N photos attached'.",
+        "affected_selectors": ["[data-testid=personalization-image-input]", "[data-testid=personalization-image-pick]", "[data-testid=personalization-uploads]", "[data-testid^=cart-uploads-count-]"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_iter364_variant_groups_uploads.py"],
+  "action_items": [
+    "Main agent: manually self-test the buyer upload flow (upload jpg → thumbnail in personalization-uploads → add to cart → /cart shows personalization block + 'N photos attached' for 2+) to close the one gap I couldn't automate.",
+    "Consider adding a legacy flat-variant fixture/seed product so the iter364 regression for old 1D/2D variant PDPs can be exercised — current live DB has zero products with `variants && !variant_groups`."
+  ],
+  "critical_code_review_comments": [
+    "PersonalizationPanel.processFiles uses Promise.all with a shared `current` array that is mutated inside each async callback — if two uploads complete near-simultaneously, the second can overwrite the first's setFiles call because each closure captures its own snapshot. Consider switching to a setFiles(prev => [...prev, body]) functional update.",
+    "VariationGroupsSection combos table uses div-grid instead of <table><tbody><tr> — semantic but harder to selector-test. Adding `data-testid=editor-combo-row-{idx}` on each row would future-proof Playwright assertions."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "90%"},
+  "test_credentials": "Maker JWT minted via /app/memory/test_credentials.md python snippet (single-use magic token → /api/maker/auth/verify) — localStorage cm_maker_jwt set, /maker/listings/demo-grouped-variations/edit loaded successfully.",
+  "seed_data_creation": "None. Did NOT modify the demo-grouped-variations product (no Red option saved). No /cart/quote test products written to live DB.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend iter364 routes (variant_groups in GET product, /cart/quote combo pricing incl. override, /personalization/files upload+serve+ext-validation, /maker/orders/{id}/uploads.zip auth) all green via curl + pytest. PDP UI is solid (price update, combo summary, OOS dim, gate-toast). Maker editor renders all required testids. Only gap is automated proof of the buyer upload-attached cart line — Playwright cannot fire React onChange on the hidden file input in this environment; treat as automation limitation unless a manual repro shows otherwise."
+}

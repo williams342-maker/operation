@@ -1,6 +1,7 @@
 import React from "react";
 import { Plus, Trash2, Sparkles } from "lucide-react";
 import { Section, Label, FieldError } from "./FormControls";
+import VariationGroupsSection from "./VariationGroupsSection";
 
 /**
  * Pricing + Variations.
@@ -126,64 +127,71 @@ export default function PricingSection({
       <Section
         eyebrow="◆ Options"
         title="Variations"
-        subtitle="Add options buyers can choose — like size, color, or finish. Each variation can have its own price. If you leave the base price at $0, the listing shows a range ($min – $max) on shop cards."
+        subtitle="Add option categories buyers choose from — like Color and Engraving. Each option can adjust the price, and every combination gets its own stock count, SKU, and optional price override."
       >
-        {form.variants.length === 0 ? (
-          <div className="border border-dashed border-line p-8 text-center" data-testid="editor-variants-empty">
-            <p className="font-mono text-xs text-ink-muted mb-1">No variations yet.</p>
-            <p className="font-mono text-[10px] text-ink-muted">e.g. Size: Small, Medium, Large</p>
-          </div>
-        ) : (
-          <div className="space-y-3" data-testid="editor-variants">
-            {/* iter334r — Column headers so the absolute price column reads clearly.  */}
-            <div className="grid grid-cols-12 gap-2 font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted px-1">
-              <div className="col-span-6">Label</div>
-              <div className="col-span-3">Price ($)</div>
-              <div className="col-span-2">Qty</div>
-              <div className="col-span-1" />
-            </div>
-            {form.variants.map((v, i) => (
-              <div key={i} className="grid grid-cols-12 gap-2 items-center" data-testid={`editor-variant-${i}`}>
-                <input
-                  className="col-span-6 bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm"
-                  placeholder="Label (e.g. Large · Walnut)"
-                  value={v.label}
-                  onChange={(e) => updateVariant(i, { label: e.target.value })}
-                />
-                <input
-                  type="number" min="0" step="0.01"
-                  className="col-span-3 bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm"
-                  placeholder={form.price ? `${Number(form.price).toFixed(2)}` : "0.00"}
-                  value={v.price ?? ""}
-                  onChange={(e) => updateVariant(i, { price: e.target.value })}
-                  data-testid={`editor-variant-price-${i}`}
-                />
-                <input
-                  type="number" min="0" step="1"
-                  className="col-span-2 bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm"
-                  placeholder="Qty"
-                  value={v.in_stock}
-                  onChange={(e) => updateVariant(i, { in_stock: e.target.value })}
-                />
-                <button
-                  onClick={() => removeVariant(i)}
-                  className="col-span-1 p-2 text-ink-muted hover:text-red-400 justify-self-center"
-                  aria-label="Remove variant"
-                  data-testid={`editor-variant-remove-${i}`}
-                >
-                  <Trash2 size={14} />
-                </button>
+        {/* iter364 — Option groups are the primary path. */}
+        <VariationGroupsSection form={form} set={set} />
+
+        {/* Legacy flat list — shown only for existing listings that still
+            use it (no groups defined). Adding a group above replaces it. */}
+        {(form.variant_groups || []).length === 0 && form.variants.length > 0 && (
+          <div className="mt-8 border-t border-line pt-6">
+            <Label>Flat variations (legacy)</Label>
+            <p className="font-mono text-[10px] text-ink-muted mb-3 leading-relaxed">
+              This listing uses the old single-list format. You can keep editing it here,
+              or add option groups above to switch to combinations.
+            </p>
+            <div className="space-y-3" data-testid="editor-variants">
+              {/* iter334r — Column headers so the absolute price column reads clearly.  */}
+              <div className="grid grid-cols-12 gap-2 font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted px-1">
+                <div className="col-span-6">Label</div>
+                <div className="col-span-3">Price ($)</div>
+                <div className="col-span-2">Qty</div>
+                <div className="col-span-1" />
               </div>
-            ))}
+              {form.variants.map((v, i) => (
+                <div key={i} className="grid grid-cols-12 gap-2 items-center" data-testid={`editor-variant-${i}`}>
+                  <input
+                    className="col-span-6 bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm"
+                    placeholder="Label (e.g. Large · Walnut)"
+                    value={v.label}
+                    onChange={(e) => updateVariant(i, { label: e.target.value })}
+                  />
+                  <input
+                    type="number" min="0" step="0.01"
+                    className="col-span-3 bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm"
+                    placeholder={form.price ? `${Number(form.price).toFixed(2)}` : "0.00"}
+                    value={v.price ?? ""}
+                    onChange={(e) => updateVariant(i, { price: e.target.value })}
+                    data-testid={`editor-variant-price-${i}`}
+                  />
+                  <input
+                    type="number" min="0" step="1"
+                    className="col-span-2 bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm"
+                    placeholder="Qty"
+                    value={v.in_stock}
+                    onChange={(e) => updateVariant(i, { in_stock: e.target.value })}
+                  />
+                  <button
+                    onClick={() => removeVariant(i)}
+                    className="col-span-1 p-2 text-ink-muted hover:text-red-400 justify-self-center"
+                    aria-label="Remove variant"
+                    data-testid={`editor-variant-remove-${i}`}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button
+              type="button" onClick={addVariant}
+              className="mt-4 px-4 py-2 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-2"
+              data-testid="editor-add-variant"
+            >
+              <Plus size={12} /> Add variation
+            </button>
           </div>
         )}
-        <button
-          type="button" onClick={addVariant}
-          className="mt-4 px-4 py-2 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-2"
-          data-testid="editor-add-variant"
-        >
-          <Plus size={12} /> Add variation
-        </button>
       </Section>
     </>
   );

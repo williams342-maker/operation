@@ -72,6 +72,7 @@ export default function CartPage() {
         variant_id: i.variant_id || undefined,
         personalization_text: i.personalization_text || undefined,
         personalization_image_url: i.personalization_image_url || undefined,
+        personalization_upload_ids: i.personalization_upload_ids?.length ? i.personalization_upload_ids : undefined,
         color_choice: i.color_choice || undefined,
       })),
       appliedCode || null,
@@ -137,6 +138,7 @@ export default function CartPage() {
           variant_id: i.variant_id || undefined,
           personalization_text: i.personalization_text || undefined,
           personalization_image_url: i.personalization_image_url || undefined,
+          personalization_upload_ids: i.personalization_upload_ids?.length ? i.personalization_upload_ids : undefined,
           color_choice: i.color_choice || undefined,
         })),
         origin_url: window.location.origin,
@@ -264,6 +266,16 @@ export default function CartPage() {
                               className="w-16 h-16 object-cover border border-line"
                             />
                           </a>
+                        )}
+                        {/* iter364 — total photo count when >1 (the thumb above
+                            only shows the first upload). */}
+                        {(i.personalization_upload_ids?.length || 0) > 1 && (
+                          <div
+                            className="font-mono text-[10px] text-ink-muted mt-1"
+                            data-testid={`cart-uploads-count-${i.slug}`}
+                          >
+                            ◆ {i.personalization_upload_ids.length} photos attached
+                          </div>
                         )}
                       </div>
                     )}

@@ -1,11 +1,35 @@
 import React, { useState } from "react";
 import { toast } from "sonner";
-import { Receipt, ChevronDown, Truck, MapPin, Phone, Mail, User, Package, ExternalLink, Sparkles, RefreshCw, CheckCircle2 } from "lucide-react";
+import { Receipt, ChevronDown, Truck, MapPin, Phone, Mail, User, Package, ExternalLink, Sparkles, RefreshCw, CheckCircle2, Download, Camera } from "lucide-react";
 import EmptyState from "../../components/EmptyState";
 import { formatDate } from "./_shared";
 import { fetchMakerOrderDetail, markOrderShipped, refreshShippingTracking, resendTrackingEmail } from "../../lib/api";
 import ShippingLabelModal from "./ShippingLabelModal";
 import { useConfirm } from "./useConfirm";
+
+const API = process.env.REACT_APP_BACKEND_URL;
+
+// iter364 — bulk-download every customer upload on an order as one zip.
+// Authed fetch → blob → synthetic <a download> click.
+async function downloadAllUploads(sessionId) {
+  try {
+    const token = localStorage.getItem("cm_maker_jwt");
+    const r = await fetch(`${API}/api/maker/orders/${sessionId}/uploads.zip`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const blob = await r.blob();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `customer-uploads-${sessionId.replace("cs_", "").slice(0, 12)}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(a.href);
+  } catch {
+    toast.error("Couldn't download the uploads. Please try again.");
+  }
+}
 
 // Map backend tier → Tailwind classes. Keep the 4 named tiers in sync
 // with _STATUS_LABEL in backend/routers/shipping.py.
@@ -214,12 +238,13 @@ function OrderRow({ order, onChange }) {
                   maker spots custom orders + chosen color at a glance from
                   the collapsed list. */}
               <div className="mt-1 ml-2 flex flex-wrap items-center gap-1.5">
-                {(it.personalization_text || it.personalization_image_url) && (
+                {(it.personalization_text || it.personalization_image_url || (it.personalization_uploads_count || 0) > 0) && (
                   <span
                     className="inline-flex items-center gap-1.5 px-2 py-0.5 border border-brand/40 text-brand text-[10px] uppercase tracking-[0.18em]"
                     data-testid={`order-personalization-flag-${it.product_slug}`}
                   >
                     ◆ Personalization attached
+                    {(it.personalization_uploads_count || 0) > 0 && ` · ${it.personalization_uploads_count} photo${it.personalization_uploads_count === 1 ? "" : "s"}`}
                   </span>
                 )}
                 {it.color_choice && (
@@ -398,7 +423,7 @@ function OrderRow({ order, onChange }) {
                       {/* iter150 — full personalization detail per line.
                           The maker sees exactly what to build, with the
                           buyer's reference image clickable for full-size. */}
-                      {(it.personalization_text || it.personalization_image_url) && (
+                      {(it.personalization_text || it.personalization_image_url || (it.personalization_uploads || []).length > 0) && (
                         <div
                           className="ml-[68px] border-l-2 border-brand pl-4 py-2"
                           data-testid={`order-personalization-detail-${it.product_slug}`}
@@ -411,7 +436,47 @@ function OrderRow({ order, onChange }) {
                               {it.personalization_text}
                             </div>
                           )}
-                          {it.personalization_image_url && (
+                          {/* iter364 — customer photo uploads: thumbnail grid +
+                              Download all (zip). Supersedes the single legacy
+                              reference image when uploads exist. */}
+                          {(it.personalization_uploads || []).length > 0 ? (
+                            <div data-testid={`order-uploads-${it.product_slug}`}>
+                              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2 inline-flex items-center gap-1.5">
+                                <Camera size={11} /> Customer uploads · {it.personalization_uploads.length}
+                              </div>
+                              <div className="flex flex-wrap gap-2 mb-2">
+                                {it.personalization_uploads.map((u) => (
+                                  <a
+                                    key={u.id}
+                                    href={`${API}/api/personalization/files/${u.id}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="block w-20"
+                                    title={u.filename || "Open full-size"}
+                                    data-testid={`order-upload-${u.id}`}
+                                  >
+                                    <img
+                                      src={`${API}/api/personalization/files/${u.id}`}
+                                      alt={u.filename || "Customer upload"}
+                                      className="w-20 h-20 object-cover border border-line bg-paper"
+                                      loading="lazy"
+                                    />
+                                    <div className="font-mono text-[9px] text-ink-muted mt-0.5 truncate">
+                                      {u.filename || u.id.slice(0, 8)}
+                                    </div>
+                                  </a>
+                                ))}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => downloadAllUploads(order.session_id)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-brand/50 text-brand hover:bg-brand/10 font-mono text-[10px] uppercase tracking-[0.22em] transition"
+                                data-testid={`order-uploads-download-all-${it.product_slug}`}
+                              >
+                                <Download size={11} /> Download all
+                              </button>
+                            </div>
+                          ) : it.personalization_image_url && (
                             <a
                               href={it.personalization_image_url}
                               target="_blank"
