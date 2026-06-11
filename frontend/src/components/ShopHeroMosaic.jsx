@@ -22,7 +22,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 const ROTATE_MS = 3500;
-const TILE_COUNT_LG = 12; // 4 cols × 3 rows
+const TILE_COUNT_LG = 10; // 5 cols × 2 rows
 const TILE_COUNT_MD = 9;  // 3 cols × 3 rows
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -139,7 +139,7 @@ export default function ShopHeroMosaic({
   if (!Array.isArray(products)) {
     return (
       <div
-        className="hidden md:grid grid-cols-3 lg:grid-cols-4 gap-1.5"
+        className="hidden md:grid grid-cols-3 lg:grid-cols-5 gap-1.5"
         data-testid={`${testId}-skeleton`}
         aria-hidden="true"
       >
@@ -157,7 +157,7 @@ export default function ShopHeroMosaic({
 
   return (
     <div
-      className="hidden md:grid grid-cols-3 lg:grid-cols-4 gap-1.5 select-none"
+      className="hidden md:grid grid-cols-3 lg:grid-cols-5 gap-1.5 select-none"
       data-testid={testId}
       onMouseLeave={() => setHoveredIdx(-1)}
       aria-label="Featured listings preview mosaic"

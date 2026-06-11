@@ -248,7 +248,7 @@ export default function ShopPage() {
             mosaic fills the dead space on the right (lg+). Stacks on
             md by sharing the row; hidden on mobile to keep the H1 the
             single focal point. */}
-        <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,560px)] gap-8 lg:gap-12 items-start mb-12">
+        <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,640px)] gap-8 lg:gap-12 items-start mb-4">
           <div>
             <h1
               className="font-heading uppercase text-5xl sm:text-7xl lg:text-8xl leading-[0.92] tracking-tight text-ink mb-6"
@@ -284,7 +284,7 @@ export default function ShopPage() {
             the category filters so natural-language searchers don't
             have to fiddle with chips. Auto-hides results into its own
             block. */}
-        <div className="mb-10 -mx-4 md:-mx-8">
+        <div className="mb-8 -mx-4 md:-mx-8">
           <AiDiscoverySearch testId="shop-ai-discovery" compact />
         </div>
 

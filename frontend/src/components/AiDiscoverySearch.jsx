@@ -75,7 +75,7 @@ export default function AiDiscoverySearch({ testId = "home-ai-discovery", compac
 
   return (
     <section
-      className={`w-full ${compact ? "py-8 md:py-10" : "py-14 md:py-20"} bg-paper ${compact ? "" : "border-b border-amber-900/20"} relative overflow-hidden`}
+      className={`w-full ${compact ? "py-4 md:py-5" : "py-14 md:py-20"} bg-paper ${compact ? "" : "border-b border-amber-900/20"} relative overflow-hidden`}
       data-testid={testId}
     >
       {/* Soft copper/orange ambient glow — signals the "smart" surface
