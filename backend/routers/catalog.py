@@ -1,4 +1,6 @@
 """Public catalog: products, makers, reviews, blog, activity, custom-orders, maker-applications."""
+import math as _math
+import random as _random
 import re as _re
 import time as _time
 from collections import defaultdict
@@ -237,26 +239,130 @@ async def list_products(category: Optional[str] = None, technique: Optional[str]
         if "maker_response_time_hours" not in p:
             p["maker_response_time_hours"] = m.get("response_time_hours")
 
-    def _sort_key(p):
-        promo = p.get("promoted_until")
-        is_promoted = bool(promo and promo > nowiso)
-        return (0 if is_promoted else 1, -(p.get("created_at") or "").__hash__())
-    # 3-tier stable sort: promoted → plus → everyone else, each tier
-    # sub-sorted by created_at desc.
-    promoted = [
-        p for p in products
-        if p.get("promoted_until") and p["promoted_until"] > nowiso
-    ]
-    non_promoted = [
-        p for p in products
-        if not (p.get("promoted_until") and p["promoted_until"] > nowiso)
-    ]
-    plus = [p for p in non_promoted if p.get("maker_is_plus")]
-    rest = [p for p in non_promoted if not p.get("maker_is_plus")]
-    promoted.sort(key=lambda p: p.get("created_at") or "", reverse=True)
-    plus.sort(key=lambda p: p.get("created_at") or "", reverse=True)
-    rest.sort(key=lambda p: p.get("created_at") or "", reverse=True)
-    result = (promoted + plus + rest)[:200]
+    # iter359 — Weighted relevance score (replaces the legacy 3-tier
+    # promoted→plus→rest sort). Each listing gets a single number; we
+    # sort desc once. Signal weights are tuned for "trust the catalog,
+    # but reward what's converting + freshly published":
+    #
+    #   sales_30d (log1p × 1.4)   — proven conversion, the strongest
+    #                               signal we have once orders flow.
+    #   views_7d  (log1p × 0.8)   — current demand from the mosaic +
+    #                               organic PDP traffic via /impression.
+    #   review_avg (× 0.5 √count) — quality, scaled by trust (1 review
+    #                               worth 1× weight; 25 worth 5×).
+    #   recency  (exp half-life)  — newest listings get the floor, then
+    #                               decay over a 30-day half-life.
+    #   new-listing bump          — first 14 days get +0.5 so a freshly
+    #                               published shop isn't immediately
+    #                               buried by older bestsellers.
+    #   promoted_active     +1.5  — paid surface, soft boost (not a
+    #                               hard tier — a 1-star promoted item
+    #                               will still lose to a 5-star native).
+    #   maker_is_plus       +0.3  — Plus baseline visibility.
+    #   featured            +0.4  — editorial picks.
+    #   out_of_stock        -0.4  — don't surface what we can't ship.
+    #   slow_lead (>21d)    -0.3  — buyers expect prompt shipping.
+    #   jitter (× 0.05)           — break ties without permanent rank
+    #                               so two visitors don't see the same
+    #                               grid forever.
+    slugs = [p.get("slug") for p in products if p.get("slug")]
+    iso_30d = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+    iso_7d  = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+
+    sales_30d_map: Dict[str, int] = {
+        d["_id"]: int(d.get("count") or 0)
+        async for d in db.events.aggregate([
+            {"$match": {
+                "type": "product_buy",
+                "product_slug": {"$in": slugs},
+                "created_at": {"$gte": iso_30d},
+            }},
+            {"$group": {"_id": "$product_slug", "count": {"$sum": 1}}},
+        ])
+    } if slugs else {}
+
+    views_7d_map: Dict[str, int] = {
+        d["_id"]: int(d.get("count") or 0)
+        async for d in db.events.aggregate([
+            {"$match": {
+                "type": "product_view",
+                "product_slug": {"$in": slugs},
+                "created_at": {"$gte": iso_7d},
+            }},
+            {"$group": {"_id": "$product_slug", "count": {"$sum": 1}}},
+        ])
+    } if slugs else {}
+
+    # `published_publicly` defaults true on native reviews; imported
+    # rows opt-in. We exclude opt-out rows so a hidden 1-star can't
+    # tank ranking.
+    review_map: Dict[str, Dict[str, float]] = {
+        d["_id"]: {"avg": float(d.get("avg") or 0.0),
+                   "count": int(d.get("count") or 0)}
+        async for d in db.reviews.aggregate([
+            {"$match": {
+                "product_slug": {"$in": slugs},
+                "published_publicly": {"$ne": False},
+            }},
+            {"$group": {
+                "_id": "$product_slug",
+                "avg": {"$avg": "$rating"},
+                "count": {"$sum": 1},
+            }},
+        ])
+    } if slugs else {}
+
+    now_dt = datetime.now(timezone.utc)
+    new_listing_floor = (now_dt - timedelta(days=14)).isoformat()
+
+    def _recency_decay(created_at: Optional[str]) -> float:
+        if not created_at:
+            return 0.0
+        try:
+            ts = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+        except Exception:
+            return 0.0
+        days = max(0.0, (now_dt - ts).total_seconds() / 86400.0)
+        # Half-life of 30 days → exp(-ln2 · days / 30).
+        return _math.exp(-0.693147 * days / 30.0)
+
+    def _score(p: dict) -> float:
+        slug = p.get("slug") or ""
+        promo_until = p.get("promoted_until")
+        promoted = bool(promo_until and promo_until > nowiso)
+        rev = review_map.get(slug) or {}
+        review_avg = float(rev.get("avg") or 0.0)
+        review_count = int(rev.get("count") or 0)
+
+        score = 0.0
+        score += _math.log1p(sales_30d_map.get(slug, 0)) * 1.4
+        score += _math.log1p(views_7d_map.get(slug, 0)) * 0.8
+        if review_count:
+            score += (review_avg - 3.5) * _math.sqrt(review_count) * 0.5
+        score += _recency_decay(p.get("created_at")) * 0.6
+        if (p.get("created_at") or "") >= new_listing_floor:
+            score += 0.5
+        if promoted:
+            score += 1.5
+        if p.get("maker_is_plus"):
+            score += 0.3
+        if p.get("featured"):
+            score += 0.4
+        if int(p.get("in_stock") or 0) <= 0:
+            score -= 0.4
+        if int(p.get("lead_time_days") or 0) > 21:
+            score -= 0.3
+        score += (_random.random() - 0.5) * 0.05   # jitter ±0.025
+        return score
+
+    # Annotate so admin/debugging can spot why something ranks high.
+    # The `Product` model has `extra="ignore"` so these survive the
+    # response_model serialization for inspection in tests/curl without
+    # leaking into the public schema.
+    for p in products:
+        p["_relevance_score"] = _score(p)
+    products.sort(key=lambda p: p["_relevance_score"], reverse=True)
+    result = products[:200]
     # iter334n — Cache the final sorted+denormalized list. Cap eviction
     # is FIFO (not strict LRU) — good-enough for ~4-10 hot keys.
     # Backfill any product missing `id`/`created_at` BEFORE caching so

@@ -23,6 +23,17 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - Admin: `/admin/login|verify|dashboard`
 
 ## What's Implemented (cumulative)
+- ✅ **Weighted relevance score for /api/products (iter359, 2026-06-10):** Replaced the legacy 3-tier (promoted → plus → rest) catalog sort with a single weighted score. Signals (all computed at query time, 60s TTL cache absorbs the cost):
+  - `log1p(sales_30d) × 1.4` — strongest signal, fed by `events.product_buy`
+  - `log1p(views_7d) × 0.8` — current demand, fed by `events.product_view` (which the iter358 mosaic beacon also writes to)
+  - `(review_avg − 3.5) × √review_count × 0.5` — quality scaled by trust; only counts `published_publicly` reviews
+  - 30-day half-life recency decay × 0.6
+  - +0.5 new-listing bump for first 14 days (so fresh shops aren't buried)
+  - +1.5 promoted, +0.3 Plus, +0.4 featured (all soft boosts, not hard tiers — a 1★ promoted listing can lose to a 5★ native)
+  - −0.4 out-of-stock, −0.3 lead-time >21d
+  - ±0.025 jitter so two visitors don't see identical grids
+  Score is annotated onto each product as `_relevance_score` for debugging (stripped from public response by `Product` model). 6 pytest regressions in `tests/test_iter359_relevance_score.py` cover: sales beats freshness, promoted beats unpromoted, quality reviews outrank Plus boost, OOS demoted, featured lifts, **promoted 1★ loses to native 5★** (the central anti-pay-to-win invariant). 32 backend tests across iter335b/355/356/358/359 still green.
+
 - ✅ **Mosaic personalization signal + weighting + Makers reuse (iter358, 2026-06-10):**
   - **a) View-log ping** — New `POST /api/products/{slug}/impression` writes `{type: "product_view", source: "mosaic"}` into `db.events`, the same stream `listing_budgets.py` already reads for MTD impressions. Deduplicates by `sha1(visitor|slug|minute)` to absorb rotation chatter. Bot UAs + unknown slugs return 204 with no write. Frontend uses `navigator.sendBeacon` so navigation isn't blocked; `onAuxClick` covers middle-click new-tab.
   - **b) Weighted rotation** — `ShopHeroMosaic` now uses Efraimidis-Spirakis weighted reservoir sampling: promoted listings = 4×, Crafters Plus = 2×, free = 1×. Applied to BOTH the initial tile selection and every rotation tick, so paid shops dominate the discovery surface without ever fully crowding out free listings.
