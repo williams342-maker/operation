@@ -141,6 +141,9 @@ class Product(BaseModel):
     merchant_title: Optional[str] = None        # Google-specific title override
     merchant_auto_optimize: bool = True         # swap restricted terms in feed
     merchant_exclude: bool = False              # drop from Google feed entirely
+    # iter369 — feed-only color set by the AI auto-fix (never shown on the
+    # listing). derive_color() prefers it over keyword guessing.
+    merchant_color: Optional[str] = None
     # ---- Shipping ----
     free_shipping: bool = False
     shipping_domestic_usd: Optional[float] = None

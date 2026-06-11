@@ -129,7 +129,8 @@ async def _fetch_eligible_products() -> list[dict]:
         q,
         {"_id": 0, "slug": 1, "title": 1, "description": 1, "price": 1,
          "images": 1, "image_url": 1, "in_stock": 1, "category": 1,
-         "technique": 1, "maker_slug": 1, "gpc_path": 1, "materials": 1},
+         "technique": 1, "maker_slug": 1, "gpc_path": 1, "materials": 1,
+         "colors": 1, "merchant_color": 1},
     ).limit(5000).to_list(5000)
 
 

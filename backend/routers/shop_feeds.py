@@ -87,10 +87,9 @@ async def _fetch_products() -> list[dict]:
          "images": 1, "image_url": 1, "in_stock": 1, "category": 1,
          "technique": 1, "maker_slug": 1, "materials": 1,
          "dimensions": 1, "published_at": 1, "gpc_path": 1,
-         # iter365 — Google Merchant feed controls (google feed only;
-         # the Meta CSV ignores them).
+         # iter365/369 — Google Merchant feed controls + attribute sources.
          "merchant_title": 1, "merchant_auto_optimize": 1,
-         "merchant_exclude": 1},
+         "merchant_exclude": 1, "merchant_color": 1, "colors": 1},
     ).sort("created_at", -1).limit(5000).to_list(5000)
 
 

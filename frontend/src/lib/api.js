@@ -281,6 +281,8 @@ export const previewMerchantFeed = (payload) =>
   http.post("/maker/merchant/preview", payload, { headers: authHeaders() }).then((r) => r.data);
 export const fetchMakerFeedQuality = () =>
   http.get("/maker/merchant/feed-quality", { headers: authHeaders() }).then((r) => r.data);
+export const autofixMakerFeedQuality = () =>
+  http.post("/maker/merchant/feed-quality/autofix", {}, { headers: authHeaders(), timeout: 120000 }).then((r) => r.data);
 export const createMakerProduct = (payload) =>
   http.post("/maker/products", payload, { headers: authHeaders() }).then((r) => r.data);
 export const deleteMakerProduct = (slug) =>

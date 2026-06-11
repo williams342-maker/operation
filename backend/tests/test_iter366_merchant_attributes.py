@@ -38,6 +38,12 @@ def test_derive_color_and_material():
     assert derive_color({"title": "Sign with Black Powder Coat finish"}) == "Black"
     assert derive_color({"title": "Ceramic Vase"}) is None
 
+    # iter369 — explicit sources win over keyword scanning:
+    # merchant_color (AI auto-fix) first, then the maker's palette.
+    assert derive_color({"title": "Walnut Box", "merchant_color": "Clear"}) == "Clear"
+    assert derive_color({"title": "Mystery Item", "colors": ["natural", "Black"]}) == "Natural"
+    assert derive_color({"title": "Mystery Item", "colors": ["Custom color"]}) is None
+
     assert derive_material({"title": "Walnut Trinket Box"}) == "Wood"
     assert derive_material({"title": "Steel Address Plaque"}) == "Steel"
     assert derive_material({"title": "Anything", "materials": ["Baltic Birch", "Brass"]}) == "Baltic Birch"

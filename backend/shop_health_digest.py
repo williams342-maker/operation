@@ -53,7 +53,7 @@ async def build_summaries() -> list[dict]:
         {"status": "published", "deleted_at": {"$in": [None, ""]}},
         {"_id": 0, "id": 1, "slug": 1, "title": 1, "description": 1,
          "category": 1, "technique": 1, "materials": 1, "gpc_path": 1,
-         "maker_slug": 1, "listing_type": 1},
+         "maker_slug": 1, "listing_type": 1, "colors": 1, "merchant_color": 1},
     ).limit(5000).to_list(5000)
 
     # ---- Section 3: feed quality, grouped per maker ----

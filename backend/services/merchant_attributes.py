@@ -76,6 +76,18 @@ def _haystack(p: dict) -> str:
 
 
 def derive_color(p: dict) -> str | None:
+    # iter369 — explicit sources first: the AI auto-fix's feed-only
+    # `merchant_color`, then the maker's own colors palette from the
+    # listing editor ("Custom color" is a buyer-input placeholder, skip).
+    mc = (p.get("merchant_color") or "").strip()
+    if mc:
+        return mc[:40].title()
+    palette = p.get("colors")
+    if isinstance(palette, (list, tuple)):
+        for c in palette:
+            c = str(c).strip()
+            if c and c.lower() != "custom color":
+                return c[:40].title()
     hay = _haystack(p)
     for pat, color in _COLOR_RULES:
         if pat.search(hay):

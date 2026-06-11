@@ -104,7 +104,8 @@ async def maker_feed_quality(slug: str = Depends(current_maker_slug)) -> dict:
     prods = await db.products.find(
         {"maker_slug": slug, "status": "published", "deleted_at": {"$in": [None, ""]}},
         {"_id": 0, "slug": 1, "title": 1, "description": 1, "category": 1,
-         "technique": 1, "materials": 1, "gpc_path": 1},
+         "technique": 1, "materials": 1, "gpc_path": 1, "colors": 1,
+         "merchant_color": 1},
     ).limit(500).to_list(500)
 
     examples = []
@@ -121,6 +122,98 @@ async def maker_feed_quality(slug: str = Depends(current_maker_slug)) -> dict:
                 "warnings": res["warnings"],
             })
     return {"rows_total": len(prods), "rows_with_warnings": flagged, "examples": examples}
+
+
+@router.post("/maker/merchant/feed-quality/autofix")
+async def autofix_feed_quality(slug: str = Depends(current_maker_slug)) -> dict:
+    """iter369 — AI auto-fix for flagged feed rows.
+
+    For each of the maker's listings syncing with fallback attributes,
+    Claude infers `materials` (set only when the listing has none — it IS
+    listing data) and a feed-only `merchant_color` (never shown to
+    buyers). Warnings are recomputed afterwards so the response reflects
+    the real post-fix state. Capped at 10 listings per call.
+    """
+    import json as _json
+    import os as _os
+    import re as _re
+
+    from routers.pinterest_feed import _resolve_gpc
+    from services.merchant_attributes import merchant_attributes
+
+    llm_key = _os.environ.get("EMERGENT_LLM_KEY")
+    if not llm_key:
+        raise HTTPException(503, "AI is not configured on this deployment.")
+
+    prods = await db.products.find(
+        {"maker_slug": slug, "status": "published", "deleted_at": {"$in": [None, ""]}},
+        {"_id": 0, "slug": 1, "title": 1, "description": 1, "category": 1,
+         "technique": 1, "materials": 1, "gpc_path": 1, "colors": 1,
+         "merchant_color": 1},
+    ).limit(500).to_list(500)
+    flagged = [p for p in prods if merchant_attributes(p, _resolve_gpc(p))["warnings"]][:10]
+    if not flagged:
+        return {"fixed": 0, "remaining": 0, "results": []}
+
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+
+    results = []
+    fixed = 0
+    for p in flagged:
+        prompt = (
+            f"Listing title: {p.get('title', '')}\n"
+            f"Category: {p.get('category', '')}\n"
+            f"Technique: {p.get('technique', '')}\n"
+            f"Description: {(p.get('description') or '')[:800]}\n\n"
+            "Infer the physical attributes of this handmade product. Respond with ONLY a "
+            "JSON object, no prose, no code fences:\n"
+            '{"materials": ["1-3 short material names, e.g. Walnut, Acrylic, Steel"], '
+            '"primary_color": "one common color word (Black, Brown, Clear, Multi-color...) or null if truly unknowable"}'
+        )
+        try:
+            chat = LlmChat(
+                api_key=llm_key,
+                session_id=f"feed-autofix-{slug}-{p['slug']}",
+                system_message=(
+                    "You identify the materials and dominant color of handmade products "
+                    "from their listing text for a Google Shopping feed. Be conservative — "
+                    "only state what the text supports."
+                ),
+            ).with_model("anthropic", "claude-sonnet-4-5-20250929")
+            reply = await chat.send_message(UserMessage(text=prompt))
+            m = _re.search(r"\{.*\}", str(reply), _re.S)
+            data = _json.loads(m.group(0)) if m else {}
+        except Exception as e:
+            results.append({"slug": p["slug"], "ok": False, "error": str(e)[:120]})
+            continue
+
+        updates = {}
+        materials = [str(x).strip()[:60] for x in (data.get("materials") or []) if str(x).strip()][:3]
+        if materials and not (p.get("materials") or []):
+            updates["materials"] = materials
+        color = (data.get("primary_color") or "")
+        color = str(color).strip()[:40] if color else ""
+        if color and color.lower() not in ("null", "none", "unknown"):
+            updates["merchant_color"] = color.title()
+        if updates:
+            await db.products.update_one({"slug": p["slug"]}, {"$set": updates})
+            p.update(updates)
+        still = merchant_attributes(p, _resolve_gpc(p))["warnings"]
+        if not still:
+            fixed += 1
+        results.append({
+            "slug": p["slug"], "ok": True,
+            "materials_added": updates.get("materials"),
+            "merchant_color": updates.get("merchant_color"),
+            "resolved": not still,
+            "remaining_warnings": still,
+        })
+
+    remaining = sum(
+        1 for p in prods
+        if merchant_attributes(p, _resolve_gpc(p))["warnings"]
+    )
+    return {"fixed": fixed, "remaining": remaining, "results": results}
 
 
 @router.post("/maker/merchant/preview")
