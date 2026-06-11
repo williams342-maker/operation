@@ -481,6 +481,7 @@ async def list_trending_products(hours: int = 24, limit: int = 6,
             continue
         p["maker_is_veteran"] = p.get("maker_slug") in vet_slugs
         p["maker_is_plus"] = p.get("maker_slug") in plus_slugs
+        p["trend_views"] = t["count"]  # iter362 — view-count badge
         ordered.append(p)
         if len(ordered) >= limit:
             break

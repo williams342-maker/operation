@@ -18,6 +18,11 @@ import { fetchTrendingProducts } from "../lib/api";
 
 const HIDE_THRESHOLD = 3;
 
+function formatViews(n) {
+  if (n >= 1000) return `${(n / 1000).toFixed(1).replace(/\.0$/, "")}k`;
+  return String(n);
+}
+
 export default function TrendingMosaicStrip({ testId = "home-trending-mosaic" }) {
   const [items, setItems] = useState(null);
 
@@ -70,7 +75,7 @@ export default function TrendingMosaicStrip({ testId = "home-trending-mosaic" })
           {items.map((p, i) => (
             <Link
               key={p.slug}
-              to={`/p/${p.slug}`}
+              to={`/shop/${p.slug}?ref=trending`}
               className="group relative aspect-square overflow-hidden bg-surface border border-line hover:border-brand transition-colors duration-300"
               data-testid={`trending-tile-${i}`}
               data-slug={p.slug}
@@ -85,6 +90,17 @@ export default function TrendingMosaicStrip({ testId = "home-trending-mosaic" })
               <div className="absolute top-2 left-2 px-1.5 py-0.5 bg-paper/90 border border-line font-mono text-[10px] tracking-[0.18em] text-ink">
                 #{i + 1}
               </div>
+              {/* iter362 — 24h view-count badge. Subtle social proof:
+                  "people are actively looking at this right now". */}
+              {p.trend_views > 0 && (
+                <div
+                  className="absolute top-2 left-12 px-1.5 py-0.5 bg-paper/90 border border-line font-mono text-[10px] tracking-[0.14em] text-ink-muted inline-flex items-center gap-1"
+                  data-testid={`trending-tile-${i}-views`}
+                >
+                  <Eye size={11} className="text-brand" />
+                  {formatViews(p.trend_views)} · 24h
+                </div>
+              )}
               {/* Bottom gradient + title — always visible, not hover-gated,
                   because the section's whole job is "what is this?". */}
               <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent p-2.5">
@@ -105,8 +121,3 @@ export default function TrendingMosaicStrip({ testId = "home-trending-mosaic" })
     </section>
   );
 }
-
-// Tiny supplementary export — currently unused but lets us swap the
-// strip into the Shop page later as a "trending" hat without
-// re-implementing the fetch. Exported nameless to flag intent.
-export { Eye as _TrendingIcon };

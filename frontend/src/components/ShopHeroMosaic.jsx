@@ -10,7 +10,7 @@
  *
  * Reusable across the Shop hero and the Makers hero — pass
  * `linkBuilder` to control where each tile points. By default tiles
- * link to the PDP at `/p/{slug}`; the Makers page passes a builder
+ * link to the PDP at `/shop/{slug}`; the Makers page passes a builder
  * that points to `/makers/{maker_slug}` instead.
  *
  * iter358 — Plus subscribers + actively-promoted listings get a
@@ -79,7 +79,7 @@ function fireImpression(slug) {
 export default function ShopHeroMosaic({
   products,
   testId = "shop-hero-mosaic",
-  linkBuilder,            // (product) => string  — defaults to /p/{slug}
+  linkBuilder,            // (product) => string  — defaults to /shop/{slug}
   impressionSource = "shop_mosaic",
 }) {
   const eligible = useMemo(() => pickEligible(products), [products]);
@@ -204,7 +204,7 @@ function MosaicTile({ product, hidden, hovered, onHover, linkBuilder, impression
   const current = currentProduct;
   const previous = previousProduct;
   if (!current) return null;
-  const href = linkBuilder ? linkBuilder(current) : `/p/${current.slug}`;
+  const href = linkBuilder ? linkBuilder(current) : `/shop/${current.slug}`;
   return (
     <Link
       to={href}

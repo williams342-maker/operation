@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, useSearchParams, Link } from "react-router-dom";
 import { toast } from "sonner";
 import { fetchProduct, fetchMaker, fetchBackorderPolicy, http } from "../lib/api";
 import { useCart } from "../lib/cart";
@@ -28,6 +28,12 @@ const SITE_URL = "https://craftersmarket.org";
 
 export default function ProductDetail() {
   const { slug } = useParams();
+  const [searchParams] = useSearchParams();
+  // iter362 — tiles in the homepage "Trending" strip link here with
+  // ?ref=trending. Carry that context into the Shop links so back-nav
+  // keeps the best-selling order the buyer was browsing.
+  const fromTrending = searchParams.get("ref") === "trending";
+  const shopHref = fromTrending ? "/shop?sort=best_selling" : "/shop";
   const [p, setP] = useState(null);
   const [maker, setMaker] = useState(null);
   const [active, setActive] = useState(0);
@@ -253,7 +259,7 @@ export default function ProductDetail() {
         <Breadcrumbs
           items={[
             { name: "Home", to: "/" },
-            { name: "Shop", to: "/shop" },
+            { name: "Shop", to: shopHref },
             ...(p.category
               ? [{ name: p.category, to: `/shop?category=${encodeURIComponent(p.category)}` }]
               : []),
@@ -261,7 +267,7 @@ export default function ProductDetail() {
           ]}
           testId="product-breadcrumbs"
         />
-        <Link to="/shop" className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand mb-8">
+        <Link to={shopHref} className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand mb-8">
           <ArrowLeft size={14} /> Back to shop
         </Link>
         <div className="grid md:grid-cols-12 gap-6">

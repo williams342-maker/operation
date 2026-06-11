@@ -135,6 +135,10 @@ class Product(BaseModel):
     # trialing). Drives the Plus badge on ProductCard and powers the
     # 3-tier catalog ranking boost. Never stored on the product doc.
     maker_is_plus: bool = False
+    # iter362 — Computed on read by /products/trending only: count of
+    # `product_view` events inside the trending window. Drives the
+    # view-count badge on the homepage trending tiles. Never stored.
+    trend_views: Optional[int] = None
     # iter318c — Denormalized trust facts pulled from the maker on read
     # (never stored on the product doc). Surface them on ProductCard so
     # buyers see who built the piece + where + how fast they ship,

@@ -86,7 +86,7 @@ export default function MakersPage() {
             products={products}
             testId="makers-hero-mosaic"
             impressionSource="makers_mosaic"
-            linkBuilder={(p) => p.maker_slug ? `/makers/${p.maker_slug}` : `/p/${p.slug}`}
+            linkBuilder={(p) => p.maker_slug ? `/makers/${p.maker_slug}` : `/shop/${p.slug}`}
           />
         </div>
 
