@@ -11,6 +11,7 @@ import SupportVeteransStrip from "../components/SupportVeteransStrip";
 import AiDiscoverySearch from "../components/AiDiscoverySearch";
 import Breadcrumbs from "../components/Breadcrumbs";
 import SitePromo from "../components/SitePromo";
+import ShopHeroMosaic from "../components/ShopHeroMosaic";
 
 // Buyer-facing filter strip. "All" pinned to the front; the rest mirrors
 // the CATEGORIES list makers see in the editor so anything they publish
@@ -222,16 +223,25 @@ export default function ShopPage() {
             Shop · The Marketplace
           </span>
         </div>
-        <h1
-          className="font-heading uppercase text-5xl sm:text-7xl lg:text-8xl leading-[0.92] tracking-tight text-ink mb-6"
-          data-testid="shop-h1"
-        >
-          The <span className="text-brand">Marketplace</span>
-          <span className="text-ink">.</span>
-        </h1>
-        <p className="font-body text-base sm:text-lg leading-relaxed text-ink-muted max-w-2xl mb-12">
-          Every listing is touched by a human — measured, cut, hammered, stitched, fired, finished. Browse what real American makers are putting out into the world this week.
-        </p>
+        {/* iter357 — 2-col hero: copy on the left, rotating product
+            mosaic fills the dead space on the right (lg+). Stacks on
+            md by sharing the row; hidden on mobile to keep the H1 the
+            single focal point. */}
+        <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,560px)] gap-8 lg:gap-12 items-start mb-12">
+          <div>
+            <h1
+              className="font-heading uppercase text-5xl sm:text-7xl lg:text-8xl leading-[0.92] tracking-tight text-ink mb-6"
+              data-testid="shop-h1"
+            >
+              The <span className="text-brand">Marketplace</span>
+              <span className="text-ink">.</span>
+            </h1>
+            <p className="font-body text-base sm:text-lg leading-relaxed text-ink-muted max-w-2xl">
+              Every listing is touched by a human — measured, cut, hammered, stitched, fired, finished. Browse what real American makers are putting out into the world this week.
+            </p>
+          </div>
+          <ShopHeroMosaic products={products} />
+        </div>
 
         {onlyExamples && (
           <div

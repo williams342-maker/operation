@@ -58,11 +58,19 @@ async def _isolate_db():
         "title": "Test Product",
         "description": "A nice handmade test product.",
         "maker_slug": "iter355-maker",
+        "price": 19.99,
         "images": ["https://example.com/thumb.jpg"],
         "status": "published",
         "deleted_at": None,
     })
     yield
+    # iter355 — teardown so the seeded listing doesn't pollute prod
+    # API queries (which validate `price` as required).
+    from core import db as _db
+    await _db.products.delete_many({"slug": "iter355-listing"})
+    await _db.ad_creative_drafts.delete_many({"_id": {"$regex": "^iter355_"}})
+    await _db.ad_workshop_assets.delete_many({"_id": {"$regex": "^iter355_"}})
+    await _db.admin_ad_pushes.delete_many({"draft_id": {"$regex": "^iter355_"}})
 
 
 def _admin_headers() -> dict:

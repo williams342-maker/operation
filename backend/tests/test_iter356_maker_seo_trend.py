@@ -36,9 +36,12 @@ MAKER_SLUG = "iter356-trend-maker"
 @pytest_asyncio.fixture(autouse=True)
 async def _isolate_db():
     from core import db
-    await db.gsc_indexed_snapshots.delete_many({"date": {"$regex": "^iter356_"}})
-    # Seed three days of snapshots covering this maker.
+    # iter356 — Purge ALL snapshots in the test window so the live
+    # daily-cron-seeded rows don't contaminate the count. We restore
+    # nothing on teardown; the cron will re-populate tomorrow.
     today = datetime.now(timezone.utc).date()
+    cutoff = (today - timedelta(days=95)).isoformat()
+    await db.gsc_indexed_snapshots.delete_many({"ts": {"$gte": cutoff}})
     snapshots = []
     for offset, pct in [(2, 80.0), (1, 88.0), (0, 92.0)]:
         d = (today - timedelta(days=offset)).isoformat()
@@ -54,9 +57,10 @@ async def _isolate_db():
                 "some-other-maker": {"indexed": 50, "indexed_pct": 50.0, "total": 100},
             },
         })
-    await db.gsc_indexed_snapshots.delete_many({"_id": {"$in": [s["_id"] for s in snapshots]}})
     await db.gsc_indexed_snapshots.insert_many(snapshots)
     yield
+    # Teardown — drop our seeded rows so the next prod cron run starts clean.
+    await db.gsc_indexed_snapshots.delete_many({"_id": {"$regex": "^iter356_"}})
 
 
 def _maker_token() -> str:
