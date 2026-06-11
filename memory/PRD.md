@@ -23,6 +23,11 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - Admin: `/admin/login|verify|dashboard`
 
 ## What's Implemented (cumulative)
+- ✅ **`?sort=` dropdown + Trending strip (iter360, 2026-06-10):**
+  - **Backend**: `/api/products` now accepts `?sort=best|newest|best_selling|top_rated|price_asc|price_desc`. `best` (default) uses the iter359 weighted score; the others apply deterministic keys. Unknown values silently fall back to default. `top_rated` requires ≥3 reviews so a single 5★ can't outrank a 4.6★ with 12 reviews. Sort mode added to the cache key so each sort gets its own 60s TTL slot. New `GET /api/products/trending?hours=24&limit=6&source=mosaic` aggregates `events.product_view` over a sliding window, returns full Product docs in trending order with denormalized Plus/Vet badges.
+  - **Frontend**: ShopPage gains a `?sort=` URL-bound dropdown with 6 options (Best match / Newest / Best selling / Highest rated / Price low→high / Price high→low). New `TrendingMosaicStrip.jsx` on the homepage (between Featured Builds and Cinematic Moments) — 6 tiles with rank pips, live-pulse indicator, "See all best sellers" CTA linking to `/shop?sort=best_selling`. Self-hides when fewer than 3 listings have trending data so the homepage never shows a half-empty section.
+  - **Testing**: 9 new pytest cases in `tests/test_iter360_sort_and_trending.py` (newest order, best_selling by sales_30d, top_rated ≥3-review threshold, price asc/desc, unknown sort fallback, trending top-by-views, source filter, empty-events safety, hours/limit clamping). All 41 backend tests across iter335b/355/356/358/359/360 still green. Live homepage confirmed showing 6 trending tiles; live `/shop?sort=price_asc` confirmed serving $0→$48 ordering.
+
 - ✅ **Weighted relevance score for /api/products (iter359, 2026-06-10):** Replaced the legacy 3-tier (promoted → plus → rest) catalog sort with a single weighted score. Signals (all computed at query time, 60s TTL cache absorbs the cost):
   - `log1p(sales_30d) × 1.4` — strongest signal, fed by `events.product_buy`
   - `log1p(views_7d) × 0.8` — current demand, fed by `events.product_view` (which the iter358 mosaic beacon also writes to)

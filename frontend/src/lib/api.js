@@ -71,6 +71,10 @@ const purgeMakerSessionIfExpired = () => {
 purgeMakerSessionIfExpired();
 
 export const fetchProducts = (params) => http.get("/products", { params }).then((r) => r.data);
+// iter360 — Trending strip on the homepage. Defaults to mosaic-source
+// product_view events over the last 24 h.
+export const fetchTrendingProducts = (params) =>
+  http.get("/products/trending", { params }).then((r) => r.data);
 export const fetchProduct = (slug) => http.get(`/products/${slug}`).then((r) => r.data);
 export const fetchMakers = () => http.get("/makers").then((r) => r.data);
 export const fetchMaker = (slug) => http.get(`/makers/${slug}`).then((r) => r.data);

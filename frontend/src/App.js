@@ -85,6 +85,7 @@ import BuiltInRealWorkshops from "./components/sections/BuiltInRealWorkshops";
 import TrendingForumStrip from "./components/TrendingForumStrip";
 import TrendingJournalRail from "./components/TrendingJournalRail";
 import FeaturedBuildsRail from "./components/FeaturedBuildsRail";
+import TrendingMosaicStrip from "./components/TrendingMosaicStrip";
 import CinematicMomentsStrip from "./components/CinematicMomentsStrip";
 import MeetTheMakers from "./components/MeetTheMakers";
 import AiDiscoverySearch from "./components/AiDiscoverySearch";
@@ -108,6 +109,8 @@ const Home = () => {
       <Hero />
       <div className="cm-glow-divider" aria-hidden="true" />
       <FeaturedBuildsRail testId="home-featured-builds" />
+      <div className="cm-glow-divider" aria-hidden="true" />
+      <TrendingMosaicStrip testId="home-trending-mosaic" />
       <div className="cm-glow-divider" aria-hidden="true" />
       <CinematicMomentsStrip testId="home-cinematic-moments" />
       <div className="cm-glow-divider" aria-hidden="true" />

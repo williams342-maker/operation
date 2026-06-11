@@ -147,12 +147,28 @@ async def root():
 async def list_products(category: Optional[str] = None, technique: Optional[str] = None,
                         q: Optional[str] = None, featured: Optional[bool] = None,
                         featured_example: Optional[bool] = None,
-                        maker: Optional[str] = None):
+                        maker: Optional[str] = None,
+                        sort: Optional[str] = None):
+    # iter360 — Validate the optional `?sort=` override. Default is
+    # "best" which uses the iter359 weighted relevance score. Other
+    # modes short-circuit the score and apply a deterministic key:
+    #   newest        → created_at DESC
+    #   best_selling  → sales_30d DESC (ties: relevance score)
+    #   top_rated     → review_avg DESC (≥3 reviews; ties: review_count)
+    #   price_asc     → price ASC
+    #   price_desc    → price DESC
+    ALLOWED_SORTS = {
+        "best", "newest", "best_selling", "top_rated",
+        "price_asc", "price_desc",
+    }
+    sort_mode = (sort or "best").lower()
+    if sort_mode not in ALLOWED_SORTS:
+        sort_mode = "best"
     # iter334n — 60s in-process TTL cache for the popular catalog reads
     # (homepage rails, hero pill teasers, /shop landing). Keyed by the
     # full param tuple. Cap at 32 entries; oldest evicted FIFO. Skipped
     # for `maker=` queries so the maker dashboard always sees fresh data.
-    cache_key = (category, technique, q, featured, featured_example, maker)
+    cache_key = (category, technique, q, featured, featured_example, maker, sort_mode)
     if maker is None:
         hit = _LIST_PRODUCTS_CACHE.get(cache_key)
         if hit and _time.monotonic() - hit[0] < _LIST_PRODUCTS_TTL_S:
@@ -361,7 +377,34 @@ async def list_products(category: Optional[str] = None, technique: Optional[str]
     # leaking into the public schema.
     for p in products:
         p["_relevance_score"] = _score(p)
-    products.sort(key=lambda p: p["_relevance_score"], reverse=True)
+
+    # iter360 — Apply the requested sort mode. `best` (default) uses
+    # the weighted score above; everything else is a deterministic
+    # override the buyer explicitly asked for via the UI dropdown.
+    if sort_mode == "newest":
+        products.sort(key=lambda p: (p.get("created_at") or ""), reverse=True)
+    elif sort_mode == "best_selling":
+        products.sort(
+            key=lambda p: (sales_30d_map.get(p.get("slug") or "", 0),
+                           p["_relevance_score"]),
+            reverse=True,
+        )
+    elif sort_mode == "top_rated":
+        # Require ≥3 reviews to participate in the top-rated bucket
+        # so a single 5★ doesn't outrank a 4.8 with 200 reviews.
+        def _tr_key(p):
+            rev = review_map.get(p.get("slug") or "") or {}
+            count = int(rev.get("count") or 0)
+            avg = float(rev.get("avg") or 0.0)
+            qualifies = 1 if count >= 3 else 0
+            return (qualifies, avg, count, p["_relevance_score"])
+        products.sort(key=_tr_key, reverse=True)
+    elif sort_mode == "price_asc":
+        products.sort(key=lambda p: float(p.get("price") or 0))
+    elif sort_mode == "price_desc":
+        products.sort(key=lambda p: float(p.get("price") or 0), reverse=True)
+    else:  # "best"
+        products.sort(key=lambda p: p["_relevance_score"], reverse=True)
     result = products[:200]
     # iter334n — Cache the final sorted+denormalized list. Cap eviction
     # is FIFO (not strict LRU) — good-enough for ~4-10 hot keys.
@@ -379,6 +422,69 @@ async def list_products(category: Optional[str] = None, technique: Optional[str]
             _LIST_PRODUCTS_CACHE.pop(oldest, None)
         _LIST_PRODUCTS_CACHE[cache_key] = (_time.monotonic(), result)
     return result
+
+
+@router.get("/products/trending", response_model=List[Product])
+async def list_trending_products(hours: int = 24, limit: int = 6,
+                                 source: Optional[str] = None):
+    """iter360 — Top products by `events.product_view` count over the
+    last `hours` window. Used by the homepage "Trending in the mosaic"
+    strip; pass `source=mosaic` to scope the signal to the mosaic
+    beacon only (vs. all PDP/organic views).
+
+    Returns full Product docs in trending order. Listings without
+    images are dropped so the strip never renders empty tiles.
+    """
+    hours = max(1, min(168, int(hours)))   # 1h..7d
+    limit = max(1, min(24, int(limit)))
+    since_iso = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
+
+    match: Dict = {"type": "product_view", "created_at": {"$gte": since_iso}}
+    if source:
+        match["source"] = source
+
+    top = [
+        {"slug": d["_id"], "count": int(d.get("count") or 0)}
+        async for d in db.events.aggregate([
+            {"$match": match},
+            {"$group": {"_id": "$product_slug", "count": {"$sum": 1}}},
+            {"$sort": {"count": -1}},
+            {"$limit": limit * 3},   # over-fetch; some slugs won't resolve
+        ])
+    ]
+    if not top:
+        return []
+
+    slugs = [t["slug"] for t in top]
+    prod_docs = await db.products.find(
+        {"slug": {"$in": slugs}, "deleted_at": None,
+         "status": {"$ne": "draft"},
+         "images.0": {"$exists": True}},
+        {"_id": 0},
+    ).to_list(len(slugs))
+    by_slug = {p["slug"]: p for p in prod_docs}
+
+    vet_slugs = {
+        m["slug"] async for m in db.makers.find(
+            {"is_veteran_owned": True}, {"_id": 0, "slug": 1},
+        )
+    }
+    plus_slugs = {
+        m["slug"] async for m in db.makers.find(
+            {"subscription_status": "active"}, {"_id": 0, "slug": 1},
+        )
+    }
+    ordered: List[dict] = []
+    for t in top:
+        p = by_slug.get(t["slug"])
+        if not p:
+            continue
+        p["maker_is_veteran"] = p.get("maker_slug") in vet_slugs
+        p["maker_is_plus"] = p.get("maker_slug") in plus_slugs
+        ordered.append(p)
+        if len(ordered) >= limit:
+            break
+    return ordered
 
 
 @router.get("/products/{slug}", response_model=Product)

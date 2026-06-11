@@ -20,7 +20,7 @@ const CATS = ["All", ...CATEGORIES];
 const TECHS = ["All", "PLASMA", "LASER", "ROUTER", "3D", "CUSTOM"];
 
 export default function ShopPage() {
-  const [params] = useSearchParams();
+  const [params, setSearchParams] = useSearchParams();
   const [products, setProducts] = useState(null);
   const [cat, setCat] = useState(params.get("category") || "All");
   const [tech, setTech] = useState("All");
@@ -49,13 +49,34 @@ export default function ShopPage() {
   // seeded "Featured Example" listings only so visitors who clicked the
   // CTA see exactly what they expected.
   const onlyExamples = params.get("featured") === "examples";
+  // iter360 — Optional `?sort=` override for the catalog ranker. Default
+  // is the iter359 weighted relevance score; the dropdown lets buyers
+  // pick newest / best selling / top rated / price.
+  const sort = (params.get("sort") || "best").toLowerCase();
+  const ALLOWED_SORTS = useMemo(
+    () => new Set(["best", "newest", "best_selling", "top_rated", "price_asc", "price_desc"]),
+    [],
+  );
+  const safeSort = ALLOWED_SORTS.has(sort) ? sort : "best";
 
-  useEffect(() => { fetchProducts().then(setProducts).catch(() => setProducts([])); }, []);
+  // Re-fetch whenever the sort changes — the server applies the order.
+  useEffect(() => {
+    fetchProducts(safeSort === "best" ? undefined : { sort: safeSort })
+      .then(setProducts)
+      .catch(() => setProducts([]));
+  }, [safeSort]);
   useEffect(() => {
     const urlQ = params.get("q"); const urlC = params.get("category");
     if (urlQ !== null) setQ(urlQ);
     if (urlC) setCat(urlC);
   }, [params]);
+
+  const onChangeSort = (next) => {
+    const sp = new URLSearchParams(params);
+    if (next === "best") sp.delete("sort");
+    else sp.set("sort", next);
+    setSearchParams(sp);
+  };
 
   // Rich, category-specific schema. Generic `/shop` gets a marketplace
   // shell; `?category=…` and `?technique=…` filtered views each get
@@ -281,12 +302,32 @@ export default function ShopPage() {
           onReset={() => { setCat("All"); setTech("All"); setQ(""); }}
         />
 
-        <div className="font-mono text-xs uppercase tracking-[0.22em] text-ink-muted mb-6 min-h-[1.25rem]" data-testid="shop-count">
-          {products === null ? (
-            <span className="inline-block h-3 w-32 bg-surface animate-pulse" aria-label="Loading count" />
-          ) : (
-            `${filtered.length} piece${filtered.length === 1 ? "" : "s"}`
-          )}
+        <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
+          <div className="font-mono text-xs uppercase tracking-[0.22em] text-ink-muted min-h-[1.25rem]" data-testid="shop-count">
+            {products === null ? (
+              <span className="inline-block h-3 w-32 bg-surface animate-pulse" aria-label="Loading count" />
+            ) : (
+              `${filtered.length} piece${filtered.length === 1 ? "" : "s"}`
+            )}
+          </div>
+          {/* iter360 — Sort dropdown. Default `best` uses the catalog
+              ranker; the rest are deterministic overrides. */}
+          <label className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
+            <span>Sort</span>
+            <select
+              value={safeSort}
+              onChange={(e) => onChangeSort(e.target.value)}
+              className="bg-paper border border-line text-ink font-mono text-[11px] uppercase tracking-[0.18em] px-2.5 py-1.5 focus:border-brand outline-none"
+              data-testid="shop-sort-select"
+            >
+              <option value="best">Best match</option>
+              <option value="newest">Newest</option>
+              <option value="best_selling">Best selling</option>
+              <option value="top_rated">Highest rated</option>
+              <option value="price_asc">Price: low → high</option>
+              <option value="price_desc">Price: high → low</option>
+            </select>
+          </label>
         </div>
 
         {products === null ? (
