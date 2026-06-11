@@ -1,9 +1,11 @@
 """Public catalog: products, makers, reviews, blog, activity, custom-orders, maker-applications."""
+import re as _re
 import time as _time
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, Request, UploadFile
+from fastapi import Response
 
 from core import db, now_iso, logger
 from email_service import (
@@ -17,6 +19,14 @@ from models import (
 )
 
 router = APIRouter()
+
+# Bot UA filter — kept tight to common crawlers so legit non-listed
+# user-agents (curl debug calls, mobile previews) still get logged.
+BOT_RE = _re.compile(
+    r"bot|crawl|spider|googlebot|bingbot|facebookexternalhit|slurp|"
+    r"yandex|baiduspider|duckduckbot|applebot|semrush|ahrefs|mj12bot",
+    _re.IGNORECASE,
+)
 
 
 # iter334n — Lightweight in-process TTL cache for /api/products list reads.
@@ -283,6 +293,60 @@ async def get_product(slug: str):
         maker and (maker.get("subscription_status") or "free") == "active"
     )
     return doc
+
+
+@router.post("/products/{slug}/impression")
+async def record_product_impression(slug: str, request: Request):
+    """iter358 — Lightweight impression beacon for discovery surfaces.
+
+    The Shop / Makers hero mosaic calls this on tile click via
+    `navigator.sendBeacon` so the rotation directly feeds the same
+    `events.product_view` stream that listing_budgets reads to compute
+    MTD impressions. No auth — public discovery surfaces are open to
+    anyone. We deduplicate by (visitor cookie hash, slug, minute) so
+    a quickly-rotating tile doesn't spam the counter.
+
+    Returns 204 on success or skip — clients don't read the body.
+    """
+    from core import now_iso
+    import hashlib
+    from datetime import datetime as _dt
+    ua = request.headers.get("user-agent", "")
+    if BOT_RE.search(ua):
+        return Response(status_code=204)
+    # Reject unknown slugs cheaply so we don't write garbage rows.
+    exists = await db.products.find_one(
+        {"slug": slug, "deleted_at": None, "status": {"$ne": "draft"}},
+        {"_id": 0, "slug": 1, "maker_slug": 1},
+    )
+    if not exists:
+        return Response(status_code=204)
+    visitor = (
+        request.cookies.get("cm_visitor_id")
+        or request.headers.get("x-visitor-id")
+        or (request.client.host if request.client else "anon")
+    )
+    minute_bucket = _dt.utcnow().strftime("%Y%m%d%H%M")
+    dedupe_key = hashlib.sha1(
+        f"{visitor}|{slug}|{minute_bucket}".encode("utf-8"),
+    ).hexdigest()
+    await db.events.update_one(
+        {"_id": f"impr_{dedupe_key}"},
+        {
+            "$setOnInsert": {
+                "_id": f"impr_{dedupe_key}",
+                "type": "product_view",
+                "product_slug": slug,
+                "maker_slug": exists.get("maker_slug"),
+                "source": "mosaic",
+                "created_at": now_iso(),
+            },
+        },
+        upsert=True,
+    )
+    # `upserted_id` is set on the *first* hit; subsequent identical
+    # beacons within the same minute do nothing.
+    return Response(status_code=204)
 
 
 @router.get("/makers", response_model=List[Maker])

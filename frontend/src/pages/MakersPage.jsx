@@ -1,22 +1,29 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Users } from "lucide-react";
-import { fetchMakers } from "../lib/api";
+import { fetchMakers, fetchProducts } from "../lib/api";
 import { useStructuredData } from "../lib/seo";
 import { CardSkeleton } from "../components/Skeleton";
 import EmptyState from "../components/EmptyState";
 import VeteranBadge from "../components/VeteranBadge";
 import Breadcrumbs from "../components/Breadcrumbs";
 import MakerLeaderboard from "../components/MakerLeaderboard";
+import ShopHeroMosaic from "../components/ShopHeroMosaic";
 
 const SITE_URL = "https://craftersmarket.org";
 
 export default function MakersPage() {
   const [makers, setMakers] = useState(null);
+  const [products, setProducts] = useState(null);
   const [params, setParams] = useSearchParams();
   const veteranOnly = params.get("veteran") === "1";
 
   useEffect(() => { fetchMakers().then(setMakers).catch(() => setMakers([])); }, []);
+  // iter358 — Hero mosaic on /makers reuses the same /api/products
+  // feed but routes each tile to the maker's shop page rather than
+  // the PDP, so clicks send buyers into the maker's catalog instead
+  // of a single listing.
+  useEffect(() => { fetchProducts().then(setProducts).catch(() => setProducts([])); }, []);
 
   const filtered = useMemo(() => {
     if (!makers) return null;
@@ -69,9 +76,19 @@ export default function MakersPage() {
           testId="makers-breadcrumbs"
         />
         <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-4">◆ APPROVED MAKERS</div>
-        <h1 className="font-display text-[64px] md:text-[120px] leading-[0.88] mb-8">
-          The <span className="text-outline-orange">Workshop</span><br />Roster
-        </h1>
+        {/* iter358 — 2-col hero with rotating mosaic on the right
+            (lg+). Tiles route to the maker shop page, not the PDP. */}
+        <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,560px)] gap-8 lg:gap-12 items-start mb-12">
+          <h1 className="font-display text-[64px] md:text-[120px] leading-[0.88]">
+            The <span className="text-outline-orange">Workshop</span><br />Roster
+          </h1>
+          <ShopHeroMosaic
+            products={products}
+            testId="makers-hero-mosaic"
+            impressionSource="makers_mosaic"
+            linkBuilder={(p) => p.maker_slug ? `/makers/${p.maker_slug}` : `/p/${p.slug}`}
+          />
+        </div>
 
         {/* iter335.15 — Maker Leaderboard widget (self-hides when admin toggles OFF or list is empty) */}
         <MakerLeaderboard />
