@@ -8577,3 +8577,12 @@ visible in scheduler boot logs after restart.
 - Test: `/app/backend/tests/test_iter368_dm_attachments.py` (1 e2e test, passes — covers 401 anon, bad ext, photo-only reply, single-use ids, cross-party ownership rejection, byte-exact serve).
 
 **Maintenance:** moved the 2026-06-10 dated entries out of PRD.md into this file (PRD was >1000 lines).
+
+---
+
+## 2026-06-11 — iter369: Footer wordmark restyled to Aged Canvas
+
+User: the giant outlined "CRAFTERS MARKET" at the bottom of the home page didn't feel like the rest of the site (old dark-industrial leftover).
+- `Footer.jsx`: replaced the hollow 18vw `.text-outline` wordmark (wrapped to two harsh lines) with a single-line 10vw `text-brand/25` solid fill — reads like a copper maker's stamp pressed into the Forged Charcoal footer.
+- Added mono caption above: "◆ Est · 2026 — Built in workshops · Shipped to doorsteps".
+- data-testid: `footer-wordmark`. Screenshot verified in preview.

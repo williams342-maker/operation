@@ -175,9 +175,21 @@ export default function Footer() {
           </div>
         </div>
 
-        {/* Massive type */}
-        <div className="border-t border-line py-12 -mx-4 md:-mx-8 xl:-mx-12 px-4 md:px-8 xl:px-12">
-          <div className="font-display text-[18vw] leading-[0.85] text-outline">
+        {/* Massive type — Aged Canvas watermark (iter369). Single line in
+            a low-opacity burnt-copper fill (like a maker's stamp pressed
+            into the charcoal), replacing the old hollow 18vw outline that
+            wrapped to two harsh lines and read as leftover dark-industrial
+            branding. Mono caption above ties it to the site's ◆ label
+            language. */}
+        <div className="border-t border-line py-10 -mx-4 md:-mx-8 xl:-mx-12 px-4 md:px-8 xl:px-12 overflow-hidden">
+          <div className="font-mono text-[10px] uppercase tracking-[0.32em] text-ink-muted mb-4">
+            ◆ Est · 2026 — Built in workshops · Shipped to doorsteps
+          </div>
+          <div
+            className="font-display text-[10vw] leading-[0.9] tracking-tight whitespace-nowrap text-brand/25 select-none"
+            aria-hidden="true"
+            data-testid="footer-wordmark"
+          >
             CRAFTERS MARKET
           </div>
         </div>
