@@ -450,6 +450,47 @@ export default function FeedHealthCard() {
         })}
       </div>
 
+      {/* iter366b — Google Merchant attribute quality: listings whose
+          feed attributes needed a fallback. They still publish, but
+          enriching materials/wood species lifts feed quality. */}
+      {data.merchant_quality && (
+        <div className="border border-line p-4 mt-4" data-testid="feed-quality-block">
+          <div className="flex items-center justify-between">
+            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
+              Google Merchant · Attribute quality
+            </span>
+            <span
+              className={`font-mono text-xs ${data.merchant_quality.rows_with_warnings ? "text-amber-600 dark:text-amber-400" : "text-green-600 dark:text-green-400"}`}
+              data-testid="feed-quality-count"
+            >
+              {data.merchant_quality.rows_with_warnings === 0
+                ? "All rows fully attributed ✓"
+                : `${data.merchant_quality.rows_with_warnings} of ${data.merchant_quality.rows_total} rows used fallbacks`}
+            </span>
+          </div>
+          {(data.merchant_quality.examples || []).length > 0 && (
+            <ul className="mt-3 space-y-1.5" data-testid="feed-quality-examples">
+              {data.merchant_quality.examples.map((ex) => (
+                <li key={ex.slug} className="font-mono text-[11px] text-ink-muted flex flex-wrap gap-x-2">
+                  <button
+                    type="button"
+                    onClick={() => { navigator.clipboard?.writeText(ex.slug); toast.success("Slug copied."); }}
+                    className="text-ink hover:text-brand underline decoration-dotted"
+                    title="Copy slug"
+                  >
+                    {ex.title || ex.slug}
+                  </button>
+                  <span>— {ex.warnings.join("; ")}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="font-mono text-[10px] text-ink-muted mt-2">
+            Fix by adding a materials list (or wood species in the title) on the listing — the feed derives color &amp; material from them.
+          </p>
+        </div>
+      )}
+
       <p className="font-mono text-[10px] text-ink-muted pt-2">
         Snapshot · {data.as_of ? new Date(data.as_of).toLocaleString() : "—"}
       </p>

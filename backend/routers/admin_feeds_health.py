@@ -129,7 +129,7 @@ async def _fetch_eligible_products() -> list[dict]:
         q,
         {"_id": 0, "slug": 1, "title": 1, "description": 1, "price": 1,
          "images": 1, "image_url": 1, "in_stock": 1, "category": 1,
-         "technique": 1, "maker_slug": 1, "gpc_path": 1},
+         "technique": 1, "maker_slug": 1, "gpc_path": 1, "materials": 1},
     ).limit(5000).to_list(5000)
 
 
@@ -323,6 +323,32 @@ async def admin_feeds_health(
     channels.append(await _showcase_health())
     channels.append(await _design_files_health())
 
+    # iter366b — Google Merchant attribute quality: rows whose attributes
+    # needed a fallback (Multi-color color, underivable material). These
+    # still publish fine, but enriching the listing's materials/photos
+    # bumps feed quality. Mirrors the live feed's internal warnings.
+    from routers.pinterest_feed import _resolve_gpc
+    from services.merchant_attributes import merchant_attributes
+    quality_examples: list[dict] = []
+    quality_warn_rows = 0
+    for p in products:
+        res = merchant_attributes(p, _resolve_gpc(p))
+        if not res["warnings"]:
+            continue
+        quality_warn_rows += 1
+        if len(quality_examples) < 8:
+            quality_examples.append({
+                "slug": p.get("slug"),
+                "title": (p.get("title") or "")[:70],
+                "maker_slug": p.get("maker_slug"),
+                "warnings": res["warnings"],
+            })
+    merchant_quality = {
+        "rows_total": len(products),
+        "rows_with_warnings": quality_warn_rows,
+        "examples": quality_examples,
+    }
+
     # Quick rollup numbers for the card header.
     total_products = len(products)
     fully_ready = sum(
@@ -334,6 +360,7 @@ async def admin_feeds_health(
         "products_total": total_products,
         "products_fully_ready": fully_ready,
         "channels": channels,
+        "merchant_quality": merchant_quality,
         "blocker_glossary": {
             "missing_image": "Listing has no images[] or image_url — feed drops it.",
             "missing_price": "Price is 0 or unset — Google / Pinterest / Meta reject.",
