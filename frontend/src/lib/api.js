@@ -279,6 +279,8 @@ export const updateMakerProduct = (slug, payload) =>
   http.patch(`/maker/products/${slug}`, payload, { headers: authHeaders() }).then((r) => r.data);
 export const previewMerchantFeed = (payload) =>
   http.post("/maker/merchant/preview", payload, { headers: authHeaders() }).then((r) => r.data);
+export const fetchMakerFeedQuality = () =>
+  http.get("/maker/merchant/feed-quality", { headers: authHeaders() }).then((r) => r.data);
 export const createMakerProduct = (payload) =>
   http.post("/maker/products", payload, { headers: authHeaders() }).then((r) => r.data);
 export const deleteMakerProduct = (slug) =>

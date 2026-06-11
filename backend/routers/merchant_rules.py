@@ -89,6 +89,40 @@ class MerchantPreviewRequest(BaseModel):
     technique: Optional[str] = Field(default="", max_length=60)
 
 
+@router.get("/maker/merchant/feed-quality")
+async def maker_feed_quality(slug: str = Depends(current_maker_slug)) -> dict:
+    """iter366c — The maker's own Google-feed attribute quality.
+
+    Same computation the admin Feed Health card runs, scoped to this
+    maker's published listings. Powers the Listings-tab nudge banner so
+    sellers fix their own rows (add materials → derived color/material)
+    without admin intervention.
+    """
+    from routers.pinterest_feed import _resolve_gpc
+    from services.merchant_attributes import merchant_attributes
+
+    prods = await db.products.find(
+        {"maker_slug": slug, "status": "published", "deleted_at": {"$in": [None, ""]}},
+        {"_id": 0, "slug": 1, "title": 1, "description": 1, "category": 1,
+         "technique": 1, "materials": 1, "gpc_path": 1},
+    ).limit(500).to_list(500)
+
+    examples = []
+    flagged = 0
+    for p in prods:
+        res = merchant_attributes(p, _resolve_gpc(p))
+        if not res["warnings"]:
+            continue
+        flagged += 1
+        if len(examples) < 10:
+            examples.append({
+                "slug": p.get("slug"),
+                "title": (p.get("title") or "")[:70],
+                "warnings": res["warnings"],
+            })
+    return {"rows_total": len(prods), "rows_with_warnings": flagged, "examples": examples}
+
+
 @router.post("/maker/merchant/preview")
 async def preview_merchant_listing(
     req: MerchantPreviewRequest, _slug: str = Depends(current_maker_slug),

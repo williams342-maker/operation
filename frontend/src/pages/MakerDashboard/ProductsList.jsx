@@ -4,6 +4,7 @@ import { Hammer, Check, Mail, BarChart3 } from "lucide-react";
 import { toast } from "sonner";
 import ProductEditCard from "./ProductEditCard";
 import BatchPriceCheckButton from "./BatchPriceCheckButton";
+import MakerFeedQualityCard from "./MakerFeedQualityCard";
 import EmptyState from "../../components/EmptyState";
 import { useConfirm } from "./useConfirm";
 import {
@@ -175,6 +176,9 @@ export default function ProductsList({ products, onChanged, onRefresh }) {
           </div>
         </div>
       )}
+      {/* iter366c — Google feed quality nudge (renders only when a
+          listing syncs with fallback attributes). */}
+      <MakerFeedQualityCard />
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted">
           ◆ {counts.live} live
