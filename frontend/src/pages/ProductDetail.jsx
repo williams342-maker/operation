@@ -63,6 +63,7 @@ export default function ProductDetail() {
   // that it was a custom request AND what was requested.
   const [customColorText, setCustomColorText] = useState("");
   const [contactOpen, setContactOpen] = useState(false);
+  const [notFound, setNotFound] = useState(false);
   const { add } = useCart();
 
   useEffect(() => {
@@ -78,6 +79,7 @@ export default function ProductDetail() {
       setReviewAgg(null);
       setSelectedColor(null);
       setCustomColorText("");
+      setNotFound(false);
     });
     fetchProduct(slug).then(async (prod) => {
       setP(prod);
@@ -113,6 +115,10 @@ export default function ProductDetail() {
         const r = await http.get(`/reviews/aggregate?product_slug=${slug}`);
         if (r?.data?.count > 0) setReviewAgg(r.data);
       } catch (e) { /* ignore */ }
+    }).catch(() => {
+      // iter363 — unknown/removed slug: render a friendly not-found
+      // state instead of an infinite skeleton + unhandled rejection.
+      setNotFound(true);
     });
   }, [slug]);
 
@@ -177,6 +183,22 @@ export default function ProductDetail() {
     },
   } : { jsonLd: null });
 
+  if (notFound) {
+    return (
+      <div className="pt-40 pb-32 min-h-screen text-center" data-testid="product-not-found">
+        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-4">◆ 404 · Listing</div>
+        <h1 className="font-heading uppercase text-4xl sm:text-5xl text-ink mb-4">This listing isn&apos;t here.</h1>
+        <p className="font-body text-ink-muted mb-8">It may have sold out, expired, or the link is wrong.</p>
+        <Link
+          to="/shop"
+          className="inline-flex items-center gap-2 px-6 py-3 bg-brand hover:bg-brand-hover text-white font-mono text-xs uppercase tracking-[0.22em]"
+          data-testid="product-not-found-back"
+        >
+          <ArrowLeft size={14} /> Browse the marketplace
+        </Link>
+      </div>
+    );
+  }
   if (!p) return <DetailSkeleton />;
 
   const hasVariants = (p.variants || []).length > 0;
