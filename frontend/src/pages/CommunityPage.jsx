@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Heart, Download, Send, Plus, Lock, Flag, Sparkles, Trophy, Pencil, Trash2, X as XIcon, TrendingUp, Eye, Share2, Copy } from "lucide-react";
 import { toast } from "sonner";
@@ -67,8 +67,31 @@ export default function CommunityPage() {
   });
   const [me, setMe] = useState(null);
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const settings = useSiteSettings();
   const liveChatEnabled = !settings || settings.live_chat_enabled !== false;
+
+  // iter368 bug fix — the initializer above only runs on FIRST mount.
+  // Clicking a nav dropdown link (e.g. "Live chat" → /community?tab=chat)
+  // while already on /community updates the URL but never re-ran it, so
+  // the tab silently stayed put. Keep state in sync with the URL.
+  useEffect(() => {
+    const ch = searchParams.get("channel");
+    const t = searchParams.get("tab");
+    if (ch) setTab("chat");
+    else if (["showcase", "files", "forum", "chat"].includes(t)) setTab(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  // Internal tab clicks mirror back into the URL so deep links, refresh,
+  // and repeated nav clicks all agree on the active tab.
+  const switchTab = (id) => {
+    setTab(id);
+    const next = new URLSearchParams(searchParams);
+    next.set("tab", id);
+    if (id !== "chat") next.delete("channel");
+    setSearchParams(next, { replace: true });
+  };
 
   // Reset scroll on tab switch (showcase ↔ threads ↔ files ↔ live).
   useEffect(() => {
@@ -137,7 +160,7 @@ export default function CommunityPage() {
           {TABS.filter((t) => t.id !== "chat" || liveChatEnabled).map((t) => (
             <button
               key={t.id}
-              onClick={() => setTab(t.id)}
+              onClick={() => switchTab(t.id)}
               className={`px-5 py-3 font-mono text-[11px] uppercase tracking-[0.22em] border-b-2 transition whitespace-nowrap ${
                 tab === t.id ? "border-brand text-brand" : "border-transparent text-ink-muted hover:text-ink"
               }`}
