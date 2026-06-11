@@ -51,6 +51,7 @@ import { refreshSiteSettings } from "../../hooks/useSiteSettings";
 import { RowsSkeleton } from "../Skeleton";
 import { ShippoDiagCard, MailgunDiagCard, R2DiagCard } from "./IntegrationDiagCards";
 import FeedHealthCard from "./FeedHealthCard";
+import MerchantRulesCard from "./MerchantRulesCard";
 import ZombieCleanupCard from "./ZombieCleanupCard";
 import ExternalDistributionStatusCard from "./ExternalDistributionStatusCard";
 
@@ -5569,6 +5570,7 @@ export default function SettingsTab() {
   return (
     <div data-testid="settings-tab" className="space-y-6">
       <FeedHealthCard />
+      <MerchantRulesCard />
       <ExternalDistributionStatusCard />
       <ZombieCleanupCard />
       <div className="border border-line p-4 md:p-5">

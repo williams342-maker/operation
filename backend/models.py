@@ -133,6 +133,14 @@ class Product(BaseModel):
     # (engraving references, fingerprints, pet nose prints, memorial
     # artwork…). Uploads flow through /api/personalization/files.
     personalization_requires_upload: bool = False
+    # ---- Google Merchant feed controls (iter365) ----
+    # Feed-only metadata: Merchant Center false-positives engraved knife
+    # listings as restricted "Guns and Parts" off title keywords. These
+    # fields shape ONLY the exported Google feed — public titles, URLs,
+    # and SEO never change. See services/merchant_sanitizer.py.
+    merchant_title: Optional[str] = None        # Google-specific title override
+    merchant_auto_optimize: bool = True         # swap restricted terms in feed
+    merchant_exclude: bool = False              # drop from Google feed entirely
     # ---- Shipping ----
     free_shipping: bool = False
     shipping_domestic_usd: Optional[float] = None
@@ -246,6 +254,10 @@ class MakerProductCreate(BaseModel):
     personalization_enabled: bool = False
     personalization_instructions: Optional[str] = None
     personalization_requires_upload: bool = False   # iter364
+    # iter365 — Google Merchant feed controls (feed-only).
+    merchant_title: Optional[str] = None
+    merchant_auto_optimize: bool = True
+    merchant_exclude: bool = False
     free_shipping: bool = False
     shipping_domestic_usd: Optional[float] = None
     shipping_international_usd: Optional[float] = None

@@ -30,6 +30,7 @@ import PricingSection from "./MakerListingEditor/PricingSection";
 import PriceComparePanel from "./MakerListingEditor/PriceComparePanel";
 import ListingTypeSection from "./MakerListingEditor/ListingTypeSection";
 import GpcCombobox from "./MakerListingEditor/GpcCombobox";
+import MerchantFeedSection from "./MakerListingEditor/MerchantFeedSection";
 import { estimateShipping } from "../lib/shippingEstimator";
 
 // Mirrors `_google_product_category` in backend/routers/pinterest_feed.py
@@ -167,6 +168,10 @@ export default function MakerListingEditor() {
             materials_input: "",
             seo_input: "",
             gpc_path: found.gpc_path || "",
+            // iter365 — Google Merchant feed controls.
+            merchant_title: found.merchant_title || "",
+            merchant_auto_optimize: found.merchant_auto_optimize !== false,
+            merchant_exclude: !!found.merchant_exclude,
             who_made_it: found.who_made_it || "i_made_it",
             condition: found.condition || "new",
             dim_unit: found.dim_unit || "in",
@@ -688,6 +693,10 @@ export default function MakerListingEditor() {
     seo_tags: form.seo_tags,
     contact_email: form.contact_email || null,
     gpc_path: (form.gpc_path || "").trim(),
+    // iter365 — Google Merchant feed controls (feed-only metadata).
+    merchant_title: (form.merchant_title || "").trim() || null,
+    merchant_auto_optimize: !!form.merchant_auto_optimize,
+    merchant_exclude: !!form.merchant_exclude,
     accepts_backorders: form.accepts_backorders,
     backorder_lead_weeks: form.backorder_lead_weeks ?? null,
     renewal_option: form.renewal_option || "automatic",
@@ -1773,6 +1782,9 @@ export default function MakerListingEditor() {
             . Aim for ≥ 3 levels (e.g. <span className="text-ink-muted">Home &amp; Garden &gt; Decor &gt; Signs</span>) so Pinterest doesn&apos;t collapse it.
           </p>
         </Section>
+
+        {/* ---------- Google Merchant feed controls (iter365) ---------- */}
+        <MerchantFeedSection form={form} set={set} />
 
         {/* ---------- Contact ---------- */}
         <Section

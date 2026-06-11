@@ -399,6 +399,11 @@ export const emptyForm = () => ({
   // Google Product Category override — verbatim breadcrumb path. Empty
   // string ⇒ feeds auto-derive from category. See backend pinterest_feed.py.
   gpc_path: "",
+  // iter365 — Google Merchant feed controls (feed-only; never touches
+  // the public listing).
+  merchant_title: "",
+  merchant_auto_optimize: true,
+  merchant_exclude: false,
   contact_email: "",
   // Backorders — `null` means inherit from maker.accepts_backorders_default
   accepts_backorders: null,

@@ -1,0 +1,110 @@
+"""Merchant feed controls (iter365).
+
+Two small API surfaces around the Google Merchant sanitizer:
+
+ADMIN — category rules engine
+  GET /api/admin/merchant/category-rules
+      → { rules: [{category, mode}], categories: [all product categories] }
+  PUT /api/admin/merchant/category-rules  { rules: [{category, mode}] }
+      Replaces the full rule set. mode ∈ sync | rewrite | exclude.
+
+MAKER — live preview for the listing editor
+  POST /api/maker/merchant/preview
+      { title, description?, category?, merchant_title?,
+        merchant_auto_optimize?, merchant_exclude? }
+      → { include, mode, title, hits }
+      Pure function of the inputs + current category rules; never writes.
+"""
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
+
+from core import db
+from maker_auth import current_admin, current_maker_slug
+from services.merchant_sanitizer import load_category_rules, resolve_merchant_listing
+
+router = APIRouter()
+
+VALID_MODES = ("sync", "rewrite", "exclude")
+
+
+class CategoryRule(BaseModel):
+    category: str = Field(min_length=1, max_length=120)
+    mode: str
+
+
+class CategoryRulesPayload(BaseModel):
+    rules: List[CategoryRule] = Field(default=[], max_length=200)
+
+
+@router.get("/admin/merchant/category-rules")
+async def get_category_rules(_admin=Depends(current_admin)) -> dict:
+    docs = await db.merchant_category_rules.find(
+        {}, {"_id": 0, "category": 1, "mode": 1, "updated_at": 1},
+    ).sort("category", 1).to_list(200)
+    categories = sorted(
+        c for c in await db.products.distinct(
+            "category", {"status": "published", "deleted_at": {"$in": [None, ""]}},
+        ) if c
+    )
+    return {"rules": docs, "categories": categories}
+
+
+@router.put("/admin/merchant/category-rules")
+async def put_category_rules(
+    payload: CategoryRulesPayload, _admin=Depends(current_admin),
+) -> dict:
+    seen: set[str] = set()
+    now = datetime.now(timezone.utc).isoformat()
+    docs = []
+    for r in payload.rules:
+        if r.mode not in VALID_MODES:
+            raise HTTPException(400, f"Invalid mode '{r.mode}' — use sync, rewrite, or exclude.")
+        key = r.category.strip()
+        if not key or key.lower() in seen:
+            continue
+        seen.add(key.lower())
+        docs.append({"category": key, "mode": r.mode, "updated_at": now})
+    # Full replace — the admin UI always submits the complete set.
+    await db.merchant_category_rules.delete_many({})
+    if docs:
+        await db.merchant_category_rules.insert_many(docs)
+    return {"saved": len(docs)}
+
+
+class MerchantPreviewRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=300)
+    description: Optional[str] = Field(default="", max_length=6000)
+    category: Optional[str] = Field(default="", max_length=120)
+    merchant_title: Optional[str] = Field(default=None, max_length=150)
+    merchant_auto_optimize: Optional[bool] = None
+    merchant_exclude: bool = False
+
+
+@router.post("/maker/merchant/preview")
+async def preview_merchant_listing(
+    req: MerchantPreviewRequest, _slug: str = Depends(current_maker_slug),
+) -> dict:
+    rules = await load_category_rules(db)
+    res = resolve_merchant_listing(
+        {
+            "title": req.title,
+            "description": req.description or "",
+            "category": req.category or "",
+            "merchant_title": req.merchant_title,
+            "merchant_auto_optimize": req.merchant_auto_optimize,
+            "merchant_exclude": req.merchant_exclude,
+        },
+        rules,
+    )
+    return {
+        "include": res["include"],
+        "mode": res["mode"],
+        "title": res["title"],
+        "hits": res["hits"],
+        "category_rule": rules.get((req.category or "").strip().lower()),
+    }

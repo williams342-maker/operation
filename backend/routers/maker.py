@@ -206,6 +206,10 @@ class MakerProductUpdate(BaseModel):
     personalization_enabled: Optional[bool] = None
     personalization_instructions: Optional[str] = None
     personalization_requires_upload: Optional[bool] = None   # iter364
+    # iter365 — Google Merchant feed controls (feed-only).
+    merchant_title: Optional[str] = None
+    merchant_auto_optimize: Optional[bool] = None
+    merchant_exclude: Optional[bool] = None
     free_shipping: Optional[bool] = None
     shipping_domestic_usd: Optional[float] = None
     shipping_international_usd: Optional[float] = None
@@ -1280,6 +1284,10 @@ async def maker_create_product(
         personalization_enabled=bool(payload.personalization_enabled),
         personalization_instructions=payload.personalization_instructions,
         personalization_requires_upload=bool(payload.personalization_requires_upload),
+        # iter365 — Google Merchant feed controls.
+        merchant_title=(payload.merchant_title or "").strip() or None,
+        merchant_auto_optimize=payload.merchant_auto_optimize is not False,
+        merchant_exclude=bool(payload.merchant_exclude),
         free_shipping=bool(payload.free_shipping),
         shipping_domestic_usd=payload.shipping_domestic_usd,
         shipping_international_usd=payload.shipping_international_usd,

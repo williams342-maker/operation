@@ -86,7 +86,11 @@ async def _fetch_products() -> list[dict]:
         {"_id": 0, "slug": 1, "title": 1, "description": 1, "price": 1,
          "images": 1, "image_url": 1, "in_stock": 1, "category": 1,
          "technique": 1, "maker_slug": 1, "materials": 1,
-         "dimensions": 1, "published_at": 1, "gpc_path": 1},
+         "dimensions": 1, "published_at": 1, "gpc_path": 1,
+         # iter365 — Google Merchant feed controls (google feed only;
+         # the Meta CSV ignores them).
+         "merchant_title": 1, "merchant_auto_optimize": 1,
+         "merchant_exclude": 1},
     ).sort("created_at", -1).limit(5000).to_list(5000)
 
 
@@ -103,6 +107,11 @@ async def google_merchant_feed_xml(request: Request) -> Response:
     brand_map = await _maker_brand_map(
         list({p.get("maker_slug") for p in products if p.get("maker_slug")}),
     )
+    # iter365 — Restricted-term mitigation: admin category rules + per-
+    # listing controls decide whether each row syncs as-is, gets its
+    # title/description rewritten, or is dropped. Google feed ONLY.
+    from services.merchant_sanitizer import load_category_rules, resolve_merchant_listing
+    category_rules = await load_category_rules(db)
 
     parts: list[str] = []
     parts.append('<?xml version="1.0" encoding="UTF-8"?>')
@@ -125,6 +134,13 @@ async def google_merchant_feed_xml(request: Request) -> Response:
         description = (p.get("description") or "").strip()
         if not description:
             continue
+        # iter365 — Apply merchant controls: per-listing exclude, category
+        # rules, title override, restricted-term auto-rewrite.
+        merchant = resolve_merchant_listing(p, category_rules)
+        if not merchant["include"]:
+            continue
+        title = (merchant["title"] or title).strip()
+        description = (merchant["description"] or description).strip()
         images = [img for img in (p.get("images") or []) if img]
         primary_img = _abs(images[0] if images else (p.get("image_url") or ""))
         if not primary_img:
