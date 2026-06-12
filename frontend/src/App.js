@@ -127,6 +127,12 @@ const Home = () => {
       <PromoStrip />
       <ProductRail title="Wall Art We Love" eyebrow="◆ Wall Art" category="Wall Art" viewAllHref="/shop?category=Wall%20Art" testId="rail-wall-art" />
       <ProductRail title="Made-to-Order Signs" eyebrow="◆ Custom Signs" category="Custom Signs" viewAllHref="/shop?category=Custom%20Signs" testId="rail-signs" />
+      {/* iter386 — user request: surface more craft types on the homepage.
+          Rails self-hide (return null) until their category has listings. */}
+      <ProductRail title="Jewelry We Love" eyebrow="◆ Jewelry" category="Jewelry" viewAllHref="/shop?category=Jewelry" testId="rail-jewelry" />
+      <ProductRail title="Woodwork & Furniture" eyebrow="◆ Woodworking" category="Furniture" viewAllHref="/shop?category=Furniture" testId="rail-woodwork" />
+      <ProductRail title="Pottery & Ceramics" eyebrow="◆ Pottery" category="Pottery & Ceramics" viewAllHref="/shop?category=Pottery%20%26%20Ceramics" testId="rail-pottery" />
+      <ProductRail title="Kitchen & Bar Craft" eyebrow="◆ Kitchen" category="Kitchen & Bar" viewAllHref="/shop?category=Kitchen%20%26%20Bar" testId="rail-kitchen" />
       <FeaturedShops />
       <ProductRail title="Plasma-Cut Originals" eyebrow="◆ Technique · Plasma" technique="PLASMA" viewAllHref="/shop" testId="rail-plasma" />
       <WhyHandcrafted />

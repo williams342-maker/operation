@@ -3,6 +3,7 @@ import { useParams, useSearchParams, Link } from "react-router-dom";
 import { toast } from "sonner";
 import { fetchProduct, fetchMaker, fetchBackorderPolicy, http } from "../lib/api";
 import { useCart } from "../lib/cart";
+import { etaRange } from "../lib/eta";
 import { uetTrack } from "../lib/consent";
 import { useStructuredData } from "../lib/seo";
 import { ArrowLeft, ZoomIn } from "lucide-react";
@@ -865,18 +866,31 @@ export default function ProductDetail() {
               const oos = (effectiveStock != null ? effectiveStock : p.in_stock) <= 0;
               if (!oos) {
                 return (
-                  <div className="flex items-center gap-4 mb-6">
-                    <div className="flex items-center border border-line">
-                      <button onClick={() => setQty(Math.max(1, qty - 1))} className="px-4 py-3 hover:bg-surface">−</button>
-                      <span className="px-4 font-mono text-sm" data-testid="product-qty">{qty}</span>
-                      <button onClick={() => setQty(qty + 1)} className="px-4 py-3 hover:bg-surface">+</button>
+                  <>
+                    <div className={`flex items-center gap-4 ${p.listing_type === "digital" ? "mb-6" : "mb-2"}`}>
+                      <div className="flex items-center border border-line">
+                        <button onClick={() => setQty(Math.max(1, qty - 1))} className="px-4 py-3 hover:bg-surface">−</button>
+                        <span className="px-4 font-mono text-sm" data-testid="product-qty">{qty}</span>
+                        <button onClick={() => setQty(qty + 1)} className="px-4 py-3 hover:bg-surface">+</button>
+                      </div>
+                      <button onClick={onAdd} data-testid="product-add-cart" className="btn-industrial btn-primary flex-1 justify-center">
+                        {added ? "Added ✓" : "Add to cart →"}
+                      </button>
+                      <SaveDropButton makerSlug={p.maker_slug} makerName={maker?.name || p.maker_slug} productSlug={p.slug} />
+                      <ShareLinkButton kind="product" slug={p.slug} testId="product-share-link" />
                     </div>
-                    <button onClick={onAdd} data-testid="product-add-cart" className="btn-industrial btn-primary flex-1 justify-center">
-                      {added ? "Added ✓" : "Add to cart →"}
-                    </button>
-                    <SaveDropButton makerSlug={p.maker_slug} makerName={maker?.name || p.maker_slug} productSlug={p.slug} />
-                    <ShareLinkButton kind="product" slug={p.slug} testId="product-share-link" />
-                  </div>
+                    {/* iter386 — delivery estimate beside the CTA. Labeled
+                        "standard shipping" because the buyer can upgrade to
+                        expedited/overnight at checkout, which changes it. */}
+                    {p.listing_type !== "digital" && (
+                      <div
+                        className="font-mono text-[10px] uppercase tracking-[0.2em] text-brand mb-6"
+                        data-testid="product-eta"
+                      >
+                        ◆ Arrives {etaRange(p.shipping_est_delivery)} · standard shipping — faster options at checkout
+                      </div>
+                    )}
+                  </>
                 );
               }
               // Out of stock — render the OOS pill + backorder or sold-out CTA

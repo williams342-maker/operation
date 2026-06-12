@@ -98,6 +98,12 @@ SHIPPING_BY_CATEGORY = {
     # — small lightweight items so $8 covers a USPS first-class envelope.
     "Jewelry": 8.0,
     "Jewelry & Wearables": 8.0,
+    # iter386 — broader craft taxonomy (user request). Mirrored in the
+    # editor's SHIPPING_DEFAULTS (constants.js) — keep both in sync.
+    "Pottery & Ceramics": 20.0,
+    "Woodworking": 30.0,
+    "Leather Goods": 12.0,
+    "Fiber & Textiles": 12.0,
     "Holiday & Seasonal": 25.0,
 }
 DEFAULT_SHIPPING = 30.0

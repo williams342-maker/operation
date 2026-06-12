@@ -18,6 +18,12 @@ const TILES = [
   { label: "Plasma",        q: "Plasma",           img: "https://images.unsplash.com/photo-1689960253768-72a12bc8320f?crop=entropy&cs=srgb&fm=jpg&w=600&q=85" },
   { label: "3D Printing",   q: "3D Printed Piece", img: "https://images.unsplash.com/photo-1567361808960-dec9cb578182?crop=entropy&cs=srgb&fm=jpg&w=600&q=85" },
   { label: "Router",        q: "Router",           img: "https://images.unsplash.com/photo-1620207418302-439b387441b0?crop=entropy&cs=srgb&fm=jpg&w=600&q=85" },
+  // iter386 — user request: broaden the strip beyond signs/CNC with more
+  // craft types. Tiles search by keyword so they work as soon as makers
+  // list matching pieces.
+  { label: "Woodworking",   q: "Woodworking",      img: "https://images.unsplash.com/photo-1504148455328-c376907d081c?crop=entropy&cs=srgb&fm=jpg&w=600&q=85" },
+  { label: "Pottery",       q: "Pottery",          img: "https://images.unsplash.com/photo-1565193566173-7a0ee3dbe261?crop=entropy&cs=srgb&fm=jpg&w=600&q=85" },
+  { label: "Jewelry",       q: "Jewelry",          img: "https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?crop=entropy&cs=srgb&fm=jpg&w=600&q=85" },
 ];
 
 export default function CategoryStrip() {

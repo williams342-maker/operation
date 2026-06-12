@@ -21,10 +21,15 @@ import { aiDiscoverySearch } from "../lib/api";
  */
 const EXAMPLE_QUERIES = [
   "Rustic mountain-themed metal sign",
+  "Hand-thrown pottery mug set in earthy tones",
+  "Sterling silver hammered earrings",
   "Industrial Edison lamp for my office",
   "Live-edge wood table with deep blue epoxy",
+  "Custom leather wallet with initials",
   "Heirloom cutting board for a wedding gift",
+  "Woven wall hanging for the nursery",
   "Hand-forged garden tool with walnut handle",
+  "Turned walnut bowl for the kitchen",
   "Memorial plaque with tree of life motif",
 ];
 

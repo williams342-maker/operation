@@ -31,6 +31,12 @@ export const CATEGORIES = [
   // listings tagged "Jewelry" continue to render — feeds.py + checkout.py
   // do prefix/substring matches that still hit both labels.
   "Jewelry & Wearables",
+  // iter386 — user request: broaden the craft taxonomy beyond signs/CNC.
+  // Mirrored in SHIPPING_BY_CATEGORY (checkout.py) — keep both in sync.
+  "Pottery & Ceramics",
+  "Woodworking",
+  "Leather Goods",
+  "Fiber & Textiles",
   "Holiday & Seasonal",
   "Other",
 ];
@@ -58,6 +64,12 @@ export const SHIPPING_DEFAULTS = {
   "Kitchen & Bar": 25.0,
   "Sculpture": 65.0,
   "Jewelry & Wearables": 8.0,
+  // iter386 — broader craft taxonomy. Mirrored in SHIPPING_BY_CATEGORY
+  // (checkout.py) — keep both in sync.
+  "Pottery & Ceramics": 20.0,
+  "Woodworking": 30.0,
+  "Leather Goods": 12.0,
+  "Fiber & Textiles": 12.0,
   "Holiday & Seasonal": 25.0,
 };
 export const SHIPPING_FALLBACK = 30.0;
