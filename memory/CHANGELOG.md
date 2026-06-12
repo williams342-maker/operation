@@ -8602,3 +8602,34 @@ User: the giant outlined "CRAFTERS MARKET" at the bottom of the home page didn't
 - `ProductsList.jsx`: sort `<select>` next to the search bar — Newest / Oldest / Best sellers / Price low→high / Price high→low / Lowest stock / Title A–Z. Applies to all three views after the search filter.
 - "Best sellers" auto-fetches the per-listing stats map (sales_all) even when the Stats overlay is off.
 - data-testid: `listings-sort-select`. Verified in preview: price-desc → [$499, $189, $149, $79, $40], price-asc reversed.
+
+---
+
+## 2026-06-12 — iter372: GSC indexing fixes (canonicals, soft-404s, redirect pollution)
+
+Driven by user's GSC "Why pages aren't indexed" export (31 alternate-canonical, 20 redirect, 13 duplicate-no-canonical, 11 soft-404, 1 404).
+
+**Diagnosis:**
+- All 174 sitemap URLs return 200 — sitemap healthy.
+- `public/index.html` hardcoded `<link rel="canonical" href="https://craftersmarket.org/">` → every route's raw HTML claimed canonical=homepage.
+- `/api/og/*` prerenders 302-bounced dead slugs to index pages → "Page with redirect" pollution.
+- SPA had NO catch-all route → unknown URLs rendered blank 200 → soft-404s.
+- PRODUCTION ONLY: a Cloudflare-edge prerender layer serves stale DOM snapshots (e.g. /shop snapshot captured with ?category=Custom%20Signs active → wrong canonical). NOT in our codebase — user must fix/purge worker cache (cache key ignores query string).
+
+**Fixes (need redeploy):**
+- Removed static canonical from `public/index.html` (seo.js injects per-route canonical at render).
+- `og_prerender.py`: new `_not_found_html()` — dead product/maker/journal/design-file slugs now return real HTTP 404 + `noindex, follow` + onward link (was 302).
+- New `NotFoundPage.jsx` + `<Route path="*">` catch-all in App.js with injected `noindex` meta.
+- `ProductDetail.jsx`: injects `noindex` meta on the not-found state.
+- Tests updated: iter107 (3 assertions 302→404), iter129 (302→404), iter120 (hoisted FakeCursor, stubbed iter302 reviews aggregate). All 4 suites pass individually.
+
+---
+
+## 2026-06-12 — iter373: Admin "SEO health" monitor
+
+- New `routers/seo_health.py`: crawls ~26 of our own public URLs (core pages + fresh products/makers/journal) as Googlebot against the canonical apex. Flags: http_error, redirect, wrong_canonical (catches stale edge snapshots), noindex_leak, soft_404_guard (dead slug must 404), sitemap_error/thin, fetch_error. Runs stored in `seo_health_runs`.
+- Endpoints: `POST /api/admin/seo-health/run`, `GET /api/admin/seo-health/latest` (admin JWT).
+- Weekly cron Monday 07:20 UTC (`scheduler.py`) — alerts via notify_team webhook + `send_ops_seo_health_alert` (new in email_service.py) only when issues found.
+- Frontend: `SeoHealthCard.jsx` in Admin → Settings (after SeoDiagCard): Run-check-now button, summary line, issue table, run history. api.js: `fetchSeoHealthLatest`, `runSeoHealthCheck`.
+- Tests: `tests/test_iter373_seo_health.py` (9 passed) — rule engine units, endpoint auth, mocked run/latest plumbing.
+- Live validation: manual run against production found the 12 pre-redeploy canonical issues from iter372's diagnosis — exactly as designed.

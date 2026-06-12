@@ -51,6 +51,7 @@ import { refreshSiteSettings } from "../../hooks/useSiteSettings";
 import { RowsSkeleton } from "../Skeleton";
 import { ShippoDiagCard, MailgunDiagCard, R2DiagCard } from "./IntegrationDiagCards";
 import FeedHealthCard from "./FeedHealthCard";
+import SeoHealthCard from "./SeoHealthCard";
 import MerchantRulesCard from "./MerchantRulesCard";
 import ZombieCleanupCard from "./ZombieCleanupCard";
 import ExternalDistributionStatusCard from "./ExternalDistributionStatusCard";
@@ -5601,6 +5602,8 @@ export default function SettingsTab() {
       <MaintenanceScheduleCard settings={settings} onPatch={onPatch} busy={busy} />
 
       <SeoDiagCard />
+
+      <SeoHealthCard />
 
       <SearchEnginePingCard />
 

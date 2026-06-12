@@ -144,6 +144,17 @@ export default function ProductDetail() {
     });
   }, [slug]);
 
+  // iter372 — soft-404 hygiene: the SPA can't emit a real 404 status for
+  // dead slugs, so tell crawlers not to index the rendered not-found page.
+  useEffect(() => {
+    if (!notFound) return;
+    const m = document.createElement("meta");
+    m.name = "robots";
+    m.content = "noindex";
+    document.head.appendChild(m);
+    return () => m.remove();
+  }, [notFound]);
+
   useStructuredData(p ? {
     title: `${p.title}${p.category ? ` · ${p.category}` : ""} · Crafters Market`,
     description: p.description,

@@ -56,6 +56,7 @@ import GuidePage from "./pages/GuidePage";
 import { SEO_LANDING_PAGES } from "./pages/seoLandingConfig";
 import { GUIDES } from "./pages/guideConfig";
 import LandingPage from "./pages/LandingPage";
+import NotFoundPage from "./pages/NotFoundPage";
 import GrowWithUs from "./pages/GrowWithUs";
 import MakerStudio from "./pages/MakerStudio";
 import KitPage from "./pages/KitPage";
@@ -318,6 +319,8 @@ function App() {
                 <Route path="/maker/listings/new" element={<MakerListingEditor />} />
                 <Route path="/maker/listings/:slug/edit" element={<MakerListingEditor />} />
                 <Route path="/maker/renewals" element={<Navigate to="/maker/dashboard?tab=renewals" replace />} />
+                {/* iter372 — catch-all 404 with noindex (soft-404 hygiene) */}
+                <Route path="*" element={<NotFoundPage />} />
               </Routes>
             </main>
             <Footer />

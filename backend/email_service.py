@@ -829,6 +829,29 @@ async def send_ops_new_order(summary: str, total: float, items: list[dict], buye
     return await _send(OPS_EMAIL, f"New order · ${total:.2f}", html)
 
 
+async def send_ops_seo_health_alert(run: dict):
+    """iter373 — weekly SEO-health crawler found issues on the live site."""
+    if not OPS_EMAIL: return
+    issues = run.get("issues", [])
+    rows = "".join(
+        f"<tr><td style='padding:6px 10px;border-bottom:1px solid #262626;color:#ff4500;font-size:12px'>{i.get('type','')}</td>"
+        f"<td style='padding:6px 10px;border-bottom:1px solid #262626;font-size:12px;color:#e5e5e5;word-break:break-all'>{i.get('url','')}</td>"
+        f"<td style='padding:6px 10px;border-bottom:1px solid #262626;font-size:12px;color:#a3a3a3'>{i.get('detail','')}</td></tr>"
+        for i in issues[:25]
+    )
+    body = (
+        f"<p style='font-size:13px;color:#a3a3a3'>Checked {run.get('checked', 0)} URLs on "
+        f"<b style='color:#e5e5e5'>{run.get('site', '')}</b> · sitemap has {run.get('sitemap_urls', 0)} URLs.</p>"
+        f"<table width='100%' cellpadding='0' cellspacing='0' style='border-top:1px solid #262626'>{rows}</table>"
+        "<p style='font-size:12px;color:#a3a3a3;margin-top:16px'>Full history in Admin → Settings → SEO health. "
+        "Fix the rows above, redeploy if needed, then hit Run check now to confirm.</p>"
+    )
+    html = _shell("SEO health alert.",
+                  f"{len(issues)} issue(s) found on the weekly crawl.",
+                  body, "Ops alert")
+    return await _send(OPS_EMAIL, f"⚠ SEO health: {len(issues)} issue(s) on {run.get('site', 'the site')}", html)
+
+
 async def send_ops_new_application(name: str, studio: str, location: str, email: str, about: str):
     if not OPS_EMAIL: return
     body = f"""

@@ -105,12 +105,13 @@ async def test_og_prerender_for_design_file():
             assert 'plasma-cut' in html
             assert 'article:tag' in html
             assert 'CreativeWork' in html
-            # Soft-404: unknown UUID redirects, doesn't 500.
+            # iter372 — unknown UUID now returns a real 404 + noindex
+            # (was a 302 soft-bounce), doesn't 500.
             r2 = await client.get(
                 f"{API}/og/community/file/00000000-0000-0000-0000-000000000000",
                 follow_redirects=False,
             )
-            assert r2.status_code == 302
+            assert r2.status_code == 404
     finally:
         await db.design_files.delete_one({"id": fid})
 

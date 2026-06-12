@@ -39,6 +39,14 @@ def transport():
     return ASGITransport(app=app)
 
 
+class FakeCursor:
+    """Chainable find()/aggregate() stand-in with an async to_list."""
+    def __init__(self, items): self.items = items
+    def sort(self, *a, **kw): return self
+    def limit(self, n): return self
+    async def to_list(self, n): return self.items[:n]
+
+
 # ============================================================
 # 1) Enhanced OG prerender
 # ============================================================
@@ -65,6 +73,9 @@ async def test_og_product_returns_seo_rich_page(transport):
     }
     with patch("routers.og_prerender.db") as mock_db:
         mock_db.products.find_one = AsyncMock(return_value=fake_doc)
+        # iter302 added a reviews aggregate to the product prerender —
+        # stub it so the MagicMock isn't awaited.
+        mock_db.reviews.aggregate = lambda *a, **kw: FakeCursor([])
         async with AsyncClient(transport=transport, base_url="http://test") as c:
             r = await c.get("/api/og/product/walnut-flag")
     assert r.status_code == 200
@@ -104,6 +115,9 @@ async def test_og_product_oos_uses_preorder_schema(transport):
     }
     with patch("routers.og_prerender.db") as mock_db:
         mock_db.products.find_one = AsyncMock(return_value=fake_doc)
+        # iter302 added a reviews aggregate to the product prerender —
+        # stub it so the MagicMock isn't awaited.
+        mock_db.reviews.aggregate = lambda *a, **kw: FakeCursor([])
         async with AsyncClient(transport=transport, base_url="http://test") as c:
             r = await c.get("/api/og/product/custom-sign")
     assert r.status_code == 200
@@ -127,15 +141,10 @@ async def test_og_maker_returns_seo_rich_page(transport):
         {"slug": "sign", "title": "Family Name Sign", "price": 89},
     ]
 
-    class FakeCursor:
-        def __init__(self, items): self.items = items
-        def sort(self, *a, **kw): return self
-        def limit(self, n): return self
-        async def to_list(self, n): return self.items[:n]
-
     with patch("routers.og_prerender.db") as mock_db:
         mock_db.makers.find_one = AsyncMock(return_value=fake_maker)
         mock_db.products.find = lambda *a, **kw: FakeCursor(fake_listings)
+        mock_db.reviews.aggregate = lambda *a, **kw: FakeCursor([])
         async with AsyncClient(transport=transport, base_url="http://test") as c:
             r = await c.get("/api/og/maker/iron-and-oak")
     assert r.status_code == 200

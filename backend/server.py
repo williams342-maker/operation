@@ -81,6 +81,7 @@ from routers.personalization import router as personalization_router
 from routers.customer_uploads import router as customer_uploads_router
 from routers.merchant_rules import router as merchant_rules_router
 from routers.shop_health import router as shop_health_router
+from routers.seo_health import router as seo_health_router
 from seed_data import seed_if_empty
 
 app = FastAPI(title="Crafters Market API")
@@ -168,6 +169,7 @@ api.include_router(personalization_router)
 api.include_router(customer_uploads_router)
 api.include_router(merchant_rules_router)
 api.include_router(shop_health_router)
+api.include_router(seo_health_router)
 from routers.hero_headlines_api import router as hero_headlines_router
 api.include_router(hero_headlines_router)
 # iter226 — Integration diagnostics (Shippo/Mailgun/R2) + GA4 live analytics

@@ -80,11 +80,14 @@ async def test_og_product_returns_full_html_with_correct_meta_tags():
 
 
 @pytest.mark.asyncio(loop_scope="module")
-async def test_og_product_unknown_slug_redirects_to_shop():
+async def test_og_product_unknown_slug_returns_404_noindex():
+    """iter372 — dead slugs now return a real 404 + noindex (was a 302
+    bounce, which GSC reported as 'Page with redirect')."""
     async with await _client() as c:
         r = await c.get("/api/og/product/totally-not-a-real-slug-iter107")
-    assert r.status_code in (302, 307)
-    assert r.headers["location"].endswith("/shop")
+    assert r.status_code == 404
+    assert 'noindex' in r.text
+    assert "/shop" in r.text  # onward link for humans
 
 
 @pytest.mark.asyncio(loop_scope="module")
@@ -155,11 +158,12 @@ async def test_og_maker_returns_profile_type_with_veteran_badge():
 
 
 @pytest.mark.asyncio(loop_scope="module")
-async def test_og_maker_unknown_slug_redirects_to_makers():
+async def test_og_maker_unknown_slug_returns_404_noindex():
     async with await _client() as c:
         r = await c.get("/api/og/maker/this-maker-does-not-exist-iter107")
-    assert r.status_code in (302, 307)
-    assert r.headers["location"].endswith("/makers")
+    assert r.status_code == 404
+    assert 'noindex' in r.text
+    assert "/makers" in r.text
 
 
 # ============================================================
@@ -192,11 +196,12 @@ async def test_og_journal_returns_article_type_with_published_time():
 
 
 @pytest.mark.asyncio(loop_scope="module")
-async def test_og_journal_unknown_slug_redirects_to_journal():
+async def test_og_journal_unknown_slug_returns_404_noindex():
     async with await _client() as c:
         r = await c.get("/api/og/journal/this-post-does-not-exist-iter107")
-    assert r.status_code in (302, 307)
-    assert r.headers["location"].endswith("/journal")
+    assert r.status_code == 404
+    assert 'noindex' in r.text
+    assert "/journal" in r.text
 
 
 # ============================================================

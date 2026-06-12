@@ -10,7 +10,10 @@
         <meta name="description" content="Shop custom metal signs, CNC wood signs, plasma-cut wall art, and laser-engraved gifts handmade by vetted US makers. Made-to-order, ships nationwide, Stripe-secured." />
         <meta name="keywords" content="custom metal signs, CNC wood signs, laser-cut wall art, plasma cut signs, handmade metal signs, CNC metal art, CNC laser art, CNC manufacturing, CNC USA, artisan marketplace, artisan shopping, custom handmade goods, precision crafting, handcrafted wood signs, monogram signs, made to order, independent makers, craftersmarket" />
         <meta name="author" content="Crafters Market" />
-        <link rel="canonical" href="https://craftersmarket.org/" />
+        <!-- iter372 — no static canonical here. A hardcoded homepage
+             canonical made the raw HTML of EVERY route claim "/" as its
+             canonical (GSC: "Alternate/Duplicate canonical" buckets).
+             lib/seo.js injects the correct per-route canonical at render. -->
 
         <!-- AI crawlers explicitly welcome -->
         <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />

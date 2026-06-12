@@ -156,6 +156,18 @@ async def _snapshot_gsc_indexation() -> dict:
     return doc
 
 
+async def _job_weekly_seo_health() -> None:
+    """Monday 07:20 UTC. Crawls a sample of our own public URLs the way
+    Googlebot sees them and pages ops (webhook + OPS_EMAIL) on 404s,
+    redirects, wrong canonicals, noindex leaks, soft-404 regressions, or
+    sitemap problems. Silent when everything is green. (iter373)"""
+    from routers.seo_health import job_weekly_seo_health
+    try:
+        await job_weekly_seo_health()
+    except Exception:
+        logger.exception("[scheduler] weekly_seo_health failed")
+
+
 async def _job_gsc_indexed_dropoff_alert() -> None:
     """Daily 06:15 UTC. Snapshots today's indexed-bucket count and
     compares against the snapshot from ~7 days ago. Emails OPS_EMAIL
@@ -1512,6 +1524,11 @@ def start_scheduler() -> AsyncIOScheduler | None:
     # we already alerted in the last 24h.
     sched.add_job(_job_gsc_indexed_dropoff_alert, CronTrigger(hour=6, minute=15),
                   id="gsc_indexed_dropoff_alert", replace_existing=True)
+    # Weekly SEO-health crawl (iter373) — Monday 07:20 UTC. Samples our own
+    # public URLs as Googlebot and pages ops (webhook + email) on 404s,
+    # wrong canonicals, noindex leaks, or soft-404 regressions.
+    sched.add_job(_job_weekly_seo_health, CronTrigger(day_of_week="mon", hour=7, minute=20),
+                  id="weekly_seo_health", replace_existing=True)
     # Founders lifecycle — runs at 03:15 UTC daily, right after listing expiry.
     # Auto-rolls regular Founders past 12-month window to Standard, and
     # revokes 14-day grace slots that never published anything.

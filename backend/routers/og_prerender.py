@@ -33,7 +33,7 @@ import re
 from typing import Optional
 
 from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse
 
 from core import db, site_root, logger
 
@@ -187,6 +187,31 @@ def _placeholder_image() -> str:
     return f"{_site()}/downloads/cnc-garage-builders.png"
 
 
+def _not_found_html(kind: str, back_url: str) -> HTMLResponse:
+    """iter372 — crawler-correct 404 for dead slugs.
+
+    Old behavior 302-bounced unknown slugs to the index page, which Google
+    reports as "Page with redirect" and can soft-404 the target. A real
+    404 + noindex makes Google drop the URL cleanly. Humans still get a
+    styled page with an onward link (plus a 2s meta-refresh convenience)."""
+    html = (
+        "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\" />"
+        "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />"
+        "<meta name=\"robots\" content=\"noindex, follow\" />"
+        f"<title>{_esc(kind)} not found — Crafters Market</title>"
+        f"<meta http-equiv=\"refresh\" content=\"2; url={_esc(back_url)}\" />"
+        "<style>body{margin:0;background:#0a0a0a;color:#e5e5e5;"
+        "font-family:ui-monospace,SFMono-Regular,Menlo,monospace;"
+        "text-align:center;padding:80px 24px}a{color:#ff4500}</style>"
+        "</head><body>"
+        f"<h1>404 — this {_esc(kind.lower())} isn&rsquo;t here.</h1>"
+        "<p>It may have sold, expired, or moved.</p>"
+        f"<p><a href=\"{_esc(back_url)}\">Continue to Crafters Market →</a></p>"
+        "</body></html>"
+    )
+    return HTMLResponse(content=html, status_code=404)
+
+
 # ============================================================
 # Product
 # ============================================================
@@ -194,7 +219,7 @@ def _placeholder_image() -> str:
 async def og_product(slug: str, http_request: Request):
     """Crawler-targeted prerender for a product detail page."""
     if not _SLUG_RE.match(slug or ""):
-        return RedirectResponse(f"{_site()}/shop", status_code=302)
+        return _not_found_html("Listing", f"{_site()}/shop")
     doc = await db.products.find_one(
         {"slug": slug, "deleted_at": None, "status": {"$ne": "draft"}},
         {"_id": 0, "title": 1, "description": 1, "images": 1, "price": 1,
@@ -202,10 +227,10 @@ async def og_product(slug: str, http_request: Request):
          "tags": 1, "materials": 1},
     )
     if not doc:
-        # Soft-404: bounce to /shop instead of 404 so a stale share link
-        # still lands the user somewhere useful.
+        # Real 404 (iter372): dead listings drop out of Google instead of
+        # accumulating as "Page with redirect" / soft-404 rows in GSC.
         logger.info("[og_prerender] product slug not found: %s", slug)
-        return RedirectResponse(f"{_site()}/shop", status_code=302)
+        return _not_found_html("Listing", f"{_site()}/shop")
 
     title_raw = (doc.get("title") or "").strip() or slug
     maker = (doc.get("maker_name") or "").strip()
@@ -396,7 +421,7 @@ async def og_community_file(file_id: str, http_request: Request):
     meta-refresh and end up at /community#files .
     """
     if not _UUID_RE.match(file_id or ""):
-        return RedirectResponse(f"{_site()}/community", status_code=302)
+        return _not_found_html("Design file", f"{_site()}/community")
     doc = await db.design_files.find_one(
         {"id": file_id, "deleted_at": None},
         {"_id": 0, "id": 1, "title": 1, "description": 1, "thumbnail_url": 1,
@@ -406,7 +431,7 @@ async def og_community_file(file_id: str, http_request: Request):
     )
     if not doc:
         logger.info("[og_prerender] community file not found: %s", file_id)
-        return RedirectResponse(f"{_site()}/community", status_code=302)
+        return _not_found_html("Design file", f"{_site()}/community")
 
     title_raw = (doc.get("title") or "").strip() or "Design Bundle"
     maker = (doc.get("maker_name") or "").strip()
@@ -502,7 +527,7 @@ async def og_community_file(file_id: str, http_request: Request):
 @router.get("/og/maker/{slug}", include_in_schema=False)
 async def og_maker(slug: str, http_request: Request):
     if not _SLUG_RE.match(slug or ""):
-        return RedirectResponse(f"{_site()}/makers", status_code=302)
+        return _not_found_html("Maker", f"{_site()}/makers")
     doc = await db.makers.find_one(
         {"slug": slug},
         {"_id": 0, "name": 1, "bio": 1, "tagline": 1, "cover": 1,
@@ -511,7 +536,7 @@ async def og_maker(slug: str, http_request: Request):
     )
     if not doc:
         logger.info("[og_prerender] maker slug not found: %s", slug)
-        return RedirectResponse(f"{_site()}/makers", status_code=302)
+        return _not_found_html("Maker", f"{_site()}/makers")
 
     name = (doc.get("name") or "").strip() or slug
     location = (doc.get("location") or "").strip()
@@ -644,7 +669,7 @@ async def og_maker(slug: str, http_request: Request):
 @router.get("/og/journal/{slug}", include_in_schema=False)
 async def og_journal(slug: str, http_request: Request):
     if not _SLUG_RE.match(slug or ""):
-        return RedirectResponse(f"{_site()}/journal", status_code=302)
+        return _not_found_html("Journal post", f"{_site()}/journal")
     doc = await db.blog_posts.find_one(
         {"slug": slug},
         {"_id": 0, "title": 1, "excerpt": 1, "summary": 1, "cover": 1,
@@ -652,7 +677,7 @@ async def og_journal(slug: str, http_request: Request):
     )
     if not doc:
         logger.info("[og_prerender] journal slug not found: %s", slug)
-        return RedirectResponse(f"{_site()}/journal", status_code=302)
+        return _not_found_html("Journal post", f"{_site()}/journal")
 
     title_raw = (doc.get("title") or "").strip() or slug
     title = f"{title_raw} — Crafters Market"
