@@ -369,6 +369,9 @@ export const renewMakerProduct = (slug) =>
   http.post(`/maker/products/${slug}/renew`, {}, { headers: authHeaders() }).then((r) => r.data);
 export const fetchMakerProductsStats = () =>
   http.get("/maker/products/stats", { headers: authHeaders() }).then((r) => r.data);
+// iter381 — most-picked variation options per listing (paid orders).
+export const fetchMakerOptionStats = () =>
+  http.get("/maker/products/option-stats", { headers: authHeaders() }).then((r) => r.data);
 export const fetchMakerProductsIndexingStatus = () =>
   http.get("/maker/products/indexing-status", { headers: authHeaders() }).then((r) => r.data);
 export const fetchMakerRenewalsSummary = () =>

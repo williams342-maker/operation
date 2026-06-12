@@ -627,6 +627,81 @@ async def maker_products_stats(slug: str = Depends(current_maker_slug)):
 
 
 
+@router.get("/maker/products/option-stats")
+async def maker_products_option_stats(slug: str = Depends(current_maker_slug)):
+    """iter381 — Most-picked variation options per listing.
+
+    Aggregates paid orders into per-listing pick counts (weighted by units)
+    so sellers can see which options actually sell and prune dead ones:
+
+        { <slug>: { options: [ {label: "Color: Tan", count: 12}, ... ] } }
+
+    Covers all three selection channels on an order line:
+      • grouped combos    — variant_id → variant.option_ids → group/option
+      • legacy variants   — variant_id → variant.label (axis1 name as group)
+      • customization-only — custom_option_ids → group/option (iter380)
+    Listings with zero picks are omitted; top 6 per listing, units desc.
+    """
+    products = await db.products.find(
+        {"maker_slug": slug},
+        {"_id": 0, "id": 1, "slug": 1, "variants": 1, "variant_groups": 1,
+         "variant_axis1_name": 1},
+    ).to_list(500)
+    by_id = {p["id"]: p for p in products if p.get("id")}
+    by_slug = {p["slug"]: p for p in products if p.get("slug")}
+    if not products:
+        return {}
+
+    def option_lookup(p: dict) -> dict:
+        m = {}
+        for g in (p.get("variant_groups") or []):
+            for o in (g.get("options") or []):
+                m[o.get("id")] = (g.get("name") or "Option", o.get("label") or "")
+        return m
+
+    keys = list(by_id.keys()) + list(by_slug.keys())
+    counts: dict[str, dict[str, int]] = {}
+    txs = await db.payment_transactions.find(
+        {"payment_status": "paid", "items.product_id": {"$in": keys}},
+        {"_id": 0, "items": 1},
+    ).to_list(5000)
+    for tx in txs:
+        for ci in tx.get("items", []) or []:
+            p = by_id.get(ci.get("product_id")) or by_slug.get(ci.get("product_id"))
+            if not p:
+                continue
+            qty = max(1, int(ci.get("quantity") or 1))
+            bucket = counts.setdefault(p["slug"], {})
+            lookup = option_lookup(p)
+            picked_ids = []
+            vid = ci.get("variant_id")
+            if vid:
+                v = next((x for x in (p.get("variants") or []) if x.get("id") == vid), None)
+                if v:
+                    oids = v.get("option_ids") or []
+                    if oids:
+                        picked_ids.extend(oids)
+                    elif v.get("label"):
+                        axis = p.get("variant_axis1_name") or "Option"
+                        key = f"{axis}: {v['label']}"
+                        bucket[key] = bucket.get(key, 0) + qty
+            picked_ids.extend(ci.get("custom_option_ids") or [])
+            for oid in picked_ids:
+                g_name, label = lookup.get(oid, (None, None))
+                if not label:
+                    continue
+                key = f"{g_name}: {label}"
+                bucket[key] = bucket.get(key, 0) + qty
+
+    return {
+        s: {"options": [
+            {"label": k, "count": n}
+            for k, n in sorted(bucket.items(), key=lambda kv: -kv[1])[:6]
+        ]}
+        for s, bucket in counts.items() if bucket
+    }
+
+
 @router.get("/maker/products/indexing-status")
 async def maker_products_indexing_status(slug: str = Depends(current_maker_slug)):
     """Per-listing sitemap inclusion status (proxy for Google indexing).

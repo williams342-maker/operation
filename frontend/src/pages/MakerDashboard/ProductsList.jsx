@@ -10,7 +10,7 @@ import { useConfirm } from "./useConfirm";
 import {
   restoreMakerProduct, purgeMakerProduct, fetchMakerRestockWaitlist,
   fetchMakerProductsStats, fetchMakerProductsIndexingStatus,
-  fetchListingBudgets, fetchLatestPriceComparisons,
+  fetchListingBudgets, fetchLatestPriceComparisons, fetchMakerOptionStats,
 } from "../../lib/api";
 
 /**
@@ -90,11 +90,18 @@ export default function ProductsList({ products, onChanged, onRefresh }) {
   // stats map, so the stats fetch below also fires when that sort is active
   // even if the Stats overlay is off.
   const [sort, setSort] = useState("newest");
+  // iter381 — most-picked options per listing. Piggybacks on the Stats
+  // toggle (renders inside the same overlay), so it's only fetched when
+  // the maker actually flips Stats ON.
+  const [optionStatsMap, setOptionStatsMap] = useState({});
   useEffect(() => {
     if (!showStats && sort !== "best-sellers") return;
     let cancelled = false;
     fetchMakerProductsStats()
       .then((d) => { if (!cancelled) setStatsMap(d || {}); })
+      .catch(() => {});
+    fetchMakerOptionStats()
+      .then((d) => { if (!cancelled) setOptionStatsMap(d || {}); })
       .catch(() => {});
     return () => { cancelled = true; };
   }, [showStats, sort, products.length]);
@@ -347,6 +354,7 @@ export default function ProductsList({ products, onChanged, onRefresh }) {
               onBudgetChanged={refreshBudgets}
               showStats={showStats}
               statsMap={statsMap}
+              optionStatsMap={optionStatsMap}
               indexingMap={indexingMap}
               budgetMap={budgetMap}
               comparisonsMap={comparisonsMap}
@@ -368,6 +376,7 @@ export default function ProductsList({ products, onChanged, onRefresh }) {
               cardProps={{ draft: true }}
               showStats={showStats}
               statsMap={statsMap}
+              optionStatsMap={optionStatsMap}
               indexingMap={indexingMap}
               budgetMap={budgetMap}
               comparisonsMap={comparisonsMap}
@@ -418,7 +427,7 @@ function ViewSwitcher({ view, setView, counts }) {
   );
 }
 
-function Bucket({ items, testId, empty, onChanged, onBudgetChanged, cardProps = {}, banner = null, showStats = false, statsMap = {}, indexingMap = {}, budgetMap = {}, comparisonsMap = {} }) {
+function Bucket({ items, testId, empty, onChanged, onBudgetChanged, cardProps = {}, banner = null, showStats = false, statsMap = {}, optionStatsMap = {}, indexingMap = {}, budgetMap = {}, comparisonsMap = {} }) {
   // iter342 — Paginate at 12 per page (matches the dense 4-col xl grid
   // exactly = 3 full rows). Anything more felt like a wall of cards on
   // the listings tab and made the page sluggish once a maker had 50+
@@ -494,6 +503,7 @@ function Bucket({ items, testId, empty, onChanged, onBudgetChanged, cardProps = 
               onChanged={onChanged}
               onBudgetChanged={onBudgetChanged}
               stats={showStats ? (statsMap[p.slug] || null) : null}
+              optionStats={showStats ? (optionStatsMap[p.slug] || null) : null}
               indexing={indexingMap[p.slug] || null}
               comparison={comparison}
               {...cardProps}

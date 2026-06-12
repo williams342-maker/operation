@@ -12,7 +12,7 @@ import { listingPriceRange } from "../../lib/variantPricing";
 import { useConfirm } from "./useConfirm";
 import { toast } from "sonner";
 
-export default function ProductEditCard({ product, archived = false, draft = false, onChanged, onBudgetChanged, stats = null, indexing = null, comparison = null }) {
+export default function ProductEditCard({ product, archived = false, draft = false, onChanged, onBudgetChanged, stats = null, optionStats = null, indexing = null, comparison = null }) {
   const [confirm, confirmModal] = useConfirm();
   const [p, setP] = useState(product);
   const [open, setOpen] = useState(false);
@@ -262,6 +262,27 @@ export default function ProductEditCard({ product, archived = false, draft = fal
             <div className="font-mono text-[10px] text-ink-muted">
               {stats.renewals} {stats.renewals === 1 ? "renewal" : "renewals"}
             </div>
+            {/* iter381 — most-picked variation options (paid orders). Helps
+                sellers see which fonts/colors/finishes actually sell so they
+                can prune dead options. */}
+            {(optionStats?.options || []).length > 0 && (
+              <>
+                <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted pt-1">
+                  ◆ Most picked
+                </div>
+                <div className="flex flex-wrap gap-1" data-testid={`product-option-stats-${p.slug}`}>
+                  {optionStats.options.slice(0, 4).map((o) => (
+                    <span
+                      key={o.label}
+                      className="font-mono text-[9px] px-1.5 py-0.5 border border-line text-ink"
+                      title={`${o.count} unit${o.count === 1 ? "" : "s"} sold with ${o.label}`}
+                    >
+                      {o.label} <span className="text-brand">×{o.count}</span>
+                    </span>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         )}
 
