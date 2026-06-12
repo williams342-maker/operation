@@ -8643,3 +8643,17 @@ User circled the admin sidebar tabs + Feed Health blurb as too light.
 - `AdminDashboard.jsx`: sidebar/horizontal tab labels now `font-semibold text-ink` (inactive), brand on hover/active.
 - `FeedHealthCard.jsx`: description paragraph → `text-ink font-medium`.
 - Screenshot-verified in preview.
+
+---
+
+## 2026-06-12 — iter375: Variable-priced listings no longer flagged / dropped
+
+User: zombie-cleanup card flagged "Price = $0" on listings whose price varies by size/type (base $0 + per-variant prices).
+- Reused `core.listing_price_range()` (min effective variant price) in 5 gates:
+  - `admin.py` /admin/products/incomplete (zombie card) — no false zero_price flag
+  - `admin_feeds_health.py` `_has_price` (Catalog Distribution counts)
+  - `shop_feeds.py` Google Merchant XML + Meta CSV — listings now INCLUDED at min variant price (were silently dropped!)
+  - `pinterest_feed.py` — same
+  - `feeds.py` row builder — same
+- Projections updated to fetch `variants`.
+- Tests: `tests/test_iter375_variable_price_feeds.py` (2 passed) + iter365/iter366 merchant suites regression-pass.

@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response
 from pydantic import BaseModel, EmailStr
 
-from core import ADMIN_CAPABILITIES, ADMIN_CAP_PRESETS, ADMIN_EMAILS, db, logger, now_iso
+from core import ADMIN_CAPABILITIES, ADMIN_CAP_PRESETS, ADMIN_EMAILS, db, listing_price_range, logger, now_iso
 from email_service import (
     send_admin_broadcast, send_admin_magic_link,
     send_admin_message_to_applicant, send_admin_team_invite,
@@ -2197,8 +2197,8 @@ async def admin_list_incomplete_products(_: dict = Depends(current_admin)):
     cursor = db.products.find(
         {"deleted_at": {"$in": [None, ""]}},
         {"_id": 0, "slug": 1, "title": 1, "description": 1, "price": 1,
-         "images": 1, "image_url": 1, "status": 1, "maker_slug": 1,
-         "created_at": 1},
+         "variants": 1, "images": 1, "image_url": 1, "status": 1,
+         "maker_slug": 1, "created_at": 1},
     ).limit(2000)
     items: list[dict] = []
     async for p in cursor:
@@ -2208,7 +2208,9 @@ async def admin_list_incomplete_products(_: dict = Depends(current_admin)):
         if not (p.get("description") or "").strip():
             issues.append("no_description")
         try:
-            price_val = float(p.get("price") or 0)
+            # iter375 — variable-priced listings (base $0 + priced variants)
+            # are NOT zombies: the min effective variant price counts.
+            price_val = listing_price_range(p)[0]
             if price_val <= 0:
                 issues.append("zero_price")
         except (TypeError, ValueError):

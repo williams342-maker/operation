@@ -30,7 +30,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter
 from fastapi.responses import Response
 
-from core import db
+from core import db, listing_price_range
 
 
 router = APIRouter()
@@ -50,7 +50,9 @@ def _row_for_product(p: dict, maker: dict) -> dict:
     primary_img = images[0] if images else f"{SITE_URL}/icons/icon-512.png"
     additional = "|".join(images[1:9])  # Meta accepts up to 9 additional
 
-    base_price = float(p.get("price") or 0)
+    # iter375 — min effective variant price stands in when base = $0
+    # (variable-priced listings: price depends on size/type variants).
+    base_price = listing_price_range(p)[0]
     sale_price = ""
     if p.get("promoted_until"):
         # 10% promo discount surfaces in the feed when boosted (purely

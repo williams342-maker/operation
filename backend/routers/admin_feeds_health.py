@@ -27,7 +27,7 @@ from typing import Any
 
 from fastapi import APIRouter, Body, Depends, Request
 
-from core import db
+from core import db, listing_price_range
 from maker_auth import require_capability, current_admin
 
 router = APIRouter()
@@ -43,7 +43,12 @@ def _has_image(p: dict) -> bool:
 
 
 def _has_price(p: dict) -> bool:
-    return bool(p.get("price") and p["price"] > 0)
+    # iter375 — variable-priced listings count as priced when any variant
+    # resolves to a positive effective price (base + delta or override).
+    try:
+        return listing_price_range(p)[0] > 0
+    except (TypeError, ValueError):
+        return False
 
 
 def _has_description(p: dict, *, min_chars: int = 50) -> bool:
@@ -128,7 +133,7 @@ async def _fetch_eligible_products() -> list[dict]:
     return await db.products.find(
         q,
         {"_id": 0, "slug": 1, "title": 1, "description": 1, "price": 1,
-         "images": 1, "image_url": 1, "in_stock": 1, "category": 1,
+         "variants": 1, "images": 1, "image_url": 1, "in_stock": 1, "category": 1,
          "technique": 1, "maker_slug": 1, "gpc_path": 1, "materials": 1,
          "colors": 1, "merchant_color": 1},
     ).limit(5000).to_list(5000)

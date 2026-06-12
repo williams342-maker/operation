@@ -39,7 +39,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Request, Response, HTTPException
 
-from core import db
+from core import db, listing_price_range
 
 
 router = APIRouter()
@@ -213,7 +213,7 @@ async def pinterest_feed_csv(request: Request) -> Response:
     products = await db.products.find(
         q,
         {"_id": 0, "slug": 1, "title": 1, "description": 1, "price": 1,
-         "images": 1, "image_url": 1, "in_stock": 1, "category": 1,
+         "variants": 1, "images": 1, "image_url": 1, "in_stock": 1, "category": 1,
          "technique": 1, "maker_slug": 1, "gpc_path": 1},
     ).sort("created_at", -1).limit(5000).to_list(5000)
 
@@ -256,7 +256,8 @@ async def pinterest_feed_csv(request: Request) -> Response:
 
         # Pinterest rejects rows with $0 or missing price.
         try:
-            price_val = float(p.get("price") or 0)
+            # iter375 — min effective variant price stands in when base = $0.
+            price_val = listing_price_range(p)[0]
         except (TypeError, ValueError):
             continue
         if price_val <= 0:

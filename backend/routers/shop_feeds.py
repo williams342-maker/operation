@@ -34,7 +34,7 @@ from xml.sax.saxutils import escape as xml_escape
 
 from fastapi import APIRouter, Request, Response
 
-from core import db
+from core import db, listing_price_range
 from routers.pinterest_feed import (
     _abs, _availability, _maker_brand_map, _resolve_gpc, _truncate,
 )
@@ -89,7 +89,9 @@ async def _fetch_products() -> list[dict]:
          "dimensions": 1, "published_at": 1, "gpc_path": 1,
          # iter365/369 — Google Merchant feed controls + attribute sources.
          "merchant_title": 1, "merchant_auto_optimize": 1,
-         "merchant_exclude": 1, "merchant_color": 1, "colors": 1},
+         "merchant_exclude": 1, "merchant_color": 1, "colors": 1,
+         # iter375 — variable pricing: min variant price stands in for $0 base.
+         "variants": 1},
     ).sort("created_at", -1).limit(5000).to_list(5000)
 
 
@@ -147,7 +149,8 @@ async def google_merchant_feed_xml(request: Request) -> Response:
         if not primary_img:
             continue
         try:
-            price = float(p.get("price") or 0)
+            # iter375 — min effective variant price stands in when base = $0.
+            price = listing_price_range(p)[0]
         except (TypeError, ValueError):
             continue
         if price <= 0:
@@ -263,7 +266,8 @@ async def meta_feed_csv(request: Request) -> Response:
         if not primary_img:
             continue
         try:
-            price_val = float(p.get("price") or 0)
+            # iter375 — min effective variant price stands in when base = $0.
+            price_val = listing_price_range(p)[0]
         except (TypeError, ValueError):
             continue
         if price_val <= 0:
