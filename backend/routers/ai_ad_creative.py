@@ -87,6 +87,10 @@ class GenerateRequest(BaseModel):
     # copy prompt but ignored by the visual generator (Nano Banana cannot
     # consume video as a reference).
     reference_asset_ids: list[str] = Field(default_factory=list, max_length=4)
+    # iter379 — Proven Google Search Console queries (from the SEO wins
+    # rollup) the admin wants woven into the copy. Terms the site already
+    # ranks/clicks for convert better as ad keywords.
+    seo_keywords: list[str] = Field(default_factory=list, max_length=10)
 
 
 # ── Subject lookup ─────────────────────────────────────────────────────
@@ -132,7 +136,8 @@ async def _find_subject(stype: str, slug: str) -> dict:
 
 
 # ── Prompt builder ─────────────────────────────────────────────────────
-def _build_copy_prompt(subject: dict, channels: list[str], tone: str) -> str:
+def _build_copy_prompt(subject: dict, channels: list[str], tone: str,
+                       seo_keywords: list[str] | None = None) -> str:
     spec_lines: list[str] = []
     json_schema_lines: list[str] = []
     for ch in channels:
@@ -155,10 +160,22 @@ def _build_copy_prompt(subject: dict, channels: list[str], tone: str) -> str:
         "minimal":      "Spare, declarative, never more than one idea per line.",
     }.get(tone, "Clear, benefit-led.")
 
+    # iter379 — Proven search queries from GSC: terms Google already sends
+    # clicks for. The model should reuse this exact language where natural.
+    seo_block = ""
+    if seo_keywords:
+        seo_block = (
+            "\nPROVEN SEARCH QUERIES (real Google Search Console terms this site "
+            "already ranks and gets clicks for — weave the most relevant ones "
+            "NATURALLY into headlines/descriptions, exact or close phrasing, "
+            "never keyword-stuff):\n- " + "\n- ".join(seo_keywords[:10]) + "\n"
+        )
+
     return (
         "You are writing platform-compliant ad copy for an artisan marketplace listing.\n\n"
         f"SUBJECT:\n{subject_block}\n\n"
-        f"TONE: {tone_hint}\n\n"
+        f"TONE: {tone_hint}\n"
+        f"{seo_block}\n"
         "RULES:\n"
         "1. STRICT character limits — count characters. If a line goes over, rewrite it shorter.\n"
         "2. No emojis, no all-caps, no clickbait phrasing.\n"
@@ -191,7 +208,8 @@ def _enforce_limits(channel: str, payload: dict) -> dict:
 
 # ── LLM calls ──────────────────────────────────────────────────────────
 async def _generate_copy(subject: dict, channels: list[str], tone: str,
-                          reference_summary: list[str] | None = None) -> dict:
+                          reference_summary: list[str] | None = None,
+                          seo_keywords: list[str] | None = None) -> dict:
     if not EMERGENT_LLM_KEY:
         raise HTTPException(503, "EMERGENT_LLM_KEY not set — cannot generate copy.")
     try:
@@ -208,7 +226,7 @@ async def _generate_copy(subject: dict, channels: list[str], tone: str,
         ),
     ).with_model("anthropic", "claude-sonnet-4-5-20250929")
 
-    prompt = _build_copy_prompt(subject, channels, tone)
+    prompt = _build_copy_prompt(subject, channels, tone, seo_keywords=seo_keywords)
     if reference_summary:
         # iter355 — surface the reference assets so the LLM can align
         # tone/imagery in headlines (e.g. mention "tactile texture" when
@@ -393,8 +411,10 @@ async def generate_creative(body: GenerateRequest, admin: dict = Depends(current
                     log.warning("[ad-generate] could not load reference asset %s: %s",
                                 a.get("_id"), e)
 
+    seo_keywords = [str(k).strip()[:80] for k in (body.seo_keywords or []) if str(k).strip()][:10]
     copy = await _generate_copy(subject, body.channels, body.tone,
-                                reference_summary=reference_summary)
+                                reference_summary=reference_summary,
+                                seo_keywords=seo_keywords)
 
     images: list[str] = []
     if body.generate_images and body.num_image_variants > 0:
@@ -424,6 +444,8 @@ async def generate_creative(body: GenerateRequest, admin: dict = Depends(current
         "reference_asset_ids": list(body.reference_asset_ids),
         "reference_asset_count": len(body.reference_asset_ids),
         "reference_images_used": len(reference_images),
+        # iter379 — GSC-proven queries used for this generation.
+        "seo_keywords": seo_keywords,
         "created_by": (admin or {}).get("email") or "admin",
         "created_at": now_iso(),
     }

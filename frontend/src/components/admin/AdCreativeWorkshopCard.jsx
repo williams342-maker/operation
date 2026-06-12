@@ -28,6 +28,7 @@ import {
   adminPushDraftToMeta,
   adminAdCreativeMicrosoftPreflight,
   adminPushDraftToMicrosoft,
+  fetchSeoWins,
 } from "../../lib/api";
 import { useConfirm } from "../../hooks/useConfirm";
 
@@ -110,6 +111,21 @@ export default function AdCreativeWorkshopCard() {
     setChannels((arr) => (arr.includes(id) ? arr.filter((x) => x !== id) : [...arr, id]));
   }, []);
 
+  // iter379 — Proven GSC queries from the SEO wins rollup, offered as
+  // toggle chips. Selected ones are sent as `seo_keywords` so the copy
+  // model writes around terms Google already ranks the site for.
+  const [seoQueries, setSeoQueries] = useState([]);
+  const [seoKeywords, setSeoKeywords] = useState([]);
+  useEffect(() => {
+    fetchSeoWins()
+      .then((w) => setSeoQueries((w?.top_queries || []).slice(0, 10)))
+      .catch(() => {});
+  }, []);
+  const toggleSeoKeyword = useCallback((q) => {
+    setSeoKeywords((cur) =>
+      cur.includes(q) ? cur.filter((x) => x !== q) : [...cur, q].slice(0, 10));
+  }, []);
+
   const onGenerate = async () => {
     if (!selected) { toast.error("Pick a product or maker first."); return; }
     if (channels.length === 0) { toast.error("Select at least one channel."); return; }
@@ -124,11 +140,13 @@ export default function AdCreativeWorkshopCard() {
         generate_images: genImages,
         num_image_variants: genImages ? numVariants : 0,
         reference_asset_ids: selectedAssetIds,
+        seo_keywords: seoKeywords,
       });
       setResult(r);
       toast.success(
         `Generated ${channels.length} channel variants` +
         (selectedAssetIds.length ? ` · ${selectedAssetIds.length} ref(s)` : "") +
+        (seoKeywords.length ? ` · ${seoKeywords.length} proven quer${seoKeywords.length === 1 ? "y" : "ies"}` : "") +
         (genImages ? ` + ${r?.draft?.images?.length || 0} images` : "")
       );
     } catch (e) {
@@ -225,6 +243,9 @@ export default function AdCreativeWorkshopCard() {
           result={result}
           selectedAssetIds={selectedAssetIds}
           toggleAsset={toggleAsset}
+          seoQueries={seoQueries}
+          seoKeywords={seoKeywords}
+          toggleSeoKeyword={toggleSeoKeyword}
         />
       )}
 
@@ -247,6 +268,7 @@ function ComposeView(props) {
     genImages, setGenImages, numVariants, setNumVariants,
     onGenerate, generating, result,
     selectedAssetIds, toggleAsset,
+    seoQueries, seoKeywords, toggleSeoKeyword,
   } = props;
 
   return (
@@ -331,6 +353,31 @@ function ComposeView(props) {
           </select>
         </div>
       </div>
+
+      {/* iter379 — Proven Google queries (from GSC via SEO wins) */}
+      {seoQueries.length > 0 && (
+        <div data-testid="ad-creative-seo-queries">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
+            ✦ Proven Google queries <span className="text-ink-muted/70 normal-case tracking-normal">— terms you already rank for; selected ones get woven into the copy</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {seoQueries.map((q) => {
+              const on = seoKeywords.includes(q.query);
+              return (
+                <button
+                  key={q.query}
+                  onClick={() => toggleSeoKeyword(q.query)}
+                  className={`px-3 py-1.5 border font-mono text-[11px] ${on ? "border-brand text-brand bg-brand/10" : "border-line text-ink-muted hover:border-ink-muted"}`}
+                  data-testid={`ad-creative-seo-kw-${q.query.replace(/\s+/g, "-")}`}
+                  title={`${q.clicks} clicks · ${q.impressions} impressions · avg position ${q.position}`}
+                >
+                  {on ? "✓ " : ""}{q.query} <span className="opacity-60">({q.clicks})</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Image options */}
       <div className="border border-line p-3 flex flex-wrap items-center gap-4">
@@ -1135,4 +1182,3 @@ function ReferenceAssetUploader({ selectedIds = [], onToggleSelect }) {
     </div>
   );
 }
-

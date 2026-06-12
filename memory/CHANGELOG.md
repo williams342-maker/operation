@@ -8688,3 +8688,13 @@ User saw 6 "Fetch failed" rows on production's first SEO health run — false po
 - `GET /api/admin/seo-health/wins` + wins strip on `SeoHealthCard.jsx` (clicks, impressions, pages indexed with deltas, top 5 queries inline) — hidden when GSC not connected.
 - Tests: `tests/test_iter378_seo_wins.py` (3 passed; mocked GSC + degradation) + iter373/377 suites green.
 - Note: preview has no GSC OAuth token (strip hidden); production is connected so wins populate there.
+
+---
+
+## 2026-06-12 — iter379: GSC-proven queries → AI Ad-Creative workshop
+
+- `ai_ad_creative.py`: `GenerateRequest.seo_keywords` (≤10); `_build_copy_prompt` gains a "PROVEN SEARCH QUERIES" block instructing natural weaving (no stuffing); keywords stored on the draft doc.
+- `AdCreativeWorkshopCard.jsx`: "✦ Proven Google queries" toggle chips (top 10 from `fetchSeoWins().top_queries`, with clicks/impressions/position in tooltip); selected ones sent as `seo_keywords`; success toast notes the count. Chips hidden when GSC disconnected (preview).
+- Fix during dev: an earlier edit had duplicated the AssetLibrary tail (syntax error) and the state block landed in the dead copy — removed dupe, restored state. Verified workshop renders.
+- Tests: `tests/test_iter379_seo_keywords_adcopy.py` (3 passed).
+- Also answered user's Stripe webhook question: production `bad_signature` = STRIPE_WEBHOOK_SECRET mismatch with the Stripe dashboard endpoint's whsec_ — user must update production env var + redeploy.
