@@ -74,6 +74,7 @@ export default function CartPage() {
         personalization_image_url: i.personalization_image_url || undefined,
         personalization_upload_ids: i.personalization_upload_ids?.length ? i.personalization_upload_ids : undefined,
         color_choice: i.color_choice || undefined,
+        custom_option_ids: i.custom_option_ids?.length ? i.custom_option_ids : undefined,
       })),
       appliedCode || null,
     )
@@ -140,6 +141,7 @@ export default function CartPage() {
           personalization_image_url: i.personalization_image_url || undefined,
           personalization_upload_ids: i.personalization_upload_ids?.length ? i.personalization_upload_ids : undefined,
           color_choice: i.color_choice || undefined,
+          custom_option_ids: i.custom_option_ids?.length ? i.custom_option_ids : undefined,
         })),
         origin_url: window.location.origin,
         customer_email: email,
@@ -209,7 +211,7 @@ export default function CartPage() {
           <div className="grid lg:grid-cols-12 gap-10">
             <ul className="lg:col-span-8 border-y border-line divide-y divide-line">
               {items.map((i) => (
-                <li key={`${i.id}::${i.variant_id || ""}::${i.color_choice || ""}::${i.personalization_text || ""}`} className="grid grid-cols-12 gap-4 py-6 items-center" data-testid={`cart-item-${i.slug}`}>
+                <li key={`${i.id}::${i.variant_id || ""}::${i.color_choice || ""}::${i.personalization_text || ""}::${(i.custom_option_ids || []).join(",")}`} className="grid grid-cols-12 gap-4 py-6 items-center" data-testid={`cart-item-${i.slug}`}>
                   <Link to={`/shop/${i.slug}`} className="col-span-3 sm:col-span-2 aspect-square overflow-hidden border border-line">
                     <img src={i.image} alt={i.title} className="w-full h-full object-cover" />
                   </Link>
@@ -221,6 +223,17 @@ export default function CartPage() {
                         data-testid={`cart-variant-${i.slug}`}
                       >
                         ◆ {i.variant_label}
+                      </div>
+                    )}
+                    {/* iter380 — customization-only group picks (e.g.
+                        "Font: Script") shown under the variant so the buyer
+                        verifies every choice before paying. */}
+                    {i.custom_options_label && (
+                      <div
+                        className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mt-1"
+                        data-testid={`cart-custom-options-${i.slug}`}
+                      >
+                        ◆ {i.custom_options_label}
                       </div>
                     )}
                     {/* iter339 — buyer's chosen color from the maker's

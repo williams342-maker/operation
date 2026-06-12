@@ -13,7 +13,7 @@ const rowKey = (i) =>
   // choice does the same so two of the same item in different colors
   // stay as separate cart lines instead of stacking. iter364 — photo
   // upload ids too (two memorial pieces from different photos).
-  `${i.id}::${i.variant_id || ""}::${i.color_choice || ""}::${i.personalization_text || ""}::${i.personalization_image_url || ""}::${(i.personalization_upload_ids || []).join(",")}`;
+  `${i.id}::${i.variant_id || ""}::${i.color_choice || ""}::${i.personalization_text || ""}::${i.personalization_image_url || ""}::${(i.personalization_upload_ids || []).join(",")}::${(i.custom_option_ids || []).join(",")}`;
 
 export function CartProvider({ children }) {
   const [items, setItems] = useState(() => {
@@ -36,18 +36,23 @@ export function CartProvider({ children }) {
     return () => clearTimeout(syncTimer.current);
   }, [items]);
 
-  const add = useCallback((p, qty = 1, variant = null, personalization = null, colorChoice = null) => {
+  const add = useCallback((p, qty = 1, variant = null, personalization = null, colorChoice = null, customOptions = []) => {
     setItems((cur) => {
+      // iter380 — customization-only option picks (Engraving font etc.).
+      // No SKU row exists for these, so their +$ deltas fold into the
+      // line price here and the ids/labels ride along to checkout.
+      const customDelta = (customOptions || []).reduce((s, o) => s + (Number(o.price_delta) || 0), 0);
       const newRow = {
         id: p.id,
         slug: p.slug,
         title: p.title,
-        // Effective price: variant.price (absolute) > base + variant.price_delta > base.
-        price: variant
+        // Effective price: variant.price (absolute) > base + variant.price_delta > base,
+        // plus customization-only option deltas on top.
+        price: (variant
           ? (Number(variant.price) > 0
               ? Number(variant.price)
               : Number(p.price) + Number(variant.price_delta || 0))
-          : p.price,
+          : Number(p.price)) + customDelta,
         image: p.images?.[0],
         quantity: qty,
         variant_id: variant?.id || null,
@@ -64,6 +69,9 @@ export function CartProvider({ children }) {
         // Same path: flows into the resolved cart on checkout, persists on
         // the order doc, surfaces in the maker order email as a chip.
         color_choice: (colorChoice || "").trim() || null,
+        // iter380 — customization-only group selections.
+        custom_option_ids: (customOptions || []).map((o) => o.id),
+        custom_options_label: (customOptions || []).map((o) => o.label).join(" · ") || null,
       };
       const ex = cur.find((i) => rowKey(i) === rowKey(newRow));
       if (ex) {

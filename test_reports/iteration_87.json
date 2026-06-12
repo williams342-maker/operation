@@ -1,0 +1,30 @@
+{
+  "summary": "iter380 'Variation groups — separate inventory tracking from display options' fully verified. Backend (9/9 unit + 3/3 HTTP integration) and Frontend (5/5 editor flows) all pass. Track Inventory / Customization Only toggle, combo table cardinality, bulk qty apply, product-level stock note, and photo crop 4:5 default all behaving per spec.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter380_variation_inventory_split.py",
+    "/app/backend/tests/test_iter380_cart_quote_http.py",
+    "/app/test_reports/pytest/iter380.xml",
+    "/app/test_reports/pytest/iter380_http.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "VariationGroupsSection (full rewrite) and _resolve_cart custom-options block are clean; tracked_inventory default True preserves legacy behaviour. core.custom_options_summary correctly ignores tracked-group options when matching by id.",
+    "Note: the HTTP test_iter380_cart_quote_http.py uses pymongo (sync) for fixture setup because mixing the app's Motor async client with pytest event loops trips 'future belongs to a different loop'. This is documented + acceptable; do not refactor to async."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter380_cart_quote_http.py (new)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "Maker: iron-and-oak@craftersmarket.org via magic token. Backed by /app/memory/test_credentials.md.",
+  "seed_data_creation": "test_iter380_cart_quote_http.py inserts 3 TEST iter380 products via pymongo and deletes them on fixture teardown. Editor UI test was performed on /maker/listings/new without saving (Save Draft was not clicked), so no DB residue.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All testids in spec are present: editor-variant-groups, editor-add-group, editor-group-name-N, editor-add-option-N, editor-option-label-N-M, editor-option-delta-N-M, editor-group-track-inventory-N, editor-group-customization-only-N, editor-combos, editor-combo-N, editor-combo-qty-N, editor-bulk-qty-input, editor-bulk-qty-apply, editor-product-level-stock-note, editor-photo-grid. Track-inventory is the default for new groups. CombinationsTable testids (override / sku) share the prefix 'editor-combo-' so when counting rows filter by regex /^editor-combo-\\d+$/. E2E buyer flow (product page selectors -> /cart -> chip) was NOT executed live because saving the draft requires title/description/price/category — skipped to avoid leaving test listings. The pricing logic for this E2E path is already covered by backend HTTP tests (test_quote_with_custom_pick_prices_correctly verifies +$10 line price via the same /api/cart/quote endpoint the cart page uses). Photo crop 4:5 default + aspect-[4/5] tiles verified via code review (ImageCropModal defaultAspect=4/5, MediaSection tile className 'aspect-[4/5]', MakerListingEditor passes defaultAspect={4/5}).",
+  "rca of the issue": "N/A — no bugs found."
+}

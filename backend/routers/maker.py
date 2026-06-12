@@ -1951,9 +1951,16 @@ async def maker_orders(slug: str = Depends(current_maker_slug)):
                         unit_price = effective_variant_price(p.get("price"), v)
                         variant_label = v.get("label")
                         break
+            # iter380 — customization-only option picks (no SKU row).
+            from core import custom_options_summary
+            c_label, c_delta = custom_options_summary(p, ci.get("custom_option_ids") or [])
+            if c_label:
+                unit_price = round(unit_price + c_delta, 2)
             my_lines.append({
                 "product_slug": p["slug"],
-                "title": p["title"] + (f" — {variant_label}" if variant_label else ""),
+                "title": p["title"]
+                    + (f" — {variant_label}" if variant_label else "")
+                    + (f" · {c_label}" if c_label else ""),
                 "price": unit_price,
                 "quantity": qty,
                 "subtotal": round(unit_price * qty, 2),
@@ -2020,9 +2027,16 @@ async def maker_order_detail(session_id: str, slug: str = Depends(current_maker_
                     unit_price = effective_variant_price(p.get("price"), v)
                     variant_label = v.get("label")
                     break
+        # iter380 — customization-only option picks (no SKU row).
+        from core import custom_options_summary
+        c_label, c_delta = custom_options_summary(p, ci.get("custom_option_ids") or [])
+        if c_label:
+            unit_price = round(unit_price + c_delta, 2)
         lines.append({
             "product_slug": p["slug"],
-            "title": p["title"] + (f" — {variant_label}" if variant_label else ""),
+            "title": p["title"]
+                + (f" — {variant_label}" if variant_label else "")
+                + (f" · {c_label}" if c_label else ""),
             "image": (p.get("images") or [None])[0],
             "price": unit_price,
             "quantity": qty,

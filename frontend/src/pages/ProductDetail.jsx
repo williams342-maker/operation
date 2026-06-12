@@ -239,13 +239,18 @@ export default function ProductDetail() {
   // buyer picks one option per group and we resolve the matching combo
   // row from the flat variants list via its option_ids.
   const variantGroups = (p.variant_groups || []).filter((g) => (g.options || []).length > 0);
+  // iter380 — Inventory strategy split. Tracked groups generate the flat
+  // combo rows (price + stock); customization-only groups are buyer picks
+  // that never map to a SKU — their deltas add on top.
+  const trackedGroups = variantGroups.filter((g) => g.tracks_inventory !== false);
+  const customGroups = variantGroups.filter((g) => g.tracks_inventory === false);
   const hasGroups = variantGroups.length > 0
-    && (p.variants || []).some((v) => (v.option_ids || []).length > 0);
-  const resolvedCombo = hasGroups && variantGroups.every((g) => selectedOptions[g.id])
+    && (trackedGroups.length === 0 || (p.variants || []).some((v) => (v.option_ids || []).length > 0));
+  const resolvedCombo = hasGroups && trackedGroups.length > 0 && trackedGroups.every((g) => selectedOptions[g.id])
     ? (p.variants || []).find((v) => {
         const ids = v.option_ids || [];
-        return ids.length === variantGroups.length
-          && variantGroups.every((g) => ids.includes(selectedOptions[g.id]));
+        return ids.length === trackedGroups.length
+          && trackedGroups.every((g) => ids.includes(selectedOptions[g.id]));
       }) || null
     : null;
   const selectedVariant = hasGroups
@@ -253,6 +258,16 @@ export default function ProductDetail() {
     : hasVariants
     ? p.variants.find((v) => v.id === selectedVariantId) || p.variants[0]
     : null;
+  // iter380 — resolved customization-only picks: labels for cart/summary
+  // and the summed +$ delta folded into the effective price.
+  const customSelections = customGroups
+    .map((g) => {
+      const o = (g.options || []).find((x) => x.id === selectedOptions[g.id]);
+      return o ? { group: g, option: o } : null;
+    })
+    .filter(Boolean);
+  const customDelta = customSelections.reduce((s, c) => s + (Number(c.option.price_delta) || 0), 0);
+  const allGroupsSelected = variantGroups.every((g) => selectedOptions[g.id]);
   // Last selected option that carries an image — swaps the gallery.
   const selectedOptionImage = hasGroups
     ? variantGroups
@@ -260,20 +275,24 @@ export default function ProductDetail() {
         .filter((o) => o && o.image)
         .slice(-1)[0]?.image || null
     : null;
-  const effectivePrice = selectedVariant
+  const effectivePrice = (selectedVariant
     ? (Number(selectedVariant.price) > 0
         ? Number(selectedVariant.price)
         : Number(p.price) + Number(selectedVariant.price_delta || 0))
-    : p.price;
+    : Number(p.price)) + customDelta;
   const effectiveStock = selectedVariant ? selectedVariant.in_stock : p.in_stock;
 
   const onAdd = () => {
-    if (hasVariants && !selectedVariant) {
-      if (hasGroups) {
+    if (hasGroups) {
+      // Every group (tracked + customization-only) needs a pick, and the
+      // tracked picks must resolve to an existing combo row.
+      if (!allGroupsSelected || (trackedGroups.length > 0 && !selectedVariant)) {
         toast.error("Please choose an option in every category first.");
         document.querySelector("[data-testid='product-variant-groups']")
           ?.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
       }
+    } else if (hasVariants && !selectedVariant) {
       return;
     }
     // iter364 — required customer photo upload. Hard gate: this listing
@@ -324,7 +343,12 @@ export default function ProductDetail() {
       selectedColor === "Custom color"
         ? `Custom: ${customColorText.trim()}`
         : selectedColor;
-    add(p, qty, selectedVariant, personalization || null, effectiveColor);
+    add(p, qty, selectedVariant, personalization || null, effectiveColor,
+      customSelections.map((c) => ({
+        id: c.option.id,
+        label: `${c.group.name}: ${c.option.label}`,
+        price_delta: Number(c.option.price_delta) || 0,
+      })));
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
     // iter334i — Fire Microsoft Ads `add_to_cart` conversion event so
@@ -514,7 +538,7 @@ export default function ProductDetail() {
             <GuideCrossLinkCard product={p} />
 
             {/* iter364 — Grouped variations: one selector per category. */}
-            {hasVariants && hasGroups && (
+            {hasGroups && (
               <div className="mb-6" data-testid="product-variant-groups">
                 {variantGroups.map((g) => (
                   <div key={g.id} className="mb-4">
@@ -525,15 +549,18 @@ export default function ProductDetail() {
                       {(g.options || []).map((o) => {
                         const sel = selectedOptions[g.id] === o.id;
                         // Dim options that can't form an in-stock combo with
-                        // the OTHER groups' current selections. Still
+                        // the OTHER tracked groups' current selections. Still
                         // clickable — picking one re-routes the combo.
-                        const available = (p.variants || []).some((v) => {
-                          const ids = v.option_ids || [];
-                          if (!ids.includes(o.id) || v.in_stock <= 0) return false;
-                          return variantGroups.every(
-                            (g2) => g2.id === g.id || !selectedOptions[g2.id] || ids.includes(selectedOptions[g2.id]),
-                          );
-                        });
+                        // iter380 — customization-only options never carry
+                        // stock, so they're always available.
+                        const available = g.tracks_inventory === false
+                          || (p.variants || []).some((v) => {
+                            const ids = v.option_ids || [];
+                            if (!ids.includes(o.id) || v.in_stock <= 0) return false;
+                            return trackedGroups.every(
+                              (g2) => g2.id === g.id || !selectedOptions[g2.id] || ids.includes(selectedOptions[g2.id]),
+                            );
+                          });
                         const delta = Number(o.price_delta) || 0;
                         return (
                           <button
@@ -562,13 +589,15 @@ export default function ProductDetail() {
                     </div>
                   </div>
                 ))}
-                {selectedVariant ? (
+                {allGroupsSelected && (trackedGroups.length === 0 || selectedVariant) ? (
                   <div
                     className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted"
                     data-testid="product-combo-summary"
                   >
-                    ◆ {selectedVariant.label} · ${Number(effectivePrice).toFixed(2)}
-                    {selectedVariant.in_stock <= 0 && (
+                    ◆ {[selectedVariant?.label,
+                        ...customSelections.map((c) => `${c.group.name}: ${c.option.label}`)]
+                        .filter(Boolean).join(" · ")} · ${Number(effectivePrice).toFixed(2)}
+                    {selectedVariant && selectedVariant.in_stock <= 0 && (
                       <span className="ml-2 text-red-400">· Sold out</span>
                     )}
                   </div>

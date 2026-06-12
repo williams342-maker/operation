@@ -5,7 +5,10 @@ import uuid
 from emergentintegrations.payments.stripe.checkout import StripeCheckout
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 
-from core import STRIPE_API_KEY, db, logger, now_iso, public_host
+from core import (
+    STRIPE_API_KEY, custom_options_summary, db, effective_variant_price,
+    logger, now_iso, public_host,
+)
 from email_service import (
     send_buyer_receipt, send_maker_low_stock,
     send_maker_new_order, send_ops_new_order,
@@ -140,7 +143,6 @@ async def _resolve_cart(items: list) -> list[dict]:
                     break
             if not variant:
                 raise HTTPException(400, "Selected variant no longer exists.")
-            from core import effective_variant_price
             effective_price = effective_variant_price(prod.get("price"), variant)
             prod = {
                 **prod,
@@ -150,6 +152,35 @@ async def _resolve_cart(items: list) -> list[dict]:
                 "_base_title": prod.get("title", ""),
                 "title": f"{prod.get('title', '')} — {variant.get('label', '')}",
             }
+        # iter380 — Customization-only option groups (tracks_inventory=False)
+        # never generate combo/SKU rows, so the buyer's picks arrive as
+        # `custom_option_ids`. Validate one pick per group, fold their price
+        # deltas into the unit price, and append labels to the line title so
+        # Stripe line items + receipts show exactly what was chosen.
+        custom_ids = (
+            ci.custom_option_ids if hasattr(ci, "custom_option_ids")
+            else (ci.get("custom_option_ids") if isinstance(ci, dict) else None)
+        ) or []
+        custom_groups = [
+            g for g in (prod.get("variant_groups") or [])
+            if g.get("tracks_inventory") is False and (g.get("options") or [])
+        ]
+        if custom_groups:
+            for g in custom_groups:
+                if not any(o.get("id") in custom_ids for o in g["options"]):
+                    raise HTTPException(
+                        400,
+                        f"Please choose {g.get('name') or 'an option'} for "
+                        f"{prod.get('_base_title') or prod.get('title', pid)}.",
+                    )
+            c_label, c_delta = custom_options_summary(prod, custom_ids)
+            if c_label:
+                prod = {
+                    **prod,
+                    "price": round(float(prod["price"]) + c_delta, 2),
+                    "_custom_options_label": c_label,
+                    "title": f"{prod.get('title', '')} · {c_label}",
+                }
         # Buyer personalization (iter150): text + image_url pass through so
         # the order doc + maker email surface them. We don't validate them
         # here — Pydantic already enforced the length caps on CartItem.
@@ -872,9 +903,25 @@ async def checkout_status(session_id: str, http_request: Request, bg: Background
                 m_doc = await db.makers.find_one(
                     {"slug": p["maker_slug"]}, {"_id": 0, "name": 1, "slug": 1},
                 ) or {}
+                # iter380 — Resolve variant + customization-only option labels
+                # so receipts / maker emails show exactly what was ordered,
+                # priced at the true unit price (not the base listing price).
+                line_title = p["title"]
+                unit_price = float(p.get("price") or 0)
+                vid = ci.get("variant_id")
+                if vid:
+                    v = next((x for x in (p.get("variants") or []) if x.get("id") == vid), None)
+                    if v:
+                        unit_price = effective_variant_price(p.get("price"), v)
+                        if v.get("label"):
+                            line_title = f"{line_title} — {v['label']}"
+                c_label, c_delta = custom_options_summary(p, ci.get("custom_option_ids") or [])
+                if c_label:
+                    line_title = f"{line_title} · {c_label}"
+                    unit_price = round(unit_price + c_delta, 2)
                 line = {
-                    "title": p["title"],
-                    "price": p["price"],
+                    "title": line_title,
+                    "price": unit_price,
                     "quantity": ci.get("quantity", 1),
                     "maker_slug": p["maker_slug"],
                     "maker_name": m_doc.get("name") or p["maker_slug"],

@@ -1,5 +1,5 @@
-import React, { useRef } from "react";
-import { Plus, Trash2, GripVertical, Image as ImageIcon, X } from "lucide-react";
+import React, { useRef, useState } from "react";
+import { Plus, Trash2, GripVertical, Image as ImageIcon, X, Boxes, Brush } from "lucide-react";
 import { toast } from "sonner";
 import { Label } from "./FormControls";
 
@@ -8,15 +8,24 @@ import { Label } from "./FormControls";
  *
  * Makers define named option CATEGORIES (Color, Engraving…) instead of a
  * flat list. Each option carries a +$ adjustment and an optional image.
- * Combinations are generated automatically (cartesian product) into
- * `form.variants` — the same flat rows the cart/checkout/stock pipeline
- * already understands — with `option_ids` recording which options compose
- * each combo. Per-combo qty, SKU and an optional absolute price override
- * are editable in the combinations table below the groups.
  *
- * Regeneration PRESERVES existing combo rows (matched by option-id set)
- * so editing a group name or adding a 3rd group doesn't wipe inventory
- * counts the maker already typed.
+ * iter380 — Inventory strategy per group. Each group is either:
+ *   • "Track inventory" (default) — participates in combo/SKU generation;
+ *     per-combination stock counts apply.
+ *   • "Customization only" — buyers still pick one option (and price
+ *     adjustments still apply) but the group never multiplies inventory
+ *     rows. Color×Size×Font no longer explodes into 50 quantity inputs.
+ *
+ * Combinations are generated automatically (cartesian product of the
+ * INVENTORY-TRACKED groups only) into `form.variants` — the same flat rows
+ * the cart/checkout/stock pipeline already understands — with `option_ids`
+ * recording which options compose each combo. Per-combo qty, SKU and an
+ * optional absolute price override are editable in the combinations table.
+ *
+ * Regeneration PRESERVES existing combo rows (matched by option-id set —
+ * exact match first, then superset match summing stock) so editing a group
+ * name, adding a 3rd group, or flipping a group to customization-only
+ * doesn't wipe inventory counts the maker already typed.
  *
  * Drag-reorder: group cards and option rows are HTML5-draggable.
  */
@@ -29,12 +38,13 @@ const MAX_OPTION_IMG_BYTES = 4 * 1024 * 1024;
 export default function VariationGroupsSection({ form, set }) {
   const groups = form.variant_groups || [];
   const drag = useRef(null); // { type: "group"|"option", gIdx, oIdx }
+  const [bulkQty, setBulkQty] = useState("");
 
-  // ---- Combo generation (cartesian product, preserving matches) ----
+  // ---- Combo generation (cartesian product of TRACKED groups only) ----
   const syncCombos = (nextGroups) => {
     const effective = nextGroups
       .map((g) => ({ ...g, options: (g.options || []).filter((o) => (o.label || "").trim()) }))
-      .filter((g) => g.options.length > 0);
+      .filter((g) => g.options.length > 0 && g.tracks_inventory !== false);
     let combos = [];
     if (effective.length > 0) {
       let rows = [[]];
@@ -43,20 +53,35 @@ export default function VariationGroupsSection({ form, set }) {
       }
       combos = rows.map((opts) => {
         const ids = opts.map((o) => o.id);
+        // Exact match by option-id set first…
         const existing = (form.variants || []).find((v) => {
           const vids = v.option_ids || [];
           return vids.length === ids.length && ids.every((id) => vids.includes(id));
         });
+        // …else superset matches (e.g. a group was just flipped to
+        // customization-only: old "Tan / Script" + "Tan / Block" rows
+        // collapse into the new "Tan" row — sum their stock).
+        const supersets = existing
+          ? []
+          : (form.variants || []).filter((v) => {
+              const vids = v.option_ids || [];
+              return vids.length > ids.length && ids.every((id) => vids.includes(id));
+            });
+        const seed = existing || supersets[0];
         const delta = opts.reduce((s, o) => s + (Number(o.price_delta) || 0), 0);
         return {
           id: existing?.id || uid(),
           label: opts.map((o) => o.label.trim()).join(" / "),
           price: existing?.price ?? "",          // optional per-combo override
           price_delta: delta,
-          in_stock: existing?.in_stock ?? 1,
-          sku: existing?.sku || "",
+          in_stock: existing
+            ? existing.in_stock
+            : supersets.length
+            ? supersets.reduce((s, v) => s + (Number(v.in_stock) || 0), 0)
+            : 1,
+          sku: seed?.sku || "",
           option_ids: ids,
-          image: existing?.image || null,
+          image: seed?.image || null,
         };
       });
     }
@@ -68,7 +93,7 @@ export default function VariationGroupsSection({ form, set }) {
     if (groups.length === 0 && (form.variants || []).length > 0 && !(form.variants || []).some((v) => (v.option_ids || []).length)) {
       toast.message("Heads up — switching to option groups will replace your current flat variation list.");
     }
-    syncCombos([...groups, { id: uid(), name: "", options: [] }]);
+    syncCombos([...groups, { id: uid(), name: "", options: [], tracks_inventory: true }]);
   };
   const patchGroup = (gIdx, patch) =>
     syncCombos(groups.map((g, i) => (i === gIdx ? { ...g, ...patch } : g)));
@@ -124,12 +149,31 @@ export default function VariationGroupsSection({ form, set }) {
       variants: (form.variants || []).map((v) => (v.id === comboId ? { ...v, ...patch } : v)),
     });
 
+  const applyBulkQty = () => {
+    const q = Math.max(0, Number(bulkQty) || 0);
+    if (bulkQty === "") return;
+    set({
+      variants: (form.variants || []).map((v) =>
+        (v.option_ids || []).length > 0 ? { ...v, in_stock: q } : v,
+      ),
+    });
+    toast.success(`Set quantity ${q} on all combinations.`);
+  };
+
   const combos = (form.variants || []).filter((v) => (v.option_ids || []).length > 0);
   const basePrice = Number(form.price) || 0;
+  const trackedCount = groups.filter(
+    (g) => g.tracks_inventory !== false && (g.options || []).some((o) => (o.label || "").trim()),
+  ).length;
+  const customCount = groups.filter(
+    (g) => g.tracks_inventory === false && (g.options || []).some((o) => (o.label || "").trim()),
+  ).length;
 
   return (
     <div data-testid="editor-variant-groups">
-      {groups.map((g, gIdx) => (
+      {groups.map((g, gIdx) => {
+        const isCustom = g.tracks_inventory === false;
+        return (
         <div
           key={g.id}
           className="border border-line bg-surface p-4 mb-3"
@@ -137,7 +181,7 @@ export default function VariationGroupsSection({ form, set }) {
           onDragOver={(e) => e.preventDefault()}
           onDrop={() => onDropGroup(gIdx)}
         >
-          <div className="flex items-center gap-2 mb-3">
+          <div className="flex items-center gap-2 mb-2">
             <span
               draggable
               onDragStart={() => { drag.current = { type: "group", gIdx }; }}
@@ -163,6 +207,42 @@ export default function VariationGroupsSection({ form, set }) {
             >
               <Trash2 size={14} />
             </button>
+          </div>
+
+          {/* iter380 — Inventory strategy toggle */}
+          <div className="flex flex-wrap items-center gap-2 mb-3 pl-6">
+            <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted">
+              Inventory
+            </span>
+            <div className="inline-flex border border-line" role="group">
+              <button
+                type="button"
+                onClick={() => patchGroup(gIdx, { tracks_inventory: true })}
+                className={`px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.18em] inline-flex items-center gap-1.5 transition ${
+                  !isCustom ? "bg-brand/15 text-brand border-r border-line" : "text-ink-muted hover:text-ink border-r border-line"
+                }`}
+                data-testid={`editor-group-track-inventory-${gIdx}`}
+                title="This group creates stock-counted combinations (e.g. Color, Size)"
+              >
+                <Boxes size={11} /> Track inventory
+              </button>
+              <button
+                type="button"
+                onClick={() => patchGroup(gIdx, { tracks_inventory: false })}
+                className={`px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.18em] inline-flex items-center gap-1.5 transition ${
+                  isCustom ? "bg-brand/15 text-brand" : "text-ink-muted hover:text-ink"
+                }`}
+                data-testid={`editor-group-customization-only-${gIdx}`}
+                title="Buyers still pick an option (+$ applies) but no stock rows are created (e.g. Engraving font)"
+              >
+                <Brush size={11} /> Customization only
+              </button>
+            </div>
+            <span className="font-mono text-[9px] text-ink-muted leading-relaxed">
+              {isCustom
+                ? "No stock rows — buyers still pick one, +$ still applies."
+                : "Each option becomes part of the stock-counted combinations below."}
+            </span>
           </div>
 
           {(g.options || []).length > 0 && (
@@ -251,7 +331,8 @@ export default function VariationGroupsSection({ form, set }) {
             <Plus size={11} /> Add option
           </button>
         </div>
-      ))}
+        );
+      })}
 
       <button
         type="button"
@@ -264,7 +345,19 @@ export default function VariationGroupsSection({ form, set }) {
       {groups.length === 0 && (
         <p className="font-mono text-[10px] text-ink-muted mt-2 leading-relaxed">
           e.g. Group 1: Color (Tan / Brown / Black) · Group 2: Engraving (Front only / Both sides).
-          Combinations are generated automatically below.
+          Mark each group "Track inventory" (creates stock-counted combinations) or
+          "Customization only" (buyers pick, no stock rows).
+        </p>
+      )}
+
+      {/* iter380 — all groups customization-only → product-level stock applies */}
+      {customCount > 0 && trackedCount === 0 && (
+        <p
+          className="font-mono text-[10px] text-brand mt-3 leading-relaxed"
+          data-testid="editor-product-level-stock-note"
+        >
+          ◆ All groups are customization-only, so no combinations are generated —
+          your listing-level "Quantity in stock" field controls inventory.
         </p>
       )}
 
@@ -273,9 +366,30 @@ export default function VariationGroupsSection({ form, set }) {
         <div className="mt-6" data-testid="editor-combos">
           <Label>Combinations · {combos.length}</Label>
           <p className="font-mono text-[10px] text-ink-muted mb-3 leading-relaxed">
-            Auto-generated from your groups. Set stock per combination; SKU and price
-            override are optional — blank price = base ${basePrice.toFixed(2)} + adjustments.
+            Auto-generated from your inventory-tracked groups
+            {customCount > 0 ? " (customization-only groups don't multiply rows)" : ""}.
+            Set stock per combination; SKU and price override are optional —
+            blank price = base ${basePrice.toFixed(2)} + adjustments.
           </p>
+          {/* iter380 — bulk quantity editor */}
+          <div className="flex items-center gap-2 mb-3" data-testid="editor-bulk-qty-row">
+            <input
+              type="number" min="0" step="1"
+              className="w-24 bg-transparent border border-line focus:border-brand outline-none px-2 py-1.5 font-mono text-xs"
+              placeholder="Qty"
+              value={bulkQty}
+              onChange={(e) => setBulkQty(e.target.value)}
+              data-testid="editor-bulk-qty-input"
+            />
+            <button
+              type="button"
+              onClick={applyBulkQty}
+              className="px-3 py-1.5 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em]"
+              data-testid="editor-bulk-qty-apply"
+            >
+              Apply to all {combos.length}
+            </button>
+          </div>
           <div className="grid grid-cols-12 gap-2 font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted px-1 mb-1">
             <div className="col-span-4">Combination</div>
             <div className="col-span-2">Price</div>

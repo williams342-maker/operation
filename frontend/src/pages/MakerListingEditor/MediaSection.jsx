@@ -14,7 +14,7 @@ const PHOTO_TIPS = [
   { title: "Show scale", body: "Add a coin, hand, or coffee mug in one shot so buyers immediately understand the size." },
   { title: "Capture the craft", body: "Close-ups of cut edges, engraving depth, or wood grain prove your quality — buyers are paying for the craftsmanship." },
   { title: "Show it in context", body: "One styled photo (on a wall, desk, mantel) helps buyers picture it in their own space." },
-  { title: "Square frames sell", body: "The cropper outputs 1:1 — your cover photo will be square everywhere on the site, so compose for it." },
+  { title: "Portrait frames sell", body: "The cropper outputs 4:5 portrait by default — your photos display at exactly 4:5 on the catalog grid and listing page, so what you crop is what buyers see." },
 ];
 
 /**
@@ -191,7 +191,7 @@ export default function MediaSection({
               onDragLeave={onDragLeaveTile(i)}
               onDrop={onDrop(i)}
               onDragEnd={onDragEnd}
-              className={`relative aspect-square border group overflow-hidden cursor-grab active:cursor-grabbing transition ${
+              className={`relative aspect-[4/5] border group overflow-hidden cursor-grab active:cursor-grabbing transition ${
                 isError
                   ? "border-red-500 border-2 ring-2 ring-red-500/40"
                   : isOver
@@ -290,7 +290,7 @@ export default function MediaSection({
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
-            className="aspect-square border border-dashed border-line hover:border-brand hover:text-brand text-ink-muted flex flex-col items-center justify-center gap-2 transition"
+            className="aspect-[4/5] border border-dashed border-line hover:border-brand hover:text-brand text-ink-muted flex flex-col items-center justify-center gap-2 transition"
             data-testid="editor-add-photo"
           >
             <Upload size={20} />

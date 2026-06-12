@@ -95,6 +95,28 @@ def is_super_admin_email(email: str) -> bool:
     return (email or "").strip().lower() in ADMIN_EMAILS
 
 
+def custom_options_summary(prod: dict, option_ids: list) -> tuple:
+    """iter380 — Resolve a buyer's customization-only option picks.
+
+    Walks the product's `variant_groups` where `tracks_inventory == False`
+    and matches the supplied option ids. Returns `(label, delta)` where
+    `label` is e.g. "Font: Script · Finish: Matte" (or None when nothing
+    matched) and `delta` is the summed price adjustment of the matched
+    options. Used by checkout pricing, receipts, and maker order views.
+    """
+    if not option_ids:
+        return None, 0.0
+    parts, delta = [], 0.0
+    for g in (prod.get("variant_groups") or []):
+        if g.get("tracks_inventory") is not False:
+            continue
+        o = next((o for o in (g.get("options") or []) if o.get("id") in option_ids), None)
+        if o:
+            parts.append(f"{g.get('name')}: {o.get('label')}")
+            delta += float(o.get("price_delta") or 0)
+    return (" · ".join(parts) or None), delta
+
+
 def effective_variant_price(base_price: float, variant) -> float:
     """Compute the unit price for a given (product, variant) pair.
 

@@ -62,6 +62,12 @@ class VariantGroup(BaseModel):
     id: str = Field(default_factory=lambda: uuid.uuid4().hex[:12])
     name: str
     options: List[VariantOption] = []
+    # iter380 — Inventory strategy. True (default) → the group participates
+    # in combo/SKU generation and per-combination stock counts. False →
+    # "customization only": buyers still pick one option (and price deltas
+    # still apply) but the group never multiplies inventory rows. Prevents
+    # the combinatorial quantity explosion for choices like engraving font.
+    tracks_inventory: bool = True
 
 
 class Product(BaseModel):
@@ -757,6 +763,12 @@ class CartItem(BaseModel):
     # Persisted verbatim on the tx doc, hydrated for the maker's order
     # detail view, and marked `referenced` on payment success.
     personalization_upload_ids: List[str] = Field(default=[], max_length=10)
+    # iter380 — Selected option ids from customization-only variation groups
+    # (`VariantGroup.tracks_inventory == False`). These groups never generate
+    # combo/SKU rows, so the buyer's choices travel separately from
+    # `variant_id`. Resolved server-side in `_resolve_cart` (price deltas +
+    # labels), persisted verbatim on the tx doc for maker order views.
+    custom_option_ids: List[str] = Field(default=[], max_length=20)
 
 
 class CheckoutRequest(BaseModel):

@@ -4,19 +4,21 @@ import { X, Check, RotateCcw, GripHorizontal } from "lucide-react";
 
 /** Crop modal for product photos.
  *  Wraps `react-easy-crop` so the caller just receives the final cropped
- *  data URL. Default aspect is **square** (1:1) since our listing grid uses
- *  aspect-square thumbnails — but the maker can switch to 4:5 portrait or
- *  16:9 wide for lifestyle/video-card shots before confirming.
+ *  data URL. iter380 — Default aspect is **4:5 portrait** to exactly match
+ *  the storefront: product cards and the listing-detail hero both render
+ *  `aspect-[4/5]` with `object-cover`, so what the maker crops here is
+ *  pixel-for-pixel what buyers see. Square and 16:9 remain available for
+ *  detail thumbnails / lifestyle shots.
  */
 const ASPECT_PRESETS = [
-  { id: "1:1",  ratio: 1,        label: "Square",   hint: "Catalog grid · default" },
-  { id: "4:5",  ratio: 4 / 5,    label: "Portrait", hint: "Lifestyle · IG-feed style" },
+  { id: "4:5",  ratio: 4 / 5,    label: "Portrait", hint: "Catalog grid + listing page · default" },
+  { id: "1:1",  ratio: 1,        label: "Square",   hint: "Detail thumbnails" },
   { id: "16:9", ratio: 16 / 9,   label: "Wide",     hint: "Video card · banner" },
 ];
 
 export default function ImageCropModal({
   src, onCancel, onConfirm,
-  defaultAspect = 1,
+  defaultAspect = 4 / 5,
   outputMaxEdge = 1600,        // matches MakerListingEditor compression target
   outputMime = "image/webp",
   outputQuality = 0.86,

@@ -666,6 +666,9 @@ export default function MakerListingEditor() {
       .map((g) => ({
         id: g.id,
         name: (g.name || "").trim(),
+        // iter380 — inventory strategy: tracked groups generate stock-counted
+        // combos; customization-only groups are buyer picks with no SKU rows.
+        tracks_inventory: g.tracks_inventory !== false,
         options: (g.options || [])
           .filter((o) => (o.label || "").trim())
           .map((o) => ({
@@ -1877,6 +1880,7 @@ export default function MakerListingEditor() {
       {cropQueue.length > 0 && (
         <ImageCropModal
           src={cropQueue[0]}
+          defaultAspect={4 / 5}
           onCancel={onCropCancel}
           onConfirm={onCropConfirm}
         />
