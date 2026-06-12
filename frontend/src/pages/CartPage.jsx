@@ -408,6 +408,15 @@ export default function CartPage() {
                     Expedited (+$9.99) and overnight (+$24.99) options at checkout.
                   </div>
                 )}
+                {/* iter385 — estimated delivery window from the quote. */}
+                {!quote?.digital_only && quote?.eta_start && quote?.eta_end && (
+                  <div
+                    className="font-mono text-[10px] text-brand tracking-normal normal-case -mt-1"
+                    data-testid="cart-eta"
+                  >
+                    ◆ Arrives {fmtEta(quote.eta_start)} – {fmtEta(quote.eta_end)}
+                  </div>
+                )}
                 <Row k="Tax" v="At checkout" testId="row-tax" />
                 {quote?.discount_code && (quote?.discount || 0) > 0 && (
                   <Row
@@ -643,6 +652,9 @@ export default function CartPage() {
     </div>
   );
 }
+
+const fmtEta = (d) =>
+  new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
 const Row = ({ k, v, testId }) => (
   <div className="flex justify-between text-ink-muted" data-testid={testId}>

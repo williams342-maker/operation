@@ -214,7 +214,7 @@ export default function Hero() {
               </Link>
               <Link
                 to="/makers"
-                className="inline-flex items-center gap-2 px-6 py-3 border border-brand/40 bg-brand/10 hover:bg-brand/20 text-ink font-mono text-xs uppercase tracking-[0.22em] transition-colors"
+                className="inline-flex items-center gap-2 px-6 py-3 border-2 border-ink bg-[color-mix(in_srgb,var(--brand)_40%,transparent)] hover:bg-[color-mix(in_srgb,var(--brand)_55%,transparent)] text-ink font-mono text-xs uppercase tracking-[0.22em] transition-colors"
                 data-testid="home-hero-cta-browse"
               >
                 <Users size={14} />

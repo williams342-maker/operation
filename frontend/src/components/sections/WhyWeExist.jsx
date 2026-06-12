@@ -97,8 +97,12 @@ export default function WhyWeExist({ testId = "why-we-exist" }) {
             transition={{ delay: 0.1, duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
             className="font-display text-5xl md:text-7xl lg:text-8xl tracking-tighter leading-[0.9] max-w-5xl mx-auto text-amber-50"
           >
-            Big marketplaces<br />
-            broke handmade.
+            {/* iter385 — user request: ink outline so the ghost headline
+                reads against the light canvas instead of vanishing. */}
+            <span style={{ WebkitTextStroke: "1.5px var(--ink)" }}>
+              Big marketplaces<br />
+              broke handmade.
+            </span>
             <br />
             <span className="text-brand drop-shadow-[0_0_24px_rgba(255,69,0,0.4)]">
               We're rebuilding it.

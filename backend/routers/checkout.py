@@ -1,7 +1,10 @@
 """Stripe checkout: cart quote, session creation, status polling, webhook handler."""
 import hashlib
+import math
 import os
+import re
 import uuid
+from datetime import datetime, timedelta, timezone
 from emergentintegrations.payments.stripe.checkout import StripeCheckout
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 
@@ -206,6 +209,41 @@ async def _resolve_cart(items: list) -> list[dict]:
     return out
 
 
+def _eta_window(resolved: list[dict]):
+    """iter385 — Estimated delivery window for a physical cart.
+
+    Per item: parse the maker's `shipping_est_delivery` copy (e.g.
+    "3-5 business days") for up to two day-counts; business days are
+    stretched to calendar days (×7/5). Unparseable/missing → platform
+    default 4–8 days. +1/+2 handling padding, then the cart window is the
+    max across items (one box, slowest item gates it). Returns
+    (start_iso_date, end_iso_date) or (None, None) for empty/digital carts.
+    """
+    lo_best = hi_best = 0
+    for r in resolved:
+        p = r["product"]
+        if p.get("listing_type") == "digital":
+            continue
+        txt = (p.get("shipping_est_delivery") or "").strip()
+        nums = [int(n) for n in re.findall(r"\d+", txt)[:2] if 0 < int(n) < 60]
+        if len(nums) >= 2:
+            lo, hi = nums[0], nums[1]
+        elif len(nums) == 1:
+            lo = hi = nums[0]
+        else:
+            lo, hi = 4, 8
+        if "business" in txt.lower():
+            lo, hi = math.ceil(lo * 7 / 5), math.ceil(hi * 7 / 5)
+        lo_best, hi_best = max(lo_best, lo + 1), max(hi_best, hi + 2)
+    if not hi_best:
+        return None, None
+    today = datetime.now(timezone.utc).date()
+    return (
+        (today + timedelta(days=lo_best)).isoformat(),
+        (today + timedelta(days=hi_best)).isoformat(),
+    )
+
+
 def _quote_for(resolved: list[dict]) -> dict:
     """Compute subtotal + shipping for a resolved cart.
 
@@ -249,6 +287,8 @@ def _quote_for(resolved: list[dict]) -> dict:
             "free_shipping_eligible": True,
             "total_before_tax": subtotal,
             "digital_only": True,
+            "eta_start": None,
+            "eta_end": None,
         }
 
     # Subtotal-threshold platform promo wins over everything else.
@@ -273,6 +313,7 @@ def _quote_for(resolved: list[dict]) -> dict:
             )
         shipping = max(per_item_rates, default=DEFAULT_SHIPPING)
     shipping = round(shipping, 2)
+    eta_start, eta_end = _eta_window(resolved)
     return {
         "subtotal": subtotal,
         "shipping": shipping,
@@ -283,6 +324,9 @@ def _quote_for(resolved: list[dict]) -> dict:
         # to check. False on the regular path; only the early-return
         # above sets it to True.
         "digital_only": False,
+        # iter385 — estimated delivery window ("Arrives Jun 19 – 23").
+        "eta_start": eta_start,
+        "eta_end": eta_end,
     }
 
 
