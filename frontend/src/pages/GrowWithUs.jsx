@@ -326,7 +326,7 @@ function Vision() {
                   <span className={`w-1.5 h-1.5 rounded-full ${dotMap[b.accent]}`} />
                   <h3 className="font-display text-xl text-white tracking-tight">{b.title}</h3>
                 </div>
-                <p className="text-ink-muted text-sm leading-relaxed">{b.body}</p>
+                <p className="text-white/70 text-sm leading-relaxed">{b.body}</p>
               </motion.div>
             );
           })}
@@ -466,7 +466,7 @@ function Audience() {
                 data-testid={`grow-audience-${a.title.toLowerCase().replace(/[^a-z]/g,'-')}`}
               >
                 <h3 className="font-display text-2xl text-white tracking-tight mb-4">{a.title}</h3>
-                <p className="text-ink-muted text-sm leading-relaxed mb-6">{a.body}</p>
+                <p className="text-white/70 text-sm leading-relaxed mb-6">{a.body}</p>
                 {a.to.startsWith("mailto:") ? (
                   <a href={a.to} className={`inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.22em] ${ctaMap[a.accent]} transition`}>
                     {a.cta} <span>→</span>
@@ -538,7 +538,7 @@ function Traction() {
                   <div className="font-display text-4xl sm:text-5xl bg-gradient-to-r from-white via-[#C2410C] to-white bg-clip-text text-transparent">
                     <CountUp to={s.value} suffix={s.suffix} />
                   </div>
-                  <div className="mt-3 font-mono text-[10px] uppercase tracking-[0.24em] text-ink-muted">{s.label}</div>
+                  <div className="mt-3 font-mono text-[10px] uppercase tracking-[0.24em] text-white/60">{s.label}</div>
                 </motion.div>
               ))
           }
@@ -567,7 +567,7 @@ function FounderLetter() {
               <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center">
                 <div className="text-7xl font-display text-brand mb-6">MW</div>
                 <div className="font-display text-2xl text-white">Michael Williams</div>
-                <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-ink-muted mt-2">Founder · Crafters Market</div>
+                <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-white/60 mt-2">Founder · Crafters Market</div>
                 <div className="mt-8 inline-flex items-center gap-2 px-3 py-1.5 border border-brand/40 bg-brand/5">
                   <span className="w-1.5 h-1.5 rounded-full bg-brand animate-pulse" />
                   <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">Williams CNC · Active maker</span>

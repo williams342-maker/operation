@@ -26,9 +26,9 @@ import { fetchAdminProdHealth } from "../../lib/api";
  *  - unknown  (gray)    — fetch failed (token expired / network blip)
  */
 const PALETTE = {
-  ok:       { dot: "bg-emerald-500", text: "text-emerald-700", border: "border-emerald-700/60", bg: "bg-emerald-900/20" },
-  degraded: { dot: "bg-yellow-500",  text: "text-brand",  border: "border-yellow-700/60",  bg: "bg-yellow-900/20" },
-  down:     { dot: "bg-red-500",     text: "text-red-600",     border: "border-red-700/60",     bg: "bg-red-900/20" },
+  ok:       { dot: "bg-emerald-500", text: "text-emerald-700", border: "border-emerald-700/60", bg: "bg-emerald-600/10" },
+  degraded: { dot: "bg-yellow-500",  text: "text-brand",  border: "border-yellow-700/60",  bg: "bg-yellow-500/10" },
+  down:     { dot: "bg-red-500",     text: "text-red-600",     border: "border-red-700/60",     bg: "bg-red-600/10" },
   paused:   { dot: "bg-ink-muted",   text: "text-ink-muted",   border: "border-line",      bg: "bg-paper" },
   unknown:  { dot: "bg-ink-muted",   text: "text-ink-muted",   border: "border-line",      bg: "bg-paper" },
 };
