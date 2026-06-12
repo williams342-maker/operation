@@ -57,6 +57,126 @@ SEED_PRODUCTS = [
      "images": [P_WOOD, P_LASER]},
 ]
 
+# ---------------------------------------------------------------------------
+# iter390 — Category fillers (user request). Starter makers + listings so the
+# new craft categories (Pottery & Ceramics, Woodworking, Leather Goods,
+# Fiber & Textiles) aren't empty on the storefront/rails. Seeded with
+# UPSERT-BY-SLUG in `seed_if_empty`, so they roll out automatically on the
+# next production deploy and never duplicate. Edit or retire them from the
+# admin once real sellers fill these categories in.
+# ---------------------------------------------------------------------------
+# Pottery/leather: hand-verified Unsplash photos. Wood/fiber: AI-generated
+# product photography (Emergent static CDN) matching each listing exactly.
+F_POTTERY_WHEEL = "https://images.unsplash.com/photo-1468322638156-074863f9362e?crop=entropy&cs=srgb&fm=jpg&w=900&q=85"
+F_POTTERY_MUGS = "https://images.unsplash.com/photo-1604095616439-216735abec0c?crop=entropy&cs=srgb&fm=jpg&w=900&q=85"
+F_POTTERY_BOWLS = "https://images.unsplash.com/photo-1610701596007-11502861dcfa?crop=entropy&cs=srgb&fm=jpg&w=900&q=85"
+F_POTTERY_VASE = "https://images.unsplash.com/photo-1525974160448-038dacadcc71?crop=entropy&cs=srgb&fm=jpg&w=900&q=85"
+F_VASE_DECOR = "https://images.unsplash.com/photo-1556228453-efd6c1ff04f6?crop=entropy&cs=srgb&fm=jpg&w=900&q=85"
+F_WOOD_TOOLS = "https://static.prod-images.emergentagent.com/jobs/ad0439ad-da94-4caf-a818-28a88417ad46/images/8c3be549be7647ebd6b2474075dd4073f0f7f7c19899716b0f8e22afd46d0d01.png"
+F_WOOD_BENCH = "https://static.prod-images.emergentagent.com/jobs/ad0439ad-da94-4caf-a818-28a88417ad46/images/f4f59686150c480dd0c3737a57b2e0c12ee63506e7c4d56f189bb97ef3cbb3f4.png"
+F_WOOD_BOWL = "https://static.prod-images.emergentagent.com/jobs/ad0439ad-da94-4caf-a818-28a88417ad46/images/6ad6ba41aba7ad691fc8d84b56346674335a977771b20e6e89e9647bc087e682.png"
+F_WOOD_BOARD = "https://static.prod-images.emergentagent.com/jobs/ad0439ad-da94-4caf-a818-28a88417ad46/images/94f8492b879e1c818ce47acfc4bbf99b51258f23d5d251258ee739565cc4f037.png"
+F_LEATHER_SHOP = "https://images.unsplash.com/photo-1473188588951-666fce8e7c68?crop=entropy&cs=srgb&fm=jpg&w=900&q=85"
+F_LEATHER_GOODS = "https://images.unsplash.com/photo-1517254797898-04edd251bfb3?crop=entropy&cs=srgb&fm=jpg&w=900&q=85"
+F_FIBER_WEAVE = "https://static.prod-images.emergentagent.com/jobs/ad0439ad-da94-4caf-a818-28a88417ad46/images/73c7fbda93becf28739e8c924e2338017c00ec0f61d310052007a909e5da60d6.png"
+F_FIBER_HANG = "https://static.prod-images.emergentagent.com/jobs/ad0439ad-da94-4caf-a818-28a88417ad46/images/726f314711119649e49e73f1d347dcdc5ae477dac02a3edcf47526939defc817.png"
+F_FIBER_KNIT = "https://static.prod-images.emergentagent.com/jobs/ad0439ad-da94-4caf-a818-28a88417ad46/images/bae7e2c47f04e7e4333e29d80bc05919535b58bb65c0b8c240ccc571f4f4fbb5.png"
+
+SEED_FILLER_MAKERS = [
+    {"slug": "kiln-and-clay", "name": "Kiln & Clay Studio", "initials": "KC", "location": "Asheville, NC",
+     "email": "kiln-and-clay@craftersmarket.org",
+     "bio": "Small-batch stoneware studio. Every mug, bowl, and vase is wheel-thrown, trimmed, and glazed by hand in our mountain workshop.",
+     "techniques": ["CUSTOM"],
+     "portrait": F_POTTERY_WHEEL, "cover": F_POTTERY_BOWLS,
+     "listings_count": 3, "rating": 4.92},
+    {"slug": "loom-and-thread", "name": "Loom & Thread Co.", "initials": "LT", "location": "Santa Fe, NM",
+     "email": "loom-and-thread@craftersmarket.org",
+     "bio": "Hand-woven wall hangings, macramé, and natural-fiber textiles dyed with desert botanicals and woven on a 1940s floor loom.",
+     "techniques": ["CUSTOM"],
+     "portrait": F_FIBER_WEAVE, "cover": F_FIBER_HANG,
+     "listings_count": 3, "rating": 4.89},
+]
+
+SEED_FILLER_PRODUCTS = [
+    # ---- Pottery & Ceramics (kiln-and-clay) ----
+    {"slug": "hand-thrown-stoneware-mug-set", "title": "Hand-Thrown Stoneware Mug Set", "category": "Pottery & Ceramics",
+     "technique": "CUSTOM", "price": 68.0, "maker_slug": "kiln-and-clay",
+     "description": "Set of two 12oz wheel-thrown mugs in speckled stoneware with a satin glaze. Dishwasher and microwave safe. Each pair varies slightly — that's the point.",
+     "materials": ["Speckled stoneware", "Food-safe satin glaze"], "dimensions": '4" tall · 12oz · set of 2',
+     "shipping_est_delivery": "5-7 business days",
+     "images": [F_POTTERY_MUGS, F_POTTERY_WHEEL]},
+    {"slug": "glazed-serving-bowl-earthen", "title": "Glazed Serving Bowl — Earthen", "category": "Pottery & Ceramics",
+     "technique": "CUSTOM", "price": 89.0, "maker_slug": "kiln-and-clay",
+     "description": '10" serving bowl thrown from local clay and finished in a layered earthen glaze. Sturdy enough for daily salads, pretty enough for the open shelf.',
+     "materials": ["Local stoneware clay", "Layered glaze"], "dimensions": '10" diameter',
+     "shipping_est_delivery": "5-7 business days",
+     "images": [F_POTTERY_BOWLS, F_POTTERY_WHEEL]},
+    {"slug": "wheel-thrown-bud-vase-trio", "title": "Wheel-Thrown Bud Vase Trio", "category": "Pottery & Ceramics",
+     "technique": "CUSTOM", "price": 54.0, "maker_slug": "kiln-and-clay",
+     "description": "Three petite bud vases in graduated heights, glazed in complementary neutrals. Styled together or scattered around the house.",
+     "materials": ["Stoneware", "Matte glaze"], "dimensions": '3–6" tall · set of 3',
+     "shipping_est_delivery": "5-7 business days",
+     "images": [F_POTTERY_VASE, F_VASE_DECOR]},
+    # ---- Woodworking (oakridge-woodcraft) ----
+    {"slug": "turned-walnut-catchall-bowl", "title": "Turned Walnut Catch-All Bowl", "category": "Woodworking",
+     "technique": "CUSTOM", "price": 95.0, "maker_slug": "oakridge-woodcraft",
+     "description": 'Lathe-turned from a single block of American black walnut and finished with food-safe oil. Keys, rings, coins — or salt at the stove.',
+     "materials": ["American black walnut", "Food-safe oil finish"], "dimensions": '7" diameter',
+     "shipping_est_delivery": "4-6 business days",
+     "images": [F_WOOD_BOWL, F_WOOD_TOOLS]},
+    {"slug": "end-grain-chopping-block", "title": "End-Grain Chopping Block", "category": "Woodworking",
+     "technique": "CUSTOM", "price": 145.0, "maker_slug": "oakridge-woodcraft",
+     "description": 'Checkerboard end-grain block in maple and walnut. Self-healing surface that keeps knives sharp. Conditioned with board butter before shipping.',
+     "materials": ["Hard maple", "Black walnut", "Board butter"], "dimensions": '16" × 12" × 2"',
+     "shipping_est_delivery": "4-6 business days",
+     "images": [F_WOOD_BOARD, F_WOOD_BENCH]},
+    {"slug": "dovetail-keepsake-box", "title": "Dovetail Keepsake Box", "category": "Woodworking",
+     "technique": "ROUTER", "price": 120.0, "maker_slug": "oakridge-woodcraft",
+     "description": "Hand-cut dovetail joinery in quartersawn white oak with a felt-lined interior. A small box meant to outlast everything you keep in it.",
+     "materials": ["Quartersawn white oak", "Felt lining"], "dimensions": '9" × 6" × 4"',
+     "shipping_est_delivery": "4-6 business days",
+     "images": [F_WOOD_TOOLS, F_WOOD_BENCH]},
+    # ---- Leather Goods (hidehouse-craft) ----
+    {"slug": "saddle-stitched-bifold-wallet", "title": "Saddle-Stitched Bifold Wallet", "category": "Leather Goods",
+     "technique": "CUSTOM", "price": 78.0, "maker_slug": "hidehouse-craft",
+     "description": "Full-grain vegetable-tanned bifold, saddle-stitched by hand with waxed linen thread. Develops a deep patina with every year of carry.",
+     "materials": ["Full-grain veg-tan leather", "Waxed linen thread"], "dimensions": '4.5" × 3.5"',
+     "shipping_est_delivery": "3-5 business days",
+     "images": [F_LEATHER_GOODS, F_LEATHER_SHOP]},
+    {"slug": "leather-journal-cover-a5", "title": "Leather Journal Cover — A5", "category": "Leather Goods",
+     "technique": "CUSTOM", "price": 92.0, "maker_slug": "hidehouse-craft",
+     "description": "Wrap-around A5 cover in oiled buffalo leather with an adjustable cord closure. Fits standard A5 notebooks; refit it for decades.",
+     "materials": ["Oiled buffalo leather", "Leather cord"], "dimensions": 'Fits A5 notebooks',
+     "shipping_est_delivery": "3-5 business days",
+     "images": [F_LEATHER_SHOP, F_LEATHER_GOODS]},
+    {"slug": "hand-tooled-leather-belt", "title": "Hand-Tooled Leather Belt", "category": "Leather Goods",
+     "technique": "CUSTOM", "price": 110.0, "maker_slug": "hidehouse-craft",
+     "description": "Single-piece 10oz harness leather belt, edges burnished by hand, solid brass buckle. Cut to your exact waist measurement.",
+     "materials": ["10oz harness leather", "Solid brass buckle"], "dimensions": 'Cut to size · 1.5" wide',
+     "shipping_est_delivery": "3-5 business days",
+     "images": [F_LEATHER_GOODS, F_LEATHER_SHOP]},
+    # ---- Fiber & Textiles (loom-and-thread) ----
+    {"slug": "handwoven-wall-hanging-mesa", "title": "Handwoven Wall Hanging — Mesa", "category": "Fiber & Textiles",
+     "technique": "CUSTOM", "price": 135.0, "maker_slug": "loom-and-thread",
+     "description": "Woven on a vintage floor loom in undyed wool and desert-botanical-dyed accents, hung from a foraged driftwood rod.",
+     "materials": ["Wool", "Cotton warp", "Driftwood rod"], "dimensions": '24" × 36"',
+     "shipping_est_delivery": "5-8 business days",
+     "images": [F_FIBER_WEAVE, F_FIBER_HANG]},
+    {"slug": "macrame-plant-hanger-duo", "title": "Macramé Plant Hanger Duo", "category": "Fiber & Textiles",
+     "technique": "CUSTOM", "price": 58.0, "maker_slug": "loom-and-thread",
+     "description": "Two hand-knotted hangers in 3-ply natural cotton rope — one long, one short. Fits 4–8\" pots. Brass ring hardware.",
+     "materials": ["Natural cotton rope", "Brass rings"], "dimensions": '28" and 38" drops · set of 2',
+     "shipping_est_delivery": "5-8 business days",
+     "images": [F_FIBER_HANG, F_FIBER_WEAVE]},
+    {"slug": "chunky-knit-lap-throw", "title": "Chunky Knit Lap Throw", "category": "Fiber & Textiles",
+     "technique": "CUSTOM", "price": 160.0, "maker_slug": "loom-and-thread",
+     "description": "Arm-knit from jumbo merino-blend yarn in a natural oat colorway. Generous lap size — the couch blanket guests always steal.",
+     "materials": ["Merino-blend jumbo yarn"], "dimensions": '40" × 60"',
+     "shipping_est_delivery": "5-8 business days",
+     "images": [F_FIBER_KNIT, F_FIBER_WEAVE]},
+]
+
+
 SEED_REVIEWS = [
     {"name": "Sarah M.", "location": "Austin, TX", "rating": 5,
      "text": "The custom sign I ordered for our business exceeded every expectation. The metal work is absolutely stunning."},
@@ -151,6 +271,25 @@ async def seed_if_empty():
     if await db.activity_events.count_documents({}) == 0:
         for a in SEED_ACTIVITY:
             await db.activity_events.insert_one({**ActivityEvent(**a).model_dump()})
+    # iter390 — category fillers: upsert-by-slug so new entries roll out on
+    # the next deploy without duplicating or touching real maker data.
+    # Image fields are always re-synced so corrected photo URLs propagate
+    # to already-seeded rows on the next deploy (iter391 image fix).
+    for m in SEED_FILLER_MAKERS:
+        if not await db.makers.find_one({"slug": m["slug"]}, {"_id": 1}):
+            await db.makers.insert_one({**Maker(**m).model_dump()})
+        else:
+            await db.makers.update_one(
+                {"slug": m["slug"]},
+                {"$set": {"portrait": m["portrait"], "cover": m["cover"]}},
+            )
+    for p in SEED_FILLER_PRODUCTS:
+        if not await db.products.find_one({"slug": p["slug"]}, {"_id": 1}):
+            await db.products.insert_one({**Product(**p).model_dump()})
+        else:
+            await db.products.update_one(
+                {"slug": p["slug"]}, {"$set": {"images": p["images"]}},
+            )
     await _seed_admin_password()
 
 

@@ -8710,3 +8710,12 @@ User: variant/color/size buttons too light; cyan "Question for maker" link invis
   - Section headings ("Choose option/Color"): `font-semibold text-ink`.
   - "✉ Question for {maker}" button: cyan → brand copper (`border-brand/60 text-brand`), bold.
 - Screenshot-verified on demo-grouped-variations in preview.
+
+## 2026-06-12 — iter391: Category filler image fix
+**Problem:** The iter390 filler listings for the new craft categories (Pottery & Ceramics, Woodworking, Leather Goods, Fiber & Textiles) shipped with wrong Unsplash photo IDs — cards showed pasta salad, an eggplant, a vaccination scene, etc.
+**Fix (`/app/backend/seed_data.py`):**
+- Verified all 14 `F_*` image constants visually (labeled contact sheet + vision analysis). 11/14 were wrong.
+- Pottery slots replaced with hand-verified Unsplash photos (pottery wheel hands `photo-1468322638156`, greenware mugs `photo-1604095616439`, vase trio `photo-1525974160448`). Leather + vase-decor slots were already correct and kept.
+- Wood + fiber slots (7 images) replaced with AI-generated product photography hosted on `static.prod-images.emergentagent.com` — walnut catch-all bowl, end-grain board, hand tools, workshop, woven wall hanging, macramé hangers, chunky knit throw. Each matches its listing description exactly.
+- `seed_if_empty` filler upsert now **re-syncs `images`/`portrait`/`cover` on existing rows**, so the corrected URLs propagate to production automatically on next deploy (previously insert-only).
+**Verified:** re-ran seeding locally, confirmed DB rows updated, screenshot of `/shop` shows all new-category cards with matching photos.

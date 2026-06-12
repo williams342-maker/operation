@@ -63,7 +63,8 @@
   "scripts": {
     "start": "craco start",
     "build": "craco build",
-    "test": "craco test"
+    "test": "craco test",
+    "lint:contrast": "node scripts/lint-contrast.js"
   },
   "browserslist": {
     "production": [
