@@ -8,13 +8,13 @@ import { motion } from "framer-motion";
 // which made the row feel repetitive. Sticking to authentic shots (no
 // stylized badges or 3D-rendered cartoons) keeps the marketplace feeling
 // like a directory of working makers, not a clip-art catalog.
+// iter388 — user request: removed the Wall Art (ampersand), Address #s
+// (house) and Business (bar interior) tiles — their photos read poorly
+// at thumbnail size and cluttered the strip.
 const TILES = [
-  { label: "Wall Art",      q: "Wall Art",         img: "https://images.unsplash.com/photo-1705661902771-28a65b16ea98?crop=entropy&cs=srgb&fm=jpg&w=600&q=85" },
   { label: "Custom Signs",  q: "Custom Signs",     img: "https://images.unsplash.com/photo-1776142519609-a4858781a01a?crop=entropy&cs=srgb&fm=jpg&w=600&q=85" },
   { label: "Outdoor Art",   q: "Outdoor Art",      img: "https://images.pexels.com/photos/17180807/pexels-photo-17180807.jpeg?auto=compress&cs=tinysrgb&w=640" },
-  { label: "Address #s",    q: "Address Numbers",  img: "https://images.unsplash.com/photo-1572120360610-d971b9d7767c?crop=entropy&cs=srgb&fm=jpg&w=600&q=85" },
   { label: "Wedding Gifts", q: "Wedding Monogram", img: "https://images.unsplash.com/photo-1519741497674-611481863552?crop=entropy&cs=srgb&fm=jpg&w=600&q=85" },
-  { label: "Business",      q: "Business Sign",    img: "https://images.unsplash.com/photo-1521017432531-fbd92d768814?crop=entropy&cs=srgb&fm=jpg&w=600&q=85" },
   { label: "Plasma",        q: "Plasma",           img: "https://images.unsplash.com/photo-1689960253768-72a12bc8320f?crop=entropy&cs=srgb&fm=jpg&w=600&q=85" },
   { label: "3D Printing",   q: "3D Printed Piece", img: "https://images.unsplash.com/photo-1567361808960-dec9cb578182?crop=entropy&cs=srgb&fm=jpg&w=600&q=85" },
   { label: "Router",        q: "Router",           img: "https://images.unsplash.com/photo-1620207418302-439b387441b0?crop=entropy&cs=srgb&fm=jpg&w=600&q=85" },
