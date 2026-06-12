@@ -8,7 +8,7 @@
  */
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { fetchSeoHealthLatest, runSeoHealthAutofix, runSeoHealthCheck } from "../../lib/api";
+import { fetchSeoHealthLatest, fetchSeoWins, runSeoHealthAutofix, runSeoHealthCheck } from "../../lib/api";
 
 const ISSUE_LABELS = {
   http_error: "HTTP error",
@@ -30,12 +30,30 @@ const fmtWhen = (iso) => {
   } catch { return iso; }
 };
 
+function WinStat({ label, value, prev, delta }) {
+  const v = value == null ? "—" : value;
+  const d = delta != null ? delta : (prev != null && value != null ? value - prev : null);
+  return (
+    <div>
+      <div className="font-display text-2xl text-ink leading-none">{v}
+        {d != null && d !== 0 && (
+          <span className={`font-mono text-[11px] ml-2 ${d > 0 ? "text-emerald-400" : "text-red-400"}`}>
+            {d > 0 ? "▲" : "▼"} {Math.abs(d)}
+          </span>
+        )}
+      </div>
+      <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-ink-muted mt-1">{label}</div>
+    </div>
+  );
+}
+
 export default function SeoHealthCard() {
   const [latest, setLatest] = useState(null);
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [fixing, setFixing] = useState(false);
+  const [wins, setWins] = useState(null);
 
   const load = async () => {
     try {
@@ -44,6 +62,8 @@ export default function SeoHealthCard() {
       setHistory(d.history || []);
     } catch { /* card stays in empty state */ }
     finally { setLoading(false); }
+    // Wins load independently — slow GSC calls must not block the card.
+    fetchSeoWins().then(setWins).catch(() => {});
   };
   useEffect(() => { load(); }, []);
 
@@ -121,6 +141,30 @@ export default function SeoHealthCard() {
           <span>URLs checked: <span className="text-ink">{latest.checked}</span></span>
           <span>Sitemap URLs: <span className="text-ink">{latest.sitemap_urls}</span></span>
           <span>Site: <span className="text-ink">{latest.site}</span></span>
+        </div>
+      )}
+
+      {wins && (wins.gsc_connected || wins.indexed?.now != null) && (
+        <div className="border border-line p-4 space-y-3" data-testid="seo-wins-strip">
+          <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand">
+            ◆ SEO wins · {wins.window?.start} → {wins.window?.end}
+          </div>
+          <div className="flex flex-wrap gap-x-8 gap-y-2">
+            <WinStat label="Clicks (7d)" value={wins.totals?.clicks} prev={wins.prev_totals?.clicks} />
+            <WinStat label="Impressions (7d)" value={wins.totals?.impressions} prev={wins.prev_totals?.impressions} />
+            <WinStat label="Pages indexed" value={wins.indexed?.now} delta={wins.indexed?.delta} />
+          </div>
+          {(wins.top_queries || []).length > 0 && (
+            <div className="font-mono text-[11px] text-ink-muted" data-testid="seo-wins-queries">
+              <span className="uppercase tracking-[0.18em] text-[10px]">Top queries: </span>
+              {wins.top_queries.slice(0, 5).map((q, i) => (
+                <span key={q.query} className="text-ink">
+                  {i > 0 && <span className="text-ink-muted"> · </span>}
+                  “{q.query}” <span className="text-ink-muted">({q.clicks})</span>
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

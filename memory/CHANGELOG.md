@@ -8677,3 +8677,14 @@ User saw 6 "Fetch failed" rows on production's first SEO health run — false po
 - `SeoHealthCard.jsx`: "✦ AI auto-fix" button (shown only when issues exist), AI cause/fix rendered under each issue row, green state notes auto-cleared count.
 - Tests: `tests/test_iter377_seo_autofix.py` (3 passed) + iter373 suite green (fixed flaky latest-run sort with 2099 timestamps).
 - Live validated: production run now 26/26 green; seeded dead-URL issue → Claude returned accurate root cause + fix steps.
+
+---
+
+## 2026-06-12 — iter378: Weekly "SEO wins" in the Monday ops email + admin card
+
+- `gsc_client.py`: new `search_analytics(start, end, dimensions, row_limit)` helper (Search Console Search Analytics API; full webmasters scope already granted).
+- `seo_health.py` `build_seo_wins()`: indexed-pages WoW delta from `gsc_indexed_snapshots` + clicks/impressions (7d vs prev 7d, 2-day GSC lag offset) + top 10 queries + top 5 pages. Graceful when GSC disconnected.
+- Monday cron now ALWAYS emails `send_ops_seo_weekly_report(run, wins)` (replaces issues-only `send_ops_seo_health_alert`): wins stats with ▲/▼ WoW arrows, top-query table, then health section (green line or issues table). Webhook still pages only on issues.
+- `GET /api/admin/seo-health/wins` + wins strip on `SeoHealthCard.jsx` (clicks, impressions, pages indexed with deltas, top 5 queries inline) — hidden when GSC not connected.
+- Tests: `tests/test_iter378_seo_wins.py` (3 passed; mocked GSC + degradation) + iter373/377 suites green.
+- Note: preview has no GSC OAuth token (strip hidden); production is connected so wins populate there.

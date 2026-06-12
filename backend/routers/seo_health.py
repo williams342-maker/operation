@@ -200,30 +200,102 @@ async def run_seo_health_check(trigger: str = "manual") -> dict:
     return run
 
 
+async def build_seo_wins() -> dict:
+    """iter378 — Weekly "SEO wins" rollup for the Monday ops email + admin
+    card: indexed-page growth from the daily GSC snapshots, plus clicks /
+    impressions / top queries / top pages from the Search Analytics API.
+    Windows: last 7 full days vs the previous 7, offset 2 days back for
+    GSC's reporting lag. Every section degrades gracefully when GSC isn't
+    connected."""
+    from datetime import datetime, timedelta, timezone
+    from gsc_client import search_analytics
+
+    wins: dict = {"generated_at": now_iso()}
+
+    # Indexed-count trend from the daily snapshots (iter351 cron).
+    snaps = await db.gsc_indexed_snapshots.find(
+        {}, {"_id": 0, "date": 1, "indexed_count": 1, "indexed_pct": 1},
+    ).sort("date", -1).limit(10).to_list(10)
+    latest = snaps[0] if snaps else None
+    week_ago_date = (datetime.now(timezone.utc).date() - timedelta(days=7)).isoformat()
+    week_ago = next((s for s in snaps if s["date"] <= week_ago_date),
+                    snaps[-1] if len(snaps) > 1 else None)
+    wins["indexed"] = {
+        "now": (latest or {}).get("indexed_count"),
+        "pct": (latest or {}).get("indexed_pct"),
+        "week_ago": (week_ago or {}).get("indexed_count"),
+        "delta": (
+            ((latest or {}).get("indexed_count") or 0)
+            - ((week_ago or {}).get("indexed_count") or 0)
+            if latest and week_ago else None
+        ),
+    }
+
+    today = datetime.now(timezone.utc).date()
+    end = today - timedelta(days=2)
+    start = end - timedelta(days=6)
+    prev_end = start - timedelta(days=1)
+    prev_start = prev_end - timedelta(days=6)
+    wins["window"] = {"start": start.isoformat(), "end": end.isoformat()}
+
+    totals_now = await search_analytics(start.isoformat(), end.isoformat(), None, 1)
+    totals_prev = await search_analytics(prev_start.isoformat(), prev_end.isoformat(), None, 1)
+    wins["gsc_connected"] = totals_now is not None
+
+    def _tot(rows):
+        r = rows[0] if rows else {}
+        return {"clicks": round(r.get("clicks") or 0),
+                "impressions": round(r.get("impressions") or 0)}
+
+    wins["totals"] = _tot(totals_now)
+    wins["prev_totals"] = _tot(totals_prev)
+
+    q_rows = await search_analytics(start.isoformat(), end.isoformat(), ["query"], 10) or []
+    wins["top_queries"] = [{
+        "query": (r.get("keys") or [""])[0],
+        "clicks": round(r.get("clicks") or 0),
+        "impressions": round(r.get("impressions") or 0),
+        "position": round(r.get("position") or 0, 1),
+    } for r in q_rows]
+    p_rows = await search_analytics(start.isoformat(), end.isoformat(), ["page"], 5) or []
+    wins["top_pages"] = [{
+        "page": (r.get("keys") or [""])[0],
+        "clicks": round(r.get("clicks") or 0),
+        "impressions": round(r.get("impressions") or 0),
+    } for r in p_rows]
+    return wins
+
+
 async def job_weekly_seo_health() -> None:
-    """Monday cron — run the check and page ops only when something's wrong."""
+    """Monday cron — health crawl + SEO wins. The email now ALWAYS goes
+    out (growth report, not just errors); the team webhook still pages
+    only when something is broken."""
     run = await run_seo_health_check("cron")
-    if run["issue_count"] == 0:
-        return
-    by_type: dict[str, int] = {}
-    for i in run["issues"]:
-        by_type[i["type"]] = by_type.get(i["type"], 0) + 1
     try:
-        from notify_webhook import notify_team
-        await notify_team(
-            kind="seo_health",
-            title=f"SEO health: {run['issue_count']} issue(s) found",
-            summary=" · ".join(f"{k}×{v}" for k, v in by_type.items()),
-            fields=[(i["type"], f"{i['url']} — {i['detail']}") for i in run["issues"][:8]],
-            link=f"{run['site']}/admin",
-        )
+        wins = await build_seo_wins()
     except Exception:
-        logger.exception("[seo-health] notify_team failed")
+        logger.exception("[seo-health] wins rollup failed")
+        wins = {}
+    if run["issue_count"] > 0:
+        by_type: dict[str, int] = {}
+        for i in run["issues"]:
+            by_type[i["type"]] = by_type.get(i["type"], 0) + 1
+        try:
+            from notify_webhook import notify_team
+            await notify_team(
+                kind="seo_health",
+                title=f"SEO health: {run['issue_count']} issue(s) found",
+                summary=" · ".join(f"{k}×{v}" for k, v in by_type.items()),
+                fields=[(i["type"], f"{i['url']} — {i['detail']}") for i in run["issues"][:8]],
+                link=f"{run['site']}/admin",
+            )
+        except Exception:
+            logger.exception("[seo-health] notify_team failed")
     try:
-        from email_service import send_ops_seo_health_alert
-        await send_ops_seo_health_alert(run)
+        from email_service import send_ops_seo_weekly_report
+        await send_ops_seo_weekly_report(run, wins)
     except Exception:
-        logger.exception("[seo-health] ops email failed")
+        logger.exception("[seo-health] weekly report email failed")
 
 
 # ─────────────────────────── Endpoints ───────────────────────────
@@ -353,3 +425,10 @@ async def admin_seo_health_latest(admin: dict = Depends(current_admin)):
     runs = await db.seo_health_runs.find({}, {"_id": 0}).sort(
         "started_at", -1).limit(8).to_list(8)
     return {"latest": runs[0] if runs else None, "history": runs}
+
+
+@router.get("/admin/seo-health/wins")
+async def admin_seo_health_wins(admin: dict = Depends(current_admin)):
+    """iter378 — SEO wins rollup for the admin card (same data that goes
+    into the Monday ops email)."""
+    return await build_seo_wins()

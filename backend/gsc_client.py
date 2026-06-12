@@ -165,6 +165,34 @@ async def inspect_url(inspection_url: str) -> Optional[dict]:
         return None
 
 
+async def search_analytics(start_date: str, end_date: str,
+                           dimensions: list[str] | None = None,
+                           row_limit: int = 10) -> Optional[list[dict]]:
+    """iter378 — Search Analytics query. Returns `rows` (possibly empty)
+    or None when GSC isn't configured / the call failed. Dates are
+    YYYY-MM-DD strings. No dimensions → a single totals row."""
+    svc = await _client()
+    if not svc:
+        return None
+    site_url = os.environ.get("GSC_SITE_URL")
+    body: dict = {"startDate": start_date, "endDate": end_date,
+                  "rowLimit": row_limit}
+    if dimensions:
+        body["dimensions"] = dimensions
+    try:
+        import asyncio as _aio
+        loop = _aio.get_running_loop()
+        resp = await loop.run_in_executor(
+            None,
+            lambda: svc.searchanalytics().query(siteUrl=site_url, body=body).execute(),
+        )
+        return resp.get("rows") or []
+    except Exception as e:
+        logger.warning("[gsc] search_analytics(%s..%s) failed: %s",
+                       start_date, end_date, e)
+        return None
+
+
 def map_to_tier(inspection_result: dict) -> str:
     """Distil a raw GSC `inspectionResult` into our existing 3-tier badge
     schema. Verdict + coverage_state are the load-bearing fields.

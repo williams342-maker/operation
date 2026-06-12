@@ -829,27 +829,91 @@ async def send_ops_new_order(summary: str, total: float, items: list[dict], buye
     return await _send(OPS_EMAIL, f"New order · ${total:.2f}", html)
 
 
-async def send_ops_seo_health_alert(run: dict):
-    """iter373 — weekly SEO-health crawler found issues on the live site."""
+async def send_ops_seo_weekly_report(run: dict, wins: dict | None = None):
+    """iter378 — Monday "SEO weekly" email: growth wins (indexed pages,
+    clicks/impressions WoW, top queries) + the health-crawl outcome.
+    Sends every week — green or not — so ops sees progress, not just errors."""
     if not OPS_EMAIL: return
+    wins = wins or {}
     issues = run.get("issues", [])
-    rows = "".join(
-        f"<tr><td style='padding:6px 10px;border-bottom:1px solid #262626;color:#ff4500;font-size:12px'>{i.get('type','')}</td>"
-        f"<td style='padding:6px 10px;border-bottom:1px solid #262626;font-size:12px;color:#e5e5e5;word-break:break-all'>{i.get('url','')}</td>"
-        f"<td style='padding:6px 10px;border-bottom:1px solid #262626;font-size:12px;color:#a3a3a3'>{i.get('detail','')}</td></tr>"
-        for i in issues[:25]
+
+    def _delta(now_v, prev_v):
+        try:
+            now_v, prev_v = float(now_v or 0), float(prev_v or 0)
+        except (TypeError, ValueError):
+            return ""
+        d = now_v - prev_v
+        if prev_v == 0 and now_v == 0: return ""
+        arrow = "▲" if d > 0 else ("▼" if d < 0 else "•")
+        color = "#10b981" if d > 0 else ("#ef4444" if d < 0 else "#a3a3a3")
+        return f" <span style='color:{color};font-size:11px'>{arrow} {abs(d):g} WoW</span>"
+
+    totals = wins.get("totals") or {}
+    prev = wins.get("prev_totals") or {}
+    indexed = wins.get("indexed") or {}
+    win = wins.get("window") or {}
+
+    stat = (
+        "<td style='padding:10px 14px;border:1px solid #262626;text-align:center'>"
+        "<div style='font-size:20px;color:#e5e5e5;font-weight:700'>{v}</div>"
+        "<div style='font-size:10px;color:#a3a3a3;text-transform:uppercase;letter-spacing:0.15em;margin-top:4px'>{l}{d}</div></td>"
     )
-    body = (
-        f"<p style='font-size:13px;color:#a3a3a3'>Checked {run.get('checked', 0)} URLs on "
-        f"<b style='color:#e5e5e5'>{run.get('site', '')}</b> · sitemap has {run.get('sitemap_urls', 0)} URLs.</p>"
-        f"<table width='100%' cellpadding='0' cellspacing='0' style='border-top:1px solid #262626'>{rows}</table>"
-        "<p style='font-size:12px;color:#a3a3a3;margin-top:16px'>Full history in Admin → Settings → SEO health. "
-        "Fix the rows above, redeploy if needed, then hit Run check now to confirm.</p>"
-    )
-    html = _shell("SEO health alert.",
-                  f"{len(issues)} issue(s) found on the weekly crawl.",
-                  body, "Ops alert")
-    return await _send(OPS_EMAIL, f"⚠ SEO health: {len(issues)} issue(s) on {run.get('site', 'the site')}", html)
+    idx_delta = indexed.get("delta")
+    idx_d = (f" <span style='color:#10b981;font-size:11px'>▲ +{idx_delta}</span>" if (idx_delta or 0) > 0
+             else (f" <span style='color:#ef4444;font-size:11px'>▼ {idx_delta}</span>" if (idx_delta or 0) < 0 else ""))
+    wins_html = ""
+    if wins.get("gsc_connected") or indexed.get("now") is not None:
+        wins_html = (
+            f"<p style='font-size:11px;color:#a3a3a3;text-transform:uppercase;letter-spacing:0.2em;margin:18px 0 8px'>"
+            f"◆ SEO wins · {win.get('start', '')} → {win.get('end', '')}</p>"
+            "<table width='100%' cellpadding='0' cellspacing='0'><tr>"
+            + stat.format(v=totals.get("clicks", "—"), l="Clicks (7d)", d=_delta(totals.get("clicks"), prev.get("clicks")))
+            + stat.format(v=totals.get("impressions", "—"), l="Impressions (7d)", d=_delta(totals.get("impressions"), prev.get("impressions")))
+            + stat.format(v=indexed.get("now") if indexed.get("now") is not None else "—", l="Pages indexed", d=idx_d)
+            + "</tr></table>"
+        )
+        tq = wins.get("top_queries") or []
+        if tq:
+            q_rows = "".join(
+                f"<tr><td style='padding:5px 10px;border-bottom:1px solid #262626;font-size:12px;color:#e5e5e5'>{q['query']}</td>"
+                f"<td style='padding:5px 10px;border-bottom:1px solid #262626;font-size:12px;color:#a3a3a3;text-align:right'>{q['clicks']} clicks</td>"
+                f"<td style='padding:5px 10px;border-bottom:1px solid #262626;font-size:12px;color:#a3a3a3;text-align:right'>{q['impressions']} impr · pos {q['position']}</td></tr>"
+                for q in tq[:8]
+            )
+            wins_html += (
+                "<p style='font-size:11px;color:#a3a3a3;text-transform:uppercase;letter-spacing:0.2em;margin:16px 0 6px'>Top search queries</p>"
+                f"<table width='100%' cellpadding='0' cellspacing='0' style='border-top:1px solid #262626'>{q_rows}</table>"
+            )
+    else:
+        wins_html = ("<p style='font-size:12px;color:#a3a3a3'>Connect Google Search Console in "
+                     "Admin → Settings to unlock clicks, impressions, and top-query wins here.</p>")
+
+    if issues:
+        i_rows = "".join(
+            f"<tr><td style='padding:6px 10px;border-bottom:1px solid #262626;color:#ff4500;font-size:12px'>{i.get('type', '')}</td>"
+            f"<td style='padding:6px 10px;border-bottom:1px solid #262626;font-size:12px;color:#e5e5e5;word-break:break-all'>{i.get('url', '')}</td>"
+            f"<td style='padding:6px 10px;border-bottom:1px solid #262626;font-size:12px;color:#a3a3a3'>{i.get('detail', '')}</td></tr>"
+            for i in issues[:25]
+        )
+        health_html = (
+            f"<p style='font-size:11px;color:#a3a3a3;text-transform:uppercase;letter-spacing:0.2em;margin:20px 0 8px'>◆ Health crawl · {len(issues)} issue(s)</p>"
+            f"<table width='100%' cellpadding='0' cellspacing='0' style='border-top:1px solid #262626'>{i_rows}</table>"
+            "<p style='font-size:12px;color:#a3a3a3;margin-top:10px'>Open Admin → Settings → SEO health and hit ✦ AI auto-fix.</p>"
+        )
+        subject = f"SEO weekly: {len(issues)} issue(s) + wins on {run.get('site', '')}"
+        headline = "SEO weekly report."
+        sub = f"{len(issues)} issue(s) need a look — wins below."
+    else:
+        health_html = (
+            f"<p style='font-size:12px;color:#10b981;margin-top:20px'>✓ Health crawl: all "
+            f"{run.get('checked', 0)} checks green — statuses, canonicals, robots metas, sitemap, soft-404 guard.</p>"
+        )
+        subject = f"SEO weekly: all green ✓ · {totals.get('clicks', 0)} clicks on {run.get('site', '')}"
+        headline = "SEO weekly report."
+        sub = "All health checks green. Here's what grew."
+
+    html = _shell(headline, sub, wins_html + health_html, "Weekly report")
+    return await _send(OPS_EMAIL, subject, html)
 
 
 async def send_ops_new_application(name: str, studio: str, location: str, email: str, about: str):
