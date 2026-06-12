@@ -22,7 +22,7 @@
     --surface: #F5F0E7;        /* cards, modals, elevated — Warm Bone */
     --surface-2: #DDD4C5;      /* secondary fills — Stone Linen */
     --ink: #38342E;            /* primary text — Soft Carbon */
-    --ink-muted: #6E665D;      /* secondary text */
+    --ink-muted: #524C43;      /* secondary text — darkened for readability (was #6E665D) */
     --brand: #B76437;          /* accent — Burnt Copper */
     --brand-hover: #9B4F2A;
     --line: #BDB5AA;           /* borders, dividers — Workshop Steel */

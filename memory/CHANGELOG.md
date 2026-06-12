@@ -8633,3 +8633,13 @@ Driven by user's GSC "Why pages aren't indexed" export (31 alternate-canonical, 
 - Frontend: `SeoHealthCard.jsx` in Admin → Settings (after SeoDiagCard): Run-check-now button, summary line, issue table, run history. api.js: `fetchSeoHealthLatest`, `runSeoHealthCheck`.
 - Tests: `tests/test_iter373_seo_health.py` (9 passed) — rule engine units, endpoint auth, mocked run/latest plumbing.
 - Live validation: manual run against production found the 12 pre-redeploy canonical issues from iter372's diagnosis — exactly as designed.
+
+---
+
+## 2026-06-12 — iter374: Darker/bolder admin text (readability)
+
+User circled the admin sidebar tabs + Feed Health blurb as too light.
+- `index.css`: light-theme `--ink-muted` darkened #6E665D → #524C43 (site-wide secondary-text contrast bump).
+- `AdminDashboard.jsx`: sidebar/horizontal tab labels now `font-semibold text-ink` (inactive), brand on hover/active.
+- `FeedHealthCard.jsx`: description paragraph → `text-ink font-medium`.
+- Screenshot-verified in preview.

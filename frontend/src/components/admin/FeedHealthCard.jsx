@@ -233,7 +233,7 @@ export default function FeedHealthCard() {
           ↻ Refresh
         </button>
       </div>
-      <p className="font-mono text-xs text-ink-muted max-w-3xl leading-relaxed">
+      <p className="font-mono text-xs text-ink font-medium max-w-3xl leading-relaxed">
         Counts per-channel match the exact eligibility rules used by the live feed routes (`shop_feeds.py`,
         `pinterest_feed.py`, `enrichlabs.py`). A listing showing as <span className="text-emerald-400">ready</span>{" "}
         for one channel may still be <span className="text-amber-400">blocked</span> elsewhere because of stricter

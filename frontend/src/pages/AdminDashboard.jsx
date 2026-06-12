@@ -461,11 +461,11 @@ export default function AdminDashboard() {
                     onClick={() => setTab(t.id)}
                     ref={active ? activeTabBtnRef : null}
                     className={`
-                      font-mono text-[10px] md:text-[11px] uppercase tracking-[0.18em] md:tracking-[0.22em] whitespace-nowrap transition
+                      font-mono font-semibold text-[10px] md:text-[11px] uppercase tracking-[0.18em] md:tracking-[0.22em] whitespace-nowrap transition
                       px-3 md:px-5 py-3 shrink-0 border-b-2 lg:border-b-0 lg:border-l-2 lg:w-full lg:text-left lg:px-3 lg:py-2.5
                       ${active
                         ? "border-brand text-brand lg:bg-brand/5"
-                        : "border-transparent text-ink-muted hover:text-ink lg:hover:bg-surface"}
+                        : "border-transparent text-ink hover:text-brand lg:hover:bg-surface"}
                     `}
                     data-testid={`admin-tab-${t.id}`}
                     aria-current={active ? "page" : undefined}
