@@ -8719,3 +8719,9 @@ User: variant/color/size buttons too light; cyan "Question for maker" link invis
 - Wood + fiber slots (7 images) replaced with AI-generated product photography hosted on `static.prod-images.emergentagent.com` — walnut catch-all bowl, end-grain board, hand tools, workshop, woven wall hanging, macramé hangers, chunky knit throw. Each matches its listing description exactly.
 - `seed_if_empty` filler upsert now **re-syncs `images`/`portrait`/`cover` on existing rows**, so the corrected URLs propagate to production automatically on next deploy (previously insert-only).
 **Verified:** re-ran seeding locally, confirmed DB rows updated, screenshot of `/shop` shows all new-category cards with matching photos.
+
+## 2026-06-12 — iter392: New craft categories added to homepage "Shop by Category" strip
+- `CategoryStrip.jsx`: added **Leather Goods** and **Fiber & Textiles** tiles; Woodworking/Pottery/Leather/Fiber tiles now deep-link to exact `?category=` filters (matching seeded `category` values) instead of fuzzy `?q=` search. Jewelry stays keyword-based (no seeded category yet).
+- Pottery tile image swapped from the bad iter390 URL to the verified pottery-wheel photo; Woodworking tile uses the walnut-bowl product shot.
+- Grid: `md:grid-cols-6 xl:grid-cols-11` so all 11 tiles sit in one row on desktop.
+- Verified: screenshot of strip + click-through lands on `/shop?category=Pottery%20%26%20Ceramics` with breadcrumb filter applied. Contrast lint passes.
