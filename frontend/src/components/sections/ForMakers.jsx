@@ -8,7 +8,7 @@ const perks = [
   { k: "01", t: "No website needed", d: "Upload your portfolio. We host the storefront." },
   { k: "02", t: "Approved makers only", d: "Quality bar protects the brand and the buyer." },
   { k: "03", t: "Built-in payments", d: "Clean payouts. No paperwork friction." },
-  { k: "04", t: "Plasma · Laser · Router", d: "Whatever you build — we move it." },
+  { k: "04", t: "Wood · Metal · Clay & More", d: "Whatever you craft — we move it." },
 ];
 
 export default function ForMakers() {
@@ -36,7 +36,7 @@ export default function ForMakers() {
               FOR MAKERS
             </div>
             <div className="absolute bottom-5 left-5 right-5 flex items-end justify-between font-mono text-[11px] uppercase tracking-[0.25em] text-ink">
-              <span>CNC Garage Builders</span>
+              <span>Independent Workshops</span>
               <span>Approved · Vetted · Paid</span>
             </div>
           </div>
@@ -56,15 +56,16 @@ export default function ForMakers() {
             >
               Built for
               <br />
-              CNC
+              Real
               <br />
-              Garage
+              Working
               <br />
               Makers.
             </motion.h2>
             <p className="mt-8 font-mono text-sm md:text-base max-w-md leading-relaxed">
-              You build the work. We build the audience. List your plasma, laser, router, and 3D-printed pieces in a
-              storefront made for serious makers — no website needed.
+              You build the work. We build the audience. List your woodwork, jewelry,
+              pottery, leather, fiber, metal, and CNC pieces in a storefront made for
+              serious makers — no website needed.
             </p>
           </div>
 

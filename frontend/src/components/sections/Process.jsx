@@ -6,10 +6,10 @@ const PROCESS_IMG =
   "https://images.unsplash.com/photo-1689960253768-72a12bc8320f?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDF8MHwxfHNlYXJjaHw0fHxjbmMlMjBwbGFzbWElMjBjdXR0aW5nJTIwbWV0YWwlMjB3b3JrZXJ8ZW58MHx8fHwxNzc3MTU0OTc2fDA&ixlib=rb-4.1.0&q=85";
 
 const steps = [
-  { no: "01", label: "CAD Design & Toolpath", desc: "Vectorized drawings, kerf-corrected paths." },
-  { no: "02", label: "CNC Carving", desc: "Plasma, laser & router under tight tolerance." },
-  { no: "03", label: "Fine Detailing", desc: "Hand-finished edges, sanded, deburred, tuned." },
-  { no: "04", label: "Finish & Quality", desc: "Powder coat, stain, sealed. Inspected, packed." },
+  { no: "01", label: "Design & Pattern", desc: "Sketches, templates, toolpaths — every build starts with intent." },
+  { no: "02", label: "Shape & Form", desc: "Carved, thrown, forged, stitched, or CNC-cut to tolerance." },
+  { no: "03", label: "Fine Detailing", desc: "Hand-finished edges, sanded, polished, burnished, tuned." },
+  { no: "04", label: "Finish & Quality", desc: "Sealed, glazed, stained, or powder-coated. Inspected, packed." },
 ];
 
 export default function Process() {
@@ -19,12 +19,12 @@ export default function Process() {
       <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 pointer-events-none select-none">
         <Marquee gradient={false} speed={45} className="opacity-25">
           <span className="ticker-text text-[18vw] md:text-[14vw] text-outline mr-12">
-            DESIGN · TOOLPATH · CARVE · DETAIL · FINISH · QUALITY ·
+            DESIGN · SHAPE · CARVE · DETAIL · FINISH · QUALITY ·
           </span>
         </Marquee>
         <Marquee gradient={false} speed={35} direction="right" className="opacity-15 mt-2">
           <span className="ticker-text text-[18vw] md:text-[14vw] text-outline-orange mr-12">
-            PRECISION · PLASMA · LASER · ROUTER · 3D PRINT · OAK · STEEL ·
+            WOOD · METAL · CLAY · LEATHER · GLASS · FIBER · STEEL ·
           </span>
         </Marquee>
       </div>
@@ -46,13 +46,14 @@ export default function Process() {
 
           <div className="md:col-span-7 md:col-start-6 self-end">
             <p className="font-mono text-sm md:text-base text-ink leading-relaxed max-w-xl">
-              Every piece starts as raw material — hardwood, steel, aluminum — and is transformed
-              through CNC precision into art that lasts a lifetime. No two pieces are exactly alike.
+              Every piece starts as raw material — hardwood, steel, clay, leather, fiber —
+              and is transformed by skilled hands into work that lasts a lifetime.
+              No two pieces are exactly alike.
             </p>
             <ul className="mt-8 grid sm:grid-cols-2 gap-4 font-mono text-xs uppercase tracking-[0.2em] text-ink-muted">
-              <li>→ CNC routed & laser-finished hardwoods</li>
+              <li>→ CNC-routed & hand-finished hardwoods</li>
               <li>→ Plasma-cut, powder-coated metals</li>
-              <li>→ Custom sizing for any space</li>
+              <li>→ Jewelry, pottery & leather goods</li>
               <li>→ Ships continental US</li>
             </ul>
           </div>

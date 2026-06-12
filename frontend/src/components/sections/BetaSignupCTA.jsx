@@ -45,7 +45,8 @@ export default function BetaSignupCTA() {
             with the founding 100.
           </h2>
           <p className="text-ink-muted mt-5 max-w-xl text-sm md:text-base leading-relaxed">
-            We&apos;re hand-picking 100 CNC, woodworking and laser makers to launch
+            We&apos;re hand-picking 100 founding makers — woodworkers, jewelers,
+            potters, leather workers, metal &amp; CNC artists — to launch
             CraftersMarket alongside us. Founders get <span className="text-ink">3%
             commission for life</span>, 50 free listings every month, no subscription,
             and a permanent ◆ Founding Maker badge on every product page.

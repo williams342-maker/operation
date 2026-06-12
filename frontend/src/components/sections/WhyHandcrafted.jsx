@@ -39,12 +39,13 @@ export default function WhyHandcrafted() {
             Built by makers,<br />not factories.
           </h2>
           <p className="font-mono text-sm text-ink leading-relaxed max-w-2xl">
-            Crafters Market is a curated marketplace for precision CNC
-            artisans, plasma-cutting metalworkers, and small woodshops
-            shipping handcrafted goods directly from the maker's bench
-            to your door. Every shop is independently owned, hand-vetted,
-            and paid out through Stripe — no middlemen, no warehouses,
-            no race-to-the-bottom marketplace pricing.
+            Crafters Market is a curated marketplace for independent American
+            crafters — woodworkers, jewelry makers, potters, leather workers,
+            fiber artists, metalworkers, and precision CNC artisans — shipping
+            handcrafted goods directly from the maker's bench to your door.
+            Every shop is independently owned, hand-vetted, and paid out
+            through Stripe — no middlemen, no warehouses, no race-to-the-bottom
+            marketplace pricing.
           </p>
         </motion.div>
 
@@ -54,14 +55,14 @@ export default function WhyHandcrafted() {
             icon={Hammer}
             eyebrow="01 · Hand-built"
             title="Real makers, real shops"
-            body="Every listing on Crafters Market is built by an approved CNC artist or woodworker we've personally vetted. You can read each maker's story, see their workshop, and message them directly before you buy. No drop-shippers. No printing-on-demand. No factories overseas pretending to be small."
+            body="Every listing on Crafters Market is built by an approved independent crafter we've personally vetted — woodworkers, jewelry makers, potters, leather workers, and metal artists. You can read each maker's story, see their workshop, and message them directly before you buy. No drop-shippers. No printing-on-demand. No factories overseas pretending to be small."
             testId="why-hand-built"
           />
           <Pillar
             icon={Workflow}
-            eyebrow="02 · Precision CNC"
-            title="Plasma, laser & router"
-            body="Our makers run plasma cutters, fiber lasers, CO₂ engravers, and CNC routers — the same machines used in industrial fabrication, scaled down for one-off custom work. The result is something a 3D printer can't touch: heirloom-grade signage, wall art, and made-to-order signs cut from real steel and hardwood."
+            eyebrow="02 · Every craft"
+            title="Wood, metal, clay & more"
+            body="Our makers work lathes, kilns, forges, looms, leather benches, and precision CNC machines — real tools in real workshops, mastered over years. The result is something mass production can't touch: heirloom-grade furniture, jewelry, pottery, signage, and made-to-order pieces shaped from real hardwood, steel, clay, and leather."
             testId="why-precision-cnc"
           />
           <Pillar
@@ -91,7 +92,7 @@ export default function WhyHandcrafted() {
             <Step
               n="01"
               title="Find your piece"
-              body="Browse handcrafted wall art, custom signs, address numbers, business signage, and made-to-order CNC pieces. Filter by technique (plasma, laser, router), category, or price. Save favorites to revisit later."
+              body="Browse handcrafted wall art, jewelry, pottery, furniture, leather goods, custom signs, and made-to-order pieces. Filter by craft, category, or price. Save favorites to revisit later."
               testId="step-find"
             />
             <Step

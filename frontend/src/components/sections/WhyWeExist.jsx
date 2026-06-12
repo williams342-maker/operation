@@ -114,7 +114,8 @@ export default function WhyWeExist({ testId = "why-we-exist" }) {
           >
             Etsy and Amazon flooded the "handmade" aisle with factory imports and
             drop-shipped knock-offs. Crafters Market exists so American artists,
-            welders, woodworkers, and CNC creators can sell direct — and so buyers
+            woodworkers, jewelers, potters, leather workers, welders, and CNC
+            creators can sell direct — and so buyers
             can find the real thing again.
           </motion.p>
         </div>

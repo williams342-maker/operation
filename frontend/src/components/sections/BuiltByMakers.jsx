@@ -33,7 +33,7 @@ const BRANDS = [
   {
     name: "Crafters Market",
     href: "https://craftersmarket.org",
-    descriptor: "The maker marketplace — vetted CNC shops, fair payouts",
+    descriptor: "The maker marketplace — vetted American crafters, fair payouts",
     accent: "#ff4500",
     logo: "/icons/icon-512.png",
   },
@@ -149,6 +149,21 @@ export default function BuiltByMakers() {
               </div>
             </motion.a>
           ))}
+        </div>
+
+        {/* iter382 — Shop CTA closing the homepage scroll. A buyer who read
+            this far gets one last, unmissable path back into the catalog. */}
+        <div className="mt-12 md:mt-14 text-center">
+          <a
+            href="/shop"
+            className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-brand hover:bg-brand-hover text-ink font-mono text-[12px] font-bold uppercase tracking-[0.3em] transition shadow-[0_0_0_2px_rgba(255,69,0,0.18)]"
+            data-testid="built-by-makers-shop-btn"
+          >
+            ◆ Shop the marketplace →
+          </a>
+          <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
+            Handcrafted goods from vetted American makers
+          </p>
         </div>
       </div>
     </section>
