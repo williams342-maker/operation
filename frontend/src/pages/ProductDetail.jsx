@@ -518,7 +518,7 @@ export default function ProductDetail() {
               <div className="mb-6" data-testid="product-variant-groups">
                 {variantGroups.map((g) => (
                   <div key={g.id} className="mb-4">
-                    <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-ink-muted mb-2">
+                    <div className="font-mono text-[10px] uppercase tracking-[0.25em] font-semibold text-ink mb-2">
                       Choose {g.name}
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -541,17 +541,18 @@ export default function ProductDetail() {
                             onClick={() => setSelectedOptions((cur) => ({ ...cur, [g.id]: o.id }))}
                             data-testid={`product-option-${o.id}`}
                             className={`text-left border px-4 py-2.5 transition ${
-                              sel ? "border-brand bg-brand/10" : "border-line hover:border-brand/50"
+                              sel ? "border-brand ring-1 ring-brand bg-brand/10" : "border-line hover:border-brand/50"
                             } ${available ? "" : "opacity-40"}`}
                           >
-                            <div className="font-mono text-xs text-ink flex items-center gap-2">
+                            <div className="font-mono text-sm font-bold text-ink flex items-center gap-2">
                               {o.image && (
                                 <img src={o.image} alt="" className="w-6 h-6 object-cover border border-line" />
                               )}
+                              {sel && <span className="text-brand">✓</span>}
                               {o.label}
                             </div>
                             {delta !== 0 && (
-                              <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-muted mt-0.5">
+                              <div className="font-mono text-[10px] uppercase tracking-[0.18em] font-semibold text-ink mt-0.5">
                                 {delta > 0 ? `+ $${delta.toFixed(0)}` : `− $${Math.abs(delta).toFixed(0)}`}
                               </div>
                             )}
@@ -584,7 +585,7 @@ export default function ProductDetail() {
 
             {hasVariants && !hasGroups && (
               <div className="mb-6" data-testid="product-variants">
-                <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-ink-muted mb-3">
+                <div className="font-mono text-[10px] uppercase tracking-[0.25em] font-semibold text-ink mb-3">
                   {p.variant_axis1_name && p.variant_axis2_name
                     ? `Choose ${p.variant_axis1_name} × ${p.variant_axis2_name}`
                     : p.variant_axis1_name
@@ -633,11 +634,11 @@ export default function ProductDetail() {
                                   data-testid={`product-variant-${v.id}`}
                                   className={`m-1 border px-3 py-3 transition ${
                                     sel
-                                      ? "border-brand bg-brand/10"
+                                      ? "border-brand ring-1 ring-brand bg-brand/10"
                                       : "border-line hover:border-brand/50"
                                   } ${oos ? "opacity-40 cursor-not-allowed" : ""}`}
                                 >
-                                  <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
+                                  <div className="font-mono text-[11px] uppercase tracking-[0.22em] font-semibold text-ink">
                                     {Number(v.price) > 0
                                       ? `$${Number(v.price).toFixed(0)}`
                                       : v.price_delta === 0
@@ -673,12 +674,15 @@ export default function ProductDetail() {
                             data-testid={`product-variant-${v.id}`}
                             className={`text-left border px-4 py-3 transition ${
                               sel
-                                ? "border-brand bg-brand/10"
+                                ? "border-brand ring-1 ring-brand bg-brand/10"
                                 : "border-line hover:border-brand/50"
                             } ${oos ? "opacity-40 cursor-not-allowed" : ""}`}
                           >
-                            <div className="font-mono text-xs text-ink">{v.label}</div>
-                            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mt-1">
+                            <div className="font-mono text-sm font-bold text-ink">
+                              {sel && <span className="text-brand mr-1.5">✓</span>}
+                              {v.label}
+                            </div>
+                            <div className="font-mono text-[10px] uppercase tracking-[0.22em] font-semibold text-ink mt-1">
                               {Number(v.price) > 0
                                 ? `$${Number(v.price).toFixed(0)}`
                                 : v.price_delta === 0
@@ -704,8 +708,8 @@ export default function ProductDetail() {
                 MUST pick before Add to cart fires. */}
             {(p.colors || []).length > 0 && (
               <div className="mb-6" data-testid="product-color-picker">
-                <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-3">
-                  Color <span className="text-ink-muted normal-case tracking-normal">— maker offers {p.colors.length}</span>
+                <div className="font-mono text-[10px] uppercase tracking-[0.22em] font-semibold text-ink mb-3">
+                  Color <span className="text-ink-muted normal-case tracking-normal font-normal">— maker offers {p.colors.length}</span>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {p.colors.map((c) => {
@@ -722,12 +726,12 @@ export default function ProductDetail() {
                         aria-pressed={isSel}
                         disabled={isSingle}
                         data-testid={`product-color-${c.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
-                        className={`px-3 py-2 border font-mono text-[11px] uppercase tracking-[0.22em] transition ${
+                        className={`px-3 py-2 border font-mono text-[11px] uppercase tracking-[0.22em] font-semibold transition ${
                           isSel
-                            ? "border-brand bg-brand/10 text-brand"
+                            ? "border-brand ring-1 ring-brand bg-brand/10 text-brand"
                             : isSingle
-                            ? "border-line text-ink-muted cursor-default"
-                            : "border-line text-ink-muted hover:border-brand hover:text-brand"
+                            ? "border-line text-ink cursor-default"
+                            : "border-line text-ink hover:border-brand hover:text-brand"
                         }`}
                       >
                         <span className={`inline-block w-3 h-3 mr-2 align-middle border border-line ${_colorSwatchClass(c)}`} />
@@ -778,7 +782,7 @@ export default function ProductDetail() {
                     type="button"
                     onClick={() => setContactOpen(true)}
                     data-testid="product-message-maker"
-                    className="mt-3 inline-flex items-center gap-2 px-3 py-2 border border-cyan-700/50 text-cyan-300 hover:bg-cyan-500/10 font-mono text-[10px] uppercase tracking-[0.22em] transition"
+                    className="mt-3 inline-flex items-center gap-2 px-3 py-2 border border-brand/60 text-brand hover:bg-brand/10 font-mono text-[10px] font-bold uppercase tracking-[0.22em] transition"
                   >
                     ✉ Question for {maker.name || "the maker"} about color
                   </button>

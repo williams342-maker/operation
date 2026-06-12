@@ -8698,3 +8698,15 @@ User saw 6 "Fetch failed" rows on production's first SEO health run — false po
 - Fix during dev: an earlier edit had duplicated the AssetLibrary tail (syntax error) and the state block landed in the dead copy — removed dupe, restored state. Verified workshop renders.
 - Tests: `tests/test_iter379_seo_keywords_adcopy.py` (3 passed).
 - Also answered user's Stripe webhook question: production `bad_signature` = STRIPE_WEBHOOK_SECRET mismatch with the Stripe dashboard endpoint's whsec_ — user must update production env var + redeploy.
+
+---
+
+## 2026-06-12 — iter380: PDP option buttons enhanced (bolder, darker, no blue)
+
+User: variant/color/size buttons too light; cyan "Question for maker" link invisible on warm background.
+- `ProductDetail.jsx` — all three variant UIs (grouped variations, flat one-axis, 2D grid) + color chips:
+  - Labels: `text-sm font-bold text-ink` (was text-xs/muted); price/delta lines `font-semibold text-ink` (was muted).
+  - Selected state: `border-brand ring-1 ring-brand bg-brand/10` + copper ✓ prefix.
+  - Section headings ("Choose option/Color"): `font-semibold text-ink`.
+  - "✉ Question for {maker}" button: cyan → brand copper (`border-brand/60 text-brand`), bold.
+- Screenshot-verified on demo-grouped-variations in preview.
