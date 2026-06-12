@@ -2155,26 +2155,39 @@ async def maker_order_detail(session_id: str, slug: str = Depends(current_maker_
     # (Webhook doesn't record shipping today.) Best-effort — don't 500 if Stripe
     # is unreachable or the session is a seed row.
     shipping = tx.get("shipping_details") or tx.get("customer_details") or None
-    if not shipping and session_id.startswith("cs_") and not session_id.startswith("cs_test_seed"):
+    if (
+        not (shipping or {}).get("address")
+        and session_id.startswith("cs_")
+        and not session_id.startswith("cs_test_seed")
+    ):
         try:
             import stripe as stripe_sdk
             from core import STRIPE_API_KEY
             stripe_sdk.api_key = STRIPE_API_KEY
-            sess = stripe_sdk.checkout.Session.retrieve(
-                session_id, expand=["shipping_details", "customer_details"],
+            sess = stripe_sdk.checkout.Session.retrieve(session_id)
+            cd = sess.get("customer_details") or {}
+            # iter383 — newer Stripe API versions moved Checkout shipping to
+            # `collected_information.shipping_details`; older versions expose
+            # `shipping_details` at the top level. Check both, then fall back
+            # to the billing address on customer_details.
+            sd = (
+                (sess.get("collected_information") or {}).get("shipping_details")
+                or sess.get("shipping_details")
+                or {}
             )
-            shipping = {
-                "name": (sess.get("shipping_details") or {}).get("name")
-                        or (sess.get("customer_details") or {}).get("name"),
-                "phone": (sess.get("customer_details") or {}).get("phone"),
-                "address": (sess.get("shipping_details") or {}).get("address")
-                           or (sess.get("customer_details") or {}).get("address"),
+            candidate = {
+                "name": sd.get("name") or cd.get("name"),
+                "phone": cd.get("phone"),
+                "address": sd.get("address") or cd.get("address"),
             }
-            # Cache on the tx doc so subsequent opens don't re-hit Stripe.
-            await db.payment_transactions.update_one(
-                {"session_id": session_id},
-                {"$set": {"shipping_details": shipping, "updated_at": now_iso()}},
-            )
+            # Only adopt + cache when we actually got an address — caching an
+            # empty dict would block all future retries.
+            if candidate.get("address"):
+                shipping = candidate
+                await db.payment_transactions.update_one(
+                    {"session_id": session_id},
+                    {"$set": {"shipping_details": shipping, "updated_at": now_iso()}},
+                )
         except Exception as e:
             logger.info("[maker/orders/detail] stripe retrieve skipped: %s", e)
 

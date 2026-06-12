@@ -517,6 +517,27 @@ async def create_checkout(req: CheckoutRequest, http_request: Request):
     # streamlined to just card + email.
     is_digital_only = bool(quote.get("digital_only"))
 
+    # iter383 — Shipping address collected on OUR cart page. When present
+    # we (1) attach it to the PaymentIntent so Stripe's dashboard + Radar
+    # see the real ship-to, and (2) drop Stripe's own
+    # `shipping_address_collection` so the buyer never types it twice.
+    # Legacy clients that omit it keep Stripe-side collection as before.
+    ship = req.shipping_address if not is_digital_only else None
+    ship_details = None
+    if ship:
+        ship_details = {
+            "name": ship.name.strip(),
+            "phone": (ship.phone or "").strip() or None,
+            "address": {
+                "line1": ship.line1.strip(),
+                "line2": (ship.line2 or "").strip() or None,
+                "city": ship.city.strip(),
+                "state": ship.state.strip(),
+                "postal_code": ship.postal_code.strip(),
+                "country": (ship.country or "US").strip().upper(),
+            },
+        }
+
     session_kwargs = {
         "mode": "payment",
         "payment_method_types": ["card"],
@@ -538,9 +559,19 @@ async def create_checkout(req: CheckoutRequest, http_request: Request):
             "digital_only": "1" if is_digital_only else "",
         },
     }
+    if ship_details:
+        # Prune Nones — Stripe rejects null sub-fields on PaymentIntent shipping.
+        pi_ship = {
+            "name": ship_details["name"],
+            "address": {k: v for k, v in ship_details["address"].items() if v},
+        }
+        if ship_details["phone"]:
+            pi_ship["phone"] = ship_details["phone"]
+        session_kwargs["payment_intent_data"]["shipping"] = pi_ship
     if not is_digital_only:
         session_kwargs["shipping_options"] = shipping_options
-        session_kwargs["shipping_address_collection"] = {"allowed_countries": ["US"]}
+        if not ship_details:
+            session_kwargs["shipping_address_collection"] = {"allowed_countries": ["US"]}
 
     # Apply discount as a one-shot Stripe Coupon. This way Stripe handles the
     # math + the buyer sees the discount line on Stripe's checkout page itself.
@@ -639,6 +670,10 @@ async def create_checkout(req: CheckoutRequest, http_request: Request):
             if (req.recovery_medium or "").lower() in ("email", "sms") else None
         ),
         "gift_note": req.gift_note,
+        # iter383 — locally-collected ship-to (same shape the maker order
+        # detail expects). Visible to the maker the moment the order lands —
+        # no Stripe webhook round-trip needed.
+        "shipping_details": ship_details,
         "transfer_group": pre_transfer_group,
         "attribution_source": attr_source,
         "external_attribution": is_external,
@@ -850,6 +885,10 @@ async def checkout_status(session_id: str, http_request: Request, bg: Background
                     full_name = (cd.get("name") if isinstance(cd, dict) else getattr(cd, "name", "")) or ""
                     buyer_first = full_name.strip().split()[0] if full_name else ""
                 sd = (getattr(sess, "shipping_details", None) or getattr(sess, "shipping", None)) if sess else None
+                # iter383 — when WE collected the address pre-Stripe, the
+                # session has no shipping; read the tx doc copy instead.
+                if not sd:
+                    sd = tx.get("shipping_details")
                 if sd:
                     addr = sd.get("address") if isinstance(sd, dict) else getattr(sd, "address", None)
                     if addr:

@@ -771,6 +771,18 @@ class CartItem(BaseModel):
     custom_option_ids: List[str] = Field(default=[], max_length=20)
 
 
+class ShippingAddressIn(BaseModel):
+    """iter383 — Ship-to collected on our own cart page (pre-Stripe)."""
+    name: str = Field(min_length=2, max_length=120)
+    line1: str = Field(min_length=3, max_length=200)
+    line2: Optional[str] = Field(default=None, max_length=200)
+    city: str = Field(min_length=2, max_length=100)
+    state: str = Field(min_length=2, max_length=40)
+    postal_code: str = Field(min_length=3, max_length=12)
+    country: str = Field(default="US", max_length=2)
+    phone: Optional[str] = Field(default=None, max_length=24)
+
+
 class CheckoutRequest(BaseModel):
     items: List[CartItem]
     origin_url: str
@@ -809,6 +821,12 @@ class CheckoutRequest(BaseModel):
     # successful redemption so the admin can measure the SMS channel's
     # incremental lift over email alone.
     recovery_medium: Optional[str] = None
+    # iter383 — Shipping address collected on OUR cart page before the
+    # buyer ever reaches Stripe. Passed to Stripe via
+    # `payment_intent_data.shipping` (dashboard + Radar see the real
+    # ship-to) and stored on the tx doc so makers see "Ship to"
+    # immediately — no webhook round-trip, no Step-2 address screen.
+    shipping_address: Optional[ShippingAddressIn] = None
 
 
 class ActivityEvent(BaseModel):

@@ -249,7 +249,7 @@ function OrderRow({ order, onChange }) {
                 )}
                 {it.color_choice && (
                   <span
-                    className="inline-flex items-center gap-1.5 px-2 py-0.5 border border-cyan-700/50 text-cyan-300 text-[10px] uppercase tracking-[0.18em]"
+                    className="inline-flex items-center gap-1.5 px-2 py-0.5 border border-brand/50 bg-brand/[0.06] text-brand font-semibold text-[10px] uppercase tracking-[0.18em]"
                     data-testid={`order-color-flag-${it.product_slug}`}
                   >
                     Color · {it.color_choice}
@@ -359,7 +359,7 @@ function OrderRow({ order, onChange }) {
                     </div>
                   ) : (
                     <p className="font-mono text-[11px] text-ink-muted">
-                      Shipping address not yet collected from Stripe.
+                      Shipping address not provided yet.
                     </p>
                   )}
                 </section>
@@ -411,10 +411,10 @@ function OrderRow({ order, onChange }) {
                           the order also has free-text personalization. */}
                       {it.color_choice && (
                         <div
-                          className="ml-[68px] inline-flex items-center gap-2 px-3 py-1.5 border border-cyan-700/60 bg-cyan-500/[0.06] text-cyan-200"
+                          className="ml-[68px] inline-flex items-center gap-2 px-3 py-1.5 border border-brand/60 bg-brand/[0.08] text-ink"
                           data-testid={`order-color-detail-${it.product_slug}`}
                         >
-                          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-cyan-300">
+                          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand font-semibold">
                             Color
                           </span>
                           <span className="font-display text-sm">{it.color_choice}</span>

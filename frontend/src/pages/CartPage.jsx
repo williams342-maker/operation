@@ -31,6 +31,15 @@ export default function CartPage() {
   const [appliedCode, setAppliedCode] = useState(() => {
     try { return localStorage.getItem("cm_cart_discount") || ""; } catch { return ""; }
   });
+  // iter383 — Shipping address collected HERE, before Stripe. Persisted in
+  // localStorage so it survives the Stripe cancel-and-return round-trip.
+  const [shipAddr, setShipAddr] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("cm_ship_addr")) || {}; } catch { return {}; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("cm_ship_addr", JSON.stringify(shipAddr)); } catch {}
+  }, [shipAddr]);
+  const setShip = (k) => (e) => setShipAddr((s) => ({ ...s, [k]: e.target.value }));
 
   useEffect(() => {
     try { localStorage.setItem("cm_gift_note", giftNote); } catch {}
@@ -130,6 +139,21 @@ export default function CartPage() {
     if (anySmsConsent && !/^\+?[\d\s().-]{7,20}$/.test(phone.trim())) {
       setErr("Enter a phone number to receive the SMS updates you opted into."); return;
     }
+    // iter383 — physical carts must have a complete ship-to before we hand
+    // off to Stripe (we skip Stripe's own address screen).
+    if (!quote?.digital_only) {
+      const missing = ["name", "line1", "city", "state", "postal_code"]
+        .filter((k) => !(shipAddr[k] || "").trim());
+      if (missing.length) {
+        setErr("Please complete your shipping address before checkout.");
+        document.querySelector("[data-testid='cart-ship-block']")
+          ?.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
+      if (!/^\d{5}(-\d{4})?$/.test(shipAddr.postal_code.trim())) {
+        setErr("Enter a valid 5-digit ZIP code."); return;
+      }
+    }
     setErr(""); setLoading(true);
     try {
       const nowIso = new Date().toISOString();
@@ -151,6 +175,18 @@ export default function CartPage() {
         gclid: getGclid() || undefined,
         fbclid: getFbclid() || undefined,
         discount_code: appliedCode || undefined,
+        // iter383 — ship-to collected on our page; backend forwards it to
+        // Stripe's PaymentIntent and stores it for the maker's order view.
+        shipping_address: quote?.digital_only ? undefined : {
+          name: shipAddr.name.trim(),
+          line1: shipAddr.line1.trim(),
+          line2: (shipAddr.line2 || "").trim() || undefined,
+          city: shipAddr.city.trim(),
+          state: shipAddr.state.trim(),
+          postal_code: shipAddr.postal_code.trim(),
+          country: "US",
+          phone: anySmsConsent ? phone.trim() : undefined,
+        },
         policy_accepted: true,
         policy_version: consent.version,
         policy_accepted_at: nowIso,
@@ -243,7 +279,7 @@ export default function CartPage() {
                         line item, not the personalization block. */}
                     {i.color_choice && (
                       <div
-                        className="font-mono text-[10px] uppercase tracking-[0.22em] text-cyan-300 mt-1"
+                        className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mt-1"
                         data-testid={`cart-color-${i.slug}`}
                       >
                         ◆ Color · {i.color_choice}
@@ -315,7 +351,7 @@ export default function CartPage() {
                   k="Shipping"
                   v={
                     quote?.digital_only
-                      ? <span className="text-cyan-400">Digital · no shipping</span>
+                      ? <span className="text-brand">Digital · no shipping</span>
                       : shipping == null
                       ? "—"
                       : shipping === 0
@@ -346,12 +382,12 @@ export default function CartPage() {
                   can't miss it before paying. */}
               {quote?.digital_only && (
                 <div
-                  className="mb-4 p-3 border border-cyan-500/40 bg-cyan-950/[0.15] font-mono text-[10.5px] text-cyan-200 leading-relaxed"
+                  className="mb-4 p-3 border border-brand/40 bg-brand/[0.06] font-mono text-[10.5px] text-ink leading-relaxed"
                   data-testid="cart-digital-disclaimer"
                 >
                   ◆ This is a digital download — files are delivered the moment
                   payment clears, via email and on the order confirmation page.
-                  <strong className="text-cyan-100"> All digital sales are final.</strong>
+                  <strong className="text-brand"> All digital sales are final.</strong>
                 </div>
               )}
               {quote && !quote.digital_only && remaining > 0 && (
@@ -423,6 +459,52 @@ export default function CartPage() {
                   </div>
                 )}
               </div>
+
+              {/* iter383 — Shipping address collected here, pre-Stripe, so
+                  makers see the ship-to instantly and the buyer skips
+                  Stripe's second address screen. Hidden for digital carts. */}
+              {!quote?.digital_only && (
+                <div className="mb-4 border border-line p-3" data-testid="cart-ship-block">
+                  <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-ink-muted mb-2">
+                    ◆ Shipping address
+                  </div>
+                  <input
+                    type="text" value={shipAddr.name || ""} onChange={setShip("name")}
+                    placeholder="Full name" data-testid="cart-ship-name" autoComplete="name"
+                    className="w-full mb-2 bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm"
+                  />
+                  <input
+                    type="text" value={shipAddr.line1 || ""} onChange={setShip("line1")}
+                    placeholder="Street address" data-testid="cart-ship-line1" autoComplete="address-line1"
+                    className="w-full mb-2 bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm"
+                  />
+                  <input
+                    type="text" value={shipAddr.line2 || ""} onChange={setShip("line2")}
+                    placeholder="Apt, suite, unit (optional)" data-testid="cart-ship-line2" autoComplete="address-line2"
+                    className="w-full mb-2 bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm"
+                  />
+                  <div className="grid grid-cols-12 gap-2">
+                    <input
+                      type="text" value={shipAddr.city || ""} onChange={setShip("city")}
+                      placeholder="City" data-testid="cart-ship-city" autoComplete="address-level2"
+                      className="col-span-6 bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm"
+                    />
+                    <input
+                      type="text" value={shipAddr.state || ""} onChange={setShip("state")}
+                      placeholder="State" data-testid="cart-ship-state" autoComplete="address-level1"
+                      className="col-span-3 bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm"
+                    />
+                    <input
+                      type="text" value={shipAddr.postal_code || ""} onChange={setShip("postal_code")}
+                      placeholder="ZIP" data-testid="cart-ship-zip" autoComplete="postal-code" inputMode="numeric"
+                      className="col-span-3 bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm"
+                    />
+                  </div>
+                  <span className="font-mono text-[9px] text-ink-muted mt-2 block">
+                    US shipping only · passed securely to Stripe with your payment
+                  </span>
+                </div>
+              )}
 
               <label className="block mb-4">
                 <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-ink-muted">Email for receipt</span>
