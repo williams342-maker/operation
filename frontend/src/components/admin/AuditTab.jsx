@@ -4,14 +4,14 @@ import { formatDate } from "./_shared";
 import { RowsSkeleton } from "../Skeleton";
 
 const ACTION_TONE = {
-  banned: "bg-red-900/40 text-red-300 border-red-800",
-  frozen: "bg-yellow-900/40 text-yellow-300 border-yellow-800",
-  active: "bg-emerald-900/30 text-emerald-300 border-emerald-800",
+  banned: "bg-red-900/40 text-red-600 border-red-800",
+  frozen: "bg-yellow-900/40 text-brand border-yellow-800",
+  active: "bg-emerald-900/30 text-emerald-700 border-emerald-800",
 };
 
 const AI_TONE = {
-  block: "bg-red-900/40 text-red-300 border-red-800",
-  warn: "bg-yellow-900/40 text-yellow-300 border-yellow-800",
+  block: "bg-red-900/40 text-red-600 border-red-800",
+  warn: "bg-yellow-900/40 text-brand border-yellow-800",
 };
 
 export default function AuditTab() {

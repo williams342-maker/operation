@@ -160,7 +160,7 @@ export function ActionButtons({ isEdit, saving, canPublish, errors, autoStatus, 
           Publish CTA. */}
       <button
         type="button" onClick={onSaveDraft} disabled={saving || photoBusy}
-        className="px-4 py-1.5 border-2 border-emerald-500/70 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 hover:border-emerald-400 font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-2 disabled:opacity-50 transition"
+        className="px-4 py-1.5 border-2 border-emerald-500/70 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 hover:border-emerald-400 font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-2 disabled:opacity-50 transition"
         data-testid="editor-save-draft-btn"
         title={photoLabel || undefined}
       >
@@ -177,7 +177,7 @@ export function ActionButtons({ isEdit, saving, canPublish, errors, autoStatus, 
         </button>
         {!canPublish && missingHint && (
           <span
-            className="hidden md:block font-mono text-[9px] uppercase tracking-[0.18em] text-amber-400/80 max-w-[220px] text-right leading-tight"
+            className="hidden md:block font-mono text-[9px] uppercase tracking-[0.18em] text-brand max-w-[220px] text-right leading-tight"
             data-testid="editor-publish-hint"
           >
             ◇ {missingHint}
@@ -220,7 +220,7 @@ export function AutoSaveIndicator({ status, lastSavedAt, agoTick }) {
   if (status === "error") {
     return (
       <span
-        className="hidden md:inline-flex items-center gap-1.5 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-amber-400"
+        className="hidden md:inline-flex items-center gap-1.5 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-brand"
         data-testid="editor-autosave-error"
         title="Last autosave failed — use Save Draft to retry."
       >
@@ -233,7 +233,7 @@ export function AutoSaveIndicator({ status, lastSavedAt, agoTick }) {
   // status === "saved"
   return (
     <span
-      className="hidden md:inline-flex items-center gap-1.5 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-emerald-400/80"
+      className="hidden md:inline-flex items-center gap-1.5 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-emerald-700"
       data-testid="editor-autosave-saved"
     >
       <Check size={11} />

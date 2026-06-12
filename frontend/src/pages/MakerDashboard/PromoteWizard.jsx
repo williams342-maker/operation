@@ -312,7 +312,7 @@ export default function PromoteWizard({ onComplete, onDismiss, initialStep = 1, 
                   type="button"
                   onClick={onRecommend}
                   disabled={recLoading}
-                  className="px-3 py-1.5 border border-cyan-700/50 hover:border-cyan-400 hover:bg-cyan-950/30 text-cyan-300 hover:text-cyan-200 font-mono text-[10px] uppercase tracking-[0.22em] flex items-center gap-1.5 disabled:opacity-50"
+                  className="px-3 py-1.5 border border-cyan-700/50 hover:border-cyan-400 hover:bg-cyan-950/30 text-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] flex items-center gap-1.5 disabled:opacity-50"
                   data-testid="promote-wizard-recommend"
                 >
                   {recLoading
@@ -323,16 +323,16 @@ export default function PromoteWizard({ onComplete, onDismiss, initialStep = 1, 
                   <div className="mt-2 border border-cyan-900/40 bg-cyan-950/20 p-3" data-testid="promote-wizard-recommendation">
                     <div className="grid grid-cols-3 gap-2 mb-2">
                       <div className="text-center">
-                        <div className="font-display text-xl text-cyan-200 tabular-nums">~{recommendation.expected_reach.toLocaleString()}</div>
-                        <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-cyan-400/70 mt-0.5">Reach</div>
+                        <div className="font-display text-xl text-brand tabular-nums">~{recommendation.expected_reach.toLocaleString()}</div>
+                        <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-brand mt-0.5">Reach</div>
                       </div>
                       <div className="text-center">
-                        <div className="font-display text-xl text-cyan-200 tabular-nums">~{recommendation.expected_clicks.toLocaleString()}</div>
-                        <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-cyan-400/70 mt-0.5">Clicks</div>
+                        <div className="font-display text-xl text-brand tabular-nums">~{recommendation.expected_clicks.toLocaleString()}</div>
+                        <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-brand mt-0.5">Clicks</div>
                       </div>
                       <div className="text-center">
-                        <div className="font-display text-xl text-cyan-200 tabular-nums">~{recommendation.expected_orders}</div>
-                        <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-cyan-400/70 mt-0.5">Orders</div>
+                        <div className="font-display text-xl text-brand tabular-nums">~{recommendation.expected_orders}</div>
+                        <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-brand mt-0.5">Orders</div>
                       </div>
                     </div>
                     <p className="text-[11px] text-ink leading-snug" data-testid="promote-wizard-rec-rationale">
@@ -371,7 +371,7 @@ export default function PromoteWizard({ onComplete, onDismiss, initialStep = 1, 
 
               <div className="border border-line p-3 bg-paper">
                 <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2 flex items-center gap-1.5">
-                  <TrendingUp size={11} className="text-cyan-400" />
+                  <TrendingUp size={11} className="text-brand" />
                   Smart distribution preview
                 </div>
                 {previewLoading && (
@@ -450,7 +450,7 @@ export default function PromoteWizard({ onComplete, onDismiss, initialStep = 1, 
                     key={c}
                     onClick={() => onSubscribe(c)}
                     disabled={busy === `sub-${c}`}
-                    className="p-3 border border-line hover:border-cyan-400 hover:text-cyan-400 font-display text-lg text-ink disabled:opacity-50 flex flex-col items-center"
+                    className="p-3 border border-line hover:border-cyan-400 hover:text-brand font-display text-lg text-ink disabled:opacity-50 flex flex-col items-center"
                     data-testid={`promote-wizard-subscribe-${c}`}
                   >
                     {busy === `sub-${c}`
@@ -480,7 +480,7 @@ export default function PromoteWizard({ onComplete, onDismiss, initialStep = 1, 
               {!applyResult && (
                 <div className="mt-5 border border-line p-4 bg-paper">
                   <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2 flex items-center gap-1.5">
-                    <Sparkles size={11} className="text-cyan-400" /> Next: boost your listings
+                    <Sparkles size={11} className="text-brand" /> Next: boost your listings
                   </div>
                   <p className="text-xs text-ink-muted leading-snug">
                     Click <span className="text-brand">Apply now</span> to fire the allocator immediately — your top-scoring listings get a 7-day boost on Crafters Market featured rails. Otherwise it runs automatically at 04:45 UTC tomorrow.
@@ -490,7 +490,7 @@ export default function PromoteWizard({ onComplete, onDismiss, initialStep = 1, 
 
               {applyResult && (
                 <div className="mt-5 border border-emerald-900/40 bg-emerald-950/30 p-4" data-testid="promote-wizard-apply-result">
-                  <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-300 mb-2 flex items-center gap-1.5">
+                  <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-700 mb-2 flex items-center gap-1.5">
                     <Sparkles size={11} /> Boosts applied
                   </div>
                   <div className="text-sm text-ink">

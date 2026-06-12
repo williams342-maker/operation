@@ -235,8 +235,8 @@ export default function FeedHealthCard() {
       </div>
       <p className="font-mono text-xs text-ink font-medium max-w-3xl leading-relaxed">
         Counts per-channel match the exact eligibility rules used by the live feed routes (`shop_feeds.py`,
-        `pinterest_feed.py`, `enrichlabs.py`). A listing showing as <span className="text-emerald-400">ready</span>{" "}
-        for one channel may still be <span className="text-amber-400">blocked</span> elsewhere because of stricter
+        `pinterest_feed.py`, `enrichlabs.py`). A listing showing as <span className="text-emerald-700">ready</span>{" "}
+        for one channel may still be <span className="text-brand">blocked</span> elsewhere because of stricter
         per-channel rules (Pinterest needs ≥50-char descriptions; Meta drops out-of-stock; etc.).
       </p>
 
@@ -269,11 +269,11 @@ export default function FeedHealthCard() {
                   </span>
                 </div>
                 <div className="flex items-center gap-4 shrink-0">
-                  <span className="font-mono text-[11px] text-emerald-400" data-testid={`feed-health-${c.channel}-ready`}>
+                  <span className="font-mono text-[11px] text-emerald-700" data-testid={`feed-health-${c.channel}-ready`}>
                     ✓ {c.ready}
                   </span>
                   {c.blocked > 0 && (
-                    <span className="font-mono text-[11px] text-amber-400" data-testid={`feed-health-${c.channel}-blocked`}>
+                    <span className="font-mono text-[11px] text-brand" data-testid={`feed-health-${c.channel}-blocked`}>
                       ✗ {c.blocked}
                     </span>
                   )}
@@ -284,7 +284,7 @@ export default function FeedHealthCard() {
               {isOpen && (
                 <div className="border-t border-line px-4 py-3 space-y-3 bg-paper">
                   {c.top_blockers.length === 0 ? (
-                    <p className="font-mono text-[10px] text-emerald-400" data-testid={`feed-health-${c.channel}-clean`}>
+                    <p className="font-mono text-[10px] text-emerald-700" data-testid={`feed-health-${c.channel}-clean`}>
                       ✓ No blockers — every eligible listing is ready to publish.
                     </p>
                   ) : (
@@ -297,7 +297,7 @@ export default function FeedHealthCard() {
                           {c.top_blockers.map((b) => (
                             <span
                               key={b.reason}
-                              className="px-2 py-1 border border-amber-500/30 text-amber-300 font-mono text-[10px]"
+                              className="px-2 py-1 border border-amber-500/30 text-brand font-mono text-[10px]"
                               title={data.blocker_glossary?.[b.reason] || ""}
                               data-testid={`feed-health-${c.channel}-blocker-${b.reason}`}
                             >
@@ -315,7 +315,7 @@ export default function FeedHealthCard() {
                           <button
                             onClick={quarantineStubs}
                             disabled={quarantineBusy}
-                            className="px-3 py-1.5 border border-red-500/40 text-red-300 hover:bg-red-500/10 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+                            className="px-3 py-1.5 border border-red-500/40 text-red-600 hover:bg-red-500/10 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
                             data-testid="feed-health-design-files-quarantine"
                           >
                             {quarantineBusy
@@ -336,7 +336,7 @@ export default function FeedHealthCard() {
                           <button
                             onClick={autoThumb}
                             disabled={autoThumbBusy}
-                            className="px-3 py-1.5 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/10 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+                            className="px-3 py-1.5 border border-cyan-500/40 text-brand hover:bg-cyan-500/10 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
                             data-testid="feed-health-design-files-auto-thumb"
                           >
                             {autoThumbBusy
@@ -357,7 +357,7 @@ export default function FeedHealthCard() {
                           <button
                             onClick={attachMakerImages}
                             disabled={attachBusy}
-                            className="px-3 py-1.5 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+                            className="px-3 py-1.5 border border-emerald-500/40 text-emerald-700 hover:bg-emerald-500/10 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
                             data-testid="feed-health-showcase-attach-maker-image"
                           >
                             {attachBusy
@@ -379,7 +379,7 @@ export default function FeedHealthCard() {
                           <button
                             onClick={() => autoSeo(c.channel === "design_files" ? "design-files" : "showcase")}
                             disabled={seoBusy[c.channel === "design_files" ? "design-files" : "showcase"]}
-                            className="px-3 py-1.5 border border-orange-500/40 text-orange-300 hover:bg-orange-500/10 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+                            className="px-3 py-1.5 border border-orange-500/40 text-brand hover:bg-orange-500/10 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
                             data-testid={`feed-health-${c.channel}-auto-seo`}
                           >
                             {seoBusy[c.channel === "design_files" ? "design-files" : "showcase"]
@@ -419,7 +419,7 @@ export default function FeedHealthCard() {
                                     <button
                                       type="button"
                                       onClick={() => setEditing(ex)}
-                                      className="px-2 py-0.5 border border-cyan-700/50 text-cyan-300 hover:bg-cyan-500/10 font-mono text-[9px] uppercase tracking-[0.18em] transition"
+                                      className="px-2 py-0.5 border border-cyan-700/50 text-brand hover:bg-cyan-500/10 font-mono text-[9px] uppercase tracking-[0.18em] transition"
                                       data-testid={`feed-health-edit-${ex.id}`}
                                     >
                                       Edit
@@ -429,7 +429,7 @@ export default function FeedHealthCard() {
                                     <button
                                       type="button"
                                       onClick={() => setEditingShowcase(ex)}
-                                      className="px-2 py-0.5 border border-emerald-700/50 text-emerald-300 hover:bg-emerald-500/10 font-mono text-[9px] uppercase tracking-[0.18em] transition"
+                                      className="px-2 py-0.5 border border-emerald-700/50 text-emerald-700 hover:bg-emerald-500/10 font-mono text-[9px] uppercase tracking-[0.18em] transition"
                                       data-testid={`feed-health-edit-showcase-${ex.id}`}
                                     >
                                       Edit
@@ -460,7 +460,7 @@ export default function FeedHealthCard() {
               Google Merchant · Attribute quality
             </span>
             <span
-              className={`font-mono text-xs ${data.merchant_quality.rows_with_warnings ? "text-amber-600 dark:text-amber-400" : "text-green-600 dark:text-green-400"}`}
+              className={`font-mono text-xs ${data.merchant_quality.rows_with_warnings ? "text-amber-600 dark:text-brand" : "text-green-600 dark:text-green-700"}`}
               data-testid="feed-quality-count"
             >
               {data.merchant_quality.rows_with_warnings === 0

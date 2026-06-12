@@ -93,13 +93,13 @@ export default function ShowcaseCurationTab() {
           </div>
           <h2 className="font-display text-3xl">Rotate the Community Showcase</h2>
           <p className="font-mono text-[11px] text-ink-muted mt-2 max-w-[68ch] leading-relaxed">
-            Pin the work you want greeting buyers, hide anything that's gone stale, shuffle the rest in one click. Pinned posts stay at the top permanently. The public order on <code className="text-emerald-300">/community</code> updates the moment you click — no redeploy needed.
+            Pin the work you want greeting buyers, hide anything that's gone stale, shuffle the rest in one click. Pinned posts stay at the top permanently. The public order on <code className="text-emerald-700">/community</code> updates the moment you click — no redeploy needed.
           </p>
         </div>
         <button
           onClick={onShuffle}
           disabled={shuffling || visible.length === 0}
-          className="px-4 py-2 border border-amber-500 text-amber-300 font-mono text-[11px] uppercase tracking-[0.22em] hover:bg-amber-500 hover:text-ink disabled:opacity-50"
+          className="px-4 py-2 border border-amber-500 text-brand font-mono text-[11px] uppercase tracking-[0.22em] hover:bg-amber-500 hover:text-ink disabled:opacity-50"
           data-testid="showcase-shuffle-btn"
         >
           {shuffling ? "Shuffling…" : `🎲 Shuffle ${visible.length} non-pinned`}
@@ -188,25 +188,25 @@ function Row({ item, index, total, busyId, canReorder, dimmed, onPin, onHide, on
         )}
       </div>
       <div className="min-w-0">
-        <div className="font-display text-sm text-zinc-100 truncate" title={item.title}>
+        <div className="font-display text-sm text-ink truncate" title={item.title}>
           {item.title}
         </div>
         <div className="font-mono text-[10px] text-ink-muted mt-0.5 truncate">
-          {item.maker_slug && <span className="text-emerald-400">@{item.maker_slug}</span>}
+          {item.maker_slug && <span className="text-emerald-700">@{item.maker_slug}</span>}
           {item.maker_slug && item.user_name && <span> · </span>}
           {item.user_name && <span>{item.user_name}</span>}
           {" · "}
           <span>{item.views} views</span>
-          {item.is_seed && <span className="text-amber-400"> · seeded</span>}
-          {item.admin_pinned && <span className="text-yellow-300"> · pinned</span>}
-          {item.admin_hidden && <span className="text-red-300"> · hidden</span>}
+          {item.is_seed && <span className="text-brand"> · seeded</span>}
+          {item.admin_pinned && <span className="text-brand"> · pinned</span>}
+          {item.admin_hidden && <span className="text-red-600"> · hidden</span>}
         </div>
       </div>
       <div className="flex items-center gap-1">
         <button
           onClick={onPin}
           disabled={busy}
-          className={`px-2 py-1.5 border font-mono text-[10px] uppercase tracking-[0.22em] hover:bg-yellow-500/15 disabled:opacity-50 ${item.admin_pinned ? "border-yellow-400 text-yellow-300 bg-yellow-500/10" : "border-line text-ink-muted"}`}
+          className={`px-2 py-1.5 border font-mono text-[10px] uppercase tracking-[0.22em] hover:bg-yellow-500/15 disabled:opacity-50 ${item.admin_pinned ? "border-yellow-400 text-brand bg-yellow-500/10" : "border-line text-ink-muted"}`}
           title={item.admin_pinned ? "Unpin" : "Pin to top"}
           data-testid={`showcase-pin-${item.id}`}
         >
@@ -215,7 +215,7 @@ function Row({ item, index, total, busyId, canReorder, dimmed, onPin, onHide, on
         <button
           onClick={onHide}
           disabled={busy}
-          className={`px-2 py-1.5 border font-mono text-[10px] uppercase tracking-[0.22em] hover:bg-red-500/15 disabled:opacity-50 ${item.admin_hidden ? "border-red-400 text-red-300 bg-red-500/10" : "border-line text-ink-muted"}`}
+          className={`px-2 py-1.5 border font-mono text-[10px] uppercase tracking-[0.22em] hover:bg-red-500/15 disabled:opacity-50 ${item.admin_hidden ? "border-red-400 text-red-600 bg-red-500/10" : "border-line text-ink-muted"}`}
           title={item.admin_hidden ? "Restore to showcase" : "Hide from showcase"}
           data-testid={`showcase-hide-${item.id}`}
         >

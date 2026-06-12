@@ -59,7 +59,7 @@ export function useConfirm() {
   const accentClasses = {
     primary: "text-brand",
     danger: "text-red-400",
-    warn: "text-amber-400",
+    warn: "text-brand",
   };
 
   const modal = open ? (

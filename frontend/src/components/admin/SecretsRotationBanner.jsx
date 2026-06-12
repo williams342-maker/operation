@@ -72,7 +72,7 @@ export default function SecretsRotationBanner({ onJumpToTab }) {
           {worst.map((s) => (
             <span
               key={s.id}
-              className="inline-flex items-center gap-1.5 px-2 py-0.5 border border-red-500/40 bg-red-500/10 text-red-300"
+              className="inline-flex items-center gap-1.5 px-2 py-0.5 border border-red-500/40 bg-red-500/10 text-red-600"
               data-testid={`secrets-rotation-overdue-${s.id}`}
             >
               <Key size={10} /> {s.label}
@@ -83,7 +83,7 @@ export default function SecretsRotationBanner({ onJumpToTab }) {
             </span>
           ))}
           {overdue.length > worst.length && (
-            <span className="text-red-300 font-mono text-[10px]">
+            <span className="text-red-600 font-mono text-[10px]">
               +{overdue.length - worst.length} more
             </span>
           )}
@@ -103,17 +103,17 @@ export default function SecretsRotationBanner({ onJumpToTab }) {
         className="w-full mb-8 border border-yellow-600/50 bg-yellow-600/8 hover:bg-yellow-600/12 px-4 md:px-5 py-3 flex flex-col md:flex-row md:items-center gap-3 md:gap-4 text-left transition"
         data-testid="secrets-rotation-banner-due-soon"
       >
-        <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-yellow-400 shrink-0">
+        <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-brand shrink-0">
           <Clock size={14} /> Rotation due
         </div>
         <div className="flex-1 font-mono text-xs text-ink">
-          <b className="text-yellow-300">{next.label}</b> rotates in{" "}
-          <span className="tabular-nums text-yellow-300">{next.days_until_due}d</span>
+          <b className="text-brand">{next.label}</b> rotates in{" "}
+          <span className="tabular-nums text-brand">{next.days_until_due}d</span>
           {dueSoon.length > 1 && (
             <span className="text-ink-muted"> · {dueSoon.length - 1} more in the next 30d</span>
           )}
         </div>
-        <ChevronRight size={16} className="text-yellow-400 shrink-0" />
+        <ChevronRight size={16} className="text-brand shrink-0" />
       </button>
     );
   }
@@ -129,9 +129,9 @@ export default function SecretsRotationBanner({ onJumpToTab }) {
       className="w-full mb-8 border border-emerald-500/40 bg-emerald-500/5 hover:bg-emerald-500/10 px-4 md:px-5 py-3 flex items-center gap-3 text-left transition"
       data-testid="secrets-rotation-banner-ok"
     >
-      <ShieldCheck size={14} className="text-emerald-400 shrink-0" />
+      <ShieldCheck size={14} className="text-emerald-700 shrink-0" />
       <div className="flex-1 font-mono text-xs text-ink">
-        All <b className="text-emerald-300">{configured.length}</b> credentials within rotation cadence
+        All <b className="text-emerald-700">{configured.length}</b> credentials within rotation cadence
         {oldest !== null && (
           <span className="text-ink-muted">
             {" "}· oldest is <span className="tabular-nums">{oldest}d</span> since last rotation

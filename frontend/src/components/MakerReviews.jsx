@@ -47,7 +47,7 @@ function ReviewCard({ r }) {
           <span>◆ {date}</span>
           {r.source && (
             <span
-              className="px-1.5 py-0.5 border border-blue-500/40 text-blue-400 bg-blue-500/5 tracking-[0.22em]"
+              className="px-1.5 py-0.5 border border-blue-500/40 text-blue-700 bg-blue-500/5 tracking-[0.22em]"
               data-testid={`review-imported-badge-${r.id}`}
               title={`Imported from ${r.source}`}
             >
@@ -176,12 +176,12 @@ export default function MakerReviews({ makerSlug, makerName }) {
         </h3>
 
         {submitted ? (
-          <div className="border border-emerald-700/60 bg-emerald-900/20 p-4 font-mono text-sm text-emerald-300" data-testid="review-success">
+          <div className="border border-emerald-700/60 bg-emerald-900/20 p-4 font-mono text-sm text-emerald-700" data-testid="review-success">
             ◆ Thanks — your review is live. We appreciate you taking the time.
             <button
               type="button"
               onClick={() => setSubmitted(false)}
-              className="ml-3 underline hover:text-emerald-200"
+              className="ml-3 underline hover:text-emerald-700"
               data-testid="review-write-another"
             >
               Write another

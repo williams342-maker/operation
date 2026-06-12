@@ -141,9 +141,9 @@ export default function PushNotificationsTab() {
         <div className="flex-1 min-w-[260px]">
           <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">This device</div>
           <div className="font-mono text-sm text-ink mt-1">
-            {!supported && <span className="text-amber-400">Browser does not support web push.</span>}
+            {!supported && <span className="text-brand">Browser does not support web push.</span>}
             {supported && (mySub
-              ? <span className="text-emerald-400">◆ Subscribed — you'll receive admin alerts here.</span>
+              ? <span className="text-emerald-700">◆ Subscribed — you'll receive admin alerts here.</span>
               : <span className="text-ink-muted">Not subscribed yet.</span>
             )}
           </div>
@@ -164,7 +164,7 @@ export default function PushNotificationsTab() {
               onClick={handleTest}
               disabled={busy}
               data-testid="push-test-btn"
-              className="px-4 py-2 border border-line hover:border-sky-500 hover:text-sky-400 font-mono text-xs uppercase tracking-[0.22em] transition disabled:opacity-50"
+              className="px-4 py-2 border border-line hover:border-sky-500 hover:text-blue-700 font-mono text-xs uppercase tracking-[0.22em] transition disabled:opacity-50"
             >
               Send test push
             </button>
@@ -285,8 +285,8 @@ export default function PushNotificationsTab() {
                   </div>
                 </div>
                 <div className="font-mono text-xs text-right">
-                  <div className="text-emerald-400">{h.sent} sent</div>
-                  {h.failed > 0 && <div className="text-amber-400">{h.failed} failed</div>}
+                  <div className="text-emerald-700">{h.sent} sent</div>
+                  {h.failed > 0 && <div className="text-brand">{h.failed} failed</div>}
                   {h.pruned > 0 && <div className="text-ink-muted">{h.pruned} pruned</div>}
                 </div>
               </div>

@@ -191,7 +191,7 @@ export default function RenewalsTab() {
         </div>
 
         {err && (
-          <div className="border border-amber-500/40 bg-amber-500/5 p-4 text-amber-200 font-mono text-xs mb-6">
+          <div className="border border-amber-500/40 bg-amber-500/5 p-4 text-ink font-mono text-xs mb-6">
             {err}
           </div>
         )}
@@ -246,7 +246,7 @@ export default function RenewalsTab() {
             <button
               onClick={() => doBulkSetMode("automatic")}
               disabled={!!busy}
-              className="inline-flex items-center gap-1.5 border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 font-mono text-[10px] uppercase tracking-[0.22em] px-4 py-2 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 border border-emerald-500/40 text-emerald-700 hover:bg-emerald-500/10 font-mono text-[10px] uppercase tracking-[0.22em] px-4 py-2 disabled:opacity-50"
               data-testid="bulk-set-auto-btn"
             >
               → Auto-renew
@@ -254,7 +254,7 @@ export default function RenewalsTab() {
             <button
               onClick={() => doBulkSetMode("manual")}
               disabled={!!busy}
-              className="inline-flex items-center gap-1.5 border border-amber-500/40 text-amber-400 hover:bg-amber-500/10 font-mono text-[10px] uppercase tracking-[0.22em] px-4 py-2 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 border border-amber-500/40 text-brand hover:bg-amber-500/10 font-mono text-[10px] uppercase tracking-[0.22em] px-4 py-2 disabled:opacity-50"
               data-testid="bulk-set-manual-btn"
             >
               → Manual
@@ -335,7 +335,7 @@ function RenewalsTable({ rows, selected, toggle, toggleAll }) {
                 </td>
                 <td className="px-3 py-2">
                   <span className={`font-mono text-[10px] uppercase tracking-[0.18em] ${
-                    r.renewal_mode === "automatic" ? "text-emerald-400" : "text-amber-400"
+                    r.renewal_mode === "automatic" ? "text-emerald-700" : "text-brand"
                   }`}>
                     {r.renewal_mode}
                   </span>

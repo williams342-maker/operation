@@ -109,7 +109,7 @@ export default function ProdHealthTab() {
 
       {disabledNote && (
         <div
-          className="border border-yellow-700/60 bg-yellow-900/20 px-4 py-3 font-mono text-[11px] text-yellow-300"
+          className="border border-yellow-700/60 bg-yellow-900/20 px-4 py-3 font-mono text-[11px] text-brand"
           data-testid="prod-health-disabled-note"
         >
           ⚠ {disabledNote}
@@ -132,7 +132,7 @@ export default function ProdHealthTab() {
 
       {anyAlerted && (
         <div
-          className="border border-red-700/60 bg-red-900/20 px-4 py-3 font-mono text-[11px] text-red-300"
+          className="border border-red-700/60 bg-red-900/20 px-4 py-3 font-mono text-[11px] text-red-600"
           data-testid="prod-health-summary-alert"
         >
           ⚠ One or more endpoints are currently in the alerted state. The OPS inbox has already been notified.
@@ -156,7 +156,7 @@ function EndpointCard({ e }) {
     : ok
     ? "border-emerald-700/50 bg-emerald-900/10"
     : "border-yellow-700/60 bg-yellow-900/10";
-  const textColor = alerted ? "text-red-300" : ok ? "text-emerald-300" : "text-yellow-300";
+  const textColor = alerted ? "text-red-600" : ok ? "text-emerald-700" : "text-brand";
   const Icon = ok ? CheckCircle2 : AlertTriangle;
 
   const timeAgo = (iso) => {
@@ -203,7 +203,7 @@ function EndpointCard({ e }) {
         </div>
       </div>
       {e.last_reason && (
-        <div className="mt-2 text-red-300 text-[10px] truncate" title={e.last_reason}>
+        <div className="mt-2 text-red-600 text-[10px] truncate" title={e.last_reason}>
           {e.last_reason}
         </div>
       )}

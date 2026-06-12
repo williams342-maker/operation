@@ -292,7 +292,7 @@ export default function MakerJournalEditor() {
               <Save size={13} /> {saving ? "Publishing…" : "Publish post"}
             </button>
             {issues.length > 0 && (
-              <span className="font-mono text-[10px] text-amber-400" data-testid="journal-issues">
+              <span className="font-mono text-[10px] text-brand" data-testid="journal-issues">
                 ⚠ {issues[0]}
               </span>
             )}
@@ -327,7 +327,7 @@ export default function MakerJournalEditor() {
                   </Link>
                   <button
                     onClick={() => onDelete(p.slug)}
-                    className="px-2.5 py-1.5 border border-red-900/60 text-red-300 hover:border-red-500 hover:text-red-200 font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5"
+                    className="px-2.5 py-1.5 border border-red-900/60 text-red-600 hover:border-red-500 hover:text-red-600 font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5"
                     data-testid={`journal-mine-delete-${p.slug}`}
                   >
                     <Trash2 size={11} /> Delete

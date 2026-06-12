@@ -61,8 +61,8 @@ function GridOverlay({ opacity = 0.05 }) {
 function SectionTag({ children, accent = "orange" }) {
   const colorMap = {
     orange: "text-brand",
-    cyan: "text-[#00ffff]",
-    amber: "text-[#ffb000]",
+    cyan: "text-[#C2410C]",
+    amber: "text-[#B45309]",
   };
   return (
     <div className={`font-mono text-[10px] sm:text-[11px] uppercase tracking-[0.32em] ${colorMap[accent]} mb-4`}>
@@ -89,7 +89,7 @@ function Hero() {
       <GridOverlay opacity={0.06} />
       {/* Ambient color blooms */}
       <div className="absolute top-[20%] -left-32 w-[500px] h-[500px] rounded-full bg-brand opacity-[0.18] blur-[120px]" />
-      <div className="absolute bottom-[10%] -right-32 w-[600px] h-[600px] rounded-full bg-[#00ffff] opacity-[0.12] blur-[140px]" />
+      <div className="absolute bottom-[10%] -right-32 w-[600px] h-[600px] rounded-full bg-[#C2410C] opacity-[0.12] blur-[140px]" />
 
       <div className="relative max-w-7xl mx-auto px-6 lg:px-12 w-full">
         <div className="grid lg:grid-cols-12 gap-10 lg:gap-16 items-center">
@@ -104,7 +104,7 @@ function Hero() {
               data-testid="grow-hero-headline"
             >
               The Next Generation<br />
-              <span className="bg-gradient-to-r from-[#ff4500] via-[#ffb000] to-[#00ffff] bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-[#ff4500] via-[#B45309] to-[#C2410C] bg-clip-text text-transparent">
                 Marketplace
               </span>
               <br />for Independent Creators
@@ -134,7 +134,7 @@ function Hero() {
               </Link>
               <a
                 href="#roadmap"
-                className="inline-flex items-center gap-3 px-7 py-4 border border-line hover:border-[#00ffff] text-white font-mono text-xs uppercase tracking-[0.22em] transition hover:text-[#00ffff]"
+                className="inline-flex items-center gap-3 px-7 py-4 border border-line hover:border-[#C2410C] text-white font-mono text-xs uppercase tracking-[0.22em] transition hover:text-[#C2410C]"
                 data-testid="grow-hero-secondary-cta"
               >
                 View Roadmap
@@ -151,7 +151,7 @@ function Hero() {
               transition={{ duration: 1, delay: 0.4 }}
               className="absolute top-0 right-0 w-[280px] backdrop-blur-xl bg-surface/70 border border-line p-5 shadow-[0_20px_60px_rgba(0,0,0,0.6)]"
             >
-              <div className="font-mono text-[9px] uppercase tracking-[0.28em] text-[#00ffff] mb-2">◆ Seller Analytics</div>
+              <div className="font-mono text-[9px] uppercase tracking-[0.28em] text-[#C2410C] mb-2">◆ Seller Analytics</div>
               <div className="font-display text-3xl text-white">$8,420</div>
               <div className="font-mono text-[10px] text-ink-muted mt-1">Revenue · last 30d</div>
               <div className="flex items-end gap-1 mt-4 h-12">
@@ -172,11 +172,11 @@ function Hero() {
               transition={{ duration: 1, delay: 0.55 }}
               className="absolute top-[40%] left-0 w-[260px] backdrop-blur-xl bg-surface/70 border border-line p-4 shadow-[0_20px_60px_rgba(0,0,0,0.6)]"
             >
-              <div className="font-mono text-[9px] uppercase tracking-[0.28em] text-[#ffb000] mb-2">◆ AI Suggestions</div>
+              <div className="font-mono text-[9px] uppercase tracking-[0.28em] text-[#B45309] mb-2">◆ AI Suggestions</div>
               <div className="space-y-2">
                 {["Rewrite listing copy", "Optimize 3 SEO tags", "Pinterest schedule ready"].map((s) => (
                   <div key={s} className="flex items-center gap-2 font-mono text-[11px] text-ink">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#00ffff]" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#C2410C]" />
                     {s}
                   </div>
                 ))}
@@ -210,7 +210,7 @@ function Problem() {
       <div className="max-w-7xl mx-auto px-6 lg:px-12">
         <div className="max-w-3xl">
           <SectionTag>The Problem</SectionTag>
-          <h2 className="font-display font-bold text-white text-3xl sm:text-4xl lg:text-5xl tracking-tight leading-[1.1]">
+          <h2 className="font-display font-bold text-ink text-3xl sm:text-4xl lg:text-5xl tracking-tight leading-[1.1]">
             Makers Deserve Better Platforms
           </h2>
           <p className="mt-6 text-ink-muted text-base sm:text-lg max-w-[58ch] leading-relaxed">
@@ -296,7 +296,7 @@ function Vision() {
       <div className="relative max-w-7xl mx-auto px-6 lg:px-12">
         <div className="max-w-3xl mb-16">
           <SectionTag accent="cyan">The Vision</SectionTag>
-          <h2 className="font-display font-bold text-white text-3xl sm:text-4xl lg:text-5xl tracking-tight leading-[1.1]">
+          <h2 className="font-display font-bold text-ink text-3xl sm:text-4xl lg:text-5xl tracking-tight leading-[1.1]">
             A New Ecosystem for<br />Modern Makers
           </h2>
         </div>
@@ -304,13 +304,13 @@ function Vision() {
           {VISION_BLOCKS.map((b, i) => {
             const glowMap = {
               orange: "hover:border-brand/40 hover:shadow-[0_0_30px_rgba(255,69,0,0.15)]",
-              cyan: "hover:border-[#00ffff]/40 hover:shadow-[0_0_30px_rgba(0,255,255,0.15)]",
-              amber: "hover:border-[#ffb000]/40 hover:shadow-[0_0_30px_rgba(255,176,0,0.15)]",
+              cyan: "hover:border-[#C2410C]/40 hover:shadow-[0_0_30px_rgba(194,65,12,0.18)]",
+              amber: "hover:border-[#B45309]/40 hover:shadow-[0_0_30px_rgba(180,83,9,0.18)]",
             };
             const dotMap = {
               orange: "bg-brand",
-              cyan: "bg-[#00ffff]",
-              amber: "bg-[#ffb000]",
+              cyan: "bg-[#C2410C]",
+              amber: "bg-[#B45309]",
             };
             return (
               <motion.div
@@ -352,9 +352,9 @@ const PHASES = [
 
 function Roadmap() {
   const statusStyles = {
-    DONE:        { tag: "text-emerald-400 border-emerald-700/60 bg-emerald-950/30", dot: "bg-emerald-400" },
-    "IN PROGRESS": { tag: "text-[#00ffff] border-[#00ffff]/40 bg-[#00ffff]/10",      dot: "bg-[#00ffff] animate-pulse" },
-    UPCOMING:    { tag: "text-[#ffb000] border-[#ffb000]/40 bg-[#ffb000]/10",       dot: "bg-[#ffb000]" },
+    DONE:        { tag: "text-emerald-700 border-emerald-700/60 bg-emerald-600/10", dot: "bg-emerald-600" },
+    "IN PROGRESS": { tag: "text-[#C2410C] border-[#C2410C]/40 bg-[#C2410C]/10",      dot: "bg-[#C2410C] animate-pulse" },
+    UPCOMING:    { tag: "text-[#B45309] border-[#B45309]/40 bg-[#B45309]/10",       dot: "bg-[#B45309]" },
     FUTURE:      { tag: "text-ink-muted border-line bg-surface",             dot: "bg-ink-muted" },
   };
   return (
@@ -362,7 +362,7 @@ function Roadmap() {
       <div className="max-w-7xl mx-auto px-6 lg:px-12">
         <div className="max-w-3xl mb-16">
           <SectionTag accent="amber">Public Roadmap</SectionTag>
-          <h2 className="font-display font-bold text-white text-3xl sm:text-4xl lg:text-5xl tracking-tight leading-[1.1]">
+          <h2 className="font-display font-bold text-ink text-3xl sm:text-4xl lg:text-5xl tracking-tight leading-[1.1]">
             What We're Building Next
           </h2>
           <p className="mt-6 text-ink-muted max-w-[58ch] leading-relaxed">
@@ -373,7 +373,7 @@ function Roadmap() {
         {/* Horizontal phases — stack on mobile, row on lg */}
         <div className="relative">
           {/* Connecting glow line (lg only) */}
-          <div className="hidden lg:block absolute top-[42px] left-[5%] right-[5%] h-px bg-gradient-to-r from-emerald-500/50 via-[#00ffff]/50 via-[#ffb000]/30 to-[#262626]" />
+          <div className="hidden lg:block absolute top-[42px] left-[5%] right-[5%] h-px bg-gradient-to-r from-emerald-500/50 via-[#C2410C]/50 via-[#B45309]/30 to-[#262626]" />
           <div className="grid lg:grid-cols-4 gap-6">
             {PHASES.map((p, i) => {
               const s = statusStyles[p.status];
@@ -393,7 +393,7 @@ function Roadmap() {
                       {p.status}
                     </span>
                   </div>
-                  <h3 className="font-display text-xl text-white mb-4 tracking-tight">{p.name}</h3>
+                  <h3 className="font-display text-xl text-ink mb-4 tracking-tight">{p.name}</h3>
                   <ul className="space-y-2">
                     {p.items.map((item) => (
                       <li key={item} className="flex items-start gap-2 font-mono text-[12px] text-ink-muted leading-relaxed">
@@ -436,7 +436,7 @@ function Audience() {
       <div className="max-w-7xl mx-auto px-6 lg:px-12">
         <div className="max-w-3xl mb-16">
           <SectionTag>Who We're Looking For</SectionTag>
-          <h2 className="font-display font-bold text-white text-3xl sm:text-4xl lg:text-5xl tracking-tight leading-[1.1]">
+          <h2 className="font-display font-bold text-ink text-3xl sm:text-4xl lg:text-5xl tracking-tight leading-[1.1]">
             Early matters.
           </h2>
           <p className="mt-6 text-ink-muted max-w-[58ch] leading-relaxed">
@@ -447,13 +447,13 @@ function Audience() {
           {AUDIENCE.map((a, i) => {
             const borderMap = {
               orange: "hover:border-brand/50",
-              cyan: "hover:border-[#00ffff]/50",
-              amber: "hover:border-[#ffb000]/50",
+              cyan: "hover:border-[#C2410C]/50",
+              amber: "hover:border-[#B45309]/50",
             };
             const ctaMap = {
               orange: "text-brand hover:text-brand-hover",
-              cyan: "text-[#00ffff] hover:text-cyan-200",
-              amber: "text-[#ffb000] hover:text-amber-300",
+              cyan: "text-[#C2410C] hover:text-brand-hover",
+              amber: "text-[#B45309] hover:text-brand",
             };
             return (
               <motion.div
@@ -509,11 +509,11 @@ function Traction() {
   return (
     <section className="relative bg-paper py-24 lg:py-32 border-t border-line overflow-hidden" data-testid="grow-traction">
       {/* Cyan bloom */}
-      <div className="absolute top-[20%] left-1/2 -translate-x-1/2 w-[800px] h-[400px] rounded-full bg-[#00ffff] opacity-[0.06] blur-[120px]" />
+      <div className="absolute top-[20%] left-1/2 -translate-x-1/2 w-[800px] h-[400px] rounded-full bg-[#C2410C] opacity-[0.06] blur-[120px]" />
       <div className="relative max-w-7xl mx-auto px-6 lg:px-12">
         <div className="max-w-3xl mb-16">
           <SectionTag accent="cyan">Momentum</SectionTag>
-          <h2 className="font-display font-bold text-white text-3xl sm:text-4xl lg:text-5xl tracking-tight leading-[1.1]">
+          <h2 className="font-display font-bold text-ink text-3xl sm:text-4xl lg:text-5xl tracking-tight leading-[1.1]">
             Built in public.<br />Real numbers, live.
           </h2>
           <p className="mt-6 text-ink-muted max-w-[58ch] leading-relaxed">
@@ -532,10 +532,10 @@ function Traction() {
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true, margin: "-60px" }}
                   transition={{ duration: 0.4, delay: i * 0.06 }}
-                  className="border border-line bg-gradient-to-br from-[#141414] to-[#0e0e0e] p-6 group hover:border-[#00ffff]/40 transition"
+                  className="border border-line bg-gradient-to-br from-[#141414] to-[#0e0e0e] p-6 group hover:border-[#C2410C]/40 transition"
                   data-testid={`grow-stat-${s.label.toLowerCase().replace(/[^a-z]/g,'-')}`}
                 >
-                  <div className="font-display text-4xl sm:text-5xl bg-gradient-to-r from-white via-[#00ffff] to-white bg-clip-text text-transparent">
+                  <div className="font-display text-4xl sm:text-5xl bg-gradient-to-r from-white via-[#C2410C] to-white bg-clip-text text-transparent">
                     <CountUp to={s.value} suffix={s.suffix} />
                   </div>
                   <div className="mt-3 font-mono text-[10px] uppercase tracking-[0.24em] text-ink-muted">{s.label}</div>
@@ -579,7 +579,7 @@ function FounderLetter() {
           {/* Letter */}
           <div className="lg:col-span-7">
             <SectionTag>Founder Letter</SectionTag>
-            <h2 className="font-display font-bold text-white text-3xl sm:text-4xl lg:text-5xl tracking-tight leading-[1.1] mb-8">
+            <h2 className="font-display font-bold text-ink text-3xl sm:text-4xl lg:text-5xl tracking-tight leading-[1.1] mb-8">
               I built this for makers like us.
             </h2>
             <div className="prose prose-invert space-y-5 text-ink text-base sm:text-lg leading-relaxed max-w-[64ch]">
@@ -592,7 +592,7 @@ function FounderLetter() {
               <p>
                 If you're here early, you're shaping it. The first 100 makers lock in lifetime founding status. The first 25 get my personal phone number for direct support during their first six months.
               </p>
-              <p className="text-white">
+              <p className="text-ink font-semibold">
                 Build with me. The maker economy is bigger than any single platform — and the next decade belongs to creators with real tools and real visibility.
               </p>
             </div>
@@ -622,10 +622,10 @@ function FinalCTA() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
-          className="font-display font-bold text-white text-4xl sm:text-5xl lg:text-6xl tracking-tight leading-[1.05]"
+          className="font-display font-bold text-ink text-4xl sm:text-5xl lg:text-6xl tracking-tight leading-[1.05]"
         >
           Join Early.<br />
-          <span className="bg-gradient-to-r from-[#ff4500] via-[#ffb000] to-[#00ffff] bg-clip-text text-transparent">
+          <span className="bg-gradient-to-r from-[#ff4500] via-[#B45309] to-[#C2410C] bg-clip-text text-transparent">
             Help Shape the Future.
           </span>
         </motion.h2>
@@ -644,14 +644,14 @@ function FinalCTA() {
           </Link>
           <a
             href="mailto:partners@craftersmarket.org"
-            className="inline-flex items-center gap-3 px-7 py-4 border border-line hover:border-[#00ffff] text-white font-mono text-xs uppercase tracking-[0.22em] transition hover:text-[#00ffff]"
+            className="inline-flex items-center gap-3 px-7 py-4 border-2 border-ink hover:border-[#C2410C] text-ink font-mono text-xs uppercase tracking-[0.22em] transition hover:text-[#C2410C]"
             data-testid="grow-final-cta-partner"
           >
             Partner With Us
           </a>
           <Link
             to="/community"
-            className="inline-flex items-center gap-3 px-7 py-4 border border-line hover:border-[#ffb000] text-white font-mono text-xs uppercase tracking-[0.22em] transition hover:text-[#ffb000]"
+            className="inline-flex items-center gap-3 px-7 py-4 border-2 border-ink hover:border-[#B45309] text-ink font-mono text-xs uppercase tracking-[0.22em] transition hover:text-[#B45309]"
             data-testid="grow-final-cta-community"
           >
             Join the Community
@@ -668,7 +668,7 @@ function FinalCTA() {
 // ═════════════════════════════════════════════════════════════════════
 export default function GrowWithUs() {
   return (
-    <div className="bg-paper text-white min-h-screen" data-testid="grow-with-us-page">
+    <div className="bg-paper text-ink min-h-screen" data-testid="grow-with-us-page">
       <Hero />
       <Problem />
       <Vision />

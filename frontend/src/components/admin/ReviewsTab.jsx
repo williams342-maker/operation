@@ -19,8 +19,8 @@ import {
 import { useConfirm } from "../../hooks/useConfirm";
 
 const DISPUTE_BADGE = {
-  open:   { label: "DISPUTED · OPEN", cls: "border-amber-500/60 text-amber-400 bg-amber-500/10" },
-  upheld: { label: "DISPUTE UPHELD",  cls: "border-emerald-500/60 text-emerald-400 bg-emerald-500/10" },
+  open:   { label: "DISPUTED · OPEN", cls: "border-amber-500/60 text-brand bg-amber-500/10" },
+  upheld: { label: "DISPUTE UPHELD",  cls: "border-emerald-500/60 text-emerald-700 bg-emerald-500/10" },
   denied: { label: "DISPUTE DENIED",  cls: "border-line/60 text-ink-muted bg-surface" },
 };
 
@@ -71,8 +71,8 @@ export default function ReviewsTab() {
           data-testid="reviews-disputes-callout"
         >
           <div className="flex items-center gap-2 font-mono text-xs">
-            <ShieldAlert size={14} className="text-amber-400" />
-            <span className="text-amber-400 uppercase tracking-[0.22em] text-[10px] font-bold">
+            <ShieldAlert size={14} className="text-brand" />
+            <span className="text-brand uppercase tracking-[0.22em] text-[10px] font-bold">
               ◆ {openDisputes} open dispute{openDisputes === 1 ? "" : "s"} waiting
             </span>
             <span className="text-ink-muted ml-auto">Open Review Disputes tab →</span>
@@ -85,7 +85,7 @@ export default function ReviewsTab() {
           <p className="font-mono text-xs text-ink-muted">
             {visible.length} of {reviews.length} review{reviews.length === 1 ? "" : "s"}
             {totalDisputed > 0 && (
-              <span className="text-amber-400 ml-2">· {totalDisputed} disputed</span>
+              <span className="text-brand ml-2">· {totalDisputed} disputed</span>
             )}
           </p>
           <div className="flex border border-line" data-testid="reviews-filter">
@@ -136,7 +136,7 @@ export default function ReviewsTab() {
                     </Link>
                   )}
                   {r.source && (
-                    <span className="px-1.5 py-0.5 border border-blue-500/40 text-blue-400 bg-blue-500/5 font-mono text-[9px] uppercase tracking-[0.22em]">
+                    <span className="px-1.5 py-0.5 border border-blue-500/40 text-blue-700 bg-blue-500/5 font-mono text-[9px] uppercase tracking-[0.22em]">
                       from {r.source}
                     </span>
                   )}
@@ -160,7 +160,7 @@ export default function ReviewsTab() {
                     refresh();
                   }
                 }}
-                className="font-mono text-[10px] uppercase tracking-[0.22em] text-red-400 hover:text-red-200 shrink-0"
+                className="font-mono text-[10px] uppercase tracking-[0.22em] text-red-400 hover:text-red-600 shrink-0"
                 data-testid={`review-delete-${r.id}`}
               >
                 ⊗ delete

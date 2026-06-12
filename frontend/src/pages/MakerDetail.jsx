@@ -116,7 +116,7 @@ export default function MakerDetail() {
             <span>◆ Approved Maker</span>
             {m.subscription_status === "active" && (
               <span
-                className="text-emerald-400 border border-emerald-400/40 px-2 py-0.5 text-[10px] uppercase tracking-[0.22em]"
+                className="text-emerald-700 border border-emerald-400/40 px-2 py-0.5 text-[10px] uppercase tracking-[0.22em]"
                 data-testid="maker-plus-badge"
               >
                 ★ Plus
@@ -137,7 +137,7 @@ export default function MakerDetail() {
             <GoogleAdsFeaturedBadge maker={m} testId="maker-google-ads-badge" />
             {m.featured_example && (
               <span
-                className="tag text-amber-300 border-amber-400/70 bg-paper/80 text-[9px]"
+                className="tag text-brand border-amber-400/70 bg-paper/80 text-[9px]"
                 data-testid="maker-featured-example-badge"
                 title="Founding Maker · Platform Showcase — curated by Crafters Market"
               >
@@ -182,7 +182,7 @@ export default function MakerDetail() {
               ) : null}
               {m.response_time_hours ? (
                 <span
-                  className="inline-flex items-center gap-2 px-3 py-1.5 border border-amber-500/40 bg-amber-500/[0.08] backdrop-blur font-mono text-[10px] uppercase tracking-[0.22em] text-amber-300"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 border border-amber-500/40 bg-amber-500/[0.08] backdrop-blur font-mono text-[10px] uppercase tracking-[0.22em] text-brand"
                   data-testid="maker-trust-response"
                   title="Typical reply time to messages and custom-order briefs"
                 >
@@ -229,7 +229,7 @@ export default function MakerDetail() {
             closed the shop (vacation/pause/pending-deletion states). */}
         {m.shop_closed && (
           <div
-            className="border border-amber-600 bg-amber-950/30 px-4 py-3 mb-10 font-mono text-sm text-amber-300"
+            className="border border-amber-600 bg-amber-950/30 px-4 py-3 mb-10 font-mono text-sm text-brand"
             data-testid="maker-shop-closed-banner"
           >
             ◆ This shop is temporarily closed. Existing listings may not be

@@ -38,14 +38,14 @@ export default function ProdHealthBanner({ onJumpToTab }) {
       className="mb-6 border-2 border-red-600 bg-red-950/40 px-4 md:px-5 py-3 flex flex-col md:flex-row md:items-center gap-3 md:gap-4"
       data-testid="prod-health-banner"
     >
-      <div className="flex items-center gap-2 text-red-300 font-mono text-[10px] uppercase tracking-[0.22em] shrink-0">
+      <div className="flex items-center gap-2 text-red-600 font-mono text-[10px] uppercase tracking-[0.22em] shrink-0">
         <AlertTriangle size={14} className="animate-pulse" />
         ◆ Prod outage
       </div>
       <div className="flex-1 font-mono text-xs text-[#fca5a5] leading-relaxed">
-        <b className="text-red-200">{failing.length}</b>{" "}
+        <b className="text-red-600">{failing.length}</b>{" "}
         {failing.length === 1 ? "endpoint is" : "endpoints are"} failing:{" "}
-        <code className="text-red-200">{first?.endpoint}</code>
+        <code className="text-red-600">{first?.endpoint}</code>
         {failing.length > 1 && ` +${failing.length - 1} more`}
         {first?.last_status ? ` · HTTP ${first.last_status}` : ""}
       </div>

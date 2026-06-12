@@ -247,7 +247,7 @@ function ProfileCard({ p, applied, onClick, onRemove, testIdSuffix }) {
       </div>
       <div className="flex items-center gap-2 shrink-0">
         {applied ? (
-          <span className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-300 font-bold">
+          <span className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-700 font-bold">
             <Check size={12} /> Applied
           </span>
         ) : (

@@ -176,7 +176,7 @@ export default function ShippingLabelModal({ sessionId, onClose, onSuccess }) {
             <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand flex items-center gap-2">
               <Truck size={12} /> Create Shipping Label
               {testMode && (
-                <span className="px-1.5 py-0.5 border border-yellow-400/50 text-yellow-400 text-[9px]">
+                <span className="px-1.5 py-0.5 border border-yellow-400/50 text-brand text-[9px]">
                   TEST MODE
                 </span>
               )}
@@ -291,7 +291,7 @@ export default function ShippingLabelModal({ sessionId, onClose, onSuccess }) {
           {!loading && step === "rates" && (
             <>
               {rates.length === 0 ? (
-                <div className="border border-yellow-400/40 bg-yellow-400/5 p-3 text-xs text-yellow-400 font-mono">
+                <div className="border border-yellow-400/40 bg-yellow-400/5 p-3 text-xs text-brand font-mono">
                   Shippo returned no rates for this shipment. Double-check the
                   addresses and parcel dimensions.
                 </div>
@@ -316,7 +316,7 @@ export default function ShippingLabelModal({ sessionId, onClose, onSuccess }) {
                           <div className="font-mono text-xs text-ink truncate">
                             <span className="text-brand">{r.provider}</span> · {r.servicelevel_name}
                             {i === 0 && (
-                              <span className="ml-2 px-1.5 py-0.5 border border-emerald-400/40 text-emerald-400 text-[9px] uppercase tracking-wider">
+                              <span className="ml-2 px-1.5 py-0.5 border border-emerald-400/40 text-emerald-700 text-[9px] uppercase tracking-wider">
                                 Cheapest
                               </span>
                             )}
@@ -383,9 +383,9 @@ export default function ShippingLabelModal({ sessionId, onClose, onSuccess }) {
           {!loading && step === "done" && purchased && (
             <div className="space-y-4" data-testid="shipping-done">
               <div className="flex items-center gap-3 p-4 border border-emerald-400/40 bg-emerald-400/5">
-                <Check size={20} className="text-emerald-400 shrink-0" />
+                <Check size={20} className="text-emerald-700 shrink-0" />
                 <div className="flex-1">
-                  <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-emerald-400">
+                  <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-emerald-700">
                     Label purchased
                   </div>
                   <div className="font-mono text-[10px] text-ink-muted mt-1">
@@ -446,7 +446,7 @@ function ValidationInline({ v, onApply, testId }) {
   if (v.ok) {
     return (
       <div
-        className="mt-2 font-mono text-[10px] text-emerald-400 flex items-center gap-1"
+        className="mt-2 font-mono text-[10px] text-emerald-700 flex items-center gap-1"
         data-testid={`${testId}-ok`}
       >
         <Check size={11} /> Validated
@@ -459,7 +459,7 @@ function ValidationInline({ v, onApply, testId }) {
       className="mt-2 border border-yellow-400/40 bg-yellow-400/5 p-2 space-y-1"
       data-testid={`${testId}-warn`}
     >
-      <div className="font-mono text-[10px] text-yellow-400 flex items-center gap-1">
+      <div className="font-mono text-[10px] text-brand flex items-center gap-1">
         <AlertTriangle size={11} /> Address needs attention
       </div>
       {(v.messages || []).slice(0, 2).map((m, i) => (

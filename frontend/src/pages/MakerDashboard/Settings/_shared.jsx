@@ -38,7 +38,7 @@ export function FormShell({ title, blurb, children, onSubmit, dirty, busy, testI
       <div className="space-y-4">{children}</div>
       <div className="flex items-center justify-end gap-3 border-t border-line pt-4">
         {dirty && (
-          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-amber-400" data-testid={`${testId}-dirty`}>
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand" data-testid={`${testId}-dirty`}>
             ◇ Unsaved changes
           </span>
         )}

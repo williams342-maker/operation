@@ -711,7 +711,7 @@ function ShowcaseForm({ onSaved }) {
           <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-red-400 mb-1">
             ◆ Couldn't post
           </p>
-          <p className="font-mono text-xs text-red-200 leading-relaxed">{err}</p>
+          <p className="font-mono text-xs text-red-600 leading-relaxed">{err}</p>
         </div>
       )}
 
@@ -2838,7 +2838,7 @@ function ReportFileModal({ file, onClose }) {
 
         {done ? (
           <div
-            className="border border-emerald-700/60 bg-emerald-900/20 p-3 font-mono text-xs text-emerald-300"
+            className="border border-emerald-700/60 bg-emerald-900/20 p-3 font-mono text-xs text-emerald-700"
             data-testid="report-file-success"
           >
             {done === "duplicate"
@@ -2846,7 +2846,7 @@ function ReportFileModal({ file, onClose }) {
               : "Thanks — the admin team will review this within 24h. Your identity isn't shared with the uploader."}
             <button
               onClick={onClose}
-              className="block mt-3 underline hover:text-emerald-200 font-mono text-xs"
+              className="block mt-3 underline hover:text-emerald-700 font-mono text-xs"
               data-testid="report-file-done-close"
             >
               Close
@@ -3300,7 +3300,7 @@ function ThreadDetail({ id, me, onBack }) {
             <h2 className="font-display text-3xl mt-2">{thread.title}</h2>
           </div>
           {isMod && (
-            <button onClick={delThread} className="font-mono text-[10px] uppercase tracking-[0.22em] text-red-400 hover:text-red-200" data-testid={`thread-mod-delete-${thread.id}`}>
+            <button onClick={delThread} className="font-mono text-[10px] uppercase tracking-[0.22em] text-red-400 hover:text-red-600" data-testid={`thread-mod-delete-${thread.id}`}>
               ⊗ delete
             </button>
           )}
@@ -3321,7 +3321,7 @@ function ThreadDetail({ id, me, onBack }) {
                 <AuthorLabel name={r.user_name} email={r.user_email} />
               </div>
               {isMod && (
-                <button onClick={() => delReply(r.id)} className="font-mono text-[10px] uppercase tracking-[0.22em] text-red-400 hover:text-red-200" data-testid={`reply-mod-delete-${r.id}`}>
+                <button onClick={() => delReply(r.id)} className="font-mono text-[10px] uppercase tracking-[0.22em] text-red-400 hover:text-red-600" data-testid={`reply-mod-delete-${r.id}`}>
                   ⊗
                 </button>
               )}
@@ -3749,7 +3749,7 @@ function ChatLine({ m, mentioned, onDelete }) {
       data-testid={mentioned ? "chat-line-mentioned" : "chat-line"}
     >
       <span className="flex-1 min-w-0">
-        <span className={`font-bold ${m.role === "maker" ? "text-brand" : "text-emerald-400"}`}>
+        <span className={`font-bold ${m.role === "maker" ? "text-brand" : "text-emerald-700"}`}>
           {m.user_name || m.user_email}
         </span>
         <span className="text-ink-muted mx-1">›</span>
@@ -3758,7 +3758,7 @@ function ChatLine({ m, mentioned, onDelete }) {
       {onDelete && (
         <button
           onClick={() => onDelete(m.id)}
-          className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-200 px-1 transition-opacity"
+          className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 px-1 transition-opacity"
           aria-label="Delete (mod)"
           title="Delete (mod)"
           data-testid={`chat-mod-delete-${m.id || ""}`}

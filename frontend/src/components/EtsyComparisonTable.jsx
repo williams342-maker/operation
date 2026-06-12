@@ -119,8 +119,8 @@ export default function EtsyComparisonTable({ testId = "etsy-comparison" }) {
                 </div>
                 <div className="border-t border-line pt-3 mt-3">
                   <div className="flex items-baseline justify-between">
-                    <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-emerald-400">You save</span>
-                    <span className="font-display text-3xl text-emerald-400">${c.you_save.toLocaleString()}</span>
+                    <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-emerald-700">You save</span>
+                    <span className="font-display text-3xl text-emerald-700">${c.you_save.toLocaleString()}</span>
                   </div>
                 </div>
               </div>

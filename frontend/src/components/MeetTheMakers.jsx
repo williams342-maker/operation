@@ -89,7 +89,7 @@ export default function MeetTheMakers({ testId = "home-meet-makers" }) {
           </div>
           <Link
             to="/makers"
-            className="industrial-link font-mono text-[11px] uppercase tracking-[0.22em] text-amber-300 hover:text-amber-100 whitespace-nowrap"
+            className="industrial-link font-mono text-[11px] uppercase tracking-[0.22em] text-brand hover:text-brand-hover whitespace-nowrap"
             data-testid={`${testId}-view-all`}
           >
             See all makers →

@@ -37,7 +37,7 @@ function WinStat({ label, value, prev, delta }) {
     <div>
       <div className="font-display text-2xl text-ink leading-none">{v}
         {d != null && d !== 0 && (
-          <span className={`font-mono text-[11px] ml-2 ${d > 0 ? "text-emerald-400" : "text-red-400"}`}>
+          <span className={`font-mono text-[11px] ml-2 ${d > 0 ? "text-emerald-700" : "text-red-400"}`}>
             {d > 0 ? "▲" : "▼"} {Math.abs(d)}
           </span>
         )}
@@ -102,7 +102,7 @@ export default function SeoHealthCard() {
     <section className="border border-line p-5 md:p-6 space-y-4" data-testid="seo-health-card">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <div className={`font-mono text-[11px] uppercase tracking-[0.3em] ${green ? "text-emerald-400" : latest ? "text-amber-400" : "text-ink-muted"}`}>
+          <div className={`font-mono text-[11px] uppercase tracking-[0.3em] ${green ? "text-emerald-700" : latest ? "text-brand" : "text-ink-muted"}`}>
             ◆ SEO health · {loading ? "loading…" : latest ? (green ? "all green" : `${latest.issue_count} issue${latest.issue_count === 1 ? "" : "s"}`) : "never run"}
           </div>
           <h3 className="font-display text-xl uppercase mt-1">Own-site crawl (as Googlebot)</h3>
@@ -182,7 +182,7 @@ export default function SeoHealthCard() {
               {latest.issues.map((i, idx) => (
                 <tr key={idx} className="hover:bg-paper transition align-top" data-testid={`seo-health-issue-${idx}`}>
                   <td className="px-3 py-2.5">
-                    <span className="px-2 py-0.5 border border-amber-500/30 text-amber-300 text-[10px]">
+                    <span className="px-2 py-0.5 border border-amber-500/30 text-brand text-[10px]">
                       {ISSUE_LABELS[i.type] || i.type}
                     </span>
                   </td>
@@ -207,7 +207,7 @@ export default function SeoHealthCard() {
         </div>
       )}
       {green && (
-        <p className="font-mono text-xs text-emerald-400" data-testid="seo-health-green">
+        <p className="font-mono text-xs text-emerald-700" data-testid="seo-health-green">
           ✓ {latest.checked} checks passed — statuses, canonicals, robots metas, sitemap, and the soft-404 guard all look correct.
           {latest.autofix?.resolved > 0 && (
             <span className="text-ink-muted"> (✦ auto-fix cleared {latest.autofix.resolved} transient issue{latest.autofix.resolved === 1 ? "" : "s"})</span>
@@ -219,7 +219,7 @@ export default function SeoHealthCard() {
         <div className="font-mono text-[10px] text-ink-muted uppercase tracking-[0.18em]" data-testid="seo-health-history">
           History:{" "}
           {history.map((h) => (
-            <span key={h.id} className={`inline-block mr-3 ${h.issue_count === 0 ? "text-emerald-400" : "text-amber-400"}`}>
+            <span key={h.id} className={`inline-block mr-3 ${h.issue_count === 0 ? "text-emerald-700" : "text-brand"}`}>
               {fmtWhen(h.started_at)} · {h.issue_count === 0 ? "✓" : `${h.issue_count}⚠`}
             </span>
           ))}

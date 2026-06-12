@@ -54,9 +54,9 @@ export default function MsftRoasCard() {
 
   const roasColor = (() => {
     if (!data?.roas || !data?.ad_spend_usd) return "text-ink-muted";
-    if (data.roas >= 4) return "text-emerald-400";   // 4x+ → strong
-    if (data.roas >= 1.5) return "text-cyan-400";    // 1.5x+ → healthy
-    if (data.roas >= 1) return "text-amber-400";     // 1x+ → break-even
+    if (data.roas >= 4) return "text-emerald-700";   // 4x+ → strong
+    if (data.roas >= 1.5) return "text-brand";    // 1.5x+ → healthy
+    if (data.roas >= 1) return "text-brand";     // 1x+ → break-even
     return "text-brand";                         // <1x → losing money
   })();
 
@@ -64,13 +64,13 @@ export default function MsftRoasCard() {
     <div className="border border-line bg-paper p-6 space-y-5" data-testid="msft-roas-card">
       <div className="flex items-start gap-4">
         <div className="w-10 h-10 border border-cyan-400/40 bg-cyan-400/[0.06] flex items-center justify-center shrink-0">
-          <TrendingUp size={16} className="text-cyan-400" />
+          <TrendingUp size={16} className="text-brand" />
         </div>
         <div className="flex-1 min-w-0">
           <h2 className="font-display text-2xl md:text-3xl mb-1">Microsoft Ads ROAS</h2>
           <p className="font-mono text-xs text-ink-muted leading-relaxed max-w-2xl">
             Attributed revenue / ad spend, last {days} days. Revenue auto-tracked via the{" "}
-            <code className="text-cyan-300">msclkid</code> URL param on Bing-Ads landings.
+            <code className="text-brand">msclkid</code> URL param on Bing-Ads landings.
             Spend entered manually — copy/paste from your Bing Ads dashboard.
           </p>
         </div>
@@ -93,7 +93,7 @@ export default function MsftRoasCard() {
             onClick={() => setDays(d)}
             className={`px-2.5 py-1 border font-mono text-[10px] uppercase tracking-[0.22em] transition ${
               days === d
-                ? "border-cyan-400 text-cyan-300 bg-cyan-400/[0.06]"
+                ? "border-cyan-400 text-brand bg-cyan-400/[0.06]"
                 : "border-line text-ink-muted hover:border-ink-muted"
             }`}
             data-testid={`msft-roas-window-${d}`}
@@ -151,7 +151,7 @@ export default function MsftRoasCard() {
             </p>
             <button
               onClick={() => setEditing(true)}
-              className="px-3 py-2 border border-cyan-400/40 hover:border-cyan-300 text-cyan-300 font-mono text-[10px] uppercase tracking-[0.22em]"
+              className="px-3 py-2 border border-cyan-400/40 hover:border-cyan-300 text-brand font-mono text-[10px] uppercase tracking-[0.22em]"
               data-testid="msft-roas-spend-edit"
             >
               {data?.ad_spend_usd ? "Update" : "Enter spend"}

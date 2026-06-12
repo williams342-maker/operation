@@ -175,7 +175,7 @@ export default function CustomUrlPicker() {
           <div className="font-mono text-[11px] min-h-[18px]" data-testid="custom-url-availability">
             {checking && <span className="text-ink-muted">Checking…</span>}
             {!checking && check?.available && (
-              <span className="text-emerald-400 inline-flex items-center gap-1">
+              <span className="text-emerald-700 inline-flex items-center gap-1">
                 <Check size={12} /> Available
               </span>
             )}

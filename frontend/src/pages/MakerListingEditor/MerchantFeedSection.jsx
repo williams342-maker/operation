@@ -105,7 +105,7 @@ export default function MerchantFeedSection({ form, set }) {
               {(preview.hits || []).length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mt-2" data-testid="editor-merchant-preview-hits">
                   {preview.hits.map((h) => (
-                    <span key={h} className="px-2 py-0.5 border border-amber-500/40 text-amber-600 dark:text-amber-400 font-mono text-[10px] uppercase tracking-[0.14em]">
+                    <span key={h} className="px-2 py-0.5 border border-amber-500/40 text-amber-600 dark:text-brand font-mono text-[10px] uppercase tracking-[0.14em]">
                       {h}
                     </span>
                   ))}
@@ -122,7 +122,7 @@ export default function MerchantFeedSection({ form, set }) {
                   <div className="flex flex-wrap gap-x-4 gap-y-1">
                     {Object.entries(preview.attributes_sent).map(([k, v]) => (
                       <span key={k} className="font-mono text-[11px] text-ink" data-testid={`editor-merchant-attr-${k}`}>
-                        <span className="text-green-600 dark:text-green-400">✓</span> {k}
+                        <span className="text-green-600 dark:text-green-700">✓</span> {k}
                         <span className="text-ink-muted"> · {v}</span>
                       </span>
                     ))}

@@ -51,7 +51,7 @@ export default function NewsletterSignup() {
         >
           {done ? (
             <div className="text-center py-6 space-y-2" data-testid="newsletter-success">
-              <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-emerald-400">
+              <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-emerald-700">
                 ◆ Confirmed
               </div>
               <p className="font-mono text-sm text-ink">

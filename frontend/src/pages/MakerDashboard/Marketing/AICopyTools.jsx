@@ -245,7 +245,7 @@ export function BulkSeoGenerator() {
         data-testid="seo-bulk-run-btn">
         <Sparkles size={14} /> {busy ? "Generating tags…" : "✦ Run bulk SEO"}
       </button>
-      {err && <div className="mt-4 border border-red-500/40 bg-red-500/5 px-3 py-2 font-mono text-[11px] text-red-300">{err}</div>}
+      {err && <div className="mt-4 border border-red-500/40 bg-red-500/5 px-3 py-2 font-mono text-[11px] text-red-600">{err}</div>}
       {result && (
         <div className="mt-5 border border-line bg-paper" data-testid="seo-bulk-result">
           <div className="px-4 py-3 border-b border-line font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">

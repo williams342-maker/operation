@@ -36,10 +36,10 @@ const TOPIC_LABELS = {
 };
 const TOPIC_TONE = {
   custom_order: "border-brand/40 text-brand",
-  order_help: "border-amber-500/40 text-amber-400",
+  order_help: "border-amber-500/40 text-brand",
   bug: "border-red-500/40 text-red-400",
-  press: "border-purple-500/40 text-purple-400",
-  partnership: "border-sky-500/40 text-sky-400",
+  press: "border-purple-500/40 text-purple-700",
+  partnership: "border-sky-500/40 text-blue-700",
 };
 const TOPIC_FILTER_OPTIONS = ["all", ...Object.keys(TOPIC_LABELS)];
 
@@ -207,13 +207,13 @@ function ContactRow({ msg, index, isOpen, onToggleReply, onResolve, resolving, o
             </span>
             <span className="font-mono text-[10px] text-ink-muted">· {timeAgo(msg.created_at)}</span>
             {msg.resolved && (
-              <span className="px-2 py-0.5 border border-emerald-500/40 text-emerald-400 font-mono text-[9px] uppercase tracking-[0.22em]">
+              <span className="px-2 py-0.5 border border-emerald-500/40 text-emerald-700 font-mono text-[9px] uppercase tracking-[0.22em]">
                 ✓ Resolved
               </span>
             )}
             {msg.replied_at && (
               <span
-                className="px-2 py-0.5 border border-sky-500/40 text-sky-400 font-mono text-[9px] uppercase tracking-[0.22em]"
+                className="px-2 py-0.5 border border-sky-500/40 text-blue-700 font-mono text-[9px] uppercase tracking-[0.22em]"
                 title={`Replied ${timeAgo(msg.replied_at)}`}
               >
                 ✉ Replied
@@ -254,7 +254,7 @@ function ContactRow({ msg, index, isOpen, onToggleReply, onResolve, resolving, o
               onClick={onResolve}
               disabled={resolving}
               data-testid={`contact-resolve-${msg.id}`}
-              className="px-3 py-1.5 border border-line hover:border-emerald-500/60 hover:text-emerald-400 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+              className="px-3 py-1.5 border border-line hover:border-emerald-500/60 hover:text-emerald-700 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
             >
               <Check size={12} className="inline mr-1" /> {resolving ? "…" : "Resolve"}
             </button>

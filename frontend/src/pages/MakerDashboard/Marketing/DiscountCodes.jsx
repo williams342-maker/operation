@@ -125,7 +125,7 @@ export default function DiscountCodes() {
                 <button onClick={() => toggle(c)} className="px-2 py-1 border border-line hover:border-brand font-mono text-[10px] uppercase tracking-[0.22em]" data-testid={`discount-toggle-${c.code}`}>
                   {c.active ? "Disable" : "Enable"}
                 </button>
-                <button onClick={() => remove(c)} className="px-2 py-1 border border-red-800 hover:border-red-500 hover:text-red-300 font-mono text-[10px] uppercase tracking-[0.22em]" data-testid={`discount-delete-${c.code}`}>
+                <button onClick={() => remove(c)} className="px-2 py-1 border border-red-800 hover:border-red-500 hover:text-red-600 font-mono text-[10px] uppercase tracking-[0.22em]" data-testid={`discount-delete-${c.code}`}>
                   <Trash2 size={11} />
                 </button>
               </div>

@@ -125,7 +125,7 @@ function KpiTile({ label, value, accent, tone }) {
   const valueCls = accent
     ? "text-brand"
     : tone === "warn"
-      ? "text-amber-400"
+      ? "text-brand"
       : "text-ink";
   return (
     <div className="border border-line p-4 bg-paper">
@@ -141,7 +141,7 @@ function ReviewRow({ rev, composerOpen, disputeOpen, onToggleComposer, onToggleD
   return (
     <article className="border border-line bg-paper p-4" data-testid={`review-row-${rev.id}`}>
       <div className="flex items-start gap-3 flex-wrap">
-        <div className={`font-display text-xl shrink-0 ${lowStar ? "text-amber-400" : "text-brand"}`}>
+        <div className={`font-display text-xl shrink-0 ${lowStar ? "text-brand" : "text-brand"}`}>
           {stars}
         </div>
         <div className="flex-1 min-w-0">
@@ -151,7 +151,7 @@ function ReviewRow({ rev, composerOpen, disputeOpen, onToggleComposer, onToggleD
             <span className="font-mono text-[10px] text-ink-muted">· {timeAgo(rev.created_at)}</span>
             {rev.dispute_status === "open" && (
               <span
-                className="px-2 py-0.5 border border-amber-500/50 text-amber-400 font-mono text-[9px] uppercase tracking-[0.22em]"
+                className="px-2 py-0.5 border border-amber-500/50 text-brand font-mono text-[9px] uppercase tracking-[0.22em]"
                 data-testid={`review-dispute-open-${rev.id}`}
               >
                 ◆ Dispute open
@@ -167,7 +167,7 @@ function ReviewRow({ rev, composerOpen, disputeOpen, onToggleComposer, onToggleD
                 className={`px-2 py-0.5 border font-mono text-[9px] uppercase tracking-[0.22em] ${
                   rev.published_publicly === false
                     ? "border-line/50 text-ink-muted"
-                    : "border-blue-500/40 text-blue-400 bg-blue-500/5"
+                    : "border-blue-500/40 text-blue-700 bg-blue-500/5"
                 }`}
                 data-testid={`review-source-badge-${rev.id}`}
                 title={
@@ -233,7 +233,7 @@ function ReviewRow({ rev, composerOpen, disputeOpen, onToggleComposer, onToggleD
             <button
               type="button"
               onClick={onToggleDispute}
-              className="px-3 py-1.5 border border-amber-500/40 text-amber-400 hover:bg-amber-500/10 hover:border-amber-500 font-mono text-[10px] uppercase tracking-[0.22em] transition"
+              className="px-3 py-1.5 border border-amber-500/40 text-brand hover:bg-amber-500/10 hover:border-amber-500 font-mono text-[10px] uppercase tracking-[0.22em] transition"
               data-testid={`review-dispute-${rev.id}`}
             >
               <ShieldAlert size={11} className="inline mr-1" />
@@ -271,7 +271,7 @@ function ResponseComposer({ reviewId, initial, onSaved }) {
         data-testid={`review-response-text-${reviewId}`}
       />
       <div className="flex items-center justify-between gap-2">
-        <span className={`font-mono text-[10px] ${remaining < 100 ? "text-amber-400" : "text-ink-muted"}`}>
+        <span className={`font-mono text-[10px] ${remaining < 100 ? "text-brand" : "text-ink-muted"}`}>
           {remaining} chars left · published immediately, no admin review
         </span>
         <button
@@ -308,7 +308,7 @@ function DisputeComposer({ reviewId, onFiled }) {
   };
   return (
     <div className="mt-3 border border-amber-500/40 bg-amber-500/5 p-3 space-y-2" data-testid={`review-dispute-composer-${reviewId}`}>
-      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-amber-400">
+      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">
         ◆ File a dispute
       </div>
       <p className="font-mono text-[11px] text-ink-muted leading-relaxed">
@@ -330,7 +330,7 @@ function DisputeComposer({ reviewId, onFiled }) {
       />
       <button
         type="button" onClick={submit} disabled={busy}
-        className="px-3 py-2 border border-amber-500 bg-amber-500/10 hover:bg-amber-500/20 font-mono text-[10px] uppercase tracking-[0.22em] text-amber-400 disabled:opacity-50"
+        className="px-3 py-2 border border-amber-500 bg-amber-500/10 hover:bg-amber-500/20 font-mono text-[10px] uppercase tracking-[0.22em] text-brand disabled:opacity-50"
         data-testid={`review-dispute-submit-${reviewId}`}
       >
         {busy ? "Filing…" : "File dispute →"}

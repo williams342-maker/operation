@@ -495,13 +495,13 @@ function StepUpload({ value, onPick }) {
 
       {value ? (
         <div className="border border-line p-8 text-center" data-testid="co-upload-success">
-          <CheckCircle2 size={40} className="mx-auto text-emerald-400 mb-4" />
+          <CheckCircle2 size={40} className="mx-auto text-emerald-700 mb-4" />
           <div className="font-display text-2xl mb-2">Design uploaded</div>
           <div className="font-mono text-xs text-ink-muted mb-6 break-all">{value.name}</div>
           <div className="flex gap-3 justify-center">
             <a
               href={value.url} target="_blank" rel="noreferrer"
-              className="font-mono text-[10px] uppercase tracking-[0.22em] text-sky-400 hover:text-sky-300"
+              className="font-mono text-[10px] uppercase tracking-[0.22em] text-blue-700 hover:text-blue-700"
             >
               ↗ View file
             </a>

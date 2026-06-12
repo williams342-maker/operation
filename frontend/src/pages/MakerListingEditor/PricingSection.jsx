@@ -47,7 +47,7 @@ export default function PricingSection({
               type="button"
               onClick={onOpenPriceCheck}
               disabled={!canPriceCheck || !form.price}
-              className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 border border-cyan-400/40 hover:border-cyan-300 hover:bg-cyan-400/5 disabled:opacity-40 disabled:cursor-not-allowed font-mono text-[10px] uppercase tracking-[0.22em] text-cyan-300 transition"
+              className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 border border-cyan-400/40 hover:border-cyan-300 hover:bg-cyan-400/5 disabled:opacity-40 disabled:cursor-not-allowed font-mono text-[10px] uppercase tracking-[0.22em] text-brand transition"
               title={!canPriceCheck ? "Save draft first to enable price check" : !form.price ? "Enter a price first" : "Compare with similar items on the web"}
               data-testid="editor-price-check-btn"
             >

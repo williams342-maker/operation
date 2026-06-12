@@ -14,7 +14,7 @@ function PromotedBadge({ until, slug }) {
   if (expired) return null;
   return (
     <span
-      className="tag absolute bottom-4 left-4 text-emerald-300 border-emerald-400 bg-paper/70 inline-flex items-center gap-1.5"
+      className="tag absolute bottom-4 left-4 text-emerald-700 border-emerald-400 bg-paper/70 inline-flex items-center gap-1.5"
       data-testid={`product-card-promoted-${slug}`}
     >
       <span>★ Featured</span>
@@ -83,7 +83,7 @@ export default function ProductCard({ p, i = 0 }) {
           )}
           {p.featured_example && (
             <span
-              className="tag absolute bottom-4 left-4 text-amber-300 border-amber-400/70 bg-paper/80 text-[9px]"
+              className="tag absolute bottom-4 left-4 text-brand border-amber-400/70 bg-paper/80 text-[9px]"
               data-testid={`product-card-featured-example-${p.slug}`}
               title="Platform showcase — example listing curated by Crafters Market"
             >
@@ -137,7 +137,7 @@ export default function ProductCard({ p, i = 0 }) {
               )}
               {p.accepts_custom_orders && (
                 <span
-                  className="inline-flex items-center gap-1 text-emerald-400"
+                  className="inline-flex items-center gap-1 text-emerald-700"
                   data-testid={`product-card-custom-${p.slug}`}
                   title="Maker accepts custom-order briefs"
                 >

@@ -132,7 +132,7 @@ export default function PlusMembersTab() {
   return (
     <div className="space-y-4" data-testid="plus-members-tab">
       <div>
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-400">◆ Paid Members</div>
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-700">◆ Paid Members</div>
         <h2 className="font-display text-3xl md:text-4xl mt-1">Crafters Plus Subscribers</h2>
       </div>
 
@@ -149,11 +149,11 @@ export default function PlusMembersTab() {
             ◆ Maintenance · Boost Credit Replenish
           </div>
           <div className="text-xs text-ink mt-1.5 leading-relaxed">
-            Tops every Plus subscriber to <span className="text-emerald-400">$15</span> and every veteran-owned maker to <span className="text-brand">$10</span> in boost credit.
+            Tops every Plus subscriber to <span className="text-emerald-700">$15</span> and every veteran-owned maker to <span className="text-brand">$10</span> in boost credit.
             Auto-runs monthly on the 1st at 00:05 UTC.
           </div>
           {replenishResult && (
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-400 mt-2">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-700 mt-2">
               ✓ Replenished: {replenishResult.plus?.replenished ?? 0} Plus · {replenishResult.veteran?.replenished ?? 0} Veterans
             </div>
           )}
@@ -186,19 +186,19 @@ export default function PlusMembersTab() {
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
               <div className="min-w-0">
                 <div className="font-mono text-[10px] uppercase tracking-[0.22em] flex items-center gap-2">
-                  <span className={hasDupes ? "text-red-400" : "text-emerald-400"}>◆ Founders Wall integrity</span>
+                  <span className={hasDupes ? "text-red-400" : "text-emerald-700"}>◆ Founders Wall integrity</span>
                   {repairStatus.loading ? (
                     <span className="text-[9px] text-ink-muted">checking…</span>
                   ) : hasDupes ? (
                     <span
-                      className="text-[9px] px-1.5 py-px bg-red-950/40 border border-red-700 text-red-300"
+                      className="text-[9px] px-1.5 py-px bg-red-950/40 border border-red-700 text-red-600"
                       data-testid="founders-repair-badge-dupes"
                     >
                       {planned.length} duplicate{planned.length === 1 ? "" : "s"}
                     </span>
                   ) : (
                     <span
-                      className="text-[9px] px-1.5 py-px bg-emerald-950/40 border border-emerald-700 text-emerald-300"
+                      className="text-[9px] px-1.5 py-px bg-emerald-950/40 border border-emerald-700 text-emerald-700"
                       data-testid="founders-repair-badge-clean"
                     >
                       Clean
@@ -230,7 +230,7 @@ export default function PlusMembersTab() {
                         <li key={i} className="flex items-baseline gap-2">
                           <span className="text-red-400">#{String(p.old_number).padStart(3, "0")}</span>
                           <span className="text-ink-muted">→</span>
-                          <span className="text-emerald-400">#{String(p.new_number).padStart(3, "0")}</span>
+                          <span className="text-emerald-700">#{String(p.new_number).padStart(3, "0")}</span>
                           <span className="text-ink truncate">{p.name || p.slug}</span>
                           <span className="text-ink-muted">(keeps slot: {p.kept_for_slug})</span>
                         </li>
@@ -275,7 +275,7 @@ export default function PlusMembersTab() {
         </div>
         <div className="border border-line p-4" data-testid="plus-stat-mrr">
           <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">MRR</div>
-          <div className="font-display text-4xl mt-1 text-emerald-400">${mrr}</div>
+          <div className="font-display text-4xl mt-1 text-emerald-700">${mrr}</div>
         </div>
         <div className="border border-line p-4" data-testid="plus-stat-gmv">
           <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">30d GMV</div>
@@ -283,7 +283,7 @@ export default function PlusMembersTab() {
         </div>
         <div className="border border-line p-4" data-testid="plus-stat-canceling">
           <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Canceling</div>
-          <div className="font-display text-4xl mt-1 text-amber-400">{rows.filter((r) => r.cancel_at_period_end).length}</div>
+          <div className="font-display text-4xl mt-1 text-brand">{rows.filter((r) => r.cancel_at_period_end).length}</div>
         </div>
       </div>
 
@@ -331,8 +331,8 @@ export default function PlusMembersTab() {
                   <td className="py-3 pr-3">
                     <span className={`inline-block px-1.5 py-0.5 border text-[9px] font-bold ${
                       r.cancel_at_period_end
-                        ? "border-amber-500/60 text-amber-400"
-                        : "border-emerald-500/60 text-emerald-400"
+                        ? "border-amber-500/60 text-brand"
+                        : "border-emerald-500/60 text-emerald-700"
                     }`}>
                       {r.cancel_at_period_end ? "CANCELING" : r.subscription_status?.toUpperCase() || "ACTIVE"}
                     </span>
@@ -340,7 +340,7 @@ export default function PlusMembersTab() {
                   <td className="py-3 pr-3 text-ink-muted">{formatDate(r.started_at)}</td>
                   <td className="py-3 pr-3 text-ink-muted">{formatDate(r.current_period_end)}</td>
                   <td className="py-3 pr-3 text-right text-brand">${(r.gmv_30d || 0).toFixed(2)}</td>
-                  <td className={`py-3 text-right ${r.plus_net_value_30d >= 0 ? "text-emerald-400" : "text-ink-muted"}`}>
+                  <td className={`py-3 text-right ${r.plus_net_value_30d >= 0 ? "text-emerald-700" : "text-ink-muted"}`}>
                     {r.plus_net_value_30d >= 0 ? "+" : ""}${r.plus_net_value_30d?.toFixed(2)}
                   </td>
                 </tr>

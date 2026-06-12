@@ -17,8 +17,8 @@ import { useConfirm } from "../../hooks/useConfirm";
 const API = process.env.REACT_APP_BACKEND_URL;
 
 const STATUS_STYLES = {
-  ok:        { border: "border-emerald-500/40", bg: "bg-emerald-500/5",  text: "text-emerald-400", icon: <CheckCircle2 size={14} />, label: "OK" },
-  due_soon:  { border: "border-yellow-500/50", bg: "bg-yellow-500/5",   text: "text-yellow-400",  icon: <Clock size={14} />,         label: "Due soon" },
+  ok:        { border: "border-emerald-500/40", bg: "bg-emerald-500/5",  text: "text-emerald-700", icon: <CheckCircle2 size={14} />, label: "OK" },
+  due_soon:  { border: "border-yellow-500/50", bg: "bg-yellow-500/5",   text: "text-brand",  icon: <Clock size={14} />,         label: "Due soon" },
   overdue:   { border: "border-red-500/50",    bg: "bg-red-500/5",      text: "text-red-400",     icon: <AlertTriangle size={14} />, label: "Overdue" },
   missing:   { border: "border-line/40",  bg: "bg-ink-muted/5",    text: "text-ink-muted",   icon: <ShieldOff size={14} />,     label: "Not configured" },
 };
@@ -262,7 +262,7 @@ export default function SecretsTab() {
 function SummaryStat({ label, value, tone, testId }) {
   const toneClass = {
     neutral: "border-line text-ink",
-    emerald: "border-emerald-500/40 text-emerald-400",
+    emerald: "border-emerald-500/40 text-emerald-700",
     red: "border-red-500/40 text-red-400",
     gray: "border-line/40 text-ink-muted",
   }[tone] || "border-line";
@@ -285,22 +285,22 @@ function SecretRow({ secret, onMarkRotated, busy, pendingRotation, onAutoRotate,
     >
       {hasPending && (
         <div className="mb-3 p-3 border border-yellow-500/50 bg-yellow-500/5" data-testid={`pending-rotation-${secret.id}`}>
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-yellow-400 inline-flex items-center gap-1.5">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand inline-flex items-center gap-1.5">
             <Zap size={12} /> Rotation in flight
           </div>
           <div className="font-mono text-xs text-ink mt-2 leading-relaxed">
-            New endpoint <code className="text-yellow-400">{pendingRotation.new_endpoint_id}</code> created
+            New endpoint <code className="text-brand">{pendingRotation.new_endpoint_id}</code> created
             {pendingRotation.started_at && <> · {timeAgo(pendingRotation.started_at)}</>}
             {pendingRotation.started_by && <> by <span className="text-ink-muted">{pendingRotation.started_by}</span></>}
             .<br />
-            New secret preview: <code className="text-yellow-400">{pendingRotation.new_secret_preview}</code>.
-            Once env is updated + redeployed, click <span className="text-emerald-400">Finalize</span> to delete the old endpoint.
+            New secret preview: <code className="text-brand">{pendingRotation.new_secret_preview}</code>.
+            Once env is updated + redeployed, click <span className="text-emerald-700">Finalize</span> to delete the old endpoint.
           </div>
           <div className="mt-3 flex gap-2 flex-wrap">
             <button
               onClick={onFinalizeRotation}
               disabled={!!autoRotateBusy}
-              className="px-3 py-1.5 border border-emerald-500/60 text-emerald-400 hover:bg-emerald-500/10 font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-30"
+              className="px-3 py-1.5 border border-emerald-500/60 text-emerald-700 hover:bg-emerald-500/10 font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-30"
               data-testid={`finalize-rotation-${secret.id}`}
             >
               {autoRotateBusy === "finalize" ? "Finalizing…" : "Finalize rotation"}
@@ -347,7 +347,7 @@ function SecretRow({ secret, onMarkRotated, busy, pendingRotation, onAutoRotate,
               <span className="text-ink-muted">last rotated: <span className="text-ink-muted">no record</span></span>
             )}
             {secret.days_until_due !== null && secret.days_until_due !== undefined && (
-              <span className={secret.overdue ? "text-red-400" : (secret.days_until_due < 30 ? "text-yellow-400" : "text-ink-muted")}>
+              <span className={secret.overdue ? "text-red-400" : (secret.days_until_due < 30 ? "text-brand" : "text-ink-muted")}>
                 {secret.overdue
                   ? `overdue by ${Math.abs(secret.days_until_due)}d`
                   : `due in ${secret.days_until_due}d`}
@@ -434,7 +434,7 @@ function RevealedSecretModal({ info, onClose }) {
         <h3 className="font-display text-2xl mb-3">New Stripe webhook signing secret</h3>
         <p className="font-mono text-xs text-ink-muted leading-relaxed mb-4">
           Paste this into <code className="text-brand">{info.env_var}</code> in your production env,
-          then redeploy. The OLD endpoint stays active until you click <span className="text-emerald-400">Finalize</span> on
+          then redeploy. The OLD endpoint stays active until you click <span className="text-emerald-700">Finalize</span> on
           the secrets tab — that protects in-flight events during the redeploy.
         </p>
 

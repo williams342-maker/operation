@@ -147,7 +147,7 @@ function BriefCard({ brief, onChange, dim = false }) {
 
       {brief.assignment_note && (
         <div className="mt-3 px-3 py-2 border-l-2 border-cyan-400/50 bg-cyan-400/5">
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-cyan-400 mb-1">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-1">
             Admin note
           </div>
           <p className="font-mono text-xs text-ink leading-relaxed">{brief.assignment_note}</p>
@@ -158,7 +158,7 @@ function BriefCard({ brief, onChange, dim = false }) {
         <a
           href={brief.reddit_post_url}
           target="_blank" rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 mt-3 font-mono text-[11px] text-orange-400 hover:underline"
+          className="inline-flex items-center gap-1 mt-3 font-mono text-[11px] text-brand hover:underline"
           data-testid={`brief-reddit-link-${brief.id}`}
         >
           <ExternalLink size={11} /> Also broadcasted on r/{brief.reddit_subreddit}
@@ -172,11 +172,11 @@ function BriefCard({ brief, onChange, dim = false }) {
         <span
           className={`font-mono text-[11px] uppercase tracking-[0.22em] px-2 py-1 border ${
             status === "won_bid"
-              ? "border-yellow-400/60 text-yellow-400 bg-yellow-400/5"
+              ? "border-yellow-400/60 text-brand bg-yellow-400/5"
               : status === "accepted" || status === "in_progress"
-                ? "border-emerald-400/40 text-emerald-400"
+                ? "border-emerald-400/40 text-emerald-700"
                 : status === "completed"
-                  ? "border-emerald-400/40 text-emerald-400"
+                  ? "border-emerald-400/40 text-emerald-700"
                   : status === "declined"
                     ? "border-red-400/30 text-red-400"
                     : "border-brand/40 text-brand"
@@ -248,7 +248,7 @@ function BriefCard({ brief, onChange, dim = false }) {
                 <button
                   onClick={() => handleAction("won_bid")}
                   disabled={!!busy}
-                  className="px-4 py-2 border border-yellow-400/60 text-yellow-400 hover:bg-yellow-400/10 font-mono text-[11px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+                  className="px-4 py-2 border border-yellow-400/60 text-brand hover:bg-yellow-400/10 font-mono text-[11px] uppercase tracking-[0.22em] transition disabled:opacity-50"
                   data-testid={`brief-won-${brief.id}`}
                   title="Mark this brief as a won bid — converts the lead into a tracked sale for admin analytics."
                 >
@@ -257,7 +257,7 @@ function BriefCard({ brief, onChange, dim = false }) {
                 <button
                   onClick={() => handleAction("completed")}
                   disabled={!!busy}
-                  className="px-4 py-2 border border-emerald-400/40 text-emerald-400 hover:bg-emerald-400/10 font-mono text-[11px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+                  className="px-4 py-2 border border-emerald-400/40 text-emerald-700 hover:bg-emerald-400/10 font-mono text-[11px] uppercase tracking-[0.22em] transition disabled:opacity-50"
                   data-testid={`brief-complete-${brief.id}`}
                 >
                   {busy === "completed" ? "Updating…" : "Mark completed"}

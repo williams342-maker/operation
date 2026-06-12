@@ -101,12 +101,12 @@ export default function UpdatesAdminTab() {
           the operator that subscribers haven't heard from us. */}
       {snap?.stale?.is_stale && (
         <div
-          className="border border-yellow-700/60 bg-yellow-900/20 px-4 py-3 font-mono text-[11px] text-yellow-300 flex items-start gap-3"
+          className="border border-yellow-700/60 bg-yellow-900/20 px-4 py-3 font-mono text-[11px] text-brand flex items-start gap-3"
           data-testid="updates-stale-banner"
         >
           <Clock size={14} className="shrink-0 mt-0.5" />
           <div>
-            <div className="text-yellow-200 mb-1">
+            <div className="text-brand mb-1">
               ⚠ {snap.stale.days_since_dispatch} days since last digest
             </div>
             <div className="text-ink-muted leading-relaxed">
@@ -230,7 +230,7 @@ export default function UpdatesAdminTab() {
       </div>
 
       {err && (
-        <div className="border border-red-700/60 bg-red-900/20 px-4 py-3 font-mono text-[11px] text-red-300" data-testid="updates-admin-error">
+        <div className="border border-red-700/60 bg-red-900/20 px-4 py-3 font-mono text-[11px] text-red-600" data-testid="updates-admin-error">
           {err}
         </div>
       )}
@@ -239,8 +239,8 @@ export default function UpdatesAdminTab() {
         <div
           className={`border px-4 py-3 font-mono text-[11px] ${
             lastResult.kind === "dry-run"
-              ? "border-yellow-700/60 bg-yellow-900/20 text-yellow-300"
-              : "border-emerald-700/60 bg-emerald-900/20 text-emerald-300"
+              ? "border-yellow-700/60 bg-yellow-900/20 text-brand"
+              : "border-emerald-700/60 bg-emerald-900/20 text-emerald-700"
           }`}
           data-testid={`updates-result-${lastResult.kind}`}
         >
@@ -251,7 +251,7 @@ export default function UpdatesAdminTab() {
           <div className="text-ink-muted">
             new_entries=<b>{lastResult.new_entries ?? 0}</b> · subscribers=<b>{lastResult.subscribers ?? 0}</b> · sent=<b>{lastResult.sent ?? 0}</b>
             {typeof lastResult.failed === "number" && lastResult.failed > 0 && (
-              <> · failed=<b className="text-red-300">{lastResult.failed}</b></>
+              <> · failed=<b className="text-red-600">{lastResult.failed}</b></>
             )}
             {lastResult.advanced_to && <> · pointer→<b>iter{lastResult.advanced_to}</b></>}
           </div>

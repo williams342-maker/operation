@@ -131,7 +131,7 @@ export default function ComingSoonTab() {
                       {s.pending} pending
                     </span>
                     <span className="text-ink-muted">·</span>
-                    <span className="text-emerald-400">{s.notified} notified</span>
+                    <span className="text-emerald-700">{s.notified} notified</span>
                   </div>
                 </div>
                 <button
@@ -162,7 +162,7 @@ export default function ComingSoonTab() {
           </div>
           {lastResult.ok ? (
             lastResult.notified > 0 ? (
-              <div className="font-mono text-sm text-emerald-400">
+              <div className="font-mono text-sm text-emerald-700">
                 ✓ {lastResult.notified} subscriber{lastResult.notified === 1 ? "" : "s"} notified for <b>{lastResult.category}</b>.
               </div>
             ) : (
@@ -201,7 +201,7 @@ export default function ComingSoonTab() {
                 <td className="py-1.5 text-ink-muted">{(r.joined_at || "").slice(0, 16).replace("T", " ")}</td>
                 <td className="py-1.5">
                   {r.notified_at
-                    ? <span className="text-emerald-400">✓ notified</span>
+                    ? <span className="text-emerald-700">✓ notified</span>
                     : <span className="text-brand">pending</span>}
                 </td>
               </tr>

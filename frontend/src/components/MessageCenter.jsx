@@ -248,7 +248,7 @@ export default function MessageCenter({
                   }}
                   data-testid={`mc-empty-trash-${role}`}
                   title="Permanently delete every thread in Trash"
-                  className="px-2.5 py-1 border border-red-500/40 text-red-300 hover:bg-red-500/10 font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5 transition"
+                  className="px-2.5 py-1 border border-red-500/40 text-red-600 hover:bg-red-500/10 font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5 transition"
                 >
                   <Trash2 size={11} /> Empty
                 </button>

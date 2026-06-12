@@ -241,7 +241,7 @@ function ReportRow({ report, onChange }) {
               onClick={() => doAction("dismiss")}
               disabled={!!busy}
               data-testid={`file-report-dismiss-${report.id}`}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-line hover:border-emerald-500 hover:text-emerald-400 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-line hover:border-emerald-500 hover:text-emerald-700 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
             >
               {busy === "dismiss" ? "…" : "◇ Dismiss"}
             </button>
@@ -265,7 +265,7 @@ function ReportRow({ report, onChange }) {
             onClick={restore}
             disabled={!!busy}
             data-testid={`file-report-restore-${report.id}`}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-emerald-500/60 hover:bg-emerald-500/10 text-emerald-400 font-mono text-[10px] uppercase tracking-[0.22em] font-bold disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-emerald-500/60 hover:bg-emerald-500/10 text-emerald-700 font-mono text-[10px] uppercase tracking-[0.22em] font-bold disabled:opacity-50"
           >
             {busy === "restore" ? "…" : "↺ Restore file"}
           </button>

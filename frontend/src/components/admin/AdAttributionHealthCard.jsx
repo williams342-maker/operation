@@ -22,9 +22,9 @@ const fmtInt = (v) => (v ?? 0).toLocaleString();
 
 function rateTone(rate) {
   if (rate == null) return "text-ink-muted";
-  if (rate >= 95) return "text-emerald-400";
-  if (rate >= 80) return "text-amber-300";
-  return "text-red-300";
+  if (rate >= 95) return "text-emerald-700";
+  if (rate >= 80) return "text-brand";
+  return "text-red-600";
 }
 
 export default function AdAttributionHealthCard() {
@@ -101,7 +101,7 @@ export default function AdAttributionHealthCard() {
           <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted flex items-center gap-1">
             <History size={10} /> Replay backlog
           </div>
-          <div className={`font-display text-3xl mt-1 ${backlog > 0 ? "text-amber-300" : "text-ink-muted"}`}>
+          <div className={`font-display text-3xl mt-1 ${backlog > 0 ? "text-brand" : "text-ink-muted"}`}>
             {fmtInt(backlog)}
           </div>
           <div className="font-mono text-[10px] text-ink-muted mt-1">
@@ -127,11 +127,11 @@ export default function AdAttributionHealthCard() {
             <tr key={row.channel} className="border-b border-line" data-testid={`health-row-${row.channel}`}>
               <td className="py-2 text-ink capitalize">{CHANNEL_LABEL[row.channel] || row.channel}</td>
               <td className="py-2 text-right font-mono text-ink-muted tabular-nums">{fmtInt(row.paid_with_click_id)}</td>
-              <td className="py-2 text-right font-mono text-emerald-400 tabular-nums">{fmtInt(row.uploaded_ok)}</td>
-              <td className={`py-2 text-right font-mono tabular-nums ${row.uploaded_err > 0 ? "text-red-300" : "text-ink-muted"}`}>
+              <td className="py-2 text-right font-mono text-emerald-700 tabular-nums">{fmtInt(row.uploaded_ok)}</td>
+              <td className={`py-2 text-right font-mono tabular-nums ${row.uploaded_err > 0 ? "text-red-600" : "text-ink-muted"}`}>
                 {fmtInt(row.uploaded_err)}
               </td>
-              <td className={`py-2 text-right font-mono tabular-nums ${row.pending > 0 ? "text-amber-300" : "text-ink-muted"}`}>
+              <td className={`py-2 text-right font-mono tabular-nums ${row.pending > 0 ? "text-brand" : "text-ink-muted"}`}>
                 {fmtInt(row.pending)}
               </td>
               <td className={`py-2 text-right font-mono font-semibold tabular-nums ${rateTone(row.upload_rate_pct)}`}>
@@ -143,7 +143,7 @@ export default function AdAttributionHealthCard() {
       </table>
 
       {backlog > 0 && (
-        <div className="mt-4 text-[10px] text-amber-300 flex items-start gap-2 border-l-2 border-amber-700/50 pl-3 py-1">
+        <div className="mt-4 text-[10px] text-brand flex items-start gap-2 border-l-2 border-amber-700/50 pl-3 py-1">
           <AlertTriangle size={11} className="mt-0.5 shrink-0" />
           <span>
             {backlog} session{backlog === 1 ? "" : "s"} stuck in <span className="font-mono">err:</span> state.

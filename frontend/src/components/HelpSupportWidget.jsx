@@ -126,7 +126,7 @@ export default function HelpSupportWidget() {
         onClick={() => setOpen((o) => !o)}
         aria-label={open ? "Close help" : "Open help & support"}
         data-testid="help-widget-toggle"
-        className="fixed bottom-24 right-24 z-[60] bg-paper text-cyan-300 w-12 h-12 flex items-center justify-center border-2 border-cyan-700/70 hover:border-cyan-400 hover:rotate-3 transition-all shadow-[0_0_20px_rgba(34,211,238,0.25)]"
+        className="fixed bottom-24 right-24 z-[60] bg-paper text-brand w-12 h-12 flex items-center justify-center border-2 border-cyan-700/70 hover:border-cyan-400 hover:rotate-3 transition-all shadow-[0_0_20px_rgba(34,211,238,0.25)]"
       >
         {open ? <X size={20} /> : <HelpCircle size={20} />}
       </button>
@@ -143,9 +143,9 @@ export default function HelpSupportWidget() {
           >
             <div className="flex items-center justify-between px-4 py-3 border-b border-cyan-900/60 bg-cyan-950/20">
               <div className="flex items-center gap-2">
-                <Sparkles size={14} className="text-cyan-300" />
+                <Sparkles size={14} className="text-brand" />
                 <div>
-                  <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-cyan-400">
+                  <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand">
                     Help &amp; Support
                   </div>
                   <div className="font-mono text-[9px] text-ink-muted uppercase tracking-[0.18em]">
@@ -155,7 +155,7 @@ export default function HelpSupportWidget() {
               </div>
               <button
                 onClick={resetChat}
-                className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-muted hover:text-cyan-300"
+                className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-muted hover:text-brand"
                 data-testid="help-widget-reset"
                 title="Start a new chat"
               >
@@ -173,7 +173,7 @@ export default function HelpSupportWidget() {
                   key={i}
                   className={`max-w-[88%] font-mono text-[12px] leading-relaxed ${
                     m.role === "user"
-                      ? "ml-auto bg-cyan-900/30 border border-cyan-800/60 text-cyan-50 px-3 py-2"
+                      ? "ml-auto bg-[color-mix(in_srgb,var(--brand)_12%,transparent)] border border-[color-mix(in_srgb,var(--brand)_45%,transparent)] text-ink px-3 py-2"
                       : "mr-auto bg-surface border border-line text-ink px-3 py-2 whitespace-pre-wrap"
                   }`}
                   data-testid={`help-msg-${m.role}`}
@@ -200,7 +200,7 @@ export default function HelpSupportWidget() {
                     <button
                       key={i}
                       onClick={() => send(h)}
-                      className="block w-full text-left font-mono text-[11px] text-cyan-300/80 hover:text-cyan-100 hover:bg-cyan-950/30 border border-cyan-900/40 px-2 py-1.5 transition-colors"
+                      className="block w-full text-left font-mono text-[11px] text-brand hover:text-brand-hover hover:bg-[color-mix(in_srgb,var(--brand)_8%,transparent)] border border-line px-2 py-1.5 transition-colors"
                       data-testid={`help-widget-hint-${i}`}
                     >
                       → {h}
@@ -226,7 +226,7 @@ export default function HelpSupportWidget() {
                 type="submit"
                 disabled={busy || !draft.trim()}
                 aria-label="Send"
-                className="text-cyan-300 hover:text-cyan-100 disabled:opacity-30 disabled:cursor-not-allowed"
+                className="text-brand hover:text-brand disabled:opacity-30 disabled:cursor-not-allowed"
                 data-testid="help-widget-send"
               >
                 <Send size={16} />

@@ -197,7 +197,7 @@ export default function AdCreativeWorkshopCard() {
       {confirmModal}
       <div className="flex items-start justify-between gap-3 flex-wrap mb-4">
         <div>
-          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-cyan-300 mb-2 flex items-center gap-1.5">
+          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-2 flex items-center gap-1.5">
             <Sparkles size={12} /> ◆ AI Ad-Creative Workshop
           </div>
           <h3 className="font-display text-2xl uppercase mb-1">Copy + Image Factory</h3>
@@ -208,14 +208,14 @@ export default function AdCreativeWorkshopCard() {
         <div className="flex items-center gap-1">
           <button
             onClick={() => setView("compose")}
-            className={`px-3 py-2 border font-mono text-[10px] uppercase tracking-[0.22em] ${view === "compose" ? "border-cyan-400 text-cyan-300 bg-cyan-950/30" : "border-line text-ink-muted hover:border-ink-muted"}`}
+            className={`px-3 py-2 border font-mono text-[10px] uppercase tracking-[0.22em] ${view === "compose" ? "border-cyan-400 text-brand bg-cyan-950/30" : "border-line text-ink-muted hover:border-ink-muted"}`}
             data-testid="ad-creative-view-compose"
           >
             Compose
           </button>
           <button
             onClick={() => setView("drafts")}
-            className={`px-3 py-2 border font-mono text-[10px] uppercase tracking-[0.22em] flex items-center gap-1 ${view === "drafts" ? "border-cyan-400 text-cyan-300 bg-cyan-950/30" : "border-line text-ink-muted hover:border-ink-muted"}`}
+            className={`px-3 py-2 border font-mono text-[10px] uppercase tracking-[0.22em] flex items-center gap-1 ${view === "drafts" ? "border-cyan-400 text-brand bg-cyan-950/30" : "border-line text-ink-muted hover:border-ink-muted"}`}
             data-testid="ad-creative-view-drafts"
           >
             <History size={11} /> Drafts
@@ -285,7 +285,7 @@ function ComposeView(props) {
             )}
             <div className="flex-1 min-w-0">
               <div className="font-display text-base text-ink truncate">{selected.title}</div>
-              <div className="font-mono text-[10px] text-cyan-300 uppercase tracking-[0.22em]">
+              <div className="font-mono text-[10px] text-brand uppercase tracking-[0.22em]">
                 {selected.type} · {selected.slug}
               </div>
             </div>
@@ -330,7 +330,7 @@ function ComposeView(props) {
                 <button
                   key={ch.id}
                   onClick={() => toggleChannel(ch.id)}
-                  className={`px-3 py-2 border font-mono text-[10px] uppercase tracking-[0.22em] ${on ? "border-cyan-400 text-cyan-300 bg-cyan-950/30" : "border-line text-ink-muted hover:border-ink-muted"}`}
+                  className={`px-3 py-2 border font-mono text-[10px] uppercase tracking-[0.22em] ${on ? "border-cyan-400 text-brand bg-cyan-950/30" : "border-line text-ink-muted hover:border-ink-muted"}`}
                   data-testid={`ad-creative-channel-${ch.id}`}
                 >
                   {ch.label}
@@ -447,7 +447,7 @@ function SubjectGrid({ label, items, onPick, testId }) {
             ) : (
               <div className="w-10 h-10 bg-surface shrink-0" />
             )}
-            <div className="font-mono text-[11px] text-ink truncate group-hover:text-cyan-300">{it.title}</div>
+            <div className="font-mono text-[11px] text-ink truncate group-hover:text-brand">{it.title}</div>
           </button>
         ))}
       </div>
@@ -470,7 +470,7 @@ function CreativeResult({ result }) {
   return (
     <div className="mt-2 border border-cyan-900/50 bg-cyan-950/10 p-4 space-y-5" data-testid="ad-creative-result">
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-cyan-300">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">
           ◆ Generated · draft {draft.draft_id}
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -510,7 +510,7 @@ function CreativeResult({ result }) {
 
       {(draft.images?.length || 0) > 0 && (
         <div>
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-cyan-300 mb-2 flex items-center gap-1.5">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-2 flex items-center gap-1.5">
             <ImageIcon size={11} /> Image variants ({draft.images.length})
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -519,7 +519,7 @@ function CreativeResult({ result }) {
                 <img src={src} alt={`variant ${i + 1}`} className="w-full aspect-square object-cover" />
                 <a
                   href={src} download
-                  className="mt-2 w-full px-2 py-1 border border-line hover:border-cyan-400 text-ink-muted hover:text-cyan-300 font-mono text-[9px] uppercase tracking-[0.22em] flex items-center justify-center gap-1"
+                  className="mt-2 w-full px-2 py-1 border border-line hover:border-cyan-400 text-ink-muted hover:text-brand font-mono text-[9px] uppercase tracking-[0.22em] flex items-center justify-center gap-1"
                   data-testid={`ad-creative-image-download-${i}`}
                 >
                   <Download size={10} /> Download
@@ -710,12 +710,12 @@ function PushToChannelButton({ draft, channel, ready, readyHint, headlineCount }
           <div className="w-full max-w-lg bg-paper border border-blue-500/50 p-5">
             <div className="flex items-start justify-between mb-3">
               <div>
-                <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-blue-300 mb-1">
+                <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-blue-700 mb-1">
                   ◆ Push to {channel.label}
                 </div>
                 <h4 className="font-display text-xl uppercase">{draft.subject_title}</h4>
                 <p className="font-mono text-[10px] text-ink-muted mt-1">
-                  Campaign will be created in <strong className="text-amber-300">PAUSED</strong> state. No spend until you activate it inside {channel.label}.
+                  Campaign will be created in <strong className="text-brand">PAUSED</strong> state. No spend until you activate it inside {channel.label}.
                 </p>
               </div>
               <button
@@ -734,8 +734,8 @@ function PushToChannelButton({ draft, channel, ready, readyHint, headlineCount }
 
             {preflight && !preflight.eligible && (
               <div className="border border-amber-700/50 bg-amber-950/20 p-3 my-3 flex items-start gap-2" data-testid={`push-${channel.id}-not-eligible`}>
-                <AlertTriangle size={14} className="text-amber-300 mt-0.5 shrink-0" />
-                <div className="font-mono text-xs text-amber-200 leading-relaxed">
+                <AlertTriangle size={14} className="text-brand mt-0.5 shrink-0" />
+                <div className="font-mono text-xs text-ink leading-relaxed">
                   <div className="font-bold mb-1">Can&rsquo;t push right now</div>
                   <div>{preflight.reason || `${channel.label} not connected.`}</div>
                   <div className="mt-2 text-ink-muted">{channel.fixHint}</div>
@@ -800,7 +800,7 @@ function PushToChannelButton({ draft, channel, ready, readyHint, headlineCount }
                           onClick={() => setVideoAssetId(null)}
                           className={`px-2 py-2 border font-mono text-[10px] uppercase tracking-[0.18em] ${
                             !videoAssetId
-                              ? "border-cyan-400 text-cyan-200 bg-cyan-950/20"
+                              ? "border-cyan-400 text-brand bg-cyan-950/20"
                               : "border-line text-ink-muted hover:border-ink-muted"
                           }`}
                           data-testid="push-meta-video-none"
@@ -842,7 +842,7 @@ function PushToChannelButton({ draft, channel, ready, readyHint, headlineCount }
                       </div>
                     )}
                     {videoAssetId && (
-                      <p className="font-mono text-[10px] text-amber-300 mt-1">
+                      <p className="font-mono text-[10px] text-brand mt-1">
                         ⚠ Video upload + Meta processing can take 1–3 minutes. Keep this tab open.
                       </p>
                     )}
@@ -871,19 +871,19 @@ function PushToChannelButton({ draft, channel, ready, readyHint, headlineCount }
 
             {result && (
               <div className="space-y-3 mt-2 border border-emerald-700/40 bg-emerald-950/10 p-3" data-testid={`push-${channel.id}-success`}>
-                <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-300 flex items-center gap-1.5">
+                <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-700 flex items-center gap-1.5">
                   <Check size={11} /> Campaign created (PAUSED)
                 </div>
                 <div className="font-mono text-xs text-ink">{result.message}</div>
                 <div className="font-mono text-[10px] text-ink-muted space-y-0.5">
                   {channel.successFields(result.push).map(([k, v]) => (
-                    <div key={k}>{k}: <span className="text-cyan-300">{v}</span></div>
+                    <div key={k}>{k}: <span className="text-brand">{v}</span></div>
                   ))}
                 </div>
                 {result[channel.openLinkField] && (
                   <a
                     href={result[channel.openLinkField]} target="_blank" rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3 py-2 border border-blue-500 text-blue-300 hover:bg-blue-500 hover:text-ink font-mono text-[10px] uppercase tracking-[0.22em] transition"
+                    className="inline-flex items-center gap-1.5 px-3 py-2 border border-blue-500 text-blue-700 hover:bg-blue-500 hover:text-ink font-mono text-[10px] uppercase tracking-[0.22em] transition"
                     data-testid={`push-${channel.id}-open-link`}
                   >
                     {channel.openLinkLabel} <ExternalLink size={11} />
@@ -908,7 +908,7 @@ function ChannelBlock({ channel, fields, spec }) {
   const channelLabel = spec?.label || channel;
   return (
     <div className="border-t border-line pt-4 first:border-t-0 first:pt-0">
-      <div className="font-display text-lg text-cyan-300 mb-2">{channelLabel}</div>
+      <div className="font-display text-lg text-brand mb-2">{channelLabel}</div>
       <div className="space-y-3">
         {(spec?.fields || []).map((f) => (
           <div key={f.key}>
@@ -944,7 +944,7 @@ function CopyRow({ text, max, testId }) {
   return (
     <div className="flex items-center gap-2 group">
       <div
-        className={`flex-1 px-2 py-1.5 font-mono text-sm border ${isEmpty ? "border-red-900/40 bg-red-950/10 text-red-300 italic" : "border-line bg-paper text-ink"}`}
+        className={`flex-1 px-2 py-1.5 font-mono text-sm border ${isEmpty ? "border-red-900/40 bg-red-950/10 text-red-600 italic" : "border-line bg-paper text-ink"}`}
         data-testid={testId}
       >
         {isEmpty ? "(empty — regenerate)" : text}
@@ -955,11 +955,11 @@ function CopyRow({ text, max, testId }) {
       <button
         onClick={onCopy}
         disabled={isEmpty}
-        className="px-2 py-1.5 border border-line hover:border-cyan-400 text-ink-muted hover:text-cyan-300 disabled:opacity-30 disabled:hover:border-line"
+        className="px-2 py-1.5 border border-line hover:border-cyan-400 text-ink-muted hover:text-brand disabled:opacity-30 disabled:hover:border-line"
         title="Copy"
         data-testid={`${testId}-btn`}
       >
-        {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+        {copied ? <Check size={12} className="text-emerald-700" /> : <Copy size={12} />}
       </button>
     </div>
   );
@@ -984,7 +984,7 @@ function DraftsView({ drafts, loading, onLoad, onDelete }) {
           <div className="flex-1 min-w-0">
             <div className="font-display text-base text-ink truncate">{d.subject_title}</div>
             <div className="font-mono text-[10px] text-ink-muted flex flex-wrap gap-2 mt-0.5">
-              <span className="text-cyan-300">{d.subject_type}</span>
+              <span className="text-brand">{d.subject_type}</span>
               <span>·</span>
               <span>{(d.channels || []).join(", ")}</span>
               <span>·</span>
@@ -992,7 +992,7 @@ function DraftsView({ drafts, loading, onLoad, onDelete }) {
               {(d.images?.length || 0) > 0 && (
                 <>
                   <span>·</span>
-                  <span className="text-amber-300">{d.images.length} image{d.images.length === 1 ? "" : "s"}</span>
+                  <span className="text-brand">{d.images.length} image{d.images.length === 1 ? "" : "s"}</span>
                 </>
               )}
             </div>
@@ -1001,14 +1001,14 @@ function DraftsView({ drafts, loading, onLoad, onDelete }) {
           <div className="flex items-center gap-1">
             <button
               onClick={() => onLoad(d.draft_id)}
-              className="px-2 py-1 border border-cyan-700/50 hover:border-cyan-400 text-cyan-300 font-mono text-[9px] uppercase tracking-[0.22em]"
+              className="px-2 py-1 border border-cyan-700/50 hover:border-cyan-400 text-brand font-mono text-[9px] uppercase tracking-[0.22em]"
               data-testid={`ad-creative-load-${d.draft_id}`}
             >
               Open
             </button>
             <button
               onClick={() => onDelete(d)}
-              className="px-2 py-1 border border-line hover:border-red-500 hover:text-red-300 text-ink-muted font-mono text-[9px] uppercase tracking-[0.22em]"
+              className="px-2 py-1 border border-line hover:border-red-500 hover:text-red-600 text-ink-muted font-mono text-[9px] uppercase tracking-[0.22em]"
               data-testid={`ad-creative-delete-${d.draft_id}`}
               title="Delete"
             >

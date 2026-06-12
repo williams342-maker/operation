@@ -132,7 +132,7 @@ export default function ShopManagerLayout({
                   <Icon size={14} className="shrink-0" />
                   <span className="truncate">{item.label}</span>
                   {item.badge && (
-                    <span className="ml-auto text-[8px] tracking-[0.18em] text-cyan-400 border border-cyan-400/40 px-1 py-px font-mono">
+                    <span className="ml-auto text-[8px] tracking-[0.18em] text-brand border border-cyan-400/40 px-1 py-px font-mono">
                       {item.badge}
                     </span>
                   )}
@@ -158,7 +158,7 @@ function Badge({ ok, label, testid, mode = "default" }) {
   const cls = ok
     ? primary
       ? "border-brand bg-brand/10 text-brand"
-      : "border-emerald-700 bg-emerald-900/20 text-emerald-300"
+      : "border-emerald-700 bg-emerald-900/20 text-emerald-700"
     : "border-line bg-surface text-ink-muted";
   return (
     <span

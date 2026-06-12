@@ -33,7 +33,7 @@ import {
  */
 const VIEWS = [
   { key: "live", label: "Live", color: "text-ink" },
-  { key: "drafts", label: "Drafts", color: "text-amber-400" },
+  { key: "drafts", label: "Drafts", color: "text-brand" },
   { key: "archived", label: "Archived", color: "text-red-400" },
 ];
 
@@ -650,7 +650,7 @@ function ArchivedView({ items, selected, setSelected, onChanged }) {
 
   return (
     <section data-testid="archived-section">
-      <div className="border border-red-700/40 bg-red-900/10 px-4 py-3 mb-5 font-mono text-[10px] uppercase tracking-[0.22em] text-red-300" data-testid="archived-banner">
+      <div className="border border-red-700/40 bg-red-900/10 px-4 py-3 mb-5 font-mono text-[10px] uppercase tracking-[0.22em] text-red-600" data-testid="archived-banner">
         ◇ Archived listings are not visible to buyers. Restore one by clicking it — or select multiple to restore or permanently delete in bulk.
       </div>
 
@@ -725,7 +725,7 @@ function BulkToolbar({
               type="button"
               onClick={onRestore}
               disabled={!!busy}
-              className="px-3 py-1.5 border border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/10 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+              className="px-3 py-1.5 border border-emerald-500/50 text-emerald-700 hover:bg-emerald-500/10 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
               data-testid="archived-bulk-restore"
             >
               {busy === "Restore" ? "Restoring…" : `↩ Restore selected (${selectedCount})`}

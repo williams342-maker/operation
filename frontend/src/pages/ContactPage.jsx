@@ -129,7 +129,7 @@ function ContactForm() {
   if (done) {
     return (
       <div className="border border-emerald-500/40 bg-emerald-500/5 p-5" data-testid="contact-form-success">
-        <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-400">
+        <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-700">
           <Check size={14} /> Message sent
         </div>
         <p className="font-mono text-sm text-ink mt-3 leading-relaxed">

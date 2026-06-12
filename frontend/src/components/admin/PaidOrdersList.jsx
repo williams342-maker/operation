@@ -131,7 +131,7 @@ export default function PaidOrdersList({ items }) {
                 </button>
               ) : (
                 <span
-                  className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-400"
+                  className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-700"
                   data-testid={`order-refunded-${o.session_id}`}
                 >
                   ✓ Refunded

@@ -36,9 +36,9 @@ export default function MetaRoasCard() {
 
   const roasColor = (() => {
     if (!data?.roas || !data?.ad_spend_usd) return "text-ink-muted";
-    if (data.roas >= 4) return "text-emerald-400";
-    if (data.roas >= 1.5) return "text-cyan-400";
-    if (data.roas >= 1) return "text-amber-400";
+    if (data.roas >= 4) return "text-emerald-700";
+    if (data.roas >= 1.5) return "text-brand";
+    if (data.roas >= 1) return "text-brand";
     return "text-brand";
   })();
 
@@ -48,13 +48,13 @@ export default function MetaRoasCard() {
     <div className="border border-line bg-paper p-6 space-y-5" data-testid="meta-roas-card">
       <div className="flex items-start gap-4">
         <div className="w-10 h-10 border border-blue-400/40 bg-blue-400/[0.06] flex items-center justify-center shrink-0">
-          <Facebook size={16} className="text-blue-400" />
+          <Facebook size={16} className="text-blue-700" />
         </div>
         <div className="flex-1 min-w-0">
           <h2 className="font-display text-2xl md:text-3xl mb-1">Meta Ads ROAS</h2>
           <p className="font-mono text-xs text-ink-muted leading-relaxed max-w-2xl">
             Attributed revenue / ad spend, last {days} days. Revenue auto-tracked via the{" "}
-            <code className="text-blue-300">fbclid</code> URL param on Meta-Ads landings
+            <code className="text-blue-700">fbclid</code> URL param on Meta-Ads landings
             (Facebook + Instagram). Spend pulled live from your synced Meta campaigns.
           </p>
         </div>
@@ -77,7 +77,7 @@ export default function MetaRoasCard() {
             onClick={() => setDays(d)}
             className={`px-2.5 py-1 border font-mono text-[10px] uppercase tracking-[0.22em] transition ${
               days === d
-                ? "border-blue-400 text-blue-300 bg-blue-400/[0.06]"
+                ? "border-blue-400 text-blue-700 bg-blue-400/[0.06]"
                 : "border-line text-ink-muted hover:border-ink-muted"
             }`}
             data-testid={`meta-roas-window-${d}`}
@@ -100,8 +100,8 @@ export default function MetaRoasCard() {
 
       {noSpendData && (
         <div className="flex items-start gap-3 border border-amber-500/30 bg-amber-500/[0.05] px-4 py-3" data-testid="meta-roas-no-data">
-          <AlertTriangle size={14} className="text-amber-400 shrink-0 mt-0.5" />
-          <p className="font-mono text-[11px] text-amber-200 leading-relaxed">
+          <AlertTriangle size={14} className="text-brand shrink-0 mt-0.5" />
+          <p className="font-mono text-[11px] text-ink leading-relaxed">
             No Meta Ads spend rows in the last {days} days. Either campaigns
             haven&apos;t launched yet, or the daily sync (04:00 UTC) hasn&apos;t completed.
             Check the <strong>Ads</strong> tab → Meta Ads card for sync status.
@@ -127,7 +127,7 @@ export default function MetaRoasCard() {
               {data.top_campaigns.map((c, i) => (
                 <tr key={i} className="border-t border-line">
                   <td className="py-1.5 text-ink truncate max-w-[280px]" title={c.name}>{c.name}</td>
-                  <td className="py-1.5 text-right text-blue-300">${c.spend.toFixed(2)}</td>
+                  <td className="py-1.5 text-right text-blue-700">${c.spend.toFixed(2)}</td>
                   <td className="py-1.5 text-right text-ink-muted">{c.clicks}</td>
                   <td className="py-1.5 text-right text-ink-muted">{c.impressions}</td>
                 </tr>

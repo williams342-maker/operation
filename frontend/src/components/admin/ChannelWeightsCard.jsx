@@ -21,9 +21,9 @@ import {
 } from "../../lib/api";
 
 const CHANNEL_TONE = {
-  google:    "border-emerald-700/50 text-emerald-300",
-  meta:      "border-sky-700/50 text-sky-300",
-  microsoft: "border-amber-700/50 text-amber-300",
+  google:    "border-emerald-700/50 text-emerald-700",
+  meta:      "border-sky-700/50 text-blue-700",
+  microsoft: "border-amber-700/50 text-brand",
 };
 
 const CHANNEL_LABEL = {
@@ -72,7 +72,7 @@ export default function ChannelWeightsCard() {
     <div className="border border-line p-4 md:p-5" data-testid="channel-weights-card">
       <div className="flex items-start justify-between gap-3 flex-wrap mb-3">
         <div>
-          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-emerald-300 mb-2 flex items-center gap-1.5">
+          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-emerald-700 mb-2 flex items-center gap-1.5">
             <TrendingUp size={12} /> ◆ Channel Attribution
           </div>
           <h3 className="font-display text-2xl uppercase mb-1">Paid-Channel Weights · 30 Days</h3>
@@ -84,7 +84,7 @@ export default function ChannelWeightsCard() {
           type="button"
           onClick={onRecompute}
           disabled={recomputing}
-          className="px-3 py-2 border border-emerald-700/50 hover:border-emerald-400 text-emerald-300 font-mono text-[10px] uppercase tracking-[0.22em] flex items-center gap-1.5 disabled:opacity-50"
+          className="px-3 py-2 border border-emerald-700/50 hover:border-emerald-400 text-emerald-700 font-mono text-[10px] uppercase tracking-[0.22em] flex items-center gap-1.5 disabled:opacity-50"
           data-testid="channel-weights-recompute"
         >
           {recomputing
@@ -99,7 +99,7 @@ export default function ChannelWeightsCard() {
         <>
           {data.cold_start && (
             <div
-              className="border border-amber-700/40 bg-amber-950/20 px-3 py-2 mb-3 font-mono text-[11px] text-amber-200 leading-snug"
+              className="border border-amber-700/40 bg-amber-950/20 px-3 py-2 mb-3 font-mono text-[11px] text-ink leading-snug"
               data-testid="channel-weights-cold-start"
             >
               No paid attribution yet in the 30-day window — falling back to equal weights ({(100 / data.channels.length).toFixed(0)}% each). Weights will rebalance once paid orders + spend land in the ledger.
@@ -142,9 +142,9 @@ export default function ChannelWeightsCard() {
                 </div>
                 <div className="text-right min-w-[80px]">
                   <div className={`font-display text-lg tabular-nums ${
-                    c.roas >= 2 ? "text-emerald-300" :
-                    c.roas >= 1 ? "text-amber-300" :
-                    c.roas > 0 ? "text-red-300" : "text-ink-muted"
+                    c.roas >= 2 ? "text-emerald-700" :
+                    c.roas >= 1 ? "text-brand" :
+                    c.roas > 0 ? "text-red-600" : "text-ink-muted"
                   }`}>
                     {roasFmt(c.roas)}
                   </div>

@@ -1101,7 +1101,7 @@ export default function MakerListingEditor() {
                             type="button"
                             onClick={loadLivePresetRates}
                             disabled={presetRatesLoading}
-                            className="px-2.5 py-1 border border-cyan-400/40 hover:border-cyan-300 text-cyan-300 font-mono text-[9.5px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-wait shrink-0"
+                            className="px-2.5 py-1 border border-cyan-400/40 hover:border-cyan-300 text-brand font-mono text-[9.5px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-wait shrink-0"
                             data-testid="editor-shipping-preset-live-rates"
                           >
                             <Sparkles size={10} />
@@ -1150,8 +1150,8 @@ export default function MakerListingEditor() {
                                     <div className="font-mono shrink-0 text-right">
                                       {live ? (
                                         <>
-                                          <div className="text-[12px] text-cyan-300 font-bold" data-testid={`editor-preset-live-${p.id}`}>
-                                            ${live.amount.toFixed(2)} <span className="text-[8px] text-cyan-400/60">LIVE</span>
+                                          <div className="text-[12px] text-brand font-bold" data-testid={`editor-preset-live-${p.id}`}>
+                                            ${live.amount.toFixed(2)} <span className="text-[8px] text-brand">LIVE</span>
                                           </div>
                                           <div className="text-[9px] text-ink-muted line-through">${p.cost.toFixed(2)}</div>
                                         </>
@@ -1167,7 +1167,7 @@ export default function MakerListingEditor() {
                                     <span>📦 {p.length}″ × {p.width}″ × {p.height}″</span>
                                     <span>⚖ {p.weight_lbs} lb {p.weight_oz} oz</span>
                                     {live && live.provider && (
-                                      <span className="text-cyan-400/80">▸ {live.provider} {live.servicelevel}{live.estimated_days ? ` · ${live.estimated_days}d` : ""}</span>
+                                      <span className="text-brand">▸ {live.provider} {live.servicelevel}{live.estimated_days ? ` · ${live.estimated_days}d` : ""}</span>
                                     )}
                                   </div>
                                 </button>
@@ -1660,7 +1660,7 @@ export default function MakerListingEditor() {
                       const kept = aiTagReview.filter((r) => r.kept).length;
                       const slots = MAX_TAGS - form.seo_tags.length;
                       return (
-                        <span className={kept > slots ? "text-amber-400" : "text-ink-muted"}>
+                        <span className={kept > slots ? "text-brand" : "text-ink-muted"}>
                           {kept} selected · {slots} slot{slots === 1 ? "" : "s"} available
                           {kept > slots && " — only the first " + slots + " will be applied"}
                         </span>
@@ -1714,10 +1714,10 @@ export default function MakerListingEditor() {
               data-testid="editor-seo-max-banner"
               role="status"
             >
-              <AlertTriangle size={14} className="text-amber-400 shrink-0 mt-0.5" />
-              <div className="font-mono text-[11px] text-amber-300 leading-relaxed">
+              <AlertTriangle size={14} className="text-brand shrink-0 mt-0.5" />
+              <div className="font-mono text-[11px] text-brand leading-relaxed">
                 <b>You've reached the maximum of {MAX_TAGS} tags.</b>
-                <span className="text-amber-200/80"> Remove a tag below to add a new one.</span>
+                <span className="text-ink-muted"> Remove a tag below to add a new one.</span>
               </div>
             </div>
           )}
@@ -1725,7 +1725,7 @@ export default function MakerListingEditor() {
             Add tag{" "}
             <span
               className={`${
-                form.seo_tags.length >= MAX_TAGS ? "text-amber-400 font-bold" : "text-ink-muted"
+                form.seo_tags.length >= MAX_TAGS ? "text-brand font-bold" : "text-ink-muted"
               }`}
               data-testid="editor-seo-counter"
             >
@@ -1905,11 +1905,11 @@ function ShippingEstimatePreview({ form }) {
       className="mt-6 border border-emerald-500/30 bg-emerald-500/5 p-4"
       data-testid="ship-estimate-preview"
     >
-      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-400 mb-2">
+      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-700 mb-2">
         ◆ Estimated rates · zone-4 average
       </div>
       <div className="flex items-baseline gap-3 mb-3 flex-wrap">
-        <span className="font-display text-2xl text-emerald-300" data-testid="ship-estimate-cheapest">
+        <span className="font-display text-2xl text-emerald-700" data-testid="ship-estimate-cheapest">
           ${cheapest.cost.toFixed(2)}
         </span>
         <span className="font-mono text-[11px] text-ink-muted">
@@ -1922,7 +1922,7 @@ function ShippingEstimatePreview({ form }) {
           <div
             key={`${opt.carrier}-${opt.service}`}
             className={`grid grid-cols-[1fr_auto_auto] gap-3 px-2 py-1 font-mono text-[11px] ${
-              i === 0 ? "text-emerald-300" : "text-ink-muted"
+              i === 0 ? "text-emerald-700" : "text-ink-muted"
             }`}
             data-testid={`ship-estimate-row-${i}`}
           >
@@ -1931,7 +1931,7 @@ function ShippingEstimatePreview({ form }) {
               {opt.carrier} {opt.service}
             </span>
             <span className="text-ink-muted">{opt.days}d</span>
-            <span className={i === 0 ? "text-emerald-300" : "text-ink"}>
+            <span className={i === 0 ? "text-emerald-700" : "text-ink"}>
               ${opt.cost.toFixed(2)}
             </span>
           </div>
@@ -1941,11 +1941,11 @@ function ShippingEstimatePreview({ form }) {
       <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[10px] text-ink-muted">
         <span>Actual <span className="text-ink-muted">{est.actualLb} lb</span></span>
         <span>Dim <span className="text-ink-muted">{est.dimLb} lb</span></span>
-        <span>Billable <span className="text-emerald-400">{est.billableLb} lb</span></span>
+        <span>Billable <span className="text-emerald-700">{est.billableLb} lb</span></span>
       </div>
       {padding && (
         <p
-          className="font-mono text-[10px] text-amber-400/90 mt-2 leading-relaxed"
+          className="font-mono text-[10px] text-brand mt-2 leading-relaxed"
           data-testid="ship-estimate-dim-warning"
         >
           ◇ Your package volume is driving the cost (carriers bill on the larger of actual vs. dim weight).

@@ -15,9 +15,9 @@ import React, { useState } from "react";
 import { Star } from "lucide-react";
 
 const TIER_META = {
-  excellent:   { icon: "⭐", label: "Excellent", cls: "border-emerald-400/60 text-emerald-400 bg-emerald-400/10" },
+  excellent:   { icon: "⭐", label: "Excellent", cls: "border-emerald-400/60 text-emerald-700 bg-emerald-400/10" },
   good:        { icon: "✦", label: "Good",      cls: "border-brand/60 text-brand bg-brand/10" },
-  basic:       { icon: "○", label: "Basic",     cls: "border-amber-400/60 text-amber-400 bg-amber-400/10" },
+  basic:       { icon: "○", label: "Basic",     cls: "border-amber-400/60 text-brand bg-amber-400/10" },
   incomplete:  { icon: "△", label: "Incomplete", cls: "border-red-500/60 text-red-400 bg-red-500/10" },
 };
 
@@ -48,7 +48,7 @@ export default function QualityBadge({ quality, size = "sm", showTier = true }) 
           <ul className="space-y-1.5">
             {quality.breakdown.map((b) => (
               <li key={b.label} className="font-mono text-[11px] flex gap-2 items-start">
-                <span className={`shrink-0 inline-block w-3 ${b.earned ? "text-emerald-400" : "text-ink-muted"}`}>
+                <span className={`shrink-0 inline-block w-3 ${b.earned ? "text-emerald-700" : "text-ink-muted"}`}>
                   {b.earned ? "✓" : "○"}
                 </span>
                 <span className="flex-1">

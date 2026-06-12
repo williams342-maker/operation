@@ -180,7 +180,7 @@ export default function GpcCombobox({
 
       {looksValid === false && (
         <p
-          className="font-mono text-[10px] text-amber-400 mt-1"
+          className="font-mono text-[10px] text-brand mt-1"
           data-testid={`${testid}-warn`}
         >
           ⚠ Path should be ≥ 2 levels deep (use {" > "} between levels).

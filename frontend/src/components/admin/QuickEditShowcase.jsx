@@ -74,7 +74,7 @@ export default function QuickEditShowcase({ example, onClose, onSaved }) {
       >
         <div className="flex items-start justify-between mb-4">
           <div className="min-w-0">
-            <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-emerald-300 mb-1">
+            <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-emerald-700 mb-1">
               Quick Edit · Showcase Post
             </div>
             <div className="font-display text-xl text-ink truncate">

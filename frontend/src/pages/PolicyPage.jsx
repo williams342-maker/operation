@@ -157,7 +157,7 @@ const SECTIONS = [
       icon: AlertTriangle,
       text: (
         <>
-          Custom orders are <b className="text-amber-300">non-refundable</b>{" "}
+          Custom orders are <b className="text-brand">non-refundable</b>{" "}
           once production has begun. Please review your proof carefully — we
           cannot accept returns on personalized items unless they arrive
           defective or damaged.
@@ -505,7 +505,7 @@ function Callout({ data }) {
       {Icon && (
         <Icon
           size={16}
-          className={`flex-shrink-0 mt-0.5 ${data.tone === "warn" ? "text-amber-400" : "text-brand"}`}
+          className={`flex-shrink-0 mt-0.5 ${data.tone === "warn" ? "text-brand" : "text-brand"}`}
         />
       )}
       <div className="font-mono text-xs leading-relaxed text-ink">
@@ -689,7 +689,7 @@ export default function PolicyPage() {
             policies below. Last updated <span className="text-ink font-semibold">April 2026</span>.
           </p>
           <div className="inline-flex items-center gap-2 mt-5 px-3 py-1.5 border border-amber-700/40 bg-amber-500/5">
-            <span className="font-mono text-[10px] uppercase tracking-[0.28em] text-amber-400">
+            <span className="font-mono text-[10px] uppercase tracking-[0.28em] text-brand">
               ◆ Beta v1
             </span>
             <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">

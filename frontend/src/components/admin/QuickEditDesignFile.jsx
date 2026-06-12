@@ -77,7 +77,7 @@ export default function QuickEditDesignFile({ example, onClose, onSaved }) {
       >
         <div className="flex items-start justify-between mb-4">
           <div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-cyan-300 mb-1">
+            <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-brand mb-1">
               Quick Edit · Design File
             </div>
             <div className="font-display text-xl text-ink truncate">

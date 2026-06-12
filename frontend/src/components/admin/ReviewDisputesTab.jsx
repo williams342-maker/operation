@@ -129,8 +129,8 @@ function DisputeRow({ dispute, onResolve }) {
     <article className="border border-line bg-paper p-4 space-y-3" data-testid={`dispute-row-${dispute.id}`}>
       <div className="flex items-center gap-3 flex-wrap">
         <span className={`px-2 py-0.5 border font-mono text-[9px] uppercase tracking-[0.22em] ${
-          dispute.status === "open" ? "border-amber-500/50 text-amber-400 bg-amber-500/10"
-          : dispute.status === "upheld" ? "border-emerald-500/50 text-emerald-400 bg-emerald-500/10"
+          dispute.status === "open" ? "border-amber-500/50 text-brand bg-amber-500/10"
+          : dispute.status === "upheld" ? "border-emerald-500/50 text-emerald-700 bg-emerald-500/10"
           : "border-line text-ink-muted"
         }`}>
           {dispute.status}
@@ -158,7 +158,7 @@ function DisputeRow({ dispute, onResolve }) {
 
       <div className="border border-line bg-paper p-3" data-testid={`dispute-snapshot-${dispute.id}`}>
         <div className="flex items-center gap-2 mb-1">
-          <span className="font-display text-base text-amber-400">{stars}</span>
+          <span className="font-display text-base text-brand">{stars}</span>
           <span className="font-mono text-xs text-ink font-bold">{snap.name || "anonymous"}</span>
           <span className="font-mono text-[10px] text-ink-muted">· {timeAgo(snap.created_at)}</span>
         </div>
@@ -166,7 +166,7 @@ function DisputeRow({ dispute, onResolve }) {
       </div>
 
       <div className="border-l-2 border-amber-500 pl-3 ml-1" data-testid={`dispute-explanation-${dispute.id}`}>
-        <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-amber-400 mb-1">
+        <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-brand mb-1">
           ◆ Maker explanation
         </div>
         <p className="font-mono text-sm text-ink leading-relaxed whitespace-pre-wrap">
@@ -179,7 +179,7 @@ function DisputeRow({ dispute, onResolve }) {
           <button
             type="button"
             onClick={() => onResolve("upheld")}
-            className="px-3 py-2 border border-emerald-500 text-emerald-400 hover:bg-emerald-500/10 font-mono text-[10px] uppercase tracking-[0.22em]"
+            className="px-3 py-2 border border-emerald-500 text-emerald-700 hover:bg-emerald-500/10 font-mono text-[10px] uppercase tracking-[0.22em]"
             data-testid={`dispute-uphold-${dispute.id}`}
           >
             <Check size={12} className="inline mr-1" />
@@ -242,7 +242,7 @@ function ResolveDialog({ dispute, status, onCancel, onResolved }) {
         <p className="font-mono text-xs text-ink-muted mt-3 leading-relaxed">
           The maker ({dispute.maker_name || dispute.maker_slug}) will be emailed with this verdict + your optional note.
           {status === "upheld" && (
-            <> The review will be <b className="text-emerald-400">permanently deleted</b> from the public collection.</>
+            <> The review will be <b className="text-emerald-700">permanently deleted</b> from the public collection.</>
           )}
         </p>
         <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mt-4">
@@ -270,7 +270,7 @@ function ResolveDialog({ dispute, status, onCancel, onResolved }) {
             disabled={busy}
             className={`flex-1 px-3 py-2 border font-mono text-[10px] uppercase tracking-[0.22em] ${
               status === "upheld"
-                ? "border-emerald-500 text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20"
+                ? "border-emerald-500 text-emerald-700 bg-emerald-500/10 hover:bg-emerald-500/20"
                 : "border-[#a3a3a3] text-ink hover:bg-surface"
             } disabled:opacity-50`}
             data-testid="dispute-resolve-confirm"

@@ -206,7 +206,7 @@ export default function WorstPerformersPanel() {
       </div>
 
       {err && (
-        <div className="font-mono text-xs text-amber-200 mb-3">{err}</div>
+        <div className="font-mono text-xs text-ink mb-3">{err}</div>
       )}
 
       <ul className="divide-y divide-line">
@@ -233,7 +233,7 @@ export default function WorstPerformersPanel() {
                 </Link>
                 {p.cohort === "draft" && (
                   <span
-                    className="font-mono text-[9px] uppercase tracking-[0.22em] border border-amber-500/40 text-amber-400 px-1.5 py-0.5 shrink-0"
+                    className="font-mono text-[9px] uppercase tracking-[0.22em] border border-amber-500/40 text-brand px-1.5 py-0.5 shrink-0"
                     data-testid={`worst-draft-tag-${p.slug}`}
                   >
                     Draft
@@ -253,7 +253,7 @@ export default function WorstPerformersPanel() {
                 <button
                   onClick={() => publishNow(p)}
                   disabled={busy[p.slug]}
-                  className="inline-flex items-center gap-1.5 border border-emerald-500 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 font-mono text-[10px] uppercase tracking-[0.22em] px-3 py-1.5 disabled:opacity-50 transition"
+                  className="inline-flex items-center gap-1.5 border border-emerald-500 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 font-mono text-[10px] uppercase tracking-[0.22em] px-3 py-1.5 disabled:opacity-50 transition"
                   data-testid={`worst-publish-${p.slug}`}
                   title="Flip this draft to published — instantly enters the sitemap so Google can find it"
                 >

@@ -249,7 +249,7 @@ function FileRow({ file, busy, onUnquarantine, onAskDelete, onAskEdit }) {
             </span>
           )}
           {isQ && (
-            <span className="px-2 py-0.5 border border-amber-500/50 text-amber-400 bg-amber-500/10 font-mono text-[9px] uppercase tracking-[0.22em]">
+            <span className="px-2 py-0.5 border border-amber-500/50 text-brand bg-amber-500/10 font-mono text-[9px] uppercase tracking-[0.22em]">
               <EyeOff size={10} className="inline mr-1" />Quarantined
             </span>
           )}
@@ -292,7 +292,7 @@ function FileRow({ file, busy, onUnquarantine, onAskDelete, onAskEdit }) {
             type="button"
             onClick={onUnquarantine}
             disabled={busy}
-            className="px-3 py-1.5 border border-line hover:border-emerald-500/60 hover:text-emerald-400 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+            className="px-3 py-1.5 border border-line hover:border-emerald-500/60 hover:text-emerald-700 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
             data-testid={`design-file-restore-${file.id}`}
           >
             <Eye size={12} className="inline mr-1" />Restore

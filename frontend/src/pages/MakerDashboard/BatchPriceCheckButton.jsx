@@ -81,7 +81,7 @@ export default function BatchPriceCheckButton({ onCompleted }) {
       type="button"
       onClick={start}
       disabled={isRunning}
-      className="inline-flex items-center gap-1.5 px-3 py-2 border border-cyan-400/40 hover:border-cyan-300 hover:bg-cyan-400/5 disabled:opacity-60 disabled:cursor-wait font-mono text-[10px] uppercase tracking-[0.22em] text-cyan-300 transition"
+      className="inline-flex items-center gap-1.5 px-3 py-2 border border-cyan-400/40 hover:border-cyan-300 hover:bg-cyan-400/5 disabled:opacity-60 disabled:cursor-wait font-mono text-[10px] uppercase tracking-[0.22em] text-brand transition"
       title="Run an AI Price Check on every published listing. Cache-aware — listings checked within the last 24h are returned instantly."
       data-testid="products-batch-price-check"
     >

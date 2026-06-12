@@ -217,7 +217,7 @@ function ResultCard({ p, i, testId }) {
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
           {p.featured_example && (
-            <span className="tag absolute top-2 left-2 text-amber-300 border-amber-400/70 bg-paper/70 text-[9px]">
+            <span className="tag absolute top-2 left-2 text-brand border-amber-400/70 bg-paper/70 text-[9px]">
               ✦ EXAMPLE
             </span>
           )}

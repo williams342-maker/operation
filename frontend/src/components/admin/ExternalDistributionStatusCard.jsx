@@ -30,8 +30,8 @@ const META_VERDICT_LABELS = {
 };
 
 const TONE_CLASSES = {
-  emerald: "border-emerald-500/30 text-emerald-300",
-  amber: "border-amber-500/30 text-amber-300",
+  emerald: "border-emerald-500/30 text-emerald-700",
+  amber: "border-amber-500/30 text-brand",
   red: "border-red-500/30 text-red-400",
 };
 
@@ -89,14 +89,14 @@ export default function ExternalDistributionStatusCard() {
     <section className="border border-line p-5 md:p-6 space-y-5" data-testid="distribution-status-card">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-cyan-400">
+          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand">
             ◆ External distribution · readiness
           </div>
           <h3 className="font-display text-xl uppercase mt-1">Cloudflare Worker + Meta Commerce</h3>
         </div>
         <button
           onClick={load}
-          className="px-3 py-1.5 border border-line hover:border-cyan-400 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-cyan-300 transition"
+          className="px-3 py-1.5 border border-line hover:border-cyan-400 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand transition"
           data-testid="distribution-refresh"
         >
           ↻ Re-probe
@@ -140,12 +140,12 @@ export default function ExternalDistributionStatusCard() {
                   <td className="py-1.5 text-right text-ink-muted">{p.status || p.error || "—"}</td>
                   <td className="py-1.5 text-right">
                     {p.has_prerender_marker
-                      ? <span className="text-emerald-400">✓</span>
+                      ? <span className="text-emerald-700">✓</span>
                       : <span className="text-ink-muted">—</span>}
                   </td>
                   <td className="py-1.5 text-right">
                     {p.is_spa_shell
-                      ? <span className="text-amber-400">⚠</span>
+                      ? <span className="text-brand">⚠</span>
                       : <span className="text-ink-muted">—</span>}
                   </td>
                   <td className="py-1.5 text-right text-ink-muted">{p.bytes ?? "—"}</td>
@@ -156,12 +156,12 @@ export default function ExternalDistributionStatusCard() {
         </div>
         {cf.verdict !== "active" && (
           <div className="border-l-2 border-amber-500/40 pl-3 py-1.5 text-[11px] text-ink-muted font-mono space-y-1.5" data-testid="distribution-cf-runbook">
-            <div className="text-amber-300">Deploy steps:</div>
+            <div className="text-brand">Deploy steps:</div>
             <ol className="list-decimal pl-5 leading-relaxed text-[10px]">
               <li>Cloudflare dashboard → <span className="text-ink">craftersmarket.org</span> → Workers Routes → Create</li>
               <li>Add <span className="text-ink">two</span> routes: <code className="text-ink">craftersmarket.org/*</code> and <code className="text-ink">www.craftersmarket.org/*</code> (NOT the wildcard subdomain — it breaks R2 image delivery)</li>
               <li>Workers → Create application → paste contents of <code className="text-ink">/app/cloudflare/prerender-router.worker.js</code></li>
-              <li>Save and deploy, then click <span className="text-cyan-300">Re-probe</span> above</li>
+              <li>Save and deploy, then click <span className="text-brand">Re-probe</span> above</li>
             </ol>
           </div>
         )}
@@ -190,7 +190,7 @@ export default function ExternalDistributionStatusCard() {
             href={meta.meta_dashboard_url}
             target="_blank"
             rel="noreferrer"
-            className="px-3 py-1.5 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/10 font-mono text-[10px] uppercase tracking-[0.22em] transition"
+            className="px-3 py-1.5 border border-cyan-500/40 text-brand hover:bg-cyan-500/10 font-mono text-[10px] uppercase tracking-[0.22em] transition"
             data-testid="distribution-meta-dashboard"
           >
             Open Meta Catalog ↗
@@ -202,7 +202,7 @@ export default function ExternalDistributionStatusCard() {
           </code>
           <button
             onClick={copyFeedUrl}
-            className="px-2.5 py-1 border border-line hover:border-cyan-400 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-cyan-300 transition"
+            className="px-2.5 py-1 border border-line hover:border-cyan-400 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand transition"
             data-testid="distribution-meta-copy"
           >
             Copy URL
@@ -210,7 +210,7 @@ export default function ExternalDistributionStatusCard() {
         </div>
         {meta.next_step && (
           <p className="font-mono text-[11px] text-ink-muted leading-relaxed">
-            <span className="text-cyan-300">→ </span>{meta.next_step}
+            <span className="text-brand">→ </span>{meta.next_step}
           </p>
         )}
       </div>

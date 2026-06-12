@@ -4,8 +4,8 @@ import { AlertTriangle, ShieldCheck } from "lucide-react";
 import { RowsSkeleton } from "../../components/Skeleton";
 
 const SEVERITY_STYLE = {
-  block: "border-red-700 bg-red-900/20 text-red-300",
-  warn:  "border-yellow-700 bg-yellow-900/20 text-yellow-300",
+  block: "border-red-700 bg-red-900/20 text-red-600",
+  warn:  "border-yellow-700 bg-yellow-900/20 text-brand",
   info:  "border-line bg-paper text-ink-muted",
 };
 
@@ -34,7 +34,7 @@ export default function ViolationsTab() {
 
       {!rows.length ? (
         <div className="border border-emerald-800 bg-emerald-900/10 p-8 text-center" data-testid="violations-empty">
-          <ShieldCheck size={32} className="text-emerald-400 mx-auto mb-3" />
+          <ShieldCheck size={32} className="text-emerald-700 mx-auto mb-3" />
           <h3 className="font-display text-2xl uppercase mb-2">All clear.</h3>
           <p className="font-mono text-xs text-ink-muted">
             No warnings or blocks on your account. Keep building.

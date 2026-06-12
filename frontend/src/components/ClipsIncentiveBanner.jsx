@@ -36,9 +36,9 @@ export default function IncentiveBanner({ variant = "feed", className = "" }) {
         data-testid="clips-incentive-banner-claimed"
       >
         <div className="flex items-center gap-2.5">
-          <CheckCircle2 className="text-emerald-400 shrink-0" size={18} />
+          <CheckCircle2 className="text-emerald-700 shrink-0" size={18} />
           <div className="min-w-0">
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-300">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-700">
               ◆ Founding 50 · all slots claimed
             </div>
             <div className="font-mono text-xs text-ink-muted leading-relaxed mt-0.5">

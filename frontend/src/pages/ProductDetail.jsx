@@ -459,7 +459,7 @@ export default function ProductDetail() {
             <h1 className="font-display text-2xl md:text-3xl mb-3 leading-tight">{p.title}</h1>
             {p.featured_example && (
               <div
-                className="mb-3 inline-flex items-center gap-2 px-3 py-1.5 border border-amber-400/60 bg-amber-950/30 text-amber-300 font-mono text-[10px] uppercase tracking-[0.22em]"
+                className="mb-3 inline-flex items-center gap-2 px-3 py-1.5 border border-amber-400/60 bg-amber-950/30 text-brand font-mono text-[10px] uppercase tracking-[0.22em]"
                 data-testid="product-detail-featured-example"
                 title="This is a curated example listing — illustrative, not a real product for sale."
               >
@@ -472,12 +472,12 @@ export default function ProductDetail() {
                 we don't add visual noise. */}
             {(p.listing_type === "digital" || p.listing_type === "both") && (
               <div
-                className="mb-3 inline-flex items-center gap-2 px-3 py-1.5 border border-cyan-400/60 bg-cyan-950/30 text-cyan-300 font-mono text-[10px] uppercase tracking-[0.22em]"
+                className="mb-3 inline-flex items-center gap-2 px-3 py-1.5 border border-cyan-400/60 bg-cyan-950/30 text-brand font-mono text-[10px] uppercase tracking-[0.22em]"
                 data-testid="product-detail-digital-badge"
               >
                 ◆ {p.listing_type === "digital" ? "Instant Download" : "Physical + Digital Files"}
                 {Array.isArray(p.digital_files) && p.digital_files.length > 0 && (
-                  <span className="text-cyan-100/80">
+                  <span className="text-brand">
                     · {p.digital_files.length} file{p.digital_files.length === 1 ? "" : "s"}
                   </span>
                 )}
@@ -505,7 +505,7 @@ export default function ProductDetail() {
                 className="mb-6 p-4 border border-cyan-900/50 bg-cyan-950/[0.18]"
                 data-testid="product-detail-digital-manifest"
               >
-                <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-cyan-300 mb-3">
+                <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-brand mb-3">
                   ◆ Files you&apos;ll receive ({p.digital_files.length})
                 </div>
                 <ul className="space-y-1.5">
@@ -515,7 +515,7 @@ export default function ProductDetail() {
                       className="flex items-baseline gap-3 font-mono text-[11px]"
                       data-testid={`product-detail-digital-file-${f.id}`}
                     >
-                      <span className="text-cyan-400 shrink-0">▸</span>
+                      <span className="text-brand shrink-0">▸</span>
                       <span className="text-ink truncate">{f.filename}</span>
                       <span className="text-ink-muted shrink-0 ml-auto">
                         {f.ext} · {f.size_bytes >= 1024 * 1024
@@ -525,7 +525,7 @@ export default function ProductDetail() {
                     </li>
                   ))}
                 </ul>
-                <div className="font-mono text-[10px] text-cyan-200/70 mt-3 leading-relaxed">
+                <div className="font-mono text-[10px] text-brand mt-3 leading-relaxed">
                   Files are sent the moment payment clears — via email + on the order
                   confirmation page. All digital sales are final.
                 </div>

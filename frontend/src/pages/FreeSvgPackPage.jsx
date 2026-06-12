@@ -265,7 +265,7 @@ export default function FreeSvgPackPage() {
               </label>
               {error && (
                 <div
-                  className="mb-4 border border-red-500/40 bg-red-500/5 p-3 font-mono text-[11px] text-red-300"
+                  className="mb-4 border border-red-500/40 bg-red-500/5 p-3 font-mono text-[11px] text-red-600"
                   data-testid="lead-magnet-error"
                 >
                   {error}

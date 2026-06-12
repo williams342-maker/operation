@@ -51,23 +51,23 @@ export default class SectionErrorBoundary extends React.Component {
         <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-red-400 mb-2">
           ◆ Something broke loading this section
         </div>
-        <p className="font-mono text-[12px] text-red-100 mb-2 leading-relaxed">
+        <p className="font-mono text-[12px] text-red-600 mb-2 leading-relaxed">
           {this.props.fallback || "We hit an unexpected error rendering this part of the page."}
         </p>
-        <p className="font-mono text-[10px] text-red-300/80 mb-3 break-words">
+        <p className="font-mono text-[10px] text-red-600 mb-3 break-words">
           <strong>Detail:</strong> {msg}
         </p>
         <div className="flex gap-2">
           <button
             onClick={this.reset}
-            className="px-3 py-1.5 border border-red-500 bg-red-900/40 hover:bg-red-800/60 font-mono text-[10px] uppercase tracking-[0.22em] text-red-100"
+            className="px-3 py-1.5 border border-red-500 bg-red-900/40 hover:bg-red-800/60 font-mono text-[10px] uppercase tracking-[0.22em] text-red-600"
             data-testid="section-error-retry"
           >
             ↻ Try again
           </button>
           <button
             onClick={() => window.location.reload()}
-            className="px-3 py-1.5 border border-zinc-700 hover:border-zinc-500 font-mono text-[10px] uppercase tracking-[0.22em] text-zinc-300"
+            className="px-3 py-1.5 border border-zinc-700 hover:border-zinc-500 font-mono text-[10px] uppercase tracking-[0.22em] text-ink"
             data-testid="section-error-reload"
           >
             Reload page

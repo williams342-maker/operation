@@ -91,7 +91,7 @@ export default function EnableOrderPushButton() {
   if (denied) {
     return (
       <div
-        className="inline-flex items-center gap-2 px-3 py-1.5 border border-amber-700/40 bg-amber-900/10 text-amber-300/90 font-mono text-[10px] uppercase tracking-[0.22em]"
+        className="inline-flex items-center gap-2 px-3 py-1.5 border border-amber-700/40 bg-amber-900/10 text-brand font-mono text-[10px] uppercase tracking-[0.22em]"
         data-testid="order-push-denied"
         title="Notifications were blocked. Re-enable in browser site settings."
       >
@@ -108,7 +108,7 @@ export default function EnableOrderPushButton() {
         onClick={disable}
         disabled={busy}
         data-testid="order-push-disable-btn"
-        className="inline-flex items-center gap-2 px-3 py-1.5 border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50 transition-colors"
+        className="inline-flex items-center gap-2 px-3 py-1.5 border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50 transition-colors"
         title="Click to stop receiving order notifications on this device"
       >
         <BellRing size={12} />

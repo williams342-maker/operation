@@ -19,8 +19,8 @@ import {
 function DiagTile({ label, value, highlight }) {
   return (
     <div className={`border px-2 py-1.5 ${highlight ? "border-emerald-500/50 bg-emerald-950/30" : "border-line bg-paper"}`}>
-      <div className={`uppercase tracking-[0.22em] text-[9px] ${highlight ? "text-emerald-300" : "text-ink-muted"}`}>{label}</div>
-      <div className={`text-base ${highlight ? "text-emerald-200" : "text-zinc-200"} truncate`} title={String(value)}>{value}</div>
+      <div className={`uppercase tracking-[0.22em] text-[9px] ${highlight ? "text-emerald-700" : "text-ink-muted"}`}>{label}</div>
+      <div className={`text-base ${highlight ? "text-emerald-700" : "text-ink"} truncate`} title={String(value)}>{value}</div>
     </div>
   );
 }
@@ -33,10 +33,10 @@ function DiagShell({ title, blurb, testId, ok, data, busy, onRefresh, children, 
     >
       <div className="flex items-start justify-between gap-3 mb-3 flex-wrap">
         <div className="min-w-0">
-          <div className={`font-mono text-[10px] uppercase tracking-[0.28em] mb-1 ${ok ? "text-emerald-300" : "text-red-300"}`}>
+          <div className={`font-mono text-[10px] uppercase tracking-[0.28em] mb-1 ${ok ? "text-emerald-700" : "text-red-600"}`}>
             ◆ {title} · Health
           </div>
-          <h3 className={`font-display text-xl ${ok ? "text-emerald-200" : "text-red-200"}`}>
+          <h3 className={`font-display text-xl ${ok ? "text-emerald-700" : "text-red-600"}`}>
             {data === null ? "Checking…" : ok ? "Reachable" : "Unreachable"}
           </h3>
           <p className="font-mono text-[11px] text-ink-muted mt-1 max-w-[68ch] leading-relaxed">
@@ -46,7 +46,7 @@ function DiagShell({ title, blurb, testId, ok, data, busy, onRefresh, children, 
         <button
           onClick={onRefresh}
           disabled={busy}
-          className="px-3 py-1.5 border border-amber-700/60 hover:border-amber-400 hover:text-amber-300 font-mono text-[11px] uppercase tracking-[0.22em] text-amber-300 disabled:opacity-50"
+          className="px-3 py-1.5 border border-amber-700/60 hover:border-amber-400 hover:text-brand font-mono text-[11px] uppercase tracking-[0.22em] text-brand disabled:opacity-50"
           data-testid={`${testId}-refresh`}
         >
           {busy ? "Checking…" : "↻ Re-check"}
@@ -56,13 +56,13 @@ function DiagShell({ title, blurb, testId, ok, data, busy, onRefresh, children, 
       {data && children}
 
       {!ok && reason && (
-        <div className="mt-3 font-mono text-[11px] text-red-200 bg-paper/30 border border-red-900/60 p-3 leading-relaxed" data-testid={`${testId}-reason`}>
-          <strong className="text-red-300">Reason:</strong> {/^https?:\/\//.test(reason.split(" ").pop()) ? (
+        <div className="mt-3 font-mono text-[11px] text-red-600 bg-paper/30 border border-red-900/60 p-3 leading-relaxed" data-testid={`${testId}-reason`}>
+          <strong className="text-red-600">Reason:</strong> {/^https?:\/\//.test(reason.split(" ").pop()) ? (
             // Render the trailing URL as a clickable link (GA4 enable URL pattern).
             <>
               {reason.split(/\bhttps?:\/\/\S+/)[0]}
               <a href={reason.match(/\bhttps?:\/\/\S+/)?.[0]} target="_blank" rel="noopener noreferrer"
-                 className="text-emerald-300 underline break-all hover:text-emerald-200">
+                 className="text-emerald-700 underline break-all hover:text-emerald-700">
                 {reason.match(/\bhttps?:\/\/\S+/)?.[0]}
               </a>
             </>

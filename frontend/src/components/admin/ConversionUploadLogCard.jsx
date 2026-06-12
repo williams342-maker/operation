@@ -19,9 +19,9 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const CHANNEL_LABELS = { meta: "Meta", google: "Google", microsoft: "Microsoft" };
 const CHANNEL_COLORS = {
-  meta: "border-blue-700/50 text-blue-300",
-  google: "border-yellow-700/50 text-yellow-300",
-  microsoft: "border-emerald-700/50 text-emerald-300",
+  meta: "border-blue-700/50 text-blue-700",
+  google: "border-yellow-700/50 text-brand",
+  microsoft: "border-emerald-700/50 text-emerald-700",
 };
 
 export default function ConversionUploadLogCard() {
@@ -134,7 +134,7 @@ export default function ConversionUploadLogCard() {
       </div>
 
       {err && (
-        <div className="border border-red-700/50 bg-red-950/30 text-red-300 font-mono text-[10px] p-2 mb-3">
+        <div className="border border-red-700/50 bg-red-950/30 text-red-600 font-mono text-[10px] p-2 mb-3">
           ⚠ {err}
         </div>
       )}
@@ -173,7 +173,7 @@ export default function ConversionUploadLogCard() {
                   </td>
                   <td className="px-3 py-2 font-mono text-[10px]">
                     {r.status === "ok" ? (
-                      <span className="text-emerald-300">✓ ok</span>
+                      <span className="text-emerald-700">✓ ok</span>
                     ) : (
                       <span className="text-red-400" title={r.status}>
                         ✗ {(r.status || "err").replace(/^err:/, "").slice(0, 40)}

@@ -83,14 +83,14 @@ export default function ZombieCleanupCard() {
     <section className="border border-line p-5 md:p-6 space-y-4" data-testid="zombie-cleanup-card">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-amber-400">
+          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand">
             ◆ Zombie cleanup · {items.length} listing{items.length === 1 ? "" : "s"} with issues
           </div>
           <h3 className="font-display text-xl uppercase mt-1">Catalog hygiene</h3>
         </div>
         <button
           onClick={load}
-          className="px-3 py-1.5 border border-line hover:border-amber-400 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-amber-300 transition"
+          className="px-3 py-1.5 border border-line hover:border-amber-400 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand transition"
           data-testid="zombie-refresh"
         >
           ↻ Refresh
@@ -99,11 +99,11 @@ export default function ZombieCleanupCard() {
       <p className="font-mono text-xs text-ink-muted max-w-3xl leading-relaxed">
         Live products that would fail external catalog-feed validation (missing image, $0 price, empty title or description).
         Soft-delete hides them from every public surface — catalog feeds, search, maker profile — but keeps the row for audit.
-        Use <span className="text-emerald-400">Restore</span> from the maker dashboard if a soft-deleted listing comes back to life.
+        Use <span className="text-emerald-700">Restore</span> from the maker dashboard if a soft-deleted listing comes back to life.
       </p>
 
       {items.length === 0 ? (
-        <p className="font-mono text-xs text-emerald-400 py-2" data-testid="zombie-empty">
+        <p className="font-mono text-xs text-emerald-700 py-2" data-testid="zombie-empty">
           ✓ All published listings have title, description, price &gt; 0, and at least one image. Nothing to clean up.
         </p>
       ) : (
@@ -138,7 +138,7 @@ export default function ZombieCleanupCard() {
                       {it.issues.map((iss) => (
                         <span
                           key={iss}
-                          className="px-2 py-0.5 border border-amber-500/30 text-amber-300 text-[10px]"
+                          className="px-2 py-0.5 border border-amber-500/30 text-brand text-[10px]"
                           data-testid={`zombie-issue-${iss}`}
                         >
                           {ISSUE_LABELS[iss] || iss}

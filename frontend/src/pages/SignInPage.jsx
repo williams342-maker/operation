@@ -329,7 +329,7 @@ export default function SignInPage() {
           <div
             className={`mt-6 p-4 border font-mono text-xs leading-relaxed ${
               state.status === "error"
-                ? "border-red-700 bg-red-950/20 text-red-300"
+                ? "border-red-700 bg-red-950/20 text-red-600"
                 : "border-brand bg-brand/5 text-brand"
             }`}
             data-testid={`signin-${state.status}-msg`}
@@ -398,7 +398,7 @@ export function ForgotPasswordPage() {
           <div
             className={`mt-6 p-4 border font-mono text-xs leading-relaxed ${
               state.status === "error"
-                ? "border-red-700 bg-red-950/20 text-red-300"
+                ? "border-red-700 bg-red-950/20 text-red-600"
                 : "border-brand bg-brand/5 text-brand"
             }`}
             data-testid={`forgot-${state.status}-msg`}
@@ -488,7 +488,7 @@ export function ResetPasswordPage() {
           <div
             className={`mt-6 p-4 border font-mono text-xs leading-relaxed ${
               state.status === "error"
-                ? "border-red-700 bg-red-950/20 text-red-300"
+                ? "border-red-700 bg-red-950/20 text-red-600"
                 : "border-brand bg-brand/5 text-brand"
             }`}
             data-testid={`reset-${state.status}-msg`}

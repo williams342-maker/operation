@@ -25,7 +25,7 @@ const STALE_DAYS = 3;
 
 const STATUS_CLASS = {
   pending:   "border-brand/50 text-brand bg-brand/5",
-  accepted:  "border-emerald-400/50 text-emerald-400 bg-emerald-400/5",
+  accepted:  "border-emerald-400/50 text-emerald-700 bg-emerald-400/5",
   fulfilled: "border-line/50 text-ink-muted bg-ink-muted/5",
   declined:  "border-red-500/50 text-red-400 bg-red-500/5",
 };

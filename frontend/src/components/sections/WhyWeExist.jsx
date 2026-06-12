@@ -114,7 +114,7 @@ export default function WhyWeExist({ testId = "why-we-exist" }) {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.3 }}
             transition={{ delay: 0.25, duration: 0.7 }}
-            className="font-mono text-sm md:text-base text-zinc-400 mt-8 max-w-2xl mx-auto leading-relaxed"
+            className="font-mono text-sm md:text-base text-ink-muted mt-8 max-w-2xl mx-auto leading-relaxed"
           >
             Etsy and Amazon flooded the "handmade" aisle with factory imports and
             drop-shipped knock-offs. Crafters Market exists so American artists,

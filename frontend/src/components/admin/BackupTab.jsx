@@ -177,11 +177,11 @@ export default function BackupTab() {
           </p>
         ) : (
           <ul className="font-mono text-xs space-y-1.5">
-            <li className={diag.mongodump_present ? "text-emerald-400" : "text-red-400"}>
+            <li className={diag.mongodump_present ? "text-emerald-700" : "text-red-400"}>
               {diag.mongodump_present ? "✓" : "⊗"} mongodump binary{" "}
               <span className="text-ink-muted">({diag.mongodump_path})</span>
             </li>
-            <li className={diag.mongo_url_set ? "text-emerald-400" : "text-red-400"}>
+            <li className={diag.mongo_url_set ? "text-emerald-700" : "text-red-400"}>
               {diag.mongo_url_set ? "✓" : "⊗"} MONGO_URL set in backend env
             </li>
             <li className="text-ink-muted">
@@ -213,7 +213,7 @@ export default function BackupTab() {
       </div>
 
       {lastSize !== null && (
-        <div className="font-mono text-[11px] text-emerald-400" data-testid="backup-last-size">
+        <div className="font-mono text-[11px] text-emerald-700" data-testid="backup-last-size">
           ✓ Last backup: {(lastSize / 1024 / 1024).toFixed(2)} MB downloaded successfully.
         </div>
       )}
@@ -253,7 +253,7 @@ export default function BackupTab() {
         </div>
 
         {!r2Ready && (
-          <p className="font-mono text-[11px] text-amber-300">
+          <p className="font-mono text-[11px] text-brand">
             ⚠ R2 storage is not configured (missing env). Offsite backups disabled until R2_* env vars are set.
           </p>
         )}
@@ -299,7 +299,7 @@ export default function BackupTab() {
       <div className="border border-emerald-500/30 bg-emerald-500/5 p-5 space-y-4" data-testid="recovery-drill-panel">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3 min-w-0">
-            <ShieldCheck size={26} className="text-emerald-400 shrink-0" />
+            <ShieldCheck size={26} className="text-emerald-700 shrink-0" />
             <div className="min-w-0">
               <div className="font-display text-xl">Recovery drill</div>
               <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mt-1">
@@ -319,12 +319,12 @@ export default function BackupTab() {
         </div>
         <div className="font-mono text-[11px] text-ink-muted leading-relaxed">
           Downloads the latest R2 archive, restores it into an isolated{" "}
-          <code className="text-emerald-300">_dr_drill_&lt;timestamp&gt;</code> namespace on the same Mongo cluster, runs integrity counts (products ≥ {drillResult?.min_products ?? 100}), drops the namespace, and posts the result to your team's Slack/Discord webhook.
+          <code className="text-emerald-700">_dr_drill_&lt;timestamp&gt;</code> namespace on the same Mongo cluster, runs integrity counts (products ≥ {drillResult?.min_products ?? 100}), drops the namespace, and posts the result to your team's Slack/Discord webhook.
           <strong className="text-ink"> Production collections are never touched.</strong>
         </div>
         {drillResult && (
           <div
-            className={`p-4 border ${drillResult.ok ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-300" : "border-red-500/50 bg-red-500/10 text-red-300"}`}
+            className={`p-4 border ${drillResult.ok ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-700" : "border-red-500/50 bg-red-500/10 text-red-600"}`}
             data-testid="drill-result"
           >
             <div className="font-mono text-[11px] uppercase tracking-[0.22em] mb-2">
@@ -347,13 +347,13 @@ export default function BackupTab() {
 
       {/* Safety reminders */}
       <div className="border border-amber-500/40 bg-amber-500/5 p-4 flex gap-3" data-testid="backup-safety">
-        <AlertTriangle size={16} className="text-amber-400 shrink-0 mt-0.5" />
-        <div className="font-mono text-[11px] text-amber-200 leading-relaxed">
+        <AlertTriangle size={16} className="text-brand shrink-0 mt-0.5" />
+        <div className="font-mono text-[11px] text-ink leading-relaxed">
           <div className="font-bold uppercase tracking-[0.22em] mb-1">Handle with care</div>
-          <ul className="list-disc pl-4 space-y-1 text-amber-200/80">
+          <ul className="list-disc pl-4 space-y-1 text-ink-muted">
             <li>The archive contains every PII record in the marketplace — encrypt at rest after download.</li>
             <li>Delete the file from <code>~/Downloads</code> once you've moved it to encrypted storage.</li>
-            <li>Run a quarterly restore drill against a throwaway Mongo container to verify the archive is usable. See <code className="text-amber-100">/app/docs/mongodb-backup.md</code>.</li>
+            <li>Run a quarterly restore drill against a throwaway Mongo container to verify the archive is usable. See <code className="text-ink">/app/docs/mongodb-backup.md</code>.</li>
           </ul>
         </div>
       </div>

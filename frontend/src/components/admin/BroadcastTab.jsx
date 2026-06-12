@@ -250,7 +250,7 @@ export default function BroadcastTab() {
           onClick={doTestSend}
           disabled={busy || !testEmail.trim()}
           data-testid="broadcast-test-btn"
-          className="px-4 py-2 border border-line hover:border-sky-500 hover:text-sky-400 font-mono text-xs uppercase tracking-[0.22em] transition disabled:opacity-50"
+          className="px-4 py-2 border border-line hover:border-sky-500 hover:text-blue-700 font-mono text-xs uppercase tracking-[0.22em] transition disabled:opacity-50"
         >
           Send test →
         </button>

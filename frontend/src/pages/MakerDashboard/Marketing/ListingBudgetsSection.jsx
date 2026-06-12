@@ -99,7 +99,7 @@ function BudgetRow({ row, onSaved, onDeleted }) {
           /{row.product_slug}
           {promoted && (
             <span
-              className="ml-2 px-1.5 py-0.5 border border-emerald-700 text-emerald-300 text-[9px] uppercase tracking-[0.18em]"
+              className="ml-2 px-1.5 py-0.5 border border-emerald-700 text-emerald-700 text-[9px] uppercase tracking-[0.18em]"
               title={`Promoted until ${new Date(row.promoted_until).toLocaleString()}`}
             >
               boosted

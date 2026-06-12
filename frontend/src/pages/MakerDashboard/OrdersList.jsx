@@ -36,7 +36,7 @@ async function downloadAllUploads(sessionId) {
 const TIER_CLASSES = {
   gray:    "border-line/50 text-ink-muted bg-ink-muted/5",
   orange:  "border-brand/50 text-brand bg-brand/5",
-  emerald: "border-emerald-400/50 text-emerald-400 bg-emerald-400/5",
+  emerald: "border-emerald-400/50 text-emerald-700 bg-emerald-400/5",
   red:     "border-red-500/50 text-red-400 bg-red-500/5",
 };
 
@@ -199,7 +199,7 @@ function OrderRow({ order, onChange }) {
             <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">
               ◆ Paid · {formatDate(order.created_at)}
               {isFulfilled && (
-                <span className="ml-2 px-2 py-0.5 border border-emerald-400/40 text-emerald-400">
+                <span className="ml-2 px-2 py-0.5 border border-emerald-400/40 text-emerald-700">
                   shipped
                 </span>
               )}
@@ -368,7 +368,7 @@ function OrderRow({ order, onChange }) {
               {/* Buyer note */}
               {detail.buyer_note && (
                 <section className="px-3 py-2 border-l-2 border-yellow-400/50 bg-yellow-400/5">
-                  <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-yellow-400 mb-1">
+                  <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-1">
                     Buyer note
                   </div>
                   <p className="font-mono text-xs text-ink leading-relaxed whitespace-pre-wrap">
@@ -576,7 +576,7 @@ function OrderRow({ order, onChange }) {
                   data-testid={`order-shipped-${order.session_id}`}
                 >
                   <div className="flex items-center flex-wrap gap-3">
-                    <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-400 flex items-center gap-2">
+                    <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-700 flex items-center gap-2">
                       <Truck size={12} /> Shipped
                       {detail.shipped_at && (
                         <span className="text-ink-muted normal-case tracking-normal">

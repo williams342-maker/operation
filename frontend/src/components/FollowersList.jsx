@@ -3,10 +3,10 @@ import { fetchFollowersList } from "../lib/api";
 
 const PALETTE = [
   "bg-brand/20 text-brand border-brand/40",
-  "bg-emerald-500/15 text-emerald-300 border-emerald-700/40",
-  "bg-yellow-500/15 text-yellow-300 border-yellow-700/40",
-  "bg-purple-500/15 text-purple-300 border-purple-700/40",
-  "bg-cyan-500/15 text-cyan-300 border-cyan-700/40",
+  "bg-emerald-500/15 text-emerald-700 border-emerald-700/40",
+  "bg-yellow-500/15 text-brand border-yellow-700/40",
+  "bg-purple-500/15 text-purple-700 border-purple-700/40",
+  "bg-cyan-500/15 text-brand border-cyan-700/40",
 ];
 
 /**

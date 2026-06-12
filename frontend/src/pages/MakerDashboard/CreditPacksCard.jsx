@@ -117,7 +117,7 @@ export default function CreditPacksCard() {
           <div
             className={`font-mono text-xs px-3 py-2 border ${
               msg.kind === "ok"
-                ? "text-emerald-400 border-emerald-400/40"
+                ? "text-emerald-700 border-emerald-400/40"
                 : msg.kind === "err"
                   ? "text-red-400 border-red-400/40"
                   : "text-ink-muted border-line"
@@ -150,7 +150,7 @@ export default function CreditPacksCard() {
               <div className="font-display text-2xl text-brand">
                 ${p.price_usd.toFixed(2)}
               </div>
-              <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-emerald-400">
+              <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-emerald-700">
                 ¢{p.per_credit_cents.toFixed(0)}/credit · save{" "}
                 {Math.round(((20 - p.per_credit_cents) / 20) * 100)}%
               </div>

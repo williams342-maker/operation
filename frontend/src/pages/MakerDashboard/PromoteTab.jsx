@@ -284,7 +284,7 @@ export default function PromoteTab() {
           <div className="flex items-center gap-2">
             <Rocket size={22} className="text-brand" />
             <h1 className="font-display text-3xl text-ink">Promote</h1>
-            <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-cyan-400 border border-cyan-400/40 px-1.5 py-0.5">Beta</span>
+            <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-brand border border-cyan-400/40 px-1.5 py-0.5">Beta</span>
           </div>
           <p className="text-sm text-ink-muted mt-1 max-w-xl">
             Set one budget. We pick which listings to boost based on your goal — no campaign manager, no per-listing micromanaging.
@@ -320,8 +320,8 @@ export default function PromoteTab() {
           data-testid="promote-active-themes"
         >
           <div className="flex items-center gap-2 mb-2">
-            <Sparkles size={14} className="text-cyan-300" />
-            <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-cyan-300">
+            <Sparkles size={14} className="text-brand" />
+            <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-brand">
               Active marketplace themes · subsidizing your boosts
             </span>
           </div>
@@ -334,7 +334,7 @@ export default function PromoteTab() {
                   className="border border-cyan-700/40 bg-paper px-3 py-2 min-w-[200px]"
                   data-testid={`promote-theme-${t.slug}`}
                 >
-                  <div className="font-mono text-xs text-cyan-100 truncate">{t.name}</div>
+                  <div className="font-mono text-xs text-brand truncate">{t.name}</div>
                   <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted mt-0.5">
                     {t.start_date} → {t.end_date}
                   </div>
@@ -347,7 +347,7 @@ export default function PromoteTab() {
                   <div className="mt-1 font-mono text-[9px] text-ink-muted flex justify-between">
                     <span>Pool ${(t.pool_remaining_cents / 100).toFixed(0)} left</span>
                     {t.remaining_for_maker_cents > 0 && (
-                      <span className="text-cyan-300">+${(t.remaining_for_maker_cents / 100).toFixed(0)} for you</span>
+                      <span className="text-brand">+${(t.remaining_for_maker_cents / 100).toFixed(0)} for you</span>
                     )}
                   </div>
                 </div>
@@ -376,12 +376,12 @@ export default function PromoteTab() {
           </div>
           {hasActiveSub && (
             <div className="text-right">
-              <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-emerald-400">Subscription active</div>
+              <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-emerald-700">Subscription active</div>
               <div className="text-sm text-ink-muted mt-1">{dollarsRound(sub.monthly_cents)}/mo · auto-renews</div>
               <button
                 onClick={onCancelSub}
                 disabled={busy === "cancel-sub"}
-                className="mt-2 px-2 py-1 border border-red-900/60 text-red-300 hover:border-red-500 hover:text-red-200 font-mono text-[9px] uppercase tracking-[0.22em] disabled:opacity-50"
+                className="mt-2 px-2 py-1 border border-red-900/60 text-red-600 hover:border-red-500 hover:text-red-600 font-mono text-[9px] uppercase tracking-[0.22em] disabled:opacity-50"
                 data-testid="promote-cancel-sub-btn"
               >
                 Cancel
@@ -420,7 +420,7 @@ export default function PromoteTab() {
                     key={c}
                     onClick={() => onSubscribe(c)}
                     disabled={busy === `sub-${c}`}
-                    className="px-3 py-2 border border-line hover:border-cyan-400 hover:text-cyan-400 font-mono text-xs disabled:opacity-50"
+                    className="px-3 py-2 border border-line hover:border-cyan-400 hover:text-brand font-mono text-xs disabled:opacity-50"
                     data-testid={`promote-subscribe-${c}`}
                   >
                     {busy === `sub-${c}` ? <Loader2 size={11} className="animate-spin inline" /> : `${dollarsRound(c)}/mo`}
@@ -442,7 +442,7 @@ export default function PromoteTab() {
                   <tr key={i} className="border-b border-line" data-testid="promote-txn-row">
                     <td className="py-1.5 font-mono text-[10px] text-ink-muted">{(t.created_at || "").slice(0, 10)}</td>
                     <td className="py-1.5 text-ink-muted capitalize">{t.kind}</td>
-                    <td className={`py-1.5 text-right font-mono ${t.delta_cents > 0 ? "text-emerald-400" : "text-red-300"}`}>
+                    <td className={`py-1.5 text-right font-mono ${t.delta_cents > 0 ? "text-emerald-700" : "text-red-600"}`}>
                       {t.delta_cents > 0 ? "+" : ""}{dollars(t.delta_cents)}
                     </td>
                     <td className="py-1.5 text-right text-ink-muted font-mono">{dollars(t.balance_after_cents)}</td>
@@ -550,12 +550,12 @@ export default function PromoteTab() {
               data-testid="promote-channel-split"
             >
               <div className="flex items-center gap-2 mb-2">
-                <TrendingUp size={12} className="text-emerald-300" />
-                <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-emerald-300">
+                <TrendingUp size={12} className="text-emerald-700" />
+                <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-emerald-700">
                   Recommended split · marketplace data
                 </span>
                 {channelSplit.cold_start && (
-                  <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-amber-300 ml-1">
+                  <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-brand ml-1">
                     · cold start
                   </span>
                 )}
@@ -576,7 +576,7 @@ export default function PromoteTab() {
                         style={{ width: `${Math.max(3, c.weight * 100)}%` }}
                       />
                     </div>
-                    <span className="font-mono text-[11px] tabular-nums text-emerald-200 w-12 text-right">
+                    <span className="font-mono text-[11px] tabular-nums text-emerald-700 w-12 text-right">
                       {(c.weight * 100).toFixed(0)}%
                     </span>
                   </div>
@@ -626,7 +626,7 @@ export default function PromoteTab() {
         </div>
 
         {balance < 500 && (
-          <div className="mt-3 text-[11px] text-amber-300 flex items-center gap-1.5">
+          <div className="mt-3 text-[11px] text-brand flex items-center gap-1.5">
             <AlertCircle size={11} /> Wallet needs at least $5 before the next apply. Top up above to unlock boosts.
           </div>
         )}
@@ -636,7 +636,7 @@ export default function PromoteTab() {
       <section className="border border-line bg-paper p-5" data-testid="promote-distribution-card">
         <div className="flex items-center justify-between mb-3">
           <div className="font-display text-xl text-ink flex items-center gap-2">
-            <TrendingUp size={18} className="text-cyan-400" />
+            <TrendingUp size={18} className="text-brand" />
             Smart distribution
           </div>
           <span className="font-mono text-[10px] text-ink-muted">live preview · {preview.length} listings</span>
@@ -674,7 +674,7 @@ export default function PromoteTab() {
         <section className="border border-line bg-paper p-5" data-testid="promote-external-card">
           <div className="font-display text-xl text-ink mb-1">External channels</div>
           <p className="text-xs text-ink-muted mb-4">
-            Launch real campaigns on supported ad networks. Each campaign starts <span className="text-amber-300">paused</span> — activate manually when you&apos;re ready to spend.
+            Launch real campaigns on supported ad networks. Each campaign starts <span className="text-brand">paused</span> — activate manually when you&apos;re ready to spend.
           </p>
 
           {/* Per-listing launch row — show only listings above the $35 floor. */}
@@ -693,7 +693,7 @@ export default function PromoteTab() {
                         key={c.channel}
                         onClick={() => onLaunchExternal(c.channel, p.slug)}
                         disabled={busy === `launch-${c.channel}-${p.slug}`}
-                        className="px-2 py-1 border border-cyan-400/40 hover:bg-cyan-400/10 text-cyan-300 font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50"
+                        className="px-2 py-1 border border-cyan-400/40 hover:bg-cyan-400/10 text-brand font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50"
                         data-testid={`promote-launch-${c.channel}-${p.slug}`}
                       >
                         {busy === `launch-${c.channel}-${p.slug}` ? <Loader2 size={10} className="animate-spin" /> : `+ ${c.channel}`}
@@ -732,7 +732,7 @@ export default function PromoteTab() {
                       <td className="py-2 text-ink truncate max-w-[12rem]">{row.listing_slug}</td>
                       <td className="py-2 text-ink-muted capitalize">{row.channel}</td>
                       <td className="py-2 text-right font-mono text-ink-muted">{dollars(row.daily_budget_cents)}</td>
-                      <td className={`py-2 text-right font-mono uppercase tracking-[0.18em] text-[10px] ${row.status === "active" ? "text-emerald-400" : "text-amber-300"}`}>
+                      <td className={`py-2 text-right font-mono uppercase tracking-[0.18em] text-[10px] ${row.status === "active" ? "text-emerald-700" : "text-brand"}`}>
                         {row.status}
                       </td>
                       <td className="py-2 text-right">
@@ -766,7 +766,7 @@ export default function PromoteTab() {
               label="ROAS"
               value={analytics.spend_cents > 0 ? `${analytics.roas.toFixed(2)}×` : "—"}
               testid="promote-stat-roas"
-              accent={analytics.roas >= 2 ? "text-emerald-400" : analytics.roas > 0 ? "text-amber-300" : ""}
+              accent={analytics.roas >= 2 ? "text-emerald-700" : analytics.roas > 0 ? "text-brand" : ""}
             />
           </div>
           {analytics.per_listing?.length > 0 && (
@@ -814,7 +814,7 @@ function ChannelChip({ label, sublabel, state, testId }) {
   //        "blocked" (pending approval / connect required)
   const tone =
     state === "active"    ? "border-brand text-brand bg-brand/10" :
-    state === "available" ? "border-cyan-400/60 text-cyan-300 bg-cyan-400/5" :
+    state === "available" ? "border-cyan-400/60 text-brand bg-cyan-400/5" :
                             "border-line text-ink-muted";
   return (
     <div className={`px-3 py-2 border ${tone}`} data-testid={testId}>

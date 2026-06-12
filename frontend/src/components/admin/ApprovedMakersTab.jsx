@@ -143,7 +143,7 @@ export default function ApprovedMakersTab() {
                   <td className="py-3 pr-3 space-x-1">
                     {r.is_beta && <span className="inline-block px-1.5 py-0.5 bg-brand text-ink text-[9px] font-bold">BETA</span>}
                     {["active", "trialing"].includes(r.subscription_status) && (
-                      <span className="inline-block px-1.5 py-0.5 border border-emerald-500/60 text-emerald-400 text-[9px] font-bold">★ PLUS</span>
+                      <span className="inline-block px-1.5 py-0.5 border border-emerald-500/60 text-emerald-700 text-[9px] font-bold">★ PLUS</span>
                     )}
                     {r.is_veteran_owned && <span className="inline-block px-1.5 py-0.5 border border-[#60a5fa]/60 text-[#60a5fa] text-[9px] font-bold">◆ VET</span>}
                   </td>
@@ -157,8 +157,8 @@ export default function ApprovedMakersTab() {
                       title="Toggle 30-day indexation chart"
                       className={`px-2 py-1 border font-mono text-[10px] uppercase tracking-[0.22em] transition ${
                         expandedSlug === r.slug
-                          ? "border-cyan-500 text-cyan-400 hover:bg-cyan-500/10"
-                          : "border-line text-ink-muted hover:border-cyan-500 hover:text-cyan-400"
+                          ? "border-cyan-500 text-brand hover:bg-cyan-500/10"
+                          : "border-line text-ink-muted hover:border-cyan-500 hover:text-brand"
                       }`}
                     >
                       {expandedSlug === r.slug ? "Hide" : "Chart"}

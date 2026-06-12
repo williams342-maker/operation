@@ -60,7 +60,7 @@ export default function PricingDigestHealthCard() {
     <div className="border border-line bg-paper p-6 space-y-5" data-testid="pricing-digest-health">
       <div className="flex items-start gap-4">
         <div className="w-10 h-10 border border-cyan-400/40 bg-cyan-400/[0.06] flex items-center justify-center shrink-0">
-          <Sparkles size={16} className="text-cyan-400" />
+          <Sparkles size={16} className="text-brand" />
         </div>
         <div className="flex-1 min-w-0">
           <h2 className="font-display text-2xl md:text-3xl mb-1">AI pricing digest health</h2>
@@ -77,7 +77,7 @@ export default function PricingDigestHealthCard() {
         <button
           onClick={runDryRun}
           disabled={dryRunLoading}
-          className="px-3 py-2 border border-cyan-400/40 hover:border-cyan-300 text-cyan-300 font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-wait"
+          className="px-3 py-2 border border-cyan-400/40 hover:border-cyan-300 text-brand font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-wait"
           data-testid="pricing-digest-dry-run"
         >
           <Play size={11} /> {dryRunLoading ? "Running…" : "Dry-run today"}
@@ -95,7 +95,7 @@ export default function PricingDigestHealthCard() {
       {/* Dry-run snapshot */}
       {dryRunResult && (
         <div className="border border-cyan-400/30 bg-cyan-400/[0.04] p-4" data-testid="pricing-digest-dry-run-result">
-          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-cyan-400 mb-2">
+          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-2">
             ◆ Dry-run · {dryRunResult.week_key || "now"}
           </p>
           {dryRunResult.status === "ok" ? (
@@ -121,7 +121,7 @@ export default function PricingDigestHealthCard() {
                       <tr key={d.maker} className="border-t border-line">
                         <td className="py-1.5 text-ink">{d.maker}</td>
                         <td className="py-1.5 text-right text-brand">{d.above_count ?? "—"}</td>
-                        <td className="py-1.5 text-right text-cyan-400">{d.below_count ?? "—"}</td>
+                        <td className="py-1.5 text-right text-brand">{d.below_count ?? "—"}</td>
                         <td className="py-1.5 text-right text-ink-muted">{d.would_send_to || "—"}</td>
                       </tr>
                     ))}
@@ -131,7 +131,7 @@ export default function PricingDigestHealthCard() {
             </>
           ) : (
             <p className="font-mono text-xs text-ink-muted">
-              <strong className="text-cyan-400">{dryRunResult.status}</strong>
+              <strong className="text-brand">{dryRunResult.status}</strong>
               {dryRunResult.reason ? ` — ${dryRunResult.reason}` : ""}
               {typeof dryRunResult.comparisons_scanned === "number" && (
                 <> · scanned {dryRunResult.comparisons_scanned} recent comparison(s).</>
@@ -166,7 +166,7 @@ export default function PricingDigestHealthCard() {
                   </span>
                 </th>
                 <th className="text-right p-3">
-                  <span className="inline-flex items-center gap-1 text-cyan-400">
+                  <span className="inline-flex items-center gap-1 text-brand">
                     <TrendingDown size={10} /> Below
                   </span>
                 </th>
@@ -179,7 +179,7 @@ export default function PricingDigestHealthCard() {
                   <td className="p-3 text-ink">{w.week_key}</td>
                   <td className="p-3 text-right text-ink">{w.sent}</td>
                   <td className="p-3 text-right text-brand font-bold">{w.above_flagged}</td>
-                  <td className="p-3 text-right text-cyan-400 font-bold">{w.below_flagged}</td>
+                  <td className="p-3 text-right text-brand font-bold">{w.below_flagged}</td>
                   <td className="p-3 text-ink-muted text-[10px]">
                     {(w.top_makers || []).slice(0, 3).map((m, i) => (
                       <span key={m.maker_slug}>
@@ -201,7 +201,7 @@ export default function PricingDigestHealthCard() {
 }
 
 function Cell({ label, value, accent }) {
-  const color = accent === "cyan" ? "text-cyan-300" : "text-ink";
+  const color = accent === "cyan" ? "text-brand" : "text-ink";
   return (
     <div className="border border-line p-3">
       <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted">{label}</div>

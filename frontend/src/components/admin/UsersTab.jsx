@@ -167,10 +167,10 @@ function UserRow({ user: u, busy, onAction }) {
   const isBanned = modStatus === "banned";
   const isFrozen = modStatus === "frozen";
   const badgeClass = isBanned
-    ? "bg-red-900/40 text-red-300 border-red-800"
+    ? "bg-red-900/40 text-red-600 border-red-800"
     : isFrozen
-    ? "bg-yellow-900/40 text-yellow-300 border-yellow-800"
-    : "bg-emerald-900/30 text-emerald-300 border-emerald-800";
+    ? "bg-yellow-900/40 text-brand border-yellow-800"
+    : "bg-emerald-900/30 text-emerald-700 border-emerald-800";
   return (
     <div
       className="border border-line hover:border-brand transition p-3 flex flex-col md:flex-row md:items-center gap-3"
@@ -213,7 +213,7 @@ function UserRow({ user: u, busy, onAction }) {
           disabled={busy}
           onClick={() => onAction("send-reset")}
           title="Email this user a 30-min single-use password reset link. Link is also copied to your clipboard so you can deliver it via another channel if their email is broken."
-          className="px-2 py-1 border border-blue-800 hover:border-blue-500 hover:text-blue-300 font-mono text-[10px] uppercase tracking-[0.18em] disabled:opacity-50"
+          className="px-2 py-1 border border-blue-800 hover:border-blue-500 hover:text-blue-700 font-mono text-[10px] uppercase tracking-[0.18em] disabled:opacity-50"
           data-testid={`user-reset-${u.user_id}`}
         >
           Send Reset
@@ -222,7 +222,7 @@ function UserRow({ user: u, busy, onAction }) {
           disabled={busy}
           onClick={() => onAction("force-signout")}
           title="Invalidate all of this user's active sessions on every device. They'll have to sign in again."
-          className="px-2 py-1 border border-purple-800 hover:border-purple-500 hover:text-purple-300 font-mono text-[10px] uppercase tracking-[0.18em] disabled:opacity-50"
+          className="px-2 py-1 border border-purple-800 hover:border-purple-500 hover:text-purple-700 font-mono text-[10px] uppercase tracking-[0.18em] disabled:opacity-50"
           data-testid={`user-signout-${u.user_id}`}
         >
           Force Signout
@@ -232,7 +232,7 @@ function UserRow({ user: u, busy, onAction }) {
             <button
               disabled={busy}
               onClick={() => onAction("freeze")}
-              className="px-2 py-1 border border-yellow-800 hover:border-yellow-500 hover:text-yellow-300 font-mono text-[10px] uppercase tracking-[0.18em] disabled:opacity-50"
+              className="px-2 py-1 border border-yellow-800 hover:border-yellow-500 hover:text-brand font-mono text-[10px] uppercase tracking-[0.18em] disabled:opacity-50"
               data-testid={`user-freeze-${u.user_id}`}
             >
               Freeze
@@ -240,7 +240,7 @@ function UserRow({ user: u, busy, onAction }) {
             <button
               disabled={busy}
               onClick={() => onAction("ban")}
-              className="px-2 py-1 border border-red-800 hover:border-red-500 hover:text-red-300 font-mono text-[10px] uppercase tracking-[0.18em] disabled:opacity-50"
+              className="px-2 py-1 border border-red-800 hover:border-red-500 hover:text-red-600 font-mono text-[10px] uppercase tracking-[0.18em] disabled:opacity-50"
               data-testid={`user-ban-${u.user_id}`}
             >
               Ban
@@ -251,7 +251,7 @@ function UserRow({ user: u, busy, onAction }) {
           <button
             disabled={busy}
             onClick={() => onAction("restore")}
-            className="px-2 py-1 border border-emerald-800 hover:border-emerald-500 hover:text-emerald-300 font-mono text-[10px] uppercase tracking-[0.18em] disabled:opacity-50"
+            className="px-2 py-1 border border-emerald-800 hover:border-emerald-500 hover:text-emerald-700 font-mono text-[10px] uppercase tracking-[0.18em] disabled:opacity-50"
             data-testid={`user-restore-${u.user_id}`}
           >
             Restore
@@ -261,7 +261,7 @@ function UserRow({ user: u, busy, onAction }) {
           <button
             disabled={busy}
             onClick={() => onAction("ban")}
-            className="px-2 py-1 border border-red-800 hover:border-red-500 hover:text-red-300 font-mono text-[10px] uppercase tracking-[0.18em] disabled:opacity-50"
+            className="px-2 py-1 border border-red-800 hover:border-red-500 hover:text-red-600 font-mono text-[10px] uppercase tracking-[0.18em] disabled:opacity-50"
             data-testid={`user-ban-${u.user_id}`}
           >
             Ban
@@ -270,7 +270,7 @@ function UserRow({ user: u, busy, onAction }) {
         <button
           disabled={busy}
           onClick={() => onAction("delete")}
-          className="px-2 py-1 border border-line hover:border-red-500 hover:text-red-300 font-mono text-[10px] uppercase tracking-[0.18em] disabled:opacity-50"
+          className="px-2 py-1 border border-line hover:border-red-500 hover:text-red-600 font-mono text-[10px] uppercase tracking-[0.18em] disabled:opacity-50"
           data-testid={`user-delete-${u.user_id}`}
         >
           Delete

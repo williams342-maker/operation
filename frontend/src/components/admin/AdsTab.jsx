@@ -20,8 +20,8 @@ import SitePromosCard from "./SitePromosCard";
 import AdCreativeWorkshopCard from "./AdCreativeWorkshopCard";
 
 const PLATFORM_TONE = {
-  google: "border-blue-700/50 text-blue-300",
-  meta: "border-purple-700/50 text-purple-300",
+  google: "border-blue-700/50 text-blue-700",
+  meta: "border-purple-700/50 text-purple-700",
 };
 
 export default function AdsTab() {
@@ -135,7 +135,7 @@ export default function AdsTab() {
           <button
             onClick={clearDemo}
             disabled={busy}
-            className="px-3 py-2 border border-red-900/60 text-red-300 hover:border-red-500 hover:text-red-200 font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50"
+            className="px-3 py-2 border border-red-900/60 text-red-600 hover:border-red-500 hover:text-red-600 font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50"
             data-testid="ads-clear-demo"
           >
             Clear demo

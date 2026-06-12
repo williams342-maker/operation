@@ -416,12 +416,12 @@ export default function AdminDashboard() {
             className="mb-8 border border-yellow-600/60 bg-yellow-600/10 px-4 md:px-5 py-3 flex flex-col md:flex-row md:items-center gap-3 md:gap-4"
             data-testid="password-expiry-banner"
           >
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-yellow-400 shrink-0">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand shrink-0">
               ◆ Security
             </div>
             <div className="flex-1 font-mono text-xs text-ink leading-relaxed">
               Your password expires in{" "}
-              <b className="text-yellow-300" data-testid="password-expiry-days">
+              <b className="text-brand" data-testid="password-expiry-days">
                 {me.password_rotation.days_until_required}{" "}
                 {me.password_rotation.days_until_required === 1 ? "day" : "days"}
               </b>

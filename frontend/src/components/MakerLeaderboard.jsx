@@ -17,11 +17,11 @@ import { Trophy, Star, Sparkles, ShoppingBag, TrendingUp } from "lucide-react";
 import { fetchMakerLeaderboard } from "../lib/api";
 
 const BADGE_TONE = {
-  "Top Seller":         { c: "border-amber-400/60 text-amber-300 bg-amber-400/5",  icon: Trophy },
-  "Reviewer Favorite":  { c: "border-yellow-400/60 text-yellow-300 bg-yellow-400/5", icon: Star },
-  "Rising":             { c: "border-emerald-400/60 text-emerald-300 bg-emerald-400/5", icon: TrendingUp },
-  "On the Rise":        { c: "border-emerald-400/60 text-emerald-300 bg-emerald-400/5", icon: TrendingUp },
-  "Workshop Hero":      { c: "border-cyan-400/60 text-cyan-300 bg-cyan-400/5", icon: Sparkles },
+  "Top Seller":         { c: "border-amber-400/60 text-brand bg-amber-400/5",  icon: Trophy },
+  "Reviewer Favorite":  { c: "border-yellow-400/60 text-brand bg-yellow-400/5", icon: Star },
+  "Rising":             { c: "border-emerald-400/60 text-emerald-700 bg-emerald-400/5", icon: TrendingUp },
+  "On the Rise":        { c: "border-emerald-400/60 text-emerald-700 bg-emerald-400/5", icon: TrendingUp },
+  "Workshop Hero":      { c: "border-cyan-400/60 text-brand bg-cyan-400/5", icon: Sparkles },
   "New":                { c: "border-line text-ink-muted bg-surface/30", icon: Sparkles },
 };
 
@@ -75,7 +75,7 @@ export default function MakerLeaderboard() {
     >
       <div className="flex items-baseline justify-between flex-wrap gap-3 mb-5">
         <div>
-          <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-amber-300 mb-1 flex items-center gap-1.5">
+          <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand mb-1 flex items-center gap-1.5">
             <Trophy size={11} /> ◆ Workshop Leaderboard · Last {data.window_days || 30} days
           </div>
           <h2 className="font-display text-2xl md:text-3xl uppercase">Top makers · climbing the bench</h2>
@@ -97,10 +97,10 @@ export default function MakerLeaderboard() {
             <div className="absolute top-3 right-3 font-display text-3xl">
               {MEDAL_BY_RANK[m.rank]}
             </div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-amber-300 mb-2">
+            <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand mb-2">
               Rank · #{m.rank}
             </div>
-            <div className="font-display text-xl md:text-2xl text-ink group-hover:text-amber-200 transition leading-tight pr-10 mb-2">
+            <div className="font-display text-xl md:text-2xl text-ink group-hover:text-ink transition leading-tight pr-10 mb-2">
               {m.name}
             </div>
             <div className="mb-3">
@@ -120,7 +120,7 @@ export default function MakerLeaderboard() {
                 <div className="text-ink-muted uppercase tracking-[0.18em] text-[9px]">Reviews</div>
               </div>
             </div>
-            <div className="mt-3 font-mono text-[9px] uppercase tracking-[0.22em] text-amber-300/70 flex items-center gap-1">
+            <div className="mt-3 font-mono text-[9px] uppercase tracking-[0.22em] text-brand flex items-center gap-1">
               <Sparkles size={9} /> Score {m.score.toLocaleString()}
             </div>
           </Link>
@@ -141,7 +141,7 @@ export default function MakerLeaderboard() {
               data-testid={`leaderboard-row-${m.slug}`}
             >
               <div className="flex items-baseline justify-between mb-1">
-                <span className="font-mono text-[10px] text-amber-300/80">#{m.rank}</span>
+                <span className="font-mono text-[10px] text-brand">#{m.rank}</span>
                 <span className="font-mono text-[9px] text-ink-muted tabular-nums">{m.score.toLocaleString()}</span>
               </div>
               <div className="font-display text-sm text-ink truncate leading-tight">{m.name}</div>

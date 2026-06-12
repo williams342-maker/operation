@@ -126,8 +126,8 @@ export default function MetaAdsConnectionCard() {
       ? { label: "Not connected", tone: "amber", Icon: AlertCircle }
       : { label: "Not configured", tone: "neutral", Icon: AlertCircle };
   const toneCls = {
-    emerald: "border-emerald-700/50 text-emerald-300 bg-emerald-900/10",
-    amber: "border-amber-700/50 text-amber-300 bg-amber-900/10",
+    emerald: "border-emerald-700/50 text-emerald-700 bg-emerald-900/10",
+    amber: "border-amber-700/50 text-brand bg-amber-900/10",
     neutral: "border-line text-ink-muted bg-paper",
   }[pill.tone];
 
@@ -152,13 +152,13 @@ export default function MetaAdsConnectionCard() {
 
       {!status.config_ready && (
         <div className="mt-4 border border-amber-900/60 bg-amber-950/20 p-3" data-testid="meta-ads-missing-env">
-          <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-amber-300 mb-2">
+          <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-brand mb-2">
             ⚠ Env vars required before connecting
           </p>
-          <p className="font-mono text-[11px] text-amber-100 leading-relaxed mb-2">
+          <p className="font-mono text-[11px] text-ink leading-relaxed mb-2">
             Add to <code className="text-[#1877f2]">/app/backend/.env</code>:
           </p>
-          <ul className="font-mono text-[10px] text-amber-200/90 space-y-0.5">
+          <ul className="font-mono text-[10px] text-ink-muted space-y-0.5">
             {(status.missing_env || []).map((k) => (<li key={k}>· <code>{k}</code></li>))}
           </ul>
         </div>
@@ -188,7 +188,7 @@ export default function MetaAdsConnectionCard() {
       )}
 
       {status.connected && status.last_sync_error && (
-        <div className="mt-3 border border-red-900/60 bg-red-950/20 p-3 font-mono text-[10px] text-red-300" data-testid="meta-ads-last-error">
+        <div className="mt-3 border border-red-900/60 bg-red-950/20 p-3 font-mono text-[10px] text-red-600" data-testid="meta-ads-last-error">
           ⚠ Last sync error: {status.last_sync_error}
         </div>
       )}
@@ -209,7 +209,7 @@ export default function MetaAdsConnectionCard() {
             Backfill 30 days
           </button>
           <button onClick={onDisconnect} disabled={busy === "disconnect"}
-            className="px-3 py-2 border border-red-900/60 text-red-300 hover:border-red-500 hover:text-red-200 font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50 flex items-center gap-1.5"
+            className="px-3 py-2 border border-red-900/60 text-red-600 hover:border-red-500 hover:text-red-600 font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50 flex items-center gap-1.5"
             data-testid="meta-ads-disconnect-btn">
             <Unplug size={11} /> Disconnect
           </button>

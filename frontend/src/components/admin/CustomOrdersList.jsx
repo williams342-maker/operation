@@ -66,10 +66,10 @@ function FunnelCard({ funnel }) {
         </div>
         <div className="flex gap-3 font-mono text-[10px] uppercase tracking-[0.22em]">
           <span className="text-ink-muted">
-            Win-rate <b className="text-yellow-400">{pct(funnel.win_rate)}</b>
+            Win-rate <b className="text-brand">{pct(funnel.win_rate)}</b>
           </span>
           <span className="text-ink-muted">
-            Reddit-rate <b className="text-orange-400">{pct(funnel.reddit_post_rate)}</b>
+            Reddit-rate <b className="text-brand">{pct(funnel.reddit_post_rate)}</b>
           </span>
         </div>
       </div>
@@ -94,7 +94,7 @@ function FunnelCard({ funnel }) {
                 {funnel.by_subreddit.slice(0, 5).map((r) => (
                   <li key={r.subreddit} className="flex justify-between gap-3">
                     <span>r/{r.subreddit}</span>
-                    <span className="text-ink-muted">{r.posted} posted · {r.won} won · <b className="text-yellow-400">{pct(r.win_rate)}</b></span>
+                    <span className="text-ink-muted">{r.posted} posted · {r.won} won · <b className="text-brand">{pct(r.win_rate)}</b></span>
                   </li>
                 ))}
               </ul>
@@ -109,7 +109,7 @@ function FunnelCard({ funnel }) {
                 {funnel.by_maker.slice(0, 5).map((r) => (
                   <li key={r.maker_slug} className="flex justify-between gap-3">
                     <span>{r.maker_slug}</span>
-                    <span className="text-ink-muted">{r.routed} routed · {r.won} won · <b className="text-yellow-400">{pct(r.win_rate)}</b></span>
+                    <span className="text-ink-muted">{r.routed} routed · {r.won} won · <b className="text-brand">{pct(r.win_rate)}</b></span>
                   </li>
                 ))}
               </ul>
@@ -214,10 +214,10 @@ function CustomOrderRow({ order, makers, reddit, onChange }) {
   let statusColor = "text-brand";
   if (order.status === "quoted") {
     statusLabel = `Quoted · $${order.quote}`;
-    statusColor = "text-emerald-400";
+    statusColor = "text-emerald-700";
   } else if (isAssigned) {
     statusLabel = `Assigned → ${order.assigned_maker_name || order.assigned_maker_slug}`;
-    statusColor = "text-cyan-400";
+    statusColor = "text-brand";
   }
 
   return (
@@ -264,7 +264,7 @@ function CustomOrderRow({ order, makers, reddit, onChange }) {
             <a
               href={order.reddit_post_url || "#"}
               target="_blank" rel="noopener noreferrer"
-              className="font-mono text-[10px] uppercase tracking-[0.22em] px-2 py-1 border border-orange-500/50 text-orange-400 hover:bg-orange-500/10"
+              className="font-mono text-[10px] uppercase tracking-[0.22em] px-2 py-1 border border-orange-500/50 text-brand hover:bg-orange-500/10"
               data-testid={`brief-reddit-link-${order.id}`}
             >
               ↗ r/{order.reddit_subreddit}
@@ -316,7 +316,7 @@ function CustomOrderRow({ order, makers, reddit, onChange }) {
         </div>
         {suggestions.length > 0 && !order.assigned_maker_slug && (
           <div className="mb-3 pb-3 border-b border-line" data-testid={`brief-suggestions-${order.id}`}>
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-yellow-400 mb-2 flex items-center justify-between gap-2">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-2 flex items-center justify-between gap-2">
               <span>✨ Suggested matches</span>
               <button
                 type="button"
@@ -341,7 +341,7 @@ function CustomOrderRow({ order, makers, reddit, onChange }) {
                   } finally { setBusy(""); }
                 }}
                 disabled={busy === "autoroute"}
-                className="px-2.5 py-1 border border-yellow-400/60 text-yellow-400 hover:bg-yellow-400/10 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+                className="px-2.5 py-1 border border-yellow-400/60 text-brand hover:bg-yellow-400/10 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
                 data-testid={`brief-autoroute-${order.id}`}
                 title={`One-click route to ${suggestions[0].name} (top match: ${suggestions[0].reason})`}
               >
@@ -363,7 +363,7 @@ function CustomOrderRow({ order, makers, reddit, onChange }) {
                   title={s.reason}
                 >
                   <div className="text-ink">
-                    {i === 0 && <span className="text-yellow-400 mr-1">★</span>}
+                    {i === 0 && <span className="text-brand mr-1">★</span>}
                     {s.name}
                   </div>
                   <div className="text-[10px] text-ink-muted mt-0.5">{s.reason}</div>
@@ -421,7 +421,7 @@ function CustomOrderRow({ order, makers, reddit, onChange }) {
       {/* ───── Step 3: Push to Reddit ───── */}
       <div className="mt-5 pt-5 border-t border-line" data-testid={`brief-reddit-section-${order.id}`}>
         <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-3">
-          Step 3 · Broadcast on Reddit {isOnReddit && <span className="text-emerald-400 ml-2">✓ posted</span>}
+          Step 3 · Broadcast on Reddit {isOnReddit && <span className="text-emerald-700 ml-2">✓ posted</span>}
         </div>
         {!reddit.can_post ? (
           <p className="font-mono text-[11px] text-ink-muted" data-testid={`brief-reddit-disabled-${order.id}`}>

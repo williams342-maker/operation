@@ -182,8 +182,8 @@ export default function ListingTypeSection({ form, set, productSlug, api }) {
 
           {needsSave && (
             <div className="flex items-start gap-2 p-3 border border-amber-500/40 bg-amber-500/[0.08] mb-3">
-              <AlertCircle size={14} className="text-amber-400 shrink-0 mt-0.5" />
-              <div className="font-mono text-[10.5px] text-amber-200 leading-relaxed">
+              <AlertCircle size={14} className="text-brand shrink-0 mt-0.5" />
+              <div className="font-mono text-[10.5px] text-ink leading-relaxed">
                 Save this listing as draft first — then come back to upload files.
               </div>
             </div>

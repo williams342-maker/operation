@@ -392,7 +392,7 @@ function Step4FirstAction({ path, completed, onMark, onNext, onBack }) {
                 data-testid={`welcome-action-${it.key}`}
               >
                 <span className={`flex-shrink-0 h-8 w-8 border-2 ${
-                  done ? "border-emerald-500 bg-emerald-500/10 text-emerald-400" : "border-line text-ink-muted"
+                  done ? "border-emerald-500 bg-emerald-500/10 text-emerald-700" : "border-line text-ink-muted"
                 } flex items-center justify-center font-mono text-xs`}>
                   {done ? <Check size={14} /> : i + 1}
                 </span>
@@ -533,7 +533,7 @@ function MakerPayoutsPrompt() {
         className="mb-6 p-4 border border-emerald-500/60 bg-emerald-500/5 flex items-center gap-3"
         data-testid="welcome-stripe-prompt"
       >
-        <CreditCard size={18} className="text-emerald-400 flex-shrink-0" />
+        <CreditCard size={18} className="text-emerald-700 flex-shrink-0" />
         <div className="flex-1">
           <div className="font-display text-base">Payouts ready ✓</div>
           <p className="font-mono text-[11px] text-ink-muted mt-0.5">

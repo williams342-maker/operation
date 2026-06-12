@@ -20,9 +20,9 @@ import {
 } from "../../lib/api";
 
 const STATUS_TONE = {
-  active:    "border-emerald-700/50 text-emerald-300",
-  scheduled: "border-cyan-700/50 text-cyan-300",
-  paused:    "border-amber-700/50 text-amber-300",
+  active:    "border-emerald-700/50 text-emerald-700",
+  scheduled: "border-cyan-700/50 text-brand",
+  paused:    "border-amber-700/50 text-brand",
   ended:     "border-line text-ink-muted",
 };
 
@@ -102,7 +102,7 @@ export default function PromoteThemesCard() {
     <div className="border border-line p-4 md:p-5" data-testid="promote-themes-card">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-cyan-300 mb-2 flex items-center gap-1.5">
+          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-2 flex items-center gap-1.5">
             <Sparkles size={12} /> ◆ Marketplace Themes
           </div>
           <h3 className="font-display text-2xl uppercase mb-1">Cross-maker Promote Campaigns</h3>
@@ -114,7 +114,7 @@ export default function PromoteThemesCard() {
           <button
             onClick={onSuggest}
             disabled={suggestLoading}
-            className="px-3 py-2 border border-amber-700/50 hover:border-amber-400 text-amber-300 font-mono text-[10px] uppercase tracking-[0.22em] flex items-center gap-1.5 disabled:opacity-50"
+            className="px-3 py-2 border border-amber-700/50 hover:border-amber-400 text-brand font-mono text-[10px] uppercase tracking-[0.22em] flex items-center gap-1.5 disabled:opacity-50"
             data-testid="promote-themes-suggest"
           >
             {suggestLoading
@@ -123,7 +123,7 @@ export default function PromoteThemesCard() {
           </button>
           <button
             onClick={() => { setShowForm((v) => !v); if (showForm) setFormSeed(null); }}
-            className="px-3 py-2 border border-cyan-700/50 hover:border-cyan-400 text-cyan-300 font-mono text-[10px] uppercase tracking-[0.22em] flex items-center gap-1.5"
+            className="px-3 py-2 border border-cyan-700/50 hover:border-cyan-400 text-brand font-mono text-[10px] uppercase tracking-[0.22em] flex items-center gap-1.5"
             data-testid="promote-themes-new"
           >
             {showForm ? <X size={11} /> : <Plus size={11} />}
@@ -139,7 +139,7 @@ export default function PromoteThemesCard() {
           data-testid="promote-themes-suggestions"
         >
           <div className="flex items-center justify-between mb-2">
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-amber-300 flex items-center gap-1.5">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand flex items-center gap-1.5">
               <TrendingUp size={11} /> Trending tags · last 7 days
             </div>
             <button
@@ -158,14 +158,14 @@ export default function PromoteThemesCard() {
                 className="border border-amber-700/30 bg-paper p-3"
                 data-testid={`promote-theme-suggestion-${s.tag}`}
               >
-                <div className="font-display text-base text-amber-200 truncate">{s.draft.name}</div>
+                <div className="font-display text-base text-ink truncate">{s.draft.name}</div>
                 <div className="font-mono text-[10px] text-ink-muted mt-1">
-                  <span className="text-amber-300">+{s.growth_pct}%</span>
+                  <span className="text-brand">+{s.growth_pct}%</span>
                   {" · "}{s.recent_orders} orders · {s.distinct_makers} makers
                 </div>
                 <button
                   onClick={() => applySuggestion(s)}
-                  className="mt-2 w-full px-2 py-1 border border-amber-700/50 hover:border-amber-400 hover:bg-amber-950/30 text-amber-300 font-mono text-[9px] uppercase tracking-[0.22em] flex items-center justify-center gap-1.5"
+                  className="mt-2 w-full px-2 py-1 border border-amber-700/50 hover:border-amber-400 hover:bg-amber-950/30 text-brand font-mono text-[9px] uppercase tracking-[0.22em] flex items-center justify-center gap-1.5"
                   data-testid={`promote-theme-suggestion-use-${s.tag}`}
                 >
                   <Sparkles size={10} /> Use this draft
@@ -218,7 +218,7 @@ export default function PromoteThemesCard() {
                     {(t.category_filter || []).length > 0 && (
                       <div className="mt-1 flex flex-wrap gap-1">
                         {t.category_filter.map((c) => (
-                          <span key={c} className="font-mono text-[9px] uppercase tracking-[0.18em] text-cyan-300 border border-cyan-700/30 px-1.5 py-0.5">
+                          <span key={c} className="font-mono text-[9px] uppercase tracking-[0.18em] text-brand border border-cyan-700/30 px-1.5 py-0.5">
                             {c}
                           </span>
                         ))}
@@ -233,7 +233,7 @@ export default function PromoteThemesCard() {
                       <button
                         onClick={() => onStatus(t.theme_id, "active")}
                         disabled={busy === `${t.theme_id}:active`}
-                        className="px-2 py-1 border border-emerald-700/50 hover:border-emerald-400 text-emerald-300 font-mono text-[9px] uppercase tracking-[0.22em] flex items-center gap-1 disabled:opacity-50"
+                        className="px-2 py-1 border border-emerald-700/50 hover:border-emerald-400 text-emerald-700 font-mono text-[9px] uppercase tracking-[0.22em] flex items-center gap-1 disabled:opacity-50"
                         data-testid={`promote-theme-activate-${t.slug}`}
                       >
                         <Play size={10} /> Activate
@@ -243,7 +243,7 @@ export default function PromoteThemesCard() {
                       <button
                         onClick={() => onStatus(t.theme_id, "paused")}
                         disabled={busy === `${t.theme_id}:paused`}
-                        className="px-2 py-1 border border-amber-700/50 hover:border-amber-400 text-amber-300 font-mono text-[9px] uppercase tracking-[0.22em] flex items-center gap-1 disabled:opacity-50"
+                        className="px-2 py-1 border border-amber-700/50 hover:border-amber-400 text-brand font-mono text-[9px] uppercase tracking-[0.22em] flex items-center gap-1 disabled:opacity-50"
                         data-testid={`promote-theme-pause-${t.slug}`}
                       >
                         <Pause size={10} /> Pause
@@ -253,7 +253,7 @@ export default function PromoteThemesCard() {
                       <button
                         onClick={() => onStatus(t.theme_id, "ended")}
                         disabled={busy === `${t.theme_id}:ended`}
-                        className="px-2 py-1 border border-line hover:border-red-500 hover:text-red-300 text-ink-muted font-mono text-[9px] uppercase tracking-[0.22em] flex items-center gap-1 disabled:opacity-50"
+                        className="px-2 py-1 border border-line hover:border-red-500 hover:text-red-600 text-ink-muted font-mono text-[9px] uppercase tracking-[0.22em] flex items-center gap-1 disabled:opacity-50"
                         data-testid={`promote-theme-end-${t.slug}`}
                       >
                         <Square size={10} /> End

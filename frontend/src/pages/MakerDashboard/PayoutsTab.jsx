@@ -115,7 +115,7 @@ export default function PayoutsTab() {
           <>
             <div className="flex items-center gap-3 mb-3">
               <span className="inline-block w-2 h-2 rounded-full bg-emerald-400" />
-              <span className="font-mono text-xs uppercase tracking-[0.22em] text-emerald-400">
+              <span className="font-mono text-xs uppercase tracking-[0.22em] text-emerald-700">
                 Connected · payouts active
               </span>
             </div>
@@ -136,7 +136,7 @@ export default function PayoutsTab() {
           <>
             <div className="flex items-center gap-3 mb-3">
               <span className="inline-block w-2 h-2 rounded-full bg-yellow-400" />
-              <span className="font-mono text-xs uppercase tracking-[0.22em] text-yellow-400">
+              <span className="font-mono text-xs uppercase tracking-[0.22em] text-brand">
                 Onboarding incomplete
               </span>
             </div>

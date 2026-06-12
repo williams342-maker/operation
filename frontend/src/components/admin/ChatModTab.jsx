@@ -178,14 +178,14 @@ export default function ChatModTab() {
                 <div className="flex flex-wrap gap-2 self-start justify-end">
                   <button
                     onClick={() => onDelete(m.id)}
-                    className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.22em] text-red-400 hover:text-red-300"
+                    className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.22em] text-red-400 hover:text-red-600"
                     data-testid={`chatmod-delete-${m.id}`}
                   >
                     <Trash2 size={12} /> Delete
                   </button>
                   <button
                     onClick={() => quickMute(m.user_email, m.channel || channel, 60, "from message")}
-                    className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.22em] text-amber-400 hover:text-amber-300"
+                    className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.22em] text-brand hover:text-brand"
                     data-testid={`chatmod-mute-${m.id}`}
                   >
                     <MicOff size={12} /> Mute 1h
@@ -277,7 +277,7 @@ export default function ChatModTab() {
                 </div>
                 <button
                   onClick={() => onUnmute(m.user_email, m.channel)}
-                  className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-400 hover:text-emerald-300 text-right"
+                  className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-700 hover:text-emerald-700 text-right"
                   data-testid={`chatmod-unmute-${m.user_email}-${m.channel}`}
                 >
                   ✓ Unmute

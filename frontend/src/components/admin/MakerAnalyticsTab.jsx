@@ -71,9 +71,9 @@ export default function MakerAnalyticsTab() {
             <div className="mt-4 flex flex-wrap gap-3 items-center">
               <span className={`font-mono text-[10px] uppercase tracking-[0.22em] px-2 py-1 border ${
                 data.maker.stripe_payouts_enabled
-                  ? "border-emerald-400 text-emerald-400"
+                  ? "border-emerald-400 text-emerald-700"
                   : data.maker.stripe_account_id
-                    ? "border-yellow-400 text-yellow-400"
+                    ? "border-yellow-400 text-brand"
                     : "border-line text-ink-muted"
               }`} data-testid="maker-an-stripe-status">
                 {data.maker.stripe_payouts_enabled

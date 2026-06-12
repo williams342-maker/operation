@@ -274,11 +274,11 @@ export default function ShippingLedgerTab() {
             <span className="text-right">${((r.billed_cents || 0) / 100).toFixed(2)}</span>
             <span>
               {r.billed_at ? (
-                <span className="px-1.5 py-0.5 border border-emerald-400/40 text-emerald-400 text-[9px] uppercase tracking-[0.18em]">
+                <span className="px-1.5 py-0.5 border border-emerald-400/40 text-emerald-700 text-[9px] uppercase tracking-[0.18em]">
                   Billed
                 </span>
               ) : (
-                <span className="px-1.5 py-0.5 border border-yellow-400/40 text-yellow-400 text-[9px] uppercase tracking-[0.18em]">
+                <span className="px-1.5 py-0.5 border border-yellow-400/40 text-brand text-[9px] uppercase tracking-[0.18em]">
                   Unbilled
                 </span>
               )}

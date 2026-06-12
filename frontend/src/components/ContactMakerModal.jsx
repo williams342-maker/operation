@@ -85,10 +85,10 @@ export default function ContactMakerModal({ maker, productSlug = null, prefillBo
         {sent ? (
           <div className="p-8 text-center" data-testid="contact-modal-success">
             <div className="border border-emerald-700 bg-emerald-900/20 px-5 py-4 inline-block mx-auto">
-              <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-emerald-300 mb-1">
+              <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-emerald-700 mb-1">
                 ✓ Message delivered
               </div>
-              <p className="font-mono text-xs text-emerald-200">
+              <p className="font-mono text-xs text-emerald-700">
                 {maker?.name} was notified by email. Replies arrive at <strong>{email}</strong>.
               </p>
             </div>

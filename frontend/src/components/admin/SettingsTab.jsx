@@ -359,14 +359,14 @@ function CommunityDesignsSeedCard() {
       className="border border-amber-900/60 bg-amber-950/15 p-4 md:p-5"
       data-testid="community-designs-seed-card"
     >
-      <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-amber-400 mb-2">
+      <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-2">
         ◆ Community design library seed
       </div>
       <div className="font-display text-lg uppercase">Workshop Team design files</div>
       <p className="font-mono text-xs text-ink-muted leading-relaxed mt-1 mb-3">
         10 AI-generated, royalty-free CNC / laser / plasma design bundles (SVG + DXF + JPG preview)
-        attributed to <span className="text-amber-300">"Crafters Market Workshop Team"</span>.
-        Source files ship with the frontend deploy under <code className="text-emerald-300">/seed-designs/</code> —
+        attributed to <span className="text-brand">"Crafters Market Workshop Team"</span>.
+        Source files ship with the frontend deploy under <code className="text-emerald-700">/seed-designs/</code> —
         this card just writes the Mongo rows. Organic uploads are untouched (no <code>is_seed</code> flag).
       </p>
 
@@ -377,15 +377,15 @@ function CommunityDesignsSeedCard() {
         >
           <div className="border border-line px-2 py-1.5">
             <div className="text-ink-muted uppercase tracking-[0.2em] text-[9px]">Seeded</div>
-            <div className="text-amber-300 text-base">{status.seeded_designs}</div>
+            <div className="text-brand text-base">{status.seeded_designs}</div>
           </div>
           <div className="border border-line px-2 py-1.5">
             <div className="text-ink-muted uppercase tracking-[0.2em] text-[9px]">All design files</div>
-            <div className="text-amber-300 text-base">{status.total_designs}</div>
+            <div className="text-brand text-base">{status.total_designs}</div>
           </div>
           <div className={`border px-2 py-1.5 ${status.orphan_seeds > 0 ? "border-red-700/60 bg-red-950/15" : "border-line"}`}>
             <div className={`uppercase tracking-[0.2em] text-[9px] ${status.orphan_seeds > 0 ? "text-red-400" : "text-ink-muted"}`}>Orphans</div>
-            <div className={`text-base ${status.orphan_seeds > 0 ? "text-red-300" : "text-amber-300"}`}>{status.orphan_seeds ?? 0}</div>
+            <div className={`text-base ${status.orphan_seeds > 0 ? "text-red-600" : "text-brand"}`}>{status.orphan_seeds ?? 0}</div>
           </div>
         </div>
       )}
@@ -395,10 +395,10 @@ function CommunityDesignsSeedCard() {
           className="border border-red-900/60 bg-red-950/20 p-3 mb-4"
           data-testid="community-designs-orphan-warning"
         >
-          <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-red-300 mb-1">
+          <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-red-600 mb-1">
             ◆ {status.orphan_seeds} orphan design{status.orphan_seeds === 1 ? "" : "s"} detected
           </div>
-          <p className="font-mono text-[11px] text-red-200/80 leading-relaxed mb-3">
+          <p className="font-mono text-[11px] text-red-600 leading-relaxed mb-3">
             These seed rows point to <code>/seed-designs/…</code> preview files that never made it into the
             deploy artifact — they render as broken-image cards on the public Design Files tab. Safe to clear;
             preserves any working seeds.
@@ -406,7 +406,7 @@ function CommunityDesignsSeedCard() {
           <button
             onClick={runOrphanPurge}
             disabled={orphanBusy}
-            className="px-3 py-1.5 border border-red-600 bg-red-900/30 text-red-100 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
+            className="px-3 py-1.5 border border-red-600 bg-red-900/30 text-red-600 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
             data-testid="purge-orphan-designs-btn"
           >
             {orphanBusy ? "Clearing…" : `Clear ${status.orphan_seeds} orphan${status.orphan_seeds === 1 ? "" : "s"}`}
@@ -419,7 +419,7 @@ function CommunityDesignsSeedCard() {
           times. Rows whose local files are gone get hidden via
           file_verified=false (handled by the backend). */}
       <div className="mb-4 pb-4 border-b border-cyan-900/40">
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-cyan-300 mb-1">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-1">
           ◆ Migrate seed designs to R2 (one-click · idempotent)
         </div>
         <p className="font-mono text-[11px] text-ink-muted mb-2 leading-relaxed max-w-2xl">
@@ -430,7 +430,7 @@ function CommunityDesignsSeedCard() {
         <button
           onClick={runR2Migrate}
           disabled={migrateBusy}
-          className="px-3 py-1.5 border border-cyan-600 text-cyan-300 hover:bg-cyan-900/30 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
+          className="px-3 py-1.5 border border-cyan-600 text-brand hover:bg-cyan-900/30 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
           data-testid="migrate-designs-r2-btn"
         >
           {migrateBusy ? "Uploading…" : "↑ Migrate seed designs to R2"}
@@ -438,25 +438,25 @@ function CommunityDesignsSeedCard() {
       </div>
 
       <div className="mb-4 pb-4 border-b border-amber-900/40">
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-300 mb-1">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-700 mb-1">
           ◆ Install community design seed (one-click · idempotent)
         </div>
         <p className="font-mono text-[11px] text-ink-muted mb-2 leading-relaxed max-w-2xl">
-          Populates the <code className="text-emerald-300">design_files</code> collection with the
+          Populates the <code className="text-emerald-700">design_files</code> collection with the
           curated 10-design Workshop Team library committed to the repo. Existing download counts
           are preserved on re-install. Use after fresh deploys.
         </p>
         <button
           onClick={runInstall}
           disabled={installBusy}
-          className="px-3 py-1.5 border border-emerald-600 text-emerald-300 hover:bg-emerald-900/30 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
+          className="px-3 py-1.5 border border-emerald-600 text-emerald-700 hover:bg-emerald-900/30 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
           data-testid="install-community-designs-seed-btn"
         >
           {installBusy ? "Installing…" : "Install community design seed"}
         </button>
         {installResult?.ok && (
           <div
-            className="mt-2 font-mono text-[11px] text-emerald-300"
+            className="mt-2 font-mono text-[11px] text-emerald-700"
             data-testid="install-community-designs-seed-result"
           >
             ◆ Installed {installResult.installed} designs · total seeded now: {installResult.totals_now.seeded_designs}
@@ -471,19 +471,19 @@ function CommunityDesignsSeedCard() {
           SVG + DXF + Nano Banana preview. Hit it whenever the library
           needs more variety. */}
       <div className="mb-4 pb-4 border-b border-amber-900/40">
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-amber-300 mb-1">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-1">
           ◇ AI fresh design · Run now
         </div>
         <p className="font-mono text-[11px] text-ink-muted mb-2 leading-relaxed max-w-2xl">
-          Adds <span className="text-amber-300">1 new design file</span> picked from the parametric
+          Adds <span className="text-brand">1 new design file</span> picked from the parametric
           template bank (Welcome arch, Family EST plaque, Garage sign, Heart quote, Star ornament).
-          Gemini Flash picks copy + theme, then we generate real <code className="text-emerald-300">SVG + DXF</code> and a
+          Gemini Flash picks copy + theme, then we generate real <code className="text-emerald-700">SVG + DXF</code> and a
           Nano-Banana lifestyle preview JPG. Takes ~15–25s.
         </p>
         <button
           onClick={runGenerate}
           disabled={genBusy || batchBusy}
-          className="px-3 py-1.5 border border-amber-700 text-amber-200 hover:bg-amber-900/30 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
+          className="px-3 py-1.5 border border-amber-700 text-ink hover:bg-amber-900/30 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
           data-testid="generate-one-community-design-btn"
         >
           {genBusy ? "Generating…" : "Generate fresh design file"}
@@ -491,19 +491,19 @@ function CommunityDesignsSeedCard() {
         <button
           onClick={runBatch}
           disabled={genBusy || batchBusy}
-          className="ml-2 px-3 py-1.5 border border-amber-700 text-amber-200 hover:bg-amber-900/30 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
+          className="ml-2 px-3 py-1.5 border border-amber-700 text-ink hover:bg-amber-900/30 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
           data-testid="generate-batch-community-designs-btn"
           title="Generate 5 designs back-to-back (round-robin across templates). Takes 60-120s."
         >
           {batchBusy ? "Generating 5…" : "Generate 5 at once"}
         </button>
         <p className="font-mono text-[10px] text-ink-muted mt-2 leading-relaxed max-w-2xl">
-          ◇ Cron <code className="text-emerald-300">daily_design_file</code> adds 1 fresh design every day at
+          ◇ Cron <code className="text-emerald-700">daily_design_file</code> adds 1 fresh design every day at
           08:00 UTC (toggle via <code>SCHEDULER_DAILY_DESIGNS</code> env). The buttons above are for on-demand top-ups.
         </p>
         {genResult?.status === "ok" && (
           <div
-            className="mt-2 font-mono text-[11px] text-emerald-300"
+            className="mt-2 font-mono text-[11px] text-emerald-700"
             data-testid="generate-one-community-design-result"
           >
             ◆ &quot;{genResult.design.title}&quot; · template: {genResult.design.template_id} · slug: {genResult.design.slug}
@@ -514,7 +514,7 @@ function CommunityDesignsSeedCard() {
         )}
         {batchResult && (
           <div
-            className="mt-2 font-mono text-[11px] text-emerald-300"
+            className="mt-2 font-mono text-[11px] text-emerald-700"
             data-testid="generate-batch-community-designs-result"
           >
             ◆ Batch: {batchResult.succeeded}/{batchResult.requested} succeeded
@@ -530,7 +530,7 @@ function CommunityDesignsSeedCard() {
 
       {purgeResult && (
         <p
-          className="font-mono text-xs text-emerald-300 mb-3"
+          className="font-mono text-xs text-emerald-700 mb-3"
           data-testid="purge-community-designs-result"
         >
           ◆ Deleted {purgeResult.deleted} seeded designs.
@@ -541,7 +541,7 @@ function CommunityDesignsSeedCard() {
         <button
           onClick={() => setPurgeStep(1)}
           disabled={seeded === 0}
-          className="px-4 py-2 border border-amber-700 text-amber-300 hover:bg-amber-900/30 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-40 disabled:cursor-not-allowed"
+          className="px-4 py-2 border border-amber-700 text-brand hover:bg-amber-900/30 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-40 disabled:cursor-not-allowed"
           data-testid="purge-community-designs-btn"
         >
           {seeded === 0 ? "Nothing to purge" : `Purge ${seeded} seeded design${seeded === 1 ? "" : "s"}`}
@@ -551,7 +551,7 @@ function CommunityDesignsSeedCard() {
         <div className="flex flex-wrap gap-2">
           <button
             onClick={() => setPurgeStep(2)}
-            className="px-4 py-2 border border-amber-700 bg-amber-900/30 text-amber-200 font-mono text-[11px] uppercase tracking-[0.22em]"
+            className="px-4 py-2 border border-amber-700 bg-amber-900/30 text-ink font-mono text-[11px] uppercase tracking-[0.22em]"
             data-testid="purge-community-designs-confirm-1"
           >
             I understand · continue
@@ -569,7 +569,7 @@ function CommunityDesignsSeedCard() {
           <button
             onClick={runPurge}
             disabled={purgeBusy}
-            className="px-4 py-2 border border-red-600 bg-red-900/30 text-red-200 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
+            className="px-4 py-2 border border-red-600 bg-red-900/30 text-red-600 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
             data-testid="purge-community-designs-confirm-2"
           >
             {purgeBusy ? "Purging…" : `Yes — hard-delete ${seeded}`}
@@ -731,17 +731,17 @@ function ClipsSeedCard() {
       className="border border-purple-900/60 bg-purple-950/15 p-4 md:p-5"
       data-testid="clips-seed-card"
     >
-      <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-purple-400 mb-2">
+      <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-purple-700 mb-2">
         ◆ Workshop Clip Feed seed (Sora 2)
       </div>
       <div className="font-display text-lg uppercase">Short-form video seed</div>
       <p className="font-mono text-xs text-ink-muted leading-relaxed mt-1 mb-3">
         Generates one Sora-2 rendered vertical clip (9:16, 8s) per click, picked from the least-used
-        (category × prompt) combo across <strong className="text-purple-300">16 craft categories</strong>{" "}
+        (category × prompt) combo across <strong className="text-purple-700">16 craft categories</strong>{" "}
         (workshop, cuts, welding, powder-coat, engraving, before-after, textiles, pottery, jewelry,
         leather, candles-soap, glass, knife-making, paper, resin, florals).
-        Files land in <code className="text-emerald-300">/seed-clips/&lt;slug&gt;/</code>{" "}
-        and are attributed to the <span className="text-purple-300">Workshop Team</span>.
+        Files land in <code className="text-emerald-700">/seed-clips/&lt;slug&gt;/</code>{" "}
+        and are attributed to the <span className="text-purple-700">Workshop Team</span>.
         ⚠ Each render takes <strong>2–5 minutes</strong> — keep the tab open.
       </p>
 
@@ -749,19 +749,19 @@ function ClipsSeedCard() {
         <div className="font-mono text-[11px] text-ink-muted mb-4 grid grid-cols-4 gap-2 max-w-md" data-testid="clips-seed-counts">
           <div className="border border-line px-2 py-1.5">
             <div className="text-ink-muted uppercase tracking-[0.2em] text-[9px]">Seeded</div>
-            <div className="text-purple-300 text-base">{status.seeded_clips}</div>
+            <div className="text-purple-700 text-base">{status.seeded_clips}</div>
           </div>
           <div className="border border-line px-2 py-1.5">
             <div className="text-ink-muted uppercase tracking-[0.2em] text-[9px]">AI</div>
-            <div className="text-purple-300 text-base">{status.ai_clips}</div>
+            <div className="text-purple-700 text-base">{status.ai_clips}</div>
           </div>
           <div className="border border-line px-2 py-1.5">
             <div className="text-ink-muted uppercase tracking-[0.2em] text-[9px]">All clips</div>
-            <div className="text-purple-300 text-base">{status.total_clips}</div>
+            <div className="text-purple-700 text-base">{status.total_clips}</div>
           </div>
           <div className={`border px-2 py-1.5 ${status.orphan_seeds > 0 ? "border-red-700/60 bg-red-950/15" : "border-line"}`}>
             <div className={`uppercase tracking-[0.2em] text-[9px] ${status.orphan_seeds > 0 ? "text-red-400" : "text-ink-muted"}`}>Orphans</div>
-            <div className={`text-base ${status.orphan_seeds > 0 ? "text-red-300" : "text-purple-300"}`}>{status.orphan_seeds ?? 0}</div>
+            <div className={`text-base ${status.orphan_seeds > 0 ? "text-red-600" : "text-purple-700"}`}>{status.orphan_seeds ?? 0}</div>
           </div>
         </div>
       )}
@@ -772,7 +772,7 @@ function ClipsSeedCard() {
           re-skews to the others. Empty categories highlighted in amber. */}
       {status?.category_health?.length > 0 && (
         <div className="mb-4" data-testid="clips-variety-health">
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-purple-300 mb-2">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-purple-700 mb-2">
             ◆ Variety health · live feed by category
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5">
@@ -794,10 +794,10 @@ function ClipsSeedCard() {
                       style={{ width: `${pct}%` }}
                     />
                     <div className="relative flex items-center justify-between gap-2">
-                      <span className={`font-mono text-[10px] uppercase tracking-[0.16em] truncate ${empty ? "text-amber-300/80" : "text-ink"}`}>
+                      <span className={`font-mono text-[10px] uppercase tracking-[0.16em] truncate ${empty ? "text-brand" : "text-ink"}`}>
                         <span className="mr-1">{c.emoji}</span>{c.label}
                       </span>
-                      <span className={`font-mono text-[11px] tabular-nums ${empty ? "text-amber-400" : "text-purple-300"}`}>
+                      <span className={`font-mono text-[11px] tabular-nums ${empty ? "text-brand" : "text-purple-700"}`}>
                         {c.count}
                       </span>
                     </div>
@@ -807,7 +807,7 @@ function ClipsSeedCard() {
             })()}
           </div>
           {status.category_health.filter((c) => c.count === 0).length > 0 && (
-            <div className="font-mono text-[9px] text-amber-300/80 mt-2">
+            <div className="font-mono text-[9px] text-brand mt-2">
               ⚠ {status.category_health.filter((c) => c.count === 0).length}{" "}
               categor{status.category_health.filter((c) => c.count === 0).length === 1 ? "y has" : "ies have"} no clips yet —
               the next round-robin picks will land here first.
@@ -826,17 +826,17 @@ function ClipsSeedCard() {
           className="border border-red-900/60 bg-red-950/20 p-3 mb-4"
           data-testid="clips-orphan-warning"
         >
-          <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-red-300 mb-1">
+          <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-red-600 mb-1">
             ◆ {status.orphan_seeds} orphan clip{status.orphan_seeds === 1 ? "" : "s"} detected
           </div>
-          <p className="font-mono text-[11px] text-red-200/80 leading-relaxed mb-3">
+          <p className="font-mono text-[11px] text-red-600 leading-relaxed mb-3">
             These seed rows point to <code>/seed-clips/…</code> files that never made it into the deploy artifact —
             they render as black-screen panels on <code>/clips</code>. Safe to clear; preserves any working seeds.
           </p>
           <button
             onClick={runOrphanPurge}
             disabled={orphanBusy}
-            className="px-3 py-1.5 border border-red-600 bg-red-900/30 text-red-100 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
+            className="px-3 py-1.5 border border-red-600 bg-red-900/30 text-red-600 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
             data-testid="purge-orphan-clips-btn"
           >
             {orphanBusy ? "Clearing…" : `Clear ${status.orphan_seeds} orphan${status.orphan_seeds === 1 ? "" : "s"}`}
@@ -861,14 +861,14 @@ function ClipsSeedCard() {
           <button
             onClick={runGenerate}
             disabled={genBusy}
-            className="px-3 py-1.5 border border-purple-600 text-purple-200 hover:bg-purple-900/30 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
+            className="px-3 py-1.5 border border-purple-600 text-purple-700 hover:bg-purple-900/30 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
             data-testid="generate-one-clip-btn"
           >
             {genBusy ? "Rendering clip… (2–5 min)" : "Generate fresh clip"}
           </button>
         </div>
         {genResult?.status === "ok" && (
-          <div className="font-mono text-[11px] text-emerald-300" data-testid="generate-one-clip-result">
+          <div className="font-mono text-[11px] text-emerald-700" data-testid="generate-one-clip-result">
             ◆ &quot;{genResult.clip.title}&quot; · {genResult.clip.category} · slug: {genResult.clip.slug}
           </div>
         )}
@@ -876,7 +876,7 @@ function ClipsSeedCard() {
           <div className="font-mono text-[11px] text-red-400 space-y-1" data-testid="generate-one-clip-error">
             <div>✕ {genResult.reason}</div>
             {genResult.detail && (
-              <div className="text-red-300/80 text-[10px] leading-relaxed break-all whitespace-pre-wrap max-w-2xl" data-testid="generate-one-clip-error-detail">
+              <div className="text-red-600 text-[10px] leading-relaxed break-all whitespace-pre-wrap max-w-2xl" data-testid="generate-one-clip-error-detail">
                 ↳ {genResult.detail}
               </div>
             )}
@@ -896,7 +896,7 @@ function ClipsSeedCard() {
             </div>
             <button
               onClick={refresh}
-              className="font-mono text-[10px] uppercase tracking-[0.18em] text-purple-300 hover:text-purple-100"
+              className="font-mono text-[10px] uppercase tracking-[0.18em] text-purple-700 hover:text-purple-700"
               data-testid="clips-seed-recent-refresh"
               title="Refresh recent renders"
             >
@@ -945,17 +945,17 @@ function ClipsSeedCard() {
                 else if (reason || detail) kind = "other";
               }
               const pillColor = {
-                done: "border-emerald-700 text-emerald-300 bg-emerald-950/30",
-                error: "border-red-700 text-red-300 bg-red-950/30",
-                running: "border-yellow-700 text-yellow-300 bg-yellow-950/30 animate-pulse",
+                done: "border-emerald-700 text-emerald-700 bg-emerald-950/30",
+                error: "border-red-700 text-red-600 bg-red-950/30",
+                running: "border-yellow-700 text-brand bg-yellow-950/30 animate-pulse",
                 queued: "border-line text-ink-muted bg-neutral-900/30",
               }[j.status] || "border-line text-ink-muted";
               const kindBadge = {
-                budget: { label: "BUDGET", cls: "border-amber-700 text-amber-300 bg-amber-950/40" },
-                moderation: { label: "BLOCKED", cls: "border-pink-700 text-pink-300 bg-pink-950/40" },
-                rate: { label: "RATE", cls: "border-orange-700 text-orange-300 bg-orange-950/40" },
-                timeout: { label: "TIMEOUT", cls: "border-red-800/70 text-red-300/80 bg-red-950/20" },
-                rejected: { label: "INSTANT-FAIL", cls: "border-rose-700 text-rose-200 bg-rose-950/40" },
+                budget: { label: "BUDGET", cls: "border-amber-700 text-brand bg-amber-950/40" },
+                moderation: { label: "BLOCKED", cls: "border-pink-700 text-pink-700 bg-pink-950/40" },
+                rate: { label: "RATE", cls: "border-orange-700 text-brand bg-orange-950/40" },
+                timeout: { label: "TIMEOUT", cls: "border-red-800/70 text-red-600 bg-red-950/20" },
+                rejected: { label: "INSTANT-FAIL", cls: "border-rose-700 text-red-600 bg-rose-950/40" },
                 other: { label: "OTHER", cls: "border-line text-ink-muted" },
               }[kind];
               const startedLabel = startedMs
@@ -978,14 +978,14 @@ function ClipsSeedCard() {
                       {j.status || "?"}
                     </span>
                     <span className="text-ink-muted">{startedLabel}</span>
-                    <span className="text-purple-300/80 truncate" title={j.model}>{(j.model || "").replace("sora-2-", "")}</span>
+                    <span className="text-purple-700 truncate" title={j.model}>{(j.model || "").replace("sora-2-", "")}</span>
                     <span
                       className={`uppercase tracking-[0.15em] text-center px-1 py-0.5 border ${kindBadge ? kindBadge.cls : "border-transparent"}`}
                     >
                       {kindBadge ? kindBadge.label : ""}
                     </span>
                     <span
-                      className={`truncate ${j.status === "error" ? "text-red-300" : "text-emerald-300/90"}`}
+                      className={`truncate ${j.status === "error" ? "text-red-600" : "text-emerald-700"}`}
                       title={j.status === "error" ? (j.detail || j.reason || "") : (j.clip?.slug || "")}
                     >
                       {j.status === "done" && (j.clip?.slug || j.clip?.title || "—")}
@@ -996,7 +996,7 @@ function ClipsSeedCard() {
                   </button>
                   {isOpen && (j.detail || (Array.isArray(j.attempts) && j.attempts.length)) && (
                     <div
-                      className="ml-[70px] mb-1.5 px-2 py-1.5 bg-red-950/20 border-l-2 border-red-800/60 font-mono text-[10px] text-red-200/85 leading-relaxed whitespace-pre-wrap break-all"
+                      className="ml-[70px] mb-1.5 px-2 py-1.5 bg-red-950/20 border-l-2 border-red-800/60 font-mono text-[10px] text-red-600 leading-relaxed whitespace-pre-wrap break-all"
                       data-testid="clips-seed-recent-detail"
                     >
                       {/* iter322 — Per-attempt diagnostics. When the job ran
@@ -1008,26 +1008,26 @@ function ClipsSeedCard() {
                           {j.attempts.map((a, i) => (
                             <div
                               key={i}
-                              className={`border-l-2 pl-2 ${a.ok ? "border-emerald-700 text-emerald-200/90" : "border-red-700 text-red-200/90"}`}
+                              className={`border-l-2 pl-2 ${a.ok ? "border-emerald-700 text-emerald-700" : "border-red-700 text-red-600"}`}
                               data-testid={`clips-seed-recent-attempt-${i}`}
                             >
                               <span className="text-ink-muted mr-1.5">
                                 {a.is_fallback ? "↳ fallback" : "primary"}
                               </span>
-                              <span className="text-purple-300/80 mr-1.5">{a.model}</span>
+                              <span className="text-purple-700 mr-1.5">{a.model}</span>
                               <span className="text-ink-muted mr-1.5">{a.elapsed_s}s</span>
                               <span className="uppercase tracking-[0.18em] text-[9px] mr-1.5">
                                 {a.ok ? "✓ ok" : "✗ fail"}
                               </span>
                               {!a.ok && a.error && (
-                                <div className="mt-0.5 text-red-300/80 text-[9.5px]">{a.error}</div>
+                                <div className="mt-0.5 text-red-600 text-[9.5px]">{a.error}</div>
                               )}
                             </div>
                           ))}
                         </div>
                       )}
                       {j.detail && (
-                        <div className="text-[10px] text-red-200/85">{j.detail}</div>
+                        <div className="text-[10px] text-red-600">{j.detail}</div>
                       )}
                     </div>
                   )}
@@ -1042,7 +1042,7 @@ function ClipsSeedCard() {
         <button
           onClick={() => setPurgeStep(1)}
           disabled={!(status?.seeded_clips > 0)}
-          className="px-4 py-2 border border-purple-700 text-purple-300 hover:bg-purple-900/30 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-40 disabled:cursor-not-allowed"
+          className="px-4 py-2 border border-purple-700 text-purple-700 hover:bg-purple-900/30 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-40 disabled:cursor-not-allowed"
           data-testid="purge-clips-seed-btn"
         >
           {status?.seeded_clips > 0
@@ -1055,7 +1055,7 @@ function ClipsSeedCard() {
           <button
             onClick={runPurge}
             disabled={purgeBusy}
-            className="px-4 py-2 border border-red-600 bg-red-900/30 text-red-200 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
+            className="px-4 py-2 border border-red-600 bg-red-900/30 text-red-600 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
             data-testid="purge-clips-confirm"
           >
             {purgeBusy ? "Purging…" : "Yes — purge"}
@@ -1093,10 +1093,10 @@ function StripeDiagCard() {
     >
       <div className="flex items-start justify-between gap-3 mb-3 flex-wrap">
         <div>
-          <div className={`font-mono text-[10px] uppercase tracking-[0.28em] mb-1 ${ok ? "text-emerald-300" : "text-red-300"}`}>
+          <div className={`font-mono text-[10px] uppercase tracking-[0.28em] mb-1 ${ok ? "text-emerald-700" : "text-red-600"}`}>
             ◆ Stripe Connect · Health
           </div>
-          <h3 className={`font-display text-xl ${ok ? "text-emerald-200" : "text-red-200"}`}>
+          <h3 className={`font-display text-xl ${ok ? "text-emerald-700" : "text-red-600"}`}>
             {ok ? "Reachable" : "Unreachable"}
           </h3>
           <p className="font-mono text-[11px] text-ink-muted mt-1 max-w-[60ch] leading-relaxed">
@@ -1106,7 +1106,7 @@ function StripeDiagCard() {
         <button
           onClick={refresh}
           disabled={busy}
-          className="px-3 py-1.5 border border-amber-700/60 hover:border-amber-400 hover:text-amber-300 font-mono text-[11px] uppercase tracking-[0.22em] text-amber-300 disabled:opacity-50"
+          className="px-3 py-1.5 border border-amber-700/60 hover:border-amber-400 hover:text-brand font-mono text-[11px] uppercase tracking-[0.22em] text-brand disabled:opacity-50"
           data-testid="stripe-diag-refresh"
         >
           {busy ? "Checking…" : "↻ Re-check"}
@@ -1130,8 +1130,8 @@ function StripeDiagCard() {
       )}
 
       {!ok && data?.reason && (
-        <div className="mt-3 font-mono text-[11px] text-red-200 bg-paper/30 border border-red-900/60 p-3 leading-relaxed" data-testid="stripe-diag-reason">
-          <strong className="text-red-300">Reason:</strong> {data.reason}
+        <div className="mt-3 font-mono text-[11px] text-red-600 bg-paper/30 border border-red-900/60 p-3 leading-relaxed" data-testid="stripe-diag-reason">
+          <strong className="text-red-600">Reason:</strong> {data.reason}
         </div>
       )}
     </div>
@@ -1141,8 +1141,8 @@ function StripeDiagCard() {
 function DiagTile({ label, value, highlight }) {
   return (
     <div className={`border px-2 py-1.5 ${highlight ? "border-emerald-500/50 bg-emerald-950/30" : "border-line bg-paper"}`}>
-      <div className={`uppercase tracking-[0.22em] text-[9px] ${highlight ? "text-emerald-300" : "text-ink-muted"}`}>{label}</div>
-      <div className={`text-base ${highlight ? "text-emerald-200" : "text-zinc-200"}`}>{value}</div>
+      <div className={`uppercase tracking-[0.22em] text-[9px] ${highlight ? "text-emerald-700" : "text-ink-muted"}`}>{label}</div>
+      <div className={`text-base ${highlight ? "text-emerald-700" : "text-ink"}`}>{value}</div>
     </div>
   );
 }
@@ -1271,23 +1271,23 @@ function StripeLinkAccountCard() {
       </label>
 
       {err && (
-        <div className="mt-4 font-mono text-xs text-red-300 border border-red-900/60 bg-red-950/20 p-3" data-testid="stripe-link-error">
+        <div className="mt-4 font-mono text-xs text-red-600 border border-red-900/60 bg-red-950/20 p-3" data-testid="stripe-link-error">
           {err}
         </div>
       )}
 
       {result && (
-        <div className="mt-4 border border-emerald-700/40 bg-emerald-950/15 p-3 font-mono text-xs text-emerald-200" data-testid="stripe-link-result">
+        <div className="mt-4 border border-emerald-700/40 bg-emerald-950/15 p-3 font-mono text-xs text-emerald-700" data-testid="stripe-link-result">
           <div className="font-bold mb-1.5">✓ Linked</div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-ink-muted">
             <div>maker: <span className="text-ink">{result.maker_slug}</span></div>
             <div>acct: <span className="text-ink">…{result.stripe_account_id?.slice(-8)}</span></div>
-            <div>charges: <span className={result.charges_enabled ? "text-emerald-300" : "text-red-300"}>{String(result.charges_enabled)}</span></div>
-            <div>payouts: <span className={result.payouts_enabled ? "text-emerald-300" : "text-red-300"}>{String(result.payouts_enabled)}</span></div>
-            <div>details_submitted: <span className={result.details_submitted ? "text-emerald-300" : "text-red-300"}>{String(result.details_submitted)}</span></div>
+            <div>charges: <span className={result.charges_enabled ? "text-emerald-700" : "text-red-600"}>{String(result.charges_enabled)}</span></div>
+            <div>payouts: <span className={result.payouts_enabled ? "text-emerald-700" : "text-red-600"}>{String(result.payouts_enabled)}</span></div>
+            <div>details_submitted: <span className={result.details_submitted ? "text-emerald-700" : "text-red-600"}>{String(result.details_submitted)}</span></div>
           </div>
           {!result.details_submitted && (
-            <div className="mt-2 text-amber-300">
+            <div className="mt-2 text-brand">
               ⚠ Stripe says onboarding is NOT yet complete. Finish the Stripe-hosted flow, then re-run this link (or wait for the webhook) to flip the flags.
             </div>
           )}
@@ -1364,13 +1364,13 @@ function StripeBulkResetCard() {
       data-testid="stripe-bulk-reset-card"
     >
       <div>
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-amber-300">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">
           ◆ Danger zone · Stripe platform migration
         </div>
-        <h3 className="font-display text-xl mt-1 text-amber-100">
+        <h3 className="font-display text-xl mt-1 text-ink">
           Reset all Stripe Connect accounts
         </h3>
-        <p className="font-mono text-xs text-amber-200/70 mt-2 max-w-2xl leading-relaxed">
+        <p className="font-mono text-xs text-ink-muted mt-2 max-w-2xl leading-relaxed">
           Wipes <code>stripe_account_id</code> + status flags on every maker.
           Use this only when you've swapped <code>STRIPE_API_KEY</code> to a
           new Stripe platform — the old <code>acct_*</code> IDs become dead
@@ -1384,7 +1384,7 @@ function StripeBulkResetCard() {
         <button
           onClick={loadPreview}
           disabled={busy}
-          className="mt-4 px-4 py-2 border border-amber-600/60 text-amber-200 hover:border-amber-400 hover:text-amber-100 font-mono text-[11px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+          className="mt-4 px-4 py-2 border border-amber-600/60 text-ink hover:border-amber-400 hover:text-ink font-mono text-[11px] uppercase tracking-[0.22em] transition disabled:opacity-50"
           data-testid="stripe-reset-preview"
         >
           {busy ? "Loading preview…" : "↻ Preview impact"}
@@ -1393,17 +1393,17 @@ function StripeBulkResetCard() {
 
       {preview && (
         <div className="mt-4 border border-amber-700/40 bg-paper/30 p-3" data-testid="stripe-reset-preview-panel">
-          <div className="font-mono text-xs text-amber-200">
+          <div className="font-mono text-xs text-ink">
             <span className="font-bold">{preview.would_reset}</span> maker row(s) currently hold a Stripe Connect account ID.
           </div>
           {preview.sample && preview.sample.length > 0 && (
-            <div className="mt-2 font-mono text-[10.5px] text-amber-200/70">
-              <div className="text-amber-300/80 mb-1">Sample (up to 10):</div>
+            <div className="mt-2 font-mono text-[10.5px] text-ink-muted">
+              <div className="text-brand mb-1">Sample (up to 10):</div>
               {preview.sample.map((s, i) => (
                 <div key={i} className="flex gap-2 py-0.5">
-                  <span className="w-32 truncate text-amber-100">{s.slug}</span>
+                  <span className="w-32 truncate text-ink">{s.slug}</span>
                   <span className="w-44 truncate">…{(s.stripe_account_id || "").slice(-12)}</span>
-                  <span className="text-amber-200/50">payouts: {String(s.stripe_payouts_enabled || false)}</span>
+                  <span className="text-ink-muted">payouts: {String(s.stripe_payouts_enabled || false)}</span>
                 </div>
               ))}
             </div>
@@ -1411,15 +1411,15 @@ function StripeBulkResetCard() {
 
           <div className="mt-4 border-t border-amber-700/30 pt-3">
             <label className="block">
-              <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-amber-300">
-                Type <code className="text-amber-100">RESET ALL</code> to confirm
+              <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">
+                Type <code className="text-ink">RESET ALL</code> to confirm
               </span>
               <input
                 type="text"
                 value={confirmText}
                 onChange={(e) => setConfirmText(e.target.value)}
                 placeholder="RESET ALL"
-                className="mt-1 w-full bg-paper border border-amber-700/40 focus:border-amber-400 outline-none px-3 py-2 font-mono text-sm text-amber-100"
+                className="mt-1 w-full bg-paper border border-amber-700/40 focus:border-amber-400 outline-none px-3 py-2 font-mono text-sm text-ink"
                 data-testid="stripe-reset-confirm-input"
               />
             </label>
@@ -1427,7 +1427,7 @@ function StripeBulkResetCard() {
               <button
                 onClick={runReset}
                 disabled={busy || confirmText.trim() !== "RESET ALL"}
-                className="px-4 py-2 border border-red-600 bg-red-900/30 text-red-200 hover:bg-red-900/60 font-mono text-[11px] uppercase tracking-[0.22em] transition disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 border border-red-600 bg-red-900/30 text-red-600 hover:bg-red-900/60 font-mono text-[11px] uppercase tracking-[0.22em] transition disabled:opacity-50 disabled:cursor-not-allowed"
                 data-testid="stripe-reset-execute"
               >
                 {busy ? "Wiping…" : "⚠ Wipe Connect state →"}
@@ -1446,18 +1446,18 @@ function StripeBulkResetCard() {
       )}
 
       {err && (
-        <div className="mt-3 font-mono text-xs text-red-300 border border-red-900/60 bg-red-950/20 p-3" data-testid="stripe-reset-error">
+        <div className="mt-3 font-mono text-xs text-red-600 border border-red-900/60 bg-red-950/20 p-3" data-testid="stripe-reset-error">
           {err}
         </div>
       )}
 
       {result && (
-        <div className="mt-4 border border-emerald-700/40 bg-emerald-950/15 p-3 font-mono text-xs text-emerald-200" data-testid="stripe-reset-result">
+        <div className="mt-4 border border-emerald-700/40 bg-emerald-950/15 p-3 font-mono text-xs text-emerald-700" data-testid="stripe-reset-result">
           <div className="font-bold mb-1.5">✓ Stripe Connect state wiped</div>
-          <div className="text-emerald-300/80">
-            matched <span className="text-emerald-100">{result.matched}</span> · modified <span className="text-emerald-100">{result.modified}</span>
+          <div className="text-emerald-700">
+            matched <span className="text-emerald-700">{result.matched}</span> · modified <span className="text-emerald-700">{result.modified}</span>
           </div>
-          <div className="mt-2 text-emerald-200/70">
+          <div className="mt-2 text-emerald-700">
             All makers will see a fresh "Connect Stripe" prompt on their next visit to <code>/maker/dashboard/financials</code>.
           </div>
         </div>
@@ -1533,7 +1533,7 @@ function HeroHeadlinesCard() {
 
   if (!data) return (
     <div className="border border-amber-700/30 bg-surface p-5">
-      <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-amber-400 mb-3">◆ Hero Headlines · Rotating Pool</div>
+      <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-brand mb-3">◆ Hero Headlines · Rotating Pool</div>
       <RowsSkeleton count={4} />
     </div>
   );
@@ -1545,8 +1545,8 @@ function HeroHeadlinesCard() {
     <div className="border border-amber-700/30 bg-surface p-5 space-y-4" data-testid="hero-headlines-card">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-amber-400 mb-1">◆ Hero Headlines · Rotating Pool</div>
-          <h3 className="font-display text-xl text-amber-200">Rotating Headlines</h3>
+          <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-brand mb-1">◆ Hero Headlines · Rotating Pool</div>
+          <h3 className="font-display text-xl text-ink">Rotating Headlines</h3>
           <p className="font-mono text-[11px] text-ink-muted mt-1 max-w-[60ch] leading-relaxed">
             Live pool rotates on the homepage hero every 7s. Daily Gemini cron drafts 5 fresh variants at 09:15 UTC. Pin one to override rotation for a campaign window.
           </p>
@@ -1572,9 +1572,9 @@ function HeroHeadlinesCard() {
       </div>
 
       {data.counts.pinned > 0 && (
-        <div className="border border-amber-500/60 bg-amber-950/30 px-4 py-2.5 font-mono text-[11px] text-amber-200 flex items-center justify-between" data-testid="hero-headlines-pinned-banner">
+        <div className="border border-amber-500/60 bg-amber-950/30 px-4 py-2.5 font-mono text-[11px] text-ink flex items-center justify-between" data-testid="hero-headlines-pinned-banner">
           <span>◆ A headline is pinned — rotation is paused.</span>
-          <button onClick={onUnpin} disabled={busy} className="underline hover:no-underline text-amber-100 text-[11px]" data-testid="hero-headlines-unpin-btn">Resume rotation →</button>
+          <button onClick={onUnpin} disabled={busy} className="underline hover:no-underline text-ink text-[11px]" data-testid="hero-headlines-unpin-btn">Resume rotation →</button>
         </div>
       )}
 
@@ -1587,17 +1587,17 @@ function HeroHeadlinesCard() {
 
       {/* Manual add */}
       <form onSubmit={onCreate} className="border-t border-amber-900/40 pt-4 space-y-2" data-testid="hero-headlines-create-form">
-        <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-amber-300">◆ Add manual variant</div>
+        <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-brand">◆ Add manual variant</div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-          <input value={form.statement} onChange={(e) => setForm({ ...form, statement: e.target.value })} placeholder="Statement (≤28)" maxLength={32} required className="bg-paper border border-line focus:border-amber-400 px-3 py-2 font-mono text-xs text-zinc-100 outline-none" data-testid="hh-create-statement" />
-          <input value={form.accent} onChange={(e) => setForm({ ...form, accent: e.target.value })} placeholder="Accent word (≤12, 1 word)" maxLength={16} required className="bg-paper border border-line focus:border-amber-400 px-3 py-2 font-mono text-xs text-amber-300 outline-none" data-testid="hh-create-accent" />
-          <input value={form.closer} onChange={(e) => setForm({ ...form, closer: e.target.value })} placeholder="Closer (≤16)" maxLength={20} required className="bg-paper border border-line focus:border-amber-400 px-3 py-2 font-mono text-xs text-zinc-100 outline-none" data-testid="hh-create-closer" />
+          <input value={form.statement} onChange={(e) => setForm({ ...form, statement: e.target.value })} placeholder="Statement (≤28)" maxLength={32} required className="bg-paper border border-line focus:border-amber-400 px-3 py-2 font-mono text-xs text-ink outline-none" data-testid="hh-create-statement" />
+          <input value={form.accent} onChange={(e) => setForm({ ...form, accent: e.target.value })} placeholder="Accent word (≤12, 1 word)" maxLength={16} required className="bg-paper border border-line focus:border-amber-400 px-3 py-2 font-mono text-xs text-brand outline-none" data-testid="hh-create-accent" />
+          <input value={form.closer} onChange={(e) => setForm({ ...form, closer: e.target.value })} placeholder="Closer (≤16)" maxLength={20} required className="bg-paper border border-line focus:border-amber-400 px-3 py-2 font-mono text-xs text-ink outline-none" data-testid="hh-create-closer" />
         </div>
         <div className="flex items-center justify-between">
           <div className="font-mono text-[11px] text-ink-muted">
-            Preview: <span className="text-zinc-200">{form.statement || "—"}.</span>{" "}
+            Preview: <span className="text-ink">{form.statement || "—"}.</span>{" "}
             <span className="text-brand">{form.accent || "—"}</span>{" "}
-            <span className="text-zinc-200">{form.closer || "—"}.</span>
+            <span className="text-ink">{form.closer || "—"}.</span>
           </div>
           <button type="submit" disabled={busy} className="btn-industrial btn-primary text-xs disabled:opacity-50" data-testid="hh-create-submit">Add</button>
         </div>
@@ -1613,8 +1613,8 @@ function HeroHeadlinesCard() {
                   {h.statement}. <span className="text-amber-700">{h.accent}</span> {h.closer}.
                 </div>
                 <div className="flex gap-1.5">
-                  <button onClick={() => onRestore(h.id)} disabled={busy} className="font-mono text-[10px] text-amber-300 hover:text-amber-100">Restore</button>
-                  <button onClick={() => onDelete(h.id)} disabled={busy} className="font-mono text-[10px] text-red-300 hover:text-red-100">Delete</button>
+                  <button onClick={() => onRestore(h.id)} disabled={busy} className="font-mono text-[10px] text-brand hover:text-ink">Restore</button>
+                  <button onClick={() => onDelete(h.id)} disabled={busy} className="font-mono text-[10px] text-red-600 hover:text-red-600">Delete</button>
                 </div>
               </div>
             ))}
@@ -1628,20 +1628,20 @@ function HeroHeadlinesCard() {
 function HeadlineRow({ h, busy, onPin, onArchive, onDelete }) {
   return (
     <div className={`flex items-center justify-between gap-3 border ${h.pinned ? "border-amber-500/60 bg-amber-950/20" : "border-line bg-paper"} px-3 py-2`} data-testid={`hh-row-${h.id}`}>
-      <div className="font-mono text-[12px] text-zinc-200 truncate flex-1">
-        {h.pinned && <span className="text-amber-400 mr-1.5">◆</span>}
-        <span className="text-zinc-100">{h.statement}.</span>{" "}
+      <div className="font-mono text-[12px] text-ink truncate flex-1">
+        {h.pinned && <span className="text-brand mr-1.5">◆</span>}
+        <span className="text-ink">{h.statement}.</span>{" "}
         <span className="text-brand">{h.accent}</span>{" "}
-        <span className="text-zinc-300">{h.closer}.</span>
+        <span className="text-ink">{h.closer}.</span>
         <span className="ml-2 text-[10px] uppercase tracking-[0.22em] text-ink-muted">{h.source}</span>
       </div>
       <div className="flex gap-1.5 shrink-0">
         {!h.pinned && (
-          <button onClick={() => onPin(h.id)} disabled={busy} className="font-mono text-[10px] text-amber-300 hover:text-amber-100 px-2 py-1 border border-amber-700/50 hover:border-amber-400" data-testid={`hh-pin-${h.id}`}>Pin</button>
+          <button onClick={() => onPin(h.id)} disabled={busy} className="font-mono text-[10px] text-brand hover:text-ink px-2 py-1 border border-amber-700/50 hover:border-amber-400" data-testid={`hh-pin-${h.id}`}>Pin</button>
         )}
-        <button onClick={() => onArchive(h.id)} disabled={busy} className="font-mono text-[10px] text-ink-muted hover:text-zinc-100 px-2 py-1 border border-line hover:border-zinc-500" data-testid={`hh-archive-${h.id}`}>Archive</button>
+        <button onClick={() => onArchive(h.id)} disabled={busy} className="font-mono text-[10px] text-ink-muted hover:text-ink px-2 py-1 border border-line hover:border-zinc-500" data-testid={`hh-archive-${h.id}`}>Archive</button>
         {h.source !== "seed" && (
-          <button onClick={() => onDelete(h.id)} disabled={busy} className="font-mono text-[10px] text-red-300 hover:text-red-100 px-2 py-1 border border-red-900/50 hover:border-red-500" data-testid={`hh-delete-${h.id}`}>×</button>
+          <button onClick={() => onDelete(h.id)} disabled={busy} className="font-mono text-[10px] text-red-600 hover:text-red-600 px-2 py-1 border border-red-900/50 hover:border-red-500" data-testid={`hh-delete-${h.id}`}>×</button>
         )}
       </div>
     </div>
@@ -1651,8 +1651,8 @@ function HeadlineRow({ h, busy, onPin, onArchive, onDelete }) {
 function CountTile({ label, value, highlight }) {
   return (
     <div className={`border px-2 py-1.5 ${highlight ? "border-amber-500 bg-amber-950/30" : "border-line bg-paper"}`}>
-      <div className={`uppercase tracking-[0.22em] text-[9px] ${highlight ? "text-amber-300" : "text-ink-muted"}`}>{label}</div>
-      <div className={`text-base ${highlight ? "text-amber-200" : "text-zinc-200"}`}>{value}</div>
+      <div className={`uppercase tracking-[0.22em] text-[9px] ${highlight ? "text-brand" : "text-ink-muted"}`}>{label}</div>
+      <div className={`text-base ${highlight ? "text-ink" : "text-ink"}`}>{value}</div>
     </div>
   );
 }
@@ -1721,14 +1721,14 @@ function OperatorOpsChecklistCard() {
       className="border border-cyan-900/60 bg-cyan-950/15 p-4 md:p-5"
       data-testid="operator-ops-checklist"
     >
-      <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-cyan-400 mb-2">
+      <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-2">
         ◆ Operator ops checklist
       </div>
       <div className="font-display text-lg uppercase">Post-deploy 5-minute sweep</div>
       <p className="font-mono text-xs text-ink-muted leading-relaxed mt-1 mb-4 max-w-2xl">
         One-stop verification panel. Hit each row's button after every prod
         deploy and weekly thereafter. Backing docs live in{" "}
-        <code className="text-emerald-300">/app/docs/</code> (Cloudflare
+        <code className="text-emerald-700">/app/docs/</code> (Cloudflare
         Worker · SEO submission · Mongo backup).
       </p>
 
@@ -1779,7 +1779,7 @@ function OperatorOpsChecklistCard() {
               onClick={runIndexNow}
               disabled={indexnowBusy}
               data-testid="ops-indexnow-ping"
-              className="px-2.5 py-1 border border-cyan-700 text-cyan-200 hover:bg-cyan-900/30 font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50"
+              className="px-2.5 py-1 border border-cyan-700 text-brand hover:bg-cyan-900/30 font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50"
             >
               {indexnowBusy ? "Pinging…" : "Ping IndexNow"}
             </button>
@@ -1787,7 +1787,7 @@ function OperatorOpsChecklistCard() {
         />
         {indexnowResult?.count > 0 && (
           <div
-            className="font-mono text-[10px] text-emerald-300 ml-12 -mt-1"
+            className="font-mono text-[10px] text-emerald-700 ml-12 -mt-1"
             data-testid="ops-indexnow-result"
           >
             ◆ Submitted {indexnowResult.count} URLs to api.indexnow.org · Bing/Yandex/Naver will see new content within hours.
@@ -1800,7 +1800,7 @@ function OperatorOpsChecklistCard() {
           title="Backup & recovery toggle"
           subtitle={
             <>
-              Verify <code className="text-emerald-300">auto_offsite_backup_enabled</code> + <code className="text-emerald-300">auto_recovery_drill_enabled</code> are ON
+              Verify <code className="text-emerald-700">auto_offsite_backup_enabled</code> + <code className="text-emerald-700">auto_recovery_drill_enabled</code> are ON
               (Settings → top of this tab). Doc: /app/docs/mongodb-backup.md
             </>
           }
@@ -1826,7 +1826,7 @@ function OpsRow({
   // status ∈ idle | ok | fail · drives the left dot color so an operator
   // can scan the column in a glance.
   const dot =
-    status === "ok"   ? "bg-emerald-400 text-emerald-400"
+    status === "ok"   ? "bg-emerald-400 text-emerald-700"
     : status === "fail" ? "bg-red-400 text-red-400"
                         : "bg-ink-muted text-ink-muted";
   return (
@@ -1852,7 +1852,7 @@ function OpsRow({
           onClick={onRun}
           disabled={busy}
           data-testid={`${testIdPrefix}-run`}
-          className="px-2.5 py-1 border border-line hover:border-cyan-500 hover:text-cyan-300 font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50"
+          className="px-2.5 py-1 border border-line hover:border-cyan-500 hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] disabled:opacity-50"
         >
           {busy ? "…" : runLabel}
         </button>
@@ -1966,33 +1966,33 @@ function PurgeFeaturedSeedCard() {
 
   return (
     <div className="border border-amber-900/60 bg-amber-950/15 p-4 md:p-5" data-testid="purge-featured-seed-card">
-      <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-amber-400 mb-2">
+      <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-2">
         ◆ Platform seed content
       </div>
       <div className="font-display text-lg uppercase">Purge featured-example content</div>
       <p className="font-mono text-xs text-ink-muted leading-relaxed mt-1 mb-3">
         Hard-removes every product tagged "✦ Featured Example" and every maker tagged
         "✦ Founding Maker · Platform Showcase". Use once organic listings fill the
-        catalogue. Organic listings (no flag) are <span className="text-emerald-300">not touched</span>.
+        catalogue. Organic listings (no flag) are <span className="text-emerald-700">not touched</span>.
       </p>
       {status && (
         <div className="font-mono text-[11px] text-ink-muted mb-4 grid grid-cols-3 gap-3 max-w-md" data-testid="purge-featured-seed-counts">
           <div className="border border-line px-2 py-1.5">
             <div className="text-ink-muted uppercase tracking-[0.2em] text-[9px]">Makers</div>
-            <div className="text-amber-300 text-base">{status.featured_makers}</div>
+            <div className="text-brand text-base">{status.featured_makers}</div>
           </div>
           <div className="border border-line px-2 py-1.5">
             <div className="text-ink-muted uppercase tracking-[0.2em] text-[9px]">Products</div>
-            <div className="text-amber-300 text-base">{status.featured_products}</div>
+            <div className="text-brand text-base">{status.featured_products}</div>
           </div>
           <div className="border border-line px-2 py-1.5">
             <div className="text-ink-muted uppercase tracking-[0.2em] text-[9px]">Published</div>
-            <div className="text-amber-300 text-base">{status.published_featured_products}</div>
+            <div className="text-brand text-base">{status.published_featured_products}</div>
           </div>
         </div>
       )}
       {result && (
-        <p className="font-mono text-xs text-emerald-300 mb-3" data-testid="purge-featured-seed-result">
+        <p className="font-mono text-xs text-emerald-700 mb-3" data-testid="purge-featured-seed-result">
           ◆ Deleted {result.deleted_products} products + {result.deleted_makers} makers.
         </p>
       )}
@@ -2004,12 +2004,12 @@ function PurgeFeaturedSeedCard() {
           replies + 8 showcase posts land in one shot. Idempotent so the
           admin can click it any time without fear. */}
       <div className="mb-4 pb-4 border-b border-amber-900/40">
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-300 mb-1">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-700 mb-1">
           ◆ Install seed content (one-click · for fresh deploys)
         </div>
         <p className="font-mono text-[11px] text-ink-muted mb-2 leading-relaxed max-w-2xl">
           Populates the database from the curated seed fixture committed to the repo —
-          <span className="text-emerald-300"> 8 founding makers, 34 featured-example products,
+          <span className="text-emerald-700"> 8 founding makers, 34 featured-example products,
           22 forum threads, 160 replies, 8 showcase posts</span>. Idempotent. Use this on
           production immediately after a fresh deploy. Images (`/seed-images/featured/*.jpg`)
           ship with the frontend build, so no R2 / image-gen calls are made.
@@ -2017,14 +2017,14 @@ function PurgeFeaturedSeedCard() {
         <button
           onClick={runInstall}
           disabled={installBusy}
-          className="px-3 py-1.5 border border-emerald-600 text-emerald-300 hover:bg-emerald-900/30 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
+          className="px-3 py-1.5 border border-emerald-600 text-emerald-700 hover:bg-emerald-900/30 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
           data-testid="install-featured-seed-btn"
         >
           {installBusy ? "Installing…" : "Install seed content"}
         </button>
         {installResult?.ok && (
           <div
-            className="mt-2 font-mono text-[11px] text-emerald-300"
+            className="mt-2 font-mono text-[11px] text-emerald-700"
             data-testid="install-featured-seed-result"
           >
             ◆ Installed {installResult.installed.makers} makers · {installResult.installed.products} products · {installResult.installed.threads} threads · {installResult.installed.replies} replies · {installResult.installed.showcase} showcase
@@ -2039,25 +2039,25 @@ function PurgeFeaturedSeedCard() {
           destructive purge so the user can't fat-finger them together.
           Use this on production right after a redeploy. */}
       <div className="mb-4 pb-4 border-b border-amber-900/40">
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-amber-300 mb-1">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-1">
           ◇ Workshop Team attribution (safe · idempotent)
         </div>
         <p className="font-mono text-[11px] text-ink-muted mb-2 leading-relaxed max-w-2xl">
-          Backfills <span className="text-amber-300">"Crafters Market Workshop Team"</span> as the
-          author on every seeded forum thread / reply / showcase post (scoped to <code className="text-emerald-300">is_seed: true</code>).
+          Backfills <span className="text-brand">"Crafters Market Workshop Team"</span> as the
+          author on every seeded forum thread / reply / showcase post (scoped to <code className="text-emerald-700">is_seed: true</code>).
           Run this once on production after each fresh deploy of the seed data — re-running is a no-op.
         </p>
         <button
           onClick={runAttribution}
           disabled={attrBusy}
-          className="px-3 py-1.5 border border-amber-700 text-amber-200 hover:bg-amber-900/30 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
+          className="px-3 py-1.5 border border-amber-700 text-ink hover:bg-amber-900/30 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
           data-testid="attribute-workshop-team-btn"
         >
           {attrBusy ? "Running…" : "Attribute Workshop Team posts"}
         </button>
         {attrResult && (
           <div
-            className="mt-2 font-mono text-[11px] text-emerald-300"
+            className="mt-2 font-mono text-[11px] text-emerald-700"
             data-testid="attribute-workshop-team-result"
           >
             ◆ Threads: {attrResult.threads_updated} · Replies: {attrResult.replies_updated} · Showcase: {attrResult.showcase_updated}
@@ -2073,18 +2073,18 @@ function PurgeFeaturedSeedCard() {
           thread + 1-2 starter replies, picked from a curated topic bank
           and expanded by Gemini Flash. */}
       <div className="mb-4 pb-4 border-b border-amber-900/40">
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-amber-300 mb-1">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-1">
           ◇ Weekly thread seed · Run now
         </div>
         <p className="font-mono text-[11px] text-ink-muted mb-2 leading-relaxed max-w-2xl">
-          Adds <span className="text-amber-300">1 fresh forum thread</span> picked from the curated CNC/maker topic bank,
+          Adds <span className="text-brand">1 fresh forum thread</span> picked from the curated CNC/maker topic bank,
           plus 1-2 starter replies from generic maker usernames. Auto-runs every Tuesday at 14:00 UTC —
           use this button to trigger one on-demand (e.g., during a slow week or pre-launch).
         </p>
         <button
           onClick={runWeekly}
           disabled={weeklyBusy}
-          className="px-3 py-1.5 border border-amber-700 text-amber-200 hover:bg-amber-900/30 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
+          className="px-3 py-1.5 border border-amber-700 text-ink hover:bg-amber-900/30 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-50"
           data-testid="run-weekly-thread-btn"
         >
           {weeklyBusy ? "Generating…" : "Seed one fresh thread now"}
@@ -2095,7 +2095,7 @@ function PurgeFeaturedSeedCard() {
             data-testid="run-weekly-thread-result"
           >
             {weeklyResult.status === "ok" ? (
-              <span className="text-emerald-300">
+              <span className="text-emerald-700">
                 ◆ &quot;{weeklyResult.title}&quot; · {weeklyResult.channel} · {weeklyResult.replies} starter {weeklyResult.replies === 1 ? "reply" : "replies"}
               </span>
             ) : (
@@ -2109,7 +2109,7 @@ function PurgeFeaturedSeedCard() {
         <button
           onClick={() => setStep(1)}
           disabled={total === 0}
-          className="px-4 py-2 border border-amber-700 text-amber-300 hover:bg-amber-900/30 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-40 disabled:cursor-not-allowed"
+          className="px-4 py-2 border border-amber-700 text-brand hover:bg-amber-900/30 font-mono text-[11px] uppercase tracking-[0.22em] disabled:opacity-40 disabled:cursor-not-allowed"
           data-testid="purge-featured-seed-btn"
         >
           {total === 0 ? "Nothing to purge" : `Purge ${total} seeded item${total === 1 ? "" : "s"}`}
@@ -2119,7 +2119,7 @@ function PurgeFeaturedSeedCard() {
         <div className="flex flex-wrap gap-2">
           <button
             onClick={() => setStep(2)}
-            className="px-4 py-2 border border-amber-700 bg-amber-900/30 text-amber-200 font-mono text-[11px] uppercase tracking-[0.22em]"
+            className="px-4 py-2 border border-amber-700 bg-amber-900/30 text-ink font-mono text-[11px] uppercase tracking-[0.22em]"
             data-testid="purge-featured-seed-confirm-1"
           >
             I understand · continue
@@ -2189,7 +2189,7 @@ function HardClearCard({ onCleared }) {
         Forum threads and replies are not touched.
       </p>
       {result && (
-        <p className="font-mono text-xs text-emerald-300 mb-3" data-testid="hard-clear-result">
+        <p className="font-mono text-xs text-emerald-700 mb-3" data-testid="hard-clear-result">
           ◆ Cleared {result.deleted} message{result.deleted === 1 ? "" : "s"}.
         </p>
       )}
@@ -2197,7 +2197,7 @@ function HardClearCard({ onCleared }) {
       {step === 0 && (
         <button
           onClick={() => setStep(1)}
-          className="px-4 py-2 border border-red-700 text-red-300 hover:bg-red-900/30 font-mono text-[11px] uppercase tracking-[0.22em]"
+          className="px-4 py-2 border border-red-700 text-red-600 hover:bg-red-900/30 font-mono text-[11px] uppercase tracking-[0.22em]"
           data-testid="hard-clear-btn"
         >
           Hard clear all rooms
@@ -2207,7 +2207,7 @@ function HardClearCard({ onCleared }) {
         <div className="flex flex-wrap gap-2">
           <button
             onClick={() => setStep(2)}
-            className="px-4 py-2 border border-red-700 bg-red-900/30 text-red-200 font-mono text-[11px] uppercase tracking-[0.22em]"
+            className="px-4 py-2 border border-red-700 bg-red-900/30 text-red-600 font-mono text-[11px] uppercase tracking-[0.22em]"
             data-testid="hard-clear-confirm-1"
           >
             I understand · continue
@@ -2347,7 +2347,7 @@ function FeedbackInbox() {
               </a>
               <p className="font-mono text-xs text-ink leading-relaxed mt-2 whitespace-pre-wrap">{it.message}</p>
               {it.replied_at && (
-                <div className="mt-2 font-mono text-[10px] text-emerald-400">
+                <div className="mt-2 font-mono text-[10px] text-emerald-700">
                   ◆ Replied by {it.replied_by} · {(it.replied_at || "").slice(0, 16).replace("T", " ")} · "{it.replied_subject}"
                 </div>
               )}
@@ -2355,7 +2355,7 @@ function FeedbackInbox() {
                 {!it.resolved && (
                   <button
                     onClick={() => resolve(it.id)}
-                    className="px-3 py-1 border border-emerald-800 hover:border-emerald-500 hover:text-emerald-300 font-mono text-[10px] uppercase tracking-[0.22em]"
+                    className="px-3 py-1 border border-emerald-800 hover:border-emerald-500 hover:text-emerald-700 font-mono text-[10px] uppercase tracking-[0.22em]"
                     data-testid={`feedback-resolve-${it.id}`}
                   >
                     Mark resolved
@@ -2369,7 +2369,7 @@ function FeedbackInbox() {
                   ✉ Reply
                 </button>
                 {it.resolved && (
-                  <span className="inline-block px-2 py-0.5 border border-emerald-800 bg-emerald-900/30 text-emerald-300 font-mono text-[9px] uppercase tracking-[0.22em]">
+                  <span className="inline-block px-2 py-0.5 border border-emerald-800 bg-emerald-900/30 text-emerald-700 font-mono text-[9px] uppercase tracking-[0.22em]">
                     Resolved
                   </span>
                 )}
@@ -2628,7 +2628,7 @@ function SeoDiagCard() {
             <span
               className={`inline-block px-2 py-1 border font-mono text-[10px] uppercase tracking-[0.22em] font-bold ${
                 healthy
-                  ? "border-emerald-500/60 text-emerald-400 bg-emerald-500/5"
+                  ? "border-emerald-500/60 text-emerald-700 bg-emerald-500/5"
                   : "border-red-500/60 text-red-400 bg-red-500/5"
               }`}
               data-testid="seo-diag-status"
@@ -2653,7 +2653,7 @@ function SeoDiagCard() {
             <div>
               <span className="text-ink-muted">PUBLIC_SITE_URL:</span>{" "}
               {data.public_site_url_env ? (
-                <code className="text-emerald-400">{data.public_site_url_env}</code>
+                <code className="text-emerald-700">{data.public_site_url_env}</code>
               ) : (
                 <span className="text-red-400 font-bold">✕ not set · add to backend env</span>
               )}
@@ -2829,7 +2829,7 @@ function SearchEnginePingCard() {
               <span
                 className={`px-2 py-0.5 border font-bold uppercase tracking-[0.22em] text-[10px] ${
                   lastOk
-                    ? "border-emerald-500/60 text-emerald-400"
+                    ? "border-emerald-500/60 text-emerald-700"
                     : "border-red-500/60 text-red-400"
                 }`}
                 data-testid="seo-ping-last-status"
@@ -2855,7 +2855,7 @@ function SearchEnginePingCard() {
             <span
               className={`inline-block px-2 py-1 border font-mono text-[10px] uppercase tracking-[0.22em] font-bold ${
                 result.ok
-                  ? "border-emerald-500/60 text-emerald-400 bg-emerald-500/5"
+                  ? "border-emerald-500/60 text-emerald-700 bg-emerald-500/5"
                   : "border-red-500/60 text-red-400 bg-red-500/5"
               }`}
             >
@@ -2894,7 +2894,7 @@ function SearchEnginePingCard() {
             </p>
             {result._gsc?.ok ? (
               <div
-                className="inline-block px-3 py-1.5 border border-emerald-500/60 text-emerald-400 bg-emerald-500/5 font-mono text-[10px] uppercase tracking-[0.22em] font-bold"
+                className="inline-block px-3 py-1.5 border border-emerald-500/60 text-emerald-700 bg-emerald-500/5 font-mono text-[10px] uppercase tracking-[0.22em] font-bold"
                 data-testid="seo-ping-gsc-result"
               >
                 {result._gsc.throttled
@@ -2904,7 +2904,7 @@ function SearchEnginePingCard() {
             ) : (
               <div className="space-y-2">
                 <div
-                  className="inline-block px-3 py-1.5 border border-amber-500/60 text-amber-400 bg-amber-500/5 font-mono text-[10px] uppercase tracking-[0.22em] font-bold"
+                  className="inline-block px-3 py-1.5 border border-amber-500/60 text-brand bg-amber-500/5 font-mono text-[10px] uppercase tracking-[0.22em] font-bold"
                   data-testid="seo-ping-gsc-result"
                 >
                   ✕ {result._gsc?.error?.slice(0, 80) || "GSC not configured"}
@@ -3129,7 +3129,7 @@ function SalesChannelFeedsCard() {
 
               <div className="flex flex-wrap items-center gap-2 mb-2">
                 <code
-                  className="font-mono text-[11px] text-cyan-300 bg-paper border border-line px-2 py-1 break-all flex-1 min-w-0"
+                  className="font-mono text-[11px] text-brand bg-paper border border-line px-2 py-1 break-all flex-1 min-w-0"
                   data-testid={`sales-feed-${c.key}-url`}
                 >
                   {c.url}
@@ -3174,7 +3174,7 @@ function SalesChannelFeedsCard() {
                   </div>
                   <div className="grid sm:grid-cols-[120px_1fr_auto] gap-2 items-center mb-2">
                     <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">username</div>
-                    <code className="font-mono text-[11px] text-cyan-300 bg-paper border border-line px-2 py-1">
+                    <code className="font-mono text-[11px] text-brand bg-paper border border-line px-2 py-1">
                       {creds.pinterest.username}
                     </code>
                     <button
@@ -3187,7 +3187,7 @@ function SalesChannelFeedsCard() {
                   </div>
                   <div className="grid sm:grid-cols-[120px_1fr_auto] gap-2 items-center mb-2">
                     <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">password</div>
-                    <code className="font-mono text-[11px] text-amber-300 bg-paper border border-line px-2 py-1 break-all">
+                    <code className="font-mono text-[11px] text-brand bg-paper border border-line px-2 py-1 break-all">
                       {showPw[c.key]
                         ? creds.pinterest.password
                         : "•".repeat(Math.min(creds.pinterest.password?.length || 0, 32))}
@@ -3219,7 +3219,7 @@ function SalesChannelFeedsCard() {
                     <button
                       onClick={() => rotate(c.key)}
                       disabled={rotating === c.key}
-                      className="px-2.5 py-1 border border-amber-500/60 text-amber-300 hover:bg-amber-500/10 font-mono text-[9px] uppercase tracking-[0.22em] disabled:opacity-50"
+                      className="px-2.5 py-1 border border-amber-500/60 text-brand hover:bg-amber-500/10 font-mono text-[9px] uppercase tracking-[0.22em] disabled:opacity-50"
                       data-testid={`sales-feed-${c.key}-rotate`}
                     >
                       {rotating === c.key ? "Rotating…" : "↺ Rotate password"}
@@ -3347,24 +3347,24 @@ function StripeWebhookHealthCard() {
         <div className="font-mono text-[10px] text-ink-muted">
           Last event: <span className="text-ink">{fmtAgo(v.last?.ts)}</span>
           {v.last?.event_type && (
-            <span className="text-ink-muted"> · <code className="text-cyan-400">{v.last.event_type}</code></span>
+            <span className="text-ink-muted"> · <code className="text-brand">{v.last.event_type}</code></span>
           )}
         </div>
 
         {/* Recent errors — inline preview so admin can copy/paste */}
         {v.recent_errors?.length > 0 && (
           <details className="mt-3">
-            <summary className="font-mono text-[10px] uppercase tracking-[0.22em] text-amber-300 cursor-pointer">
+            <summary className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand cursor-pointer">
               ▾ {v.recent_errors.length} recent error{v.recent_errors.length === 1 ? "" : "s"}
             </summary>
             <ul className="mt-2 space-y-1.5 max-h-48 overflow-auto" data-testid={`stripe-webhook-${k}-errors`}>
               {v.recent_errors.map((e, i) => (
                 <li key={i} className="border-l-2 border-red-500/40 pl-2 py-0.5">
                   <div className="font-mono text-[10px] text-ink-muted">
-                    {fmtAgo(e.ts)} · <span className="text-amber-300">{e.status}</span>
+                    {fmtAgo(e.ts)} · <span className="text-brand">{e.status}</span>
                     {e.event_type && <span className="text-ink-muted"> · {e.event_type}</span>}
                   </div>
-                  <div className="font-mono text-[10px] text-red-300 break-words mt-0.5">
+                  <div className="font-mono text-[10px] text-red-600 break-words mt-0.5">
                     {e.error || "(no detail)"}
                   </div>
                 </li>
@@ -3421,11 +3421,11 @@ function StripeWebhookHealthCard() {
 
       {(!data.secrets_configured?.main || !data.secrets_configured?.connect) && (
         <div
-          className="mt-3 border border-amber-500/30 bg-amber-500/5 p-2.5 font-mono text-[11px] text-amber-300"
+          className="mt-3 border border-amber-500/30 bg-amber-500/5 p-2.5 font-mono text-[11px] text-brand"
           data-testid="stripe-webhook-health-config-warn"
         >
-          ⚠ Set <code className="text-amber-200">STRIPE_WEBHOOK_SECRET</code> and{" "}
-          <code className="text-amber-200">STRIPE_CONNECT_WEBHOOK_SECRET</code> in backend/.env
+          ⚠ Set <code className="text-ink">STRIPE_WEBHOOK_SECRET</code> and{" "}
+          <code className="text-ink">STRIPE_CONNECT_WEBHOOK_SECRET</code> in backend/.env
           (find them in Stripe Dashboard → Developers → Webhooks → your endpoint → "Signing secret").
         </div>
       )}
@@ -3681,7 +3681,7 @@ function GscIndexationCard() {
       </div>
 
       {!data.gsc_connected && (
-        <div className="mt-3 border border-amber-500/30 bg-amber-500/5 p-2.5 font-mono text-[11px] text-amber-300"
+        <div className="mt-3 border border-amber-500/30 bg-amber-500/5 p-2.5 font-mono text-[11px] text-brand"
              data-testid="gsc-indexation-not-connected">
           ⚠ GSC not connected — tier buckets stay at 0 until you connect
           OAuth in the "GSC connection" card above. The on-deploy
@@ -3835,7 +3835,7 @@ function PinterestCatalogHealthCard() {
           <a
             href={health?.feed_url}
             target="_blank" rel="noopener noreferrer"
-            className="text-cyan-400 hover:underline break-all text-[10px]"
+            className="text-brand hover:underline break-all text-[10px]"
             data-testid="pinterest-feed-url"
           >
             {health?.feed_url}
@@ -3982,7 +3982,7 @@ function GscConnectionCard() {
       {err && <p className="font-mono text-xs text-red-400 mb-3">{err}</p>}
 
       {!status.enabled && (
-        <div className="border border-amber-500/40 bg-amber-500/5 p-3 mb-4 font-mono text-xs text-amber-200 leading-relaxed" data-testid="gsc-disabled-hint">
+        <div className="border border-amber-500/40 bg-amber-500/5 p-3 mb-4 font-mono text-xs text-ink leading-relaxed" data-testid="gsc-disabled-hint">
           ⚠️ GSC is <strong>disabled</strong> in this environment (<code>GSC_ENABLED ≠ 1</code>). The Connect / Test buttons below will fail until it&rsquo;s turned on.
           <div className="mt-2 text-ink-muted">
             <strong>To enable in production:</strong> open <em>Manage Deployments → Secrets</em>, set <code>GSC_ENABLED=1</code>, redeploy. The OAuth client ID / secret / redirect URI are already wired — only this single flag needs to flip.
@@ -3991,7 +3991,7 @@ function GscConnectionCard() {
       )}
 
       {!oauthAvailable && !status.service_account_configured && (
-        <div className="border border-amber-500/40 bg-amber-500/5 p-3 mb-4 font-mono text-xs text-amber-200">
+        <div className="border border-amber-500/40 bg-amber-500/5 p-3 mb-4 font-mono text-xs text-ink">
           ⚠️ OAuth is not configured. Set <code>GSC_OAUTH_CLIENT_ID</code>, <code>GSC_OAUTH_CLIENT_SECRET</code>, and{" "}
           <code>GSC_OAUTH_REDIRECT_URI</code> env vars in production, then reload this page.
         </div>
@@ -4034,7 +4034,7 @@ function GscConnectionCard() {
       {testResult && (
         <div
           className={`mt-4 border p-3 font-mono text-xs ${
-            testResult.ok ? "border-emerald-500/40 bg-emerald-500/5 text-emerald-300" : "border-red-500/40 bg-red-500/5 text-red-300"
+            testResult.ok ? "border-emerald-500/40 bg-emerald-500/5 text-emerald-700" : "border-red-500/40 bg-red-500/5 text-red-600"
           }`}
           data-testid="gsc-test-result"
         >
@@ -4069,7 +4069,7 @@ function ConnectionPill({ connected, email }) {
     <div
       className={`inline-flex items-center gap-1.5 border px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.22em] shrink-0 ${
         connected
-          ? "border-emerald-500/50 bg-emerald-500/5 text-emerald-400"
+          ? "border-emerald-500/50 bg-emerald-500/5 text-emerald-700"
           : "border-line bg-paper text-ink-muted"
       }`}
       data-testid="gsc-connection-pill"
@@ -4114,9 +4114,9 @@ function EmailProviderAuditCard() {
   React.useEffect(() => { load(); }, []);
 
   const roleClass = (role) => ({
-    primary:    "border-emerald-500/60 text-emerald-400 bg-emerald-500/5",
-    fallback:   "border-blue-500/60 text-blue-400 bg-blue-500/5",
-    fallback_2: "border-blue-500/40 text-blue-400 bg-blue-500/5",
+    primary:    "border-emerald-500/60 text-emerald-700 bg-emerald-500/5",
+    fallback:   "border-blue-500/60 text-blue-700 bg-blue-500/5",
+    fallback_2: "border-blue-500/40 text-blue-700 bg-blue-500/5",
     unused:     "border-line text-ink-muted bg-paper",
   }[role] || "border-line text-ink-muted");
 
@@ -4189,7 +4189,7 @@ function EmailProviderAuditCard() {
                   </div>
                   {p.safe_to_remove && (
                     <span
-                      className="px-2 py-0.5 border border-amber-500/60 text-amber-400 bg-amber-500/5 font-mono text-[10px] uppercase tracking-[0.22em] font-bold"
+                      className="px-2 py-0.5 border border-amber-500/60 text-brand bg-amber-500/5 font-mono text-[10px] uppercase tracking-[0.22em] font-bold"
                       data-testid={`email-audit-removable-${p.provider}`}
                     >
                       ⚠ Safe to remove
@@ -4218,7 +4218,7 @@ function EmailProviderAuditCard() {
           </div>
 
           {data.summary.safe_to_remove === 0 && (
-            <p className="mt-4 font-mono text-[11px] text-emerald-400" data-testid="email-audit-clean">
+            <p className="mt-4 font-mono text-[11px] text-emerald-700" data-testid="email-audit-clean">
               ✓ Nothing to clean up — every configured key is earning its keep.
             </p>
           )}
@@ -4306,19 +4306,19 @@ function OpsDigestCard() {
             <code>OPS_DIGEST_ENABLED=false</code>.
           </p>
         </div>
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-300 border border-emerald-700/60 px-2 py-1">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-700 border border-emerald-700/60 px-2 py-1">
           ✓ scheduled
         </div>
       </div>
 
       {err && (
-        <div className="mt-3 font-mono text-xs text-red-300 border border-red-900/60 bg-red-950/20 p-3" data-testid="ops-digest-err">
+        <div className="mt-3 font-mono text-xs text-red-600 border border-red-900/60 bg-red-950/20 p-3" data-testid="ops-digest-err">
           {err}
         </div>
       )}
 
       {sentTo && (
-        <div className="mt-3 font-mono text-xs text-emerald-300 border border-emerald-700/40 bg-emerald-950/20 p-3" data-testid="ops-digest-sent">
+        <div className="mt-3 font-mono text-xs text-emerald-700 border border-emerald-700/40 bg-emerald-950/20 p-3" data-testid="ops-digest-sent">
           ✓ Sent to {sentTo}
         </div>
       )}
@@ -4327,12 +4327,12 @@ function OpsDigestCard() {
         <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-2" data-testid="ops-digest-tiles">
           <div className="border border-line p-3 bg-paper">
             <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">GMV (yest.)</div>
-            <div className="font-mono text-lg text-emerald-300 mt-1">${data.revenue?.gmv?.toLocaleString?.(undefined, { minimumFractionDigits: 2 }) ?? "0.00"}</div>
+            <div className="font-mono text-lg text-emerald-700 mt-1">${data.revenue?.gmv?.toLocaleString?.(undefined, { minimumFractionDigits: 2 }) ?? "0.00"}</div>
             <div className="font-mono text-[10px] text-ink-muted mt-0.5">{data.revenue?.orders ?? 0} orders</div>
           </div>
           <div className="border border-line p-3 bg-paper">
             <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">New makers</div>
-            <div className="font-mono text-lg text-cyan-300 mt-1">{data.makers?.new_makers ?? 0}</div>
+            <div className="font-mono text-lg text-brand mt-1">{data.makers?.new_makers ?? 0}</div>
             <div className="font-mono text-[10px] text-ink-muted mt-0.5">{data.makers?.new_applications ?? 0} applied · {data.makers?.new_plus ?? 0} new Plus</div>
           </div>
           <div className="border border-line p-3 bg-paper">
@@ -4344,7 +4344,7 @@ function OpsDigestCard() {
             <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Reliability</div>
             <div className={`font-mono text-lg mt-1 ${
               (data.reliability?.outages?.length || 0) + (data.reliability?.budget_alerts?.length || 0) === 0
-                ? "text-emerald-300" : "text-amber-300"
+                ? "text-emerald-700" : "text-brand"
             }`}>
               {(data.reliability?.outages?.length || 0) + (data.reliability?.budget_alerts?.length || 0) === 0 ? "✓ All clear" : "⚠ Issues"}
             </div>
@@ -4473,7 +4473,7 @@ function LlmBudgetAlertsCard() {
           </p>
         </div>
         <div className={`px-2 py-1 border font-mono text-[10px] uppercase tracking-[0.22em] ${
-          healthy ? "border-emerald-700 text-emerald-300" : "border-amber-600 text-amber-300"
+          healthy ? "border-emerald-700 text-emerald-700" : "border-amber-600 text-brand"
         }`} data-testid="llm-budget-status-pill">
           {healthy ? "✓ healthy" : "⚠ recent alert"}
         </div>
@@ -4510,7 +4510,7 @@ function LlmBudgetAlertsCard() {
         <button
           onClick={fireTest}
           disabled={testing}
-          className="px-3 py-1.5 border border-amber-700/60 hover:border-amber-500 font-mono text-[10px] uppercase tracking-[0.22em] text-amber-300 disabled:opacity-50"
+          className="px-3 py-1.5 border border-amber-700/60 hover:border-amber-500 font-mono text-[10px] uppercase tracking-[0.22em] text-brand disabled:opacity-50"
           data-testid="llm-budget-test"
         >
           {testing ? "Firing…" : "▷ Fire test alert"}
@@ -4518,7 +4518,7 @@ function LlmBudgetAlertsCard() {
       </div>
 
       {err && (
-        <div className="mt-3 font-mono text-xs text-red-300 border border-red-900/60 bg-red-950/20 p-3">
+        <div className="mt-3 font-mono text-xs text-red-600 border border-red-900/60 bg-red-950/20 p-3">
           {err}
         </div>
       )}
@@ -5252,7 +5252,7 @@ function SocialAutoPostQueueCard() {
                       <button
                         type="button"
                         onClick={() => toggleCaptions(row.id)}
-                        className="px-2.5 py-1 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/10 font-mono text-[9px] uppercase tracking-[0.22em]"
+                        className="px-2.5 py-1 border border-cyan-500/40 text-brand hover:bg-cyan-500/10 font-mono text-[9px] uppercase tracking-[0.22em]"
                         data-testid={`social-queue-copy-${row.id}`}
                       >
                         {captionsOpen[row.id] ? "Hide captions" : "Captions ▾"}

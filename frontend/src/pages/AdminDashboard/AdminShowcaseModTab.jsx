@@ -262,7 +262,7 @@ function AdminShowcaseCard({ post, onChanged }) {
               <button
                 onClick={() => doAction("Approved", () => adminApproveShowcase(post.id))}
                 disabled={busy}
-                className="font-mono text-[10px] uppercase tracking-[0.22em] border border-emerald-500 text-emerald-400 hover:bg-emerald-500/10 px-2 py-1 flex items-center gap-1 disabled:opacity-50"
+                className="font-mono text-[10px] uppercase tracking-[0.22em] border border-emerald-500 text-emerald-700 hover:bg-emerald-500/10 px-2 py-1 flex items-center gap-1 disabled:opacity-50"
                 data-testid={`admin-showcase-${post.id}-approve`}
               >
                 <Check size={11} /> Approve
@@ -270,7 +270,7 @@ function AdminShowcaseCard({ post, onChanged }) {
               <button
                 onClick={() => doAction("Featured", () => adminApproveShowcase(post.id, { featured: true }))}
                 disabled={busy}
-                className="font-mono text-[10px] uppercase tracking-[0.22em] border border-yellow-500 text-yellow-400 hover:bg-yellow-500/10 px-2 py-1 flex items-center gap-1 disabled:opacity-50"
+                className="font-mono text-[10px] uppercase tracking-[0.22em] border border-yellow-500 text-brand hover:bg-yellow-500/10 px-2 py-1 flex items-center gap-1 disabled:opacity-50"
                 data-testid={`admin-showcase-${post.id}-feature`}
               >
                 <Star size={11} /> Feature
@@ -325,7 +325,7 @@ function ModStatsBlock({ onFilter }) {
 
   if (err) {
     return (
-      <div className="border border-amber-500/40 bg-amber-500/5 p-3 font-mono text-xs text-amber-200" data-testid="mod-stats-error">
+      <div className="border border-amber-500/40 bg-amber-500/5 p-3 font-mono text-xs text-ink" data-testid="mod-stats-error">
         {err}
       </div>
     );
@@ -359,9 +359,9 @@ function ModStatsBlock({ onFilter }) {
   ];
 
   const toneClasses = {
-    amber: "text-amber-400 border-amber-500/40",
+    amber: "text-brand border-amber-500/40",
     red: "text-red-400 border-red-500/50",
-    emerald: "text-emerald-400 border-emerald-500/30",
+    emerald: "text-emerald-700 border-emerald-500/30",
     neutral: "text-ink-muted border-line",
   };
 

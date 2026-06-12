@@ -157,7 +157,7 @@ function BriefStatusCard({ data }) {
                   </div>
                 )}
                 {reached && s.meta && (
-                  <div className="font-mono text-[10px] text-cyan-400 mt-0.5">{s.meta}</div>
+                  <div className="font-mono text-[10px] text-brand mt-0.5">{s.meta}</div>
                 )}
               </div>
             </li>
@@ -182,7 +182,7 @@ function BriefStatusCard({ data }) {
         <a
           href={data.reddit_post_url}
           target="_blank" rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 mt-5 pt-5 border-t border-line font-mono text-[11px] text-orange-400 hover:underline"
+          className="inline-flex items-center gap-1 mt-5 pt-5 border-t border-line font-mono text-[11px] text-brand hover:underline"
           data-testid="track-reddit-link"
         >
           ↗ Also broadcasted on r/{data.reddit_subreddit}

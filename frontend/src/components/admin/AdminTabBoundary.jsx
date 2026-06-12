@@ -42,7 +42,7 @@ export default class AdminTabBoundary extends React.Component {
         className="border-2 border-red-700/60 bg-red-900/10 p-6 md:p-8 max-w-3xl"
         data-testid={`admin-tab-error-${this.props.tabId || "unknown"}`}
       >
-        <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.3em] text-red-300 mb-3">
+        <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.3em] text-red-600 mb-3">
           <AlertTriangle size={12} /> Tab crashed
         </div>
         <h3 className="font-display text-2xl uppercase leading-tight mb-3">

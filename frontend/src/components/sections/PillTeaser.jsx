@@ -100,7 +100,7 @@ export default function PillTeaser({ label, query }) {
     >
       <button
         onClick={onClick}
-        className="px-3 py-1.5 border border-amber-500/20 hover:border-amber-400 hover:text-amber-300 font-mono text-[10px] uppercase tracking-[0.22em] text-zinc-300 transition bg-paper/30 backdrop-blur-sm"
+        className="px-3 py-1.5 border border-amber-500/20 hover:border-amber-400 hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] text-ink transition bg-paper/30 backdrop-blur-sm"
         data-testid={`pill-${label}`}
         aria-haspopup="true"
         aria-expanded={open}
@@ -115,12 +115,12 @@ export default function PillTeaser({ label, query }) {
           role="dialog"
         >
           <div className="flex items-center justify-between mb-2 px-1">
-            <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-amber-300">
+            <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-brand">
               ◆ {label}
             </span>
             <button
               onClick={() => nav(`/shop?q=${encodeURIComponent(query)}`)}
-              className="font-mono text-[9px] uppercase tracking-[0.22em] text-zinc-400 hover:text-amber-300"
+              className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand"
               data-testid={`pill-teaser-viewall-${label}`}
             >
               View all →
@@ -137,7 +137,7 @@ export default function PillTeaser({ label, query }) {
 
           {!loading && items?.length === 0 && (
             <p
-              className="font-mono text-[10px] text-zinc-500 px-1 py-3"
+              className="font-mono text-[10px] text-ink-muted px-1 py-3"
               data-testid={`pill-teaser-empty-${label}`}
             >
               No listings yet — be the first.
@@ -162,7 +162,7 @@ export default function PillTeaser({ label, query }) {
                       className="w-full h-full object-cover group-hover:scale-[1.04] transition duration-500"
                     />
                   </div>
-                  <div className="mt-1.5 font-mono text-[9px] text-zinc-300 truncate group-hover:text-amber-300">
+                  <div className="mt-1.5 font-mono text-[9px] text-ink truncate group-hover:text-brand">
                     {p.title}
                   </div>
                   <div className="font-mono text-[10px] text-brand">

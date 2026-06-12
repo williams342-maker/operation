@@ -181,7 +181,7 @@ export default function NotificationsPanel() {
           />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 mb-1">
-              <Sparkles size={12} className="text-cyan-400" />
+              <Sparkles size={12} className="text-brand" />
               <div className="font-mono text-sm text-ink">
                 Weekly AI pricing digest
               </div>
@@ -216,9 +216,9 @@ export default function NotificationsPanel() {
 
 function Stat({ icon: Icon, label, value, sub, tone, testId }) {
   const accent = tone === "emerald"
-    ? "text-emerald-300"
+    ? "text-emerald-700"
     : tone === "red"
-      ? "text-red-300"
+      ? "text-red-600"
       : tone === "orange"
         ? "text-brand"
         : "text-ink";

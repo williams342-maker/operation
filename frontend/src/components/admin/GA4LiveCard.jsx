@@ -99,23 +99,23 @@ export default function GA4LiveCard() {
       <div className="border border-amber-700/40 bg-amber-950/15 p-6" data-testid="ga4-card-setup">
         <div className="flex items-start justify-between gap-3 mb-3 flex-wrap">
           <div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-amber-300 mb-1">◆ GA4 · Setup needed</div>
-            <h3 className="font-display text-2xl text-amber-200">Google Analytics 4 — Not Connected</h3>
+            <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-brand mb-1">◆ GA4 · Setup needed</div>
+            <h3 className="font-display text-2xl text-ink">Google Analytics 4 — Not Connected</h3>
             <p className="font-mono text-[11px] text-ink-muted mt-1 max-w-[68ch] leading-relaxed">
               Live traffic metrics are one click away. Once GA4 is wired, this card surfaces realtime active users, 7-day totals, top pages, and top traffic sources right here.
             </p>
           </div>
           <button
             onClick={loadAll}
-            className="px-3 py-1.5 border border-amber-700/60 hover:border-amber-400 hover:text-amber-300 font-mono text-[11px] uppercase tracking-[0.22em] text-amber-300"
+            className="px-3 py-1.5 border border-amber-700/60 hover:border-amber-400 hover:text-brand font-mono text-[11px] uppercase tracking-[0.22em] text-brand"
             data-testid="ga4-card-retry"
           >
             ↻ Retry
           </button>
         </div>
         {error && (
-          <div className="mt-3 font-mono text-[11px] text-amber-100 bg-paper/30 border border-amber-900/60 p-3 leading-relaxed" data-testid="ga4-card-reason">
-            <strong className="text-amber-300">Reason:</strong>{" "}
+          <div className="mt-3 font-mono text-[11px] text-ink bg-paper/30 border border-amber-900/60 p-3 leading-relaxed" data-testid="ga4-card-reason">
+            <strong className="text-brand">Reason:</strong>{" "}
             {(() => {
               const url = error.match(/\bhttps?:\/\/\S+/)?.[0];
               if (!url) return error;
@@ -124,7 +124,7 @@ export default function GA4LiveCard() {
                 <>
                   {pre}
                   <a href={url} target="_blank" rel="noopener noreferrer"
-                     className="text-emerald-300 underline break-all hover:text-emerald-200">
+                     className="text-emerald-700 underline break-all hover:text-emerald-700">
                     {url}
                   </a>
                 </>
@@ -136,11 +136,11 @@ export default function GA4LiveCard() {
           <div className="grid grid-cols-2 gap-2 font-mono text-[11px] mt-3" data-testid="ga4-card-context">
             <div className="border border-line bg-paper px-2 py-1.5">
               <div className="uppercase tracking-[0.22em] text-[9px] text-ink-muted">Property ID</div>
-              <div className="text-base text-zinc-200">{diag.property_id || "—"}</div>
+              <div className="text-base text-ink">{diag.property_id || "—"}</div>
             </div>
             <div className="border border-line bg-paper px-2 py-1.5">
               <div className="uppercase tracking-[0.22em] text-[9px] text-ink-muted">Service account</div>
-              <div className="text-[11px] text-zinc-200 truncate" title={diag.client_email}>{diag.client_email || "—"}</div>
+              <div className="text-[11px] text-ink truncate" title={diag.client_email}>{diag.client_email || "—"}</div>
             </div>
           </div>
         )}
@@ -153,12 +153,12 @@ export default function GA4LiveCard() {
     <div className="space-y-4" data-testid="ga4-card-live">
       <div className="flex items-end justify-between flex-wrap gap-3 border-b border-line pb-3">
         <div>
-          <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-emerald-300 mb-1">◆ GA4 · Live</div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-emerald-700 mb-1">◆ GA4 · Live</div>
           <h3 className="font-display text-2xl">Google Analytics</h3>
         </div>
         <button
           onClick={loadAll}
-          className="px-3 py-1.5 border border-line hover:border-emerald-500 hover:text-emerald-300 font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted"
+          className="px-3 py-1.5 border border-line hover:border-emerald-500 hover:text-emerald-700 font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted"
           data-testid="ga4-card-refresh"
         >
           ↻ Refresh
@@ -173,10 +173,10 @@ export default function GA4LiveCard() {
           className="border border-emerald-700/40 bg-emerald-950/20 p-4"
           data-testid="ga4-kpi-realtime"
         >
-          <div className="font-mono text-[9px] uppercase tracking-[0.28em] text-emerald-300 mb-1 flex items-center gap-2">
+          <div className="font-mono text-[9px] uppercase tracking-[0.28em] text-emerald-700 mb-1 flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" /> Now
           </div>
-          <div className="font-display text-4xl text-emerald-200">{realtime?.active_users ?? "—"}</div>
+          <div className="font-display text-4xl text-emerald-700">{realtime?.active_users ?? "—"}</div>
           <div className="font-mono text-[10px] text-ink-muted mt-1">active users</div>
         </motion.div>
         <KpiTile label="Users · 7d" value={summary?.total_users} testId="ga4-kpi-users-7d" />
@@ -195,7 +195,7 @@ export default function GA4LiveCard() {
               {topPages.map((p, i) => (
                 <li key={i} className="flex justify-between items-center gap-3 font-mono text-xs">
                   <span className="text-ink truncate" title={p.page_path}>{p.page_path}</span>
-                  <span className="text-emerald-300 shrink-0">{p.page_views.toLocaleString()}</span>
+                  <span className="text-emerald-700 shrink-0">{p.page_views.toLocaleString()}</span>
                 </li>
               ))}
             </ul>
@@ -210,7 +210,7 @@ export default function GA4LiveCard() {
               {topSources.map((s, i) => (
                 <li key={i} className="flex justify-between items-center gap-3 font-mono text-xs">
                   <span className="text-ink truncate" title={s.source_medium}>{s.source_medium}</span>
-                  <span className="text-emerald-300 shrink-0">{s.sessions.toLocaleString()}</span>
+                  <span className="text-emerald-700 shrink-0">{s.sessions.toLocaleString()}</span>
                 </li>
               ))}
             </ul>
@@ -225,7 +225,7 @@ function KpiTile({ label, value, testId }) {
   return (
     <div className="border border-line bg-paper p-4" data-testid={testId}>
       <div className="font-mono text-[9px] uppercase tracking-[0.28em] text-ink-muted mb-1">{label}</div>
-      <div className="font-display text-4xl text-zinc-100">{value === undefined || value === null ? "—" : value.toLocaleString()}</div>
+      <div className="font-display text-4xl text-ink">{value === undefined || value === null ? "—" : value.toLocaleString()}</div>
     </div>
   );
 }

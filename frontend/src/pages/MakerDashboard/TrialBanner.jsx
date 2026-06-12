@@ -67,7 +67,7 @@ export default function TrialBanner() {
       } px-4 py-3 md:px-5 md:py-4 flex items-center gap-3 flex-wrap`}
       data-testid="plus-trial-banner"
     >
-      <div className={`shrink-0 ${urgent ? "text-brand" : "text-emerald-300"}`}>
+      <div className={`shrink-0 ${urgent ? "text-brand" : "text-emerald-700"}`}>
         <Sparkles size={18} />
       </div>
       <div className="flex-1 min-w-[200px]">
@@ -77,7 +77,7 @@ export default function TrialBanner() {
         <div className="font-mono text-xs md:text-sm text-ink leading-relaxed">
           {typeof days === "number" ? (
             <>
-              <strong className={urgent ? "text-brand" : "text-emerald-300"}>
+              <strong className={urgent ? "text-brand" : "text-emerald-700"}>
                 {days} day{days === 1 ? "" : "s"} left
               </strong>{" "}
               on your 3-month trial.{" "}

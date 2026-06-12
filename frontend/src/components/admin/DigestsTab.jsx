@@ -137,8 +137,8 @@ export default function DigestsTab() {
                     <div className="text-ink-muted text-[10px] truncate">{c.email}</div>
                   </div>
                   <div className="col-span-3 text-right text-ink">${c.gross_30d.toFixed(2)}</div>
-                  <div className="col-span-2 text-right text-emerald-400">+${c.commission_savings.toFixed(2)}</div>
-                  <div className={`col-span-3 text-right ${c.net_benefit > 0 ? "text-emerald-400" : "text-yellow-400"}`}>
+                  <div className="col-span-2 text-right text-emerald-700">+${c.commission_savings.toFixed(2)}</div>
+                  <div className={`col-span-3 text-right ${c.net_benefit > 0 ? "text-emerald-700" : "text-brand"}`}>
                     {c.net_benefit > 0 ? "+" : ""}${c.net_benefit.toFixed(2)}
                   </div>
                 </div>

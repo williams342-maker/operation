@@ -98,7 +98,7 @@ export default function UpgradeTab({ maker }) {
           </ul>
           <div className="mt-6 pt-6 border-t border-brand/30">
             {isPlus ? (
-              <div className="text-center font-mono text-[11px] uppercase tracking-[0.22em] text-emerald-300" data-testid="upgrade-active-status">
+              <div className="text-center font-mono text-[11px] uppercase tracking-[0.22em] text-emerald-700" data-testid="upgrade-active-status">
                 {isInTrial ? "✓ Trial active — Plus benefits unlocked" : "✓ You're a Plus subscriber"}
               </div>
             ) : (

@@ -149,9 +149,9 @@ export default function RefundApprovalsTab({ me }) {
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className={`font-mono text-[10px] uppercase tracking-[0.22em] px-2 py-0.5 border ${
-                      ap.status === "pending" ? "border-amber-500 text-amber-400" :
-                      ap.status === "approved" ? "border-cyan-500 text-cyan-400" :
-                      ap.status === "executed" ? "border-emerald-500 text-emerald-400" :
+                      ap.status === "pending" ? "border-amber-500 text-brand" :
+                      ap.status === "approved" ? "border-cyan-500 text-brand" :
+                      ap.status === "executed" ? "border-emerald-500 text-emerald-700" :
                       "border-line text-ink-muted"
                     }`}>
                       {ap.status}
@@ -166,7 +166,7 @@ export default function RefundApprovalsTab({ me }) {
                     {" · "}{formatDate(ap.requested_at)}
                   </div>
                   {ap.approved_by && (
-                    <div className="font-mono text-[10px] text-cyan-300 mt-1">
+                    <div className="font-mono text-[10px] text-brand mt-1">
                       ✓ Approved by {ap.approved_by} · {formatDate(ap.approved_at)}
                     </div>
                   )}
@@ -176,12 +176,12 @@ export default function RefundApprovalsTab({ me }) {
                     </div>
                   )}
                   {ap.executed_at && (
-                    <div className="font-mono text-[10px] text-emerald-400 mt-1">
+                    <div className="font-mono text-[10px] text-emerald-700 mt-1">
                       ✓ Executed · {formatDate(ap.executed_at)}
                     </div>
                   )}
                   {isMine && ap.status === "pending" && (
-                    <div className="font-mono text-[10px] text-amber-300 mt-2">
+                    <div className="font-mono text-[10px] text-brand mt-2">
                       ◆ You requested this refund — a different admin must approve it.
                     </div>
                   )}
@@ -191,7 +191,7 @@ export default function RefundApprovalsTab({ me }) {
                     <>
                       <button
                         onClick={() => onApprove(ap.id)} disabled={busy === ap.id}
-                        className="px-3 py-2 border border-cyan-500 text-cyan-400 hover:bg-cyan-500/10 font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-2 disabled:opacity-50"
+                        className="px-3 py-2 border border-cyan-500 text-brand hover:bg-cyan-500/10 font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-2 disabled:opacity-50"
                         data-testid={`approval-approve-${ap.id}`}
                       >
                         <CheckCircle2 size={12} /> Approve

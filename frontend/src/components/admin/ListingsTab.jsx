@@ -153,7 +153,7 @@ function ListingRow({ p, onChange }) {
           onClick={recheckGsc}
           disabled={busy}
           title="Force-refresh Google indexation status for this listing — bypasses the daily cron"
-          className="px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.22em] border border-line text-ink-muted hover:border-cyan-500 hover:text-cyan-300 transition disabled:opacity-50"
+          className="px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.22em] border border-line text-ink-muted hover:border-cyan-500 hover:text-brand transition disabled:opacity-50"
           data-testid={`listing-gsc-recheck-${p.slug}`}
         >
           {busy ? "…" : "↺ GSC re-check"}
@@ -195,7 +195,7 @@ function ListingRow({ p, onChange }) {
         <button
           onClick={del}
           disabled={busy}
-          className="font-mono text-[10px] uppercase tracking-[0.22em] text-red-400 hover:text-red-200 disabled:opacity-50"
+          className="font-mono text-[10px] uppercase tracking-[0.22em] text-red-400 hover:text-red-600 disabled:opacity-50"
           data-testid={`listing-delete-${p.slug}`}
         >
           ⊗ delete

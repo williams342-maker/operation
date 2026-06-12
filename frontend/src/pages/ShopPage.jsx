@@ -301,11 +301,11 @@ export default function ShopPage() {
             className="mb-8 border border-amber-900/50 bg-amber-950/15 p-4 md:p-5 max-w-3xl"
             data-testid="shop-featured-examples-banner"
           >
-            <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-amber-300 mb-2">
+            <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-2">
               ✦ Featured Examples · Platform Showcase
             </div>
             <p className="font-mono text-[12px] text-ink-muted leading-relaxed">
-              These are <span className="text-amber-300">curated reference builds</span> staged by the Crafters
+              These are <span className="text-brand">curated reference builds</span> staged by the Crafters
               Market workshop team — not for sale. We use them to show what's possible while our
               maker catalog grows. Real listings from approved makers populate the rest of the marketplace.
             </p>

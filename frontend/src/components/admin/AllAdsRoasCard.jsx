@@ -37,16 +37,16 @@ export default function AllAdsRoasCard() {
 
   const roasColor = (() => {
     if (!data?.roas || !data?.total_ad_spend_usd) return "text-ink-muted";
-    if (data.roas >= 4) return "text-emerald-400";
-    if (data.roas >= 1.5) return "text-cyan-400";
-    if (data.roas >= 1) return "text-amber-400";
+    if (data.roas >= 4) return "text-emerald-700";
+    if (data.roas >= 1.5) return "text-brand";
+    if (data.roas >= 1) return "text-brand";
     return "text-brand";
   })();
 
   const platformAccent = {
-    microsoft: "text-cyan-300 border-cyan-400/30",
-    google: "text-emerald-300 border-emerald-400/30",
-    meta: "text-blue-300 border-blue-400/30",
+    microsoft: "text-brand border-cyan-400/30",
+    google: "text-emerald-700 border-emerald-400/30",
+    meta: "text-blue-700 border-blue-400/30",
   };
   const platformLabel = { microsoft: "Microsoft", google: "Google", meta: "Meta" };
 

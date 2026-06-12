@@ -162,13 +162,13 @@ export default function MediaSection({
           className="mb-3 px-3 py-2 border border-red-500/60 bg-red-950/40 flex items-center justify-between gap-3"
           data-testid="editor-photo-batch-error"
         >
-          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-red-300">
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-red-600">
             ◆ {failedCount} photo{failedCount === 1 ? "" : "s"} failed to upload
           </span>
           <button
             type="button"
             onClick={retryAllFailedUploads}
-            className="px-3 py-1 border border-red-400 text-red-200 hover:bg-red-500/20 font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-2"
+            className="px-3 py-1 border border-red-400 text-red-600 hover:bg-red-500/20 font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-2"
             data-testid="editor-retry-all-failed-photos"
           >
             <RotateCw size={11} /> Retry all
@@ -224,7 +224,7 @@ export default function MediaSection({
                   className="absolute inset-0 bg-red-950/85 flex flex-col items-center justify-center gap-3 px-3 z-10"
                   data-testid={`editor-image-error-${i}`}
                 >
-                  <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-red-200 text-center leading-tight">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-red-600 text-center leading-tight">
                     ◆ Upload failed
                   </span>
                   {/* iter340b — Retry promoted to the PRIMARY action on a
@@ -241,7 +241,7 @@ export default function MediaSection({
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); removeImage(i); }}
-                    className="px-2 py-1 border border-red-400/60 text-red-200 hover:bg-red-500/20 font-mono text-[9px] uppercase tracking-[0.22em] inline-flex items-center gap-1"
+                    className="px-2 py-1 border border-red-400/60 text-red-600 hover:bg-red-500/20 font-mono text-[9px] uppercase tracking-[0.22em] inline-flex items-center gap-1"
                     data-testid={`editor-image-error-remove-${i}`}
                   >
                     <Trash2 size={10} /> Remove

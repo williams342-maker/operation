@@ -32,9 +32,9 @@ const PLACEMENT_LABELS = {
 const PLACEMENTS = Object.keys(PLACEMENT_LABELS);
 
 const STATUS_TONE = {
-  active:    "border-emerald-700/50 text-emerald-300",
-  scheduled: "border-amber-700/50 text-amber-300",
-  paused:    "border-orange-700/50 text-orange-300",
+  active:    "border-emerald-700/50 text-emerald-700",
+  scheduled: "border-amber-700/50 text-brand",
+  paused:    "border-orange-700/50 text-brand",
   ended:     "border-line text-ink-muted",
 };
 
@@ -114,7 +114,7 @@ export default function SitePromosCard() {
       {confirmModal}
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-amber-300 mb-2 flex items-center gap-1.5">
+          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-2 flex items-center gap-1.5">
             <Megaphone size={12} /> ◆ On-site Promos
           </div>
           <h3 className="font-display text-2xl uppercase mb-1">Site Banner CMS</h3>
@@ -124,7 +124,7 @@ export default function SitePromosCard() {
         </div>
         <button
           onClick={() => setShowForm((v) => !v)}
-          className="px-3 py-2 border border-amber-700/50 hover:border-amber-400 text-amber-300 font-mono text-[10px] uppercase tracking-[0.22em] flex items-center gap-1.5"
+          className="px-3 py-2 border border-amber-700/50 hover:border-amber-400 text-brand font-mono text-[10px] uppercase tracking-[0.22em] flex items-center gap-1.5"
           data-testid="site-promos-new"
         >
           {showForm ? <X size={11} /> : <Plus size={11} />}
@@ -160,7 +160,7 @@ export default function SitePromosCard() {
                     <span className={`font-mono text-[9px] uppercase tracking-[0.22em] px-1.5 py-0.5 border ${STATUS_TONE[p.status] || ""}`}>
                       {p.status}
                     </span>
-                    <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-amber-300 border border-amber-700/30 px-1.5 py-0.5">
+                    <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-brand border border-amber-700/30 px-1.5 py-0.5">
                       {p.placement}
                     </span>
                     {p.tone && p.tone !== "default" && (
@@ -169,7 +169,7 @@ export default function SitePromosCard() {
                       </span>
                     )}
                     {!p.dismissible && (
-                      <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-red-300 border border-red-700/30 px-1.5 py-0.5">
+                      <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-red-600 border border-red-700/30 px-1.5 py-0.5">
                         non-dismissible
                       </span>
                     )}
@@ -182,7 +182,7 @@ export default function SitePromosCard() {
                     {p.cta_label && p.cta_url && (
                       <span className="flex items-center gap-1">
                         CTA: &ldquo;{p.cta_label}&rdquo;
-                        <a href={p.cta_url} target="_blank" rel="noreferrer" className="text-amber-300 hover:underline inline-flex items-center gap-0.5">
+                        <a href={p.cta_url} target="_blank" rel="noreferrer" className="text-brand hover:underline inline-flex items-center gap-0.5">
                           {p.cta_url}<ExternalLink size={9} />
                         </a>
                       </span>
@@ -195,7 +195,7 @@ export default function SitePromosCard() {
                     <button
                       onClick={() => onStatus(p.promo_id, "active")}
                       disabled={busy === `${p.promo_id}:active`}
-                      className="px-2 py-1 border border-emerald-700/50 hover:border-emerald-400 text-emerald-300 font-mono text-[9px] uppercase tracking-[0.22em] flex items-center gap-1 disabled:opacity-50"
+                      className="px-2 py-1 border border-emerald-700/50 hover:border-emerald-400 text-emerald-700 font-mono text-[9px] uppercase tracking-[0.22em] flex items-center gap-1 disabled:opacity-50"
                       data-testid={`site-promo-activate-${p.promo_id}`}
                     >
                       <Play size={10} /> Activate
@@ -205,7 +205,7 @@ export default function SitePromosCard() {
                     <button
                       onClick={() => onStatus(p.promo_id, "paused")}
                       disabled={busy === `${p.promo_id}:paused`}
-                      className="px-2 py-1 border border-orange-700/50 hover:border-orange-400 text-orange-300 font-mono text-[9px] uppercase tracking-[0.22em] flex items-center gap-1 disabled:opacity-50"
+                      className="px-2 py-1 border border-orange-700/50 hover:border-orange-400 text-brand font-mono text-[9px] uppercase tracking-[0.22em] flex items-center gap-1 disabled:opacity-50"
                       data-testid={`site-promo-pause-${p.promo_id}`}
                     >
                       <Pause size={10} /> Pause
@@ -215,7 +215,7 @@ export default function SitePromosCard() {
                     <button
                       onClick={() => onStatus(p.promo_id, "ended")}
                       disabled={busy === `${p.promo_id}:ended`}
-                      className="px-2 py-1 border border-line hover:border-red-500 hover:text-red-300 text-ink-muted font-mono text-[9px] uppercase tracking-[0.22em] flex items-center gap-1 disabled:opacity-50"
+                      className="px-2 py-1 border border-line hover:border-red-500 hover:text-red-600 text-ink-muted font-mono text-[9px] uppercase tracking-[0.22em] flex items-center gap-1 disabled:opacity-50"
                       data-testid={`site-promo-end-${p.promo_id}`}
                     >
                       <Square size={10} /> End
@@ -224,7 +224,7 @@ export default function SitePromosCard() {
                   <button
                     onClick={() => onDelete(p)}
                     disabled={busy === `${p.promo_id}:delete`}
-                    className="px-2 py-1 border border-line hover:border-red-500 hover:text-red-300 text-ink-muted font-mono text-[9px] uppercase tracking-[0.22em] flex items-center gap-1 disabled:opacity-50"
+                    className="px-2 py-1 border border-line hover:border-red-500 hover:text-red-600 text-ink-muted font-mono text-[9px] uppercase tracking-[0.22em] flex items-center gap-1 disabled:opacity-50"
                     data-testid={`site-promo-delete-${p.promo_id}`}
                     title="Delete promo"
                   >

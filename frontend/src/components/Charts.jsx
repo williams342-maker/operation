@@ -33,7 +33,7 @@ export function Sparkline({ data = [], height = 56, label = "Weekly", testId }) 
             ${last.toFixed(0)} this week
           </span>
           {delta === "up" && (
-            <span className="font-mono text-[10px] text-emerald-400">▲</span>
+            <span className="font-mono text-[10px] text-emerald-700">▲</span>
           )}
           {delta === "down" && (
             <span className="font-mono text-[10px] text-red-400">▼</span>
@@ -82,7 +82,7 @@ export function DeltaBadge({ delta, testId }) {
   if (!delta) return null;
   const { direction, delta_pct } = delta;
   const cls =
-    direction === "up" ? "text-emerald-400"
+    direction === "up" ? "text-emerald-700"
     : direction === "down" ? "text-red-400"
     : direction === "new" ? "text-brand"
     : "text-ink-muted";

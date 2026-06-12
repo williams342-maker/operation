@@ -119,7 +119,7 @@ export default function CheckoutSuccess() {
           className="max-w-2xl mx-auto border border-cyan-500/40 bg-cyan-950/[0.15] p-6 mb-10 text-left"
           data-testid="success-digital-downloads"
         >
-          <div className="font-mono text-[11px] uppercase tracking-[0.28em] text-cyan-300 mb-3">
+          <div className="font-mono text-[11px] uppercase tracking-[0.28em] text-brand mb-3">
             ◆ Your downloads ({state.digital_downloads.length})
           </div>
           <p className="font-mono text-xs text-ink-muted leading-relaxed mb-4">
@@ -261,7 +261,7 @@ function PostCheckoutNewsletterCard({ initialEmail }) {
         className="max-w-lg mx-auto border border-emerald-500/40 bg-emerald-500/5 p-6 mb-10 text-left"
         data-testid="success-newsletter-done"
       >
-        <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-emerald-400 mb-2">
+        <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-emerald-700 mb-2">
           ◆ Subscribed
         </div>
         <p className="font-mono text-xs text-ink-muted">

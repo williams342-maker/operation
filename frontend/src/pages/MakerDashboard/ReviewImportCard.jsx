@@ -317,7 +317,7 @@ export default function ReviewImportCard({ onImported }) {
               className="border border-emerald-500/40 bg-emerald-500/5 p-4 font-mono text-xs space-y-1"
               data-testid="review-import-result"
             >
-              <p className="text-emerald-400 uppercase tracking-[0.22em] text-[10px]">
+              <p className="text-emerald-700 uppercase tracking-[0.22em] text-[10px]">
                 ◆ Import complete
               </p>
               <p className="text-ink">
@@ -326,7 +326,7 @@ export default function ReviewImportCard({ onImported }) {
                   <> · skipped <b>{result.skipped_duplicates}</b> duplicate{result.skipped_duplicates === 1 ? "" : "s"}</>
                 )}
                 {result.error_count > 0 && (
-                  <> · <span className="text-amber-400">{result.error_count} row{result.error_count === 1 ? "" : "s"} couldn't be parsed</span></>
+                  <> · <span className="text-brand">{result.error_count} row{result.error_count === 1 ? "" : "s"} couldn't be parsed</span></>
                 )}
               </p>
               {result.errors && result.errors.length > 0 && (
@@ -387,7 +387,7 @@ export default function ReviewImportCard({ onImported }) {
                           {b.filename}
                         </span>
                         {b.published_publicly ? (
-                          <span className="px-1.5 py-0.5 border border-emerald-500/40 text-emerald-400 bg-emerald-500/5 font-mono text-[9px] uppercase tracking-[0.22em]">
+                          <span className="px-1.5 py-0.5 border border-emerald-500/40 text-emerald-700 bg-emerald-500/5 font-mono text-[9px] uppercase tracking-[0.22em]">
                             public
                           </span>
                         ) : (
@@ -641,8 +641,8 @@ function PreviewPanel({ preview }) {
       data-testid="review-import-preview-panel"
     >
       <div className="flex items-center gap-2">
-        <CheckCircle2 size={14} className="text-blue-400 shrink-0" />
-        <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-blue-400">
+        <CheckCircle2 size={14} className="text-blue-700 shrink-0" />
+        <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-blue-700">
           Test parse complete · nothing saved yet
         </p>
       </div>
@@ -686,7 +686,7 @@ function PreviewPanel({ preview }) {
                     <td className="py-2 px-2 text-ink-muted">{i + 1}</td>
                     <td className="py-2 px-2 text-ink">{row.name}</td>
                     <td className="py-2 px-2">
-                      <span className="text-amber-400">{"★".repeat(row.rating)}</span>
+                      <span className="text-brand">{"★".repeat(row.rating)}</span>
                       <span className="text-ink-muted/40">{"★".repeat(5 - row.rating)}</span>
                     </td>
                     <td className="py-2 px-2 text-ink-muted">{row.date || "—"}</td>
@@ -704,7 +704,7 @@ function PreviewPanel({ preview }) {
           </div>
         </div>
       ) : (
-        <p className="font-mono text-xs text-amber-400" data-testid="review-import-preview-no-sample">
+        <p className="font-mono text-xs text-brand" data-testid="review-import-preview-no-sample">
           ⚠ The file parsed but zero rows would be imported.{" "}
           {would_skip_duplicate > 0
             ? "Every row in this file was already imported earlier."
@@ -715,7 +715,7 @@ function PreviewPanel({ preview }) {
       {/* Errors callout */}
       {error_count > 0 && (
         <details className="font-mono text-[11px]">
-          <summary className="cursor-pointer text-amber-400 hover:text-amber-300">
+          <summary className="cursor-pointer text-brand hover:text-brand">
             ⚠ {error_count} row{error_count === 1 ? "" : "s"} would be skipped due to parse errors
           </summary>
           <ul className="mt-2 space-y-1 text-[10px] text-ink-muted">
@@ -741,8 +741,8 @@ function PreviewPanel({ preview }) {
 
 function PreviewStat({ label, value, accent }) {
   const colorMap = {
-    emerald: "text-emerald-400",
-    amber: "text-amber-400",
+    emerald: "text-emerald-700",
+    amber: "text-brand",
   };
   return (
     <div className="border border-line bg-paper p-2">
@@ -834,7 +834,7 @@ function SupportFallback() {
               className="border border-emerald-500/40 bg-emerald-500/5 p-4 font-mono text-xs"
               data-testid="support-fallback-sent"
             >
-              <p className="text-emerald-400 uppercase tracking-[0.22em] text-[10px] mb-2">
+              <p className="text-emerald-700 uppercase tracking-[0.22em] text-[10px] mb-2">
                 ◆ Sent to support
               </p>
               <p className="text-ink leading-relaxed">

@@ -59,7 +59,7 @@ export default function MakerFeedQualityCard() {
       data-testid="maker-feed-quality-card"
     >
       <div className="flex items-center justify-between gap-3 mb-1.5">
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-amber-600 dark:text-amber-400 inline-flex items-center gap-1.5">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-amber-600 dark:text-brand inline-flex items-center gap-1.5">
           <ShieldAlert size={12} /> Google feed quality
         </div>
         <button

@@ -59,7 +59,7 @@ function Tile({ stat }) {
   const d1 = stat.d1 || 0;
   const d7 = stat.d7 || 0;
   const Trend = d1 > 0 ? TrendingUp : d1 < 0 ? TrendingDown : Minus;
-  const trendColor = d1 > 0 ? "text-emerald-400" : d1 < 0 ? "text-red-400" : "text-ink-muted";
+  const trendColor = d1 > 0 ? "text-emerald-700" : d1 < 0 ? "text-red-400" : "text-ink-muted";
   const sign = d1 > 0 ? "+" : "";
 
   return (

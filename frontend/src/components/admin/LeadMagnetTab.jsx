@@ -151,7 +151,7 @@ export default function LeadMagnetTab() {
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-cyan-400">
+            <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-brand">
               ◆ Drip · 3-touch nurture sequence
             </div>
             <h3 className="font-display text-lg uppercase mt-1">Day 0 → Day 3 → Day 7</h3>
@@ -160,7 +160,7 @@ export default function LeadMagnetTab() {
             <button
               onClick={() => runDrip(true)}
               disabled={dripBusy}
-              className="px-3 py-1.5 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/10 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+              className="px-3 py-1.5 border border-cyan-500/40 text-brand hover:bg-cyan-500/10 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
               data-testid="lead-magnet-drip-dryrun"
             >
               {dripBusy ? "Running…" : "Dry run"}
@@ -181,7 +181,7 @@ export default function LeadMagnetTab() {
         </div>
         <p className="font-mono text-[11px] text-ink-muted leading-relaxed max-w-3xl">
           Cron runs daily at <span className="text-ink">14:30 UTC</span>. Only sends to subscribers with
-          <span className="text-cyan-300"> consent_marketing=true</span>. Skips subscribers whose email already matches an approved maker or a pending application.
+          <span className="text-brand"> consent_marketing=true</span>. Skips subscribers whose email already matches an approved maker or a pending application.
         </p>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -191,7 +191,7 @@ export default function LeadMagnetTab() {
           <Stat label="Day-7 sent" value={summary.drip?.step_2_day7_sent ?? 0} accent="emerald" testid="drip-step2" />
         </div>
         {summary.drip?.suppressed > 0 && (
-          <p className="font-mono text-[10px] text-amber-400" data-testid="drip-suppressed">
+          <p className="font-mono text-[10px] text-brand" data-testid="drip-suppressed">
             ⚠ {summary.drip.suppressed} subscriber{summary.drip.suppressed === 1 ? "" : "s"} suppressed (became a maker or unsubscribed).
           </p>
         )}
@@ -238,7 +238,7 @@ export default function LeadMagnetTab() {
                   </td>
                   <td className="px-3 py-2.5">
                     {s.consent_marketing
-                      ? <span className="text-emerald-400">✓ yes</span>
+                      ? <span className="text-emerald-700">✓ yes</span>
                       : <span className="text-ink-muted">no</span>}
                   </td>
                   <td className="px-3 py-2.5 text-right">
@@ -266,9 +266,9 @@ export default function LeadMagnetTab() {
 
 function Stat({ label, value, accent, testid }) {
   const tones = {
-    emerald: "text-emerald-400 border-emerald-500/30",
-    cyan: "text-cyan-300 border-cyan-500/30",
-    amber: "text-amber-400 border-amber-500/30",
+    emerald: "text-emerald-700 border-emerald-500/30",
+    cyan: "text-brand border-cyan-500/30",
+    amber: "text-brand border-amber-500/30",
   };
   const tone = tones[accent] || "text-ink border-line";
   return (
@@ -281,10 +281,10 @@ function Stat({ label, value, accent, testid }) {
 
 function DripStepBadge({ step }) {
   if (step === -1) {
-    return <span className="text-amber-400 font-mono text-[10px]">suppressed</span>;
+    return <span className="text-brand font-mono text-[10px]">suppressed</span>;
   }
   const labels = ["Step 0", "Day 3 ✓", "Day 7 ✓"];
-  const tones = ["text-ink-muted", "text-emerald-400", "text-emerald-300"];
+  const tones = ["text-ink-muted", "text-emerald-700", "text-emerald-700"];
   const s = Math.max(0, Math.min(2, step));
   return <span className={`font-mono text-[10px] ${tones[s]}`}>{labels[s]}</span>;
 }

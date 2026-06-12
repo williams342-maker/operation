@@ -499,7 +499,7 @@ function PaymentAccount({ payouts, status, txns, onRefresh, query }) {
                     <Highlight text={t.reference} query={query} />
                   </div>
                 </div>
-                <div className={`text-right font-display text-base ${t.direction === "credit" ? "text-emerald-400" : "text-brand"}`}>
+                <div className={`text-right font-display text-base ${t.direction === "credit" ? "text-emerald-700" : "text-brand"}`}>
                   {t.direction === "credit" ? "+" : "−"}${t.amount.toFixed(2)}
                 </div>
                 <div className="text-right text-[10px] text-ink-muted">
@@ -582,7 +582,7 @@ function MonthlyStatements({ txns, query }) {
               <div className="font-mono text-xs text-ink uppercase tracking-[0.18em]">
                 <Highlight text={ym} query={query} />
               </div>
-              <div className="font-display text-base text-emerald-400 text-right">+${m.credits.toFixed(2)}</div>
+              <div className="font-display text-base text-emerald-700 text-right">+${m.credits.toFixed(2)}</div>
               <div className="font-display text-base text-brand text-right">−${m.debits.toFixed(2)}</div>
               <button
                 onClick={() => downloadCsv(ym)}
@@ -731,7 +731,7 @@ function PaymentSettings({ status, query }) {
           {msg.text && (
             <div
               className={`mt-3 font-mono text-[10px] leading-relaxed ${
-                msg.kind === "ok" ? "text-emerald-400" : "text-red-400"
+                msg.kind === "ok" ? "text-emerald-700" : "text-red-400"
               }`}
               data-testid="payment-settings-settle-msg"
             >
@@ -764,7 +764,7 @@ function PaymentSettings({ status, query }) {
             Open Stripe Dashboard <ExternalLink size={14} />
           </a>
         ) : (
-          <p className="font-mono text-xs text-amber-400">
+          <p className="font-mono text-xs text-brand">
             ◇ Connect Stripe first (Payment account → Connect Stripe).
           </p>
         )}
@@ -773,7 +773,7 @@ function PaymentSettings({ status, query }) {
             type="button"
             onClick={onOpenPortal}
             disabled={busy}
-            className="font-mono text-[11px] uppercase tracking-[0.22em] text-emerald-400 hover:text-emerald-300 border border-emerald-400/40 px-4 py-2 disabled:opacity-50"
+            className="font-mono text-[11px] uppercase tracking-[0.22em] text-emerald-700 hover:text-emerald-700 border border-emerald-400/40 px-4 py-2 disabled:opacity-50"
             data-testid="payment-settings-portal"
           >
             Manage Plus billing ↗
@@ -1115,11 +1115,11 @@ function ShippingPanel({ query }) {
                   <span className="text-right">${((r.billed_cents || 0) / 100).toFixed(2)}</span>
                   <span>
                     {r.billed_at ? (
-                      <span className="px-1.5 py-0.5 border border-emerald-400/40 text-emerald-400 text-[9px] uppercase tracking-[0.18em]">
+                      <span className="px-1.5 py-0.5 border border-emerald-400/40 text-emerald-700 text-[9px] uppercase tracking-[0.18em]">
                         Billed
                       </span>
                     ) : (
-                      <span className="px-1.5 py-0.5 border border-yellow-400/40 text-yellow-400 text-[9px] uppercase tracking-[0.18em]">
+                      <span className="px-1.5 py-0.5 border border-yellow-400/40 text-brand text-[9px] uppercase tracking-[0.18em]">
                         Unbilled
                       </span>
                     )}
@@ -1205,7 +1205,7 @@ function CapRow({ data, reload }) {
         </p>
         <div className="mt-2 font-mono text-[11px]">
           <span className="text-ink-muted">This month: </span>
-          <span className={overCap ? "text-red-400" : near ? "text-yellow-400" : "text-ink"}>
+          <span className={overCap ? "text-red-400" : near ? "text-brand" : "text-ink"}>
             ${monthSpent.toFixed(2)}
           </span>
           {cap > 0 && (

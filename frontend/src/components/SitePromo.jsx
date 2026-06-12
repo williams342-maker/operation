@@ -21,14 +21,14 @@ import { fetchActiveSitePromo } from "../lib/api";
 
 const TONE_STYLES = {
   default:     "border-brand bg-gradient-to-r from-[#ff4500]/15 to-transparent text-ink",
-  celebration: "border-amber-400 bg-gradient-to-r from-amber-400/15 to-transparent text-amber-50",
+  celebration: "border-amber-400 bg-gradient-to-r from-amber-400/15 to-transparent text-ink",
   warning:     "border-red-500 bg-gradient-to-r from-red-500/15 to-transparent text-red-50",
 };
 
 const TONE_ACCENT = {
   default:     "text-brand",
-  celebration: "text-amber-300",
-  warning:     "text-red-300",
+  celebration: "text-brand",
+  warning:     "text-red-600",
 };
 
 const dismissKey = (id) => `cm_promo_dismissed_${id}`;

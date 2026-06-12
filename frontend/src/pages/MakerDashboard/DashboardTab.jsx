@@ -234,7 +234,7 @@ export default function DashboardTab({
                 }`}
                 data-testid={`checklist-${c.id}`}
               >
-                <span className={`mt-0.5 font-mono text-xs ${c.done ? "text-emerald-400" : "text-ink-muted"}`}>
+                <span className={`mt-0.5 font-mono text-xs ${c.done ? "text-emerald-700" : "text-ink-muted"}`}>
                   {c.done ? "✓" : "○"}
                 </span>
                 <div className="flex-1 min-w-0">
@@ -259,8 +259,8 @@ export default function DashboardTab({
           className="border border-emerald-700/50 bg-emerald-900/10 p-5 flex items-center gap-3"
           data-testid="dashboard-checklist-complete"
         >
-          <Sparkles size={18} className="text-emerald-400 shrink-0" />
-          <div className="font-mono text-xs text-emerald-300">
+          <Sparkles size={18} className="text-emerald-700 shrink-0" />
+          <div className="font-mono text-xs text-emerald-700">
             ✓ Setup complete — you're launch-ready. Now drive traffic from the Marketing tab.
           </div>
         </section>
@@ -349,7 +349,7 @@ export default function DashboardTab({
  *  rows. Tone drives the eyebrow accent: orange for "ship now", emerald
  *  for the audit trail. */
 function OrderColumn({ tone, eyebrow, title, count, orders, emptyText, onTabChange, testId }) {
-  const accent = tone === "emerald" ? "text-emerald-400" : "text-brand";
+  const accent = tone === "emerald" ? "text-emerald-700" : "text-brand";
   return (
     <div className="border border-line p-5" data-testid={testId}>
       <div className="flex items-center justify-between gap-3 mb-4">
@@ -677,7 +677,7 @@ function TodayAlerts({ maker, orders, products, unreadMessages, onTabChange }) {
       >
         <span
           className={`font-mono text-[10px] uppercase tracking-[0.22em] ${
-            hasDanger ? "text-red-400" : "text-amber-400"
+            hasDanger ? "text-red-400" : "text-brand"
           }`}
         >
           ◆ Today
@@ -685,7 +685,7 @@ function TodayAlerts({ maker, orders, products, unreadMessages, onTabChange }) {
         <span className="font-mono text-[11px] text-ink">
           {alerts.length} item{alerts.length > 1 ? "s" : ""} need{alerts.length === 1 ? "s" : ""} you
           {dangerCount > 0 && <span className="text-red-400 ml-2">· {dangerCount} urgent</span>}
-          {warnCount > 0 && <span className="text-amber-400 ml-2">· {warnCount} warning{warnCount > 1 ? "s" : ""}</span>}
+          {warnCount > 0 && <span className="text-brand ml-2">· {warnCount} warning{warnCount > 1 ? "s" : ""}</span>}
         </span>
         <ChevronDown
           size={14}
@@ -706,7 +706,7 @@ function TodayAlerts({ maker, orders, products, unreadMessages, onTabChange }) {
 
 const TONE_STYLE = {
   danger: { dot: "bg-red-500", text: "text-red-400" },
-  warn: { dot: "bg-amber-500", text: "text-amber-400" },
+  warn: { dot: "bg-amber-500", text: "text-brand" },
   info: { dot: "bg-ink-muted", text: "text-ink-muted" },
 };
 

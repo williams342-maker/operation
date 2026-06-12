@@ -106,11 +106,11 @@ export default function ReferralCard() {
         <div className="flex items-baseline justify-between font-mono text-[10px] uppercase tracking-[0.22em]">
           <span className="text-ink-muted">Progress</span>
           <span className="text-ink">
-            <span className={awarded ? "text-emerald-400" : "text-brand"}>
+            <span className={awarded ? "text-emerald-700" : "text-brand"}>
               {data.completed_count}
             </span>
             <span className="text-ink-muted"> / {data.threshold}</span>
-            {awarded && <span className="text-emerald-400 ml-2">· awarded ✓</span>}
+            {awarded && <span className="text-emerald-700 ml-2">· awarded ✓</span>}
           </span>
         </div>
         <div className="h-2 bg-surface border border-line relative overflow-hidden">

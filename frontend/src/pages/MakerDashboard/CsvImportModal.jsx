@@ -213,7 +213,7 @@ export default function CsvImportModal({ onClose, onImported }) {
 
           {stage === "done" && (
             <div className="text-center py-12" data-testid="csv-stage-done">
-              <CheckCircle2 size={36} className="text-emerald-400 mx-auto mb-3" />
+              <CheckCircle2 size={36} className="text-emerald-700 mx-auto mb-3" />
               <h3 className="font-display text-2xl uppercase mb-2">Imported.</h3>
               <p className="font-mono text-xs text-ink-muted">
                 Refreshing your listings…

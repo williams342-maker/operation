@@ -89,11 +89,11 @@ export default function BetaBanner({ message, position = "top" }) {
             <h3 id="beta-feedback-headline" className="font-display text-2xl uppercase">Tell us what you think.</h3>
 
             {status === "done" ? (
-              <div className="border border-emerald-700/60 bg-emerald-900/20 p-4 font-mono text-sm text-emerald-300" data-testid="beta-feedback-success">
+              <div className="border border-emerald-700/60 bg-emerald-900/20 p-4 font-mono text-sm text-emerald-700" data-testid="beta-feedback-success">
                 ◆ Got it — thanks for taking the time. We read every message.
                 <button
                   onClick={() => { setOpen(false); setStatus("idle"); setForm({ name: "", email: "", message: "" }); }}
-                  className="block mt-3 underline hover:text-emerald-200 font-mono text-xs"
+                  className="block mt-3 underline hover:text-emerald-700 font-mono text-xs"
                   data-testid="beta-feedback-close"
                 >
                   Close

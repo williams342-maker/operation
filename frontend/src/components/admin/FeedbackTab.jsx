@@ -157,12 +157,12 @@ function FeedbackRow({ fb, index, isOpen, onToggleReply, onResolve, resolving, o
               · {timeAgo(fb.created_at)}
             </span>
             {fb.resolved && (
-              <span className="px-2 py-0.5 border border-emerald-500/40 text-emerald-400 font-mono text-[9px] uppercase tracking-[0.22em]">
+              <span className="px-2 py-0.5 border border-emerald-500/40 text-emerald-700 font-mono text-[9px] uppercase tracking-[0.22em]">
                 ✓ Resolved
               </span>
             )}
             {fb.replied_at && (
-              <span className="px-2 py-0.5 border border-sky-500/40 text-sky-400 font-mono text-[9px] uppercase tracking-[0.22em]" title={`Replied ${timeAgo(fb.replied_at)}`}>
+              <span className="px-2 py-0.5 border border-sky-500/40 text-blue-700 font-mono text-[9px] uppercase tracking-[0.22em]" title={`Replied ${timeAgo(fb.replied_at)}`}>
                 ✉ Replied
               </span>
             )}
@@ -209,7 +209,7 @@ function FeedbackRow({ fb, index, isOpen, onToggleReply, onResolve, resolving, o
               onClick={onResolve}
               disabled={resolving}
               data-testid={`feedback-resolve-${fb.id}`}
-              className="px-3 py-1.5 border border-line hover:border-emerald-500/60 hover:text-emerald-400 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+              className="px-3 py-1.5 border border-line hover:border-emerald-500/60 hover:text-emerald-700 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
             >
               <Check size={12} className="inline mr-1" /> {resolving ? "…" : "Resolve"}
             </button>

@@ -1,0 +1,56 @@
+{
+  "summary": "FRONTEND-ONLY visual/render smoke pass after a 145-file / ~950-class Tailwind contrast sweep. All 10 requested checkpoints rendered successfully with no React errors, no JSX failures, no blank screens, and text is legible on the cream background.",
+  "pages_validated": {
+    "home": "PASS — hero, category-strip, rail-jewelry, built-by-makers-shop-btn all present; pillar cards (Marketplace/Community/AI Tools) correctly retain LIGHT text on dark bg (exclusion list honored); scroll to footer clean",
+    "shop": "PASS — 140 product cards rendered, filters, search bar and category/technique/color/occasion dropdowns readable",
+    "product_detail": "PASS — /shop/rustic-family-name-sign loaded; product-eta reads '◆ Arrives Jun 17 – Jun 22 · standard shipping — faster options at checkout'; product-add-cart works; 9 similar-rail testids; size/materials/stock specs readable",
+    "cart": "PASS — cart-ship-block + cart-ship-zip present; typing 37201 auto-filled Nashville, TN; cart-eta '◆ Arrives Jun 17 – Jun 22'; totals ($79 subtotal + $35 shipping = $114) readable; cart-checkout-btn enabled after address/email (stopped before Stripe redirect as instructed)",
+    "maker_dashboard": "PASS — Dashboard tab: rank #18, live/orders/dms/revenue stat tiles readable; Listings + Orders tabs render; left-nav 14 sections all readable; 'NO ORDERS YET' empty state styled correctly",
+    "admin_dashboard": "PASS — Operations title + 4 KPI tiles + 24h heartbeat grid readable; PROD outage banner (red bg) shows light text; left nav ~30 items readable",
+    "admin_settings_tab": "PASS — HIGHEST-RISK FILE (212 replacements) renders fully. Per-category default-shipping dropdowns, Cloudflare prerender status table (URL/STATUS/PRERENDER/SPA SHELL/BYTES), Meta Commerce feed block, status pills (NOT DEPLOYED red / FEED LIVE green) — all readable. NO JSX or render errors.",
+    "grow_page": "PASS — grow-with-us-page + grow-roadmap testids present; section headings render in dark ink (not white); page scrolls cleanly",
+    "makers_page": "PASS — loaded",
+    "community_page": "PASS — loaded",
+    "help_widget": "PASS — Live Chat widget opens; 'Sign in to join' bubble + 'Sign in →' suggestion button readable (dark ink on cream)"
+  },
+  "console_status": {
+    "react_errors": 0,
+    "page_errors": 0,
+    "console_errors_observed": "2× '403 Failed to load resource' (unrelated to UI — preview admin/maker auth scopes), 1× 'ERR_NAME_NOT_RESOLVED' (analytics/extension domain, not app)"
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Home — WhyWeExist 'EXPOSURE' pillar card (third card in the lighter row)",
+        "issues": [
+          "Body copy 'Founding-maker spotlight rotations and cinematic homepage placements' appears noticeably faded vs the adjacent 'EDUCATION' and 'PARTNERSHIPS' cards — that pillar uses the lightest grey background, and the text-zinc-* tone reads at lower contrast. Card is excluded from the sweep so behavior is as expected; flagging as a *pre-existing* low-contrast spot, not a regression."
+        ]
+      },
+      {
+        "screen": "Admin Dashboard — 'PROD · DOWN · 1 FAILING' status pill next to OPERATIONS title",
+        "issues": [
+          "Light pink/red text on the red pill background is borderline; readable but lowest-contrast element seen. Pre-existing styling, not a sweep regression."
+        ]
+      }
+    ]
+  },
+  "backend_issues": {"critical": [], "minor": []},
+  "test_report_links": ["/app/test_reports/iteration_88.json"],
+  "action_items": [
+    "No blocking action required from the className sweep — all 10 checkpoints pass.",
+    "Optional polish (NOT a regression): consider darkening the 'EXPOSURE' pillar card body copy on Home (the WhyWeExist excluded card) for better contrast against its lighter grey bg."
+  ],
+  "critical_code_review_comments": [
+    "SettingsTab.jsx (212 replacements, highest blast radius) renders fully — no stray string-literal replacements broke JSX.",
+    "Product-detail page exposes data-testid product-eta and product-add-cart correctly; cart ZIP autofill (37201→Nashville,TN) is wired and ETA cart-eta updates after address entry."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped per request)", "frontend": "100% on 10/10 requested smoke checkpoints"},
+  "test_credentials": "Maker JWT and Admin JWT minted via maker_auth.issue_magic_token / issue_admin_magic_token using iron-and-oak@craftersmarket.org and team@craftersmarket.org; POST /api/maker/auth/verify and /api/admin/auth/verify both returned 200; JWTs stashed in localStorage as cm_maker_jwt / cm_admin_jwt.",
+  "seed_data_creation": "None — used live preview data.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Class-color sweep is visually safe. If a follow-up sweep happens, the highest-risk file to re-smoke is /app/frontend/src/components/admin/SettingsTab.jsx (already validated this iteration). Cookie consent banner ('Accept all') must be dismissed before clicking floating widgets. Maker token is for slug 'iron-and-oak'."
+}

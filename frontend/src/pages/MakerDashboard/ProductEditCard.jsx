@@ -196,7 +196,7 @@ export default function ProductEditCard({ product, archived = false, draft = fal
           </div>
         )}
         {draft && (
-          <div className="absolute top-3 left-3 bg-paper/80 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.22em] text-amber-400 border border-amber-400/40">
+          <div className="absolute top-3 left-3 bg-paper/80 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.22em] text-brand border border-amber-400/40">
             ✎ Draft
           </div>
         )}
@@ -207,7 +207,7 @@ export default function ProductEditCard({ product, archived = false, draft = fal
           {p.model_url && <span className="text-brand ml-1.5">· 3D</span>}
           {p.variants?.length > 0 && <span className="text-brand ml-1.5">· {p.variants.length} var</span>}
           {p.promoted_until && new Date(p.promoted_until) > new Date() && (
-            <span className="text-emerald-400 ml-1.5" data-testid={`product-promoted-${p.slug}`}>· Promoted</span>
+            <span className="text-emerald-700 ml-1.5" data-testid={`product-promoted-${p.slug}`}>· Promoted</span>
           )}
         </div>
         {indexing && <IndexingBadge indexing={indexing} slug={p.slug} />}
@@ -290,7 +290,7 @@ export default function ProductEditCard({ product, archived = false, draft = fal
           <button
             onClick={onRestore}
             disabled={removing}
-            className="mt-3 w-full font-mono text-[10px] uppercase tracking-[0.22em] border border-emerald-500/40 bg-emerald-500/5 hover:bg-emerald-500/15 hover:border-emerald-400 text-emerald-400 hover:text-emerald-300 py-2 transition disabled:opacity-50"
+            className="mt-3 w-full font-mono text-[10px] uppercase tracking-[0.22em] border border-emerald-500/40 bg-emerald-500/5 hover:bg-emerald-500/15 hover:border-emerald-400 text-emerald-700 hover:text-emerald-700 py-2 transition disabled:opacity-50"
             data-testid={`product-restore-${p.slug}`}
           >
             {removing ? "Restoring…" : "↩ Restore listing"}
@@ -425,7 +425,7 @@ export default function ProductEditCard({ product, archived = false, draft = fal
                 className="mt-3 border-t border-cyan-900/40 pt-3 space-y-2"
                 data-testid={`product-budget-form-${p.slug}`}
               >
-                <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-cyan-400">
+                <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">
                   ◆ Marketing budget · /{p.slug}
                 </div>
                 <p className="font-mono text-[10px] text-ink-muted leading-relaxed">
@@ -491,7 +491,7 @@ export default function ProductEditCard({ product, archived = false, draft = fal
                       }
                     }}
                     disabled={budgetBusy}
-                    className="font-mono text-[10px] uppercase tracking-[0.18em] text-cyan-300 hover:bg-cyan-500 hover:text-[#0a0a0a] border border-cyan-500/50 hover:border-cyan-500 px-3 py-1.5 transition disabled:opacity-50"
+                    className="font-mono text-[10px] uppercase tracking-[0.18em] text-brand hover:bg-cyan-500 hover:text-[#0a0a0a] border border-cyan-500/50 hover:border-cyan-500 px-3 py-1.5 transition disabled:opacity-50"
                     data-testid={`product-budget-save-${p.slug}`}
                   >
                     {budgetBusy ? "Saving…" : "Save budget"}
@@ -619,22 +619,22 @@ export default function ProductEditCard({ product, archived = false, draft = fal
 const TONES = {
   emerald: {
     border: "border-emerald-500/30 hover:border-emerald-400",
-    text: "text-emerald-400 hover:text-emerald-300",
+    text: "text-emerald-700 hover:text-emerald-700",
     hoverBg: "hover:bg-emerald-500/10",
   },
   amber: {
     border: "border-amber-500/30 hover:border-amber-400",
-    text: "text-amber-400 hover:text-amber-300",
+    text: "text-brand hover:text-brand",
     hoverBg: "hover:bg-amber-500/10",
   },
   sky: {
     border: "border-sky-500/30 hover:border-sky-400",
-    text: "text-sky-400 hover:text-sky-300",
+    text: "text-blue-700 hover:text-blue-700",
     hoverBg: "hover:bg-sky-500/10",
   },
   cyan: {
     border: "border-cyan-500/30 hover:border-cyan-400",
-    text: "text-cyan-400 hover:text-cyan-300",
+    text: "text-brand hover:text-brand",
     hoverBg: "hover:bg-cyan-500/10",
   },
   neutral: {
@@ -713,7 +713,7 @@ function OverflowMenu({ onModel, modelLabel, onDelete, deleteLabel, deleteDisabl
             type="button"
             onClick={() => { setOpen(false); onDelete(); }}
             disabled={deleteDisabled}
-            className="w-full text-left px-3 py-2 font-mono text-[10px] uppercase tracking-[0.18em] text-red-400 hover:text-red-300 hover:bg-red-500/10 transition disabled:opacity-50 border-t border-line"
+            className="w-full text-left px-3 py-2 font-mono text-[10px] uppercase tracking-[0.18em] text-red-400 hover:text-red-600 hover:bg-red-500/10 transition disabled:opacity-50 border-t border-line"
             role="menuitem"
             data-testid={`${testid}-delete`}
           >
@@ -751,13 +751,13 @@ function IndexingBadge({ indexing, slug }) {
     established: {
       dot: "bg-emerald-400",
       label: "Indexed",
-      text: "text-emerald-400",
+      text: "text-emerald-700",
       title: `In sitemap for ${days ?? 0}d — Google has had time to crawl and index.`,
     },
     submitted: {
       dot: "bg-amber-400",
       label: "Submitted",
-      text: "text-amber-400",
+      text: "text-brand",
       title: `Recently added to the sitemap (${days ?? 0}d). Search engines may not have crawled it yet — usually within 7 days.`,
     },
     not_in_sitemap: {
@@ -787,7 +787,7 @@ function IndexingBadge({ indexing, slug }) {
       <span className={cfg.text}>{cfg.label}</span>
       {gscVerified && (
         <span
-          className="inline-flex items-center gap-1 border border-emerald-500/40 bg-emerald-500/5 px-1.5 py-0.5 text-emerald-400 text-[8px] tracking-[0.18em]"
+          className="inline-flex items-center gap-1 border border-emerald-500/40 bg-emerald-500/5 px-1.5 py-0.5 text-emerald-700 text-[8px] tracking-[0.18em]"
           data-testid={`gsc-verified-${slug}`}
           title="Index status returned directly from Google Search Console."
         >
@@ -825,7 +825,7 @@ function PricingVerdictBadge({ comparison, slug }) {
   if (abs < 10) {
     return (
       <div
-        className="mt-1.5 inline-flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.2em] text-emerald-400/80"
+        className="mt-1.5 inline-flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.2em] text-emerald-700"
         title={`Your price is within ±10% of the AI-derived market median ($${comparison.price_median.toFixed(0)}).`}
         data-testid={`pricing-verdict-${slug}`}
       >
@@ -839,8 +839,8 @@ function PricingVerdictBadge({ comparison, slug }) {
   const tone = isAbove
     ? (intensity === "strong"
         ? { color: "text-brand", dot: "bg-brand", weight: "font-bold" }
-        : { color: "text-amber-400", dot: "bg-amber-400", weight: "" })
-    : { color: "text-cyan-400", dot: "bg-cyan-400", weight: intensity === "strong" ? "font-bold" : "" };
+        : { color: "text-brand", dot: "bg-amber-400", weight: "" })
+    : { color: "text-brand", dot: "bg-cyan-400", weight: intensity === "strong" ? "font-bold" : "" };
   const arrow = isAbove ? "\u2191" : "\u2193";
   const pct = Math.round(abs);
   const verb = isAbove ? "above market" : "below — opportunity";

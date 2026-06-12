@@ -79,7 +79,7 @@ export default function ChannelsPanel({ maker }) {
           <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
             Feed regeneration
           </div>
-          <div className="font-display text-2xl text-emerald-300 leading-none">Live</div>
+          <div className="font-display text-2xl text-emerald-700 leading-none">Live</div>
           <div className="font-mono text-[10px] text-ink-muted mt-2">
             fetched on demand · 1-hour CDN cache
           </div>

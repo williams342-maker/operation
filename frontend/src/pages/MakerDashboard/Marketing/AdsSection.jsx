@@ -174,11 +174,11 @@ export default function AdsSection() {
           <div className="border border-emerald-500/40 bg-emerald-500/5 p-4">
             <div className="flex items-start gap-3">
               <div className="w-9 h-9 border border-emerald-400 bg-emerald-500/10 flex items-center justify-center shrink-0">
-                <Gift size={16} className="text-emerald-300" />
+                <Gift size={16} className="text-emerald-700" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="font-mono text-xs text-ink">
-                  <b className="text-emerald-300 tabular-nums">{creditState.available}</b>{" "}
+                  <b className="text-emerald-700 tabular-nums">{creditState.available}</b>{" "}
                   free 24-hour boost credit{creditState.available === 1 ? "" : "s"} ready to spend
                 </div>
                 <p className="font-mono text-[11px] text-ink-muted leading-relaxed mt-1">
@@ -241,7 +241,7 @@ export default function AdsSection() {
                     <button
                       onClick={() => redeemCredit(creditState.credits[0].id, p.slug)}
                       disabled={busy === `credit:${p.slug}`}
-                      className="px-2.5 py-1.5 border border-emerald-400 text-emerald-300 hover:bg-emerald-400 hover:text-ink font-mono text-[10px] uppercase tracking-[0.22em] font-bold transition disabled:opacity-50 inline-flex items-center gap-1.5"
+                      className="px-2.5 py-1.5 border border-emerald-400 text-emerald-700 hover:bg-emerald-400 hover:text-ink font-mono text-[10px] uppercase tracking-[0.22em] font-bold transition disabled:opacity-50 inline-flex items-center gap-1.5"
                       data-testid={`ads-use-credit-${p.slug}`}
                       title="Apply a free 24-hour boost from your community-upload credit balance"
                     >
@@ -453,7 +453,7 @@ function PromotedRow({ p, isPlus, onExtend, onToggleAutoRenew, busy, renewBusy }
           )}
           {autoRenew && (
             <span
-              className="inline-flex items-center gap-1 px-1.5 py-0.5 border border-emerald-400/40 text-[9px] font-bold uppercase tracking-[0.18em] text-emerald-300"
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 border border-emerald-400/40 text-[9px] font-bold uppercase tracking-[0.18em] text-emerald-700"
               data-testid={`ads-autorenew-on-${p.slug}`}
             >
               <RotateCw size={10} /> Auto · {isPlus ? "Free" : "$5/wk"}
@@ -475,7 +475,7 @@ function PromotedRow({ p, isPlus, onExtend, onToggleAutoRenew, busy, renewBusy }
           disabled={renewBusy}
           className={`px-2.5 py-1.5 border font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50 inline-flex items-center gap-1.5 ${
             autoRenew
-              ? "border-emerald-400 text-emerald-300 hover:bg-emerald-400/10"
+              ? "border-emerald-400 text-emerald-700 hover:bg-emerald-400/10"
               : "border-line text-ink-muted hover:border-ink-muted hover:text-ink"
           }`}
           data-testid={`ads-autorenew-${p.slug}`}

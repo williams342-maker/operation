@@ -421,7 +421,7 @@ export default function CartPage() {
                 {quote?.discount_code && (quote?.discount || 0) > 0 && (
                   <Row
                     k={`Discount · ${quote.discount_code}`}
-                    v={<span className="text-emerald-400">−${quote.discount.toFixed(2)}</span>}
+                    v={<span className="text-emerald-700">−${quote.discount.toFixed(2)}</span>}
                     testId="row-discount"
                   />
                 )}
@@ -466,7 +466,7 @@ export default function CartPage() {
                 {appliedCode && quote?.discount_code ? (
                   <div className="flex items-center justify-between gap-3" data-testid="cart-discount-applied">
                     <div className="min-w-0">
-                      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-400">
+                      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-700">
                         ✓ Code applied · {quote.discount_code}
                       </div>
                       <div className="font-mono text-[11px] text-ink-muted mt-0.5">

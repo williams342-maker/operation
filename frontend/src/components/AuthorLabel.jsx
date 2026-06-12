@@ -16,7 +16,7 @@ export default function AuthorLabel({ name, email, className = "" }) {
   if (display === WORKSHOP_TEAM) {
     return (
       <span
-        className={`inline-flex items-center gap-1 text-amber-300/90 ${className}`}
+        className={`inline-flex items-center gap-1 text-brand ${className}`}
         data-testid="author-workshop-team"
         title="Curated by Crafters Market — first-party content while the community grows"
       >

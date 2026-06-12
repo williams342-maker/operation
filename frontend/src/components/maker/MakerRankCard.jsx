@@ -20,7 +20,7 @@ function DeltaPill({ delta }) {
   if (delta === null || delta === undefined) {
     return (
       <span
-        className="inline-flex items-center gap-0.5 px-1.5 py-0.5 border border-cyan-700/50 text-cyan-300 font-mono text-[9px] uppercase tracking-[0.22em]"
+        className="inline-flex items-center gap-0.5 px-1.5 py-0.5 border border-cyan-700/50 text-brand font-mono text-[9px] uppercase tracking-[0.22em]"
         data-testid="maker-rank-delta-new"
       >
         <Sparkles size={9} /> NEW
@@ -30,7 +30,7 @@ function DeltaPill({ delta }) {
   if (delta > 0) {
     return (
       <span
-        className="inline-flex items-center gap-0.5 px-1.5 py-0.5 border border-emerald-700/50 text-emerald-300 font-mono text-[9px] uppercase tracking-[0.22em]"
+        className="inline-flex items-center gap-0.5 px-1.5 py-0.5 border border-emerald-700/50 text-emerald-700 font-mono text-[9px] uppercase tracking-[0.22em]"
         data-testid="maker-rank-delta-up"
       >
         <ArrowUp size={9} /> ↑{delta}
@@ -40,7 +40,7 @@ function DeltaPill({ delta }) {
   if (delta < 0) {
     return (
       <span
-        className="inline-flex items-center gap-0.5 px-1.5 py-0.5 border border-red-700/50 text-red-300 font-mono text-[9px] uppercase tracking-[0.22em]"
+        className="inline-flex items-center gap-0.5 px-1.5 py-0.5 border border-red-700/50 text-red-600 font-mono text-[9px] uppercase tracking-[0.22em]"
         data-testid="maker-rank-delta-down"
       >
         <ArrowDown size={9} /> ↓{Math.abs(delta)}
@@ -95,7 +95,7 @@ export default function MakerRankCard() {
         </div>
         <Link
           to="/makers"
-          className="px-3 py-2 border border-line hover:border-amber-400 text-ink-muted hover:text-amber-300 font-mono text-[9px] uppercase tracking-[0.22em] whitespace-nowrap"
+          className="px-3 py-2 border border-line hover:border-amber-400 text-ink-muted hover:text-brand font-mono text-[9px] uppercase tracking-[0.22em] whitespace-nowrap"
           data-testid="maker-rank-cta"
         >
           See leaders →
@@ -109,10 +109,10 @@ export default function MakerRankCard() {
       className="border border-amber-700/30 bg-gradient-to-br from-amber-950/10 to-transparent p-4 flex items-center gap-4"
       data-testid="maker-rank-card"
     >
-      <Trophy size={28} className="text-amber-300 shrink-0" />
+      <Trophy size={28} className="text-brand shrink-0" />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
-          <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-amber-300">
+          <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-brand">
             Your rank · last {data.window_days} days
           </span>
           <DeltaPill delta={data.delta} />
@@ -134,7 +134,7 @@ export default function MakerRankCard() {
       </div>
       <Link
         to="/makers"
-        className="px-3 py-2 border border-amber-700/40 hover:border-amber-400 text-amber-300 hover:bg-amber-950/30 font-mono text-[9px] uppercase tracking-[0.22em] whitespace-nowrap"
+        className="px-3 py-2 border border-amber-700/40 hover:border-amber-400 text-brand hover:bg-amber-950/30 font-mono text-[9px] uppercase tracking-[0.22em] whitespace-nowrap"
         data-testid="maker-rank-link-leaderboard"
       >
         See full board →

@@ -38,7 +38,7 @@ export function FounderBadge({ number, testId = "founder-badge", className = "" 
 export function BetaTesterBadge({ testId = "beta-tester-badge", className = "" }) {
   return (
     <span
-      className={`inline-flex items-center gap-1.5 border border-emerald-500/50 bg-emerald-500/10 text-emerald-300 px-2 py-0.5 text-[10px] uppercase tracking-[0.22em] font-mono ${className}`}
+      className={`inline-flex items-center gap-1.5 border border-emerald-500/50 bg-emerald-500/10 text-emerald-700 px-2 py-0.5 text-[10px] uppercase tracking-[0.22em] font-mono ${className}`}
       data-testid={testId}
       title="Beta Tester — helped shape CraftersMarket before launch"
     >

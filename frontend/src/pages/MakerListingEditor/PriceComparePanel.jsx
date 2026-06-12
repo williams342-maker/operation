@@ -67,9 +67,9 @@ export default function PriceComparePanel({ open, onClose, listingSlug, listedPr
     if (!data || !lp || !data.price_median) return null;
     const median = data.price_median;
     const delta = ((lp - median) / median) * 100;
-    if (Math.abs(delta) <= 10) return { label: "On target", icon: Target, color: "text-emerald-400", bg: "bg-emerald-400/10 border-emerald-400/40", delta };
-    if (delta > 10) return { label: `${Math.round(delta)}% above market`, icon: TrendingUp, color: "text-amber-400", bg: "bg-amber-400/10 border-amber-400/40", delta };
-    return { label: `${Math.round(Math.abs(delta))}% below market`, icon: TrendingDown, color: "text-cyan-400", bg: "bg-cyan-400/10 border-cyan-400/40", delta };
+    if (Math.abs(delta) <= 10) return { label: "On target", icon: Target, color: "text-emerald-700", bg: "bg-emerald-400/10 border-emerald-400/40", delta };
+    if (delta > 10) return { label: `${Math.round(delta)}% above market`, icon: TrendingUp, color: "text-brand", bg: "bg-amber-400/10 border-amber-400/40", delta };
+    return { label: `${Math.round(Math.abs(delta))}% below market`, icon: TrendingDown, color: "text-brand", bg: "bg-cyan-400/10 border-cyan-400/40", delta };
   })();
 
   return (
@@ -90,7 +90,7 @@ export default function PriceComparePanel({ open, onClose, listingSlug, listedPr
         {/* Header */}
         <header className="px-5 py-4 border-b border-line flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Sparkles size={16} className="text-cyan-400" />
+            <Sparkles size={16} className="text-brand" />
             <h3 className="font-mono text-[12px] uppercase tracking-[0.22em] text-ink">
               AI Price Check
             </h3>
@@ -109,7 +109,7 @@ export default function PriceComparePanel({ open, onClose, listingSlug, listedPr
         <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5">
           {loading && (
             <div className="space-y-3" data-testid="price-compare-loading">
-              <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-cyan-400 flex items-center gap-2">
+              <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-brand flex items-center gap-2">
                 <RefreshCw size={12} className="animate-spin" /> Searching the web for comparable items…
               </div>
               <div className="font-mono text-[10px] text-ink-muted leading-relaxed">
@@ -125,13 +125,13 @@ export default function PriceComparePanel({ open, onClose, listingSlug, listedPr
 
           {error && !loading && (
             <div className="border border-amber-500/40 bg-amber-500/[0.06] p-4 flex items-start gap-3" data-testid="price-compare-error">
-              <AlertTriangle size={16} className="text-amber-400 shrink-0 mt-0.5" />
+              <AlertTriangle size={16} className="text-brand shrink-0 mt-0.5" />
               <div>
-                <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-amber-400">Couldn't analyze</p>
+                <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-brand">Couldn't analyze</p>
                 <p className="font-mono text-[11px] text-ink-muted mt-1 leading-relaxed">{error}</p>
                 <button
                   onClick={() => run(false)}
-                  className="mt-3 px-3 py-1.5 border border-amber-400/40 hover:border-amber-300 text-amber-300 font-mono text-[10px] uppercase tracking-[0.22em]"
+                  className="mt-3 px-3 py-1.5 border border-amber-400/40 hover:border-amber-300 text-brand font-mono text-[10px] uppercase tracking-[0.22em]"
                   data-testid="price-compare-retry"
                 >
                   Try again
@@ -164,9 +164,9 @@ export default function PriceComparePanel({ open, onClose, listingSlug, listedPr
                 </p>
                 <div className="grid grid-cols-3 gap-2">
                   {[
-                    { label: "Low", value: data.price_low, color: "text-cyan-400" },
+                    { label: "Low", value: data.price_low, color: "text-brand" },
                     { label: "Median", value: data.price_median, color: "text-ink" },
-                    { label: "High", value: data.price_high, color: "text-amber-400" },
+                    { label: "High", value: data.price_high, color: "text-brand" },
                   ].map((b) => (
                     <div key={b.label} className="border border-line bg-paper px-3 py-3 text-center">
                       <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted">{b.label}</div>
@@ -218,7 +218,7 @@ export default function PriceComparePanel({ open, onClose, listingSlug, listedPr
                               href={c.url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="font-mono text-[9px] uppercase tracking-[0.22em] text-cyan-400 hover:text-cyan-300 inline-flex items-center gap-1"
+                              className="font-mono text-[9px] uppercase tracking-[0.22em] text-brand hover:text-brand inline-flex items-center gap-1"
                             >
                               View <ExternalLink size={10} />
                             </a>
@@ -251,7 +251,7 @@ export default function PriceComparePanel({ open, onClose, listingSlug, listedPr
                 <button
                   onClick={() => run(true)}
                   disabled={loading || (data.remaining_today === 0)}
-                  className="px-3 py-1.5 border border-line hover:border-cyan-400 text-cyan-400 font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="px-3 py-1.5 border border-line hover:border-cyan-400 text-brand font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
                   data-testid="price-compare-refresh"
                 >
                   <RefreshCw size={11} /> Refresh

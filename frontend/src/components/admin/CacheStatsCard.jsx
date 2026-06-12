@@ -45,9 +45,9 @@ export default function CacheStatsCard() {
 
   const hitRatePct = data ? Math.round(data.hit_rate * 100) : 0;
   const rateColor =
-    hitRatePct >= 70 ? "text-emerald-400"
-    : hitRatePct >= 40 ? "text-cyan-400"
-    : hitRatePct >= 15 ? "text-amber-400"
+    hitRatePct >= 70 ? "text-emerald-700"
+    : hitRatePct >= 40 ? "text-brand"
+    : hitRatePct >= 15 ? "text-brand"
     : "text-ink-muted";
 
   return (
@@ -57,12 +57,12 @@ export default function CacheStatsCard() {
     >
       <div className="flex items-start gap-3">
         <div className="w-9 h-9 border border-cyan-400/40 bg-cyan-400/[0.06] flex items-center justify-center shrink-0">
-          <Database size={14} className="text-cyan-400" />
+          <Database size={14} className="text-brand" />
         </div>
         <div className="flex-1 min-w-0">
           <h3 className="font-display text-lg md:text-xl mb-1">Products Cache</h3>
           <p className="font-mono text-[10px] text-ink-muted leading-relaxed">
-            In-process TTL cache on <code className="text-cyan-300">/api/products</code>.
+            In-process TTL cache on <code className="text-brand">/api/products</code>.
             Resets on backend restart.
           </p>
         </div>
@@ -77,7 +77,7 @@ export default function CacheStatsCard() {
         <button
           onClick={clear}
           disabled={clearing || loading || !data?.entries_count}
-          className="px-2 py-1 border border-red-500/30 hover:border-red-400 text-red-400 hover:text-red-300 hover:bg-red-500/5 font-mono text-[9px] uppercase tracking-[0.22em] inline-flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+          className="px-2 py-1 border border-red-500/30 hover:border-red-400 text-red-400 hover:text-red-600 hover:bg-red-500/5 font-mono text-[9px] uppercase tracking-[0.22em] inline-flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
           data-testid="cache-stats-clear"
           title={data?.entries_count ? "Drop every cached entry (read counters preserved)." : "Cache already empty."}
         >
