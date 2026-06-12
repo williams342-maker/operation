@@ -8666,3 +8666,14 @@ User: zombie-cleanup card flagged "Price = $0" on listings whose price varies by
 - `g:color` / `g:size` derived from named variant groups (`_variant_option_attrs`: groups matching color/colour/finish/stain → color; size/dimension/length/width → size); variant values override product-level deductions.
 - Listings without variants emit the single row unchanged (iter365 suite regression-green).
 - Tests: `tests/test_iter376_variant_feed_rows.py` (3 passed). Live preview verified: demo-grouped-variations → 6 grouped items.
+
+---
+
+## 2026-06-12 — iter377: SEO health resilient crawler + ✦ AI auto-fix
+
+User saw 6 "Fetch failed" rows on production's first SEO health run — false positives (production crawling itself through Cloudflare; spoofed-Googlebot UA gets blocked/throttled from non-Google IPs).
+- `seo_health.py` `_check_url`: retry ladder — 2× Googlebot UA with backoff, then 1× browser UA fallback; also retries challenge statuses 403/429/503. Concurrency 5→3, timeout 20→25s. Sitemap/probe fetches use browser UA.
+- New `POST /api/admin/seo-health/autofix`: pass 1 deterministically re-checks every flagged URL (transient issues self-clear, run updated in place); pass 2 sends persistent issues to Claude (sonnet-4-5) for `ai_root_cause` + `ai_fix` per issue.
+- `SeoHealthCard.jsx`: "✦ AI auto-fix" button (shown only when issues exist), AI cause/fix rendered under each issue row, green state notes auto-cleared count.
+- Tests: `tests/test_iter377_seo_autofix.py` (3 passed) + iter373 suite green (fixed flaky latest-run sort with 2099 timestamps).
+- Live validated: production run now 26/26 green; seeded dead-URL issue → Claude returned accurate root cause + fix steps.

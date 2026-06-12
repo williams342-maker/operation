@@ -346,6 +346,8 @@ export const fetchSeoHealthLatest = () =>
   http.get("/admin/seo-health/latest", { headers: adminAuthHeaders() }).then((r) => r.data);
 export const runSeoHealthCheck = () =>
   http.post("/admin/seo-health/run", {}, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const runSeoHealthAutofix = () =>
+  http.post("/admin/seo-health/autofix", {}, { headers: adminAuthHeaders() }).then((r) => r.data);
 
 // iter334l — Microsoft Ads ROAS tile (admin)
 export const fetchMsftRoas = (days = 7) =>

@@ -24,6 +24,7 @@ check.
 from __future__ import annotations
 
 import asyncio
+import os
 import re
 import uuid
 
@@ -40,9 +41,13 @@ GOOGLEBOT_UA = (
     "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; "
     "Googlebot/2.1; +http://www.google.com/bot.html) Chrome/120.0 Safari/537.36"
 )
+BROWSER_UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/126.0 Safari/537.36"
+)
 PROBE_404_PATH = "/api/og/product/cm-seo-health-probe-404"
 MAX_SAMPLE_URLS = 28
-FETCH_CONCURRENCY = 5
+FETCH_CONCURRENCY = 3
 
 _CANONICAL_RE = re.compile(
     r"<link[^>]+rel=[\"']canonical[\"'][^>]*href=[\"']([^\"']+)[\"']", re.I)
@@ -100,6 +105,41 @@ async def _sample_urls(site: str) -> list[str]:
     return urls[:MAX_SAMPLE_URLS]
 
 
+async def _check_url(client: httpx.AsyncClient, url: str) -> list[dict]:
+    """Fetch + analyze with retries and a UA fallback (iter377).
+
+    Tries the Googlebot UA first (matches what search engines see at the
+    edge, incl. prerender snapshots). Cloudflare legitimately blocks
+    spoofed-Googlebot requests coming from non-Google IPs — e.g. the
+    production server crawling itself — which used to surface as bogus
+    "Fetch failed" rows. The retry ladder clears those: 2× bot UA with
+    backoff, then 1× plain browser UA. Challenge statuses (403/429/503)
+    retry the same way."""
+    attempts = (
+        {"User-Agent": GOOGLEBOT_UA},
+        {"User-Agent": GOOGLEBOT_UA},
+        {"User-Agent": BROWSER_UA},
+    )
+    last: list[dict] = []
+    for i, hdrs in enumerate(attempts):
+        try:
+            r = await client.get(url, headers=hdrs)
+            if r.status_code in (403, 429, 503) and i < len(attempts) - 1:
+                last = [{"type": "http_error", "url": url, "detail": f"HTTP {r.status_code}"}]
+                await asyncio.sleep(1.5 * (i + 1))
+                continue
+            return _analyze_page(
+                url, r.status_code,
+                r.text if r.status_code == 200 else "",
+                r.headers.get("location"),
+            )
+        except Exception as e:
+            last = [{"type": "fetch_error", "url": url, "detail": str(e)[:200]}]
+            if i < len(attempts) - 1:
+                await asyncio.sleep(1.5 * (i + 1))
+    return last
+
+
 async def run_seo_health_check(trigger: str = "manual") -> dict:
     site = _site()
     started = now_iso()
@@ -107,22 +147,11 @@ async def run_seo_health_check(trigger: str = "manual") -> dict:
     issues: list[dict] = []
     sem = asyncio.Semaphore(FETCH_CONCURRENCY)
 
-    async with httpx.AsyncClient(
-        timeout=20, follow_redirects=False,
-        headers={"User-Agent": GOOGLEBOT_UA},
-    ) as client:
+    async with httpx.AsyncClient(timeout=25, follow_redirects=False) as client:
 
         async def check(u: str) -> list[dict]:
             async with sem:
-                try:
-                    r = await client.get(u)
-                    return _analyze_page(
-                        u, r.status_code,
-                        r.text if r.status_code == 200 else "",
-                        r.headers.get("location"),
-                    )
-                except Exception as e:
-                    return [{"type": "fetch_error", "url": u, "detail": str(e)[:200]}]
+                return await _check_url(client, u)
 
         for page_issues in await asyncio.gather(*[check(u) for u in urls]):
             issues.extend(page_issues)
@@ -130,7 +159,8 @@ async def run_seo_health_check(trigger: str = "manual") -> dict:
         # Sitemap reachability + size sanity.
         sitemap_urls = 0
         try:
-            r = await client.get(f"{site}/api/sitemap.xml")
+            r = await client.get(f"{site}/api/sitemap.xml",
+                                 headers={"User-Agent": BROWSER_UA})
             if r.status_code != 200:
                 issues.append({"type": "sitemap_error", "url": f"{site}/api/sitemap.xml",
                                "detail": f"HTTP {r.status_code}"})
@@ -200,6 +230,122 @@ async def job_weekly_seo_health() -> None:
 @router.post("/admin/seo-health/run")
 async def admin_run_seo_health(admin: dict = Depends(current_admin)):
     return await run_seo_health_check("manual")
+
+
+async def _recheck_issue_url(client: httpx.AsyncClient, url: str) -> list[dict]:
+    """Re-validate one flagged URL using the right rule for its kind."""
+    if PROBE_404_PATH in url:
+        try:
+            r = await client.get(url, headers={"User-Agent": BROWSER_UA})
+            if r.status_code == 200:
+                return [{"type": "soft_404_guard", "url": url,
+                         "detail": "dead slug returned HTTP 200 (expected 404)"}]
+            return []
+        except Exception as e:
+            return [{"type": "fetch_error", "url": url, "detail": str(e)[:200]}]
+    if "/api/sitemap.xml" in url:
+        try:
+            r = await client.get(url, headers={"User-Agent": BROWSER_UA})
+            if r.status_code != 200:
+                return [{"type": "sitemap_error", "url": url, "detail": f"HTTP {r.status_code}"}]
+            if r.text.count("<loc>") < 10:
+                return [{"type": "sitemap_thin", "url": url,
+                         "detail": f"only {r.text.count('<loc>')} URLs in sitemap"}]
+            return []
+        except Exception as e:
+            return [{"type": "sitemap_error", "url": url, "detail": str(e)[:200]}]
+    return await _check_url(client, url)
+
+
+async def _ai_diagnose_issues(issues: list[dict]) -> list[dict]:
+    """iter377 — Claude turns persistent crawl issues into plain-English
+    root causes + exact fix steps. Returns the issues with `ai_root_cause`
+    and `ai_fix` attached (best effort — issues pass through untouched if
+    the model call fails)."""
+    import json as _json
+    import re as _re
+
+    llm_key = os.environ.get("EMERGENT_LLM_KEY")
+    if not llm_key or not issues:
+        return issues
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    prompt = (
+        "Site context: craftersmarket.org is a React SPA + FastAPI marketplace "
+        "behind Cloudflare. Bots may receive edge-prerendered HTML snapshots; "
+        "/api/og/* endpoints serve crawler prerenders; the sitemap lives at "
+        "/api/sitemap.xml; dead slugs must return HTTP 404 with noindex.\n\n"
+        "These issues persisted after automatic re-checks with retries:\n"
+        f"{_json.dumps([{k: i.get(k) for k in ('type', 'url', 'detail')} for i in issues[:12]])}\n\n"
+        "For EACH issue return a root cause and the exact fix an operator should "
+        "perform (mention Cloudflare cache purge / bot settings, redeploy, listing "
+        "edits, or code areas as appropriate). Respond with ONLY a JSON array, no "
+        "prose, no code fences:\n"
+        '[{"url": "...", "root_cause": "one sentence", "fix": "1-2 concrete steps"}]'
+    )
+    try:
+        chat = LlmChat(
+            api_key=llm_key,
+            session_id=f"seo-health-diagnose-{uuid.uuid4().hex[:8]}",
+            system_message=(
+                "You are a senior technical-SEO engineer. Be specific and "
+                "actionable; never invent URLs or settings that weren't given."
+            ),
+        ).with_model("anthropic", "claude-sonnet-4-5-20250929")
+        reply = await chat.send_message(UserMessage(text=prompt))
+        m = _re.search(r"\[.*\]", str(reply), _re.S)
+        rows = _json.loads(m.group(0)) if m else []
+        by_url = {r.get("url"): r for r in rows if isinstance(r, dict)}
+        for i in issues:
+            d = by_url.get(i.get("url"))
+            if d:
+                i["ai_root_cause"] = str(d.get("root_cause") or "")[:300]
+                i["ai_fix"] = str(d.get("fix") or "")[:400]
+    except Exception as e:
+        logger.warning("[seo-health] AI diagnosis failed: %s", str(e)[:200])
+    return issues
+
+
+@router.post("/admin/seo-health/autofix")
+async def admin_seo_health_autofix(admin: dict = Depends(current_admin)):
+    """✦ AI auto-fix (iter377). Two passes over the latest run's issues:
+
+    1. Deterministic: re-check every flagged URL with the retry + UA-fallback
+       ladder. Transient failures (timeouts, Cloudflare fake-Googlebot
+       blocks, deploy blips) clear themselves here — no AI needed.
+    2. AI: anything still broken goes to Claude for a root-cause diagnosis
+       and exact fix steps, attached to each remaining issue.
+
+    The stored run is updated in place so the card reflects reality."""
+    latest = await db.seo_health_runs.find_one({}, {"_id": 0},
+                                               sort=[("started_at", -1)])
+    if not latest or not latest.get("issues"):
+        return {"resolved": 0, "remaining": 0, "run": latest}
+
+    urls = list(dict.fromkeys(i["url"] for i in latest["issues"] if i.get("url")))
+    persistent: list[dict] = []
+    async with httpx.AsyncClient(timeout=25, follow_redirects=False) as client:
+        for u in urls:  # sequential — gentle on the edge during re-checks
+            persistent.extend(await _recheck_issue_url(client, u))
+
+    resolved_urls = [u for u in urls if u not in {i["url"] for i in persistent}]
+    persistent = await _ai_diagnose_issues(persistent)
+
+    await db.seo_health_runs.update_one(
+        {"id": latest["id"]},
+        {"$set": {
+            "issues": persistent[:50],
+            "issue_count": len(persistent),
+            "autofix": {
+                "at": now_iso(),
+                "resolved_urls": resolved_urls,
+                "resolved": len(resolved_urls),
+            },
+        }},
+    )
+    latest.update(issues=persistent[:50], issue_count=len(persistent))
+    logger.info("[seo-health] autofix: %d resolved, %d persistent",
+                len(resolved_urls), len(persistent))
+    return {"resolved": len(resolved_urls), "remaining": len(persistent), "run": latest}
 
 
 @router.get("/admin/seo-health/latest")

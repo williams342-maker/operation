@@ -8,7 +8,7 @@
  */
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { fetchSeoHealthLatest, runSeoHealthCheck } from "../../lib/api";
+import { fetchSeoHealthLatest, runSeoHealthAutofix, runSeoHealthCheck } from "../../lib/api";
 
 const ISSUE_LABELS = {
   http_error: "HTTP error",
@@ -35,6 +35,7 @@ export default function SeoHealthCard() {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
+  const [fixing, setFixing] = useState(false);
 
   const load = async () => {
     try {
@@ -59,6 +60,22 @@ export default function SeoHealthCard() {
     } finally { setRunning(false); }
   };
 
+  const autoFix = async () => {
+    setFixing(true);
+    try {
+      const r = await runSeoHealthAutofix();
+      if (r.run) {
+        setLatest(r.run);
+        setHistory((p) => p.map((h) => (h.id === r.run.id ? r.run : h)));
+      }
+      if (r.remaining === 0) toast.success(`✦ Auto-fix resolved all ${r.resolved} issue(s) — all green`);
+      else if (r.resolved > 0) toast.success(`✦ ${r.resolved} transient issue(s) cleared · ${r.remaining} diagnosed by AI below`);
+      else toast.warning(`✦ ${r.remaining} issue(s) persist — AI diagnosis added below`);
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Auto-fix failed to run.");
+    } finally { setFixing(false); }
+  };
+
   const green = latest && latest.issue_count === 0;
 
   return (
@@ -70,14 +87,27 @@ export default function SeoHealthCard() {
           </div>
           <h3 className="font-display text-xl uppercase mt-1">Own-site crawl (as Googlebot)</h3>
         </div>
-        <button
-          onClick={runNow}
-          disabled={running}
-          className="px-3 py-1.5 border border-line hover:border-brand font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand transition disabled:opacity-50"
-          data-testid="seo-health-run-btn"
-        >
-          {running ? "Crawling…" : "▶ Run check now"}
-        </button>
+        <div className="flex items-center gap-2">
+          {latest && latest.issue_count > 0 && (
+            <button
+              onClick={autoFix}
+              disabled={fixing || running}
+              className="px-3 py-1.5 border border-brand/40 text-brand hover:bg-brand/10 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+              data-testid="seo-health-autofix-btn"
+              title="Re-checks every flagged URL (transient failures clear themselves), then AI diagnoses anything still broken"
+            >
+              {fixing ? "✦ Fixing…" : "✦ AI auto-fix"}
+            </button>
+          )}
+          <button
+            onClick={runNow}
+            disabled={running || fixing}
+            className="px-3 py-1.5 border border-line hover:border-brand font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand transition disabled:opacity-50"
+            data-testid="seo-health-run-btn"
+          >
+            {running ? "Crawling…" : "▶ Run check now"}
+          </button>
+        </div>
       </div>
       <p className="font-mono text-xs text-ink-muted max-w-3xl leading-relaxed">
         Crawls a sample of your live pages every Monday and flags what Google Search Console would
@@ -106,14 +136,26 @@ export default function SeoHealthCard() {
             </thead>
             <tbody className="divide-y divide-line">
               {latest.issues.map((i, idx) => (
-                <tr key={idx} className="hover:bg-paper transition" data-testid={`seo-health-issue-${idx}`}>
+                <tr key={idx} className="hover:bg-paper transition align-top" data-testid={`seo-health-issue-${idx}`}>
                   <td className="px-3 py-2.5">
                     <span className="px-2 py-0.5 border border-amber-500/30 text-amber-300 text-[10px]">
                       {ISSUE_LABELS[i.type] || i.type}
                     </span>
                   </td>
                   <td className="px-3 py-2.5 text-ink break-all max-w-[360px]">{i.url}</td>
-                  <td className="px-3 py-2.5 text-ink-muted">{i.detail}</td>
+                  <td className="px-3 py-2.5 text-ink-muted">
+                    {i.detail}
+                    {(i.ai_root_cause || i.ai_fix) && (
+                      <div className="mt-2 border-l-2 border-brand/40 pl-2 space-y-1" data-testid={`seo-health-ai-${idx}`}>
+                        {i.ai_root_cause && (
+                          <div><span className="text-brand">✦ Cause:</span> {i.ai_root_cause}</div>
+                        )}
+                        {i.ai_fix && (
+                          <div><span className="text-brand">✦ Fix:</span> {i.ai_fix}</div>
+                        )}
+                      </div>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -123,6 +165,9 @@ export default function SeoHealthCard() {
       {green && (
         <p className="font-mono text-xs text-emerald-400" data-testid="seo-health-green">
           ✓ {latest.checked} checks passed — statuses, canonicals, robots metas, sitemap, and the soft-404 guard all look correct.
+          {latest.autofix?.resolved > 0 && (
+            <span className="text-ink-muted"> (✦ auto-fix cleared {latest.autofix.resolved} transient issue{latest.autofix.resolved === 1 ? "" : "s"})</span>
+          )}
         </p>
       )}
 

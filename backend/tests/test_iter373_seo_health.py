@@ -82,8 +82,8 @@ async def test_run_and_latest_with_mocked_crawl(monkeypatch):
 
     fake_run = {
         "id": "test-run-iter373", "site": "https://craftersmarket.org",
-        "trigger": "manual", "started_at": "2026-06-12T00:00:00+00:00",
-        "finished_at": "2026-06-12T00:00:10+00:00", "checked": 5,
+        "trigger": "manual", "started_at": "2099-01-01T00:00:00+00:00",
+        "finished_at": "2099-01-01T00:00:10+00:00", "checked": 5,
         "sitemap_urls": 174, "issue_count": 1,
         "issues": [{"type": "wrong_canonical", "url": "https://craftersmarket.org/shop",
                     "detail": "canonical → https://craftersmarket.org/"}],
