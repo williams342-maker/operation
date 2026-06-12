@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useCart } from "../lib/cart";
 import { createCheckout, fetchCartQuote, trackCart } from "../lib/api";
@@ -39,7 +39,47 @@ export default function CartPage() {
   useEffect(() => {
     try { localStorage.setItem("cm_ship_addr", JSON.stringify(shipAddr)); } catch {}
   }, [shipAddr]);
-  const setShip = (k) => (e) => setShipAddr((s) => ({ ...s, [k]: e.target.value }));
+  // iter384 — track which fields WE auto-filled from the ZIP so a later ZIP
+  // change can refresh them, while never clobbering manual entries.
+  const zipFill = useRef({ city: false, state: false });
+  const [zipHint, setZipHint] = useState(false);
+  const setShip = (k) => (e) => {
+    if (k === "city" || k === "state") zipFill.current[k] = false;
+    const v = e.target.value;
+    setShipAddr((s) => ({ ...s, [k]: v }));
+  };
+  // iter384 — ZIP → city/state auto-suggest (Zippopotam.us — free, no key,
+  // CORS-enabled). Debounced; silent failure leaves manual entry untouched.
+  useEffect(() => {
+    const zip = (shipAddr.postal_code || "").trim();
+    if (!/^\d{5}$/.test(zip)) return;
+    const ctrl = new AbortController();
+    const t = setTimeout(() => {
+      fetch(`https://api.zippopotam.us/us/${zip}`, { signal: ctrl.signal })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          const place = d?.places?.[0];
+          if (!place) return;
+          const city = place["place name"];
+          const state = place["state abbreviation"] || place.state;
+          setShipAddr((s) => {
+            const next = { ...s };
+            if (city && (!(s.city || "").trim() || zipFill.current.city)) {
+              next.city = city; zipFill.current.city = true;
+            }
+            if (state && (!(s.state || "").trim() || zipFill.current.state)) {
+              next.state = state; zipFill.current.state = true;
+            }
+            return next;
+          });
+          // State updaters run lazily, so don't derive the hint from them —
+          // a successful lookup is enough to show "suggested from ZIP".
+          if (city || state) setZipHint(true);
+        })
+        .catch(() => {});
+    }, 350);
+    return () => { clearTimeout(t); ctrl.abort(); };
+  }, [shipAddr.postal_code]);
 
   useEffect(() => {
     try { localStorage.setItem("cm_gift_note", giftNote); } catch {}
@@ -485,6 +525,11 @@ export default function CartPage() {
                   />
                   <div className="grid grid-cols-12 gap-2">
                     <input
+                      type="text" value={shipAddr.postal_code || ""} onChange={setShip("postal_code")}
+                      placeholder="ZIP" data-testid="cart-ship-zip" autoComplete="postal-code" inputMode="numeric"
+                      className="col-span-3 bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm"
+                    />
+                    <input
                       type="text" value={shipAddr.city || ""} onChange={setShip("city")}
                       placeholder="City" data-testid="cart-ship-city" autoComplete="address-level2"
                       className="col-span-6 bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm"
@@ -494,12 +539,15 @@ export default function CartPage() {
                       placeholder="State" data-testid="cart-ship-state" autoComplete="address-level1"
                       className="col-span-3 bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm"
                     />
-                    <input
-                      type="text" value={shipAddr.postal_code || ""} onChange={setShip("postal_code")}
-                      placeholder="ZIP" data-testid="cart-ship-zip" autoComplete="postal-code" inputMode="numeric"
-                      className="col-span-3 bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm"
-                    />
                   </div>
+                  {zipHint && (
+                    <span
+                      className="font-mono text-[9px] text-brand mt-1.5 block"
+                      data-testid="cart-ship-zip-hint"
+                    >
+                      ◆ City & state filled from ZIP — edit if needed
+                    </span>
+                  )}
                   <span className="font-mono text-[9px] text-ink-muted mt-2 block">
                     US shipping only · passed securely to Stripe with your payment
                   </span>

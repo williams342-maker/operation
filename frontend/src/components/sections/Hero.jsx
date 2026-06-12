@@ -22,7 +22,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
-import { Users, Hammer, HandHeart, HeartHandshake, Wrench } from "lucide-react";
+import { Users, Hammer, HandHeart, HeartHandshake, Wrench, ShoppingBag } from "lucide-react";
 import SitePromo from "../SitePromo";
 
 const SETS = [
@@ -201,9 +201,20 @@ export default function Hero() {
               {...stagger(0.3)}
               className="mt-9 flex flex-wrap gap-3"
             >
+              {/* iter384 — user-requested lineup: SHOP leads (filled brand),
+                  Browse Makers steps down to a soft tint, Sell Your Work
+                  stays the outlined tertiary. */}
+              <Link
+                to="/shop"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-brand hover:bg-brand-hover text-white font-mono text-xs uppercase tracking-[0.22em] transition-colors"
+                data-testid="home-hero-cta-shop"
+              >
+                <ShoppingBag size={14} />
+                Shop
+              </Link>
               <Link
                 to="/makers"
-                className="inline-flex items-center gap-2 px-6 py-3 bg-brand hover:bg-brand-hover text-white font-mono text-xs uppercase tracking-[0.22em] transition-colors"
+                className="inline-flex items-center gap-2 px-6 py-3 border border-brand/40 bg-brand/10 hover:bg-brand/20 text-ink font-mono text-xs uppercase tracking-[0.22em] transition-colors"
                 data-testid="home-hero-cta-browse"
               >
                 <Users size={14} />
