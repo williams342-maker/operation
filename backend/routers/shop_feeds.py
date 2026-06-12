@@ -29,12 +29,13 @@ from __future__ import annotations
 import csv
 import io
 import os
+import re
 from datetime import datetime, timezone
 from xml.sax.saxutils import escape as xml_escape
 
 from fastapi import APIRouter, Request, Response
 
-from core import db, listing_price_range
+from core import db, effective_variant_price, listing_price_range
 from routers.pinterest_feed import (
     _abs, _availability, _maker_brand_map, _resolve_gpc, _truncate,
 )
@@ -60,6 +61,35 @@ def _google_id(slug: str) -> str:
     import hashlib
     digest = hashlib.sha1(slug.encode("utf-8")).hexdigest()[:8]
     return f"{slug[:40].rstrip('-')}-{digest}"
+
+
+def _variant_gid(slug: str, vid: str) -> str:
+    """iter376 — g:id for a per-variant row: the product id trimmed to
+    leave room for an 8-char variant suffix (Google caps g:id at 50)."""
+    base = _google_id(slug)
+    suffix = (str(vid) or "0")[:8]
+    return f"{base[:41].rstrip('-')}-{suffix}"
+
+
+_COLOR_GROUP_RE = re.compile(r"colou?r|finish|stain", re.I)
+_SIZE_GROUP_RE = re.compile(r"size|dimension|length|width", re.I)
+
+
+def _variant_option_attrs(p: dict) -> dict:
+    """iter376 — Map option_id → ('color'|'size', label) using the maker's
+    named variant groups, so per-variant feed rows carry g:color / g:size
+    (improves Google Shopping relevance for size/color-specific queries)."""
+    out: dict = {}
+    for g in (p.get("variant_groups") or []):
+        name = g.get("name") or ""
+        kind = ("color" if _COLOR_GROUP_RE.search(name)
+                else "size" if _SIZE_GROUP_RE.search(name) else None)
+        if not kind:
+            continue
+        for o in (g.get("options") or []):
+            if o.get("id") and (o.get("label") or "").strip():
+                out[o["id"]] = (kind, o["label"].strip())
+    return out
 
 
 router = APIRouter()
@@ -90,8 +120,8 @@ async def _fetch_products() -> list[dict]:
          # iter365/369 — Google Merchant feed controls + attribute sources.
          "merchant_title": 1, "merchant_auto_optimize": 1,
          "merchant_exclude": 1, "merchant_color": 1, "colors": 1,
-         # iter375 — variable pricing: min variant price stands in for $0 base.
-         "variants": 1},
+         # iter375/376 — variable pricing + per-variant feed rows.
+         "variants": 1, "variant_groups": 1},
     ).sort("created_at", -1).limit(5000).to_list(5000)
 
 
@@ -157,48 +187,99 @@ async def google_merchant_feed_xml(request: Request) -> Response:
             continue
 
         brand = brand_map.get(p.get("maker_slug") or "", "") or "Crafters Market"
-        title = _truncate(title, 150)
         # Google requires a description ≥ 1 char; pad with the title if missing.
         desc = _truncate(description, 5000)
         link = f"{SITE_BASE}/shop/{slug}"
 
-        item: list[str] = ["<item>"]
-        # iter304 — shorten over-50-char IDs to keep Google Merchant
-        # happy (warning "Value too long in attribute: id" in upload report).
-        item.append(f"<g:id>{xml_escape(_google_id(slug))}</g:id>")
-        item.append(f"<g:title>{xml_escape(title)}</g:title>")
-        item.append(f"<g:description>{xml_escape(desc)}</g:description>")
-        item.append(f"<g:link>{xml_escape(link)}</g:link>")
-        item.append(f"<g:image_link>{xml_escape(primary_img)}</g:image_link>")
-        for extra in images[1:10]:  # Google supports up to 10 additional images
-            item.append(f"<g:additional_image_link>{xml_escape(_abs(extra))}</g:additional_image_link>")
-        item.append(f"<g:availability>{_availability(p).replace(' ', '_')}</g:availability>")
-        item.append(f"<g:price>{price:.2f} USD</g:price>")
-        item.append("<g:condition>new</g:condition>")
-        item.append(f"<g:brand>{xml_escape(_truncate(brand, 70))}</g:brand>")
-        # google_product_category accepts the breadcrumb path verbatim.
-        # iter297 — Honor the maker-supplied override when set.
         gpc = _resolve_gpc(p)
-        item.append(f"<g:google_product_category>{xml_escape(gpc)}</g:google_product_category>")
-        # `product_type` lets us pass our own taxonomy alongside Google's.
-        pt = _truncate(f"{p.get('category') or ''} > {p.get('technique') or ''}".strip(" >"), 750)
-        if pt:
-            item.append(f"<g:product_type>{xml_escape(pt)}</g:product_type>")
         # iter366 — Category-aware attributes: send only what the GPC
         # profile needs (material/color for decor & boxes; full apparel
         # set incl. unisex/adult defaults for jewelry); suppress the rest
         # so Merchant Center stops asking for gender on trinket boxes.
         attr_res = merchant_attributes(p, gpc)
-        for name in ("material", "color", "gender", "age_group", "size"):
-            val = attr_res["attributes"].get(name)
-            if val:
-                item.append(f"<g:{name}>{xml_escape(_truncate(val, 100))}</g:{name}>")
         attr_warnings += len(attr_res["warnings"])
-        # `identifier_exists=false` because handmade pieces have no GTIN/MPN.
-        item.append("<g:identifier_exists>false</g:identifier_exists>")
-        item.append("</item>")
-        parts.append("".join(item))
-        rows_written += 1
+        pt = _truncate(f"{p.get('category') or ''} > {p.get('technique') or ''}".strip(" >"), 750)
+
+        # iter376 — Per-variant feed items: each size/color combo becomes
+        # its own <item> with its EXACT price, grouped via g:item_group_id
+        # so Google treats them as one product family. Listings without
+        # variants emit the single row exactly as before.
+        base_price = float(p.get("price") or 0)
+        variants = [v for v in (p.get("variants") or []) if isinstance(v, dict)][:100]
+        opt_attrs = _variant_option_attrs(p) if variants else {}
+        group_id = _google_id(slug)
+
+        rows: list[dict] = []
+        for idx, v in enumerate(variants):
+            v_price = effective_variant_price(base_price, v)
+            if v_price <= 0:
+                continue
+            v_label = (v.get("label") or "").strip()
+            v_stock = v.get("in_stock")
+            in_stock = ((v_stock or 0) > 0) if v_stock is not None \
+                else _availability(p) == "in stock"
+            color = size = None
+            for oid in (v.get("option_ids") or []):
+                kind_label = opt_attrs.get(oid)
+                if kind_label and kind_label[0] == "color":
+                    color = kind_label[1]
+                elif kind_label and kind_label[0] == "size":
+                    size = kind_label[1]
+            rows.append({
+                "id": _variant_gid(slug, v.get("id") or v.get("sku") or idx),
+                "group_id": group_id,
+                "title": _truncate(f"{title} — {v_label}" if v_label else title, 150),
+                "price": v_price,
+                "availability": "in_stock" if in_stock else "out_of_stock",
+                "color": color,
+                "size": size,
+            })
+        if not rows:
+            rows = [{
+                "id": group_id,
+                "group_id": None,
+                "title": _truncate(title, 150),
+                "price": price,
+                "availability": _availability(p).replace(" ", "_"),
+                "color": None,
+                "size": None,
+            }]
+
+        for row in rows:
+            item: list[str] = ["<item>"]
+            # iter304 — shorten over-50-char IDs to keep Google Merchant
+            # happy (warning "Value too long in attribute: id" in upload report).
+            item.append(f"<g:id>{xml_escape(row['id'])}</g:id>")
+            if row["group_id"]:
+                item.append(f"<g:item_group_id>{xml_escape(row['group_id'])}</g:item_group_id>")
+            item.append(f"<g:title>{xml_escape(row['title'])}</g:title>")
+            item.append(f"<g:description>{xml_escape(desc)}</g:description>")
+            item.append(f"<g:link>{xml_escape(link)}</g:link>")
+            item.append(f"<g:image_link>{xml_escape(primary_img)}</g:image_link>")
+            for extra in images[1:10]:  # Google supports up to 10 additional images
+                item.append(f"<g:additional_image_link>{xml_escape(_abs(extra))}</g:additional_image_link>")
+            item.append(f"<g:availability>{row['availability']}</g:availability>")
+            item.append(f"<g:price>{row['price']:.2f} USD</g:price>")
+            item.append("<g:condition>new</g:condition>")
+            item.append(f"<g:brand>{xml_escape(_truncate(brand, 70))}</g:brand>")
+            # google_product_category accepts the breadcrumb path verbatim.
+            # iter297 — Honor the maker-supplied override when set.
+            item.append(f"<g:google_product_category>{xml_escape(gpc)}</g:google_product_category>")
+            # `product_type` lets us pass our own taxonomy alongside Google's.
+            if pt:
+                item.append(f"<g:product_type>{xml_escape(pt)}</g:product_type>")
+            for name in ("material", "color", "gender", "age_group", "size"):
+                # Variant-specific color/size win over product-level deductions.
+                val = (row["color"] if name == "color" and row["color"]
+                       else row["size"] if name == "size" and row["size"]
+                       else attr_res["attributes"].get(name))
+                if val:
+                    item.append(f"<g:{name}>{xml_escape(_truncate(val, 100))}</g:{name}>")
+            # `identifier_exists=false` because handmade pieces have no GTIN/MPN.
+            item.append("<g:identifier_exists>false</g:identifier_exists>")
+            item.append("</item>")
+            parts.append("".join(item))
+            rows_written += 1
 
     parts.append("</channel></rss>")
 

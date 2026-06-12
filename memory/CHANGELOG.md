@@ -8657,3 +8657,12 @@ User: zombie-cleanup card flagged "Price = $0" on listings whose price varies by
   - `feeds.py` row builder — same
 - Projections updated to fetch `variants`.
 - Tests: `tests/test_iter375_variable_price_feeds.py` (2 passed) + iter365/iter366 merchant suites regression-pass.
+
+---
+
+## 2026-06-12 — iter376: Per-variant Google Merchant feed rows
+
+- `shop_feeds.py` Google XML feed: listings with variants now emit ONE <item> PER VARIANT — unique `g:id` (`{product-id}-{variant-id[:8]}`, ≤50 chars), shared `g:item_group_id`, exact effective price (override or base+delta), per-variant availability from variant stock, title suffixed with the variant label.
+- `g:color` / `g:size` derived from named variant groups (`_variant_option_attrs`: groups matching color/colour/finish/stain → color; size/dimension/length/width → size); variant values override product-level deductions.
+- Listings without variants emit the single row unchanged (iter365 suite regression-green).
+- Tests: `tests/test_iter376_variant_feed_rows.py` (3 passed). Live preview verified: demo-grouped-variations → 6 grouped items.
