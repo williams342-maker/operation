@@ -83,11 +83,11 @@ export default function WhyWeExist({ testId = "why-we-exist" }) {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.3 }}
             transition={{ duration: 0.7 }}
-            className="font-mono text-[11px] uppercase tracking-[0.4em] text-amber-400 mb-6 inline-flex items-center gap-3"
+            className="font-mono text-[11px] uppercase tracking-[0.4em] text-brand mb-6 inline-flex items-center gap-3"
           >
-            <span className="inline-block w-10 h-px bg-amber-400" />
+            <span className="inline-block w-10 h-px bg-brand" />
             Why we exist
-            <span className="inline-block w-10 h-px bg-amber-400" />
+            <span className="inline-block w-10 h-px bg-brand" />
           </motion.div>
 
           <motion.h2
@@ -158,18 +158,19 @@ export default function WhyWeExist({ testId = "why-we-exist" }) {
           })}
         </div>
 
-        {/* CTA row */}
+        {/* CTA row — iter387: darkened from amber/zinc (dark-theme relics)
+            to ink/brand so they read on the light canvas. */}
         <div className="flex flex-wrap gap-3 mt-12 md:mt-14 justify-center">
           <Link
             to="/about"
-            className="inline-flex items-center gap-2 px-6 py-3 border border-amber-500/40 hover:border-amber-400 hover:text-amber-200 hover:bg-amber-500/10 font-mono text-[11px] uppercase tracking-[0.28em] text-amber-300 transition-colors"
+            className="inline-flex items-center gap-2 px-6 py-3 border-2 border-brand bg-brand text-white hover:bg-brand-hover hover:border-brand-hover font-mono text-[11px] font-semibold uppercase tracking-[0.28em] transition-colors"
             data-testid={`${testId}-about-link`}
           >
             Read the full story <ArrowRight size={12} />
           </Link>
           <Link
             to="/beta"
-            className="inline-flex items-center gap-2 px-6 py-3 border border-zinc-700 hover:border-amber-400 hover:text-amber-200 font-mono text-[11px] uppercase tracking-[0.28em] text-zinc-300 transition-colors"
+            className="inline-flex items-center gap-2 px-6 py-3 border-2 border-ink text-ink hover:border-brand hover:text-brand font-mono text-[11px] font-semibold uppercase tracking-[0.28em] transition-colors"
             data-testid={`${testId}-apply-link`}
           >
             Are you a maker? Apply <ArrowRight size={12} />

@@ -73,15 +73,15 @@ export default function MeetTheMakers({ testId = "home-meet-makers" }) {
       <div className="relative z-10 w-full max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12">
         <div className="flex items-end justify-between mb-12 gap-4 flex-wrap">
           <div>
-            <div className="font-mono text-[11px] uppercase tracking-[0.32em] text-amber-400 mb-3 inline-flex items-center gap-2">
-              <span className="inline-block w-6 h-px bg-amber-400" />
+            <div className="font-mono text-[11px] uppercase tracking-[0.32em] text-brand font-semibold mb-3 inline-flex items-center gap-2">
+              <span className="inline-block w-6 h-px bg-brand" />
               Meet the Makers
             </div>
             <h2 className="font-display text-4xl md:text-5xl lg:text-6xl tracking-tighter leading-[0.95]">
               The people behind<br />
               <span className="text-outline-orange">the work.</span>
             </h2>
-            <p className="font-mono text-[12px] text-zinc-400 mt-5 max-w-2xl leading-relaxed">
+            <p className="font-mono text-[12px] text-ink-muted mt-5 max-w-2xl leading-relaxed">
               Real workshops. Real hands. Every maker on Crafters Market is application-vetted,
               location-verified, and reachable directly — no resellers, no dropshipping, no
               factory storefronts pretending to be artisans.
