@@ -1,5 +1,6 @@
 """Core: env loading, db handle, common helpers, public-host resolution."""
 import os
+import asyncio
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
@@ -52,8 +53,88 @@ POLICY_VERSION = "2026.08"
 # ---- Mongo ----
 MONGO_URL = os.environ["MONGO_URL"]
 DB_NAME = os.environ["DB_NAME"]
-client = AsyncIOMotorClient(MONGO_URL)
-db = client[DB_NAME]
+
+
+class _LoopAwareMotor:
+    """Motor binds each AsyncIOMotorClient to the event loop it first runs
+    I/O on. In production (one uvicorn loop) that's fine, but under pytest
+    many loops come and go — pytest-asyncio's session loop, TestClient's
+    anyio portal, and bare `asyncio.run()` calls inside sync tests. Once
+    the bound loop closes, any further query raises
+    `RuntimeError: Event loop is closed` (the long-standing "global pytest
+    is broken, run files individually" issue).
+
+    This manager keeps ONE client per living event loop and transparently
+    hands back the right one at attribute-access time. Closed loops are
+    pruned so the registry can't grow unbounded across a test session.
+    The production fast path is a dict hit + an `is_closed()` check.
+    """
+
+    def __init__(self, url: str):
+        self._url = url
+        self._clients: dict[int, tuple] = {}  # id(loop) -> (loop, client)
+
+    def current(self) -> AsyncIOMotorClient:
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None  # sync context (import time, scripts before run)
+        key = id(loop)
+        entry = self._clients.get(key)
+        if entry is not None and entry[0] is loop and (
+            loop is None or not loop.is_closed()
+        ):
+            return entry[1]
+        # Prune clients whose loops have closed (their sockets are dead).
+        for k in [k for k, (l, c) in self._clients.items()
+                  if l is not None and l.is_closed()]:
+            self._clients.pop(k, None)
+        c = AsyncIOMotorClient(self._url)
+        self._clients[key] = (loop, c)
+        return c
+
+    def close_all(self) -> None:
+        for _, c in list(self._clients.values()):
+            try:
+                c.close()
+            except Exception:
+                pass
+        self._clients.clear()
+
+
+class _ClientProxy:
+    """Drop-in stand-in for the module-level AsyncIOMotorClient."""
+
+    def __init__(self, mgr: _LoopAwareMotor):
+        object.__setattr__(self, "_mgr", mgr)
+
+    def __getattr__(self, name):
+        return getattr(self._mgr.current(), name)
+
+    def __getitem__(self, name):
+        return self._mgr.current()[name]
+
+    def close(self):  # server shutdown hook calls client.close()
+        self._mgr.close_all()
+
+
+class _DBProxy:
+    """Drop-in stand-in for the module-level AsyncIOMotorDatabase."""
+
+    def __init__(self, mgr: _LoopAwareMotor, name: str):
+        object.__setattr__(self, "_mgr", mgr)
+        object.__setattr__(self, "_name", name)
+
+    def __getattr__(self, name):
+        return getattr(self._mgr.current()[self._name], name)
+
+    def __getitem__(self, name):
+        return self._mgr.current()[self._name][name]
+
+
+_motor = _LoopAwareMotor(MONGO_URL)
+client = _ClientProxy(_motor)
+db = _DBProxy(_motor, DB_NAME)
 
 # ---- Public hosts ----
 STRIPE_API_KEY = os.environ.get("STRIPE_API_KEY", "")

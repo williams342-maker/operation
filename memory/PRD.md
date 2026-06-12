@@ -662,7 +662,8 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - **P1** Affirm + Klarna (BNPL) integration — next up.
 - **P2** Reddit API integration (playbook in ROADMAP.md).
 - **P3** Extend AI auto-fix to propose Google-safe merchant titles for restricted-term listings (1-click override).
-- **Refactor** `conftest.py` / lifespan events — global pytest runs hit `RuntimeError: Event loop is closed`; run test files individually until fixed.
+- **Refactor** ~~`conftest.py` / lifespan events — global pytest runs hit `RuntimeError: Event loop is closed`; run test files individually until fixed.~~ ✅ shipped 2026-06-12 (iter393: loop-aware Motor client in `core.py` — full suite runs in one go, zero event-loop errors).
+- **P2** Stale test rot cleanup — 165 pre-existing failures + 24 errors across the 288-file suite are tests written against older API behavior (verified pre-existing by stash-rerun; e.g. `test_marketplace.py` predates policy-acceptance gating, `test_buffer_sender.py` fails identically solo). Triage and update or retire them.
 - **P2** Deploy Cloudflare Worker from `/app/docs/cloudflare-worker-prerender.md` (user-side dashboard step) — now fully paired with iter120's SEO-rich per-slug routes.
 - **P2** Apply DNS cleanup from `/app/docs/dns-cleanup.md` (user-side, removes Brevo/Sender/Mailerlite stale records + tightens SPF). ✅ shipped 2026-05-17 (iter145: full DNS hardening + Mailgun migration · SPF/DMARC/DKIM added · stale records removed).
 - **P2** Submit sitemap to GSC + Bing per `/app/docs/seo-submission-checklist.md` (user-side, ~25 min).
