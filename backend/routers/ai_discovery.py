@@ -96,8 +96,8 @@ def _build_catalog_blob(items: list) -> str:
         tags = ", ".join(p.get("seo_tags") or [])
         colors = ", ".join(p.get("colors") or [])
         lines.append(
-            f"{i+1}. SLUG={p['slug']} | {p['title']} | category={p['category']} | "
-            f"tech={p['technique']} | materials={mats} | colors={colors} | "
+            f"{i+1}. SLUG={p['slug']} | {p.get('title', '')} | category={p.get('category', '')} | "
+            f"tech={p.get('technique', '')} | materials={mats} | colors={colors} | "
             f"tags={tags} | desc={desc}"
         )
     return "\n".join(lines)
