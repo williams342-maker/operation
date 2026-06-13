@@ -168,6 +168,20 @@ async def _job_weekly_seo_health() -> None:
         logger.exception("[scheduler] weekly_seo_health failed")
 
 
+async def _job_daily_seo_agent_scan() -> None:
+    """Daily 02:00 UTC. Full SEO scan via the AI SEO Growth Agent:
+    technical health + content scan + score computation. Results land
+    in seo_agent_runs; the admin dashboard reads the latest run for
+    the overview cards. Nothing publishes automatically — AI rewrites
+    only land in the approval queue when the admin clicks
+    [Generate Fix] in the UI. (iter412)"""
+    from routers.seo_agent import job_daily_seo_agent_scan
+    try:
+        await job_daily_seo_agent_scan()
+    except Exception:
+        logger.exception("[scheduler] daily_seo_agent_scan failed")
+
+
 async def _job_gsc_indexed_dropoff_alert() -> None:
     """Daily 06:15 UTC. Snapshots today's indexed-bucket count and
     compares against the snapshot from ~7 days ago. Emails OPS_EMAIL
@@ -1529,6 +1543,11 @@ def start_scheduler() -> AsyncIOScheduler | None:
     # wrong canonicals, noindex leaks, or soft-404 regressions.
     sched.add_job(_job_weekly_seo_health, CronTrigger(day_of_week="mon", hour=7, minute=20),
                   id="weekly_seo_health", replace_existing=True)
+    # iter412 — Daily AI SEO Growth Agent scan. 02:00 UTC (off-peak)
+    # so admins see fresh scores + recommendations on their morning
+    # logins. Never auto-publishes; queue requires explicit approval.
+    sched.add_job(_job_daily_seo_agent_scan, CronTrigger(hour=2, minute=0),
+                  id="daily_seo_agent_scan", replace_existing=True)
     # Founders lifecycle — runs at 03:15 UTC daily, right after listing expiry.
     # Auto-rolls regular Founders past 12-month window to Standard, and
     # revokes 14-day grace slots that never published anything.

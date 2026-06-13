@@ -54,6 +54,7 @@ import RefundApprovalsTab from "../components/admin/RefundApprovalsTab";
 import ShippingLedgerTab from "../components/admin/ShippingLedgerTab";
 import BackupTab from "../components/admin/BackupTab";
 import SecretsTab from "../components/admin/SecretsTab";
+import SEOAgentTab from "../components/admin/SEOAgentTab";  // iter412
 import PushNotificationsTab from "../components/admin/PushNotificationsTab";
 import RotatePasswordModal from "../components/admin/RotatePasswordModal";
 import EmailHealthBadge from "../components/admin/EmailHealthBadge";
@@ -99,6 +100,9 @@ const TABS = [
   { id: "reviews", label: "Reviews", caps: ["moderation"] },
   { id: "review-disputes", label: "Review Disputes", caps: ["moderation"] },
   { id: "secrets", label: "Secrets", superOnly: true },
+  // iter412 — AI SEO Growth Agent. Visible to admins with the "content"
+  // capability since it generates content rewrites that need approval.
+  { id: "seo-agent", label: "SEO Agent", caps: ["content"] },
   { id: "settings", label: "Settings" },
   { id: "showcase-analytics", label: "Showcase Analytics", caps: ["content"] },
   { id: "showcase-curation", label: "Showcase Rotation", caps: ["content"] },
@@ -527,6 +531,7 @@ export default function AdminDashboard() {
             {tab === "team" && me?.is_super_admin && <TeamTab />}
             {tab === "backup" && me?.is_super_admin && <BackupTab />}
             {tab === "secrets" && me?.is_super_admin && <SecretsTab />}
+            {tab === "seo-agent" && <SEOAgentTab />}
             {tab === "settings" && <SettingsTab />}
             {tab === "showcase-analytics" && <ShowcaseAnalyticsTab />}
             {tab === "showcase-curation" && <ShowcaseCurationTab />}

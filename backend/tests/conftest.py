@@ -66,6 +66,9 @@ SMOKE_FILES = {
     "test_iter324_maker_apply_antispam.py",      # maker application antispam
     "test_iter325_founders_hardening.py",        # founder slot hardening
 
+    # ── iter412 AI SEO Growth Agent ─────────────────────────────────
+    "test_iter412_seo_agent.py",                 # admin auth + scan + queue lifecycle
+
     # ── Contrast lint contract (semantic theme tokens) ──────────────
     "test_contrast_lint.py",
 }
