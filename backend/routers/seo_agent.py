@@ -346,6 +346,15 @@ def _score(technical_issue_count: int, content_issue_count: int,
 # visible to buyers. Higher-risk content rewrites (meta description,
 # product descriptions, titles) always require admin approval.
 AUTOPILOT_LOW_RISK_KINDS = frozenset({"missing_alt_text"})
+# iter413d — AVAILABLE auto-apply set the admin can opt into. Each kind
+# here is structurally low-risk (purely additive OR strictly improves on
+# a known-bad state), but we still require explicit opt-in per kind so
+# nothing surprises the admin.
+#   • missing_alt_text — purely additive, never visible to buyers
+#   • missing_meta_description — only fires when CURRENT meta is empty,
+#     never overwrites a human-authored description. SERP either shows
+#     our AI meta or whatever Google scrapes ad-hoc (typically worse).
+AUTOPILOT_AVAILABLE_KINDS = frozenset({"missing_alt_text", "missing_meta_description"})
 VALID_MODES = ("observe", "assist", "approve", "autopilot")
 
 
@@ -354,13 +363,26 @@ async def _get_mode() -> str:
     return (cfg or {}).get("mode", "approve")
 
 
+async def _get_autopilot_whitelist() -> set[str]:
+    """Returns the admin-configured set of kinds autopilot may auto-apply.
+    Defaults to {"missing_alt_text"} if unset. Filters out any kinds no
+    longer in AUTOPILOT_AVAILABLE_KINDS (defensive against stale config
+    after a deploy that removes a kind)."""
+    cfg = await db.seo_agent_config.find_one({"id": "singleton"}, {"_id": 0})
+    wl = (cfg or {}).get("autopilot_whitelist") or list(AUTOPILOT_LOW_RISK_KINDS)
+    return set(wl) & AUTOPILOT_AVAILABLE_KINDS
+
+
 async def _run_autopilot_apply(bundled_issues: list[dict]) -> dict:
-    """Iterate the LOW-RISK whitelist, generate fixes, and auto-apply
-    them to live records. Every applied change writes through the same
-    audit log path as a manual approve, so Rollback still works."""
-    summary = {"attempted": 0, "applied": 0, "failed": 0, "applied_ids": []}
+    """Iterate the admin-configured whitelist, generate fixes, and
+    auto-apply them to live records. Every applied change writes
+    through the same audit log path as a manual approve, so Rollback
+    still works."""
+    whitelist = await _get_autopilot_whitelist()
+    summary = {"attempted": 0, "applied": 0, "failed": 0,
+               "applied_ids": [], "whitelist": sorted(whitelist)}
     for issue in bundled_issues:
-        if issue["kind"] not in AUTOPILOT_LOW_RISK_KINDS:
+        if issue["kind"] not in whitelist:
             continue
         target = issue.get("target", {})
         if target.get("type") != "product" or not target.get("slug"):
@@ -370,25 +392,49 @@ async def _run_autopilot_apply(bundled_issues: list[dict]) -> dict:
         if not product:
             summary["failed"] += 1
             continue
-        new_alts = await _generate_alt_texts(product)
-        if not new_alts:
+
+        # iter413d — Dispatch by kind. Each branch produces (field, before, after).
+        field = before = after = None
+        kind = issue["kind"]
+        if kind == "missing_alt_text":
+            new_alts = await _generate_alt_texts(product)
+            if not new_alts:
+                summary["failed"] += 1
+                continue
+            field = "image_alts"
+            before = {"image_alts": product.get("image_alts") or []}
+            after = {"image_alts": new_alts}
+        elif kind == "missing_meta_description":
+            # SAFETY GUARD: only auto-apply when CURRENT meta is truly
+            # empty. Never overwrite a human-authored description, even
+            # if it's short or long. (The thin/truncated variants stay
+            # off the autopilot path forever — they need approval.)
+            if (product.get("meta_description") or "").strip():
+                summary["failed"] += 1
+                continue
+            new_meta = await _generate_meta_description(product)
+            if not new_meta:
+                summary["failed"] += 1
+                continue
+            field = "meta_description"
+            before = {"meta_description": ""}
+            after = {"meta_description": new_meta}
+        else:
             summary["failed"] += 1
             continue
-        # Write queue + audit + apply atomically-ish (no transactions in
-        # this Mongo deploy but the audit doc is the source of truth).
+
+        # Write queue + audit + apply
         queue_id = str(uuid.uuid4())
-        before = {"image_alts": product.get("image_alts") or []}
-        after = {"image_alts": new_alts}
         applied_at = now_iso()
         await db.seo_agent_queue.insert_one({
             "id": queue_id,
             "issue_id": issue["id"],
-            "issue_kind": issue["kind"],
+            "issue_kind": kind,
             "severity": issue["severity"],
             "target_type": "product",
             "target_slug": target["slug"],
             "target_label": target.get("label"),
-            "field": "image_alts",
+            "field": field,
             "before": before,
             "after": after,
             "status": "applied",
@@ -399,7 +445,7 @@ async def _run_autopilot_apply(bundled_issues: list[dict]) -> dict:
         })
         await db.products.update_one(
             {"slug": target["slug"]},
-            {"$set": {"image_alts": new_alts, "updated_at": applied_at}},
+            {"$set": {field: after[field], "updated_at": applied_at}},
         )
         await db.seo_agent_audit.insert_one({
             "id": str(uuid.uuid4()),
@@ -407,7 +453,7 @@ async def _run_autopilot_apply(bundled_issues: list[dict]) -> dict:
             "action": "autopilot_apply",
             "target_type": "product",
             "target_slug": target["slug"],
-            "field": "image_alts",
+            "field": field,
             "before": before,
             "after": after,
             "applied_at": applied_at,
@@ -667,33 +713,52 @@ async def seo_agent_overview(admin: dict = Depends(current_admin)):
     }
 
 
-# ── Autopilot mode config (iter413c) ───────────────────────────────────
+# ── Autopilot mode config (iter413c/d) ─────────────────────────────────
 class SetModeReq(BaseModel):
-    mode: str
+    mode: Optional[str] = None
+    autopilot_whitelist: Optional[list[str]] = None
 
 
 @router.get("/admin/seo-agent/config")
 async def seo_agent_config_get(admin: dict = Depends(current_admin)):
+    cfg = await db.seo_agent_config.find_one({"id": "singleton"}, {"_id": 0})
+    whitelist = (cfg or {}).get("autopilot_whitelist") or list(AUTOPILOT_LOW_RISK_KINDS)
+    # Filter against the currently-available set (defensive after deploys).
+    effective = sorted(set(whitelist) & AUTOPILOT_AVAILABLE_KINDS)
     return {
-        "mode": await _get_mode(),
+        "mode": (cfg or {}).get("mode", "approve"),
         "valid_modes": list(VALID_MODES),
-        "autopilot_low_risk_kinds": list(AUTOPILOT_LOW_RISK_KINDS),
+        "autopilot_available_kinds": sorted(AUTOPILOT_AVAILABLE_KINDS),
+        "autopilot_whitelist": effective,
+        # Kept for backward compat with the iter413c test harness.
+        "autopilot_low_risk_kinds": sorted(AUTOPILOT_LOW_RISK_KINDS),
     }
 
 
 @router.post("/admin/seo-agent/config")
 async def seo_agent_config_set(req: SetModeReq,
                                admin: dict = Depends(current_admin)):
-    if req.mode not in VALID_MODES:
-        raise HTTPException(400, f"Invalid mode. Must be one of {VALID_MODES}.")
+    update: dict = {"last_updated": now_iso(),
+                    "last_updated_by": admin.get("email")}
+    if req.mode is not None:
+        if req.mode not in VALID_MODES:
+            raise HTTPException(400, f"Invalid mode. Must be one of {VALID_MODES}.")
+        update["mode"] = req.mode
+    if req.autopilot_whitelist is not None:
+        # Hard-gate: only allow kinds that are in AUTOPILOT_AVAILABLE_KINDS.
+        # Silently dropping unknown kinds protects the admin from
+        # accidentally adding a high-risk kind.
+        clean = [k for k in req.autopilot_whitelist if k in AUTOPILOT_AVAILABLE_KINDS]
+        update["autopilot_whitelist"] = clean
+    if len(update) == 2:  # only the timestamp + admin email — nothing to change
+        raise HTTPException(400, "Provide at least one of: mode, autopilot_whitelist.")
     await db.seo_agent_config.update_one(
         {"id": "singleton"},
-        {"$set": {"id": "singleton", "mode": req.mode,
-                  "last_updated": now_iso(),
-                  "last_updated_by": admin.get("email")}},
+        {"$set": {"id": "singleton", **update}},
         upsert=True,
     )
-    return {"mode": req.mode}
+    # Return the canonical updated state
+    return await seo_agent_config_get(admin)
 
 
 @router.get("/admin/seo-agent/issues")

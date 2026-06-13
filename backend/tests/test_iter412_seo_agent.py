@@ -239,3 +239,54 @@ def test_overview_exposes_mode(headers):
     r = requests.get(f"{API}/admin/seo-agent/overview", headers=headers, timeout=15)
     assert r.status_code == 200
     assert "mode" in r.json()
+
+
+# iter413d — Granular autopilot whitelist (admin opts in per kind)
+def test_config_exposes_available_kinds(headers):
+    """Config must expose the kinds that are eligible for autopilot —
+    not just the ones currently whitelisted."""
+    r = requests.get(f"{API}/admin/seo-agent/config", headers=headers, timeout=15)
+    assert r.status_code == 200
+    d = r.json()
+    assert "autopilot_available_kinds" in d
+    assert "missing_alt_text" in d["autopilot_available_kinds"]
+    assert "missing_meta_description" in d["autopilot_available_kinds"]
+
+
+def test_config_whitelist_round_trip(headers):
+    """POST a custom whitelist, re-GET, confirm persistence."""
+    r = requests.post(
+        f"{API}/admin/seo-agent/config", headers=headers,
+        json={"autopilot_whitelist": ["missing_alt_text", "missing_meta_description"]},
+        timeout=15,
+    )
+    assert r.status_code == 200, r.text
+    assert set(r.json()["autopilot_whitelist"]) == {"missing_alt_text", "missing_meta_description"}
+    r = requests.get(f"{API}/admin/seo-agent/config", headers=headers, timeout=15)
+    assert set(r.json()["autopilot_whitelist"]) == {"missing_alt_text", "missing_meta_description"}
+    # Reset to single-kind default
+    requests.post(f"{API}/admin/seo-agent/config", headers=headers,
+                  json={"autopilot_whitelist": ["missing_alt_text"]}, timeout=15)
+
+
+def test_config_whitelist_silently_drops_high_risk(headers):
+    """High-risk kinds and bogus kinds must be silently dropped so the
+    admin can't accidentally autopilot a content rewrite."""
+    r = requests.post(
+        f"{API}/admin/seo-agent/config", headers=headers,
+        json={"autopilot_whitelist": [
+            "missing_alt_text",
+            "thin_product_description",   # high-risk — must drop
+            "make_up_a_kind",             # bogus — must drop
+        ]},
+        timeout=15,
+    )
+    assert r.status_code == 200
+    assert r.json()["autopilot_whitelist"] == ["missing_alt_text"]
+
+
+def test_config_post_requires_at_least_one_field(headers):
+    """Empty payload returns 400 — caller must pass mode and/or whitelist."""
+    r = requests.post(f"{API}/admin/seo-agent/config", headers=headers,
+                      json={}, timeout=15)
+    assert r.status_code == 400

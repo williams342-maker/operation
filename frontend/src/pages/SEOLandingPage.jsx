@@ -6,6 +6,7 @@ import { CardSkeleton } from "../components/Skeleton";
 import { useStructuredData } from "../lib/seo";
 import SupportVeteransStrip from "../components/SupportVeteransStrip";
 import Breadcrumbs from "../components/Breadcrumbs";
+import PinterestShareButton from "../components/PinterestShareButton";
 
 const SITE_URL = "https://craftersmarket.org";
 
@@ -197,6 +198,17 @@ export default function SEOLandingPage({ config }) {
           <Link to="/makers" className="btn-industrial btn-secondary">
             Meet the makers →
           </Link>
+          {/* iter413e — Pinterest "Save" sits with the primary CTAs.
+              These pages are Article Rich Pin eligible (iter411d) — when
+              a user pins from here, the pin auto-formats with title +
+              section + favicon, and clicks land directly on this page. */}
+          <PinterestShareButton
+            url={`https://craftersmarket.org/${slug}`}
+            media={`https://craftersmarket.org/downloads/cnc-garage-builders.png`}
+            description={`${keyword} on Crafters Market — handmade by vetted US makers`}
+            source={`seo-landing-${slug}`}
+            testId={`seo-pinterest-share-${slug}`}
+          />
         </div>
 
         {/* Body extras (iter300) — additional H2 sections with deep

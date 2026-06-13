@@ -9,6 +9,7 @@ import { useStructuredData } from "../lib/seo";
 import { ArrowLeft, ZoomIn } from "lucide-react";
 import SaveDropButton from "../components/SaveDropButton";
 import ShareLinkButton from "../components/ShareLinkButton";
+import PinterestShareButton from "../components/PinterestShareButton";
 import PersonalizationPanel from "../components/PersonalizationPanel";
 import ImageLightbox from "../components/ImageLightbox";
 import VeteranBadge from "../components/VeteranBadge";
@@ -885,6 +886,17 @@ export default function ProductDetail() {
                       </button>
                       <SaveDropButton makerSlug={p.maker_slug} makerName={maker?.name || p.maker_slug} productSlug={p.slug} />
                       <ShareLinkButton kind="product" slug={p.slug} testId="product-share-link" />
+                      {/* iter413e — Pinterest is the #1 handmade-goods
+                          discovery channel. Pin-it button next to the
+                          general share button captures organic traffic
+                          we'd otherwise leave on the table. */}
+                      <PinterestShareButton
+                        url={`https://craftersmarket.org/shop/${p.slug}`}
+                        media={p.images?.[0]}
+                        description={`${p.title} · handmade by ${maker?.name || p.maker_slug || "an American maker"} on Crafters Market`}
+                        source="pdp"
+                        testId="product-pinterest-share"
+                      />
                     </div>
                     {/* iter386 — delivery estimate beside the CTA. Labeled
                         "standard shipping" because the buyer can upgrade to
@@ -955,6 +967,16 @@ export default function ProductDetail() {
                     </button>
                     <SaveDropButton makerSlug={p.maker_slug} makerName={maker?.name || p.maker_slug} productSlug={p.slug} />
                     <ShareLinkButton kind="product" slug={p.slug} testId="product-share-link-oos" />
+                    {/* iter413e — Pinterest share also on the OOS card —
+                        sold-out listings drive Pinterest saves that
+                        convert when restocked. */}
+                    <PinterestShareButton
+                      url={`https://craftersmarket.org/shop/${p.slug}`}
+                      media={p.images?.[0]}
+                      description={`${p.title} · handmade by ${maker?.name || p.maker_slug || "an American maker"} on Crafters Market`}
+                      source="pdp-oos"
+                      testId="product-pinterest-share-oos"
+                    />
                   </div>
                   {backorderPolicy?.allowed && (
                     <p className="font-mono text-[10px] text-ink-muted leading-relaxed">

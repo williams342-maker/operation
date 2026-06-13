@@ -189,17 +189,29 @@ function RecommendationRow({ rec, onGenerateAll, generating }) {
 }
 
 
-function ModeSelector({ currentMode, onChange }) {
+function ModeSelector({ currentMode, onChange, autopilotWhitelist, autopilotAvailableKinds, onWhitelistChange }) {
   // iter413c — Autopilot mode selector. observe ⇢ scan only · assist ⇢
   // recommendations · approve ⇢ AI generation queue (default) · autopilot
-  // ⇢ assist+approve+auto-apply LOW-RISK fixes (alt text only) on the
-  // daily cron. Higher-risk content rewrites ALWAYS need approval.
+  // ⇢ assist+approve+auto-apply LOW-RISK fixes on the daily cron.
+  // iter413d — When autopilot is selected, show per-kind checkboxes so
+  // the admin opts in granularly. High-risk kinds (meta rewrites,
+  // descriptions, titles) are not in the available set, period.
   const modes = [
     { id: "observe",   label: "Observe",   desc: "Scan only · no AI generation" },
     { id: "assist",    label: "Assist",    desc: "Scan + ranked recommendations" },
     { id: "approve",   label: "Approve",   desc: "Default · AI rewrites stage in queue", recommended: true },
-    { id: "autopilot", label: "Autopilot", desc: "Auto-apply alt text on cron · meta still needs approval" },
+    { id: "autopilot", label: "Autopilot", desc: "Auto-apply selected fixes on cron · high-risk always needs approval" },
   ];
+  const KIND_BLURBS = {
+    missing_alt_text:         { label: "Generate missing alt text", risk: "Purely additive — never visible to buyers." },
+    missing_meta_description: { label: "Fill empty meta descriptions", risk: "Only fires when meta is empty — never overwrites human copy." },
+  };
+  const wl = new Set(autopilotWhitelist || []);
+  const toggle = (kind) => {
+    const next = new Set(wl);
+    if (next.has(kind)) next.delete(kind); else next.add(kind);
+    onWhitelistChange(Array.from(next));
+  };
   return (
     <div className="border border-line bg-surface p-4" data-testid="seo-agent-mode-selector">
       <div className="flex items-center justify-between mb-3 gap-3">
@@ -234,6 +246,42 @@ function ModeSelector({ currentMode, onChange }) {
           );
         })}
       </div>
+      {currentMode === "autopilot" && (
+        <div className="mt-4 pt-4 border-t border-line" data-testid="seo-agent-autopilot-whitelist">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-3">
+            Autopilot whitelist · pick which kinds auto-apply on the daily cron
+          </div>
+          <div className="space-y-2">
+            {(autopilotAvailableKinds || []).map((k) => {
+              const meta = KIND_BLURBS[k] || { label: k, risk: "" };
+              const on = wl.has(k);
+              return (
+                <label
+                  key={k}
+                  data-testid={`seo-agent-autopilot-kind-${k}`}
+                  className={`flex items-start gap-3 p-2.5 border cursor-pointer transition-colors ${
+                    on ? "border-brand bg-brand/5" : "border-line hover:border-brand"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={on}
+                    onChange={() => toggle(k)}
+                    className="mt-0.5 accent-brand"
+                  />
+                  <div className="min-w-0">
+                    <div className="text-sm text-ink">{meta.label}</div>
+                    <div className="text-xs text-ink-muted mt-0.5">{meta.risk}</div>
+                  </div>
+                </label>
+              );
+            })}
+          </div>
+          <div className="mt-3 text-xs text-ink-muted">
+            High-risk rewrites (descriptions, titles, replacing existing meta) <strong>never</strong> appear here — they always require manual approval.
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -449,7 +497,8 @@ export default function SEOAgentTab() {
   const [queueStatus, setQueueStatus] = useState("pending");
   const [recommendations, setRecommendations] = useState([]);
   const [history, setHistory] = useState(null); // { history, queue_activity }
-  const [active, setActive] = useState("overview"); // overview | recommendations | technical | content | reporting | queue
+  const [config, setConfig] = useState(null);   // iter413d — mode + whitelist + available kinds
+  const [active, setActive] = useState("overview"); // overview | recommendations | technical | content | authority | reporting | queue
   const [scanning, setScanning] = useState(false);
   const [generating, setGenerating] = useState(null);    // issue id being processed
   const [generatingRec, setGeneratingRec] = useState(null); // rec id being processed
@@ -458,18 +507,20 @@ export default function SEOAgentTab() {
 
   const refresh = useCallback(async () => {
     try {
-      const [ovrRes, issRes, qRes, recRes, histRes] = await Promise.all([
+      const [ovrRes, issRes, qRes, recRes, histRes, cfgRes] = await Promise.all([
         fetch(`${API}/api/admin/seo-agent/overview`, { headers: authHeaders() }),
         fetch(`${API}/api/admin/seo-agent/issues`, { headers: authHeaders() }),
         fetch(`${API}/api/admin/seo-agent/queue?status=${queueStatus}`, { headers: authHeaders() }),
         fetch(`${API}/api/admin/seo-agent/recommendations`, { headers: authHeaders() }),
         fetch(`${API}/api/admin/seo-agent/history?days=30`, { headers: authHeaders() }),
+        fetch(`${API}/api/admin/seo-agent/config`, { headers: authHeaders() }),
       ]);
       if (ovrRes.ok)  setOverview(await ovrRes.json());
       if (issRes.ok)  setIssues((await issRes.json()).issues || []);
       if (qRes.ok)    setQueue((await qRes.json()).items || []);
       if (recRes.ok)  setRecommendations((await recRes.json()).recommendations || []);
       if (histRes.ok) setHistory(await histRes.json());
+      if (cfgRes.ok)  setConfig(await cfgRes.json());
     } catch (e) {
       toast.error("Could not load SEO Agent data");
     } finally {
@@ -689,6 +740,8 @@ export default function SEOAgentTab() {
         <div className="space-y-3" data-testid="seo-agent-overview-panel">
           <ModeSelector
             currentMode={overview?.mode}
+            autopilotWhitelist={config?.autopilot_whitelist}
+            autopilotAvailableKinds={config?.autopilot_available_kinds}
             onChange={async (mode) => {
               try {
                 const r = await fetch(`${API}/api/admin/seo-agent/config`, {
@@ -700,6 +753,20 @@ export default function SEOAgentTab() {
                 await refresh();
               } catch {
                 toast.error("Could not update mode");
+              }
+            }}
+            onWhitelistChange={async (whitelist) => {
+              try {
+                const r = await fetch(`${API}/api/admin/seo-agent/config`, {
+                  method: "POST", headers: authHeaders(),
+                  body: JSON.stringify({ autopilot_whitelist: whitelist }),
+                });
+                if (!r.ok) throw new Error();
+                const d = await r.json();
+                setConfig(d);
+                toast.success(`Autopilot whitelist updated (${d.autopilot_whitelist.length} kind${d.autopilot_whitelist.length === 1 ? "" : "s"})`);
+              } catch {
+                toast.error("Could not update whitelist");
               }
             }}
           />
