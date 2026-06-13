@@ -95,6 +95,7 @@ import { Toaster } from "sonner";
 import { trackPageview, captureAttribution } from "./lib/analytics";
 import { useSiteSettings } from "./hooks/useSiteSettings";
 import { useStructuredData } from "./lib/seo";
+import MobileStickyCTA from "./components/MobileStickyCTA";
 
 const Home = () => {
   useStructuredData({
@@ -234,7 +235,7 @@ function App() {
     <CartProvider>
       <BrowserRouter>
         <ScrollTop />
-        <div className="App grain" data-testid="app-root">
+        <div className="App grain pb-14 md:pb-0" data-testid="app-root">
           <MaintenanceGate>
             <Nav />
             <main>
@@ -362,6 +363,7 @@ function App() {
             and re-opens via the `cm:reopen-cookie-banner` event fired
             from the Footer "Cookie preferences" link. */}
         <CookieBanner />
+        <MobileStickyCTA />
       </BrowserRouter>
     </CartProvider>
   );
