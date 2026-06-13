@@ -52,6 +52,20 @@ const cols = [
       { label: "Custom Metal Signs", href: "/custom-metal-signs" },
     ],
   },
+  // iter411: surface the newly-broadened craft categories (Woodworking,
+  // Pottery, Jewelry, Leather, Fiber) so crawler link-equity flows to
+  // the new SEO landing pages from every page of the site.
+  {
+    title: "Handmade by Category",
+    links: [
+      { label: "Handmade Woodworking", href: "/handmade-woodworking" },
+      { label: "Handmade Pottery", href: "/handmade-pottery" },
+      { label: "Handmade Jewelry", href: "/handmade-jewelry" },
+      { label: "Leather Goods", href: "/leather-goods" },
+      { label: "Handmade Textiles", href: "/handmade-textiles" },
+      { label: "Artisan Marketplace", href: "/artisan-marketplace" },
+    ],
+  },
 ];
 
 export default function Footer() {

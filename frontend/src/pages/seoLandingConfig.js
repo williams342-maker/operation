@@ -794,6 +794,318 @@ export const SEO_LANDING_PAGES = {
     ctaLabel: "Browse engraved cutting boards",
     ctaHref: "/shop?q=cutting+board",
   },
+
+  // ── iter411 — Craft-expansion landing pages ─────────────────────────
+  // Mirrors the homepage broadening (Woodworking, Pottery, Jewelry,
+  // Leather, Fiber). Each is a dedicated SEO landing for the new
+  // craft category so Google indexes "handmade pottery", "handmade
+  // jewelry", etc. as Crafters Market territory — not just
+  // CNC/metal/laser.
+  "handmade-woodworking": {
+    slug: "handmade-woodworking",
+    keyword: "Handmade Woodworking",
+    eyebrow: "Marketplace · Handmade Woodworking",
+    h1: "Handmade Woodworking from American Workshops.",
+    intro:
+      "Shop handmade woodworking from vetted American makers — solid hardwood furniture, custom signs, cutting boards, charcuterie, turned bowls, jewelry boxes, wedding decor, and heirloom pieces built one at a time in independent shops.",
+    paragraphs: [
+      "Every woodworker on Crafters Market is individually approved before they can list a single piece. We verify shop photos, machine setups, and finished past work — so what you buy was actually built in a real workshop by the person who answers your messages.",
+      "Filter by species (walnut, white oak, cherry, maple, reclaimed barn-board), by category (furniture, signs, kitchenware, decor), or by maker. Most pieces ship in 1-4 weeks, and custom commissions get routed to the right maker through our brief form — typically quoted inside 48 hours.",
+    ],
+    bodyExtras: [
+      {
+        heading: "What real handmade woodworking looks like",
+        paragraphs: [
+          "Handmade woodworking isn't just 'cut wood' — it's species selection, grain matching, joinery choice, and a finish system that actually survives kitchens, bathrooms, mantels, and entryways. Our makers spec their builds the way a furniture maker spec'd them in 1950: solid hardwoods (no MDF, no veneer-over-particleboard), traditional joinery (dovetail, mortise-and-tenon, dado), and hand-rubbed oil or polyurethane finishes you can actually re-condition decades from now.",
+          "You'll see a mix of machine-aided and hand-tool work — most modern shops route mortises on a CNC, then chop and fit the tenons by hand. That's not a downgrade; it's how the best small shops in the country build today. Speed where it doesn't matter, hand work where the eye lands.",
+        ],
+      },
+      {
+        heading: "Hardwoods worth ordering",
+        paragraphs: [
+          "Walnut is the workhorse for high-end pieces — rich chocolate grain, takes oil beautifully, gets richer with age. White oak is the most weather-tolerant domestic hardwood (it's what shipyards and wine barrels are made of) and the right call for any outdoor sign or porch furniture. Cherry develops a deeper red patina the longer it sits in sunlight. Maple is dense and pale and cheap to ship — perfect for cutting boards and stained pieces.",
+          "If you want reclaimed wood — barn-board, salvaged church beams, fence rails with natural patina — most makers source regionally and can quote with photos before they cut. Reclaimed adds character and story but limits the size to whatever the salvage yard has on the truck.",
+        ],
+      },
+    ],
+    faqs: [
+      {
+        q: "Is this real handmade work or factory-built?",
+        a: "Real handmade. Every woodworker on Crafters Market is individually vetted — we require workshop photos, machine details, and samples of past work before approval. No drop-shippers, no resellers, no factories overseas pretending to be small. Roughly 1 in 4 maker applications gets approved.",
+      },
+      {
+        q: "Can I commission a custom woodworking piece?",
+        a: "Yes — submit a brief with your size, species preference, design, and timeline. We route it to a maker whose shop fits the build, and you get a quote (usually inside 48 hours) before any work starts. You message the maker directly through the order thread.",
+      },
+      {
+        q: "What's the difference between solid wood and 'wood' furniture from big retailers?",
+        a: "Solid hardwood is one continuous piece of natural wood — durable, refinishable, and gets better-looking with age. The 'wood' furniture from big retailers is usually MDF or particleboard with a thin wood veneer glued on top — when it chips, you see the brown crumble underneath, and you can't sand or refinish it. Every piece on Crafters Market is real solid wood unless explicitly described otherwise.",
+      },
+      {
+        q: "How long do shipping and lead times take?",
+        a: "Most in-stock pieces ship in 1-2 weeks. Made-to-order pieces (custom signs, cutting boards with engraving, furniture) typically take 2-6 weeks depending on complexity. Each listing shows the maker's current lead time, and your maker will update you if anything changes.",
+      },
+    ],
+    relatedLinks: [
+      { to: "/cnc-wood-signs", label: "CNC Wood Signs", blurb: "V-carved hardwood signs and plaques." },
+      { to: "/engraved-cutting-boards", label: "Engraved Cutting Boards", blurb: "Personalized hardwood cutting and serving boards." },
+      { to: "/handmade-pottery", label: "Handmade Pottery", blurb: "Wheel-thrown ceramics from independent studios." },
+      { to: "/leather-goods", label: "Leather Goods", blurb: "Hand-stitched wallets, belts, bags, and accessories." },
+      { to: "/artisan-marketplace", label: "Artisan Marketplace", blurb: "The full curated marketplace of vetted makers." },
+      { to: "/how-custom-orders-work", label: "How Custom Orders Work", blurb: "5-step brief-to-shipping flow." },
+    ],
+    match: (p) =>
+      /wood|walnut|oak|cherry|maple|cedar|mahogany|cutting board|charcuterie|furniture|shelf|table|chair|bowl|turned|joinery/i
+        .test(`${p.title} ${p.description} ${(p.materials || []).join(" ")}`)
+      || p.category === "Woodworking"
+      || p.category === "Furniture",
+    ctaLabel: "Browse handmade woodworking",
+    ctaHref: "/shop?category=Woodworking",
+  },
+
+  "handmade-pottery": {
+    slug: "handmade-pottery",
+    keyword: "Handmade Pottery",
+    eyebrow: "Marketplace · Handmade Pottery",
+    h1: "Handmade Pottery from American Studios.",
+    intro:
+      "Wheel-thrown mugs, vases, planters, bowls, dinnerware, and one-of-a-kind ceramic sculpture from vetted American potters. Every piece is shaped, glazed, and fired in an independent studio — never mass-produced.",
+    paragraphs: [
+      "Handmade pottery has a quality that mass-produced ceramics can't fake — slight asymmetries from the wheel, glaze pooling at the rim, the artist's fingermarks on the base. Our potters spec their own clay bodies (stoneware, porcelain, raku), mix their own glazes, and fire in their own kilns. What you get is a piece with a maker behind it, not a SKU.",
+      "Filter by category (drinkware, vases, planters, dinnerware), by glaze family (matte black, celadon, raw stoneware, copper red), or by potter. Most pieces ship in 1-3 weeks, and many studios offer custom commissions for wedding registries, hostess sets, and gallery pieces.",
+    ],
+    bodyExtras: [
+      {
+        heading: "Stoneware, porcelain, and the rest",
+        paragraphs: [
+          "Stoneware is the everyday workhorse — dense, dishwasher-safe, chip-resistant, and the body most of our mugs and bowls are made from. It fires at high temperature (cone 6 or higher) which makes it food-safe, microwave-safe, and durable enough to last decades. Porcelain is finer-grained and translucent when thin — perfect for tea sets, cups, and pieces where you want light passing through the wall.",
+          "Raku and pit-fired pieces have dramatic, unpredictable surfaces — metallic lusters, crackle glazes, smoke-blackened bottoms. These are decorative pieces, not for daily food use, but they're the kind of object that anchors a shelf or mantel for a lifetime.",
+        ],
+      },
+      {
+        heading: "Glazes and what they tell you",
+        paragraphs: [
+          "Glaze is where a potter's signature shows up. Matte black, celadon green, ash-glazed runs, ash-and-iron speckles, salt-fire orange peel — every studio develops their own recipes and refines them over years. When you find a glaze you love, follow that potter; the next piece they list will have the same hand.",
+          "Food-safe glazes carry no lead or cadmium and are tested at full firing temperature. Every potter on Crafters Market labels their food-safe pieces explicitly. Decorative-only pieces are labeled too — usually because of a low-fire luster or an unsealed earthenware body that wouldn't survive a dishwasher.",
+        ],
+      },
+    ],
+    faqs: [
+      {
+        q: "Is handmade pottery dishwasher-safe?",
+        a: "Most stoneware on Crafters Market is dishwasher-safe and microwave-safe. Porcelain is too. Raku, pit-fired, and unsealed earthenware are typically display-only — each listing states clearly what the piece is rated for. When in doubt, hand-wash; it doubles the lifespan of any glaze.",
+      },
+      {
+        q: "Why does each piece look slightly different?",
+        a: "Because each piece is shaped by hand on a wheel and glazed individually. Variation in form, glaze pooling, and firing color is the signature of real handmade work — not a defect. If you order a set, the potter matches them as closely as they can while preserving the handmade character.",
+      },
+      {
+        q: "Can I commission a custom set?",
+        a: "Yes — most studios accept commissions for wedding registries, hostess gifts, gallery pieces, and corporate gifts. Submit a brief with your set size, glaze preference, and timeline and we route it to the right potter. Lead times typically 4-8 weeks for a 6+ piece commission.",
+      },
+      {
+        q: "How is pottery shipped without breaking?",
+        a: "Every potter packs in custom-foam or double-boxed cells, and most ship via UPS or FedEx with insurance on anything over $100. In the rare case a piece arrives damaged, the maker covers replacement or refund — no fight, no paperwork. We track this rate and only keep potters with damage-free rates above 99%.",
+      },
+    ],
+    relatedLinks: [
+      { to: "/handmade-woodworking", label: "Handmade Woodworking", blurb: "Solid hardwood furniture, signs, and kitchenware." },
+      { to: "/handmade-jewelry", label: "Handmade Jewelry", blurb: "Sterling silver, gold-fill, and one-of-a-kind pieces." },
+      { to: "/wedding-gifts", label: "Wedding Gifts", blurb: "Curated registry pieces and one-of-a-kind sets." },
+      { to: "/artisan-marketplace", label: "Artisan Marketplace", blurb: "The full curated marketplace of vetted makers." },
+      { to: "/custom-handmade-goods", label: "Custom Handmade Goods", blurb: "Made-to-order originals across every craft." },
+      { to: "/how-custom-orders-work", label: "How Custom Orders Work", blurb: "5-step brief-to-shipping flow." },
+    ],
+    match: (p) =>
+      /pottery|ceramic|stoneware|porcelain|mug|vase|planter|bowl|dinnerware|raku|kiln|glaze|wheel.?thrown/i
+        .test(`${p.title} ${p.description} ${(p.materials || []).join(" ")}`)
+      || p.category === "Pottery & Ceramics",
+    ctaLabel: "Browse handmade pottery",
+    ctaHref: "/shop?category=Pottery%20%26%20Ceramics",
+  },
+
+  "handmade-jewelry": {
+    slug: "handmade-jewelry",
+    keyword: "Handmade Jewelry",
+    eyebrow: "Marketplace · Handmade Jewelry",
+    h1: "Handmade Jewelry from Independent Studios.",
+    intro:
+      "Sterling silver, gold-fill, raw gemstones, hand-forged copper, and one-of-a-kind statement pieces from vetted American jewelers. Every ring, necklace, earring, and cuff is fabricated by hand in an independent studio.",
+    paragraphs: [
+      "Handmade jewelry has a texture and weight that machine-stamped retail jewelry can't fake — the hammer marks on a forged silver cuff, the slightly uneven solder lines on a bezel, the way a raw stone catches light because it was set by someone who chose it. Our jewelers cut, forge, solder, and stone-set in their own studios.",
+      "Filter by material (sterling silver, 14k gold-fill, brass, copper, bronze), by category (rings, necklaces, earrings, cuffs, statement pieces), or by jeweler. Most pieces ship in 1-2 weeks, and made-to-order rings (engagement, signet, custom band) take 2-6 weeks depending on the build.",
+    ],
+    bodyExtras: [
+      {
+        heading: "Sterling silver, gold-fill, and what's worth your money",
+        paragraphs: [
+          "Sterling silver (.925) is the everyday standard — durable, repairable, and develops a patina that gives it character over time. Pure silver is too soft to hold a ring shape, which is why almost every silver piece is sterling. Gold-fill is a heavy layer of real gold bonded to a base metal core — it's not plated and won't flake; expect 10-20+ years of daily wear before it shows the base metal. Solid gold (14k, 18k) is what you order for engagement rings and lifetime pieces.",
+          "Skip jewelry sold by weight with 'silver-tone' or 'gold-tone' in the description — that's plated base metal that will turn your finger green inside a year. Every listing on Crafters Market specifies the actual metal composition.",
+        ],
+      },
+      {
+        heading: "Stones, settings, and the hand at work",
+        paragraphs: [
+          "Bezel setting (a metal rim around the stone) is the strongest, most heirloom-grade setting type — it protects the stone, hides girdle nicks, and looks intentional. Prong setting (the classic 4- or 6-prong claw) puts more of the stone on display but needs maintenance — re-tipping prongs every 5-10 years to keep the stone from popping. Bezel work is harder to fabricate by hand, which is why you see it more on independent makers' work than on retail jewelry.",
+          "Many of our jewelers work with raw or rough-cut stones — turquoise, lapis, agate, druzy, raw quartz — that don't exist in retail catalogs because each stone is a one-off. If you fall in love with a piece, order it; it can't be reproduced.",
+        ],
+      },
+    ],
+    faqs: [
+      {
+        q: "Is this real silver and gold, not plated?",
+        a: "Yes — every piece labeled sterling silver is .925 sterling. Every piece labeled gold-fill is real gold-fill (not plated). Solid gold is solid karat as stated (14k, 18k). Plated pieces are explicitly labeled as plated. We don't approve makers who try to pass plated work off as solid.",
+      },
+      {
+        q: "Can I get a custom engagement ring or signet?",
+        a: "Yes — most jewelers accept commissions. Submit a brief with your size, metal preference, stone preference (or 'maker's choice' for one-of-a-kind), and budget. We route it to a jeweler whose work fits the build. Custom rings typically run 4-8 weeks from brief to shipping.",
+      },
+      {
+        q: "How do I know my ring size?",
+        a: "Most jewelers can size a ring for you if you provide a measurement — order a $5 plastic sizer (Amazon or your local jeweler), or send the inner-diameter measurement of a ring that already fits the same finger. We have a sizing guide that every maker links to on their listings.",
+      },
+      {
+        q: "What about resizing or repair later?",
+        a: "Almost every sterling silver and solid gold piece can be resized or repaired. Gold-fill is harder to resize without compromising the gold layer — order it correctly the first time. Many of our jewelers offer free first-year resizing on rings they made, and reasonable resize fees after that. Each shop's policy is on their profile page.",
+      },
+    ],
+    relatedLinks: [
+      { to: "/leather-goods", label: "Leather Goods", blurb: "Hand-stitched wallets, belts, and bags." },
+      { to: "/handmade-pottery", label: "Handmade Pottery", blurb: "Wheel-thrown ceramics from independent studios." },
+      { to: "/wedding-gifts", label: "Wedding Gifts", blurb: "Curated heirloom gifts and registry pieces." },
+      { to: "/personalized-gifts", label: "Personalized Gifts", blurb: "All custom and monogrammed pieces." },
+      { to: "/artisan-marketplace", label: "Artisan Marketplace", blurb: "The full curated marketplace of vetted makers." },
+      { to: "/how-custom-orders-work", label: "How Custom Orders Work", blurb: "5-step brief-to-shipping flow." },
+    ],
+    match: (p) =>
+      /jewel|ring|necklace|earring|bracelet|cuff|pendant|silver|gold|turquoise|gemstone|signet/i
+        .test(`${p.title} ${p.description} ${(p.materials || []).join(" ")}`)
+      || /jewelry/i.test(p.category || ""),
+    ctaLabel: "Browse handmade jewelry",
+    ctaHref: "/shop?category=Jewelry%20%26%20Wearables",
+  },
+
+  "leather-goods": {
+    slug: "leather-goods",
+    keyword: "Leather Goods",
+    eyebrow: "Marketplace · Leather Goods",
+    h1: "Handmade Leather Goods from American Workshops.",
+    intro:
+      "Hand-stitched wallets, belts, bags, journals, knife sheaths, dog collars, and made-to-order accessories from vetted American leatherworkers. Every piece is cut, edged, stitched, and finished by hand in an independent shop.",
+    paragraphs: [
+      "Real leather goods are obvious the moment you hold one — full-grain hide with visible pores, hand-burnished edges, saddle-stitched seams that won't unravel if a single thread breaks. Our leatherworkers source full-grain Horween, Wickett & Craig, and Hermann Oak leather, and stitch every seam by hand or with traditional harness needles.",
+      "Filter by category (wallets, belts, bags, journals, accessories), by leather type (full-grain, bridle, chromexcel, latigo, suede), or by maker. Most pieces ship in 1-3 weeks, and custom commissions — monogrammed wallets, bespoke belt sizing, made-to-measure bags — typically take 3-6 weeks.",
+    ],
+    bodyExtras: [
+      {
+        heading: "Full-grain leather and why it matters",
+        paragraphs: [
+          "Full-grain leather is the top layer of the hide, still attached, with the natural grain intact. It's the strongest, most durable, and only-gets-better-with-age leather there is — every wallet, belt, and bag worth keeping for decades is full-grain. 'Top-grain' is full-grain with the top sanded off (looks uniform but loses the patina). 'Genuine leather' is the bottom-of-the-barrel layer, glued and embossed to look like leather — avoid.",
+          "Our leatherworkers source from tanneries with real provenance: Horween Chicago (chromexcel and shell cordovan), Wickett & Craig (English bridle), Hermann Oak (saddle skirting). When a listing says 'Horween chromexcel,' it's actually Horween chromexcel — we verify supplier invoices during the maker vetting process.",
+        ],
+      },
+      {
+        heading: "Hand-stitching vs. machine-stitching",
+        paragraphs: [
+          "Saddle-stitching by hand uses two needles and a single waxed thread, pulled tight on each pass. The result is a seam where every stitch is independent — if one breaks, the others stay locked in place. Machine-stitched seams unravel if a single thread breaks. The difference matters most on belts, wallet edges, and dog collars where a stitch sees daily friction.",
+          "Hand-stitching takes 3-5x longer than machine-stitching, which is why machine-stitched leather is cheaper. It also doesn't last as long. Every leatherworker on Crafters Market labels each piece clearly — hand-stitched seams are the standard on belts, wallets, and journals.",
+        ],
+      },
+    ],
+    faqs: [
+      {
+        q: "How long does handmade leather last?",
+        a: "A well-made full-grain leather wallet or belt lasts 15-30 years with normal use, and develops a deeper patina the whole time. Belts can be re-stitched or re-edged once the leather softens. Wallets eventually wear at the corners — many makers offer free first-year repairs and reasonable repair fees after that.",
+      },
+      {
+        q: "Can I get a custom-sized belt or monogrammed wallet?",
+        a: "Yes — almost every leatherworker on Crafters Market offers custom sizing on belts and monograms on wallets. Some offer made-to-measure bags. Submit a brief with the measurements, hardware preference, and any personalization, and we route it to the right maker.",
+      },
+      {
+        q: "How do I take care of my leather goods?",
+        a: "Full-grain leather wants to breathe and stay conditioned. Wipe with a dry cloth weekly, condition with a wax-based leather conditioner (Saphir, Smith's, Pecard's) every 3-6 months, and avoid soaking it in water. If it does get wet, let it air-dry away from direct heat — never use a hair dryer. Conditioned leather lasts decades; neglected leather cracks at the fold lines inside 5 years.",
+      },
+      {
+        q: "Are these gifts good for men, women, or both?",
+        a: "Both. Our leatherworkers make pieces across the full range — slim cardholders, structured tote bags, classic bifold wallets, statement belts, journal covers, jewelry rolls. Filter by category and price, and every listing shows the maker's range. Many pieces are intentionally unisex — a saddle-tan bifold or a hand-stitched journal cover works for anyone.",
+      },
+    ],
+    relatedLinks: [
+      { to: "/handmade-jewelry", label: "Handmade Jewelry", blurb: "Sterling silver, gold-fill, and stone-set pieces." },
+      { to: "/handmade-woodworking", label: "Handmade Woodworking", blurb: "Hardwood furniture, signs, and kitchenware." },
+      { to: "/personalized-gifts", label: "Personalized Gifts", blurb: "Monogrammed and custom-made gift pieces." },
+      { to: "/handmade-gifts-for-dad", label: "Handmade Gifts for Dad", blurb: "Engraved tools, wallets, and shop pieces." },
+      { to: "/artisan-marketplace", label: "Artisan Marketplace", blurb: "The full curated marketplace of vetted makers." },
+      { to: "/how-custom-orders-work", label: "How Custom Orders Work", blurb: "5-step brief-to-shipping flow." },
+    ],
+    match: (p) =>
+      /leather|wallet|belt|bag|journal|sheath|holster|cordovan|chromexcel|saddle|bridle/i
+        .test(`${p.title} ${p.description} ${(p.materials || []).join(" ")}`)
+      || p.category === "Leather Goods",
+    ctaLabel: "Browse leather goods",
+    ctaHref: "/shop?category=Leather%20Goods",
+  },
+
+  "handmade-textiles": {
+    slug: "handmade-textiles",
+    keyword: "Handmade Textiles & Fiber Arts",
+    eyebrow: "Marketplace · Fiber Arts & Textiles",
+    h1: "Handmade Textiles & Fiber Arts.",
+    intro:
+      "Handwoven blankets, naturally-dyed scarves, hand-knit goods, quilts, embroidered wall hangings, and one-of-a-kind fiber art from vetted American makers. Every piece is woven, knitted, quilted, or stitched in an independent studio.",
+    paragraphs: [
+      "Fiber arts are the slowest, most labor-intensive craft on the marketplace — a handwoven throw can take 40+ hours on the loom, a queen-size quilt 80+ hours of cutting, piecing, and stitching. The result is an object you can pass down: natural fibers, real dyes, and the kind of texture mass-produced textiles can't fake.",
+      "Filter by category (blankets, scarves, wall art, quilts, apparel, home textiles), by technique (handwoven, hand-knit, quilted, embroidered, naturally-dyed), or by maker. Most pieces ship in 1-3 weeks for finished work; commissioned heirloom quilts and custom woven blankets typically take 4-12 weeks.",
+    ],
+    bodyExtras: [
+      {
+        heading: "Natural fibers and what to look for",
+        paragraphs: [
+          "Wool is the workhorse — warm, breathable, durable, and naturally water-resistant. Merino wool is the soft variety used in next-to-skin pieces like scarves and shawls; sheep's wool is the heavier variety used in blankets, throws, and rugs. Linen is the dressier natural fiber — drapes beautifully, gets softer with washing, takes natural dyes brilliantly. Cotton is the everyday standard for quilts and embroidery.",
+          "Synthetic fibers (acrylic, polyester) are cheap and easy to wash but feel plasticky against the skin and don't take dye the same way. Almost every piece on Crafters Market is natural fiber — when a piece blends in a synthetic for stretch or durability, the listing says so explicitly.",
+        ],
+      },
+      {
+        heading: "Natural dyes and the colors you get",
+        paragraphs: [
+          "Many of our fiber makers use natural plant dyes — indigo, madder root, weld, walnut hulls, cochineal, logwood. The colors are deeper, more nuanced, and slightly variable in a way that synthetic dyes can't replicate. A naturally-dyed indigo scarf has 15 different shades of blue depending on the angle and the light; a synthetic-dyed one has one shade. Once you see them side-by-side, you can't unsee it.",
+          "Natural dyes do fade slightly over years of sun exposure — that's the trade for the depth. Synthetic dyes are colorfast for decades but read flatter. Each maker labels their dye approach clearly on the listing.",
+        ],
+      },
+    ],
+    faqs: [
+      {
+        q: "How do I wash handwoven and hand-knit goods?",
+        a: "Wool (handwoven blankets, hand-knit scarves, throws): hand wash in cold water with a wool-safe detergent (Eucalan, Woolite for wool), lay flat to dry. Linen and cotton (quilts, embroidery, summer pieces): gentle machine wash cold, tumble low or line dry. Every piece ships with care instructions from the maker. Never put wool in a dryer — it felts and shrinks irreversibly.",
+      },
+      {
+        q: "Can I commission a custom quilt or blanket?",
+        a: "Yes — many of our fiber artists accept commissions for heirloom quilts (wedding quilts, memorial quilts incorporating loved-ones' shirts, baby quilts), custom-sized blankets, and personalized embroidery. Lead times run 4-12 weeks depending on size and complexity. Submit a brief and we route it to the right maker.",
+      },
+      {
+        q: "Are these pieces really handwoven, not machine-loomed?",
+        a: "Yes — every piece labeled handwoven on Crafters Market was woven by hand on a floor or table loom, by the maker named on the listing. We verify loom photos and in-progress work during vetting. Machine-loomed pieces from industrial mills aren't allowed on the marketplace; if you find one, please report it.",
+      },
+      {
+        q: "Why are some pieces so much more expensive than others?",
+        a: "Time. A handwoven throw is 40+ hours on the loom. A queen-size hand-quilted quilt is 80-150 hours of cutting, piecing, and stitching. Naturally-dyed yarn doubles material cost. The price reflects the actual labor, not a markup — most fiber artists make $10-20/hour on a finished piece. If you find a handwoven blanket for $50, it isn't handwoven.",
+      },
+    ],
+    relatedLinks: [
+      { to: "/handmade-pottery", label: "Handmade Pottery", blurb: "Wheel-thrown ceramics from independent studios." },
+      { to: "/handmade-jewelry", label: "Handmade Jewelry", blurb: "Sterling silver, gold-fill, and stone-set pieces." },
+      { to: "/wedding-gifts", label: "Wedding Gifts", blurb: "Heirloom gifts and registry pieces." },
+      { to: "/personalized-gifts", label: "Personalized Gifts", blurb: "Embroidered and monogrammed work." },
+      { to: "/artisan-marketplace", label: "Artisan Marketplace", blurb: "The full curated marketplace of vetted makers." },
+      { to: "/how-custom-orders-work", label: "How Custom Orders Work", blurb: "5-step brief-to-shipping flow." },
+    ],
+    match: (p) =>
+      /quilt|blanket|throw|scarf|shawl|tapestry|weav|knit|crochet|embroider|textile|fiber|wool|linen|merino|indigo/i
+        .test(`${p.title} ${p.description} ${(p.materials || []).join(" ")}`)
+      || p.category === "Fiber & Textiles",
+    ctaLabel: "Browse handmade textiles",
+    ctaHref: "/shop?category=Fiber%20%26%20Textiles",
+  },
 };
 
 /** Slug list for sitemap consumers — keep in sync with the keys above. */

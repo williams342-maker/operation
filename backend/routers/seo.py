@@ -32,6 +32,11 @@ SEO_LANDING_SLUGS: tuple[str, ...] = (
     # SEO/Trust audit — category landing pages (iter321)
     "plasma-cut-wall-art", "cnc-wood-signs", "laser-engraved-gifts",
     "custom-address-signs", "engraved-cutting-boards",
+    # iter411 — Craft-expansion landing pages (Woodworking, Pottery,
+    # Jewelry, Leather, Fiber). Each maps to one of the newly-opened
+    # craft categories so Google indexes the marketplace beyond CNC/metal.
+    "handmade-woodworking", "handmade-pottery", "handmade-jewelry",
+    "leather-goods", "handmade-textiles",
 )
 SEO_LANDING_PATHS: tuple[str, ...] = tuple(f"/{s}" for s in SEO_LANDING_SLUGS)
 
@@ -113,6 +118,15 @@ async def sitemap_xml(http_request: Request):
         ("/laser-engraved-gifts",    "weekly", "0.85"),
         ("/custom-address-signs",    "weekly", "0.85"),
         ("/engraved-cutting-boards", "weekly", "0.85"),
+        # iter411 — Craft-expansion landing pages. High priority because
+        # these target the broadened taxonomy (pottery, jewelry, leather,
+        # fiber, woodworking) where the marketplace currently has zero
+        # ranking authority.
+        ("/handmade-woodworking", "weekly", "0.85"),
+        ("/handmade-pottery",     "weekly", "0.85"),
+        ("/handmade-jewelry",     "weekly", "0.85"),
+        ("/leather-goods",        "weekly", "0.85"),
+        ("/handmade-textiles",    "weekly", "0.85"),
         # Phase-3 SEO hub (iter300) — content page bridging landing
         # pages to the /custom-order form. High priority because it
         # converts informational searches into commission briefs.
