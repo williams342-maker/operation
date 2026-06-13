@@ -668,8 +668,8 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 ## Outstanding Backlog
 - **P1** ~~Image attachments in buyer/seller messaging.~~ ✅ shipped 2026-06-11 (iter368 — see CHANGELOG).
 - **P1** ~~Variation inventory split (Track inventory vs Customization only) + 4:5 crop standardization.~~ ✅ shipped 2026-06-12 (iter380).
-- **P1** Affirm + Klarna (BNPL) integration — next up.
-- **P2** Reddit API integration (playbook in ROADMAP.md).
+- **P1** Affirm + Klarna (BNPL) integration — **⏸ PAUSED until 2026-03-15** (user decision 2026-02-13).
+- **P2** Reddit API integration (playbook in ROADMAP.md) — **⏸ PAUSED until 2026-03-15** (user decision 2026-02-13).
 - **P3** Extend AI auto-fix to propose Google-safe merchant titles for restricted-term listings (1-click override).
 - **Refactor** ~~`conftest.py` / lifespan events — global pytest runs hit `RuntimeError: Event loop is closed`; run test files individually until fixed.~~ ✅ shipped 2026-06-12 (iter393: loop-aware Motor client in `core.py` — full suite runs in one go, zero event-loop errors).
 - **P2** Stale test rot cleanup — 165 pre-existing failures + 24 errors across the 288-file suite are tests written against older API behavior (verified pre-existing by stash-rerun; e.g. `test_marketplace.py` predates policy-acceptance gating, `test_buffer_sender.py` fails identically solo). Triage and update or retire them.
