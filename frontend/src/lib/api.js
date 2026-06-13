@@ -18,7 +18,13 @@ http.interceptors.response.use(
         .map((x) => (x && typeof x === "object" ? (x.msg || JSON.stringify(x)) : String(x)))
         .join("; ");
     } else if (d && typeof d === "object") {
-      error.response.data.detail = d.msg || JSON.stringify(d);
+      // iter413k — Preserve the original structured detail on a sidecar
+      // field BEFORE stringifying. Some consumers (e.g. PlusAnalytics)
+      // gate their UI on a structured `code` field like `plus_required`
+      // and need the object back. Default consumers still read
+      // `detail` as a string and stay crash-safe.
+      error.response.data.detail_raw = d;
+      error.response.data.detail = d.msg || d.message || JSON.stringify(d);
     }
 
     // iter285 — Auto-purge stale tokens on 401. The Studio (and several

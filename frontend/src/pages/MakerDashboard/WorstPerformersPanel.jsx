@@ -139,6 +139,7 @@ export default function WorstPerformersPanel() {
         confirmLabel: "Apply all",
         cancelLabel: "Discard",
         tone: "primary",
+        size: "lg",
         testId: `confirm-full-refresh-${p.slug}`,
         body: (
           <div className="space-y-4">

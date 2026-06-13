@@ -28,11 +28,22 @@ export default function PlusAnalytics() {
     fetchMakerPlusAnalytics()
       .then(setData)
       .catch((e) => {
-        const code = e?.response?.data?.detail?.code;
+        // iter413k — Read the structured error code from `detail_raw`
+        // (preserved by the global axios interceptor before it
+        // stringifies the object). Fall back to checking the stringified
+        // `detail` so this still works if a future server returns the
+        // code differently or if the interceptor changes again.
+        const raw = e?.response?.data?.detail_raw;
+        const code = raw?.code
+          || e?.response?.data?.detail?.code
+          || (typeof e?.response?.data?.detail === "string"
+              && e.response.data.detail.includes("plus_required")
+                ? "plus_required" : null);
         if (e?.response?.status === 403 && code === "plus_required") {
           setLocked(true);
         } else {
-          setErr(e?.response?.data?.detail || "Failed to load Plus analytics.");
+          const msg = raw?.message || raw?.msg || e?.response?.data?.detail;
+          setErr(typeof msg === "string" ? msg : "Failed to load Plus analytics.");
         }
       });
   }, []);
