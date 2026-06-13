@@ -412,7 +412,14 @@ export default function ProductDetail() {
                   <img
                     src={(selectedVariant && selectedVariant.image) || selectedOptionImage || p.images[Math.max(0, active)]}
                     alt={p.title}
-                    className="w-full h-full object-cover media-img transition-transform duration-300 group-hover:scale-105"
+                    /* iter413b — DELIBERATELY no `media-img` class here.
+                       That class applies grayscale(0.4) contrast(1.05) at
+                       rest as an editorial mood for browse / rail tiles.
+                       On the PDP hero, buyers are making purchase
+                       decisions on the photo — color accuracy beats
+                       mood. Same logic applies to the gallery thumbs
+                       below. */
+                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                     data-testid="product-hero-image"
                   />
                   {/* Zoom hint pill — fades in on hover so it doesn't
