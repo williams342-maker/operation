@@ -73,6 +73,16 @@ const KIND_FIXABLE = new Set([
   "missing_alt_text",
 ]);
 
+// iter413g — Safe-to-bulk-approve kinds. MUST stay in sync with
+// AUTOPILOT_AVAILABLE_KINDS in backend/routers/seo_agent.py. These are
+// purely additive — they only fill EMPTY fields and never overwrite
+// human-authored content. The backend re-validates this list on the
+// bulk-approve endpoint regardless of what the UI sends.
+const SAFE_BULK_KINDS = new Set([
+  "missing_alt_text",
+  "missing_meta_description",
+]);
+
 // iter413 — Impact / effort pill colors. Brand-aligned, never the
 // generic Tailwind named shades that the contrast lint rejects.
 const IMPACT_PILL = {
@@ -417,7 +427,7 @@ function IssueRow({ issue, onGenerateFix, generating }) {
 }
 
 
-function QueueRow({ entry, onApprove, onReject, onRollback, busy }) {
+function QueueRow({ entry, onApprove, onReject, onRollback, busy, selected, onToggleSelect }) {
   const isPending = entry.status === "pending";
   const isApplied = entry.status === "applied";
   const beforeVal = entry.before?.[entry.field];
@@ -427,13 +437,25 @@ function QueueRow({ entry, onApprove, onReject, onRollback, busy }) {
   return (
     <div
       data-testid={`seo-agent-queue-${entry.id}`}
-      className="border border-line bg-surface p-3"
+      className={`border bg-surface p-3 ${selected ? "border-brand" : "border-line"}`}
     >
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="text-sm font-medium text-ink truncate">{entry.target_label || entry.target_slug}</div>
-          <div className="text-xs text-ink-muted mt-0.5">
-            {KIND_LABELS[entry.issue_kind] || entry.issue_kind} · {timeAgo(entry.generated_at)}
+        <div className="min-w-0 flex-1 flex items-start gap-2">
+          {isPending && onToggleSelect && (
+            <input
+              type="checkbox"
+              checked={!!selected}
+              onChange={() => onToggleSelect(entry.id)}
+              data-testid={`seo-agent-queue-select-${entry.id}`}
+              className="mt-1 accent-brand flex-shrink-0"
+              aria-label="Select for bulk approve"
+            />
+          )}
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-medium text-ink truncate">{entry.target_label || entry.target_slug}</div>
+            <div className="text-xs text-ink-muted mt-0.5">
+              {KIND_LABELS[entry.issue_kind] || entry.issue_kind} · {timeAgo(entry.generated_at)}
+            </div>
           </div>
         </div>
         <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-muted whitespace-nowrap">
@@ -503,6 +525,8 @@ export default function SEOAgentTab() {
   const [generating, setGenerating] = useState(null);    // issue id being processed
   const [generatingRec, setGeneratingRec] = useState(null); // rec id being processed
   const [busy, setBusy] = useState(null);                // queue id being processed
+  const [bulkBusy, setBulkBusy] = useState(false);       // iter413g — bulk-approve in flight
+  const [selected, setSelected] = useState(() => new Set()); // iter413g — multi-select queue ids
   const [loaded, setLoaded] = useState(false);
 
   const refresh = useCallback(async () => {
@@ -529,6 +553,55 @@ export default function SEOAgentTab() {
   }, [queueStatus]);
 
   useEffect(() => { refresh(); }, [refresh]);
+
+  // iter413g — Clear selection whenever the queue filter changes so
+  // we don't accidentally apply selected-from-pending ids to a different
+  // status filter. Also clear after every successful refresh.
+  useEffect(() => { setSelected(new Set()); }, [queueStatus]);
+
+  const toggleSelected = (id) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAllOnPage = (entries) => {
+    const ids = entries.filter((e) => e.status === "pending").map((e) => e.id);
+    setSelected(new Set(ids));
+  };
+
+  const clearSelection = () => setSelected(new Set());
+
+  const bulkApprove = async (payload, successMsg) => {
+    setBulkBusy(true);
+    try {
+      const r = await fetch(`${API}/api/admin/seo-agent/queue/bulk-approve`, {
+        method: "POST", headers: authHeaders(),
+        body: JSON.stringify(payload),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || "Bulk approve failed");
+      const applied = d.applied_count || 0;
+      const failed = d.failed_count || 0;
+      if (applied > 0) {
+        toast.success(
+          `${successMsg}: ${applied} applied${failed ? ` · ${failed} failed` : ""}`,
+        );
+      } else if (failed > 0) {
+        toast.error(`Bulk approve failed for all ${failed} entries`);
+      } else {
+        toast.message("Nothing to approve");
+      }
+      clearSelection();
+      await refresh();
+    } catch (e) {
+      toast.error(e.message || "Bulk approve failed");
+    } finally {
+      setBulkBusy(false);
+    }
+  };
 
   const runScan = async () => {
     setScanning(true);
@@ -918,6 +991,74 @@ export default function SEOAgentTab() {
               </button>
             ))}
           </div>
+
+          {/* iter413g — Bulk approve toolbar. Only visible on the Pending
+              tab when at least one entry exists. "Approve all safe" filters
+              server-side to AUTOPILOT_AVAILABLE_KINDS (alt text + empty
+              meta — additive only) so a slip never overwrites human copy.
+              "Approve selected" applies the multi-select set without any
+              safety filter — admin already eyeballed those rows. */}
+          {queueStatus === "pending" && queue.length > 0 && (() => {
+            const safeOnPage = queue.filter((e) => SAFE_BULK_KINDS.has(e.issue_kind));
+            const selectedCount = selected.size;
+            return (
+              <div
+                className="border border-line bg-surface p-3 flex flex-wrap items-center gap-2"
+                data-testid="seo-agent-queue-bulk-toolbar"
+              >
+                <button
+                  type="button"
+                  onClick={() => bulkApprove(
+                    { all_safe: true },
+                    "Approved all safe (alt text + empty meta)",
+                  )}
+                  disabled={bulkBusy || safeOnPage.length === 0}
+                  data-testid="seo-agent-bulk-approve-safe"
+                  className="text-xs font-mono uppercase tracking-[0.18em] border border-emerald-600 text-emerald-700 px-3 py-1.5 hover:bg-emerald-600 hover:text-paper transition-colors disabled:opacity-40 inline-flex items-center gap-1.5"
+                >
+                  {bulkBusy
+                    ? <><Loader2 size={11} className="animate-spin" /> Approving…</>
+                    : <><ThumbsUp size={11} /> Approve all safe ({safeOnPage.length})</>}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => bulkApprove(
+                    { ids: Array.from(selected) },
+                    "Approved selected",
+                  )}
+                  disabled={bulkBusy || selectedCount === 0}
+                  data-testid="seo-agent-bulk-approve-selected"
+                  className="text-xs font-mono uppercase tracking-[0.18em] border border-brand text-brand px-3 py-1.5 hover:bg-brand hover:text-paper transition-colors disabled:opacity-40 inline-flex items-center gap-1.5"
+                >
+                  <ThumbsUp size={11} /> Approve selected ({selectedCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => selectAllOnPage(queue)}
+                  disabled={bulkBusy}
+                  data-testid="seo-agent-bulk-select-page"
+                  className="text-xs font-mono uppercase tracking-[0.18em] border border-line text-ink-muted px-3 py-1.5 hover:border-ink hover:text-ink transition-colors disabled:opacity-40"
+                >
+                  Select page ({queue.length})
+                </button>
+                {selectedCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={clearSelection}
+                    disabled={bulkBusy}
+                    data-testid="seo-agent-bulk-clear"
+                    className="text-xs font-mono uppercase tracking-[0.18em] text-ink-muted px-2 py-1.5 hover:text-ink transition-colors disabled:opacity-40"
+                  >
+                    Clear
+                  </button>
+                )}
+                <span className="ml-auto text-xs text-ink-muted">
+                  <strong className="text-ink">Safe</strong> = additive only (alt text · empty meta) — never overwrites human copy.
+                </span>
+              </div>
+            );
+          })()}
+
           {queue.length === 0 ? (
             <div className="border border-line p-6 text-center text-ink-muted">
               <div className="text-sm">
@@ -935,6 +1076,8 @@ export default function SEOAgentTab() {
                 onReject={reject}
                 onRollback={rollback}
                 busy={busy}
+                selected={selected.has(entry.id)}
+                onToggleSelect={queueStatus === "pending" ? toggleSelected : null}
               />
             ))
           )}

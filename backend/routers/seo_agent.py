@@ -935,26 +935,39 @@ async def seo_agent_queue_approve(queue_id: str,
         raise HTTPException(404, "Queue entry not found.")
     if entry.get("status") != "pending":
         raise HTTPException(400, f"Entry is already {entry.get('status')}.")
+    applied_at, err = await _apply_queue_entry(entry, admin.get("email"))
+    if err:
+        # 404 only when target vanished; otherwise 400.
+        status_code = 404 if "no longer" in err else 400
+        raise HTTPException(status_code, err)
+    return {"status": "applied", "id": queue_id, "applied_at": applied_at}
 
-    # Apply the change. Only product target supported in v1.
-    if entry["target_type"] != "product":
-        raise HTTPException(400, "Only product changes are applicable in v1.")
 
+async def _apply_queue_entry(entry: dict, admin_email: Optional[str]) -> tuple[Optional[str], Optional[str]]:
+    """Shared internal applier — used by single-approve + bulk-approve.
+
+    Returns (applied_at_iso, error_message). Exactly one of the pair is
+    None. Skips entries that aren't pending or aren't product-typed.
+    Keeps the audit row + status mutation atomic with the live record
+    update (best-effort — Mongo isn't transactional here, same as the
+    original single-approve path).
+    """
+    queue_id = entry["id"]
+    if entry.get("target_type") != "product":
+        return None, "Only product changes are applicable in v1."
     res = await db.products.update_one(
         {"slug": entry["target_slug"]},
         {"$set": {entry["field"]: entry["after"][entry["field"]],
                   "updated_at": now_iso()}},
     )
     if res.matched_count == 0:
-        raise HTTPException(404, "Product no longer exists — cannot apply.")
-
+        return None, "Product no longer exists — cannot apply."
     applied_at = now_iso()
     await db.seo_agent_queue.update_one(
         {"id": queue_id},
         {"$set": {"status": "applied", "applied_at": applied_at,
-                  "applied_by": admin.get("email")}},
+                  "applied_by": admin_email}},
     )
-    # Audit row (rollback source of truth — never deleted).
     await db.seo_agent_audit.insert_one({
         "id": str(uuid.uuid4()),
         "queue_id": queue_id,
@@ -965,9 +978,73 @@ async def seo_agent_queue_approve(queue_id: str,
         "before": entry["before"],
         "after": entry["after"],
         "applied_at": applied_at,
-        "applied_by": admin.get("email"),
+        "applied_by": admin_email,
     })
-    return {"status": "applied", "id": queue_id, "applied_at": applied_at}
+    return applied_at, None
+
+
+class BulkApproveReq(BaseModel):
+    # iter413g — Bulk-approve payload. Pass either an explicit list of
+    # queue IDs (multi-select case) OR `all_safe=true` to approve every
+    # pending entry whose `issue_kind` is in AUTOPILOT_AVAILABLE_KINDS
+    # (i.e. purely additive: missing alt text + filling empty meta).
+    # Optional `kinds` filter narrows the safe pass to a subset.
+    ids: Optional[list[str]] = None
+    all_safe: bool = False
+    kinds: Optional[list[str]] = None
+
+
+@router.post("/admin/seo-agent/queue/bulk-approve")
+async def seo_agent_queue_bulk_approve(req: BulkApproveReq,
+                                       admin: dict = Depends(current_admin)):
+    """Approve many pending queue entries in one call.
+
+    Mode A (multi-select): caller passes `ids=[...]` — every id is
+    fetched, validated as pending, applied. Caller-driven; no safety
+    filter (admin already eyeballed each row).
+
+    Mode B (bulk safe): caller passes `all_safe=true` — server picks
+    every pending entry whose `issue_kind` is in the autopilot
+    available-kinds set (alt text + empty meta only). Safe kinds are
+    PURELY ADDITIVE — they never overwrite human-authored content.
+    Optional `kinds` narrows to a subset of the safe set.
+
+    Returns a summary with per-id outcomes so the UI can surface
+    failures (e.g. product deleted between scan and approve).
+    """
+    if not req.ids and not req.all_safe:
+        raise HTTPException(400, "Pass either `ids` or `all_safe=true`.")
+
+    query: dict = {"status": "pending"}
+    if req.all_safe:
+        allowed = set(AUTOPILOT_AVAILABLE_KINDS)
+        if req.kinds:
+            allowed &= set(req.kinds)
+        if not allowed:
+            raise HTTPException(400, "No safe kinds selected.")
+        query["issue_kind"] = {"$in": sorted(allowed)}
+    if req.ids:
+        # Honor the caller-supplied id list even when all_safe is on —
+        # the intersection gives a "safe subset of these specific ids".
+        query["id"] = {"$in": req.ids}
+
+    entries = await db.seo_agent_queue.find(query, {"_id": 0}).to_list(500)
+    admin_email = admin.get("email")
+    applied: list[str] = []
+    failed: list[dict] = []
+    for entry in entries:
+        applied_at, err = await _apply_queue_entry(entry, admin_email)
+        if err:
+            failed.append({"id": entry["id"], "error": err})
+        else:
+            applied.append(entry["id"])
+    return {
+        "requested": len(entries),
+        "applied_count": len(applied),
+        "failed_count": len(failed),
+        "applied_ids": applied,
+        "failed": failed,
+    }
 
 
 @router.post("/admin/seo-agent/queue/{queue_id}/reject")

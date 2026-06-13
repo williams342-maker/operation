@@ -290,3 +290,184 @@ def test_config_post_requires_at_least_one_field(headers):
     r = requests.post(f"{API}/admin/seo-agent/config", headers=headers,
                       json={}, timeout=15)
     assert r.status_code == 400
+
+
+# iter413g — Bulk approve endpoint (multi-select + "approve all safe")
+def test_bulk_approve_requires_admin():
+    r = requests.post(f"{API}/admin/seo-agent/queue/bulk-approve",
+                      json={"all_safe": True}, timeout=10)
+    assert r.status_code in (401, 403)
+
+
+def test_bulk_approve_validates_payload(headers):
+    """Empty body must 400 — caller must pass `ids` or `all_safe=true`."""
+    r = requests.post(f"{API}/admin/seo-agent/queue/bulk-approve",
+                      headers=headers, json={}, timeout=15)
+    assert r.status_code == 400
+
+
+def test_bulk_approve_safe_applies_alt_text_only():
+    """Direct-DB seed: insert a pending alt-text queue entry for a real
+    product, call /bulk-approve with all_safe=true, confirm only the
+    safe entry was applied and the product's image_alts mutated.
+
+    Uses pytest-asyncio via the running event loop on motor — same pattern
+    test_iter412 uses elsewhere. Falls back to skip if no product fixture
+    is available in the DB."""
+    import asyncio
+    import uuid as _uuid
+    from datetime import datetime, timezone
+    from core import db as _db
+    from maker_auth import issue_admin_magic_token as _mint
+
+    async def run():
+        # Need at least one existing product to mutate.
+        product = await _db.products.find_one({"shop_closed": {"$ne": True}}, {"_id": 0})
+        if not product:
+            return "no-product"
+
+        run_id = "test-run-bulk-" + str(_uuid.uuid4())[:8]
+        original_alts = product.get("image_alts") or []
+        safe_id = "qtest-safe-" + str(_uuid.uuid4())[:8]
+        skip_id = "qtest-skip-" + str(_uuid.uuid4())[:8]
+        now = datetime.now(timezone.utc).isoformat()
+
+        # Safe entry — additive alt-text fill.
+        await _db.seo_agent_queue.insert_one({
+            "id": safe_id, "run_id": run_id, "issue_id": "iss-1",
+            "issue_kind": "missing_alt_text", "severity": "medium",
+            "target_type": "product", "target_slug": product["slug"],
+            "target_label": product.get("title"),
+            "field": "image_alts",
+            "before": {"image_alts": original_alts},
+            "after": {"image_alts": ["bulk-test-alt-A", "bulk-test-alt-B"]},
+            "status": "pending", "generated_at": now,
+        })
+        # Skip entry — high-risk kind, must NOT be touched by all_safe.
+        await _db.seo_agent_queue.insert_one({
+            "id": skip_id, "run_id": run_id, "issue_id": "iss-2",
+            "issue_kind": "thin_product_description", "severity": "high",
+            "target_type": "product", "target_slug": product["slug"],
+            "target_label": product.get("title"),
+            "field": "description",
+            "before": {"description": product.get("description") or ""},
+            "after": {"description": "MUST NOT APPLY"},
+            "status": "pending", "generated_at": now,
+        })
+        return product["slug"], safe_id, skip_id, original_alts
+
+    loop = asyncio.new_event_loop()
+    try:
+        seeded = loop.run_until_complete(run())
+    finally:
+        loop.close()
+    if seeded == "no-product":
+        pytest.skip("No product in DB — can't exercise bulk-approve apply path.")
+    slug, safe_id, skip_id, original_alts = seeded
+
+    # Build admin headers locally so this test is self-contained.
+    email = os.environ.get("OPS_EMAIL") or "team@craftersmarket.org"
+    magic = _mint(email)
+    v = requests.post(f"{API}/admin/auth/verify", json={"token": magic}, timeout=15)
+    h = {"Authorization": f"Bearer {v.json()['token']}", "Content-Type": "application/json"}
+
+    r = requests.post(f"{API}/admin/seo-agent/queue/bulk-approve",
+                      headers=h, json={"all_safe": True}, timeout=30)
+    assert r.status_code == 200, r.text
+    d = r.json()
+    # Safe entry must be in applied_ids; skip entry must NOT be — bulk
+    # only touches entries whose kind is in AUTOPILOT_AVAILABLE_KINDS.
+    assert safe_id in d["applied_ids"], f"safe entry not applied: {d}"
+    assert skip_id not in d["applied_ids"], f"high-risk entry slipped through: {d}"
+
+    async def verify():
+        safe = await _db.seo_agent_queue.find_one({"id": safe_id}, {"_id": 0})
+        skip = await _db.seo_agent_queue.find_one({"id": skip_id}, {"_id": 0})
+        prod = await _db.products.find_one({"slug": slug}, {"_id": 0})
+        return safe, skip, prod
+
+    loop = asyncio.new_event_loop()
+    try:
+        safe, skip, prod = loop.run_until_complete(verify())
+    finally:
+        loop.close()
+    assert safe["status"] == "applied"
+    assert skip["status"] == "pending"
+    assert prod.get("image_alts") == ["bulk-test-alt-A", "bulk-test-alt-B"]
+
+    # Cleanup: restore product alts + roll the safe entry back so this
+    # test is idempotent across runs.
+    async def cleanup():
+        await _db.products.update_one(
+            {"slug": slug},
+            {"$set": {"image_alts": original_alts}},
+        )
+        await _db.seo_agent_queue.delete_many({"id": {"$in": [safe_id, skip_id]}})
+        await _db.seo_agent_audit.delete_many({"queue_id": {"$in": [safe_id, skip_id]}})
+
+    loop = asyncio.new_event_loop()
+    try:
+        loop.run_until_complete(cleanup())
+    finally:
+        loop.close()
+
+
+def test_bulk_approve_by_ids_applies_only_listed(headers):
+    """Multi-select mode: caller passes a specific list of ids; only
+    those entries are applied (bypassing the safe-kind filter)."""
+    import asyncio
+    import uuid as _uuid
+    from datetime import datetime, timezone
+    from core import db as _db
+
+    async def seed():
+        product = await _db.products.find_one({"shop_closed": {"$ne": True}}, {"_id": 0})
+        if not product:
+            return None
+        ids = []
+        now = datetime.now(timezone.utc).isoformat()
+        for i in range(2):
+            qid = "qtest-ids-" + str(_uuid.uuid4())[:8]
+            ids.append(qid)
+            await _db.seo_agent_queue.insert_one({
+                "id": qid, "run_id": "test-run-ids",
+                "issue_id": f"iss-ids-{i}",
+                "issue_kind": "missing_alt_text", "severity": "medium",
+                "target_type": "product", "target_slug": product["slug"],
+                "target_label": product.get("title"),
+                "field": "image_alts",
+                "before": {"image_alts": product.get("image_alts") or []},
+                "after": {"image_alts": [f"ids-test-{i}"]},
+                "status": "pending", "generated_at": now,
+            })
+        return product["slug"], product.get("image_alts") or [], ids
+
+    loop = asyncio.new_event_loop()
+    try:
+        seeded = loop.run_until_complete(seed())
+    finally:
+        loop.close()
+    if not seeded:
+        pytest.skip("No product to mutate.")
+    slug, original_alts, ids = seeded
+
+    # Approve only the first id; second must remain pending.
+    r = requests.post(f"{API}/admin/seo-agent/queue/bulk-approve",
+                      headers=headers, json={"ids": [ids[0]]}, timeout=30)
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert ids[0] in d["applied_ids"]
+    assert ids[1] not in d["applied_ids"]
+
+    async def cleanup():
+        await _db.products.update_one(
+            {"slug": slug}, {"$set": {"image_alts": original_alts}},
+        )
+        await _db.seo_agent_queue.delete_many({"id": {"$in": ids}})
+        await _db.seo_agent_audit.delete_many({"queue_id": {"$in": ids}})
+
+    loop = asyncio.new_event_loop()
+    try:
+        loop.run_until_complete(cleanup())
+    finally:
+        loop.close()
