@@ -51,18 +51,20 @@ export function isDismissed(key) {
   }
 }
 
-export function dismiss(key) {
+export function dismiss(key, { surface = "maker_dashboard" } = {}) {
   try { localStorage.setItem(key, "1"); } catch { /* private mode */ }
   _trackGA("card_dismissed", {
     card_key: key,
     card_label: _labelFor(key),
-    surface: "maker_dashboard",
+    surface,
   });
 }
 
 /** Clear every registered dismiss flag. Returns the count that were
- *  actually set so the caller can decide whether to show a toast. */
-export function restoreAllDismissed() {
+ *  actually set so the caller can decide whether to show a toast.
+ *  Pass a custom `surface` to attribute the restore to a non-default
+ *  origin (e.g. a future top-bar "Show all hints" button). */
+export function restoreAllDismissed({ surface = "maker_settings" } = {}) {
   let cleared = 0;
   const restoredKeys = [];
   for (const { key } of DISMISSIBLE_CARDS) {
@@ -81,7 +83,7 @@ export function restoreAllDismissed() {
       // string of restored keys rather than an array — easy to split in
       // BigQuery exports if you want per-card restore rates later.
       restored_keys: restoredKeys.join(","),
-      surface: "maker_settings",
+      surface,
     });
   }
   return cleared;
