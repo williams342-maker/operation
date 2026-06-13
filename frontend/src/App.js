@@ -99,7 +99,10 @@ import { useStructuredData } from "./lib/seo";
 const Home = () => {
   useStructuredData({
     title: "Crafters Market — Handmade Wood, Metal, Pottery & Leather Goods by US Makers",
-    description: "Artisan marketplace for handmade woodworking, pottery, jewelry, leather goods, fiber arts, CNC metal art, and laser-engraved gifts — handcrafted by vetted independent makers across the USA. Shop direct, made-to-order, fair maker payouts.",
+    // iter411e — Trimmed from 239 → 140 chars (under Google's 160-char
+    // SERP cutoff). Kept all 6 craft category keywords + trust signals
+    // (vetted US makers, made-to-order, Stripe-secured).
+    description: "Handmade pottery, jewelry, woodworking, leather, fiber & CNC metal art by vetted US makers. Made-to-order, ships nationwide. Stripe-secured.",
     url: "https://craftersmarket.org/",
     image: "https://craftersmarket.org/downloads/cnc-garage-builders.png",
   });
