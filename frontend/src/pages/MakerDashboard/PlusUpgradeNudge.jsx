@@ -1,13 +1,19 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Sparkles, Check, ArrowRight } from "lucide-react";
+import { Sparkles, Check, ArrowRight, X } from "lucide-react";
 import { fetchFeePolicy, fetchMakerSubscription } from "../../lib/api";
+import { isDismissed, dismiss } from "../../lib/dismissibleCards";
+
+const DISMISS_KEY = "cm_dismiss_dashboard_plus_nudge";
 
 /**
  * Compact Crafters Plus upgrade nudge for the Dashboard tab.
  *
- * Always rendered for Free-tier makers (no dismiss button — surfacing this
- * is the point). Hidden for Plus subscribers since they already have it.
+ * Hidden for Plus subscribers since they already have it.
+ * iter413l — also dismissible per-maker via a ✕ button; the dismissed
+ * state persists in localStorage so the card doesn't re-pop on reload.
+ * Users can restore it from Settings → Options → Restore dismissed
+ * dashboard cards.
  *
  * Pulls the live fee policy so the savings math reflects current platform
  * fees (5% free → 4% Plus = 1% commission saving), and computes the
@@ -22,6 +28,7 @@ import { fetchFeePolicy, fetchMakerSubscription } from "../../lib/api";
 export default function PlusUpgradeNudge({ maker, orders = [], onUpgrade }) {
   const [policy, setPolicy] = useState(null);
   const [sub, setSub] = useState(null);
+  const [dismissed, setDismissed] = useState(() => isDismissed(DISMISS_KEY));
 
   useEffect(() => {
     fetchFeePolicy().then(setPolicy).catch(() => {});
@@ -30,6 +37,8 @@ export default function PlusUpgradeNudge({ maker, orders = [], onUpgrade }) {
 
   // Hide for active subscribers. We want to nudge, not nag the already-converted.
   if ((maker?.subscription_status || "") === "active") return null;
+  // Hide if the maker explicitly closed it.
+  if (dismissed) return null;
 
   // Trial-eligible by default — first-time signups. Re-subscribers
   // (sub.trial_eligible=false) shouldn't see the "3 months free" badge.
@@ -74,6 +83,20 @@ export default function PlusUpgradeNudge({ maker, orders = [], onUpgrade }) {
     >
       {/* Decorative diagonal accent bar */}
       <div className="absolute top-0 right-0 h-full w-2 bg-brand" aria-hidden />
+
+      {/* iter413l — Close button. Persisted via localStorage so the
+          card stays gone across reloads. Re-enable from Settings →
+          Options → Restore dismissed dashboard cards. */}
+      <button
+        type="button"
+        onClick={() => { dismiss(DISMISS_KEY); setDismissed(true); }}
+        aria-label="Dismiss Crafters Plus upgrade card"
+        title="Dismiss — restore from Settings → Options"
+        className="absolute top-3 right-5 w-8 h-8 flex items-center justify-center text-ink-muted hover:text-brand border border-line hover:border-brand transition z-10"
+        data-testid="plus-nudge-dismiss"
+      >
+        <X size={14} />
+      </button>
 
       <div className="grid md:grid-cols-[1fr_auto] gap-5 items-center">
         <div className="min-w-0">

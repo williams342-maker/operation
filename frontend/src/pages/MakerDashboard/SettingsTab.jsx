@@ -1,8 +1,9 @@
 import React, { useState } from "react";
+import { toast } from "sonner";
 import {
   Image as ImageIcon, BookOpen, SlidersHorizontal, Truck, Shield,
   Users, Megaphone, Languages, Sparkles, Facebook, ChevronRight,
-  Share2, AlertTriangle, Bell, Video,
+  Share2, AlertTriangle, Bell, Video, RotateCcw,
 } from "lucide-react";
 import UpgradeTab from "./UpgradeTab";
 import { FormShell, Field, ToggleRow, useSettingsForm, inputCls } from "./Settings/_shared";
@@ -13,6 +14,9 @@ import NotificationsPanel from "./Settings/NotificationsPanel";
 import ChannelsPanel from "./Settings/ChannelsPanel";
 import WorkshopVideosPanel from "./Settings/WorkshopVideosPanel";
 import ClipsPanel from "./Settings/ClipsPanel";
+import {
+  DISMISSIBLE_CARDS, countDismissed, restoreAllDismissed,
+} from "../../lib/dismissibleCards";
 
 /**
  * Etsy-parity Settings tab for the Maker Shop Manager.
@@ -303,14 +307,15 @@ function Options({ maker, onSaved }) {
   const fields = ["vacation_mode", "vacation_message", "accepts_custom_orders", "accepts_backorders_default", "external_ads_opt_out", "restock_digest_opt_out", "social_momentum_opt_out", "appearance_mode"];
   const { form, set, dirty, busy, submit } = useSettingsForm(maker, fields, onSaved);
   return (
-    <FormShell
-      title="Options"
-      blurb="Storefront-level switches that affect every listing in your shop."
-      onSubmit={submit}
-      dirty={dirty}
-      busy={busy}
-      testId="settings-options"
-    >
+    <div className="space-y-5">
+      <FormShell
+        title="Options"
+        blurb="Storefront-level switches that affect every listing in your shop."
+        onSubmit={submit}
+        dirty={dirty}
+        busy={busy}
+        testId="settings-options"
+      >
       <ToggleRow
         label="Light mode for Shop Manager"
         hint="Render your dashboard, listings, orders, and settings on a white backdrop instead of the default industrial dark theme. Affects only your private dashboard — your public shop and the rest of the site stay on the brand-standard dark theme. Saved on your account so it follows you across devices. Tip: press ⌘+L (Mac) or Ctrl+L (Windows) anywhere in the dashboard to flip themes instantly."
@@ -365,7 +370,66 @@ function Options({ maker, onSaved }) {
         onChange={set("social_momentum_opt_out")}
         testId="settings-social-momentum-optout"
       />
-    </FormShell>
+      </FormShell>
+      <DismissedCardsRestore />
+    </div>
+  );
+}
+
+// ============================================================================
+// iter413l — Restore dismissed dashboard cards
+// ----------------------------------------------------------------------------
+// Lives at the bottom of Settings → Options. Local-only (localStorage),
+// no backend sync. Surfaces a counter so users see what would come back
+// before clicking, and disables the button when nothing is dismissed.
+// ============================================================================
+function DismissedCardsRestore() {
+  // useState init reads localStorage exactly once on mount; we manually
+  // refresh after the restore click so the counter goes to 0.
+  const [count, setCount] = useState(() => countDismissed());
+  const handleRestore = () => {
+    const cleared = restoreAllDismissed();
+    setCount(0);
+    if (cleared > 0) {
+      toast.success(
+        `Restored ${cleared} dashboard card${cleared === 1 ? "" : "s"}. Reload your dashboard to see them again.`,
+      );
+    }
+  };
+  return (
+    <div
+      className="border border-line bg-paper p-4 md:p-5"
+      data-testid="settings-dismissed-cards-restore"
+    >
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="min-w-0 flex-1">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-1.5">
+            ◆ Dashboard cards
+          </div>
+          <h3 className="font-mono text-sm text-ink mb-1">Restore dismissed cards</h3>
+          <p className="font-mono text-[11px] text-ink-muted leading-relaxed max-w-xl">
+            Closed the Crafters Plus nudge or the Refer-a-maker card on your
+            dashboard and want them back? One click brings every dismissed
+            card back on your next dashboard reload.
+          </p>
+          <ul className="font-mono text-[10px] text-ink-muted mt-3 space-y-0.5">
+            {DISMISSIBLE_CARDS.map((c) => (
+              <li key={c.key}>· {c.label}</li>
+            ))}
+          </ul>
+        </div>
+        <button
+          type="button"
+          onClick={handleRestore}
+          disabled={count === 0}
+          className="shrink-0 inline-flex items-center gap-2 px-4 py-2 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] text-ink transition disabled:opacity-40 disabled:cursor-not-allowed"
+          data-testid="settings-restore-dismissed-cards"
+        >
+          <RotateCcw size={11} />
+          {count === 0 ? "Nothing to restore" : `Restore (${count})`}
+        </button>
+      </div>
+    </div>
   );
 }
 

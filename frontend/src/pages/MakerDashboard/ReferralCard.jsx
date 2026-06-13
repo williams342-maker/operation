@@ -1,9 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Sparkles, Copy, RefreshCw, Gift, Check } from "lucide-react";
+import { Sparkles, Copy, RefreshCw, Gift, Check, X } from "lucide-react";
 import {
   fetchMakerReferrals, regenerateMakerReferralCode,
 } from "../../lib/api";
+import { isDismissed, dismiss } from "../../lib/dismissibleCards";
+
+const DISMISS_KEY = "cm_dismiss_dashboard_referral_card";
 
 // Pre-filled invite copy reused across every share channel. Short
 // enough for X's 280-char limit, descriptive enough that the maker
@@ -39,6 +42,7 @@ export default function ReferralCard() {
   const [data, setData] = useState(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [dismissed, setDismissed] = useState(() => isDismissed(DISMISS_KEY));
 
   useEffect(() => {
     if (!localStorage.getItem("cm_maker_jwt")) return;
@@ -46,6 +50,9 @@ export default function ReferralCard() {
   }, []);
 
   if (!data) return null;
+  // iter413l — Respect a maker's explicit close. Restorable from
+  // Settings → Options → Restore dismissed dashboard cards.
+  if (dismissed) return null;
 
   const pct = Math.min(100, (data.completed_count / data.threshold) * 100);
   const remaining = Math.max(0, data.threshold - data.completed_count);
@@ -78,9 +85,21 @@ export default function ReferralCard() {
 
   return (
     <section
-      className="border border-brand/30 bg-gradient-to-br from-brand/5 via-surface to-surface p-5 md:p-6"
+      className="relative border border-brand/30 bg-gradient-to-br from-brand/5 via-surface to-surface p-5 md:p-6"
       data-testid="referral-card"
     >
+      {/* iter413l — Dismissible. Persists across reloads; restore from
+          Settings → Options → Restore dismissed dashboard cards. */}
+      <button
+        type="button"
+        onClick={() => { dismiss(DISMISS_KEY); setDismissed(true); }}
+        aria-label="Dismiss refer-a-maker card"
+        title="Dismiss — restore from Settings → Options"
+        className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center text-ink-muted hover:text-brand border border-line hover:border-brand transition z-10"
+        data-testid="referral-card-dismiss"
+      >
+        <X size={14} />
+      </button>
       <div className="flex items-start gap-3 mb-4">
         <Gift size={18} className="text-brand mt-1 shrink-0" />
         <div className="flex-1">
