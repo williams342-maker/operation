@@ -25,6 +25,13 @@ export function useStructuredData({
   twitterCard = "summary_large_image",
   imageAlt = "",
   siteName = "Crafters Market",
+  // iter411d — Article Rich Pin fields. Optional; emitted ONLY when
+  // ogType === "article" so non-article pages don't get bogus meta.
+  // Pinterest reads these to render Article Rich Pins (auto-formatted
+  // pin cards with title + description + favicon + section).
+  articleAuthor,
+  articleSection,
+  articlePublishedTime,
 }) {
   useEffect(() => {
     const cleanups = [];
@@ -40,6 +47,22 @@ export function useStructuredData({
 
     const setMeta = (name, content, key = "name") => {
       if (!content) return;
+      // iter411d — Match setLink semantics: first try to update an
+      // existing static meta from index.html (selector WITHOUT the
+      // data-cm-structured flag). Crawlers and link-preview parsers
+      // read the FIRST matching meta tag, so leaving the static one
+      // in place and appending a new dynamic one means the dynamic
+      // one is ignored. Update-in-place + restore-on-cleanup keeps
+      // route changes correct.
+      const staticEl = document.head.querySelector(
+        `meta[${key}="${name}"]:not([data-cm-structured])`,
+      );
+      if (staticEl) {
+        const prev = staticEl.getAttribute("content");
+        staticEl.setAttribute("content", content);
+        cleanups.push(() => prev != null && staticEl.setAttribute("content", prev));
+        return;
+      }
       const sel = `meta[${key}="${name}"][data-cm-structured]`;
       let el = document.head.querySelector(sel);
       if (!el) {
@@ -93,6 +116,16 @@ export function useStructuredData({
     setMeta("og:url", url, "property");
     setMeta("og:type", ogType, "property");
     setMeta("og:site_name", siteName, "property");
+    // iter411d — Article Rich Pin meta. Only emit when this page is
+    // actually an article — keeps Pinterest's validator happy and
+    // avoids polluting product/website pages with unrelated tags.
+    if (ogType === "article") {
+      setMeta("article:author", articleAuthor || siteName, "property");
+      if (articleSection) setMeta("article:section", articleSection, "property");
+      if (articlePublishedTime) {
+        setMeta("article:published_time", articlePublishedTime, "property");
+      }
+    }
     // Twitter — explicit duplicates so cards render correctly without OG fallback
     setMeta("twitter:card", twitterCard);
     setMeta("twitter:title", title);
@@ -103,5 +136,6 @@ export function useStructuredData({
     setLink("canonical", url);
 
     return () => cleanups.forEach((fn) => fn());
-  }, [JSON.stringify(jsonLd), title, description, image, url, ogType, twitterCard, imageAlt, siteName]);
+  }, [JSON.stringify(jsonLd), title, description, image, url, ogType, twitterCard, imageAlt, siteName,
+      articleAuthor, articleSection, articlePublishedTime]);
 }

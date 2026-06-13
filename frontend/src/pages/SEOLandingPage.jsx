@@ -106,6 +106,25 @@ export default function SEOLandingPage({ config }) {
       })),
     });
   }
+  // iter411d — Article node so the JSON-LD type matches the article-level
+  // Open Graph (og:type=article) we emit for Pinterest Rich Pins. Google
+  // happily consumes multiple @types in a @graph; this gives the page
+  // both CollectionPage (browse-grid intent) AND Article (editorial
+  // intent) eligibility. Pinterest crawler is OG-driven, but a matched
+  // JSON-LD Article eliminates "type mismatch" flags in third-party
+  // SEO auditors.
+  graphParts.push({
+    "@type": "Article",
+    "@id": `${SITE_URL}/${slug}#article`,
+    headline: h1 || `${keyword} · Crafters Market`,
+    description: intro,
+    url: `${SITE_URL}/${slug}`,
+    mainEntityOfPage: `${SITE_URL}/${slug}`,
+    author: { "@type": "Organization", name: "Crafters Market", url: SITE_URL },
+    publisher: { "@id": `${SITE_URL}/#org` },
+    articleSection: keyword,
+    image: `${SITE_URL}/downloads/cnc-garage-builders.png`,
+  });
 
   useStructuredData({
     title: `${keyword} · Crafters Market`,
@@ -113,7 +132,16 @@ export default function SEOLandingPage({ config }) {
     url: `${SITE_URL}/${slug}`,
     image: `${SITE_URL}/downloads/cnc-garage-builders.png`,
     imageAlt: `${keyword} on Crafters Market`,
-    ogType: "website",
+    // iter411d — Switched from "website" → "article" so Pinterest
+    // renders these as Article Rich Pins (auto-formatted pin cards
+    // with title + description + section + favicon). These pages are
+    // genuinely article-grade content — ~400 words of intro + 2
+    // bodyExtras H2 sections + 4 FAQs each. Pinterest is the #1
+    // discovery channel for handmade goods (jewelry, pottery, leather)
+    // so eligible Rich Pins directly unlock free organic traffic.
+    ogType: "article",
+    articleAuthor: "Crafters Market",
+    articleSection: keyword,
     jsonLd: {
       "@context": "https://schema.org",
       "@graph": graphParts,
