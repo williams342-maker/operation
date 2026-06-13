@@ -69,6 +69,12 @@ SMOKE_FILES = {
     # ── iter412 AI SEO Growth Agent ─────────────────────────────────
     "test_iter412_seo_agent.py",                 # admin auth + scan + queue lifecycle
 
+    # ── iter413k regression — Plus-required 403 contract ────────────
+    # Pins the structured-error response shape for
+    # GET /api/maker/analytics/plus so the frontend's upsell gate never
+    # silently breaks (prod bug 2026-02-13).
+    "test_iter413k_plus_required_contract.py",
+
     # ── Contrast lint contract (semantic theme tokens) ──────────────
     "test_contrast_lint.py",
 }
