@@ -572,3 +572,28 @@ html.admin-compact [data-testid="admin-dashboard"] .gap-6 { gap: 1rem !important
 html.admin-compact [data-testid="admin-dashboard"] .gap-4 { gap: 0.5rem !important; }
 html.admin-compact [data-testid="admin-dashboard"] .space-y-6 > * + * { margin-top: 0.875rem !important; }
 html.admin-compact [data-testid="admin-dashboard"] .space-y-4 > * + * { margin-top: 0.5rem !important; }
+
+
+/* iter410 — Theme toggle "new feature" hint bubble. A small floating
+ * bubble with an upward arrow that points at the sun/moon icon. Animates
+ * in with a fade + nudge, then idles with a gentle bob so it draws the
+ * eye without being aggressive. Dismisses on toggle press or X click;
+ * persisted in localStorage. */
+@keyframes theme-hint-enter {
+    0%   { opacity: 0; transform: translateY(-6px); }
+    100% { opacity: 1; transform: translateY(0); }
+}
+@keyframes theme-hint-bob {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(3px); }
+}
+.theme-hint-bubble {
+    animation:
+        theme-hint-enter 0.35s ease-out,
+        theme-hint-bob 2.4s ease-in-out 0.35s infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+    .theme-hint-bubble {
+        animation: theme-hint-enter 0.35s ease-out;
+    }
+}
