@@ -19,9 +19,9 @@ const ASPECT_PRESETS = [
 export default function ImageCropModal({
   src, onCancel, onConfirm,
   defaultAspect = 4 / 5,
-  outputMaxEdge = 1600,        // matches MakerListingEditor compression target
+  outputMaxEdge = 2048,        // retina-friendly; matches NewListingModal
   outputMime = "image/webp",
-  outputQuality = 0.86,
+  outputQuality = 0.92,
 }) {
   const [aspect, setAspect] = useState(defaultAspect);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
@@ -298,6 +298,10 @@ async function renderCroppedDataUrl({ src, areaPx, rotation, outputMaxEdge, outp
   const big = document.createElement("canvas");
   big.width = bigW; big.height = bigH;
   const bx = big.getContext("2d");
+  // High-quality resampling on rotation pass — keeps the source crisp
+  // before we sample the cropped region.
+  bx.imageSmoothingEnabled = true;
+  bx.imageSmoothingQuality = "high";
   bx.translate(bigW / 2, bigH / 2);
   bx.rotate(radians);
   bx.drawImage(img, -img.width / 2, -img.height / 2);
@@ -309,19 +313,24 @@ async function renderCroppedDataUrl({ src, areaPx, rotation, outputMaxEdge, outp
   const scale = targetW / areaPx.width;
   out.width = Math.round(areaPx.width * scale);
   out.height = Math.round(areaPx.height * scale);
-  out.getContext("2d").drawImage(
+  const ox = out.getContext("2d");
+  ox.imageSmoothingEnabled = true;
+  ox.imageSmoothingQuality = "high";
+  ox.drawImage(
     big,
     areaPx.x, areaPx.y, areaPx.width, areaPx.height,
     0, 0, out.width, out.height,
   );
-  // Adaptive quality to stay under 130 KB
+  // Adaptive quality: was 130 KB which forced q down to ~0.4 (visible
+  // banding). 500 KB lets WebP keep near-lossless quality on photos while
+  // staying CDN-friendly. Floor at 0.6 — anything below that is muddy.
   let q = outputQuality;
   let dataUrl = out.toDataURL(outputMime, q);
   if (!dataUrl.startsWith(`data:${outputMime}`)) {
     dataUrl = out.toDataURL("image/jpeg", q);
   }
-  while (dataUrl.length / 1024 > 130 && q > 0.4) {
-    q -= 0.12;
+  while (dataUrl.length / 1024 > 500 && q > 0.6) {
+    q -= 0.08;
     dataUrl = out.toDataURL(outputMime, q);
     if (!dataUrl.startsWith(`data:${outputMime}`)) {
       dataUrl = out.toDataURL("image/jpeg", q);

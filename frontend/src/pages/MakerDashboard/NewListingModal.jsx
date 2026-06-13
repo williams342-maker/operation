@@ -4,8 +4,13 @@ import { LabeledField } from "./_shared";
 import { CATEGORIES } from "../MakerListingEditor/constants";
 
 const TECHNIQUES = ["PLASMA", "LASER", "ROUTER", "CUSTOM"];
-const MAX_IMG_W = 1600;
-const MAX_IMG_KB = 130;       // target after compression
+// Retina-friendly: 2048px longest edge looks crisp on 2x/3x displays even
+// after the browser downscales for tile rendering.
+const MAX_IMG_W = 2048;
+// Was 130 KB which forced quality down to ~0.4–0.5 (visible banding + soft
+// detail). 500 KB lets WebP keep its native quality on photo-rich uploads
+// while staying CDN-friendly.
+const MAX_IMG_KB = 500;
 const MAX_IMAGES = 8;
 
 /**
@@ -28,20 +33,26 @@ function compressImageToDataUrl(file) {
         canvas.width = w;
         canvas.height = h;
         const ctx = canvas.getContext("2d");
+        // High-quality resampling (Lanczos-grade in Chrome/Safari/Firefox)
+        // — the difference vs default bilinear is dramatic on photos.
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
         ctx.drawImage(img, 0, 0, w, h);
 
         const tryEncode = (mime, q) => canvas.toDataURL(mime, q);
         let mime = "image/webp";
-        let dataUrl = tryEncode(mime, 0.86);
+        // Start higher — 0.92 is visually lossless for WebP on photos.
+        let q = 0.92;
+        let dataUrl = tryEncode(mime, q);
         // toDataURL falls back to PNG silently when the mime is unsupported.
         if (!dataUrl.startsWith(`data:${mime}`)) {
           mime = "image/jpeg";
-          dataUrl = tryEncode(mime, 0.86);
+          dataUrl = tryEncode(mime, q);
         }
-        // Step quality down if still too large
-        let q = 0.86;
-        while (dataUrl.length / 1024 > MAX_IMG_KB && q > 0.4) {
-          q -= 0.12;
+        // Step quality down if still too large. Floor at 0.6 — anything
+        // below that introduces visible artifacts.
+        while (dataUrl.length / 1024 > MAX_IMG_KB && q > 0.6) {
+          q -= 0.08;
           dataUrl = tryEncode(mime, q);
         }
         resolve(dataUrl);
