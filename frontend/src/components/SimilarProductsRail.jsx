@@ -59,7 +59,8 @@ export default function SimilarProductsRail({ slug, testId = "similar-products-r
                   <img
                     src={p.images?.[0]}
                     alt={p.title}
-                    className="absolute inset-0 w-full h-full object-cover media-img group-hover:scale-105 transition duration-700"
+                    /* iter413b — no `media-img`: real product photo */
+                    className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition duration-700"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
                   {p.featured_example && (

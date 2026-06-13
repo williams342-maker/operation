@@ -55,7 +55,12 @@ export default function ProductCard({ p, i = 0 }) {
             // from iter299 testing). Browsers accept both; this just
             // silences the dev console warning without changing behavior.
             fetchPriority={i === 0 ? "high" : "auto"}
-            className="absolute inset-0 w-full h-full object-cover media-img"
+            // iter413b — REMOVED `media-img` (grayscale 0.4 at rest).
+            // Card thumbnails on browse/shop are real product photos —
+            // buyers comparison-shop by color, so editorial desat is
+            // actively hurting decisions. Editorial desat remains on
+            // maker covers / journal heroes / category collage.
+            className="absolute inset-0 w-full h-full object-cover"
             whileHover={{ scale: 1.06 }}
             transition={{ duration: 0.9 }}
           />

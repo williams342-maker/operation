@@ -59,7 +59,8 @@ export default function ProductRail({ title, eyebrow, category, technique, featu
             >
               <Link to={`/shop/${p.slug}`} className="block" onClick={() => trackPricingLabelClick(p.slug)}>
                 <div className="relative aspect-[4/5] overflow-hidden">
-                  <img src={p.images?.[0]} alt={p.title} className="absolute inset-0 w-full h-full object-cover media-img hover:scale-105 transition duration-700" />
+                  {/* iter413b — no `media-img`: real product photo on a rail */}
+                  <img src={p.images?.[0]} alt={p.title} className="absolute inset-0 w-full h-full object-cover hover:scale-105 transition duration-700" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
                   <span className="tag absolute top-3 left-3 text-brand border-brand">{p.technique}</span>
                   <div className="absolute bottom-3 right-3 w-9 h-9 border border-white/40 hover:bg-brand hover:border-brand transition flex items-center justify-center">
