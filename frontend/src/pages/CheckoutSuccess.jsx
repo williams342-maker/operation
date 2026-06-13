@@ -4,6 +4,14 @@ import { getCheckoutStatus, communityRequestMagic, subscribeNewsletter } from ".
 import { useCart } from "../lib/cart";
 import { uetTrack } from "../lib/consent";
 import PushOptInCard from "../components/PushOptInCard";
+import { SocialShareRow } from "../components/SocialShareButtons";
+
+// iter413f — Brand share image for Pinterest (uses the same OG image
+// referenced in /public/index.html so Pinterest's preview matches the
+// link-unfurl). Pinterest *requires* a media URL — without it the
+// share intent silently no-ops.
+const SHARE_BRAND_MEDIA =
+  "https://craftersmarket.org/downloads/cnc-garage-builders.png";
 
 export default function CheckoutSuccess() {
   const [params] = useSearchParams();
@@ -206,6 +214,38 @@ export default function CheckoutSuccess() {
 
       {paid && (
         <PushOptInCard role="buyer" email={state.customer_email || null} />
+      )}
+
+      {/* iter413f — Post-purchase social share prompt. The order
+          confirmation is the highest-intent share moment: the buyer
+          just completed a checkout, so they're already emotionally
+          bought into the brand. Pinterest first (#1 handmade-discovery
+          channel), then Twitter/X + Facebook for parity. We share the
+          shop landing page — not the receipt URL — so anyone clicking
+          the pin lands on a discoverable, conversion-friendly page. */}
+      {paid && (
+        <div
+          className="max-w-lg mx-auto border border-line p-6 mb-10 text-left"
+          data-testid="success-social-share-card"
+        >
+          <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-brand mb-2">
+            ◆ Share the craft
+          </div>
+          <p className="font-mono text-xs text-ink-muted leading-relaxed mb-4">
+            Help an independent maker — share your find. Pinterest pins
+            keep ranking for years and bring in new collectors long after
+            you post.
+          </p>
+          <SocialShareRow
+            url={`${window.location.origin}/shop`}
+            media={SHARE_BRAND_MEDIA}
+            description="Handmade goods from independent American makers — woodworking, pottery, jewelry, leather, and fiber."
+            twitterText="Just picked up something handmade from Crafters Market — independent American makers shipping direct."
+            size="md"
+            source="checkout_success"
+            testIdPrefix="success-share"
+          />
+        </div>
       )}
 
       {paid && (
