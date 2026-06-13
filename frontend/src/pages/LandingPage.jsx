@@ -21,7 +21,7 @@ export default function LandingPage() {
   useStructuredData({
     title: "Stop Paying Fees. Start Owning Your Craft. · Crafters Market",
     description:
-      "A marketplace built for CNC creators, woodworkers, and makers who are done with Etsy. Keep more of every sale. Built by makers, for makers. Free beta access open now.",
+      "A marketplace built for woodworkers, potters, jewelers, leatherworkers, fiber artists, and CNC makers who are done with Etsy. Keep more of every sale. Built by makers, for makers. Free beta access open now.",
     url: "https://craftersmarket.org/launch",
     image: "https://craftersmarket.org/downloads/cnc-garage-builders.png",
   });
