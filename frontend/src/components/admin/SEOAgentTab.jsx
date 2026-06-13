@@ -574,6 +574,47 @@ export default function SEOAgentTab() {
 
   const clearSelection = () => setSelected(new Set());
 
+  // iter413h — Keyboard shortcuts on the Queue tab. Bound at the
+  // document level but bails when focus is in an editable field so
+  // typing in admin search/forms is never hijacked. Active only when
+  // the Queue + Pending sub-tab is visible.
+  //   • Shift + A   → Approve all safe
+  //   • ⌘/Ctrl + A → Select every pending row on page (overrides
+  //                  browser native select-all while in this view)
+  //   • Esc         → Clear selection
+  useEffect(() => {
+    if (active !== "queue" || queueStatus !== "pending") return undefined;
+    const isEditable = (el) => {
+      if (!el) return false;
+      if (el.isContentEditable) return true;
+      const tag = (el.tagName || "").toUpperCase();
+      return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+    };
+    const onKey = (e) => {
+      if (bulkBusy) return;
+      if (isEditable(e.target)) return;
+      // Shift+A — approve all safe. Plain `a` would clobber too much.
+      if (e.key === "A" && e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault();
+        bulkApprove({ all_safe: true }, "Approved all safe (alt text + empty meta)");
+        return;
+      }
+      // ⌘/Ctrl + A — select all on page (override browser native).
+      if ((e.metaKey || e.ctrlKey) && (e.key === "a" || e.key === "A")) {
+        e.preventDefault();
+        selectAllOnPage(queue);
+        return;
+      }
+      if (e.key === "Escape" && selected.size > 0) {
+        e.preventDefault();
+        clearSelection();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, queueStatus, queue, selected.size, bulkBusy]);
+
   const bulkApprove = async (payload, successMsg) => {
     setBulkBusy(true);
     try {
@@ -1052,8 +1093,15 @@ export default function SEOAgentTab() {
                     Clear
                   </button>
                 )}
-                <span className="ml-auto text-xs text-ink-muted">
-                  <strong className="text-ink">Safe</strong> = additive only (alt text · empty meta) — never overwrites human copy.
+                <span className="ml-auto text-xs text-ink-muted flex items-center gap-2 flex-wrap">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.18em] border border-line px-2 py-0.5 inline-flex items-center gap-1" data-testid="seo-agent-bulk-shortcuts-hint">
+                    <span className="text-ink">⇧A</span> safe ·
+                    <span className="text-ink">⌘A</span> all ·
+                    <span className="text-ink">esc</span> clear
+                  </span>
+                  <span>
+                    <strong className="text-ink">Safe</strong> = additive only (alt text · empty meta) — never overwrites human copy.
+                  </span>
                 </span>
               </div>
             );
