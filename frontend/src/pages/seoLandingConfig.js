@@ -1106,6 +1106,317 @@ export const SEO_LANDING_PAGES = {
     ctaLabel: "Browse handmade textiles",
     ctaHref: "/shop?category=Fiber%20%26%20Textiles",
   },
+
+  // ── iter411b — Buyer-intent variants of the new craft categories ───
+  // The category landing pages above target browse queries ("handmade
+  // pottery"); these target high-intent purchase queries with a specific
+  // product type ("handmade mugs", "leather wallets"). Each is narrower
+  // but converts harder because the searcher already knows what they
+  // want to buy.
+  "handmade-mugs": {
+    slug: "handmade-mugs",
+    keyword: "Handmade Mugs",
+    eyebrow: "Curated · Handmade Mugs",
+    h1: "Handmade Mugs from American Potters.",
+    intro:
+      "Wheel-thrown stoneware and porcelain mugs from vetted American potters. Every mug is shaped, glazed, and fired in an independent studio — coffee, tea, and morning ritual upgrades you'll keep for years.",
+    paragraphs: [
+      "A handmade mug is the daily-use object that earns the most affection per dollar in your kitchen. Our potters throw each mug on the wheel, pull the handle by hand (no slip-cast, no extruded handles), trim the foot, and glaze each piece individually. The result is a mug with a real weight, a balanced handle, and a glaze that develops a patina over thousands of washes.",
+      "Filter by capacity (espresso, 10 oz, 12 oz, 14 oz tankard), by glaze (matte black, celadon, raw stoneware, copper red, salt-fired orange peel), or by potter. Most mugs ship in 1-2 weeks; sets of 2, 4, or 6 take a bit longer because the potter matches each piece in the same firing cycle.",
+    ],
+    bodyExtras: [
+      {
+        heading: "What a good handmade mug feels like",
+        paragraphs: [
+          "Pick it up. The handle should feel balanced when the mug is full — not too small, not too far from the body. The lip should be smooth enough that you don't notice it on every sip. The base should sit flat without rocking. And the weight should feel substantial without being heavy. Those four things separate a serious potter's work from beginner-grade.",
+          "Glaze pooling at the bottom interior is normal — that's where the glaze runs slightly during the firing, and it's a signature of real wheel-thrown work. Skin-thin walls feel elegant; thicker walls keep your coffee hot longer. Pick your priority.",
+        ],
+      },
+      {
+        heading: "Daily use, dishwasher, microwave",
+        paragraphs: [
+          "Stoneware mugs are dishwasher- and microwave-safe by default. Porcelain mugs are too, though gold or silver luster bands aren't (skip the microwave on those). Hand-washing extends the glaze's life by years but isn't required for daily-use stoneware.",
+          "Avoid thermal shock — don't pull a mug out of the freezer and pour boiling water in. Don't take a hot mug straight onto a cold marble counter. Stoneware handles a lot, but the one thing it doesn't like is fast temperature swings.",
+        ],
+      },
+    ],
+    faqs: [
+      {
+        q: "How much coffee does a handmade mug hold?",
+        a: "Most everyday mugs run 10-14 oz. Espresso cups are 3-5 oz. Tankards and 'big morning' mugs go 16-20 oz. Each listing states the exact capacity (filled to the rim and a safe pour line — usually about 1 oz below the rim).",
+      },
+      {
+        q: "Are these dishwasher-safe?",
+        a: "Yes — all stoneware and porcelain mugs are dishwasher-safe. The exception is any mug with a gold or silver luster band (those are hand-wash). Each listing labels this clearly.",
+      },
+      {
+        q: "Can I get a matched set?",
+        a: "Yes — most potters offer sets of 2, 4, or 6 fired in the same batch so the glaze tone matches as closely as possible. Slight variation is the signature of handmade work, but a matched set will be far closer than ordering individual mugs at different times.",
+      },
+      {
+        q: "Will the mug I receive look exactly like the photos?",
+        a: "Close, but not identical. Each mug is glazed and fired individually, so the glaze can pool slightly differently, the handle can sit at a slightly different angle, and the wheel marks vary. That's the trade for real wheel-thrown work — every mug is a single object, not a SKU.",
+      },
+    ],
+    relatedLinks: [
+      { to: "/handmade-pottery", label: "Handmade Pottery", blurb: "All pottery — vases, bowls, planters, dinnerware." },
+      { to: "/handmade-jewelry", label: "Handmade Jewelry", blurb: "Sterling silver, gold-fill, and stone-set pieces." },
+      { to: "/wedding-gifts", label: "Wedding Gifts", blurb: "Curated registry pieces and one-of-a-kind sets." },
+      { to: "/handmade-gifts-for-dad", label: "Handmade Gifts for Dad", blurb: "Coffee, whiskey, and shop pieces for him." },
+      { to: "/artisan-marketplace", label: "Artisan Marketplace", blurb: "The full curated marketplace of vetted makers." },
+      { to: "/how-custom-orders-work", label: "How Custom Orders Work", blurb: "5-step brief-to-shipping flow." },
+    ],
+    match: (p) =>
+      /mug|cup|tumbler|tankard|espresso|coffee|tea/i.test(`${p.title} ${p.description}`)
+      && /pottery|ceramic|stoneware|porcelain|clay|glaze|wheel/i
+        .test(`${p.title} ${p.description} ${(p.materials || []).join(" ")} ${p.category}`),
+    ctaLabel: "Browse handmade mugs",
+    ctaHref: "/shop?q=mug",
+  },
+
+  "handmade-quilts": {
+    slug: "handmade-quilts",
+    keyword: "Handmade Quilts",
+    eyebrow: "Curated · Handmade Quilts",
+    h1: "Handmade Quilts from American Makers.",
+    intro:
+      "Hand-pieced and hand-quilted blankets, throws, and heirloom quilts from vetted American quilters. Wedding quilts, memorial quilts, baby quilts, and one-of-a-kind throws — all stitched in independent studios.",
+    paragraphs: [
+      "A handmade quilt is the longest-running craft project most makers ever take on — 80-150 hours of cutting, piecing, basting, and stitching for a queen-size piece. The result is an object that's typically passed down through generations: cotton, linen, and natural-fiber blends, traditional and modern patterns, and finishing by hand or with traditional treadle machines.",
+      "Filter by size (baby, throw, twin, queen, king), by style (traditional patchwork, modern improvisational, log cabin, double wedding ring, memorial t-shirt), or by quilter. Most in-stock pieces ship in 1-2 weeks; commissioned heirloom quilts (memorial quilts using a loved-one's clothing, wedding quilts, baby-name quilts) typically run 6-16 weeks.",
+    ],
+    bodyExtras: [
+      {
+        heading: "Fabric, batting, and what to look for",
+        paragraphs: [
+          "Quilt-shop cotton (Moda, Robert Kaufman, Art Gallery) is the standard for the top — colorfast, soft, and built to survive decades of washing. Linen, voile, and lawn show up in lighter summer quilts. The backing is usually wide-format cotton or a soft flannel for warmth.",
+          "Batting (the middle layer) determines the quilt's weight and warmth. Cotton batting is dense and drapes heavy — traditional. Wool batting is warm without weight — modern. Bamboo batting is lightweight and breathable — great for summer pieces. Each listing tells you which.",
+        ],
+      },
+      {
+        heading: "Hand-quilted vs. machine-quilted",
+        paragraphs: [
+          "Hand-quilted means the quilting stitches (the lines holding all three layers together) were sewn with a needle, by hand. It takes 60-100 hours on a queen-size quilt and is the most heirloom-grade finishing. Machine-quilted means the quilting was done on a domestic or long-arm machine — still hand-guided by the maker, but much faster. Both are legitimate; each listing labels which approach the quilter used.",
+          "Look for binding (the strip around the edge) that's stitched down by hand on the back — it's the small detail that separates a real heirloom from a quilt finished in a rush.",
+        ],
+      },
+    ],
+    faqs: [
+      {
+        q: "Can I commission a quilt from a loved-one's clothing?",
+        a: "Yes — memorial quilts from t-shirts, button-downs, and clothing of someone you've lost are one of the most-ordered custom commissions. Ship the clothing to the quilter (most accept 20-40 pieces for a throw or twin-size), describe your color preferences and any specific shirts you want featured, and the quilter designs a layout for your approval before cutting. Typical lead time: 8-16 weeks.",
+      },
+      {
+        q: "How do I wash a quilt?",
+        a: "Cold-water gentle cycle in a front-load washer, with a mild detergent (no bleach, no fabric softener). Tumble low or — even better — lay flat to dry. Avoid wringing or twisting. A well-made quilt survives hundreds of washes; the colors will mellow over decades but the structure will hold.",
+      },
+      {
+        q: "What sizes do quilts come in?",
+        a: "Baby (36x48), throw (50x65), twin (68x88), queen (88x96), king (108x96). Custom sizes are available for daybeds, RV bunks, and oversized king beds — just specify in the brief.",
+      },
+      {
+        q: "Are these heirloom quality or daily-use?",
+        a: "Both. A well-made handmade quilt is daily-use durable AND heirloom quality — that's the point. Your great-grandkids will use the quilt you order today if you wash it gently and rotate it with another piece. Each quilter labels whether their piece is built for everyday use or display-only.",
+      },
+    ],
+    relatedLinks: [
+      { to: "/handmade-textiles", label: "Handmade Textiles", blurb: "Handwoven blankets, scarves, and fiber art." },
+      { to: "/wedding-gifts", label: "Wedding Gifts", blurb: "Heirloom registry gifts and one-of-a-kind sets." },
+      { to: "/memorial-pieces", label: "Memorial Pieces", blurb: "Custom keepsakes honoring loved ones." },
+      { to: "/personalized-gifts", label: "Personalized Gifts", blurb: "Embroidered, monogrammed, and named pieces." },
+      { to: "/artisan-marketplace", label: "Artisan Marketplace", blurb: "The full curated marketplace of vetted makers." },
+      { to: "/how-custom-orders-work", label: "How Custom Orders Work", blurb: "5-step brief-to-shipping flow." },
+    ],
+    match: (p) =>
+      /quilt|patchwork|coverlet|throw|blanket|comforter/i
+        .test(`${p.title} ${p.description} ${(p.materials || []).join(" ")}`)
+      || p.category === "Fiber & Textiles",
+    ctaLabel: "Browse handmade quilts",
+    ctaHref: "/shop?q=quilt",
+  },
+
+  "handmade-rings": {
+    slug: "handmade-rings",
+    keyword: "Handmade Rings",
+    eyebrow: "Curated · Handmade Rings",
+    h1: "Handmade Rings from Independent Jewelers.",
+    intro:
+      "Sterling silver, gold-fill, solid gold, and one-of-a-kind statement rings from vetted American jewelers. Engagement rings, signet rings, stacking bands, raw-stone rings, and made-to-order pieces — every ring fabricated by hand in an independent studio.",
+    paragraphs: [
+      "Handmade rings have weight, texture, and detail that retail-store rings can't fake — the hammer marks on a forged silver band, the bezel set by hand around a one-of-a-kind stone, the inside of the shank polished smooth so it sits comfortably for 18 hours a day. Our jewelers cut, forge, solder, and stone-set in their own studios.",
+      "Filter by metal (sterling silver, 14k gold-fill, 14k solid gold, 18k solid gold), by style (signet, band, statement, stacking, engagement), by stone (none, raw, faceted), or by jeweler. Most in-stock rings ship in 1-2 weeks; custom and made-to-measure (engagement, signet engraving, custom stone setting) typically run 3-8 weeks.",
+    ],
+    bodyExtras: [
+      {
+        heading: "Sterling silver, gold-fill, solid gold — which to order",
+        paragraphs: [
+          "Sterling silver (.925) is the everyday workhorse — durable, repairable, develops a patina you can polish back. Best for everyday rings and statement pieces under $400. Gold-fill is a heavy bonded layer of real 14k gold over a brass core — lasts 10-20 years of daily wear without revealing the base metal. Best for stacking bands and statement rings under $250.",
+          "Solid 14k or 18k gold is for the lifetime pieces — engagement rings, signets that pass down, wedding bands. 14k is harder and more scratch-resistant; 18k is softer but has a richer color. Choose 14k for daily wear and 18k for occasion pieces.",
+        ],
+      },
+      {
+        heading: "Stone setting and what lasts",
+        paragraphs: [
+          "Bezel setting (a metal rim around the stone) is the strongest, most heirloom-grade type. The stone is fully protected — no exposed edges to nick, no prongs to catch on sweaters, no annual jeweler visits for re-tipping. The trade is that the bezel hides slightly more of the stone than a prong setting does.",
+          "Prong setting (4- or 6-prong claw) puts more of the stone on display but needs maintenance — re-tipping every 5-10 years so the stone doesn't pop. Most of our jewelers offer both; bezel is the long-term recommendation for engagement and signet pieces, prong for statement rings where you want the stone to show.",
+        ],
+      },
+    ],
+    faqs: [
+      {
+        q: "How do I know my ring size?",
+        a: "Order a $5 plastic sizer from Amazon or visit a local jeweler — they'll measure for free. Or send the inside-diameter measurement of a ring that already fits the same finger. Most jewelers can adjust by half a size in their workshop; full-size or larger adjustments may take a couple weeks.",
+      },
+      {
+        q: "Can I commission a custom engagement ring?",
+        a: "Yes — most jewelers accept commissions. Submit a brief with metal, stone preference (or 'jeweler's choice' for one-of-a-kind), size, and budget. Most jewelers send sketches or CAD renderings for approval before cutting. Custom engagement rings typically run 4-8 weeks from brief to shipping.",
+      },
+      {
+        q: "What if the ring doesn't fit when it arrives?",
+        a: "Most jewelers offer free first-resize on rings they made, within 60-90 days of delivery. After that, resizing runs $20-60 depending on the metal and how many sizes up or down. Each jeweler's policy is on their profile page.",
+      },
+      {
+        q: "How do I care for a handmade ring?",
+        a: "Polish with a soft polishing cloth (most jewelers ship one with the ring). For sterling silver, a quick polish brings back the shine — patina is normal and many love it. For gold, polish with a soft cloth or buff lightly. Avoid harsh chemicals (bleach, chlorine, drain cleaner) and take the ring off before gym, dishes, or beach.",
+      },
+    ],
+    relatedLinks: [
+      { to: "/handmade-jewelry", label: "Handmade Jewelry", blurb: "Necklaces, earrings, cuffs, and full jewelry catalog." },
+      { to: "/wedding-gifts", label: "Wedding Gifts", blurb: "Heirloom gifts and registry pieces." },
+      { to: "/personalized-gifts", label: "Personalized Gifts", blurb: "All custom and monogrammed pieces." },
+      { to: "/leather-goods", label: "Leather Goods", blurb: "Hand-stitched wallets and accessories." },
+      { to: "/artisan-marketplace", label: "Artisan Marketplace", blurb: "The full curated marketplace of vetted makers." },
+      { to: "/how-custom-orders-work", label: "How Custom Orders Work", blurb: "5-step brief-to-shipping flow." },
+    ],
+    match: (p) =>
+      /ring|band|signet|engagement|wedding band|stacker/i
+        .test(`${p.title} ${p.description}`)
+      && /silver|gold|brass|copper|bronze|jewel|metal/i
+        .test(`${p.title} ${p.description} ${(p.materials || []).join(" ")} ${p.category}`),
+    ctaLabel: "Browse handmade rings",
+    ctaHref: "/shop?q=ring",
+  },
+
+  "leather-wallets": {
+    slug: "leather-wallets",
+    keyword: "Leather Wallets",
+    eyebrow: "Curated · Leather Wallets",
+    h1: "Handmade Leather Wallets from American Workshops.",
+    intro:
+      "Hand-stitched bifold, cardholder, long-wallet, and zip-around leather wallets from vetted American leatherworkers. Full-grain Horween chromexcel, Wickett & Craig bridle, and Hermann Oak saddle leather — every wallet cut, edged, stitched, and burnished by hand.",
+    paragraphs: [
+      "A handmade leather wallet is the everyday-carry object that pays you back most. Spend $80-180 once on a hand-stitched full-grain wallet and it lasts 15-30 years, developing a patina the whole time. Spend the same on a synthetic or top-grain retail wallet and it's in the trash inside 3 years.",
+      "Filter by style (bifold, slim cardholder, long wallet, zip-around, money clip), by leather (Horween chromexcel, English bridle, vegetable-tanned, shell cordovan), or by maker. Most in-stock wallets ship in 1-2 weeks; custom monogrammed wallets and made-to-order styles typically take 2-4 weeks.",
+    ],
+    bodyExtras: [
+      {
+        heading: "Full-grain leather and why it matters",
+        paragraphs: [
+          "Full-grain leather is the top layer of the hide, with the natural grain still intact. It's the strongest, most durable layer, and the only leather that develops a real patina over years. 'Top-grain' (sanded) and 'genuine leather' (laminated scraps) are both downgrades — avoid them. Every wallet on Crafters Market is full-grain unless explicitly labeled otherwise.",
+          "Our leatherworkers source from Horween Chicago (chromexcel — soft, fast patina), Wickett & Craig (English bridle — firm, slow patina, dressier), and Hermann Oak (saddle skirting — heavy-duty, slowest patina). When the listing says 'Horween chromexcel,' it's actually Horween — we verify supplier invoices during vetting.",
+        ],
+      },
+      {
+        heading: "Hand-stitching, edges, and the details that matter",
+        paragraphs: [
+          "Saddle-stitching by hand uses two needles and a single waxed thread, pulled tight on each pass. Each stitch is independent — if one breaks, the others stay locked. Machine-stitched seams use chain-stitch construction, which unravels if a single thread breaks. For a wallet that gets pulled in and out of a pocket thousands of times a year, hand-stitching is the difference between a wallet that lasts and one that doesn't.",
+          "Look at the edges. A great wallet has edges that are sanded, beveled, then burnished (rubbed smooth with wax and friction) to a polished round. A cheap wallet has raw cut edges, painted edges, or edges that are starting to delaminate before you've used it. Our makers burnish every edge; you'll feel the difference the moment you hold one.",
+        ],
+      },
+    ],
+    faqs: [
+      {
+        q: "How long will a handmade leather wallet last?",
+        a: "A well-made full-grain leather wallet lasts 15-30 years with normal daily-carry use. The leather softens, the patina deepens, and the wallet only gets better-looking. Eventually the stitching at high-stress corners may need a re-stitch — most leatherworkers offer free first-year repairs and reasonable repair fees after that. Many wallets are essentially indestructible if conditioned every 3-6 months.",
+      },
+      {
+        q: "What's the difference between a slim cardholder and a bifold?",
+        a: "Slim cardholders hold 4-8 cards and folded cash in a slim front-pocket profile (1/4 inch thick). Bifolds hold 6-12 cards plus a cash sleeve in a traditional back-pocket profile (1/2 inch thick when full). Long wallets and zip-arounds hold full-length bills flat and add interior coin pockets — back-pocket size, but everything inside lies flat for easy access.",
+      },
+      {
+        q: "Can I get a monogrammed wallet?",
+        a: "Yes — most leatherworkers offer hand-stamped or laser-engraved monograms in 2-4 character initials. Embossed text (1-3 lines, usually a name + date or a short phrase) is also available. Add custom monogram to the order notes and the maker confirms placement before stitching.",
+      },
+      {
+        q: "How do I take care of a leather wallet?",
+        a: "Condition with a wax-based leather conditioner (Saphir, Smith's, Pecard's) every 3-6 months. Wipe down with a dry cloth weekly. Avoid soaking it (rain is fine; dropping in a puddle is not — pat dry, air dry away from heat). Conditioned full-grain lasts decades; neglected leather cracks at the fold lines inside 5-7 years.",
+      },
+    ],
+    relatedLinks: [
+      { to: "/leather-goods", label: "Leather Goods", blurb: "All leather — belts, bags, journals, accessories." },
+      { to: "/handmade-jewelry", label: "Handmade Jewelry", blurb: "Sterling silver, gold-fill, and stone-set pieces." },
+      { to: "/handmade-gifts-for-dad", label: "Handmade Gifts for Dad", blurb: "Engraved tools, wallets, and shop pieces." },
+      { to: "/personalized-gifts", label: "Personalized Gifts", blurb: "Monogrammed and custom-made gift pieces." },
+      { to: "/artisan-marketplace", label: "Artisan Marketplace", blurb: "The full curated marketplace of vetted makers." },
+      { to: "/how-custom-orders-work", label: "How Custom Orders Work", blurb: "5-step brief-to-shipping flow." },
+    ],
+    match: (p) =>
+      /wallet|cardholder|bifold|money clip|card case/i
+        .test(`${p.title} ${p.description}`)
+      || (p.category === "Leather Goods" && /wallet/i.test(p.title || "")),
+    ctaLabel: "Browse leather wallets",
+    ctaHref: "/shop?q=wallet",
+  },
+
+  "wood-cutting-boards": {
+    slug: "wood-cutting-boards",
+    keyword: "Wood Cutting Boards",
+    eyebrow: "Curated · Wood Cutting Boards",
+    h1: "Handmade Wood Cutting Boards.",
+    intro:
+      "Solid hardwood cutting and serving boards — walnut, white oak, cherry, maple, end-grain butcher blocks, and engraved wedding boards from vetted American woodworkers. Built to last 30+ years with simple care.",
+    paragraphs: [
+      "A real hardwood cutting board is the kitchen workhorse that quietly outlasts every other tool in the drawer. Our woodworkers cut from solid domestic hardwoods (no MDF, no bamboo composite, no glued-up scraps), finish with food-safe mineral oil and beeswax, and burn or engrave personalization on request.",
+      "Filter by species (walnut, maple, white oak, cherry, hickory), by construction (edge-grain, end-grain butcher block, juice-groove), by use (daily prep, serving/charcuterie, butcher), or by maker. Most in-stock boards ship in 1-2 weeks; custom engraved boards and butcher-block commissions typically take 2-4 weeks.",
+    ],
+    bodyExtras: [
+      {
+        heading: "Edge-grain vs. end-grain",
+        paragraphs: [
+          "Edge-grain boards (long planks bonded side-to-side) are lighter, more affordable, and showcase the wood's flowing grain pattern. Engraving stays crisp because the wood fibers are oriented horizontal to the surface. These are the standard for serving boards, charcuterie, and gift pieces.",
+          "End-grain boards (small hardwood squares bonded face-up so the cut grain shows on top) are the chef's-knife standard — knife edges slip between the wood fibers instead of slicing them, so the board self-heals and keeps your knives sharp longer. Heavier, pricier, and the engraving sits on top of a checkerboard grain pattern instead of a flowing one. Choose based on whether the board is for daily cooking (end-grain) or for serving and display (edge-grain).",
+        ],
+      },
+      {
+        heading: "Hardwoods worth ordering",
+        paragraphs: [
+          "Walnut is the showstopper — dark chocolate grain, engraves with high contrast, naturally resists staining. Maple is the chef's standard — pale, dense, easy on knife edges, neutral against any food color. Cherry develops a deeper red patina with sunlight. White oak is the most water-resistant domestic hardwood and is ideal for boards that see heavy use.",
+          "Skip exotic species (bamboo, teak, padauk) for engraved boards — they engrave with poor contrast, react with food acids, and lack the look-and-feel that makes the board land as a gift. Domestic hardwoods are better in every way.",
+        ],
+      },
+    ],
+    faqs: [
+      {
+        q: "Can I get a board with a family name or date engraved?",
+        a: "Yes — this is the most-ordered customization. Standard layout is last name on top in larger script, established date below in smaller serif. Many makers also offer monogram-in-a-wreath, vintage banner art, or your own custom artwork. Send the maker your preferred font and layout in the order notes.",
+      },
+      {
+        q: "How do I take care of a wood cutting board?",
+        a: "Wash by hand with mild soap and warm water (never in the dishwasher — the heat warps the wood). Towel dry immediately. Re-oil every 1-3 months with food-grade mineral oil, then top with beeswax conditioner. Properly maintained, a hardwood board lasts 30+ years and looks better the longer you have it.",
+      },
+      {
+        q: "Is laser-engraved wood food-safe?",
+        a: "Yes — the laser carbonizes a thin layer of wood without introducing any chemicals. Finished with food-grade mineral oil and beeswax (both NSF-certified for direct food contact), the board is safe for raw meat, vegetables, bread, and cheese.",
+      },
+      {
+        q: "What size board should I order?",
+        a: "12x18 is the gift-standard sweet spot — large enough for charcuterie or multi-course prep, small enough for most counters. For couples who entertain heavily, jump to 14x20. For everyday-use kitchens, 10x14 is more practical. End-grain butcher-block versions add weight and price but last indefinitely.",
+      },
+    ],
+    relatedLinks: [
+      { to: "/engraved-cutting-boards", label: "Engraved Cutting Boards", blurb: "Personalized hardwood cutting and serving boards." },
+      { to: "/handmade-woodworking", label: "Handmade Woodworking", blurb: "Hardwood furniture, signs, and kitchenware." },
+      { to: "/wedding-gifts", label: "Wedding Gifts", blurb: "Engraved wedding-name boards and keepsakes." },
+      { to: "/handmade-gifts-for-dad", label: "Handmade Gifts for Dad", blurb: "Engraved tools, whiskey glasses, and shop pieces." },
+      { to: "/personalized-gifts", label: "Personalized Gifts", blurb: "Monogrammed and custom-made gift pieces." },
+      { to: "/how-custom-orders-work", label: "How Custom Orders Work", blurb: "5-step brief-to-shipping flow." },
+    ],
+    match: (p) =>
+      /cutting board|charcuterie|serving board|butcher block/i
+        .test(`${p.title} ${p.description}`),
+    ctaLabel: "Browse wood cutting boards",
+    ctaHref: "/shop?q=cutting+board",
+  },
 };
 
 /** Slug list for sitemap consumers — keep in sync with the keys above. */

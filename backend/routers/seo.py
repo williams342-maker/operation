@@ -37,6 +37,11 @@ SEO_LANDING_SLUGS: tuple[str, ...] = (
     # craft categories so Google indexes the marketplace beyond CNC/metal.
     "handmade-woodworking", "handmade-pottery", "handmade-jewelry",
     "leather-goods", "handmade-textiles",
+    # iter411b — Buyer-intent variants of the new craft categories.
+    # Narrower than the category pages above but convert harder because
+    # the searcher already knows the specific product type.
+    "handmade-mugs", "handmade-quilts", "handmade-rings",
+    "leather-wallets", "wood-cutting-boards",
 )
 SEO_LANDING_PATHS: tuple[str, ...] = tuple(f"/{s}" for s in SEO_LANDING_SLUGS)
 
@@ -127,6 +132,13 @@ async def sitemap_xml(http_request: Request):
         ("/handmade-jewelry",     "weekly", "0.85"),
         ("/leather-goods",        "weekly", "0.85"),
         ("/handmade-textiles",    "weekly", "0.85"),
+        # iter411b — Buyer-intent variants. Slightly higher priority
+        # because each targets a high-conversion search phrase.
+        ("/handmade-mugs",       "weekly", "0.88"),
+        ("/handmade-quilts",     "weekly", "0.88"),
+        ("/handmade-rings",      "weekly", "0.88"),
+        ("/leather-wallets",     "weekly", "0.88"),
+        ("/wood-cutting-boards", "weekly", "0.88"),
         # Phase-3 SEO hub (iter300) — content page bridging landing
         # pages to the /custom-order form. High priority because it
         # converts informational searches into commission briefs.

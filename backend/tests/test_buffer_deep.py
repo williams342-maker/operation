@@ -1,5 +1,9 @@
 """Buffer deep tests: text-only fan-out (no image_url) + idempotency.
-These actually POST to Buffer — keep small and rare."""
+These actually POST to Buffer — keep small and rare.
+
+iter411c — Buffer integration was removed from the backend. Skipped at
+the module level until/unless social-publishing ships again.
+"""
 import os
 import sys
 import time
@@ -7,6 +11,10 @@ import uuid
 import asyncio
 import pytest
 import requests
+
+pytestmark = pytest.mark.skip(
+    reason="Buffer integration removed; re-enable when social publishing ships again."
+)
 
 sys.path.insert(0, "/app/backend")
 # Strip stray quotes from inherited env (supervisor passes literal quotes)

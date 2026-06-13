@@ -1,4 +1,8 @@
-"""Crafters Market backend tests — products, makers, activity, custom orders, maker-applications, Stripe checkout."""
+"""Crafters Market backend tests — products, makers, activity, custom orders, maker-applications, Stripe checkout.
+
+iter411c — Auto-tagged `smoke` via conftest.py SMOKE_FILES so the
+pre-deploy CI gate (`pytest -m smoke`) runs these flows.
+"""
 import os, time, requests, pytest
 
 BASE = os.environ.get("REACT_APP_BACKEND_URL", "https://active-project-4.preview.emergentagent.com").rstrip("/")
@@ -42,7 +46,10 @@ def test_activity(s):
 def test_custom_order(s):
     payload = {"name": "TEST_Buyer", "email": "TEST_buyer@example.com",
                "project_type": "Custom Sign", "material": "Steel",
-               "size": "24x12", "budget": "$200", "description": "TEST custom order"}
+               "size": "24x12", "budget": "$200", "description": "TEST custom order",
+               # iter411c — Site Policies acceptance is now required on
+               # /api/custom-orders (see routers/catalog.py).
+               "policy_accepted": True}
     r = s.post(f"{API}/custom-orders", json=payload)
     assert r.status_code == 200, r.text
     d = r.json()
@@ -63,7 +70,10 @@ def session_id(s):
     p = s.get(f"{API}/products/mountain-range-silhouette").json()
     pid = p["id"]
     payload = {"items": [{"product_id": pid, "quantity": 1}],
-               "origin_url": BASE}
+               "origin_url": BASE,
+               # iter411c — Site Policies acceptance is required on
+               # /api/checkout/session (see routers/checkout.py).
+               "policy_accepted": True}
     r = s.post(f"{API}/checkout/session", json=payload)
     assert r.status_code == 200, r.text
     body = r.json()

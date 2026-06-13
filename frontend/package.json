@@ -64,7 +64,9 @@
     "start": "craco start",
     "build": "craco build",
     "test": "craco test",
-    "lint:contrast": "node scripts/lint-contrast.js"
+    "lint:contrast": "node scripts/lint-contrast.js",
+    "test:smoke": "cd ../backend && python -m pytest -m smoke -q",
+    "predeploy": "yarn lint:contrast && yarn test:smoke"
   },
   "browserslist": {
     "production": [
