@@ -178,3 +178,64 @@ def test_recommendations_requires_admin():
 def test_history_requires_admin():
     r = requests.get(f"{API}/admin/seo-agent/history", timeout=10)
     assert r.status_code in (401, 403)
+
+
+# iter413c — Pillar 3 Authority + Autopilot mode
+def test_authority_pillar_surfaces_issues(headers):
+    """Scan should produce authority-pillar issues for makers with
+    incomplete profiles + the new authority recommendations."""
+    r = requests.post(f"{API}/admin/seo-agent/scan/run", headers=headers, timeout=180)
+    assert r.status_code == 200, r.text
+    run = r.json()
+    # Authority count is exposed in counts and used by the scoring
+    assert "authority" in run["counts"]
+    # Bundled issues include the new pillar
+    auth_kinds = {i["kind"] for i in run["issues"] if i["pillar"] == "authority"}
+    assert auth_kinds  # at least one authority kind present
+    # Authority recommendations grouped + ranked
+    auth_recs = [r for r in run["recommendations"]
+                 if r["kind"].startswith("maker_") or r["kind"] == "landing_thin_relations"]
+    for rec in auth_recs:
+        assert rec["affected_count"] > 0
+
+
+def test_config_endpoints_round_trip(headers):
+    """GET returns current mode + valid modes + low-risk whitelist.
+    POST persists. Re-read confirms."""
+    r = requests.get(f"{API}/admin/seo-agent/config", headers=headers, timeout=15)
+    assert r.status_code == 200
+    d = r.json()
+    assert d["mode"] in ("observe", "assist", "approve", "autopilot")
+    assert set(d["valid_modes"]) == {"observe", "assist", "approve", "autopilot"}
+    assert "missing_alt_text" in d["autopilot_low_risk_kinds"]
+
+    # Flip to assist then back to approve — confirm persistence
+    for mode in ("assist", "approve"):
+        r = requests.post(f"{API}/admin/seo-agent/config", headers=headers,
+                          json={"mode": mode}, timeout=15)
+        assert r.status_code == 200, r.text
+        assert r.json()["mode"] == mode
+        r = requests.get(f"{API}/admin/seo-agent/config", headers=headers, timeout=15)
+        assert r.json()["mode"] == mode
+
+
+def test_config_rejects_invalid_mode(headers):
+    r = requests.post(f"{API}/admin/seo-agent/config", headers=headers,
+                      json={"mode": "self-destruct"}, timeout=15)
+    assert r.status_code == 400
+
+
+def test_config_requires_admin():
+    r = requests.get(f"{API}/admin/seo-agent/config", timeout=10)
+    assert r.status_code in (401, 403)
+    r = requests.post(f"{API}/admin/seo-agent/config",
+                      json={"mode": "assist"}, timeout=10)
+    assert r.status_code in (401, 403)
+
+
+def test_overview_exposes_mode(headers):
+    """The Overview endpoint must return the current mode so the
+    frontend selector can highlight the active option."""
+    r = requests.get(f"{API}/admin/seo-agent/overview", headers=headers, timeout=15)
+    assert r.status_code == 200
+    assert "mode" in r.json()

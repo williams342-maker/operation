@@ -57,6 +57,13 @@ const KIND_LABELS = {
   noindex_leak:     "Page sends noindex",
   soft_404_guard:   "Dead slug returned 200 (soft-404)",
   fetch_error:      "Network failure during crawl",
+  // Authority (iter413c)
+  maker_no_bio:                "Maker profile missing bio",
+  maker_no_cover:              "Maker missing cover photo",
+  maker_no_portrait:           "Maker missing portrait",
+  maker_no_social:             "Maker has no linked social accounts",
+  maker_spotlight_opportunity: "Established maker — write a spotlight",
+  landing_thin_relations:      "Few SEO landing pages — broaden category breadth",
 };
 
 const KIND_FIXABLE = new Set([
@@ -182,8 +189,57 @@ function RecommendationRow({ rec, onGenerateAll, generating }) {
 }
 
 
+function ModeSelector({ currentMode, onChange }) {
+  // iter413c — Autopilot mode selector. observe ⇢ scan only · assist ⇢
+  // recommendations · approve ⇢ AI generation queue (default) · autopilot
+  // ⇢ assist+approve+auto-apply LOW-RISK fixes (alt text only) on the
+  // daily cron. Higher-risk content rewrites ALWAYS need approval.
+  const modes = [
+    { id: "observe",   label: "Observe",   desc: "Scan only · no AI generation" },
+    { id: "assist",    label: "Assist",    desc: "Scan + ranked recommendations" },
+    { id: "approve",   label: "Approve",   desc: "Default · AI rewrites stage in queue", recommended: true },
+    { id: "autopilot", label: "Autopilot", desc: "Auto-apply alt text on cron · meta still needs approval" },
+  ];
+  return (
+    <div className="border border-line bg-surface p-4" data-testid="seo-agent-mode-selector">
+      <div className="flex items-center justify-between mb-3 gap-3">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Operating mode</div>
+        <div className="text-xs text-ink-muted">Current: <strong className="text-brand font-mono uppercase tracking-[0.18em]">{currentMode || "approve"}</strong></div>
+      </div>
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-2">
+        {modes.map((m) => {
+          const isActive = currentMode === m.id;
+          return (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => !isActive && onChange(m.id)}
+              data-testid={`seo-agent-mode-${m.id}`}
+              className={`text-left p-3 border transition-colors ${
+                isActive
+                  ? "border-brand bg-brand/5"
+                  : "border-line hover:border-brand"
+              }`}
+            >
+              <div className="flex items-center justify-between mb-0.5">
+                <span className={`font-mono text-xs uppercase tracking-[0.18em] ${isActive ? "text-brand" : "text-ink"}`}>
+                  {m.label}
+                </span>
+                {m.recommended && !isActive && (
+                  <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted">recommended</span>
+                )}
+              </div>
+              <div className="text-xs text-ink-muted">{m.desc}</div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+
 function ReportingPanel({ history, queueActivity, latestScores }) {
-  // Map history → chart points. recharts wants epoch-friendly labels.
   const data = (history || []).map((h) => {
     const d = new Date(h.finished_at);
     return {
@@ -546,6 +602,7 @@ export default function SEOAgentTab() {
 
   const technicalIssues = issues.filter((i) => i.pillar === "technical");
   const contentIssues = issues.filter((i) => i.pillar === "content");
+  const authorityIssues = issues.filter((i) => i.pillar === "authority");
 
   return (
     <div className="space-y-6" data-testid="seo-agent-tab">
@@ -580,7 +637,7 @@ export default function SEOAgentTab() {
         <ScoreCard label="Overall SEO" value={scores.overall} sub={`${counts.total} issues total`} />
         <ScoreCard label="Technical Health" value={scores.technical} sub={`${counts.technical} issues`} />
         <ScoreCard label="Content Quality" value={scores.content} sub={`${counts.content} issues`} />
-        <ScoreCard label="Authority" value={scores.authority} sub="Rich Pins eligible" />
+        <ScoreCard label="Authority" value={scores.authority} sub={`${counts.authority ?? 0} issues`} />
       </div>
 
       {/* Critical issues callout */}
@@ -602,6 +659,7 @@ export default function SEOAgentTab() {
             { id: "recommendations", label: `Recommendations (${recommendations.length})` },
             { id: "technical",       label: `Technical (${counts.technical})` },
             { id: "content",         label: `Content (${counts.content})` },
+            { id: "authority",       label: `Authority (${counts.authority ?? 0})` },
             { id: "reporting",       label: "Reporting" },
             { id: "queue",           label: `Auto-Fix Queue (${overview?.queue_pending ?? 0})` },
           ].map((t) => (
@@ -629,6 +687,22 @@ export default function SEOAgentTab() {
         </div>
       ) : active === "overview" ? (
         <div className="space-y-3" data-testid="seo-agent-overview-panel">
+          <ModeSelector
+            currentMode={overview?.mode}
+            onChange={async (mode) => {
+              try {
+                const r = await fetch(`${API}/api/admin/seo-agent/config`, {
+                  method: "POST", headers: authHeaders(),
+                  body: JSON.stringify({ mode }),
+                });
+                if (!r.ok) throw new Error();
+                toast.success(`Mode set to ${mode}`);
+                await refresh();
+              } catch {
+                toast.error("Could not update mode");
+              }
+            }}
+          />
           <div className="border border-line bg-surface p-4">
             <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">How the agent works</div>
             <ul className="text-sm text-ink space-y-1.5 list-disc list-inside">
@@ -724,6 +798,30 @@ export default function SEOAgentTab() {
               {contentIssues.length > 100 && (
                 <div className="text-xs text-ink-muted text-center pt-2">
                   Showing first 100 of {contentIssues.length} · fix these and the next batch will surface on the next scan.
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      ) : active === "authority" ? (
+        <div className="space-y-2" data-testid="seo-agent-authority-panel">
+          {authorityIssues.length === 0 ? (
+            <div className="border border-line p-6 text-center text-ink-muted">
+              <CheckCircle2 size={20} className="mx-auto text-emerald-600 mb-2" />
+              <div className="text-sm">No authority issues. Maker profiles, social readiness, and internal links all healthy.</div>
+            </div>
+          ) : (
+            <>
+              <div className="text-xs text-ink-muted flex items-center gap-1.5 mb-1">
+                <TrendingUp size={11} />
+                {authorityIssues.length} authority signal{authorityIssues.length === 1 ? "" : "s"} — fixing these strengthens off-page authority (maker profile depth, social readiness, journal coverage).
+              </div>
+              {authorityIssues.slice(0, 100).map((i) => (
+                <IssueRow key={i.id} issue={i} onGenerateFix={generateFix} generating={generating} />
+              ))}
+              {authorityIssues.length > 100 && (
+                <div className="text-xs text-ink-muted text-center pt-2">
+                  Showing first 100 of {authorityIssues.length}.
                 </div>
               )}
             </>

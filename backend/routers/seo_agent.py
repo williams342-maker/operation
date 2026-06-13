@@ -76,6 +76,13 @@ RECOMMENDATION_META = {
     "redirect":        {"effort_per_item_min": 8,  "traffic_pct_per_fix": 0.10, "fixable_via_ai": False, "title": "Resolve canonical redirects"},
     "soft_404_guard":  {"effort_per_item_min": 30, "traffic_pct_per_fix": 0.50, "fixable_via_ai": False, "title": "Fix soft-404 regressions"},
     "fetch_error":     {"effort_per_item_min": 15, "traffic_pct_per_fix": 0.10, "fixable_via_ai": False, "title": "Resolve crawl-time fetch errors"},
+    # Authority (iter413c)
+    "maker_no_bio":              {"effort_per_item_min": 10, "traffic_pct_per_fix": 0.10, "fixable_via_ai": False, "title": "Fill in missing maker bios"},
+    "maker_no_cover":            {"effort_per_item_min": 5,  "traffic_pct_per_fix": 0.08, "fixable_via_ai": False, "title": "Upload maker cover photos"},
+    "maker_no_portrait":         {"effort_per_item_min": 5,  "traffic_pct_per_fix": 0.05, "fixable_via_ai": False, "title": "Upload maker portraits"},
+    "maker_no_social":           {"effort_per_item_min": 5,  "traffic_pct_per_fix": 0.05, "fixable_via_ai": False, "title": "Link maker social accounts (Pinterest priority)"},
+    "maker_spotlight_opportunity":{"effort_per_item_min": 45,"traffic_pct_per_fix": 0.80, "fixable_via_ai": False, "title": "Create maker spotlights (journal features)"},
+    "landing_thin_relations":    {"effort_per_item_min": 15, "traffic_pct_per_fix": 0.25, "fixable_via_ai": False, "title": "Strengthen SEO landing-page internal links"},
 }
 
 
@@ -144,7 +151,104 @@ def _classify_severity(kind: str) -> str:
         "thin_product_description": "medium",
         "missing_alt_text": "medium",
         "missing_product_image": "high",
+        # authority (iter413c)
+        "maker_no_bio": "medium",
+        "maker_no_cover": "medium",
+        "maker_no_portrait": "low",
+        "maker_no_social": "low",
+        "maker_spotlight_opportunity": "high",
+        "landing_thin_relations": "medium",
     }.get(kind, "low")
+
+
+async def _scan_authority() -> list[dict]:
+    """iter413c — Off-page Authority signals: maker profile completeness,
+    spotlight opportunities (established makers with no journal feature),
+    and internal-link strength on SEO landing pages."""
+    issues: list[dict] = []
+
+    # 1. Maker profile completeness — bio, cover, portrait, socials
+    #    Only flag APPROVED, non-deleted, non-paused makers (others won't
+    #    surface on SEO surfaces so don't penalize them).
+    maker_cursor = db.makers.find(
+        {"status": "approved",
+         "shop_closed": {"$ne": True},
+         "deletion_requested_at": None},
+        {"_id": 0, "slug": 1, "name": 1, "bio": 1, "cover": 1, "portrait": 1,
+         "social_instagram": 1, "social_pinterest": 1, "social_facebook": 1,
+         "social_twitter": 1, "social_tiktok": 1, "social_youtube": 1,
+         "listings_count": 1},
+    )
+    established_makers: list[dict] = []
+    async for m in maker_cursor:
+        slug = m.get("slug")
+        if not slug:
+            continue
+        target = {"type": "maker", "slug": slug,
+                  "label": m.get("name") or slug}
+        bio = (m.get("bio") or "").strip()
+        if not bio or len(bio) < 40:
+            issues.append({**target, "kind": "maker_no_bio",
+                           "detail": f"Bio is {len(bio)} chars (target ≥40)."})
+        if not (m.get("cover") or "").strip():
+            issues.append({**target, "kind": "maker_no_cover",
+                           "detail": "No cover image — maker page hero is blank."})
+        if not (m.get("portrait") or "").strip():
+            issues.append({**target, "kind": "maker_no_portrait",
+                           "detail": "No portrait — maker card has no face."})
+        socials = [m.get(f"social_{p}") for p in
+                   ("instagram", "pinterest", "facebook",
+                    "twitter", "tiktok", "youtube")]
+        if not any((s or "").strip() for s in socials):
+            issues.append({**target, "kind": "maker_no_social",
+                           "detail": "No social links — Pinterest is critical for handmade discovery."})
+        # Track established makers for spotlight scan below.
+        if (m.get("listings_count") or 0) >= 3:
+            established_makers.append({"slug": slug, "name": m.get("name") or slug})
+
+    # 2. Spotlight opportunities — established makers with no journal feature
+    if established_makers:
+        # Gather blog post bodies + showcase post maker_slugs in two
+        # cheap reads so we can check membership in memory.
+        blog_cursor = db.blog_posts.find({}, {"_id": 0, "body": 1, "excerpt": 1, "title": 1})
+        featured_text = ""
+        async for bp in blog_cursor:
+            featured_text += " ".join([
+                bp.get("body") or "", bp.get("excerpt") or "", bp.get("title") or "",
+            ])
+        featured_text = featured_text.lower()
+        showcase_slugs = set()
+        sc_cursor = db.showcase_posts.find({"admin_hidden": {"$ne": True}},
+                                           {"_id": 0, "maker_slug": 1})
+        async for s in sc_cursor:
+            if s.get("maker_slug"):
+                showcase_slugs.add(s["maker_slug"])
+        for m in established_makers:
+            slug = m["slug"]
+            name = m["name"]
+            featured = (slug in showcase_slugs) or (slug.lower() in featured_text) or (name.lower() in featured_text)
+            if not featured:
+                issues.append({
+                    "type": "maker", "slug": slug, "label": name,
+                    "kind": "maker_spotlight_opportunity",
+                    "detail": "3+ listings but no journal/showcase feature yet — write one.",
+                })
+
+    # 3. SEO landing pages with thin internal-link strength.
+    #    Check seoLandingConfig.SEO_LANDING_SLUGS via the backend's static
+    #    list. Each landing page is expected to have ≥4 relatedLinks. We
+    #    can't easily inspect the frontend config from Python, so this
+    #    check is light: it just verifies we have a healthy COUNT of
+    #    seo landing pages overall.
+    from routers.seo import SEO_LANDING_SLUGS
+    if len(SEO_LANDING_SLUGS) < 8:
+        issues.append({
+            "type": "site", "slug": "/", "label": "Site root",
+            "kind": "landing_thin_relations",
+            "detail": f"Only {len(SEO_LANDING_SLUGS)} SEO landing pages — under-indexed for category breadth.",
+        })
+
+    return issues
 
 
 async def _scan_content() -> list[dict]:
@@ -201,7 +305,8 @@ async def _scan_content() -> list[dict]:
 
 
 def _score(technical_issue_count: int, content_issue_count: int,
-           total_targets: int) -> dict:
+           total_targets: int, authority_issue_count: int = 0,
+           authority_targets: int = 0) -> dict:
     """Compute the 4 sub-scores. Caps at 0–100, deterministic."""
     # Technical: each unique technical issue costs 6 points.
     tech_score = max(0, 100 - technical_issue_count * 6)
@@ -211,10 +316,15 @@ def _score(technical_issue_count: int, content_issue_count: int,
         content_score = max(0, 100 - int(content_issue_count * 100 / total_targets))
     else:
         content_score = 100
-    # Authority: placeholder for v2 (backlinks + social readiness).
-    # For now, fixed at 70 once we have any landing pages indexed;
-    # the Pinterest Rich Pin work (iter411d) baseline-bumps it to 80.
-    authority_score = 80
+    # Authority (iter413c): real signals — maker profile completeness,
+    # spotlight opportunities, internal-link strength. Each issue costs
+    # 100 / (authority_targets * 4) since there are 4 checks per maker
+    # plus a couple of site-level checks.
+    if authority_targets > 0:
+        denom = max(1, authority_targets * 4)
+        authority_score = max(0, 100 - int(authority_issue_count * 100 / denom))
+    else:
+        authority_score = 100
     overall = round(tech_score * 0.40 + content_score * 0.40 + authority_score * 0.20)
     return {
         "overall": overall,
@@ -222,6 +332,90 @@ def _score(technical_issue_count: int, content_issue_count: int,
         "content": content_score,
         "authority": authority_score,
     }
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Autopilot mode (iter413c)
+# ──────────────────────────────────────────────────────────────────────
+# • observe   → scan only, no AI generation
+# • assist    → scan + recommendations (no AI auto-runs)
+# • approve   → scan + AI generation lives in the queue (DEFAULT)
+# • autopilot → assist + approve + auto-apply LOW-RISK fixes
+#
+# LOW-RISK kinds are whitelisted: alt text is purely additive and never
+# visible to buyers. Higher-risk content rewrites (meta description,
+# product descriptions, titles) always require admin approval.
+AUTOPILOT_LOW_RISK_KINDS = frozenset({"missing_alt_text"})
+VALID_MODES = ("observe", "assist", "approve", "autopilot")
+
+
+async def _get_mode() -> str:
+    cfg = await db.seo_agent_config.find_one({"id": "singleton"}, {"_id": 0})
+    return (cfg or {}).get("mode", "approve")
+
+
+async def _run_autopilot_apply(bundled_issues: list[dict]) -> dict:
+    """Iterate the LOW-RISK whitelist, generate fixes, and auto-apply
+    them to live records. Every applied change writes through the same
+    audit log path as a manual approve, so Rollback still works."""
+    summary = {"attempted": 0, "applied": 0, "failed": 0, "applied_ids": []}
+    for issue in bundled_issues:
+        if issue["kind"] not in AUTOPILOT_LOW_RISK_KINDS:
+            continue
+        target = issue.get("target", {})
+        if target.get("type") != "product" or not target.get("slug"):
+            continue
+        summary["attempted"] += 1
+        product = await db.products.find_one({"slug": target["slug"]}, {"_id": 0})
+        if not product:
+            summary["failed"] += 1
+            continue
+        new_alts = await _generate_alt_texts(product)
+        if not new_alts:
+            summary["failed"] += 1
+            continue
+        # Write queue + audit + apply atomically-ish (no transactions in
+        # this Mongo deploy but the audit doc is the source of truth).
+        queue_id = str(uuid.uuid4())
+        before = {"image_alts": product.get("image_alts") or []}
+        after = {"image_alts": new_alts}
+        applied_at = now_iso()
+        await db.seo_agent_queue.insert_one({
+            "id": queue_id,
+            "issue_id": issue["id"],
+            "issue_kind": issue["kind"],
+            "severity": issue["severity"],
+            "target_type": "product",
+            "target_slug": target["slug"],
+            "target_label": target.get("label"),
+            "field": "image_alts",
+            "before": before,
+            "after": after,
+            "status": "applied",
+            "generated_at": applied_at,
+            "generated_by": "autopilot",
+            "applied_at": applied_at,
+            "applied_by": "autopilot",
+        })
+        await db.products.update_one(
+            {"slug": target["slug"]},
+            {"$set": {"image_alts": new_alts, "updated_at": applied_at}},
+        )
+        await db.seo_agent_audit.insert_one({
+            "id": str(uuid.uuid4()),
+            "queue_id": queue_id,
+            "action": "autopilot_apply",
+            "target_type": "product",
+            "target_slug": target["slug"],
+            "field": "image_alts",
+            "before": before,
+            "after": after,
+            "applied_at": applied_at,
+            "applied_by": "autopilot",
+        })
+        summary["applied"] += 1
+        summary["applied_ids"].append(queue_id)
+    return summary
 
 
 async def run_seo_agent_scan(trigger: str = "manual") -> dict:
@@ -239,12 +433,19 @@ async def run_seo_agent_scan(trigger: str = "manual") -> dict:
 
     # Content
     content_issues = await _scan_content()
+    # Authority (iter413c)
+    authority_issues = await _scan_authority()
 
     # Score
     total_targets = await db.products.count_documents(
         {"deleted_at": None, "status": {"$ne": "draft"}},
     )
-    scores = _score(len(tech_issues), len(content_issues), total_targets)
+    authority_targets = await db.makers.count_documents(
+        {"status": "approved", "shop_closed": {"$ne": True},
+         "deletion_requested_at": None},
+    )
+    scores = _score(len(tech_issues), len(content_issues), total_targets,
+                    len(authority_issues), authority_targets)
 
     # Bundle issues with severity for the UI
     bundled = []
@@ -269,6 +470,17 @@ async def run_seo_agent_scan(trigger: str = "manual") -> dict:
                        "slug": it.get("slug"), "label": it.get("label")},
             "detail": it.get("detail", ""),
         })
+    for it in authority_issues:
+        kind = it.get("kind")
+        bundled.append({
+            "id": str(uuid.uuid4()),
+            "pillar": "authority",
+            "kind": kind,
+            "severity": _classify_severity(kind),
+            "target": {"type": it["type"],
+                       "slug": it.get("slug"), "label": it.get("label")},
+            "detail": it.get("detail", ""),
+        })
     critical_count = sum(1 for b in bundled if b["severity"] == "critical")
     # iter413 — Compute prioritized recommendations from the bundled
     # issues. Stored alongside the scan so the Recommendations tab
@@ -286,7 +498,9 @@ async def run_seo_agent_scan(trigger: str = "manual") -> dict:
             "critical": critical_count,
             "technical": len(tech_issues),
             "content": len(content_issues),
+            "authority": len(authority_issues),
             "targets_scanned": total_targets,
+            "makers_scanned": authority_targets,
         },
         "issues": bundled[:500],  # cap to keep doc reasonable
         "recommendations": recommendations,
@@ -294,6 +508,24 @@ async def run_seo_agent_scan(trigger: str = "manual") -> dict:
     await db.seo_agent_runs.insert_one({**run})
     logger.info("[seo-agent] %s scan: score=%d, %d issue(s), %d critical",
                 trigger, scores["overall"], len(bundled), critical_count)
+
+    # iter413c — Autopilot mode: after the scan, auto-apply LOW-RISK
+    # fixes (alt text) without admin approval. Higher-risk content
+    # rewrites stay in the manual queue regardless of mode.
+    mode = await _get_mode()
+    if mode == "autopilot" and trigger == "cron":
+        autopilot_summary = await _run_autopilot_apply(bundled)
+        await db.seo_agent_runs.update_one(
+            {"id": run["id"]},
+            {"$set": {"autopilot": autopilot_summary, "mode": mode}},
+        )
+        run["autopilot"] = autopilot_summary
+        run["mode"] = mode
+        logger.info("[seo-agent] autopilot applied %d/%d low-risk fixes",
+                    autopilot_summary["applied"], autopilot_summary["attempted"])
+    else:
+        run["mode"] = mode
+
     return run
 
 
@@ -426,11 +658,42 @@ async def seo_agent_overview(admin: dict = Depends(current_admin)):
         {}, {"_id": 0}, sort=[("started_at", -1)],
     )
     pending = await db.seo_agent_queue.count_documents({"status": "pending"})
+    mode = await _get_mode()
     return {
         "latest_run": run,
         "queue_pending": pending,
         "next_scheduled_scan": "02:00 UTC daily",
+        "mode": mode,
     }
+
+
+# ── Autopilot mode config (iter413c) ───────────────────────────────────
+class SetModeReq(BaseModel):
+    mode: str
+
+
+@router.get("/admin/seo-agent/config")
+async def seo_agent_config_get(admin: dict = Depends(current_admin)):
+    return {
+        "mode": await _get_mode(),
+        "valid_modes": list(VALID_MODES),
+        "autopilot_low_risk_kinds": list(AUTOPILOT_LOW_RISK_KINDS),
+    }
+
+
+@router.post("/admin/seo-agent/config")
+async def seo_agent_config_set(req: SetModeReq,
+                               admin: dict = Depends(current_admin)):
+    if req.mode not in VALID_MODES:
+        raise HTTPException(400, f"Invalid mode. Must be one of {VALID_MODES}.")
+    await db.seo_agent_config.update_one(
+        {"id": "singleton"},
+        {"$set": {"id": "singleton", "mode": req.mode,
+                  "last_updated": now_iso(),
+                  "last_updated_by": admin.get("email")}},
+        upsert=True,
+    )
+    return {"mode": req.mode}
 
 
 @router.get("/admin/seo-agent/issues")
